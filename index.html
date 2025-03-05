@@ -44,6 +44,19 @@
             font-size: 12px;
             color: #ccc;
         }
+        /* Stile per l'icona di GitHub */
+        #githubIcon {
+            position: fixed;
+            bottom: 5px;
+            left: 10px;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        #githubIcon:hover {
+            transform: scale(1.2);
+        }
     </style>
 </head>
 <body>
@@ -56,8 +69,11 @@
     <!-- Elemento per mostrare la versione dell'app -->
     <p id="appVersion">AyPi v...</p>
 
+    <!-- Icona di GitHub -->
+    <img src="assets/app-icon.png" alt="GitHub" id="githubIcon">
+
     <script>
-        const { ipcRenderer } = require("electron");
+        const { ipcRenderer, shell } = require("electron");
 
         // Recupera la versione dell'app dal processo principale
         ipcRenderer.invoke("get-app-version").then(version => {
@@ -82,6 +98,11 @@
         });
         document.getElementById("openFile4").addEventListener("click", () => {
             ipcRenderer.send("open-file", filePaths[3]);
+        });
+
+        // Apri il link di GitHub nel browser predefinito
+        document.getElementById("githubIcon").addEventListener("click", () => {
+            shell.openExternal("https://github.com/AGPress-Tech/AyPi");
         });
     </script>
 </body>

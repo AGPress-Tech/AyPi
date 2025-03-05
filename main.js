@@ -24,6 +24,8 @@ app.whenReady().then(() => {
 
     mainWindow.loadFile("index.html");
 
+    mainWindow.setMenu(null);
+
     // Controlla gli aggiornamenti all'avvio
     autoUpdater.checkForUpdatesAndNotify();
 });
