@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            background-color: #332f2b;
+            color: white;
+            text-align: center;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #CC930E;
+            font-size: 32px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #CC930E;
+            color: #332f2b;
+            border: none;
+            border-radius: 8px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        button:hover {
+            background-color: #8C6D34; 
+            transform: scale(1.05); 
+        }
+        button:focus {
+            outline: none;
+        }
+        /* Stile per la versione in basso a destra */
+        #appVersion {
+            position: fixed;
+            bottom: 5px;
+            right: 10px;
+            font-size: 12px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h2>Seleziona il modulo AyPi desiderato!</h2>
+    <button id="openFile1">Ticket Support</button>
+    <button id="openFile2">Valutazione Fornitori</button>
+    <button id="openFile3">Gestione Manutenzioni</button>
+    <button id="openFile4">Utensili e Attrezzature</button>
+
+    <!-- Elemento per mostrare la versione dell'app -->
+    <p id="appVersion">AyPi v...</p>
+
+    <script>
+        const { ipcRenderer } = require("electron");
+
+        // Recupera la versione dell'app dal processo principale
+        ipcRenderer.invoke("get-app-version").then(version => {
+            document.getElementById("appVersion").textContent = `AyPi v${version}`;
+        });
+
+        const filePaths = [
+            "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Ticket Support\\AyPi - Ticket Support.accdb",
+            "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Valutazione Fornitori\\AyPi - Valutazione Fornitori.accdb",
+            "\\\\Dl360\\pubbliche\\QUALITA'\\MANUTENZIONI MACCHINE\\AyPi - Manutenzione Macchine.accdb",
+            "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Gestione Utensili e Attrezzature\\AyPi - Gestione Utensili e Attrezzature.accdb",
+        ];
+
+        document.getElementById("openFile1").addEventListener("click", () => {
+            ipcRenderer.send("open-file", filePaths[0]);
+        });
+        document.getElementById("openFile2").addEventListener("click", () => {
+            ipcRenderer.send("open-file", filePaths[1]);
+        });
+        document.getElementById("openFile3").addEventListener("click", () => {
+            ipcRenderer.send("open-file", filePaths[2]);
+        });
+        document.getElementById("openFile4").addEventListener("click", () => {
+            ipcRenderer.send("open-file", filePaths[3]);
+        });
+    </script>
+</body>
+</html>
