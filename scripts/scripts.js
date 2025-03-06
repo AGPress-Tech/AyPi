@@ -1,6 +1,5 @@
 const { ipcRenderer, shell } = require("electron");
 
-//Recupera la versione dell'app
 ipcRenderer.invoke("get-app-version").then((version) => {
     document.getElementById("appVersion").textContent = `AyPi v${version}`;
 });
