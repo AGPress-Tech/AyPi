@@ -13,7 +13,7 @@ autoUpdater.logger = log;
 app.whenReady().then(() => {
     mainWindow = new BrowserWindow({
         width: 650,
-        height: 550,
+        height: 530,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -21,7 +21,7 @@ app.whenReady().then(() => {
         icon: path.join(__dirname, 'assets', 'app-icon.png')
     });
 
-    mainWindow.loadFile("index.html");
+    mainWindow.loadFile("./pages/moduli.html");
 
     mainWindow.setMenu(null);
 

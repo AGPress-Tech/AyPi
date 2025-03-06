@@ -12,23 +12,14 @@ const filePaths = [
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Gestione Utensili e Attrezzature\\AyPi - Gestione Utensili e Attrezzature.accdb",
 ];
 
-document.getElementById("openFile1").addEventListener("click", () => {
-    ipcRenderer.send("open-file", filePaths[0]);
+const buttons = ["openTicket", "openFornitori", "openManutenzioni", "openUtensili"];
+
+buttons.forEach((id, index) => {
+    document.getElementById(id).addEventListener("click", () => {
+        ipcRenderer.send("open-file", filePaths[index]);
+    });
 });
 
-document.getElementById("openFile2").addEventListener("click", () => {
-    ipcRenderer.send("open-file", filePaths[1]);
-});
-
-document.getElementById("openFile3").addEventListener("click", () => {
-    ipcRenderer.send("open-file", filePaths[2]);
-});
-
-document.getElementById("openFile4").addEventListener("click", () => {
-    ipcRenderer.send("open-file", filePaths[3]);
-});
-
-//Apri il link di GitHub
 document.getElementById("githubIcon").addEventListener("click", () => {
     shell.openExternal("https://github.com/AGPress-Tech/AyPi");
 });
