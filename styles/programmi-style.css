@@ -50,7 +50,9 @@ button:focus {
 }
 
 #githubIcon {
-    bottom: 5px;
+    position: fixed;
+    bottom: 9px;
+    right: 75px;
     width: 30px;
     height: 30px;
     cursor: pointer;
