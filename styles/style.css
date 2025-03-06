@@ -38,7 +38,7 @@ button:hover {
 button:focus {
     outline: none;
 }
-/* Stile per la versione in basso a destra */
+
 #appVersion {
     position: fixed;
     bottom: 5px;
@@ -46,7 +46,7 @@ button:focus {
     font-size: 12px;
     color: #ccc;
 }
-/* Stile per l'icona di GitHub */
+
 #githubIcon {
     bottom: 5px;
     width: 30px;
@@ -54,6 +54,7 @@ button:focus {
     cursor: pointer;
     transition: transform 0.4s ease;
 }
+
 #githubIcon:hover {
     transform: scale(1.2);
 }

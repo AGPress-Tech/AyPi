@@ -1,6 +1,6 @@
 const { ipcRenderer, shell } = require("electron");
 
-        // Recupera la versione dell'app dal processo principale
+        //Recupera la versione dell'app
         ipcRenderer.invoke("get-app-version").then(version => {
             document.getElementById("appVersion").textContent = `AyPi v${version}`;
         });
@@ -25,7 +25,7 @@ const { ipcRenderer, shell } = require("electron");
             ipcRenderer.send("open-file", filePaths[3]);
         });
 
-        // Apri il link di GitHub nel browser predefinito
+        //Apri il link di GitHub
         document.getElementById("githubIcon").addEventListener("click", () => {
             shell.openExternal("https://github.com/AGPress-Tech/AyPi");
         });

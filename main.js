@@ -6,7 +6,6 @@ const path = require("path");
 
 let mainWindow;
 
-// Logging di aggiornamento di autoUpdater
 const log = require("electron-log");
 log.transports.file.level = "info";
 autoUpdater.logger = log;
@@ -26,7 +25,6 @@ app.whenReady().then(() => {
 
     mainWindow.setMenu(null);
 
-    // Controlla gli aggiornamenti all'avvio
     autoUpdater.checkForUpdatesAndNotify();
 });
 
@@ -38,7 +36,7 @@ autoUpdater.setFeedURL({
     url: 'https://github.com/AGPress-Tech/AyPi/releases/download/'
 });
 
-// Evento quando un aggiornamento è disponibile
+
 autoUpdater.on("update-available", (info) => {
     log.info("Aggiornamento disponibile: " + info.version);
     dialog.showMessageBox(mainWindow, {
@@ -48,7 +46,6 @@ autoUpdater.on("update-available", (info) => {
     });
 });
 
-// Evento quando un aggiornamento è stato scaricato
 autoUpdater.on("update-downloaded", () => {
     dialog.showMessageBox(mainWindow, {
         type: "info",
@@ -65,7 +62,6 @@ autoUpdater.on("update-downloaded", () => {
     });
 });
 
-// Gestione degli errori di aggiornamento
 autoUpdater.on("error", (error) => {
     log.error("Errore nell'aggiornamento:", error);
 
