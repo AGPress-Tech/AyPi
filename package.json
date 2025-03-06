@@ -7,7 +7,11 @@
     "start": "electron .",
     "build": "electron-builder",
     "release": "electron-builder --publish always",
+    "postversion": "electron-builder --publish always",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "scriptsComments": {
+    "postversion": "npm version [major/minor/patch] per creare la nuova release in automatico"
   },
   "author": "Ayrton Pizzi",
   "license": "ISC",
