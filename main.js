@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, net } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, net, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { exec } = require("child_process");
 const fs = require("fs");
@@ -12,7 +12,7 @@ autoUpdater.logger = log;
 
 app.whenReady().then(() => {
     mainWindow = new BrowserWindow({
-        width: 700,
+        width: 750,
         height: 550,
         webPreferences: {
             nodeIntegration: true,
@@ -25,7 +25,9 @@ app.whenReady().then(() => {
 
     mainWindow.setMenu(null);
 
-    autoUpdater.checkForUpdatesAndNotify();
+    if (net.isOnline()) {
+        autoUpdater.checkForUpdatesAndNotify();
+    }
 });
 
 autoUpdater.setFeedURL({
