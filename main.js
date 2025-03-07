@@ -93,66 +93,80 @@ ipcMain.on("open-file", (event, filePath) => {
         return;
     }
 
-    exec(`start "" "${filePath}"`, (error) => {
-        if (error) {
-            log.error("Errore nell'apertura del file:", error);
-
-            let fileNotFound = false;
-
-            if (error.message.includes("Impossibile accedere al file.") || 
-                error.message.includes("Il file è utilizzato da un altro processo.")) {
-
-                dialog.showMessageBox(mainWindow, {
-                    type: 'warning',
-                    buttons: ['Apri in sola lettura', 'Annulla'],
-                    defaultId: 0,
-                    title: "File in Uso",
-                    message: "Il file è attualmente in uso da un altro operatore. Vuoi aprirlo in sola lettura?"
-                }).then(result => {
-                    if (result.response === 0) { // L'utente ha scelto "Apri in sola lettura"
-                        shell.openPath(filePath).then(openError => {
-                            if (openError) {
-                                log.error("Errore nell'apertura in sola lettura:", openError);
-                                dialog.showMessageBox(mainWindow, {
-                                    type: 'error',
-                                    buttons: ['Ok'],
-                                    defaultId: 0,
-                                    title: "Errore",
-                                    message: "Il file non può essere aperto nemmeno in sola lettura."
-                                });
-                            } else {
-                                log.info("File aperto in sola lettura:", filePath);
-                            }
-                        });
-                    }
-                });
-
-            } else if (error.message.includes("Impossibile trovare il file") || 
-                       error.message.includes("Il sistema non trova il file")) {
-                fileNotFound = true;
-                dialog.showMessageBox(mainWindow, {
-                    type: 'warning',
-                    buttons: ['Ok'],
-                    defaultId: 0,
-                    title: "File Non Trovato",
-                    message: "Il file sembra essere stato spostato o eliminato. Verificare il percorso e riprovare."
-                });
-
-            } else {
-                dialog.showMessageBox(mainWindow, {
-                    type: 'error',
-                    buttons: ['Ok'],
-                    defaultId: 0,
-                    title: "Errore",
-                    message: "Errore nell'esecuzione dell'applicazione. Contattare Ayrton."
-                }).then(() => {
-                    app.quit();
-                });
-            }
-
-            if (fileNotFound) {
-                log.warn("Il file potrebbe essere stato spostato o eliminato:", filePath);
-            }
+    // Controlla se il server \\dl360 è accessibile
+    const serverPath = "\\\\dl360";
+    fs.access(serverPath, fs.constants.F_OK, (err) => {
+        if (err) {
+            log.warn("Il server non è raggiungibile:", serverPath);
+            dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                buttons: ['Ok'],
+                defaultId: 0,
+                title: "Server Non Raggiungibile",
+                message: `Il server ${serverPath} non è al momento disponibile. Verificare la connessione e riprovare.`
+            });
+            return;
         }
+
+        // Se il server è raggiungibile, prova ad aprire il file
+        exec(`start "" "${filePath}"`, (error) => {
+            if (error) {
+                log.error("Errore nell'apertura del file:", error);
+                let fileNotFound = false;
+
+                if (error.message.includes("Impossibile accedere al file.") || 
+                    error.message.includes("Il file è utilizzato da un altro processo.")) {
+
+                    dialog.showMessageBox(mainWindow, {
+                        type: 'warning',
+                        buttons: ['Apri in sola lettura', 'Annulla'],
+                        defaultId: 0,
+                        title: "File in Uso",
+                        message: "Il file è attualmente in uso da un altro operatore. Vuoi aprirlo in sola lettura?"
+                    }).then(result => {
+                        if (result.response === 0) { // L'utente ha scelto "Apri in sola lettura"
+                            shell.openPath(filePath).then(openError => {
+                                if (openError) {
+                                    log.error("Errore nell'apertura in sola lettura:", openError);
+                                    dialog.showMessageBox(mainWindow, {
+                                        type: 'error',
+                                        buttons: ['Ok'],
+                                        defaultId: 0,
+                                        title: "Errore",
+                                        message: "Il file non può essere aperto nemmeno in sola lettura."
+                                    });
+                                } else {
+                                    log.info("File aperto in sola lettura:", filePath);
+                                }
+                            });
+                        }
+                    });
+
+                } else if (error.message.includes("Impossibile trovare il file") || 
+                           error.message.includes("Il sistema non trova il file")) {
+                    fileNotFound = true;
+                    dialog.showMessageBox(mainWindow, {
+                        type: 'warning',
+                        buttons: ['Ok'],
+                        defaultId: 0,
+                        title: "File Non Trovato",
+                        message: "Il file sembra essere stato spostato o eliminato. Verificare il percorso e riprovare."
+                    });
+
+                } else {
+                    dialog.showMessageBox(mainWindow, {
+                        type: 'error',
+                        buttons: ['Ok'],
+                        defaultId: 0,
+                        title: "Errore",
+                        message: "Errore nell'esecuzione dell'applicazione. Contattare Ayrton."
+                    });
+                }
+
+                if (fileNotFound) {
+                    log.warn("Il file potrebbe essere stato spostato o eliminato:", filePath);
+                }
+            }
+        });
     });
 });
