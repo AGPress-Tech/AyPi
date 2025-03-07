@@ -81,18 +81,17 @@ ipcMain.handle("get-app-version", async () => {
 });
 
 ipcMain.on("open-file", (event, filePath) => {
-    const serverPath = "\\\\dl360"; // Percorso del server
-    const checkServerCommand = `net use ${serverPath} 2>&1`; // Controlla se il server è accessibile
+    const testFile = "\\\\Dl360\\pubbliche\\TECH\\test.txt"; 
 
-    exec(checkServerCommand, (error, stdout, stderr) => {
-        if (error) {
-            log.warn("Il server non è raggiungibile:", stderr.trim());
+    fs.access(testFile, fs.constants.F_OK, (err) => {
+        if (err) {
+            log.warn("Il server non è raggiungibile:", err.message);
             dialog.showMessageBox(mainWindow, {
                 type: 'warning',
                 buttons: ['Ok'],
                 defaultId: 0,
                 title: "Server Non Raggiungibile",
-                message: `Il server ${serverPath} non è disponibile. Verificare la connessione e riprovare.`
+                message: `Il server \\dl360 non è disponibile. Verificare la connessione e riprovare.`
             });
             return;
         }
@@ -117,7 +116,7 @@ ipcMain.on("open-file", (event, filePath) => {
             exec(`start "" "${filePath}"`, (error) => {
                 if (error) {
                     log.error("Errore nell'apertura del file:", error);
-                    
+
                     if (error.message.includes("Impossibile accedere al file.") || 
                         error.message.includes("Il file è utilizzato da un altro processo.")) {
 
