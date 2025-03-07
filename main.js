@@ -27,7 +27,11 @@ app.whenReady().then(() => {
 
     if (net.isOnline()) {
         autoUpdater.checkForUpdatesAndNotify();
-    }
+    } else { dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "Verificare Connessione",
+        message: "Connessione ad Internet assente, impossibile verificare presenza di nuovi aggiornamenti!",
+    })}
 });
 
 autoUpdater.setFeedURL({
