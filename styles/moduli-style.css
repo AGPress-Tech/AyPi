@@ -64,17 +64,17 @@ button:focus {
 }
 
 .sidebar {
-    display: none;
     height: 100%;
-    width: 250px;
+    width: 0;
     position: fixed;
     z-index: 1;
     top: 0;
     left: 0;
     background-color: #111;
     overflow-x: hidden;
-    padding-top: 10px;
-}
+    transition: 0.5s;
+    padding-top: 60px;
+  }
 
 .sidebar a {
     padding: 8px 8px 8px 8px;
@@ -112,4 +112,9 @@ span {
     color: #cc930e;
     position: absolute;
     left: 20px;
+}
+
+#main {
+    transition: margin-left .5s;
+    padding: 8px;
 }
