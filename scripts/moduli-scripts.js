@@ -24,8 +24,8 @@ document.getElementById("githubIcon").addEventListener("click", () => {
 });
 
 function openNav() {
-    document.getElementById("main").style.marginLeft = "35%";
-    document.getElementById("mySidebar").style.width = "35%";
+    document.getElementById("main").style.marginLeft = "30%";
+    document.getElementById("mySidebar").style.width = "30%";
 }
 
 function closeNav() {

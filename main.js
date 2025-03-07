@@ -12,7 +12,7 @@ autoUpdater.logger = log;
 
 app.whenReady().then(() => {
     mainWindow = new BrowserWindow({
-        width: 650,
+        width: 700,
         height: 550,
         webPreferences: {
             nodeIntegration: true,
