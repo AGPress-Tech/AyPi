@@ -9,10 +9,11 @@ const filePaths = [
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Valutazione Fornitori\\AyPi - Valutazione Fornitori.accdb",
     "\\\\Dl360\\pubbliche\\QUALITA'\\MANUTENZIONI MACCHINE\\AyPi - Manutenzione Macchine.accdb",
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Gestione Utensili e Attrezzature\\AyPi - Gestione Utensili e Attrezzature.accdb",
-    "\\\\Dl360\\pubbliche\\MAGAZZINO\\DDT FORNITORI\\Controllo DDT fornitori.accdb"
+    "\\\\Dl360\\pubbliche\\MAGAZZINO\\DDT FORNITORI\\Controllo DDT fornitori.accdb",
+    "\\\\Dl360\\pubbliche\\TECNICO\\MODULO STAMPI\\S1 - Scheda Montaggio Stampi.xlsm"
 ];
 
-const buttons = ["openTicket", "openFornitori", "openManutenzioni", "openUtensili", "openDDT"];
+const buttons = ["openTicket", "openFornitori", "openManutenzioni", "openUtensili", "openDDT", "openModuloStampi"];
 
 buttons.forEach((id, index) => {
     document.getElementById(id).addEventListener("click", () => {

@@ -42,7 +42,6 @@ autoUpdater.setFeedURL({
     url: 'https://github.com/AGPress-Tech/AyPi/releases/download/'
 });
 
-
 autoUpdater.on("update-available", (info) => {
     log.info("Aggiornamento disponibile: " + info.version);
     dialog.showMessageBox(mainWindow, {
@@ -85,7 +84,7 @@ ipcMain.handle("get-app-version", async () => {
 });
 
 ipcMain.on("open-file", (event, filePath) => {
-    const testFile = "\\\\Dl360\\pubbliche\\TECH\\test.txt"; 
+    const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt"; //NON VA ASSOLUTAMENTE RIMOSSO, RINOMINATO O MODIFICATO IL SUO PERCORSO
 
     fs.access(testFile, fs.constants.F_OK, (err) => {
         if (err) {
@@ -102,7 +101,7 @@ ipcMain.on("open-file", (event, filePath) => {
 
         log.info("Il server è accessibile.");
 
-        // Controlla se il file esiste prima di tentare di aprirlo
+        //Controlla se il file esiste prima di tentare di aprirlo
         fs.access(filePath, fs.constants.F_OK, (err) => {
             if (err) {
                 log.warn("Il file non esiste o non è accessibile:", filePath);
@@ -116,7 +115,7 @@ ipcMain.on("open-file", (event, filePath) => {
                 return;
             }
 
-            // Se il file esiste, prova ad aprirlo
+            //Se il file esiste, prova ad aprirlo
             exec(`start "" "${filePath}"`, (error) => {
                 if (error) {
                     log.error("Errore nell'apertura del file:", error);
@@ -131,7 +130,7 @@ ipcMain.on("open-file", (event, filePath) => {
                             title: "File in Uso",
                             message: "Il file è attualmente in uso da un altro operatore. Vuoi aprirlo in sola lettura?"
                         }).then(result => {
-                            if (result.response === 0) { // L'utente ha scelto "Apri in sola lettura"
+                            if (result.response === 0) { //Sola lettura
                                 shell.openPath(filePath).then(openError => {
                                     if (openError) {
                                         log.error("Errore nell'apertura in sola lettura:", openError);
