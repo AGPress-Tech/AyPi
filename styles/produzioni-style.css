@@ -118,3 +118,16 @@ span {
     transition: margin-left .5s;
     padding: 8px;
 }
+
+.clock-container {
+    position: absolute;
+    bottom: 13%;
+    left: 39%;
+    font-size: 18px;
+}
+.clock-span {
+    position: static;
+    font-size: 18px;
+    color: #cc930e;
+    cursor: default;
+}
