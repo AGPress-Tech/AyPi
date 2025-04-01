@@ -5,15 +5,16 @@ ipcRenderer.invoke("get-app-version").then((version) => {
 });
 
 const filePaths = [
-    "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Ticket Support\\AyPi - Ticket Support.accdb",
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Valutazione Fornitori\\AyPi - Valutazione Fornitori.accdb",
-    "\\\\Dl360\\pubbliche\\QUALITA'\\MANUTENZIONI MACCHINE\\AyPi - Manutenzione Macchine.accdb",
-    "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Gestione Utensili e Attrezzature\\AyPi - Gestione Utensili e Attrezzature.accdb",
     "\\\\Dl360\\pubbliche\\MAGAZZINO\\DDT FORNITORI\\Controllo DDT fornitori.accdb",
-    "\\\\Dl360\\pubbliche\\TECNICO\\MODULO STAMPI\\S1 - Scheda Montaggio Stampi.xlsm"
+    "\\\\Dl360\\pubbliche\\QUALITA'\\MANUTENZIONI MACCHINE\\AyPi - Manutenzione Macchine.accdb",
+    "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Gestione Utensili e Attrezzature\\AyPi - Gestione Utensili e Attrezzature.accdb", 
+    "\\\\Dl360\\pubbliche\\TECNICO\\MODULO STAMPI\\S1 - Scheda Montaggio Stampi.xlsm",   
+    "\\\\Dl360\\pubbliche\\OFF. MECCANICA\\Gestione Morsetti\\AyPi - Gestione Morsetti.accdb",
+    "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Ticket Support\\AyPi - Ticket Support.accdb"
 ];
 
-const buttons = ["openTicket", "openFornitori", "openManutenzioni", "openUtensili", "openDDT", "openModuloStampi"];
+const buttons = ["openFornitori", "openDDT", "openManutenzioni", "openUtensili", "openModuloStampi", "openMorsetti", "openTicket"];
 
 buttons.forEach((id, index) => {
     document.getElementById(id).addEventListener("click", () => {
