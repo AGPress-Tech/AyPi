@@ -1,9 +1,9 @@
 ﻿# AyPi Module Manager
 
-Questo applicativo è stato sviluppato per gli operatori [AGPress](https://agpress-srl.it/) per poter visualizzare
-ed interagire con più semplicità con ogni modulo AyPi presente in rete.
+Questo applicativo è stato sviluppato per gli operatori [**AGPress**](https://agpress-srl.it/) per poter visualizzare
+ed interagire con più semplicità con ogni modulo **AyPi** presente in rete.
 
-Al momento supporta in 3 pagine di navigazione **Moduli**, **Programmi** e **Produzioni** selezionabili con una sidebar laterale:<br />
+Al momento supporta in 3 pagine di navigazione, **Moduli**, **Programmi** e **Produzioni**, selezionabili con una sidebar laterale:<br/>
 <ul>
 <li><b>Ticket Support</b></li>
 <li><b>Gestione Manutenzioni</b></li>
