@@ -16,3 +16,6 @@ Al momento supporta in 3 pagine di navigazione, **Moduli**, **Programmi** e **Pr
 <li><b>Tutte le Registrazioni Produzioni dei Reparti</b></li>
 <li><b>Tutti i Programmi di pianificazione dei Reparti e Consegne</b></li>
 </ul>
+<br/>
+L'applicazione si auto-aggiorna all'apertura, verifica che l'utente è collegato ad internet e alla rete interna, ed è in grado di informare l'utente se i moduli interessati sono stati rimossi,
+spostati o sono in uso da altri operatori.
