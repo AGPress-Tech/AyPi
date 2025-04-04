@@ -22,18 +22,20 @@ app.whenReady().then(() => {
     });
 
     mainWindow.loadFile("./pages/moduli.html");
-
     mainWindow.setMenu(null);
 
     if (net.isOnline()) {
         autoUpdater.checkForUpdatesAndNotify();
-    } else { dialog.showMessageBox(mainWindow, {
-        type: "info",
-        title: "Verificare Connessione",
-        message: "Connessione ad Internet assente, impossibile verificare presenza di nuovi aggiornamenti!",
-    })}
+    } else {
+        dialog.showMessageBox(mainWindow, {
+            type: "info",
+            title: "Verificare Connessione",
+            message: "Connessione ad Internet assente, impossibile verificare la presenza di nuovi aggiornamenti!",
+        });
+    }
 });
 
+// Configurazione aggiornamenti
 autoUpdater.setFeedURL({
     provider: 'github',
     owner: 'AGPress-Tech',
@@ -69,11 +71,9 @@ autoUpdater.on("update-downloaded", () => {
 
 autoUpdater.on("error", (error) => {
     log.error("Errore nell'aggiornamento:", error);
-
     dialog.showMessageBox(mainWindow, {
         type: 'error',
         buttons: ['Ok'],
-        defaultId: 0,
         title: "Errore Aggiornamento",
         message: "Errore durante l'aggiornamento. Contattare Ayrton."
     });
@@ -83,8 +83,9 @@ ipcMain.handle("get-app-version", async () => {
     return app.getVersion();
 });
 
+// Apertura file o cartella
 ipcMain.on("open-file", (event, filePath) => {
-    const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt"; //NON VA ASSOLUTAMENTE RIMOSSO, RINOMINATO O MODIFICATO IL SUO PERCORSO
+    const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt"; 
 
     fs.access(testFile, fs.constants.F_OK, (err) => {
         if (err) {
@@ -92,7 +93,6 @@ ipcMain.on("open-file", (event, filePath) => {
             dialog.showMessageBox(mainWindow, {
                 type: 'warning',
                 buttons: ['Ok'],
-                defaultId: 0,
                 title: "Server Non Raggiungibile",
                 message: `Il server \\dl360 non è disponibile. Verificare la connessione e riprovare.`
             });
@@ -101,76 +101,35 @@ ipcMain.on("open-file", (event, filePath) => {
 
         log.info("Il server è accessibile.");
 
-        //Controlla se il file esiste prima di tentare di aprirlo
-        fs.access(filePath, fs.constants.F_OK, (err) => {
+        fs.stat(filePath, (err, stats) => {
             if (err) {
-                log.warn("Il file non esiste o non è accessibile:", filePath);
+                log.warn("Percorso non trovato:", filePath);
                 dialog.showMessageBox(mainWindow, {
                     type: 'warning',
                     buttons: ['Ok'],
-                    defaultId: 0,
-                    title: "File Non Trovato",
-                    message: "Il file sembra essere stato spostato o eliminato. Verificare il percorso e riprovare."
+                    title: "Percorso Non Trovato",
+                    message: "Il file o la cartella sembra essere stata spostata o eliminata. Verificare il percorso e riprovare."
                 });
                 return;
             }
 
-            //Se il file esiste, prova ad aprirlo
-            exec(`start "" "${filePath}"`, (error) => {
-                if (error) {
-                    log.error("Errore nell'apertura del file:", error);
-
-                    if (error.message.includes("Impossibile accedere al file.") || 
-                        error.message.includes("Il file è utilizzato da un altro processo.")) {
-
-                        dialog.showMessageBox(mainWindow, {
-                            type: 'warning',
-                            buttons: ['Apri in sola lettura', 'Annulla'],
-                            defaultId: 0,
-                            title: "File in Uso",
-                            message: "Il file è attualmente in uso da un altro operatore. Vuoi aprirlo in sola lettura?"
-                        }).then(result => {
-                            if (result.response === 0) { //Sola lettura
-                                shell.openPath(filePath).then(openError => {
-                                    if (openError) {
-                                        log.error("Errore nell'apertura in sola lettura:", openError);
-                                        dialog.showMessageBox(mainWindow, {
-                                            type: 'error',
-                                            buttons: ['Ok'],
-                                            defaultId: 0,
-                                            title: "Errore",
-                                            message: "Il file non può essere aperto nemmeno in sola lettura."
-                                        });
-                                    } else {
-                                        log.info("File aperto in sola lettura:", filePath);
-                                    }
-                                });
-                            }
-                        });
-
-                    } else if (error.message.includes("Impossibile trovare il file") || 
-                               error.message.includes("Il sistema non trova il file")) {
-                        dialog.showMessageBox(mainWindow, {
-                            type: 'warning',
-                            buttons: ['Ok'],
-                            defaultId: 0,
-                            title: "File Non Trovato",
-                            message: "Il file sembra essere stato spostato o eliminato. Verificare il percorso e riprovare."
-                        });
-
-                    } else {
+            if (stats.isDirectory()) {
+                log.info("Apertura cartella:", filePath);
+                shell.openPath(filePath);
+            } else {
+                log.info("Apertura file:", filePath);
+                exec(`start "" "${filePath}"`, (error) => {
+                    if (error) {
+                        log.error("Errore nell'apertura del file:", error);
                         dialog.showMessageBox(mainWindow, {
                             type: 'error',
                             buttons: ['Ok'],
-                            defaultId: 0,
                             title: "Errore",
-                            message: "Errore nell'esecuzione dell'applicazione. Contattare Ayrton."
-                        }).then(() => {
-                            app.quit();
+                            message: "Errore nell'apertura del file. Contattare Ayrton."
                         });
                     }
-                }
-            });
+                });
+            }
         });
     });
 });
