@@ -84,7 +84,6 @@ ipcMain.handle("get-app-version", async () => {
     return app.getVersion();
 });
 
-// Funzione per ottenere le note di rilascio dalla GitHub API
 async function getReleaseNotes() {
     const releaseUrl = 'https://api.github.com/repos/AGPress-Tech/AyPi/releases/latest';
     
@@ -98,7 +97,6 @@ async function getReleaseNotes() {
     }
 }
 
-// Apertura file o cartella
 ipcMain.on("open-file", (event, filePath) => {
     const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt"; 
 
