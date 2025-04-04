@@ -14,7 +14,7 @@ Al momento supporta in 4 pagine di navigazione, **Moduli**, **Programmi**, **Art
 <li><b>Strumenti di Misura</b></li>
 <li><b>DDT Fornitori</b></li>
 <li><b>Tutte le Registrazioni Produzioni dei Reparti</b></li>
-<li><b>Tutti i Programmi di pianificazione dei Reparti e Consegne</b></li>
+<li><b>Tutti i Programmi di Pianificazione dei Reparti e Consegne</b></li>
 <li><b>Cicli di Lavorazione</b></li>
 <li><b>Tavole e Disegni</b></li>
 </ul>
