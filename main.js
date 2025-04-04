@@ -35,7 +35,6 @@ app.whenReady().then(() => {
     }
 });
 
-// Configurazione aggiornamenti
 autoUpdater.setFeedURL({
     provider: 'github',
     owner: 'AGPress-Tech',
@@ -54,7 +53,6 @@ autoUpdater.on("update-available", (info) => {
 });
 
 autoUpdater.on("update-downloaded", async () => {
-    // Ottieni il contenuto della release dalla versione aggiornata
     const releaseNotes = await getReleaseNotes();
 
     dialog.showMessageBox(mainWindow, {
