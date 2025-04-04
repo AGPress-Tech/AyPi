@@ -53,11 +53,14 @@ autoUpdater.on("update-available", (info) => {
     });
 });
 
-autoUpdater.on("update-downloaded", () => {
+autoUpdater.on("update-downloaded", async () => {
+    // Ottieni il contenuto della release dalla versione aggiornata
+    const releaseNotes = await getReleaseNotes();
+
     dialog.showMessageBox(mainWindow, {
         type: "info",
         title: "Aggiornamento pronto",
-        message: "L'aggiornamento è stato scaricato. Vuoi riavviare ora per applicarlo?",
+        message: `L'aggiornamento è stato scaricato. Vuoi riavviare ora per applicarlo?\n\nNote di aggiornamento:\n\n${releaseNotes}`,
         buttons: ["Riavvia ora", "Dopo"],
     }).then((result) => {
         if (result.response === 0) {
@@ -82,6 +85,20 @@ autoUpdater.on("error", (error) => {
 ipcMain.handle("get-app-version", async () => {
     return app.getVersion();
 });
+
+// Funzione per ottenere le note di rilascio dalla GitHub API
+async function getReleaseNotes() {
+    const releaseUrl = 'https://api.github.com/repos/AGPress-Tech/AyPi/releases/latest';
+    
+    try {
+        const response = await fetch(releaseUrl);
+        const data = await response.json();
+        return data.body || "Nessuna nota di rilascio disponibile.";
+    } catch (error) {
+        log.error("Errore nel recupero delle note di rilascio:", error);
+        return "Errore nel recupero delle note di rilascio.";
+    }
+}
 
 // Apertura file o cartella
 ipcMain.on("open-file", (event, filePath) => {
