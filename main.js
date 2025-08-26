@@ -60,7 +60,7 @@ autoUpdater.on("update-downloaded", async () => {
         type: "info",
         title: "Aggiornamento pronto",
         message: `L'aggiornamento è stato scaricato. Vuoi riavviare ora per applicarlo?\n\nNote di aggiornamento:\n\n${releaseNotes}`,
-        buttons: ["Riavvia ora", "Dopo"],
+        buttons: ["Aggiorna Adesso", "Aggiorna Più Tardi"],
     }).then((result) => {
         if (result.response === 0) {
             log.info("Riavvio per installare l'aggiornamento.");
