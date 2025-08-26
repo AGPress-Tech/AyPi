@@ -49,3 +49,7 @@ function updateClock() {
 
 setInterval(updateClock, 1000);
 updateClock();
+
+document.getElementById("pingRobots").addEventListener("click", async () => {
+  await ipcRenderer.invoke("ping-robot-dialog");
+});

@@ -1,6 +1,6 @@
 {
   "name": "aypi",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Software AyPi per gestione applicativi AGPress",
   "main": "main.js",
   "scripts": {
@@ -20,7 +20,9 @@
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
+    "@network-utils/arp-lookup": "^2.1.0",
     "electron-log": "^5.3.1",
+    "electron-prompt": "^1.7.0",
     "electron-updater": "^6.3.9",
     "update-electron-app": "^3.1.1"
   },

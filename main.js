@@ -4,8 +4,18 @@ const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { mostraPopup } = require('./modules/robot');
+const { toMAC } = require('@network-utils/arp-lookup');
 
 let mainWindow;
+
+async function getMacForIP(ip) {
+  try {
+    const mac = await toMAC(ip);
+    return mac; // es. 'aa:bb:cc:dd:ee:ff'
+  } catch {
+    return null;
+  }
+}
 
 const log = require("electron-log");
 log.transports.file.level = "info";
@@ -198,4 +208,58 @@ ipcMain.on("open-file", (event, filePath) => {
             }
         });
     });
+});
+
+const robots = {
+    "21D500": { ip: "192.168.1.153", mac: "00:03:1d:12:0f:71" },
+    "21D600": { ip: "192.168.1.152", mac: "00:03:1d:11:62:da" },
+    "21D850": { ip: "192.168.1.92",  mac: "00:03:1d:14:13:38" }
+};
+
+ipcMain.handle("ping-robot-dialog", async () => {
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Annulla", "21D500", "21D600", "21D850"],
+    cancelId: 0,
+    defaultId: 1,
+    title: "Seleziona robot",
+    message: "Quale robot vuoi pingare?"
+  });
+
+  if (response === 0) return;
+
+  const robotId = Object.keys(robots)[response - 1];
+  const { ip, mac: macAtteso } = robots[robotId];
+
+  return new Promise(async (resolve) => {
+    exec(`ping -n 1 ${ip}`, async (error, stdout) => {
+      const righe = stdout.split("\n").map(r => r.trim()).filter(r => r);
+      const ultimaRiga = righe[righe.length - 1];
+
+      let messaggio;
+      if (ultimaRiga.includes("Persi = 0")) {
+        messaggio = `Nessuna risposta ricevuta dall'indirizzo ${ip}!\nVerificare che il Robot sia acceso e collegato alla rete!`;
+      } else {
+        messaggio = `L'indirizzo è raggiungibile!\nRisultato ping a ${ip}:\n${ultimaRiga}`;
+        
+        // Ottieni il MAC reale
+        const macReale = await getMacForIP(ip);
+        if (macReale) {
+          if (macReale.toLowerCase() !== macAtteso.toLowerCase()) {
+            messaggio += `\n\nATTENZIONE: MAC atteso (${macAtteso}) diverso da MAC rilevato (${macReale}). Possibile conflitto IP!`;
+          }
+        } else {
+          messaggio += `\n\nMAC address non rilevato. Controlla rete o ARP cache.`;
+        }
+      }
+
+      dialog.showMessageBox({
+        type: "info",
+        title: `Ping ${robotId}`,
+        message: messaggio
+      });
+
+      resolve(messaggio);
+    });
+  });
 });

@@ -131,3 +131,12 @@ span {
     color: #cc930e;
     cursor: default;
 }
+
+#pingRobots {
+    background-color: #888686;   /* grigio */
+    color: rgb(0, 0, 0);             /* testo bianco */
+}
+
+#pingRobots:hover {
+    background-color: #444;   /* grigio più scuro al passaggio del mouse */
+}

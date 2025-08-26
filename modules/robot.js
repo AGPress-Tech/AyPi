@@ -90,7 +90,7 @@ async function mostraPopup(robotId, url, chiaveStato) {
         dialog.showMessageBox({
             type: 'error',
             title: `Errore Robot ${robotId}`,
-            message: `Robot ${robotId} non trovato alla pagina ${url}, potrebbe essere scollegato dalla rete.\nSe il problema persiste verificare che la porta non sia occupata!`
+            message: `Il Robot ${robotId} non è stato indiiduato, potrebbe essere spento o scollegato dalla rete.\nSe il problema persiste verificare che la porta non sia occupata!\nVerificare risposta indirizzo macchina utilizzando il pulsante "Verifica Connessioni"`
         });
     }
 }
