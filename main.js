@@ -11,7 +11,7 @@ let mainWindow;
 async function getMacForIP(ip) {
   try {
     const mac = await toMAC(ip);
-    return mac; // es. 'aa:bb:cc:dd:ee:ff'
+    return mac;
   } catch {
     return null;
   }
@@ -114,7 +114,7 @@ ipcMain.on("mostra-robot-popup", async (event, robotId, url, chiaveStato) => {
 });
 
 ipcMain.on("open-file", (event, filePath) => {
-    const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt"; //NON VA ASSOLUTAMENTE RIMOSSO, RINOMINATO O MODIFICATO IL SUO PERCORSO
+    const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt";
 
     fs.access(testFile, fs.constants.F_OK, (err) => {
         if (err) {
@@ -242,7 +242,6 @@ ipcMain.handle("ping-robot-dialog", async () => {
       } else {
         messaggio = `L'indirizzo è raggiungibile!\nRisultato ping a ${ip}:\n${ultimaRiga}`;
         
-        // Ottieni il MAC reale
         const macReale = await getMacForIP(ip);
         if (macReale) {
           if (macReale.toLowerCase() !== macAtteso.toLowerCase()) {

@@ -39,7 +39,6 @@ async function mostraPopup(robotId, url, chiaveStato) {
     }
 
     try {
-        // Timeout informativo di 2 secondi
         let timeoutMostra = false;
         const controller = new AbortController();
         const timeout = setTimeout(async () => {
@@ -57,7 +56,7 @@ async function mostraPopup(robotId, url, chiaveStato) {
             res = await fetch(url, { signal: controller.signal });
         } catch (e) {
             clearTimeout(timeout);
-            throw e; // gestito nel catch esterno
+            throw e;
         } finally {
             clearTimeout(timeout);
         }
@@ -86,7 +85,6 @@ async function mostraPopup(robotId, url, chiaveStato) {
         });
 
     } catch (err) {
-        // Messaggio finale se la pagina non risponde
         dialog.showMessageBox({
             type: 'error',
             title: `Errore Robot ${robotId}`,
