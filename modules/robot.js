@@ -2,7 +2,6 @@ const { dialog } = require('electron');
 
 async function mostraPopup(robotId, url, chiaveStato) {
 
-    // Estrae il testo subito dopo una chiave
     function estraiTesto(testo, chiave) {
         const testoUpper = testo.toUpperCase();
         const chiaveUpper = chiave.toUpperCase();
@@ -40,25 +39,25 @@ async function mostraPopup(robotId, url, chiaveStato) {
     }
 
     try {
-        // Timeout controller
+        // Timeout informativo di 2 secondi
+        let timeoutMostra = false;
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2000); // 2 secondi
+        const timeout = setTimeout(async () => {
+            timeoutMostra = true;
+            await dialog.showMessageBox({
+                type: 'info',
+                title: `Attendere Robot ${robotId}`,
+                message: `Il robot ${robotId} non sta ancora rispondendo alla pagina ${url}. Attendere qualche istante.`,
+                buttons: ['OK']
+            });
+        }, 2000);
 
         let res;
         try {
             res = await fetch(url, { signal: controller.signal });
         } catch (e) {
-            if (e.name === 'AbortError') {
-                dialog.showMessageBox({
-                    type: 'info',
-                    title: `Attendere Robot ${robotId}`,
-                    message: `Il robot ${robotId} non sta ancora rispondendo alla pagina ${url}. Attendere qualche istante e riprovare.`,
-                    buttons: ['OK']
-                });
-                return;
-            } else {
-                throw e;
-            }
+            clearTimeout(timeout);
+            throw e; // gestito nel catch esterno
         } finally {
             clearTimeout(timeout);
         }
@@ -87,6 +86,7 @@ async function mostraPopup(robotId, url, chiaveStato) {
         });
 
     } catch (err) {
+        // Messaggio finale se la pagina non risponde
         dialog.showMessageBox({
             type: 'error',
             title: `Errore Robot ${robotId}`,
