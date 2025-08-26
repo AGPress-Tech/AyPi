@@ -1,13 +1,13 @@
 {
   "name": "aypi",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Software AyPi per gestione applicativi AGPress",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
     "release": "electron-builder --publish always",
-    "postversion":  "electron-builder --publish always",
+    "postversion": "electron-builder --publish always",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "scriptsComments": {

@@ -3,6 +3,7 @@ const { autoUpdater } = require("electron-updater");
 const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { mostraPopup } = require('./modules/robot');
 
 let mainWindow;
 
@@ -96,6 +97,11 @@ async function getReleaseNotes() {
         return "Errore nel recupero delle note di rilascio.";
     }
 }
+
+// Ascolta messaggi dai renderer
+ipcMain.on("mostra-robot-popup", async (event, robotId, url, chiaveStato) => {
+    await mostraPopup(robotId, url, chiaveStato);
+});
 
 ipcMain.on("open-file", (event, filePath) => {
     const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt"; //NON VA ASSOLUTAMENTE RIMOSSO, RINOMINATO O MODIFICATO IL SUO PERCORSO
