@@ -41,7 +41,8 @@
     },
     "win": {
       "icon": "assets/app-icon.ico",
-      "target": "nsis"
+      "target": "nsis",
+      "sign": false
     },
     "linux": {
       "icon": "assets/app-icon.png"
