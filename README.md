@@ -17,14 +17,13 @@ Al momento supporta in 5 pagine di navigazione, **Moduli**, **Programmi**, **Art
 <li><b>Tutti i Programmi di Pianificazione dei Reparti e Consegne</b></li>
 <li><b>Cicli di Lavorazione</b></li>
 <li><b>Tavole e Disegni</b></li>
-<li><b>Robot 21D500</b></li>
-<li><b>Robot 21D600</b></li>
-<li><b>Robot 21D850</b></li>
-<li><b>Verifica Connessioni</b></li>
+<li><b>Visualizzazione Stati Robot</b></li>
+<li><b>Verifica Connessioni e Identificazione Robot in Rete</b></li>
 </ul>
 <br/>
 L'applicazione si auto-aggiorna all'apertura, verifica che l'utente è collegato ad internet e alla rete interna, ed è in grado di informare l'utente se i moduli interessati sono stati rimossi,
 spostati o sono in uso da altri operatori.
+
 
 
 
