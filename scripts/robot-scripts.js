@@ -6,8 +6,8 @@ ipcRenderer.invoke("get-app-version").then((version) => {
 
 const robots = [
     { id: "21D500", url: "http://192.168.1.153/index1.html", chiave: "STATO ROBOT P21160" },
-    { id: "21D600", url: "http://192.168.1.154/index1.html", chiave: "STATO ROBOT P17259" },
-    { id: "21D850", url: "http://192.168.1.155/index1.html", chiave: "STATO ROBOT P22022" }
+    { id: "21D600", url: "http://192.168.1.152/index1.html", chiave: "STATO ROBOT P17259" },
+    { id: "21D850", url: "http://192.168.1.92/index1.html", chiave: "STATO ROBOT P22022" }
 ];
 
 robots.forEach(robot => {
