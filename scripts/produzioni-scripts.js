@@ -41,3 +41,8 @@ function updateClock() {
 
 setInterval(updateClock, 1000);
 updateClock();
+
+window.addEventListener("DOMContentLoaded", () => {
+    ipcRenderer.send("resize-normale");
+});
+

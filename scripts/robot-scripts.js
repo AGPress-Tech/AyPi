@@ -46,3 +46,7 @@ updateClock();
 document.getElementById("pingRobots").addEventListener("click", async () => {
   await ipcRenderer.invoke("ping-robot-dialog");
 });
+
+window.addEventListener("DOMContentLoaded", () => {
+    ipcRenderer.send("resize-normale");
+});

@@ -1,0 +1,175 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #332f2b;
+    color: white;
+    text-align: center;
+}
+
+h2 {
+    margin-bottom: 30px;
+    color: #cc930e;
+    font-size: 32px;
+}
+
+h4 {
+    margin-left: 10%;
+    margin-right: 10%;
+    margin-bottom: 20px;
+    color: #cc930e;
+    font-size: 32px;
+}
+
+button {
+    padding: 12px;
+    font-size: 18px;
+    cursor: pointer;
+    background-color: #cc930e;
+    color: #332f2b;
+    border: none;
+    border-radius: 8px;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+button:hover {
+    background-color: #8c6d34;
+    transform: scale(1.02);
+}
+
+button:focus {
+    outline: none;
+}
+
+#appVersion {
+    position: fixed;
+    bottom: 5px;
+    right: 10px;
+    font-size: 12px;
+    color: #ccc;
+}
+
+#githubIcon {
+    position: fixed;
+    bottom: 9px;
+    right: 75px;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    transition: transform 0.4s ease;
+}
+
+#githubIcon:hover {
+    transform: scale(1.2);
+}
+
+.sidebar {
+    height: 100%;
+    width: 0;
+    position: fixed;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    background-color: #111;
+    overflow-x: hidden;
+    transition: 0.5s;
+    padding-top: 60px;
+}
+
+.sidebar a {
+    padding: 8px 8px 8px 8px;
+    text-decoration: none;
+    font-size: 25px;
+    color: #818181;
+    display: block;
+}
+
+.sidebar a:hover {
+    color: #f1f1f1;
+}
+
+.sidebar .closebtn {
+    position: absolute;
+    top: 0;
+    right: 25px;
+    font-size: 36px;
+    margin-left: 50px;
+}
+
+@media screen and (max-height: 450px) {
+    .sidebar {
+        padding-top: 15px;
+    }
+
+    .sidebar a {
+        font-size: 18px;
+    }
+}
+
+span {
+    font-size: 30px;
+    cursor: pointer;
+    color: #cc930e;
+    position: absolute;
+    left: 20px;
+}
+
+#main {
+    transition: margin-left .5s;
+    padding: 8px;
+}
+
+.clock-container {
+    position: absolute;
+    bottom: 13%;
+    left: 39%;
+    font-size: 18px;
+}
+
+.clock-span {
+    position: static;
+    font-size: 18px;
+    color: #cc930e;
+    cursor: default;
+}
+
+.calcolatore-container {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: left;
+}
+
+.calcolatore-container label {
+    display: block;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    font-size: 16px;
+    color: #cc930e;
+}
+
+.calcolatore-container input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cc930e;
+    border-radius: 6px;
+    background-color: #222;
+    color: white;
+    font-size: 16px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.calcolatore-container button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 30px;
+    display: block;
+    box-sizing: border-box;
+}
+
+.result {
+    margin-top: 20px;
+    font-size: 18px;
+    color: #cc930e;
+    text-align: center;
+}

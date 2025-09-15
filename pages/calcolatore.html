@@ -3,8 +3,8 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AyPi</title>
-        <link rel="stylesheet" href="../styles/moduli-style.css">
+        <title>AyPi - Calcolatore</title>
+        <link rel="stylesheet" href="../styles/calcolatore-style.css">
     </head>
     <body>
         <div id="main">
@@ -27,21 +27,34 @@
 
             <span onmouseover="openNav()">&#9776; </span>
 
-            <h4>Seleziona il modulo AyPi!</h4>
-            <button id="openFornitori">Valutazione Fornitori</button>
-            <button id="openDDT">DDT Fornitori</button>
-            <button id="openManutenzioni">Gestione Manutenzioni</button>
-            <button id="openTarature">Strumenti di Misura</button>
-            <button id="openModuloStampi">Gestione Stampi</button>
-            <button id="openMorsetti">Gestione Morsetti</button>
-            <button id="openUtensili">Utensili e Attrezzature</button>
-            <button id="openTicket">Ticket Support</button>
+            <h4>Calcolatore Parametri</h4>
+
+            <div class="calcolatore-container">
+                <label for="diametro">Diametro Utensile D (mm):</label>
+                <input type="number" id="diametro" step="0.01">
+
+                <label for="taglienti">Numero Taglienti z:</label>
+                <input type="number" id="taglienti">
+
+                <label for="vc">Velocità di Taglio Vc (m/min):</label>
+                <input type="number" id="vc" step="0.01">
+
+                <label for="f">Avanzamento per Dente f (mm/g):</label>
+                <input type="number" id="f" step="0.001">
+
+                <label for="riduzione">Riduzione % (opzionale):</label>
+                <input type="number" id="riduzione" step="0.1" placeholder="0">
+
+                <button onclick="calcola()">Calcola</button>
+
+                <div class="result" id="risultato"></div>
+            </div>
 
             <p id="appVersion">AyPi v...</p>
 
             <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
 
-            <script src="../scripts/moduli-scripts.js"></script>
+            <script src="../scripts/calcolatore-scripts.js"></script>
 
         </div>
     </body>

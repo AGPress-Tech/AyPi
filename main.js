@@ -108,9 +108,22 @@ async function getReleaseNotes() {
     }
 }
 
-// Ascolta messaggi dai renderer
 ipcMain.on("mostra-robot-popup", async (event, robotId, url, chiaveStato) => {
     await mostraPopup(robotId, url, chiaveStato);
+});
+
+ipcMain.on("resize-calcolatore", () => {
+    if (mainWindow) {
+        mainWindow.setSize(800, 750); 
+        mainWindow.center();
+    }
+});
+
+ipcMain.on("resize-normale", () => {
+    if (mainWindow) {
+        mainWindow.setSize(750, 550);
+        mainWindow.center();
+    }
 });
 
 ipcMain.on("open-file", (event, filePath) => {
