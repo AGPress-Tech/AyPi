@@ -1,9 +1,7 @@
-const { ipcRenderer, shell } = require("electron");
+const { ipcRenderer } = require("electron");
+const { initCommonUI } = require("../modules/utils");
 
-ipcRenderer.invoke("get-app-version").then((version) => {
-    document.getElementById("appVersion").textContent = `AyPi v${version}`;
-});
-
+// Array percorsi file
 const filePaths = [
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Valutazione Fornitori\\AyPi - Valutazione Fornitori.accdb",
     "\\\\Dl360\\pubbliche\\MAGAZZINO\\DDT FORNITORI\\Controllo DDT fornitori.accdb",
@@ -15,39 +13,28 @@ const filePaths = [
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Ticket Support\\AyPi - Ticket Support.accdb"
 ];
 
-const buttons = ["openFornitori", "openDDT", "openManutenzioni", "openTarature", "openModuloStampi", "openMorsetti", "openUtensili", "openTicket"];
+const buttons = [
+    "openFornitori",
+    "openDDT",
+    "openManutenzioni",
+    "openTarature",
+    "openModuloStampi",
+    "openMorsetti",
+    "openUtensili",
+    "openTicket"
+];
 
 buttons.forEach((id, index) => {
-    document.getElementById(id).addEventListener("click", () => {
-        ipcRenderer.send("open-file", filePaths[index]);
-    });
-});
-
-document.getElementById("githubIcon").addEventListener("click", () => {
-    shell.openExternal("https://github.com/AGPress-Tech/AyPi");
-});
-
-function openNav() {
-    document.getElementById("main").style.marginLeft = "30%";
-    document.getElementById("mySidebar").style.width = "30%";
-}
-
-function closeNav() {
-    document.getElementById("main").style.marginLeft = "0%";
-    document.getElementById("mySidebar").style.width = "0%";
-}
-
-function updateClock() {
-        const now = new Date();
-        const hours = now.getHours().toString().padStart(2, '0');
-        const minutes = now.getMinutes().toString().padStart(2, '0');
-        document.getElementById('clock').textContent = `${hours}:${minutes}`;
+    const btn = document.getElementById(id);
+    if (btn) {
+        btn.addEventListener("click", () => {
+            ipcRenderer.send("open-file", filePaths[index]);
+        });
     }
-    
-setInterval(updateClock, 1000);
-updateClock();
+});
+
+initCommonUI();
 
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
-

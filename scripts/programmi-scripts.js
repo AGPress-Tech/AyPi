@@ -1,8 +1,5 @@
-const { ipcRenderer, shell } = require("electron");
-
-ipcRenderer.invoke("get-app-version").then((version) => {
-    document.getElementById("appVersion").textContent = `AyPi v${version}`;
-});
+const { ipcRenderer } = require("electron");
+const { initCommonUI } = require("../modules/utils");
 
 const filePaths = [
     "\\\\Dl360\\condivisa\\Programmi Reparti AGPress\\1 - Programma Ufficio Tecnico.xlsx",
@@ -14,39 +11,27 @@ const filePaths = [
     "\\\\Dl360\\pubbliche\\SCAMBIO DOCUMENTI\\USCITE CAMION_FURGONE\\PROGRAMMA SETTIMANALE CONSEGNE.xlsx"
 ];
 
-const buttons = ["openTecnico", "openOfficina", "openStampaggio", "openTranceria", "openTorneria", "openMagazzino", "openConsegne"];
+const buttons = [
+    "openTecnico",
+    "openOfficina",
+    "openStampaggio",
+    "openTranceria",
+    "openTorneria",
+    "openMagazzino",
+    "openConsegne"
+];
 
 buttons.forEach((id, index) => {
-    document.getElementById(id).addEventListener("click", () => {
-        ipcRenderer.send("open-file", filePaths[index]);
-    });
+    const btn = document.getElementById(id);
+    if (btn) {
+        btn.addEventListener("click", () => {
+            ipcRenderer.send("open-file", filePaths[index]);
+        });
+    }
 });
 
-document.getElementById("githubIcon").addEventListener("click", () => {
-    shell.openExternal("https://github.com/AGPress-Tech/AyPi");
-});
-
-function openNav() {
-    document.getElementById("main").style.marginLeft = "30%";
-    document.getElementById("mySidebar").style.width = "30%";
-}
-
-function closeNav() {
-    document.getElementById("main").style.marginLeft = "0%";
-    document.getElementById("mySidebar").style.width = "0%";
-}
-
-function updateClock() {
-    const now = new Date();
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    document.getElementById('clock').textContent = `${hours}:${minutes}`;
-}
-
-setInterval(updateClock, 1000);
-updateClock();
+initCommonUI();
 
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
-
