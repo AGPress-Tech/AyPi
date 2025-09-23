@@ -1,44 +1,42 @@
 <!DOCTYPE html>
 <html lang="it">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AyPi</title>
-        <link rel="stylesheet" href="../styles/robot-style.css">
-    </head>
-    <body>
-        <div id="main">
-
-            <div id="mySidebar" class="sidebar" onmouseleave="closeNav()">
-                <a href="javascript:void(0)" class="closebtn"
-                    onclick="closeNav()">&times;</a>
-                <h2></h2>
-                <a href="moduli.html">Moduli</a>
-                <a href="programmi.html">Programmi</a>
-                <a href="infoarticoli.html">Articoli</a>
-                <a href="produzioni.html">Produzioni</a>
-                <a href="robot.html">Robot</a>
-                <a href="calcolatore.html">Calcolatore</a>                
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi</title>
+    <link rel="stylesheet" href="../styles/robot-style.css">
+</head>
+<body>
+    <div id="main">
+        <div id="mySidebar" class="sidebar">
+            <a href="javascript:void(0)" class="closebtn">&times;</a>
+            <h2></h2>
+            <a href="moduli.html">Moduli</a>
+            <a href="programmi.html">Programmi</a>
+            <a href="infoarticoli.html">Articoli</a>
+            <a href="produzioni.html">Produzioni</a>
+            <a href="robot.html">Robot</a>
+            <a href="calcolatore.html">Calcolatore</a>                
                 
-                <div class="clock-container">
-                    <span id="clock" class="clock-span">--:--</span>
-                </div>
+            <div class="clock-container">
+                <span id="clock" class="clock-span">--:--</span>
             </div>
-
-            <span onmouseover="openNav()">&#9776; </span>
-
-            <h4>Visualizza lo stato e informazioni Robot!</h4>
-            <button id="show21D500">Stato Robot 21D500</button>
-            <button id="show21D600">Stato Robot 21D600</button>
-            <button id="show21D850">Stato Robot 21D850</button>
-            <button id="pingRobots">Verifica Connessioni</button>
-                    
-            <p id="appVersion">AyPi v...</p>
-
-            <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
-
-            <script src="../scripts/robot-scripts.js"></script>
-
         </div>
-    </body>
+
+        <span id="menuBtn">&#9776;</span>
+
+        <h4>Visualizza lo stato e informazioni Robot!</h4>
+        <button id="show21D500">Stato Robot 21D500</button>
+        <button id="show21D600">Stato Robot 21D600</button>
+        <button id="show21D850">Stato Robot 21D850</button>
+        <button id="pingRobots">Verifica Connessioni</button>
+                
+        <p id="appVersion">AyPi v...</p>
+
+        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+
+        <script src="../scripts/robot-scripts.js"></script>
+
+    </div>
+</body>
 </html>

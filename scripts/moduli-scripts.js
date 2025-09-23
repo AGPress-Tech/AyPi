@@ -1,7 +1,8 @@
 const { ipcRenderer } = require("electron");
 const { initCommonUI } = require("../modules/utils");
 
-// Array percorsi file
+initCommonUI();
+
 const filePaths = [
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\AyPi Valutazione Fornitori\\AyPi - Valutazione Fornitori.accdb",
     "\\\\Dl360\\pubbliche\\MAGAZZINO\\DDT FORNITORI\\Controllo DDT fornitori.accdb",
@@ -14,14 +15,8 @@ const filePaths = [
 ];
 
 const buttons = [
-    "openFornitori",
-    "openDDT",
-    "openManutenzioni",
-    "openTarature",
-    "openModuloStampi",
-    "openMorsetti",
-    "openUtensili",
-    "openTicket"
+    "openFornitori", "openDDT", "openManutenzioni", "openTarature",
+    "openModuloStampi", "openMorsetti", "openUtensili", "openTicket"
 ];
 
 buttons.forEach((id, index) => {
@@ -32,8 +27,6 @@ buttons.forEach((id, index) => {
         });
     }
 });
-
-initCommonUI();
 
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
