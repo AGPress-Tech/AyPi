@@ -3,19 +3,38 @@ const { exec } = require("child_process");
 const fs = require("fs");
 const log = require("electron-log");
 
-function setupFileManager(mainWindow) {
-    ipcMain.on("resize-calcolatore", () => {
-        if (mainWindow) {
-            mainWindow.setSize(750, 750);
+function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
+    if (!mainWindow) return;
+
+    const [startWidth, startHeight] = mainWindow.getSize();
+    const steps = 20;
+    const stepDuration = duration / steps;
+    let currentStep = 0;
+
+    const interval = setInterval(() => {
+        currentStep++;
+        const progress = currentStep / steps;
+
+        const newWidth = Math.round(startWidth + (targetWidth - startWidth) * progress);
+        const newHeight = Math.round(startHeight + (targetHeight - startHeight) * progress);
+
+        mainWindow.setSize(newWidth, newHeight);
+
+        if (currentStep >= steps) {
+            clearInterval(interval);
+            mainWindow.setSize(targetWidth, targetHeight);
             mainWindow.center();
         }
+    }, stepDuration);
+}
+
+function setupFileManager(mainWindow) {
+    ipcMain.on("resize-calcolatore", () => {
+        animateResize(mainWindow, 750, 750, 100);
     });
 
     ipcMain.on("resize-normale", () => {
-        if (mainWindow) {
-            mainWindow.setSize(750, 550);
-            mainWindow.center();
-        }
+        animateResize(mainWindow, 750, 550, 100);
     });
 
     ipcMain.on("open-file", (event, filePath) => {

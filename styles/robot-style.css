@@ -141,10 +141,10 @@ span {
 }
 
 #pingRobots {
-    background-color: #888686;   /* grigio */
-    color: rgb(0, 0, 0);             /* testo bianco */
+    background-color: #888686;
+    color: rgb(0, 0, 0);
 }
 
 #pingRobots:hover {
-    background-color: #444;   /* grigio più scuro al passaggio del mouse */
+    background-color: #444;
 }

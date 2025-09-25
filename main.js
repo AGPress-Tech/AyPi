@@ -6,6 +6,10 @@ const { setupRobotManager } = require("./modules/robotManager");
 
 let mainWindow;
 
+app.setPath("userData", path.join(app.getPath("appData"), "AyPiUserData"));
+
+app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+
 app.whenReady().then(() => {
     mainWindow = new BrowserWindow({
         width: 750,

@@ -36,7 +36,7 @@ function initCommonUI() {
     }
 
 const sidebar = document.getElementById("mySidebar");
-    const menuBtn = document.getElementById("menuBtn"); // selezioniamo il pulsante ☰
+    const menuBtn = document.getElementById("menuBtn");
     const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
 
     function openNav() {
@@ -52,15 +52,15 @@ const sidebar = document.getElementById("mySidebar");
     }
 
     if (menuBtn) {
-        menuBtn.addEventListener("mouseenter", openNav); // hover sopra
+        menuBtn.addEventListener("mouseenter", openNav);
     }
 
     if (sidebar) {
-        sidebar.addEventListener("mouseleave", closeNav); // mouse fuori
+        sidebar.addEventListener("mouseleave", closeNav);
     }
 
     if (closeBtn) {
-        closeBtn.addEventListener("click", closeNav); // pulsante chiudi
+        closeBtn.addEventListener("click", closeNav);
     }
 }
 
