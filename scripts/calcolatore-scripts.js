@@ -3,14 +3,6 @@ const { initCommonUI } = require("../modules/utils");
 
 initCommonUI();
 
-ipcRenderer.invoke("get-app-version").then(version => {
-    document.getElementById("appVersion").textContent = `AyPi v${version}`;
-});
-
-document.getElementById("githubIcon").addEventListener("click", () => {
-    shell.openExternal("https://github.com/AGPress-Tech/AyPi");
-});
-
 function calcola() {
     const D = parseFloat(document.getElementById("diametro").value);
     const z = parseInt(document.getElementById("taglienti").value);
