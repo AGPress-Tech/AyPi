@@ -47,7 +47,7 @@ function setupFileManager(mainWindow) {
                     type: 'warning',
                     buttons: ['Ok'],
                     title: "Server Non Raggiungibile",
-                    message: "Il server \\\\dl360 non è disponibile. Verificare la connessione."
+                    message: "Il server DL360 non è disponibile. Verificare la connessione."
                 });
                 return;
             }

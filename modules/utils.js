@@ -35,7 +35,7 @@ function initCommonUI() {
         });
     }
 
-const sidebar = document.getElementById("mySidebar");
+    const sidebar = document.getElementById("mySidebar");
     const menuBtn = document.getElementById("menuBtn");
     const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
 
