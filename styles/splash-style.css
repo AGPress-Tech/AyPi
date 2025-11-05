@@ -32,3 +32,11 @@ html, body {
     80% { opacity: 1; }
     100% { opacity: 0; }
 }
+
+#install-addin {
+    display: block;
+    position: absolute;
+    bottom: 6%;
+    left: 33%;
+    font-size: 18px; /* centra e mette un po’ di spazio sopra */
+}

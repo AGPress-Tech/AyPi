@@ -148,3 +148,11 @@ span {
 #pingRobots:hover {
     background-color: #444;
 }
+
+#install-addin {
+    display: block;
+    position: absolute;
+    bottom: 6%;
+    left: 33%;
+    font-size: 18px; /* centra e mette un po’ di spazio sopra */
+}
