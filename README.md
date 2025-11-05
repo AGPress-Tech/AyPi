@@ -24,4 +24,5 @@ Al momento supporta in 6 pagine di navigazione, **Moduli**, **Programmi**, **Art
 <br/>
 L'applicazione si auto-aggiorna all'apertura, verifica che l'utente è collegato ad internet e alla rete interna, ed è in grado di informare l'utente se i moduli interessati sono stati rimossi,
 spostati o sono in uso da altri operatori.
-Ha anche integrato un pulsante per scaricare e aggiornare l'**addin AyPi** per **Excel**!
+
+Ha anche integrato un pulsante per scaricare e aggiornare l'<b>addin AyPi</b> per <b>Excel</b>!
