@@ -7,7 +7,7 @@ const { exec } = require("child_process");
 
 // Percorso add-in Excel
 const addinUrl = 'http://data.agpress-srl.it/AypiExcelAddin/MacroUtils.xlam';
-const addinFolder = path.join(process.env.APPDATA, 'Microsoft', 'AddIns');
+const addinFolder = 'C:\\AyPiAddin';
 if (!fs.existsSync(addinFolder)) fs.mkdirSync(addinFolder, { recursive: true });
 const addinPath = path.join(addinFolder, 'MacroUtils.xlam');
 
