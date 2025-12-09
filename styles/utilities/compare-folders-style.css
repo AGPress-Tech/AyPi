@@ -1,0 +1,159 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #332f2b;
+    color: #fff;
+    margin: 0;
+    overflow: hidden;
+}
+
+.container {
+    padding: 16px;
+}
+
+h2 {
+    margin-top: 0;
+    color: #cc930e;
+    text-align: center;
+}
+
+.section {
+    margin-top: 12px;
+    border-top: 1px solid #555;
+    padding-top: 10px;
+}
+
+.folder-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.label-col {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    font-size: 14px;
+}
+
+.label-col .label {
+    font-weight: bold;
+}
+
+.label-col .value {
+    flex: 1;
+    word-break: break-all;
+}
+
+.options label,
+.filters label {
+    margin-top: 6px;
+}
+
+.inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 8px;
+    font-size: 14px;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: 6px;
+    margin: 4px 0 8px 0;
+    border-radius: 4px;
+    border: 1px solid #777;
+    background-color: #2b2824;
+    color: #fff;
+    box-sizing: border-box;
+}
+
+button {
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    background-color: #cc930e;
+    color: #332f2b;
+    border: none;
+    border-radius: 6px;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover:not(:disabled) {
+    background-color: #8c6d34;
+    transform: scale(1.01);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.section.commands {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.section.commands .left button {
+    margin-right: 4px;
+}
+
+.section.commands .right button {
+    margin-left: 4px;
+}
+
+.preview-section {
+    max-height: 400px;
+    overflow: auto;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 6px;
+    background-color: #2b2824;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+th, td {
+    padding: 4px 6px;
+    border-bottom: 1px solid #444;
+    text-align: left;
+}
+
+th {
+    background-color: #1f1c19;
+    position: sticky;
+    top: 0;
+}
+
+tr.status-onlyA td {
+    color: #e67e22;
+}
+
+tr.status-onlyB td {
+    color: #3498db;
+}
+
+tr.status-diff td {
+    color: #e74c3c;
+}
+
+tr.status-same td {
+    color: #2ecc71;
+}
+
+tr.row-selected {
+    background-color: #444 !important;
+}
+
+tr.row-selected td {
+    font-weight: bold;
+}

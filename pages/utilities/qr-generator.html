@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Generatore QR/Barcode</title>
+    <link rel="stylesheet" href="../../styles/utilities/qr-generator-style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h2>Generatore QR/Barcode</h2>
+
+        <div class="section">
+            <label for="contentInput">Testo/URL da codificare</label>
+            <textarea id="contentInput" rows="3" placeholder="Inserisci il contenuto..."></textarea>
+        </div>
+
+        <div class="section">
+            <label for="typeSelect">Tipo di codice</label>
+            <select id="typeSelect">
+                <option value="qr">QR Code</option>
+                <option value="barcode">Codice a barre (Code 128)</option>
+            </select>
+        </div>
+
+        <div class="section options-row">
+            <div>
+                <label for="sizeInput">Dimensione (px)</label>
+                <input type="number" id="sizeInput" value="256" min="100" max="1000">
+            </div>
+            <div>
+                <label for="marginInput">Margine</label>
+                <input type="number" id="marginInput" value="4" min="0" max="32">
+            </div>
+        </div>
+
+        <div class="section" id="barcodeExtraOptions" style="display:none;">
+            <label for="barcodeHeight">Altezza barcode (unità grafiche)</label>
+            <input type="number" id="barcodeHeight" value="10" min="5" max="50">
+
+            <label class="inline">
+                <input type="checkbox" id="barcodeShowText" checked>
+                Mostra il testo sotto al codice a barre
+            </label>
+        </div>
+
+        <div class="section buttons">
+            <button id="btnGenerate">Genera</button>
+            <button id="btnSave" disabled>Salva come immagine...</button>
+            <button id="btnClose">Chiudi</button>
+        </div>
+
+        <div class="section preview">
+            <div id="previewBox">
+                <span id="previewPlaceholder">Nessun codice generato.</span>
+                <img id="previewImage" alt="Anteprima codice" style="display:none;">
+            </div>
+        </div>
+    </div>
+
+    <script src="../../scripts/utilities/qr-generator-scripts.js"></script>
+</body>
+
+</html>

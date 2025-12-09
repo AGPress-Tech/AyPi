@@ -22,9 +22,11 @@
   "dependencies": {
     "@network-utils/arp-lookup": "^2.1.0",
     "axios": "^1.13.2",
+    "bwip-js": "^4.8.0",
     "electron-log": "^5.3.1",
     "electron-prompt": "^1.7.0",
     "electron-updater": "^6.3.9",
+    "qrcode": "^1.5.4",
     "update-electron-app": "^3.1.1",
     "xlsx": "^0.18.5"
   },

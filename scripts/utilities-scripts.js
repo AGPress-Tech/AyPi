@@ -12,10 +12,6 @@ try {
 
 initCommonUI();
 
-/**
- * Scansiona una cartella in modo ricorsivo e restituisce
- * un array di oggetti con le info sui file.
- */
 function scanFolder(rootPath) {
     const results = [];
 
@@ -47,7 +43,6 @@ function scanFolder(rootPath) {
     return results;
 }
 
-// 🔹 helper per mostrare dialog dalla renderer
 function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
 }
@@ -75,7 +70,6 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
-    // --- HANDLER 1: Trascrivi Nomi Files ---
     btn.addEventListener("click", async () => {
         console.log("Bottone Trascrivi Nomi Files cliccato ✔");
 
@@ -140,11 +134,24 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- HANDLER 2: Apri finestra Batch Rename ---
     const btnBatchRename = document.getElementById("batchRenameFiles");
     if (btnBatchRename) {
         btnBatchRename.addEventListener("click", () => {
             ipcRenderer.send("open-batch-rename-window");
+        });
+    }
+
+    const btnQrGen = document.getElementById("qrGenerator");
+    if (btnQrGen) {
+        btnQrGen.addEventListener("click", () => {
+            ipcRenderer.send("open-qr-generator-window");
+        });
+    }
+
+    const btnCompareFolders = document.getElementById("compareFolders");
+    if (btnCompareFolders) {
+        btnCompareFolders.addEventListener("click", () => {
+            ipcRenderer.send("open-compare-folders-window");
         });
     }
 });

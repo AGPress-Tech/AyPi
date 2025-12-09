@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Confronta cartelle</title>
+    <link rel="stylesheet" href="../../styles/utilities/compare-folders-style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h2>Confronta cartelle</h2>
+
+        <div class="section">
+            <div class="folder-row">
+                <button id="btnSelectFolderA">Seleziona cartella X...</button>
+                <div class="label-col">
+                    <span class="label">Cartella X:</span>
+                    <span id="lblFolderA" class="value">Nessuna</span>
+                </div>
+            </div>
+            <div class="folder-row">
+                <button id="btnSelectFolderB">Seleziona cartella Y...</button>
+                <div class="label-col">
+                    <span class="label">Cartella Y:</span>
+                    <span id="lblFolderB" class="value">Nessuna</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section options">
+            <label class="inline">
+                <input type="checkbox" id="chkIncludeSubfolders" checked>
+                Includi sottocartelle
+            </label>
+
+            <label for="compareMode">Modalità di confronto</label>
+            <select id="compareMode">
+                <option value="name">Solo percorso e nome file</option>
+                <option value="meta">Dimensione + data modifica</option>
+                <option value="hash">Conferma differenze con hash (più lento)</option>
+            </select>
+        </div>
+
+        <div class="section filters">
+            <span>Mostra:</span>
+            <label class="inline">
+                <input type="checkbox" id="filterOnlyA" checked>
+                Solo in X
+            </label>
+            <label class="inline">
+                <input type="checkbox" id="filterOnlyB" checked>
+                Solo in Y
+            </label>
+            <label class="inline">
+                <input type="checkbox" id="filterDiff" checked>
+                Diversi
+            </label>
+            <label class="inline">
+                <input type="checkbox" id="filterSame">
+                Uguali
+            </label>
+        </div>
+
+        <div class="section commands">
+            <div class="left">
+                <button id="btnCompare">Confronta</button>
+            </div>
+            <div class="right">
+                <button id="btnOpenInA" disabled>Apri in X</button>
+                <button id="btnOpenInB" disabled>Apri in Y</button>
+                <button id="btnClose">Chiudi</button>
+            </div>
+        </div>
+
+        <div class="section preview-section">
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Percorso relativo</th>
+                        <th>Stato</th>
+                        <th>Info X</th>
+                        <th>Info Y</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="../../scripts/utilities/compare-folders-scripts.js"></script>
+</body>
+
+</html>

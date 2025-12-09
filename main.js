@@ -23,7 +23,6 @@ app.whenReady().then(() => {
     mainWindow.loadFile("./pages/index.html");
     mainWindow.setMenu(null);
 
-    // Inizializza i vari manager
     setupAutoUpdater(mainWindow);
     setupFileManager(mainWindow);
     setupRobotManager(mainWindow);

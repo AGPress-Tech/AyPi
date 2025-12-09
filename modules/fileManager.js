@@ -48,6 +48,8 @@ function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
  */
 
 let batchRenameWindow = null;
+let qrGeneratorWindow = null;
+let compareFoldersWindow = null;
 
 /**
  * Apre (o porta in primo piano) la finestra di Rinomina File in Batch.
@@ -71,7 +73,7 @@ function openBatchRenameWindow(mainWindow) {
         icon: path.join(__dirname, "..", "assets", "app-icon.png"),
     });
 
-    batchRenameWindow.loadFile(path.join(__dirname, "..", "pages", "batch-rename.html"));
+    batchRenameWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"));
     batchRenameWindow.setMenu(null);
 
     // Centra la finestra
@@ -87,6 +89,74 @@ function openBatchRenameWindow(mainWindow) {
         }
     });
 }
+
+function openQrGeneratorWindow(mainWindow) {
+    if (qrGeneratorWindow && !qrGeneratorWindow.isDestroyed()) {
+        qrGeneratorWindow.focus();
+        return;
+    }
+
+    qrGeneratorWindow = new BrowserWindow({
+        width: 900,     // <--- STESSO VALORE DI BATCH RENAME
+        height: 800,    // <--- STESSO VALORE DI BATCH RENAME
+        parent: mainWindow,
+        modal: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, "..", "assets", "app-icon.png"),
+    });
+
+    qrGeneratorWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"));
+    qrGeneratorWindow.setMenu(null);
+
+    // Centra la finestra (come per Batch Rename)
+    qrGeneratorWindow.center();
+
+    qrGeneratorWindow.on("closed", () => {
+        qrGeneratorWindow = null;
+
+        // Riporta AyPi in primo piano (come Batch Rename)
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
+function openCompareFoldersWindow(mainWindow) {
+    if (compareFoldersWindow && !compareFoldersWindow.isDestroyed()) {
+        compareFoldersWindow.focus();
+        return;
+    }
+
+    compareFoldersWindow = new BrowserWindow({
+        width: 900,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, "..", "assets", "app-icon.png"),
+    });
+
+    compareFoldersWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "compare-folders.html"));
+    compareFoldersWindow.setMenu(null);
+    compareFoldersWindow.center();
+
+    compareFoldersWindow.on("closed", () => {
+        compareFoldersWindow = null;
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
 
 function setupFileManager(mainWindow) {
 
@@ -209,16 +279,21 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    // Handler per ottenere la versione dell'app
     ipcMain.handle("get-app-version", async () => {
         return app.getVersion();
     });
 
-    // Handler per aprire la finestra Batch Rename dalla pagina Utilities
     ipcMain.on("open-batch-rename-window", () => {
         openBatchRenameWindow(mainWindow);
     });
 
+    ipcMain.on("open-qr-generator-window", () => {
+        openQrGeneratorWindow(mainWindow);
+    });
+
+    ipcMain.on("open-compare-folders-window", () => {
+        openCompareFoldersWindow(mainWindow);
+    });
 }
 
 // Esporta la funzione per essere usata nel main process
