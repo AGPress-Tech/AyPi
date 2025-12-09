@@ -50,6 +50,7 @@ function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
 let batchRenameWindow = null;
 let qrGeneratorWindow = null;
 let compareFoldersWindow = null;
+let hierarchyWindow = null;
 
 /**
  * Apre (o porta in primo piano) la finestra di Rinomina File in Batch.
@@ -155,6 +156,137 @@ function openCompareFoldersWindow(mainWindow) {
             mainWindow.focus();
         }
     });
+}
+
+function openHierarchyWindow(mainWindow) {
+    if (hierarchyWindow && !hierarchyWindow.isDestroyed()) {
+        hierarchyWindow.focus();
+        return;
+    }
+
+    hierarchyWindow = new BrowserWindow({
+        width: 1100,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, "..", "assets", "app-icon.png"),
+    });
+
+    hierarchyWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "hierarchy.html")
+    );
+    hierarchyWindow.setMenu(null);
+    hierarchyWindow.center();
+
+    hierarchyWindow.on("closed", () => {
+        hierarchyWindow = null;
+
+        // Riporta AyPi in primo piano
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
+function startHierarchyScan(win, rootFolder) {
+    const webContents = win.webContents;
+
+    // Coda di directory da processare (DFS)
+    const pendingDirs = [rootFolder];
+
+    let totalFiles = 0;
+    let totalDirs = 0;
+
+    const BATCH_SIZE = 500;
+
+    function step() {
+        const batch = [];
+
+        // Elaboriamo directory finché:
+        // - ce ne sono
+        // - e non abbiamo riempito il batch
+        while (pendingDirs.length > 0 && batch.length < BATCH_SIZE) {
+            const currentDir = pendingDirs.pop();
+            totalDirs++;
+
+            let entries;
+            try {
+                entries = fs.readdirSync(currentDir, { withFileTypes: true });
+            } catch (err) {
+                console.warn("Impossibile leggere la cartella:", currentDir, err.message);
+                continue;
+            }
+
+            // Aggiungiamo la directory stessa come entry "folder"
+            const relDir = path.relative(rootFolder, currentDir);
+            batch.push({
+                kind: "folder",
+                fullPath: currentDir,
+                relPath: relDir || "", // root = stringa vuota
+            });
+
+            for (const entry of entries) {
+                const fullPath = path.join(currentDir, entry.name);
+
+                if (entry.isDirectory()) {
+                    // metti in coda per elaborarla dopo
+                    pendingDirs.push(fullPath);
+                } else if (entry.isFile()) {
+                    let st;
+                    try {
+                        st = fs.statSync(fullPath);
+                    } catch (err) {
+                        console.warn("Impossibile leggere stat del file:", fullPath, err.message);
+                        continue;
+                    }
+
+                    const relPath = path.relative(rootFolder, fullPath);
+
+                    totalFiles++;
+                    batch.push({
+                        kind: "file",
+                        fullPath,
+                        relPath,
+                        size: st.size,
+                        mtimeMs: st.mtimeMs,
+                    });
+                }
+
+                if (batch.length >= BATCH_SIZE) {
+                    break;
+                }
+            }
+        }
+
+        if (batch.length > 0) {
+            webContents.send("hierarchy-progress", {
+                rootFolder,
+                batch,
+                totalFiles,
+                totalDirs,
+            });
+        }
+
+        if (pendingDirs.length > 0) {
+            // Continua con il prossimo chunk senza bloccare l'UI
+            setImmediate(step);
+        } else {
+            // Fine scansione
+            webContents.send("hierarchy-complete", {
+                rootFolder,
+                totalFiles,
+                totalDirs,
+            });
+        }
+    }
+
+    // Avvia la prima iterazione
+    step();
 }
 
 
@@ -279,6 +411,21 @@ function setupFileManager(mainWindow) {
         });
     });
 
+    ipcMain.on("hierarchy-start-scan", (event, data) => {
+        if (!data || !data.rootFolder) {
+            return;
+        }
+
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (!win || win.isDestroyed()) {
+            return;
+        }
+
+        console.log("Richiesta scansione gerarchia REALE:", data.rootFolder);
+
+        startHierarchyScan(win, data.rootFolder);
+    });
+
     ipcMain.handle("get-app-version", async () => {
         return app.getVersion();
     });
@@ -293,6 +440,10 @@ function setupFileManager(mainWindow) {
 
     ipcMain.on("open-compare-folders-window", () => {
         openCompareFoldersWindow(mainWindow);
+    });
+
+    ipcMain.on("open-hierarchy-window", () => {
+        openHierarchyWindow(mainWindow);
     });
 }
 

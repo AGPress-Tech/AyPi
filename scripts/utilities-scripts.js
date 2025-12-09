@@ -154,6 +154,13 @@ window.addEventListener("DOMContentLoaded", () => {
             ipcRenderer.send("open-compare-folders-window");
         });
     }
+
+    const btnHierarchy = document.getElementById("hierarchyGenerator");
+    if (btnHierarchy) {
+        btnHierarchy.addEventListener("click", () => {
+            ipcRenderer.send("open-hierarchy-window");
+        });
+    }
 });
 
 

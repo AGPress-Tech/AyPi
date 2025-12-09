@@ -148,3 +148,29 @@ span {
     left: 33%;
     font-size: 18px; /* centra e mette un po’ di spazio sopra */
 }
+
+/* -------- SCROLLBAR STILE AYPI -------- */
+
+::-webkit-scrollbar {
+    width: 10px;           /* larghezza barra verticale */
+    height: 10px;          /* altezza barra orizzontale */
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2824;   /* colore sfondo */
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cc930e;   /* colore barra */
+    border-radius: 10px;
+    border: 2px solid #2b2824; /* bordino per dare profondità */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #e4ab32;   /* colore barra in hover */
+}
+
+::-webkit-scrollbar-corner {
+    background: #2b2824;   /* l'angolo tra scroll orizz/vert */
+}
