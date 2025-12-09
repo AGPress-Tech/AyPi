@@ -75,6 +75,7 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
+    // --- HANDLER 1: Trascrivi Nomi Files ---
     btn.addEventListener("click", async () => {
         console.log("Bottone Trascrivi Nomi Files cliccato ✔");
 
@@ -89,7 +90,6 @@ window.addEventListener("DOMContentLoaded", () => {
         try {
             await showInfo("Seleziona la cartella da analizzare.");
 
-            // Selezione cartella
             const rootFolder = await ipcRenderer.invoke("select-root-folder");
             if (!rootFolder) {
                 await showWarning("Operazione annullata dall'utente.");
@@ -98,7 +98,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
             await showInfo("Seleziona dove salvare il file Excel.");
 
-            // Selezione file di output
             const outputPath = await ipcRenderer.invoke("select-output-file", {
                 defaultName: "lista_file.xlsx"
             });
@@ -107,7 +106,6 @@ window.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            // Qui niente dialog “in corso”, semplicemente lavoriamo
             console.log("Scansione in corso su:", rootFolder);
 
             const rows = scanFolder(rootFolder);
@@ -121,7 +119,6 @@ window.addEventListener("DOMContentLoaded", () => {
             const ws = XLSX.utils.json_to_sheet(rows);
             XLSX.utils.book_append_sheet(wb, ws, "File");
 
-            // Creo directory di output se non esiste
             const dirOut = path.dirname(outputPath);
             if (!fs.existsSync(dirOut)) {
                 fs.mkdirSync(dirOut, { recursive: true });
@@ -133,6 +130,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 "File Excel creato con successo.",
                 outputPath
             );
+
         } catch (err) {
             console.error("Errore durante la generazione della lista file:", err);
             await showError(
@@ -141,4 +139,14 @@ window.addEventListener("DOMContentLoaded", () => {
             );
         }
     });
+
+    // --- HANDLER 2: Apri finestra Batch Rename ---
+    const btnBatchRename = document.getElementById("batchRenameFiles");
+    if (btnBatchRename) {
+        btnBatchRename.addEventListener("click", () => {
+            ipcRenderer.send("open-batch-rename-window");
+        });
+    }
 });
+
+

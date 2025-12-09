@@ -1,5 +1,6 @@
 // Importazione dei moduli principali di Electron e Node.js
-const { ipcMain, dialog, shell } = require("electron");
+const { ipcMain, dialog, shell, BrowserWindow, app } = require("electron");
+const path = require("path");
 const { exec } = require("child_process");
 const fs = require("fs");
 const log = require("electron-log");
@@ -45,6 +46,48 @@ function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
  * Registra gli handler IPC per la gestione dei file e del ridimensionamento finestra
  * @param {BrowserWindow} mainWindow - finestra principale di Electron
  */
+
+let batchRenameWindow = null;
+
+/**
+ * Apre (o porta in primo piano) la finestra di Rinomina File in Batch.
+ * Viene usata dalle utilities AyPi dalla pagina Utilities.
+ */
+function openBatchRenameWindow(mainWindow) {
+    if (batchRenameWindow && !batchRenameWindow.isDestroyed()) {
+        batchRenameWindow.focus();
+        return;
+    }
+
+    batchRenameWindow = new BrowserWindow({
+        width: 900,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, "..", "assets", "app-icon.png"),
+    });
+
+    batchRenameWindow.loadFile(path.join(__dirname, "..", "pages", "batch-rename.html"));
+    batchRenameWindow.setMenu(null);
+
+    // Centra la finestra
+    batchRenameWindow.center();
+
+    batchRenameWindow.on("closed", () => {
+        batchRenameWindow = null;
+
+        // 🔥 Quando la finestra si chiude, riportiamo AyPi in primo piano
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();  // la rende visibile se nascosta
+            mainWindow.focus(); // la porta davanti
+        }
+    });
+}
+
 function setupFileManager(mainWindow) {
 
     // Evento IPC per ridimensionare la finestra alla modalità "calcolatore"
@@ -93,7 +136,7 @@ function setupFileManager(mainWindow) {
                 if (stats.isDirectory()) {
                     shell.openPath(filePath);
                 } else {
-                    // Se è un file → prova ad aprirlo
+                    // Se è un file → prova ad aprirlo con l'applicazione predefinita
                     exec(`start "" "${filePath}"`, (error) => {
                         if (error) {
                             // Caso: file già aperto da un altro processo
@@ -123,6 +166,59 @@ function setupFileManager(mainWindow) {
             });
         });
     });
+
+    // Handler per selezionare una cartella radice (usato dalle Utilities AyPi)
+    ipcMain.handle("select-root-folder", async () => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            title: "Seleziona la cartella",
+            properties: ["openDirectory"],
+        });
+
+        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+            return null;
+        }
+        return result.filePaths[0];
+    });
+
+    // Handler per selezionare un file di output (es. Excel generati dalle Utilities)
+    ipcMain.handle("select-output-file", async (event, options) => {
+        const result = await dialog.showSaveDialog(mainWindow, {
+            title: "Seleziona il file di destinazione",
+            defaultPath: options?.defaultName || "output.xlsx",
+            filters: [
+                { name: "File Excel", extensions: ["xlsx"] },
+            ],
+        });
+
+        if (result.canceled || !result.filePath) {
+            return null;
+        }
+        return result.filePath;
+    });
+
+    // Handler generico per mostrare finestre di messaggio (info / warning / error)
+    ipcMain.handle("show-message-box", async (event, options) => {
+        const win = BrowserWindow.getFocusedWindow() || mainWindow;
+
+        return dialog.showMessageBox(win, {
+            type: options.type || "none",
+            buttons: ["OK"],
+            title: "AyPi",
+            message: options.message || "",
+            detail: options.detail || "",
+        });
+    });
+
+    // Handler per ottenere la versione dell'app
+    ipcMain.handle("get-app-version", async () => {
+        return app.getVersion();
+    });
+
+    // Handler per aprire la finestra Batch Rename dalla pagina Utilities
+    ipcMain.on("open-batch-rename-window", () => {
+        openBatchRenameWindow(mainWindow);
+    });
+
 }
 
 // Esporta la funzione per essere usata nel main process
