@@ -20,11 +20,25 @@
         </div>
 
         <div class="main-area">
-            <div class="tree-container">
-                <h3>Gerarchia</h3>
-                <div id="treeRoot" class="tree-view"></div>
+            <!-- Pannello sinistro: Gerarchia + cerca -->
+            <div class="tree-panel">
+                <div class="tree-header">
+                    <span class="panel-title">Gerarchia</span>
+
+                    <div class="search-bar">
+                        <input type="text" id="searchInput" placeholder="Cerca per nome o parte di percorso..." />
+                        <button id="btnSearch">Cerca</button>
+                    </div>
+                </div>
+
+                <div id="searchResults" class="search-results"></div>
+
+                <div class="tree-container">
+                    <div id="treeRoot" class="tree-view"></div>
+                </div>
             </div>
 
+            <!-- Pannello destro: dettagli -->
             <div class="details-container">
                 <h3>Dettagli elemento</h3>
                 <div id="detailsBox" class="details-box">

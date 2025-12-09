@@ -42,15 +42,116 @@ button:hover {
 .main-area {
     display: flex;
     flex: 1 1 auto;
-    min-height: 0;  /* 🔑 permette ai figli di scrollare */
+    min-height: 0;  /* permette ai figli di scrollare */
     gap: 12px;
 }
 
+/* -------- PANNELLO GERARCHIA (SINISTRA) -------- */
 
-.tree-container {
+.tree-panel {
     flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 8px;
+    background-color: #201d1a;
+    box-sizing: border-box;
+}
+
+.tree-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.panel-title {
+    font-weight: bold;
+    font-size: 14px;
+    color: #ffffff;
+}
+
+/* barra di ricerca dentro l’header */
+.search-bar {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+}
+
+#searchInput {
+    flex: 1;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background-color: #2b2824;
+    color: #fff;
+    font-size: 13px;
+}
+
+#btnSearch {
+    padding: 4px 10px;
+    font-size: 13px;
+    border-radius: 4px;
+    background-color: #cc930e;
+    color: #332f2b;
+    border: none;
+    cursor: pointer;
+}
+
+#btnSearch:hover {
+    background-color: #8c6d34;
+}
+
+/* risultati ricerca subito sotto l’header */
+.search-results {
+    margin-bottom: 6px;
+    max-height: 120px;
+    overflow: auto;
+    font-size: 12px;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 6px;
+    background-color: #2b2824;
+}
+
+.search-results ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 4px 0 0 0;
+}
+
+.search-results li {
+    cursor: pointer;
+    padding: 2px 0;
+    white-space: nowrap;
+}
+
+.search-results li:hover {
+    text-decoration: underline;
+}
+
+.search-results .muted {
+    color: #aaaaaa;
+}
+
+/* contenitore albero che occupa tutto lo spazio restante */
+.tree-container {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-x: auto;  /* scroll orizzontale se serve */
     overflow-y: auto;  /* scroll verticale se serve */
+    border-radius: 4px;
+    padding: 10px;
+    background-color: #2b2824;
+    box-sizing: border-box;
+}
+
+/* -------- PANNELLO DETTAGLI (DESTRA) -------- */
+
+.details-container {
+    flex: 1 1 0;
+    overflow-y: auto;
     border: 1px solid #555;
     border-radius: 6px;
     padding: 10px;
@@ -58,21 +159,17 @@ button:hover {
     box-sizing: border-box;
 }
 
-
-.details-container {
-    flex: 1;
-    overflow-y: auto;
-    border: 1px solid #555;
-    border-radius: 6px;
-    padding: 10px;
-    background-color: #2b2824;
+.details-box {
+    padding: 5px;
 }
+
+/* -------- ALBERO -------- */
 
 .tree-node {
     padding: 3px 0;
     cursor: pointer;
     white-space: nowrap;
-    display: block;         /* ✅ blocco, non più flex */
+    display: block;
 }
 
 .tree-node:hover {
@@ -96,10 +193,6 @@ button:hover {
 .node-icon {
     width: 14px;
     display: inline-block;
-}
-
-.details-box {
-    padding: 5px;
 }
 
 .tree-view {
@@ -132,6 +225,8 @@ button:hover {
 ::-webkit-scrollbar-corner {
     background: #2b2824;   /* l'angolo tra scroll orizz/vert */
 }
+
+/* -------- VARIE -------- */
 
 .muted {
     color: #aaaaaa;

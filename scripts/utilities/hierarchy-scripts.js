@@ -1,26 +1,16 @@
 const { ipcRenderer } = require("electron");
 const path = require("path");
 
-const FUN_MESSAGES = [
-    "Calcolo degli atomi dei file...",
-    "Allineamento dei bit con l'asse di rotazione terrestre...",
-    "Stima della distanza Terra–Sole–file selezionati...",
-    "Ottimizzazione del coefficiente di entropia dei backup...",
-    "Calcolo subatomico quantistico dei metadati...",
-    "Sincronizzazione con il fuso orario dei ping di rete...",
-    "Ricalibrazione della matrice spazio–tempo dei percorsi...",
-    "Normalizzazione logaritmica delle estensioni esotiche...",
-];
-
-let lastFunMessageTime = 0;
-let funMessageIndex = 0;
-
 let XLSX;
 try {
     XLSX = require("xlsx");
 } catch (err) {
     console.error("Modulo 'xlsx' non disponibile. Esegui `npm install xlsx` se vuoi l'export.");
 }
+
+// -------------------------
+// Stato globale
+// -------------------------
 
 let selectedFolder = null;
 let rootTree = null;
@@ -31,10 +21,30 @@ let lastSelectedNodeData = null;
 let pendingEntries = [];
 let isBuildingTree = false;
 
-// riferimenti DOM (li riempiamo in DOMContentLoaded)
+// riferimenti DOM (riempiti in DOMContentLoaded)
 let treeRootEl = null;
 let lblSelectedFolder = null;
 let detailsBox = null;
+
+// Messaggi “quantistici”
+const FUN_MESSAGES = [
+    "Calcolo degli atomi dei file...",
+    "Allineamento dei bit con l'asse di rotazione terrestre...",
+    "Stima della distanza Terra–Sole–file richiesti...",
+    "Ottimizzazione del coefficiente di entropia dei backup...",
+    "Calcolo subatomico quantistico dei metadati...",
+    "Sincronizzazione con il fuso orario dei ping di rete...",
+    "Ricalibrazione della matrice spazio–tempo dei percorsi...",
+    "Normalizzazione logaritmica delle estensioni esotiche..."
+];
+
+let lastFunMessageTime = 0;
+let funMessageIndex = 0;
+
+// Ricerca globale nell'albero
+let searchGeneration = 0;
+let lastSearchProgressTime = 0;
+
 
 // -------------------------
 // Helper dialog
@@ -157,7 +167,7 @@ function computeFolderStatsDirect(node) {
 }
 
 /**
- * Conteggio ricorsivo NON bloccante.
+ * Conteggio ricorsivo NON bloccante di un ramo.
  */
 function computeFolderStatsRecursiveAsync(node, onProgress, onDone) {
     if (!node || node.type !== "folder") {
@@ -232,7 +242,7 @@ function formatBytes(bytes) {
 }
 
 // -------------------------
-// Export gerarchia in Excel
+// Export gerarchia in Excel (ramo cartella)
 // -------------------------
 
 function collectSubtreeRows(node, basePath, acc = []) {
@@ -267,6 +277,20 @@ function collectSubtreeRows(node, basePath, acc = []) {
 }
 
 // -------------------------
+// Utility: figli ordinati (cartelle prima, poi file, alfabetic)
+// -------------------------
+
+function getSortedChildren(node) {
+    if (!node || !Array.isArray(node.children)) return [];
+    return [...node.children].sort((a, b) => {
+        if (a.type !== b.type) {
+            return a.type === "folder" ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+    });
+}
+
+// -------------------------
 // Creazione DOM albero
 // -------------------------
 
@@ -289,19 +313,11 @@ function createTreeNode(nodeData) {
         const childrenContainer = document.createElement("div");
         childrenContainer.classList.add("tree-children");
 
-        if (Array.isArray(nodeData.children)) {
-            const sorted = [...nodeData.children].sort((a, b) => {
-                if (a.type !== b.type) {
-                    return a.type === "folder" ? -1 : 1;
-                }
-                return a.name.localeCompare(b.name);
-            });
-
-            sorted.forEach((child) => {
-                const childNode = createTreeNode(child);
-                childrenContainer.appendChild(childNode);
-            });
-        }
+        const sorted = getSortedChildren(nodeData);
+        sorted.forEach((child) => {
+            const childNode = createTreeNode(child);
+            childrenContainer.appendChild(childNode);
+        });
 
         wrapper.appendChild(childrenContainer);
 
@@ -365,20 +381,19 @@ function buildTreeFromPendingAsync(onDone) {
 
         if (treeRootEl) {
             treeRootEl.innerHTML = `
-        <p>Costruzione albero...</p>
-        <p>${index} / ${total} elementi elaborati</p>
-        `;
+                <p>Costruzione albero...</p>
+                <p>${index} / ${total} elementi elaborati</p>
+            `;
+        }
 
         const buildFunStatus = document.getElementById("buildFunStatus");
         if (buildFunStatus) {
             const now = performance.now();
-            if (now - lastFunMessageTime > 15000) { // 15 secondi
+            if (now - lastFunMessageTime > 5000) { // 5 secondi
                 funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
                 buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
                 lastFunMessageTime = now;
             }
-        }
-
         }
 
         if (index < total) {
@@ -436,6 +451,58 @@ function updateDetails(data) {
             const dt = new Date(data.mtimeMs);
             box.innerHTML += `<p><b>Ultima modifica:</b> ${dt.toLocaleString()}</p>`;
         }
+
+        box.innerHTML += `
+            <div class="details-buttons-row">
+                <button id="btnFindSameName" class="small-btn">Trova tutti i file con questo nome</button>
+            </div>
+            <div id="sameNameResults" class="same-name-results"></div>
+        `;
+
+        const btnFind = document.getElementById("btnFindSameName");
+        const resultsDiv = document.getElementById("sameNameResults");
+
+        if (btnFind && resultsDiv) {
+            btnFind.addEventListener("click", () => {
+                if (!rootTree) {
+                    resultsDiv.innerHTML = "<p class='muted'>Gerarchia non disponibile.</p>";
+                    return;
+                }
+
+                const fileName = data.name;
+                const matches = findFilesWithName(rootTree, fileName);
+
+                if (!matches || matches.length === 0) {
+                    resultsDiv.innerHTML = "<p class='muted'>Nessun altro file con questo nome.</p>";
+                    return;
+                }
+
+                let html = `<p><b>Trovati ${matches.length} file con nome '${fileName}':</b></p><ul>`;
+                for (const m of matches) {
+                    const safePath = (m.fullPath || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+                    html += `<li class="sameNameLink" data-path="${m.fullPath}">${safePath}</li>`;
+                }
+                html += "</ul>";
+                html += `<button id="exportSameName" class="small-btn">Esporta in Excel</button>`;
+
+                resultsDiv.innerHTML = html;
+
+                document.querySelectorAll(".sameNameLink").forEach(el => {
+                    el.addEventListener("click", () => {
+                        const p = el.getAttribute("data-path");
+                        focusNodeInTree(p);
+                    });
+                });
+
+                const btnExportSame = document.getElementById("exportSameName");
+                if (btnExportSame) {
+                    btnExportSame.addEventListener("click", () => {
+                        exportSameNameList(matches);
+                    });
+                }
+            });
+        }
+
         return;
     }
 
@@ -498,7 +565,6 @@ function updateDetails(data) {
                 computeFolderStatsRecursiveAsync(
                     targetNode,
                     (partial) => {
-                        // progress parziale: cambiamo messaggio solo ogni ~15s
                         if (funStatus) {
                             const now = performance.now();
                             if (now - lastFunMessageTime > 15000) {
@@ -581,6 +647,190 @@ function updateDetails(data) {
 }
 
 // -------------------------
+// Ricerca file con stesso nome nel tree
+// -------------------------
+
+function findFilesWithName(root, fileName) {
+    const results = [];
+    if (!root) return results;
+
+    const stack = [root];
+
+    while (stack.length > 0) {
+        const node = stack.pop();
+
+        if (node.type === "file" && node.name === fileName) {
+            results.push(node);
+        }
+
+        if (node.type === "folder" && Array.isArray(node.children)) {
+            for (const c of node.children) stack.push(c);
+        }
+    }
+
+    return results;
+}
+
+// -------------------------
+// Esporta lista file con stesso nome
+// -------------------------
+
+function exportSameNameList(list) {
+    if (!XLSX) {
+        showError(
+            "Modulo 'xlsx' non disponibile.",
+            "Esegui 'npm install xlsx' nella cartella del progetto AyPi per abilitare l'esportazione."
+        );
+        return;
+    }
+
+    if (!list || list.length === 0) {
+        showInfo("Nessun dato da esportare.");
+        return;
+    }
+
+    const rows = list.map(n => ({
+        Nome: n.name,
+        "Percorso completo": n.fullPath || "",
+        Dimensione: n.size ?? "",
+        "Dimensione formattata": n.size ? formatBytes(n.size) : "",
+        "Ultima modifica": n.mtimeMs ? new Date(n.mtimeMs).toLocaleString() : ""
+    }));
+
+    ipcRenderer.invoke("select-output-file", {
+        defaultName: (list[0].name || "file") + "_occurrenze.xlsx"
+    }).then(outputPath => {
+        if (!outputPath) return;
+
+        try {
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(rows);
+            XLSX.utils.book_append_sheet(wb, ws, "Occorrenze");
+
+            XLSX.writeFile(wb, outputPath);
+            showInfo("Esportazione completata.", outputPath);
+        } catch (err) {
+            console.error("Errore export same-name:", err);
+            showError(
+                "Errore durante l'esportazione.",
+                err.message || String(err)
+            );
+        }
+    });
+}
+
+
+// -------------------------
+// Ricerca globale nell'albero (async, non blocca)
+// -------------------------
+
+function searchTreeAsync(query, onProgress, onDone) {
+    if (!rootTree) {
+        if (onDone) onDone([]);
+        return;
+    }
+
+    const q = (query || "").toLowerCase();
+    if (!q) {
+        if (onDone) onDone([]);
+        return;
+    }
+
+    const results = [];
+    const stack = [rootTree];
+    const CHUNK_TIME_MS = 16;
+    const myGen = ++searchGeneration; // token per annullare ricerche vecchie
+
+    function step() {
+        if (myGen !== searchGeneration) {
+            // C'è una nuova ricerca partita, questa è vecchia → stop
+            return;
+        }
+
+        const start = performance.now();
+
+        while (stack.length > 0 && (performance.now() - start) < CHUNK_TIME_MS) {
+            const node = stack.pop();
+
+            const name = (node.name || "").toLowerCase();
+            const full = (node.fullPath || "").toLowerCase();
+
+            if (name.includes(q) || full.includes(q)) {
+                results.push(node);
+            }
+
+            if (node.type === "folder" && Array.isArray(node.children)) {
+                for (const c of node.children) {
+                    stack.push(c);
+                }
+            }
+        }
+
+        const processed = results.length; // non è proprio il numero nodi, ma va bene per feedback
+        const remaining = stack.length;
+
+        if (onProgress) {
+            const now = performance.now();
+            // aggiorniamo la UI al massimo ~5 volte al secondo
+            if (now - lastSearchProgressTime > 200) {
+                onProgress({ processed, remaining });
+                lastSearchProgressTime = now;
+            }
+        }
+
+        if (stack.length > 0) {
+            setTimeout(step, 0);
+        } else {
+            if (onDone) onDone(results);
+        }
+    }
+
+    setTimeout(step, 0);
+}
+
+// -------------------------
+// Focus su nodo nell'albero (teletrasporto)
+// -------------------------
+
+function focusNodeInTree(fullPath) {
+    if (!rootTree || !treeRootEl) return;
+    const rootDom = treeRootEl.querySelector(".tree-node");
+    if (!rootDom) return;
+
+    const stack = [{ node: rootTree, dom: rootDom }];
+
+    while (stack.length > 0) {
+        const { node, dom } = stack.pop();
+
+        if (node.fullPath === fullPath) {
+            dom.scrollIntoView({ behavior: "smooth", block: "center" });
+            selectNode(dom, node);
+            return;
+        }
+
+        if (node.type === "folder" && Array.isArray(node.children)) {
+            const childrenContainer = dom.querySelector(":scope > .tree-children");
+            if (!childrenContainer) continue;
+
+            // espandi il ramo
+            childrenContainer.classList.add("open");
+            const icon = dom.querySelector(":scope > .node-icon");
+            if (icon) icon.textContent = "▼";
+
+            const domChildren = childrenContainer.querySelectorAll(":scope > .tree-node");
+            const sorted = getSortedChildren(node);
+
+            for (let i = 0; i < sorted.length && i < domChildren.length; i++) {
+                stack.push({
+                    node: sorted[i],
+                    dom: domChildren[i]
+                });
+            }
+        }
+    }
+}
+
+// -------------------------
 // Inizializzazione finestra
 // -------------------------
 
@@ -592,6 +842,11 @@ window.addEventListener("DOMContentLoaded", () => {
     const btnClose = document.getElementById("btnClose");
     const btnSelectFolder = document.getElementById("btnSelectFolder");
     const btnStartScan = document.getElementById("btnStartScan");
+
+    const searchInput = document.getElementById("searchInput");
+    const btnSearch = document.getElementById("btnSearch");
+    const searchResultsEl = document.getElementById("searchResults");
+
 
     treeRootEl.innerHTML = "<p>Seleziona una cartella e premi 'Avvia scansione'.</p>";
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
@@ -641,7 +896,7 @@ window.addEventListener("DOMContentLoaded", () => {
             <p id="scanFunStatus" class="fun-status muted"></p>
         `;
 
-        // inizializza messaggi divertenti
+        // messaggi divertenti per la scansione
         funMessageIndex = 0;
         lastFunMessageTime = performance.now();
         const scanFunStatus = document.getElementById("scanFunStatus");
@@ -654,7 +909,75 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    if (btnSearch && searchInput && searchResultsEl) {
+
+        const runSearch = () => {
+            const q = searchInput.value.trim();
+            if (!q) {
+                searchResultsEl.innerHTML = "<span class='muted'>Inserisci un testo da cercare.</span>";
+                return;
+            }
+            if (!rootTree) {
+                searchResultsEl.innerHTML = "<span class='muted'>Nessuna gerarchia caricata. Esegui una scansione prima.</span>";
+                return;
+            }
+
+            searchResultsEl.innerHTML = `<span class='muted'>Ricerca in corso per: "${q}"...</span>`;
+
+            searchTreeAsync(
+                q,
+                (partial) => {
+                    // feedback leggero durante la ricerca
+                    searchResultsEl.innerHTML = `
+                        <span class='muted'>Ricerca in corso...</span>
+                        <br><span class='muted'>Elementi trovati finora: ${partial.processed}, in analisi: ~${partial.remaining}</span>
+                    `;
+                },
+                (matches) => {
+                    if (!matches || matches.length === 0) {
+                        searchResultsEl.innerHTML = `<span class='muted'>Nessun elemento trovato per: "${q}".</span>`;
+                        return;
+                    }
+
+                    let html = `<p><b>Risultati: ${matches.length}</b></p><ul>`;
+                    for (const node of matches.slice(0, 500)) { // limitiamo la visualizzazione per non esplodere
+                        const safePath = (node.fullPath || node.name || "")
+                            .replace(/&/g, "&amp;")
+                            .replace(/</g, "&lt;");
+                        html += `<li class="searchResultLink" data-path="${node.fullPath}">${safePath}</li>`;
+                    }
+                    if (matches.length > 500) {
+                        html += `<li class='muted'>... altri ${matches.length - 500} risultati non mostrati</li>`;
+                    }
+                    html += "</ul>";
+
+                    searchResultsEl.innerHTML = html;
+
+                    searchResultsEl.querySelectorAll(".searchResultLink").forEach(el => {
+                        el.addEventListener("click", () => {
+                            const p = el.getAttribute("data-path");
+                            focusNodeInTree(p);
+                        });
+                    });
+                }
+            );
+        };
+
+        btnSearch.addEventListener("click", () => {
+            runSearch();
+        });
+
+        // Invio nella textbox = cerca
+        searchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                runSearch();
+            }
+        });
+    }
+
 });
+
+
 
 // -------------------------
 // Listener dal main
@@ -677,12 +1000,12 @@ ipcRenderer.on("hierarchy-progress", (event, payload) => {
         `;
     }
 
-    // 🔹 Aggiorna il messaggio divertente SOLO ogni ~15 secondi
+    // messaggi divertenti durante la scansione
     if (detailsBox) {
         const scanFunStatus = document.getElementById("scanFunStatus");
         if (scanFunStatus) {
             const now = performance.now();
-            if (now - lastFunMessageTime > 15000) { // 15 secondi
+            if (now - lastFunMessageTime > 15000) {
                 funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
                 scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
                 lastFunMessageTime = now;
@@ -699,11 +1022,11 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
         "color: lightgreen;"
     );
 
-    if (!treeRootEl) return;
+    if (!treeRootEl || !detailsBox) return;
 
     treeRootEl.innerHTML = `
-    <p>Scansione completata.</p>
-    <p>Costruzione albero in corso...</p>
+        <p>Scansione completata.</p>
+        <p>Costruzione albero in corso...</p>
     `;
 
     detailsBox.innerHTML = `
@@ -711,19 +1034,16 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
         <p id="buildFunStatus" class="fun-status muted"></p>
     `;
 
-    // inizializza messaggi divertenti per la costruzione albero
+    // messaggi divertenti per costruzione albero
     funMessageIndex = 0;
     lastFunMessageTime = performance.now();
-
     const buildFunStatus = document.getElementById("buildFunStatus");
     if (buildFunStatus) {
         buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
     }
-
 
     buildTreeFromPendingAsync(() => {
         renderTreeFromModel();
         detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
     });
 });
-
