@@ -312,3 +312,10 @@ button:hover {
     font-size: 11px;
     font-style: italic;
 }
+
+.context-menu-separator {
+    border: none;
+    border-top: 1px solid #555;
+    margin: 4px 0;
+}
+

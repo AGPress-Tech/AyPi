@@ -868,6 +868,10 @@ function initContextMenu() {
             return;
         }
 
+        // per le azioni cartella usiamo sempre una cartella: se è file → cartella padre
+        const folderForActions =
+            node.type === "folder" ? fullPath : path.dirname(fullPath);
+
         if (action === "open") {
             try {
                 if (node.type === "file") {
@@ -878,8 +882,10 @@ function initContextMenu() {
             } catch (err) {
                 console.error("Errore aprendo percorso:", err);
             }
+
         } else if (action === "copy-full") {
             copyToClipboard(fullPath);
+
         } else if (action === "copy-rel") {
             if (rootTree && rootTree.fullPath) {
                 const rel = path.relative(rootTree.fullPath, fullPath);
@@ -887,6 +893,22 @@ function initContextMenu() {
             } else {
                 copyToClipboard(fullPath);
             }
+
+        // 🔹 NUOVE AZIONI
+        } else if (action === "open-batch-rename") {
+            ipcRenderer.send("hierarchy-open-batch-rename", {
+                folder: folderForActions
+            });
+
+        } else if (action === "compare-A") {
+            ipcRenderer.send("hierarchy-compare-folder-A", {
+                folder: folderForActions
+            });
+
+        } else if (action === "compare-B") {
+            ipcRenderer.send("hierarchy-compare-folder-B", {
+                folder: folderForActions
+            });
         }
 
         hideTreeContextMenu();

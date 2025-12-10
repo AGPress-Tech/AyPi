@@ -365,4 +365,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
     modeSelect.addEventListener("change", switchModePanels);
     switchModePanels(); // inizializza panel giusto
+
+    ipcRenderer.on("batch-rename-set-root", (event, folderPath) => {
+        if (folderPath) {
+            rootFolder = folderPath;
+            lblFolder.textContent = folderPath;
+        }
+    });
 });

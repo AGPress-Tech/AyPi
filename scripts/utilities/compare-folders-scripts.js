@@ -331,4 +331,20 @@ window.addEventListener("DOMContentLoaded", () => {
     filterOnlyB.addEventListener("change", renderTable);
     filterDiff.addEventListener("change", renderTable);
     filterSame.addEventListener("change", renderTable);
+
+    // Cartella A dalla Gerarchia
+    ipcRenderer.on("compare-folders-set-A", (event, folderPath) => {
+        if (folderPath) {
+            folderA = folderPath;
+            lblFolderA.textContent = folderPath;
+        }
+    });
+
+    // Cartella B dalla Gerarchia
+    ipcRenderer.on("compare-folders-set-B", (event, folderPath) => {
+        if (folderPath) {
+            folderB = folderPath;
+            lblFolderB.textContent = folderPath;
+        }
+    });
 });

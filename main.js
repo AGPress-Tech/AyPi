@@ -5,6 +5,8 @@ const { setupFileManager } = require("./modules/fileManager");
 const { setupRobotManager } = require("./modules/robotManager");
 
 let mainWindow;
+let batchRenameWindow = null;
+let compareFoldersWindow = null;
 
 app.setPath("userData", path.join(app.getPath("appData"), "AyPiUserData"));
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");

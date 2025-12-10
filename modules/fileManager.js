@@ -445,6 +445,98 @@ function setupFileManager(mainWindow) {
     ipcMain.on("open-hierarchy-window", () => {
         openHierarchyWindow(mainWindow);
     });
+
+    // ------------------------
+    // Gerarchia → Batch Rename
+    // ------------------------
+    ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {
+        const folder = payload?.folder;
+
+        if (!batchRenameWindow || batchRenameWindow.isDestroyed()) {
+            batchRenameWindow = new BrowserWindow({
+                width: 800,
+                height: 800,
+                webPreferences: {
+                    nodeIntegration: true,
+                    contextIsolation: false,
+                },
+                icon: path.join(__dirname, "assets", "app-icon.png"),
+            });
+
+            batchRenameWindow.setMenu(null);
+            batchRenameWindow.loadFile("./pages/utilities/batch-rename.html"
+            );
+
+            batchRenameWindow.on("closed", () => {
+                batchRenameWindow = null;
+            });
+
+            batchRenameWindow.webContents.once("did-finish-load", () => {
+                if (folder) {
+                    batchRenameWindow.webContents.send("batch-rename-set-root", folder);
+                }
+            });
+        } else {
+            batchRenameWindow.show();
+            batchRenameWindow.focus();
+            if (folder) {
+                batchRenameWindow.webContents.send("batch-rename-set-root", folder);
+            }
+        }
+    });
+
+    // ------------------------
+    // Gerarchia → Confronta cartelle (A/B)
+    // ------------------------
+    ipcMain.on("hierarchy-compare-folder-A", (event, payload) => {
+        openCompareFoldersWindow("A", payload?.folder);
+    });
+
+    ipcMain.on("hierarchy-compare-folder-B", (event, payload) => {
+        openCompareFoldersWindow("B", payload?.folder);
+    });
+
+    function openCompareFoldersWindow(slot, folder) {
+        if (!compareFoldersWindow || compareFoldersWindow.isDestroyed()) {
+            compareFoldersWindow = new BrowserWindow({
+                width: 900,
+                height: 800,
+                webPreferences: {
+                    nodeIntegration: true,
+                    contextIsolation: false,
+                },
+                icon: path.join(__dirname, "assets", "app-icon.png"),
+            });
+
+            compareFoldersWindow.setMenu(null);
+            compareFoldersWindow.loadFile("./pages/utilities/compare-folders.html");
+
+            compareFoldersWindow.on("closed", () => {
+                compareFoldersWindow = null;
+            });
+
+            compareFoldersWindow.webContents.once("did-finish-load", () => {
+                if (folder) {
+                    if (slot === "A") {
+                        compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
+                    } else if (slot === "B") {
+                        compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
+                    }
+                }
+            });
+        } else {
+            compareFoldersWindow.show();
+            compareFoldersWindow.focus();
+            if (folder) {
+                if (slot === "A") {
+                    compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
+                } else if (slot === "B") {
+                    compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
+                }
+            }
+        }
+    }
+
 }
 
 // Esporta la funzione per essere usata nel main process
