@@ -698,7 +698,8 @@ function updateDetails(data) {
                 document.querySelectorAll(".sameNameLink").forEach(el => {
                     el.addEventListener("click", () => {
                         const p = el.getAttribute("data-path");
-                        focusNodeInTree(p);
+                        focusNodeInTreeSmart(p);
+                        normalizeTreeIcons();
                     });
                 });
 
@@ -1162,6 +1163,66 @@ function focusNodeInTree(fullPath) {
     }
 }
 
+// Variante che chiude tutte le cartelle e apre solo il percorso necessario
+// fino al nodo target (usata dai risultati di ricerca).
+function focusNodeInTreeSmart(fullPath) {
+    if (!rootTree || !treeRootEl) return;
+
+    // Trova il nodo DOM corrispondente al percorso richiesto
+    let targetDom = null;
+    treeRootEl.querySelectorAll(".tree-node").forEach((el) => {
+        if (!targetDom && el.__nodeData && el.__nodeData.fullPath === fullPath) {
+            targetDom = el;
+        }
+    });
+
+    if (!targetDom || !targetDom.__nodeData) return;
+    const targetNode = targetDom.__nodeData;
+
+    // 1) Chiudi tutte le cartelle (collassa l'intero albero)
+    treeRootEl.querySelectorAll(".tree-children").forEach((children) => {
+        children.classList.remove("open");
+        const parent = children.parentElement;
+        if (parent) {
+            const icon = parent.querySelector(":scope > .node-icon");
+            if (icon) icon.textContent = "؟";
+        }
+    });
+
+    // 2) Risali dal nodo target fino alla radice, aprendo solo il percorso necessario
+    let current = targetDom;
+    while (current && current.classList && current.classList.contains("tree-node")) {
+        const childrenContainer = current.querySelector(":scope > .tree-children");
+        if (childrenContainer) {
+            childrenContainer.classList.add("open");
+            const icon = current.querySelector(":scope > .node-icon");
+            if (icon) icon.textContent = "";
+        }
+        current = current.parentElement ? current.parentElement.closest(".tree-node") : null;
+    }
+
+    // 3) Porta in vista e seleziona il nodo
+    targetDom.scrollIntoView({ behavior: "smooth", block: "center" });
+    selectNode(targetDom, targetNode);
+}
+
+// Normalizza le icone delle cartelle (aperte/chiuse) in base allo stato .open
+function normalizeTreeIcons() {
+    if (!treeRootEl) return;
+
+    treeRootEl.querySelectorAll(".tree-node").forEach((nodeEl) => {
+        const icon = nodeEl.querySelector(":scope > .node-icon");
+        if (!icon) return;
+
+        const childrenContainer = nodeEl.querySelector(":scope > .tree-children");
+        if (childrenContainer) {
+            const isOpen = childrenContainer.classList.contains("open");
+            // aperto (▼) / chiuso (▶)
+            icon.textContent = isOpen ? "\u25BC" : "\u25B6";
+        }
+    });
+}
+
 // -------------------------
 // Inizializzazione finestra
 // -------------------------
@@ -1415,7 +1476,8 @@ window.addEventListener("DOMContentLoaded", () => {
                     searchResultsEl.querySelectorAll(".searchResultLink").forEach(el => {
                         el.addEventListener("click", () => {
                             const p = el.getAttribute("data-path");
-                            focusNodeInTree(p);
+                            focusNodeInTreeSmart(p);
+                            normalizeTreeIcons();
                         });
                     });
                 }
