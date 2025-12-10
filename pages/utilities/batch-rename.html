@@ -23,8 +23,8 @@
 
         <!-- Filtri -->
         <div class="section">
-            <label for="extFilter">Estensioni da includere (es: .xlsx,.docx,.png) – lascia vuoto per tutte</label>
-            <input type="text" id="extFilter" placeholder=".xlsx,.docx,.pgn">
+            <label for="extFilter">Estensioni da includere (es: .xlsx,.docx,.png) - lascia vuoto per tutte</label>
+            <input type="text" id="extFilter" placeholder=".xlsx,.docx,.png">
 
             <label class="inline">
                 <input type="checkbox" id="chkIncludeSubfolders" checked>
@@ -32,19 +32,28 @@
             </label>
         </div>
 
-        <!-- Modalità -->
-        <div class="section">
-            <label for="modeSelect">Modalità di rinomina</label>
-            <select id="modeSelect">
-                <option value="prefixSuffix">Prefisso / Suffisso</option>
-                <option value="findReplace">Trova &amp; Sostituisci</option>
-                <option value="cleanup">Pulisci caratteri (spazi, parentesi)</option>
-                <option value="changeCase">Maiuscole / minuscole / titolo</option>
-                <option value="numbering">Schema numerato</option>
-            </select>
+        <!-- Ordine e modalita affiancati -->
+        <div class="section section-row">
+            <div class="section-field">
+                <label for="sortOrder">Ordine file</label>
+                <select id="sortOrder">
+                    <option value="nameAsc">Nome (A-Z)</option>
+                    <option value="nameDesc">Nome (Z-A)</option>
+                </select>
+            </div>
+            <div class="section-field">
+                <label for="modeSelect">Modalita di rinomina</label>
+                <select id="modeSelect">
+                    <option value="prefixSuffix">Prefisso / Suffisso</option>
+                    <option value="findReplace">Trova &amp; Sostituisci</option>
+                    <option value="cleanup">Pulisci caratteri (spazi, parentesi)</option>
+                    <option value="changeCase">Maiuscole / minuscole / titolo</option>
+                    <option value="numbering">Schema numerato</option>
+                </select>
+            </div>
         </div>
 
-        <!-- Opzioni per ogni modalità -->
+        <!-- Opzioni per ogni modalita -->
         <div id="modeOptions">
             <!-- Prefisso / Suffisso -->
             <div id="mode-prefixSuffix" class="mode-panel">
@@ -110,7 +119,6 @@
             </div>
         </div>
 
-
         <!-- Anteprima -->
         <div class="section preview-section">
             <table id="previewTable">
@@ -134,3 +142,4 @@
 </body>
 
 </html>
+

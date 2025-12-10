@@ -145,20 +145,25 @@ function applyTransform(filename, index) {
 }
 
 // --- Generazione anteprima ---
+// Gestisce i conflitti in modo case-insensitive e permette
+// rinomine che cambiano solo maiuscole/minuscole sullo stesso file.
 function buildPreview(filePaths) {
     previewData = [];
-    const usedTargets = new Map(); // fullPath -> count
+    const usedTargets = new Map(); // key = percorso destinazione (case-insensitive)
 
-    filePaths.forEach((fullPath, idx) => {
+    // Set di tutti i percorsi originali (case-insensitive)
+    const originalKeySet = new Set(filePaths.map(p => p.toLowerCase()));
+
+    filePaths.forEach((fullPath, index) => {
         const dir = path.dirname(fullPath);
         const oldName = path.basename(fullPath);
 
-        let newName;
+        let newName = oldName;
         let status = "unchanged";
         let error = null;
 
         try {
-            newName = applyTransform(oldName, idx);
+            newName = applyTransform(oldName, index);
         } catch (e) {
             newName = oldName;
             status = "error";
@@ -168,15 +173,22 @@ function buildPreview(filePaths) {
         if (!error && newName !== oldName) {
             const targetFullPath = path.join(dir, newName);
 
-            if (fs.existsSync(targetFullPath) && targetFullPath !== fullPath) {
+            const sourceKey = fullPath.toLowerCase();
+            const targetKey = targetFullPath.toLowerCase();
+
+            const existsOnDisk = fs.existsSync(targetFullPath);
+            const targetIsSameFile = targetKey === sourceKey; // solo cambio di maiuscole/minuscole sullo stesso file
+            const targetUsedByOthers = usedTargets.has(targetKey);
+            const targetIsOtherOriginal = !targetIsSameFile && originalKeySet.has(targetKey);
+            const targetIsExternalExisting =
+                existsOnDisk && !targetIsSameFile && !originalKeySet.has(targetKey);
+
+            if (targetUsedByOthers || targetIsOtherOriginal || targetIsExternalExisting) {
                 status = "conflict";
                 error = "Esiste già un file con lo stesso nome.";
-            } else if (usedTargets.has(targetFullPath)) {
-                status = "conflict";
-                error = "Conflitto con un altro file rinominato nella stessa sessione.";
             } else {
                 status = "rename";
-                usedTargets.set(targetFullPath, true);
+                usedTargets.set(targetKey, true);
             }
         }
 
@@ -222,16 +234,14 @@ function renderPreviewTable() {
         tr.appendChild(tdStatus);
         tbody.appendChild(tr);
 
-        // ✅ click per selezionare riga
+        // Click per selezionare riga
         tr.addEventListener("click", () => {
-            // rimuovi selezione precedente
             const rows = tbody.querySelectorAll("tr");
             rows.forEach(r => r.classList.remove("row-selected"));
 
             tr.classList.add("row-selected");
             selectedIndex = index;
 
-            // abilita il pulsante "Apri cartella"
             const btnOpenFolder = document.getElementById("btnOpenFolder");
             if (btnOpenFolder) {
                 btnOpenFolder.disabled = false;
@@ -239,7 +249,6 @@ function renderPreviewTable() {
         });
     });
 
-    // disabilita pulsante open folder se non c'è nulla
     const btnOpenFolder = document.getElementById("btnOpenFolder");
     if (btnOpenFolder) {
         btnOpenFolder.disabled = previewData.length === 0;
@@ -256,7 +265,19 @@ async function handlePreview() {
     const includeSubfolders = document.getElementById("chkIncludeSubfolders").checked;
     const extList = parseExtensions(extFilterStr);
 
-    const files = collectFiles(rootFolder, includeSubfolders, extList);
+    let files = collectFiles(rootFolder, includeSubfolders, extList);
+
+    // Ordina i file secondo l'ordine scelto
+    const sortOrderSelect = document.getElementById("sortOrder");
+    const sortOrder = sortOrderSelect ? sortOrderSelect.value : "nameAsc";
+
+    files.sort((a, b) => {
+        const nameA = path.basename(a).toLowerCase();
+        const nameB = path.basename(b).toLowerCase();
+        const cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" });
+        return sortOrder === "nameDesc" ? -cmp : cmp;
+    });
+
     if (files.length === 0) {
         previewData = [];
         renderPreviewTable();
@@ -265,6 +286,7 @@ async function handlePreview() {
         return;
     }
 
+    // L'indice passato ad applyTransform riflette l'ordine attuale (dopo ordinamento)
     buildPreview(files);
     renderPreviewTable();
 
@@ -317,16 +339,14 @@ async function handleOpenFolder() {
     const item = previewData[selectedIndex];
     const dir = path.dirname(item.fullPath);
 
-    // Se per qualche motivo non abbiamo dir, fermiamoci
     if (!dir) {
         await showError("Impossibile determinare la cartella del file selezionato.");
         return;
     }
 
-    // Riutilizziamo la logica esistente di open-file nel main (che apre cartelle)
+    // Riutilizza la logica esistente di open-file nel main (che apre cartelle)
     ipcRenderer.send("open-file", dir);
 }
-
 
 // --- UI wiring ---
 function switchModePanels() {
@@ -339,7 +359,7 @@ function switchModePanels() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-    console.log("batch-rename-scripts.js caricato ✔");
+    console.log("batch-rename-scripts.js caricato");
 
     const btnSelectFolder = document.getElementById("btnSelectFolder");
     const lblFolder = document.getElementById("selectedFolder");
@@ -364,7 +384,7 @@ window.addEventListener("DOMContentLoaded", () => {
     btnOpenFolder.addEventListener("click", handleOpenFolder);
 
     modeSelect.addEventListener("change", switchModePanels);
-    switchModePanels(); // inizializza panel giusto
+    switchModePanels(); // inizializza pannello corretto
 
     ipcRenderer.on("batch-rename-set-root", (event, folderPath) => {
         if (folderPath) {
@@ -373,3 +393,4 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
