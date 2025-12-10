@@ -1,5 +1,6 @@
-const { ipcRenderer, shell, clipboard } = require("electron");
+﻿const { ipcRenderer } = require("electron");
 const path = require("path");
+const fs = require("fs");
 
 let XLSX;
 try {
@@ -14,6 +15,7 @@ try {
 
 let selectedFolder = null;
 let rootTree = null;
+let originalRootTree = null;
 let selectedElement = null;
 let lastSelectedNodeData = null;
 
@@ -25,18 +27,13 @@ let isBuildingTree = false;
 let treeRootEl = null;
 let lblSelectedFolder = null;
 let detailsBox = null;
-
-// Ricerca globale nell'albero
-let searchGeneration = 0;
-let lastSearchProgressTime = 0;
-
-// Menu contestuale albero
+// menu contestuale albero
 let contextMenuEl = null;
 let contextMenuNode = null;
 
-// Messaggi “quantistici”
+// Messaggi "quantistici"
 const FUN_MESSAGES = [
-    "Calcolo degli atomi dei file del server...",
+    "Calcolo degli atomi dei file...",
     "Allineamento dei bit con l'asse di rotazione terrestre...",
     "Stima della distanza Terra–Sole–file richiesti...",
     "Ottimizzazione del coefficiente di entropia dei backup...",
@@ -48,6 +45,11 @@ const FUN_MESSAGES = [
 
 let lastFunMessageTime = 0;
 let funMessageIndex = 0;
+
+// Ricerca globale nell'albero
+let searchGeneration = 0;
+let lastSearchProgressTime = 0;
+
 
 // -------------------------
 // Helper dialog
@@ -67,8 +69,10 @@ function showError(message, detail = "") {
 
 function copyToClipboard(text) {
     try {
-        if (clipboard && typeof clipboard.writeText === "function") {
-            clipboard.writeText(text);
+        const electron = require("electron");
+        const clip = electron.clipboard;
+        if (clip && typeof clip.writeText === "function") {
+            clip.writeText(text);
         } else if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text);
         } else {
@@ -126,6 +130,7 @@ function addEntryToTree(entry) {
 
     const normalizedRel = (entry.relPath || "").replace(/\\/g, "/");
     if (!normalizedRel) {
+        // root stesso
         return;
     }
 
@@ -182,6 +187,9 @@ function computeFolderStatsDirect(node) {
     return { folders, files, totalSize };
 }
 
+/**
+ * Conteggio ricorsivo NON bloccante di un ramo.
+ */
 function computeFolderStatsRecursiveAsync(node, onProgress, onDone) {
     if (!node || node.type !== "folder") {
         if (onDone) onDone({ folders: 0, files: 0, totalSize: 0 });
@@ -255,6 +263,191 @@ function formatBytes(bytes) {
 }
 
 // -------------------------
+// Scansione directory lato renderer (stile Confronta cartelle)
+// -------------------------
+
+function scanFolderRecursively(rootFolder) {
+    const entries = [];
+
+    function walk(currentPath) {
+        let dirEntries;
+        try {
+            dirEntries = fs.readdirSync(currentPath, { withFileTypes: true });
+        } catch (err) {
+            console.warn("Impossibile leggere cartella:", currentPath, err);
+            return;
+        }
+
+        const relDir = path.relative(rootFolder, currentPath);
+        entries.push({
+            kind: "folder",
+            fullPath: currentPath,
+            relPath: relDir || "",
+        });
+
+        for (const entry of dirEntries) {
+            const full = path.join(currentPath, entry.name);
+
+            let stat;
+            try {
+                stat = fs.statSync(full);
+            } catch (err) {
+                console.warn("Impossibile determinare tipo elemento:", full, err);
+                continue;
+            }
+
+            if (stat.isDirectory()) {
+                walk(full);
+            } else if (stat.isFile()) {
+                const rel = path.relative(rootFolder, full);
+                entries.push({
+                    kind: "file",
+                    fullPath: full,
+                    relPath: rel.replace(/\\/g, "/"),
+                    size: stat.size,
+                    mtimeMs: stat.mtimeMs,
+                });
+            }
+        }
+    }
+
+    walk(rootFolder);
+    return entries;
+}
+
+// -------------------------
+// Cloni e filtri albero (per opzioni di scansione)
+// -------------------------
+
+function cloneTree(node) {
+    if (!node) return null;
+    return JSON.parse(JSON.stringify(node));
+}
+
+function normalizeScanOptions(options) {
+    const rawDepth = Number(options.maxDepth);
+    const maxDepth =
+        Number.isFinite(rawDepth) && rawDepth > 0 ? rawDepth : null;
+
+    const normalizeExt = (e) =>
+        String(e || "")
+            .toLowerCase()
+            .replace(/^\./, "")
+            .trim();
+
+    const normalizeName = (s) => String(s || "").toLowerCase().trim();
+
+    const excludeExtensions = Array.isArray(options.excludeExtensions)
+        ? options.excludeExtensions.map(normalizeExt).filter((e) => e.length > 0)
+        : [];
+    const excludeFolders = Array.isArray(options.excludeFolders)
+        ? options.excludeFolders.map(normalizeName).filter((f) => f.length > 0)
+        : [];
+    const excludeFiles = Array.isArray(options.excludeFiles)
+        ? options.excludeFiles.map(normalizeName).filter((f) => f.length > 0)
+        : [];
+
+    return {
+        maxDepth,
+        excludeExtensions,
+        excludeFolders,
+        excludeFiles,
+    };
+}
+
+function buildFilteredTreeFromOptions(sourceRoot, options) {
+    if (!sourceRoot) return null;
+
+    const { maxDepth, excludeExtensions, excludeFolders, excludeFiles } =
+        normalizeScanOptions(options || {});
+
+    const extSet = new Set(excludeExtensions);
+    const folderSet = new Set(excludeFolders);
+    const fileSet = new Set(excludeFiles);
+
+    const normalizeName = (s) => String(s || "").toLowerCase().trim();
+
+    function isExcludedFolder(name, depth) {
+        if (depth === 0) return false; // non escludiamo mai la root
+        const n = normalizeName(name);
+
+        // Esclusione per cartelle: corrispondenza "contiene" (case-insensitive)
+        for (const pattern of folderSet) {
+            if (pattern && n.includes(pattern)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function isExcludedFile(name) {
+        const lower = normalizeName(name);
+
+        // Esclusione per file: corrispondenza "contiene" (case-insensitive)
+        for (const pattern of fileSet) {
+            if (pattern && lower.includes(pattern)) {
+                return true;
+            }
+        }
+
+        if (extSet.size > 0) {
+            const ext = (path.extname(lower) || "").replace(/^\./, "");
+            if (ext && extSet.has(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function cloneAndFilter(node, depth) {
+        if (!node) return null;
+
+        if (node.type === "file") {
+            if (isExcludedFile(node.name)) return null;
+            return { ...node };
+        }
+
+        if (node.type === "folder") {
+            if (isExcludedFolder(node.name, depth)) {
+                return null;
+            }
+
+            const cloned = { ...node, children: [] };
+            const nextDepth = depth + 1;
+
+            if (Array.isArray(node.children)) {
+                for (const child of node.children) {
+                    if (maxDepth !== null && nextDepth > maxDepth) {
+                        // non scendiamo oltre la profondità massima
+                        continue;
+                    }
+                    const filteredChild = cloneAndFilter(child, nextDepth);
+                    if (filteredChild) {
+                        cloned.children.push(filteredChild);
+                    }
+                }
+            }
+
+            // se non è la root e non ha figli dopo il filtro, elimina la cartella
+            if (depth > 0 && (!cloned.children || cloned.children.length === 0)) {
+                return null;
+            }
+
+            return cloned;
+        }
+
+        return null;
+    }
+
+    const filtered = cloneAndFilter(sourceRoot, 0);
+    if (!filtered) {
+        // mantieni almeno la root vuota
+        return { ...sourceRoot, children: [] };
+    }
+    return filtered;
+}
+
+// -------------------------
 // Export gerarchia in Excel (ramo cartella)
 // -------------------------
 
@@ -290,7 +483,7 @@ function collectSubtreeRows(node, basePath, acc = []) {
 }
 
 // -------------------------
-// Utility: figli ordinati
+// Utility: figli ordinati (cartelle prima, poi file, alfabetic)
 // -------------------------
 
 function getSortedChildren(node) {
@@ -310,6 +503,8 @@ function getSortedChildren(node) {
 function createTreeNode(nodeData) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("tree-node");
+    // salva il dato associato al nodo DOM (usato da menu contestuale)
+    wrapper.__nodeData = nodeData;
 
     const icon = document.createElement("span");
     icon.classList.add("node-icon");
@@ -350,14 +545,6 @@ function createTreeNode(nodeData) {
         });
     }
 
-    // tasto destro: mostra menu contestuale
-    wrapper.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        selectNode(wrapper, nodeData);
-        showTreeContextMenu(e.clientX, e.clientY, nodeData);
-    });
-
     return wrapper;
 }
 
@@ -376,7 +563,7 @@ function renderTreeFromModel() {
 }
 
 // -------------------------
-// Costruzione albero da pendingEntries
+// Costruzione albero da pendingEntries (NON bloccante)
 // -------------------------
 
 function buildTreeFromPendingAsync(onDone) {
@@ -410,7 +597,7 @@ function buildTreeFromPendingAsync(onDone) {
         const buildFunStatus = document.getElementById("buildFunStatus");
         if (buildFunStatus) {
             const now = performance.now();
-            if (now - lastFunMessageTime > 15000) {
+            if (now - lastFunMessageTime > 5000) { // 5 secondi
                 funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
                 buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
                 lastFunMessageTime = now;
@@ -740,49 +927,9 @@ function exportSameNameList(list) {
     });
 }
 
-// -------------------------
-// Focus su nodo nell'albero
-// -------------------------
-
-function focusNodeInTree(fullPath) {
-    if (!rootTree || !treeRootEl) return;
-    const rootDom = treeRootEl.querySelector(".tree-node");
-    if (!rootDom) return;
-
-    const stack = [{ node: rootTree, dom: rootDom }];
-
-    while (stack.length > 0) {
-        const { node, dom } = stack.pop();
-
-        if (node.fullPath === fullPath) {
-            dom.scrollIntoView({ behavior: "smooth", block: "center" });
-            selectNode(dom, node);
-            return;
-        }
-
-        if (node.type === "folder" && Array.isArray(node.children)) {
-            const childrenContainer = dom.querySelector(":scope > .tree-children");
-            if (!childrenContainer) continue;
-
-            childrenContainer.classList.add("open");
-            const icon = dom.querySelector(":scope > .node-icon");
-            if (icon) icon.textContent = "▼";
-
-            const domChildren = childrenContainer.querySelectorAll(":scope > .tree-node");
-            const sorted = getSortedChildren(node);
-
-            for (let i = 0; i < sorted.length && i < domChildren.length; i++) {
-                stack.push({
-                    node: sorted[i],
-                    dom: domChildren[i]
-                });
-            }
-        }
-    }
-}
 
 // -------------------------
-// Ricerca globale nell'albero (async)
+// Ricerca globale nell'albero (async, non blocca)
 // -------------------------
 
 function searchTreeAsync(query, onProgress, onDone) {
@@ -800,10 +947,11 @@ function searchTreeAsync(query, onProgress, onDone) {
     const results = [];
     const stack = [rootTree];
     const CHUNK_TIME_MS = 16;
-    const myGen = ++searchGeneration;
+    const myGen = ++searchGeneration; // token per annullare ricerche vecchie
 
     function step() {
         if (myGen !== searchGeneration) {
+            // C'è una nuova ricerca partita, questa è vecchia → stop
             return;
         }
 
@@ -820,15 +968,18 @@ function searchTreeAsync(query, onProgress, onDone) {
             }
 
             if (node.type === "folder" && Array.isArray(node.children)) {
-                for (const c of node.children) stack.push(c);
+                for (const c of node.children) {
+                    stack.push(c);
+                }
             }
         }
 
-        const processed = results.length;
+        const processed = results.length; // non è proprio il numero nodi, ma va bene per feedback
         const remaining = stack.length;
 
         if (onProgress) {
             const now = performance.now();
+            // aggiorniamo la UI al massimo ~5 volte al secondo
             if (now - lastSearchProgressTime > 200) {
                 onProgress({ processed, remaining });
                 lastSearchProgressTime = now;
@@ -854,7 +1005,7 @@ function initContextMenu() {
 
     if (!contextMenuEl) return;
 
-    // click sulle voci
+    // click sulle voci del menu
     contextMenuEl.addEventListener("click", (e) => {
         const item = e.target.closest(".context-menu-item");
         if (!item || !contextMenuNode) return;
@@ -868,24 +1019,25 @@ function initContextMenu() {
             return;
         }
 
-        // per le azioni cartella usiamo sempre una cartella: se è file → cartella padre
+        // per le azioni cartella usiamo sempre una cartella:
+        // se è un file, usiamo la cartella padre
         const folderForActions =
             node.type === "folder" ? fullPath : path.dirname(fullPath);
 
         if (action === "open") {
             try {
-                if (node.type === "file") {
+                const electron = require("electron");
+                const shell = electron.shell;
+                if (node.type === "file" && shell.showItemInFolder) {
                     shell.showItemInFolder(fullPath);
-                } else {
+                } else if (shell.openPath) {
                     shell.openPath(fullPath);
                 }
             } catch (err) {
                 console.error("Errore aprendo percorso:", err);
             }
-
         } else if (action === "copy-full") {
             copyToClipboard(fullPath);
-
         } else if (action === "copy-rel") {
             if (rootTree && rootTree.fullPath) {
                 const rel = path.relative(rootTree.fullPath, fullPath);
@@ -893,36 +1045,51 @@ function initContextMenu() {
             } else {
                 copyToClipboard(fullPath);
             }
-
-        // 🔹 NUOVE AZIONI
         } else if (action === "open-batch-rename") {
             ipcRenderer.send("hierarchy-open-batch-rename", {
-                folder: folderForActions
+                folder: folderForActions,
             });
-
         } else if (action === "compare-A") {
             ipcRenderer.send("hierarchy-compare-folder-A", {
-                folder: folderForActions
+                folder: folderForActions,
             });
-
         } else if (action === "compare-B") {
             ipcRenderer.send("hierarchy-compare-folder-B", {
-                folder: folderForActions
+                folder: folderForActions,
             });
         }
 
         hideTreeContextMenu();
     });
 
-    // chiudi su click fuori
+    // click fuori: chiudi menu
     window.addEventListener("click", () => {
         hideTreeContextMenu();
     });
 
-    // chiudi se scroll
-    window.addEventListener("scroll", () => {
-        hideTreeContextMenu();
-    }, true);
+    // scroll: chiudi menu
+    window.addEventListener(
+        "scroll",
+        () => {
+            hideTreeContextMenu();
+        },
+        true
+    );
+
+    // gestione tasto destro sull'albero via delega
+    if (treeRootEl) {
+        treeRootEl.addEventListener("contextmenu", (e) => {
+            const nodeEl = e.target.closest(".tree-node");
+            if (!nodeEl || !nodeEl.__nodeData) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const nodeData = nodeEl.__nodeData;
+            selectNode(nodeEl, nodeData);
+            showTreeContextMenu(e.clientX, e.clientY, nodeData);
+        });
+    }
 }
 
 function showTreeContextMenu(x, y, nodeData) {
@@ -930,9 +1097,8 @@ function showTreeContextMenu(x, y, nodeData) {
 
     contextMenuNode = nodeData;
 
-    // posizionamento entro i bordi finestra
-    const menuWidth = 230;
-    const menuHeight = 120;
+    const menuWidth = 260;
+    const menuHeight = 180;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
@@ -955,6 +1121,48 @@ function hideTreeContextMenu() {
 }
 
 // -------------------------
+// Focus su nodo nell'albero (teletrasporto)
+// -------------------------
+
+function focusNodeInTree(fullPath) {
+    if (!rootTree || !treeRootEl) return;
+    const rootDom = treeRootEl.querySelector(".tree-node");
+    if (!rootDom) return;
+
+    const stack = [{ node: rootTree, dom: rootDom }];
+
+    while (stack.length > 0) {
+        const { node, dom } = stack.pop();
+
+        if (node.fullPath === fullPath) {
+            dom.scrollIntoView({ behavior: "smooth", block: "center" });
+            selectNode(dom, node);
+            return;
+        }
+
+        if (node.type === "folder" && Array.isArray(node.children)) {
+            const childrenContainer = dom.querySelector(":scope > .tree-children");
+            if (!childrenContainer) continue;
+
+            // espandi il ramo
+            childrenContainer.classList.add("open");
+            const icon = dom.querySelector(":scope > .node-icon");
+            if (icon) icon.textContent = "▼";
+
+            const domChildren = childrenContainer.querySelectorAll(":scope > .tree-node");
+            const sorted = getSortedChildren(node);
+
+            for (let i = 0; i < sorted.length && i < domChildren.length; i++) {
+                stack.push({
+                    node: sorted[i],
+                    dom: domChildren[i]
+                });
+            }
+        }
+    }
+}
+
+// -------------------------
 // Inizializzazione finestra
 // -------------------------
 
@@ -963,14 +1171,116 @@ window.addEventListener("DOMContentLoaded", () => {
     lblSelectedFolder = document.getElementById("selectedFolder");
     detailsBox = document.getElementById("detailsBox");
 
+    const scanOptionsPanelEl = document.querySelector(".scan-options-panel");
+    const scanOptionsToggleEl = document.getElementById("scanOptionsToggle");
+    const scanOptionsArrowEl = document.getElementById("scanOptionsArrow");
+    const scanDepthInputEl = document.getElementById("scanDepth");
+    const excludeExtensionsInputEl = document.getElementById("excludeExtensions");
+    const excludeFoldersInputEl = document.getElementById("excludeFolders");
+    const excludeFilesInputEl = document.getElementById("excludeFiles");
+    const btnApplyScanFilter = document.getElementById("btnApplyScanFilter");
+
     const btnClose = document.getElementById("btnClose");
     const btnSelectFolder = document.getElementById("btnSelectFolder");
     const btnStartScan = document.getElementById("btnStartScan");
+
     const searchInput = document.getElementById("searchInput");
     const btnSearch = document.getElementById("btnSearch");
     const searchResultsEl = document.getElementById("searchResults");
 
+    // inizializza il menu contestuale dell'albero
     initContextMenu();
+
+    if (scanOptionsPanelEl && scanOptionsToggleEl && scanOptionsArrowEl) {
+        const updateArrow = () => {
+            const collapsed = scanOptionsPanelEl.classList.contains("collapsed");
+            scanOptionsArrowEl.textContent = collapsed ? "\u25B6" : "\u25BC"; // ▶ / ▼
+        };
+
+        updateArrow();
+
+        scanOptionsToggleEl.addEventListener("click", () => {
+            scanOptionsPanelEl.classList.toggle("collapsed");
+            updateArrow();
+        });
+    }
+
+
+    // ---------------------
+    // Filtro "Opzioni di scansione"
+    // ---------------------
+
+    function collectScanOptionsFromInputs() {
+        let maxDepth = null;
+        if (scanDepthInputEl && scanDepthInputEl.value.trim() !== "") {
+            const n = parseInt(scanDepthInputEl.value, 10);
+            if (!Number.isNaN(n) && n > 0) {
+                maxDepth = n;
+            }
+        }
+
+        function parseList(raw) {
+            if (!raw) return [];
+            return raw
+                // separa SOLO per virgola o punto e virgola, permettendo spazi interni nei nomi
+                .split(/[,;]+/)
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0);
+        }
+
+        const excludeExtensions = parseList(
+            excludeExtensionsInputEl ? excludeExtensionsInputEl.value : ""
+        );
+        const excludeFolders = parseList(
+            excludeFoldersInputEl ? excludeFoldersInputEl.value : ""
+        );
+        const excludeFiles = parseList(
+            excludeFilesInputEl ? excludeFilesInputEl.value : ""
+        );
+
+        return {
+            maxDepth,
+            excludeExtensions,
+            excludeFolders,
+            excludeFiles,
+        };
+    }
+
+    function applyScanFilterFromInputs() {
+        if (!rootTree && !originalRootTree) {
+            return;
+        }
+
+        // Se non abbiamo ancora lo snapshot dell'albero completo, creiamolo ora
+        if (!originalRootTree && rootTree) {
+            originalRootTree = cloneTree(rootTree);
+        }
+
+        if (!originalRootTree) return;
+
+        const options = collectScanOptionsFromInputs();
+        const hasFilters =
+            options.maxDepth !== null ||
+            (options.excludeExtensions && options.excludeExtensions.length > 0) ||
+            (options.excludeFolders && options.excludeFolders.length > 0) ||
+            (options.excludeFiles && options.excludeFiles.length > 0);
+
+        if (!hasFilters) {
+            // Nessun filtro: ripristina l'albero completo
+            rootTree = cloneTree(originalRootTree);
+        } else {
+            // Applica i filtri allo snapshot originale
+            rootTree = buildFilteredTreeFromOptions(originalRootTree, options);
+        }
+
+        renderTreeFromModel();
+    }
+
+    if (btnApplyScanFilter) {
+        btnApplyScanFilter.addEventListener("click", () => {
+            applyScanFilterFromInputs();
+        });
+    }
 
     treeRootEl.innerHTML = "<p>Seleziona una cartella e premi 'Avvia scansione'.</p>";
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
@@ -989,6 +1299,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         selectedFolder = folder;
         rootTree = null;
+        originalRootTree = null;
         selectedElement = null;
         lastSelectedNodeData = null;
         pendingEntries = [];
@@ -997,10 +1308,6 @@ window.addEventListener("DOMContentLoaded", () => {
         lblSelectedFolder.textContent = folder;
         treeRootEl.innerHTML = "<p>Premi 'Avvia scansione' per visualizzare la gerarchia...</p>";
         detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
-
-        if (searchResultsEl) {
-            searchResultsEl.innerHTML = "";
-        }
 
         console.log("Cartella selezionata:", folder);
     });
@@ -1011,7 +1318,8 @@ window.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        rootTree = createRootTree(selectedFolder);
+        rootTree = null;
+        originalRootTree = null;
         selectedElement = null;
         lastSelectedNodeData = null;
         pendingEntries = [];
@@ -1024,10 +1332,7 @@ window.addEventListener("DOMContentLoaded", () => {
             <p id="scanFunStatus" class="fun-status muted"></p>
         `;
 
-        if (searchResultsEl) {
-            searchResultsEl.innerHTML = "<span class='muted'>Ricerca non disponibile durante la scansione.</span>";
-        }
-
+        // messaggi divertenti per la scansione
         funMessageIndex = 0;
         lastFunMessageTime = performance.now();
         const scanFunStatus = document.getElementById("scanFunStatus");
@@ -1035,15 +1340,38 @@ window.addEventListener("DOMContentLoaded", () => {
             scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
         }
 
-        ipcRenderer.send("hierarchy-start-scan", {
-            rootFolder: selectedFolder,
-        });
+        // Scansione completa lato renderer (stile Confronta cartelle)
+        setTimeout(() => {
+            try {
+                const entries = scanFolderRecursively(selectedFolder);
+
+                rootTree = createRootTree(selectedFolder);
+                pendingEntries = entries.slice();
+
+                buildTreeFromPendingAsync(() => {
+                    originalRootTree = cloneTree(rootTree);
+                    renderTreeFromModel();
+                    detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
+                });
+            } catch (err) {
+                console.error("Errore durante la scansione locale:", err);
+                treeRootEl.innerHTML = "<p>Errore durante la scansione.</p>";
+                detailsBox.innerHTML = "<p>Errore durante la scansione. Controlla la console.</p>";
+            }
+        }, 10);
     });
 
     if (btnSearch && searchInput && searchResultsEl) {
 
         const runSearch = () => {
             const q = searchInput.value.trim();
+
+            // Allunga automaticamente il box risultati a 100px
+            // solo se è più basso (per non accorciare un resize manuale).
+            if (searchResultsEl.clientHeight < 100) {
+                searchResultsEl.style.height = "100px";
+            }
+
             if (!q) {
                 searchResultsEl.innerHTML = "<span class='muted'>Inserisci un testo da cercare.</span>";
                 return;
@@ -1058,6 +1386,7 @@ window.addEventListener("DOMContentLoaded", () => {
             searchTreeAsync(
                 q,
                 (partial) => {
+                    // feedback leggero durante la ricerca
                     searchResultsEl.innerHTML = `
                         <span class='muted'>Ricerca in corso...</span>
                         <br><span class='muted'>Elementi trovati finora: ${partial.processed}, in analisi: ~${partial.remaining}</span>
@@ -1070,7 +1399,7 @@ window.addEventListener("DOMContentLoaded", () => {
                     }
 
                     let html = `<p><b>Risultati: ${matches.length}</b></p><ul>`;
-                    for (const node of matches.slice(0, 500)) {
+                    for (const node of matches.slice(0, 500)) { // limitiamo la visualizzazione per non esplodere
                         const safePath = (node.fullPath || node.name || "")
                             .replace(/&/g, "&amp;")
                             .replace(/</g, "&lt;");
@@ -1097,12 +1426,14 @@ window.addEventListener("DOMContentLoaded", () => {
             runSearch();
         });
 
+        // Invio nella textbox = cerca
         searchInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
                 runSearch();
             }
         });
     }
+
 });
 
 // -------------------------
@@ -1110,13 +1441,7 @@ window.addEventListener("DOMContentLoaded", () => {
 // -------------------------
 
 ipcRenderer.on("hierarchy-progress", (event, payload) => {
-    const { batch, totalFiles, totalDirs } = payload;
-
-    if (!rootTree) return;
-
-    if (Array.isArray(batch) && batch.length > 0) {
-        pendingEntries.push(...batch);
-    }
+    const { totalFiles, totalDirs } = payload;
 
     if (treeRootEl) {
         treeRootEl.innerHTML = `
@@ -1126,19 +1451,22 @@ ipcRenderer.on("hierarchy-progress", (event, payload) => {
         `;
     }
 
-    const scanFunStatus = document.getElementById("scanFunStatus");
-    if (scanFunStatus) {
-        const now = performance.now();
-        if (now - lastFunMessageTime > 15000) {
-            funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
-            scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
-            lastFunMessageTime = now;
+    // messaggi divertenti durante la scansione
+    if (detailsBox) {
+        const scanFunStatus = document.getElementById("scanFunStatus");
+        if (scanFunStatus) {
+            const now = performance.now();
+            if (now - lastFunMessageTime > 15000) {
+                funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
+                scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
+                lastFunMessageTime = now;
+            }
         }
     }
 });
 
 ipcRenderer.on("hierarchy-complete", (event, payload) => {
-    const { totalFiles, totalDirs } = payload;
+    const { rootFolder, totalFiles, totalDirs, entries } = payload;
 
     console.log(
         `%cScansione completata. File: ${totalFiles}, Cartelle: ${totalDirs}`,
@@ -1157,11 +1485,7 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
         <p id="buildFunStatus" class="fun-status muted"></p>
     `;
 
-    const searchResultsEl = document.getElementById("searchResults");
-    if (searchResultsEl) {
-        searchResultsEl.innerHTML = "<span class='muted'>Pronto per la ricerca.</span>";
-    }
-
+    // messaggi divertenti per costruzione albero
     funMessageIndex = 0;
     lastFunMessageTime = performance.now();
     const buildFunStatus = document.getElementById("buildFunStatus");
@@ -1169,8 +1493,36 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
         buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
     }
 
+    // ---------------------
+    // Nuova costruzione completa dell'albero
+    // ---------------------
+
+    rootTree = createRootTree(rootFolder || selectedFolder || "");
+    originalRootTree = null;
+    pendingEntries = Array.isArray(entries) ? entries.slice() : [];
+    isBuildingTree = false;
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+        treeRootEl.innerHTML = "<p>Nessun elemento trovato.</p>";
+        detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
+        return;
+    }
+
     buildTreeFromPendingAsync(() => {
+        originalRootTree = cloneTree(rootTree);
         renderTreeFromModel();
         detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
     });
+
+    return;
+
+    // L'albero Š stato costruito in modo incrementale nei vari "progress":
+    // qui dobbiamo solo prendere uno snapshot per i filtri e renderizzare.
+    pendingEntries = [];
+    isBuildingTree = false;
+
+    // snapshot dell'albero completo (base per i filtri)
+    originalRootTree = cloneTree(rootTree);
+    renderTreeFromModel();
+    detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
 });

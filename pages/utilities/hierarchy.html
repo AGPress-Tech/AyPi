@@ -24,7 +24,6 @@
             <div class="tree-panel">
                 <div class="tree-header">
                     <span class="panel-title">Gerarchia</span>
-
                     <div class="search-bar">
                         <input type="text" id="searchInput" placeholder="Cerca per nome o parte di percorso..." />
                         <button id="btnSearch">Cerca</button>
@@ -32,6 +31,34 @@
                 </div>
 
                 <div id="searchResults" class="search-results"></div>
+
+                <div class="scan-options-panel collapsed">
+                    <button type="button" class="scan-options-toggle" id="scanOptionsToggle">
+                        <span class="panel-subtitle">Opzioni di scansione</span>
+                        <span class="scan-options-arrow" id="scanOptionsArrow">&#9658;</span>
+                    </button>
+                    <div class="scan-options-body" id="scanOptionsBody">
+                        <div class="scan-option-row">
+                            <label for="scanDepth">Profondità massima (0 = illimitata)</label>
+                            <input type="number" id="scanDepth" min="0" placeholder="0" />
+                        </div>
+                        <div class="scan-option-row">
+                            <label for="excludeExtensions">Escludi estensioni (separate da virgola o spazio)</label>
+                            <input type="text" id="excludeExtensions" placeholder=".log, .tmp, .bak" />
+                        </div>
+                        <div class="scan-option-row">
+                            <label for="excludeFolders">Escludi cartelle (nomi cartelle)</label>
+                            <input type="text" id="excludeFolders" placeholder="node_modules, .git" />
+                        </div>
+                        <div class="scan-option-row">
+                            <label for="excludeFiles">Escludi file (nomi file)</label>
+                            <input type="text" id="excludeFiles" placeholder="Thumbs.db, desktop.ini" />
+                        </div>
+                        <div class="scan-option-row">
+                            <button type="button" id="btnApplyScanFilter" class="small-btn">Aggiorna filtro albero</button>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="tree-container">
                     <div id="treeRoot" class="tree-view"></div>

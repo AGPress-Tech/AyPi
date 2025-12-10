@@ -193,16 +193,65 @@ function openHierarchyWindow(mainWindow) {
     });
 }
 
-function startHierarchyScan(win, rootFolder) {
+function startHierarchyScan(win, rootFolder, options = {}) {
     const webContents = win.webContents;
 
+    log.info("[hierarchy] start-scan", {
+        rootFolder,
+        options,
+    });
+
     // Coda di directory da processare (DFS)
-    const pendingDirs = [rootFolder];
+    const pendingDirs = [{ dir: rootFolder, depth: 0 }];
+    const allEntries = [];
 
     let totalFiles = 0;
     let totalDirs = 0;
 
     const BATCH_SIZE = 500;
+
+    const rawDepth = Number(options.maxDepth);
+    const maxDepth =
+        Number.isFinite(rawDepth) && rawDepth > 0 ? rawDepth : null;
+
+    const excludeExtensions = Array.isArray(options.excludeExtensions)
+        ? options.excludeExtensions
+              .map((e) => String(e).toLowerCase().replace(/^\./, "").trim())
+              .filter((e) => e.length > 0)
+        : [];
+    const excludeFolders = Array.isArray(options.excludeFolders)
+        ? options.excludeFolders
+              .map((f) => String(f).toLowerCase().trim())
+              .filter((f) => f.length > 0)
+        : [];
+    const excludeFiles = Array.isArray(options.excludeFiles)
+        ? options.excludeFiles
+              .map((f) => String(f).toLowerCase().trim())
+              .filter((f) => f.length > 0)
+        : [];
+
+    const excludeExtSet = new Set(excludeExtensions);
+    const excludeFolderSet = new Set(excludeFolders);
+    const excludeFileSet = new Set(excludeFiles);
+
+    function isExcludedFolder(name) {
+        if (!name) return false;
+        return excludeFolderSet.has(String(name).toLowerCase());
+    }
+
+    function isExcludedFile(name) {
+        if (!name) return false;
+        const lower = String(name).toLowerCase();
+        if (excludeFileSet.has(lower)) return true;
+
+        if (excludeExtSet.size > 0) {
+            const ext = path.extname(lower).replace(/^\./, "");
+            if (ext && excludeExtSet.has(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     function step() {
         const batch = [];
@@ -211,7 +260,8 @@ function startHierarchyScan(win, rootFolder) {
         // - ce ne sono
         // - e non abbiamo riempito il batch
         while (pendingDirs.length > 0 && batch.length < BATCH_SIZE) {
-            const currentDir = pendingDirs.pop();
+            const { dir: currentDir, depth: currentDepth } =
+                pendingDirs.pop();
             totalDirs++;
 
             let entries;
@@ -224,19 +274,44 @@ function startHierarchyScan(win, rootFolder) {
 
             // Aggiungiamo la directory stessa come entry "folder"
             const relDir = path.relative(rootFolder, currentDir);
-            batch.push({
+            const folderEntry = {
                 kind: "folder",
                 fullPath: currentDir,
                 relPath: relDir || "", // root = stringa vuota
-            });
+            };
+            batch.push(folderEntry);
+            allEntries.push(folderEntry);
 
             for (const entry of entries) {
                 const fullPath = path.join(currentDir, entry.name);
 
-                if (entry.isDirectory()) {
+                // Determiniamo sempre il tipo reale tramite fs.statSync,
+                // così gestiamo correttamente anche file "speciali" (OneDrive, link, ecc.).
+                let stat;
+                try {
+                    stat = fs.statSync(fullPath);
+                } catch (err) {
+                    console.warn("Impossibile determinare il tipo dell'elemento:", fullPath, err.message);
+                    continue;
+                }
+
+                const isDir = stat.isDirectory();
+                const isFile = stat.isFile();
+
+                if (isDir) {
+                    if (isExcludedFolder(entry.name)) {
+                        continue;
+                    }
+
                     // metti in coda per elaborarla dopo
-                    pendingDirs.push(fullPath);
-                } else if (entry.isFile()) {
+                    const nextDepth = currentDepth + 1;
+                    if (maxDepth === null || nextDepth <= maxDepth) {
+                        pendingDirs.push({ dir: fullPath, depth: nextDepth });
+                    }
+                } else if (isFile) {
+                    if (isExcludedFile(entry.name)) {
+                        continue;
+                    }
                     let st;
                     try {
                         st = fs.statSync(fullPath);
@@ -248,13 +323,15 @@ function startHierarchyScan(win, rootFolder) {
                     const relPath = path.relative(rootFolder, fullPath);
 
                     totalFiles++;
-                    batch.push({
+                    const fileEntry = {
                         kind: "file",
                         fullPath,
                         relPath,
                         size: st.size,
                         mtimeMs: st.mtimeMs,
-                    });
+                    };
+                    batch.push(fileEntry);
+                    allEntries.push(fileEntry);
                 }
 
                 if (batch.length >= BATCH_SIZE) {
@@ -264,6 +341,21 @@ function startHierarchyScan(win, rootFolder) {
         }
 
         if (batch.length > 0) {
+            try {
+                const sample = batch
+                    .slice(0, 10)
+                    .map((e) => `${e.kind}:${e.relPath}`);
+                log.info("[hierarchy] progress-batch", {
+                    rootFolder,
+                    batchCount: batch.length,
+                    totalFiles,
+                    totalDirs,
+                    sample,
+                });
+            } catch (err) {
+                log.warn("[hierarchy] progress-log-error", err);
+            }
+
             webContents.send("hierarchy-progress", {
                 rootFolder,
                 batch,
@@ -277,10 +369,18 @@ function startHierarchyScan(win, rootFolder) {
             setImmediate(step);
         } else {
             // Fine scansione
+            log.info("[hierarchy] complete", {
+                rootFolder,
+                totalFiles,
+                totalDirs,
+                entries: allEntries.length,
+            });
+
             webContents.send("hierarchy-complete", {
                 rootFolder,
                 totalFiles,
                 totalDirs,
+                entries: allEntries,
             });
         }
     }
@@ -370,8 +470,12 @@ function setupFileManager(mainWindow) {
     });
 
     // Handler per selezionare una cartella radice (usato dalle Utilities AyPi)
-    ipcMain.handle("select-root-folder", async () => {
-        const result = await dialog.showOpenDialog(mainWindow, {
+    ipcMain.handle("select-root-folder", async (event) => {
+        // Usa la finestra che ha richiesto la selezione (se esiste),
+        // altrimenti ricade sulla finestra principale.
+        const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+
+        const result = await dialog.showOpenDialog(win, {
             title: "Seleziona la cartella",
             properties: ["openDirectory"],
         });
@@ -384,7 +488,9 @@ function setupFileManager(mainWindow) {
 
     // Handler per selezionare un file di output (es. Excel generati dalle Utilities)
     ipcMain.handle("select-output-file", async (event, options) => {
-        const result = await dialog.showSaveDialog(mainWindow, {
+        const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+
+        const result = await dialog.showSaveDialog(win, {
             title: "Seleziona il file di destinazione",
             defaultPath: options?.defaultName || "output.xlsx",
             filters: [
@@ -423,7 +529,7 @@ function setupFileManager(mainWindow) {
 
         console.log("Richiesta scansione gerarchia REALE:", data.rootFolder);
 
-        startHierarchyScan(win, data.rootFolder);
+        startHierarchyScan(win, data.rootFolder, data.options || {});
     });
 
     ipcMain.handle("get-app-version", async () => {

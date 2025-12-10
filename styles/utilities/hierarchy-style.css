@@ -50,6 +50,7 @@ button:hover {
 
 .tree-panel {
     flex: 1 1 0;
+    min-width: 0; /* permette alla colonna di non allargare il layout */
     display: flex;
     flex-direction: column;
     border: 1px solid #555;
@@ -70,6 +71,72 @@ button:hover {
     font-weight: bold;
     font-size: 14px;
     color: #ffffff;
+}
+
+.panel-subtitle {
+    font-weight: bold;
+    font-size: 13px;
+    color: #cc930e;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.scan-options-panel {
+    margin-bottom: 6px;
+    border: 1px solid #555;
+    border-radius: 6px;
+    background-color: #2b2824;
+    font-size: 12px;
+}
+
+.scan-options-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    cursor: pointer;
+    color: #fff;
+    font: inherit;
+    text-align: left;
+}
+
+.scan-options-toggle:hover {
+    background-color: #3a342f;
+}
+
+.scan-options-arrow {
+    font-size: 11px;
+}
+
+.scan-options-body {
+    margin: 4px 6px 6px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.scan-options-panel.collapsed .scan-options-body {
+    display: none;
+}
+
+.scan-option-row label {
+    display: block;
+    margin-bottom: 2px;
+}
+
+.scan-option-row input[type="text"],
+.scan-option-row input[type="number"] {
+    width: 100%;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background-color: #2b2824;
+    color: #fff;
+    box-sizing: border-box;
+    font-size: 12px;
 }
 
 /* barra di ricerca dentro l’header */
@@ -106,8 +173,15 @@ button:hover {
 /* risultati ricerca subito sotto l’header */
 .search-results {
     margin-bottom: 6px;
-    max-height: 120px;
+    height: 15px;
+    min-height: 15px;
+    max-height: 400px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
     overflow: auto;
+    resize: vertical;
     font-size: 12px;
     border: 1px solid #555;
     border-radius: 6px;
@@ -124,7 +198,8 @@ button:hover {
 .search-results li {
     cursor: pointer;
     padding: 2px 0;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .search-results li:hover {
@@ -151,6 +226,7 @@ button:hover {
 
 .details-container {
     flex: 1 1 0;
+    min-width: 0; /* mantiene la proporzione rispetto alla finestra */
     overflow-y: auto;
     border: 1px solid #555;
     border-radius: 6px;
@@ -196,7 +272,8 @@ button:hover {
 }
 
 .tree-view {
-    min-width: max-content;
+    width: 100%;
+    min-width: 0;
 }
 
 /* -------- MENU CONTESTUALE -------- */

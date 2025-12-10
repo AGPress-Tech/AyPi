@@ -45,11 +45,25 @@ function collectFiles(rootPath, includeSubfolders) {
 
         for (const entry of entries) {
             const full = path.join(currentPath, entry.name);
-            if (entry.isDirectory()) {
+
+            // Come nel main process: usiamo sempre fs.statSync per determinare
+            // il tipo reale (file/cartella), così includiamo anche elementi speciali.
+            let stat;
+            try {
+                stat = fs.statSync(full);
+            } catch (err) {
+                console.error("Impossibile determinare tipo elemento:", full, err);
+                continue;
+            }
+
+            const isDir = stat.isDirectory();
+            const isFile = stat.isFile();
+
+            if (isDir) {
                 if (includeSubfolders) {
                     walk(full);
                 }
-            } else if (entry.isFile()) {
+            } else if (isFile) {
                 const rel = path.relative(rootPath, full);
                 let st = null;
                 try {
