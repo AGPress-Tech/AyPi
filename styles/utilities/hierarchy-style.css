@@ -196,34 +196,58 @@ button:hover {
 }
 
 .tree-view {
-    /* permette ai nodi di allargarsi e far comparire la barra orizzontale */
     min-width: max-content;
+}
+
+/* -------- MENU CONTESTUALE -------- */
+
+.context-menu {
+    position: fixed;
+    display: none;
+    min-width: 220px;
+    background-color: #201d1a;
+    border: 1px solid #555;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    z-index: 1000;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.context-menu-item {
+    padding: 6px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.context-menu-item:hover {
+    background-color: #444;
 }
 
 /* -------- SCROLLBAR STILE AYPI -------- */
 
 ::-webkit-scrollbar {
-    width: 10px;           /* larghezza barra verticale */
-    height: 10px;          /* altezza barra orizzontale */
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: #2b2824;   /* colore sfondo */
+    background: #2b2824;
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #cc930e;   /* colore barra */
+    background: #cc930e;
     border-radius: 10px;
-    border: 2px solid #2b2824; /* bordino per dare profondità */
+    border: 2px solid #2b2824;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #e4ab32;   /* colore barra in hover */
+    background: #e4ab32;
 }
 
 ::-webkit-scrollbar-corner {
-    background: #2b2824;   /* l'angolo tra scroll orizz/vert */
+    background: #2b2824;
 }
 
 /* -------- VARIE -------- */

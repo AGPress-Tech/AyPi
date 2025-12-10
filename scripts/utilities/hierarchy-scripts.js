@@ -1,4 +1,4 @@
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, shell, clipboard } = require("electron");
 const path = require("path");
 
 let XLSX;
@@ -26,9 +26,17 @@ let treeRootEl = null;
 let lblSelectedFolder = null;
 let detailsBox = null;
 
+// Ricerca globale nell'albero
+let searchGeneration = 0;
+let lastSearchProgressTime = 0;
+
+// Menu contestuale albero
+let contextMenuEl = null;
+let contextMenuNode = null;
+
 // Messaggi “quantistici”
 const FUN_MESSAGES = [
-    "Calcolo degli atomi dei file...",
+    "Calcolo degli atomi dei file del server...",
     "Allineamento dei bit con l'asse di rotazione terrestre...",
     "Stima della distanza Terra–Sole–file richiesti...",
     "Ottimizzazione del coefficiente di entropia dei backup...",
@@ -40,11 +48,6 @@ const FUN_MESSAGES = [
 
 let lastFunMessageTime = 0;
 let funMessageIndex = 0;
-
-// Ricerca globale nell'albero
-let searchGeneration = 0;
-let lastSearchProgressTime = 0;
-
 
 // -------------------------
 // Helper dialog
@@ -60,6 +63,20 @@ function showInfo(message, detail = "") {
 
 function showError(message, detail = "") {
     return showDialog("error", message, detail);
+}
+
+function copyToClipboard(text) {
+    try {
+        if (clipboard && typeof clipboard.writeText === "function") {
+            clipboard.writeText(text);
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text);
+        } else {
+            console.warn("Clipboard API non disponibile");
+        }
+    } catch (err) {
+        console.error("Errore copia negli appunti:", err);
+    }
 }
 
 // -------------------------
@@ -109,7 +126,6 @@ function addEntryToTree(entry) {
 
     const normalizedRel = (entry.relPath || "").replace(/\\/g, "/");
     if (!normalizedRel) {
-        // root stesso
         return;
     }
 
@@ -166,9 +182,6 @@ function computeFolderStatsDirect(node) {
     return { folders, files, totalSize };
 }
 
-/**
- * Conteggio ricorsivo NON bloccante di un ramo.
- */
 function computeFolderStatsRecursiveAsync(node, onProgress, onDone) {
     if (!node || node.type !== "folder") {
         if (onDone) onDone({ folders: 0, files: 0, totalSize: 0 });
@@ -277,7 +290,7 @@ function collectSubtreeRows(node, basePath, acc = []) {
 }
 
 // -------------------------
-// Utility: figli ordinati (cartelle prima, poi file, alfabetic)
+// Utility: figli ordinati
 // -------------------------
 
 function getSortedChildren(node) {
@@ -337,6 +350,14 @@ function createTreeNode(nodeData) {
         });
     }
 
+    // tasto destro: mostra menu contestuale
+    wrapper.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectNode(wrapper, nodeData);
+        showTreeContextMenu(e.clientX, e.clientY, nodeData);
+    });
+
     return wrapper;
 }
 
@@ -355,7 +376,7 @@ function renderTreeFromModel() {
 }
 
 // -------------------------
-// Costruzione albero da pendingEntries (NON bloccante)
+// Costruzione albero da pendingEntries
 // -------------------------
 
 function buildTreeFromPendingAsync(onDone) {
@@ -389,7 +410,7 @@ function buildTreeFromPendingAsync(onDone) {
         const buildFunStatus = document.getElementById("buildFunStatus");
         if (buildFunStatus) {
             const now = performance.now();
-            if (now - lastFunMessageTime > 5000) { // 5 secondi
+            if (now - lastFunMessageTime > 15000) {
                 funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
                 buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
                 lastFunMessageTime = now;
@@ -719,77 +740,8 @@ function exportSameNameList(list) {
     });
 }
 
-
 // -------------------------
-// Ricerca globale nell'albero (async, non blocca)
-// -------------------------
-
-function searchTreeAsync(query, onProgress, onDone) {
-    if (!rootTree) {
-        if (onDone) onDone([]);
-        return;
-    }
-
-    const q = (query || "").toLowerCase();
-    if (!q) {
-        if (onDone) onDone([]);
-        return;
-    }
-
-    const results = [];
-    const stack = [rootTree];
-    const CHUNK_TIME_MS = 16;
-    const myGen = ++searchGeneration; // token per annullare ricerche vecchie
-
-    function step() {
-        if (myGen !== searchGeneration) {
-            // C'è una nuova ricerca partita, questa è vecchia → stop
-            return;
-        }
-
-        const start = performance.now();
-
-        while (stack.length > 0 && (performance.now() - start) < CHUNK_TIME_MS) {
-            const node = stack.pop();
-
-            const name = (node.name || "").toLowerCase();
-            const full = (node.fullPath || "").toLowerCase();
-
-            if (name.includes(q) || full.includes(q)) {
-                results.push(node);
-            }
-
-            if (node.type === "folder" && Array.isArray(node.children)) {
-                for (const c of node.children) {
-                    stack.push(c);
-                }
-            }
-        }
-
-        const processed = results.length; // non è proprio il numero nodi, ma va bene per feedback
-        const remaining = stack.length;
-
-        if (onProgress) {
-            const now = performance.now();
-            // aggiorniamo la UI al massimo ~5 volte al secondo
-            if (now - lastSearchProgressTime > 200) {
-                onProgress({ processed, remaining });
-                lastSearchProgressTime = now;
-            }
-        }
-
-        if (stack.length > 0) {
-            setTimeout(step, 0);
-        } else {
-            if (onDone) onDone(results);
-        }
-    }
-
-    setTimeout(step, 0);
-}
-
-// -------------------------
-// Focus su nodo nell'albero (teletrasporto)
+// Focus su nodo nell'albero
 // -------------------------
 
 function focusNodeInTree(fullPath) {
@@ -812,7 +764,6 @@ function focusNodeInTree(fullPath) {
             const childrenContainer = dom.querySelector(":scope > .tree-children");
             if (!childrenContainer) continue;
 
-            // espandi il ramo
             childrenContainer.classList.add("open");
             const icon = dom.querySelector(":scope > .node-icon");
             if (icon) icon.textContent = "▼";
@@ -831,6 +782,157 @@ function focusNodeInTree(fullPath) {
 }
 
 // -------------------------
+// Ricerca globale nell'albero (async)
+// -------------------------
+
+function searchTreeAsync(query, onProgress, onDone) {
+    if (!rootTree) {
+        if (onDone) onDone([]);
+        return;
+    }
+
+    const q = (query || "").toLowerCase();
+    if (!q) {
+        if (onDone) onDone([]);
+        return;
+    }
+
+    const results = [];
+    const stack = [rootTree];
+    const CHUNK_TIME_MS = 16;
+    const myGen = ++searchGeneration;
+
+    function step() {
+        if (myGen !== searchGeneration) {
+            return;
+        }
+
+        const start = performance.now();
+
+        while (stack.length > 0 && (performance.now() - start) < CHUNK_TIME_MS) {
+            const node = stack.pop();
+
+            const name = (node.name || "").toLowerCase();
+            const full = (node.fullPath || "").toLowerCase();
+
+            if (name.includes(q) || full.includes(q)) {
+                results.push(node);
+            }
+
+            if (node.type === "folder" && Array.isArray(node.children)) {
+                for (const c of node.children) stack.push(c);
+            }
+        }
+
+        const processed = results.length;
+        const remaining = stack.length;
+
+        if (onProgress) {
+            const now = performance.now();
+            if (now - lastSearchProgressTime > 200) {
+                onProgress({ processed, remaining });
+                lastSearchProgressTime = now;
+            }
+        }
+
+        if (stack.length > 0) {
+            setTimeout(step, 0);
+        } else {
+            if (onDone) onDone(results);
+        }
+    }
+
+    setTimeout(step, 0);
+}
+
+// -------------------------
+// Menu contestuale albero
+// -------------------------
+
+function initContextMenu() {
+    contextMenuEl = document.getElementById("treeContextMenu");
+
+    if (!contextMenuEl) return;
+
+    // click sulle voci
+    contextMenuEl.addEventListener("click", (e) => {
+        const item = e.target.closest(".context-menu-item");
+        if (!item || !contextMenuNode) return;
+
+        const action = item.getAttribute("data-action");
+        const node = contextMenuNode;
+        const fullPath = node.fullPath;
+
+        if (!fullPath) {
+            hideTreeContextMenu();
+            return;
+        }
+
+        if (action === "open") {
+            try {
+                if (node.type === "file") {
+                    shell.showItemInFolder(fullPath);
+                } else {
+                    shell.openPath(fullPath);
+                }
+            } catch (err) {
+                console.error("Errore aprendo percorso:", err);
+            }
+        } else if (action === "copy-full") {
+            copyToClipboard(fullPath);
+        } else if (action === "copy-rel") {
+            if (rootTree && rootTree.fullPath) {
+                const rel = path.relative(rootTree.fullPath, fullPath);
+                copyToClipboard(rel || ".");
+            } else {
+                copyToClipboard(fullPath);
+            }
+        }
+
+        hideTreeContextMenu();
+    });
+
+    // chiudi su click fuori
+    window.addEventListener("click", () => {
+        hideTreeContextMenu();
+    });
+
+    // chiudi se scroll
+    window.addEventListener("scroll", () => {
+        hideTreeContextMenu();
+    }, true);
+}
+
+function showTreeContextMenu(x, y, nodeData) {
+    if (!contextMenuEl) return;
+
+    contextMenuNode = nodeData;
+
+    // posizionamento entro i bordi finestra
+    const menuWidth = 230;
+    const menuHeight = 120;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = x;
+    let top = y;
+
+    if (left + menuWidth > vw) left = vw - menuWidth - 4;
+    if (top + menuHeight > vh) top = vh - menuHeight - 4;
+
+    contextMenuEl.style.left = `${left}px`;
+    contextMenuEl.style.top = `${top}px`;
+    contextMenuEl.style.display = "block";
+}
+
+function hideTreeContextMenu() {
+    if (contextMenuEl) {
+        contextMenuEl.style.display = "none";
+    }
+    contextMenuNode = null;
+}
+
+// -------------------------
 // Inizializzazione finestra
 // -------------------------
 
@@ -842,11 +944,11 @@ window.addEventListener("DOMContentLoaded", () => {
     const btnClose = document.getElementById("btnClose");
     const btnSelectFolder = document.getElementById("btnSelectFolder");
     const btnStartScan = document.getElementById("btnStartScan");
-
     const searchInput = document.getElementById("searchInput");
     const btnSearch = document.getElementById("btnSearch");
     const searchResultsEl = document.getElementById("searchResults");
 
+    initContextMenu();
 
     treeRootEl.innerHTML = "<p>Seleziona una cartella e premi 'Avvia scansione'.</p>";
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
@@ -874,6 +976,10 @@ window.addEventListener("DOMContentLoaded", () => {
         treeRootEl.innerHTML = "<p>Premi 'Avvia scansione' per visualizzare la gerarchia...</p>";
         detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
 
+        if (searchResultsEl) {
+            searchResultsEl.innerHTML = "";
+        }
+
         console.log("Cartella selezionata:", folder);
     });
 
@@ -896,7 +1002,10 @@ window.addEventListener("DOMContentLoaded", () => {
             <p id="scanFunStatus" class="fun-status muted"></p>
         `;
 
-        // messaggi divertenti per la scansione
+        if (searchResultsEl) {
+            searchResultsEl.innerHTML = "<span class='muted'>Ricerca non disponibile durante la scansione.</span>";
+        }
+
         funMessageIndex = 0;
         lastFunMessageTime = performance.now();
         const scanFunStatus = document.getElementById("scanFunStatus");
@@ -927,7 +1036,6 @@ window.addEventListener("DOMContentLoaded", () => {
             searchTreeAsync(
                 q,
                 (partial) => {
-                    // feedback leggero durante la ricerca
                     searchResultsEl.innerHTML = `
                         <span class='muted'>Ricerca in corso...</span>
                         <br><span class='muted'>Elementi trovati finora: ${partial.processed}, in analisi: ~${partial.remaining}</span>
@@ -940,7 +1048,7 @@ window.addEventListener("DOMContentLoaded", () => {
                     }
 
                     let html = `<p><b>Risultati: ${matches.length}</b></p><ul>`;
-                    for (const node of matches.slice(0, 500)) { // limitiamo la visualizzazione per non esplodere
+                    for (const node of matches.slice(0, 500)) {
                         const safePath = (node.fullPath || node.name || "")
                             .replace(/&/g, "&amp;")
                             .replace(/</g, "&lt;");
@@ -967,17 +1075,13 @@ window.addEventListener("DOMContentLoaded", () => {
             runSearch();
         });
 
-        // Invio nella textbox = cerca
         searchInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
                 runSearch();
             }
         });
     }
-
 });
-
-
 
 // -------------------------
 // Listener dal main
@@ -1000,16 +1104,13 @@ ipcRenderer.on("hierarchy-progress", (event, payload) => {
         `;
     }
 
-    // messaggi divertenti durante la scansione
-    if (detailsBox) {
-        const scanFunStatus = document.getElementById("scanFunStatus");
-        if (scanFunStatus) {
-            const now = performance.now();
-            if (now - lastFunMessageTime > 15000) {
-                funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
-                scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
-                lastFunMessageTime = now;
-            }
+    const scanFunStatus = document.getElementById("scanFunStatus");
+    if (scanFunStatus) {
+        const now = performance.now();
+        if (now - lastFunMessageTime > 15000) {
+            funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
+            scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
+            lastFunMessageTime = now;
         }
     }
 });
@@ -1034,7 +1135,11 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
         <p id="buildFunStatus" class="fun-status muted"></p>
     `;
 
-    // messaggi divertenti per costruzione albero
+    const searchResultsEl = document.getElementById("searchResults");
+    if (searchResultsEl) {
+        searchResultsEl.innerHTML = "<span class='muted'>Pronto per la ricerca.</span>";
+    }
+
     funMessageIndex = 0;
     lastFunMessageTime = performance.now();
     const buildFunStatus = document.getElementById("buildFunStatus");
