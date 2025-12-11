@@ -1,39 +1,32 @@
-// Importazione dei moduli principali di Electron e Node.js
+// Gestione finestre e IPC lato main per AyPi
+
 const { ipcMain, dialog, shell, BrowserWindow, app } = require("electron");
 const path = require("path");
 const { exec } = require("child_process");
 const fs = require("fs");
 const log = require("electron-log");
 
-/**
- * Funzione che anima il ridimensionamento della finestra principale
- * @param {BrowserWindow} mainWindow - finestra principale di Electron
- * @param {number} targetWidth - larghezza finale desiderata
- * @param {number} targetHeight - altezza finale desiderata
- * @param {number} duration - durata dell’animazione in millisecondi (default 100ms)
- */
-function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
-    if (!mainWindow) return; // Se non esiste la finestra, interrompe la funzione
+// -------------------------
+// Animazione resize finestra principale
+// -------------------------
 
-    // Ottiene dimensioni iniziali della finestra
+function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
+    if (!mainWindow) return;
+
     const [startWidth, startHeight] = mainWindow.getSize();
-    const steps = 20; // Numero di passaggi intermedi per l’animazione
-    const stepDuration = duration / steps; // Durata di ogni step
+    const steps = 20;
+    const stepDuration = duration / steps;
     let currentStep = 0;
 
-    // Imposta un intervallo per aggiornare progressivamente le dimensioni
     const interval = setInterval(() => {
         currentStep++;
-        const progress = currentStep / steps; // Progresso dell’animazione (da 0 a 1)
+        const progress = currentStep / steps;
 
-        // Calcola nuove dimensioni proporzionali al progresso
         const newWidth = Math.round(startWidth + (targetWidth - startWidth) * progress);
         const newHeight = Math.round(startHeight + (targetHeight - startHeight) * progress);
 
-        // Applica le nuove dimensioni
         mainWindow.setSize(newWidth, newHeight);
 
-        // Quando l’animazione è completa, ferma l’intervallo e centra la finestra
         if (currentStep >= steps) {
             clearInterval(interval);
             mainWindow.setSize(targetWidth, targetHeight);
@@ -42,20 +35,15 @@ function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
     }, stepDuration);
 }
 
-/**
- * Registra gli handler IPC per la gestione dei file e del ridimensionamento finestra
- * @param {BrowserWindow} mainWindow - finestra principale di Electron
- */
+// -------------------------
+// Finestre secondarie
+// -------------------------
 
 let batchRenameWindow = null;
 let qrGeneratorWindow = null;
 let compareFoldersWindow = null;
 let hierarchyWindow = null;
 
-/**
- * Apre (o porta in primo piano) la finestra di Rinomina File in Batch.
- * Viene usata dalle utilities AyPi dalla pagina Utilities.
- */
 function openBatchRenameWindow(mainWindow) {
     if (batchRenameWindow && !batchRenameWindow.isDestroyed()) {
         batchRenameWindow.focus();
@@ -76,17 +64,13 @@ function openBatchRenameWindow(mainWindow) {
 
     batchRenameWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"));
     batchRenameWindow.setMenu(null);
-
-    // Centra la finestra
     batchRenameWindow.center();
 
     batchRenameWindow.on("closed", () => {
         batchRenameWindow = null;
-
-        // 🔥 Quando la finestra si chiude, riportiamo AyPi in primo piano
         if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.show();  // la rende visibile se nascosta
-            mainWindow.focus(); // la porta davanti
+            mainWindow.show();
+            mainWindow.focus();
         }
     });
 }
@@ -98,41 +82,6 @@ function openQrGeneratorWindow(mainWindow) {
     }
 
     qrGeneratorWindow = new BrowserWindow({
-        width: 900,     // <--- STESSO VALORE DI BATCH RENAME
-        height: 800,    // <--- STESSO VALORE DI BATCH RENAME
-        parent: mainWindow,
-        modal: false,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-        },
-        icon: path.join(__dirname, "..", "assets", "app-icon.png"),
-    });
-
-    qrGeneratorWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"));
-    qrGeneratorWindow.setMenu(null);
-
-    // Centra la finestra (come per Batch Rename)
-    qrGeneratorWindow.center();
-
-    qrGeneratorWindow.on("closed", () => {
-        qrGeneratorWindow = null;
-
-        // Riporta AyPi in primo piano (come Batch Rename)
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.show();
-            mainWindow.focus();
-        }
-    });
-}
-
-function openCompareFoldersWindow(mainWindow) {
-    if (compareFoldersWindow && !compareFoldersWindow.isDestroyed()) {
-        compareFoldersWindow.focus();
-        return;
-    }
-
-    compareFoldersWindow = new BrowserWindow({
         width: 900,
         height: 800,
         parent: mainWindow,
@@ -144,13 +93,12 @@ function openCompareFoldersWindow(mainWindow) {
         icon: path.join(__dirname, "..", "assets", "app-icon.png"),
     });
 
-    compareFoldersWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "compare-folders.html"));
-    compareFoldersWindow.setMenu(null);
-    compareFoldersWindow.center();
+    qrGeneratorWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"));
+    qrGeneratorWindow.setMenu(null);
+    qrGeneratorWindow.center();
 
-    compareFoldersWindow.on("closed", () => {
-        compareFoldersWindow = null;
-
+    qrGeneratorWindow.on("closed", () => {
+        qrGeneratorWindow = null;
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
@@ -176,16 +124,12 @@ function openHierarchyWindow(mainWindow) {
         icon: path.join(__dirname, "..", "assets", "app-icon.png"),
     });
 
-    hierarchyWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "hierarchy.html")
-    );
+    hierarchyWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"));
     hierarchyWindow.setMenu(null);
     hierarchyWindow.center();
 
     hierarchyWindow.on("closed", () => {
         hierarchyWindow = null;
-
-        // Riporta AyPi in primo piano
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
@@ -193,286 +137,101 @@ function openHierarchyWindow(mainWindow) {
     });
 }
 
-function startHierarchyScan(win, rootFolder, options = {}) {
-    const webContents = win.webContents;
+function openCompareFoldersWindow(slot, folder) {
+    const createWindow = () => {
+        compareFoldersWindow = new BrowserWindow({
+            width: 900,
+            height: 800,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+            },
+            icon: path.join(__dirname, "..", "assets", "app-icon.png"),
+        });
 
-    log.info("[hierarchy] start-scan", {
-        rootFolder,
-        options,
-    });
+        compareFoldersWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "compare-folders.html"));
+        compareFoldersWindow.setMenu(null);
+        compareFoldersWindow.center();
 
-    // Coda di directory da processare (DFS)
-    const pendingDirs = [{ dir: rootFolder, depth: 0 }];
-    const allEntries = [];
+        compareFoldersWindow.on("closed", () => {
+            compareFoldersWindow = null;
+        });
 
-    let totalFiles = 0;
-    let totalDirs = 0;
-
-    const BATCH_SIZE = 500;
-
-    const rawDepth = Number(options.maxDepth);
-    const maxDepth =
-        Number.isFinite(rawDepth) && rawDepth > 0 ? rawDepth : null;
-
-    const excludeExtensions = Array.isArray(options.excludeExtensions)
-        ? options.excludeExtensions
-              .map((e) => String(e).toLowerCase().replace(/^\./, "").trim())
-              .filter((e) => e.length > 0)
-        : [];
-    const excludeFolders = Array.isArray(options.excludeFolders)
-        ? options.excludeFolders
-              .map((f) => String(f).toLowerCase().trim())
-              .filter((f) => f.length > 0)
-        : [];
-    const excludeFiles = Array.isArray(options.excludeFiles)
-        ? options.excludeFiles
-              .map((f) => String(f).toLowerCase().trim())
-              .filter((f) => f.length > 0)
-        : [];
-
-    const excludeExtSet = new Set(excludeExtensions);
-    const excludeFolderSet = new Set(excludeFolders);
-    const excludeFileSet = new Set(excludeFiles);
-
-    function isExcludedFolder(name) {
-        if (!name) return false;
-        return excludeFolderSet.has(String(name).toLowerCase());
-    }
-
-    function isExcludedFile(name) {
-        if (!name) return false;
-        const lower = String(name).toLowerCase();
-        if (excludeFileSet.has(lower)) return true;
-
-        if (excludeExtSet.size > 0) {
-            const ext = path.extname(lower).replace(/^\./, "");
-            if (ext && excludeExtSet.has(ext)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function step() {
-        const batch = [];
-
-        // Elaboriamo directory finché:
-        // - ce ne sono
-        // - e non abbiamo riempito il batch
-        while (pendingDirs.length > 0 && batch.length < BATCH_SIZE) {
-            const { dir: currentDir, depth: currentDepth } =
-                pendingDirs.pop();
-            totalDirs++;
-
-            let entries;
-            try {
-                entries = fs.readdirSync(currentDir, { withFileTypes: true });
-            } catch (err) {
-                console.warn("Impossibile leggere la cartella:", currentDir, err.message);
-                continue;
-            }
-
-            // Aggiungiamo la directory stessa come entry "folder"
-            const relDir = path.relative(rootFolder, currentDir);
-            const folderEntry = {
-                kind: "folder",
-                fullPath: currentDir,
-                relPath: relDir || "", // root = stringa vuota
-            };
-            batch.push(folderEntry);
-            allEntries.push(folderEntry);
-
-            for (const entry of entries) {
-                const fullPath = path.join(currentDir, entry.name);
-
-                // Determiniamo sempre il tipo reale tramite fs.statSync,
-                // così gestiamo correttamente anche file "speciali" (OneDrive, link, ecc.).
-                let stat;
-                try {
-                    stat = fs.statSync(fullPath);
-                } catch (err) {
-                    console.warn("Impossibile determinare il tipo dell'elemento:", fullPath, err.message);
-                    continue;
-                }
-
-                const isDir = stat.isDirectory();
-                const isFile = stat.isFile();
-
-                if (isDir) {
-                    if (isExcludedFolder(entry.name)) {
-                        continue;
-                    }
-
-                    // metti in coda per elaborarla dopo
-                    const nextDepth = currentDepth + 1;
-                    if (maxDepth === null || nextDepth <= maxDepth) {
-                        pendingDirs.push({ dir: fullPath, depth: nextDepth });
-                    }
-                } else if (isFile) {
-                    if (isExcludedFile(entry.name)) {
-                        continue;
-                    }
-                    let st;
-                    try {
-                        st = fs.statSync(fullPath);
-                    } catch (err) {
-                        console.warn("Impossibile leggere stat del file:", fullPath, err.message);
-                        continue;
-                    }
-
-                    const relPath = path.relative(rootFolder, fullPath);
-
-                    totalFiles++;
-                    const fileEntry = {
-                        kind: "file",
-                        fullPath,
-                        relPath,
-                        size: st.size,
-                        mtimeMs: st.mtimeMs,
-                    };
-                    batch.push(fileEntry);
-                    allEntries.push(fileEntry);
-                }
-
-                if (batch.length >= BATCH_SIZE) {
-                    break;
+        compareFoldersWindow.webContents.once("did-finish-load", () => {
+            if (folder) {
+                if (slot === "A") {
+                    compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
+                } else if (slot === "B") {
+                    compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
                 }
             }
-        }
+        });
+    };
 
-        if (batch.length > 0) {
-            try {
-                const sample = batch
-                    .slice(0, 10)
-                    .map((e) => `${e.kind}:${e.relPath}`);
-                log.info("[hierarchy] progress-batch", {
-                    rootFolder,
-                    batchCount: batch.length,
-                    totalFiles,
-                    totalDirs,
-                    sample,
-                });
-            } catch (err) {
-                log.warn("[hierarchy] progress-log-error", err);
+    if (!compareFoldersWindow || compareFoldersWindow.isDestroyed()) {
+        createWindow();
+    } else {
+        compareFoldersWindow.show();
+        compareFoldersWindow.focus();
+        if (folder) {
+            if (slot === "A") {
+                compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
+            } else if (slot === "B") {
+                compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
             }
-
-            webContents.send("hierarchy-progress", {
-                rootFolder,
-                batch,
-                totalFiles,
-                totalDirs,
-            });
-        }
-
-        if (pendingDirs.length > 0) {
-            // Continua con il prossimo chunk senza bloccare l'UI
-            setImmediate(step);
-        } else {
-            // Fine scansione
-            log.info("[hierarchy] complete", {
-                rootFolder,
-                totalFiles,
-                totalDirs,
-                entries: allEntries.length,
-            });
-
-            webContents.send("hierarchy-complete", {
-                rootFolder,
-                totalFiles,
-                totalDirs,
-                entries: allEntries,
-            });
         }
     }
-
-    // Avvia la prima iterazione
-    step();
 }
 
+// -------------------------
+// Setup IPC
+// -------------------------
 
 function setupFileManager(mainWindow) {
-
-    // Evento IPC per ridimensionare la finestra alla modalità "calcolatore"
+    // Resize calcolatrice / normale
     ipcMain.on("resize-calcolatore", () => {
         animateResize(mainWindow, 750, 750, 100);
     });
 
-    // Evento IPC per tornare alla modalità finestra "normale"
     ipcMain.on("resize-normale", () => {
         animateResize(mainWindow, 750, 550, 100);
     });
 
-    // Evento IPC per aprire un file o cartella
+    // Apri file o cartella con l'app di sistema
     ipcMain.on("open-file", (event, filePath) => {
-        // File di test per verificare la raggiungibilità del server DL360
-        const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt";
+        if (!filePath) return;
 
-        // Verifica se il server è raggiungibile
-        fs.access(testFile, fs.constants.F_OK, (err) => {
+        fs.stat(filePath, (err, stats) => {
             if (err) {
-                // Se il file non è accessibile → server non raggiungibile
-                log.warn("Server non raggiungibile:", err.message);
                 dialog.showMessageBox(mainWindow, {
-                    type: 'warning',
-                    buttons: ['Ok'],
-                    title: "Server Non Raggiungibile",
-                    message: "Il server DL360 non è disponibile. Verificare la connessione."
+                    type: "warning",
+                    buttons: ["Ok"],
+                    title: "Percorso non trovato",
+                    message: "Il file o la cartella non è disponibile. Controlla il percorso e riprova.",
                 });
                 return;
             }
 
-            // Se il server risponde, verifica il file richiesto
-            fs.stat(filePath, (err, stats) => {
-                if (err) {
-                    // Se il percorso non esiste
-                    dialog.showMessageBox(mainWindow, {
-                        type: 'warning',
-                        buttons: ['Ok'],
-                        title: "Percorso Non Trovato",
-                        message: "Il file o la cartella non è disponibile. Controllare e riprovare."
-                    });
-                    return;
-                }
-
-                // Se è una cartella → apri direttamente in Esplora Risorse
-                if (stats.isDirectory()) {
-                    shell.openPath(filePath);
-                } else {
-                    // Se è un file → prova ad aprirlo con l'applicazione predefinita
-                    exec(`start "" "${filePath}"`, (error) => {
-                        if (error) {
-                            // Caso: file già aperto da un altro processo
-                            if (error.message.includes("utilizzato da un altro processo")) {
-                                dialog.showMessageBox(mainWindow, {
-                                    type: 'warning',
-                                    buttons: ['Apri in sola lettura', 'Annulla'],
-                                    title: "File in Uso",
-                                    message: "Vuoi aprirlo in sola lettura?"
-                                }).then(result => {
-                                    if (result.response === 0) {
-                                        shell.openPath(filePath);
-                                    }
-                                });
-                            } else {
-                                // Altro tipo di errore generico
-                                dialog.showMessageBox(mainWindow, {
-                                    type: 'error',
-                                    buttons: ['Ok'],
-                                    title: "Errore",
-                                    message: "Errore nell'apertura del file."
-                                });
-                            }
-                        }
-                    });
-                }
-            });
+            if (stats.isDirectory()) {
+                shell.openPath(filePath);
+            } else {
+                exec(`start "" "${filePath}"`, (error) => {
+                    if (error) {
+                        dialog.showMessageBox(mainWindow, {
+                            type: "error",
+                            buttons: ["Ok"],
+                            title: "Errore",
+                            message: "Errore nell'apertura del file.",
+                            detail: String(error),
+                        });
+                    }
+                });
+            }
         });
     });
 
-    // Handler per selezionare una cartella radice (usato dalle Utilities AyPi)
+    // Selezione cartella root
     ipcMain.handle("select-root-folder", async (event) => {
-        // Usa la finestra che ha richiesto la selezione (se esiste),
-        // altrimenti ricade sulla finestra principale.
         const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
 
         const result = await dialog.showOpenDialog(win, {
@@ -486,16 +245,14 @@ function setupFileManager(mainWindow) {
         return result.filePaths[0];
     });
 
-    // Handler per selezionare un file di output (es. Excel generati dalle Utilities)
+    // Selezione file di output (Excel o altro)
     ipcMain.handle("select-output-file", async (event, options) => {
         const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
 
         const result = await dialog.showSaveDialog(win, {
             title: "Seleziona il file di destinazione",
             defaultPath: options?.defaultName || "output.xlsx",
-            filters: [
-                { name: "File Excel", extensions: ["xlsx"] },
-            ],
+            filters: options?.filters || [{ name: "File Excel", extensions: ["xlsx"] }],
         });
 
         if (result.canceled || !result.filePath) {
@@ -504,7 +261,7 @@ function setupFileManager(mainWindow) {
         return result.filePath;
     });
 
-    // Handler generico per mostrare finestre di messaggio (info / warning / error)
+    // Message box generico
     ipcMain.handle("show-message-box", async (event, options) => {
         const win = BrowserWindow.getFocusedWindow() || mainWindow;
 
@@ -517,25 +274,12 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    ipcMain.on("hierarchy-start-scan", (event, data) => {
-        if (!data || !data.rootFolder) {
-            return;
-        }
-
-        const win = BrowserWindow.fromWebContents(event.sender);
-        if (!win || win.isDestroyed()) {
-            return;
-        }
-
-        console.log("Richiesta scansione gerarchia REALE:", data.rootFolder);
-
-        startHierarchyScan(win, data.rootFolder, data.options || {});
-    });
-
+    // Versione app (usata dal renderer)
     ipcMain.handle("get-app-version", async () => {
         return app.getVersion();
     });
 
+    // Apertura utilities
     ipcMain.on("open-batch-rename-window", () => {
         openBatchRenameWindow(mainWindow);
     });
@@ -545,55 +289,27 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.on("open-compare-folders-window", () => {
-        openCompareFoldersWindow(mainWindow);
+        openCompareFoldersWindow(null, null);
     });
 
     ipcMain.on("open-hierarchy-window", () => {
         openHierarchyWindow(mainWindow);
     });
 
-    // ------------------------
-    // Gerarchia → Batch Rename
-    // ------------------------
+    // Gerarchia -> Batch Rename
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {
         const folder = payload?.folder;
+        openBatchRenameWindow(mainWindow);
 
-        if (!batchRenameWindow || batchRenameWindow.isDestroyed()) {
-            batchRenameWindow = new BrowserWindow({
-                width: 800,
-                height: 800,
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                },
-                icon: path.join(__dirname, "assets", "app-icon.png"),
-            });
-
-            batchRenameWindow.setMenu(null);
-            batchRenameWindow.loadFile("./pages/utilities/batch-rename.html"
-            );
-
-            batchRenameWindow.on("closed", () => {
-                batchRenameWindow = null;
-            });
-
+        if (batchRenameWindow && !batchRenameWindow.isDestroyed() && folder) {
             batchRenameWindow.webContents.once("did-finish-load", () => {
-                if (folder) {
-                    batchRenameWindow.webContents.send("batch-rename-set-root", folder);
-                }
-            });
-        } else {
-            batchRenameWindow.show();
-            batchRenameWindow.focus();
-            if (folder) {
                 batchRenameWindow.webContents.send("batch-rename-set-root", folder);
-            }
+            });
+            batchRenameWindow.webContents.send("batch-rename-set-root", folder);
         }
     });
 
-    // ------------------------
-    // Gerarchia → Confronta cartelle (A/B)
-    // ------------------------
+    // Gerarchia -> Confronta cartelle (A/B)
     ipcMain.on("hierarchy-compare-folder-A", (event, payload) => {
         openCompareFoldersWindow("A", payload?.folder);
     });
@@ -602,48 +318,396 @@ function setupFileManager(mainWindow) {
         openCompareFoldersWindow("B", payload?.folder);
     });
 
-    function openCompareFoldersWindow(slot, folder) {
-        if (!compareFoldersWindow || compareFoldersWindow.isDestroyed()) {
-            compareFoldersWindow = new BrowserWindow({
-                width: 900,
-                height: 800,
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                },
-                icon: path.join(__dirname, "assets", "app-icon.png"),
-            });
+    // ------------------------
+    // Esporta report navigabile (HTML + JSON)
+    // ------------------------
 
-            compareFoldersWindow.setMenu(null);
-            compareFoldersWindow.loadFile("./pages/utilities/compare-folders.html");
+    ipcMain.handle("hierarchy-export-navigable-report", async (event, payload) => {
+        try {
+            const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
 
-            compareFoldersWindow.on("closed", () => {
-                compareFoldersWindow = null;
-            });
-
-            compareFoldersWindow.webContents.once("did-finish-load", () => {
-                if (folder) {
-                    if (slot === "A") {
-                        compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
-                    } else if (slot === "B") {
-                        compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
-                    }
-                }
-            });
-        } else {
-            compareFoldersWindow.show();
-            compareFoldersWindow.focus();
-            if (folder) {
-                if (slot === "A") {
-                    compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
-                } else if (slot === "B") {
-                    compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
-                }
+            if (!payload || !payload.data) {
+                throw new Error("Dati report non validi.");
             }
-        }
-    }
 
+            const data = payload.data;
+            const rootPath = data.meta?.rootPath || "";
+            const rootNameRaw = rootPath ? path.basename(rootPath.replace(/[\\/]+$/, "")) : "root";
+            const rootName = rootNameRaw || "root";
+
+            const result = await dialog.showSaveDialog(win, {
+                title: "Salva report navigabile",
+                defaultPath: `Report ${rootName}.html`,
+                filters: [{ name: "File HTML", extensions: ["html"] }],
+            });
+
+            if (result.canceled || !result.filePath) {
+                return { canceled: true };
+            }
+
+            const chosenDir = path.dirname(result.filePath);
+            const reportDirName = `Report ${rootName}`;
+            const reportDir = path.join(chosenDir, reportDirName);
+            fs.mkdirSync(reportDir, { recursive: true });
+
+            const htmlPath = path.join(reportDir, "report-gerarchia.html");
+            const jsonPath = path.join(reportDir, "report-data.json");
+            const jsPath = path.join(reportDir, "report.js");
+            const cssPath = path.join(reportDir, "report.css");
+
+            // JSON dati separato
+            fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), "utf8");
+
+            // HTML (layout fisso, non scroll esterno)
+            const htmlContent =
+                "<!DOCTYPE html>\n" +
+                "<html lang=\"it\">\n" +
+                "<head>\n" +
+                "  <meta charset=\"UTF-8\">\n" +
+                "  <title>Report gerarchia file</title>\n" +
+                "  <link rel=\"stylesheet\" href=\"./report.css\">\n" +
+                "</head>\n" +
+                "<body>\n" +
+                "  <header>\n" +
+                "    <h1>Report gerarchia file</h1>\n" +
+                "    <div id=\"metaInfo\" class=\"meta-info\"></div>\n" +
+                "  </header>\n" +
+                "  <main class=\"layout\">\n" +
+                "    <aside class=\"sidebar\">\n" +
+                "      <h2>Gerarchia</h2>\n" +
+                "      <input id=\"treeFilter\" placeholder=\"Filtra per nome/percorso...\">\n" +
+                "      <div id=\"treeContainer\" class=\"tree-container\"></div>\n" +
+                "    </aside>\n" +
+                "    <section class=\"content\">\n" +
+                "      <section>\n" +
+                "        <h2>Statistiche generali</h2>\n" +
+                "        <div id=\"globalStats\"></div>\n" +
+                "      </section>\n" +
+                "      <section class=\"top-row\">\n" +
+                "        <div class=\"top-col\">\n" +
+                "          <h2>Top cartelle più pesanti</h2>\n" +
+                "          <div class=\"table-wrapper\">\n" +
+                "            <table id=\"topFoldersTable\" class=\"data-table\"></table>\n" +
+                "          </div>\n" +
+                "        </div>\n" +
+                "        <div class=\"top-col\">\n" +
+                "          <h2>Top file più grandi</h2>\n" +
+                "          <div class=\"table-wrapper\">\n" +
+                "            <table id=\"topFilesTable\" class=\"data-table\"></table>\n" +
+                "          </div>\n" +
+                "        </div>\n" +
+                "      </section>\n" +
+                "      <section id=\"detailsPanel\">\n" +
+                "        <h2>Dettagli elemento</h2>\n" +
+                "        <div id=\"detailsContent\" class=\"details-content\">Seleziona un elemento dall'albero o dalle tabelle.</div>\n" +
+                "      </section>\n" +
+                "    </section>\n" +
+                "  </main>\n" +
+                "  <script src=\"./report.js\"></script>\n" +
+                "</body>\n" +
+                "</html>\n";
+
+            // CSS (no scroll esterno, solo interno ai pannelli)
+            const cssContent =
+                "html, body {\n" +
+                "  margin: 0;\n" +
+                "  height: 100%;\n" +
+                "  overflow: hidden;\n" +
+                "}\n" +
+                "body {\n" +
+                "  font-family: Arial, sans-serif;\n" +
+                "  background-color: #332f2b;\n" +
+                "  color: #fff;\n" +
+                "}\n" +
+                "header {\n" +
+                "  padding: 12px 16px;\n" +
+                "  background-color: #1f1b18;\n" +
+                "  border-bottom: 1px solid #555;\n" +
+                "}\n" +
+                "h1 {\n" +
+                "  margin: 0 0 4px 0;\n" +
+                "  color: #cc930e;\n" +
+                "}\n" +
+                ".meta-info {\n" +
+                "  font-size: 12px;\n" +
+                "  color: #ccc;\n" +
+                "}\n" +
+                ".layout {\n" +
+                "  display: flex;\n" +
+                "  height: calc(100vh - 60px);\n" +
+                "}\n" +
+                ".sidebar {\n" +
+                "  width: 30%;\n" +
+                "  border-right: 1px solid #555;\n" +
+                "  padding: 10px;\n" +
+                "  box-sizing: border-box;\n" +
+                "  overflow: auto;\n" +
+                "  background-color: #2b2824;\n" +
+                "}\n" +
+                ".content {\n" +
+                "  flex: 1;\n" +
+                "  padding: 10px 16px;\n" +
+                "  box-sizing: border-box;\n" +
+                "  overflow: hidden;\n" +
+                "}\n" +
+                ".top-row {\n" +
+                "  display: flex;\n" +
+                "  gap: 16px;\n" +
+                "}\n" +
+                ".top-col {\n" +
+                "  flex: 1;\n" +
+                "  min-width: 0;\n" +
+                "}\n" +
+                "input#treeFilter {\n" +
+                "  width: 100%;\n" +
+                "  padding: 4px 6px;\n" +
+                "  margin-bottom: 8px;\n" +
+                "  border-radius: 4px;\n" +
+                "  border: 1px solid #777;\n" +
+                "  background-color: #1f1b18;\n" +
+                "  color: #fff;\n" +
+                "  box-sizing: border-box;\n" +
+                "}\n" +
+                ".tree-container {\n" +
+                "  overflow: auto;\n" +
+                "}\n" +
+                ".tree-node {\n" +
+                "  cursor: pointer;\n" +
+                "  padding: 2px 0;\n" +
+                "  white-space: nowrap;\n" +
+                "}\n" +
+                ".tree-node .node-icon {\n" +
+                "  display: inline-block;\n" +
+                "  width: 14px;\n" +
+                "}\n" +
+                ".tree-node .label {\n" +
+                "  margin-left: 4px;\n" +
+                "}\n" +
+                ".tree-children {\n" +
+                "  margin-left: 18px;\n" +
+                "  display: none;\n" +
+                "}\n" +
+                ".tree-node.open + .tree-children {\n" +
+                "  display: block;\n" +
+                "}\n" +
+                ".tree-node.selected {\n" +
+                "  background-color: #555;\n" +
+                "}\n" +
+                ".table-wrapper {\n" +
+                "  height: 220px;\n" +
+                "  min-height: 140px;\n" +
+                "  max-height: 40vh;\n" +
+                "  resize: vertical;\n" +
+                "  overflow: auto;\n" +
+                "  border: 1px solid #555;\n" +
+                "  border-radius: 4px;\n" +
+                "  margin-bottom: 8px;\n" +
+                "}\n" +
+                ".data-table {\n" +
+                "  width: 100%;\n" +
+                "  border-collapse: collapse;\n" +
+                "  font-size: 13px;\n" +
+                "}\n" +
+                ".data-table th,\n" +
+                ".data-table td {\n" +
+                "  padding: 4px 6px;\n" +
+                "  border-bottom: 1px solid #444;\n" +
+                "  text-align: left;\n" +
+                "}\n" +
+                ".data-table th {\n" +
+                "  background-color: #1f1b18;\n" +
+                "  position: sticky;\n" +
+                "  top: 0;\n" +
+                "  z-index: 1;\n" +
+                "}\n" +
+                ".data-table tr:hover {\n" +
+                "  background-color: #3a352f;\n" +
+                "  cursor: pointer;\n" +
+                "}\n" +
+                ".details-content {\n" +
+                "  margin-top: 8px;\n" +
+                "  padding: 8px;\n" +
+                "  border-radius: 4px;\n" +
+                "  border: 1px solid #555;\n" +
+                "  background-color: #2b2824;\n" +
+                "  font-size: 13px;\n" +
+                "}\n";
+
+            // JS: embed direttamente i dati, + filtro albero
+            const jsContent =
+                '"use strict";\n\n' +
+                "const REPORT_DATA = " + JSON.stringify(data, null, 2) + ";\n\n" +
+                "function formatBytes(bytes) {\n" +
+                "  if (!bytes || !isFinite(bytes) || bytes <= 0) return \"0 B\";\n" +
+                "  var units = [\"B\", \"KB\", \"MB\", \"GB\", \"TB\"];\n" +
+                "  var idx = 0;\n" +
+                "  var val = bytes;\n" +
+                "  while (val >= 1024 && idx < units.length - 1) {\n" +
+                "    val /= 1024;\n" +
+                "    idx++;\n" +
+                "  }\n" +
+                "  return val.toFixed(1) + \" \" + units[idx];\n" +
+                "}\n\n" +
+                "function buildTree(node, container) {\n" +
+                "  if (!node) return;\n" +
+                "  var wrapper = document.createElement(\"div\");\n" +
+                "  wrapper.className = \"tree-node \" + node.type;\n" +
+                "  var icon = document.createElement(\"span\");\n" +
+                "  icon.className = \"node-icon\";\n" +
+                "  icon.textContent = node.type === \"folder\" ? \"\\u25B6\" : \"\\u2022\";\n" +
+                "  wrapper.appendChild(icon);\n" +
+                "  var label = document.createElement(\"span\");\n" +
+                "  label.className = \"label\";\n" +
+                "  label.textContent = node.name || \"(senza nome)\";\n" +
+                "  wrapper.appendChild(label);\n" +
+                "  wrapper.addEventListener(\"click\", function (e) {\n" +
+                "    e.stopPropagation();\n" +
+                "    document.querySelectorAll(\".tree-node.selected\").forEach(function (n) {\n" +
+                "      n.classList.remove(\"selected\");\n" +
+                "    });\n" +
+                "    wrapper.classList.add(\"selected\");\n" +
+                "    showDetails(node);\n" +
+                "    if (node.type === \"folder\") {\n" +
+                "      var isOpen = wrapper.classList.toggle(\"open\");\n" +
+                "      icon.textContent = isOpen ? \"\\u25BC\" : \"\\u25B6\";\n" +
+                "    }\n" +
+                "  });\n" +
+                "  container.appendChild(wrapper);\n" +
+                "  if (node.children && node.children.length > 0) {\n" +
+                "    var childrenEl = document.createElement(\"div\");\n" +
+                "    childrenEl.className = \"tree-children\";\n" +
+                "    node.children.forEach(function (child) {\n" +
+                "      buildTree(child, childrenEl);\n" +
+                "    });\n" +
+                "    container.appendChild(childrenEl);\n" +
+                "  }\n" +
+                "}\n\n" +
+                "function renderGlobalStats(data) {\n" +
+                "  var el = document.getElementById(\"globalStats\");\n" +
+                "  if (!el || !data.globalStats) return;\n" +
+                "  var gs = data.globalStats;\n" +
+                "  var html = \"\";\n" +
+                "  html += \"<p><b>Cartelle:</b> \" + (gs.totalFolders || 0) + \"</p>\";\n" +
+                "  html += \"<p><b>File:</b> \" + (gs.totalFiles || 0) + \"</p>\";\n" +
+                "  html += \"<p><b>Spazio totale:</b> \" + formatBytes(gs.totalSizeBytes || 0) + \"</p>\";\n" +
+                "  html += \"<p><b>Profondità massima:</b> \" + (gs.maxDepth || 0) + \"</p>\";\n" +
+                "  el.innerHTML = html;\n" +
+                "}\n\n" +
+                "function renderTopTable(tableId, rows, columns) {\n" +
+                "  var table = document.getElementById(tableId);\n" +
+                "  if (!table) return;\n" +
+                "  table.innerHTML = \"\";\n" +
+                "  var thead = document.createElement(\"thead\");\n" +
+                "  var trHead = document.createElement(\"tr\");\n" +
+                "  columns.forEach(function (col) {\n" +
+                "    var th = document.createElement(\"th\");\n" +
+                "    th.textContent = col.label;\n" +
+                "    trHead.appendChild(th);\n" +
+                "  });\n" +
+                "  thead.appendChild(trHead);\n" +
+                "  table.appendChild(thead);\n" +
+                "  var tbody = document.createElement(\"tbody\");\n" +
+                "  (rows || []).forEach(function (row) {\n" +
+                "    var tr = document.createElement(\"tr\");\n" +
+                "    tr.addEventListener(\"click\", function () {\n" +
+                "      showDetails({ name: row.name, fullPath: row.fullPath, sizeBytes: row.sizeBytes || row.totalSizeBytes });\n" +
+                "    });\n" +
+                "    columns.forEach(function (col) {\n" +
+                "      var td = document.createElement(\"td\");\n" +
+                "      var v = row[col.field];\n" +
+                "      if (col.field.indexOf(\"Bytes\") !== -1) {\n" +
+                "        v = formatBytes(v || 0);\n" +
+                "      }\n" +
+                "      td.textContent = v != null ? v : \"\";\n" +
+                "      tr.appendChild(td);\n" +
+                "    });\n" +
+                "    tbody.appendChild(tr);\n" +
+                "  });\n" +
+                "  table.appendChild(tbody);\n" +
+                "}\n\n" +
+                "function showDetails(node) {\n" +
+                "  var el = document.getElementById(\"detailsContent\");\n" +
+                "  if (!el) return;\n" +
+                "  var html = \"\";\n" +
+                "  html += \"<p><b>Nome:</b> \" + (node.name || \"(senza nome)\") + \"</p>\";\n" +
+                "  if (node.fullPath) {\n" +
+                "    html += \"<p><b>Percorso completo:</b><br><span style='font-size:12px;'>\" + node.fullPath + \"</span></p>\";\n" +
+                "  }\n" +
+                "  if (typeof node.sizeBytes === \"number\") {\n" +
+                "    html += \"<p><b>Dimensione:</b> \" + formatBytes(node.sizeBytes) + \"</p>\";\n" +
+                "  }\n" +
+                "  el.innerHTML = html;\n" +
+                "}\n\n" +
+                "function applyTreeFilter(query) {\n" +
+                "  var q = (query || \"\").toLowerCase();\n" +
+                "  var nodes = document.querySelectorAll(\".tree-node\");\n" +
+                "  nodes.forEach(function (nodeEl) {\n" +
+                "    var labelEl = nodeEl.querySelector(\".label\");\n" +
+                "    var text = labelEl ? labelEl.textContent.toLowerCase() : \"\";\n" +
+                "    var match = !q || text.indexOf(q) !== -1;\n" +
+                "    nodeEl.style.display = match ? \"\" : \"none\";\n" +
+                "  });\n" +
+                "}\n\n" +
+                "function initReport() {\n" +
+                "  var data = REPORT_DATA || {};\n" +
+                "  var meta = data.meta || {};\n" +
+                "  var metaEl = document.getElementById(\"metaInfo\");\n" +
+                "  if (metaEl) {\n" +
+                "    var when = meta.generatedAt ? new Date(meta.generatedAt).toLocaleString() : \"\";\n" +
+                "    var root = meta.rootPath || \"(percorso sconosciuto)\";\n" +
+                "    metaEl.textContent = root + \" - generato il \" + when;\n" +
+                "  }\n" +
+                "  var treeContainer = document.getElementById(\"treeContainer\");\n" +
+                "  if (treeContainer && data.hierarchy) {\n" +
+                "    buildTree(data.hierarchy, treeContainer);\n" +
+                "  }\n" +
+                "  renderGlobalStats(data);\n" +
+                "  if (Array.isArray(data.topFolders)) {\n" +
+                "    renderTopTable(\"topFoldersTable\", data.topFolders, [\n" +
+                "      { field: \"name\", label: \"Cartella\" },\n" +
+                "      { field: \"totalSizeBytes\", label: \"Dimensione\" },\n" +
+                "      { field: \"filesCount\", label: \"File\" },\n" +
+                "      { field: \"foldersCount\", label: \"Cartelle\" }\n" +
+                "    ]);\n" +
+                "  }\n" +
+                "  if (Array.isArray(data.topFiles)) {\n" +
+                "    renderTopTable(\"topFilesTable\", data.topFiles, [\n" +
+                "      { field: \"name\", label: \"File\" },\n" +
+                "      { field: \"sizeBytes\", label: \"Dimensione\" }\n" +
+                "    ]);\n" +
+                "  }\n" +
+                "  var filterEl = document.getElementById(\"treeFilter\");\n" +
+                "  if (filterEl) {\n" +
+                "    filterEl.addEventListener(\"input\", function () {\n" +
+                "      applyTreeFilter(filterEl.value);\n" +
+                "    });\n" +
+                "    filterEl.addEventListener(\"keydown\", function (e) {\n" +
+                "      if (e.key === \"Enter\") {\n" +
+                "        e.preventDefault();\n" +
+                "        applyTreeFilter(filterEl.value);\n" +
+                "      }\n" +
+                "    });\n" +
+                "  }\n" +
+                "}\n\n" +
+                "document.addEventListener(\"DOMContentLoaded\", initReport);\n";
+
+            fs.writeFileSync(htmlPath, htmlContent, "utf8");
+            fs.writeFileSync(cssPath, cssContent, "utf8");
+            fs.writeFileSync(jsPath, jsContent, "utf8");
+
+            return {
+                canceled: false,
+                htmlPath,
+                jsonPath,
+            };
+        } catch (err) {
+            log.error("[hierarchy] export-navigable-report error", err);
+            return {
+                canceled: false,
+                error: err.message || String(err),
+            };
+        }
+    });
 }
 
-// Esporta la funzione per essere usata nel main process
 module.exports = { setupFileManager };

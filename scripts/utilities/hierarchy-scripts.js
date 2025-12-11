@@ -263,6 +263,139 @@ function formatBytes(bytes) {
 }
 
 // -------------------------
+// Report navigabile: raccolta dati (Versione 1)
+// -------------------------
+
+function collectReportData(maxTop = 50) {
+    if (!rootTree) {
+        return null;
+    }
+
+    let totalFiles = 0;
+    let totalFolders = 0;
+    let totalSizeBytes = 0;
+    let maxDepth = 0;
+
+    const topFolders = [];
+    const topFiles = [];
+
+    function pushSorted(arr, item, key, limit) {
+        arr.push(item);
+        arr.sort((a, b) => (b[key] || 0) - (a[key] || 0));
+        if (arr.length > limit) {
+            arr.length = limit;
+        }
+    }
+
+    function walk(node, depth) {
+        if (!node) return null;
+
+        if (depth > maxDepth) {
+            maxDepth = depth;
+        }
+
+        if (node.type === "file") {
+            const size = typeof node.size === "number" ? node.size : 0;
+            totalFiles++;
+            totalSizeBytes += size;
+
+            const fileInfo = {
+                name: node.name,
+                fullPath: node.fullPath || "",
+                sizeBytes: size,
+                depth,
+            };
+            pushSorted(topFiles, fileInfo, "sizeBytes", maxTop);
+
+            return {
+                name: node.name,
+                type: "file",
+                fullPath: node.fullPath || "",
+                sizeBytes: size,
+                depth,
+            };
+        }
+
+        if (node.type === "folder") {
+            totalFolders++;
+
+            let folderFilesCount = 0;
+            let folderFoldersCount = 0;
+            let folderTotalSize = 0;
+
+            const childrenOut = [];
+
+            if (Array.isArray(node.children)) {
+                for (const child of node.children) {
+                    const childOut = walk(child, depth + 1);
+                    if (!childOut) continue;
+                    childrenOut.push(childOut);
+
+                    if (childOut.type === "file") {
+                        folderFilesCount += 1;
+                        folderTotalSize += childOut.sizeBytes || 0;
+                    } else if (childOut.type === "folder") {
+                        folderFilesCount += childOut.filesCount || 0;
+                        folderFoldersCount += 1 + (childOut.foldersCount || 0);
+                        folderTotalSize += childOut.totalSizeBytes || 0;
+                    }
+                }
+            }
+
+            const folderInfo = {
+                name: node.name,
+                type: "folder",
+                fullPath: node.fullPath || "",
+                depth,
+                filesCount: folderFilesCount,
+                foldersCount: folderFoldersCount,
+                totalSizeBytes: folderTotalSize,
+                children: childrenOut,
+            };
+
+            pushSorted(
+                topFolders,
+                {
+                    name: folderInfo.name,
+                    fullPath: folderInfo.fullPath,
+                    depth: folderInfo.depth,
+                    filesCount: folderInfo.filesCount,
+                    foldersCount: folderInfo.foldersCount,
+                    totalSizeBytes: folderInfo.totalSizeBytes,
+                },
+                "totalSizeBytes",
+                maxTop
+            );
+
+            return folderInfo;
+        }
+
+        return null;
+    }
+
+    const hierarchyOut = walk(rootTree, 0);
+
+    const report = {
+        meta: {
+            reportVersion: "1.0.0",
+            generatedAt: new Date().toISOString(),
+            rootPath: rootTree.fullPath || "",
+        },
+        globalStats: {
+            totalFiles,
+            totalFolders,
+            totalSizeBytes,
+            maxDepth,
+        },
+        hierarchy: hierarchyOut,
+        topFolders,
+        topFiles,
+    };
+
+    return report;
+}
+
+// -------------------------
 // Scansione directory lato renderer (stile Confronta cartelle)
 // -------------------------
 
@@ -1244,6 +1377,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const btnClose = document.getElementById("btnClose");
     const btnSelectFolder = document.getElementById("btnSelectFolder");
     const btnStartScan = document.getElementById("btnStartScan");
+    const btnExportNavigableReport = document.getElementById("btnExportNavigableReport");
 
     const searchInput = document.getElementById("searchInput");
     const btnSearch = document.getElementById("btnSearch");
@@ -1496,7 +1630,54 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    if (btnExportNavigableReport) {
+        btnExportNavigableReport.addEventListener("click", () => {
+            exportNavigableReport();
+        });
+    }
+
 });
+
+// -------------------------
+// Esporta report navigabile (HTML + JSON)
+// -------------------------
+
+async function exportNavigableReport() {
+    if (!rootTree) {
+        await showError("Nessuna gerarchia disponibile.", "Esegui prima una scansione.");
+        return;
+    }
+
+    const reportData = collectReportData(50);
+    if (!reportData) {
+        await showError("Impossibile preparare i dati del report.");
+        return;
+    }
+
+    try {
+        const result = await ipcRenderer.invoke("hierarchy-export-navigable-report", {
+            rootPath: reportData.meta.rootPath,
+            data: reportData,
+        });
+
+        if (result && result.error) {
+            await showError("Errore durante l'esportazione del report navigabile.", result.error);
+        } else if (!result || result.canceled) {
+            // annullato: nessun messaggio
+        } else {
+            await showInfo(
+                "Report navigabile esportato.",
+                `File HTML: ${result.htmlPath}\nDati JSON: ${result.jsonPath}`
+            );
+        }
+    } catch (err) {
+        console.error("Errore export navigable report:", err);
+        await showError(
+            "Errore durante l'esportazione del report navigabile.",
+            err.message || String(err)
+        );
+    }
+}
 
 // -------------------------
 // Listener dal main
