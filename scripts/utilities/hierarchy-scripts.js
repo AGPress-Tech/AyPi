@@ -64,7 +64,7 @@ let funMessageIndex = 0;
 // Icone albero gerarchia
 const FOLDER_CLOSED_ICON = "\u25B6"; // triangolo verso destra
 const FOLDER_OPEN_ICON = "\u25BC";   // triangolo verso il basso
-const FILE_ICON = "";          // nessuna icona per i file (evita caratteri strani)
+const FILE_ICON = "-";          // icona semplice per i file
 
 // Ricerca globale nell'albero
 let searchGeneration = 0;
@@ -1611,7 +1611,7 @@ function createTreeNode(nodeData) {
             icon.textContent = open ? FOLDER_OPEN_ICON : FOLDER_CLOSED_ICON;
         });
     } else {
-        icon.textContent = "�";
+        icon.textContent = "-";
 
         wrapper.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -2801,6 +2801,7 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
     renderTreeFromModel();
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
 });
+
 
 
 
