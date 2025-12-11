@@ -9,6 +9,15 @@ try {
     console.error("Modulo 'xlsx' non disponibile. Esegui `npm install xlsx` se vuoi l'export.");
 }
 
+let Chart = null;
+let timelineChartInstance = null;
+let extChartInstance = null;
+try {
+    Chart = require("chart.js/auto");
+} catch (err) {
+    console.warn("Modulo 'chart.js' non disponibile per la timeline:", err && err.message ? err.message : err);
+}
+
 // -------------------------
 // Stato globale
 // -------------------------
@@ -18,6 +27,7 @@ let rootTree = null;
 let originalRootTree = null;
 let selectedElement = null;
 let lastSelectedNodeData = null;
+let lastReportData = null;
 
 // batch ricevuti dal main durante la scansione
 let pendingEntries = [];
@@ -27,9 +37,14 @@ let isBuildingTree = false;
 let treeRootEl = null;
 let lblSelectedFolder = null;
 let detailsBox = null;
+let detailsTabs = null;
+let detailsTabButtons = null;
 // menu contestuale albero
 let contextMenuEl = null;
 let contextMenuNode = null;
+let topElementsLimitInput = null;
+let topElementsModeSelect = null;
+let topElementsTableEl = null;
 
 // Messaggi "quantistici"
 const FUN_MESSAGES = [
@@ -275,6 +290,8 @@ function collectReportData(maxTop = 50) {
     let totalFolders = 0;
     let totalSizeBytes = 0;
     let maxDepth = 0;
+    let minMtimeMs = null;
+    let maxMtimeMs = null;
 
     const topFolders = [];
     const topFiles = [];
@@ -296,14 +313,25 @@ function collectReportData(maxTop = 50) {
 
         if (node.type === "file") {
             const size = typeof node.size === "number" ? node.size : 0;
+            const mtimeMs = typeof node.mtimeMs === "number" ? node.mtimeMs : null;
             totalFiles++;
             totalSizeBytes += size;
+
+            if (typeof mtimeMs === "number") {
+                if (minMtimeMs === null || mtimeMs < minMtimeMs) {
+                    minMtimeMs = mtimeMs;
+                }
+                if (maxMtimeMs === null || mtimeMs > maxMtimeMs) {
+                    maxMtimeMs = mtimeMs;
+                }
+            }
 
             const fileInfo = {
                 name: node.name,
                 fullPath: node.fullPath || "",
                 sizeBytes: size,
                 depth,
+                mtimeMs,
             };
             pushSorted(topFiles, fileInfo, "sizeBytes", maxTop);
 
@@ -313,6 +341,7 @@ function collectReportData(maxTop = 50) {
                 fullPath: node.fullPath || "",
                 sizeBytes: size,
                 depth,
+                mtimeMs,
             };
         }
 
@@ -375,25 +404,867 @@ function collectReportData(maxTop = 50) {
 
     const hierarchyOut = walk(rootTree, 0);
 
-    const report = {
-        meta: {
-            reportVersion: "1.0.0",
-            generatedAt: new Date().toISOString(),
-            rootPath: rootTree.fullPath || "",
-        },
-        globalStats: {
-            totalFiles,
-            totalFolders,
-            totalSizeBytes,
-            maxDepth,
-        },
-        hierarchy: hierarchyOut,
-        topFolders,
-        topFiles,
-    };
+      const extensionStatsMap = Object.create(null);
+      const timeBucketsMap = Object.create(null);
 
+      // popoliamo extensionStats e timeBuckets a partire da topFiles, che ha mtimeMs
+      for (const f of topFiles) {
+          const extRaw = path.extname(f.name || "").toLowerCase();
+          const ext = extRaw || "(senza estensione)";
+          if (!extensionStatsMap[ext]) {
+              extensionStatsMap[ext] = {
+                  extension: ext,
+                  count: 0,
+                  totalSizeBytes: 0,
+              };
+          }
+          extensionStatsMap[ext].count += 1;
+          extensionStatsMap[ext].totalSizeBytes += f.sizeBytes || 0;
+
+          if (typeof f.mtimeMs === "number") {
+              const d = new Date(f.mtimeMs);
+              const key =
+                  d.getFullYear() +
+                  "-" +
+                  String(d.getMonth() + 1).padStart(2, "0");
+              timeBucketsMap[key] = (timeBucketsMap[key] || 0) + 1;
+          }
+      }
+
+      const extensionStats = Object.values(extensionStatsMap).sort(
+          (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0)
+      );
+
+      const timeBuckets = Object.entries(timeBucketsMap)
+          .map(([label, count]) => ({ label, count }))
+          .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+
+      const report = {
+          meta: {
+              reportVersion: "1.0.0",
+              generatedAt: new Date().toISOString(),
+              rootPath: rootTree.fullPath || "",
+          },
+          globalStats: {
+              totalFiles,
+              totalFolders,
+              totalSizeBytes,
+              maxDepth,
+              minMtimeMs,
+              maxMtimeMs,
+          },
+          hierarchy: hierarchyOut,
+          topFolders,
+          topFiles,
+          extensionStats,
+          timeBuckets,
+      };
+
+  return report;
+}
+
+function computeReportDataForTop(limit) {
+    if (!rootTree) return null;
+    const n = Number(limit);
+    const maxTop = Number.isFinite(n) && n > 0 ? n : 20;
+    const report = collectReportData(maxTop);
+    lastReportData = report;
     return report;
 }
+
+function computeStatsForSubtree(rootNode) {
+    if (!rootNode) return null;
+
+    let totalFiles = 0;
+    let totalFolders = 0;
+    let totalSizeBytes = 0;
+    let maxDepth = 0;
+    let minMtimeMs = null;
+    let maxMtimeMs = null;
+
+    const extensionStatsMap = Object.create(null);
+    const mtimeList = [];
+    const stack = [{ node: rootNode, depth: 0 }];
+
+    while (stack.length > 0) {
+        const { node, depth } = stack.pop();
+
+        if (depth > maxDepth) {
+            maxDepth = depth;
+        }
+
+        if (node.type === "folder") {
+            totalFolders++;
+            if (Array.isArray(node.children)) {
+                for (const child of node.children) {
+                    stack.push({ node: child, depth: depth + 1 });
+                }
+            }
+        } else if (node.type === "file") {
+            totalFiles++;
+            const size = typeof node.size === "number" ? node.size : 0;
+            totalSizeBytes += size;
+
+            const mtimeMs = typeof node.mtimeMs === "number" ? node.mtimeMs : null;
+            if (typeof mtimeMs === "number") {
+                mtimeList.push(mtimeMs);
+                if (minMtimeMs === null || mtimeMs < minMtimeMs) {
+                    minMtimeMs = mtimeMs;
+                }
+                if (maxMtimeMs === null || mtimeMs > maxMtimeMs) {
+                    maxMtimeMs = mtimeMs;
+                }
+            }
+
+            const extRaw = path.extname(node.name || "").toLowerCase();
+            const ext = extRaw || "(senza estensione)";
+            if (!extensionStatsMap[ext]) {
+                extensionStatsMap[ext] = {
+                    extension: ext,
+                    count: 0,
+                    totalSizeBytes: 0,
+                };
+            }
+            extensionStatsMap[ext].count += 1;
+            extensionStatsMap[ext].totalSizeBytes += size;
+        }
+    }
+
+    const extensionStats = Object.values(extensionStatsMap).sort(
+        (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0)
+    );
+
+    let timeBuckets = [];
+    if (mtimeList.length > 0 && minMtimeMs != null && maxMtimeMs != null) {
+        const now = Date.now();
+        const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+        const useHalfYear = now - minMtimeMs > oneYearMs;
+
+        const bucketMap = Object.create(null);
+        for (const mtimeMs of mtimeList) {
+            const d = new Date(mtimeMs);
+            let label;
+            if (useHalfYear) {
+                const half = d.getMonth() < 6 ? 1 : 2;
+                label = `${d.getFullYear()}-H${half}`;
+            } else {
+                label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            }
+            bucketMap[label] = (bucketMap[label] || 0) + 1;
+        }
+
+        // Costruisce una sequenza continua di periodi, includendo anche i bucket con 0 file
+        timeBuckets = [];
+        if (useHalfYear) {
+            const start = new Date(minMtimeMs);
+            const end = new Date(maxMtimeMs);
+            let year = start.getFullYear();
+            let halfIndex = start.getMonth() < 6 ? 1 : 2;
+            const endYear = end.getFullYear();
+            const endHalfIndex = end.getMonth() < 6 ? 1 : 2;
+
+            while (year < endYear || (year === endYear && halfIndex <= endHalfIndex)) {
+                const label = `${year}-H${halfIndex}`;
+                const count = bucketMap[label] || 0;
+                timeBuckets.push({ label, count });
+
+                if (halfIndex === 1) {
+                    halfIndex = 2;
+                } else {
+                    halfIndex = 1;
+                    year += 1;
+                }
+            }
+        } else {
+            const start = new Date(minMtimeMs);
+            const end = new Date(maxMtimeMs);
+            let year = start.getFullYear();
+            let month = start.getMonth(); // 0-11
+            const endYear = end.getFullYear();
+            const endMonth = end.getMonth();
+
+            while (year < endYear || (year === endYear && month <= endMonth)) {
+                const label = `${year}-${String(month + 1).padStart(2, "0")}`;
+                const count = bucketMap[label] || 0;
+                timeBuckets.push({ label, count });
+
+                month += 1;
+                if (month > 11) {
+                    month = 0;
+                    year += 1;
+                }
+            }
+        }
+    }
+
+    return {
+        node: rootNode,
+        totalFiles,
+        totalFolders,
+        totalSizeBytes,
+        maxDepth,
+        minMtimeMs,
+        maxMtimeMs,
+        extensionStats,
+        timeBuckets,
+    };
+}
+
+function isTopTabActive() {
+    if (!detailsTabButtons) return false;
+    for (const btn of detailsTabButtons) {
+        if (btn.classList.contains("active") && btn.getAttribute("data-tab") === "details-top") {
+            return true;
+        }
+    }
+    return false;
+}
+
+function isStatsTabActive() {
+    if (!detailsTabButtons) return false;
+    for (const btn of detailsTabButtons) {
+        if (btn.classList.contains("active") && btn.getAttribute("data-tab") === "details-stats") {
+            return true;
+        }
+    }
+    return false;
+}
+
+  function renderTopElementsPanel() {
+    if (!topElementsTableEl) return;
+    if (!rootTree) {
+        topElementsTableEl.innerHTML = "<tbody><tr><td>Nessuna gerarchia disponibile. Esegui una scansione.</td></tr></tbody>";
+        return;
+    }
+
+    const mode = topElementsModeSelect ? topElementsModeSelect.value : "files";
+    const rawLimit = topElementsLimitInput ? Number(topElementsLimitInput.value) : 20;
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20;
+
+    const report = computeReportDataForTop(limit);
+    if (!report) {
+        topElementsTableEl.innerHTML = "<tbody><tr><td>Impossibile calcolare i dati.</td></tr></tbody>";
+        return;
+    }
+
+    let rows = [];
+    let columns = [];
+
+    if (mode === "folders") {
+        rows = (report.topFolders || []).slice(0, limit).map((r, idx) => ({
+            index: idx + 1,
+            name: r.name,
+            fullPath: r.fullPath,
+            totalSizeBytes: r.totalSizeBytes,
+            filesCount: r.filesCount,
+            foldersCount: r.foldersCount,
+        }));
+        columns = [
+            { field: "index", label: "#" },
+            { field: "name", label: "Cartella" },
+            { field: "totalSizeBytes", label: "Dimensione" },
+            { field: "filesCount", label: "File" },
+            { field: "foldersCount", label: "Cartelle" },
+        ];
+    } else if (mode === "old") {
+        const topOld = (report.topFiles || [])
+            .filter((f) => typeof f.mtimeMs === "number")
+            .sort((a, b) => (a.mtimeMs || 0) - (b.mtimeMs || 0));
+        rows = topOld.slice(0, limit).map((r, idx) => ({
+            index: idx + 1,
+            name: r.name,
+            fullPath: r.fullPath,
+            sizeBytes: r.sizeBytes,
+            mtime: r.mtimeMs ? new Date(r.mtimeMs).toLocaleString() : "",
+        }));
+        columns = [
+            { field: "index", label: "#" },
+            { field: "name", label: "File" },
+            { field: "sizeBytes", label: "Dimensione" },
+            { field: "mtime", label: "Ultima modifica" },
+        ];
+    } else {
+        rows = (report.topFiles || []).slice(0, limit).map((r, idx) => ({
+            index: idx + 1,
+            name: r.name,
+            fullPath: r.fullPath,
+            sizeBytes: r.sizeBytes,
+        }));
+        columns = [
+            { field: "index", label: "#" },
+            { field: "name", label: "File" },
+            { field: "sizeBytes", label: "Dimensione" },
+        ];
+    }
+
+    if (!rows.length) {
+        topElementsTableEl.innerHTML = "<tbody><tr><td>Nessun elemento da mostrare.</td></tr></tbody>";
+        return;
+    }
+
+    const thead = document.createElement("thead");
+    const trHead = document.createElement("tr");
+    columns.forEach((col) => {
+        const th = document.createElement("th");
+        th.textContent = col.label;
+        trHead.appendChild(th);
+    });
+    thead.appendChild(trHead);
+
+    const tbody = document.createElement("tbody");
+    rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        tr.dataset.fullPath = row.fullPath || "";
+        tr.addEventListener("click", () => {
+            if (tr.dataset.fullPath) {
+                focusNodeInTreeSmart(tr.dataset.fullPath);
+                normalizeTreeIcons();
+            }
+        });
+        columns.forEach((col) => {
+            const td = document.createElement("td");
+            let v = row[col.field];
+            if (col.field === "sizeBytes" || col.field === "totalSizeBytes") {
+                v = formatBytes(v || 0);
+            }
+            td.textContent = v != null ? v : "";
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+
+    topElementsTableEl.innerHTML = "";
+    topElementsTableEl.appendChild(thead);
+    topElementsTableEl.appendChild(tbody);
+}
+
+let extStatsMode = "size";
+let extStatsSortDir = "desc";
+let timelineYearFrom = null;
+let timelineYearTo = null;
+
+function renderStatsPanel() {
+    const box = document.getElementById("detailsStatsBox");
+    if (!box) return;
+    if (!rootTree) {
+        box.innerHTML = "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
+        return;
+    }
+
+    const baseNode = lastSelectedNodeData || rootTree;
+    const stats = computeStatsForSubtree(baseNode);
+    if (!stats) {
+        box.innerHTML = "<p class='muted'>Impossibile calcolare le statistiche.</p>";
+        return;
+    }
+
+    const extStats = stats.extensionStats || [];
+    const timeBuckets = stats.timeBuckets || [];
+
+    let html = "";
+    html += `<p><b>Base statistica:</b><br><span style="font-size:12px;">${baseNode.fullPath || baseNode.name || "(sconosciuta)"}<\/span></p>`;
+    html += "<hr>";
+    html += `<p><b>File totali (subtree):</b> ${stats.totalFiles || 0}</p>`;
+    html += `<p><b>Cartelle (subtree):</b> ${stats.totalFolders || 0}</p>`;
+    html += `<p><b>Spazio totale:</b> ${formatBytes(stats.totalSizeBytes || 0)}</p>`;
+    html += `<p><b>Profondità massima:</b> ${stats.maxDepth || 0}</p>`;
+
+    if (stats.minMtimeMs || stats.maxMtimeMs) {
+        const minStr = stats.minMtimeMs ? new Date(stats.minMtimeMs).toLocaleString() : "";
+        const maxStr = stats.maxMtimeMs ? new Date(stats.maxMtimeMs).toLocaleString() : "";
+        html += "<hr>";
+        html += `<p><b>Periodo modifiche:</b><br>`;
+        if (minStr) html += `<span>Dal: ${minStr}</span><br>`;
+        if (maxStr) html += `<span>Al: ${maxStr}</span>`;
+        html += "</p>";
+    }
+
+    // controlli per grafico estensioni
+    html += "<hr>";
+    html += "<div class=\"top-elements-controls\">";
+    html += "  <div class=\"top-elements-control\">";
+    html += "    <label for=\"extStatsMode\">Estensioni per:</label>";
+    html += `    <select id=\"extStatsMode\">`;
+    html += `      <option value=\"size\"${extStatsMode === "size" ? " selected" : ""}>Dimensione</option>`;
+    html += `      <option value=\"count\"${extStatsMode === "count" ? " selected" : ""}>Conteggio</option>`;
+    html += "    </select>";
+    html += "  </div>";
+    html += "</div>";
+
+    if (extStats.length) {
+        const topExt = extStats.slice(0, 12);
+        let maxMetric = 0;
+        topExt.forEach((e) => {
+            const metric = extStatsMode === "count" ? e.count : e.totalSizeBytes || 0;
+            if (metric > maxMetric) maxMetric = metric;
+        });
+
+        html += "<p><b>Estensioni principali:</b></p>";
+        html += "<div class=\"ext-chart\">";
+        topExt.forEach((e) => {
+            const metric = extStatsMode === "count" ? e.count : e.totalSizeBytes || 0;
+            const pct = maxMetric > 0 ? Math.max(4, Math.round((metric * 100) / maxMetric)) : 0;
+            const rightLabel =
+                extStatsMode === "count"
+                    ? String(e.count || 0)
+                    : formatBytes(e.totalSizeBytes || 0);
+            html += "<div class=\"ext-row\">";
+            html += `<span class=\"ext-label\">${e.extension || "(n/d)"}<\/span>`;
+            html += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:${pct}%\"><\/div><\/div>`;
+            html += `<span class=\"ext-size\">${rightLabel}<\/span>`;
+            html += "</div>";
+        });
+        html += "</div>";
+    }
+
+    if (timeBuckets.length) {
+        const maxPoints = 24;
+        const slice =
+            timeBuckets.length > maxPoints
+                ? timeBuckets.slice(timeBuckets.length - maxPoints)
+                : timeBuckets;
+
+        let maxCount = 0;
+        slice.forEach((b) => {
+            if (b.count > maxCount) maxCount = b.count;
+        });
+
+        html += "<hr>";
+        html += "<p><b>Timeline modifiche (file per periodo):</b></p>";
+        html += "<div class=\"ext-chart\">";
+        slice.forEach((b) => {
+            const pct = maxCount > 0 ? Math.max(4, Math.round((b.count * 100) / maxCount)) : 0;
+            html += "<div class=\"ext-row\">";
+            html += `<span class=\"ext-label\">${b.label}<\/span>`;
+            html += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:${pct}%\"><\/div><\/div>`;
+            html += `<span class=\"ext-size\">${b.count}<\/span>`;
+            html += "</div>";
+        });
+        html += "</div>";
+    }
+
+    box.innerHTML = html;
+
+    const selectEl = document.getElementById("extStatsMode");
+    if (selectEl) {
+        selectEl.addEventListener("change", () => {
+            extStatsMode = selectEl.value === "count" ? "count" : "size";
+            renderStatsPanel();
+        });
+    }
+}
+
+// Nuova implementazione avanzata del pannello Statistiche (con grafico timeline)
+function renderStatsPanelV2() {
+    const box = document.getElementById("detailsStatsBox");
+    if (!box) return;
+    if (!rootTree) {
+        box.innerHTML = "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
+        return;
+    }
+
+    const baseNode = lastSelectedNodeData || rootTree;
+    const stats = computeStatsForSubtree(baseNode);
+    if (!stats) {
+        box.innerHTML = "<p class='muted'>Impossibile calcolare le statistiche.</p>";
+        return;
+    }
+
+    const extStats = stats.extensionStats || [];
+    const timeBuckets = stats.timeBuckets || [];
+    const baseLabel = baseNode.fullPath || baseNode.name || "(sconosciuta)";
+
+    const minYear =
+        stats.minMtimeMs != null ? new Date(stats.minMtimeMs).getFullYear() : null;
+    const maxYear =
+        stats.maxMtimeMs != null ? new Date(stats.maxMtimeMs).getFullYear() : null;
+
+    if (minYear != null && maxYear != null) {
+        if (timelineYearFrom == null) timelineYearFrom = minYear;
+        if (timelineYearTo == null) timelineYearTo = maxYear;
+        // normalizza nel caso di dati nuovi piÛ ristretti
+        if (timelineYearFrom < minYear) timelineYearFrom = minYear;
+        if (timelineYearTo > maxYear) timelineYearTo = maxYear;
+        if (timelineYearFrom > timelineYearTo) timelineYearFrom = timelineYearTo;
+    }
+
+    let html = "";
+    html += `<p><b>Base statistica:</b><br><span style="font-size:12px;">${baseLabel}<\/span></p>`;
+    html += "<hr>";
+    html += "<div class=\"stats-summary\">";
+    html += `<div><b>File:</b> ${stats.totalFiles || 0}</div>`;
+    html += `<div><b>Cartelle:</b> ${stats.totalFolders || 0}</div>`;
+    html += `<div><b>Spazio totale:</b> ${formatBytes(stats.totalSizeBytes || 0)}</div>`;
+    html += `<div><b>Profondità massima:</b> ${stats.maxDepth || 0}</div>`;
+    html += "</div>";
+
+    // Controlli per grafico estensioni
+    html += "<hr>";
+    html += "<p><b>Estensioni principali:</b></p>";
+    html += "<div class=\"top-elements-controls\">";
+    html += "  <div class=\"top-elements-control\">";
+    html += "    <label for=\"extStatsMode\">Estensioni per:</label>";
+    html += `    <select id=\"extStatsMode\">`;
+    html += `      <option value=\"size\"${extStatsMode === "size" ? " selected" : ""}>Dimensione</option>`;
+    html += `      <option value=\"count\"${extStatsMode === "count" ? " selected" : ""}>Conteggio</option>`;
+    html += "    </select>";
+    html += "  </div>";
+    html += "  <div class=\"top-elements-control\">";
+    html += "    <label for=\"extStatsSort\">Ordine:</label>";
+    html += `    <select id=\"extStatsSort\">`;
+    html += `      <option value=\"desc\"${extStatsSortDir === "desc" ? " selected" : ""}>Decrescente</option>`;
+    html += `      <option value=\"asc\"${extStatsSortDir === "asc" ? " selected" : ""}>Crescente</option>`;
+    html += "    </select>";
+    html += "  </div>";
+    html += "</div>";
+
+    html += "<div class=\"stats-section\">";
+    if (Chart && extStats.length) {
+        html += "  <canvas id=\"extStatsChart\"></canvas>";
+    } else {
+        html += "  <div class=\"ext-chart\" id=\"extStatsChartContainer\"></div>";
+    }
+    html += "</div>";
+
+    // Sezione timeline modifiche
+    html += "<hr>";
+    html += "<p><b>Timeline modifiche (file per periodo):</b></p>";
+    if (minYear != null && maxYear != null) {
+        html += "<div class=\"top-elements-controls stats-timeline-filters\">";
+        html += "  <div class=\"top-elements-control\">";
+        html += "    <label for=\"timelineYearFrom\">Anno da:</label>";
+        html += `    <input type=\"number\" id=\"timelineYearFrom\" min=\"${minYear}\" max=\"${maxYear}\" value=\"${timelineYearFrom != null ? timelineYearFrom : ""}\">`;
+        html += "  </div>";
+        html += "  <div class=\"top-elements-control\">";
+        html += "    <label for=\"timelineYearTo\">Anno a:</label>";
+        html += `    <input type=\"number\" id=\"timelineYearTo\" min=\"${minYear}\" max=\"${maxYear}\" value=\"${timelineYearTo != null ? timelineYearTo : ""}\">`;
+        html += "  </div>";
+        html += "</div>";
+    }
+    html += "<div class=\"stats-section\">";
+    if (Chart) {
+        html += "  <canvas id=\"timelineChart\"></canvas>";
+    } else {
+        html += "  <div class=\"ext-chart\" id=\"timelineFallback\"></div>";
+    }
+    html += "</div>";
+
+    box.innerHTML = html;
+
+    // Grafico estensioni (horizontal bar con animação) o fallback testuale
+    if (Chart && extStats.length) {
+        const canvasExt = document.getElementById("extStatsChart");
+        if (canvasExt && canvasExt.getContext) {
+            const ctxExt = canvasExt.getContext("2d");
+
+            const modeKey = extStatsMode === "count" ? "count" : "totalSizeBytes";
+            const sorted = extStats.slice().sort((a, b) => {
+                const av = a[modeKey] || 0;
+                const bv = b[modeKey] || 0;
+                return extStatsSortDir === "asc" ? av - bv : bv - av;
+            });
+
+            const topExt = sorted.slice(0, 12);
+            const labelsExt = topExt.map((e) => e.extension || "(n/d)");
+            const dataExt = topExt.map((e) =>
+                extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0
+            );
+
+            if (extChartInstance) {
+                extChartInstance.destroy();
+            }
+
+            extChartInstance = new Chart(ctxExt, {
+                type: "bar",
+                data: {
+                    labels: labelsExt,
+                    datasets: [
+                        {
+                            label: extStatsMode === "count" ? "File" : "Dimensione (byte)",
+                            data: dataExt,
+                            backgroundColor: "#cc930e",
+                        },
+                    ],
+                },
+                options: {
+                    indexAxis: "y",
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: "#eee",
+                            },
+                            grid: {
+                                color: "#444",
+                            },
+                        },
+                        y: {
+                            ticks: {
+                                color: "#eee",
+                            },
+                            grid: {
+                                color: "#444",
+                            },
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label(context) {
+                                    const v = context.parsed.x || 0;
+                                    if (extStatsMode === "count") {
+                                        return `${v} file`;
+                                    }
+                                    return formatBytes(v);
+                                },
+                            },
+                        },
+                    },
+                    animation: {
+                        duration: 1400,
+                        easing: "easeOutQuad",
+                        delay(ctx) {
+                            let delay = 0;
+                            if (ctx.type === "data" && ctx.mode === "default") {
+                                delay = ctx.dataIndex * 120;
+                            }
+                            return delay;
+                        },
+                    },
+                },
+            });
+        }
+    } else {
+        const extContainer = document.getElementById("extStatsChartContainer");
+        if (extContainer) {
+            if (!extStats.length) {
+                extContainer.innerHTML =
+                    "<p class='muted'>Nessun dato disponibile per le estensioni.</p>";
+            } else {
+                const modeKey = extStatsMode === "count" ? "count" : "totalSizeBytes";
+                const sorted = extStats.slice().sort((a, b) => {
+                    const av = a[modeKey] || 0;
+                    const bv = b[modeKey] || 0;
+                    return extStatsSortDir === "asc" ? av - bv : bv - av;
+                });
+
+                const topExt = sorted.slice(0, 12);
+                let extHtml = "";
+                topExt.forEach((e) => {
+                    const metric =
+                        extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0;
+                    const rightLabel =
+                        extStatsMode === "count"
+                            ? String(e.count || 0)
+                            : formatBytes(e.totalSizeBytes || 0);
+                    extHtml += "<div class=\"ext-row\">";
+                    extHtml += `<span class=\"ext-label\">${e.extension || "(n/d)"}<\/span>`;
+                    extHtml += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:100%\"><\/div><\/div>`;
+                    extHtml += `<span class=\"ext-size\">${rightLabel}<\/span>`;
+                    extHtml += "</div>";
+                });
+                extContainer.innerHTML = extHtml;
+            }
+        }
+    }
+
+    // Lettura filtri temporali dagli input e applicazione ai bucket
+    let filteredBuckets = timeBuckets;
+    const yearFromInput = document.getElementById("timelineYearFrom");
+    const yearToInput = document.getElementById("timelineYearTo");
+
+    function recomputeFilteredBuckets() {
+        filteredBuckets = timeBuckets;
+
+        if (yearFromInput) {
+            const v = parseInt(yearFromInput.value, 10);
+            timelineYearFrom = Number.isNaN(v) ? null : v;
+        }
+        if (yearToInput) {
+            const v = parseInt(yearToInput.value, 10);
+            timelineYearTo = Number.isNaN(v) ? null : v;
+        }
+
+        if (timeBuckets.length && (timelineYearFrom != null || timelineYearTo != null)) {
+            filteredBuckets = timeBuckets.filter((b) => {
+                const year = parseInt(String(b.label).slice(0, 4), 10);
+                if (Number.isNaN(year)) return true;
+                if (timelineYearFrom != null && year < timelineYearFrom) return false;
+                if (timelineYearTo != null && year > timelineYearTo) return false;
+                return true;
+            });
+        }
+    }
+
+    recomputeFilteredBuckets();
+
+    // Timeline con Chart.js (o fallback testuale)
+    if (Chart && filteredBuckets.length) {
+        const canvas = document.getElementById("timelineChart");
+        if (canvas && canvas.getContext) {
+            const ctx = canvas.getContext("2d");
+            const labels = filteredBuckets.map((b) => b.label);
+            const data = filteredBuckets.map((b) => b.count);
+
+            if (timelineChartInstance) {
+                timelineChartInstance.destroy();
+            }
+
+            timelineChartInstance = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: "File modificati",
+                            data,
+                            borderColor: "#cc930e",
+                            backgroundColor: "rgba(204,147,14,0.25)",
+                            tension: 0.25,
+                            pointRadius: 2,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: "index",
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                autoSkip: true,
+                                maxTicksLimit: 12,
+                                color: "#eee",
+                            },
+                            grid: {
+                                color: "#444",
+                            },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: "#eee",
+                            },
+                            grid: {
+                                color: "#444",
+                            },
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            enabled: true,
+                        },
+                    },
+                    animations: {
+                        x: {
+                            type: "number",
+                            easing: "linear",
+                            duration: 400,
+                            from: NaN,
+                            delay(ctx) {
+                                if (ctx.type !== "data" || ctx.xStarted) {
+                                    return 0;
+                                }
+                                ctx.xStarted = true;
+                                return ctx.dataIndex * 80;
+                            },
+                        },
+                        y: {
+                            type: "number",
+                            easing: "easeOutQuad",
+                            duration: 400,
+                            from: (ctx) => {
+                                const yScale = ctx.chart.scales.y;
+                                return yScale ? yScale.getPixelForValue(0) : 0;
+                            },
+                            delay(ctx) {
+                                if (ctx.type !== "data" || ctx.yStarted) {
+                                    return 0;
+                                }
+                                ctx.yStarted = true;
+                                return ctx.dataIndex * 80;
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        // Eventi per aggiornare in tempo reale il grafico timeline sui cambi anno
+        if (yearFromInput) {
+            yearFromInput.addEventListener("input", () => {
+                recomputeFilteredBuckets();
+                renderStatsPanelV2();
+            });
+        }
+        if (yearToInput) {
+            yearToInput.addEventListener("input", () => {
+                recomputeFilteredBuckets();
+                renderStatsPanelV2();
+            });
+        }
+    } else {
+        const fallbackEl = document.getElementById("timelineFallback");
+        if (fallbackEl && filteredBuckets.length) {
+            const maxPoints = 24;
+            const slice =
+                filteredBuckets.length > maxPoints
+                    ? filteredBuckets.slice(filteredBuckets.length - maxPoints)
+                    : filteredBuckets;
+
+            let maxCount = 0;
+            slice.forEach((b) => {
+                if (b.count > maxCount) maxCount = b.count;
+            });
+
+            let timelineHtml = "";
+            slice.forEach((b) => {
+                const pct =
+                    maxCount > 0
+                        ? Math.max(4, Math.round((b.count * 100) / maxCount))
+                        : 0;
+                timelineHtml += "<div class=\"ext-row\">";
+                timelineHtml += `<span class=\"ext-label\">${b.label}<\/span>`;
+                timelineHtml += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:${pct}%\"><\/div><\/div>`;
+                timelineHtml += `<span class=\"ext-size\">${b.count}<\/span>`;
+                timelineHtml += "</div>";
+            });
+            fallbackEl.innerHTML = timelineHtml;
+        } else if (fallbackEl) {
+            fallbackEl.innerHTML =
+                "<p class='muted'>Nessun dato disponibile per la timeline.</p>";
+        }
+    }
+
+    const selectModeEl = document.getElementById("extStatsMode");
+    if (selectModeEl) {
+        selectModeEl.addEventListener("change", () => {
+            extStatsMode = selectModeEl.value === "count" ? "count" : "size";
+            renderStatsPanelV2();
+        });
+    }
+
+    const selectSortEl = document.getElementById("extStatsSort");
+    if (selectSortEl) {
+        selectSortEl.addEventListener("change", () => {
+            extStatsSortDir = selectSortEl.value === "asc" ? "asc" : "desc";
+            renderStatsPanelV2();
+        });
+    }
+}
+
+// Sostituisce la vecchia implementazione con la nuova avanzata
+renderStatsPanel = renderStatsPanelV2;
 
 // -------------------------
 // Scansione directory lato renderer (stile Confronta cartelle)
@@ -763,16 +1634,21 @@ function selectNode(domNode, data) {
     lastSelectedNodeData = data;
 
     updateDetails(data);
+
+    // Se la tab Statistiche è attiva, aggiorna subito il pannello
+    if (isStatsTabActive && isStatsTabActive()) {
+        renderStatsPanel();
+    }
 }
 
 // -------------------------
 // Dettagli nodo selezionato
 // -------------------------
 
-function updateDetails(data) {
-    if (!detailsBox) return;
-    const box = detailsBox;
-    box.innerHTML = "";
+  function updateDetails(data) {
+      if (!detailsBox) return;
+      const box = detailsBox;
+      box.innerHTML = "";
 
     box.innerHTML += `<p><b>Nome:</b> ${data.name}</p>`;
     box.innerHTML += `<p><b>Tipo:</b> ${data.type}</p>`;
@@ -1364,6 +2240,54 @@ window.addEventListener("DOMContentLoaded", () => {
     treeRootEl = document.getElementById("treeRoot");
     lblSelectedFolder = document.getElementById("selectedFolder");
     detailsBox = document.getElementById("detailsBox");
+    detailsTabs = document.querySelectorAll(".details-tab-content");
+    detailsTabButtons = document.querySelectorAll(".details-tab-btn");
+
+    topElementsLimitInput = document.getElementById("topElementsLimit");
+    topElementsModeSelect = document.getElementById("topElementsMode");
+    topElementsTableEl = document.getElementById("topElementsTable");
+
+    if (detailsTabButtons && detailsTabs) {
+        detailsTabButtons.forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const tabId = btn.getAttribute("data-tab");
+                if (!tabId) return;
+
+                detailsTabButtons.forEach((b) => b.classList.remove("active"));
+                btn.classList.add("active");
+
+                detailsTabs.forEach((panel) => {
+                    if (panel.id === tabId) {
+                        panel.classList.remove("hidden");
+                    } else {
+                        panel.classList.add("hidden");
+                    }
+                });
+
+                if (tabId === "details-top") {
+                    renderTopElementsPanel();
+                } else if (tabId === "details-stats") {
+                    renderStatsPanel();
+                }
+            });
+        });
+    }
+
+    if (topElementsLimitInput) {
+        topElementsLimitInput.addEventListener("change", () => {
+            if (isTopTabActive()) {
+                renderTopElementsPanel();
+            }
+        });
+    }
+
+    if (topElementsModeSelect) {
+        topElementsModeSelect.addEventListener("change", () => {
+            if (isTopTabActive()) {
+                renderTopElementsPanel();
+            }
+        });
+    }
 
     const scanOptionsPanelEl = document.querySelector(".scan-options-panel");
     const scanOptionsToggleEl = document.getElementById("scanOptionsToggle");

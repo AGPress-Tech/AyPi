@@ -66,11 +66,47 @@
                 </div>
             </div>
 
-            <!-- Pannello destro: dettagli -->
+            <!-- Pannello destro: dettagli + pagine -->
             <div class="details-container">
-                <h3>Dettagli elemento</h3>
-                <div id="detailsBox" class="details-box">
-                    <p>Seleziona un nodo per vedere i dettagli</p>
+                <h3>Area informazioni</h3>
+                <div class="details-tabs-row">
+                    <button class="details-tab-btn active" data-tab="details-main">Dettagli</button>
+                    <button class="details-tab-btn" data-tab="details-top">Top elementi</button>
+                    <button class="details-tab-btn" data-tab="details-stats">Statistiche</button>
+                </div>
+
+                <div id="details-main" class="details-tab-content">
+                    <div id="detailsBox" class="details-box">
+                        <p>Seleziona un nodo per vedere i dettagli</p>
+                    </div>
+                </div>
+
+                <div id="details-top" class="details-tab-content hidden">
+                    <div id="detailsTopBox" class="details-box">
+                        <div class="top-elements-controls">
+                            <div class="top-elements-control">
+                                <label for="topElementsLimit">Top N:</label>
+                                <input type="number" id="topElementsLimit" min="1" value="20" />
+                            </div>
+                            <div class="top-elements-control">
+                                <label for="topElementsMode">Vista:</label>
+                                <select id="topElementsMode">
+                                    <option value="files">Top file pesanti</option>
+                                    <option value="folders">Top cartelle pesanti</option>
+                                    <option value="old">Top file meno recenti</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="top-elements-table-wrapper">
+                            <table id="topElementsTable" class="top-elements-table"></table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="details-stats" class="details-tab-content hidden">
+                    <div id="detailsStatsBox" class="details-box">
+                        <!-- riempito da JS -->
+                    </div>
                 </div>
             </div>
         </div>

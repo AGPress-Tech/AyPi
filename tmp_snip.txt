@@ -1,0 +1,40 @@
+    if (!rootTree) {
+        box.innerHTML = "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
+        return;
+    }
+
+    const baseNode = lastSelectedNodeData || rootTree;
+    const stats = computeStatsForSubtree(baseNode);
+    if (!stats) {
+        box.innerHTML = "<p class='muted'>Impossibile calcolare le statistiche.</p>";
+        return;
+    }
+
+    const extStats = stats.extensionStats || [];
+    const timeBuckets = stats.timeBuckets || [];
+    const baseLabel = baseNode.fullPath || baseNode.name || "(sconosciuta)";
+
+    const minYear =
+        stats.minMtimeMs != null ? new Date(stats.minMtimeMs).getFullYear() : null;
+    const maxYear =
+        stats.maxMtimeMs != null ? new Date(stats.maxMtimeMs).getFullYear() : null;
+
+    if (minYear != null && maxYear != null) {
+        if (timelineYearFrom == null) timelineYearFrom = minYear;
+        if (timelineYearTo == null) timelineYearTo = maxYear;
+        // normalizza nel caso di dati nuovi pi€ ristretti
+        if (timelineYearFrom < minYear) timelineYearFrom = minYear;
+        if (timelineYearTo > maxYear) timelineYearTo = maxYear;
+        if (timelineYearFrom > timelineYearTo) timelineYearFrom = timelineYearTo;
+    }
+
+    let html = "";
+    html += `<p><b>Base statistica:</b><br><span style="font-size:12px;">${baseLabel}<\/span></p>`;
+    html += "<hr>";
+    html += "<div class=\"stats-summary\">";
+    html += `<div><b>File:</b> ${stats.totalFiles || 0}</div>`;
+    html += `<div><b>Cartelle:</b> ${stats.totalFolders || 0}</div>`;
+    html += `<div><b>Spazio totale:</b> ${formatBytes(stats.totalSizeBytes || 0)}</div>`;
+    html += `<div><b>Profondit‡ massima:</b> ${stats.maxDepth || 0}</div>`;
+    html += "</div>";
+
