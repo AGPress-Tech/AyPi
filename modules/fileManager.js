@@ -350,16 +350,59 @@ function setupFileManager(mainWindow) {
             const reportDir = path.join(chosenDir, reportDirName);
             fs.mkdirSync(reportDir, { recursive: true });
 
-            const htmlPath = path.join(reportDir, "report-gerarchia.html");
-            const jsonPath = path.join(reportDir, "report-data.json");
-            const jsPath = path.join(reportDir, "report.js");
-            const cssPath = path.join(reportDir, "report.css");
+              const htmlPath = path.join(reportDir, "report-gerarchia.html");
+              const jsonPath = path.join(reportDir, "report-data.json");
+              const jsPath = path.join(reportDir, "report.js");
+              const cssPath = path.join(reportDir, "report.css");
+              const chartPath = path.join(reportDir, "chart.umd.js");
 
-            // JSON dati separato
-            fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), "utf8");
+              // JSON dati separato
+              fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), "utf8");
 
-            // HTML (layout fisso, non scroll esterno)
-            const htmlContent =
+              // Nuova generazione report basata sui template condivisi
+              try {
+                  const templateDir = path.join(__dirname, "..", "templates");
+                  const htmlTemplatePath = path.join(templateDir, "hierarchy-report.html");
+                  const cssTemplatePath = path.join(templateDir, "hierarchy-report.css");
+                  const jsTemplatePath = path.join(templateDir, "hierarchy-report.js");
+
+                  const htmlTemplate = fs.readFileSync(htmlTemplatePath, "utf8");
+                  const cssContent = fs.readFileSync(cssTemplatePath, "utf8");
+                  const jsTemplate = fs.readFileSync(jsTemplatePath, "utf8");
+
+                  const jsContent =
+                      "const REPORT_DATA = " +
+                      JSON.stringify(data, null, 2) +
+                      ";\n\n" +
+                      jsTemplate;
+
+                  fs.writeFileSync(htmlPath, htmlTemplate, "utf8");
+                  fs.writeFileSync(cssPath, cssContent, "utf8");
+                  fs.writeFileSync(jsPath, jsContent, "utf8");
+
+                  // Copia Chart.js UMD locale per i grafici
+                  try {
+                      // chart.js esporta come entry principale il file CJS in dist/chart.cjs.
+                      // Da lì ricaviamo il percorso della build UMD per il browser.
+                      const chartMainPath = require.resolve("chart.js");
+                      const chartSrcPath = path.join(path.dirname(chartMainPath), "chart.umd.js");
+                      fs.copyFileSync(chartSrcPath, chartPath);
+                  } catch (chartErr) {
+                      log.warn("[hierarchy] impossibile copiare chart.js per il report navigabile:", chartErr);
+                  }
+
+                  return {
+                      canceled: false,
+                      htmlPath,
+                      jsonPath,
+                  };
+              } catch (templateErr) {
+                  log.error("[hierarchy] errore durante la generazione del report navigabile da template:", templateErr);
+                  // Se qualcosa va storto con i template, si prosegue con la versione legacy sotto.
+              }
+
+              // HTML (layout fisso, non scroll esterno) - versione legacy
+              const htmlContent =
                 "<!DOCTYPE html>\n" +
                 "<html lang=\"it\">\n" +
                 "<head>\n" +
@@ -707,6 +750,90 @@ function setupFileManager(mainWindow) {
                 error: err.message || String(err),
             };
         }
+    });
+}
+
+/**
+ * Registra gli handler IPC per la gestione dei file e del ridimensionamento finestra
+ * @param {BrowserWindow} mainWindow - finestra principale di Electron
+ */
+function setupFileManager(mainWindow) {
+
+    // Evento IPC per ridimensionare la finestra alla modalità "calcolatore"
+    ipcMain.on("resize-calcolatore", () => {
+        animateResize(mainWindow, 750, 750, 100);
+    });
+
+    // Evento IPC per tornare alla modalità finestra "normale"
+    ipcMain.on("resize-normale", () => {
+        animateResize(mainWindow, 750, 550, 100);
+    });
+
+    // Evento IPC per aprire un file o cartella
+    ipcMain.on("open-file", (event, filePath) => {
+        // File di test per verificare la raggiungibilità del server DL360
+        const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt";
+
+        // Verifica se il server è raggiungibile
+        fs.access(testFile, fs.constants.F_OK, (err) => {
+            if (err) {
+                // Se il file non è accessibile → server non raggiungibile
+                log.warn("Server non raggiungibile:", err.message);
+                dialog.showMessageBox(mainWindow, {
+                    type: 'warning',
+                    buttons: ['Ok'],
+                    title: "Server Non Raggiungibile",
+                    message: "Il server DL360 non è disponibile. Verificare la connessione."
+                });
+                return;
+            }
+
+            // Se il server risponde, verifica il file richiesto
+            fs.stat(filePath, (err, stats) => {
+                if (err) {
+                    // Se il percorso non esiste
+                    dialog.showMessageBox(mainWindow, {
+                        type: 'warning',
+                        buttons: ['Ok'],
+                        title: "Percorso Non Trovato",
+                        message: "Il file o la cartella non è disponibile. Controllare e riprovare."
+                    });
+                    return;
+                }
+
+                // Se è una cartella → apri direttamente in Esplora Risorse
+                if (stats.isDirectory()) {
+                    shell.openPath(filePath);
+                } else {
+                    // Se è un file → prova ad aprirlo
+                    exec(`start "" "${filePath}"`, (error) => {
+                        if (error) {
+                            // Caso: file già aperto da un altro processo
+                            if (error.message.includes("utilizzato da un altro processo")) {
+                                dialog.showMessageBox(mainWindow, {
+                                    type: 'warning',
+                                    buttons: ['Apri in sola lettura', 'Annulla'],
+                                    title: "File in Uso",
+                                    message: "Vuoi aprirlo in sola lettura?"
+                                }).then(result => {
+                                    if (result.response === 0) {
+                                        shell.openPath(filePath);
+                                    }
+                                });
+                            } else {
+                                // Altro tipo di errore generico
+                                dialog.showMessageBox(mainWindow, {
+                                    type: 'error',
+                                    buttons: ['Ok'],
+                                    title: "Errore",
+                                    message: "Errore nell'apertura del file."
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+        });
     });
 }
 

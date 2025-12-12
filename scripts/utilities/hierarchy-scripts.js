@@ -50,12 +50,42 @@ let topElementsTableEl = null;
 const FUN_MESSAGES = [
     "Calcolo degli atomi dei file...",
     "Allineamento dei bit con l'asse di rotazione terrestre...",
-    "Stima della distanza Terra�Sole�file richiesti...",
+    "Stima della distanza Terra–Sole dei file richiesti...",
     "Ottimizzazione del coefficiente di entropia dei backup...",
     "Calcolo subatomico quantistico dei metadati...",
     "Sincronizzazione con il fuso orario dei ping di rete...",
-    "Ricalibrazione della matrice spazio�tempo dei percorsi...",
-    "Normalizzazione logaritmica delle estensioni esotiche..."
+    "Ricalibrazione della matrice spazio/tempo dei percorsi...",
+    "Normalizzazione logaritmica delle estensioni esotiche...",
+    "Consultazione dell'oracolo dei filesystem...",
+    "Compattazione delle stringhe secondo la teoria delle supercorde...",
+    "Verifica della coerenza karmica dei nomi file...",
+    "Risoluzione delle ambiguità tramite inferenza probabilistica avanzata...",
+    "Interrogazione del cache cosmico universale...",
+    "Bilanciamento termodinamico delle directory...",
+    "Analisi spettroscopica dei byte inattivi...",
+    "Decompressione metafisica dei percorsi annidati...",
+    "Allineamento neurale tra CPU e memoria RAM...",
+    "Applicazione del principio di indeterminazione ai file duplicati...",
+    "Stabilizzazione quantistica delle dimensioni su disco...",
+    "Verifica della conservazione della massa dei byte...",
+    "Interpolazione frattale delle sottocartelle...",
+    "Riconciliazione filosofica tra file e cartelle...",
+    "Riduzione entropica delle nomenclature legacy...",
+    "Scansione euristica dei percorsi improbabili...",
+    "Riorganizzazione topologica dello spazio di archiviazione...",
+    "Compilazione delle statistiche secondo standard galattici...",
+    "Rilevamento di fluttuazioni anomale nei timestamp...",
+    "Ottimizzazione predittiva basata su modelli astrali...",
+    "Verifica di consistenza temporale multiverso...",
+    "Mappatura sinaptica dei collegamenti simbolici...",
+    "Analisi comparativa delle dimensioni in unità planck...",
+    "Stabilizzazione del continuum file–cartella...",
+    "Calcolo della probabilità di esistenza dei file fantasma...",
+    "Applicazione del protocollo di realtà aumentata ai percorsi...",
+    "Risoluzione dei conflitti tramite arbitrato algoritmico supremo...",
+    "Ricostruzione causale della genealogia dei file...",
+    "Calibrazione dei checksum secondo costanti universali...",
+    "Determinazione del grado di maturità evolutiva delle directory..."
 ];
 
 let lastFunMessageTime = 0;
@@ -69,7 +99,6 @@ const FILE_ICON = "-";          // icona semplice per i file
 // Ricerca globale nell'albero
 let searchGeneration = 0;
 let lastSearchProgressTime = 0;
-
 
 // -------------------------
 // Helper dialog
@@ -897,7 +926,6 @@ function renderStatsPanelV2() {
     if (minYear != null && maxYear != null) {
         if (timelineYearFrom == null) timelineYearFrom = minYear;
         if (timelineYearTo == null) timelineYearTo = maxYear;
-        // normalizza nel caso di dati nuovi pi� ristretti
         if (timelineYearFrom < minYear) timelineYearFrom = minYear;
         if (timelineYearTo > maxYear) timelineYearTo = maxYear;
         if (timelineYearFrom > timelineYearTo) timelineYearFrom = timelineYearTo;
@@ -966,7 +994,7 @@ function renderStatsPanelV2() {
 
     box.innerHTML = html;
 
-    // Grafico estensioni (horizontal bar con anima��o) o fallback testuale
+    // Grafico estensioni o fallback testuale
     if (Chart && extStats.length) {
         const canvasExt = document.getElementById("extStatsChart");
         if (canvasExt && canvasExt.getContext) {
@@ -2801,18 +2829,3 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
     renderTreeFromModel();
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

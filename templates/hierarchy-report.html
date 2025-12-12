@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Report gerarchia file</title>
+    <link rel="stylesheet" href="./report.css">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Report gerarchia file</h1>
+            <div id="metaInfo" class="meta-info"></div>
+        </header>
+
+        <div class="main-area">
+            <!-- Pannello sinistro: gerarchia -->
+            <div class="tree-panel">
+                <div class="tree-header">
+                    <span class="panel-title">Gerarchia</span>
+                    <div class="search-bar">
+                        <input type="text" id="treeFilter" placeholder="Filtra per nome o parte di percorso..." />
+                    </div>
+                </div>
+
+                <div class="tree-container">
+                    <div id="treeRoot" class="tree-view"></div>
+                </div>
+            </div>
+
+            <!-- Pannello destro: tabs come nel generatore di gerarchia -->
+            <div class="details-container">
+                <h3>Area informazioni</h3>
+                <div class="details-tabs-row">
+                    <button class="details-tab-btn active" data-tab="details-main">Dettagli</button>
+                    <button class="details-tab-btn" data-tab="details-top">Top elementi</button>
+                    <button class="details-tab-btn" data-tab="details-stats">Statistiche</button>
+                </div>
+
+                <div id="details-main" class="details-tab-content">
+                    <div id="detailsContent" class="details-box">
+                        Seleziona un elemento dall'albero o dalle tabelle.
+                    </div>
+                </div>
+
+                <div id="details-top" class="details-tab-content hidden">
+                    <div id="detailsTopBox" class="details-box">
+                        <div class="top-elements-controls">
+                            <div class="top-elements-control">
+                                <label for="topElementsLimit">Top N:</label>
+                                <input type="number" id="topElementsLimit" min="1" value="20" />
+                            </div>
+                            <div class="top-elements-control">
+                                <label for="topElementsMode">Vista:</label>
+                                <select id="topElementsMode">
+                                    <option value="files">Top file pesanti</option>
+                                    <option value="folders">Top cartelle pesanti</option>
+                                    <option value="old">Top file meno recenti</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="top-elements-table-wrapper">
+                            <table id="topElementsTable" class="top-elements-table"></table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="details-stats" class="details-tab-content hidden">
+                    <div id="detailsStatsBox" class="details-box">
+                        <!-- popolato da report.js -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./chart.umd.js"></script>
+    <script src="./report.js"></script>
+</body>
+
+</html>
+
