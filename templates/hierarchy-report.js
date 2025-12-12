@@ -173,12 +173,11 @@ function renderTopElementsPanel(data) {
             { field: "totalSizeBytes", label: "Dimensione" },
         ];
     } else if (mode === "old") {
-        const src = Array.isArray(data.topFiles) ? data.topFiles.slice() : [];
-        src.sort((a, b) => {
-            const am = a.mtimeMs || 0;
-            const bm = b.mtimeMs || 0;
-            return am - bm;
-        });
+        const src = Array.isArray(data.topOldFiles)
+            ? data.topOldFiles
+            : Array.isArray(data.topFiles)
+            ? data.topFiles.slice().sort((a, b) => (a.mtimeMs || 0) - (b.mtimeMs || 0))
+            : [];
         rows = src.slice(0, maxTop).map((r, idx) => ({
             index: idx + 1,
             name: r.name,
@@ -780,4 +779,3 @@ function initReport() {
 }
 
 document.addEventListener("DOMContentLoaded", initReport);
-

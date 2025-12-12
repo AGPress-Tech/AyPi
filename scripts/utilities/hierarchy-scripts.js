@@ -329,6 +329,7 @@ function collectReportData(maxTop = 50) {
 
     const topFolders = [];
     const topFiles = [];
+    const allFilesForOld = [];
 
     function pushSorted(arr, item, key, limit) {
         arr.push(item);
@@ -368,6 +369,7 @@ function collectReportData(maxTop = 50) {
                 mtimeMs,
             };
             pushSorted(topFiles, fileInfo, "sizeBytes", maxTop);
+            allFilesForOld.push(fileInfo);
 
             return {
                 name: node.name,
@@ -438,16 +440,22 @@ function collectReportData(maxTop = 50) {
 
     const hierarchyOut = walk(rootTree, 0);
 
-      const extensionStatsMap = Object.create(null);
-      const timeBucketsMap = Object.create(null);
+    // Top file meno recenti: su tutti i file (non solo i più grandi)
+    const topOldFiles = allFilesForOld
+        .filter((f) => typeof f.mtimeMs === "number")
+        .sort((a, b) => (a.mtimeMs || 0) - (b.mtimeMs || 0))
+        .slice(0, maxTop);
 
-      // popoliamo extensionStats e timeBuckets a partire da topFiles, che ha mtimeMs
-      for (const f of topFiles) {
-          const extRaw = path.extname(f.name || "").toLowerCase();
-          const ext = extRaw || "(senza estensione)";
-          if (!extensionStatsMap[ext]) {
-              extensionStatsMap[ext] = {
-                  extension: ext,
+    const extensionStatsMap = Object.create(null);
+    const timeBucketsMap = Object.create(null);
+
+    // popoliamo extensionStats e timeBuckets a partire da tutti i file con mtime
+    for (const f of allFilesForOld) {
+        const extRaw = path.extname(f.name || "").toLowerCase();
+        const ext = extRaw || "(senza estensione)";
+        if (!extensionStatsMap[ext]) {
+            extensionStatsMap[ext] = {
+                extension: ext,
                   count: 0,
                   totalSizeBytes: 0,
               };
@@ -485,14 +493,15 @@ function collectReportData(maxTop = 50) {
               totalSizeBytes,
               maxDepth,
               minMtimeMs,
-              maxMtimeMs,
-          },
-          hierarchy: hierarchyOut,
-          topFolders,
-          topFiles,
-          extensionStats,
-          timeBuckets,
-      };
+            maxMtimeMs,
+        },
+        hierarchy: hierarchyOut,
+        topFolders,
+        topFiles,
+        topOldFiles,
+        extensionStats,
+        timeBuckets,
+    };
 
   return report;
 }
@@ -701,10 +710,10 @@ function isStatsTabActive() {
             { field: "foldersCount", label: "Cartelle" },
         ];
     } else if (mode === "old") {
-        const topOld = (report.topFiles || [])
-            .filter((f) => typeof f.mtimeMs === "number")
-            .sort((a, b) => (a.mtimeMs || 0) - (b.mtimeMs || 0));
-        rows = topOld.slice(0, limit).map((r, idx) => ({
+        const srcOld = Array.isArray(report.topOldFiles)
+            ? report.topOldFiles
+            : (report.topFiles || []).filter((f) => typeof f.mtimeMs === "number");
+        rows = srcOld.slice(0, limit).map((r, idx) => ({
             index: idx + 1,
             name: r.name,
             fullPath: r.fullPath,
