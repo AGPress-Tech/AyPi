@@ -307,6 +307,10 @@ body {
 
 .stats-timeline-filters {
     margin: 4px 0 2px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
 }
 
 /* Tabelle generiche (topX) già definite sopra */
@@ -375,4 +379,3 @@ body {
     color: #aaaaaa;
     font-size: 12px;
 }
-

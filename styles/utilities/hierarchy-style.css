@@ -363,6 +363,10 @@ button:hover {
 
 .stats-timeline-filters {
     margin: 4px 0 2px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
 }
 
 .ext-chart {

@@ -1273,6 +1273,9 @@ function renderStatsPanelV2() {
         };
 
         if (yearFromInput) {
+            yearFromInput.addEventListener("change", () => {
+                applyYearFilter();
+            });
             yearFromInput.addEventListener("keydown", (e) => {
                 if (e.key === "Enter") {
                     e.preventDefault();
@@ -1284,6 +1287,9 @@ function renderStatsPanelV2() {
             });
         }
         if (yearToInput) {
+            yearToInput.addEventListener("change", () => {
+                applyYearFilter();
+            });
             yearToInput.addEventListener("keydown", (e) => {
                 if (e.key === "Enter") {
                     e.preventDefault();
