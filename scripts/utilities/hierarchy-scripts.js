@@ -18,10 +18,6 @@ try {
     console.warn("Modulo 'chart.js' non disponibile per la timeline:", err && err.message ? err.message : err);
 }
 
-// -------------------------
-// Stato globale
-// -------------------------
-
 let selectedFolder = null;
 let rootTree = null;
 let originalRootTree = null;
@@ -29,24 +25,20 @@ let selectedElement = null;
 let lastSelectedNodeData = null;
 let lastReportData = null;
 
-// batch ricevuti dal main durante la scansione
 let pendingEntries = [];
 let isBuildingTree = false;
 
-// riferimenti DOM (riempiti in DOMContentLoaded)
 let treeRootEl = null;
 let lblSelectedFolder = null;
 let detailsBox = null;
 let detailsTabs = null;
 let detailsTabButtons = null;
-// menu contestuale albero
 let contextMenuEl = null;
 let contextMenuNode = null;
 let topElementsLimitInput = null;
 let topElementsModeSelect = null;
 let topElementsTableEl = null;
 
-// Messaggi "quantistici"
 const FUN_MESSAGES = [
     "Calcolo degli atomi dei file...",
     "Allineamento dei bit con l'asse di rotazione terrestre...",
@@ -91,18 +83,12 @@ const FUN_MESSAGES = [
 let lastFunMessageTime = 0;
 let funMessageIndex = 0;
 
-// Icone albero gerarchia
-const FOLDER_CLOSED_ICON = "\u25B6"; // triangolo verso destra
-const FOLDER_OPEN_ICON = "\u25BC";   // triangolo verso il basso
-const FILE_ICON = "-";          // icona semplice per i file
+const FOLDER_CLOSED_ICON = "\u25B6";
+const FOLDER_OPEN_ICON = "\u25BC";
+const FILE_ICON = "-";
 
-// Ricerca globale nell'albero
 let searchGeneration = 0;
 let lastSearchProgressTime = 0;
-
-// -------------------------
-// Helper dialog
-// -------------------------
 
 function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
@@ -131,10 +117,6 @@ function copyToClipboard(text) {
         console.error("Errore copia negli appunti:", err);
     }
 }
-
-// -------------------------
-// Struttura albero in memoria
-// -------------------------
 
 function createRootTree(rootFolder) {
     return {
@@ -171,15 +153,11 @@ function ensureFolderPath(parts) {
     return node;
 }
 
-/**
- * entry = { kind, fullPath, relPath, size, mtimeMs }
- */
 function addEntryToTree(entry) {
     if (!rootTree) return;
 
     const normalizedRel = (entry.relPath || "").replace(/\\/g, "/");
     if (!normalizedRel) {
-        // root stesso
         return;
     }
 
@@ -210,10 +188,6 @@ function addEntryToTree(entry) {
     }
 }
 
-// -------------------------
-// Conteggi diretti / ricorsivi + peso
-// -------------------------
-
 function computeFolderStatsDirect(node) {
     let folders = 0;
     let files = 0;
@@ -236,9 +210,6 @@ function computeFolderStatsDirect(node) {
     return { folders, files, totalSize };
 }
 
-/**
- * Conteggio ricorsivo NON bloccante di un ramo.
- */
 function computeFolderStatsRecursiveAsync(node, onProgress, onDone) {
     if (!node || node.type !== "folder") {
         if (onDone) onDone({ folders: 0, files: 0, totalSize: 0 });
@@ -310,10 +281,6 @@ function formatBytes(bytes) {
     }
     return `${val.toFixed(2)} ${units[idx]}`;
 }
-
-// -------------------------
-// Report navigabile: raccolta dati (Versione 1)
-// -------------------------
 
 function collectReportData(maxTop = 50) {
     if (!rootTree) {
@@ -440,7 +407,6 @@ function collectReportData(maxTop = 50) {
 
     const hierarchyOut = walk(rootTree, 0);
 
-    // Top file meno recenti: su tutti i file (non solo i più grandi)
     const topOldFiles = allFilesForOld
         .filter((f) => typeof f.mtimeMs === "number")
         .sort((a, b) => (a.mtimeMs || 0) - (b.mtimeMs || 0))
@@ -449,7 +415,6 @@ function collectReportData(maxTop = 50) {
     const extensionStatsMap = Object.create(null);
     const timeBucketsMap = Object.create(null);
 
-    // popoliamo extensionStats e timeBuckets a partire da tutti i file con mtime
     for (const f of allFilesForOld) {
         const extRaw = path.extname(f.name || "").toLowerCase();
         const ext = extRaw || "(senza estensione)";
@@ -596,7 +561,6 @@ function computeStatsForSubtree(rootNode) {
             bucketMap[label] = (bucketMap[label] || 0) + 1;
         }
 
-        // Costruisce una sequenza continua di periodi, includendo anche i bucket con 0 file
         timeBuckets = [];
         if (useHalfYear) {
             const start = new Date(minMtimeMs);
@@ -824,7 +788,6 @@ function renderStatsPanel() {
         html += "</p>";
     }
 
-    // controlli per grafico estensioni
     html += "<hr>";
     html += "<div class=\"top-elements-controls\">";
     html += "  <div class=\"top-elements-control\">";
@@ -899,7 +862,6 @@ function renderStatsPanel() {
     }
 }
 
-// Nuova implementazione avanzata del pannello Statistiche (con grafico timeline)
 function renderStatsPanelV2() {
     const box = document.getElementById("detailsStatsBox");
     if (!box) return;
@@ -924,8 +886,6 @@ function renderStatsPanelV2() {
     const maxYear =
         stats.maxMtimeMs != null ? new Date(stats.maxMtimeMs).getFullYear() : null;
 
-    // Default globale: se l'utente non ha ancora scelto un range,
-    // usa sempre gli ultimi 10 anni rispetto all'anno corrente.
     if (statsYearFrom == null || statsYearTo == null) {
         const currentYear = new Date().getFullYear();
         statsYearTo = currentYear;
@@ -950,7 +910,6 @@ function renderStatsPanelV2() {
     html += `<div><b>Profondità massima:</b> ${stats.maxDepth || 0}</div>`;
     html += "</div>";
 
-    // Controlli per grafico estensioni
     html += "<hr>";
     html += "<p><b>Estensioni principali:</b></p>";
     html += "<div class=\"top-elements-controls\">";
@@ -978,7 +937,6 @@ function renderStatsPanelV2() {
     }
     html += "</div>";
 
-    // Sezione timeline modifiche
     html += "<hr>";
     html += "<p><b>Timeline modifiche (file per periodo):</b></p>";
     if (minYear != null && maxYear != null) {
@@ -1003,7 +961,6 @@ function renderStatsPanelV2() {
 
     box.innerHTML = html;
 
-    // Grafico estensioni o fallback testuale
     if (Chart && extStats.length) {
         const canvasExt = document.getElementById("extStatsChart");
         if (canvasExt && canvasExt.getContext) {
@@ -1123,7 +1080,6 @@ function renderStatsPanelV2() {
         }
     }
 
-    // Lettura filtri temporali dagli input e applicazione ai bucket
     let filteredBuckets = timeBuckets;
     const yearFromInput = document.getElementById("timelineYearFrom");
     const yearToInput = document.getElementById("timelineYearTo");
@@ -1144,8 +1100,6 @@ function renderStatsPanelV2() {
             }
         }
 
-        // Default globale: se nessun anno � impostato, usa sempre
-        // gli ultimi 10 anni rispetto all'anno corrente.
         if (statsYearFrom == null && statsYearTo == null) {
             const currentYear = new Date().getFullYear();
             statsYearTo = currentYear;
@@ -1168,8 +1122,6 @@ function renderStatsPanelV2() {
             });
         }
 
-        // Se il range scelto non produce alcun bucket, torna a mostrare
-        // la timeline completa cos� il grafico non si "rompe".
         if (!filteredBuckets.length) {
             filteredBuckets = timeBuckets;
         }
@@ -1177,7 +1129,6 @@ function renderStatsPanelV2() {
 
     recomputeFilteredBuckets();
 
-    // Timeline con Chart.js (o fallback testuale)
     if (Chart && filteredBuckets.length) {
         const canvas = document.getElementById("timelineChart");
         if (canvas && canvas.getContext) {
@@ -1275,7 +1226,6 @@ function renderStatsPanelV2() {
             });
         }
 
-        // Eventi per aggiornare il grafico timeline sui cambi anno
         const applyYearFilter = () => {
             recomputeFilteredBuckets();
             renderStatsPanelV2();
@@ -1359,12 +1309,7 @@ function renderStatsPanelV2() {
     }
 }
 
-// Sostituisce la vecchia implementazione con la nuova avanzata
 renderStatsPanel = renderStatsPanelV2;
-
-// -------------------------
-// Scansione directory lato renderer (stile Confronta cartelle)
-// -------------------------
 
 async function scanFolderRecursively(rootFolder, onProgress) {
     const entries = [];
@@ -1432,10 +1377,6 @@ async function scanFolderRecursively(rootFolder, onProgress) {
     return entries;
 }
 
-// -------------------------
-// Cloni e filtri albero (per opzioni di scansione)
-// -------------------------
-
 function cloneTree(node) {
     if (!node) return null;
     return JSON.parse(JSON.stringify(node));
@@ -1485,10 +1426,9 @@ function buildFilteredTreeFromOptions(sourceRoot, options) {
     const normalizeName = (s) => String(s || "").toLowerCase().trim();
 
     function isExcludedFolder(name, depth) {
-        if (depth === 0) return false; // non escludiamo mai la root
+        if (depth === 0) return false;
         const n = normalizeName(name);
 
-        // Esclusione per cartelle: corrispondenza "contiene" (case-insensitive)
         for (const pattern of folderSet) {
             if (pattern && n.includes(pattern)) {
                 return true;
@@ -1500,7 +1440,6 @@ function buildFilteredTreeFromOptions(sourceRoot, options) {
     function isExcludedFile(name) {
         const lower = normalizeName(name);
 
-        // Esclusione per file: corrispondenza "contiene" (case-insensitive)
         for (const pattern of fileSet) {
             if (pattern && lower.includes(pattern)) {
                 return true;
@@ -1535,7 +1474,6 @@ function buildFilteredTreeFromOptions(sourceRoot, options) {
             if (Array.isArray(node.children)) {
                 for (const child of node.children) {
                     if (maxDepth !== null && nextDepth > maxDepth) {
-                        // non scendiamo oltre la profondit� massima
                         continue;
                     }
                     const filteredChild = cloneAndFilter(child, nextDepth);
@@ -1545,7 +1483,6 @@ function buildFilteredTreeFromOptions(sourceRoot, options) {
                 }
             }
 
-            // se non � la root e non ha figli dopo il filtro, elimina la cartella
             if (depth > 0 && (!cloned.children || cloned.children.length === 0)) {
                 return null;
             }
@@ -1558,15 +1495,10 @@ function buildFilteredTreeFromOptions(sourceRoot, options) {
 
     const filtered = cloneAndFilter(sourceRoot, 0);
     if (!filtered) {
-        // mantieni almeno la root vuota
         return { ...sourceRoot, children: [] };
     }
     return filtered;
 }
-
-// -------------------------
-// Export gerarchia in Excel (ramo cartella)
-// -------------------------
 
 function collectSubtreeRows(node, basePath, acc = []) {
     if (!node) return acc;
@@ -1599,10 +1531,6 @@ function collectSubtreeRows(node, basePath, acc = []) {
     return acc;
 }
 
-// -------------------------
-// Utility: figli ordinati (cartelle prima, poi file, alfabetic)
-// -------------------------
-
 function getSortedChildren(node) {
     if (!node || !Array.isArray(node.children)) return [];
     return [...node.children].sort((a, b) => {
@@ -1613,14 +1541,9 @@ function getSortedChildren(node) {
     });
 }
 
-// -------------------------
-// Creazione DOM albero
-// -------------------------
-
 function createTreeNode(nodeData) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("tree-node");
-    // salva il dato associato al nodo DOM (usato da menu contestuale)
     wrapper.__nodeData = nodeData;
 
     const icon = document.createElement("span");
@@ -1679,10 +1602,6 @@ function renderTreeFromModel() {
     treeRootEl.appendChild(rootDom);
 }
 
-// -------------------------
-// Costruzione albero da pendingEntries (NON bloccante)
-// -------------------------
-
 function buildTreeFromPendingAsync(onDone) {
     if (!rootTree || pendingEntries.length === 0) {
         pendingEntries = [];
@@ -1733,10 +1652,6 @@ function buildTreeFromPendingAsync(onDone) {
     setTimeout(step, 0);
 }
 
-// -------------------------
-// Selezione nodo
-// -------------------------
-
 function selectNode(domNode, data) {
     if (selectedElement) {
         selectedElement.classList.remove("selected");
@@ -1748,15 +1663,10 @@ function selectNode(domNode, data) {
 
     updateDetails(data);
 
-    // Se la tab Statistiche � attiva, aggiorna subito il pannello
     if (isStatsTabActive && isStatsTabActive()) {
         renderStatsPanel();
     }
 }
-
-// -------------------------
-// Dettagli nodo selezionato
-// -------------------------
 
   function updateDetails(data) {
       if (!detailsBox) return;
@@ -1770,7 +1680,6 @@ function selectNode(domNode, data) {
         box.innerHTML += `<p><b>Percorso completo:</b><br><span style="font-size:12px;">${data.fullPath}</span></p>`;
     }
 
-    // FILE
     if (data.type === "file") {
         if (typeof data.size === "number") {
             box.innerHTML += `<p><b>Dimensione:</b> ${data.size} byte (${formatBytes(
@@ -1837,7 +1746,6 @@ function selectNode(domNode, data) {
         return;
     }
 
-    // CARTELLA
     if (data.type === "folder") {
         const direct = computeFolderStatsDirect(data);
 
@@ -1977,10 +1885,6 @@ function selectNode(domNode, data) {
     }
 }
 
-// -------------------------
-// Ricerca file con stesso nome nel tree
-// -------------------------
-
 function findFilesWithName(root, fileName) {
     const results = [];
     if (!root) return results;
@@ -2001,10 +1905,6 @@ function findFilesWithName(root, fileName) {
 
     return results;
 }
-
-// -------------------------
-// Esporta lista file con stesso nome
-// -------------------------
 
 function exportSameNameList(list) {
     if (!XLSX) {
@@ -2050,11 +1950,6 @@ function exportSameNameList(list) {
     });
 }
 
-
-// -------------------------
-// Ricerca globale nell'albero (async, non blocca)
-// -------------------------
-
 function searchTreeAsync(query, onProgress, onDone) {
     if (!rootTree) {
         if (onDone) onDone([]);
@@ -2070,11 +1965,10 @@ function searchTreeAsync(query, onProgress, onDone) {
     const results = [];
     const stack = [rootTree];
     const CHUNK_TIME_MS = 16;
-    const myGen = ++searchGeneration; // token per annullare ricerche vecchie
+    const myGen = ++searchGeneration;
 
     function step() {
         if (myGen !== searchGeneration) {
-            // C'� una nuova ricerca partita, questa � vecchia ? stop
             return;
         }
 
@@ -2097,12 +1991,11 @@ function searchTreeAsync(query, onProgress, onDone) {
             }
         }
 
-        const processed = results.length; // non � proprio il numero nodi, ma va bene per feedback
+        const processed = results.length;
         const remaining = stack.length;
 
         if (onProgress) {
             const now = performance.now();
-            // aggiorniamo la UI al massimo ~5 volte al secondo
             if (now - lastSearchProgressTime > 200) {
                 onProgress({ processed, remaining });
                 lastSearchProgressTime = now;
@@ -2119,16 +2012,11 @@ function searchTreeAsync(query, onProgress, onDone) {
     setTimeout(step, 0);
 }
 
-// -------------------------
-// Menu contestuale albero
-// -------------------------
-
 function initContextMenu() {
     contextMenuEl = document.getElementById("treeContextMenu");
 
     if (!contextMenuEl) return;
 
-    // click sulle voci del menu
     contextMenuEl.addEventListener("click", (e) => {
         const item = e.target.closest(".context-menu-item");
         if (!item || !contextMenuNode) return;
@@ -2142,8 +2030,6 @@ function initContextMenu() {
             return;
         }
 
-        // per le azioni cartella usiamo sempre una cartella:
-        // se � un file, usiamo la cartella padre
         const folderForActions =
             node.type === "folder" ? fullPath : path.dirname(fullPath);
 
@@ -2185,12 +2071,10 @@ function initContextMenu() {
         hideTreeContextMenu();
     });
 
-    // click fuori: chiudi menu
     window.addEventListener("click", () => {
         hideTreeContextMenu();
     });
 
-    // scroll: chiudi menu
     window.addEventListener(
         "scroll",
         () => {
@@ -2199,7 +2083,6 @@ function initContextMenu() {
         true
     );
 
-    // gestione tasto destro sull'albero via delega
     if (treeRootEl) {
         treeRootEl.addEventListener("contextmenu", (e) => {
             const nodeEl = e.target.closest(".tree-node");
@@ -2243,10 +2126,6 @@ function hideTreeContextMenu() {
     contextMenuNode = null;
 }
 
-// -------------------------
-// Focus su nodo nell'albero (teletrasporto)
-// -------------------------
-
 function focusNodeInTree(fullPath) {
     if (!rootTree || !treeRootEl) return;
     const rootDom = treeRootEl.querySelector(".tree-node");
@@ -2267,7 +2146,6 @@ function focusNodeInTree(fullPath) {
             const childrenContainer = dom.querySelector(":scope > .tree-children");
             if (!childrenContainer) continue;
 
-            // espandi il ramo
             childrenContainer.classList.add("open");
             const icon = dom.querySelector(":scope > .node-icon");
             if (icon) icon.textContent = FOLDER_CLOSED_ICON;
@@ -2285,12 +2163,8 @@ function focusNodeInTree(fullPath) {
     }
 }
 
-// Variante che chiude tutte le cartelle e apre solo il percorso necessario
-// fino al nodo target (usata dai risultati di ricerca).
 function focusNodeInTreeSmart(fullPath) {
     if (!rootTree || !treeRootEl) return;
-
-    // Trova il nodo DOM corrispondente al percorso richiesto
     let targetDom = null;
     treeRootEl.querySelectorAll(".tree-node").forEach((el) => {
         if (!targetDom && el.__nodeData && el.__nodeData.fullPath === fullPath) {
@@ -2301,7 +2175,6 @@ function focusNodeInTreeSmart(fullPath) {
     if (!targetDom || !targetDom.__nodeData) return;
     const targetNode = targetDom.__nodeData;
 
-    // 1) Chiudi tutte le cartelle (collassa l'intero albero)
     treeRootEl.querySelectorAll(".tree-children").forEach((children) => {
         children.classList.remove("open");
         const parent = children.parentElement;
@@ -2311,7 +2184,6 @@ function focusNodeInTreeSmart(fullPath) {
         }
     });
 
-    // 2) Risali dal nodo target fino alla radice, aprendo solo il percorso necessario
     let current = targetDom;
     while (current && current.classList && current.classList.contains("tree-node")) {
         const childrenContainer = current.querySelector(":scope > .tree-children");
@@ -2323,12 +2195,10 @@ function focusNodeInTreeSmart(fullPath) {
         current = current.parentElement ? current.parentElement.closest(".tree-node") : null;
     }
 
-    // 3) Porta in vista e seleziona il nodo
     targetDom.scrollIntoView({ behavior: "smooth", block: "center" });
     selectNode(targetDom, targetNode);
 }
 
-// Normalizza le icone delle cartelle (aperte/chiuse) in base allo stato .open
 function normalizeTreeIcons() {
     if (!treeRootEl) return;
 
@@ -2339,15 +2209,10 @@ function normalizeTreeIcons() {
         const childrenContainer = nodeEl.querySelector(":scope > .tree-children");
         if (childrenContainer) {
             const isOpen = childrenContainer.classList.contains("open");
-            // aperto (?) / chiuso (?)
             icon.textContent = isOpen ? "\u25BC" : "\u25B6";
         }
     });
 }
-
-// -------------------------
-// Inizializzazione finestra
-// -------------------------
 
 window.addEventListener("DOMContentLoaded", () => {
     treeRootEl = document.getElementById("treeRoot");
@@ -2420,7 +2285,6 @@ window.addEventListener("DOMContentLoaded", () => {
     const btnSearch = document.getElementById("btnSearch");
     const searchResultsEl = document.getElementById("searchResults");
 
-    // inizializza il menu contestuale dell'albero
     initContextMenu();
 
     if (scanOptionsPanelEl && scanOptionsToggleEl && scanOptionsArrowEl) {
@@ -2437,11 +2301,6 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-
-    // ---------------------
-    // Filtro "Opzioni di scansione"
-    // ---------------------
-
     function collectScanOptionsFromInputs() {
         let maxDepth = null;
         if (scanDepthInputEl && scanDepthInputEl.value.trim() !== "") {
@@ -2454,7 +2313,6 @@ window.addEventListener("DOMContentLoaded", () => {
         function parseList(raw) {
             if (!raw) return [];
             return raw
-                // separa SOLO per virgola o punto e virgola, permettendo spazi interni nei nomi
                 .split(/[,;]+/)
                 .map((s) => s.trim())
                 .filter((s) => s.length > 0);
@@ -2483,7 +2341,6 @@ window.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        // Se non abbiamo ancora lo snapshot dell'albero completo, creiamolo ora
         if (!originalRootTree && rootTree) {
             originalRootTree = cloneTree(rootTree);
         }
@@ -2498,10 +2355,8 @@ window.addEventListener("DOMContentLoaded", () => {
             (options.excludeFiles && options.excludeFiles.length > 0);
 
         if (!hasFilters) {
-            // Nessun filtro: ripristina l'albero completo
             rootTree = cloneTree(originalRootTree);
         } else {
-            // Applica i filtri allo snapshot originale
             rootTree = buildFilteredTreeFromOptions(originalRootTree, options);
         }
 
@@ -2566,7 +2421,6 @@ window.addEventListener("DOMContentLoaded", () => {
             <p id="scanFunStatus" class="fun-status muted"></p>
         `;
 
-        // messaggi divertenti per la scansione
         funMessageIndex = 0;
         lastFunMessageTime = performance.now();
         const scanFunStatus = document.getElementById("scanFunStatus");
@@ -2603,7 +2457,6 @@ window.addEventListener("DOMContentLoaded", () => {
             rootTree = createRootTree(selectedFolder);
             pendingEntries = entries.slice();
 
-            // fase di costruzione albero: messaggio + fun messages
             detailsBox.innerHTML = `
                 <p>Costruzione dell'albero in corso... Attendere.</p>
                 <p id="buildFunStatus" class="fun-status muted"></p>
@@ -2635,9 +2488,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const runSearch = () => {
             const q = searchInput.value.trim();
-
-            // Allunga automaticamente il box risultati a 100px
-            // solo se � pi� basso (per non accorciare un resize manuale).
             if (searchResultsEl.clientHeight < 100) {
                 searchResultsEl.style.height = "100px";
             }
@@ -2656,7 +2506,6 @@ window.addEventListener("DOMContentLoaded", () => {
             searchTreeAsync(
                 q,
                 (partial) => {
-                    // feedback leggero durante la ricerca
                     searchResultsEl.innerHTML = `
                         <span class='muted'>Ricerca in corso...</span>
                         <br><span class='muted'>Elementi trovati finora: ${partial.processed}, in analisi: ~${partial.remaining}</span>
@@ -2697,7 +2546,6 @@ window.addEventListener("DOMContentLoaded", () => {
             runSearch();
         });
 
-        // Invio nella textbox = cerca
         searchInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
                 runSearch();
@@ -2712,10 +2560,6 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
 });
-
-// -------------------------
-// Esporta report navigabile (HTML + JSON)
-// -------------------------
 
 async function exportNavigableReport() {
     if (!rootTree) {
@@ -2738,7 +2582,6 @@ async function exportNavigableReport() {
         if (result && result.error) {
             await showError("Errore durante l'esportazione del report navigabile.", result.error);
         } else if (!result || result.canceled) {
-            // annullato: nessun messaggio
         } else {
             await showInfo(
                 "Report navigabile esportato.",
@@ -2754,10 +2597,6 @@ async function exportNavigableReport() {
     }
 }
 
-// -------------------------
-// Listener dal main
-// -------------------------
-
 ipcRenderer.on("hierarchy-progress", (event, payload) => {
     const { totalFiles, totalDirs } = payload;
 
@@ -2769,7 +2608,6 @@ ipcRenderer.on("hierarchy-progress", (event, payload) => {
         `;
     }
 
-    // messaggi divertenti durante la scansione
     if (detailsBox) {
         const scanFunStatus = document.getElementById("scanFunStatus");
         if (scanFunStatus) {
@@ -2803,17 +2641,12 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
         <p id="buildFunStatus" class="fun-status muted"></p>
     `;
 
-    // messaggi divertenti per costruzione albero
     funMessageIndex = 0;
     lastFunMessageTime = performance.now();
     const buildFunStatus = document.getElementById("buildFunStatus");
     if (buildFunStatus) {
         buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
     }
-
-    // ---------------------
-    // Nuova costruzione completa dell'albero
-    // ---------------------
 
     rootTree = createRootTree(rootFolder || selectedFolder || "");
     originalRootTree = null;
@@ -2834,12 +2667,9 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
 
     return;
 
-    // L'albero � stato costruito in modo incrementale nei vari "progress":
-    // qui dobbiamo solo prendere uno snapshot per i filtri e renderizzare.
     pendingEntries = [];
     isBuildingTree = false;
 
-    // snapshot dell'albero completo (base per i filtri)
     originalRootTree = cloneTree(rootTree);
     renderTreeFromModel();
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";

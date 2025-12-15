@@ -402,8 +402,6 @@ button:hover {
     text-align: right;
 }
 
-/* -------- ALBERO -------- */
-
 .tree-node {
     padding: 3px 0;
     cursor: pointer;
@@ -439,8 +437,6 @@ button:hover {
     min-width: 0;
 }
 
-/* -------- MENU CONTESTUALE -------- */
-
 .context-menu {
     position: fixed;
     display: none;
@@ -463,8 +459,6 @@ button:hover {
 .context-menu-item:hover {
     background-color: #444;
 }
-
-/* -------- SCROLLBAR STILE AYPI -------- */
 
 ::-webkit-scrollbar {
     width: 10px;
@@ -489,8 +483,6 @@ button:hover {
 ::-webkit-scrollbar-corner {
     background: #2b2824;
 }
-
-/* -------- VARIE -------- */
 
 .muted {
     color: #aaaaaa;
@@ -517,7 +509,6 @@ button:hover {
     margin-bottom: 6px;
 }
 
-/* Progress bar indeterminata */
 .progress-container {
     margin-top: 8px;
     width: 100%;

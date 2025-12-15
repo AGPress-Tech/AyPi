@@ -1,17 +1,14 @@
-// Import moduli Node/Electron
 const { ipcRenderer, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const axios = require("axios");
 const { exec } = require("child_process");
 
-// Percorso add-in Excel
 const addinUrl = 'http://data.agpress-srl.it/AypiExcelAddin/MacroUtils.xlam';
 const addinFolder = 'C:\\AyPiAddin';
 if (!fs.existsSync(addinFolder)) fs.mkdirSync(addinFolder, { recursive: true });
 const addinPath = path.join(addinFolder, 'MacroUtils.xlam');
 
-// Funzione per installare/aggiornare add-in
 async function installAddinFunction() {
     try {
         const response = await axios.get(addinUrl, { responseType: 'arraybuffer' });
@@ -50,9 +47,7 @@ async function installAddinFunction() {
     }
 }
 
-// Funzione principale per inizializzare UI comune
 function initCommonUI() {
-    // --- Effetto dissolvenza pagina ---
     document.body.style.opacity = 0;
     document.body.style.transition = "opacity 0.3s ease";
     window.addEventListener("DOMContentLoaded", () => {
@@ -61,7 +56,6 @@ function initCommonUI() {
         });
     });
 
-    // --- Icona GitHub ---
     const githubIcon = document.getElementById("githubIcon");
     if (githubIcon) {
         githubIcon.addEventListener("click", () => {
@@ -69,7 +63,6 @@ function initCommonUI() {
         });
     }
 
-    // --- Versione app ---
     const appVersionElement = document.getElementById("appVersion");
     if (appVersionElement) {
         ipcRenderer.invoke("get-app-version").then(version => {
@@ -77,7 +70,6 @@ function initCommonUI() {
         });
     }
 
-    // --- Caricamento dinamico sidebar ---
     const sidebarContainer = document.getElementById("sidebar-container");
     if (sidebarContainer) {
         fetch('sidebar.html')
@@ -85,12 +77,10 @@ function initCommonUI() {
             .then(html => {
                 sidebarContainer.innerHTML = html;
 
-                // Elementi sidebar
                 const sidebar = document.getElementById("mySidebar");
                 const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
                 const menuBtn = document.getElementById("menuBtn");
 
-                // Funzioni apertura/chiusura
                 function openNav() {
                     if (sidebar) sidebar.style.width = "30%";
                     const main = document.getElementById("main");
@@ -106,7 +96,6 @@ function initCommonUI() {
                 if (sidebar) sidebar.addEventListener("mouseleave", closeNav);
                 if (closeBtn) closeBtn.addEventListener("click", closeNav);
 
-                // --- Orologio sidebar ---
                 const clockElement = document.getElementById("clock");
                 if (clockElement) {
                     function updateClock() {
@@ -119,7 +108,6 @@ function initCommonUI() {
                     setInterval(updateClock, 1000);
                 }
 
-                // --- Pulsante add-in ---
                 const installBtn = document.getElementById('install-addin');
                 if (installBtn) {
                     installBtn.addEventListener('click', installAddinFunction);
@@ -130,5 +118,4 @@ function initCommonUI() {
     }
 }
 
-// Esportazione funzione
 module.exports = { initCommonUI };

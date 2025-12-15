@@ -94,11 +94,11 @@ select {
 }
 
 .preview-section {
-    height: 220px;          /* altezza iniziale comoda */
-    min-height: 120px;      /* non troppo piccolo */
-    max-height: 70vh;       /* non oltre l'altezza finestra */
-    resize: vertical;       /* permetti il resize manuale */
-    overflow: auto;         /* mostra scrollbar quando serve */
+    height: 220px;
+    min-height: 120px;
+    max-height: 70vh;
+    resize: vertical;
+    overflow: auto;
     border: 1px solid #555;
     border-radius: 6px;
     padding: 6px;
@@ -165,28 +165,27 @@ tr.status-error td {
     text-align: right;
 }
 
-/* -------- SCROLLBAR STILE AYPI -------- */
 
 ::-webkit-scrollbar {
-    width: 10px;           /* larghezza barra verticale */
-    height: 10px;          /* altezza barra orizzontale */
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: #2b2824;   /* colore sfondo */
+    background: #2b2824;
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #cc930e;   /* colore barra */
+    background: #cc930e;
     border-radius: 10px;
-    border: 2px solid #2b2824; /* bordino per dare profondità */
+    border: 2px solid #2b2824;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #e4ab32;   /* colore barra in hover */
+    background: #e4ab32;
 }
 
 ::-webkit-scrollbar-corner {
-    background: #2b2824;   /* l'angolo tra scroll orizz/vert */
+    background: #2b2824;
 }

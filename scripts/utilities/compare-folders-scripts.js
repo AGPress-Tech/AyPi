@@ -46,8 +46,6 @@ function collectFiles(rootPath, includeSubfolders) {
         for (const entry of entries) {
             const full = path.join(currentPath, entry.name);
 
-            // Come nel main process: usiamo sempre fs.statSync per determinare
-            // il tipo reale (file/cartella), così includiamo anche elementi speciali.
             let stat;
             try {
                 stat = fs.statSync(full);
@@ -230,7 +228,6 @@ function renderTable() {
             rows.forEach((r) => r.classList.remove("row-selected"));
             tr.classList.add("row-selected");
 
-            // Cerchiamo l'indice reale in "results"
             const realIndex = results.findIndex(
                 (r) => r.relPath === item.relPath && r.status === item.status
             );
@@ -346,7 +343,6 @@ window.addEventListener("DOMContentLoaded", () => {
     filterDiff.addEventListener("change", renderTable);
     filterSame.addEventListener("change", renderTable);
 
-    // Cartella A dalla Gerarchia
     ipcRenderer.on("compare-folders-set-A", (event, folderPath) => {
         if (folderPath) {
             folderA = folderPath;
@@ -354,7 +350,6 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Cartella B dalla Gerarchia
     ipcRenderer.on("compare-folders-set-B", (event, folderPath) => {
         if (folderPath) {
             folderB = folderPath;

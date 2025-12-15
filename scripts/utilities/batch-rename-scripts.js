@@ -6,7 +6,6 @@ let rootFolder = null;
 let previewData = [];
 let selectedIndex = null;
 
-// --- Dialog helper (riutilizza show-message-box che hai nel main) ---
 function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
 }
@@ -23,14 +22,12 @@ function showError(message, detail = "") {
     return showDialog("error", message, detail);
 }
 
-// --- Utility: split nome + estensione ---
 function splitNameExt(filename) {
     const ext = path.extname(filename);
     const name = filename.slice(0, ext.length > 0 ? -ext.length : undefined);
     return { name, ext };
 }
 
-// --- Parsing estensioni ---
 function parseExtensions(extString) {
     if (!extString) return [];
     return extString
@@ -40,7 +37,6 @@ function parseExtensions(extString) {
         .map(s => (s.startsWith(".") ? s.toLowerCase() : "." + s.toLowerCase()));
 }
 
-// --- Scansione cartella ---
 function collectFiles(rootPath, includeSubfolders, extFilterList) {
     const results = [];
 
@@ -72,7 +68,6 @@ function collectFiles(rootPath, includeSubfolders, extFilterList) {
     return results;
 }
 
-// --- Modalità di rinomina: trasformazioni ---
 function applyTransform(filename, index) {
     const { name, ext } = splitNameExt(filename);
     const mode = document.getElementById("modeSelect").value;
@@ -140,18 +135,13 @@ function applyTransform(filename, index) {
         return `${baseText}_${numStr}${ext}`;
     }
 
-    // Default: nessun cambiamento
     return filename;
 }
 
-// --- Generazione anteprima ---
-// Gestisce i conflitti in modo case-insensitive e permette
-// rinomine che cambiano solo maiuscole/minuscole sullo stesso file.
 function buildPreview(filePaths) {
     previewData = [];
-    const usedTargets = new Map(); // key = percorso destinazione (case-insensitive)
+    const usedTargets = new Map();
 
-    // Set di tutti i percorsi originali (case-insensitive)
     const originalKeySet = new Set(filePaths.map(p => p.toLowerCase()));
 
     filePaths.forEach((fullPath, index) => {
@@ -205,7 +195,7 @@ function buildPreview(filePaths) {
 function renderPreviewTable() {
     const tbody = document.querySelector("#previewTable tbody");
     tbody.innerHTML = "";
-    selectedIndex = null; // reset selezione ad ogni render
+    selectedIndex = null;
 
     previewData.forEach((item, index) => {
         const tr = document.createElement("tr");
@@ -234,7 +224,6 @@ function renderPreviewTable() {
         tr.appendChild(tdStatus);
         tbody.appendChild(tr);
 
-        // Click per selezionare riga
         tr.addEventListener("click", () => {
             const rows = tbody.querySelectorAll("tr");
             rows.forEach(r => r.classList.remove("row-selected"));
@@ -267,7 +256,6 @@ async function handlePreview() {
 
     let files = collectFiles(rootFolder, includeSubfolders, extList);
 
-    // Ordina i file secondo l'ordine scelto
     const sortOrderSelect = document.getElementById("sortOrder");
     const sortOrder = sortOrderSelect ? sortOrderSelect.value : "nameAsc";
 
@@ -286,7 +274,6 @@ async function handlePreview() {
         return;
     }
 
-    // L'indice passato ad applyTransform riflette l'ordine attuale (dopo ordinamento)
     buildPreview(files);
     renderPreviewTable();
 
@@ -344,11 +331,9 @@ async function handleOpenFolder() {
         return;
     }
 
-    // Riutilizza la logica esistente di open-file nel main (che apre cartelle)
     ipcRenderer.send("open-file", dir);
 }
 
-// --- UI wiring ---
 function switchModePanels() {
     const mode = document.getElementById("modeSelect").value;
     const panels = document.querySelectorAll(".mode-panel");

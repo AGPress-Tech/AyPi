@@ -6,10 +6,6 @@ const { exec } = require("child_process");
 const fs = require("fs");
 const log = require("electron-log");
 
-// -------------------------
-// Animazione resize finestra principale
-// -------------------------
-
 function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
     if (!mainWindow) return;
 
@@ -34,10 +30,6 @@ function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
         }
     }, stepDuration);
 }
-
-// -------------------------
-// Finestre secondarie
-// -------------------------
 
 let batchRenameWindow = null;
 let qrGeneratorWindow = null;
@@ -183,12 +175,7 @@ function openCompareFoldersWindow(slot, folder) {
     }
 }
 
-// -------------------------
-// Setup IPC
-// -------------------------
-
 function setupFileManager(mainWindow) {
-    // Resize calcolatrice / normale
     ipcMain.on("resize-calcolatore", () => {
         animateResize(mainWindow, 750, 750, 100);
     });
@@ -197,15 +184,11 @@ function setupFileManager(mainWindow) {
         animateResize(mainWindow, 750, 550, 100);
     });
 
-    // Apri file o cartella con l'app di sistema
     ipcMain.on("open-file", (event, filePath) => {
-        // File di test per verificare la raggiungibilità del server DL360
         const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt";
 
-        // Verifica se il server è raggiungibile
         fs.access(testFile, fs.constants.F_OK, (err) => {
             if (err) {
-                // Se il file non è accessibile → server non raggiungibile
                 log.warn("Server non raggiungibile:", err.message);
                 dialog.showMessageBox(mainWindow, {
                     type: 'warning',
@@ -216,10 +199,8 @@ function setupFileManager(mainWindow) {
                 return;
             }
 
-            // Se il server risponde, verifica il file richiesto
             fs.stat(filePath, (err, stats) => {
                 if (err) {
-                    // Se il percorso non esiste
                     dialog.showMessageBox(mainWindow, {
                         type: 'warning',
                         buttons: ['Ok'],
@@ -229,14 +210,11 @@ function setupFileManager(mainWindow) {
                     return;
                 }
 
-                // Se è una cartella → apri direttamente in Esplora Risorse
                 if (stats.isDirectory()) {
                     shell.openPath(filePath);
                 } else {
-                    // Se è un file → prova ad aprirlo
                     exec(`start "" "${filePath}"`, (error) => {
                         if (error) {
-                            // Caso: file già aperto da un altro processo
                             if (error.message.includes("utilizzato da un altro processo")) {
                                 dialog.showMessageBox(mainWindow, {
                                     type: 'warning',
@@ -249,7 +227,6 @@ function setupFileManager(mainWindow) {
                                     }
                                 });
                             } else {
-                                // Altro tipo di errore generico
                                 dialog.showMessageBox(mainWindow, {
                                     type: 'error',
                                     buttons: ['Ok'],
@@ -264,7 +241,6 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    // Selezione cartella root
     ipcMain.handle("select-root-folder", async (event) => {
         const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
 
@@ -279,7 +255,6 @@ function setupFileManager(mainWindow) {
         return result.filePaths[0];
     });
 
-    // Selezione file di output (Excel o altro)
     ipcMain.handle("select-output-file", async (event, options) => {
         const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
 
@@ -295,7 +270,6 @@ function setupFileManager(mainWindow) {
         return result.filePath;
     });
 
-    // Message box generico
     ipcMain.handle("show-message-box", async (event, options) => {
         const win = BrowserWindow.getFocusedWindow() || mainWindow;
 
@@ -308,12 +282,10 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    // Versione app (usata dal renderer)
     ipcMain.handle("get-app-version", async () => {
         return app.getVersion();
     });
 
-    // Apertura utilities
     ipcMain.on("open-batch-rename-window", () => {
         openBatchRenameWindow(mainWindow);
     });
@@ -330,7 +302,6 @@ function setupFileManager(mainWindow) {
         openHierarchyWindow(mainWindow);
     });
 
-    // Gerarchia -> Batch Rename
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {
         const folder = payload?.folder;
         openBatchRenameWindow(mainWindow);
@@ -343,7 +314,6 @@ function setupFileManager(mainWindow) {
         }
     });
 
-    // Gerarchia -> Confronta cartelle (A/B)
     ipcMain.on("hierarchy-compare-folder-A", (event, payload) => {
         openCompareFoldersWindow("A", payload?.folder);
     });
@@ -351,10 +321,6 @@ function setupFileManager(mainWindow) {
     ipcMain.on("hierarchy-compare-folder-B", (event, payload) => {
         openCompareFoldersWindow("B", payload?.folder);
     });
-
-    // ------------------------
-    // Esporta report navigabile (HTML + JSON)
-    // ------------------------
 
     ipcMain.handle("hierarchy-export-navigable-report", async (event, payload) => {
         try {
@@ -390,10 +356,8 @@ function setupFileManager(mainWindow) {
               const cssPath = path.join(reportDir, "report.css");
               const chartPath = path.join(reportDir, "chart.umd.js");
 
-              // JSON dati separato
               fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), "utf8");
 
-              // Nuova generazione report basata sui template condivisi
               try {
                   const templateDir = path.join(__dirname, "..", "templates");
                   const htmlTemplatePath = path.join(templateDir, "hierarchy-report.html");
@@ -414,10 +378,7 @@ function setupFileManager(mainWindow) {
                   fs.writeFileSync(cssPath, cssContent, "utf8");
                   fs.writeFileSync(jsPath, jsContent, "utf8");
 
-                  // Copia Chart.js UMD locale per i grafici
                   try {
-                      // chart.js esporta come entry principale il file CJS in dist/chart.cjs.
-                      // Da lì ricaviamo il percorso della build UMD per il browser.
                       const chartMainPath = require.resolve("chart.js");
                       const chartSrcPath = path.join(path.dirname(chartMainPath), "chart.umd.js");
                       fs.copyFileSync(chartSrcPath, chartPath);
@@ -432,10 +393,8 @@ function setupFileManager(mainWindow) {
                   };
               } catch (templateErr) {
                   log.error("[hierarchy] errore durante la generazione del report navigabile da template:", templateErr);
-                  // Se qualcosa va storto con i template, si prosegue con la versione legacy sotto.
               }
 
-              // HTML (layout fisso, non scroll esterno) - versione legacy
               const htmlContent =
                 "<!DOCTYPE html>\n" +
                 "<html lang=\"it\">\n" +
@@ -484,7 +443,6 @@ function setupFileManager(mainWindow) {
                 "</body>\n" +
                 "</html>\n";
 
-            // CSS (no scroll esterno, solo interno ai pannelli)
             const cssContent =
                 "html, body {\n" +
                 "  margin: 0;\n" +
@@ -610,7 +568,6 @@ function setupFileManager(mainWindow) {
                 "  font-size: 13px;\n" +
                 "}\n";
 
-            // JS: embed direttamente i dati, + filtro albero
             const jsContent =
                 '"use strict";\n\n' +
                 "const REPORT_DATA = " + JSON.stringify(data, null, 2) + ";\n\n" +

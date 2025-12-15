@@ -1,21 +1,12 @@
 "use strict";
 
-// REPORT_DATA viene iniettato da fileManager.js dentro report.js
-// Questo script gestisce la vista ad albero + pannello destro
-// (Dettagli, Top elementi, Statistiche) del report esportato.
-
-// Stato globale per il report esportato
 let lastSelectedNode = null;
 let extChartInstance = null;
 let timelineChartInstance = null;
-let extStatsMode = "size"; // "size" | "count"
-let extStatsSortDir = "desc"; // "asc" | "desc"
+let extStatsMode = "size";
+let extStatsSortDir = "desc";
 let statsYearFrom = null;
 let statsYearTo = null;
-
-// -------------------------
-// Helper
-// -------------------------
 
 function formatBytes(bytes) {
     if (!bytes || !isFinite(bytes) || bytes <= 0) return "0 B";
@@ -28,10 +19,6 @@ function formatBytes(bytes) {
     }
     return val.toFixed(2) + " " + units[idx];
 }
-
-// -------------------------
-// Albero gerarchico
-// -------------------------
 
 function buildTree(node, container) {
     if (!node) return;
@@ -64,7 +51,6 @@ function buildTree(node, container) {
             icon.textContent = isOpen ? "\u25BC" : "\u25B6";
         }
 
-        // Se la tab Statistiche è attiva, aggiorna subito i grafici
         const activeTabBtn = document.querySelector(".details-tab-btn.active");
         if (activeTabBtn && activeTabBtn.getAttribute("data-tab") === "details-stats") {
             renderStatsPanel(getReportDataSafe());
@@ -124,10 +110,6 @@ function showDetails(node) {
 
     el.innerHTML = html;
 }
-
-// -------------------------
-// Top elementi (globali)
-// -------------------------
 
 function renderTopElementsPanel(data) {
     const limitInput = document.getElementById("topElementsLimit");
@@ -240,10 +222,6 @@ function renderTopElementsPanel(data) {
     tableEl.appendChild(thead);
     tableEl.appendChild(tbody);
 }
-
-// -------------------------
-// Statistiche + grafici (per sottoalbero)
-// -------------------------
 
 function computeStatsForSubtree(rootNode) {
     if (!rootNode) return null;
@@ -405,7 +383,6 @@ function renderStatsPanel(data) {
         html += "</p>";
     }
 
-    // Controlli per estensioni
     html += "<hr>";
     html += "<p><b>Estensioni principali:</b></p>";
     html += "<div class=\"top-elements-controls\">";
@@ -440,7 +417,6 @@ function renderStatsPanel(data) {
             : '<div id="extStatsFallback" class="muted">Chart.js non disponibile.</div>';
     html += "</div>";
 
-    // Timeline + filtri anni
     html += "<hr>";
     html += "<p><b>Timeline modifiche (file per periodo):</b></p>";
     html += '<div class="stats-timeline-filters">';
@@ -467,12 +443,10 @@ function renderStatsPanel(data) {
 
     box.innerHTML = html;
 
-    // Se Chart non è disponibile fermiamoci ai testi
     if (typeof Chart === "undefined") {
         return;
     }
 
-    // ---- Grafico estensioni ----
     const extCanvas = document.getElementById("extStatsChart");
     if (extCanvas && extStats.length) {
         const modeKey = extStatsMode === "count" ? "count" : "totalSizeBytes";
@@ -529,20 +503,17 @@ function renderStatsPanel(data) {
         });
     }
 
-    // ---- Timeline modifiche ----
     const tlCanvas = document.getElementById("timelineChart");
     if (tlCanvas && timeBuckets.length) {
         const yearFromInput = document.getElementById("timelineYearFrom");
         const yearToInput = document.getElementById("timelineYearTo");
 
-        // Default: se l'utente non ha ancora scelto nulla, ultimi 10 anni
         if (statsYearFrom == null && statsYearTo == null) {
             const currentYear = new Date().getFullYear();
             statsYearTo = currentYear;
             statsYearFrom = currentYear - 9;
         }
 
-        // Applica filtro sugli anni
         let filteredBuckets = timeBuckets.slice();
         if (filteredBuckets.length && (statsYearFrom != null || statsYearTo != null)) {
             filteredBuckets = filteredBuckets.filter((b) => {
@@ -609,7 +580,6 @@ function renderStatsPanel(data) {
             },
         });
 
-        // Listener per aggiornare il filtro anni
         const applyYearFilter = () => {
             let fromVal = statsYearFrom;
             let toVal = statsYearTo;
@@ -649,7 +619,6 @@ function renderStatsPanel(data) {
         }
     }
 
-    // Listener per controlli estensioni
     const modeEl = document.getElementById("extStatsMode");
     const sortEl = document.getElementById("extStatsSort");
     if (modeEl) {
@@ -665,10 +634,6 @@ function renderStatsPanel(data) {
         });
     }
 }
-
-// -------------------------
-// Tabs (Dettagli / Top elementi / Statistiche)
-// -------------------------
 
 function initTabs(data) {
     const buttons = document.querySelectorAll(".details-tab-btn");
@@ -699,10 +664,6 @@ function initTabs(data) {
     });
 }
 
-// -------------------------
-// Filtro albero
-// -------------------------
-
 function applyTreeFilter(query) {
     const q = (query || "").toLowerCase();
     const nodes = document.querySelectorAll(".tree-node");
@@ -714,10 +675,6 @@ function applyTreeFilter(query) {
     });
 }
 
-// -------------------------
-// Init
-// -------------------------
-
 function getReportDataSafe() {
     return typeof REPORT_DATA === "object" && REPORT_DATA ? REPORT_DATA : {};
 }
@@ -725,7 +682,6 @@ function getReportDataSafe() {
 function initReport() {
     const data = getReportDataSafe();
 
-    // meta
     const meta = data.meta || {};
     const metaEl = document.getElementById("metaInfo");
     if (metaEl) {
@@ -736,13 +692,11 @@ function initReport() {
         metaEl.textContent = `${root} - generato il ${when}`;
     }
 
-    // albero
     const treeRootEl = document.getElementById("treeRoot");
     if (treeRootEl && data.hierarchy) {
         buildTree(data.hierarchy, treeRootEl);
     }
 
-    // dettagli iniziali: root / statistiche globali
     showDetails({
         name: meta.rootPath || "root",
         fullPath: meta.rootPath || "",
@@ -752,10 +706,8 @@ function initReport() {
         foldersCount: (data.globalStats || {}).totalFolders,
     });
 
-    // tabs
     initTabs(data);
 
-    // top elementi: hook su controlli
     const limitInput = document.getElementById("topElementsLimit");
     const modeSelect = document.getElementById("topElementsMode");
     if (limitInput && modeSelect) {
@@ -763,7 +715,6 @@ function initReport() {
         modeSelect.addEventListener("change", () => renderTopElementsPanel(data));
     }
 
-    // filtro albero
     const filterEl = document.getElementById("treeFilter");
     if (filterEl) {
         filterEl.addEventListener("input", () => {

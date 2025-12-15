@@ -46,8 +46,6 @@ body {
     box-sizing: border-box;
 }
 
-/* Pannello gerarchia (sinistra) */
-
 .tree-panel {
     flex: 1 1 0;
     min-width: 0;
@@ -133,8 +131,6 @@ body {
     min-width: 0;
 }
 
-/* Pannello destro */
-
 .details-container {
     flex: 1 1 0;
     min-width: 0;
@@ -184,8 +180,6 @@ body {
 .details-tab-content.hidden {
     display: none;
 }
-
-/* Top elementi */
 
 .top-elements-controls {
     display: flex;
@@ -253,8 +247,6 @@ body {
     cursor: pointer;
 }
 
-/* Statistiche */
-
 .stats-summary {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -313,8 +305,6 @@ body {
     align-items: center;
 }
 
-/* Tabelle generiche (topX) già definite sopra */
-
 .data-table {
     width: 100%;
     border-collapse: collapse;
@@ -348,8 +338,6 @@ body {
     background-color: #2b2824;
     font-size: 13px;
 }
-
-/* Scrollbar stile AyPi */
 
 ::-webkit-scrollbar {
     width: 10px;
