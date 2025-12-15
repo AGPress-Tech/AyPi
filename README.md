@@ -1,4 +1,4 @@
-﻿# AyPi Module Manager
+﻿# [**AyPi**](https://data.agpress-srl.it/) Module Manager
 
 Questo applicativo è stato sviluppato per gli operatori [**AGPress**](https://agpress-srl.it/) per poter visualizzare
 ed interagire con più semplicità con ogni modulo **AyPi** presente in rete.
@@ -31,4 +31,5 @@ L'applicazione si auto-aggiorna all'apertura, verifica che l'utente è collegato
 spostati o sono in uso da altri operatori.
 
 Ha anche integrato un pulsante per scaricare e aggiornare l'<b>addin AyPi</b> per <b>Excel</b>!
+
 
