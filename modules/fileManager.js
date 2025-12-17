@@ -292,6 +292,85 @@ function setupFileManager(mainWindow) {
         return app.getVersion();
     });
 
+    const presetsPath = path.join(app.getPath("userData"), "batch-rename-presets.json");
+
+    function loadBatchRenamePresets() {
+        try {
+            if (!fs.existsSync(presetsPath)) return [];
+            const raw = fs.readFileSync(presetsPath, "utf8");
+            const data = JSON.parse(raw);
+            if (Array.isArray(data)) return data;
+            return [];
+        } catch (err) {
+            log.error("[batch-rename] impossibile leggere i preset:", err);
+            return [];
+        }
+    }
+
+    function saveBatchRenamePresets(list) {
+        try {
+            fs.writeFileSync(presetsPath, JSON.stringify(list, null, 2), "utf8");
+        } catch (err) {
+            log.error("[batch-rename] impossibile salvare i preset:", err);
+        }
+    }
+
+    ipcMain.handle("batch-rename-load-presets", async () => {
+        return loadBatchRenamePresets();
+    });
+
+    ipcMain.handle("batch-rename-save-preset", async (event, payload) => {
+        const name = (payload && payload.name ? String(payload.name) : "").trim();
+        const data = payload && payload.data ? payload.data : null;
+        if (!name || !data) {
+            return loadBatchRenamePresets();
+        }
+
+        const list = loadBatchRenamePresets();
+        const existingIndex = list.findIndex(p => p && typeof p.name === "string" && p.name === name);
+        const entry = { name, data, updatedAt: new Date().toISOString() };
+        if (existingIndex >= 0) {
+            list[existingIndex] = entry;
+        } else {
+            list.push(entry);
+        }
+        saveBatchRenamePresets(list);
+        return list;
+    });
+
+    ipcMain.handle("batch-rename-delete-preset", async (event, payload) => {
+        const name = (payload && payload.name ? String(payload.name) : "").trim();
+        if (!name) {
+            return loadBatchRenamePresets();
+        }
+        const list = loadBatchRenamePresets().filter(p => !(p && p.name === name));
+        saveBatchRenamePresets(list);
+        return list;
+    });
+
+    ipcMain.handle("batch-rename-set-hidden", async (event, payload) => {
+        const targetPath = payload && payload.path ? String(payload.path) : "";
+        const hidden = !!(payload && payload.hidden);
+        if (!targetPath) {
+            return { ok: false, error: "Percorso non valido" };
+        }
+        if (process.platform !== "win32") {
+            return { ok: false, error: "Attributo nascosto supportato solo su Windows" };
+        }
+
+        return new Promise(resolve => {
+            const flag = hidden ? "+H" : "-H";
+            exec(`attrib ${flag} "${targetPath}"`, (err) => {
+                if (err) {
+                    log.error("[batch-rename] errore impostando attributo hidden:", targetPath, err);
+                    resolve({ ok: false, error: err.message || String(err) });
+                } else {
+                    resolve({ ok: true });
+                }
+            });
+        });
+    });
+
     ipcMain.on("open-batch-rename-window", () => {
         openBatchRenameWindow(mainWindow);
     });

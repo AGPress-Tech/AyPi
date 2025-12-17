@@ -79,6 +79,22 @@
                     </div>
                 </div>
 
+                <!-- Preset -->
+                <div class="section preset-section">
+                    <label>Preset di rinomina</label>
+                    <div class="preset-row">
+                        <select id="presetSelect">
+                            <option value="">(Nessun preset selezionato)</option>
+                        </select>
+                        <input type="text" id="presetName" placeholder="Nome preset">
+                        <button id="btnPresetSave">Salva preset</button>
+                        <button id="btnPresetDelete" disabled>Elimina preset</button>
+                    </div>
+                    <p class="preset-hint">
+                        I preset salvano ambito, filtri e tutte le opzioni di trasformazione (non la cartella).
+                    </p>
+                </div>
+
                 <!-- Esplora cartelle (jstree) -->
                 <div class="section folder-tree-section">
                     <label>Esplora cartelle (clic per impostare la cartella di lavoro)</label>
@@ -305,6 +321,169 @@
 
                             <label for="dateSeparator">Separatore opzionale</label>
                             <input type="text" id="dateSeparator" placeholder="es: _">
+                        </div>
+                    </div>
+
+                    <!-- Remove avanzato -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkRemoveAdvancedEnabled">
+                                Rimozione avanzata
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Primi / ultimi N caratteri</label>
+                            <div class="two-input-row">
+                                <input type="number" id="removeFirstN" min="0" placeholder="Primi N">
+                                <input type="number" id="removeLastN" min="0" placeholder="Ultimi N">
+                            </div>
+
+                            <label>Rimuovi intervallo (da / a)</label>
+                            <div class="two-input-row">
+                                <input type="number" id="removeRangeFrom" min="0" placeholder="da">
+                                <input type="number" id="removeRangeTo" min="0" placeholder="a">
+                            </div>
+
+                            <label>Taglia prima/dopo testo</label>
+                            <div class="two-input-row">
+                                <select id="removeCropMode">
+                                    <option value="none">Nessuno</option>
+                                    <option value="before">Prima di</option>
+                                    <option value="after">Dopo</option>
+                                </select>
+                                <input type="text" id="removeCropText" placeholder="Testo di riferimento">
+                            </div>
+
+                            <div class="multi-checkbox-row">
+                                <label class="inline"><input type="checkbox" id="removeTrimSpaces"> Rimuovi spazi
+                                    esterni</label>
+                                <label class="inline"><input type="checkbox" id="removeLeadingDots"> Rimuovi punti
+                                    iniziali</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Parti nome / cartella / estensione -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkPartsEnabled">
+                                Parti nome, cartella, estensione
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Delimitatore parti nome</label>
+                            <div class="two-input-row">
+                                <select id="partsDelimiter">
+                                    <option value="auto">Automatico (_ - spazio)</option>
+                                    <option value="space">Spazio</option>
+                                    <option value="underscore">_</option>
+                                    <option value="dash">-</option>
+                                    <option value="dot">.</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <input type="text" id="partsDelimiterCustom" placeholder="Delimitatore custom">
+                            </div>
+
+                            <label>Sposta parte nome (indice da → a)</label>
+                            <div class="two-input-row">
+                                <input type="number" id="partsMoveFrom" min="1" placeholder="da">
+                                <input type="number" id="partsMoveTo" min="1" placeholder="a">
+                            </div>
+
+                            <label>Aggiungi nome cartella</label>
+                            <div class="two-input-row">
+                                <select id="appendFolderPosition">
+                                    <option value="none">Nessuno</option>
+                                    <option value="prefix">Prefisso</option>
+                                    <option value="suffix">Suffisso</option>
+                                </select>
+                                <input type="text" id="appendFolderSeparator" placeholder="Separatore (es: _)">
+                            </div>
+                            <label>Livelli cartella (1 = cartella padre)</label>
+                            <input type="number" id="appendFolderLevels" min="1" value="1">
+
+                            <label>Estensione</label>
+                            <div class="two-input-row">
+                                <select id="extensionMode">
+                                    <option value="keep">Mantieni</option>
+                                    <option value="lower">minuscolo</option>
+                                    <option value="upper">MAIUSCOLO</option>
+                                    <option value="replace">Sostituisci</option>
+                                </select>
+                                <input type="text" id="extensionReplace" placeholder="Nuova estensione (es: .txt)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Copia/Sposta in cartella -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkCopyMoveEnabled">
+                                Copia / Sposta in cartella
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Percorso destinazione</label>
+                            <input type="text" id="copyMovePath" placeholder="Es: C:\\Output\\Rinominati">
+
+                            <div class="multi-checkbox-row">
+                                <label class="inline">
+                                    <input type="checkbox" id="copyMoveCopyNotMove">
+                                    Copia (non spostare)
+                                </label>
+                                <label class="inline">
+                                    <input type="checkbox" id="copyMoveKeepFolders">
+                                    Mantieni struttura cartelle
+                                </label>
+                            </div>
+
+                            <p style="font-size: 11px; opacity: 0.8;">
+                                La destinazione verrà usata al posto della cartella originale per le operazioni di
+                                rinomina/spostamento.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Speciale (attributi / timestamp / JS) -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkSpecialEnabled">
+                                Speciale (attributi / date)
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Timestamp</label>
+                            <div class="multi-checkbox-row">
+                                <label class="inline">
+                                    <input type="checkbox" id="specialSetMtimeNow">
+                                    Aggiorna data modifica a adesso
+                                </label>
+                                <label class="inline">
+                                    <input type="checkbox" id="specialSetAtimeNow">
+                                    Aggiorna data accesso a adesso
+                                </label>
+                            </div>
+
+                            <label>Attributi (solo file dove possibile)</label>
+                            <div class="multi-checkbox-row">
+                                <label class="inline">
+                                    <input type="checkbox" id="specialAttrReadOnly">
+                                    Sola lettura
+                                </label>
+                                <label class="inline">
+                                    <input type="checkbox" id="specialAttrHidden">
+                                    Nascosto
+                                </label>
+                            </div>
+
+                            <p style="font-size: 11px; opacity: 0.8;">
+                                Alcuni attributi potrebbero non essere supportati su tutti i sistemi. Le modifiche
+                                vengono applicate dopo la rinomina.
+                            </p>
                         </div>
                     </div>
                 </div>
