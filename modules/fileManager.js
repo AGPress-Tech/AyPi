@@ -43,7 +43,7 @@ function openBatchRenameWindow(mainWindow) {
     }
 
     batchRenameWindow = new BrowserWindow({
-        width: 900,
+        width: 1200,
         height: 800,
         parent: mainWindow,
         modal: false,
@@ -56,7 +56,13 @@ function openBatchRenameWindow(mainWindow) {
 
     batchRenameWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"));
     batchRenameWindow.setMenu(null);
-    batchRenameWindow.center();
+
+    // Apertura in modalità "fullscreen windowed" (massimizzata)
+    batchRenameWindow.once("ready-to-show", () => {
+        if (!batchRenameWindow.isDestroyed()) {
+            batchRenameWindow.maximize();
+        }
+    });
 
     batchRenameWindow.on("closed", () => {
         batchRenameWindow = null;

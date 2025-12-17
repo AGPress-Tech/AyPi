@@ -3,11 +3,15 @@ body {
     background-color: #332f2b;
     color: #fff;
     margin: 0;
-    overflow: hidden;
+    overflow-y: auto;
 }
 
 .container {
     padding: 16px;
+    box-sizing: border-box;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 h2 {
@@ -17,18 +21,45 @@ h2 {
 }
 
 .section {
-    margin-top: 12px;
+    margin-top: 10px;
     border-top: 1px solid #555;
-    padding-top: 10px;
+    padding-top: 8px;
 }
 
 .section-row {
     display: flex;
     gap: 12px;
+    align-items: flex-start;
 }
 
 .section-field {
     flex: 1;
+}
+
+.top-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    gap: 10px;
+    align-items: stretch;
+}
+
+.top-controls {
+    display: flex;
+    flex-direction: column;
+}
+
+.top-preview {
+    /* colonna destra piÃ¹ ampia giÃ gestita dalla grid */
+}
+
+.top-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+}
+
+.top-bar .section-field:first-child {
+    max-width: 40%;
 }
 
 .label-row {
@@ -44,7 +75,25 @@ h2 {
 
 .label-row .value {
     flex: 1;
-    word-break: break-all;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.scope-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+button,
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+    font-family: inherit;
+    font-size: 14px;
 }
 
 button {
@@ -72,7 +121,8 @@ button:disabled {
 
 input[type="text"],
 input[type="number"],
-select {
+select,
+textarea {
     width: 100%;
     padding: 6px;
     margin: 4px 0 8px 0;
@@ -89,15 +139,123 @@ select {
     font-size: 14px;
 }
 
+.inline-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 8px;
+}
+
 .mode-panel.hidden {
     display: none;
 }
 
+.two-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.two-input-row input,
+.two-input-row select {
+    flex: 1;
+}
+
+.filters-section h3,
+.section h3 {
+    margin: 4px 0 8px 0;
+    font-size: 16px;
+    color: #e0ae3b;
+}
+
+.filters-grid {
+    align-items: stretch;
+}
+
+.filters-summary {
+    border-left: 1px solid #555;
+    padding-left: 10px;
+}
+
+.filters-summary-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.filters-summary-line .label {
+    font-weight: bold;
+}
+
+.filters-summary-line .value {
+    font-family: "Consolas", "Courier New", monospace;
+}
+
+.bottom-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bottom-panel {
+    background-color: #26221f;
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+.folder-tree-section {
+    max-height: 260px;
+    overflow: auto;
+}
+
+.folder-tree {
+    margin-top: 4px;
+    background-color: #2b2824;
+    border-radius: 4px;
+    padding: 4px;
+    max-height: 220px;
+    overflow: auto;
+    font-size: 13px;
+}
+
+.transforms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 6px;
+}
+
+.transform-block {
+    background-color: #2b2824;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+}
+
+.transform-header {
+    border-bottom: 1px solid #444;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.transform-body label {
+    font-size: 13px;
+}
+
+.multi-checkbox-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin-top: 4px;
+}
+
 .preview-section {
-    height: 220px;
-    min-height: 120px;
-    max-height: 70vh;
-    resize: vertical;
+    flex: 0 0 auto;
+    min-height: 180px;
+    max-height: 45vh;
+    resize: none;
     overflow: auto;
     border: 1px solid #555;
     border-radius: 6px;
@@ -162,7 +320,16 @@ tr.status-error td {
 }
 
 .footer {
-    text-align: right;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-line {
+    font-size: 12px;
+    color: #bbb;
+    font-style: italic;
 }
 
 

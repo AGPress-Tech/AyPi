@@ -6,123 +6,314 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Rinomina File in Batch</title>
     <link rel="stylesheet" href="../../styles/utilities/batch-rename-style.css">
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/jstree@3.3.15/dist/themes/default/style.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jstree@3.3.15/dist/jstree.min.js"></script>
 </head>
 
 <body>
     <div class="container">
         <h2>Rinomina File in Batch</h2>
 
-        <div class="section">
-            <button id="btnSelectFolder">Seleziona cartella...</button>
-            <div class="label-row">
-                <span class="label">Cartella selezionata:</span>
-                <span id="selectedFolder" class="value">Nessuna</span>
+        <!-- Area superiore: controlli a sinistra, anteprima a destra -->
+        <div class="top-layout">
+            <div class="top-controls">
+                <!-- Barra superiore: selezione cartella + ambito -->
+                <div class="section section-row top-bar">
+                    <div class="section-field">
+                        <button id="btnSelectFolder">Seleziona cartella...</button>
+                        <div class="label-row">
+                            <span class="label">Cartella selezionata:</span>
+                            <span id="selectedFolder" class="value">Nessuna</span>
+                        </div>
+                    </div>
+                    <div class="section-field">
+                        <label>Ambito di rinomina</label>
+                        <div class="scope-row">
+                            <label class="inline inline-radio">
+                                <input type="radio" name="renameScope" value="files" checked>
+                                Solo file
+                            </label>
+                            <label class="inline inline-radio">
+                                <input type="radio" name="renameScope" value="folders">
+                                Solo cartelle
+                            </label>
+                            <label class="inline inline-radio">
+                                <input type="radio" name="renameScope" value="both">
+                                File + cartelle
+                            </label>
+                        </div>
+                        <label class="inline">
+                            <input type="checkbox" id="chkIncludeSubfolders" checked>
+                            Includi sottocartelle (ricorsivo)
+                        </label>
+                    </div>
+                    <div class="section-field">
+                        <label for="extFilter">Estensioni da includere (file) - es: .xlsx,.docx,.png</label>
+                        <input type="text" id="extFilter" placeholder=".xlsx,.docx,.png">
+
+                        <label for="sortOrder">Ordine tabella anteprima</label>
+                        <select id="sortOrder">
+                            <option value="nameAsc">Nome (A-Z)</option>
+                            <option value="nameDesc">Nome (Z-A)</option>
+                            <option value="extAsc">Estensione (A-Z)</option>
+                            <option value="extDesc">Estensione (Z-A)</option>
+                            <option value="sizeAsc">Dimensione (↑)</option>
+                            <option value="sizeDesc">Dimensione (↓)</option>
+                            <option value="dateAsc">Data modifica (vecchi → nuovi)</option>
+                            <option value="dateDesc">Data modifica (nuovi → vecchi)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Comandi principali -->
+                <div class="section commands">
+                    <div class="left">
+                        <button id="btnPreview">Genera anteprima</button>
+                        <button id="btnApply" disabled>Esegui rinomina</button>
+                        <button id="btnUndoLast" disabled>Annulla ultima operazione</button>
+                    </div>
+                    <div class="right">
+                        <button id="btnOpenFolder" disabled>Apri cartella elemento selezionato</button>
+                    </div>
+                </div>
+
+                <!-- Esplora cartelle (jstree) -->
+                <div class="section folder-tree-section">
+                    <label>Esplora cartelle (clic per impostare la cartella di lavoro)</label>
+                    <div id="folderTree" class="folder-tree"></div>
+                </div>
+            </div>
+
+            <!-- Anteprima affiancata -->
+            <div class="section preview-section top-preview">
+                <table id="previewTable">
+                    <thead>
+                        <tr>
+                            <th>Vecchio nome</th>
+                            <th>Nuovo nome</th>
+                            <th>Stato</th>
+                            <th>Info</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
         </div>
 
-        <div class="section">
-            <label for="extFilter">Estensioni da includere (es: .xlsx,.docx,.png) - lascia vuoto per tutte</label>
-            <input type="text" id="extFilter" placeholder=".xlsx,.docx,.png">
+        <!-- Pannelli inferiori: filtri + trasformazioni, in stile BRU -->
+        <div class="section bottom-panels">
+            <!-- Filtri -->
+            <div class="bottom-panel filters-section">
+                <h3>Filtri</h3>
+                <div class="section-row filters-grid">
+                    <div class="section-field">
+                        <label for="filterMask">Wildcard (separa con ; es: *.txt;IMG_*)</label>
+                        <input type="text" id="filterMask" placeholder="*.txt;IMG_*">
 
-            <label class="inline">
-                <input type="checkbox" id="chkIncludeSubfolders" checked>
-                Includi sottocartelle
-            </label>
+                        <label>Numero minimo / massimo caratteri nel nome</label>
+                        <div class="two-input-row">
+                            <input type="number" id="nameLenMin" min="0" placeholder="min">
+                            <input type="number" id="nameLenMax" min="0" placeholder="max">
+                        </div>
+
+                        <label>Lunghezza percorso (min / max)</label>
+                        <div class="two-input-row">
+                            <input type="number" id="pathLenMin" min="0" placeholder="min">
+                            <input type="number" id="pathLenMax" min="0" placeholder="max">
+                        </div>
+                    </div>
+
+                    <div class="section-field">
+                        <label for="filterRegex">Filtro RegEx nome (opzionale)</label>
+                        <input type="text" id="filterRegex" placeholder="es: ^IMG_\\d+">
+                        <label for="filterRegexFlags">Flag RegEx (es: i)</label>
+                        <input type="text" id="filterRegexFlags" placeholder="i">
+
+                        <label for="filterJsCondition">Condizione JS avanzata (item)</label>
+                        <textarea id="filterJsCondition" rows="3"
+                            placeholder="es: item.isFile && item.ext === '.txt'"></textarea>
+                    </div>
+
+                    <div class="section-field filters-summary">
+                        <div class="filters-summary-line">
+                            <span class="label">Elementi totali trovati:</span>
+                            <span id="lblTotalFound" class="value">0</span>
+                        </div>
+                        <div class="filters-summary-line">
+                            <span class="label">Elementi inclusi dai filtri:</span>
+                            <span id="lblFilteredIncluded" class="value">0</span>
+                        </div>
+                        <div class="filters-summary-line">
+                            <span class="label">Solo preview (nessuna rinomina senza anteprima)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trasformazioni nome -->
+            <div class="bottom-panel transforms-panel">
+                <h3>Trasformazioni nome</h3>
+                <div class="transforms-grid">
+                    <!-- Add / Remove -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkAddRemoveEnabled" checked>
+                                Testo: prefisso / suffisso / inserimento / rimozione
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Prefisso</label>
+                            <input type="text" id="prefixInput" placeholder="Es: ST-">
+
+                            <label>Suffisso (prima dell'estensione)</label>
+                            <input type="text" id="suffixInput" placeholder="Es: _Rev01">
+
+                            <label>Inserisci testo in posizione</label>
+                            <input type="text" id="insertText" placeholder="Testo da inserire">
+                            <div class="two-input-row">
+                                <input type="number" id="insertPosition" min="0" placeholder="posizione">
+                                <select id="insertFrom">
+                                    <option value="start">dall'inizio</option>
+                                    <option value="end">dalla fine</option>
+                                </select>
+                            </div>
+
+                            <label>Rimozione rapida</label>
+                            <div class="multi-checkbox-row">
+                                <label class="inline"><input type="checkbox" id="rmDigits"> Numeri</label>
+                                <label class="inline"><input type="checkbox" id="rmSymbols"> Simboli</label>
+                                <label class="inline"><input type="checkbox" id="rmExtraSpaces"> Spazi doppi</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Replace / RegEx -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkReplaceEnabled">
+                                Sostituzione testo (semplice / RegEx)
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Stringa da cercare</label>
+                            <input type="text" id="findText" placeholder="Testo normale o pattern RegEx">
+
+                            <label>Sostituisci con</label>
+                            <input type="text" id="replaceText" placeholder="Testo di sostituzione">
+
+                            <div class="multi-checkbox-row">
+                                <label class="inline">
+                                    <input type="checkbox" id="chkReplaceAll">
+                                    Sostituisci tutte le occorrenze
+                                </label>
+                                <label class="inline">
+                                    <input type="checkbox" id="chkReplaceCaseSensitive">
+                                    Case sensitive
+                                </label>
+                                <label class="inline">
+                                    <input type="checkbox" id="chkReplaceRegex">
+                                    Usa RegEx
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Case -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkCaseEnabled">
+                                Cambio case
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Stile</label>
+                            <select id="caseMode">
+                                <option value="keep">Lascia invariato</option>
+                                <option value="upper">TUTTO MAIUSCOLO</option>
+                                <option value="lower">tutto minuscolo</option>
+                                <option value="title">Title Case</option>
+                                <option value="sentence">Sentence case</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Numbering -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkNumberingEnabled">
+                                Numerazione automatica
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Numero iniziale</label>
+                            <input type="number" id="numberStart" value="1" min="0">
+                            <label>Incremento</label>
+                            <input type="number" id="numberStep" value="1" min="1">
+                            <label>Padding (cifre)</label>
+                            <input type="number" id="numberPadding" value="3" min="1">
+
+                            <label>Posizione numero</label>
+                            <select id="numberPosition">
+                                <option value="prefix">All'inizio</option>
+                                <option value="suffix">Alla fine</option>
+                            </select>
+
+                            <label class="inline">
+                                <input type="checkbox" id="numberResetPerFolder">
+                                Reset numerazione per cartella
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Date -->
+                    <div class="transform-block">
+                        <div class="transform-header">
+                            <label class="inline">
+                                <input type="checkbox" id="chkDateEnabled">
+                                Data nel nome
+                            </label>
+                        </div>
+                        <div class="transform-body">
+                            <label>Tipo data</label>
+                            <select id="dateType">
+                                <option value="mtime">Ultima modifica</option>
+                                <option value="birthtime">Creazione</option>
+                                <option value="atime">Ultimo accesso</option>
+                            </select>
+
+                            <label>Formato</label>
+                            <select id="dateFormatPreset">
+                                <option value="YYYYMMDD">YYYYMMDD</option>
+                                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                                <option value="YYYYMMDD_HHmm">YYYYMMDD_HHmm</option>
+                                <option value="custom">Personalizzato</option>
+                            </select>
+                            <input type="text" id="dateFormatCustom" placeholder="Es: YYYY-MM-DD_HH-mm-ss">
+
+                            <label>Posizione data</label>
+                            <select id="datePosition">
+                                <option value="prefix">All'inizio</option>
+                                <option value="suffix">Alla fine</option>
+                            </select>
+
+                            <label for="dateSeparator">Separatore opzionale</label>
+                            <input type="text" id="dateSeparator" placeholder="es: _">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="section section-row">
-            <div class="section-field">
-                <label for="sortOrder">Ordine file</label>
-                <select id="sortOrder">
-                    <option value="nameAsc">Nome (A-Z)</option>
-                    <option value="nameDesc">Nome (Z-A)</option>
-                </select>
-            </div>
-            <div class="section-field">
-                <label for="modeSelect">Modalita di rinomina</label>
-                <select id="modeSelect">
-                    <option value="prefixSuffix">Prefisso / Suffisso</option>
-                    <option value="findReplace">Trova &amp; Sostituisci</option>
-                    <option value="cleanup">Pulisci caratteri (spazi, parentesi)</option>
-                    <option value="changeCase">Maiuscole / minuscole / titolo</option>
-                    <option value="numbering">Schema numerato</option>
-                </select>
-            </div>
-        </div>
-
-        <div id="modeOptions">
-            <div id="mode-prefixSuffix" class="mode-panel">
-                <label>Prefisso</label>
-                <input type="text" id="prefixInput" placeholder="Es: St">
-                <label>Suffisso (prima dell'estensione)</label>
-                <input type="text" id="suffixInput" placeholder="Es: _Rev01">
-            </div>
-
-            <div id="mode-findReplace" class="mode-panel hidden">
-                <label>Testo da cercare (case-sensitive)</label>
-                <input type="text" id="findText" placeholder="Es: STMP ">
-                <label>Sostituisci con</label>
-                <input type="text" id="replaceText" placeholder="Es: STAMPO ">
-                <label class="inline">
-                    <input type="checkbox" id="chkReplaceAll">
-                    Sostituisci tutte le occorrenze
-                </label>
-            </div>
-
-            <div id="mode-cleanup" class="mode-panel hidden">
-                <label class="inline">
-                    <input type="checkbox" id="chkSpacesToUnderscore" checked>
-                    Sostituisci spazi con underscore (_)
-                </label>
-                <label class="inline">
-                    <input type="checkbox" id="chkRemoveBrackets" checked>
-                    Rimuovi parentesi () [] {}
-                </label>
-            </div>
-
-            <div id="mode-changeCase" class="mode-panel hidden">
-                <label>Trasformazione</label>
-                <select id="caseMode">
-                    <option value="upper">TUTTO MAIUSCOLO</option>
-                    <option value="lower">tutto minuscolo</option>
-                    <option value="title">Titolo (Prima lettera maiuscola)</option>
-                </select>
-            </div>
-
-            <div id="mode-numbering" class="mode-panel hidden">
-                <label>Nome base (senza contatore)</label>
-                <input type="text" id="numberBase" placeholder="Es: ST-1234-pezzo">
-                <label>Numero iniziale</label>
-                <input type="number" id="numberStart" value="1" min="0">
-                <label>Cifre</label>
-                <input type="number" id="numberPadding" value="3" min="1">
-            </div>
-        </div>
-
-        <div class="section commands">
-            <div class="left">
-                <button id="btnPreview">Genera anteprima</button>
-                <button id="btnApply" disabled>Esegui rinomina</button>
-            </div>
-            <div class="right">
-                <button id="btnOpenFolder" disabled>Apri cartella del file selezionato</button>
-            </div>
-        </div>
-
-        <div class="section preview-section">
-            <table id="previewTable">
-                <thead>
-                    <tr>
-                        <th>Vecchio nome</th>
-                        <th>Nuovo nome</th>
-                        <th>Stato</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
-
+        <!-- Footer -->
         <div class="section footer">
+            <span id="statusLine" class="status-line">Pronto</span>
             <button id="btnClose">Chiudi</button>
         </div>
     </div>
