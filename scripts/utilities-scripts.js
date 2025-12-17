@@ -162,5 +162,3 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
-
-

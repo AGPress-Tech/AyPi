@@ -586,7 +586,7 @@ function computeStatsForSubtree(rootNode) {
             const start = new Date(minMtimeMs);
             const end = new Date(maxMtimeMs);
             let year = start.getFullYear();
-            let month = start.getMonth(); // 0-11
+            let month = start.getMonth();
             const endYear = end.getFullYear();
             const endMonth = end.getMonth();
 

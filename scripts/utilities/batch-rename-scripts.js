@@ -167,7 +167,7 @@ function buildPreview(filePaths) {
             const targetKey = targetFullPath.toLowerCase();
 
             const existsOnDisk = fs.existsSync(targetFullPath);
-            const targetIsSameFile = targetKey === sourceKey; // solo cambio di maiuscole/minuscole sullo stesso file
+            const targetIsSameFile = targetKey === sourceKey;
             const targetUsedByOthers = usedTargets.has(targetKey);
             const targetIsOtherOriginal = !targetIsSameFile && originalKeySet.has(targetKey);
             const targetIsExternalExisting =
@@ -369,7 +369,7 @@ window.addEventListener("DOMContentLoaded", () => {
     btnOpenFolder.addEventListener("click", handleOpenFolder);
 
     modeSelect.addEventListener("change", switchModePanels);
-    switchModePanels(); // inizializza pannello corretto
+    switchModePanels();
 
     ipcRenderer.on("batch-rename-set-root", (event, folderPath) => {
         if (folderPath) {
@@ -378,4 +378,3 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
-
