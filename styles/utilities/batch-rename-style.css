@@ -58,8 +58,8 @@ h2 {
     gap: 8px 12px;
 }
 
-.top-bar .section-field:first-child {
-    max-width: 40%;
+.top-field-wide {
+    grid-column: 1 / span 2;
 }
 
 .label-row {
@@ -67,6 +67,8 @@ h2 {
     display: flex;
     gap: 6px;
     font-size: 14px;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 .label-row .label {
@@ -74,7 +76,9 @@ h2 {
 }
 
 .label-row .value {
-    flex: 1;
+    flex: 0 0 auto;
+    width: 100%;
+    font-family: "Consolas", "Courier New", monospace;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
