@@ -106,6 +106,10 @@ function initCommonUI() {
                     }
                     updateClock();
                     setInterval(updateClock, 1000);
+
+                    clockElement.addEventListener("click", () => {
+                        ipcRenderer.send("open-timer-window");
+                    });
                 }
 
                 const installBtn = document.getElementById('install-addin');

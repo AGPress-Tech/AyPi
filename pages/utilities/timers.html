@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Timer & Cronometri</title>
+    <link rel="stylesheet" href="../../styles/utilities/timers-style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header class="timers-header">
+            <div>
+                <h2>Timer &amp; Cronometri</h2>
+                <p class="subtitle">Gestisci piccoli promemoria direttamente da AyPi.</p>
+            </div>
+            <button id="addTimerBtn" class="add-btn" title="Nuovo timer/cronometro">+</button>
+        </header>
+
+        <div id="timersEmpty" class="timers-empty">
+            Nessun timer ancora. Clicca su <strong>+</strong> per crearne uno.
+        </div>
+
+        <div id="timersList" class="timers-list"></div>
+
+        <div id="newTimerDialog" class="dialog-backdrop hidden">
+            <div class="dialog">
+                <h3 id="dialogTitle">Nuovo timer / cronometro</h3>
+
+                <div class="dialog-row">
+                    <label for="timerType">Tipo</label>
+                    <select id="timerType">
+                        <option value="timer">Timer (conto alla rovescia)</option>
+                        <option value="stopwatch">Cronometro</option>
+                    </select>
+                </div>
+
+                <div class="dialog-row" id="timeRow">
+                    <label for="timerName">Nome</label>
+                    <input id="timerName" type="text" placeholder="Es. Pausa caffè">
+                </div>
+
+                <div class="dialog-row" id="timeInputsRow">
+                    <label>Tempo iniziale (hh:mm:ss)</label>
+                    <div class="time-inputs">
+                        <input id="hoursInput" type="number" min="0" max="23" value="0">
+                        <span>:</span>
+                        <input id="minutesInput" type="number" min="0" max="59" value="5">
+                        <span>:</span>
+                        <input id="secondsInput" type="number" min="0" max="59" value="0">
+                    </div>
+                    <div class="time-presets">
+                        <button type="button" class="time-preset" data-minutes="1">+1 min</button>
+                        <button type="button" class="time-preset" data-minutes="5">+5 min</button>
+                        <button type="button" class="time-preset" data-minutes="10">+10 min</button>
+                        <button type="button" class="time-preset" data-minutes="30">+30 min</button>
+                    </div>
+                    <p class="hint">Per il cronometro il tempo parte sempre da 00:00:00.</p>
+                </div>
+
+                <div class="dialog-actions">
+                    <button type="button" id="cancelDialogBtn" class="secondary">Annulla</button>
+                    <button type="button" id="confirmDialogBtn" class="primary">Aggiungi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../scripts/utilities/timers-scripts.js"></script>
+</body>
+
+</html>

@@ -35,6 +35,7 @@ let batchRenameWindow = null;
 let qrGeneratorWindow = null;
 let compareFoldersWindow = null;
 let hierarchyWindow = null;
+let timerWindow = null;
 
 function openBatchRenameWindow(mainWindow) {
     if (batchRenameWindow && !batchRenameWindow.isDestroyed()) {
@@ -128,6 +129,37 @@ function openHierarchyWindow(mainWindow) {
 
     hierarchyWindow.on("closed", () => {
         hierarchyWindow = null;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
+function openTimerWindow(mainWindow) {
+    if (timerWindow && !timerWindow.isDestroyed()) {
+        timerWindow.focus();
+        return;
+    }
+
+    timerWindow = new BrowserWindow({
+        width: 520,
+        height: 520,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, "..", "assets", "app-icon.png"),
+    });
+
+    timerWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "timers.html"));
+    timerWindow.setMenu(null);
+    timerWindow.center();
+
+    timerWindow.on("closed", () => {
+        timerWindow = null;
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
@@ -383,9 +415,13 @@ function setupFileManager(mainWindow) {
         openCompareFoldersWindow(null, null);
     });
 
-    ipcMain.on("open-hierarchy-window", () => {
-        openHierarchyWindow(mainWindow);
-    });
+      ipcMain.on("open-hierarchy-window", () => {
+          openHierarchyWindow(mainWindow);
+      });
+
+      ipcMain.on("open-timer-window", () => {
+          openTimerWindow(mainWindow);
+      });
 
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {
         const folder = payload?.folder;
