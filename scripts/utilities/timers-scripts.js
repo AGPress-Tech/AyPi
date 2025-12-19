@@ -19,11 +19,20 @@ window.addEventListener("DOMContentLoaded", () => {
     const cancelDialogBtn = document.getElementById("cancelDialogBtn");
     const confirmDialogBtn = document.getElementById("confirmDialogBtn");
 
+    const openPresetsBtn = document.getElementById("openPresetsBtn");
+    const presetsPanel = document.getElementById("presetsPanel");
+    const presetsList = document.getElementById("presetsList");
+    const closePresetsBtn = document.getElementById("closePresetsBtn");
+
     const timePresetButtons = Array.from(document.querySelectorAll(".time-preset"));
+    const timeInputs = [hoursInput, minutesInput, secondsInput];
+
+    const PRESETS_STORAGE_KEY = "aypi-timer-presets-v1";
 
     let timers = [];
     let nextId = 1;
     let editingTimerId = null;
+    let presets = [];
 
     function updateEmptyState() {
         if (!timersList.children.length) {
@@ -88,6 +97,33 @@ window.addEventListener("DOMContentLoaded", () => {
         nameInput.focus();
     }
 
+    function openDialogFromPreset(preset) {
+        editingTimerId = null;
+        if (dialogTitle) dialogTitle.textContent = "Nuovo timer / cronometro";
+        if (confirmDialogBtn) confirmDialogBtn.textContent = "Aggiungi";
+
+        typeSelect.value = preset.type === "stopwatch" ? "stopwatch" : "timer";
+        nameInput.value = preset.name || "";
+
+        if (preset.type === "timer") {
+            const total = preset.initialSeconds || 0;
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            const s = total % 60;
+            hoursInput.value = String(h);
+            minutesInput.value = String(m);
+            secondsInput.value = String(s);
+        } else {
+            hoursInput.value = "0";
+            minutesInput.value = "0";
+            secondsInput.value = "0";
+        }
+
+        handleTypeChange();
+        dialogBackdrop.classList.remove("hidden");
+        nameInput.focus();
+    }
+
     function closeDialog() {
         dialogBackdrop.classList.add("hidden");
     }
@@ -96,6 +132,144 @@ window.addEventListener("DOMContentLoaded", () => {
         const n = Number(value);
         if (Number.isNaN(n)) return fallback;
         return Math.min(Math.max(n, min), max);
+    }
+
+    function attachMouseWheelToTimeInputs() {
+        timeInputs.forEach((input) => {
+            if (!input) return;
+
+            input.addEventListener("wheel", (event) => {
+                event.preventDefault();
+
+                const step = event.deltaY < 0 ? 1 : -1;
+                const min = typeof input.min === "string" && input.min !== "" ? Number(input.min) : 0;
+                const max = typeof input.max === "string" && input.max !== "" ? Number(input.max) : 59;
+
+                const current = clampNumber(input.value, min, max, 0);
+                let next = current + step;
+
+                if (next > max) next = min;
+                if (next < min) next = max;
+
+                input.value = String(next);
+            }, { passive: false });
+        });
+    }
+
+    function loadPresets() {
+        try {
+            const raw = window.localStorage.getItem(PRESETS_STORAGE_KEY);
+            if (!raw) {
+                presets = [];
+                return;
+            }
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                presets = parsed
+                    .filter(p => p && typeof p.name === "string")
+                    .map(p => ({
+                        name: p.name,
+                        type: p.type === "stopwatch" ? "stopwatch" : "timer",
+                        initialSeconds: Number(p.initialSeconds) || 0,
+                    }));
+            } else {
+                presets = [];
+            }
+        } catch {
+            presets = [];
+        }
+    }
+
+    function savePresets() {
+        try {
+            window.localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+        } catch {
+            // ignora errori di storage
+        }
+    }
+
+    function renderPresetsList() {
+        if (!presetsList) return;
+
+        presetsList.innerHTML = "";
+
+        if (!presets.length) {
+            const empty = document.createElement("div");
+            empty.textContent = "Nessun preset salvato.";
+            empty.style.color = "#d5ccc0";
+            presetsList.appendChild(empty);
+            return;
+        }
+
+        presets.forEach((preset, index) => {
+            const item = document.createElement("div");
+            item.className = "preset-item";
+
+            const main = document.createElement("div");
+            main.className = "preset-main";
+
+            const nameEl = document.createElement("div");
+            nameEl.className = "preset-name";
+            nameEl.textContent = preset.name;
+
+            const metaEl = document.createElement("div");
+            metaEl.className = "preset-meta";
+            const label = preset.type === "stopwatch" ? "Cronometro" : "Timer";
+            const timeLabel = formatTime(preset.initialSeconds || 0);
+            metaEl.textContent = `${label} · ${timeLabel}`;
+
+            main.appendChild(nameEl);
+            main.appendChild(metaEl);
+
+            const actions = document.createElement("div");
+            actions.className = "preset-actions";
+
+            const useBtn = document.createElement("button");
+            useBtn.type = "button";
+            useBtn.className = "preset-use-btn";
+            useBtn.textContent = "Usa";
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "preset-delete-btn";
+            deleteBtn.textContent = "Elimina";
+
+            useBtn.addEventListener("click", () => {
+                presetsPanel.classList.add("hidden");
+
+                const type = preset.type === "stopwatch" ? "stopwatch" : "timer";
+                const name = preset.name || (type === "timer" ? `Timer ${nextId}` : `Cronometro ${nextId}`);
+                let initialSeconds = type === "timer" ? (Number(preset.initialSeconds) || 0) : 0;
+
+                const timer = {
+                    id: nextId++,
+                    type,
+                    name,
+                    initialSeconds,
+                    currentSeconds: initialSeconds,
+                    running: false,
+                    intervalId: null,
+                    laps: [],
+                };
+
+                timers.push(timer);
+                createTimerElement(timer);
+            });
+
+            deleteBtn.addEventListener("click", () => {
+                presets.splice(index, 1);
+                savePresets();
+                renderPresetsList();
+            });
+
+            actions.appendChild(useBtn);
+            actions.appendChild(deleteBtn);
+
+            item.appendChild(main);
+            item.appendChild(actions);
+
+            presetsList.appendChild(item);
+        });
     }
 
       function formatTime(totalSeconds) {
@@ -142,11 +316,11 @@ window.addEventListener("DOMContentLoaded", () => {
         badge.className = "timer-badge" + (timer.type === "stopwatch" ? " stopwatch" : "");
         badge.textContent = timer.type === "timer" ? "Timer" : "Cronometro";
 
-        const addSmallBtn = document.createElement("button");
-        addSmallBtn.className = "card-add-btn";
-        addSmallBtn.type = "button";
-        addSmallBtn.textContent = "+";
-        addSmallBtn.title = "Aggiungi un nuovo timer/cronometro";
+          const addSmallBtn = document.createElement("button");
+          addSmallBtn.className = "card-add-btn";
+          addSmallBtn.type = "button";
+          addSmallBtn.textContent = "+";
+          addSmallBtn.title = "Salva come preset";
 
         badgeRow.appendChild(badge);
         badgeRow.appendChild(addSmallBtn);
@@ -173,7 +347,7 @@ window.addEventListener("DOMContentLoaded", () => {
             lapBtn.className = "secondary";
         }
 
-        const editBtn = document.createElement("button");
+          const editBtn = document.createElement("button");
         editBtn.type = "button";
         editBtn.textContent = "Modifica";
         editBtn.className = "secondary";
@@ -188,9 +362,9 @@ window.addEventListener("DOMContentLoaded", () => {
         deleteBtn.textContent = "Rimuovi";
         deleteBtn.className = "danger";
 
-        controls.appendChild(startBtn);
-        if (lapBtn) controls.appendChild(lapBtn);
-        controls.appendChild(editBtn);
+          controls.appendChild(startBtn);
+          if (lapBtn) controls.appendChild(lapBtn);
+          controls.appendChild(editBtn);
         controls.appendChild(resetBtn);
         controls.appendChild(deleteBtn);
 
@@ -276,10 +450,6 @@ window.addEventListener("DOMContentLoaded", () => {
             updateEmptyState();
         });
 
-        addSmallBtn.addEventListener("click", () => {
-            openDialog();
-        });
-
         if (lapBtn) {
             lapBtn.addEventListener("click", () => {
                 if (!timer.running) return;
@@ -300,6 +470,52 @@ window.addEventListener("DOMContentLoaded", () => {
             stopInterval();
             clearFinished();
             openDialog(null, timer);
+        });
+
+        addSmallBtn.addEventListener("click", () => {
+            const baseName = (timer.name || "").trim();
+            if (!baseName) {
+                alert("Dai un nome al timer prima di salvarlo come preset.");
+                return;
+            }
+            if (timer.type === "timer" && (!timer.initialSeconds || timer.initialSeconds <= 0)) {
+                alert("Imposta un tempo iniziale maggiore di 0 per salvare il preset.");
+                return;
+            }
+
+            const preset = {
+                name: baseName,
+                type: timer.type,
+                initialSeconds: timer.initialSeconds || 0,
+            };
+
+            const existingIndex = presets.findIndex(p => p.name === preset.name);
+            if (existingIndex !== -1) {
+                const oldPreset = presets[existingIndex];
+                const oldLabel = `${oldPreset.type === "stopwatch" ? "Cronometro" : "Timer"} · ${formatTime(oldPreset.initialSeconds || 0)}`;
+                const newLabel = `${preset.type === "stopwatch" ? "Cronometro" : "Timer"} · ${formatTime(preset.initialSeconds || 0)}`;
+                const message = [
+                    `Esiste già un preset chiamato "${preset.name}".`,
+                    "",
+                    `Attuale: ${oldLabel}`,
+                    `Nuovo:   ${newLabel}`,
+                    "",
+                    "Vuoi sostituirlo?"
+                ].join("\n");
+
+                const replace = window.confirm(message);
+                if (!replace) {
+                    return;
+                }
+
+                presets[existingIndex] = preset;
+            } else {
+                presets.push(preset);
+            }
+
+            savePresets();
+            renderPresetsList();
+            alert(`Preset "${preset.name}" è stato salvato.`);
         });
     }
 
@@ -370,6 +586,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
     typeSelect.addEventListener("change", handleTypeChange);
 
+    attachMouseWheelToTimeInputs();
+
     timePresetButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
             const minutesToAdd = Number(btn.dataset.minutes || "0");
@@ -386,6 +604,24 @@ window.addEventListener("DOMContentLoaded", () => {
             secondsInput.value = String(newS);
         });
     });
+
+    if (openPresetsBtn && presetsPanel && presetsList && closePresetsBtn) {
+        openPresetsBtn.addEventListener("click", () => {
+            renderPresetsList();
+            presetsPanel.classList.remove("hidden");
+        });
+
+        closePresetsBtn.addEventListener("click", () => {
+            presetsPanel.classList.add("hidden");
+        });
+
+        presetsPanel.addEventListener("click", (event) => {
+            if (event.target === presetsPanel) {
+                presetsPanel.classList.add("hidden");
+            }
+        });
+    }
+
     cancelDialogBtn.addEventListener("click", closeDialog);
     confirmDialogBtn.addEventListener("click", handleConfirmDialog);
 
@@ -395,5 +631,6 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    loadPresets();
     updateEmptyState();
 });

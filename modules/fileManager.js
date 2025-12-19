@@ -36,6 +36,7 @@ let qrGeneratorWindow = null;
 let compareFoldersWindow = null;
 let hierarchyWindow = null;
 let timerWindow = null;
+let isAppQuitting = false;
 
 function openBatchRenameWindow(mainWindow) {
     if (batchRenameWindow && !batchRenameWindow.isDestroyed()) {
@@ -138,6 +139,7 @@ function openHierarchyWindow(mainWindow) {
 
 function openTimerWindow(mainWindow) {
     if (timerWindow && !timerWindow.isDestroyed()) {
+        timerWindow.show();
         timerWindow.focus();
         return;
     }
@@ -158,11 +160,16 @@ function openTimerWindow(mainWindow) {
     timerWindow.setMenu(null);
     timerWindow.center();
 
-    timerWindow.on("closed", () => {
-        timerWindow = null;
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.show();
-            mainWindow.focus();
+    timerWindow.on("close", (event) => {
+        if (!isAppQuitting) {
+            event.preventDefault();
+            timerWindow.hide();
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        } else {
+            timerWindow = null;
         }
     });
 }
@@ -214,6 +221,9 @@ function openCompareFoldersWindow(slot, folder) {
 }
 
 function setupFileManager(mainWindow) {
+    app.on("before-quit", () => {
+        isAppQuitting = true;
+    });
     ipcMain.on("resize-calcolatore", () => {
         animateResize(mainWindow, 750, 750, 100);
     });

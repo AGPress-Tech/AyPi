@@ -15,7 +15,10 @@
                 <h2>Timer &amp; Cronometri</h2>
                 <p class="subtitle">Gestisci piccoli promemoria direttamente da AyPi.</p>
             </div>
-            <button id="addTimerBtn" class="add-btn" title="Nuovo timer/cronometro">+</button>
+            <div class="header-actions">
+                <button id="addTimerBtn" class="add-btn" title="Nuovo timer/cronometro">+</button>
+                <button id="openPresetsBtn" class="preset-btn" title="Timer salvati">&#9201;</button>
+            </div>
         </header>
 
         <div id="timersEmpty" class="timers-empty">
@@ -63,6 +66,16 @@
                     <button type="button" id="cancelDialogBtn" class="secondary">Annulla</button>
                     <button type="button" id="confirmDialogBtn" class="primary">Aggiungi</button>
                 </div>
+            </div>
+        </div>
+
+        <div id="presetsPanel" class="presets-backdrop hidden">
+            <div class="presets-card">
+                <div class="presets-header">
+                    <h3>Timer salvati</h3>
+                    <button type="button" id="closePresetsBtn" class="presets-close">&times;</button>
+                </div>
+                <div id="presetsList" class="presets-list"></div>
             </div>
         </div>
     </div>

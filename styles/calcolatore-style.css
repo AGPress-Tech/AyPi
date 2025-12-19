@@ -136,7 +136,12 @@ span {
     position: static;
     font-size: 18px;
     color: #cc930e;
-    cursor: default;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.clock-span:hover {
+    color: #ff4d4d;
 }
 
 .calcolatore-container {
