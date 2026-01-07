@@ -13,6 +13,21 @@ let trayTimers = [];
 let trayMenu = null;
 let pendingTrayPopup = false;
 
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+    app.quit();
+} else {
+    app.on("second-instance", () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) {
+                mainWindow.restore();
+            }
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
 app.setPath("userData", path.join(app.getPath("appData"), "AyPiUserData"));
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
 
