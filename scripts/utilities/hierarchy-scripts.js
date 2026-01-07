@@ -77,11 +77,82 @@ const FUN_MESSAGES = [
     "Risoluzione dei conflitti tramite arbitrato algoritmico supremo...",
     "Ricostruzione causale della genealogia dei file...",
     "Calibrazione dei checksum secondo costanti universali...",
-    "Determinazione del grado di maturità evolutiva delle directory..."
+    "Determinazione del grado di maturità evolutiva delle directory...",
+    "Inizializzazione del campo gravitazionale dei byte...",
+    "Calcolo tensoriale delle relazioni tra cartelle...",
+    "Risoluzione delle singolarità nei percorsi ricorsivi...",
+    "Campionamento stocastico dei nomi file improbabili...",
+    "Analisi bayesiana delle probabilità di successo...",
+    "Decodifica archeologica dei metadati ancestrali...",
+    "Stima relativistica dei tempi di accesso...",
+    "Verifica dell'integrità ontologica dei filesystem...",
+    "Riorientamento degli assi cartesiani delle directory...",
+    "Ottimizzazione quantica delle operazioni I/O...",
+    "Analisi semantica dei nomi ambigui...",
+    "Collasso della funzione d'onda dei file osservati...",
+    "Allineamento armonico dei cluster di archiviazione...",
+    "Riconfigurazione delle sinapsi logiche del software...",
+    "Misurazione dell'entropia residua dei dati dormienti...",
+    "Convergenza iterativa verso lo stato stabile dei percorsi...",
+    "Validazione causale delle dipendenze circolari...",
+    "Attivazione dei moduli di introspezione algoritmica...",
+    "Normalizzazione cosmologica delle dimensioni su disco...",
+    "Calcolo predittivo delle future directory...",
+    "Risoluzione di paradossi temporali nei timestamp...",
+    "Analisi vibrazionale delle frequenze di accesso...",
+    "Ricombinazione controllata dei frammenti logici...",
+    "Stima probabilistica delle collisioni nominali...",
+    "Riallineamento dei vettori di indirizzamento...",
+    "Interpretazione ermeneutica delle estensioni oscure...",
+    "Simulazione Monte Carlo dei percorsi alternativi...",
+    "Ottimizzazione del flusso informativo multidimensionale...",
+    "Calcolo del bilancio energetico dei processi attivi...",
+    "Sintonizzazione fine dei parametri di consistenza...",
+    "Analisi forense dei file temporanei...",
+    "Decrittazione concettuale delle strutture nidificate...",
+    "Riconciliazione topologica degli spazi logici...",
+    "Verifica dell'immutabilità dei dati osservati...",
+    "Campionamento quantizzato dei blocchi di memoria...",
+    "Applicazione delle leggi della termodinamica computazionale...",
+    "Classificazione evolutiva delle directory legacy...",
+    "Determinazione del punto di equilibrio dei buffer...",
+    "Esplorazione euristica delle ramificazioni profonde...",
+    "Risoluzione simbolica delle dipendenze latenti...",
+    "Analisi cronologica degli eventi filesystem...",
+    "Stabilizzazione dei flussi asincroni...",
+    "Calcolo del potenziale informativo residuo...",
+    "Allineamento delle strutture secondo metriche non euclidee...",
+    "Verifica dell'identità persistente dei file mutanti...",
+    "Ottimizzazione adattiva dei percorsi critici...",
+    "Integrazione numerica delle operazioni concorrenti...",
+    "Ispezione quantistica delle dimensioni anomale...",
+    "Rimozione controllata del rumore semantico...",
+    "Analisi predittiva delle anomalie future...",
+    "Raffreddamento entropico dei processi in eccesso...",
+    "Verifica dell'equilibrio dinamico del sistema...",
+    "Trasposizione astratta delle strutture fisiche...",
+    "Consolidamento delle ipotesi di coerenza globale...",
+    "Calibrazione delle aspettative computazionali...",
+    "Finalizzazione del modello di realtà dei dati..."
 ];
 
 let lastFunMessageTime = 0;
-let funMessageIndex = 0;
+let funMessageIndex = -1;
+
+function pickRandomFunMessageIndex() {
+    if (!FUN_MESSAGES.length) return -1;
+    if (FUN_MESSAGES.length === 1) return 0;
+    let next = funMessageIndex;
+    while (next === funMessageIndex) {
+        next = Math.floor(Math.random() * FUN_MESSAGES.length);
+    }
+    return next;
+}
+
+function getRandomFunMessage() {
+    funMessageIndex = pickRandomFunMessageIndex();
+    return FUN_MESSAGES[funMessageIndex];
+}
 
 const FOLDER_CLOSED_ICON = "\u25B6";
 const FOLDER_OPEN_ICON = "\u25BC";
@@ -1634,8 +1705,7 @@ function buildTreeFromPendingAsync(onDone) {
         if (buildFunStatus) {
             const now = performance.now();
             if (now - lastFunMessageTime > 5000) { // 5 secondi
-                funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
-                buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
+                buildFunStatus.textContent = getRandomFunMessage();
                 lastFunMessageTime = now;
             }
         }
@@ -1796,7 +1866,7 @@ function selectNode(domNode, data) {
                 btnCalc.disabled = true;
 
                 if (funStatus) {
-                    funMessageIndex = 0;
+                    funMessageIndex = pickRandomFunMessageIndex();
                     lastFunMessageTime = performance.now();
                     funStatus.textContent = "Avvio calcolo quantistico preliminare...";
                 }
@@ -1807,8 +1877,7 @@ function selectNode(domNode, data) {
                         if (funStatus) {
                             const now = performance.now();
                             if (now - lastFunMessageTime > 15000) {
-                                funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
-                                funStatus.textContent = FUN_MESSAGES[funMessageIndex];
+                                funStatus.textContent = getRandomFunMessage();
                                 lastFunMessageTime = now;
                             }
                         }
@@ -2421,7 +2490,7 @@ window.addEventListener("DOMContentLoaded", () => {
             <p id="scanFunStatus" class="fun-status muted"></p>
         `;
 
-        funMessageIndex = 0;
+        funMessageIndex = pickRandomFunMessageIndex();
         lastFunMessageTime = performance.now();
         const scanFunStatus = document.getElementById("scanFunStatus");
         if (scanFunStatus) {
@@ -2444,10 +2513,7 @@ window.addEventListener("DOMContentLoaded", () => {
                     if (scanFunStatusEl) {
                         const now = performance.now();
                         if (now - lastFunMessageTime > 5000) {
-                            funMessageIndex =
-                                (funMessageIndex + 1) % FUN_MESSAGES.length;
-                            scanFunStatusEl.textContent =
-                                FUN_MESSAGES[funMessageIndex];
+                            scanFunStatusEl.textContent = getRandomFunMessage();
                             lastFunMessageTime = now;
                         }
                     }
@@ -2461,7 +2527,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 <p>Costruzione dell'albero in corso... Attendere.</p>
                 <p id="buildFunStatus" class="fun-status muted"></p>
             `;
-            funMessageIndex = 0;
+            funMessageIndex = pickRandomFunMessageIndex();
             lastFunMessageTime = performance.now();
             const buildFunStatus = document.getElementById("buildFunStatus");
             if (buildFunStatus) {
@@ -2613,8 +2679,7 @@ ipcRenderer.on("hierarchy-progress", (event, payload) => {
         if (scanFunStatus) {
             const now = performance.now();
             if (now - lastFunMessageTime > 15000) {
-                funMessageIndex = (funMessageIndex + 1) % FUN_MESSAGES.length;
-                scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
+                scanFunStatus.textContent = getRandomFunMessage();
                 lastFunMessageTime = now;
             }
         }
@@ -2641,7 +2706,7 @@ ipcRenderer.on("hierarchy-complete", (event, payload) => {
         <p id="buildFunStatus" class="fun-status muted"></p>
     `;
 
-    funMessageIndex = 0;
+    funMessageIndex = pickRandomFunMessageIndex();
     lastFunMessageTime = performance.now();
     const buildFunStatus = document.getElementById("buildFunStatus");
     if (buildFunStatus) {
