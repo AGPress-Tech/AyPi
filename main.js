@@ -5,26 +5,20 @@ const { setupFileManager, openTimerWindow } = require("./modules/fileManager");
 const { setupRobotManager } = require("./modules/robotManager");
 
 let mainWindow;
-let batchRenameWindow = null;
-let compareFoldersWindow = null;
 let tray = null;
 let isQuitting = false;
 let trayTimers = [];
 let trayMenu = null;
 let pendingTrayPopup = false;
 
+const APP_NAME = "AyPi";
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
     app.quit();
 } else {
     app.on("second-instance", () => {
-        if (mainWindow) {
-            if (mainWindow.isMinimized()) {
-                mainWindow.restore();
-            }
-            mainWindow.show();
-            mainWindow.focus();
-        }
+        showAndFocus(mainWindow);
     });
 }
 
@@ -37,16 +31,26 @@ function getTrayIconPath() {
     return process.platform === "win32" ? icoPath : pngPath;
 }
 
+function isWindowAlive(win) {
+    return win && !win.isDestroyed();
+}
+
+function showAndFocus(win) {
+    if (!isWindowAlive(win)) return;
+    if (win.isMinimized()) {
+        win.restore();
+    }
+    win.show();
+    win.focus();
+}
+
 function createTray() {
     if (tray) return;
     tray = new Tray(getTrayIconPath());
-    tray.setToolTip("AyPi");
+    tray.setToolTip(APP_NAME);
     updateTrayMenu();
     tray.on("double-click", () => {
-        if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-        }
+        showAndFocus(mainWindow);
     });
     tray.on("right-click", () => {
         requestTrayUpdateAndPopup();
@@ -74,10 +78,7 @@ function updateTrayMenu() {
         {
             label: "Apri",
             click: () => {
-                if (mainWindow) {
-                    mainWindow.show();
-                    mainWindow.focus();
-                }
+                showAndFocus(mainWindow);
             },
         },
         {
@@ -136,7 +137,7 @@ app.whenReady().then(() => {
 
     setupAutoUpdater(mainWindow);
     setupFileManager(mainWindow);
-    setupRobotManager(mainWindow);
+    setupRobotManager();
 });
 
 app.on("before-quit", () => {

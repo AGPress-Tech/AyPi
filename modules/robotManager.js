@@ -3,11 +3,30 @@ const { ipcMain, dialog } = require("electron");
 const { exec } = require("child_process");
 const { toMAC } = require("@network-utils/arp-lookup");
 
-const robots = {
+const ROBOTS = {
     "21D500": { ip: "192.168.1.153", mac: "00:03:1d:12:0f:71" },
     "21D600": { ip: "192.168.1.152", mac: "00:03:1d:11:62:da" },
     "21D850": { ip: "192.168.1.92",  mac: "00:03:1d:14:13:38" }
 };
+
+const ROBOT_STATUS_TIMEOUT_MS = 2000;
+
+function showInfo(title, message, buttons) {
+    return dialog.showMessageBox({
+        type: "info",
+        title,
+        message,
+        buttons: buttons || ["OK"],
+    });
+}
+
+function showError(title, message) {
+    return dialog.showMessageBox({
+        type: "error",
+        title,
+        message,
+    });
+}
 
 function estraiTesto(testo, chiave) {
     const testoUpper = testo.toUpperCase();
@@ -47,18 +66,15 @@ function estraiRigaSubitoDopo(testo, chiave) {
 
 async function mostraPopup(robotId, url, chiaveStato) {
     try {
-        let timeoutMostra = false;
         const controller = new AbortController();
 
         const timeout = setTimeout(async () => {
-            timeoutMostra = true;
-            await dialog.showMessageBox({
-                type: 'info',
-                title: `Attendere Robot ${robotId}`,
-                message: `Il robot ${robotId} non sta ancora rispondendo alla pagina ${url}. Attendere qualche istante.`,
-                buttons: ['OK']
-            });
-        }, 2000);
+            await showInfo(
+                `Attendere Robot ${robotId}`,
+                `Il robot ${robotId} non sta ancora rispondendo alla pagina ${url}. Attendere qualche istante.`,
+                ["OK"]
+            );
+        }, ROBOT_STATUS_TIMEOUT_MS);
 
         let res;
         try {
@@ -86,18 +102,13 @@ async function mostraPopup(robotId, url, chiaveStato) {
         if (tempoCiclo) messaggio += `\nTempo Ciclo: ${tempoCiclo} secondi`;
         if (rigaSuccessiva) messaggio += `\nDettagli: ${rigaSuccessiva}.`;
 
-        dialog.showMessageBox({
-            type: 'info',
-            title: `Informazioni Robot ${robotId}`,
-            message: messaggio
-        });
+        showInfo(`Informazioni Robot ${robotId}`, messaggio);
 
     } catch (err) {
-        dialog.showMessageBox({
-            type: 'error',
-            title: `Errore Robot ${robotId}`,
-            message: `Il Robot ${robotId} non è stato individuato, potrebbe essere spento o scollegato dalla rete.\nSe il problema persiste verificare che la porta non sia occupata!\nVerificare risposta indirizzo macchina utilizzando il pulsante "Verifica Connessioni"`
-        });
+        showError(
+            `Errore Robot ${robotId}`,
+            `Il Robot ${robotId} non e' stato individuato, potrebbe essere spento o scollegato dalla rete.\nSe il problema persiste verificare che la porta non sia occupata!\nVerificare risposta indirizzo macchina utilizzando il pulsante "Verifica Connessioni"`
+        );
     }
 }
 
@@ -109,14 +120,12 @@ async function getMacForIP(ip) {
     }
 }
 
-function setupRobotManager(mainWindow) {
-
+function setupRobotManager() {
     ipcMain.on("mostra-robot-popup", async (event, robotId, url, chiaveStato) => {
         await mostraPopup(robotId, url, chiaveStato);
     });
 
     ipcMain.handle("ping-robot-dialog", async () => {
-
         const { response } = await dialog.showMessageBox({
             type: "question",
             buttons: ["Annulla", "21D500", "21D600", "21D850"],
@@ -128,8 +137,8 @@ function setupRobotManager(mainWindow) {
 
         if (response === 0) return;
 
-        const robotId = Object.keys(robots)[response - 1];
-        const { ip, mac: macAtteso } = robots[robotId];
+        const robotId = Object.keys(ROBOTS)[response - 1];
+        const { ip, mac: macAtteso } = ROBOTS[robotId];
 
         return new Promise((resolve) => {
             exec(`ping -n 1 ${ip}`, async (error, stdout) => {
@@ -147,11 +156,7 @@ function setupRobotManager(mainWindow) {
                     }
                 }
 
-                dialog.showMessageBox({
-                    type: "info",
-                    title: `Ping ${robotId}`,
-                    message: messaggio
-                });
+                showInfo(`Ping ${robotId}`, messaggio);
 
                 resolve(messaggio);
             });
