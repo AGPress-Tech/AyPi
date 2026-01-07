@@ -248,8 +248,10 @@ window.addEventListener("DOMContentLoaded", () => {
                     name,
                     initialSeconds,
                     currentSeconds: initialSeconds,
+                    currentMs: initialSeconds * 1000,
                     running: false,
                     intervalId: null,
+                    lastTickAt: null,
                     laps: [],
                     lapCount: 0,
                     checkpointCount: 0,
@@ -289,12 +291,13 @@ window.addEventListener("DOMContentLoaded", () => {
             .filter(t => t && t.running)
             .map(t => ({
                 name: (t.name || "").trim() || (t.type === "stopwatch" ? "Cronometro" : "Timer"),
-                time: formatTime(t.currentSeconds || 0),
+                time: formatTime((t.currentMs || 0) / 1000),
             }));
         ipcRenderer.send("timers-tray-update", { items });
     }
 
     ipcRenderer.on("timers-tray-request", () => {
+        syncRunningTimers();
         sendTrayUpdate();
     });
 
@@ -313,6 +316,64 @@ window.addEventListener("DOMContentLoaded", () => {
             });
         }
     }
+
+    function syncRunningTimers() {
+        const now = Date.now();
+        let changed = false;
+
+        timers.forEach(timer => {
+            if (!timer || !timer.running) return;
+            if (!timer.lastTickAt) {
+                timer.lastTickAt = now;
+                return;
+            }
+            const deltaMs = now - timer.lastTickAt;
+            if (deltaMs <= 0) return;
+            timer.lastTickAt = now;
+
+            if (timer.type === "timer") {
+                timer.currentMs = Math.max(0, (timer.currentMs || 0) - deltaMs);
+            } else {
+                timer.currentMs = (timer.currentMs || 0) + deltaMs;
+            }
+            timer.currentSeconds = Math.floor((timer.currentMs || 0) / 1000);
+            changed = true;
+        });
+
+        if (!changed) return;
+        timers.forEach(timer => {
+            if (!timer) return;
+            const card = timersList.querySelector(`.timer-card[data-id="${timer.id}"]`);
+            if (!card) return;
+            const display = card.querySelector(".timer-display");
+            if (display) {
+                display.textContent = formatTime(timer.currentSeconds || 0);
+            }
+            if (timer.type === "timer" && timer.currentMs <= 0 && timer.running) {
+                timer.running = false;
+                timer.lastTickAt = null;
+                if (timer.intervalId != null) {
+                    clearInterval(timer.intervalId);
+                    timer.intervalId = null;
+                }
+                const startBtn = card.querySelector(".timer-controls button");
+                if (startBtn) startBtn.textContent = "Avvia";
+                card.classList.add("finished");
+                showTimerNotification(timer.name);
+            }
+        });
+        sendTrayUpdate();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+            syncRunningTimers();
+        }
+    });
+
+    window.addEventListener("focus", () => {
+        syncRunningTimers();
+    });
 
     function createTimerElement(timer) {
         const card = document.createElement("div");
@@ -347,7 +408,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const display = document.createElement("div");
         display.className = "timer-display";
-        display.textContent = formatTime(timer.currentSeconds);
+        display.textContent = formatTime((timer.currentMs || 0) / 1000);
 
         const controls = document.createElement("div");
         controls.className = "timer-controls";
@@ -415,6 +476,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 timer.intervalId = null;
             }
             timer.running = false;
+            timer.lastTickAt = null;
             startBtn.textContent = "Avvia";
             sendTrayUpdate();
         }
@@ -429,21 +491,32 @@ window.addEventListener("DOMContentLoaded", () => {
 
         function tick() {
             if (!timer.running) return;
+            const now = Date.now();
+            if (!timer.lastTickAt) {
+                timer.lastTickAt = now;
+                return;
+            }
+            const deltaMs = now - timer.lastTickAt;
+            if (deltaMs <= 0) return;
+            timer.lastTickAt = now;
 
             if (timer.type === "timer") {
-                if (timer.currentSeconds <= 0) {
-                    stopInterval();
+                const nextMs = (timer.currentMs || 0) - deltaMs;
+                if (nextMs <= 0) {
+                    timer.currentMs = 0;
                     timer.currentSeconds = 0;
-                    display.textContent = formatTime(timer.currentSeconds);
+                    display.textContent = formatTime(0);
                     markFinished();
                     showTimerNotification(timer.name);
+                    stopInterval();
                     return;
                 }
-                timer.currentSeconds -= 1;
+                timer.currentMs = nextMs;
             } else {
-                timer.currentSeconds += 1;
+                timer.currentMs = (timer.currentMs || 0) + deltaMs;
             }
 
+            timer.currentSeconds = Math.floor((timer.currentMs || 0) / 1000);
             display.textContent = formatTime(timer.currentSeconds);
         }
 
@@ -461,9 +534,10 @@ window.addEventListener("DOMContentLoaded", () => {
             if (!timer.running) {
                 clearFinished();
                 timer.running = true;
+                timer.lastTickAt = Date.now();
                 startBtn.textContent = "Pausa";
                 if (timer.intervalId == null) {
-                    timer.intervalId = setInterval(tick, 1000);
+                    timer.intervalId = setInterval(tick, 250);
                 }
             } else {
                 stopInterval();
@@ -475,6 +549,7 @@ window.addEventListener("DOMContentLoaded", () => {
             stopInterval();
             clearFinished();
             timer.currentSeconds = timer.initialSeconds;
+            timer.currentMs = timer.initialSeconds * 1000;
             display.textContent = formatTime(timer.currentSeconds);
             if (timer.type === "stopwatch") {
                 timer.laps = [];
@@ -496,22 +571,24 @@ window.addEventListener("DOMContentLoaded", () => {
         if (lapBtn) {
             lapBtn.addEventListener("click", () => {
                 if (!timer.running) return;
-                const lapTime = timer.currentSeconds;
-                timer.laps.push({ type: "lap", time: lapTime });
+                const lapTimeMs = timer.currentMs || 0;
+                timer.laps.push({ type: "lap", time: lapTimeMs });
                 timer.lapCount += 1;
-                addLapItem(`Giro ${timer.lapCount}`, lapTime);
+                addLapItem(`Giro ${timer.lapCount}`, lapTimeMs / 1000);
+                timer.currentMs = 0;
                 timer.currentSeconds = 0;
-                display.textContent = formatTime(timer.currentSeconds);
+                timer.lastTickAt = Date.now();
+                display.textContent = formatTime(0);
             });
         }
 
         if (checkpointBtn) {
             checkpointBtn.addEventListener("click", () => {
                 if (!timer.running) return;
-                const checkpointTime = timer.currentSeconds;
-                timer.laps.push({ type: "checkpoint", time: checkpointTime });
+                const checkpointTimeMs = timer.currentMs || 0;
+                timer.laps.push({ type: "checkpoint", time: checkpointTimeMs });
                 timer.checkpointCount += 1;
-                addLapItem(`Parziale ${timer.checkpointCount}`, checkpointTime);
+                addLapItem(`Parziale ${timer.checkpointCount}`, checkpointTimeMs / 1000);
             });
         }
 
@@ -605,9 +682,11 @@ window.addEventListener("DOMContentLoaded", () => {
                 timer.name = name;
                 timer.initialSeconds = totalSeconds;
                 timer.currentSeconds = totalSeconds;
+                timer.currentMs = totalSeconds * 1000;
                 timer.laps = [];
                 timer.lapCount = 0;
                 timer.checkpointCount = 0;
+                timer.lastTickAt = null;
 
                 const existingCard = timersList.querySelector(`.timer-card[data-id="${timer.id}"]`);
                 if (existingCard) existingCard.remove();
@@ -623,8 +702,10 @@ window.addEventListener("DOMContentLoaded", () => {
                 name,
                 initialSeconds: totalSeconds,
                 currentSeconds: totalSeconds,
+                currentMs: totalSeconds * 1000,
                 running: false,
                 intervalId: null,
+                lastTickAt: null,
                 laps: [],
                 lapCount: 0,
                 checkpointCount: 0,
