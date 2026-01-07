@@ -277,7 +277,7 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-      function formatTime(totalSeconds) {
+    function formatTime(totalSeconds) {
           const sign = totalSeconds < 0 ? "-" : "";
           const t = Math.max(0, Math.floor(Math.abs(totalSeconds)));
           const h = String(Math.floor(t / 3600)).padStart(2, "0");
@@ -434,7 +434,7 @@ window.addEventListener("DOMContentLoaded", () => {
             checkpointBtn.className = "secondary";
         }
 
-          const editBtn = document.createElement("button");
+        const editBtn = document.createElement("button");
         editBtn.type = "button";
         editBtn.textContent = "Modifica";
         editBtn.className = "secondary";

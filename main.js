@@ -147,6 +147,10 @@ app.on("browser-window-focus", () => {
     requestTrayUpdate();
 });
 
+app.on("browser-window-created", () => {
+    requestTrayUpdate();
+});
+
 ipcMain.on("timers-tray-update", (event, payload) => {
     const items = payload && Array.isArray(payload.items) ? payload.items : [];
     trayTimers = items
