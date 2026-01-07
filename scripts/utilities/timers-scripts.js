@@ -1,3 +1,4 @@
+const { ipcRenderer } = require("electron");
 const { initCommonUI } = require("../../modules/utils");
 
 initCommonUI();
@@ -250,6 +251,8 @@ window.addEventListener("DOMContentLoaded", () => {
                     running: false,
                     intervalId: null,
                     laps: [],
+                    lapCount: 0,
+                    checkpointCount: 0,
                 };
 
                 timers.push(timer);
@@ -280,6 +283,20 @@ window.addEventListener("DOMContentLoaded", () => {
           const s = String(t % 60).padStart(2, "0");
           return `${sign}${h}:${m}:${s}`;
       }
+
+    function sendTrayUpdate() {
+        const items = timers
+            .filter(t => t && t.running)
+            .map(t => ({
+                name: (t.name || "").trim() || (t.type === "stopwatch" ? "Cronometro" : "Timer"),
+                time: formatTime(t.currentSeconds || 0),
+            }));
+        ipcRenderer.send("timers-tray-update", { items });
+    }
+
+    ipcRenderer.on("timers-tray-request", () => {
+        sendTrayUpdate();
+    });
 
     function showTimerNotification(name) {
         const title = "AyPi - Timer terminato";
@@ -340,11 +357,20 @@ window.addEventListener("DOMContentLoaded", () => {
         startBtn.textContent = "Avvia";
 
         let lapBtn = null;
+        let checkpointBtn = null;
         if (timer.type === "stopwatch") {
+            timer.lapCount = typeof timer.lapCount === "number" ? timer.lapCount : 0;
+            timer.checkpointCount = typeof timer.checkpointCount === "number" ? timer.checkpointCount : 0;
+
             lapBtn = document.createElement("button");
             lapBtn.type = "button";
-            lapBtn.textContent = "Lap";
+            lapBtn.textContent = "Giro";
             lapBtn.className = "secondary";
+
+            checkpointBtn = document.createElement("button");
+            checkpointBtn.type = "button";
+            checkpointBtn.textContent = "Parziale";
+            checkpointBtn.className = "secondary";
         }
 
           const editBtn = document.createElement("button");
@@ -364,6 +390,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
           controls.appendChild(startBtn);
           if (lapBtn) controls.appendChild(lapBtn);
+          if (checkpointBtn) controls.appendChild(checkpointBtn);
           controls.appendChild(editBtn);
         controls.appendChild(resetBtn);
         controls.appendChild(deleteBtn);
@@ -389,6 +416,7 @@ window.addEventListener("DOMContentLoaded", () => {
             }
             timer.running = false;
             startBtn.textContent = "Avvia";
+            sendTrayUpdate();
         }
 
         function markFinished() {
@@ -419,6 +447,16 @@ window.addEventListener("DOMContentLoaded", () => {
             display.textContent = formatTime(timer.currentSeconds);
         }
 
+        function addLapItem(label, timeSeconds) {
+            const item = document.createElement("div");
+            item.className = "lap-item";
+            item.innerHTML = `<span>${label}</span><span>${formatTime(timeSeconds)}</span>`;
+            lapsContainer.prepend(item);
+            while (lapsContainer.children.length > 20) {
+                lapsContainer.removeChild(lapsContainer.lastChild);
+            }
+        }
+
         startBtn.addEventListener("click", () => {
             if (!timer.running) {
                 clearFinished();
@@ -430,6 +468,7 @@ window.addEventListener("DOMContentLoaded", () => {
             } else {
                 stopInterval();
             }
+            sendTrayUpdate();
         });
 
         resetBtn.addEventListener("click", () => {
@@ -439,8 +478,11 @@ window.addEventListener("DOMContentLoaded", () => {
             display.textContent = formatTime(timer.currentSeconds);
             if (timer.type === "stopwatch") {
                 timer.laps = [];
+                timer.lapCount = 0;
+                timer.checkpointCount = 0;
                 lapsContainer.innerHTML = "";
             }
+            sendTrayUpdate();
         });
 
         deleteBtn.addEventListener("click", () => {
@@ -448,21 +490,28 @@ window.addEventListener("DOMContentLoaded", () => {
             card.remove();
             timers = timers.filter(t => t.id !== timer.id);
             updateEmptyState();
+            sendTrayUpdate();
         });
 
         if (lapBtn) {
             lapBtn.addEventListener("click", () => {
                 if (!timer.running) return;
                 const lapTime = timer.currentSeconds;
-                timer.laps.push(lapTime);
-                const index = timer.laps.length;
-                const item = document.createElement("div");
-                item.className = "lap-item";
-                item.innerHTML = `<span>Lap ${index}</span><span>${formatTime(lapTime)}</span>`;
-                lapsContainer.prepend(item);
-                while (lapsContainer.children.length > 20) {
-                    lapsContainer.removeChild(lapsContainer.lastChild);
-                }
+                timer.laps.push({ type: "lap", time: lapTime });
+                timer.lapCount += 1;
+                addLapItem(`Giro ${timer.lapCount}`, lapTime);
+                timer.currentSeconds = 0;
+                display.textContent = formatTime(timer.currentSeconds);
+            });
+        }
+
+        if (checkpointBtn) {
+            checkpointBtn.addEventListener("click", () => {
+                if (!timer.running) return;
+                const checkpointTime = timer.currentSeconds;
+                timer.laps.push({ type: "checkpoint", time: checkpointTime });
+                timer.checkpointCount += 1;
+                addLapItem(`Parziale ${timer.checkpointCount}`, checkpointTime);
             });
         }
 
@@ -470,6 +519,7 @@ window.addEventListener("DOMContentLoaded", () => {
             stopInterval();
             clearFinished();
             openDialog(null, timer);
+            sendTrayUpdate();
         });
 
         addSmallBtn.addEventListener("click", () => {
@@ -556,6 +606,8 @@ window.addEventListener("DOMContentLoaded", () => {
                 timer.initialSeconds = totalSeconds;
                 timer.currentSeconds = totalSeconds;
                 timer.laps = [];
+                timer.lapCount = 0;
+                timer.checkpointCount = 0;
 
                 const existingCard = timersList.querySelector(`.timer-card[data-id="${timer.id}"]`);
                 if (existingCard) existingCard.remove();
@@ -574,11 +626,14 @@ window.addEventListener("DOMContentLoaded", () => {
                 running: false,
                 intervalId: null,
                 laps: [],
+                lapCount: 0,
+                checkpointCount: 0,
             };
 
             timers.push(timer);
             createTimerElement(timer);
             closeDialog();
+            sendTrayUpdate();
         }
     }
 
@@ -633,4 +688,5 @@ window.addEventListener("DOMContentLoaded", () => {
 
     loadPresets();
     updateEmptyState();
+    sendTrayUpdate();
 });

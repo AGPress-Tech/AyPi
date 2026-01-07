@@ -875,4 +875,4 @@ function setupFileManager(mainWindow) {
     });
 }
 
-module.exports = { setupFileManager };
+module.exports = { setupFileManager, openTimerWindow };
