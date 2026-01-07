@@ -1,6 +1,6 @@
 {
   "name": "aypi",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Software AyPi per gestione applicativi AGPress",
   "main": "main.js",
   "scripts": {
