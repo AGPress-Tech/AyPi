@@ -347,6 +347,7 @@ function buildPresetFromUI(name) {
                 rmDigits: document.getElementById("rmDigits")?.checked || false,
                 rmSymbols: document.getElementById("rmSymbols")?.checked || false,
                 rmExtraSpaces: document.getElementById("rmExtraSpaces")?.checked || false,
+                rmAll: document.getElementById("rmAll")?.checked || false,
             },
             replace: {
                 enabled: document.getElementById("chkReplaceEnabled")?.checked || false,
@@ -366,7 +367,9 @@ function buildPresetFromUI(name) {
                 step: document.getElementById("numberStep")?.value || "",
                 padding: document.getElementById("numberPadding")?.value || "",
                 position: document.getElementById("numberPosition")?.value || "prefix",
+                separator: document.getElementById("numberSeparator")?.value || "",
                 resetPerFolder: document.getElementById("numberResetPerFolder")?.checked || false,
+                resetPerExtension: document.getElementById("numberResetPerExtension")?.checked || false,
             },
             date: {
                 enabled: document.getElementById("chkDateEnabled")?.checked || false,
@@ -480,6 +483,7 @@ function applyPresetToUI(preset) {
         rmDigits: "rmDigits",
         rmSymbols: "rmSymbols",
         rmExtraSpaces: "rmExtraSpaces",
+        rmAll: "rmAll",
     });
 
     applyBlock(t.replace, {
@@ -502,7 +506,9 @@ function applyPresetToUI(preset) {
         numberStep: "step",
         numberPadding: "padding",
         numberPosition: "position",
+        numberSeparator: "separator",
         numberResetPerFolder: "resetPerFolder",
+        numberResetPerExtension: "resetPerExtension",
     });
 
     applyBlock(t.date, {
@@ -618,6 +624,7 @@ function getTransformsConfigFromUI() {
             rmDigits: document.getElementById("rmDigits")?.checked || false,
             rmSymbols: document.getElementById("rmSymbols")?.checked || false,
             rmExtraSpaces: document.getElementById("rmExtraSpaces")?.checked || false,
+            rmAll: document.getElementById("rmAll")?.checked || false,
         },
         replace: {
             enabled: replaceEnabled,
@@ -638,7 +645,8 @@ function getTransformsConfigFromUI() {
             padding: parseInteger(document.getElementById("numberPadding")?.value, 3),
             position: document.getElementById("numberPosition")?.value || "prefix",
             resetPerFolder: document.getElementById("numberResetPerFolder")?.checked || false,
-            separator: document.getElementById("dateSeparator")?.value || "_",
+            resetPerExtension: document.getElementById("numberResetPerExtension")?.checked || false,
+            separator: document.getElementById("numberSeparator")?.value || "",
         },
         date: {
             enabled: dateEnabled,
@@ -717,6 +725,10 @@ function formatDateForName(date, config) {
 
 function applyAddRemoveTransform(baseName, config) {
     let result = baseName;
+
+    if (config.rmAll) {
+        result = "";
+    }
 
     if (config.rmDigits) {
         result = result.replace(/\d+/g, "");
@@ -868,13 +880,13 @@ function applyNumberingTransform(baseName, numberIndex, config) {
 
     const num = config.start + config.step * numberIndex;
     const padded = String(num).padStart(config.padding || 1, "0");
-    const sep = config.separator || "_";
+    const sep = config.separator || "";
 
     if (config.position === "suffix") {
-        return `${baseName}${sep}${padded}`;
+        return sep ? `${baseName}${sep}${padded}` : `${baseName}${padded}`;
     }
 
-    return `${padded}${sep}${baseName}`;
+    return sep ? `${padded}${sep}${baseName}` : `${padded}${baseName}`;
 }
 
 function applyDateTransform(baseName, stats, config) {
@@ -1017,6 +1029,8 @@ function buildPreviewWithCopyMove(items, transformsConfig, rootPath) {
 
     let globalNumberIndex = 0;
     const perFolderIndex = new Map();
+    const perExtensionIndex = new Map();
+    const perFolderExtensionIndex = new Map();
 
     items.forEach((item, index) => {
         const fullPath = item.fullPath;
@@ -1056,11 +1070,23 @@ function buildPreviewWithCopyMove(items, transformsConfig, rootPath) {
 
         let numberingIndex = null;
         if (transformsConfig.numbering.enabled) {
-            if (transformsConfig.numbering.resetPerFolder) {
+            const resetPerFolder = !!transformsConfig.numbering.resetPerFolder;
+            const resetPerExtension = !!transformsConfig.numbering.resetPerExtension;
+            if (resetPerFolder && resetPerExtension) {
+                const key = `${sourceDir.toLowerCase()}|${(item.ext || "").toLowerCase()}`;
+                const current = perFolderExtensionIndex.get(key) || 0;
+                numberingIndex = current;
+                perFolderExtensionIndex.set(key, current + 1);
+            } else if (resetPerFolder) {
                 const key = sourceDir.toLowerCase();
                 const current = perFolderIndex.get(key) || 0;
                 numberingIndex = current;
                 perFolderIndex.set(key, current + 1);
+            } else if (resetPerExtension) {
+                const key = (item.ext || "").toLowerCase();
+                const current = perExtensionIndex.get(key) || 0;
+                numberingIndex = current;
+                perExtensionIndex.set(key, current + 1);
             } else {
                 numberingIndex = globalNumberIndex;
                 globalNumberIndex += 1;
@@ -1136,11 +1162,23 @@ function buildPreview(items, transformsConfig) {
 
         let numberingIndex = null;
         if (transformsConfig.numbering.enabled) {
-            if (transformsConfig.numbering.resetPerFolder) {
+            const resetPerFolder = !!transformsConfig.numbering.resetPerFolder;
+            const resetPerExtension = !!transformsConfig.numbering.resetPerExtension;
+            if (resetPerFolder && resetPerExtension) {
+                const key = `${dir.toLowerCase()}|${(item.ext || "").toLowerCase()}`;
+                const current = perFolderExtensionIndex.get(key) || 0;
+                numberingIndex = current;
+                perFolderExtensionIndex.set(key, current + 1);
+            } else if (resetPerFolder) {
                 const key = dir.toLowerCase();
                 const current = perFolderIndex.get(key) || 0;
                 numberingIndex = current;
                 perFolderIndex.set(key, current + 1);
+            } else if (resetPerExtension) {
+                const key = (item.ext || "").toLowerCase();
+                const current = perExtensionIndex.get(key) || 0;
+                numberingIndex = current;
+                perExtensionIndex.set(key, current + 1);
             } else {
                 numberingIndex = globalNumberIndex;
                 globalNumberIndex += 1;
@@ -1660,6 +1698,10 @@ window.addEventListener("DOMContentLoaded", () => {
     const presetNameInput = document.getElementById("presetName");
     const btnPresetSave = document.getElementById("btnPresetSave");
     const btnPresetDelete = document.getElementById("btnPresetDelete");
+    const rmDigits = document.getElementById("rmDigits");
+    const rmSymbols = document.getElementById("rmSymbols");
+    const rmExtraSpaces = document.getElementById("rmExtraSpaces");
+    const rmAll = document.getElementById("rmAll");
 
     btnSelectFolder.addEventListener("click", async () => {
         const folder = await ipcRenderer.invoke("select-root-folder");
@@ -1741,6 +1783,27 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     setStatus("Pronto");
+
+    function syncRemoveAllState() {
+        const isAll = rmAll?.checked || false;
+        if (rmDigits) {
+            rmDigits.disabled = isAll;
+            if (isAll) rmDigits.checked = false;
+        }
+        if (rmSymbols) {
+            rmSymbols.disabled = isAll;
+            if (isAll) rmSymbols.checked = false;
+        }
+        if (rmExtraSpaces) {
+            rmExtraSpaces.disabled = isAll;
+            if (isAll) rmExtraSpaces.checked = false;
+        }
+    }
+
+    if (rmAll) {
+        rmAll.addEventListener("change", syncRemoveAllState);
+    }
+    syncRemoveAllState();
 
     ipcRenderer.on("batch-rename-set-root", (event, folderPath) => {
         if (folderPath) {

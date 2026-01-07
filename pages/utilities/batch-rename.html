@@ -202,6 +202,7 @@
                                 <label class="inline"><input type="checkbox" id="rmDigits"> Numeri</label>
                                 <label class="inline"><input type="checkbox" id="rmSymbols"> Simboli</label>
                                 <label class="inline"><input type="checkbox" id="rmExtraSpaces"> Spazi doppi</label>
+                                <label class="inline"><input type="checkbox" id="rmAll"> Tutto</label>
                             </div>
                         </div>
                     </div>
@@ -274,6 +275,9 @@
                             <label>Padding (cifre)</label>
                             <input type="number" id="numberPadding" value="3" min="1">
 
+                            <label>Delimitatore numero</label>
+                            <input type="text" id="numberSeparator" placeholder="Es: _">
+
                             <label>Posizione numero</label>
                             <select id="numberPosition">
                                 <option value="prefix">All'inizio</option>
@@ -283,6 +287,10 @@
                             <label class="inline">
                                 <input type="checkbox" id="numberResetPerFolder">
                                 Reset numerazione per cartella
+                            </label>
+                            <label class="inline">
+                                <input type="checkbox" id="numberResetPerExtension">
+                                Reset numerazione per estensione
                             </label>
                         </div>
                     </div>

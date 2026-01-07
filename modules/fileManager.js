@@ -618,12 +618,21 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("select-root-folder", async (event) => {
-        const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+        const senderWin = BrowserWindow.fromWebContents(event.sender);
+        const mainWin = isWindowAlive(mainWindow) ? mainWindow : null;
+        const win = isWindowAlive(senderWin) ? senderWin : mainWin;
+        if (win) {
+            win.show();
+            win.focus();
+        }
 
-        const result = await dialog.showOpenDialog(win, {
+        const dialogOptions = {
             title: "Seleziona la cartella",
             properties: ["openDirectory"],
-        });
+        };
+        const result = win
+            ? await dialog.showOpenDialog(win, dialogOptions)
+            : await dialog.showOpenDialog(dialogOptions);
 
         if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
             return null;
