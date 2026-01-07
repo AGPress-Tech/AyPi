@@ -726,11 +726,16 @@ window.addEventListener("DOMContentLoaded", () => {
 
     timePresetButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
-            const minutesToAdd = Number(btn.dataset.minutes || "0");
+            const secondsFromData = Number(btn.dataset.seconds || "");
+            const minutesFromData = Number(btn.dataset.minutes || "");
+            const deltaSeconds = Number.isFinite(secondsFromData)
+                ? secondsFromData
+                : (Number.isFinite(minutesFromData) ? minutesFromData * 60 : 0);
+
             const h = clampNumber(hoursInput.value, 0, 99, 0);
             const m = clampNumber(minutesInput.value, 0, 59, 0);
             const s = clampNumber(secondsInput.value, 0, 59, 0);
-            let total = h * 3600 + m * 60 + s + minutesToAdd * 60;
+            let total = h * 3600 + m * 60 + s + deltaSeconds;
             if (total < 0) total = 0;
             const newH = Math.floor(total / 3600);
             const newM = Math.floor((total % 3600) / 60);
