@@ -20,6 +20,20 @@
         <button id="qrGenerator">Generatore QR</button>
         <button id="compareFolders">Confronta Cartelle</button>
         <button id="hierarchyGenerator">Gerarchia</button>
+        <button id="amministrazione">Amministrazione</button>
+
+        <div id="adminOverlay" class="overlay is-hidden" aria-hidden="true">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+                <h3 id="adminTitle">Accesso Amministrazione</h3>
+                <p>Inserisci la password per continuare.</p>
+                <input id="adminPassword" type="password" placeholder="Password">
+                <div id="adminError" class="error is-hidden">Password errata.</div>
+                <div class="modal-actions">
+                    <button id="adminCancel" class="secondary">Annulla</button>
+                    <button id="adminConfirm">Entra</button>
+                </div>
+            </div>
+        </div>
 
         <p id="appVersion">AyPi v...</p>
         <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">

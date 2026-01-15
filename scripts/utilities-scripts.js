@@ -60,7 +60,7 @@ function showError(message, detail = "") {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-    console.log("utilities-scripts.js caricato ✔");
+    console.log("utilities-scripts.js caricato");
     ipcRenderer.send("resize-normale");
 
     const btn = document.getElementById("transcribeFileNames");
@@ -71,7 +71,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     btn.addEventListener("click", async () => {
-        console.log("Bottone Trascrivi Nomi Files cliccato ✔");
+        console.log("Bottone Trascrivi Nomi Files cliccato");
 
         if (!XLSX) {
             await showError(
@@ -159,6 +159,71 @@ window.addEventListener("DOMContentLoaded", () => {
     if (btnHierarchy) {
         btnHierarchy.addEventListener("click", () => {
             ipcRenderer.send("open-hierarchy-window");
+        });
+    }
+
+    const btnAdmin = document.getElementById("amministrazione");
+    const adminOverlay = document.getElementById("adminOverlay");
+    const adminPassword = document.getElementById("adminPassword");
+    const adminError = document.getElementById("adminError");
+    const adminCancel = document.getElementById("adminCancel");
+    const adminConfirm = document.getElementById("adminConfirm");
+
+    function closeAdminPrompt() {
+        if (!adminOverlay) return;
+        adminOverlay.classList.add("is-hidden");
+        adminOverlay.setAttribute("aria-hidden", "true");
+        if (adminPassword) adminPassword.value = "";
+        if (adminError) adminError.classList.add("is-hidden");
+    }
+
+    function openAdminPrompt() {
+        if (!adminOverlay) return;
+        adminOverlay.classList.remove("is-hidden");
+        adminOverlay.setAttribute("aria-hidden", "false");
+        if (adminPassword) {
+            adminPassword.focus();
+            adminPassword.select();
+        }
+    }
+
+    function confirmAdminPassword() {
+        const password = adminPassword ? adminPassword.value : "";
+        if (password !== "AGPress") {
+            if (adminError) adminError.classList.remove("is-hidden");
+            return;
+        }
+        closeAdminPrompt();
+        ipcRenderer.send("open-amministrazione-window");
+    }
+
+    if (btnAdmin) {
+        btnAdmin.addEventListener("click", () => {
+            openAdminPrompt();
+        });
+    }
+
+    if (adminCancel) {
+        adminCancel.addEventListener("click", () => {
+            closeAdminPrompt();
+        });
+    }
+
+    if (adminConfirm) {
+        adminConfirm.addEventListener("click", () => {
+            confirmAdminPassword();
+        });
+    }
+
+    if (adminPassword) {
+        adminPassword.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                confirmAdminPassword();
+            } else if (event.key === "Escape") {
+                event.preventDefault();
+                closeAdminPrompt();
+            }
         });
     }
 });

@@ -393,6 +393,7 @@ let qrGeneratorWindow = null;
 let compareFoldersWindow = null;
 let hierarchyWindow = null;
 let timerWindow = null;
+let amministrazioneWindow = null;
 let isAppQuitting = false;
 
 function openBatchRenameWindow(mainWindow) {
@@ -503,6 +504,36 @@ function openTimerWindow(mainWindow) {
         } else {
             timerWindow = null;
         }
+    });
+}
+
+function openAmministrazioneWindow(mainWindow) {
+    if (isWindowAlive(amministrazioneWindow)) {
+        showWindow(amministrazioneWindow);
+        return;
+    }
+
+    amministrazioneWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+    });
+
+    amministrazioneWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "amministrazione.html"));
+    amministrazioneWindow.setMenu(null);
+
+    amministrazioneWindow.once("ready-to-show", () => {
+        if (!amministrazioneWindow.isDestroyed()) {
+            amministrazioneWindow.maximize();
+        }
+    });
+
+    amministrazioneWindow.on("closed", () => {
+        amministrazioneWindow = null;
+        showMainWindow(mainWindow);
     });
 }
 
@@ -768,6 +799,10 @@ function setupFileManager(mainWindow) {
 
       ipcMain.on("open-timer-window", () => {
           openTimerWindow(mainWindow);
+      });
+
+      ipcMain.on("open-amministrazione-window", () => {
+          openAmministrazioneWindow(mainWindow);
       });
 
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {

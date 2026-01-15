@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Amministrazione</title>
+    <link rel="stylesheet" href="../../styles/utilities/amministrazione-style.css">
+</head>
+
+<body>
+    <div class="page">
+        <header class="header">
+            <div>
+                <h1>Amministrazione</h1>
+                <p class="subtitle">Piani e obiettivi condivisi</p>
+            </div>
+            <div class="header-actions">
+                <button id="addObjectiveBtn" class="primary">Nuovo obiettivo</button>
+                <span id="saveStatus" class="save-status">Non salvato</span>
+            </div>
+        </header>
+
+        <section class="workspace">
+            <div class="objective-list" id="objectiveList"></div>
+        </section>
+    </div>
+
+    <template id="objectiveTemplate">
+        <article class="objective-card">
+            <div class="objective-header">
+                <input class="objective-title" type="text" value="">
+                <button class="icon-btn delete-objective" title="Rimuovi obiettivo">✕</button>
+            </div>
+            <div class="objective-meta">
+                <label>
+                    Creato/assegnato da
+                    <input class="objective-owner" type="text" placeholder="Nome (opzionale)">
+                </label>
+            </div>
+            <div class="progress-row">
+                <span class="progress-label">Completamento</span>
+                <span class="progress-value">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="subtasks"></div>
+            <div class="objective-actions">
+                <button class="secondary add-subtask">Aggiungi sub obiettivo</button>
+            </div>
+        </article>
+    </template>
+
+    <template id="subtaskTemplate">
+        <div class="subtask-row">
+            <label class="check check-toggle">
+                <input type="checkbox">
+                <span class="checkmark"></span>
+            </label>
+            <input class="subtask-title" type="text" value="">
+            <div class="assignees">
+                <div class="assignee-top">
+                    <button class="icon-btn add-assignee" title="Aggiungi o rimuovi responsabili">👤+</button>
+                    <div class="assignee-list"></div>
+                </div>
+                <div class="assignee-input is-hidden">
+                    <input class="assignee-name" type="text" placeholder="Aggiungi responsabile">
+                    <button class="secondary assignee-add-btn">Aggiungi</button>
+                </div>
+            </div>
+            <select class="subtask-type">
+                <option value="check">Spunta</option>
+                <option value="number">Numero</option>
+                <option value="currency">Valuta</option>
+                <option value="rating">Valutazione</option>
+            </select>
+            <div class="subtask-metric-cell">
+                <div class="subtask-metric metric-number is-hidden">
+                    <select class="subtask-currency">
+                        <option value="€">€</option>
+                        <option value="$">$</option>
+                        <option value="£">£</option>
+                    </select>
+                    <input class="subtask-current" type="number" step="0.01" placeholder="Raggiunto">
+                    <span class="metric-sep">/</span>
+                    <input class="subtask-target" type="number" step="0.01" placeholder="Obiettivo">
+                </div>
+                <div class="subtask-metric metric-rating is-hidden" aria-label="Valutazione">
+                    <button type="button" class="star" data-star="1">☆</button>
+                    <button type="button" class="star" data-star="2">☆</button>
+                    <button type="button" class="star" data-star="3">☆</button>
+                    <button type="button" class="star" data-star="4">☆</button>
+                    <button type="button" class="star" data-star="5">☆</button>
+                </div>
+            </div>
+            <input class="subtask-date" type="date">
+            <button class="icon-btn delete-subtask" title="Rimuovi sub obiettivo">✕</button>
+        </div>
+    </template>
+
+    <script src="../../scripts/utilities/amministrazione-scripts.js"></script>
+</body>
+
+</html>

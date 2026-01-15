@@ -153,3 +153,74 @@ span {
     left: 33%;
     font-size: 18px;
 }
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.overlay.is-hidden {
+    display: none;
+}
+
+.modal {
+    background-color: #2b2824;
+    border: 1px solid #4b433a;
+    border-radius: 12px;
+    padding: 24px 28px;
+    width: min(420px, 90vw);
+    text-align: left;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+
+.modal h3 {
+    margin: 0 0 8px 0;
+    color: #cc930e;
+    font-size: 22px;
+}
+
+.modal p {
+    margin: 0 0 14px 0;
+    color: #ccc;
+}
+
+.modal input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #4b433a;
+    background-color: #1f1b18;
+    color: #fff;
+    font-size: 16px;
+}
+
+.modal-actions {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.modal .secondary {
+    background-color: #3b332a;
+    color: #f2e7d1;
+}
+
+.modal .secondary:hover {
+    background-color: #2f291f;
+}
+
+.error {
+    margin-top: 10px;
+    color: #ff6b6b;
+    font-size: 14px;
+}
+
+.error.is-hidden {
+    display: none;
+}
