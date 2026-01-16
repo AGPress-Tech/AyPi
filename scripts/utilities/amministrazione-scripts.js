@@ -4,11 +4,246 @@ const path = require("path");
 
 const gantt = window.gantt;
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-obiettivi.json";
+const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
 
 let saveTimer = null;
+let assigneeOptions = [];
+let assigneeGroups = {};
+let assigneePanelHeight = 200;
+let timelineExtendCooldown = 0;
 
 function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
+}
+
+function loadAssigneeOptions() {
+    try {
+        if (!fs.existsSync(ASSIGNEES_PATH)) {
+            ensureDataFolder();
+            fs.writeFileSync(ASSIGNEES_PATH, JSON.stringify({}, null, 2), "utf8");
+            return { groups: {}, options: [] };
+        }
+        const raw = fs.readFileSync(ASSIGNEES_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            return { groups: { "Altro": parsed.map((name) => String(name)) }, options: parsed.map((name) => String(name)) };
+        }
+        if (Array.isArray(parsed.data)) {
+            return { groups: { "Altro": parsed.data.map((name) => String(name)) }, options: parsed.data.map((name) => String(name)) };
+        }
+        if (parsed && typeof parsed === "object") {
+            const rawGroups = parsed.groups && typeof parsed.groups === "object" ? parsed.groups : parsed;
+            const groups = {};
+            Object.keys(rawGroups).forEach((key) => {
+                const list = Array.isArray(rawGroups[key]) ? rawGroups[key] : [];
+                groups[key] = list.map((name) => String(name));
+            });
+            const options = Object.values(groups).flat();
+            return { groups, options };
+        }
+        return { groups: {}, options: [] };
+    } catch (err) {
+        console.error("Errore caricamento assignees:", err);
+        showDialog("warning", "Impossibile leggere la lista responsabili.", err.message || String(err));
+        return { groups: {}, options: [] };
+    }
+}
+
+function saveAssigneeOptions(groups) {
+    try {
+        ensureDataFolder();
+        fs.writeFileSync(ASSIGNEES_PATH, JSON.stringify(groups, null, 2), "utf8");
+    } catch (err) {
+        console.error("Errore salvataggio assignees:", err);
+        showDialog("warning", "Impossibile salvare la lista responsabili.", err.message || String(err));
+    }
+}
+
+function renderAssigneePanel() {
+    const panel = document.getElementById("assignees_panel");
+    if (!panel) return;
+    panel.innerHTML = "";
+    const groupKeys = Object.keys(assigneeGroups);
+    if (!groupKeys.length) {
+        panel.textContent = "Nessun responsabile configurato.";
+        return;
+    }
+    groupKeys.forEach((groupName) => {
+        const group = document.createElement("div");
+        group.className = "assignee-group";
+
+        const title = document.createElement("div");
+        title.className = "assignee-group__title";
+        title.textContent = groupName;
+
+        const list = document.createElement("div");
+        list.className = "assignee-group__list";
+        const names = assigneeGroups[groupName] || [];
+        names.forEach((name) => {
+            const item = document.createElement("div");
+            item.className = "assignee-group__item";
+            item.textContent = name;
+            list.appendChild(item);
+        });
+
+        group.appendChild(title);
+        group.appendChild(list);
+        panel.appendChild(group);
+    });
+}
+
+function renderDepartmentSelect() {
+    const select = document.getElementById("employee-department");
+    if (!select) return;
+    select.innerHTML = "";
+    Object.keys(assigneeGroups).forEach((group) => {
+        const option = document.createElement("option");
+        option.value = group;
+        option.textContent = group;
+        select.appendChild(option);
+    });
+}
+
+function renderDepartmentList() {
+    const list = document.getElementById("departments-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const groups = Object.keys(assigneeGroups);
+    if (!groups.length) {
+        list.textContent = "Nessun reparto.";
+        return;
+    }
+    groups.forEach((group) => {
+        const row = document.createElement("div");
+        row.className = "assignees-row";
+
+        const label = document.createElement("div");
+        label.textContent = group;
+
+        const actions = document.createElement("div");
+        actions.className = "assignees-row__actions";
+
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "assignees-link";
+        edit.textContent = "Modifica";
+        edit.addEventListener("click", () => {
+            const next = window.prompt("Nuovo nome reparto:", group);
+            if (!next) return;
+            const trimmed = next.trim();
+            if (!trimmed || trimmed === group) return;
+            if (assigneeGroups[trimmed]) return;
+            assigneeGroups[trimmed] = assigneeGroups[group];
+            delete assigneeGroups[group];
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderAssigneePanel();
+            renderDepartmentList();
+            renderDepartmentSelect();
+        });
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "assignees-link assignees-link--danger";
+        remove.textContent = "Rimuovi";
+        remove.addEventListener("click", () => {
+            if (!window.confirm(`Rimuovere il reparto "${group}"?`)) return;
+            delete assigneeGroups[group];
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderAssigneePanel();
+            renderDepartmentList();
+            renderDepartmentSelect();
+        });
+
+        actions.appendChild(edit);
+        actions.appendChild(remove);
+
+        row.appendChild(label);
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function renderEmployeesList() {
+    const list = document.getElementById("employees-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const groups = Object.keys(assigneeGroups);
+    const employees = [];
+    groups.forEach((group) => {
+        (assigneeGroups[group] || []).forEach((name) => {
+            employees.push({ group, name });
+        });
+    });
+    if (!employees.length) {
+        list.textContent = "Nessun operatore.";
+        return;
+    }
+    employees.forEach((employee) => {
+        const row = document.createElement("div");
+        row.className = "assignees-row";
+
+        const label = document.createElement("div");
+        label.textContent = `${employee.name} (${employee.group})`;
+
+        const actions = document.createElement("div");
+        actions.className = "assignees-row__actions";
+
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "assignees-link";
+        edit.textContent = "Modifica";
+        edit.addEventListener("click", () => {
+            const nextName = window.prompt("Nome operatore:", employee.name);
+            if (!nextName) return;
+            const trimmedName = nextName.trim();
+            if (!trimmedName) return;
+            const nextGroup = window.prompt("Reparto:", employee.group) || employee.group;
+            const trimmedGroup = nextGroup.trim();
+            if (!trimmedGroup) return;
+            assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
+            if (!assigneeGroups[trimmedGroup]) assigneeGroups[trimmedGroup] = [];
+            assigneeGroups[trimmedGroup].push(trimmedName);
+            assigneeGroups[trimmedGroup].sort((a, b) => a.localeCompare(b));
+            if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderAssigneePanel();
+            renderEmployeesList();
+            renderDepartmentList();
+            renderDepartmentSelect();
+        });
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "assignees-link assignees-link--danger";
+        remove.textContent = "Rimuovi";
+        remove.addEventListener("click", () => {
+            if (!window.confirm(`Rimuovere "${employee.name}"?`)) return;
+            assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
+            if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderAssigneePanel();
+            renderEmployeesList();
+            renderDepartmentList();
+            renderDepartmentSelect();
+        });
+
+        actions.appendChild(edit);
+        actions.appendChild(remove);
+
+        row.appendChild(label);
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function applyAssigneePanelHeight() {
+    const panel = document.querySelector(".assignees-panel");
+    if (!panel) return;
+    panel.style.height = `${assigneePanelHeight}px`;
 }
 
 function normalizeAssignees(value) {
@@ -68,16 +303,7 @@ function addDays(date, amount) {
 }
 
 function getPaddingDays() {
-    switch (gantt.config.scale_unit) {
-        case "day":
-            return 60;
-        case "month":
-            return 365;
-        case "year":
-            return 730;
-        default:
-            return 180;
-    }
+    return 7;
 }
 
 function updateRangeFromTasks() {
@@ -88,6 +314,20 @@ function updateRangeFromTasks() {
     gantt.config.start_date = addDays(range.start_date, -padding);
     gantt.config.end_date = addDays(range.end_date, padding);
     gantt.render();
+}
+
+function extendTimelineRange(direction, anchorDate) {
+    if (direction < 0) {
+        gantt.config.start_date = gantt.date.add(gantt.config.start_date, -1, "day");
+    } else {
+        gantt.config.end_date = gantt.date.add(gantt.config.end_date, 1, "day");
+    }
+    gantt.render();
+    if (anchorDate) {
+        const scroll = gantt.getScrollState();
+        const x = gantt.posFromDate(anchorDate);
+        gantt.scrollTo(x, scroll.y);
+    }
 }
 
 function extendRange(direction) {
@@ -315,7 +555,7 @@ function saveData() {
 }
 
 function configureGantt() {
-    gantt.plugins({ marker: true });
+    gantt.plugins({ marker: true, drag_timeline: true });
     gantt.attachEvent("onTaskCreated", (task) => {
         if (!task.start_date) {
             const start = new Date();
@@ -343,6 +583,11 @@ function configureGantt() {
     gantt.config.auto_types = true;
     gantt.config.show_progress = true;
     gantt.config.scroll_size = 10;
+    gantt.config.drag_timeline = {
+        ignore: ".gantt_task_line, .gantt_task_link",
+        useKey: false,
+        render: false,
+    };
     gantt.config.duration_unit = "day";
     gantt.config.duration_step = 1;
     gantt.config.drag_resize = true;
@@ -369,7 +614,6 @@ function configureGantt() {
             align: "left",
             width: 160,
             resize: true,
-            editor: { type: "text", map_to: "assignees" },
             template: (task) => normalizeAssignees(task.assignees),
         },
         { name: "add", label: "", width: 40 },
@@ -420,10 +664,42 @@ function configureGantt() {
         },
     };
 
+    gantt.form_blocks.ay_assignees = {
+        render: function (sns) {
+            const options = assigneeOptions.map((name) => {
+                const safe = String(name);
+                return `<label class="gantt_assignee_option"><input type="checkbox" value="${safe}"><span>${safe}</span></label>`;
+            }).join("");
+            return `<div class="gantt_assignee_list" data-name="${sns.name}">${options}</div>`;
+        },
+        set_value: function (node, value) {
+            const selected = normalizeAssignees(value)
+                .split(",")
+                .map((name) => name.trim())
+                .filter(Boolean);
+            const inputs = node.querySelectorAll("input[type='checkbox']");
+            inputs.forEach((input) => {
+                input.checked = selected.includes(input.value);
+            });
+        },
+        get_value: function (node) {
+            const inputs = node.querySelectorAll("input[type='checkbox']");
+            const values = [];
+            inputs.forEach((input) => {
+                if (input.checked) values.push(input.value);
+            });
+            return values.join(", ");
+        },
+        focus: function (node) {
+            const input = node.querySelector("input[type='checkbox']");
+            if (input) input.focus();
+        },
+    };
+
     gantt.config.lightbox.sections = [
         { name: "description", height: 60, map_to: "text", type: "textarea", focus: true, label: "Descrizione" },
         { name: "time", type: "time", map_to: "auto", label: "Periodo previsto" },
-        { name: "assignees", height: 38, map_to: "assignees", type: "ay_text", label: "Responsabili" },
+        { name: "assignees", height: 80, map_to: "assignees", type: "ay_assignees", label: "Responsabili" },
         { name: "color", height: 38, map_to: "color", type: "ay_color", label: "Colore task" },
     ];
 
@@ -462,16 +738,43 @@ function configureGantt() {
             clampParentToChildren(task);
         }
         scheduleSave();
-        updateRangeFromTasks();
     });
     gantt.attachEvent("onAfterTaskDelete", () => {
         calculateAllParentsProgress();
         scheduleSave();
-        updateRangeFromTasks();
     });
     gantt.attachEvent("onTaskDrag", (id, mode) => {
         if (mode === "progress") {
             updateParentProgressFrom(id);
+            return;
+        }
+        if (!gantt.$task) return;
+        const scroll = gantt.getScrollState();
+        const viewWidth = gantt.$task.offsetWidth || 0;
+        const leftDate = gantt.dateFromPos(scroll.x);
+        const rightDate = gantt.dateFromPos(scroll.x + viewWidth - 1);
+        if (!leftDate || !rightDate) return;
+        const thresholdMs = 2 * 24 * 60 * 60 * 1000;
+        if (leftDate.getTime() - gantt.config.start_date.getTime() < thresholdMs) {
+            extendTimelineRange(-1, leftDate);
+        } else if (gantt.config.end_date.getTime() - rightDate.getTime() < thresholdMs) {
+            extendTimelineRange(1, leftDate);
+        }
+    });
+    gantt.attachEvent("onMouseMove", (id, e) => {
+        if (!gantt.$task || gantt.getState().drag_id || e.buttons !== 1) return;
+        const now = Date.now();
+        if (now - timelineExtendCooldown < 30) return;
+        timelineExtendCooldown = now;
+        const scroll = gantt.getScrollState();
+        const leftDate = gantt.dateFromPos(scroll.x);
+        const rightDate = gantt.dateFromPos(scroll.x + gantt.$task.offsetWidth - 1);
+        if (!leftDate || !rightDate) return;
+        if (+leftDate <= +gantt.config.start_date) {
+            extendTimelineRange(-1, leftDate);
+        }
+        if (+gantt.config.end_date < +gantt.date.add(rightDate, 1, "day")) {
+            extendTimelineRange(1, leftDate);
         }
     });
     gantt.attachEvent("onGridClick", (id, e) => {
@@ -514,12 +817,21 @@ function init() {
         showDialog("warning", "Gantt non disponibile.", "Controlla che dhtmlx-gantt sia installato.");
         return;
     }
+    const assigneesData = loadAssigneeOptions();
+    assigneeOptions = assigneesData.options;
+    assigneeGroups = assigneesData.groups;
     configureGantt();
     const data = loadData();
     gantt.init("gantt_here");
     gantt.parse(data);
     syncAllParents();
     calculateAllParentsProgress();
+
+    renderAssigneePanel();
+    renderDepartmentList();
+    renderEmployeesList();
+    renderDepartmentSelect();
+    applyAssigneePanelHeight();
 
     if (gantt.$grid) {
         gantt.$grid.addEventListener("change", (event) => {
@@ -620,6 +932,94 @@ function init() {
             const centerOffset = gantt.$task ? gantt.$task.offsetWidth / 2 : 0;
             const x = gantt.posFromDate(now) - centerOffset;
             gantt.scrollTo(x, scroll.y);
+        });
+    }
+
+    const manageBtn = document.getElementById("assignees-manage");
+    const modal = document.getElementById("assignees-modal");
+    const cancelBtn = document.getElementById("assignees-cancel");
+    const departmentInput = document.getElementById("department-name");
+    const departmentAdd = document.getElementById("department-add");
+    const employeeNameInput = document.getElementById("employee-name");
+    const employeeAdd = document.getElementById("employee-add");
+    const resizer = document.getElementById("assignees-resizer");
+
+    const closeModal = () => {
+        if (!modal) return;
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        if (departmentInput) departmentInput.value = "";
+        if (employeeNameInput) employeeNameInput.value = "";
+    };
+
+    if (manageBtn && modal) {
+        manageBtn.addEventListener("click", () => {
+            modal.classList.add("is-open");
+            modal.setAttribute("aria-hidden", "false");
+            if (departmentInput) departmentInput.focus();
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener("click", closeModal);
+    }
+
+    if (modal) {
+        modal.addEventListener("click", (event) => {
+            if (event.target === modal) closeModal();
+        });
+    }
+
+    if (departmentAdd) {
+        departmentAdd.addEventListener("click", () => {
+            const name = departmentInput ? departmentInput.value.trim() : "";
+            if (!name || assigneeGroups[name]) return;
+            assigneeGroups[name] = [];
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderAssigneePanel();
+            renderDepartmentList();
+            renderDepartmentSelect();
+            if (departmentInput) departmentInput.value = "";
+        });
+    }
+
+    if (employeeAdd) {
+        employeeAdd.addEventListener("click", () => {
+            const select = document.getElementById("employee-department");
+            const department = select ? select.value : "";
+            const name = employeeNameInput ? employeeNameInput.value.trim() : "";
+            if (!department || !name) return;
+            if (!assigneeGroups[department]) assigneeGroups[department] = [];
+            if (!assigneeGroups[department].includes(name)) {
+                assigneeGroups[department].push(name);
+                assigneeGroups[department].sort((a, b) => a.localeCompare(b));
+            }
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderAssigneePanel();
+            renderEmployeesList();
+            if (employeeNameInput) employeeNameInput.value = "";
+        });
+    }
+
+    if (resizer) {
+        let startY = 0;
+        let startHeight = assigneePanelHeight;
+        const onMove = (event) => {
+            const delta = startY - event.clientY;
+            assigneePanelHeight = Math.min(360, Math.max(120, startHeight + delta));
+            applyAssigneePanelHeight();
+        };
+        const onUp = () => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+        resizer.addEventListener("mousedown", (event) => {
+            startY = event.clientY;
+            startHeight = assigneePanelHeight;
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
         });
     }
 }

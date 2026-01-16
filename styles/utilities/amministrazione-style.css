@@ -6,6 +6,12 @@ body {
     padding: 0;
 }
 
+.gantt-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
 .gantt-toolbar {
     display: flex;
     align-items: center;
@@ -31,7 +37,8 @@ body {
 
 .gantt-container {
     width: 100%;
-    height: calc(100% - 42px);
+    flex: 1;
+    min-height: 0;
 }
 
 /* no split styling */
@@ -60,6 +67,233 @@ body {
 
 .gantt_marker.today {
     background: #f5c542;
+}
+
+.assignees-panel {
+    border-top: 1px solid #e6e6e6;
+    background: #ffffff;
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.assignees-panel__title {
+    padding: 8px 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666666;
+    border-bottom: 1px solid #efefef;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.assignees-panel__btn {
+    border: 1px solid #d0d0d0;
+    background: #f6f6f6;
+    color: #222222;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: 0.02em;
+}
+
+.assignees-panel__btn:hover {
+    background: #eeeeee;
+}
+
+.assignees-panel__content {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 12px;
+    display: grid;
+    gap: 10px;
+}
+
+.assignees-panel__resizer {
+    position: absolute;
+    top: -6px;
+    left: 0;
+    right: 0;
+    height: 12px;
+    cursor: row-resize;
+}
+
+.assignee-group {
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 8px;
+}
+
+.assignee-group:last-child {
+    border-bottom: none;
+}
+
+.assignee-group__title {
+    font-weight: 600;
+    color: #333333;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.assignee-group__list {
+    display: grid;
+    gap: 4px;
+    padding-left: 8px;
+}
+
+.assignee-group__item {
+    font-size: 13px;
+    color: #444444;
+}
+
+.assignees-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+}
+
+.assignees-modal.is-open {
+    display: flex;
+}
+
+.assignees-modal__card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 18px;
+    width: min(620px, 92vw);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    display: grid;
+    gap: 10px;
+}
+
+.assignees-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.assignees-modal__title {
+    font-weight: 600;
+    color: #222222;
+}
+
+.assignees-modal__close {
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    cursor: pointer;
+    color: #666666;
+}
+
+.assignees-modal__section {
+    display: grid;
+    gap: 8px;
+}
+
+.assignees-modal__subtitle {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666666;
+}
+
+.assignees-modal__input {
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.assignees-modal__select {
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: #ffffff;
+}
+
+.assignees-modal__btn {
+    border: 1px solid #d0d0d0;
+    background: #f6f6f6;
+    color: #222222;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.assignees-grid {
+    border: 1px solid #eeeeee;
+    border-radius: 8px;
+    overflow: hidden;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.assignees-row {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    padding: 6px 10px;
+    align-items: center;
+    border-bottom: 1px solid #f1f1f1;
+    font-size: 13px;
+    color: #333333;
+}
+
+.assignees-row:last-child {
+    border-bottom: none;
+}
+
+.assignees-row__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.assignees-link {
+    border: none;
+    background: transparent;
+    color: #2f6feb;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+}
+
+.assignees-link--danger {
+    color: #d9480f;
+}
+
+.assignees-form {
+    display: grid;
+    grid-template-columns: 1fr 44px;
+    gap: 8px;
+    align-items: center;
+}
+
+.assignees-form.assignees-form--employee {
+    grid-template-columns: 160px 1fr 44px;
+}
+
+.gantt_assignee_list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.gantt_assignee_option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #222222;
 }
 
 .task-blue .gantt_task_content {

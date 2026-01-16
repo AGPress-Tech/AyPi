@@ -10,10 +10,45 @@
 </head>
 
 <body>
-    <div class="gantt-toolbar">
-        <button type="button" class="gantt-toolbar__btn" id="aypi-show-today">Oggi</button>
+    <div class="gantt-page">
+        <div class="gantt-toolbar">
+            <button type="button" class="gantt-toolbar__btn" id="aypi-show-today">Oggi</button>
+        </div>
+        <div id="gantt_here" class="gantt-container"></div>
+        <div class="assignees-panel">
+            <div class="assignees-panel__title">
+                <span>Responsabili</span>
+                <button type="button" class="assignees-panel__btn" id="assignees-manage">Gestisci</button>
+            </div>
+            <div id="assignees_panel" class="assignees-panel__content"></div>
+            <div class="assignees-panel__resizer" id="assignees-resizer"></div>
+        </div>
+        <div class="assignees-modal" id="assignees-modal" aria-hidden="true">
+            <div class="assignees-modal__card">
+                <div class="assignees-modal__header">
+                    <div class="assignees-modal__title">Gestione responsabili</div>
+                    <button type="button" class="assignees-modal__close" id="assignees-cancel">×</button>
+                </div>
+                <div class="assignees-modal__section">
+                    <div class="assignees-modal__subtitle">Reparti</div>
+                    <div class="assignees-grid" id="departments-list"></div>
+                    <div class="assignees-form">
+                        <input class="assignees-modal__input" id="department-name" type="text" placeholder="Nuovo reparto">
+                        <button type="button" class="assignees-modal__btn" id="department-add">+</button>
+                    </div>
+                </div>
+                <div class="assignees-modal__section">
+                    <div class="assignees-modal__subtitle">Operatori</div>
+                    <div class="assignees-grid" id="employees-list"></div>
+                    <div class="assignees-form assignees-form--employee">
+                        <select class="assignees-modal__select" id="employee-department"></select>
+                        <input class="assignees-modal__input" id="employee-name" type="text" placeholder="Nome e cognome">
+                        <button type="button" class="assignees-modal__btn" id="employee-add">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <div id="gantt_here" class="gantt-container"></div>
 
     <script src="../../node_modules/dhtmlx-gantt/codebase/dhtmlxgantt.js"></script>
     <script src="../../scripts/utilities/amministrazione-scripts.js"></script>
