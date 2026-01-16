@@ -795,6 +795,19 @@ function configureGantt() {
     gantt.attachEvent("onAfterLinkDelete", scheduleSave);
     gantt.attachEvent("onAfterLinkUpdate", scheduleSave);
 
+    gantt.attachEvent("onDblClick", () => {
+        const now = new Date();
+        const task = {
+            text: "Nuova task",
+            start_date: now,
+            end_date: addDays(now, 7),
+            parent: 0,
+        };
+        const newId = gantt.addTask(task, 0);
+        gantt.showLightbox(newId);
+        return false;
+    });
+
     gantt.attachEvent("onBeforeTaskChanged", (id, mode, task) => {
         task.assignees = normalizeAssignees(task.assignees);
         clampParentToChildren(task);
@@ -934,6 +947,18 @@ function init() {
             gantt.scrollTo(x, scroll.y);
         });
     }
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key !== "Delete") return;
+        const target = event.target;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+            return;
+        }
+        const selectedId = gantt.getState().selected_task;
+        if (!selectedId || !gantt.isTaskExists(selectedId)) return;
+        if (!window.confirm("Vuoi davvero eliminare questa attivita?")) return;
+        gantt.deleteTask(selectedId);
+    });
 
     const manageBtn = document.getElementById("assignees-manage");
     const modal = document.getElementById("assignees-modal");
