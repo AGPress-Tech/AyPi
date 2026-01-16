@@ -2,11 +2,8 @@ const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
+const gantt = window.gantt;
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-obiettivi.json";
-
-const state = {
-    objectives: [],
-};
 
 let saveTimer = null;
 
@@ -14,10 +11,232 @@ function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
 }
 
-function computeProgress(items) {
-    if (!items || items.length === 0) return 0;
-    const done = items.filter((item) => isSubtaskDone(item)).length;
-    return Math.round((done / items.length) * 100);
+function normalizeAssignees(value) {
+    if (Array.isArray(value)) return value.join(", ");
+    if (value == null) return "";
+    const trimmed = String(value).trim();
+    if (!trimmed || trimmed.toLowerCase() === "undefined") return "";
+    return trimmed;
+}
+
+function randomColor() {
+    const hue = Math.floor(Math.random() * 360);
+    const sat = 70 + Math.floor(Math.random() * 15);
+    const light = 45 + Math.floor(Math.random() * 10);
+    return hslToHex(hue, sat, light);
+}
+
+function hexToRgb(hex) {
+    const cleaned = String(hex).replace("#", "").trim();
+    if (cleaned.length === 3) {
+        const r = parseInt(cleaned[0] + cleaned[0], 16);
+        const g = parseInt(cleaned[1] + cleaned[1], 16);
+        const b = parseInt(cleaned[2] + cleaned[2], 16);
+        return { r, g, b };
+    }
+    if (cleaned.length !== 6) return null;
+    const r = parseInt(cleaned.slice(0, 2), 16);
+    const g = parseInt(cleaned.slice(2, 4), 16);
+    const b = parseInt(cleaned.slice(4, 6), 16);
+    if ([r, g, b].some((v) => Number.isNaN(v))) return null;
+    return { r, g, b };
+}
+
+function lightenColor(color, amount = 0.3) {
+    if (!color) return "";
+    const rgb = hexToRgb(color);
+    if (!rgb) return color;
+    const mix = (channel) => Math.round(channel + (255 - channel) * amount);
+    return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
+}
+
+function hslToHex(h, s, l) {
+    const sat = s / 100;
+    const light = l / 100;
+    const k = (n) => (n + h / 30) % 12;
+    const a = sat * Math.min(light, 1 - light);
+    const f = (n) =>
+        Math.round(255 * (light - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+    const toHex = (v) => v.toString(16).padStart(2, "0");
+    return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+
+function addDays(date, amount) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + amount);
+    return next;
+}
+
+function getPaddingDays() {
+    switch (gantt.config.scale_unit) {
+        case "day":
+            return 60;
+        case "month":
+            return 365;
+        case "year":
+            return 730;
+        default:
+            return 180;
+    }
+}
+
+function updateRangeFromTasks() {
+    if (!gantt) return;
+    const range = gantt.getSubtaskDates();
+    if (!range || !range.start_date || !range.end_date) return;
+    const padding = getPaddingDays();
+    gantt.config.start_date = addDays(range.start_date, -padding);
+    gantt.config.end_date = addDays(range.end_date, padding);
+    gantt.render();
+}
+
+function extendRange(direction) {
+    if (!gantt) return;
+    const padding = getPaddingDays();
+    const scroll = gantt.getScrollState();
+    if (direction < 0) {
+        gantt.config.start_date = addDays(gantt.config.start_date, -padding);
+    } else {
+        gantt.config.end_date = addDays(gantt.config.end_date, padding);
+    }
+    gantt.render();
+    if (gantt.$task) {
+        gantt.$task.scrollLeft = scroll.x;
+    }
+}
+
+function getDateValue(value) {
+    if (!value) return null;
+    return value instanceof Date ? value : new Date(value);
+}
+
+function syncParentRange(parentId) {
+    if (!parentId || parentId === 0) return;
+    const parent = gantt.getTask(parentId);
+    const children = gantt.getChildren(parentId) || [];
+    if (!children.length) return;
+
+    let minStart = null;
+    let maxEnd = null;
+    children.forEach((childId) => {
+        const child = gantt.getTask(childId);
+        const start = getDateValue(child.start_date);
+        const end = getDateValue(child.end_date);
+        if (start) minStart = minStart ? (start < minStart ? start : minStart) : start;
+        if (end) maxEnd = maxEnd ? (end > maxEnd ? end : maxEnd) : end;
+    });
+
+    const currentStart = getDateValue(parent.start_date);
+    const currentEnd = getDateValue(parent.end_date);
+
+    if (minStart && (!currentStart || minStart < currentStart)) {
+        parent.start_date = new Date(minStart);
+    }
+    if (maxEnd && (!currentEnd || maxEnd > currentEnd)) {
+        parent.end_date = new Date(maxEnd);
+    }
+    parent.type = gantt.config.types.project;
+
+    if (parent.parent && parent.parent !== 0) {
+        syncParentRange(parent.parent);
+    }
+}
+
+function syncAllParents() {
+    const roots = gantt.getChildren(0) || [];
+    roots.forEach((rootId) => {
+        const stack = [rootId];
+        while (stack.length) {
+            const currentId = stack.pop();
+            const children = gantt.getChildren(currentId) || [];
+            children.forEach((childId) => stack.push(childId));
+            if (children.length) {
+                const current = gantt.getTask(currentId);
+                current.type = gantt.config.types.project;
+                syncParentRange(currentId);
+            }
+        }
+    });
+}
+
+function clampParentToChildren(task) {
+    if (!task) return;
+    const children = gantt.getChildren(task.id) || [];
+    if (!children.length) return;
+    let minStart = null;
+    let maxEnd = null;
+    children.forEach((childId) => {
+        const child = gantt.getTask(childId);
+        const start = getDateValue(child.start_date);
+        const end = getDateValue(child.end_date);
+        if (start) minStart = minStart ? (start < minStart ? start : minStart) : start;
+        if (end) maxEnd = maxEnd ? (end > maxEnd ? end : maxEnd) : end;
+    });
+    if (!minStart || !maxEnd) return;
+    const start = getDateValue(task.start_date);
+    const end = getDateValue(task.end_date);
+    if (start && start > minStart) {
+        task.start_date = new Date(minStart);
+    }
+    if (end && end < maxEnd) {
+        task.end_date = new Date(maxEnd);
+    }
+}
+
+function calculateParentProgress(parentId) {
+    if (!parentId || parentId === 0) return;
+    const parent = gantt.getTask(parentId);
+    if (!parent) return;
+    const children = gantt.getChildren(parentId) || [];
+    if (!children.length) return;
+
+    let totalWeight = 0;
+    let weightedProgress = 0;
+    children.forEach((childId) => {
+        const child = gantt.getTask(childId);
+        const duration = Number(child.duration) || 1;
+        const progress = Number(child.progress) || 0;
+        totalWeight += duration;
+        weightedProgress += progress * duration;
+    });
+
+    if (totalWeight > 0) {
+        parent.progress = Math.max(0, Math.min(1, weightedProgress / totalWeight));
+        gantt.refreshTask(parentId);
+    }
+
+    if (parent.parent && parent.parent !== 0) {
+        calculateParentProgress(parent.parent);
+    }
+}
+
+function updateParentProgressFrom(id) {
+    gantt.eachParent((task) => {
+        const children = gantt.getChildren(task.id) || [];
+        if (!children.length) return;
+        let sum = 0;
+        children.forEach((childId) => {
+            const child = gantt.getTask(childId);
+            sum += (Number(child.progress) || 0);
+        });
+        task.progress = Math.max(0, Math.min(1, sum / children.length));
+    }, id);
+    gantt.render();
+}
+
+function calculateAllParentsProgress() {
+    const roots = gantt.getChildren(0) || [];
+    roots.forEach((rootId) => {
+        const stack = [rootId];
+        while (stack.length) {
+            const currentId = stack.pop();
+            const children = gantt.getChildren(currentId) || [];
+            children.forEach((childId) => stack.push(childId));
+            if (children.length) {
+                calculateParentProgress(currentId);
+            }
+        }
+    });
 }
 
 function scheduleSave() {
@@ -26,12 +245,6 @@ function scheduleSave() {
         saveTimer = null;
         saveData();
     }, 500);
-    setSaveStatus("Modifiche in attesa...");
-}
-
-function setSaveStatus(text) {
-    const el = document.getElementById("saveStatus");
-    if (el) el.textContent = text;
 }
 
 function ensureDataFolder() {
@@ -41,393 +254,315 @@ function ensureDataFolder() {
     }
 }
 
+function toDateString(value) {
+    if (!value) return "";
+    const d = value instanceof Date ? value : new Date(value);
+    if (!isFinite(d.getTime())) return "";
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function normalizeTask(task) {
+    const cleaned = { ...task };
+    if ("undefined" in cleaned) delete cleaned.undefined;
+    if ("assigneesText" in cleaned) delete cleaned.assigneesText;
+    return {
+        ...cleaned,
+        start_date: toDateString(cleaned.start_date),
+        end_date: toDateString(cleaned.end_date),
+        assignees: normalizeAssignees(cleaned.assignees),
+    };
+}
+
+function normalizePayload(payload) {
+    const tasks = Array.isArray(payload.data || payload.tasks) ? (payload.data || payload.tasks) : [];
+    const links = Array.isArray(payload.links) ? payload.links : [];
+    return {
+        data: tasks.map(normalizeTask),
+        links,
+    };
+}
+
 function loadData() {
     try {
         if (!fs.existsSync(DATA_PATH)) {
-            state.objectives = [];
-            setSaveStatus("Nessun dato trovato");
-            return;
+            return { data: [], links: [] };
         }
         const raw = fs.readFileSync(DATA_PATH, "utf8");
-        const data = JSON.parse(raw);
-        state.objectives = Array.isArray(data) ? data : [];
-        setSaveStatus("Dati caricati");
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            return { data: [], links: [] };
+        }
+        return normalizePayload(parsed);
     } catch (err) {
         console.error("Errore caricamento dati:", err);
-        state.objectives = [];
-        setSaveStatus("Errore lettura dati");
         showDialog("warning", "Impossibile leggere i dati dal server.", err.message || String(err));
+        return { data: [], links: [] };
     }
 }
 
 function saveData() {
     try {
         ensureDataFolder();
-        fs.writeFileSync(DATA_PATH, JSON.stringify(state.objectives, null, 2), "utf8");
-        setSaveStatus("Salvato");
+        const payload = normalizePayload(gantt.serialize());
+        fs.writeFileSync(DATA_PATH, JSON.stringify(payload, null, 2), "utf8");
     } catch (err) {
         console.error("Errore salvataggio dati:", err);
-        setSaveStatus("Salvataggio fallito");
         showDialog("warning", "Impossibile salvare i dati sul server.", err.message || String(err));
     }
 }
 
-function createId() {
-    return `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-}
-
-function addObjective() {
-    state.objectives.push({
-        id: createId(),
-        title: "Nuovo obiettivo",
-        createdBy: "",
-        items: [],
+function configureGantt() {
+    gantt.attachEvent("onTaskCreated", (task) => {
+        if (!task.start_date) {
+            const start = new Date();
+            const end = addDays(start, 7);
+            task.start_date = start;
+            task.end_date = end;
+        }
+        return task;
     });
-    renderObjectives();
-    scheduleSave();
-}
 
-function addSubtask(objective) {
-    objective.items.push({
-        id: createId(),
-        title: "Nuovo sub obiettivo",
-        assignees: [],
-        dueDate: "",
-        done: false,
-        completionType: "check",
-        targetValue: "",
-        currentValue: "",
-        currency: "€",
-        rating: 0,
+    gantt.attachEvent("onGridResize", () => {
+        gantt.render();
     });
-    renderObjectives();
-    scheduleSave();
-}
+    gantt.config.date_format = "%Y-%m-%d";
+    gantt.config.xml_date = "%Y-%m-%d";
+    gantt.config.readonly = false;
+    gantt.config.open_tree_initially = true;
+    gantt.config.drag_progress = true;
+    gantt.config.drag_resize = true;
+    gantt.config.drag_move = true;
+    gantt.config.drag_links = true;
+    gantt.config.order_branch = true;
+    gantt.config.auto_scheduling = false;
+    gantt.config.inline_editing = true;
+    gantt.config.auto_types = true;
+    gantt.config.scroll_size = 10;
+    gantt.config.duration_unit = "day";
+    gantt.config.duration_step = 1;
+    gantt.config.drag_resize = true;
+    gantt.config.drag_move = true;
+    gantt.config.grid_width = 360;
+    gantt.config.grid_resize = false;
+    gantt.config.columns = [
+        { name: "text", label: "Nome task", tree: true, width: 200, resize: true },
+        { name: "start_date", label: "Inizio", align: "center", width: 110, resize: true, editor: { type: "date", map_to: "start_date", format: "%d/%m/%Y" } },
+        { name: "end_date", label: "Fine", align: "center", width: 110, resize: true, editor: { type: "date", map_to: "end_date", format: "%d/%m/%Y" } },
+        {
+            name: "assignees",
+            label: "Responsabili",
+            align: "left",
+            width: 160,
+            resize: true,
+            editor: { type: "text", map_to: "assignees" },
+            template: (task) => normalizeAssignees(task.assignees),
+        },
+        { name: "add", label: "", width: 40 },
+    ];
 
-function removeObjective(objectiveId) {
-    state.objectives = state.objectives.filter((obj) => obj.id !== objectiveId);
-    renderObjectives();
-    scheduleSave();
-}
+    gantt.templates.task_style = (start, end, task) => {
+        if (!task.color) return "";
+        return `background-color:${task.color};`;
+    };
+    gantt.templates.progress_text = (start, end, task) => {
+        return `<span style="text-align:left;">${Math.round((task.progress || 0) * 100)}%</span>`;
+    };
+    gantt.templates.task_class = () => "";
 
-function removeSubtask(objective, subtaskId) {
-    objective.items = objective.items.filter((item) => item.id !== subtaskId);
-    renderObjectives();
-    scheduleSave();
-}
+    gantt.form_blocks.ay_text = {
+        render: function (sns) {
+            return `<div class="gantt_custom_field"><input type="text" name="${sns.name}"></div>`;
+        },
+        set_value: function (node, value) {
+            const input = node.querySelector("input");
+            if (input) input.value = value || "";
+        },
+        get_value: function (node) {
+            const input = node.querySelector("input");
+            return input ? input.value : "";
+        },
+        focus: function (node) {
+            const input = node.querySelector("input");
+            if (input) input.focus();
+        },
+    };
 
-function updateObjectiveTitle(objective, value) {
-    objective.title = value;
-    scheduleSave();
-}
+    gantt.form_blocks.ay_color = {
+        render: function (sns) {
+            return `<div class="gantt_custom_field"><input type="color" name="${sns.name}"></div>`;
+        },
+        set_value: function (node, value) {
+            const input = node.querySelector("input");
+            if (input) input.value = value || "#4c6ef5";
+        },
+        get_value: function (node) {
+            const input = node.querySelector("input");
+            return input ? input.value : "";
+        },
+        focus: function (node) {
+            const input = node.querySelector("input");
+            if (input) input.focus();
+        },
+    };
 
-function updateObjectiveOwner(objective, value) {
-    objective.createdBy = value;
-    scheduleSave();
-}
+    gantt.config.lightbox.sections = [
+        { name: "description", height: 60, map_to: "text", type: "textarea", focus: true, label: "Descrizione" },
+        { name: "time", type: "time", map_to: "auto", label: "Periodo previsto" },
+        { name: "assignees", height: 38, map_to: "assignees", type: "ay_text", label: "Responsabili" },
+        { name: "color", height: 38, map_to: "color", type: "ay_color", label: "Colore task" },
+    ];
 
-function updateSubtask(subtask, fields) {
-    Object.assign(subtask, fields);
-    scheduleSave();
-}
+    gantt.attachEvent("onTaskLoading", (task) => {
+        task.assignees = normalizeAssignees(task.assignees);
+        if (task.color == null) task.color = "";
+        return true;
+    });
 
-function parseNumber(value) {
-    if (value == null) return NaN;
-    const normalized = String(value).replace(",", ".").trim();
-    return parseFloat(normalized);
-}
-
-function isSubtaskDone(item) {
-    if (!item) return false;
-    const type = item.completionType || "check";
-    if (type === "number" || type === "currency") {
-        const target = parseNumber(item.targetValue);
-        const current = parseNumber(item.currentValue);
-        if (!isFinite(target) || !isFinite(current)) return false;
-        return current >= target;
-    }
-    if (type === "rating") {
-        return Number(item.rating || 0) >= 5;
-    }
-    return !!item.done;
-}
-
-function updateObjectiveProgress(card, objective) {
-    if (!card || !objective) return;
-    const progress = computeProgress(objective.items);
-    const valueEl = card.querySelector(".progress-value");
-    const fillEl = card.querySelector(".progress-fill");
-    if (valueEl) valueEl.textContent = `${progress}%`;
-    if (fillEl) fillEl.style.width = `${progress}%`;
-}
-
-function updateStarsDisplay(stars, rating) {
-    if (!stars || !stars.length) return;
-    stars.forEach((star) => {
-        const value = Number(star.dataset.star || 0);
-        if (value <= rating) {
-            star.classList.add("active");
-            star.textContent = "★";
-        } else {
-            star.classList.remove("active");
-            star.textContent = "☆";
+    gantt.attachEvent("onAfterTaskAdd", (id, task) => {
+        task.assignees = normalizeAssignees(task.assignees);
+        if (!task.color) {
+            if (task.parent && task.parent !== 0) {
+                const parent = gantt.getTask(task.parent);
+                if (parent && parent.color) {
+                    task.color = lightenColor(parent.color, 0.35);
+                }
+            }
+            if (!task.color) {
+                task.color = randomColor();
+            }
+        }
+        if (task.parent) {
+            syncParentRange(task.parent);
+            updateParentProgressFrom(task.parent);
+        }
+        scheduleSave();
+    });
+    gantt.attachEvent("onAfterTaskUpdate", (id, task) => {
+        if (task) {
+            task.assignees = normalizeAssignees(task.assignees);
+            if (task.parent) {
+                syncParentRange(task.parent);
+                updateParentProgressFrom(task.parent);
+            }
+            clampParentToChildren(task);
+        }
+        scheduleSave();
+        updateRangeFromTasks();
+    });
+    gantt.attachEvent("onAfterTaskDelete", () => {
+        calculateAllParentsProgress();
+        scheduleSave();
+        updateRangeFromTasks();
+    });
+    gantt.attachEvent("onTaskDrag", (id, mode) => {
+        if (mode === "progress") {
+            updateParentProgressFrom(id);
         }
     });
+    gantt.attachEvent("onAfterLinkAdd", scheduleSave);
+    gantt.attachEvent("onAfterLinkDelete", scheduleSave);
+    gantt.attachEvent("onAfterLinkUpdate", scheduleSave);
+
+    gantt.attachEvent("onBeforeTaskChanged", (id, mode, task) => {
+        task.assignees = normalizeAssignees(task.assignees);
+        clampParentToChildren(task);
+        return true;
+    });
+
+    gantt.config.open_split_tasks = true;
+    gantt.attachEvent("onBeforeSplitTaskDisplay", (id, task, parent) => {
+        if (task.$rendered_at != task.parent) {
+            return false;
+        }
+        return true;
+    });
+
+    gantt.attachEvent("onLightboxSave", () => true);
 }
 
-function renderObjectives() {
-    const list = document.getElementById("objectiveList");
-    if (!list) return;
-    list.innerHTML = "";
-
-    if (!state.objectives.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty-state";
-        empty.textContent = "Nessun obiettivo. Crea il primo con il pulsante in alto.";
-        list.appendChild(empty);
+function init() {
+    if (!gantt) {
+        showDialog("warning", "Gantt non disponibile.", "Controlla che dhtmlx-gantt sia installato.");
         return;
     }
+    configureGantt();
+    const data = loadData();
+    gantt.init("gantt_here");
+    gantt.parse(data);
+    syncAllParents();
+    calculateAllParentsProgress();
 
-    const objectiveTemplate = document.getElementById("objectiveTemplate");
-    const subtaskTemplate = document.getElementById("subtaskTemplate");
-    if (!objectiveTemplate || !subtaskTemplate) return;
+    gantt.locale = gantt.locale || {};
+    gantt.locale.labels = {
+        ...gantt.locale.labels,
+        new_task: "Nuova attivita",
+        icon_save: "Salva",
+        icon_cancel: "Annulla",
+        icon_delete: "Elimina",
+        confirm_closing: "",
+        confirm_deleting: "Vuoi davvero eliminare questa attivita?",
+    };
+    gantt.locale.date = {
+        month_full: [
+            "Gennaio",
+            "Febbraio",
+            "Marzo",
+            "Aprile",
+            "Maggio",
+            "Giugno",
+            "Luglio",
+            "Agosto",
+            "Settembre",
+            "Ottobre",
+            "Novembre",
+            "Dicembre",
+        ],
+        month_short: [
+            "Gen",
+            "Feb",
+            "Mar",
+            "Apr",
+            "Mag",
+            "Giu",
+            "Lug",
+            "Ago",
+            "Set",
+            "Ott",
+            "Nov",
+            "Dic",
+        ],
+        day_full: [
+            "Domenica",
+            "Lunedi",
+            "Martedi",
+            "Mercoledi",
+            "Giovedi",
+            "Venerdi",
+            "Sabato",
+        ],
+        day_short: ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"],
+    };
 
-    state.objectives.forEach((objective) => {
-        const clone = objectiveTemplate.content.cloneNode(true);
-        const card = clone.querySelector(".objective-card");
-        const titleInput = clone.querySelector(".objective-title");
-        const ownerInput = clone.querySelector(".objective-owner");
-        const deleteBtn = clone.querySelector(".delete-objective");
-        const progressValue = clone.querySelector(".progress-value");
-        const progressFill = clone.querySelector(".progress-fill");
-        const subtasksEl = clone.querySelector(".subtasks");
-        const addSubBtn = clone.querySelector(".add-subtask");
+    gantt.config.scale_height = 70;
+    gantt.config.min_column_width = 36;
+    gantt.config.scales = [
+        { unit: "year", step: 1, format: "%Y" },
+        { unit: "month", step: 1, format: "%F" },
+        { unit: "day", step: 1, format: "%d" },
+    ];
 
-        titleInput.value = objective.title || "";
-        titleInput.addEventListener("input", (event) => {
-            updateObjectiveTitle(objective, event.target.value);
-        });
+    gantt.templates.date_grid = gantt.date.date_to_str("%d/%m/%Y");
 
-        if (ownerInput) {
-            ownerInput.value = objective.createdBy || "";
-            ownerInput.addEventListener("input", (event) => {
-                updateObjectiveOwner(objective, event.target.value);
-            });
-        }
-
-        if (deleteBtn) {
-            deleteBtn.addEventListener("click", () => {
-                removeObjective(objective.id);
-            });
-        }
-
-        updateObjectiveProgress(card, objective);
-
-        (objective.items || []).forEach((item) => {
-            const subClone = subtaskTemplate.content.cloneNode(true);
-            const row = subClone.querySelector(".subtask-row");
-            const checkbox = subClone.querySelector("input[type='checkbox']");
-            const checkWrapper = subClone.querySelector(".check");
-            const title = subClone.querySelector(".subtask-title");
-            const assigneeList = subClone.querySelector(".assignee-list");
-            const addAssigneeBtn = subClone.querySelector(".add-assignee");
-            const assigneeInputWrap = subClone.querySelector(".assignee-input");
-            const assigneeNameInput = subClone.querySelector(".assignee-name");
-            const assigneeAddBtn = subClone.querySelector(".assignee-add-btn");
-            const typeSelect = subClone.querySelector(".subtask-type");
-            const metricNumber = subClone.querySelector(".metric-number");
-            const metricRating = subClone.querySelector(".metric-rating");
-            const currentInput = subClone.querySelector(".subtask-current");
-            const targetInput = subClone.querySelector(".subtask-target");
-            const currencySelect = subClone.querySelector(".subtask-currency");
-            const stars = subClone.querySelectorAll(".metric-rating .star");
-            const date = subClone.querySelector(".subtask-date");
-            const deleteSubBtn = subClone.querySelector(".delete-subtask");
-
-            if (checkbox) checkbox.checked = !!item.done;
-            if (title) title.value = item.title || "";
-            if (date) date.value = item.dueDate || "";
-            if (typeSelect) typeSelect.value = item.completionType || "check";
-            if (currentInput) currentInput.value = item.currentValue || "";
-            if (targetInput) targetInput.value = item.targetValue || "";
-            if (currencySelect) currencySelect.value = item.currency || "€";
-
-            if (assigneeList) {
-                assigneeList.innerHTML = "";
-                (item.assignees || []).forEach((name) => {
-                    const rowEl = document.createElement("div");
-                    rowEl.className = "assignee-item";
-                    const text = document.createElement("span");
-                    text.textContent = name;
-                    const removeBtn = document.createElement("button");
-                    removeBtn.type = "button";
-                    removeBtn.className = "assignee-remove";
-                    removeBtn.textContent = "✕";
-                    removeBtn.addEventListener("click", () => {
-                        item.assignees = (item.assignees || []).filter((n) => n !== name);
-                        renderObjectives();
-                        scheduleSave();
-                    });
-                    rowEl.appendChild(text);
-                    rowEl.appendChild(removeBtn);
-                    assigneeList.appendChild(rowEl);
-                });
-            }
-
-            const updateMetricVisibility = () => {
-                const type = item.completionType || "check";
-                if (metricNumber) {
-                    metricNumber.classList.toggle(
-                        "is-hidden",
-                        type !== "number" && type !== "currency"
-                    );
-                }
-                if (metricRating) {
-                    metricRating.classList.toggle("is-hidden", type !== "rating");
-                }
-                if (currencySelect) {
-                    currencySelect.classList.toggle("is-hidden", type !== "currency");
-                }
-                if (checkWrapper) {
-                    checkWrapper.classList.toggle("is-hidden", type !== "check");
-                }
-                if (checkbox) {
-                    checkbox.disabled = type !== "check";
-                }
-            };
-
-            updateMetricVisibility();
-
-            if (checkbox) {
-                checkbox.addEventListener("change", (event) => {
-                    updateSubtask(item, { done: event.target.checked });
-                    updateObjectiveProgress(card, objective);
-                });
-            }
-
-            if (title) {
-                title.addEventListener("input", (event) => {
-                    updateSubtask(item, { title: event.target.value });
-                });
-            }
-
-            if (typeSelect) {
-                typeSelect.addEventListener("change", (event) => {
-                    updateSubtask(item, {
-                        completionType: event.target.value,
-                    });
-                    renderObjectives();
-                });
-            }
-
-            if (currentInput) {
-                currentInput.addEventListener("input", (event) => {
-                    updateSubtask(item, { currentValue: event.target.value });
-                    updateObjectiveProgress(card, objective);
-                });
-            }
-
-            if (currencySelect) {
-                currencySelect.addEventListener("change", (event) => {
-                    updateSubtask(item, { currency: event.target.value });
-                });
-            }
-
-            if (targetInput) {
-                targetInput.addEventListener("input", (event) => {
-                    updateSubtask(item, { targetValue: event.target.value });
-                    updateObjectiveProgress(card, objective);
-                });
-            }
-
-            if (stars && stars.length) {
-                const rating = Number(item.rating || 0);
-                updateStarsDisplay(stars, rating);
-                stars.forEach((star) => {
-                    const value = Number(star.dataset.star || 0);
-                    star.addEventListener("click", () => {
-                        updateSubtask(item, { rating: value });
-                        updateStarsDisplay(stars, value);
-                        updateObjectiveProgress(card, objective);
-                    });
-                });
-            }
-
-            if (date) {
-                date.addEventListener("change", (event) => {
-                    updateSubtask(item, { dueDate: event.target.value });
-                });
-            }
-
-            if (deleteSubBtn) {
-                deleteSubBtn.addEventListener("click", () => {
-                    removeSubtask(objective, item.id);
-                });
-            }
-
-            if (addAssigneeBtn && assigneeInputWrap) {
-                addAssigneeBtn.addEventListener("click", () => {
-                    assigneeInputWrap.classList.toggle("is-hidden");
-                    if (!assigneeInputWrap.classList.contains("is-hidden") && assigneeNameInput) {
-                        assigneeNameInput.focus();
-                    }
-                });
-            }
-
-            const commitAssignee = () => {
-                if (!assigneeNameInput) return;
-                const value = assigneeNameInput.value.trim();
-                if (!value) return;
-                const current = Array.isArray(item.assignees) ? item.assignees : [];
-                if (!current.includes(value)) {
-                    updateSubtask(item, { assignees: [...current, value] });
-                }
-                assigneeNameInput.value = "";
-                if (assigneeInputWrap) assigneeInputWrap.classList.add("is-hidden");
-                renderObjectives();
-            };
-
-            if (assigneeAddBtn) {
-                assigneeAddBtn.addEventListener("click", () => {
-                    commitAssignee();
-                });
-            }
-
-            if (assigneeNameInput) {
-                assigneeNameInput.addEventListener("keydown", (event) => {
-                    if (event.key === "Enter") {
-                        event.preventDefault();
-                        commitAssignee();
-                    }
-                });
-            }
-
-            if (subtasksEl && row) {
-                subtasksEl.appendChild(row);
-            }
-        });
-
-        if (addSubBtn) {
-            addSubBtn.addEventListener("click", () => {
-                addSubtask(objective);
-            });
-        }
-
-        if (list && card) {
-            list.appendChild(card);
-        }
-    });
+    const today = new Date();
+    gantt.config.start_date = new Date(today.getFullYear() - 1, 0, 1);
+    gantt.config.end_date = new Date(today.getFullYear() + 2, 11, 31);
+    gantt.render();
+    updateRangeFromTasks();
+    gantt.showDate(today);
+    updateRangeFromTasks();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("amministrazione-scripts.js caricato");
-    loadData();
-    renderObjectives();
-
-    const addBtn = document.getElementById("addObjectiveBtn");
-    if (addBtn) {
-        addBtn.addEventListener("click", () => {
-            addObjective();
-        });
-    }
-});
+document.addEventListener("DOMContentLoaded", init);
