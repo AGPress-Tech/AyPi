@@ -6,9 +6,32 @@ body {
     padding: 0;
 }
 
+.gantt-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #ffffff;
+    border-bottom: 1px solid #e6e6e6;
+}
+
+.gantt-toolbar__btn {
+    border: 1px solid #d0d0d0;
+    background: #f6f6f6;
+    color: #222222;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.gantt-toolbar__btn:hover {
+    background: #eeeeee;
+}
+
 .gantt-container {
     width: 100%;
-    height: 100%;
+    height: calc(100% - 42px);
 }
 
 /* no split styling */
@@ -33,6 +56,10 @@ body {
     box-sizing: border-box;
     color: #ffffff;
     font-weight: 600;
+}
+
+.gantt_marker.today {
+    background: #f5c542;
 }
 
 .task-blue .gantt_task_content {

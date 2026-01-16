@@ -315,6 +315,7 @@ function saveData() {
 }
 
 function configureGantt() {
+    gantt.plugins({ marker: true });
     gantt.attachEvent("onTaskCreated", (task) => {
         if (!task.start_date) {
             const start = new Date();
@@ -340,6 +341,7 @@ function configureGantt() {
     gantt.config.auto_scheduling = false;
     gantt.config.inline_editing = true;
     gantt.config.auto_types = true;
+    gantt.config.show_progress = true;
     gantt.config.scroll_size = 10;
     gantt.config.duration_unit = "day";
     gantt.config.duration_step = 1;
@@ -348,6 +350,16 @@ function configureGantt() {
     gantt.config.grid_width = 360;
     gantt.config.grid_resize = false;
     gantt.config.columns = [
+        {
+            name: "done",
+            label: "",
+            width: 36,
+            align: "center",
+            template: (task) => {
+                const checked = (task.progress || 0) >= 1 ? "checked" : "";
+                return `<input type="checkbox" class="ay-task-done" data-task-id="${task.id}" ${checked}>`;
+            },
+        },
         { name: "text", label: "Nome task", tree: true, width: 200, resize: true },
         { name: "start_date", label: "Inizio", align: "center", width: 110, resize: true, editor: { type: "date", map_to: "start_date", format: "%d/%m/%Y" } },
         { name: "end_date", label: "Fine", align: "center", width: 110, resize: true, editor: { type: "date", map_to: "end_date", format: "%d/%m/%Y" } },
@@ -462,6 +474,20 @@ function configureGantt() {
             updateParentProgressFrom(id);
         }
     });
+    gantt.attachEvent("onGridClick", (id, e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return true;
+        if (!target.classList.contains("ay-task-done")) return true;
+        const taskId = target.getAttribute("data-task-id");
+        if (!taskId) return true;
+        const task = gantt.getTask(taskId);
+        if (!task) return false;
+        task.progress = target.checked ? 1 : 0;
+        gantt.updateTask(task.id);
+        updateParentProgressFrom(task.id);
+        scheduleSave();
+        return false;
+    });
     gantt.attachEvent("onAfterLinkAdd", scheduleSave);
     gantt.attachEvent("onAfterLinkDelete", scheduleSave);
     gantt.attachEvent("onAfterLinkUpdate", scheduleSave);
@@ -494,6 +520,22 @@ function init() {
     gantt.parse(data);
     syncAllParents();
     calculateAllParentsProgress();
+
+    if (gantt.$grid) {
+        gantt.$grid.addEventListener("change", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (!target.classList.contains("ay-task-done")) return;
+            const taskId = target.getAttribute("data-task-id");
+            if (!taskId) return;
+            const task = gantt.getTask(taskId);
+            if (!task) return;
+            task.progress = target.checked ? 1 : 0;
+            gantt.updateTask(task.id);
+            updateParentProgressFrom(task.id);
+            scheduleSave();
+        });
+    }
 
     gantt.locale = gantt.locale || {};
     gantt.locale.labels = {
@@ -563,6 +605,23 @@ function init() {
     updateRangeFromTasks();
     gantt.showDate(today);
     updateRangeFromTasks();
+
+    gantt.addMarker({
+        start_date: today,
+        css: "today",
+        text: "Oggi",
+    });
+
+    const showTodayBtn = document.getElementById("aypi-show-today");
+    if (showTodayBtn) {
+        showTodayBtn.addEventListener("click", () => {
+            const now = new Date();
+            const scroll = gantt.getScrollState();
+            const centerOffset = gantt.$task ? gantt.$task.offsetWidth / 2 : 0;
+            const x = gantt.posFromDate(now) - centerOffset;
+            gantt.scrollTo(x, scroll.y);
+        });
+    }
 }
 
 document.addEventListener("DOMContentLoaded", init);
