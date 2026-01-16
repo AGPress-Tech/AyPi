@@ -69,6 +69,16 @@ body {
     background: #f5c542;
 }
 
+.gantt-delay-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #e03131;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 .assignees-panel {
     border-top: 1px solid #e6e6e6;
     background: #ffffff;
