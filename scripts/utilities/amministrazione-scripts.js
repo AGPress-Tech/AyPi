@@ -9,7 +9,6 @@ const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazio
 let saveTimer = null;
 let assigneeOptions = [];
 let assigneeGroups = {};
-let assigneePanelHeight = 200;
 let timelineExtendCooldown = 0;
 let editingDepartment = null;
 let editingEmployee = null;
@@ -59,39 +58,6 @@ function saveAssigneeOptions(groups) {
         console.error("Errore salvataggio assignees:", err);
         showDialog("warning", "Impossibile salvare la lista responsabili.", err.message || String(err));
     }
-}
-
-function renderAssigneePanel() {
-    const panel = document.getElementById("assignees_panel");
-    if (!panel) return;
-    panel.innerHTML = "";
-    const groupKeys = Object.keys(assigneeGroups);
-    if (!groupKeys.length) {
-        panel.textContent = "Nessun responsabile configurato.";
-        return;
-    }
-    groupKeys.forEach((groupName) => {
-        const group = document.createElement("div");
-        group.className = "assignee-group";
-
-        const title = document.createElement("div");
-        title.className = "assignee-group__title";
-        title.textContent = groupName;
-
-        const list = document.createElement("div");
-        list.className = "assignee-group__list";
-        const names = assigneeGroups[groupName] || [];
-        names.forEach((name) => {
-            const item = document.createElement("div");
-            item.className = "assignee-group__item";
-            item.textContent = name;
-            list.appendChild(item);
-        });
-
-        group.appendChild(title);
-        group.appendChild(list);
-        panel.appendChild(group);
-    });
 }
 
 function renderDepartmentSelect() {
@@ -153,7 +119,6 @@ function renderDepartmentList() {
             assigneeOptions = Object.values(assigneeGroups).flat();
             saveAssigneeOptions(assigneeGroups);
             editingDepartment = null;
-            renderAssigneePanel();
             renderDepartmentList();
             renderEmployeesList();
             renderDepartmentSelect();
@@ -193,7 +158,6 @@ function renderDepartmentList() {
                 delete assigneeGroups[group];
                 assigneeOptions = Object.values(assigneeGroups).flat();
                 saveAssigneeOptions(assigneeGroups);
-                renderAssigneePanel();
                 renderDepartmentList();
                 renderDepartmentSelect();
             });
@@ -267,7 +231,6 @@ function renderEmployeesList() {
                 assigneeOptions = Object.values(assigneeGroups).flat();
                 saveAssigneeOptions(assigneeGroups);
                 editingEmployee = null;
-                renderAssigneePanel();
                 renderEmployeesList();
                 renderDepartmentList();
                 renderDepartmentSelect();
@@ -309,7 +272,6 @@ function renderEmployeesList() {
                 if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
                 assigneeOptions = Object.values(assigneeGroups).flat();
                 saveAssigneeOptions(assigneeGroups);
-                renderAssigneePanel();
                 renderEmployeesList();
                 renderDepartmentList();
                 renderDepartmentSelect();
@@ -323,12 +285,6 @@ function renderEmployeesList() {
         row.appendChild(actions);
         list.appendChild(row);
     });
-}
-
-function applyAssigneePanelHeight() {
-    const panel = document.querySelector(".assignees-panel");
-    if (!panel) return;
-    panel.style.height = `${assigneePanelHeight}px`;
 }
 
 function normalizeAssignees(value) {
@@ -926,11 +882,9 @@ function init() {
     syncAllParents();
     calculateAllParentsProgress();
 
-    renderAssigneePanel();
     renderDepartmentList();
     renderEmployeesList();
     renderDepartmentSelect();
-    applyAssigneePanelHeight();
 
     if (gantt.$grid) {
         gantt.$grid.addEventListener("change", (event) => {
@@ -1053,7 +1007,6 @@ function init() {
     const departmentAdd = document.getElementById("department-add");
     const employeeNameInput = document.getElementById("employee-name");
     const employeeAdd = document.getElementById("employee-add");
-    const resizer = document.getElementById("assignees-resizer");
 
     const closeModal = () => {
         if (!modal) return;
@@ -1088,7 +1041,6 @@ function init() {
             assigneeGroups[name] = [];
             assigneeOptions = Object.values(assigneeGroups).flat();
             saveAssigneeOptions(assigneeGroups);
-            renderAssigneePanel();
             renderDepartmentList();
             renderDepartmentSelect();
             if (departmentInput) departmentInput.value = "";
@@ -1108,29 +1060,8 @@ function init() {
             }
             assigneeOptions = Object.values(assigneeGroups).flat();
             saveAssigneeOptions(assigneeGroups);
-            renderAssigneePanel();
             renderEmployeesList();
             if (employeeNameInput) employeeNameInput.value = "";
-        });
-    }
-
-    if (resizer) {
-        let startY = 0;
-        let startHeight = assigneePanelHeight;
-        const onMove = (event) => {
-            const delta = startY - event.clientY;
-            assigneePanelHeight = Math.min(360, Math.max(120, startHeight + delta));
-            applyAssigneePanelHeight();
-        };
-        const onUp = () => {
-            document.removeEventListener("mousemove", onMove);
-            document.removeEventListener("mouseup", onUp);
-        };
-        resizer.addEventListener("mousedown", (event) => {
-            startY = event.clientY;
-            startHeight = assigneePanelHeight;
-            document.addEventListener("mousemove", onMove);
-            document.addEventListener("mouseup", onUp);
         });
     }
 }
