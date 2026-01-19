@@ -69,6 +69,14 @@ body {
     background: #f5c542;
 }
 
+.gantt_marker .gantt_marker_content,
+.gantt_marker .gantt_marker_text {
+    background: #f5c542;
+    color: #222222;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 2px 6px;
+}
 .gantt-delay-badge {
     display: inline-block;
     padding: 2px 6px;
@@ -290,6 +298,14 @@ body {
 
 .assignees-form.assignees-form--employee {
     grid-template-columns: 160px 1fr 44px;
+}
+
+.assignees-inline-input,
+.assignees-inline-select {
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
 }
 
 .gantt_assignee_list {

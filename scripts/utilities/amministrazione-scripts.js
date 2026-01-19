@@ -11,6 +11,8 @@ let assigneeOptions = [];
 let assigneeGroups = {};
 let assigneePanelHeight = 200;
 let timelineExtendCooldown = 0;
+let editingDepartment = null;
+let editingEmployee = null;
 
 function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
@@ -117,49 +119,90 @@ function renderDepartmentList() {
         const row = document.createElement("div");
         row.className = "assignees-row";
 
-        const label = document.createElement("div");
-        label.textContent = group;
-
         const actions = document.createElement("div");
         actions.className = "assignees-row__actions";
 
-        const edit = document.createElement("button");
-        edit.type = "button";
-        edit.className = "assignees-link";
-        edit.textContent = "Modifica";
-        edit.addEventListener("click", () => {
-            const next = window.prompt("Nuovo nome reparto:", group);
-            if (!next) return;
-            const trimmed = next.trim();
-            if (!trimmed || trimmed === group) return;
+        if (editingDepartment === group) {
+            const input = document.createElement("input");
+            input.className = "assignees-inline-input";
+            input.value = group;
+            input.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    save.click();
+                }
+            });
+
+            const save = document.createElement("button");
+            save.type = "button";
+            save.className = "assignees-link";
+            save.textContent = "Salva";
+            save.addEventListener("click", () => {
+                const trimmed = input.value.trim();
+            if (!trimmed || trimmed === group) {
+                editingDepartment = null;
+                renderDepartmentList();
+                return;
+            }
             if (assigneeGroups[trimmed]) return;
             assigneeGroups[trimmed] = assigneeGroups[group];
             delete assigneeGroups[group];
+            if (editingEmployee && editingEmployee.group === group) {
+                editingEmployee = { ...editingEmployee, group: trimmed };
+            }
             assigneeOptions = Object.values(assigneeGroups).flat();
             saveAssigneeOptions(assigneeGroups);
+            editingDepartment = null;
             renderAssigneePanel();
             renderDepartmentList();
+            renderEmployeesList();
             renderDepartmentSelect();
-        });
+            });
 
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "assignees-link assignees-link--danger";
-        remove.textContent = "Rimuovi";
-        remove.addEventListener("click", () => {
-            if (!window.confirm(`Rimuovere il reparto "${group}"?`)) return;
-            delete assigneeGroups[group];
-            assigneeOptions = Object.values(assigneeGroups).flat();
-            saveAssigneeOptions(assigneeGroups);
-            renderAssigneePanel();
-            renderDepartmentList();
-            renderDepartmentSelect();
-        });
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "assignees-link assignees-link--danger";
+            cancel.textContent = "Annulla";
+            cancel.addEventListener("click", () => {
+                editingDepartment = null;
+                renderDepartmentList();
+            });
 
-        actions.appendChild(edit);
-        actions.appendChild(remove);
+            row.appendChild(input);
+            actions.appendChild(save);
+            actions.appendChild(cancel);
+        } else {
+            const label = document.createElement("div");
+            label.textContent = group;
 
-        row.appendChild(label);
+            const edit = document.createElement("button");
+            edit.type = "button";
+            edit.className = "assignees-link";
+            edit.textContent = "Modifica";
+            edit.addEventListener("click", () => {
+                editingDepartment = group;
+                renderDepartmentList();
+            });
+
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "assignees-link assignees-link--danger";
+            remove.textContent = "Rimuovi";
+            remove.addEventListener("click", () => {
+                if (!window.confirm(`Rimuovere il reparto "${group}"?`)) return;
+                delete assigneeGroups[group];
+                assigneeOptions = Object.values(assigneeGroups).flat();
+                saveAssigneeOptions(assigneeGroups);
+                renderAssigneePanel();
+                renderDepartmentList();
+                renderDepartmentSelect();
+            });
+
+            row.appendChild(label);
+            actions.appendChild(edit);
+            actions.appendChild(remove);
+        }
+
         row.appendChild(actions);
         list.appendChild(row);
     });
@@ -184,57 +227,99 @@ function renderEmployeesList() {
         const row = document.createElement("div");
         row.className = "assignees-row";
 
-        const label = document.createElement("div");
-        label.textContent = `${employee.name} (${employee.group})`;
-
         const actions = document.createElement("div");
         actions.className = "assignees-row__actions";
 
-        const edit = document.createElement("button");
-        edit.type = "button";
-        edit.className = "assignees-link";
-        edit.textContent = "Modifica";
-        edit.addEventListener("click", () => {
-            const nextName = window.prompt("Nome operatore:", employee.name);
-            if (!nextName) return;
-            const trimmedName = nextName.trim();
-            if (!trimmedName) return;
-            const nextGroup = window.prompt("Reparto:", employee.group) || employee.group;
-            const trimmedGroup = nextGroup.trim();
-            if (!trimmedGroup) return;
-            assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
-            if (!assigneeGroups[trimmedGroup]) assigneeGroups[trimmedGroup] = [];
-            assigneeGroups[trimmedGroup].push(trimmedName);
-            assigneeGroups[trimmedGroup].sort((a, b) => a.localeCompare(b));
-            if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
-            assigneeOptions = Object.values(assigneeGroups).flat();
-            saveAssigneeOptions(assigneeGroups);
-            renderAssigneePanel();
-            renderEmployeesList();
-            renderDepartmentList();
-            renderDepartmentSelect();
-        });
+        if (editingEmployee && editingEmployee.name === employee.name && editingEmployee.group === employee.group) {
+            const select = document.createElement("select");
+            select.className = "assignees-inline-select";
+            Object.keys(assigneeGroups).forEach((group) => {
+                const option = document.createElement("option");
+                option.value = group;
+                option.textContent = group;
+                if (group === employee.group) option.selected = true;
+                select.appendChild(option);
+            });
 
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "assignees-link assignees-link--danger";
-        remove.textContent = "Rimuovi";
-        remove.addEventListener("click", () => {
-            if (!window.confirm(`Rimuovere "${employee.name}"?`)) return;
-            assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
-            if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
-            assigneeOptions = Object.values(assigneeGroups).flat();
-            saveAssigneeOptions(assigneeGroups);
-            renderAssigneePanel();
-            renderEmployeesList();
-            renderDepartmentList();
-            renderDepartmentSelect();
-        });
+            const input = document.createElement("input");
+            input.className = "assignees-inline-input";
+            input.value = employee.name;
+            input.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    save.click();
+                }
+            });
 
-        actions.appendChild(edit);
-        actions.appendChild(remove);
+            const save = document.createElement("button");
+            save.type = "button";
+            save.className = "assignees-link";
+            save.textContent = "Salva";
+            save.addEventListener("click", () => {
+                const trimmedName = input.value.trim();
+                const trimmedGroup = select.value;
+                if (!trimmedName || !trimmedGroup) return;
+                assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
+                if (!assigneeGroups[trimmedGroup]) assigneeGroups[trimmedGroup] = [];
+                assigneeGroups[trimmedGroup].push(trimmedName);
+                assigneeGroups[trimmedGroup].sort((a, b) => a.localeCompare(b));
+                if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                assigneeOptions = Object.values(assigneeGroups).flat();
+                saveAssigneeOptions(assigneeGroups);
+                editingEmployee = null;
+                renderAssigneePanel();
+                renderEmployeesList();
+                renderDepartmentList();
+                renderDepartmentSelect();
+            });
 
-        row.appendChild(label);
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "assignees-link assignees-link--danger";
+            cancel.textContent = "Annulla";
+            cancel.addEventListener("click", () => {
+                editingEmployee = null;
+                renderEmployeesList();
+            });
+
+            row.appendChild(select);
+            row.appendChild(input);
+            actions.appendChild(save);
+            actions.appendChild(cancel);
+        } else {
+            const label = document.createElement("div");
+            label.textContent = `${employee.name} (${employee.group})`;
+
+            const edit = document.createElement("button");
+            edit.type = "button";
+            edit.className = "assignees-link";
+            edit.textContent = "Modifica";
+            edit.addEventListener("click", () => {
+                editingEmployee = { name: employee.name, group: employee.group };
+                renderEmployeesList();
+            });
+
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "assignees-link assignees-link--danger";
+            remove.textContent = "Rimuovi";
+            remove.addEventListener("click", () => {
+                if (!window.confirm(`Rimuovere "${employee.name}"?`)) return;
+                assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
+                if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                assigneeOptions = Object.values(assigneeGroups).flat();
+                saveAssigneeOptions(assigneeGroups);
+                renderAssigneePanel();
+                renderEmployeesList();
+                renderDepartmentList();
+                renderDepartmentSelect();
+            });
+
+            row.appendChild(label);
+            actions.appendChild(edit);
+            actions.appendChild(remove);
+        }
+
         row.appendChild(actions);
         list.appendChild(row);
     });
@@ -582,6 +667,7 @@ function configureGantt() {
     gantt.config.inline_editing = true;
     gantt.config.auto_types = true;
     gantt.config.show_progress = true;
+    gantt.config.show_markers = true;
     gantt.config.scroll_size = 10;
     gantt.config.drag_timeline = {
         ignore: ".gantt_task_line, .gantt_task_link",
