@@ -620,7 +620,11 @@ function configureGantt() {
     gantt.config.drag_links = true;
     gantt.config.order_branch = true;
     gantt.config.auto_scheduling = false;
-    gantt.config.inline_editing = true;
+    gantt.config.auto_scheduling_strict = false;
+    gantt.config.inline_editing = false;
+    gantt.config.editable = true;
+    gantt.config.details_on_create = true;
+    gantt.config.details_on_dblclick = true;
     gantt.config.auto_types = true;
     gantt.config.show_progress = true;
     gantt.config.show_markers = true;
@@ -647,7 +651,13 @@ function configureGantt() {
                 return `<input type="checkbox" class="ay-task-done" data-task-id="${task.id}" ${checked}>`;
             },
         },
-        { name: "text", label: "Nome task", tree: true, width: 200, resize: true },
+        {
+            name: "text",
+            label: "Nome task",
+            tree: true,
+            width: 200,
+            resize: true,
+        },
         { name: "start_date", label: "Inizio", align: "center", width: 110, resize: true, editor: { type: "date", map_to: "start_date", format: "%d/%m/%Y" } },
         { name: "end_date", label: "Fine", align: "center", width: 110, resize: true, editor: { type: "date", map_to: "end_date", format: "%d/%m/%Y" } },
         {
@@ -739,7 +749,7 @@ function configureGantt() {
     };
 
     gantt.config.lightbox.sections = [
-        { name: "description", height: 60, map_to: "text", type: "textarea", focus: true, label: "Descrizione" },
+        { name: "description", height: 40, map_to: "text", type: "ay_text", focus: true, label: "Descrizione" },
         { name: "time", type: "time", map_to: "auto", label: "Periodo previsto" },
         { name: "assignees", height: 80, map_to: "assignees", type: "ay_assignees", label: "Responsabili" },
         { name: "color", height: 38, map_to: "color", type: "ay_color", label: "Colore task" },
@@ -837,7 +847,8 @@ function configureGantt() {
     gantt.attachEvent("onAfterLinkDelete", scheduleSave);
     gantt.attachEvent("onAfterLinkUpdate", scheduleSave);
 
-    gantt.attachEvent("onDblClick", () => {
+    gantt.attachEvent("onDblClick", (id) => {
+        if (id) return true;
         const now = new Date();
         const task = {
             text: "Nuova task",
@@ -852,6 +863,23 @@ function configureGantt() {
 
     gantt.attachEvent("onBeforeTaskChanged", (id, mode, task) => {
         task.assignees = normalizeAssignees(task.assignees);
+        if (task.parent && gantt.isTaskExists(task.parent)) {
+            const parent = gantt.getTask(task.parent);
+            const childStart = getDateValue(task.start_date);
+            const childEnd = getDateValue(task.end_date);
+            let changed = false;
+            if (childStart && (!parent.start_date || childStart < parent.start_date)) {
+                parent.start_date = new Date(childStart);
+                changed = true;
+            }
+            if (childEnd && (!parent.end_date || childEnd > parent.end_date)) {
+                parent.end_date = new Date(childEnd);
+                changed = true;
+            }
+            if (changed) {
+                gantt.updateTask(parent.id);
+            }
+        }
         clampParentToChildren(task);
         return true;
     });
