@@ -6,6 +6,12 @@ const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi.jso
 const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
 const APPROVAL_PASSWORD = "AGPress";
 const AUTO_REFRESH_MS = 15000;
+const COLOR_STORAGE_KEY = "fpColorSettings";
+const DEFAULT_TYPE_COLORS = {
+    ferie: "#2f9e44",
+    permesso: "#f08c00",
+    straordinari: "#1a73e8",
+};
 
 let calendar = null;
 let XLSX;
@@ -26,6 +32,77 @@ let assigneeOptions = [];
 let assigneeGroups = {};
 let editingDepartment = null;
 let editingEmployee = null;
+let typeColors = { ...DEFAULT_TYPE_COLORS };
+let cachedData = { requests: [] };
+
+function normalizeHexColor(value, fallback) {
+    if (typeof value !== "string") return fallback;
+    const cleaned = value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(cleaned)) return cleaned.toLowerCase();
+    return fallback;
+}
+
+function loadColorSettings() {
+    try {
+        const raw = window.localStorage?.getItem(COLOR_STORAGE_KEY);
+        if (!raw) return { ...DEFAULT_TYPE_COLORS };
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return { ...DEFAULT_TYPE_COLORS };
+        return {
+            ferie: normalizeHexColor(parsed.ferie, DEFAULT_TYPE_COLORS.ferie),
+            permesso: normalizeHexColor(parsed.permesso, DEFAULT_TYPE_COLORS.permesso),
+            straordinari: normalizeHexColor(parsed.straordinari, DEFAULT_TYPE_COLORS.straordinari),
+        };
+    } catch (err) {
+        return { ...DEFAULT_TYPE_COLORS };
+    }
+}
+
+function saveColorSettings(colors) {
+    try {
+        if (!window.localStorage) return;
+        window.localStorage.setItem(COLOR_STORAGE_KEY, JSON.stringify(colors));
+    } catch (err) {
+        console.error("Errore salvataggio impostazioni colori:", err);
+    }
+}
+
+function getTypeColor(type) {
+    return typeColors[type] || DEFAULT_TYPE_COLORS[type] || "#1a73e8";
+}
+
+function applyTypeColors() {
+    const ferieDot = document.querySelector(".fp-legend__dot--ferie");
+    const permessoDot = document.querySelector(".fp-legend__dot--permesso");
+    const straordinariDot = document.querySelector(".fp-legend__dot--straordinari");
+    if (ferieDot) ferieDot.style.background = getTypeColor("ferie");
+    if (permessoDot) permessoDot.style.background = getTypeColor("permesso");
+    if (straordinariDot) straordinariDot.style.background = getTypeColor("straordinari");
+}
+
+function setSettingsInputsFromColors() {
+    const ferieInput = document.getElementById("fp-color-ferie");
+    const permessoInput = document.getElementById("fp-color-permesso");
+    const straordinariInput = document.getElementById("fp-color-straordinari");
+    if (ferieInput) ferieInput.value = getTypeColor("ferie");
+    if (permessoInput) permessoInput.value = getTypeColor("permesso");
+    if (straordinariInput) straordinariInput.value = getTypeColor("straordinari");
+}
+
+function openSettingsModal() {
+    const modal = document.getElementById("fp-settings-modal");
+    const message = document.getElementById("fp-settings-message");
+    if (!modal) return;
+    setSettingsInputsFromColors();
+    setMessage(message, "");
+    showModal(modal);
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById("fp-settings-modal");
+    if (!modal) return;
+    hideModal(modal);
+}
 
 function showModal(modal) {
     if (!modal) return;
@@ -177,6 +254,27 @@ function formatRange(request) {
     return request.start || "";
 }
 
+function buildHoverText(request) {
+    if (!request) return "";
+    const lines = [];
+    const dept = request.department ? ` - ${request.department}` : "";
+    const employee = request.employee || "Dipendente";
+    lines.push(`${employee}${dept}`);
+    lines.push(getTypeLabel(request.type));
+    if (request.allDay) {
+        const startLabel = formatDate(request.start);
+        const endLabel = formatDate(request.end || request.start);
+        if (endLabel && endLabel !== startLabel) {
+            lines.push(`${startLabel} - ${endLabel}`);
+        } else {
+            lines.push(startLabel);
+        }
+    } else {
+        lines.push(`${formatDateTime(request.start)} - ${formatDateTime(request.end)}`);
+    }
+    return lines.filter(Boolean).join("\n");
+}
+
 function addDaysToDateString(dateStr, days) {
     if (!dateStr) return dateStr;
     const [year, month, day] = dateStr.split("-").map((v) => parseInt(v, 10));
@@ -190,17 +288,8 @@ function addDaysToDateString(dateStr, days) {
 }
 
 function buildEventFromRequest(request) {
-    const typeLabel = request.type === "permesso"
-        ? "Permesso"
-        : request.type === "straordinari"
-            ? "Straordinari"
-            : "Ferie";
-    const title = `${request.employee} - ${typeLabel}`;
-    const color = request.type === "permesso"
-        ? "#f08c00"
-        : request.type === "straordinari"
-            ? "#1a73e8"
-            : "#2f9e44";
+    const title = request.employee || "Dipendente";
+    const color = getTypeColor(request.type);
     if (request.allDay) {
         const endDate = request.end || request.start;
         return {
@@ -349,6 +438,7 @@ function renderCalendar(data) {
 }
 
 function renderAll(data) {
+    cachedData = data || { requests: [] };
     renderSummary(data);
     renderPendingList(data);
     renderCalendar(data);
@@ -1284,6 +1374,80 @@ function closePendingPanel() {
     pendingPanelOpen = false;
 }
 
+function applyCalendarButtonStyles() {
+    const root = document.getElementById("fp-calendar");
+    if (!root) return;
+    const buttons = root.querySelectorAll(".fc .fc-button");
+    buttons.forEach((btn) => {
+        btn.style.background = "#ffffff";
+        btn.style.borderColor = "#dadce0";
+        btn.style.color = "#1a73e8";
+        btn.style.borderRadius = "999px";
+        btn.style.padding = "7px 14px";
+        btn.style.fontSize = "13px";
+        btn.style.fontWeight = "600";
+        btn.style.boxShadow = "0 1px 2px rgba(60, 64, 67, 0.15)";
+        btn.style.transition = "background 0.15s ease, border-color 0.15s ease, color 0.15s ease";
+        btn.style.opacity = btn.disabled ? "0.5" : "1";
+
+        const setBase = () => {
+            if (btn.disabled) {
+                btn.style.opacity = "0.5";
+                return;
+            }
+            btn.style.background = "#ffffff";
+            btn.style.borderColor = "#dadce0";
+            btn.style.color = "#1a73e8";
+            btn.style.boxShadow = "0 1px 2px rgba(60, 64, 67, 0.15)";
+        };
+
+        const setHover = () => {
+            if (btn.disabled) return;
+            btn.style.background = "#f6f8fe";
+            btn.style.borderColor = "#d2e3fc";
+        };
+
+        const setActive = () => {
+            if (btn.disabled) return;
+            if (btn.classList.contains("fc-button-active")) {
+                btn.style.background = "#e8f0fe";
+                btn.style.borderColor = "#d2e3fc";
+                btn.style.boxShadow = "none";
+            }
+        };
+
+        if (!btn.dataset.fpStyled) {
+            btn.addEventListener("mouseenter", () => {
+                if (btn.classList.contains("fc-button-active")) return;
+                setHover();
+            });
+            btn.addEventListener("mouseleave", () => {
+                if (btn.classList.contains("fc-button-active")) {
+                    setActive();
+                    return;
+                }
+                setBase();
+            });
+            btn.addEventListener("click", () => {
+                setTimeout(() => {
+                    if (btn.classList.contains("fc-button-active")) {
+                        setActive();
+                        return;
+                    }
+                    setBase();
+                }, 0);
+            });
+            btn.dataset.fpStyled = "1";
+        }
+
+        if (btn.classList.contains("fc-button-active")) {
+            btn.style.background = "#e8f0fe";
+            btn.style.borderColor = "#d2e3fc";
+            btn.style.boxShadow = "none";
+        }
+    });
+}
+
 function initCalendar() {
     const calendarEl = document.getElementById("fp-calendar");
     if (!calendarEl || !window.FullCalendar) return;
@@ -1332,6 +1496,10 @@ function initCalendar() {
         },
         eventDidMount: (info) => {
             if (!info || !info.el) return;
+            const request = (cachedData.requests || []).find((req) => req.id === info.event?.id);
+            if (request) {
+                info.el.title = buildHoverText(request);
+            }
             info.el.addEventListener("dblclick", () => {
                 const requestId = info.event?.id;
                 if (!requestId) return;
@@ -1348,19 +1516,23 @@ function initCalendar() {
             const isList = viewType === "listWeek" || viewType === "listMonth";
             if (!isList) {
                 lastNonListViewType = viewType;
+                applyCalendarButtonStyles();
                 return;
             }
             if (handlingListRedirect) {
                 handlingListRedirect = false;
+                applyCalendarButtonStyles();
                 return;
             }
             if (viewType === "listWeek" && lastNonListViewType === "dayGridMonth") {
                 handlingListRedirect = true;
                 calendar.changeView("listMonth");
+                applyCalendarButtonStyles();
             }
         },
     });
     calendar.render();
+    applyCalendarButtonStyles();
 }
 
 function refreshData() {
@@ -1375,6 +1547,8 @@ function scheduleAutoRefresh() {
 
 function init() {
     ipcRenderer.send("resize-normale");
+    typeColors = loadColorSettings();
+    applyTypeColors();
     const assigneesData = loadAssigneeOptions();
     assigneeOptions = assigneesData.options;
     assigneeGroups = assigneesData.groups;
@@ -1488,6 +1662,56 @@ function init() {
     if (refreshBtn) {
         refreshBtn.addEventListener("click", () => {
             refreshData();
+        });
+    }
+
+    const settingsBtn = document.getElementById("fp-settings");
+    const settingsClose = document.getElementById("fp-settings-close");
+    const settingsSave = document.getElementById("fp-settings-save");
+    const settingsReset = document.getElementById("fp-settings-reset");
+    const settingsModal = document.getElementById("fp-settings-modal");
+    const settingsMessage = document.getElementById("fp-settings-message");
+    const ferieInput = document.getElementById("fp-color-ferie");
+    const permessoInput = document.getElementById("fp-color-permesso");
+    const straordinariInput = document.getElementById("fp-color-straordinari");
+
+    if (settingsBtn) {
+        settingsBtn.addEventListener("click", () => {
+            openSettingsModal();
+        });
+    }
+    if (settingsClose) {
+        settingsClose.addEventListener("click", () => {
+            closeSettingsModal();
+        });
+    }
+    if (settingsModal) {
+        settingsModal.addEventListener("click", (event) => {
+            if (event.target === settingsModal) closeSettingsModal();
+        });
+    }
+    if (settingsSave) {
+        settingsSave.addEventListener("click", () => {
+            const next = {
+                ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
+                permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
+                straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
+            };
+            typeColors = { ...next };
+            saveColorSettings(typeColors);
+            applyTypeColors();
+            renderAll(loadData());
+            setMessage(settingsMessage, "Impostazioni salvate.", false);
+        });
+    }
+    if (settingsReset) {
+        settingsReset.addEventListener("click", () => {
+            typeColors = { ...DEFAULT_TYPE_COLORS };
+            saveColorSettings(typeColors);
+            setSettingsInputsFromColors();
+            applyTypeColors();
+            renderAll(loadData());
+            setMessage(settingsMessage, "Colori ripristinati.", false);
         });
     }
 
