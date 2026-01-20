@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Ferie e Permessi</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
+</head>
+
+<body>
+    <div class="fp-page">
+        <header class="fp-header">
+            <div>
+                <h1>Ferie e Permessi</h1>
+                <p>Gestione richieste e calendario assenze</p>
+            </div>
+            <div class="fp-header__actions">
+                <div id="fp-summary" class="fp-summary">...</div>
+                <button type="button" class="fp-btn" id="fp-refresh">Aggiorna</button>
+            </div>
+        </header>
+
+        <main class="fp-body">
+            <section class="fp-panel">
+                <form id="fp-request-form" class="fp-card">
+                    <h2>Nuova richiesta</h2>
+                    <div class="fp-field">
+                        <label for="fp-department">Reparto</label>
+                        <select id="fp-department"></select>
+                    </div>
+                    <div class="fp-field">
+                        <label for="fp-employee">Dipendente</label>
+                        <select id="fp-employee"></select>
+                    </div>
+                    <div class="fp-field">
+                        <label for="fp-type">Tipo</label>
+                        <select id="fp-type">
+                            <option value="ferie">Ferie</option>
+                            <option value="permesso">Permesso</option>
+                        </select>
+                    </div>
+                    <div class="fp-field fp-checkbox">
+                        <input type="checkbox" id="fp-all-day" checked>
+                        <label for="fp-all-day">Giornata intera</label>
+                    </div>
+                    <div class="fp-grid">
+                        <div class="fp-field">
+                            <label for="fp-start-date">Data inizio</label>
+                            <input type="date" id="fp-start-date" required>
+                        </div>
+                        <div class="fp-field">
+                            <label for="fp-start-time">Ora inizio</label>
+                            <input type="time" id="fp-start-time" value="09:00">
+                        </div>
+                        <div class="fp-field">
+                            <label for="fp-end-date">Data fine</label>
+                            <input type="date" id="fp-end-date" required>
+                        </div>
+                        <div class="fp-field">
+                            <label for="fp-end-time">Ora fine</label>
+                            <input type="time" id="fp-end-time" value="18:00">
+                        </div>
+                    </div>
+                    <div class="fp-field">
+                        <label for="fp-note">Note</label>
+                        <textarea id="fp-note" rows="3" placeholder="Inserisci eventuali dettagli"></textarea>
+                    </div>
+                    <div class="fp-actions">
+                        <button type="submit" class="fp-btn fp-btn--primary">Invia richiesta</button>
+                    </div>
+                    <div id="fp-form-message" class="fp-message is-hidden"></div>
+                </form>
+
+                <div class="fp-card">
+                    <h2>Richieste in attesa</h2>
+                    <div id="fp-pending-list" class="fp-pending-list"></div>
+                </div>
+            </section>
+
+            <section class="fp-calendar">
+                <div id="fp-calendar"></div>
+            </section>
+        </main>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
+        <div class="fp-modal__card" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
+            <h3 id="fp-approve-title">Approva richiesta</h3>
+            <p id="fp-approve-desc">Inserisci la password per confermare.</p>
+            <input type="password" id="fp-approve-password" placeholder="Password">
+            <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">Password errata.</div>
+            <div class="fp-actions fp-actions--modal">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-edit-modal" aria-hidden="true">
+        <div class="fp-modal__card" role="dialog" aria-modal="true" aria-labelledby="fp-edit-title">
+            <h3 id="fp-edit-title">Modifica richiesta</h3>
+            <form id="fp-edit-form" class="fp-card fp-card--modal">
+                <div class="fp-field">
+                    <label for="fp-edit-department">Reparto</label>
+                    <select id="fp-edit-department"></select>
+                </div>
+                <div class="fp-field">
+                    <label for="fp-edit-employee">Dipendente</label>
+                    <select id="fp-edit-employee"></select>
+                </div>
+                <div class="fp-field">
+                    <label for="fp-edit-type">Tipo</label>
+                    <select id="fp-edit-type">
+                        <option value="ferie">Ferie</option>
+                        <option value="permesso">Permesso</option>
+                    </select>
+                </div>
+                <div class="fp-field fp-checkbox">
+                    <input type="checkbox" id="fp-edit-all-day" checked>
+                    <label for="fp-edit-all-day">Giornata intera</label>
+                </div>
+                <div class="fp-grid">
+                    <div class="fp-field">
+                        <label for="fp-edit-start-date">Data inizio</label>
+                        <input type="date" id="fp-edit-start-date" required>
+                    </div>
+                    <div class="fp-field">
+                        <label for="fp-edit-start-time">Ora inizio</label>
+                        <input type="time" id="fp-edit-start-time" value="09:00">
+                    </div>
+                    <div class="fp-field">
+                        <label for="fp-edit-end-date">Data fine</label>
+                        <input type="date" id="fp-edit-end-date" required>
+                    </div>
+                    <div class="fp-field">
+                        <label for="fp-edit-end-time">Ora fine</label>
+                        <input type="time" id="fp-edit-end-time" value="18:00">
+                    </div>
+                </div>
+                <div class="fp-field">
+                    <label for="fp-edit-note">Note</label>
+                    <textarea id="fp-edit-note" rows="3" placeholder="Inserisci eventuali dettagli"></textarea>
+                </div>
+                <div id="fp-edit-message" class="fp-message is-hidden"></div>
+                <div class="fp-actions fp-actions--modal">
+                    <button type="button" class="fp-btn fp-btn--danger" id="fp-edit-delete">Elimina</button>
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-edit-cancel">Annulla</button>
+                    <button type="submit" class="fp-btn fp-btn--primary">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <script src="../../scripts/utilities/ferie-permessi-scripts.js"></script>
+</body>
+
+</html>

@@ -163,6 +163,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     const btnAdmin = document.getElementById("amministrazione");
+    const btnFeriePermessi = document.getElementById("feriePermessi");
     const adminOverlay = document.getElementById("adminOverlay");
     const adminPassword = document.getElementById("adminPassword");
     const adminError = document.getElementById("adminError");
@@ -200,6 +201,12 @@ window.addEventListener("DOMContentLoaded", () => {
     if (btnAdmin) {
         btnAdmin.addEventListener("click", () => {
             openAdminPrompt();
+        });
+    }
+
+    if (btnFeriePermessi) {
+        btnFeriePermessi.addEventListener("click", () => {
+            ipcRenderer.send("open-ferie-permessi-window");
         });
     }
 

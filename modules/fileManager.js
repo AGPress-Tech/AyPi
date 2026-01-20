@@ -394,6 +394,7 @@ let compareFoldersWindow = null;
 let hierarchyWindow = null;
 let timerWindow = null;
 let amministrazioneWindow = null;
+let feriePermessiWindow = null;
 let isAppQuitting = false;
 
 function openBatchRenameWindow(mainWindow) {
@@ -533,6 +534,36 @@ function openAmministrazioneWindow(mainWindow) {
 
     amministrazioneWindow.on("closed", () => {
         amministrazioneWindow = null;
+        showMainWindow(mainWindow);
+    });
+}
+
+function openFeriePermessiWindow(mainWindow) {
+    if (isWindowAlive(feriePermessiWindow)) {
+        showWindow(feriePermessiWindow);
+        return;
+    }
+
+    feriePermessiWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+    });
+
+    feriePermessiWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"));
+    feriePermessiWindow.setMenu(null);
+
+    feriePermessiWindow.once("ready-to-show", () => {
+        if (!feriePermessiWindow.isDestroyed()) {
+            feriePermessiWindow.maximize();
+        }
+    });
+
+    feriePermessiWindow.on("closed", () => {
+        feriePermessiWindow = null;
         showMainWindow(mainWindow);
     });
 }
@@ -803,6 +834,10 @@ function setupFileManager(mainWindow) {
 
       ipcMain.on("open-amministrazione-window", () => {
           openAmministrazioneWindow(mainWindow);
+      });
+
+      ipcMain.on("open-ferie-permessi-window", () => {
+          openFeriePermessiWindow(mainWindow);
       });
 
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {
