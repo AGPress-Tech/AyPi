@@ -42,6 +42,43 @@ body {
     gap: 12px;
 }
 
+.fp-legend {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #5f6368;
+    background: #f8f9fa;
+    border: 1px solid #e0e3e7;
+    border-radius: 999px;
+    padding: 6px 10px;
+}
+
+.fp-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fp-legend__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    display: inline-block;
+}
+
+.fp-legend__dot--ferie {
+    background: #2f9e44;
+}
+
+.fp-legend__dot--permesso {
+    background: #f08c00;
+}
+
+.fp-legend__dot--straordinari {
+    background: #1a73e8;
+}
+
 .fp-summary {
     font-size: 13px;
     color: #5f6368;
@@ -171,7 +208,8 @@ body {
 }
 
 .fp-btn--manage {
-    justify-content: center;
+    justify-content: flex-start;
+    gap: 10px;
 }
 
 .fp-btn--danger {
@@ -188,11 +226,21 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    justify-content: space-between;
+    justify-content: flex-start;
     width: 100%;
     color: #202124;
     background: #f6f8fe;
     border-color: #d2e3fc;
+}
+
+.fp-btn__icon-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fp-btn__label {
+    margin-left: auto;
 }
 
 .fp-btn__icon {
@@ -206,6 +254,12 @@ body {
 }
 
 .fp-bell {
+    width: 16px;
+    height: 16px;
+    fill: #1a73e8;
+}
+
+.fp-icon {
     width: 16px;
     height: 16px;
     fill: #1a73e8;
@@ -227,6 +281,10 @@ body {
 
 .fp-badge.is-hidden {
     display: none;
+}
+
+.fp-badge--inline {
+    margin-left: 0;
 }
 
 .fp-pending-flyout {
@@ -277,6 +335,16 @@ body {
 }
 
 .fp-message.is-hidden {
+    display: none;
+}
+
+.fp-inline-error {
+    font-size: 12px;
+    color: #c5221f;
+    margin-top: -4px;
+}
+
+.fp-inline-error.is-hidden {
     display: none;
 }
 
@@ -425,6 +493,14 @@ body {
     width: min(640px, 92vw);
 }
 
+.fp-confirm-card {
+    width: min(460px, 92vw);
+}
+
+.fp-export-card {
+    width: min(560px, 92vw);
+}
+
 .fp-assignees-header {
     display: flex;
     align-items: center;
@@ -504,6 +580,42 @@ body {
     padding: 8px 10px;
     font-size: 13px;
     box-sizing: border-box;
+}
+
+.fp-export-section {
+    display: grid;
+    gap: 8px;
+}
+
+.fp-export-choice {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    color: #202124;
+}
+
+.fp-export-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.fp-export-departments {
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    padding: 10px;
+    max-height: 180px;
+    overflow-y: auto;
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.fp-export-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 @media (max-width: 980px) {

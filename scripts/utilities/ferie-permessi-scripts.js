@@ -8,6 +8,12 @@ const APPROVAL_PASSWORD = "AGPress";
 const AUTO_REFRESH_MS = 15000;
 
 let calendar = null;
+let XLSX;
+try {
+    XLSX = require("xlsx");
+} catch (err) {
+    console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
+}
 let pendingAction = null;
 let refreshTimer = null;
 let selectedEventId = null;
@@ -47,8 +53,13 @@ function forceUnlockUI() {
     }
 }
 
-function showDialog(type, message, detail = "") {
-    return ipcRenderer.invoke("show-message-box", { type, message, detail });
+function showDialog(type, message, detail = "", buttons) {
+    return ipcRenderer.invoke("show-message-box", {
+        type,
+        message,
+        detail,
+        buttons: Array.isArray(buttons) && buttons.length ? buttons : undefined,
+    });
 }
 
 function ensureDataFolder() {
@@ -176,8 +187,17 @@ function addDaysToDateString(dateStr, days) {
 }
 
 function buildEventFromRequest(request) {
-    const typeLabel = request.type === "permesso" ? "Permesso" : "Ferie";
+    const typeLabel = request.type === "permesso"
+        ? "Permesso"
+        : request.type === "straordinari"
+            ? "Straordinari"
+            : "Ferie";
     const title = `${request.employee} - ${typeLabel}`;
+    const color = request.type === "permesso"
+        ? "#f08c00"
+        : request.type === "straordinari"
+            ? "#1a73e8"
+            : "#2f9e44";
     if (request.allDay) {
         const endDate = request.end || request.start;
         return {
@@ -186,8 +206,8 @@ function buildEventFromRequest(request) {
             start: request.start,
             end: addDaysToDateString(endDate, 1),
             allDay: true,
-            backgroundColor: request.type === "permesso" ? "#f08c00" : "#2f9e44",
-            borderColor: request.type === "permesso" ? "#f08c00" : "#2f9e44",
+            backgroundColor: color,
+            borderColor: color,
         };
     }
     return {
@@ -196,8 +216,8 @@ function buildEventFromRequest(request) {
         start: request.start,
         end: request.end,
         allDay: false,
-        backgroundColor: request.type === "permesso" ? "#f08c00" : "#2f9e44",
-        borderColor: request.type === "permesso" ? "#f08c00" : "#2f9e44",
+        backgroundColor: color,
+        borderColor: color,
     };
 }
 
@@ -239,17 +259,20 @@ function renderPendingList(data) {
         card.className = "fp-pending-item";
 
         const title = document.createElement("h3");
-        title.textContent = request.employee || "Dipendente";
+        const deptLabel = request.department ? ` - ${request.department}` : "";
+        title.textContent = `${request.employee || "Dipendente"}${deptLabel}`;
         card.appendChild(title);
 
         const meta = document.createElement("p");
-        const dept = request.department ? ` - ${request.department}` : "";
-        meta.textContent = `${request.type === "permesso" ? "Permesso" : "Ferie"}${dept}`;
+        const typeLabel = request.type === "permesso"
+            ? "Permesso"
+            : request.type === "straordinari"
+                ? "Straordinari"
+                : "Ferie";
+        meta.textContent = typeLabel;
         card.appendChild(meta);
 
-        const range = document.createElement("p");
-        range.textContent = formatRange(request);
-        card.appendChild(range);
+        card.appendChild(createRangeLine(request));
 
         if (request.note) {
             const note = document.createElement("p");
@@ -432,7 +455,7 @@ function isChecked(id) {
     return !!document.getElementById(id)?.checked;
 }
 
-function buildRequestFromForm(prefix, requestId) {
+function buildRequestFromForm(prefix, requestId, allowPast = false) {
     const department = getFieldValue(`${prefix}-department`);
     const employee = getFieldValue(`${prefix}-employee`);
     const type = getFieldValue(`${prefix}-type`) || "ferie";
@@ -447,8 +470,33 @@ function buildRequestFromForm(prefix, requestId) {
         return { error: "Compila dipendente e periodo richiesto." };
     }
 
-    if (allDay && endDate < startDate) {
+    const today = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const maxYear = today.getFullYear() + 2;
+    const parseStrictDate = (value) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+        const date = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return null;
+        return date;
+    };
+    const startParsed = parseStrictDate(startDate);
+    const endParsed = parseStrictDate(endDate);
+    if (!startParsed || !endParsed) {
+        return { error: "Formato data non valido." };
+    }
+    if (startParsed.getFullYear() > maxYear || endParsed.getFullYear() > maxYear) {
+        return { error: `L'anno non puo superare ${maxYear}.` };
+    }
+    if (!allowPast) {
+        if (startParsed < todayMidnight || endParsed < todayMidnight) {
+            return { error: "Non puoi inserire date precedenti a oggi." };
+        }
+    }
+    if (endParsed < startParsed) {
         return { error: "La data fine non puo essere precedente alla data inizio." };
+    }
+    if (!allDay && startDate !== endDate) {
+        return { error: "Per periodi di piu giorni serve giornata intera." };
     }
 
     if (!allDay) {
@@ -492,9 +540,135 @@ function buildRequestFromForm(prefix, requestId) {
     };
 }
 
+function getTypeLabel(value) {
+    if (value === "permesso") return "Permesso";
+    if (value === "straordinari") return "Straordinari";
+    return "Ferie";
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function openConfirmModal(message) {
+    const modal = document.getElementById("fp-confirm-modal");
+    const text = document.getElementById("fp-confirm-message");
+    const okBtn = document.getElementById("fp-confirm-ok");
+    const cancelBtn = document.getElementById("fp-confirm-cancel");
+    if (!modal || !text || !okBtn || !cancelBtn) {
+        return Promise.resolve(false);
+    }
+    text.innerHTML = message;
+    showModal(modal);
+    okBtn.focus();
+    return new Promise((resolve) => {
+        const cleanup = () => {
+            okBtn.removeEventListener("click", onOk);
+            cancelBtn.removeEventListener("click", onCancel);
+            modal.removeEventListener("click", onBackdrop);
+            document.removeEventListener("keydown", onKeydown);
+            hideModal(modal);
+        };
+        const onOk = () => {
+            cleanup();
+            resolve(true);
+        };
+        const onCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+        const onBackdrop = (event) => {
+            if (event.target === modal) {
+                cleanup();
+                resolve(false);
+            }
+        };
+        const onKeydown = (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                cleanup();
+                resolve(false);
+            }
+        };
+        okBtn.addEventListener("click", onOk);
+        cancelBtn.addEventListener("click", onCancel);
+        modal.addEventListener("click", onBackdrop);
+        document.addEventListener("keydown", onKeydown);
+    });
+}
+
 function resetForm(prefix) {
     const note = document.getElementById(`${prefix}-note`);
     if (note) note.value = "";
+}
+
+function resetNewRequestForm() {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const startDate = document.getElementById("fp-start-date");
+    const endDate = document.getElementById("fp-end-date");
+    const startTime = document.getElementById("fp-start-time");
+    const endTime = document.getElementById("fp-end-time");
+    const allDayToggle = document.getElementById("fp-all-day");
+    const typeSelect = document.getElementById("fp-type");
+    const departmentSelect = document.getElementById("fp-department");
+    const employeeSelect = document.getElementById("fp-employee");
+
+    if (startDate) startDate.value = today;
+    if (endDate) endDate.value = today;
+    if (startTime) startTime.value = "08:00";
+    if (endTime) endTime.value = "17:30";
+    if (allDayToggle) {
+        allDayToggle.checked = false;
+        toggleAllDayState(false);
+    }
+    if (typeSelect) typeSelect.selectedIndex = 0;
+    if (departmentSelect) {
+        departmentSelect.selectedIndex = 0;
+        departmentSelect.dispatchEvent(new Event("change"));
+    }
+    if (employeeSelect) {
+        employeeSelect.selectedIndex = 0;
+    }
+    resetForm("fp");
+    updateAllDayLock(startDate, endDate, allDayToggle, "fp");
+    setInlineError("fp-end-date-error", "");
+}
+
+function updateAllDayLock(startDate, endDate, allDayToggle, prefix = "fp") {
+    if (!startDate || !endDate || !allDayToggle) return;
+    if (!startDate.value || !endDate.value) {
+        allDayToggle.disabled = false;
+        return;
+    }
+    if (endDate.value !== startDate.value) {
+        allDayToggle.checked = true;
+        allDayToggle.disabled = true;
+        if (prefix === "fp-edit") {
+            toggleAllDayStateFor(prefix, true);
+        } else {
+            toggleAllDayState(true);
+        }
+        return;
+    }
+    allDayToggle.disabled = false;
+}
+
+function setInlineError(id, message) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!message) {
+        el.classList.add("is-hidden");
+        el.textContent = "";
+        return;
+    }
+    el.textContent = message;
+    el.classList.remove("is-hidden");
 }
 
 function toggleAllDayState(isAllDay) {
@@ -575,6 +749,9 @@ function fillFormFromRequest(prefix, request) {
         }
     }
     if (note) note.value = request.note || "";
+    if (prefix === "fp-edit") {
+        updateAllDayLock(startDate, endDate, allDay, "fp-edit");
+    }
 }
 
 function populateEmployees() {
@@ -589,7 +766,7 @@ function populateEmployeesFor(prefix, groups) {
     const employeeSelect = document.getElementById(`${prefix}-employee`);
     if (!departmentSelect || !employeeSelect) return;
 
-    const departments = Object.keys(groups);
+    const departments = Object.keys(groups).sort((a, b) => a.localeCompare(b));
     departmentSelect.innerHTML = "";
     if (departments.length === 0) {
         const opt = document.createElement("option");
@@ -613,7 +790,7 @@ function populateEmployeesFor(prefix, groups) {
 
     const updateEmployees = () => {
         const selected = departmentSelect.value;
-        const employees = Array.isArray(groups[selected]) ? groups[selected] : [];
+        const employees = Array.isArray(groups[selected]) ? [...groups[selected]].sort((a, b) => a.localeCompare(b)) : [];
         employeeSelect.innerHTML = "";
         if (employees.length === 0) {
             const emptyOpt = document.createElement("option");
@@ -652,11 +829,203 @@ function closeEditModal() {
     editingRequestId = null;
 }
 
+function openExportModal() {
+    const modal = document.getElementById("fp-export-modal");
+    const rangeAll = document.querySelector("input[name='fp-export-range'][value='all']");
+    if (!modal) return;
+    showModal(modal);
+    renderExportDepartments();
+    setMessage(document.getElementById("fp-export-message"), "");
+    if (rangeAll) {
+        rangeAll.checked = true;
+    }
+    updateExportDateState();
+}
+
+function closeExportModal() {
+    const modal = document.getElementById("fp-export-modal");
+    if (!modal) return;
+    hideModal(modal);
+    setMessage(document.getElementById("fp-export-message"), "");
+}
+
+function renderExportDepartments() {
+    const container = document.getElementById("fp-export-departments");
+    if (!container) return;
+    container.innerHTML = "";
+    const groups = Object.keys(assigneeGroups);
+    if (!groups.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "Nessun reparto.";
+        container.appendChild(empty);
+        return;
+    }
+    groups.forEach((group) => {
+        const label = document.createElement("label");
+        label.className = "fp-export-choice";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = group;
+        input.checked = true;
+        label.appendChild(input);
+        label.append(` ${group}`);
+        container.appendChild(label);
+    });
+}
+
+function setExportDepartmentsChecked(value) {
+    const container = document.getElementById("fp-export-departments");
+    if (!container) return;
+    container.querySelectorAll("input[type='checkbox']").forEach((input) => {
+        input.checked = value;
+    });
+}
+
+function updateExportDateState() {
+    const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
+    const startInput = document.getElementById("fp-export-start");
+    const endInput = document.getElementById("fp-export-end");
+    const isAll = rangeMode === "all";
+    if (startInput) {
+        startInput.disabled = isAll;
+        startInput.readOnly = false;
+    }
+    if (endInput) {
+        endInput.disabled = isAll;
+        endInput.readOnly = false;
+    }
+}
+
+function getExportSelectedDepartments() {
+    const container = document.getElementById("fp-export-departments");
+    if (!container) return [];
+    const checked = Array.from(container.querySelectorAll("input[type='checkbox']:checked"));
+    return checked.map((input) => input.value);
+}
+
+function parseDateInput(value) {
+    if (!value) return null;
+    const [year, month, day] = value.split("-").map((v) => parseInt(v, 10));
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+}
+
+function formatDate(value) {
+    if (!value) return "";
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("it-IT");
+}
+
+function formatDateTime(value) {
+    if (!value) return "";
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const datePart = date.toLocaleDateString("it-IT");
+    const timePart = date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    return `${datePart} ${timePart}`;
+}
+
+function formatDateParts(value) {
+    if (!value) return { date: "", time: "" };
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return { date: "", time: "" };
+    return {
+        date: date.toLocaleDateString("it-IT"),
+        time: date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+    };
+}
+
+function createRangeLine(request) {
+    const line = document.createElement("p");
+    line.className = "fp-pending-range";
+    if (request.allDay) {
+        const dateLabel = formatDate(request.start);
+        const strong = document.createElement("strong");
+        strong.textContent = dateLabel;
+        line.appendChild(strong);
+        return line;
+    }
+    const startParts = formatDateParts(request.start);
+    const endParts = formatDateParts(request.end);
+    const startDate = document.createElement("strong");
+    startDate.textContent = startParts.date;
+    line.appendChild(startDate);
+    if (startParts.time) {
+        line.appendChild(document.createTextNode(` ${startParts.time}`));
+    }
+    line.appendChild(document.createTextNode(" - "));
+    const endDate = document.createElement("strong");
+    endDate.textContent = endParts.date;
+    line.appendChild(endDate);
+    if (endParts.time) {
+        line.appendChild(document.createTextNode(` ${endParts.time}`));
+    }
+    return line;
+}
+
+function getRequestDates(request) {
+    if (!request) return { start: null, end: null };
+    if (request.allDay) {
+        const start = request.start ? new Date(`${request.start}T00:00:00`) : null;
+        const end = request.end ? new Date(`${request.end}T23:59:59`) : (request.start ? new Date(`${request.start}T23:59:59`) : null);
+        return { start, end };
+    }
+    const start = request.start ? new Date(request.start) : null;
+    const end = request.end ? new Date(request.end) : null;
+    return { start, end };
+}
+
+function calculateHours(request) {
+    if (!request) return 0;
+    if (request.allDay) {
+        const startDate = request.start ? new Date(`${request.start}T00:00:00`) : null;
+        const endDate = request.end ? new Date(`${request.end}T00:00:00`) : startDate;
+        if (!startDate || !endDate) return 0;
+        const days = Math.floor((endDate - startDate) / 86400000) + 1;
+        return days * 8;
+    }
+    const start = request.start ? new Date(request.start) : null;
+    const end = request.end ? new Date(request.end) : null;
+    if (!start || !end) return 0;
+    const diffHours = (end - start) / 3600000;
+    const hours = Math.max(0, Math.round(diffHours * 100) / 100);
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    const days = Math.floor((endDay - startDay) / 86400000) + 1;
+    const maxHours = Math.max(1, days) * 8;
+    return Math.min(hours, maxHours);
+}
+
+function buildExportRows(requests) {
+    return requests.map((request) => {
+        const typeLabel = request.type === "permesso"
+            ? "Permesso"
+            : request.type === "straordinari"
+                ? "Straordinari"
+                : "Ferie";
+        const startValue = request.allDay
+            ? (request.start ? new Date(`${request.start}T00:00:00`) : null)
+            : (request.start ? new Date(request.start) : null);
+        const endValue = request.allDay
+            ? (request.end ? new Date(`${request.end}T00:00:00`) : (request.start ? new Date(`${request.start}T00:00:00`) : null))
+            : (request.end ? new Date(request.end) : null);
+        const row = {
+            "Nome Operatore": request.employee || "",
+            "Reparto": request.department || "",
+            "Data Inizio": startValue || "",
+            "Data Fine": endValue || "",
+            "Ore": calculateHours(request),
+            "Tipo": typeLabel,
+        };
+        return row;
+    });
+}
 function renderDepartmentSelect() {
     const select = document.getElementById("fp-employee-department");
     if (!select) return;
     select.innerHTML = "";
-    Object.keys(assigneeGroups).forEach((group) => {
+    Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b)).forEach((group) => {
         const option = document.createElement("option");
         option.value = group;
         option.textContent = group;
@@ -668,7 +1037,7 @@ function renderDepartmentList() {
     const list = document.getElementById("fp-departments-list");
     if (!list) return;
     list.innerHTML = "";
-    const groups = Object.keys(assigneeGroups);
+    const groups = Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b));
     if (!groups.length) {
         list.textContent = "Nessun reparto.";
         return;
@@ -770,7 +1139,7 @@ function renderEmployeesList() {
     const list = document.getElementById("fp-employees-list");
     if (!list) return;
     list.innerHTML = "";
-    const groups = Object.keys(assigneeGroups);
+    const groups = Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b));
     const employees = [];
     groups.forEach((group) => {
         (assigneeGroups[group] || []).forEach((name) => {
@@ -781,6 +1150,11 @@ function renderEmployeesList() {
         list.textContent = "Nessun operatore.";
         return;
     }
+    employees.sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name);
+        if (nameCompare !== 0) return nameCompare;
+        return a.group.localeCompare(b.group);
+    });
     employees.forEach((employee) => {
         const row = document.createElement("div");
         row.className = "fp-assignees-row";
@@ -791,7 +1165,7 @@ function renderEmployeesList() {
         if (editingEmployee && editingEmployee.name === employee.name && editingEmployee.group === employee.group) {
             const select = document.createElement("select");
             select.className = "fp-field__input";
-            Object.keys(assigneeGroups).forEach((group) => {
+            Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b)).forEach((group) => {
                 const option = document.createElement("option");
                 option.value = group;
                 option.textContent = group;
@@ -923,6 +1297,10 @@ function initCalendar() {
             list: "Lista",
             listWeek: "Lista",
         },
+        businessHours: [
+            { daysOfWeek: [1, 2, 3, 4, 5], startTime: "08:00", endTime: "12:00" },
+            { daysOfWeek: [1, 2, 3, 4, 5], startTime: "13:30", endTime: "17:30" },
+        ],
         eventTimeFormat: {
             hour: "2-digit",
             minute: "2-digit",
@@ -984,12 +1362,27 @@ function init() {
 
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
+    const maxYear = now.getFullYear() + 2;
+    const maxDate = `${maxYear}-12-31`;
     const startDate = document.getElementById("fp-start-date");
     const endDate = document.getElementById("fp-end-date");
     if (startDate) startDate.value = today;
     if (endDate) endDate.value = today;
+    if (startDate) {
+        startDate.setAttribute("min", today);
+        startDate.setAttribute("max", maxDate);
+        startDate.disabled = false;
+        startDate.readOnly = false;
+    }
+    if (endDate) {
+        endDate.setAttribute("min", today);
+        endDate.setAttribute("max", maxDate);
+        endDate.disabled = false;
+        endDate.readOnly = false;
+    }
 
     const allDayToggle = document.getElementById("fp-all-day");
+    updateAllDayLock(startDate, endDate, allDayToggle, "fp");
     if (allDayToggle) {
         toggleAllDayState(allDayToggle.checked);
         allDayToggle.addEventListener("change", () => {
@@ -999,32 +1392,74 @@ function init() {
     const startTimeInput = document.getElementById("fp-start-time");
     const endTimeInput = document.getElementById("fp-end-time");
     const handleTimeFocus = () => {
-        if (!allDayToggle || !allDayToggle.checked) return;
+        if (!allDayToggle || !allDayToggle.checked || allDayToggle.disabled) return;
         allDayToggle.checked = false;
         toggleAllDayState(false);
     };
     if (startTimeInput) startTimeInput.addEventListener("focus", handleTimeFocus);
     if (endTimeInput) endTimeInput.addEventListener("focus", handleTimeFocus);
 
+    if (startDate && endDate) {
+        const normalizeDates = () => {
+            if (!startDate.value || !endDate.value) return;
+            if (startDate.value.length !== 10 || endDate.value.length !== 10) return;
+            if (endDate.value < startDate.value) {
+                setInlineError("fp-end-date-error", "La data fine non puo essere precedente alla data inizio.");
+            } else {
+                setInlineError("fp-end-date-error", "");
+            }
+            if (endDate.value > startDate.value && allDayToggle) {
+                allDayToggle.checked = true;
+                toggleAllDayState(true);
+            }
+            updateAllDayLock(startDate, endDate, allDayToggle, "fp");
+        };
+        startDate.addEventListener("change", normalizeDates);
+        endDate.addEventListener("input", normalizeDates);
+        endDate.addEventListener("change", normalizeDates);
+    }
+
     const form = document.getElementById("fp-request-form");
     const message = document.getElementById("fp-form-message");
+    const saveRequest = async () => {
+        setMessage(message, "");
+        setInlineError("fp-end-date-error", "");
+        const { request, error } = buildRequestFromForm("fp", null, false);
+        if (error) {
+            setMessage(message, error, true);
+            if (error.includes("data fine")) {
+                setInlineError("fp-end-date-error", error);
+            }
+            return;
+        }
+        const typeLabel = escapeHtml(getTypeLabel(request.type));
+        const startLabel = escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start));
+        const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
+        const confirmMessage =
+            `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> ` +
+            `dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`;
+        const confirmed = await openConfirmModal(confirmMessage);
+        if (!confirmed) {
+            return;
+        }
+        const updated = syncData((payload) => {
+            payload.requests = payload.requests || [];
+            payload.requests.push(request);
+            return payload;
+        });
+        setMessage(message, "Richiesta inviata.", false);
+        resetNewRequestForm();
+        renderAll(updated);
+    };
     if (form) {
         form.addEventListener("submit", (event) => {
             event.preventDefault();
-            setMessage(message, "");
-            const { request, error } = buildRequestFromForm("fp");
-            if (error) {
-                setMessage(message, error, true);
-                return;
-            }
-            const updated = syncData((payload) => {
-                payload.requests = payload.requests || [];
-                payload.requests.push(request);
-                return payload;
-            });
-            setMessage(message, "Richiesta inviata.", false);
-            resetForm("fp");
-            renderAll(updated);
+        });
+    }
+    const saveBtn = document.getElementById("fp-request-save");
+    if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+            saveRequest();
         });
     }
 
@@ -1071,6 +1506,8 @@ function init() {
     const editAllDay = document.getElementById("fp-edit-all-day");
     const editStartTime = document.getElementById("fp-edit-start-time");
     const editEndTime = document.getElementById("fp-edit-end-time");
+    const editStartDate = document.getElementById("fp-edit-start-date");
+    const editEndDate = document.getElementById("fp-edit-end-date");
 
     if (editAllDay) {
         toggleAllDayStateFor("fp-edit", editAllDay.checked);
@@ -1079,12 +1516,27 @@ function init() {
         });
     }
     const handleEditTimeFocus = () => {
-        if (!editAllDay || !editAllDay.checked) return;
+        if (!editAllDay || !editAllDay.checked || editAllDay.disabled) return;
         editAllDay.checked = false;
         toggleAllDayStateFor("fp-edit", false);
     };
     if (editStartTime) editStartTime.addEventListener("focus", handleEditTimeFocus);
     if (editEndTime) editEndTime.addEventListener("focus", handleEditTimeFocus);
+
+    if (editStartDate && editEndDate) {
+        editStartDate.addEventListener("change", () => {
+            if (editEndDate.value && editEndDate.value < editStartDate.value) {
+                editEndDate.value = editStartDate.value;
+            }
+            updateAllDayLock(editStartDate, editEndDate, editAllDay, "fp-edit");
+        });
+        editEndDate.addEventListener("change", () => {
+            if (editStartDate.value && editEndDate.value < editStartDate.value) {
+                editEndDate.value = editStartDate.value;
+            }
+            updateAllDayLock(editStartDate, editEndDate, editAllDay, "fp-edit");
+        });
+    }
 
     if (editCancel) {
         editCancel.addEventListener("click", () => {
@@ -1117,7 +1569,7 @@ function init() {
             event.preventDefault();
             if (!editingRequestId) return;
             setMessage(editMessage, "");
-            const { request, error } = buildRequestFromForm("fp-edit", editingRequestId);
+            const { request, error } = buildRequestFromForm("fp-edit", editingRequestId, true);
             if (error) {
                 setMessage(editMessage, error, true);
                 return;
@@ -1239,6 +1691,131 @@ function init() {
             renderEmployeesList();
             populateEmployees();
             if (employeeNameInput) employeeNameInput.value = "";
+        });
+    }
+
+    const exportOpen = document.getElementById("fp-export-open");
+    const exportClose = document.getElementById("fp-export-close");
+    const exportRun = document.getElementById("fp-export-run");
+    const exportModal = document.getElementById("fp-export-modal");
+    const exportSelectAll = document.getElementById("fp-export-select-all");
+    const exportSelectNone = document.getElementById("fp-export-select-none");
+    const exportRangeRadios = document.querySelectorAll("input[name='fp-export-range']");
+
+    if (exportOpen) {
+        exportOpen.addEventListener("click", () => {
+            openExportModal();
+        });
+    }
+
+    if (exportClose) {
+        exportClose.addEventListener("click", () => {
+            closeExportModal();
+        });
+    }
+
+    if (exportModal) {
+        exportModal.addEventListener("click", (event) => {
+            if (event.target === exportModal) closeExportModal();
+        });
+    }
+
+    if (exportSelectAll) {
+        exportSelectAll.addEventListener("click", () => {
+            setExportDepartmentsChecked(true);
+        });
+    }
+
+    if (exportSelectNone) {
+        exportSelectNone.addEventListener("click", () => {
+            setExportDepartmentsChecked(false);
+        });
+    }
+
+    if (exportRangeRadios.length) {
+        exportRangeRadios.forEach((radio) => {
+            radio.addEventListener("change", updateExportDateState);
+        });
+    }
+
+    if (exportRun) {
+        exportRun.addEventListener("click", async () => {
+            if (!XLSX) {
+                await showDialog("error", "Modulo 'xlsx' non trovato.", "Esegui 'npm install xlsx' nella cartella del progetto AyPi.");
+                return;
+            }
+            const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
+            const startDate = parseDateInput(document.getElementById("fp-export-start")?.value || "");
+            const endDate = parseDateInput(document.getElementById("fp-export-end")?.value || "");
+            if (rangeMode === "custom" && (!startDate || !endDate || endDate < startDate)) {
+                setMessage(document.getElementById("fp-export-message"), "Seleziona un intervallo valido.", true);
+                return;
+            }
+            const includeFerie = !!document.getElementById("fp-export-ferie")?.checked;
+            const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
+            const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
+            if (!includeFerie && !includePermessi && !includeStraordinari) {
+                setMessage(document.getElementById("fp-export-message"), "Seleziona almeno un tipo.", true);
+                return;
+            }
+            const departments = getExportSelectedDepartments();
+
+            const raw = loadData().requests || [];
+            const approved = raw.filter((req) => req.status === "approved");
+            const filtered = approved.filter((req) => {
+                if (req.type === "ferie" && !includeFerie) return false;
+                if (req.type === "permesso" && !includePermessi) return false;
+                if (req.type === "straordinari" && !includeStraordinari) return false;
+                if (departments.length && req.department && !departments.includes(req.department)) return false;
+                if (rangeMode === "custom") {
+                    const { start, end } = getRequestDates(req);
+                    if (!start || !end) return false;
+                    const rangeStart = new Date(startDate);
+                    const rangeEnd = new Date(endDate);
+                    rangeEnd.setHours(23, 59, 59, 999);
+                    return start <= rangeEnd && end >= rangeStart;
+                }
+                return true;
+            });
+
+            if (!filtered.length) {
+                setMessage(document.getElementById("fp-export-message"), "Nessun dato da esportare.", true);
+                return;
+            }
+
+            const rows = buildExportRows(filtered);
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(rows);
+            const dateColumns = ["C", "D"];
+            dateColumns.forEach((col) => {
+                rows.forEach((_, idx) => {
+                    const cell = ws[`${col}${idx + 2}`];
+                    if (cell && cell.t === "d") {
+                        cell.z = "dd/mm/yyyy hh:mm";
+                    }
+                });
+            });
+            rows.forEach((_, idx) => {
+                const cell = ws[`E${idx + 2}`];
+                if (cell && cell.t === "n") {
+                    cell.z = "0.00";
+                }
+            });
+            XLSX.utils.book_append_sheet(wb, ws, "Ferie e Permessi");
+
+            const outputPath = await ipcRenderer.invoke("select-output-file", {
+                defaultName: "ferie_permessi.xlsx",
+                filters: [{ name: "File Excel", extensions: ["xlsx"] }],
+            });
+            if (!outputPath) return;
+
+            const dirOut = path.dirname(outputPath);
+            if (!fs.existsSync(dirOut)) {
+                fs.mkdirSync(dirOut, { recursive: true });
+            }
+
+            XLSX.writeFile(wb, outputPath, { cellDates: true });
+            setMessage(document.getElementById("fp-export-message"), "File Excel creato con successo.", false);
         });
     }
 

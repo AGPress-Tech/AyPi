@@ -18,12 +18,46 @@
             </div>
             <div class="fp-header__actions">
                 <div id="fp-summary" class="fp-summary">...</div>
+                <div class="fp-legend" id="fp-legend">
+                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie</span>
+                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi</span>
+                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari</span>
+                </div>
                 <button type="button" class="fp-btn" id="fp-refresh">Aggiorna</button>
             </div>
         </header>
 
         <main class="fp-body">
             <section class="fp-panel">
+                <div class="fp-card fp-card--pending">
+                    <button type="button" class="fp-btn fp-btn--pending" id="fp-pending-toggle" aria-expanded="false">
+                        <span class="fp-btn__icon-group" aria-hidden="true">
+                            <span class="fp-btn__icon">
+                                <svg viewBox="0 0 24 24" class="fp-bell" focusable="false" aria-hidden="true">
+                                    <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2Zm7-6V11a7 7 0 0 0-5-6.71V3a2 2 0 1 0-4 0v1.29A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"></path>
+                                </svg>
+                            </span>
+                            <span id="fp-pending-badge" class="fp-badge fp-badge--inline">0</span>
+                        </span>
+                        <span class="fp-btn__label">Richieste in attesa</span>
+                    </button>
+                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-assignees-manage">
+                        <span class="fp-btn__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                                <path d="M16 11a4 4 0 1 0-3.99-4A4 4 0 0 0 16 11Zm-8 0a3 3 0 1 0-2.99-3A3 3 0 0 0 8 11Zm0 2c-2.67 0-8 1.34-8 4v2h10.5a6.45 6.45 0 0 1-.5-2.5 5.5 5.5 0 0 1 .66-2.5Zm8 0a5.5 5.5 0 0 0-5.5 5.5 6.5 6.5 0 0 0 .06.5H24v-2c0-2.66-5.33-4-8-4Z"></path>
+                            </svg>
+                        </span>
+                        <span class="fp-btn__label">Gestisci dipendenti</span>
+                    </button>
+                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-export-open">
+                        <span class="fp-btn__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                                <path d="M5 20h14v-2H5v2Zm7-18-5.5 5.5 1.41 1.41L11 6.83V16h2V6.83l3.09 3.08 1.41-1.41L12 2Z"></path>
+                            </svg>
+                        </span>
+                        <span class="fp-btn__label">Esporta ferie/permessi</span>
+                    </button>
+                </div>
                 <form id="fp-request-form" class="fp-card">
                     <h2>Nuova richiesta</h2>
                     <div class="fp-field">
@@ -39,6 +73,7 @@
                         <select id="fp-type">
                             <option value="ferie">Ferie</option>
                             <option value="permesso">Permesso</option>
+                            <option value="straordinari">Straordinari</option>
                         </select>
                     </div>
                     <div class="fp-field fp-checkbox">
@@ -63,30 +98,17 @@
                             <input type="time" id="fp-end-time" value="17:30">
                         </div>
                     </div>
+                    <div id="fp-end-date-error" class="fp-inline-error is-hidden"></div>
                     <div class="fp-field">
                         <label for="fp-note">Note</label>
                         <textarea id="fp-note" rows="3" placeholder="Inserisci eventuali dettagli"></textarea>
                     </div>
                     <div class="fp-actions">
-                        <button type="submit" class="fp-btn fp-btn--primary">Invia richiesta</button>
+                        <button type="button" class="fp-btn fp-btn--primary" id="fp-request-save">Salva</button>
                     </div>
                     <div id="fp-form-message" class="fp-message is-hidden"></div>
                 </form>
 
-                <div class="fp-card fp-card--pending">
-                    <button type="button" class="fp-btn fp-btn--pending" id="fp-pending-toggle" aria-expanded="false">
-                        <span class="fp-btn__icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" class="fp-bell" focusable="false" aria-hidden="true">
-                                <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2Zm7-6V11a7 7 0 0 0-5-6.71V3a2 2 0 1 0-4 0v1.29A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"></path>
-                            </svg>
-                        </span>
-                        <span>Richieste in attesa</span>
-                        <span id="fp-pending-badge" class="fp-badge">0</span>
-                    </button>
-                    <button type="button" class="fp-btn fp-btn--ghost fp-btn--manage" id="fp-assignees-manage">
-                        Gestisci dipendenti
-                    </button>
-                </div>
             </section>
 
             <section class="fp-calendar">
@@ -129,6 +151,63 @@
         </div>
     </div>
 
+    <div class="fp-modal is-hidden" id="fp-confirm-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-confirm-card" role="dialog" aria-modal="true" aria-labelledby="fp-confirm-title">
+            <h3 id="fp-confirm-title">Conferma richiesta</h3>
+            <p id="fp-confirm-message"></p>
+            <div class="fp-actions fp-actions--modal">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-confirm-cancel">No</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-confirm-ok">Si</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-export-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-export-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-export-title">Esporta ferie/permessi</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-close">Chiudi</button>
+            </div>
+            <div class="fp-export-section">
+                <div class="fp-assignees-subtitle">Periodo</div>
+                <div class="fp-export-choice">
+                    <label><input type="radio" name="fp-export-range" value="all" checked> Sempre</label>
+                    <label><input type="radio" name="fp-export-range" value="custom"> Da - a</label>
+                </div>
+                <div class="fp-export-grid">
+                    <div class="fp-field">
+                        <label for="fp-export-start">Da</label>
+                        <input class="fp-field__input" type="date" id="fp-export-start">
+                    </div>
+                    <div class="fp-field">
+                        <label for="fp-export-end">A</label>
+                        <input class="fp-field__input" type="date" id="fp-export-end">
+                    </div>
+                </div>
+            </div>
+            <div class="fp-export-section">
+                <div class="fp-assignees-subtitle">Tipi</div>
+                <div class="fp-export-choice">
+                    <label><input type="checkbox" id="fp-export-ferie" checked> Ferie</label>
+                    <label><input type="checkbox" id="fp-export-permessi" checked> Permessi</label>
+                    <label><input type="checkbox" id="fp-export-straordinari" checked> Straordinari</label>
+                </div>
+            </div>
+            <div class="fp-export-section">
+                <div class="fp-assignees-subtitle">Reparti</div>
+                <div class="fp-export-actions">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-select-all">Tutti</button>
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-select-none">Nessuno</button>
+                </div>
+                <div id="fp-export-departments" class="fp-export-departments"></div>
+            </div>
+            <div class="fp-actions fp-actions--modal">
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-export-run">Esporta Excel</button>
+            </div>
+            <div id="fp-export-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
     <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
         <div class="fp-modal__card" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
             <h3 id="fp-approve-title">Approva richiesta</h3>
@@ -159,6 +238,7 @@
                     <select id="fp-edit-type">
                         <option value="ferie">Ferie</option>
                         <option value="permesso">Permesso</option>
+                        <option value="straordinari">Straordinari</option>
                     </select>
                 </div>
                     <div class="fp-field fp-checkbox">

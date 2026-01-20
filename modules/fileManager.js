@@ -722,7 +722,7 @@ function setupFileManager(mainWindow) {
 
         return dialog.showMessageBox(win, {
             type: options.type || "none",
-            buttons: ["OK"],
+            buttons: Array.isArray(options.buttons) && options.buttons.length ? options.buttons : ["OK"],
             title: "AyPi",
             message: options.message || "",
             detail: options.detail || "",
