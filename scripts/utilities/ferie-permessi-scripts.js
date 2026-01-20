@@ -7,6 +7,7 @@ const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazio
 const APPROVAL_PASSWORD = "AGPress";
 const AUTO_REFRESH_MS = 15000;
 const COLOR_STORAGE_KEY = "fpColorSettings";
+const THEME_STORAGE_KEY = "fpTheme";
 const DEFAULT_TYPE_COLORS = {
     ferie: "#2f9e44",
     permesso: "#f08c00",
@@ -34,6 +35,7 @@ let editingDepartment = null;
 let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
+let settingsSnapshot = null;
 
 function normalizeHexColor(value, fallback) {
     if (typeof value !== "string") return fallback;
@@ -89,11 +91,51 @@ function setSettingsInputsFromColors() {
     if (straordinariInput) straordinariInput.value = getTypeColor("straordinari");
 }
 
+function loadThemeSetting() {
+    try {
+        const value = window.localStorage?.getItem(THEME_STORAGE_KEY);
+        if (value === "dark" || value === "aypi") {
+            return value;
+        }
+        return "light";
+    } catch (err) {
+        return "light";
+    }
+}
+
+function saveThemeSetting(theme) {
+    try {
+        if (!window.localStorage) return;
+        const next = theme === "dark" || theme === "aypi" ? theme : "light";
+        window.localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch (err) {
+        console.error("Errore salvataggio tema:", err);
+    }
+}
+
+function applyTheme(theme) {
+    const mode = theme === "dark" ? "dark" : theme === "aypi" ? "aypi" : "light";
+    document.body.classList.toggle("fp-dark", mode === "dark");
+    document.body.classList.toggle("fp-aypi", mode === "aypi");
+    applyCalendarButtonStyles();
+    applyCalendarListStyles();
+    applyCalendarListHoverStyles();
+}
+
 function openSettingsModal() {
     const modal = document.getElementById("fp-settings-modal");
     const message = document.getElementById("fp-settings-message");
     if (!modal) return;
+    const themeValue = loadThemeSetting();
+    settingsSnapshot = {
+        theme: themeValue,
+        colors: { ...typeColors },
+    };
     setSettingsInputsFromColors();
+    const themeInputs = document.querySelectorAll("input[name='fp-theme']");
+    themeInputs.forEach((input) => {
+        input.checked = input.value === themeValue;
+    });
     setMessage(message, "");
     showModal(modal);
 }
@@ -101,6 +143,12 @@ function openSettingsModal() {
 function closeSettingsModal() {
     const modal = document.getElementById("fp-settings-modal");
     if (!modal) return;
+    if (settingsSnapshot) {
+        typeColors = { ...settingsSnapshot.colors };
+        applyTypeColors();
+        applyTheme(settingsSnapshot.theme);
+        renderAll(loadData());
+    }
     hideModal(modal);
 }
 
@@ -442,6 +490,8 @@ function renderAll(data) {
     renderSummary(data);
     renderPendingList(data);
     renderCalendar(data);
+    applyCalendarListStyles();
+    applyCalendarListHoverStyles();
 }
 
 function openPasswordModal(action) {
@@ -1377,16 +1427,31 @@ function closePendingPanel() {
 function applyCalendarButtonStyles() {
     const root = document.getElementById("fp-calendar");
     if (!root) return;
+    const getPalette = () => {
+        const isDark = document.body.classList.contains("fp-dark");
+        const isAyPi = document.body.classList.contains("fp-aypi");
+        return {
+            baseBackground: isDark ? "#15181d" : isAyPi ? "#2b2824" : "#ffffff",
+            baseBorder: isDark ? "#2b2f36" : isAyPi ? "#4a433d" : "#dadce0",
+            baseColor: isDark ? "#8ab4f8" : isAyPi ? "#f3e6d5" : "#1a73e8",
+            hoverBackground: isDark ? "#1a1e24" : isAyPi ? "#3a3932" : "#f6f8fe",
+            hoverBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
+            activeBackground: isDark ? "#1f2937" : isAyPi ? "#3a3328" : "#e8f0fe",
+            activeBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
+            baseShadow: isDark ? "none" : isAyPi ? "0 2px 6px rgba(0, 0, 0, 0.45)" : "0 1px 2px rgba(60, 64, 67, 0.15)",
+        };
+    };
     const buttons = root.querySelectorAll(".fc .fc-button");
     buttons.forEach((btn) => {
-        btn.style.background = "#ffffff";
-        btn.style.borderColor = "#dadce0";
-        btn.style.color = "#1a73e8";
+        const palette = getPalette();
+        btn.style.background = palette.baseBackground;
+        btn.style.borderColor = palette.baseBorder;
+        btn.style.color = palette.baseColor;
         btn.style.borderRadius = "999px";
         btn.style.padding = "7px 14px";
         btn.style.fontSize = "13px";
         btn.style.fontWeight = "600";
-        btn.style.boxShadow = "0 1px 2px rgba(60, 64, 67, 0.15)";
+        btn.style.boxShadow = palette.baseShadow;
         btn.style.transition = "background 0.15s ease, border-color 0.15s ease, color 0.15s ease";
         btn.style.opacity = btn.disabled ? "0.5" : "1";
 
@@ -1395,23 +1460,26 @@ function applyCalendarButtonStyles() {
                 btn.style.opacity = "0.5";
                 return;
             }
-            btn.style.background = "#ffffff";
-            btn.style.borderColor = "#dadce0";
-            btn.style.color = "#1a73e8";
-            btn.style.boxShadow = "0 1px 2px rgba(60, 64, 67, 0.15)";
+            const current = getPalette();
+            btn.style.background = current.baseBackground;
+            btn.style.borderColor = current.baseBorder;
+            btn.style.color = current.baseColor;
+            btn.style.boxShadow = current.baseShadow;
         };
 
         const setHover = () => {
             if (btn.disabled) return;
-            btn.style.background = "#f6f8fe";
-            btn.style.borderColor = "#d2e3fc";
+            const current = getPalette();
+            btn.style.background = current.hoverBackground;
+            btn.style.borderColor = current.hoverBorder;
         };
 
         const setActive = () => {
             if (btn.disabled) return;
             if (btn.classList.contains("fc-button-active")) {
-                btn.style.background = "#e8f0fe";
-                btn.style.borderColor = "#d2e3fc";
+                const current = getPalette();
+                btn.style.background = current.activeBackground;
+                btn.style.borderColor = current.activeBorder;
                 btn.style.boxShadow = "none";
             }
         };
@@ -1441,10 +1509,63 @@ function applyCalendarButtonStyles() {
         }
 
         if (btn.classList.contains("fc-button-active")) {
-            btn.style.background = "#e8f0fe";
-            btn.style.borderColor = "#d2e3fc";
+            const current = getPalette();
+            btn.style.background = current.activeBackground;
+            btn.style.borderColor = current.activeBorder;
             btn.style.boxShadow = "none";
         }
+    });
+}
+
+function applyCalendarListStyles() {
+    const root = document.getElementById("fp-calendar");
+    if (!root) return;
+    const isDark = document.body.classList.contains("fp-dark");
+    const isAyPi = document.body.classList.contains("fp-aypi");
+    if (!isDark && !isAyPi) return;
+    const dayBg = isAyPi ? "#f0dfbf" : "#f1f3f4";
+    const dayText = isAyPi ? "#2a241f" : "#202124";
+    const dayRows = root.querySelectorAll(".fc .fc-list-day");
+    dayRows.forEach((row) => {
+        row.style.background = dayBg;
+        row.style.color = dayText;
+        const cells = row.querySelectorAll("th, td");
+        cells.forEach((cell) => {
+            cell.style.background = dayBg;
+            cell.style.color = dayText;
+        });
+        const texts = row.querySelectorAll(".fc-list-day-text, .fc-list-day-side-text");
+        texts.forEach((text) => {
+            text.style.color = dayText;
+        });
+    });
+    const cushions = root.querySelectorAll(".fc .fc-list-day-cushion");
+    cushions.forEach((item) => {
+        item.style.background = dayBg;
+        item.style.color = dayText;
+    });
+}
+
+function applyCalendarListHoverStyles() {
+    const root = document.getElementById("fp-calendar");
+    if (!root) return;
+    const isDark = document.body.classList.contains("fp-dark");
+    const isAyPi = document.body.classList.contains("fp-aypi");
+    const hoverBg = isAyPi ? "#3a3328" : isDark ? "#2a3037" : "#eef2ff";
+    const rows = root.querySelectorAll(".fc .fc-list-table tbody tr.fc-list-event");
+    rows.forEach((row) => {
+        if (row.dataset.fpHoverBound) return;
+        row.addEventListener("mouseenter", () => {
+            row.querySelectorAll("td").forEach((cell) => {
+                cell.style.background = hoverBg;
+            });
+        });
+        row.addEventListener("mouseleave", () => {
+            row.querySelectorAll("td").forEach((cell) => {
+                cell.style.background = "";
+            });
+        });
+        row.dataset.fpHoverBound = "1";
     });
 }
 
@@ -1517,22 +1638,30 @@ function initCalendar() {
             if (!isList) {
                 lastNonListViewType = viewType;
                 applyCalendarButtonStyles();
+                applyCalendarListStyles();
+                applyCalendarListHoverStyles();
                 return;
             }
             if (handlingListRedirect) {
                 handlingListRedirect = false;
                 applyCalendarButtonStyles();
+                applyCalendarListStyles();
+                applyCalendarListHoverStyles();
                 return;
             }
             if (viewType === "listWeek" && lastNonListViewType === "dayGridMonth") {
                 handlingListRedirect = true;
                 calendar.changeView("listMonth");
                 applyCalendarButtonStyles();
+                applyCalendarListStyles();
+                applyCalendarListHoverStyles();
             }
         },
     });
     calendar.render();
     applyCalendarButtonStyles();
+    applyCalendarListStyles();
+    applyCalendarListHoverStyles();
 }
 
 function refreshData() {
@@ -1549,6 +1678,7 @@ function init() {
     ipcRenderer.send("resize-normale");
     typeColors = loadColorSettings();
     applyTypeColors();
+    applyTheme(loadThemeSetting());
     const assigneesData = loadAssigneeOptions();
     assigneeOptions = assigneesData.options;
     assigneeGroups = assigneesData.groups;
@@ -1674,6 +1804,7 @@ function init() {
     const ferieInput = document.getElementById("fp-color-ferie");
     const permessoInput = document.getElementById("fp-color-permesso");
     const straordinariInput = document.getElementById("fp-color-straordinari");
+    const themeInputs = document.querySelectorAll("input[name='fp-theme']");
 
     if (settingsBtn) {
         settingsBtn.addEventListener("click", () => {
@@ -1692,18 +1823,33 @@ function init() {
     }
     if (settingsSave) {
         settingsSave.addEventListener("click", () => {
-            const next = {
+            const nextColors = {
                 ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
                 permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
                 straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
             };
-            typeColors = { ...next };
+            const selectedTheme = Array.from(themeInputs).find((input) => input.checked)?.value || "light";
+            typeColors = { ...nextColors };
             saveColorSettings(typeColors);
             applyTypeColors();
+            saveThemeSetting(selectedTheme);
+            applyTheme(selectedTheme);
             renderAll(loadData());
-            setMessage(settingsMessage, "Impostazioni salvate.", false);
+            setMessage(settingsMessage, "");
+            hideModal(settingsModal);
+            settingsSnapshot = {
+                theme: selectedTheme,
+                colors: { ...nextColors },
+            };
         });
     }
+
+    themeInputs.forEach((input) => {
+        input.addEventListener("change", () => {
+            if (!input.checked) return;
+            applyTheme(input.value);
+        });
+    });
     if (settingsReset) {
         settingsReset.addEventListener("click", () => {
             typeColors = { ...DEFAULT_TYPE_COLORS };
@@ -1714,6 +1860,20 @@ function init() {
             setMessage(settingsMessage, "Colori ripristinati.", false);
         });
     }
+
+    const handleColorPreview = () => {
+        const nextColors = {
+            ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
+            permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
+            straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
+        };
+        typeColors = { ...nextColors };
+        applyTypeColors();
+        renderAll(loadData());
+    };
+    if (ferieInput) ferieInput.addEventListener("input", handleColorPreview);
+    if (permessoInput) permessoInput.addEventListener("input", handleColorPreview);
+    if (straordinariInput) straordinariInput.addEventListener("input", handleColorPreview);
 
     const approveCancel = document.getElementById("fp-approve-cancel");
     const approveConfirm = document.getElementById("fp-approve-confirm");

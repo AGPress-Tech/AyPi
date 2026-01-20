@@ -149,6 +149,16 @@ body {
     box-sizing: border-box;
 }
 
+.fp-field input:focus,
+.fp-field select:focus,
+.fp-field textarea:focus,
+.fp-field__input:focus,
+#fp-approve-password:focus {
+    border-color: #1a73e8;
+    outline: 2px solid rgba(26, 115, 232, 0.25);
+    outline-offset: 2px;
+}
+
 .fp-field textarea {
     resize: vertical;
 }
@@ -681,6 +691,433 @@ body {
     padding: 0;
     background: transparent;
     cursor: pointer;
+}
+
+.fp-theme-options {
+    display: grid;
+    gap: 10px;
+}
+
+.fp-theme-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #ffffff;
+    font-size: 13px;
+    color: #202124;
+}
+
+.fp-theme-option input {
+    width: 18px;
+    height: 18px;
+}
+
+body.fp-dark {
+    background: #0f1115;
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-header,
+body.fp-dark .fp-card,
+body.fp-dark .fp-calendar,
+body.fp-dark .fp-modal__card,
+body.fp-dark .fp-pending-flyout {
+    background: #1f232a;
+    border-color: #30343b;
+    box-shadow: none;
+}
+
+body.fp-dark .fp-header h1 {
+    color: #8ab4f8;
+}
+
+body.fp-dark .fp-header p,
+body.fp-dark .fp-summary,
+body.fp-dark .fp-assignees-subtitle,
+body.fp-dark .fp-message,
+body.fp-dark .fp-pending-item p {
+    color: #b0b7c3;
+}
+
+body.fp-dark .fp-export-card,
+body.fp-dark .fp-export-card label,
+body.fp-dark .fp-export-choice,
+body.fp-dark .fp-export-actions {
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-field label,
+body.fp-dark .fp-pending-item h3,
+body.fp-dark .fp-card h2,
+body.fp-dark .fp-pending-flyout__header h3 {
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-field input,
+body.fp-dark .fp-field select,
+body.fp-dark .fp-field textarea,
+body.fp-dark .fp-field__input {
+    background: #15181d;
+    border-color: #2b2f36;
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-field input:focus,
+body.fp-dark .fp-field select:focus,
+body.fp-dark .fp-field textarea:focus,
+body.fp-dark .fp-field__input:focus,
+body.fp-dark #fp-approve-password:focus {
+    border-color: #8ab4f8;
+    outline: 2px solid rgba(138, 180, 248, 0.35);
+    outline-offset: 2px;
+}
+
+body.fp-dark #fp-approve-password {
+    background: #15181d;
+    border: 1px solid #2b2f36;
+    color: #e8eaed;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+body.fp-dark .fp-btn {
+    background: #15181d;
+    border-color: #2b2f36;
+    color: #8ab4f8;
+}
+
+body.fp-dark .fp-btn:hover {
+    background: #1a1e24;
+}
+
+body.fp-dark .fp-btn--primary {
+    background: #8ab4f8;
+    border-color: #8ab4f8;
+    color: #0f1115;
+}
+
+body.fp-dark .fp-btn--primary:hover {
+    background: #7aa2e6;
+}
+
+body.fp-dark .fp-btn--danger {
+    background: #3b1f1c;
+    border-color: #3b1f1c;
+    color: #f28b82;
+}
+
+body.fp-dark .fp-btn--pending {
+    background: #15181d;
+    border-color: #2b2f36;
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-btn__icon {
+    background: #1a1e24;
+}
+
+body.fp-dark .fp-bell,
+body.fp-dark .fp-icon {
+    fill: #8ab4f8;
+}
+
+body.fp-dark .fp-badge {
+    background: #8ab4f8;
+    color: #0f1115;
+}
+
+body.fp-dark .fp-legend {
+    background: #15181d;
+    border-color: #2b2f36;
+    color: #b0b7c3;
+}
+
+body.fp-dark .fp-settings-row {
+    background: #15181d;
+    border-color: #2b2f36;
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-theme-option {
+    background: #15181d;
+    border-color: #2b2f36;
+    color: #e8eaed;
+}
+
+body.fp-dark #fp-calendar .fc {
+    background: #1f232a;
+    color: #e8eaed;
+}
+
+body.fp-dark #fp-calendar .fc .fc-toolbar-title {
+    color: #e8eaed;
+}
+
+body.fp-dark #fp-calendar .fc .fc-daygrid-day-frame,
+body.fp-dark #fp-calendar .fc .fc-timegrid-slot {
+    border-color: #2b2f36;
+}
+
+body.fp-dark #fp-calendar .fc .fc-list-day,
+body.fp-dark #fp-calendar .fc .fc-list-day-cushion {
+    background: #f1f3f4 !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-list-day-text,
+body.fp-dark #fp-calendar .fc .fc-list-day-side-text,
+body.fp-dark #fp-calendar .fc .fc-list-day-cushion * {
+    color: #202124 !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-list-table .fc-list-day th,
+body.fp-dark #fp-calendar .fc .fc-list-table .fc-list-day td {
+    background: #f1f3f4 !important;
+    color: #202124 !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-list-table .fc-list-day th * ,
+body.fp-dark #fp-calendar .fc .fc-list-table .fc-list-day td * {
+    color: #202124 !important;
+}
+
+#fp-calendar .fc .fc-list-table tbody tr.fc-list-event:hover > td,
+#fp-calendar .fc .fc-list-table tbody tr.fc-list-event.fc-event-forced-url:hover > td {
+    background: #eef2ff !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-list-table tbody tr.fc-list-event:hover > td,
+body.fp-dark #fp-calendar .fc .fc-list-table tbody tr.fc-list-event.fc-event-forced-url:hover > td {
+    background: #2a3037 !important;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-list-table tbody tr.fc-list-event:hover > td,
+body.fp-aypi #fp-calendar .fc .fc-list-table tbody tr.fc-list-event.fc-event-forced-url:hover > td {
+    background: #3a3328 !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-list-event {
+    background: #1f232a;
+}
+
+body.fp-dark #fp-calendar .fc .fc-list-event-title,
+body.fp-dark #fp-calendar .fc .fc-list-event-time,
+body.fp-dark #fp-calendar .fc .fc-list-empty {
+    color: #e8eaed;
+}
+
+body.fp-dark #fp-calendar .fc .fc-day-today,
+body.fp-dark #fp-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame,
+body.fp-dark #fp-calendar .fc .fc-timegrid-col.fc-day-today {
+    background: #20322a !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-non-business {
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+
+#fp-calendar .fc .fc-non-business {
+    background: rgba(26, 115, 232, 0.06) !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-button {
+    background: #15181d !important;
+    border-color: #2b2f36 !important;
+    color: #8ab4f8 !important;
+    box-shadow: none;
+}
+
+body.fp-dark #fp-calendar .fc .fc-button:hover:not(:disabled) {
+    background: #1a1e24 !important;
+    border-color: #2b2f36 !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-button-primary:not(:disabled).fc-button-active,
+body.fp-dark #fp-calendar .fc .fc-button-primary:not(:disabled):active {
+    background: #1f2937 !important;
+    border-color: #2b2f36 !important;
+    color: #8ab4f8 !important;
+}
+
+body.fp-aypi {
+    background: #332f2b;
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-header,
+body.fp-aypi .fp-card,
+body.fp-aypi .fp-calendar,
+body.fp-aypi .fp-modal__card,
+body.fp-aypi .fp-pending-flyout {
+    background: #2b2824;
+    border-color: #4a433d;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+
+body.fp-aypi .fp-header h1 {
+    color: #cc930e;
+}
+
+body.fp-aypi .fp-modal__card h3 {
+    color: #e4ab32;
+}
+
+body.fp-aypi .fp-header p,
+body.fp-aypi .fp-summary,
+body.fp-aypi .fp-assignees-subtitle,
+body.fp-aypi .fp-message,
+body.fp-aypi .fp-pending-item p {
+    color: #c4b8a6;
+}
+
+body.fp-aypi .fp-export-card,
+body.fp-aypi .fp-export-card label,
+body.fp-aypi .fp-export-choice,
+body.fp-aypi .fp-export-actions {
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-field label,
+body.fp-aypi .fp-pending-item h3,
+body.fp-aypi .fp-card h2,
+body.fp-aypi .fp-pending-flyout__header h3 {
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-field input,
+body.fp-aypi .fp-field select,
+body.fp-aypi .fp-field textarea,
+body.fp-aypi .fp-field__input {
+    background: #1f1c19;
+    border-color: #4a433d;
+    color: #f3e6d5;
+}
+
+body.fp-aypi #fp-approve-password {
+    background: #1f1c19;
+    border: 1px solid #4a433d;
+    color: #f3e6d5;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+
+body.fp-aypi .fp-btn {
+    background: #2b2824;
+    border-color: #4a433d;
+    color: #e4ab32;
+}
+
+body.fp-aypi .fp-btn:hover {
+    background: #3a3932;
+}
+
+body.fp-aypi .fp-btn--primary {
+    background: #cc930e;
+    border-color: #cc930e;
+    color: #332f2b;
+}
+
+body.fp-aypi .fp-btn--primary:hover {
+    background: #e4ab32;
+}
+
+body.fp-aypi .fp-btn--danger {
+    background: #4b2f2f;
+    border-color: #6a3a3a;
+    color: #f6d8d6;
+}
+
+body.fp-aypi .fp-btn--pending {
+    background: #2b2824;
+    border-color: #4a433d;
+    color: #e4ab32;
+}
+
+body.fp-aypi .fp-btn__icon {
+    background: #1f1c19;
+}
+
+body.fp-aypi .fp-bell,
+body.fp-aypi .fp-icon {
+    fill: #cc930e;
+}
+
+body.fp-aypi .fp-badge {
+    background: #cc930e;
+    color: #332f2b;
+}
+
+body.fp-aypi .fp-legend {
+    background: #1f1c19;
+    border-color: #4a433d;
+    color: #c4b8a6;
+}
+
+body.fp-aypi .fp-assignees-link,
+body.fp-aypi .fp-message,
+body.fp-aypi #fp-calendar .fc a {
+    color: #e4ab32;
+}
+
+body.fp-aypi .fp-settings-row,
+body.fp-aypi .fp-theme-option {
+    background: #1f1c19;
+    border-color: #4a433d;
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-card--modal {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+body.fp-aypi #fp-calendar .fc {
+    background: #2b2824;
+    color: #f3e6d5;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-toolbar-title {
+    color: #f3e6d5;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-daygrid-day-frame,
+body.fp-aypi #fp-calendar .fc .fc-timegrid-slot {
+    border-color: #3b342f;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-day-today,
+body.fp-aypi #fp-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame,
+body.fp-aypi #fp-calendar .fc .fc-timegrid-col.fc-day-today {
+    background: #3a3328 !important;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-non-business {
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-list-day,
+body.fp-aypi #fp-calendar .fc .fc-list-day-cushion {
+    background: #1f1c19 !important;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-list-day-text,
+body.fp-aypi #fp-calendar .fc .fc-list-day-side-text,
+body.fp-aypi #fp-calendar .fc .fc-list-day-cushion * {
+    color: #e4ab32 !important;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-list-event {
+    background: #2b2824;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-list-event-title,
+body.fp-aypi #fp-calendar .fc .fc-list-event-time,
+body.fp-aypi #fp-calendar .fc .fc-list-empty {
+    color: #f3e6d5;
 }
 
 @media (max-width: 980px) {
