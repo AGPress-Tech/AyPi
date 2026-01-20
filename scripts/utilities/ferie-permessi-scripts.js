@@ -14,6 +14,8 @@ let selectedEventId = null;
 let editingRequestId = null;
 let pendingPanelOpen = false;
 let pendingUnlocked = false;
+let lastNonListViewType = "dayGridMonth";
+let handlingListRedirect = false;
 let assigneeOptions = [];
 let assigneeGroups = {};
 let editingDepartment = null;
@@ -919,6 +921,7 @@ function initCalendar() {
             week: "Settimana",
             day: "Giorno",
             list: "Lista",
+            listWeek: "Lista",
         },
         eventTimeFormat: {
             hour: "2-digit",
@@ -940,6 +943,22 @@ function initCalendar() {
                     description: "Inserisci la password per modificare la richiesta.",
                 });
             });
+        },
+        datesSet: (info) => {
+            const viewType = info?.view?.type || "";
+            const isList = viewType === "listWeek" || viewType === "listMonth";
+            if (!isList) {
+                lastNonListViewType = viewType;
+                return;
+            }
+            if (handlingListRedirect) {
+                handlingListRedirect = false;
+                return;
+            }
+            if (viewType === "listWeek" && lastNonListViewType === "dayGridMonth") {
+                handlingListRedirect = true;
+                calendar.changeView("listMonth");
+            }
         },
     });
     calendar.render();
@@ -1242,6 +1261,7 @@ function init() {
 
     refreshData();
     scheduleAutoRefresh();
+
 }
 
 document.addEventListener("DOMContentLoaded", init);
