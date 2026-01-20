@@ -183,7 +183,10 @@ function addDaysToDateString(dateStr, days) {
     if (!year || !month || !day) return dateStr;
     const next = new Date(year, month - 1, day);
     next.setDate(next.getDate() + days);
-    return next.toISOString().slice(0, 10);
+    const yyyy = next.getFullYear();
+    const mm = String(next.getMonth() + 1).padStart(2, "0");
+    const dd = String(next.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
 }
 
 function buildEventFromRequest(request) {
@@ -940,10 +943,17 @@ function createRangeLine(request) {
     const line = document.createElement("p");
     line.className = "fp-pending-range";
     if (request.allDay) {
-        const dateLabel = formatDate(request.start);
-        const strong = document.createElement("strong");
-        strong.textContent = dateLabel;
-        line.appendChild(strong);
+        const startLabel = formatDate(request.start);
+        const endLabel = formatDate(request.end || request.start);
+        const startStrong = document.createElement("strong");
+        startStrong.textContent = startLabel;
+        line.appendChild(startStrong);
+        if (endLabel && endLabel !== startLabel) {
+            line.appendChild(document.createTextNode(" - "));
+            const endStrong = document.createElement("strong");
+            endStrong.textContent = endLabel;
+            line.appendChild(endStrong);
+        }
         return line;
     }
     const startParts = formatDateParts(request.start);

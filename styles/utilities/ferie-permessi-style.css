@@ -436,7 +436,16 @@ body {
 }
 
 #fp-calendar .fc .fc-day-today {
-    background: #e8f0fe;
+    background: #e6f4ea !important;
+}
+
+#fp-calendar .fc {
+    --fc-today-bg-color: #e6f4ea;
+}
+
+#fp-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame,
+#fp-calendar .fc .fc-timegrid-col.fc-day-today {
+    background: #e6f4ea !important;
 }
 
 #fp-calendar .fc .fc-event {
