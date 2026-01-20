@@ -585,12 +585,9 @@ function openConfirmModal(message) {
             cleanup();
             resolve(false);
         };
-        const onBackdrop = (event) => {
-            if (event.target === modal) {
-                cleanup();
-                resolve(false);
-            }
-        };
+    const onBackdrop = (event) => {
+        event.stopPropagation();
+    };
         const onKeydown = (event) => {
             if (event.key === "Escape") {
                 event.preventDefault();
@@ -1316,6 +1313,20 @@ function initCalendar() {
             minute: "2-digit",
             hour12: false,
         },
+        dateClick: (info) => {
+            const event = info?.jsEvent;
+            const target = event?.target;
+            if (target && target.closest && !target.closest(".fc-daygrid-day-number")) {
+                return;
+            }
+            if (!event || event.detail !== 2) return;
+            calendar.changeView("timeGridDay", info.dateStr);
+            setTimeout(() => {
+                if (calendar && typeof calendar.scrollToTime === "function") {
+                    calendar.scrollToTime("08:00");
+                }
+            }, 0);
+        },
         eventClick: (info) => {
             selectedEventId = info?.event?.id || null;
         },
@@ -1491,7 +1502,7 @@ function init() {
     }
     if (approveModal) {
         approveModal.addEventListener("click", (event) => {
-            if (event.target === approveModal) closeApprovalModal();
+            event.stopPropagation();
         });
     }
 
@@ -1570,7 +1581,7 @@ function init() {
 
     if (editModal) {
         editModal.addEventListener("click", (event) => {
-            if (event.target === editModal) closeEditModal();
+            event.stopPropagation();
         });
     }
 

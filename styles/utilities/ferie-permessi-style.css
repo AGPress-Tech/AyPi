@@ -454,6 +454,10 @@ body {
     font-size: 12px;
 }
 
+#fp-calendar .fc * {
+    user-select: none !important;
+}
+
 .fp-modal {
     position: fixed;
     inset: 0;
