@@ -12,6 +12,12 @@ let pendingAction = null;
 let refreshTimer = null;
 let selectedEventId = null;
 let editingRequestId = null;
+let pendingPanelOpen = false;
+let pendingUnlocked = false;
+let assigneeOptions = [];
+let assigneeGroups = {};
+let editingDepartment = null;
+let editingEmployee = null;
 
 function showModal(modal) {
     if (!modal) return;
@@ -77,6 +83,16 @@ function loadAssigneeOptions() {
     } catch (err) {
         console.error("Errore caricamento assignees:", err);
         return { groups: {}, options: [] };
+    }
+}
+
+function saveAssigneeOptions(groups) {
+    try {
+        ensureDataFolder();
+        fs.writeFileSync(ASSIGNEES_PATH, JSON.stringify(groups, null, 2), "utf8");
+    } catch (err) {
+        console.error("Errore salvataggio assignees:", err);
+        showDialog("warning", "Impossibile salvare la lista dipendenti.", err.message || String(err));
     }
 }
 
@@ -190,6 +206,18 @@ function renderSummary(data) {
     const pending = requests.filter((req) => req.status === "pending").length;
     const approved = requests.filter((req) => req.status === "approved").length;
     summaryEl.textContent = `In attesa: ${pending} | Approvate: ${approved}`;
+    updatePendingBadge(pending);
+}
+
+function updatePendingBadge(count) {
+    const badge = document.getElementById("fp-pending-badge");
+    if (!badge) return;
+    badge.textContent = String(count);
+    if (count > 0) {
+        badge.classList.remove("is-hidden");
+    } else {
+        badge.classList.add("is-hidden");
+    }
 }
 
 function renderPendingList(data) {
@@ -235,6 +263,18 @@ function renderPendingList(data) {
         approveBtn.className = "fp-btn fp-btn--primary";
         approveBtn.textContent = "Approva";
         approveBtn.addEventListener("click", () => {
+            if (pendingUnlocked) {
+                const updated = syncData((payload) => {
+                    const target = (payload.requests || []).find((req) => req.id === request.id);
+                    if (target) {
+                        target.status = "approved";
+                        target.approvedAt = new Date().toISOString();
+                    }
+                    return payload;
+                });
+                renderAll(updated);
+                return;
+            }
             openPasswordModal({
                 type: "approve",
                 id: request.id,
@@ -248,12 +288,20 @@ function renderPendingList(data) {
         rejectBtn.className = "fp-btn";
         rejectBtn.textContent = "Rifiuta";
         rejectBtn.addEventListener("click", () => {
-            if (!window.confirm("Eliminare la richiesta selezionata?")) return;
-            const updated = syncData((payload) => {
-                payload.requests = (payload.requests || []).filter((req) => req.id !== request.id);
-                return payload;
+            if (pendingUnlocked) {
+                const updated = syncData((payload) => {
+                    payload.requests = (payload.requests || []).filter((req) => req.id !== request.id);
+                    return payload;
+                });
+                renderAll(updated);
+                return;
+            }
+            openPasswordModal({
+                type: "reject",
+                id: request.id,
+                title: "Rifiuta richiesta",
+                description: "Inserisci la password per rifiutare la richiesta.",
             });
-            renderAll(updated);
         });
 
         actions.appendChild(rejectBtn);
@@ -340,6 +388,15 @@ function confirmApproval() {
         renderAll(updated);
         return;
     }
+    if (actionType === "reject") {
+        const updated = syncData((payload) => {
+            payload.requests = (payload.requests || []).filter((req) => req.id !== requestId);
+            return payload;
+        });
+        closeApprovalModal();
+        renderAll(updated);
+        return;
+    }
     if (actionType === "delete") {
         const updated = syncData((payload) => {
             payload.requests = (payload.requests || []).filter((req) => req.id !== requestId);
@@ -357,6 +414,11 @@ function confirmApproval() {
             editingRequestId = requestId;
             openEditModal(target);
         }
+    }
+    if (actionType === "pending-access") {
+        pendingUnlocked = true;
+        closeApprovalModal();
+        openPendingPanel();
     }
 }
 
@@ -514,7 +576,8 @@ function fillFormFromRequest(prefix, request) {
 }
 
 function populateEmployees() {
-    const { groups } = loadAssigneeOptions();
+    const groups = assigneeGroups && Object.keys(assigneeGroups).length ? assigneeGroups : loadAssigneeOptions().groups;
+    assigneeGroups = groups;
     populateEmployeesFor("fp", groups);
     populateEmployeesFor("fp-edit", groups);
 }
@@ -587,6 +650,257 @@ function closeEditModal() {
     editingRequestId = null;
 }
 
+function renderDepartmentSelect() {
+    const select = document.getElementById("fp-employee-department");
+    if (!select) return;
+    select.innerHTML = "";
+    Object.keys(assigneeGroups).forEach((group) => {
+        const option = document.createElement("option");
+        option.value = group;
+        option.textContent = group;
+        select.appendChild(option);
+    });
+}
+
+function renderDepartmentList() {
+    const list = document.getElementById("fp-departments-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const groups = Object.keys(assigneeGroups);
+    if (!groups.length) {
+        list.textContent = "Nessun reparto.";
+        return;
+    }
+    groups.forEach((group) => {
+        const row = document.createElement("div");
+        row.className = "fp-assignees-row";
+
+        const actions = document.createElement("div");
+        actions.className = "fp-assignees-row__actions";
+
+        if (editingDepartment === group) {
+            const input = document.createElement("input");
+            input.className = "fp-field__input";
+            input.value = group;
+            input.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    save.click();
+                }
+            });
+
+            const save = document.createElement("button");
+            save.type = "button";
+            save.className = "fp-assignees-link";
+            save.textContent = "Salva";
+            save.addEventListener("click", () => {
+                const trimmed = input.value.trim();
+                if (!trimmed || trimmed === group) {
+                    editingDepartment = null;
+                    renderDepartmentList();
+                    return;
+                }
+                if (assigneeGroups[trimmed]) return;
+                assigneeGroups[trimmed] = assigneeGroups[group];
+                delete assigneeGroups[group];
+                if (editingEmployee && editingEmployee.group === group) {
+                    editingEmployee = { ...editingEmployee, group: trimmed };
+                }
+                assigneeOptions = Object.values(assigneeGroups).flat();
+                saveAssigneeOptions(assigneeGroups);
+                editingDepartment = null;
+                renderDepartmentList();
+                renderEmployeesList();
+                renderDepartmentSelect();
+                populateEmployees();
+            });
+
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "fp-assignees-link fp-assignees-link--danger";
+            cancel.textContent = "Annulla";
+            cancel.addEventListener("click", () => {
+                editingDepartment = null;
+                renderDepartmentList();
+            });
+
+            row.appendChild(input);
+            actions.appendChild(save);
+            actions.appendChild(cancel);
+        } else {
+            const label = document.createElement("div");
+            label.textContent = group;
+
+            const edit = document.createElement("button");
+            edit.type = "button";
+            edit.className = "fp-assignees-link";
+            edit.textContent = "Modifica";
+            edit.addEventListener("click", () => {
+                editingDepartment = group;
+                renderDepartmentList();
+            });
+
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "fp-assignees-link fp-assignees-link--danger";
+            remove.textContent = "Rimuovi";
+            remove.addEventListener("click", () => {
+                if (!window.confirm(`Rimuovere il reparto \"${group}\"?`)) return;
+                delete assigneeGroups[group];
+                assigneeOptions = Object.values(assigneeGroups).flat();
+                saveAssigneeOptions(assigneeGroups);
+                renderDepartmentList();
+                renderDepartmentSelect();
+                populateEmployees();
+            });
+
+            row.appendChild(label);
+            actions.appendChild(edit);
+            actions.appendChild(remove);
+        }
+
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function renderEmployeesList() {
+    const list = document.getElementById("fp-employees-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const groups = Object.keys(assigneeGroups);
+    const employees = [];
+    groups.forEach((group) => {
+        (assigneeGroups[group] || []).forEach((name) => {
+            employees.push({ group, name });
+        });
+    });
+    if (!employees.length) {
+        list.textContent = "Nessun operatore.";
+        return;
+    }
+    employees.forEach((employee) => {
+        const row = document.createElement("div");
+        row.className = "fp-assignees-row";
+
+        const actions = document.createElement("div");
+        actions.className = "fp-assignees-row__actions";
+
+        if (editingEmployee && editingEmployee.name === employee.name && editingEmployee.group === employee.group) {
+            const select = document.createElement("select");
+            select.className = "fp-field__input";
+            Object.keys(assigneeGroups).forEach((group) => {
+                const option = document.createElement("option");
+                option.value = group;
+                option.textContent = group;
+                if (group === employee.group) option.selected = true;
+                select.appendChild(option);
+            });
+
+            const input = document.createElement("input");
+            input.className = "fp-field__input";
+            input.value = employee.name;
+            input.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    save.click();
+                }
+            });
+
+            const save = document.createElement("button");
+            save.type = "button";
+            save.className = "fp-assignees-link";
+            save.textContent = "Salva";
+            save.addEventListener("click", () => {
+                const trimmedName = input.value.trim();
+                const trimmedGroup = select.value;
+                if (!trimmedName || !trimmedGroup) return;
+                assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
+                if (!assigneeGroups[trimmedGroup]) assigneeGroups[trimmedGroup] = [];
+                assigneeGroups[trimmedGroup].push(trimmedName);
+                assigneeGroups[trimmedGroup].sort((a, b) => a.localeCompare(b));
+                if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                assigneeOptions = Object.values(assigneeGroups).flat();
+                saveAssigneeOptions(assigneeGroups);
+                editingEmployee = null;
+                renderEmployeesList();
+                renderDepartmentList();
+                renderDepartmentSelect();
+                populateEmployees();
+            });
+
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "fp-assignees-link fp-assignees-link--danger";
+            cancel.textContent = "Annulla";
+            cancel.addEventListener("click", () => {
+                editingEmployee = null;
+                renderEmployeesList();
+            });
+
+            row.appendChild(select);
+            row.appendChild(input);
+            actions.appendChild(save);
+            actions.appendChild(cancel);
+        } else {
+            const label = document.createElement("div");
+            label.textContent = `${employee.name} (${employee.group})`;
+
+            const edit = document.createElement("button");
+            edit.type = "button";
+            edit.className = "fp-assignees-link";
+            edit.textContent = "Modifica";
+            edit.addEventListener("click", () => {
+                editingEmployee = { name: employee.name, group: employee.group };
+                renderEmployeesList();
+            });
+
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "fp-assignees-link fp-assignees-link--danger";
+            remove.textContent = "Rimuovi";
+            remove.addEventListener("click", () => {
+                if (!window.confirm(`Rimuovere \"${employee.name}\"?`)) return;
+                assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
+                if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                assigneeOptions = Object.values(assigneeGroups).flat();
+                saveAssigneeOptions(assigneeGroups);
+                renderEmployeesList();
+                renderDepartmentList();
+                renderDepartmentSelect();
+                populateEmployees();
+            });
+
+            row.appendChild(label);
+            actions.appendChild(edit);
+            actions.appendChild(remove);
+        }
+
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function openPendingPanel() {
+    const panel = document.getElementById("fp-pending-panel");
+    const toggle = document.getElementById("fp-pending-toggle");
+    if (!panel || !toggle) return;
+    panel.classList.add("is-open");
+    panel.setAttribute("aria-hidden", "false");
+    toggle.setAttribute("aria-expanded", "true");
+    pendingPanelOpen = true;
+}
+
+function closePendingPanel() {
+    const panel = document.getElementById("fp-pending-panel");
+    const toggle = document.getElementById("fp-pending-toggle");
+    if (!panel || !toggle) return;
+    panel.classList.remove("is-open");
+    panel.setAttribute("aria-hidden", "true");
+    toggle.setAttribute("aria-expanded", "false");
+    pendingPanelOpen = false;
+}
+
 function initCalendar() {
     const calendarEl = document.getElementById("fp-calendar");
     if (!calendarEl || !window.FullCalendar) return;
@@ -598,6 +912,13 @@ function initCalendar() {
             left: "prev,next today",
             center: "title",
             right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+        },
+        buttonText: {
+            today: "Oggi",
+            month: "Mese",
+            week: "Settimana",
+            day: "Giorno",
+            list: "Lista",
         },
         eventTimeFormat: {
             hour: "2-digit",
@@ -636,6 +957,9 @@ function scheduleAutoRefresh() {
 
 function init() {
     ipcRenderer.send("resize-normale");
+    const assigneesData = loadAssigneeOptions();
+    assigneeOptions = assigneesData.options;
+    assigneeGroups = assigneesData.groups;
     populateEmployees();
     initCalendar();
 
@@ -799,6 +1123,107 @@ function init() {
             renderAll(updated);
         });
     }
+
+    const pendingToggle = document.getElementById("fp-pending-toggle");
+    const pendingClose = document.getElementById("fp-pending-close");
+    if (pendingToggle) {
+        pendingToggle.addEventListener("click", () => {
+            if (pendingPanelOpen) {
+                closePendingPanel();
+                return;
+            }
+            if (pendingUnlocked) {
+                openPendingPanel();
+                return;
+            }
+            openPasswordModal({
+                type: "pending-access",
+                id: "pending-access",
+                title: "Richieste in attesa",
+                description: "Inserisci la password per visualizzare le richieste in attesa.",
+            });
+        });
+    }
+    if (pendingClose) {
+        pendingClose.addEventListener("click", () => {
+            closePendingPanel();
+        });
+    }
+
+    const assigneesManage = document.getElementById("fp-assignees-manage");
+    const assigneesModal = document.getElementById("fp-assignees-modal");
+    const assigneesClose = document.getElementById("fp-assignees-close");
+    const departmentInput = document.getElementById("fp-department-name");
+    const departmentAdd = document.getElementById("fp-department-add");
+    const employeeNameInput = document.getElementById("fp-employee-name");
+    const employeeAdd = document.getElementById("fp-employee-add");
+
+    const closeAssigneesModal = () => {
+        if (!assigneesModal) return;
+        hideModal(assigneesModal);
+        if (departmentInput) departmentInput.value = "";
+        if (employeeNameInput) employeeNameInput.value = "";
+        editingDepartment = null;
+        editingEmployee = null;
+        renderDepartmentList();
+        renderEmployeesList();
+        renderDepartmentSelect();
+    };
+
+    if (assigneesManage && assigneesModal) {
+        assigneesManage.addEventListener("click", () => {
+            showModal(assigneesModal);
+            renderDepartmentList();
+            renderEmployeesList();
+            renderDepartmentSelect();
+            if (departmentInput) departmentInput.focus();
+        });
+    }
+
+    if (assigneesClose) {
+        assigneesClose.addEventListener("click", closeAssigneesModal);
+    }
+
+    if (assigneesModal) {
+        assigneesModal.addEventListener("click", (event) => {
+            if (event.target === assigneesModal) closeAssigneesModal();
+        });
+    }
+
+    if (departmentAdd) {
+        departmentAdd.addEventListener("click", () => {
+            const name = departmentInput ? departmentInput.value.trim() : "";
+            if (!name || assigneeGroups[name]) return;
+            assigneeGroups[name] = [];
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderDepartmentList();
+            renderDepartmentSelect();
+            populateEmployees();
+            if (departmentInput) departmentInput.value = "";
+        });
+    }
+
+    if (employeeAdd) {
+        employeeAdd.addEventListener("click", () => {
+            const select = document.getElementById("fp-employee-department");
+            const department = select ? select.value : "";
+            const name = employeeNameInput ? employeeNameInput.value.trim() : "";
+            if (!department || !name) return;
+            if (!assigneeGroups[department]) assigneeGroups[department] = [];
+            if (!assigneeGroups[department].includes(name)) {
+                assigneeGroups[department].push(name);
+                assigneeGroups[department].sort((a, b) => a.localeCompare(b));
+            }
+            assigneeOptions = Object.values(assigneeGroups).flat();
+            saveAssigneeOptions(assigneeGroups);
+            renderEmployeesList();
+            populateEmployees();
+            if (employeeNameInput) employeeNameInput.value = "";
+        });
+    }
+
+    closePendingPanel();
 
     document.addEventListener("keydown", (event) => {
         if (event.key !== "Delete") return;
