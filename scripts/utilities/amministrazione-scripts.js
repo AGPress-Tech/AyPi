@@ -5,6 +5,20 @@ const path = require("path");
 const gantt = window.gantt;
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-obiettivi.json";
 const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
+const sharedBaseDir = path.join(__dirname, "..", "..", "scripts", "utilities", "shared");
+const bootRequire = (modulePath) => {
+    try {
+        return require(modulePath);
+    } catch (err) {
+        ipcRenderer.invoke("show-message-box", {
+            type: "error",
+            message: "Errore caricamento modulo amministrazione.",
+            detail: `${modulePath}\n${err.message || err}`,
+        });
+        throw err;
+    }
+};
+const { createAssigneesStore } = bootRequire(path.join(sharedBaseDir, "assignees-store"));
 
 let saveTimer = null;
 let assigneeOptions = [];
@@ -17,48 +31,11 @@ function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
 }
 
-function loadAssigneeOptions() {
-    try {
-        if (!fs.existsSync(ASSIGNEES_PATH)) {
-            ensureDataFolder();
-            fs.writeFileSync(ASSIGNEES_PATH, JSON.stringify({}, null, 2), "utf8");
-            return { groups: {}, options: [] };
-        }
-        const raw = fs.readFileSync(ASSIGNEES_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-            return { groups: { "Altro": parsed.map((name) => String(name)) }, options: parsed.map((name) => String(name)) };
-        }
-        if (Array.isArray(parsed.data)) {
-            return { groups: { "Altro": parsed.data.map((name) => String(name)) }, options: parsed.data.map((name) => String(name)) };
-        }
-        if (parsed && typeof parsed === "object") {
-            const rawGroups = parsed.groups && typeof parsed.groups === "object" ? parsed.groups : parsed;
-            const groups = {};
-            Object.keys(rawGroups).forEach((key) => {
-                const list = Array.isArray(rawGroups[key]) ? rawGroups[key] : [];
-                groups[key] = list.map((name) => String(name));
-            });
-            const options = Object.values(groups).flat();
-            return { groups, options };
-        }
-        return { groups: {}, options: [] };
-    } catch (err) {
-        console.error("Errore caricamento assignees:", err);
-        showDialog("warning", "Impossibile leggere la lista responsabili.", err.message || String(err));
-        return { groups: {}, options: [] };
-    }
-}
-
-function saveAssigneeOptions(groups) {
-    try {
-        ensureDataFolder();
-        fs.writeFileSync(ASSIGNEES_PATH, JSON.stringify(groups, null, 2), "utf8");
-    } catch (err) {
-        console.error("Errore salvataggio assignees:", err);
-        showDialog("warning", "Impossibile salvare la lista responsabili.", err.message || String(err));
-    }
-}
+const { loadAssigneeOptions, saveAssigneeOptions } = createAssigneesStore({
+    assigneesPath: ASSIGNEES_PATH,
+    showDialog,
+    createIfMissing: true,
+});
 
 function renderDepartmentSelect() {
     const select = document.getElementById("employee-department");

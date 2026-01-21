@@ -1,38 +1,58 @@
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
-let nodemailer;
-let nodemailerError = null;
-try {
-    nodemailer = require("nodemailer");
-} catch (err) {
-    nodemailerError = err;
-    console.error("Modulo 'nodemailer' non disponibile:", err);
-}
 
-let argon2id;
-let argon2Verify;
-try {
-    ({ argon2id, argon2Verify } = require("hash-wasm"));
-} catch (err) {
-    console.error("Modulo 'hash-wasm' non trovato. Esegui: npm install hash-wasm");
-}
-
-const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi.json";
-const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
-const ADMINS_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-admins.json";
-const APPROVAL_PASSWORD = "AGPress";
-const AUTO_REFRESH_MS = 15000;
-const OTP_EXPIRY_MS = 5 * 60 * 1000;
-const OTP_RESEND_MS = 60 * 1000;
-const COLOR_STORAGE_KEY = "fpColorSettings";
-const THEME_STORAGE_KEY = "fpTheme";
-const DEFAULT_TYPE_COLORS = {
-    ferie: "#2f9e44",
-    permesso: "#f08c00",
-    straordinari: "#1a73e8",
+const fpBaseDir = path.join(__dirname, "..", "..", "scripts", "utilities", "ferie-permessi");
+const bootRequire = (modulePath) => {
+    try {
+        return require(modulePath);
+    } catch (err) {
+        ipcRenderer.invoke("show-message-box", {
+            type: "error",
+            message: "Errore caricamento modulo ferie/permessi.",
+            detail: `${modulePath}\n${err.message || err}`,
+        });
+        throw err;
+    }
 };
+
+const { DATA_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
+const {
+    AUTO_REFRESH_MS,
+    OTP_EXPIRY_MS,
+    OTP_RESEND_MS,
+    COLOR_STORAGE_KEY,
+    THEME_STORAGE_KEY,
+    DEFAULT_TYPE_COLORS,
+} = bootRequire(path.join(fpBaseDir, "config", "constants"));
+const {
+    getAuthenticator,
+    otpState,
+    resetOtpState,
+    isHashingAvailable,
+    hashPassword,
+} = bootRequire(path.join(fpBaseDir, "config", "security"));
+const {
+    loadAdminCredentials,
+    saveAdminCredentials,
+    verifyAdminPassword,
+    findAdminByName,
+    isValidEmail,
+    isValidPhone,
+} = bootRequire(path.join(fpBaseDir, "services", "admins"));
+const { loadAssigneeOptions, saveAssigneeOptions } = bootRequire(path.join(fpBaseDir, "services", "assignees"));
+const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
+const { ensureFolderFor } = bootRequire(path.join(fpBaseDir, "services", "storage"));
+const { isMailerAvailable, getMailerError, sendOtpEmail } = bootRequire(path.join(fpBaseDir, "services", "otp-mail"));
+const fpUiDir = path.join(fpBaseDir, "ui");
+const { createModalHelpers } = bootRequire(path.join(fpUiDir, "modals"));
+const { createExportController } = bootRequire(path.join(fpUiDir, "export"));
+const {
+    applyCalendarButtonStyles,
+    applyCalendarListStyles,
+    applyCalendarListHoverStyles,
+    initCalendar,
+} = bootRequire(path.join(fpUiDir, "calendar"));
 
 let calendar = null;
 let XLSX;
@@ -42,6 +62,12 @@ try {
     console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
 }
 let pendingAction = null;
+const { showModal, hideModal, forceUnlockUI } = createModalHelpers({
+    document,
+    clearPendingAction: () => {
+        pendingAction = null;
+    },
+});
 let refreshTimer = null;
 let selectedEventId = null;
 let editingRequestId = null;
@@ -61,139 +87,14 @@ let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
 let passwordFailCount = 0;
-let otpState = {
-    adminName: "",
-    adminEmail: "",
-    secret: "",
-    expiresAt: 0,
-    resendAt: 0,
-    verified: false,
-};
+const exportUi = createExportController({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    getAssigneeGroups: () => assigneeGroups,
+});
 
-let authenticatorPromise = null;
-async function getAuthenticator() {
-    if (authenticatorPromise) return authenticatorPromise;
-    authenticatorPromise = new Promise((resolve, reject) => {
-        try {
-            const mod = require("otplib");
-            const auth = mod.authenticator || (mod.default && mod.default.authenticator);
-            if (!auth) {
-                reject(new Error("Authenticator non disponibile."));
-                return;
-            }
-            auth.options = { step: 300, window: 0, digits: 6 };
-            resolve(auth);
-        } catch (err) {
-            authenticatorPromise = null;
-            reject(err);
-        }
-    });
-    return authenticatorPromise;
-}
-
-
-function loadAdminCredentials() {
-    try {
-        if (!fs.existsSync(ADMINS_PATH)) {
-            return [{ name: "Admin", password: APPROVAL_PASSWORD }];
-        }
-        const raw = fs.readFileSync(ADMINS_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-            return parsed
-                .filter((item) => item && item.name && (item.password || item.passwordHash))
-                .map((item) => ({
-                    name: String(item.name),
-                    password: item.password ? String(item.password) : undefined,
-                    passwordHash: item.passwordHash ? String(item.passwordHash) : undefined,
-                    email: item.email ? String(item.email) : "",
-                    phone: item.phone ? String(item.phone) : "",
-                }));
-        }
-        if (parsed && Array.isArray(parsed.admins)) {
-            return parsed.admins
-                .filter((item) => item && item.name && (item.password || item.passwordHash))
-                .map((item) => ({
-                    name: String(item.name),
-                    password: item.password ? String(item.password) : undefined,
-                    passwordHash: item.passwordHash ? String(item.passwordHash) : undefined,
-                    email: item.email ? String(item.email) : "",
-                    phone: item.phone ? String(item.phone) : "",
-                }));
-        }
-        if (parsed && typeof parsed === "object") {
-            return Object.entries(parsed)
-                .filter(([name, password]) => name && password)
-                .map(([name, password]) => {
-                    const value = String(password);
-                    return value.startsWith("$argon2")
-                        ? { name: String(name), passwordHash: value, email: "", phone: "" }
-                        : { name: String(name), password: value, email: "", phone: "" };
-                });
-        }
-        return [{ name: "Admin", password: APPROVAL_PASSWORD }];
-    } catch (err) {
-        console.error("Errore caricamento admins:", err);
-        return [{ name: "Admin", password: APPROVAL_PASSWORD }];
-    }
-}
-
-function saveAdminCredentials(admins) {
-    try {
-        ensureDataFolder();
-        const payload = admins.map((admin) => ({
-            name: admin.name,
-            passwordHash: admin.passwordHash,
-            password: admin.passwordHash ? undefined : admin.password,
-            email: admin.email || "",
-            phone: admin.phone || "",
-        }));
-        fs.writeFileSync(ADMINS_PATH, JSON.stringify({ admins: payload }, null, 2), "utf8");
-    } catch (err) {
-        console.error("Errore salvataggio admins:", err);
-        showDialog("warning", "Impossibile salvare la lista admin.", err.message || String(err));
-    }
-}
-
-async function verifyAdminPassword(password, targetName) {
-    if (!password) return null;
-    const admins = loadAdminCredentials();
-    for (const admin of admins) {
-        if (targetName && admin.name !== targetName) continue;
-        if (admin.passwordHash) {
-            try {
-                const ok = await verifyPasswordHash(admin.passwordHash, password);
-                if (ok) {
-                    try {
-                        const nextHash = await hashPassword(password);
-                        if (nextHash && nextHash !== admin.passwordHash) {
-                            admin.passwordHash = nextHash;
-                            saveAdminCredentials(admins);
-                        }
-                    } catch (rehashErr) {
-                        console.error("Errore rehash password:", rehashErr);
-                    }
-                    return { admin, admins };
-                }
-            } catch (err) {
-                console.error("Errore verifica argon2:", err);
-            }
-        } else if (admin.password && admin.password === password) {
-            if (argon2 || argon2Browser) {
-                try {
-                    const hash = await hashPassword(password);
-                    admin.passwordHash = hash;
-                    delete admin.password;
-                    saveAdminCredentials(admins);
-                } catch (err) {
-                    console.error("Errore hashing argon2:", err);
-                }
-            }
-            return { admin, admins };
-        }
-    }
-    return null;
-}
 
 function normalizeHexColor(value, fallback) {
     if (typeof value !== "string") return fallback;
@@ -275,9 +176,9 @@ function applyTheme(theme) {
     const mode = theme === "dark" ? "dark" : theme === "aypi" ? "aypi" : "light";
     document.body.classList.toggle("fp-dark", mode === "dark");
     document.body.classList.toggle("fp-aypi", mode === "aypi");
-    applyCalendarButtonStyles();
-    applyCalendarListStyles();
-    applyCalendarListHoverStyles();
+    applyCalendarButtonStyles(document);
+    applyCalendarListStyles(document);
+    applyCalendarListHoverStyles(document);
 }
 
 function openSettingsModal() {
@@ -316,104 +217,6 @@ function setAdminMessage(id, text, isError = false) {
     setMessage(el, text, isError);
 }
 
-function isValidEmail(value) {
-    if (!value) return true;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function isValidPhone(value) {
-    if (!value) return false;
-    const trimmed = value.trim();
-    if (!trimmed.startsWith("+39")) return false;
-    const digits = trimmed.replace(/\D/g, "");
-    return digits.length >= 11 && digits.length <= 13;
-}
-
-function loadMailConfig() {
-    const serverPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\otp-mail.json";
-    const localPath = path.join(__dirname, "..", "..", "config", "otp-mail.json");
-    const configPath = fs.existsSync(serverPath) ? serverPath : localPath;
-    if (!fs.existsSync(configPath)) {
-        throw new Error(`Config mail non trovata. Percorsi verificati: ${serverPath}, ${localPath}`);
-    }
-    try {
-        let raw = fs.readFileSync(configPath, "utf8");
-        if (raw.charCodeAt(0) === 0xfeff) {
-            raw = raw.slice(1);
-        }
-        const parsed = JSON.parse(raw);
-        if (!parsed || !parsed.host || !parsed.user || !parsed.pass) {
-            throw new Error(`Config mail incompleta in ${configPath}.`);
-        }
-        return parsed;
-    } catch (err) {
-        console.error("Errore lettura config mail:", err);
-        throw err;
-    }
-}
-
-async function sendOtpEmail(admin, code) {
-    const config = loadMailConfig();
-    const transporter = nodemailer.createTransport({
-        host: config.host,
-        port: config.port || 587,
-        secure: !!config.secure,
-        auth: {
-            user: config.user,
-            pass: config.pass,
-        },
-    });
-    const from = config.from || config.user;
-    await transporter.sendMail({
-        from,
-        to: admin.email,
-        subject: "OTP recupero password",
-        text: `Il tuo codice OTP e': ${code}\nValido per 5 minuti.`,
-    });
-}
-
-function findAdminByName(name) {
-    if (!name) return null;
-    const lower = name.trim().toLowerCase();
-    const admins = adminCache.length ? adminCache : loadAdminCredentials();
-    return admins.find((admin) => admin.name.trim().toLowerCase() === lower) || null;
-}
-
-function resetOtpState() {
-    otpState = {
-        adminName: "",
-        adminEmail: "",
-        secret: "",
-        expiresAt: 0,
-        resendAt: 0,
-        verified: false,
-    };
-}
-
-async function hashPassword(password) {
-    if (!argon2id) {
-        throw new Error("Modulo hashing non disponibile.");
-    }
-    const salt = crypto.randomBytes(16);
-    return argon2id({
-        password,
-        salt,
-        parallelism: 1,
-        iterations: 1,
-        memorySize: 1024,
-        hashLength: 32,
-        outputType: "encoded",
-    });
-}
-
-async function verifyPasswordHash(hash, password) {
-    if (!argon2Verify) return false;
-    try {
-        return await argon2Verify({ password, hash });
-    } catch (err) {
-        return false;
-    }
-}
 function renderAdminList() {
     const list = document.getElementById("fp-admin-list");
     if (!list) return;
@@ -528,86 +331,8 @@ function closeOtpModal() {
     resetOtpState();
 }
 
-function showModal(modal) {
-    if (!modal) return;
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
-    modal.style.display = "flex";
-    modal.style.pointerEvents = "auto";
-    modal.style.visibility = "visible";
-}
-
-function hideModal(modal) {
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
-    modal.style.display = "none";
-    modal.style.pointerEvents = "none";
-    modal.style.visibility = "hidden";
-}
-
-function forceUnlockUI() {
-    document.querySelectorAll(".fp-modal").forEach((item) => hideModal(item));
-    pendingAction = null;
-    if (document.activeElement && typeof document.activeElement.blur === "function") {
-        document.activeElement.blur();
-    }
-}
-
-function showDialog(type, message, detail = "", buttons) {
-    return ipcRenderer.invoke("show-message-box", {
-        type,
-        message,
-        detail,
-        buttons: Array.isArray(buttons) && buttons.length ? buttons : undefined,
-    });
-}
-
 function ensureDataFolder() {
-    const dir = path.dirname(DATA_PATH);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-}
-
-function loadAssigneeOptions() {
-    try {
-        if (!fs.existsSync(ASSIGNEES_PATH)) {
-            return { groups: {}, options: [] };
-        }
-        const raw = fs.readFileSync(ASSIGNEES_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-            return { groups: { "Altro": parsed.map((name) => String(name)) }, options: parsed.map((name) => String(name)) };
-        }
-        if (Array.isArray(parsed.data)) {
-            return { groups: { "Altro": parsed.data.map((name) => String(name)) }, options: parsed.data.map((name) => String(name)) };
-        }
-        if (parsed && typeof parsed === "object") {
-            const rawGroups = parsed.groups && typeof parsed.groups === "object" ? parsed.groups : parsed;
-            const groups = {};
-            Object.keys(rawGroups).forEach((key) => {
-                const list = Array.isArray(rawGroups[key]) ? rawGroups[key] : [];
-                groups[key] = list.map((name) => String(name));
-            });
-            const options = Object.values(groups).flat();
-            return { groups, options };
-        }
-        return { groups: {}, options: [] };
-    } catch (err) {
-        console.error("Errore caricamento assignees:", err);
-        return { groups: {}, options: [] };
-    }
-}
-
-function saveAssigneeOptions(groups) {
-    try {
-        ensureDataFolder();
-        fs.writeFileSync(ASSIGNEES_PATH, JSON.stringify(groups, null, 2), "utf8");
-    } catch (err) {
-        console.error("Errore salvataggio assignees:", err);
-        showDialog("warning", "Impossibile salvare la lista dipendenti.", err.message || String(err));
-    }
+    ensureFolderFor(DATA_PATH);
 }
 
 function loadData() {
@@ -873,8 +598,8 @@ function renderAll(data) {
     renderSummary(data);
     renderPendingList(data);
     renderCalendar(data);
-    applyCalendarListStyles();
-    applyCalendarListHoverStyles();
+    applyCalendarListStyles(document);
+    applyCalendarListHoverStyles(document);
 }
 
 function openPasswordModal(action) {
@@ -919,7 +644,7 @@ async function confirmApproval() {
     const error = document.getElementById("fp-approve-error");
     const recoverBtn = document.getElementById("fp-approve-recover");
     const password = input ? input.value : "";
-    if (!argon2id || !argon2Verify) {
+    if (!isHashingAvailable()) {
         const hasHashes = loadAdminCredentials().some((item) => item.passwordHash);
         if (hasHashes) {
             await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install hash-wasm' nella cartella del progetto.");
@@ -1402,87 +1127,6 @@ function closeEditModal() {
     editingAdminName = "";
 }
 
-function openExportModal() {
-    const modal = document.getElementById("fp-export-modal");
-    const rangeAll = document.querySelector("input[name='fp-export-range'][value='all']");
-    if (!modal) return;
-    showModal(modal);
-    renderExportDepartments();
-    setMessage(document.getElementById("fp-export-message"), "");
-    if (rangeAll) {
-        rangeAll.checked = true;
-    }
-    updateExportDateState();
-}
-
-function closeExportModal() {
-    const modal = document.getElementById("fp-export-modal");
-    if (!modal) return;
-    hideModal(modal);
-    setMessage(document.getElementById("fp-export-message"), "");
-}
-
-function renderExportDepartments() {
-    const container = document.getElementById("fp-export-departments");
-    if (!container) return;
-    container.innerHTML = "";
-    const groups = Object.keys(assigneeGroups);
-    if (!groups.length) {
-        const empty = document.createElement("div");
-        empty.textContent = "Nessun reparto.";
-        container.appendChild(empty);
-        return;
-    }
-    groups.forEach((group) => {
-        const label = document.createElement("label");
-        label.className = "fp-export-choice";
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.value = group;
-        input.checked = true;
-        label.appendChild(input);
-        label.append(` ${group}`);
-        container.appendChild(label);
-    });
-}
-
-function setExportDepartmentsChecked(value) {
-    const container = document.getElementById("fp-export-departments");
-    if (!container) return;
-    container.querySelectorAll("input[type='checkbox']").forEach((input) => {
-        input.checked = value;
-    });
-}
-
-function updateExportDateState() {
-    const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
-    const startInput = document.getElementById("fp-export-start");
-    const endInput = document.getElementById("fp-export-end");
-    const isAll = rangeMode === "all";
-    if (startInput) {
-        startInput.disabled = isAll;
-        startInput.readOnly = false;
-    }
-    if (endInput) {
-        endInput.disabled = isAll;
-        endInput.readOnly = false;
-    }
-}
-
-function getExportSelectedDepartments() {
-    const container = document.getElementById("fp-export-departments");
-    if (!container) return [];
-    const checked = Array.from(container.querySelectorAll("input[type='checkbox']:checked"));
-    return checked.map((input) => input.value);
-}
-
-function parseDateInput(value) {
-    if (!value) return null;
-    const [year, month, day] = value.split("-").map((v) => parseInt(v, 10));
-    if (!year || !month || !day) return null;
-    return new Date(year, month - 1, day);
-}
-
 function formatDate(value) {
     if (!value) return "";
     const date = value instanceof Date ? value : new Date(value);
@@ -1859,250 +1503,6 @@ function closePendingPanel() {
     pendingPanelOpen = false;
 }
 
-function applyCalendarButtonStyles() {
-    const root = document.getElementById("fp-calendar");
-    if (!root) return;
-    const getPalette = () => {
-        const isDark = document.body.classList.contains("fp-dark");
-        const isAyPi = document.body.classList.contains("fp-aypi");
-        return {
-            baseBackground: isDark ? "#15181d" : isAyPi ? "#2b2824" : "#ffffff",
-            baseBorder: isDark ? "#2b2f36" : isAyPi ? "#4a433d" : "#dadce0",
-            baseColor: isDark ? "#8ab4f8" : isAyPi ? "#f3e6d5" : "#1a73e8",
-            hoverBackground: isDark ? "#1a1e24" : isAyPi ? "#3a3932" : "#f6f8fe",
-            hoverBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
-            activeBackground: isDark ? "#1f2937" : isAyPi ? "#3a3328" : "#e8f0fe",
-            activeBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
-            baseShadow: isDark ? "none" : isAyPi ? "0 2px 6px rgba(0, 0, 0, 0.45)" : "0 1px 2px rgba(60, 64, 67, 0.15)",
-        };
-    };
-    const buttons = root.querySelectorAll(".fc .fc-button");
-    buttons.forEach((btn) => {
-        const palette = getPalette();
-        btn.style.background = palette.baseBackground;
-        btn.style.borderColor = palette.baseBorder;
-        btn.style.color = palette.baseColor;
-        btn.style.borderRadius = "999px";
-        btn.style.padding = "7px 14px";
-        btn.style.fontSize = "13px";
-        btn.style.fontWeight = "600";
-        btn.style.boxShadow = palette.baseShadow;
-        btn.style.transition = "background 0.15s ease, border-color 0.15s ease, color 0.15s ease";
-        btn.style.opacity = btn.disabled ? "0.5" : "1";
-
-        const setBase = () => {
-            if (btn.disabled) {
-                btn.style.opacity = "0.5";
-                return;
-            }
-            const current = getPalette();
-            btn.style.background = current.baseBackground;
-            btn.style.borderColor = current.baseBorder;
-            btn.style.color = current.baseColor;
-            btn.style.boxShadow = current.baseShadow;
-        };
-
-        const setHover = () => {
-            if (btn.disabled) return;
-            const current = getPalette();
-            btn.style.background = current.hoverBackground;
-            btn.style.borderColor = current.hoverBorder;
-        };
-
-        const setActive = () => {
-            if (btn.disabled) return;
-            if (btn.classList.contains("fc-button-active")) {
-                const current = getPalette();
-                btn.style.background = current.activeBackground;
-                btn.style.borderColor = current.activeBorder;
-                btn.style.boxShadow = "none";
-            }
-        };
-
-        if (!btn.dataset.fpStyled) {
-            btn.addEventListener("mouseenter", () => {
-                if (btn.classList.contains("fc-button-active")) return;
-                setHover();
-            });
-            btn.addEventListener("mouseleave", () => {
-                if (btn.classList.contains("fc-button-active")) {
-                    setActive();
-                    return;
-                }
-                setBase();
-            });
-            btn.addEventListener("click", () => {
-                setTimeout(() => {
-                    if (btn.classList.contains("fc-button-active")) {
-                        setActive();
-                        return;
-                    }
-                    setBase();
-                }, 0);
-            });
-            btn.dataset.fpStyled = "1";
-        }
-
-        if (btn.classList.contains("fc-button-active")) {
-            const current = getPalette();
-            btn.style.background = current.activeBackground;
-            btn.style.borderColor = current.activeBorder;
-            btn.style.boxShadow = "none";
-        }
-    });
-}
-
-function applyCalendarListStyles() {
-    const root = document.getElementById("fp-calendar");
-    if (!root) return;
-    const isDark = document.body.classList.contains("fp-dark");
-    const isAyPi = document.body.classList.contains("fp-aypi");
-    if (!isDark && !isAyPi) return;
-    const dayBg = isAyPi ? "#f0dfbf" : "#f1f3f4";
-    const dayText = "#202124";
-    const dayRows = root.querySelectorAll(".fc .fc-list-day");
-    dayRows.forEach((row) => {
-        row.style.background = dayBg;
-        row.style.color = dayText;
-        const cells = row.querySelectorAll("th, td");
-        cells.forEach((cell) => {
-            cell.style.background = dayBg;
-            cell.style.color = dayText;
-        });
-        const texts = row.querySelectorAll(".fc-list-day-text, .fc-list-day-side-text");
-        texts.forEach((text) => {
-            text.style.color = dayText;
-        });
-    });
-    const cushions = root.querySelectorAll(".fc .fc-list-day-cushion");
-    cushions.forEach((item) => {
-        item.style.background = dayBg;
-        item.style.color = dayText;
-    });
-}
-
-function applyCalendarListHoverStyles() {
-    const root = document.getElementById("fp-calendar");
-    if (!root) return;
-    const isDark = document.body.classList.contains("fp-dark");
-    const isAyPi = document.body.classList.contains("fp-aypi");
-    const hoverBg = isAyPi ? "#3a3328" : isDark ? "#2a3037" : "#eef2ff";
-    const rows = root.querySelectorAll(".fc .fc-list-table tbody tr.fc-list-event");
-    rows.forEach((row) => {
-        if (row.dataset.fpHoverBound) return;
-        row.addEventListener("mouseenter", () => {
-            row.querySelectorAll("td").forEach((cell) => {
-                cell.style.background = hoverBg;
-            });
-        });
-        row.addEventListener("mouseleave", () => {
-            row.querySelectorAll("td").forEach((cell) => {
-                cell.style.background = "";
-            });
-        });
-        row.dataset.fpHoverBound = "1";
-    });
-}
-
-function initCalendar() {
-    const calendarEl = document.getElementById("fp-calendar");
-    if (!calendarEl || !window.FullCalendar) return;
-    calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: "dayGridMonth",
-        locale: "it",
-        height: "100%",
-        headerToolbar: {
-            left: "prev,next today",
-            center: "title",
-            right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
-        },
-        buttonText: {
-            today: "Oggi",
-            month: "Mese",
-            week: "Settimana",
-            day: "Giorno",
-            list: "Lista",
-            listWeek: "Lista",
-        },
-        businessHours: [
-            { daysOfWeek: [1, 2, 3, 4, 5], startTime: "08:00", endTime: "12:00" },
-            { daysOfWeek: [1, 2, 3, 4, 5], startTime: "13:30", endTime: "17:30" },
-        ],
-        eventTimeFormat: {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-        },
-        dateClick: (info) => {
-            const event = info?.jsEvent;
-            const target = event?.target;
-            if (target && target.closest && !target.closest(".fc-daygrid-day-number")) {
-                return;
-            }
-            if (!event || event.detail !== 2) return;
-            calendar.changeView("timeGridDay", info.dateStr);
-            setTimeout(() => {
-                if (calendar && typeof calendar.scrollToTime === "function") {
-                    calendar.scrollToTime("08:00");
-                }
-            }, 0);
-        },
-        eventClick: (info) => {
-            selectedEventId = info?.event?.id || null;
-        },
-        eventDidMount: (info) => {
-            if (!info || !info.el) return;
-            const request = (cachedData.requests || []).find((req) => req.id === info.event?.id);
-            if (request) {
-                info.el.title = buildHoverText(request);
-            }
-            info.el.addEventListener("dblclick", () => {
-                const requestId = info.event?.id;
-                if (!requestId) return;
-                openPasswordModal({
-                    type: "edit",
-                    id: requestId,
-                    title: "Modifica richiesta",
-                    description: "Inserisci la password per modificare la richiesta.",
-                });
-            });
-        },
-        datesSet: (info) => {
-            const viewType = info?.view?.type || "";
-            const isList = viewType === "listWeek" || viewType === "listMonth";
-            if (!isList) {
-                lastNonListViewType = viewType;
-                applyCalendarButtonStyles();
-                applyCalendarListStyles();
-                applyCalendarListHoverStyles();
-                return;
-            }
-            if (handlingListRedirect) {
-                handlingListRedirect = false;
-                applyCalendarButtonStyles();
-                applyCalendarListStyles();
-                applyCalendarListHoverStyles();
-                return;
-            }
-            if (viewType === "listWeek" && lastNonListViewType === "dayGridMonth") {
-                handlingListRedirect = true;
-                calendar.changeView("listMonth");
-                applyCalendarButtonStyles();
-                applyCalendarListStyles();
-                applyCalendarListHoverStyles();
-            }
-            setTimeout(() => {
-                applyCalendarListStyles();
-                applyCalendarListHoverStyles();
-            }, 0);
-        },
-    });
-    calendar.render();
-    applyCalendarButtonStyles();
-    applyCalendarListStyles();
-    applyCalendarListHoverStyles();
-}
-
 function refreshData() {
     const data = loadData();
     renderAll(data);
@@ -2122,7 +1522,24 @@ function init() {
     assigneeOptions = assigneesData.options;
     assigneeGroups = assigneesData.groups;
     populateEmployees();
-    initCalendar();
+    calendar = initCalendar({
+        document,
+        FullCalendar: window.FullCalendar,
+        onEventSelect: (eventId) => {
+            selectedEventId = eventId;
+        },
+        getRequestById: (eventId) => (cachedData.requests || []).find((req) => req.id === eventId),
+        buildHoverText,
+        openPasswordModal,
+        getLastNonListViewType: () => lastNonListViewType,
+        setLastNonListViewType: (value) => {
+            lastNonListViewType = value;
+        },
+        getHandlingListRedirect: () => handlingListRedirect,
+        setHandlingListRedirect: (value) => {
+            handlingListRedirect = value;
+        },
+    });
 
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
@@ -2478,7 +1895,7 @@ function init() {
                 setAdminMessage("fp-admin-add-message", "Le password non coincidono.", true);
                 return;
             }
-            if (!argon2id || !argon2Verify) {
+            if (!isHashingAvailable()) {
                 await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install hash-wasm' nella cartella del progetto.");
                 return;
             }
@@ -2531,7 +1948,7 @@ function init() {
                 setAdminMessage("fp-admin-edit-message", "Le nuove password non coincidono.", true);
                 return;
             }
-            if (!argon2id || !argon2Verify) {
+            if (!isHashingAvailable()) {
                 await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install hash-wasm' nella cartella del progetto.");
                 return;
             }
@@ -2615,13 +2032,16 @@ function init() {
         });
     }
     const handleSendOtp = async () => {
-        if (!nodemailer) {
-            const missing = [];
-            if (!nodemailer) missing.push("nodemailer");
-            const detail =
-                `Moduli mancanti: ${missing.join(", ")}.` +
-                "\nSe stai usando l'app installata, devi rigenerare l'installer per includere le nuove dipendenze.";
-            await showDialog("error", "Modulo OTP non disponibile.", detail);
+        if (!isMailerAvailable()) {
+            const detailParts = [
+                "Modulo mancante: nodemailer.",
+                "Se stai usando l'app installata, devi rigenerare l'installer per includere le nuove dipendenze.",
+            ];
+            const mailerError = getMailerError();
+            if (mailerError) {
+                detailParts.push(`Dettaglio: ${mailerError.message || mailerError}`);
+            }
+            await showDialog("error", "Modulo OTP non disponibile.", detailParts.join("\n"));
             return;
         }
         const name = otpNameInput ? otpNameInput.value.trim() : "";
@@ -2629,7 +2049,7 @@ function init() {
             setMessage(otpMessage, "Inserisci il nome admin.", true);
             return;
         }
-        const admin = findAdminByName(name);
+        const admin = findAdminByName(name, adminCache);
         if (!admin) {
             setMessage(otpMessage, "Admin non trovato.", true);
             return;
@@ -2653,14 +2073,14 @@ function init() {
         }
         const secret = auth.generateSecret();
         const code = auth.generate(secret);
-        otpState = {
+        Object.assign(otpState, {
             adminName: admin.name,
             adminEmail: admin.email,
             secret,
             expiresAt: now + OTP_EXPIRY_MS,
             resendAt: now + OTP_RESEND_MS,
             verified: false,
-        };
+        });
         try {
             await sendOtpEmail(admin, code);
             if (otpVerifySection) otpVerifySection.classList.remove("is-hidden");
@@ -2715,11 +2135,12 @@ function init() {
                 setMessage(otpMessage, "Le password non coincidono.", true);
                 return;
             }
-            if (!argon2id || !argon2Verify) {
+            if (!isHashingAvailable()) {
                 setMessage(otpMessage, "Modulo hashing non disponibile.", true);
                 return;
             }
-            const admin = adminCache.find((item) => item.name === otpState.adminName) || findAdminByName(otpState.adminName);
+            const admin =
+                adminCache.find((item) => item.name === otpState.adminName) || findAdminByName(otpState.adminName, adminCache);
             if (!admin) {
                 setMessage(otpMessage, "Admin non trovato.", true);
                 return;
@@ -2951,37 +2372,37 @@ function init() {
 
     if (exportOpen) {
         exportOpen.addEventListener("click", () => {
-            openExportModal();
+            exportUi.openExportModal();
         });
     }
 
     if (exportClose) {
         exportClose.addEventListener("click", () => {
-            closeExportModal();
+            exportUi.closeExportModal();
         });
     }
 
     if (exportModal) {
         exportModal.addEventListener("click", (event) => {
-            if (event.target === exportModal) closeExportModal();
+            if (event.target === exportModal) exportUi.closeExportModal();
         });
     }
 
     if (exportSelectAll) {
         exportSelectAll.addEventListener("click", () => {
-            setExportDepartmentsChecked(true);
+            exportUi.setExportDepartmentsChecked(true);
         });
     }
 
     if (exportSelectNone) {
         exportSelectNone.addEventListener("click", () => {
-            setExportDepartmentsChecked(false);
+            exportUi.setExportDepartmentsChecked(false);
         });
     }
 
     if (exportRangeRadios.length) {
         exportRangeRadios.forEach((radio) => {
-            radio.addEventListener("change", updateExportDateState);
+            radio.addEventListener("change", exportUi.updateExportDateState);
         });
     }
 
@@ -2992,8 +2413,8 @@ function init() {
                 return;
             }
             const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
-            const startDate = parseDateInput(document.getElementById("fp-export-start")?.value || "");
-            const endDate = parseDateInput(document.getElementById("fp-export-end")?.value || "");
+            const startDate = exportUi.parseDateInput(document.getElementById("fp-export-start")?.value || "");
+            const endDate = exportUi.parseDateInput(document.getElementById("fp-export-end")?.value || "");
             if (rangeMode === "custom" && (!startDate || !endDate || endDate < startDate)) {
                 setMessage(document.getElementById("fp-export-message"), "Seleziona un intervallo valido.", true);
                 return;
@@ -3005,7 +2426,7 @@ function init() {
                 setMessage(document.getElementById("fp-export-message"), "Seleziona almeno un tipo.", true);
                 return;
             }
-            const departments = getExportSelectedDepartments();
+            const departments = exportUi.getExportSelectedDepartments();
 
             const raw = loadData().requests || [];
             const approved = raw.filter((req) => req.status === "approved");
@@ -3088,4 +2509,10 @@ function init() {
 
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+    try {
+        init();
+    } catch (err) {
+        showDialog("error", "Errore inizializzazione ferie/permessi.", err.message || String(err));
+    }
+});
