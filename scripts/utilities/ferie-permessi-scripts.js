@@ -63,6 +63,8 @@ function loadAdminCredentials() {
                     name: String(item.name),
                     password: item.password ? String(item.password) : undefined,
                     passwordHash: item.passwordHash ? String(item.passwordHash) : undefined,
+                    email: item.email ? String(item.email) : "",
+                    phone: item.phone ? String(item.phone) : "",
                 }));
         }
         if (parsed && Array.isArray(parsed.admins)) {
@@ -72,6 +74,8 @@ function loadAdminCredentials() {
                     name: String(item.name),
                     password: item.password ? String(item.password) : undefined,
                     passwordHash: item.passwordHash ? String(item.passwordHash) : undefined,
+                    email: item.email ? String(item.email) : "",
+                    phone: item.phone ? String(item.phone) : "",
                 }));
         }
         if (parsed && typeof parsed === "object") {
@@ -80,8 +84,8 @@ function loadAdminCredentials() {
                 .map(([name, password]) => {
                     const value = String(password);
                     return value.startsWith("$argon2")
-                        ? { name: String(name), passwordHash: value }
-                        : { name: String(name), password: value };
+                        ? { name: String(name), passwordHash: value, email: "", phone: "" }
+                        : { name: String(name), password: value, email: "", phone: "" };
                 });
         }
         return [{ name: "Admin", password: APPROVAL_PASSWORD }];
@@ -98,6 +102,8 @@ function saveAdminCredentials(admins) {
             name: admin.name,
             passwordHash: admin.passwordHash,
             password: admin.passwordHash ? undefined : admin.password,
+            email: admin.email || "",
+            phone: admin.phone || "",
         }));
         fs.writeFileSync(ADMINS_PATH, JSON.stringify({ admins: payload }, null, 2), "utf8");
     } catch (err) {
@@ -256,6 +262,19 @@ function setAdminMessage(id, text, isError = false) {
     setMessage(el, text, isError);
 }
 
+function isValidEmail(value) {
+    if (!value) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidPhone(value) {
+    if (!value) return false;
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("+39")) return false;
+    const digits = trimmed.replace(/\D/g, "");
+    return digits.length >= 11 && digits.length <= 13;
+}
+
 function renderAdminList() {
     const list = document.getElementById("fp-admin-list");
     if (!list) return;
@@ -286,6 +305,10 @@ function renderAdminList() {
             adminEditingIndex = index;
             const nameInput = document.getElementById("fp-admin-edit-name");
             if (nameInput) nameInput.value = admin.name;
+            const emailInput = document.getElementById("fp-admin-edit-email");
+            if (emailInput) emailInput.value = admin.email || "";
+            const phoneInput = document.getElementById("fp-admin-edit-phone");
+            if (phoneInput) phoneInput.value = admin.phone || "";
             const editModal = document.getElementById("fp-admin-edit-modal");
             const passwordPanel = document.getElementById("fp-admin-password-panel");
             if (passwordPanel) passwordPanel.classList.add("is-hidden");
@@ -2061,6 +2084,8 @@ function init() {
     const adminChange = document.getElementById("fp-admin-change");
     const adminForgot = document.getElementById("fp-admin-forgot");
     const adminEditName = document.getElementById("fp-admin-edit-name");
+    const adminEditEmail = document.getElementById("fp-admin-edit-email");
+    const adminEditPhone = document.getElementById("fp-admin-edit-phone");
     const adminEditSave = document.getElementById("fp-admin-edit-save");
     const adminEditCancel = document.getElementById("fp-admin-edit-cancel");
     const adminEditClose = document.getElementById("fp-admin-edit-close");
@@ -2073,6 +2098,8 @@ function init() {
     const adminAddModal = document.getElementById("fp-admin-add-modal");
     const adminEditModal = document.getElementById("fp-admin-edit-modal");
     const adminNameInput = document.getElementById("fp-admin-name");
+    const adminEmailInput = document.getElementById("fp-admin-email");
+    const adminPhoneInput = document.getElementById("fp-admin-phone");
     const adminPasswordInput = document.getElementById("fp-admin-password");
     const adminPasswordConfirmInput = document.getElementById("fp-admin-password-confirm");
     const adminCurrentInput = document.getElementById("fp-admin-current");
@@ -2187,12 +2214,24 @@ function init() {
                 setAdminMessage("fp-admin-edit-message", "Seleziona un admin da modificare.", true);
                 return;
             }
+            const emailValue = adminEditEmail ? adminEditEmail.value.trim() : "";
+            const phoneValue = adminEditPhone ? adminEditPhone.value.trim() : "";
+            if (emailValue && !isValidEmail(emailValue)) {
+                setAdminMessage("fp-admin-edit-message", "Email non valida.", true);
+                return;
+            }
+            if (phoneValue && !isValidPhone(phoneValue)) {
+                setAdminMessage("fp-admin-edit-message", "Numero telefono non valido (prefisso +39 obbligatorio).", true);
+                return;
+            }
             const exists = adminCache.some((admin, idx) => idx !== adminEditingIndex && admin.name.toLowerCase() === name.toLowerCase());
             if (exists) {
                 setAdminMessage("fp-admin-edit-message", "Esiste gia un admin con questo nome.", true);
                 return;
             }
             adminCache[adminEditingIndex].name = name;
+            adminCache[adminEditingIndex].email = emailValue;
+            adminCache[adminEditingIndex].phone = phoneValue;
             adminCache.sort((a, b) => a.name.localeCompare(b.name));
             adminEditingIndex = -1;
             saveAdminCredentials(adminCache);
@@ -2220,6 +2259,8 @@ function init() {
         adminAddClose.addEventListener("click", () => {
             if (adminAddModal) hideModal(adminAddModal);
             if (adminNameInput) adminNameInput.value = "";
+            if (adminEmailInput) adminEmailInput.value = "";
+            if (adminPhoneInput) adminPhoneInput.value = "";
             if (adminPasswordInput) adminPasswordInput.value = "";
             if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
             setAdminMessage("fp-admin-add-message", "");
@@ -2229,6 +2270,8 @@ function init() {
         adminAddCancel.addEventListener("click", () => {
             if (adminAddModal) hideModal(adminAddModal);
             if (adminNameInput) adminNameInput.value = "";
+            if (adminEmailInput) adminEmailInput.value = "";
+            if (adminPhoneInput) adminPhoneInput.value = "";
             if (adminPasswordInput) adminPasswordInput.value = "";
             if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
             setAdminMessage("fp-admin-add-message", "");
@@ -2239,8 +2282,18 @@ function init() {
             const name = adminNameInput ? adminNameInput.value.trim() : "";
             const pass = adminPasswordInput ? adminPasswordInput.value : "";
             const confirm = adminPasswordConfirmInput ? adminPasswordConfirmInput.value : "";
+            const email = adminEmailInput ? adminEmailInput.value.trim() : "";
+            const phone = adminPhoneInput ? adminPhoneInput.value.trim() : "";
             if (!name || !pass || !confirm) {
                 setAdminMessage("fp-admin-add-message", "Compila tutti i campi.", true);
+                return;
+            }
+            if (email && !isValidEmail(email)) {
+                setAdminMessage("fp-admin-add-message", "Email non valida.", true);
+                return;
+            }
+            if (phone && !isValidPhone(phone)) {
+                setAdminMessage("fp-admin-add-message", "Numero telefono non valido (prefisso +39 obbligatorio).", true);
                 return;
             }
             if (pass !== confirm) {
@@ -2257,11 +2310,13 @@ function init() {
                 return;
             }
             const hash = await argon2.hash(pass);
-            adminCache.push({ name, passwordHash: hash });
+            adminCache.push({ name, passwordHash: hash, email, phone });
             adminCache.sort((a, b) => a.name.localeCompare(b.name));
             saveAdminCredentials(adminCache);
             renderAdminList();
             if (adminNameInput) adminNameInput.value = "";
+            if (adminEmailInput) adminEmailInput.value = "";
+            if (adminPhoneInput) adminPhoneInput.value = "";
             if (adminPasswordInput) adminPasswordInput.value = "";
             if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
             setAdminMessage("fp-admin-add-message", "Admin aggiunto.", false);
