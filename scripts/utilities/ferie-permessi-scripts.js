@@ -1524,7 +1524,7 @@ function applyCalendarListStyles() {
     const isAyPi = document.body.classList.contains("fp-aypi");
     if (!isDark && !isAyPi) return;
     const dayBg = isAyPi ? "#f0dfbf" : "#f1f3f4";
-    const dayText = isAyPi ? "#2a241f" : "#202124";
+    const dayText = "#202124";
     const dayRows = root.querySelectorAll(".fc .fc-list-day");
     dayRows.forEach((row) => {
         row.style.background = dayBg;
@@ -1656,6 +1656,10 @@ function initCalendar() {
                 applyCalendarListStyles();
                 applyCalendarListHoverStyles();
             }
+            setTimeout(() => {
+                applyCalendarListStyles();
+                applyCalendarListHoverStyles();
+            }, 0);
         },
     });
     calendar.render();

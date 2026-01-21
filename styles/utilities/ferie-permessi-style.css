@@ -734,6 +734,20 @@ body.fp-dark .fp-header h1 {
     color: #8ab4f8;
 }
 
+body.fp-dark .fp-pending-flyout__header h3,
+body.fp-dark .fp-pending-item h3 {
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-pending-item {
+    background: #15181d;
+    border-color: #2b2f36;
+}
+
+body.fp-dark .fp-pending-item p {
+    color: #b0b7c3;
+}
+
 body.fp-dark .fp-header p,
 body.fp-dark .fp-summary,
 body.fp-dark .fp-assignees-subtitle,
@@ -958,6 +972,20 @@ body.fp-aypi .fp-pending-flyout {
 
 body.fp-aypi .fp-header h1 {
     color: #cc930e;
+}
+
+body.fp-aypi .fp-pending-flyout__header h3,
+body.fp-aypi .fp-pending-item h3 {
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-pending-item {
+    background: #1f1c19;
+    border-color: #4a433d;
+}
+
+body.fp-aypi .fp-pending-item p {
+    color: #c4b8a6;
 }
 
 body.fp-aypi .fp-modal__card h3 {
