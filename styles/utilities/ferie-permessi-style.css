@@ -507,6 +507,10 @@ body {
     z-index: 1100;
 }
 
+#fp-confirm-modal {
+    z-index: 1200;
+}
+
 #fp-edit-modal {
     z-index: 1000;
 }

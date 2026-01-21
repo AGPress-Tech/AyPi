@@ -2,6 +2,13 @@ const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
+let argon2;
+try {
+    argon2 = require("argon2");
+} catch (err) {
+    console.error("Modulo 'argon2' non trovato. Esegui: npm install argon2");
+}
+
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi.json";
 const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
 const ADMINS_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-admins.json";
@@ -51,18 +58,31 @@ function loadAdminCredentials() {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
             return parsed
-                .filter((item) => item && item.name && item.password)
-                .map((item) => ({ name: String(item.name), password: String(item.password) }));
+                .filter((item) => item && item.name && (item.password || item.passwordHash))
+                .map((item) => ({
+                    name: String(item.name),
+                    password: item.password ? String(item.password) : undefined,
+                    passwordHash: item.passwordHash ? String(item.passwordHash) : undefined,
+                }));
         }
         if (parsed && Array.isArray(parsed.admins)) {
             return parsed.admins
-                .filter((item) => item && item.name && item.password)
-                .map((item) => ({ name: String(item.name), password: String(item.password) }));
+                .filter((item) => item && item.name && (item.password || item.passwordHash))
+                .map((item) => ({
+                    name: String(item.name),
+                    password: item.password ? String(item.password) : undefined,
+                    passwordHash: item.passwordHash ? String(item.passwordHash) : undefined,
+                }));
         }
         if (parsed && typeof parsed === "object") {
             return Object.entries(parsed)
                 .filter(([name, password]) => name && password)
-                .map(([name, password]) => ({ name: String(name), password: String(password) }));
+                .map(([name, password]) => {
+                    const value = String(password);
+                    return value.startsWith("$argon2")
+                        ? { name: String(name), passwordHash: value }
+                        : { name: String(name), password: value };
+                });
         }
         return [{ name: "Admin", password: APPROVAL_PASSWORD }];
     } catch (err) {
@@ -74,16 +94,45 @@ function loadAdminCredentials() {
 function saveAdminCredentials(admins) {
     try {
         ensureDataFolder();
-        fs.writeFileSync(ADMINS_PATH, JSON.stringify({ admins }, null, 2), "utf8");
+        const payload = admins.map((admin) => ({
+            name: admin.name,
+            passwordHash: admin.passwordHash,
+            password: admin.passwordHash ? undefined : admin.password,
+        }));
+        fs.writeFileSync(ADMINS_PATH, JSON.stringify({ admins: payload }, null, 2), "utf8");
     } catch (err) {
         console.error("Errore salvataggio admins:", err);
         showDialog("warning", "Impossibile salvare la lista admin.", err.message || String(err));
     }
 }
 
-function findAdminByPassword(password) {
+async function verifyAdminPassword(password, targetName) {
+    if (!password) return null;
     const admins = loadAdminCredentials();
-    return admins.find((admin) => admin.password === password) || null;
+    for (const admin of admins) {
+        if (targetName && admin.name !== targetName) continue;
+        if (admin.passwordHash && argon2) {
+            try {
+                const ok = await argon2.verify(admin.passwordHash, password);
+                if (ok) return { admin, admins };
+            } catch (err) {
+                console.error("Errore verifica argon2:", err);
+            }
+        } else if (admin.password && admin.password === password) {
+            if (argon2) {
+                try {
+                    const hash = await argon2.hash(password);
+                    admin.passwordHash = hash;
+                    delete admin.password;
+                    saveAdminCredentials(admins);
+                } catch (err) {
+                    console.error("Errore hashing argon2:", err);
+                }
+            }
+            return { admin, admins };
+        }
+    }
+    return null;
 }
 
 function normalizeHexColor(value, fallback) {
@@ -248,15 +297,22 @@ function renderAdminList() {
         remove.type = "button";
         remove.className = "fp-btn fp-btn--danger";
         remove.textContent = "Rimuovi";
-        remove.addEventListener("click", () => {
+        remove.addEventListener("click", async () => {
             if (adminCache.length <= 1) {
                 setAdminMessage("fp-admin-message", "Deve esserci almeno un admin.", true);
                 return;
             }
-            adminCache = adminCache.filter((item) => item.name !== admin.name);
-            saveAdminCredentials(adminCache);
-            renderAdminList();
-            setAdminMessage("fp-admin-message", "Admin rimosso.", false);
+            const confirmed = await openConfirmModal(
+                `Confermi l'eliminazione dell'admin <strong>${escapeHtml(admin.name)}</strong>?`
+            );
+            if (!confirmed) return;
+            openPasswordModal({
+                type: "admin-delete",
+                id: admin.name,
+                adminName: admin.name,
+                title: "Elimina admin",
+                description: `Inserisci la password di ${admin.name} per confermare la rimozione.`,
+            });
         });
 
         actions.appendChild(edit);
@@ -667,11 +723,16 @@ function closeApprovalModal() {
     }
 }
 
-function confirmApproval() {
+async function confirmApproval() {
     const input = document.getElementById("fp-approve-password");
     const error = document.getElementById("fp-approve-error");
     const password = input ? input.value : "";
-    const admin = findAdminByPassword(password);
+    if (!argon2) {
+        await showDialog("error", "Modulo 'argon2' non disponibile.", "Esegui 'npm install argon2' nella cartella del progetto.");
+        return;
+    }
+    const result = await verifyAdminPassword(password);
+    const admin = result ? result.admin : null;
     if (!admin) {
         if (error) error.classList.remove("is-hidden");
         return;
@@ -734,6 +795,25 @@ function confirmApproval() {
     if (actionType === "admin-access") {
         closeApprovalModal();
         openAdminModal();
+        return;
+    }
+    if (actionType === "admin-delete") {
+        const targetName = pendingAction?.adminName || pendingAction?.id || "";
+        if (!targetName || admin.name !== targetName) {
+            if (error) error.classList.remove("is-hidden");
+            return;
+        }
+        adminCache = adminCache.length ? adminCache : loadAdminCredentials();
+        if (adminCache.length <= 1) {
+            closeApprovalModal();
+            setAdminMessage("fp-admin-message", "Deve esserci almeno un admin.", true);
+            return;
+        }
+        adminCache = adminCache.filter((item) => item.name !== targetName);
+        saveAdminCredentials(adminCache);
+        renderAdminList();
+        closeApprovalModal();
+        setAdminMessage("fp-admin-message", "Admin rimosso.", false);
     }
 }
 
@@ -2155,7 +2235,7 @@ function init() {
         });
     }
     if (adminAdd) {
-        adminAdd.addEventListener("click", () => {
+        adminAdd.addEventListener("click", async () => {
             const name = adminNameInput ? adminNameInput.value.trim() : "";
             const pass = adminPasswordInput ? adminPasswordInput.value : "";
             const confirm = adminPasswordConfirmInput ? adminPasswordConfirmInput.value : "";
@@ -2167,12 +2247,17 @@ function init() {
                 setAdminMessage("fp-admin-add-message", "Le password non coincidono.", true);
                 return;
             }
+            if (!argon2) {
+                await showDialog("error", "Modulo 'argon2' non disponibile.", "Esegui 'npm install argon2' nella cartella del progetto.");
+                return;
+            }
             const exists = adminCache.some((admin) => admin.name.toLowerCase() === name.toLowerCase());
             if (exists) {
                 setAdminMessage("fp-admin-add-message", "Esiste gia un admin con questo nome.", true);
                 return;
             }
-            adminCache.push({ name, password: pass });
+            const hash = await argon2.hash(pass);
+            adminCache.push({ name, passwordHash: hash });
             adminCache.sort((a, b) => a.name.localeCompare(b.name));
             saveAdminCredentials(adminCache);
             renderAdminList();
@@ -2197,7 +2282,7 @@ function init() {
         });
     }
     if (adminChange) {
-        adminChange.addEventListener("click", () => {
+        adminChange.addEventListener("click", async () => {
             const current = adminCurrentInput ? adminCurrentInput.value : "";
             const next = adminNewInput ? adminNewInput.value : "";
             const confirm = adminNewConfirmInput ? adminNewConfirmInput.value : "";
@@ -2213,12 +2298,18 @@ function init() {
                 setAdminMessage("fp-admin-edit-message", "Le nuove password non coincidono.", true);
                 return;
             }
+            if (!argon2) {
+                await showDialog("error", "Modulo 'argon2' non disponibile.", "Esegui 'npm install argon2' nella cartella del progetto.");
+                return;
+            }
             const admin = adminCache[adminEditingIndex];
-            if (!admin || admin.password !== current) {
+            const verify = await verifyAdminPassword(current, admin?.name);
+            if (!admin || !verify) {
                 setAdminMessage("fp-admin-edit-message", "Password attuale non valida.", true);
                 return;
             }
-            admin.password = next;
+            admin.passwordHash = await argon2.hash(next);
+            delete admin.password;
             saveAdminCredentials(adminCache);
             if (adminCurrentInput) adminCurrentInput.value = "";
             if (adminNewInput) adminNewInput.value = "";

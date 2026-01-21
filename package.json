@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@network-utils/arp-lookup": "^2.1.0",
+    "argon2": "^0.44.0",
     "axios": "^1.13.2",
     "bwip-js": "^4.8.0",
     "chart.js": "^4.5.1",
