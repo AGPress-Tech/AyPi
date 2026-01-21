@@ -3,34 +3,19 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 let nodemailer;
-let passport;
-let LocalStrategy;
 let nodemailerError = null;
-let passportError = null;
 try {
     nodemailer = require("nodemailer");
 } catch (err) {
     nodemailerError = err;
     console.error("Modulo 'nodemailer' non disponibile:", err);
 }
-try {
-    passport = require("passport");
-    LocalStrategy = require("passport-local").Strategy;
-} catch (err) {
-    passportError = err;
-    console.error("Modulo 'passport' non disponibile:", err);
-}
 
-let argon2;
 let argon2Browser;
 try {
-    argon2 = require("argon2");
+    argon2Browser = require("argon2-browser");
 } catch (err) {
-    try {
-        argon2Browser = require("argon2-browser");
-    } catch (innerErr) {
-        console.error("Modulo 'argon2' non trovato. Esegui: npm install argon2");
-    }
+    console.error("Modulo 'argon2-browser' non trovato. Esegui: npm install argon2-browser");
 }
 
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi.json";
@@ -105,17 +90,6 @@ async function getAuthenticator() {
     return authenticatorPromise;
 }
 
-if (passport && LocalStrategy) {
-    passport.use("admin-local", new LocalStrategy({ usernameField: "name", passwordField: "password", session: false }, async (name, password, done) => {
-        try {
-            const result = await verifyAdminPassword(password, name);
-            if (!result) return done(null, false);
-            return done(null, result.admin);
-        } catch (err) {
-            return done(err);
-        }
-    }));
-}
 
 function loadAdminCredentials() {
     try {
@@ -405,9 +379,6 @@ function resetOtpState() {
 }
 
 async function hashPassword(password) {
-    if (argon2) {
-        return argon2.hash(password);
-    }
     if (argon2Browser) {
         const salt = crypto.randomBytes(16);
         const result = await argon2Browser.hash({
@@ -421,9 +392,6 @@ async function hashPassword(password) {
 }
 
 async function verifyPasswordHash(hash, password) {
-    if (argon2) {
-        return argon2.verify(hash, password);
-    }
     if (argon2Browser) {
         return argon2Browser.verify({ pass: password, encoded: hash });
     }
@@ -934,10 +902,10 @@ async function confirmApproval() {
     const error = document.getElementById("fp-approve-error");
     const recoverBtn = document.getElementById("fp-approve-recover");
     const password = input ? input.value : "";
-    if (!argon2 && !argon2Browser) {
+    if (!argon2Browser) {
         const hasHashes = loadAdminCredentials().some((item) => item.passwordHash);
         if (hasHashes) {
-            await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2' o 'argon2-browser' nella cartella del progetto.");
+            await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2-browser' nella cartella del progetto.");
             return;
         }
     }
@@ -2493,8 +2461,8 @@ function init() {
                 setAdminMessage("fp-admin-add-message", "Le password non coincidono.", true);
                 return;
             }
-            if (!argon2 && !argon2Browser) {
-                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2' o 'argon2-browser' nella cartella del progetto.");
+            if (!argon2Browser) {
+                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2-browser' nella cartella del progetto.");
                 return;
             }
             const exists = adminCache.some((admin) => admin.name.toLowerCase() === name.toLowerCase());
@@ -2546,8 +2514,8 @@ function init() {
                 setAdminMessage("fp-admin-edit-message", "Le nuove password non coincidono.", true);
                 return;
             }
-            if (!argon2 && !argon2Browser) {
-                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2' o 'argon2-browser' nella cartella del progetto.");
+            if (!argon2Browser) {
+                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2-browser' nella cartella del progetto.");
                 return;
             }
             const admin = adminCache[adminEditingIndex];
@@ -2730,7 +2698,7 @@ function init() {
                 setMessage(otpMessage, "Le password non coincidono.", true);
                 return;
             }
-            if (!argon2 && !argon2Browser) {
+            if (!argon2Browser) {
                 setMessage(otpMessage, "Modulo hashing non disponibile.", true);
                 return;
             }

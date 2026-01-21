@@ -1,6 +1,6 @@
 {
   "name": "aypi",
-  "version": "0.7.7",
+  "version": "0.8.0",
   "description": "Software AyPi per gestione applicativi AGPress",
   "main": "main.js",
   "scripts": {
@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@network-utils/arp-lookup": "^2.1.0",
-    "argon2": "^0.44.0",
     "argon2-browser": "^1.18.0",
     "axios": "^1.13.2",
     "bwip-js": "^4.8.0",
@@ -31,8 +30,6 @@
     "electron-updater": "^6.3.9",
     "nodemailer": "^7.0.12",
     "otplib": "^12.0.1",
-    "passport": "^0.7.0",
-    "passport-local": "^1.0.0",
     "qrcode": "^1.5.4",
     "update-electron-app": "^3.1.1",
     "xlsx": "^0.18.5"
