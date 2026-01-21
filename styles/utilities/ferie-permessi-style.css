@@ -635,6 +635,73 @@ body {
     gap: 8px;
 }
 
+.fp-admin-card {
+    width: min(640px, 92vw);
+}
+
+.fp-admin-section {
+    display: grid;
+    gap: 8px;
+}
+
+.fp-admin-list {
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    overflow: hidden;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.fp-admin-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f3f4;
+    font-size: 13px;
+    align-items: center;
+}
+
+.fp-admin-row:last-child {
+    border-bottom: none;
+}
+
+.fp-admin-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.fp-admin-grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fp-admin-grid--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.fp-admin-grid--stack {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.fp-admin-password {
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.fp-admin-section.is-hidden {
+    display: none;
+}
+
+.fp-admin-grid input,
+.fp-admin-grid select {
+    width: 100%;
+}
+
 .fp-export-choice {
     display: flex;
     flex-wrap: wrap;
@@ -847,6 +914,21 @@ body.fp-dark .fp-legend {
     background: #15181d;
     border-color: #2b2f36;
     color: #b0b7c3;
+}
+
+body.fp-dark .fp-admin-list {
+    border-color: #2b2f36;
+    background: #15181d;
+}
+
+body.fp-dark .fp-admin-row {
+    border-bottom-color: #2b2f36;
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-admin-password {
+    border-color: #2b2f36;
+    background: #15181d;
 }
 
 body.fp-dark .fp-settings-row {
@@ -1081,6 +1163,21 @@ body.fp-aypi .fp-legend {
     background: #1f1c19;
     border-color: #4a433d;
     color: #c4b8a6;
+}
+
+body.fp-aypi .fp-admin-list {
+    border-color: #4a433d;
+    background: #1f1c19;
+}
+
+body.fp-aypi .fp-admin-row {
+    border-bottom-color: #3b342f;
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-admin-password {
+    border-color: #4a433d;
+    background: #1f1c19;
 }
 
 body.fp-aypi .fp-assignees-link,

@@ -4,6 +4,7 @@ const path = require("path");
 
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi.json";
 const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
+const ADMINS_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-admins.json";
 const APPROVAL_PASSWORD = "AGPress";
 const AUTO_REFRESH_MS = 15000;
 const COLOR_STORAGE_KEY = "fpColorSettings";
@@ -27,6 +28,7 @@ let selectedEventId = null;
 let editingRequestId = null;
 let pendingPanelOpen = false;
 let pendingUnlocked = false;
+let pendingUnlockedBy = "";
 let lastNonListViewType = "dayGridMonth";
 let handlingListRedirect = false;
 let assigneeOptions = [];
@@ -36,6 +38,53 @@ let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
 let settingsSnapshot = null;
+let editingAdminName = "";
+let adminCache = [];
+let adminEditingIndex = -1;
+
+function loadAdminCredentials() {
+    try {
+        if (!fs.existsSync(ADMINS_PATH)) {
+            return [{ name: "Admin", password: APPROVAL_PASSWORD }];
+        }
+        const raw = fs.readFileSync(ADMINS_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            return parsed
+                .filter((item) => item && item.name && item.password)
+                .map((item) => ({ name: String(item.name), password: String(item.password) }));
+        }
+        if (parsed && Array.isArray(parsed.admins)) {
+            return parsed.admins
+                .filter((item) => item && item.name && item.password)
+                .map((item) => ({ name: String(item.name), password: String(item.password) }));
+        }
+        if (parsed && typeof parsed === "object") {
+            return Object.entries(parsed)
+                .filter(([name, password]) => name && password)
+                .map(([name, password]) => ({ name: String(name), password: String(password) }));
+        }
+        return [{ name: "Admin", password: APPROVAL_PASSWORD }];
+    } catch (err) {
+        console.error("Errore caricamento admins:", err);
+        return [{ name: "Admin", password: APPROVAL_PASSWORD }];
+    }
+}
+
+function saveAdminCredentials(admins) {
+    try {
+        ensureDataFolder();
+        fs.writeFileSync(ADMINS_PATH, JSON.stringify({ admins }, null, 2), "utf8");
+    } catch (err) {
+        console.error("Errore salvataggio admins:", err);
+        showDialog("warning", "Impossibile salvare la lista admin.", err.message || String(err));
+    }
+}
+
+function findAdminByPassword(password) {
+    const admins = loadAdminCredentials();
+    return admins.find((admin) => admin.password === password) || null;
+}
 
 function normalizeHexColor(value, fallback) {
     if (typeof value !== "string") return fallback;
@@ -150,6 +199,88 @@ function closeSettingsModal() {
         renderAll(loadData());
     }
     hideModal(modal);
+}
+
+function setAdminMessage(id, text, isError = false) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    setMessage(el, text, isError);
+}
+
+function renderAdminList() {
+    const list = document.getElementById("fp-admin-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!adminCache.length) {
+        const empty = document.createElement("div");
+        empty.className = "fp-message";
+        empty.textContent = "Nessun admin configurato.";
+        list.appendChild(empty);
+        return;
+    }
+    adminCache.forEach((admin, index) => {
+        const row = document.createElement("div");
+        row.className = "fp-admin-row";
+
+        const name = document.createElement("div");
+        name.textContent = admin.name;
+        row.appendChild(name);
+
+        const actions = document.createElement("div");
+        actions.className = "fp-assignees-row__actions";
+
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "fp-btn";
+        edit.textContent = "Modifica";
+        edit.addEventListener("click", () => {
+            adminEditingIndex = index;
+            const nameInput = document.getElementById("fp-admin-edit-name");
+            if (nameInput) nameInput.value = admin.name;
+            const editModal = document.getElementById("fp-admin-edit-modal");
+            const passwordPanel = document.getElementById("fp-admin-password-panel");
+            if (passwordPanel) passwordPanel.classList.add("is-hidden");
+            setAdminMessage("fp-admin-edit-message", "");
+            if (editModal) showModal(editModal);
+        });
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "fp-btn fp-btn--danger";
+        remove.textContent = "Rimuovi";
+        remove.addEventListener("click", () => {
+            if (adminCache.length <= 1) {
+                setAdminMessage("fp-admin-message", "Deve esserci almeno un admin.", true);
+                return;
+            }
+            adminCache = adminCache.filter((item) => item.name !== admin.name);
+            saveAdminCredentials(adminCache);
+            renderAdminList();
+            setAdminMessage("fp-admin-message", "Admin rimosso.", false);
+        });
+
+        actions.appendChild(edit);
+        actions.appendChild(remove);
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function openAdminModal() {
+    const modal = document.getElementById("fp-admin-modal");
+    if (!modal) return;
+    adminCache = loadAdminCredentials().sort((a, b) => a.name.localeCompare(b.name));
+    renderAdminList();
+    setAdminMessage("fp-admin-message", "");
+    adminEditingIndex = -1;
+    showModal(modal);
+}
+
+function closeAdminModal() {
+    const modal = document.getElementById("fp-admin-modal");
+    if (!modal) return;
+    hideModal(modal);
+    adminEditingIndex = -1;
 }
 
 function showModal(modal) {
@@ -320,6 +451,12 @@ function buildHoverText(request) {
     } else {
         lines.push(`${formatDateTime(request.start)} - ${formatDateTime(request.end)}`);
     }
+    if (request.approvedBy) {
+        lines.push(`Approvato da: ${request.approvedBy}`);
+    }
+    if (request.modifiedBy) {
+        lines.push(`Modificato da: ${request.modifiedBy}`);
+    }
     return lines.filter(Boolean).join("\n");
 }
 
@@ -434,6 +571,7 @@ function renderPendingList(data) {
                     if (target) {
                         target.status = "approved";
                         target.approvedAt = new Date().toISOString();
+                        target.approvedBy = pendingUnlockedBy || target.approvedBy || "Admin";
                     }
                     return payload;
                 });
@@ -533,7 +671,8 @@ function confirmApproval() {
     const input = document.getElementById("fp-approve-password");
     const error = document.getElementById("fp-approve-error");
     const password = input ? input.value : "";
-    if (password !== APPROVAL_PASSWORD) {
+    const admin = findAdminByPassword(password);
+    if (!admin) {
         if (error) error.classList.remove("is-hidden");
         return;
     }
@@ -549,6 +688,7 @@ function confirmApproval() {
             if (target) {
                 target.status = "approved";
                 target.approvedAt = new Date().toISOString();
+                target.approvedBy = admin.name;
             }
             return payload;
         });
@@ -580,13 +720,20 @@ function confirmApproval() {
         const target = (data.requests || []).find((req) => req.id === requestId);
         if (target) {
             editingRequestId = requestId;
+            editingAdminName = admin.name;
             openEditModal(target);
         }
     }
     if (actionType === "pending-access") {
         pendingUnlocked = true;
+        pendingUnlockedBy = admin.name;
         closeApprovalModal();
         openPendingPanel();
+        return;
+    }
+    if (actionType === "admin-access") {
+        closeApprovalModal();
+        openAdminModal();
     }
 }
 
@@ -752,6 +899,8 @@ function resetNewRequestForm() {
     const today = now.toISOString().slice(0, 10);
     const startDate = document.getElementById("fp-start-date");
     const endDate = document.getElementById("fp-end-date");
+    const editStartDateInit = document.getElementById("fp-edit-start-date");
+    const editEndDateInit = document.getElementById("fp-edit-end-date");
     const startTime = document.getElementById("fp-start-time");
     const endTime = document.getElementById("fp-end-time");
     const allDayToggle = document.getElementById("fp-all-day");
@@ -957,6 +1106,7 @@ function openEditModal(request) {
     if (!modal) return;
     showModal(modal);
     setMessage(message, "");
+    setInlineError("fp-edit-end-date-error", "");
     fillFormFromRequest("fp-edit", request);
 }
 
@@ -966,7 +1116,9 @@ function closeEditModal() {
     if (!modal) return;
     hideModal(modal);
     setMessage(message, "");
+    setInlineError("fp-edit-end-date-error", "");
     editingRequestId = null;
+    editingAdminName = "";
 }
 
 function openExportModal() {
@@ -1164,6 +1316,8 @@ function buildExportRows(requests) {
             "Data Fine": endValue || "",
             "Ore": calculateHours(request),
             "Tipo": typeLabel,
+            "Approvato da": request.approvedBy || "",
+            "Modificato da": request.modifiedBy || "",
         };
         return row;
     });
@@ -1695,6 +1849,8 @@ function init() {
     const maxDate = `${maxYear}-12-31`;
     const startDate = document.getElementById("fp-start-date");
     const endDate = document.getElementById("fp-end-date");
+    const editStartDateInit = document.getElementById("fp-edit-start-date");
+    const editEndDateInit = document.getElementById("fp-edit-end-date");
     if (startDate) startDate.value = today;
     if (endDate) endDate.value = today;
     if (startDate) {
@@ -1708,6 +1864,16 @@ function init() {
         endDate.setAttribute("max", maxDate);
         endDate.disabled = false;
         endDate.readOnly = false;
+    }
+    if (editStartDateInit) {
+        editStartDateInit.setAttribute("max", maxDate);
+        editStartDateInit.disabled = false;
+        editStartDateInit.readOnly = false;
+    }
+    if (editEndDateInit) {
+        editEndDateInit.setAttribute("max", maxDate);
+        editEndDateInit.disabled = false;
+        editEndDateInit.readOnly = false;
     }
 
     const allDayToggle = document.getElementById("fp-all-day");
@@ -1809,6 +1975,29 @@ function init() {
     const permessoInput = document.getElementById("fp-color-permesso");
     const straordinariInput = document.getElementById("fp-color-straordinari");
     const themeInputs = document.querySelectorAll("input[name='fp-theme']");
+    const adminOpen = document.getElementById("fp-admin-open");
+    const adminModal = document.getElementById("fp-admin-modal");
+    const adminClose = document.getElementById("fp-admin-close");
+    const adminChange = document.getElementById("fp-admin-change");
+    const adminForgot = document.getElementById("fp-admin-forgot");
+    const adminEditName = document.getElementById("fp-admin-edit-name");
+    const adminEditSave = document.getElementById("fp-admin-edit-save");
+    const adminEditCancel = document.getElementById("fp-admin-edit-cancel");
+    const adminEditClose = document.getElementById("fp-admin-edit-close");
+    const adminPasswordOpen = document.getElementById("fp-admin-password-open");
+    const adminPasswordPanel = document.getElementById("fp-admin-password-panel");
+    const adminAdd = document.getElementById("fp-admin-add");
+    const adminAddOpen = document.getElementById("fp-admin-add-open");
+    const adminAddCancel = document.getElementById("fp-admin-add-cancel");
+    const adminAddClose = document.getElementById("fp-admin-add-close");
+    const adminAddModal = document.getElementById("fp-admin-add-modal");
+    const adminEditModal = document.getElementById("fp-admin-edit-modal");
+    const adminNameInput = document.getElementById("fp-admin-name");
+    const adminPasswordInput = document.getElementById("fp-admin-password");
+    const adminPasswordConfirmInput = document.getElementById("fp-admin-password-confirm");
+    const adminCurrentInput = document.getElementById("fp-admin-current");
+    const adminNewInput = document.getElementById("fp-admin-new");
+    const adminNewConfirmInput = document.getElementById("fp-admin-new-confirm");
 
     if (settingsBtn) {
         settingsBtn.addEventListener("click", () => {
@@ -1879,6 +2068,170 @@ function init() {
     if (permessoInput) permessoInput.addEventListener("input", handleColorPreview);
     if (straordinariInput) straordinariInput.addEventListener("input", handleColorPreview);
 
+    if (adminOpen) {
+        adminOpen.addEventListener("click", () => {
+            openPasswordModal({
+                type: "admin-access",
+                id: "admin-access",
+                title: "Gestione admin",
+                description: "Inserisci la password admin per aprire la gestione.",
+            });
+        });
+    }
+    if (adminClose) {
+        adminClose.addEventListener("click", closeAdminModal);
+    }
+    if (adminModal) {
+        adminModal.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+    if (adminAddModal) {
+        adminAddModal.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+    if (adminEditModal) {
+        adminEditModal.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+    if (adminEditSave) {
+        adminEditSave.addEventListener("click", () => {
+            const name = adminEditName ? adminEditName.value.trim() : "";
+            if (!name) {
+                setAdminMessage("fp-admin-edit-message", "Inserisci un nome valido.", true);
+                return;
+            }
+            if (adminEditingIndex < 0 || adminEditingIndex >= adminCache.length) {
+                setAdminMessage("fp-admin-edit-message", "Seleziona un admin da modificare.", true);
+                return;
+            }
+            const exists = adminCache.some((admin, idx) => idx !== adminEditingIndex && admin.name.toLowerCase() === name.toLowerCase());
+            if (exists) {
+                setAdminMessage("fp-admin-edit-message", "Esiste gia un admin con questo nome.", true);
+                return;
+            }
+            adminCache[adminEditingIndex].name = name;
+            adminCache.sort((a, b) => a.name.localeCompare(b.name));
+            adminEditingIndex = -1;
+            saveAdminCredentials(adminCache);
+            renderAdminList();
+            if (adminEditModal) hideModal(adminEditModal);
+            setAdminMessage("fp-admin-edit-message", "");
+            setAdminMessage("fp-admin-message", "Admin aggiornato.", false);
+        });
+    }
+    if (adminEditClose) {
+        adminEditClose.addEventListener("click", () => {
+            if (adminEditModal) hideModal(adminEditModal);
+            if (adminPasswordPanel) adminPasswordPanel.classList.add("is-hidden");
+            adminEditingIndex = -1;
+            setAdminMessage("fp-admin-edit-message", "");
+        });
+    }
+    if (adminAddOpen) {
+        adminAddOpen.addEventListener("click", () => {
+            if (adminAddModal) showModal(adminAddModal);
+            setAdminMessage("fp-admin-add-message", "");
+        });
+    }
+    if (adminAddClose) {
+        adminAddClose.addEventListener("click", () => {
+            if (adminAddModal) hideModal(adminAddModal);
+            if (adminNameInput) adminNameInput.value = "";
+            if (adminPasswordInput) adminPasswordInput.value = "";
+            if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
+            setAdminMessage("fp-admin-add-message", "");
+        });
+    }
+    if (adminAddCancel) {
+        adminAddCancel.addEventListener("click", () => {
+            if (adminAddModal) hideModal(adminAddModal);
+            if (adminNameInput) adminNameInput.value = "";
+            if (adminPasswordInput) adminPasswordInput.value = "";
+            if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
+            setAdminMessage("fp-admin-add-message", "");
+        });
+    }
+    if (adminAdd) {
+        adminAdd.addEventListener("click", () => {
+            const name = adminNameInput ? adminNameInput.value.trim() : "";
+            const pass = adminPasswordInput ? adminPasswordInput.value : "";
+            const confirm = adminPasswordConfirmInput ? adminPasswordConfirmInput.value : "";
+            if (!name || !pass || !confirm) {
+                setAdminMessage("fp-admin-add-message", "Compila tutti i campi.", true);
+                return;
+            }
+            if (pass !== confirm) {
+                setAdminMessage("fp-admin-add-message", "Le password non coincidono.", true);
+                return;
+            }
+            const exists = adminCache.some((admin) => admin.name.toLowerCase() === name.toLowerCase());
+            if (exists) {
+                setAdminMessage("fp-admin-add-message", "Esiste gia un admin con questo nome.", true);
+                return;
+            }
+            adminCache.push({ name, password: pass });
+            adminCache.sort((a, b) => a.name.localeCompare(b.name));
+            saveAdminCredentials(adminCache);
+            renderAdminList();
+            if (adminNameInput) adminNameInput.value = "";
+            if (adminPasswordInput) adminPasswordInput.value = "";
+            if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
+            setAdminMessage("fp-admin-add-message", "Admin aggiunto.", false);
+            if (adminAddModal) hideModal(adminAddModal);
+        });
+    }
+    if (adminEditCancel) {
+        adminEditCancel.addEventListener("click", () => {
+            if (adminEditModal) hideModal(adminEditModal);
+            if (adminPasswordPanel) adminPasswordPanel.classList.add("is-hidden");
+            adminEditingIndex = -1;
+            setAdminMessage("fp-admin-edit-message", "");
+        });
+    }
+    if (adminPasswordOpen) {
+        adminPasswordOpen.addEventListener("click", () => {
+            if (adminPasswordPanel) adminPasswordPanel.classList.toggle("is-hidden");
+        });
+    }
+    if (adminChange) {
+        adminChange.addEventListener("click", () => {
+            const current = adminCurrentInput ? adminCurrentInput.value : "";
+            const next = adminNewInput ? adminNewInput.value : "";
+            const confirm = adminNewConfirmInput ? adminNewConfirmInput.value : "";
+            if (adminEditingIndex < 0 || adminEditingIndex >= adminCache.length) {
+                setAdminMessage("fp-admin-edit-message", "Seleziona un admin da modificare.", true);
+                return;
+            }
+            if (!current || !next || !confirm) {
+                setAdminMessage("fp-admin-edit-message", "Compila tutti i campi.", true);
+                return;
+            }
+            if (next !== confirm) {
+                setAdminMessage("fp-admin-edit-message", "Le nuove password non coincidono.", true);
+                return;
+            }
+            const admin = adminCache[adminEditingIndex];
+            if (!admin || admin.password !== current) {
+                setAdminMessage("fp-admin-edit-message", "Password attuale non valida.", true);
+                return;
+            }
+            admin.password = next;
+            saveAdminCredentials(adminCache);
+            if (adminCurrentInput) adminCurrentInput.value = "";
+            if (adminNewInput) adminNewInput.value = "";
+            if (adminNewConfirmInput) adminNewConfirmInput.value = "";
+            setAdminMessage("fp-admin-edit-message", "Password aggiornata.", false);
+        });
+    }
+    if (adminForgot) {
+        adminForgot.addEventListener("click", () => {
+            setAdminMessage("fp-admin-edit-message", "Funzione in arrivo.", false);
+        });
+    }
+
     const approveCancel = document.getElementById("fp-approve-cancel");
     const approveConfirm = document.getElementById("fp-approve-confirm");
     const approveModal = document.getElementById("fp-approve-modal");
@@ -1933,18 +2286,23 @@ function init() {
     if (editEndTime) editEndTime.addEventListener("focus", handleEditTimeFocus);
 
     if (editStartDate && editEndDate) {
-        editStartDate.addEventListener("change", () => {
-            if (editEndDate.value && editEndDate.value < editStartDate.value) {
-                editEndDate.value = editStartDate.value;
+        const normalizeEditDates = () => {
+            if (!editStartDate.value || !editEndDate.value) return;
+            if (editStartDate.value.length !== 10 || editEndDate.value.length !== 10) return;
+            if (editEndDate.value < editStartDate.value) {
+                setInlineError("fp-edit-end-date-error", "La data fine non puo essere precedente alla data inizio.");
+            } else {
+                setInlineError("fp-edit-end-date-error", "");
+            }
+            if (editEndDate.value > editStartDate.value && editAllDay) {
+                editAllDay.checked = true;
+                toggleAllDayStateFor("fp-edit", true);
             }
             updateAllDayLock(editStartDate, editEndDate, editAllDay, "fp-edit");
-        });
-        editEndDate.addEventListener("change", () => {
-            if (editStartDate.value && editEndDate.value < editStartDate.value) {
-                editEndDate.value = editStartDate.value;
-            }
-            updateAllDayLock(editStartDate, editEndDate, editAllDay, "fp-edit");
-        });
+        };
+        editStartDate.addEventListener("change", normalizeEditDates);
+        editEndDate.addEventListener("input", normalizeEditDates);
+        editEndDate.addEventListener("change", normalizeEditDates);
     }
 
     if (editCancel) {
@@ -1981,6 +2339,11 @@ function init() {
             const { request, error } = buildRequestFromForm("fp-edit", editingRequestId, true);
             if (error) {
                 setMessage(editMessage, error, true);
+                if (error.includes("data fine")) {
+                    setInlineError("fp-edit-end-date-error", error);
+                } else {
+                    setInlineError("fp-edit-end-date-error", "");
+                }
                 return;
             }
             const updated = syncData((payload) => {
@@ -1994,12 +2357,15 @@ function init() {
                         status: "approved",
                         approvedAt: existing.approvedAt || new Date().toISOString(),
                         createdAt: existing.createdAt || new Date().toISOString(),
+                        modifiedAt: new Date().toISOString(),
+                        modifiedBy: editingAdminName || existing.modifiedBy || "",
                     };
                 }
                 return payload;
             });
             setMessage(editMessage, "Richiesta aggiornata.", false);
             closeEditModal();
+            editingAdminName = "";
             renderAll(updated);
         });
     }
