@@ -16,3 +16,4 @@
 .env.test.local
 .env.production.local
 .env
+config/otp-mail.json

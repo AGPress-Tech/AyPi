@@ -363,10 +363,39 @@
             <p id="fp-approve-desc">Inserisci la password per confermare.</p>
             <input type="password" id="fp-approve-password" placeholder="Password">
             <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">Password errata.</div>
+            <button type="button" class="fp-link-btn is-hidden" id="fp-approve-recover">Recupero password?</button>
             <div class="fp-actions fp-actions--modal">
                 <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
                 <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
             </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-otp-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-otp-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-otp-title">Recupero password</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack">
+                <input class="fp-field__input" id="fp-otp-admin-name" type="text" placeholder="Nome e cognome admin">
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-send">Invia OTP via email</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-verify-section">
+                <input class="fp-field__input" id="fp-otp-code" type="text" placeholder="Codice OTP">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-resend">Invia di nuovo OTP</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-verify">Verifica OTP</button>
+                </div>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-reset-section">
+                <input class="fp-field__input" id="fp-otp-new" type="password" placeholder="Nuova password">
+                <input class="fp-field__input" id="fp-otp-new-confirm" type="password" placeholder="Conferma nuova password">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-reset">Aggiorna password</button>
+                </div>
+            </div>
+            <div id="fp-otp-message" class="fp-message is-hidden"></div>
         </div>
     </div>
 

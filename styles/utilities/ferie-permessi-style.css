@@ -737,6 +737,24 @@ body {
     flex-wrap: wrap;
 }
 
+.fp-link-btn {
+    border: none;
+    background: transparent;
+    color: #1a73e8;
+    font-size: 12px;
+    text-align: left;
+    padding: 0;
+    cursor: pointer;
+}
+
+.fp-link-btn.is-hidden {
+    display: none;
+}
+
+.fp-otp-section.is-hidden {
+    display: none;
+}
+
 .fp-settings-grid {
     display: grid;
     gap: 12px;
@@ -928,6 +946,10 @@ body.fp-dark .fp-admin-list {
 body.fp-dark .fp-admin-row {
     border-bottom-color: #2b2f36;
     color: #e8eaed;
+}
+
+body.fp-dark .fp-link-btn {
+    color: #8ab4f8;
 }
 
 body.fp-dark .fp-admin-password {
@@ -1177,6 +1199,10 @@ body.fp-aypi .fp-admin-list {
 body.fp-aypi .fp-admin-row {
     border-bottom-color: #3b342f;
     color: #f3e6d5;
+}
+
+body.fp-aypi .fp-link-btn {
+    color: #e4ab32;
 }
 
 body.fp-aypi .fp-admin-password {

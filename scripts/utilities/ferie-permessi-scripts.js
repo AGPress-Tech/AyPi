@@ -1,12 +1,36 @@
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
+let nodemailer;
+let passport;
+let LocalStrategy;
+let nodemailerError = null;
+let passportError = null;
+try {
+    nodemailer = require("nodemailer");
+} catch (err) {
+    nodemailerError = err;
+    console.error("Modulo 'nodemailer' non disponibile:", err);
+}
+try {
+    passport = require("passport");
+    LocalStrategy = require("passport-local").Strategy;
+} catch (err) {
+    passportError = err;
+    console.error("Modulo 'passport' non disponibile:", err);
+}
 
 let argon2;
+let argon2Browser;
 try {
     argon2 = require("argon2");
 } catch (err) {
-    console.error("Modulo 'argon2' non trovato. Esegui: npm install argon2");
+    try {
+        argon2Browser = require("argon2-browser");
+    } catch (innerErr) {
+        console.error("Modulo 'argon2' non trovato. Esegui: npm install argon2");
+    }
 }
 
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi.json";
@@ -14,6 +38,8 @@ const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazio
 const ADMINS_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-admins.json";
 const APPROVAL_PASSWORD = "AGPress";
 const AUTO_REFRESH_MS = 15000;
+const OTP_EXPIRY_MS = 5 * 60 * 1000;
+const OTP_RESEND_MS = 60 * 1000;
 const COLOR_STORAGE_KEY = "fpColorSettings";
 const THEME_STORAGE_KEY = "fpTheme";
 const DEFAULT_TYPE_COLORS = {
@@ -48,6 +74,48 @@ let settingsSnapshot = null;
 let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
+let passwordFailCount = 0;
+let otpState = {
+    adminName: "",
+    adminEmail: "",
+    secret: "",
+    expiresAt: 0,
+    resendAt: 0,
+    verified: false,
+};
+
+let authenticatorPromise = null;
+async function getAuthenticator() {
+    if (authenticatorPromise) return authenticatorPromise;
+    authenticatorPromise = new Promise((resolve, reject) => {
+        try {
+            const mod = require("otplib");
+            const auth = mod.authenticator || (mod.default && mod.default.authenticator);
+            if (!auth) {
+                reject(new Error("Authenticator non disponibile."));
+                return;
+            }
+            auth.options = { step: 300, window: 0, digits: 6 };
+            resolve(auth);
+        } catch (err) {
+            authenticatorPromise = null;
+            reject(err);
+        }
+    });
+    return authenticatorPromise;
+}
+
+if (passport && LocalStrategy) {
+    passport.use("admin-local", new LocalStrategy({ usernameField: "name", passwordField: "password", session: false }, async (name, password, done) => {
+        try {
+            const result = await verifyAdminPassword(password, name);
+            if (!result) return done(null, false);
+            return done(null, result.admin);
+        } catch (err) {
+            return done(err);
+        }
+    }));
+}
 
 function loadAdminCredentials() {
     try {
@@ -117,17 +185,17 @@ async function verifyAdminPassword(password, targetName) {
     const admins = loadAdminCredentials();
     for (const admin of admins) {
         if (targetName && admin.name !== targetName) continue;
-        if (admin.passwordHash && argon2) {
+        if (admin.passwordHash) {
             try {
-                const ok = await argon2.verify(admin.passwordHash, password);
+                const ok = await verifyPasswordHash(admin.passwordHash, password);
                 if (ok) return { admin, admins };
             } catch (err) {
                 console.error("Errore verifica argon2:", err);
             }
         } else if (admin.password && admin.password === password) {
-            if (argon2) {
+            if (argon2 || argon2Browser) {
                 try {
-                    const hash = await argon2.hash(password);
+                    const hash = await hashPassword(password);
                     admin.passwordHash = hash;
                     delete admin.password;
                     saveAdminCredentials(admins);
@@ -275,6 +343,92 @@ function isValidPhone(value) {
     return digits.length >= 11 && digits.length <= 13;
 }
 
+function loadMailConfig() {
+    const serverPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\otp-mail.json";
+    const localPath = path.join(__dirname, "..", "..", "config", "otp-mail.json");
+    const configPath = fs.existsSync(serverPath) ? serverPath : localPath;
+    if (!fs.existsSync(configPath)) {
+        throw new Error(`Config mail non trovata. Percorsi verificati: ${serverPath}, ${localPath}`);
+    }
+    try {
+        let raw = fs.readFileSync(configPath, "utf8");
+        if (raw.charCodeAt(0) === 0xfeff) {
+            raw = raw.slice(1);
+        }
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.host || !parsed.user || !parsed.pass) {
+            throw new Error(`Config mail incompleta in ${configPath}.`);
+        }
+        return parsed;
+    } catch (err) {
+        console.error("Errore lettura config mail:", err);
+        throw err;
+    }
+}
+
+async function sendOtpEmail(admin, code) {
+    const config = loadMailConfig();
+    const transporter = nodemailer.createTransport({
+        host: config.host,
+        port: config.port || 587,
+        secure: !!config.secure,
+        auth: {
+            user: config.user,
+            pass: config.pass,
+        },
+    });
+    const from = config.from || config.user;
+    await transporter.sendMail({
+        from,
+        to: admin.email,
+        subject: "OTP recupero password",
+        text: `Il tuo codice OTP e': ${code}\nValido per 5 minuti.`,
+    });
+}
+
+function findAdminByName(name) {
+    if (!name) return null;
+    const lower = name.trim().toLowerCase();
+    const admins = adminCache.length ? adminCache : loadAdminCredentials();
+    return admins.find((admin) => admin.name.trim().toLowerCase() === lower) || null;
+}
+
+function resetOtpState() {
+    otpState = {
+        adminName: "",
+        adminEmail: "",
+        secret: "",
+        expiresAt: 0,
+        resendAt: 0,
+        verified: false,
+    };
+}
+
+async function hashPassword(password) {
+    if (argon2) {
+        return argon2.hash(password);
+    }
+    if (argon2Browser) {
+        const salt = crypto.randomBytes(16);
+        const result = await argon2Browser.hash({
+            pass: password,
+            salt,
+            type: argon2Browser.ArgonType.Argon2id,
+        });
+        return result.encoded;
+    }
+    throw new Error("Modulo hashing non disponibile.");
+}
+
+async function verifyPasswordHash(hash, password) {
+    if (argon2) {
+        return argon2.verify(hash, password);
+    }
+    if (argon2Browser) {
+        return argon2Browser.verify({ pass: password, encoded: hash });
+    }
+    return false;
+}
 function renderAdminList() {
     const list = document.getElementById("fp-admin-list");
     if (!list) return;
@@ -360,6 +514,33 @@ function closeAdminModal() {
     if (!modal) return;
     hideModal(modal);
     adminEditingIndex = -1;
+}
+
+function openOtpModal() {
+    const modal = document.getElementById("fp-otp-modal");
+    if (!modal) return;
+    resetOtpState();
+    setMessage(document.getElementById("fp-otp-message"), "");
+    const verifySection = document.getElementById("fp-otp-verify-section");
+    const resetSection = document.getElementById("fp-otp-reset-section");
+    if (verifySection) verifySection.classList.add("is-hidden");
+    if (resetSection) resetSection.classList.add("is-hidden");
+    const nameInput = document.getElementById("fp-otp-admin-name");
+    const codeInput = document.getElementById("fp-otp-code");
+    const newInput = document.getElementById("fp-otp-new");
+    const newConfirmInput = document.getElementById("fp-otp-new-confirm");
+    if (nameInput) nameInput.value = "";
+    if (codeInput) codeInput.value = "";
+    if (newInput) newInput.value = "";
+    if (newConfirmInput) newConfirmInput.value = "";
+    showModal(modal);
+}
+
+function closeOtpModal() {
+    const modal = document.getElementById("fp-otp-modal");
+    if (!modal) return;
+    hideModal(modal);
+    resetOtpState();
 }
 
 function showModal(modal) {
@@ -736,10 +917,12 @@ function closeApprovalModal() {
     const modal = document.getElementById("fp-approve-modal");
     const input = document.getElementById("fp-approve-password");
     const error = document.getElementById("fp-approve-error");
+    const recoverBtn = document.getElementById("fp-approve-recover");
     if (!modal) return;
     hideModal(modal);
     if (input) input.value = "";
     if (error) error.classList.add("is-hidden");
+    if (recoverBtn) recoverBtn.classList.add("is-hidden");
     pendingAction = null;
     if (document.activeElement && typeof document.activeElement.blur === "function") {
         document.activeElement.blur();
@@ -749,17 +932,27 @@ function closeApprovalModal() {
 async function confirmApproval() {
     const input = document.getElementById("fp-approve-password");
     const error = document.getElementById("fp-approve-error");
+    const recoverBtn = document.getElementById("fp-approve-recover");
     const password = input ? input.value : "";
-    if (!argon2) {
-        await showDialog("error", "Modulo 'argon2' non disponibile.", "Esegui 'npm install argon2' nella cartella del progetto.");
-        return;
+    if (!argon2 && !argon2Browser) {
+        const hasHashes = loadAdminCredentials().some((item) => item.passwordHash);
+        if (hasHashes) {
+            await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2' o 'argon2-browser' nella cartella del progetto.");
+            return;
+        }
     }
     const result = await verifyAdminPassword(password);
     const admin = result ? result.admin : null;
     if (!admin) {
         if (error) error.classList.remove("is-hidden");
+        passwordFailCount += 1;
+        if (recoverBtn && passwordFailCount >= 3) {
+            recoverBtn.classList.remove("is-hidden");
+        }
         return;
     }
+    passwordFailCount = 0;
+    if (recoverBtn) recoverBtn.classList.add("is-hidden");
     if (!pendingAction) {
         closeApprovalModal();
         return;
@@ -2300,8 +2493,8 @@ function init() {
                 setAdminMessage("fp-admin-add-message", "Le password non coincidono.", true);
                 return;
             }
-            if (!argon2) {
-                await showDialog("error", "Modulo 'argon2' non disponibile.", "Esegui 'npm install argon2' nella cartella del progetto.");
+            if (!argon2 && !argon2Browser) {
+                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2' o 'argon2-browser' nella cartella del progetto.");
                 return;
             }
             const exists = adminCache.some((admin) => admin.name.toLowerCase() === name.toLowerCase());
@@ -2309,7 +2502,7 @@ function init() {
                 setAdminMessage("fp-admin-add-message", "Esiste gia un admin con questo nome.", true);
                 return;
             }
-            const hash = await argon2.hash(pass);
+            const hash = await hashPassword(pass);
             adminCache.push({ name, passwordHash: hash, email, phone });
             adminCache.sort((a, b) => a.name.localeCompare(b.name));
             saveAdminCredentials(adminCache);
@@ -2353,8 +2546,8 @@ function init() {
                 setAdminMessage("fp-admin-edit-message", "Le nuove password non coincidono.", true);
                 return;
             }
-            if (!argon2) {
-                await showDialog("error", "Modulo 'argon2' non disponibile.", "Esegui 'npm install argon2' nella cartella del progetto.");
+            if (!argon2 && !argon2Browser) {
+                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install argon2' o 'argon2-browser' nella cartella del progetto.");
                 return;
             }
             const admin = adminCache[adminEditingIndex];
@@ -2363,7 +2556,7 @@ function init() {
                 setAdminMessage("fp-admin-edit-message", "Password attuale non valida.", true);
                 return;
             }
-            admin.passwordHash = await argon2.hash(next);
+            admin.passwordHash = await hashPassword(next);
             delete admin.password;
             saveAdminCredentials(adminCache);
             if (adminCurrentInput) adminCurrentInput.value = "";
@@ -2374,13 +2567,15 @@ function init() {
     }
     if (adminForgot) {
         adminForgot.addEventListener("click", () => {
-            setAdminMessage("fp-admin-edit-message", "Funzione in arrivo.", false);
+            if (adminEditModal) hideModal(adminEditModal);
+            openOtpModal();
         });
     }
 
     const approveCancel = document.getElementById("fp-approve-cancel");
     const approveConfirm = document.getElementById("fp-approve-confirm");
     const approveModal = document.getElementById("fp-approve-modal");
+    const approveRecover = document.getElementById("fp-approve-recover");
     if (approveCancel) {
         approveCancel.addEventListener("click", closeApprovalModal);
     }
@@ -2403,6 +2598,152 @@ function init() {
                 event.preventDefault();
                 closeApprovalModal();
             }
+        });
+    }
+    if (approveRecover) {
+        approveRecover.addEventListener("click", () => {
+            closeApprovalModal();
+            openOtpModal();
+        });
+    }
+
+    const otpModal = document.getElementById("fp-otp-modal");
+    const otpClose = document.getElementById("fp-otp-close");
+    const otpSend = document.getElementById("fp-otp-send");
+    const otpResend = document.getElementById("fp-otp-resend");
+    const otpVerify = document.getElementById("fp-otp-verify");
+    const otpReset = document.getElementById("fp-otp-reset");
+    const otpNameInput = document.getElementById("fp-otp-admin-name");
+    const otpCodeInput = document.getElementById("fp-otp-code");
+    const otpNewInput = document.getElementById("fp-otp-new");
+    const otpNewConfirmInput = document.getElementById("fp-otp-new-confirm");
+    const otpVerifySection = document.getElementById("fp-otp-verify-section");
+    const otpResetSection = document.getElementById("fp-otp-reset-section");
+    const otpMessage = document.getElementById("fp-otp-message");
+
+    if (otpClose) {
+        otpClose.addEventListener("click", closeOtpModal);
+    }
+    if (otpModal) {
+        otpModal.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+    const handleSendOtp = async () => {
+        if (!nodemailer) {
+            const missing = [];
+            if (!nodemailer) missing.push("nodemailer");
+            const detail =
+                `Moduli mancanti: ${missing.join(", ")}.` +
+                "\nSe stai usando l'app installata, devi rigenerare l'installer per includere le nuove dipendenze.";
+            await showDialog("error", "Modulo OTP non disponibile.", detail);
+            return;
+        }
+        const name = otpNameInput ? otpNameInput.value.trim() : "";
+        if (!name) {
+            setMessage(otpMessage, "Inserisci il nome admin.", true);
+            return;
+        }
+        const admin = findAdminByName(name);
+        if (!admin) {
+            setMessage(otpMessage, "Admin non trovato.", true);
+            return;
+        }
+        if (!admin.email) {
+            setMessage(otpMessage, "Email admin mancante.", true);
+            return;
+        }
+        const now = Date.now();
+        if (otpState.resendAt && now < otpState.resendAt) {
+            const seconds = Math.ceil((otpState.resendAt - now) / 1000);
+            setMessage(otpMessage, `Attendi ${seconds}s prima di reinviare l'OTP.`, true);
+            return;
+        }
+        let auth;
+        try {
+            auth = await getAuthenticator();
+        } catch (err) {
+            await showDialog("error", "Modulo OTP non disponibile.", `Dettaglio otplib: ${err.message || err}`);
+            return;
+        }
+        const secret = auth.generateSecret();
+        const code = auth.generate(secret);
+        otpState = {
+            adminName: admin.name,
+            adminEmail: admin.email,
+            secret,
+            expiresAt: now + OTP_EXPIRY_MS,
+            resendAt: now + OTP_RESEND_MS,
+            verified: false,
+        };
+        try {
+            await sendOtpEmail(admin, code);
+            if (otpVerifySection) otpVerifySection.classList.remove("is-hidden");
+            setMessage(otpMessage, "OTP inviato via email. Valido 5 minuti.", false);
+        } catch (err) {
+            setMessage(otpMessage, `Errore invio email: ${err.message || err}`, true);
+        }
+    };
+    if (otpSend) otpSend.addEventListener("click", handleSendOtp);
+    if (otpResend) otpResend.addEventListener("click", handleSendOtp);
+    if (otpVerify) {
+        otpVerify.addEventListener("click", async () => {
+            const code = otpCodeInput ? otpCodeInput.value.trim() : "";
+            if (!code) {
+                setMessage(otpMessage, "Inserisci il codice OTP.", true);
+                return;
+            }
+            if (!otpState.secret || Date.now() > otpState.expiresAt) {
+                setMessage(otpMessage, "OTP scaduto. Richiedi un nuovo codice.", true);
+                return;
+            }
+            let auth;
+            try {
+                auth = await getAuthenticator();
+            } catch (err) {
+                setMessage(otpMessage, `OTP non disponibile: ${err.message || err}`, true);
+                return;
+            }
+            const ok = auth.check(code, otpState.secret);
+            if (!ok) {
+                setMessage(otpMessage, "OTP non valido.", true);
+                return;
+            }
+            otpState.verified = true;
+            if (otpResetSection) otpResetSection.classList.remove("is-hidden");
+            setMessage(otpMessage, "OTP verificato. Imposta una nuova password.", false);
+        });
+    }
+    if (otpReset) {
+        otpReset.addEventListener("click", async () => {
+            if (!otpState.verified) {
+                setMessage(otpMessage, "Verifica l'OTP prima di proseguire.", true);
+                return;
+            }
+            const next = otpNewInput ? otpNewInput.value : "";
+            const confirm = otpNewConfirmInput ? otpNewConfirmInput.value : "";
+            if (!next || !confirm) {
+                setMessage(otpMessage, "Compila le nuove password.", true);
+                return;
+            }
+            if (next !== confirm) {
+                setMessage(otpMessage, "Le password non coincidono.", true);
+                return;
+            }
+            if (!argon2 && !argon2Browser) {
+                setMessage(otpMessage, "Modulo hashing non disponibile.", true);
+                return;
+            }
+            const admin = adminCache.find((item) => item.name === otpState.adminName) || findAdminByName(otpState.adminName);
+            if (!admin) {
+                setMessage(otpMessage, "Admin non trovato.", true);
+                return;
+            }
+            admin.passwordHash = await hashPassword(next);
+            delete admin.password;
+            saveAdminCredentials(adminCache.length ? adminCache : [admin]);
+            setMessage(otpMessage, "Password aggiornata.", false);
+            closeOtpModal();
         });
     }
 

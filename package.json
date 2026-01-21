@@ -22,12 +22,17 @@
   "dependencies": {
     "@network-utils/arp-lookup": "^2.1.0",
     "argon2": "^0.44.0",
+    "argon2-browser": "^1.18.0",
     "axios": "^1.13.2",
     "bwip-js": "^4.8.0",
     "chart.js": "^4.5.1",
     "electron-log": "^5.3.1",
     "electron-prompt": "^1.7.0",
     "electron-updater": "^6.3.9",
+    "nodemailer": "^7.0.12",
+    "otplib": "^12.0.1",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
     "qrcode": "^1.5.4",
     "update-electron-app": "^3.1.1",
     "xlsx": "^0.18.5"
