@@ -5,6 +5,7 @@ const path = require("path");
 const { exec } = require("child_process");
 const fs = require("fs");
 const log = require("electron-log");
+const { NETWORK_PATHS } = require("../config/paths");
 
 const WINDOW_WEB_PREFERENCES = {
     nodeIntegration: true,
@@ -623,7 +624,7 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.on("open-file", (event, filePath) => {
-        const testFile = "\\\\Dl360\\private\\AyPi Server Validator.txt";
+        const testFile = NETWORK_PATHS.dl360ServerCheck;
 
         fs.access(testFile, fs.constants.F_OK, (err) => {
             if (err) {

@@ -96,59 +96,96 @@ function wireSidebarActions() {
     const sidebarContainer = document.getElementById("sidebar-container");
     if (!sidebarContainer) return;
 
+    const applySidebarHtml = (html) => {
+        sidebarContainer.innerHTML = typeof html === "string" ? html : String(html || "");
+
+        const sidebar = document.getElementById("mySidebar");
+        const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
+        const menuBtn = document.getElementById("menuBtn");
+
+        function openNav() {
+            if (sidebar) sidebar.style.width = "30%";
+            const main = document.getElementById("main");
+            if (main) main.style.marginLeft = "30%";
+        }
+        function closeNav() {
+            if (sidebar) sidebar.style.width = "0";
+            const main = document.getElementById("main");
+            if (main) main.style.marginLeft = "0";
+        }
+
+        if (menuBtn) {
+            menuBtn.addEventListener("mouseenter", openNav);
+            menuBtn.addEventListener("click", openNav);
+        }
+        if (sidebar) sidebar.addEventListener("mouseleave", closeNav);
+        if (closeBtn) closeBtn.addEventListener("click", closeNav);
+
+        const clockElement = document.getElementById("clock");
+        if (clockElement) {
+            function updateClock() {
+                const now = new Date();
+                const hours = now.getHours().toString().padStart(2, "0");
+                const minutes = now.getMinutes().toString().padStart(2, "0");
+                clockElement.textContent = `${hours}:${minutes}`;
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            clockElement.addEventListener("click", () => {
+                ipcRenderer.send("open-timer-window");
+            });
+        }
+
+        const installBtn = document.getElementById("install-addin");
+        if (installBtn) {
+            installBtn.addEventListener("click", installAddinFunction);
+        }
+
+        if (!sidebar || !menuBtn) {
+            ipcRenderer.invoke("show-message-box", {
+                type: "warning",
+                message: "Sidebar non inizializzata.",
+                detail: `sidebar: ${!!sidebar} | menuBtn: ${!!menuBtn}`,
+            });
+        }
+    };
+
+    const sidebarPath = path.join(__dirname, "..", "pages", "sidebar.html");
+    try {
+        const html = fs.readFileSync(sidebarPath, "utf8");
+        if (html) {
+            applySidebarHtml(html);
+            return;
+        }
+    } catch (err) {
+        console.error("Errore lettura sidebar da path:", err);
+    }
     fetch("sidebar.html")
         .then((res) => res.text())
-        .then((html) => {
-            sidebarContainer.innerHTML = html;
-
-            const sidebar = document.getElementById("mySidebar");
-            const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
-            const menuBtn = document.getElementById("menuBtn");
-
-            function openNav() {
-                if (sidebar) sidebar.style.width = "30%";
-                const main = document.getElementById("main");
-                if (main) main.style.marginLeft = "30%";
-            }
-            function closeNav() {
-                if (sidebar) sidebar.style.width = "0";
-                const main = document.getElementById("main");
-                if (main) main.style.marginLeft = "0";
-            }
-
-            if (menuBtn) menuBtn.addEventListener("mouseenter", openNav);
-            if (sidebar) sidebar.addEventListener("mouseleave", closeNav);
-            if (closeBtn) closeBtn.addEventListener("click", closeNav);
-
-            const clockElement = document.getElementById("clock");
-            if (clockElement) {
-                function updateClock() {
-                    const now = new Date();
-                    const hours = now.getHours().toString().padStart(2, "0");
-                    const minutes = now.getMinutes().toString().padStart(2, "0");
-                    clockElement.textContent = `${hours}:${minutes}`;
-                }
-                updateClock();
-                setInterval(updateClock, 1000);
-
-                clockElement.addEventListener("click", () => {
-                    ipcRenderer.send("open-timer-window");
-                });
-            }
-
-            const installBtn = document.getElementById("install-addin");
-            if (installBtn) {
-                installBtn.addEventListener("click", installAddinFunction);
-            }
-        })
-        .catch((err) => console.error("Errore caricamento sidebar:", err));
+        .then((htmlText) => applySidebarHtml(htmlText))
+        .catch((fetchErr) => {
+            console.error("Errore caricamento sidebar:", fetchErr);
+            ipcRenderer.invoke("show-message-box", {
+                type: "warning",
+                message: "Sidebar non caricata.",
+                detail: `Percorso: ${sidebarPath}\n${fetchErr?.message || fetchErr}`,
+            });
+        });
 }
 
 function initCommonUI() {
-    fadeInBodyOnLoad();
-    wireGithubIcon();
-    wireAppVersion();
-    wireSidebarActions();
+    const run = () => {
+        fadeInBodyOnLoad();
+        wireGithubIcon();
+        wireAppVersion();
+        wireSidebarActions();
+    };
+    if (document.readyState === "loading") {
+        window.addEventListener("DOMContentLoaded", run, { once: true });
+    } else {
+        run();
+    }
 }
 
 module.exports = { initCommonUI };

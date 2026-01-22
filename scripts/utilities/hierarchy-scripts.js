@@ -1,6 +1,7 @@
 const { ipcRenderer } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { showInfo, showError } = require("../shared/dialogs");
 
 let XLSX;
 try {
@@ -160,18 +161,6 @@ const FILE_ICON = "-";
 
 let searchGeneration = 0;
 let lastSearchProgressTime = 0;
-
-function showDialog(type, message, detail = "") {
-    return ipcRenderer.invoke("show-message-box", { type, message, detail });
-}
-
-function showInfo(message, detail = "") {
-    return showDialog("info", message, detail);
-}
-
-function showError(message, detail = "") {
-    return showDialog("error", message, detail);
-}
 
 function copyToClipboard(text) {
     try {

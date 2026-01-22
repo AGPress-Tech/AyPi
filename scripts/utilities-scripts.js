@@ -1,7 +1,30 @@
 const { ipcRenderer } = require("electron");
 const { initCommonUI } = require("../modules/utils");
+let showInfo;
+let showWarning;
+let showError;
+try {
+    ({ showInfo, showWarning, showError } = require("./shared/dialogs"));
+} catch (err) {
+    console.error("Errore caricamento dialogs:", err);
+    showInfo = (message, detail = "") =>
+        ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
+    showWarning = (message, detail = "") =>
+        ipcRenderer.invoke("show-message-box", { type: "warning", message, detail });
+    showError = (message, detail = "") =>
+        ipcRenderer.invoke("show-message-box", { type: "error", message, detail });
+}
 const fs = require("fs");
 const path = require("path");
+
+window.addEventListener("error", (event) => {
+    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    ipcRenderer.invoke("show-message-box", {
+        type: "error",
+        message: "Errore JS Utilities.",
+        detail,
+    });
+});
 
 let XLSX;
 try {
@@ -41,22 +64,6 @@ function scanFolder(rootPath) {
 
     walk(rootPath);
     return results;
-}
-
-function showDialog(type, message, detail = "") {
-    return ipcRenderer.invoke("show-message-box", { type, message, detail });
-}
-
-function showInfo(message, detail = "") {
-    return showDialog("info", message, detail);
-}
-
-function showWarning(message, detail = "") {
-    return showDialog("warning", message, detail);
-}
-
-function showError(message, detail = "") {
-    return showDialog("error", message, detail);
 }
 
 window.addEventListener("DOMContentLoaded", () => {

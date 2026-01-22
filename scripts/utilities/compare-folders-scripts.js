@@ -2,22 +2,7 @@ const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-
-function showDialog(type, message, detail = "") {
-    return ipcRenderer.invoke("show-message-box", { type, message, detail });
-}
-
-function showInfo(msg, detail = "") {
-    return showDialog("info", msg, detail);
-}
-
-function showWarning(msg, detail = "") {
-    return showDialog("warning", msg, detail);
-}
-
-function showError(msg, detail = "") {
-    return showDialog("error", msg, detail);
-}
+const { showInfo, showWarning, showError } = require("../shared/dialogs");
 
 let folderA = null;
 let folderB = null;
