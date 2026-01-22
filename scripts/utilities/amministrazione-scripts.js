@@ -2,7 +2,7 @@ const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
-const gantt = window.gantt;
+let gantt = window.gantt;
 const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-obiettivi.json";
 const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
 const sharedBaseDir = path.join(__dirname, "..", "..", "scripts", "utilities", "shared");
@@ -29,6 +29,26 @@ let editingEmployee = null;
 
 function showDialog(type, message, detail = "") {
     return ipcRenderer.invoke("show-message-box", { type, message, detail });
+}
+
+function getGanttModulePath() {
+    return path.join(__dirname, "..", "..", "node_modules", "dhtmlx-gantt", "codebase", "dhtmlxgantt.js");
+}
+
+function resolveGantt() {
+    if (gantt) return gantt;
+    const globalGantt = window.gantt || globalThis.gantt;
+    if (globalGantt) {
+        gantt = globalGantt;
+        return gantt;
+    }
+    try {
+        require(getGanttModulePath());
+    } catch (err) {
+        console.warn("dhtmlx-gantt load failed:", err);
+    }
+    gantt = window.gantt || globalThis.gantt;
+    return gantt;
 }
 
 const { loadAssigneeOptions, saveAssigneeOptions } = createAssigneesStore({
@@ -873,8 +893,18 @@ function configureGantt() {
 }
 
 function init() {
-    if (!gantt) {
-        showDialog("warning", "Gantt non disponibile.", "Controlla che dhtmlx-gantt sia installato.");
+    if (!resolveGantt()) {
+        const expectedPath = getGanttModulePath();
+        const hasModule = fs.existsSync(expectedPath);
+        const scriptEl = document.querySelector('script[src*="dhtmlxgantt"]');
+        const scriptSrc = scriptEl ? scriptEl.getAttribute("src") : "script tag non trovato";
+        const detail = [
+            "Controlla che dhtmlx-gantt sia installato.",
+            `Script tag: ${scriptSrc}`,
+            `Percorso atteso: ${expectedPath}`,
+            `File presente: ${hasModule ? "si" : "no"}`,
+        ].join("\n");
+        showDialog("warning", "Gantt non disponibile.", detail);
         return;
     }
     const assigneesData = loadAssigneeOptions();
