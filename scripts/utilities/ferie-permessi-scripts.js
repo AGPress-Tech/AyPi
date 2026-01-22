@@ -53,6 +53,23 @@ const {
     applyCalendarListHoverStyles,
     initCalendar,
 } = bootRequire(path.join(fpUiDir, "calendar"));
+const { createAdminModals } = bootRequire(path.join(fpUiDir, "admin-modals"));
+const { createOtpModals } = bootRequire(path.join(fpUiDir, "otp-modals"));
+const { createAssigneesModal } = bootRequire(path.join(fpUiDir, "assignees-modal"));
+const { createSettingsModal } = bootRequire(path.join(fpUiDir, "settings-modal"));
+const { createApprovalModal } = bootRequire(path.join(fpUiDir, "approval-modal"));
+const { createEditModal } = bootRequire(path.join(fpUiDir, "edit-modal"));
+const { createRequestForm } = bootRequire(path.join(fpUiDir, "request-form"));
+const { createPendingPanel } = bootRequire(path.join(fpUiDir, "pending-panel"));
+const { createSummary } = bootRequire(path.join(fpUiDir, "summary"));
+const { createRenderer } = bootRequire(path.join(fpUiDir, "rendering"));
+const { createRefreshController } = bootRequire(path.join(fpBaseDir, "services", "refresh"));
+const { formatDate, formatDateTime, formatDateParts } = bootRequire(path.join(fpBaseDir, "utils", "date-format"));
+const { createRangeLine } = bootRequire(path.join(fpUiDir, "range-line"));
+const { getRequestDates } = bootRequire(path.join(fpBaseDir, "utils", "requests"));
+const { buildExportRows } = bootRequire(path.join(fpBaseDir, "utils", "export"));
+const { getTypeLabel } = bootRequire(path.join(fpBaseDir, "utils", "labels"));
+const { UI_TEXTS } = bootRequire(path.join(fpBaseDir, "utils", "ui-texts"));
 
 let calendar = null;
 let XLSX;
@@ -68,7 +85,6 @@ const { showModal, hideModal, forceUnlockUI } = createModalHelpers({
         pendingAction = null;
     },
 });
-let refreshTimer = null;
 let selectedEventId = null;
 let editingRequestId = null;
 let pendingPanelOpen = false;
@@ -82,7 +98,6 @@ let editingDepartment = null;
 let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
-let settingsSnapshot = null;
 let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
@@ -181,154 +196,10 @@ function applyTheme(theme) {
     applyCalendarListHoverStyles(document);
 }
 
-function openSettingsModal() {
-    const modal = document.getElementById("fp-settings-modal");
-    const message = document.getElementById("fp-settings-message");
-    if (!modal) return;
-    const themeValue = loadThemeSetting();
-    settingsSnapshot = {
-        theme: themeValue,
-        colors: { ...typeColors },
-    };
-    setSettingsInputsFromColors();
-    const themeInputs = document.querySelectorAll("input[name='fp-theme']");
-    themeInputs.forEach((input) => {
-        input.checked = input.value === themeValue;
-    });
-    setMessage(message, "");
-    showModal(modal);
-}
-
-function closeSettingsModal() {
-    const modal = document.getElementById("fp-settings-modal");
-    if (!modal) return;
-    if (settingsSnapshot) {
-        typeColors = { ...settingsSnapshot.colors };
-        applyTypeColors();
-        applyTheme(settingsSnapshot.theme);
-        renderAll(loadData());
-    }
-    hideModal(modal);
-}
-
 function setAdminMessage(id, text, isError = false) {
     const el = document.getElementById(id);
     if (!el) return;
     setMessage(el, text, isError);
-}
-
-function renderAdminList() {
-    const list = document.getElementById("fp-admin-list");
-    if (!list) return;
-    list.innerHTML = "";
-    if (!adminCache.length) {
-        const empty = document.createElement("div");
-        empty.className = "fp-message";
-        empty.textContent = "Nessun admin configurato.";
-        list.appendChild(empty);
-        return;
-    }
-    adminCache.forEach((admin, index) => {
-        const row = document.createElement("div");
-        row.className = "fp-admin-row";
-
-        const name = document.createElement("div");
-        name.textContent = admin.name;
-        row.appendChild(name);
-
-        const actions = document.createElement("div");
-        actions.className = "fp-assignees-row__actions";
-
-        const edit = document.createElement("button");
-        edit.type = "button";
-        edit.className = "fp-btn";
-        edit.textContent = "Modifica";
-        edit.addEventListener("click", () => {
-            adminEditingIndex = index;
-            const nameInput = document.getElementById("fp-admin-edit-name");
-            if (nameInput) nameInput.value = admin.name;
-            const emailInput = document.getElementById("fp-admin-edit-email");
-            if (emailInput) emailInput.value = admin.email || "";
-            const phoneInput = document.getElementById("fp-admin-edit-phone");
-            if (phoneInput) phoneInput.value = admin.phone || "";
-            const editModal = document.getElementById("fp-admin-edit-modal");
-            const passwordPanel = document.getElementById("fp-admin-password-panel");
-            if (passwordPanel) passwordPanel.classList.add("is-hidden");
-            setAdminMessage("fp-admin-edit-message", "");
-            if (editModal) showModal(editModal);
-        });
-
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "fp-btn fp-btn--danger";
-        remove.textContent = "Rimuovi";
-        remove.addEventListener("click", async () => {
-            if (adminCache.length <= 1) {
-                setAdminMessage("fp-admin-message", "Deve esserci almeno un admin.", true);
-                return;
-            }
-            const confirmed = await openConfirmModal(
-                `Confermi l'eliminazione dell'admin <strong>${escapeHtml(admin.name)}</strong>?`
-            );
-            if (!confirmed) return;
-            openPasswordModal({
-                type: "admin-delete",
-                id: admin.name,
-                adminName: admin.name,
-                title: "Elimina admin",
-                description: `Inserisci la password di ${admin.name} per confermare la rimozione.`,
-            });
-        });
-
-        actions.appendChild(edit);
-        actions.appendChild(remove);
-        row.appendChild(actions);
-        list.appendChild(row);
-    });
-}
-
-function openAdminModal() {
-    const modal = document.getElementById("fp-admin-modal");
-    if (!modal) return;
-    adminCache = loadAdminCredentials().sort((a, b) => a.name.localeCompare(b.name));
-    renderAdminList();
-    setAdminMessage("fp-admin-message", "");
-    adminEditingIndex = -1;
-    showModal(modal);
-}
-
-function closeAdminModal() {
-    const modal = document.getElementById("fp-admin-modal");
-    if (!modal) return;
-    hideModal(modal);
-    adminEditingIndex = -1;
-}
-
-function openOtpModal() {
-    const modal = document.getElementById("fp-otp-modal");
-    if (!modal) return;
-    resetOtpState();
-    setMessage(document.getElementById("fp-otp-message"), "");
-    const verifySection = document.getElementById("fp-otp-verify-section");
-    const resetSection = document.getElementById("fp-otp-reset-section");
-    if (verifySection) verifySection.classList.add("is-hidden");
-    if (resetSection) resetSection.classList.add("is-hidden");
-    const nameInput = document.getElementById("fp-otp-admin-name");
-    const codeInput = document.getElementById("fp-otp-code");
-    const newInput = document.getElementById("fp-otp-new");
-    const newConfirmInput = document.getElementById("fp-otp-new-confirm");
-    if (nameInput) nameInput.value = "";
-    if (codeInput) codeInput.value = "";
-    if (newInput) newInput.value = "";
-    if (newConfirmInput) newConfirmInput.value = "";
-    showModal(modal);
-}
-
-function closeOtpModal() {
-    const modal = document.getElementById("fp-otp-modal");
-    if (!modal) return;
-    hideModal(modal);
-    resetOtpState();
 }
 
 function ensureDataFolder() {
@@ -361,7 +232,7 @@ function saveData(payload) {
         fs.writeFileSync(DATA_PATH, JSON.stringify(payload, null, 2), "utf8");
     } catch (err) {
         console.error("Errore salvataggio ferie:", err);
-        showDialog("warning", "Impossibile salvare i dati sul server.", err.message || String(err));
+        showDialog("warning", UI_TEXTS.dataSaveFailure, err.message || String(err));
     }
 }
 
@@ -430,318 +301,240 @@ function buildHoverText(request) {
     return lines.filter(Boolean).join("\n");
 }
 
-function addDaysToDateString(dateStr, days) {
-    if (!dateStr) return dateStr;
-    const [year, month, day] = dateStr.split("-").map((v) => parseInt(v, 10));
-    if (!year || !month || !day) return dateStr;
-    const next = new Date(year, month - 1, day);
-    next.setDate(next.getDate() + days);
-    const yyyy = next.getFullYear();
-    const mm = String(next.getMonth() + 1).padStart(2, "0");
-    const dd = String(next.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
-function buildEventFromRequest(request) {
-    const title = request.employee || "Dipendente";
-    const color = getTypeColor(request.type);
-    if (request.allDay) {
-        const endDate = request.end || request.start;
-        return {
-            id: request.id,
-            title,
-            start: request.start,
-            end: addDaysToDateString(endDate, 1),
-            allDay: true,
-            backgroundColor: color,
-            borderColor: color,
-        };
-    }
-    return {
-        id: request.id,
-        title,
-        start: request.start,
-        end: request.end,
-        allDay: false,
-        backgroundColor: color,
-        borderColor: color,
-    };
-}
-
-function renderSummary(data) {
-    const summaryEl = document.getElementById("fp-summary");
-    if (!summaryEl) return;
-    const requests = data.requests || [];
-    const pending = requests.filter((req) => req.status === "pending").length;
-    const approved = requests.filter((req) => req.status === "approved").length;
-    summaryEl.textContent = `In attesa: ${pending} | Approvate: ${approved}`;
-    updatePendingBadge(pending);
-}
-
-function updatePendingBadge(count) {
-    const badge = document.getElementById("fp-pending-badge");
-    if (!badge) return;
-    badge.textContent = String(count);
-    if (count > 0) {
-        badge.classList.remove("is-hidden");
-    } else {
-        badge.classList.add("is-hidden");
-    }
-}
-
-function renderPendingList(data) {
-    const listEl = document.getElementById("fp-pending-list");
-    if (!listEl) return;
-    listEl.innerHTML = "";
-    const pending = (data.requests || []).filter((req) => req.status === "pending");
-    if (pending.length === 0) {
-        const empty = document.createElement("p");
-        empty.textContent = "Nessuna richiesta in attesa.";
-        empty.className = "fp-message";
-        listEl.appendChild(empty);
-        return;
-    }
-    pending.forEach((request) => {
-        const card = document.createElement("div");
-        card.className = "fp-pending-item";
-
-        const title = document.createElement("h3");
-        const deptLabel = request.department ? ` - ${request.department}` : "";
-        title.textContent = `${request.employee || "Dipendente"}${deptLabel}`;
-        card.appendChild(title);
-
-        const meta = document.createElement("p");
-        const typeLabel = request.type === "permesso"
-            ? "Permesso"
-            : request.type === "straordinari"
-                ? "Straordinari"
-                : "Ferie";
-        meta.textContent = typeLabel;
-        card.appendChild(meta);
-
-        card.appendChild(createRangeLine(request));
-
-        if (request.note) {
-            const note = document.createElement("p");
-            note.textContent = request.note;
-            card.appendChild(note);
-        }
-
-        const actions = document.createElement("div");
-        actions.className = "fp-pending-actions";
-
-        const approveBtn = document.createElement("button");
-        approveBtn.type = "button";
-        approveBtn.className = "fp-btn fp-btn--primary";
-        approveBtn.textContent = "Approva";
-        approveBtn.addEventListener("click", () => {
-            if (pendingUnlocked) {
-                const updated = syncData((payload) => {
-                    const target = (payload.requests || []).find((req) => req.id === request.id);
-                    if (target) {
-                        target.status = "approved";
-                        target.approvedAt = new Date().toISOString();
-                        target.approvedBy = pendingUnlockedBy || target.approvedBy || "Admin";
-                    }
-                    return payload;
-                });
-                renderAll(updated);
-                return;
-            }
-            openPasswordModal({
-                type: "approve",
-                id: request.id,
-                title: "Approva richiesta",
-                description: "Inserisci la password per approvare la richiesta.",
-            });
-        });
-
-        const rejectBtn = document.createElement("button");
-        rejectBtn.type = "button";
-        rejectBtn.className = "fp-btn";
-        rejectBtn.textContent = "Rifiuta";
-        rejectBtn.addEventListener("click", () => {
-            if (pendingUnlocked) {
-                const updated = syncData((payload) => {
-                    payload.requests = (payload.requests || []).filter((req) => req.id !== request.id);
-                    return payload;
-                });
-                renderAll(updated);
-                return;
-            }
-            openPasswordModal({
-                type: "reject",
-                id: request.id,
-                title: "Rifiuta richiesta",
-                description: "Inserisci la password per rifiutare la richiesta.",
-            });
-        });
-
-        actions.appendChild(rejectBtn);
-        actions.appendChild(approveBtn);
-        card.appendChild(actions);
-        listEl.appendChild(card);
-    });
-}
-
-function renderCalendar(data) {
-    if (!calendar) return;
-    calendar.removeAllEvents();
-    const approved = (data.requests || []).filter((req) => req.status === "approved");
-    approved.forEach((request) => {
-        calendar.addEvent(buildEventFromRequest(request));
-    });
-}
+let renderer = null;
 
 function renderAll(data) {
-    cachedData = data || { requests: [] };
-    renderSummary(data);
-    renderPendingList(data);
-    renderCalendar(data);
-    applyCalendarListStyles(document);
-    applyCalendarListHoverStyles(document);
+    if (!renderer) return;
+    renderer.renderAll(data);
 }
 
-function openPasswordModal(action) {
-    const modal = document.getElementById("fp-approve-modal");
-    const input = document.getElementById("fp-approve-password");
-    const error = document.getElementById("fp-approve-error");
-    const title = document.getElementById("fp-approve-title");
-    const desc = document.getElementById("fp-approve-desc");
-    if (!modal || !input) return;
-    pendingAction = action;
-    if (title && action?.title) title.textContent = action.title;
-    if (desc && action?.description) desc.textContent = action.description;
-    document.querySelectorAll(".fp-modal").forEach((item) => hideModal(item));
-    showModal(modal);
-    if (error) {
-        error.classList.add("is-hidden");
-    }
-    input.value = "";
-    input.disabled = false;
-    input.readOnly = false;
-    setTimeout(() => input.focus(), 0);
-}
+let openEditModalHandler = null;
+let openAdminModalHandler = null;
+let openPasswordModalHandler = null;
 
-function closeApprovalModal() {
-    const modal = document.getElementById("fp-approve-modal");
-    const input = document.getElementById("fp-approve-password");
-    const error = document.getElementById("fp-approve-error");
-    const recoverBtn = document.getElementById("fp-approve-recover");
-    if (!modal) return;
-    hideModal(modal);
-    if (input) input.value = "";
-    if (error) error.classList.add("is-hidden");
-    if (recoverBtn) recoverBtn.classList.add("is-hidden");
-    pendingAction = null;
-    if (document.activeElement && typeof document.activeElement.blur === "function") {
-        document.activeElement.blur();
-    }
-}
+const summaryUi = createSummary({ document });
 
-async function confirmApproval() {
-    const input = document.getElementById("fp-approve-password");
-    const error = document.getElementById("fp-approve-error");
-    const recoverBtn = document.getElementById("fp-approve-recover");
-    const password = input ? input.value : "";
-    if (!isHashingAvailable()) {
-        const hasHashes = loadAdminCredentials().some((item) => item.passwordHash);
-        if (hasHashes) {
-            await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install hash-wasm' nella cartella del progetto.");
-            return;
-        }
-    }
-    const result = await verifyAdminPassword(password);
-    const admin = result ? result.admin : null;
-    if (!admin) {
-        if (error) error.classList.remove("is-hidden");
-        passwordFailCount += 1;
-        if (recoverBtn && passwordFailCount >= 3) {
-            recoverBtn.classList.remove("is-hidden");
-        }
-        return;
-    }
-    passwordFailCount = 0;
-    if (recoverBtn) recoverBtn.classList.add("is-hidden");
-    if (!pendingAction) {
-        closeApprovalModal();
-        return;
-    }
-    const actionType = pendingAction.type;
-    const requestId = pendingAction.id;
-    if (actionType === "approve") {
-        const updated = syncData((payload) => {
-            const target = (payload.requests || []).find((req) => req.id === requestId);
-            if (target) {
-                target.status = "approved";
-                target.approvedAt = new Date().toISOString();
-                target.approvedBy = admin.name;
-            }
-            return payload;
-        });
-        closeApprovalModal();
-        renderAll(updated);
-        return;
-    }
-    if (actionType === "reject") {
-        const updated = syncData((payload) => {
-            payload.requests = (payload.requests || []).filter((req) => req.id !== requestId);
-            return payload;
-        });
-        closeApprovalModal();
-        renderAll(updated);
-        return;
-    }
-    if (actionType === "delete") {
-        const updated = syncData((payload) => {
-            payload.requests = (payload.requests || []).filter((req) => req.id !== requestId);
-            return payload;
-        });
-        forceUnlockUI();
-        renderAll(updated);
-        return;
-    }
-    if (actionType === "edit") {
-        closeApprovalModal();
-        const data = loadData();
-        const target = (data.requests || []).find((req) => req.id === requestId);
-        if (target) {
-            editingRequestId = requestId;
-            editingAdminName = admin.name;
-            openEditModal(target);
-        }
-    }
-    if (actionType === "pending-access") {
-        pendingUnlocked = true;
-        pendingUnlockedBy = admin.name;
-        closeApprovalModal();
-        openPendingPanel();
-        return;
-    }
-    if (actionType === "admin-access") {
-        closeApprovalModal();
-        openAdminModal();
-        return;
-    }
-    if (actionType === "admin-delete") {
-        const targetName = pendingAction?.adminName || pendingAction?.id || "";
-        if (!targetName || admin.name !== targetName) {
-            if (error) error.classList.remove("is-hidden");
-            return;
-        }
-        adminCache = adminCache.length ? adminCache : loadAdminCredentials();
-        if (adminCache.length <= 1) {
-            closeApprovalModal();
-            setAdminMessage("fp-admin-message", "Deve esserci almeno un admin.", true);
-            return;
-        }
-        adminCache = adminCache.filter((item) => item.name !== targetName);
-        saveAdminCredentials(adminCache);
-        renderAdminList();
-        closeApprovalModal();
-        setAdminMessage("fp-admin-message", "Admin rimosso.", false);
-    }
-}
+const pendingUi = createPendingPanel({
+    document,
+    createRangeLine,
+    syncData,
+    renderAll,
+    openPasswordModal: (action) => {
+        if (openPasswordModalHandler) openPasswordModalHandler(action);
+    },
+    getPendingUnlocked: () => pendingUnlocked,
+    getPendingUnlockedBy: () => pendingUnlockedBy,
+    getPendingPanelOpen: () => pendingPanelOpen,
+    setPendingPanelOpen: (next) => {
+        pendingPanelOpen = next;
+    },
+    updatePendingBadge: (count) => summaryUi.updatePendingBadge(count),
+});
+
+renderer = createRenderer({
+    document,
+    getCalendar: () => calendar,
+    setCachedData: (next) => {
+        cachedData = next;
+    },
+    summaryUi,
+    pendingUi,
+    applyCalendarListStyles,
+    applyCalendarListHoverStyles,
+    getTypeColor,
+});
+
+const refreshUi = createRefreshController({
+    loadData,
+    renderAll,
+    autoRefreshMs: AUTO_REFRESH_MS,
+});
+
+const approvalUi = createApprovalModal({
+    document,
+    showModal,
+    hideModal,
+    showDialog,
+    isHashingAvailable,
+    loadAdminCredentials,
+    verifyAdminPassword,
+    loadData,
+    syncData,
+    renderAll,
+    openEditModal: (request) => {
+        if (openEditModalHandler) openEditModalHandler(request);
+    },
+    openPendingPanel: () => pendingUi.openPendingPanel(),
+    setPendingUnlocked: (next) => {
+        pendingUnlocked = next;
+    },
+    setPendingUnlockedBy: (next) => {
+        pendingUnlockedBy = next;
+    },
+    openAdminModal: () => {
+        if (openAdminModalHandler) openAdminModalHandler();
+    },
+    getPendingAction: () => pendingAction,
+    setPendingAction: (next) => {
+        pendingAction = next;
+    },
+    getPasswordFailCount: () => passwordFailCount,
+    setPasswordFailCount: (next) => {
+        passwordFailCount = next;
+    },
+    setEditingRequestId: (next) => {
+        editingRequestId = next;
+    },
+    setEditingAdminName: (next) => {
+        editingAdminName = next;
+    },
+    getAdminCache: () => adminCache,
+    setAdminCache: (next) => {
+        adminCache = next;
+    },
+    saveAdminCredentials,
+    renderAdminList: () => adminUi.renderAdminList(),
+    setAdminMessage,
+    forceUnlockUI,
+});
+
+const editUi = createEditModal({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    setInlineError,
+    fillFormFromRequest,
+    toggleAllDayStateFor,
+    updateAllDayLock,
+    buildRequestFromForm,
+    syncData,
+    renderAll,
+    openPasswordModal: (action) => approvalUi.openPasswordModal(action),
+    getEditingRequestId: () => editingRequestId,
+    setEditingRequestId: (next) => {
+        editingRequestId = next;
+    },
+    getEditingAdminName: () => editingAdminName,
+    setEditingAdminName: (next) => {
+        editingAdminName = next;
+    },
+});
+openEditModalHandler = editUi.openEditModal;
+
+const otpUi = createOtpModals({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    showDialog,
+    isMailerAvailable,
+    getMailerError,
+    sendOtpEmail,
+    findAdminByName,
+    getAdminCache: () => adminCache,
+    saveAdminCredentials,
+    getAuthenticator,
+    otpState,
+    resetOtpState,
+    isHashingAvailable,
+    hashPassword,
+    OTP_EXPIRY_MS,
+    OTP_RESEND_MS,
+});
+
+const adminUi = createAdminModals({
+    document,
+    showModal,
+    hideModal,
+    setAdminMessage,
+    openConfirmModal,
+    escapeHtml,
+    openPasswordModal: (action) => approvalUi.openPasswordModal(action),
+    openOtpModal: () => otpUi.openOtpModal(),
+    loadAdminCredentials,
+    saveAdminCredentials,
+    verifyAdminPassword,
+    hashPassword,
+    isHashingAvailable,
+    isValidEmail,
+    isValidPhone,
+    showDialog,
+    getAdminCache: () => adminCache,
+    setAdminCache: (next) => {
+        adminCache = next;
+    },
+    getAdminEditingIndex: () => adminEditingIndex,
+    setAdminEditingIndex: (next) => {
+        adminEditingIndex = next;
+    },
+});
+openAdminModalHandler = adminUi.openAdminModal;
+openPasswordModalHandler = approvalUi.openPasswordModal;
+
+const assigneesUi = createAssigneesModal({
+    document,
+    showModal,
+    hideModal,
+    renderDepartmentList,
+    renderEmployeesList,
+    renderDepartmentSelect,
+    populateEmployees,
+    saveAssigneeOptions,
+    getAssigneeGroups: () => assigneeGroups,
+    setAssigneeGroups: (next) => {
+        assigneeGroups = next;
+    },
+    setAssigneeOptions: (next) => {
+        assigneeOptions = next;
+    },
+    setEditingDepartment: (next) => {
+        editingDepartment = next;
+    },
+    setEditingEmployee: (next) => {
+        editingEmployee = next;
+    },
+});
+
+const settingsUi = createSettingsModal({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    loadThemeSetting,
+    saveThemeSetting,
+    loadColorSettings,
+    saveColorSettings,
+    setSettingsInputsFromColors,
+    applyTypeColors,
+    applyTheme,
+    renderAll,
+    loadData,
+    normalizeHexColor,
+    DEFAULT_TYPE_COLORS,
+    getTypeColors: () => typeColors,
+    setTypeColors: (next) => {
+        typeColors = next;
+    },
+});
+
+const requestFormUi = createRequestForm({
+    document,
+    setMessage,
+    setInlineError,
+    toggleAllDayState,
+    updateAllDayLock,
+    buildRequestFromForm,
+    escapeHtml,
+    getTypeLabel,
+    formatDate,
+    formatDateTime,
+    openConfirmModal,
+    syncData,
+    renderAll,
+    refreshData: () => refreshUi.refreshData(),
+    resetForm,
+});
 
 function getFieldValue(id) {
     return document.getElementById(id)?.value || "";
@@ -763,7 +556,7 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
     const note = getFieldValue(`${prefix}-note`).trim();
 
     if (!employee || !startDate || !endDate) {
-        return { error: "Compila dipendente e periodo richiesto." };
+        return { error: UI_TEXTS.requestMissingFields };
     }
 
     const today = new Date();
@@ -778,31 +571,31 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
     const startParsed = parseStrictDate(startDate);
     const endParsed = parseStrictDate(endDate);
     if (!startParsed || !endParsed) {
-        return { error: "Formato data non valido." };
+        return { error: UI_TEXTS.requestInvalidDateFormat };
     }
     if (startParsed.getFullYear() > maxYear || endParsed.getFullYear() > maxYear) {
         return { error: `L'anno non puo superare ${maxYear}.` };
     }
     if (!allowPast) {
         if (startParsed < todayMidnight || endParsed < todayMidnight) {
-            return { error: "Non puoi inserire date precedenti a oggi." };
+            return { error: UI_TEXTS.requestNoPastDates };
         }
     }
     if (endParsed < startParsed) {
-        return { error: "La data fine non puo essere precedente alla data inizio." };
+        return { error: UI_TEXTS.requestEndBeforeStart };
     }
     if (!allDay && startDate !== endDate) {
-        return { error: "Per periodi di piu giorni serve giornata intera." };
+        return { error: UI_TEXTS.requestMultiDayAllDayOnly };
     }
 
     if (!allDay) {
         if (!startTime || !endTime) {
-            return { error: "Inserisci orari di inizio e fine." };
+            return { error: UI_TEXTS.requestMissingTimes };
         }
         const startValue = `${startDate}T${startTime}`;
         const endValue = `${endDate}T${endTime}`;
         if (endValue < startValue) {
-            return { error: "L'orario di fine non puo essere precedente all'inizio." };
+            return { error: UI_TEXTS.requestEndTimeBeforeStart };
         }
         return {
             request: {
@@ -834,12 +627,6 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
             createdAt: requestId ? null : new Date().toISOString(),
         }
     };
-}
-
-function getTypeLabel(value) {
-    if (value === "permesso") return "Permesso";
-    if (value === "straordinari") return "Straordinari";
-    return "Ferie";
 }
 
 function escapeHtml(value) {
@@ -898,41 +685,6 @@ function openConfirmModal(message) {
 function resetForm(prefix) {
     const note = document.getElementById(`${prefix}-note`);
     if (note) note.value = "";
-}
-
-function resetNewRequestForm() {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const startDate = document.getElementById("fp-start-date");
-    const endDate = document.getElementById("fp-end-date");
-    const editStartDateInit = document.getElementById("fp-edit-start-date");
-    const editEndDateInit = document.getElementById("fp-edit-end-date");
-    const startTime = document.getElementById("fp-start-time");
-    const endTime = document.getElementById("fp-end-time");
-    const allDayToggle = document.getElementById("fp-all-day");
-    const typeSelect = document.getElementById("fp-type");
-    const departmentSelect = document.getElementById("fp-department");
-    const employeeSelect = document.getElementById("fp-employee");
-
-    if (startDate) startDate.value = today;
-    if (endDate) endDate.value = today;
-    if (startTime) startTime.value = "08:00";
-    if (endTime) endTime.value = "17:30";
-    if (allDayToggle) {
-        allDayToggle.checked = false;
-        toggleAllDayState(false);
-    }
-    if (typeSelect) typeSelect.selectedIndex = 0;
-    if (departmentSelect) {
-        departmentSelect.selectedIndex = 0;
-        departmentSelect.dispatchEvent(new Event("change"));
-    }
-    if (employeeSelect) {
-        employeeSelect.selectedIndex = 0;
-    }
-    resetForm("fp");
-    updateAllDayLock(startDate, endDate, allDayToggle, "fp");
-    setInlineError("fp-end-date-error", "");
 }
 
 function updateAllDayLock(startDate, endDate, allDayToggle, prefix = "fp") {
@@ -1071,7 +823,7 @@ function populateEmployeesFor(prefix, groups) {
         employeeSelect.innerHTML = "";
         const emptyOpt = document.createElement("option");
         emptyOpt.value = "";
-        emptyOpt.textContent = "Nessun dipendente";
+        emptyOpt.textContent = UI_TEXTS.emptyAssignee;
         employeeSelect.appendChild(emptyOpt);
         return;
     }
@@ -1090,7 +842,7 @@ function populateEmployeesFor(prefix, groups) {
         if (employees.length === 0) {
             const emptyOpt = document.createElement("option");
             emptyOpt.value = "";
-            emptyOpt.textContent = "Nessun dipendente";
+            emptyOpt.textContent = UI_TEXTS.emptyAssignee;
             employeeSelect.appendChild(emptyOpt);
             return;
         }
@@ -1106,147 +858,6 @@ function populateEmployeesFor(prefix, groups) {
     updateEmployees();
 }
 
-function openEditModal(request) {
-    const modal = document.getElementById("fp-edit-modal");
-    const message = document.getElementById("fp-edit-message");
-    if (!modal) return;
-    showModal(modal);
-    setMessage(message, "");
-    setInlineError("fp-edit-end-date-error", "");
-    fillFormFromRequest("fp-edit", request);
-}
-
-function closeEditModal() {
-    const modal = document.getElementById("fp-edit-modal");
-    const message = document.getElementById("fp-edit-message");
-    if (!modal) return;
-    hideModal(modal);
-    setMessage(message, "");
-    setInlineError("fp-edit-end-date-error", "");
-    editingRequestId = null;
-    editingAdminName = "";
-}
-
-function formatDate(value) {
-    if (!value) return "";
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleDateString("it-IT");
-}
-
-function formatDateTime(value) {
-    if (!value) return "";
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const datePart = date.toLocaleDateString("it-IT");
-    const timePart = date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-    return `${datePart} ${timePart}`;
-}
-
-function formatDateParts(value) {
-    if (!value) return { date: "", time: "" };
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return { date: "", time: "" };
-    return {
-        date: date.toLocaleDateString("it-IT"),
-        time: date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
-    };
-}
-
-function createRangeLine(request) {
-    const line = document.createElement("p");
-    line.className = "fp-pending-range";
-    if (request.allDay) {
-        const startLabel = formatDate(request.start);
-        const endLabel = formatDate(request.end || request.start);
-        const startStrong = document.createElement("strong");
-        startStrong.textContent = startLabel;
-        line.appendChild(startStrong);
-        if (endLabel && endLabel !== startLabel) {
-            line.appendChild(document.createTextNode(" - "));
-            const endStrong = document.createElement("strong");
-            endStrong.textContent = endLabel;
-            line.appendChild(endStrong);
-        }
-        return line;
-    }
-    const startParts = formatDateParts(request.start);
-    const endParts = formatDateParts(request.end);
-    const startDate = document.createElement("strong");
-    startDate.textContent = startParts.date;
-    line.appendChild(startDate);
-    if (startParts.time) {
-        line.appendChild(document.createTextNode(` ${startParts.time}`));
-    }
-    line.appendChild(document.createTextNode(" - "));
-    const endDate = document.createElement("strong");
-    endDate.textContent = endParts.date;
-    line.appendChild(endDate);
-    if (endParts.time) {
-        line.appendChild(document.createTextNode(` ${endParts.time}`));
-    }
-    return line;
-}
-
-function getRequestDates(request) {
-    if (!request) return { start: null, end: null };
-    if (request.allDay) {
-        const start = request.start ? new Date(`${request.start}T00:00:00`) : null;
-        const end = request.end ? new Date(`${request.end}T23:59:59`) : (request.start ? new Date(`${request.start}T23:59:59`) : null);
-        return { start, end };
-    }
-    const start = request.start ? new Date(request.start) : null;
-    const end = request.end ? new Date(request.end) : null;
-    return { start, end };
-}
-
-function calculateHours(request) {
-    if (!request) return 0;
-    if (request.allDay) {
-        const startDate = request.start ? new Date(`${request.start}T00:00:00`) : null;
-        const endDate = request.end ? new Date(`${request.end}T00:00:00`) : startDate;
-        if (!startDate || !endDate) return 0;
-        const days = Math.floor((endDate - startDate) / 86400000) + 1;
-        return days * 8;
-    }
-    const start = request.start ? new Date(request.start) : null;
-    const end = request.end ? new Date(request.end) : null;
-    if (!start || !end) return 0;
-    const diffHours = (end - start) / 3600000;
-    const hours = Math.max(0, Math.round(diffHours * 100) / 100);
-    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-    const days = Math.floor((endDay - startDay) / 86400000) + 1;
-    const maxHours = Math.max(1, days) * 8;
-    return Math.min(hours, maxHours);
-}
-
-function buildExportRows(requests) {
-    return requests.map((request) => {
-        const typeLabel = request.type === "permesso"
-            ? "Permesso"
-            : request.type === "straordinari"
-                ? "Straordinari"
-                : "Ferie";
-        const startValue = request.allDay
-            ? (request.start ? new Date(`${request.start}T00:00:00`) : null)
-            : (request.start ? new Date(request.start) : null);
-        const endValue = request.allDay
-            ? (request.end ? new Date(`${request.end}T00:00:00`) : (request.start ? new Date(`${request.start}T00:00:00`) : null))
-            : (request.end ? new Date(request.end) : null);
-        const row = {
-            "Nome Operatore": request.employee || "",
-            "Reparto": request.department || "",
-            "Data Inizio": startValue || "",
-            "Data Fine": endValue || "",
-            "Ore": calculateHours(request),
-            "Tipo": typeLabel,
-            "Approvato da": request.approvedBy || "",
-            "Modificato da": request.modifiedBy || "",
-        };
-        return row;
-    });
-}
 function renderDepartmentSelect() {
     const select = document.getElementById("fp-employee-department");
     if (!select) return;
@@ -1265,7 +876,7 @@ function renderDepartmentList() {
     list.innerHTML = "";
     const groups = Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b));
     if (!groups.length) {
-        list.textContent = "Nessun reparto.";
+        list.textContent = UI_TEXTS.emptyDepartment;
         return;
     }
     groups.forEach((group) => {
@@ -1373,7 +984,7 @@ function renderEmployeesList() {
         });
     });
     if (!employees.length) {
-        list.textContent = "Nessun operatore.";
+        list.textContent = UI_TEXTS.emptyEmployee;
         return;
     }
     employees.sort((a, b) => {
@@ -1483,36 +1094,6 @@ function renderEmployeesList() {
     });
 }
 
-function openPendingPanel() {
-    const panel = document.getElementById("fp-pending-panel");
-    const toggle = document.getElementById("fp-pending-toggle");
-    if (!panel || !toggle) return;
-    panel.classList.add("is-open");
-    panel.setAttribute("aria-hidden", "false");
-    toggle.setAttribute("aria-expanded", "true");
-    pendingPanelOpen = true;
-}
-
-function closePendingPanel() {
-    const panel = document.getElementById("fp-pending-panel");
-    const toggle = document.getElementById("fp-pending-toggle");
-    if (!panel || !toggle) return;
-    panel.classList.remove("is-open");
-    panel.setAttribute("aria-hidden", "true");
-    toggle.setAttribute("aria-expanded", "false");
-    pendingPanelOpen = false;
-}
-
-function refreshData() {
-    const data = loadData();
-    renderAll(data);
-}
-
-function scheduleAutoRefresh() {
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(refreshData, AUTO_REFRESH_MS);
-}
-
 function init() {
     ipcRenderer.send("resize-normale");
     typeColors = loadColorSettings();
@@ -1530,7 +1111,7 @@ function init() {
         },
         getRequestById: (eventId) => (cachedData.requests || []).find((req) => req.id === eventId),
         buildHoverText,
-        openPasswordModal,
+        openPasswordModal: (action) => approvalUi.openPasswordModal(action),
         getLastNonListViewType: () => lastNonListViewType,
         setLastNonListViewType: (value) => {
             lastNonListViewType = value;
@@ -1582,785 +1163,28 @@ function init() {
             toggleAllDayState(allDayToggle.checked);
         });
     }
-    const startTimeInput = document.getElementById("fp-start-time");
-    const endTimeInput = document.getElementById("fp-end-time");
-    const handleTimeFocus = () => {
-        if (!allDayToggle || !allDayToggle.checked || allDayToggle.disabled) return;
-        allDayToggle.checked = false;
-        toggleAllDayState(false);
-    };
-    if (startTimeInput) startTimeInput.addEventListener("focus", handleTimeFocus);
-    if (endTimeInput) endTimeInput.addEventListener("focus", handleTimeFocus);
+    requestFormUi.initRequestForm();
 
-    if (startDate && endDate) {
-        const normalizeDates = () => {
-            if (!startDate.value || !endDate.value) return;
-            if (startDate.value.length !== 10 || endDate.value.length !== 10) return;
-            if (endDate.value < startDate.value) {
-                setInlineError("fp-end-date-error", "La data fine non puo essere precedente alla data inizio.");
-            } else {
-                setInlineError("fp-end-date-error", "");
-            }
-            if (endDate.value > startDate.value && allDayToggle) {
-                allDayToggle.checked = true;
-                toggleAllDayState(true);
-            }
-            updateAllDayLock(startDate, endDate, allDayToggle, "fp");
-        };
-        startDate.addEventListener("change", normalizeDates);
-        endDate.addEventListener("input", normalizeDates);
-        endDate.addEventListener("change", normalizeDates);
-    }
+    settingsUi.initSettingsModal();
 
-    const form = document.getElementById("fp-request-form");
-    const message = document.getElementById("fp-form-message");
-    const saveRequest = async () => {
-        setMessage(message, "");
-        setInlineError("fp-end-date-error", "");
-        const { request, error } = buildRequestFromForm("fp", null, false);
-        if (error) {
-            setMessage(message, error, true);
-            if (error.includes("data fine")) {
-                setInlineError("fp-end-date-error", error);
-            }
-            return;
-        }
-        const typeLabel = escapeHtml(getTypeLabel(request.type));
-        const startLabel = escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start));
-        const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
-        const confirmMessage =
-            `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> ` +
-            `dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`;
-        const confirmed = await openConfirmModal(confirmMessage);
-        if (!confirmed) {
-            return;
-        }
-        const updated = syncData((payload) => {
-            payload.requests = payload.requests || [];
-            payload.requests.push(request);
-            return payload;
-        });
-        setMessage(message, "Richiesta inviata.", false);
-        resetNewRequestForm();
-        renderAll(updated);
-    };
-    if (form) {
-        form.addEventListener("submit", (event) => {
-            event.preventDefault();
-        });
-    }
-    const saveBtn = document.getElementById("fp-request-save");
-    if (saveBtn) {
-        saveBtn.addEventListener("click", () => {
-            saveRequest();
-        });
-    }
+    adminUi.initAdminModals();
 
-    const refreshBtn = document.getElementById("fp-refresh");
-    if (refreshBtn) {
-        refreshBtn.addEventListener("click", () => {
-            refreshData();
-        });
-    }
-
-    const settingsBtn = document.getElementById("fp-settings");
-    const settingsClose = document.getElementById("fp-settings-close");
-    const settingsSave = document.getElementById("fp-settings-save");
-    const settingsReset = document.getElementById("fp-settings-reset");
-    const settingsModal = document.getElementById("fp-settings-modal");
-    const settingsMessage = document.getElementById("fp-settings-message");
-    const ferieInput = document.getElementById("fp-color-ferie");
-    const permessoInput = document.getElementById("fp-color-permesso");
-    const straordinariInput = document.getElementById("fp-color-straordinari");
-    const themeInputs = document.querySelectorAll("input[name='fp-theme']");
-    const adminOpen = document.getElementById("fp-admin-open");
-    const adminModal = document.getElementById("fp-admin-modal");
-    const adminClose = document.getElementById("fp-admin-close");
-    const adminChange = document.getElementById("fp-admin-change");
-    const adminForgot = document.getElementById("fp-admin-forgot");
-    const adminEditName = document.getElementById("fp-admin-edit-name");
-    const adminEditEmail = document.getElementById("fp-admin-edit-email");
-    const adminEditPhone = document.getElementById("fp-admin-edit-phone");
-    const adminEditSave = document.getElementById("fp-admin-edit-save");
-    const adminEditCancel = document.getElementById("fp-admin-edit-cancel");
-    const adminEditClose = document.getElementById("fp-admin-edit-close");
-    const adminPasswordOpen = document.getElementById("fp-admin-password-open");
-    const adminPasswordPanel = document.getElementById("fp-admin-password-panel");
-    const adminAdd = document.getElementById("fp-admin-add");
-    const adminAddOpen = document.getElementById("fp-admin-add-open");
-    const adminAddCancel = document.getElementById("fp-admin-add-cancel");
-    const adminAddClose = document.getElementById("fp-admin-add-close");
-    const adminAddModal = document.getElementById("fp-admin-add-modal");
-    const adminEditModal = document.getElementById("fp-admin-edit-modal");
-    const adminNameInput = document.getElementById("fp-admin-name");
-    const adminEmailInput = document.getElementById("fp-admin-email");
-    const adminPhoneInput = document.getElementById("fp-admin-phone");
-    const adminPasswordInput = document.getElementById("fp-admin-password");
-    const adminPasswordConfirmInput = document.getElementById("fp-admin-password-confirm");
-    const adminCurrentInput = document.getElementById("fp-admin-current");
-    const adminNewInput = document.getElementById("fp-admin-new");
-    const adminNewConfirmInput = document.getElementById("fp-admin-new-confirm");
-
-    if (settingsBtn) {
-        settingsBtn.addEventListener("click", () => {
-            openSettingsModal();
-        });
-    }
-    if (settingsClose) {
-        settingsClose.addEventListener("click", () => {
-            closeSettingsModal();
-        });
-    }
-    if (settingsModal) {
-        settingsModal.addEventListener("click", (event) => {
-            if (event.target === settingsModal) closeSettingsModal();
-        });
-    }
-    if (settingsSave) {
-        settingsSave.addEventListener("click", () => {
-            const nextColors = {
-                ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
-                permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
-                straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
-            };
-            const selectedTheme = Array.from(themeInputs).find((input) => input.checked)?.value || "light";
-            typeColors = { ...nextColors };
-            saveColorSettings(typeColors);
-            applyTypeColors();
-            saveThemeSetting(selectedTheme);
-            applyTheme(selectedTheme);
-            renderAll(loadData());
-            setMessage(settingsMessage, "");
-            hideModal(settingsModal);
-            settingsSnapshot = {
-                theme: selectedTheme,
-                colors: { ...nextColors },
-            };
-        });
-    }
-
-    themeInputs.forEach((input) => {
-        input.addEventListener("change", () => {
-            if (!input.checked) return;
-            applyTheme(input.value);
-        });
-    });
-    if (settingsReset) {
-        settingsReset.addEventListener("click", () => {
-            typeColors = { ...DEFAULT_TYPE_COLORS };
-            saveColorSettings(typeColors);
-            setSettingsInputsFromColors();
-            applyTypeColors();
-            renderAll(loadData());
-            setMessage(settingsMessage, "Colori ripristinati.", false);
-        });
-    }
-
-    const handleColorPreview = () => {
-        const nextColors = {
-            ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
-            permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
-            straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
-        };
-        typeColors = { ...nextColors };
-        applyTypeColors();
-        renderAll(loadData());
-    };
-    if (ferieInput) ferieInput.addEventListener("input", handleColorPreview);
-    if (permessoInput) permessoInput.addEventListener("input", handleColorPreview);
-    if (straordinariInput) straordinariInput.addEventListener("input", handleColorPreview);
-
-    if (adminOpen) {
-        adminOpen.addEventListener("click", () => {
-            openPasswordModal({
-                type: "admin-access",
-                id: "admin-access",
-                title: "Gestione admin",
-                description: "Inserisci la password admin per aprire la gestione.",
-            });
-        });
-    }
-    if (adminClose) {
-        adminClose.addEventListener("click", closeAdminModal);
-    }
-    if (adminModal) {
-        adminModal.addEventListener("click", (event) => {
-            event.stopPropagation();
-        });
-    }
-    if (adminAddModal) {
-        adminAddModal.addEventListener("click", (event) => {
-            event.stopPropagation();
-        });
-    }
-    if (adminEditModal) {
-        adminEditModal.addEventListener("click", (event) => {
-            event.stopPropagation();
-        });
-    }
-    if (adminEditSave) {
-        adminEditSave.addEventListener("click", () => {
-            const name = adminEditName ? adminEditName.value.trim() : "";
-            if (!name) {
-                setAdminMessage("fp-admin-edit-message", "Inserisci un nome valido.", true);
-                return;
-            }
-            if (adminEditingIndex < 0 || adminEditingIndex >= adminCache.length) {
-                setAdminMessage("fp-admin-edit-message", "Seleziona un admin da modificare.", true);
-                return;
-            }
-            const emailValue = adminEditEmail ? adminEditEmail.value.trim() : "";
-            const phoneValue = adminEditPhone ? adminEditPhone.value.trim() : "";
-            if (emailValue && !isValidEmail(emailValue)) {
-                setAdminMessage("fp-admin-edit-message", "Email non valida.", true);
-                return;
-            }
-            if (phoneValue && !isValidPhone(phoneValue)) {
-                setAdminMessage("fp-admin-edit-message", "Numero telefono non valido (prefisso +39 obbligatorio).", true);
-                return;
-            }
-            const exists = adminCache.some((admin, idx) => idx !== adminEditingIndex && admin.name.toLowerCase() === name.toLowerCase());
-            if (exists) {
-                setAdminMessage("fp-admin-edit-message", "Esiste gia un admin con questo nome.", true);
-                return;
-            }
-            adminCache[adminEditingIndex].name = name;
-            adminCache[adminEditingIndex].email = emailValue;
-            adminCache[adminEditingIndex].phone = phoneValue;
-            adminCache.sort((a, b) => a.name.localeCompare(b.name));
-            adminEditingIndex = -1;
-            saveAdminCredentials(adminCache);
-            renderAdminList();
-            if (adminEditModal) hideModal(adminEditModal);
-            setAdminMessage("fp-admin-edit-message", "");
-            setAdminMessage("fp-admin-message", "Admin aggiornato.", false);
-        });
-    }
-    if (adminEditClose) {
-        adminEditClose.addEventListener("click", () => {
-            if (adminEditModal) hideModal(adminEditModal);
-            if (adminPasswordPanel) adminPasswordPanel.classList.add("is-hidden");
-            adminEditingIndex = -1;
-            setAdminMessage("fp-admin-edit-message", "");
-        });
-    }
-    if (adminAddOpen) {
-        adminAddOpen.addEventListener("click", () => {
-            if (adminAddModal) showModal(adminAddModal);
-            setAdminMessage("fp-admin-add-message", "");
-        });
-    }
-    if (adminAddClose) {
-        adminAddClose.addEventListener("click", () => {
-            if (adminAddModal) hideModal(adminAddModal);
-            if (adminNameInput) adminNameInput.value = "";
-            if (adminEmailInput) adminEmailInput.value = "";
-            if (adminPhoneInput) adminPhoneInput.value = "";
-            if (adminPasswordInput) adminPasswordInput.value = "";
-            if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
-            setAdminMessage("fp-admin-add-message", "");
-        });
-    }
-    if (adminAddCancel) {
-        adminAddCancel.addEventListener("click", () => {
-            if (adminAddModal) hideModal(adminAddModal);
-            if (adminNameInput) adminNameInput.value = "";
-            if (adminEmailInput) adminEmailInput.value = "";
-            if (adminPhoneInput) adminPhoneInput.value = "";
-            if (adminPasswordInput) adminPasswordInput.value = "";
-            if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
-            setAdminMessage("fp-admin-add-message", "");
-        });
-    }
-    if (adminAdd) {
-        adminAdd.addEventListener("click", async () => {
-            const name = adminNameInput ? adminNameInput.value.trim() : "";
-            const pass = adminPasswordInput ? adminPasswordInput.value : "";
-            const confirm = adminPasswordConfirmInput ? adminPasswordConfirmInput.value : "";
-            const email = adminEmailInput ? adminEmailInput.value.trim() : "";
-            const phone = adminPhoneInput ? adminPhoneInput.value.trim() : "";
-            if (!name || !pass || !confirm) {
-                setAdminMessage("fp-admin-add-message", "Compila tutti i campi.", true);
-                return;
-            }
-            if (email && !isValidEmail(email)) {
-                setAdminMessage("fp-admin-add-message", "Email non valida.", true);
-                return;
-            }
-            if (phone && !isValidPhone(phone)) {
-                setAdminMessage("fp-admin-add-message", "Numero telefono non valido (prefisso +39 obbligatorio).", true);
-                return;
-            }
-            if (pass !== confirm) {
-                setAdminMessage("fp-admin-add-message", "Le password non coincidono.", true);
-                return;
-            }
-            if (!isHashingAvailable()) {
-                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install hash-wasm' nella cartella del progetto.");
-                return;
-            }
-            const exists = adminCache.some((admin) => admin.name.toLowerCase() === name.toLowerCase());
-            if (exists) {
-                setAdminMessage("fp-admin-add-message", "Esiste gia un admin con questo nome.", true);
-                return;
-            }
-            const hash = await hashPassword(pass);
-            adminCache.push({ name, passwordHash: hash, email, phone });
-            adminCache.sort((a, b) => a.name.localeCompare(b.name));
-            saveAdminCredentials(adminCache);
-            renderAdminList();
-            if (adminNameInput) adminNameInput.value = "";
-            if (adminEmailInput) adminEmailInput.value = "";
-            if (adminPhoneInput) adminPhoneInput.value = "";
-            if (adminPasswordInput) adminPasswordInput.value = "";
-            if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
-            setAdminMessage("fp-admin-add-message", "Admin aggiunto.", false);
-            if (adminAddModal) hideModal(adminAddModal);
-        });
-    }
-    if (adminEditCancel) {
-        adminEditCancel.addEventListener("click", () => {
-            if (adminEditModal) hideModal(adminEditModal);
-            if (adminPasswordPanel) adminPasswordPanel.classList.add("is-hidden");
-            adminEditingIndex = -1;
-            setAdminMessage("fp-admin-edit-message", "");
-        });
-    }
-    if (adminPasswordOpen) {
-        adminPasswordOpen.addEventListener("click", () => {
-            if (adminPasswordPanel) adminPasswordPanel.classList.toggle("is-hidden");
-        });
-    }
-    if (adminChange) {
-        adminChange.addEventListener("click", async () => {
-            const current = adminCurrentInput ? adminCurrentInput.value : "";
-            const next = adminNewInput ? adminNewInput.value : "";
-            const confirm = adminNewConfirmInput ? adminNewConfirmInput.value : "";
-            if (adminEditingIndex < 0 || adminEditingIndex >= adminCache.length) {
-                setAdminMessage("fp-admin-edit-message", "Seleziona un admin da modificare.", true);
-                return;
-            }
-            if (!current || !next || !confirm) {
-                setAdminMessage("fp-admin-edit-message", "Compila tutti i campi.", true);
-                return;
-            }
-            if (next !== confirm) {
-                setAdminMessage("fp-admin-edit-message", "Le nuove password non coincidono.", true);
-                return;
-            }
-            if (!isHashingAvailable()) {
-                await showDialog("error", "Modulo hashing non disponibile.", "Esegui 'npm install hash-wasm' nella cartella del progetto.");
-                return;
-            }
-            const admin = adminCache[adminEditingIndex];
-            const verify = await verifyAdminPassword(current, admin?.name);
-            if (!admin || !verify) {
-                setAdminMessage("fp-admin-edit-message", "Password attuale non valida.", true);
-                return;
-            }
-            admin.passwordHash = await hashPassword(next);
-            delete admin.password;
-            saveAdminCredentials(adminCache);
-            if (adminCurrentInput) adminCurrentInput.value = "";
-            if (adminNewInput) adminNewInput.value = "";
-            if (adminNewConfirmInput) adminNewConfirmInput.value = "";
-            setAdminMessage("fp-admin-edit-message", "Password aggiornata.", false);
-        });
-    }
-    if (adminForgot) {
-        adminForgot.addEventListener("click", () => {
-            if (adminEditModal) hideModal(adminEditModal);
-            openOtpModal();
-        });
-    }
-
-    const approveCancel = document.getElementById("fp-approve-cancel");
-    const approveConfirm = document.getElementById("fp-approve-confirm");
-    const approveModal = document.getElementById("fp-approve-modal");
     const approveRecover = document.getElementById("fp-approve-recover");
-    if (approveCancel) {
-        approveCancel.addEventListener("click", closeApprovalModal);
-    }
-    if (approveConfirm) {
-        approveConfirm.addEventListener("click", confirmApproval);
-    }
-    if (approveModal) {
-        approveModal.addEventListener("click", (event) => {
-            event.stopPropagation();
-        });
-    }
-
-    const approvePassword = document.getElementById("fp-approve-password");
-    if (approvePassword) {
-        approvePassword.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                confirmApproval();
-            } else if (event.key === "Escape") {
-                event.preventDefault();
-                closeApprovalModal();
-            }
-        });
-    }
+    approvalUi.initApprovalModal();
     if (approveRecover) {
         approveRecover.addEventListener("click", () => {
-            closeApprovalModal();
-            openOtpModal();
+            approvalUi.closeApprovalModal();
+            otpUi.openOtpModal();
         });
     }
 
-    const otpModal = document.getElementById("fp-otp-modal");
-    const otpClose = document.getElementById("fp-otp-close");
-    const otpSend = document.getElementById("fp-otp-send");
-    const otpResend = document.getElementById("fp-otp-resend");
-    const otpVerify = document.getElementById("fp-otp-verify");
-    const otpReset = document.getElementById("fp-otp-reset");
-    const otpNameInput = document.getElementById("fp-otp-admin-name");
-    const otpCodeInput = document.getElementById("fp-otp-code");
-    const otpNewInput = document.getElementById("fp-otp-new");
-    const otpNewConfirmInput = document.getElementById("fp-otp-new-confirm");
-    const otpVerifySection = document.getElementById("fp-otp-verify-section");
-    const otpResetSection = document.getElementById("fp-otp-reset-section");
-    const otpMessage = document.getElementById("fp-otp-message");
+    otpUi.initOtpModals();
 
-    if (otpClose) {
-        otpClose.addEventListener("click", closeOtpModal);
-    }
-    if (otpModal) {
-        otpModal.addEventListener("click", (event) => {
-            event.stopPropagation();
-        });
-    }
-    const handleSendOtp = async () => {
-        if (!isMailerAvailable()) {
-            const detailParts = [
-                "Modulo mancante: nodemailer.",
-                "Se stai usando l'app installata, devi rigenerare l'installer per includere le nuove dipendenze.",
-            ];
-            const mailerError = getMailerError();
-            if (mailerError) {
-                detailParts.push(`Dettaglio: ${mailerError.message || mailerError}`);
-            }
-            await showDialog("error", "Modulo OTP non disponibile.", detailParts.join("\n"));
-            return;
-        }
-        const name = otpNameInput ? otpNameInput.value.trim() : "";
-        if (!name) {
-            setMessage(otpMessage, "Inserisci il nome admin.", true);
-            return;
-        }
-        const admin = findAdminByName(name, adminCache);
-        if (!admin) {
-            setMessage(otpMessage, "Admin non trovato.", true);
-            return;
-        }
-        if (!admin.email) {
-            setMessage(otpMessage, "Email admin mancante.", true);
-            return;
-        }
-        const now = Date.now();
-        if (otpState.resendAt && now < otpState.resendAt) {
-            const seconds = Math.ceil((otpState.resendAt - now) / 1000);
-            setMessage(otpMessage, `Attendi ${seconds}s prima di reinviare l'OTP.`, true);
-            return;
-        }
-        let auth;
-        try {
-            auth = await getAuthenticator();
-        } catch (err) {
-            await showDialog("error", "Modulo OTP non disponibile.", `Dettaglio otplib: ${err.message || err}`);
-            return;
-        }
-        const secret = auth.generateSecret();
-        const code = auth.generate(secret);
-        Object.assign(otpState, {
-            adminName: admin.name,
-            adminEmail: admin.email,
-            secret,
-            expiresAt: now + OTP_EXPIRY_MS,
-            resendAt: now + OTP_RESEND_MS,
-            verified: false,
-        });
-        try {
-            await sendOtpEmail(admin, code);
-            if (otpVerifySection) otpVerifySection.classList.remove("is-hidden");
-            setMessage(otpMessage, "OTP inviato via email. Valido 5 minuti.", false);
-        } catch (err) {
-            setMessage(otpMessage, `Errore invio email: ${err.message || err}`, true);
-        }
-    };
-    if (otpSend) otpSend.addEventListener("click", handleSendOtp);
-    if (otpResend) otpResend.addEventListener("click", handleSendOtp);
-    if (otpVerify) {
-        otpVerify.addEventListener("click", async () => {
-            const code = otpCodeInput ? otpCodeInput.value.trim() : "";
-            if (!code) {
-                setMessage(otpMessage, "Inserisci il codice OTP.", true);
-                return;
-            }
-            if (!otpState.secret || Date.now() > otpState.expiresAt) {
-                setMessage(otpMessage, "OTP scaduto. Richiedi un nuovo codice.", true);
-                return;
-            }
-            let auth;
-            try {
-                auth = await getAuthenticator();
-            } catch (err) {
-                setMessage(otpMessage, `OTP non disponibile: ${err.message || err}`, true);
-                return;
-            }
-            const ok = auth.check(code, otpState.secret);
-            if (!ok) {
-                setMessage(otpMessage, "OTP non valido.", true);
-                return;
-            }
-            otpState.verified = true;
-            if (otpResetSection) otpResetSection.classList.remove("is-hidden");
-            setMessage(otpMessage, "OTP verificato. Imposta una nuova password.", false);
-        });
-    }
-    if (otpReset) {
-        otpReset.addEventListener("click", async () => {
-            if (!otpState.verified) {
-                setMessage(otpMessage, "Verifica l'OTP prima di proseguire.", true);
-                return;
-            }
-            const next = otpNewInput ? otpNewInput.value : "";
-            const confirm = otpNewConfirmInput ? otpNewConfirmInput.value : "";
-            if (!next || !confirm) {
-                setMessage(otpMessage, "Compila le nuove password.", true);
-                return;
-            }
-            if (next !== confirm) {
-                setMessage(otpMessage, "Le password non coincidono.", true);
-                return;
-            }
-            if (!isHashingAvailable()) {
-                setMessage(otpMessage, "Modulo hashing non disponibile.", true);
-                return;
-            }
-            const admin =
-                adminCache.find((item) => item.name === otpState.adminName) || findAdminByName(otpState.adminName, adminCache);
-            if (!admin) {
-                setMessage(otpMessage, "Admin non trovato.", true);
-                return;
-            }
-            admin.passwordHash = await hashPassword(next);
-            delete admin.password;
-            saveAdminCredentials(adminCache.length ? adminCache : [admin]);
-            setMessage(otpMessage, "Password aggiornata.", false);
-            closeOtpModal();
-        });
-    }
+    editUi.initEditModal();
 
-    const editModal = document.getElementById("fp-edit-modal");
-    const editForm = document.getElementById("fp-edit-form");
-    const editCancel = document.getElementById("fp-edit-cancel");
-    const editDelete = document.getElementById("fp-edit-delete");
-    const editMessage = document.getElementById("fp-edit-message");
-    const editAllDay = document.getElementById("fp-edit-all-day");
-    const editStartTime = document.getElementById("fp-edit-start-time");
-    const editEndTime = document.getElementById("fp-edit-end-time");
-    const editStartDate = document.getElementById("fp-edit-start-date");
-    const editEndDate = document.getElementById("fp-edit-end-date");
+    pendingUi.initPendingPanel();
 
-    if (editAllDay) {
-        toggleAllDayStateFor("fp-edit", editAllDay.checked);
-        editAllDay.addEventListener("change", () => {
-            toggleAllDayStateFor("fp-edit", editAllDay.checked);
-        });
-    }
-    const handleEditTimeFocus = () => {
-        if (!editAllDay || !editAllDay.checked || editAllDay.disabled) return;
-        editAllDay.checked = false;
-        toggleAllDayStateFor("fp-edit", false);
-    };
-    if (editStartTime) editStartTime.addEventListener("focus", handleEditTimeFocus);
-    if (editEndTime) editEndTime.addEventListener("focus", handleEditTimeFocus);
-
-    if (editStartDate && editEndDate) {
-        const normalizeEditDates = () => {
-            if (!editStartDate.value || !editEndDate.value) return;
-            if (editStartDate.value.length !== 10 || editEndDate.value.length !== 10) return;
-            if (editEndDate.value < editStartDate.value) {
-                setInlineError("fp-edit-end-date-error", "La data fine non puo essere precedente alla data inizio.");
-            } else {
-                setInlineError("fp-edit-end-date-error", "");
-            }
-            if (editEndDate.value > editStartDate.value && editAllDay) {
-                editAllDay.checked = true;
-                toggleAllDayStateFor("fp-edit", true);
-            }
-            updateAllDayLock(editStartDate, editEndDate, editAllDay, "fp-edit");
-        };
-        editStartDate.addEventListener("change", normalizeEditDates);
-        editEndDate.addEventListener("input", normalizeEditDates);
-        editEndDate.addEventListener("change", normalizeEditDates);
-    }
-
-    if (editCancel) {
-        editCancel.addEventListener("click", () => {
-            closeEditModal();
-        });
-    }
-
-    if (editDelete) {
-        editDelete.addEventListener("click", () => {
-            if (!editingRequestId) return;
-            const targetId = editingRequestId;
-            closeEditModal();
-            openPasswordModal({
-                type: "delete",
-                id: targetId,
-                title: "Elimina richiesta",
-                description: "Inserisci la password per eliminare definitivamente la richiesta.",
-            });
-        });
-    }
-
-    if (editModal) {
-        editModal.addEventListener("click", (event) => {
-            event.stopPropagation();
-        });
-    }
-
-    if (editForm) {
-        editForm.addEventListener("submit", (event) => {
-            event.preventDefault();
-            if (!editingRequestId) return;
-            setMessage(editMessage, "");
-            const { request, error } = buildRequestFromForm("fp-edit", editingRequestId, true);
-            if (error) {
-                setMessage(editMessage, error, true);
-                if (error.includes("data fine")) {
-                    setInlineError("fp-edit-end-date-error", error);
-                } else {
-                    setInlineError("fp-edit-end-date-error", "");
-                }
-                return;
-            }
-            const updated = syncData((payload) => {
-                payload.requests = payload.requests || [];
-                const idx = payload.requests.findIndex((req) => req.id === editingRequestId);
-                if (idx >= 0) {
-                    const existing = payload.requests[idx];
-                    payload.requests[idx] = {
-                        ...existing,
-                        ...request,
-                        status: "approved",
-                        approvedAt: existing.approvedAt || new Date().toISOString(),
-                        createdAt: existing.createdAt || new Date().toISOString(),
-                        modifiedAt: new Date().toISOString(),
-                        modifiedBy: editingAdminName || existing.modifiedBy || "",
-                    };
-                }
-                return payload;
-            });
-            setMessage(editMessage, "Richiesta aggiornata.", false);
-            closeEditModal();
-            editingAdminName = "";
-            renderAll(updated);
-        });
-    }
-
-    const pendingToggle = document.getElementById("fp-pending-toggle");
-    const pendingClose = document.getElementById("fp-pending-close");
-    if (pendingToggle) {
-        pendingToggle.addEventListener("click", () => {
-            if (pendingPanelOpen) {
-                closePendingPanel();
-                return;
-            }
-            if (pendingUnlocked) {
-                openPendingPanel();
-                return;
-            }
-            openPasswordModal({
-                type: "pending-access",
-                id: "pending-access",
-                title: "Richieste in attesa",
-                description: "Inserisci la password per visualizzare le richieste in attesa.",
-            });
-        });
-    }
-    if (pendingClose) {
-        pendingClose.addEventListener("click", () => {
-            closePendingPanel();
-        });
-    }
-
-    const assigneesManage = document.getElementById("fp-assignees-manage");
-    const assigneesModal = document.getElementById("fp-assignees-modal");
-    const assigneesClose = document.getElementById("fp-assignees-close");
-    const departmentInput = document.getElementById("fp-department-name");
-    const departmentAdd = document.getElementById("fp-department-add");
-    const employeeNameInput = document.getElementById("fp-employee-name");
-    const employeeAdd = document.getElementById("fp-employee-add");
-
-    const closeAssigneesModal = () => {
-        if (!assigneesModal) return;
-        hideModal(assigneesModal);
-        if (departmentInput) departmentInput.value = "";
-        if (employeeNameInput) employeeNameInput.value = "";
-        editingDepartment = null;
-        editingEmployee = null;
-        renderDepartmentList();
-        renderEmployeesList();
-        renderDepartmentSelect();
-    };
-
-    if (assigneesManage && assigneesModal) {
-        assigneesManage.addEventListener("click", () => {
-            showModal(assigneesModal);
-            renderDepartmentList();
-            renderEmployeesList();
-            renderDepartmentSelect();
-            if (departmentInput) departmentInput.focus();
-        });
-    }
-
-    if (assigneesClose) {
-        assigneesClose.addEventListener("click", closeAssigneesModal);
-    }
-
-    if (assigneesModal) {
-        assigneesModal.addEventListener("click", (event) => {
-            if (event.target === assigneesModal) closeAssigneesModal();
-        });
-    }
-
-    if (departmentAdd) {
-        departmentAdd.addEventListener("click", () => {
-            const name = departmentInput ? departmentInput.value.trim() : "";
-            if (!name || assigneeGroups[name]) return;
-            assigneeGroups[name] = [];
-            assigneeOptions = Object.values(assigneeGroups).flat();
-            saveAssigneeOptions(assigneeGroups);
-            renderDepartmentList();
-            renderDepartmentSelect();
-            populateEmployees();
-            if (departmentInput) departmentInput.value = "";
-        });
-    }
-
-    if (employeeAdd) {
-        employeeAdd.addEventListener("click", () => {
-            const select = document.getElementById("fp-employee-department");
-            const department = select ? select.value : "";
-            const name = employeeNameInput ? employeeNameInput.value.trim() : "";
-            if (!department || !name) return;
-            if (!assigneeGroups[department]) assigneeGroups[department] = [];
-            if (!assigneeGroups[department].includes(name)) {
-                assigneeGroups[department].push(name);
-                assigneeGroups[department].sort((a, b) => a.localeCompare(b));
-            }
-            assigneeOptions = Object.values(assigneeGroups).flat();
-            saveAssigneeOptions(assigneeGroups);
-            renderEmployeesList();
-            populateEmployees();
-            if (employeeNameInput) employeeNameInput.value = "";
-        });
-    }
+    assigneesUi.initAssigneesModal();
 
     const exportOpen = document.getElementById("fp-export-open");
     const exportClose = document.getElementById("fp-export-close");
@@ -2409,21 +1233,21 @@ function init() {
     if (exportRun) {
         exportRun.addEventListener("click", async () => {
             if (!XLSX) {
-                await showDialog("error", "Modulo 'xlsx' non trovato.", "Esegui 'npm install xlsx' nella cartella del progetto AyPi.");
+                await showDialog("error", UI_TEXTS.exportModuleMissingTitle, UI_TEXTS.exportModuleMissingDetail);
                 return;
             }
             const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
             const startDate = exportUi.parseDateInput(document.getElementById("fp-export-start")?.value || "");
             const endDate = exportUi.parseDateInput(document.getElementById("fp-export-end")?.value || "");
             if (rangeMode === "custom" && (!startDate || !endDate || endDate < startDate)) {
-                setMessage(document.getElementById("fp-export-message"), "Seleziona un intervallo valido.", true);
+                setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportInvalidRange, true);
                 return;
             }
             const includeFerie = !!document.getElementById("fp-export-ferie")?.checked;
             const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
             const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
             if (!includeFerie && !includePermessi && !includeStraordinari) {
-                setMessage(document.getElementById("fp-export-message"), "Seleziona almeno un tipo.", true);
+                setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
                 return;
             }
             const departments = exportUi.getExportSelectedDepartments();
@@ -2447,7 +1271,7 @@ function init() {
             });
 
             if (!filtered.length) {
-                setMessage(document.getElementById("fp-export-message"), "Nessun dato da esportare.", true);
+                setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportNoData, true);
                 return;
             }
 
@@ -2483,11 +1307,11 @@ function init() {
             }
 
             XLSX.writeFile(wb, outputPath, { cellDates: true });
-            setMessage(document.getElementById("fp-export-message"), "File Excel creato con successo.", false);
+            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSuccess, false);
         });
     }
 
-    closePendingPanel();
+    pendingUi.closePendingPanel();
 
     document.addEventListener("keydown", (event) => {
         if (event.key !== "Delete") return;
@@ -2496,16 +1320,16 @@ function init() {
             return;
         }
         if (!selectedEventId) return;
-        openPasswordModal({
+        approvalUi.openPasswordModal({
             type: "delete",
             id: selectedEventId,
             title: "Elimina richiesta",
-            description: "Inserisci la password per eliminare definitivamente la richiesta.",
+            description: UI_TEXTS.requestDeletePasswordDescription,
         });
     });
 
-    refreshData();
-    scheduleAutoRefresh();
+    refreshUi.refreshData();
+    refreshUi.scheduleAutoRefresh();
 
 }
 
@@ -2513,6 +1337,6 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
         init();
     } catch (err) {
-        showDialog("error", "Errore inizializzazione ferie/permessi.", err.message || String(err));
+        showDialog("error", UI_TEXTS.initErrorTitle, err.message || String(err));
     }
 });

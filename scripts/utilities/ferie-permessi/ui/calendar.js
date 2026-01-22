@@ -1,3 +1,5 @@
+const { UI_TEXTS } = require("../utils/ui-texts");
+
 function applyCalendarButtonStyles(document) {
     const root = document.getElementById("fp-calendar");
     if (!root) return;
@@ -221,7 +223,7 @@ function initCalendar(options) {
                         type: "edit",
                         id: requestId,
                         title: "Modifica richiesta",
-                        description: "Inserisci la password per modificare la richiesta.",
+                        description: UI_TEXTS.requestEditPasswordDescription,
                     });
                 }
             });

@@ -69,7 +69,8 @@ function saveAdminCredentials(admins) {
         fs.writeFileSync(ADMINS_PATH, JSON.stringify({ admins: payload }, null, 2), "utf8");
     } catch (err) {
         console.error("Errore salvataggio admins:", err);
-        showDialog("warning", "Impossibile salvare la lista admin.", err.message || String(err));
+        const { UI_TEXTS } = require("../utils/ui-texts");
+        showDialog("warning", UI_TEXTS.adminsSaveFailure, err.message || String(err));
     }
 }
 
@@ -122,14 +123,14 @@ function findAdminByName(name, adminCache) {
 
 function isValidEmail(value) {
     if (!value) return true;
-    return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function isValidPhone(value) {
     if (!value) return false;
     const trimmed = value.trim();
     if (!trimmed.startsWith("+39")) return false;
-    const digits = trimmed.replace(/\\D/g, "");
+    const digits = trimmed.replace(/\D/g, "");
     return digits.length >= 11 && digits.length <= 13;
 }
 

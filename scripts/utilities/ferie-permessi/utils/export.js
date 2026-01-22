@@ -1,0 +1,40 @@
+const { calculateHours } = require("./requests");
+const { getTypeLabel } = require("./labels");
+
+function getExportDates(request) {
+    const startValue = request.allDay
+        ? request.start
+            ? new Date(`${request.start}T00:00:00`)
+            : null
+        : request.start
+            ? new Date(request.start)
+            : null;
+    const endValue = request.allDay
+        ? request.end
+            ? new Date(`${request.end}T00:00:00`)
+            : request.start
+                ? new Date(`${request.start}T00:00:00`)
+                : null
+        : request.end
+            ? new Date(request.end)
+            : null;
+    return { startValue, endValue };
+}
+
+function buildExportRows(requests) {
+    return requests.map((request) => {
+        const { startValue, endValue } = getExportDates(request);
+        return {
+            "Nome Operatore": request.employee || "",
+            "Reparto": request.department || "",
+            "Data Inizio": startValue || "",
+            "Data Fine": endValue || "",
+            "Ore": calculateHours(request),
+            "Tipo": getTypeLabel(request.type),
+            "Approvato da": request.approvedBy || "",
+            "Modificato da": request.modifiedBy || "",
+        };
+    });
+}
+
+module.exports = { buildExportRows };

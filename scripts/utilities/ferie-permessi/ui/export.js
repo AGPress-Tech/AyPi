@@ -1,3 +1,5 @@
+const { UI_TEXTS } = require("../utils/ui-texts");
+
 function createExportController(options) {
     const { document, showModal, hideModal, setMessage, getAssigneeGroups } = options || {};
 
@@ -12,7 +14,7 @@ function createExportController(options) {
         const groups = Object.keys(typeof getAssigneeGroups === "function" ? getAssigneeGroups() : {});
         if (!groups.length) {
             const empty = document.createElement("div");
-            empty.textContent = "Nessun reparto.";
+            empty.textContent = UI_TEXTS.emptyDepartment;
             container.appendChild(empty);
             return;
         }
