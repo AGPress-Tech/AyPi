@@ -186,6 +186,9 @@ window.addEventListener("DOMContentLoaded", () => {
         if (!event || event.key !== THEME_STORAGE_KEY) return;
         applyTheme(loadThemeSetting());
     });
+    window.addEventListener("focus", () => {
+        applyTheme(loadThemeSetting());
+    });
 
     const refreshBtn = document.getElementById("fp-hours-refresh");
     const saveBtn = document.getElementById("fp-hours-save");

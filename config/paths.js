@@ -8,7 +8,7 @@ const NETWORK_PATHS = {
 };
 
 const PRODUZIONE_FILES = [
-    "\\\\Dl360\\pubbliche\\INFO\\REGISTRAZIONE PRODUZIONE STAMPAGGIO\\2025 Registrazione produzione stampaggio.xls",
+    "\\\\Dl360\\pubbliche\\INFO\\REGISTRAZIONE PRODUZIONE STAMPAGGIO\\2026 Registrazione produzione stampaggio.xls",
     "\\\\Dl360\\pubbliche\\TECH\\In Edit\\Registrazione Produzione Tranceria.xlsx",
     "\\\\Dl360\\pubbliche\\INFO\\REGISTRAZIONE PRODUZIONE TORNERIA\\Controllo_Valorizzazione.xlsm",
 ];
