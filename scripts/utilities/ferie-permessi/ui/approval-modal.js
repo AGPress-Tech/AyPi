@@ -29,6 +29,10 @@ function createApprovalModal(options) {
         renderAdminList,
         setAdminMessage,
         forceUnlockUI,
+        applyBalanceForApproval,
+        applyBalanceForDeletion,
+        getBalanceImpact,
+        onHoursAccess,
     } = options || {};
 
 
@@ -109,6 +113,26 @@ function createApprovalModal(options) {
         const actionType = pendingAction.type;
         const requestId = pendingAction.id;
         if (actionType === "approve") {
+            if (typeof getBalanceImpact === "function") {
+                const current = loadData();
+                const target = (current.requests || []).find((req) => req.id === requestId);
+                if (target) {
+                    const impact = getBalanceImpact(current, target);
+                    if (impact && impact.negative) {
+                        const response = await showDialog(
+                            "warning",
+                            "Ore sotto zero.",
+                            `Il dipendente ha ${impact.hoursBefore} ore disponibili. ` +
+                                `La richiesta ne consuma ${impact.hoursDelta} e porterebbe il saldo a ${impact.hoursAfter}. ` +
+                                "Vuoi procedere comunque?",
+                            ["Procedi", "Annulla"]
+                        );
+                        if (!response || response.response !== 0) {
+                            return;
+                        }
+                    }
+                }
+            }
             closeApprovalModal();
             const updated = syncData((payload) => {
                 const target = (payload.requests || []).find((req) => req.id === requestId);
@@ -116,10 +140,20 @@ function createApprovalModal(options) {
                     target.status = "approved";
                     target.approvedAt = new Date().toISOString();
                     target.approvedBy = admin.name;
+                    if (typeof applyBalanceForApproval === "function") {
+                        applyBalanceForApproval(payload, target);
+                    }
                 }
                 return payload;
             });
             renderAll(updated);
+            return;
+        }
+        if (actionType === "hours-access") {
+            closeApprovalModal();
+            if (typeof onHoursAccess === "function") {
+                onHoursAccess(admin);
+            }
             return;
         }
         if (actionType === "reject") {
@@ -133,6 +167,10 @@ function createApprovalModal(options) {
         }
         if (actionType === "delete") {
             const updated = syncData((payload) => {
+                const target = (payload.requests || []).find((req) => req.id === requestId);
+                if (target && typeof applyBalanceForDeletion === "function") {
+                    applyBalanceForDeletion(payload, target);
+                }
                 payload.requests = (payload.requests || []).filter((req) => req.id !== requestId);
                 return payload;
             });

@@ -8,6 +8,7 @@ function createAssigneesModal(options) {
         renderDepartmentSelect,
         populateEmployees,
         saveAssigneeOptions,
+        syncBalancesAfterAssignees,
         getAssigneeGroups,
         setAssigneeGroups,
         setAssigneeOptions,
@@ -72,6 +73,9 @@ function createAssigneesModal(options) {
                 setAssigneeGroups(assigneeGroups);
                 setAssigneeOptions(Object.values(assigneeGroups).flat());
                 saveAssigneeOptions(assigneeGroups);
+                if (typeof syncBalancesAfterAssignees === "function") {
+                    syncBalancesAfterAssignees();
+                }
                 renderDepartmentList();
                 renderDepartmentSelect();
                 populateEmployees();
@@ -94,6 +98,9 @@ function createAssigneesModal(options) {
                 setAssigneeGroups(assigneeGroups);
                 setAssigneeOptions(Object.values(assigneeGroups).flat());
                 saveAssigneeOptions(assigneeGroups);
+                if (typeof syncBalancesAfterAssignees === "function") {
+                    syncBalancesAfterAssignees();
+                }
                 renderEmployeesList();
                 populateEmployees();
                 if (employeeNameInput) employeeNameInput.value = "";

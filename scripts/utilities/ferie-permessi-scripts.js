@@ -41,6 +41,16 @@ const {
     isValidPhone,
 } = bootRequire(path.join(fpBaseDir, "services", "admins"));
 const { loadAssigneeOptions, saveAssigneeOptions } = bootRequire(path.join(fpBaseDir, "services", "assignees"));
+const {
+    normalizeBalances,
+    applyMissingRequestDeductions,
+    getBalanceImpact,
+    applyBalanceForApproval,
+    applyBalanceForDeletion,
+    applyBalanceForUpdate,
+    loadPayload,
+    savePayload,
+} = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
 const { ensureFolderFor } = bootRequire(path.join(fpBaseDir, "services", "storage"));
 const { isMailerAvailable, getMailerError, sendOtpEmail } = bootRequire(path.join(fpBaseDir, "services", "otp-mail"));
@@ -211,40 +221,36 @@ function ensureDataFolder() {
 }
 
 function loadData() {
-    try {
-        if (!fs.existsSync(DATA_PATH)) {
-            return { requests: [] };
-        }
-        const raw = fs.readFileSync(DATA_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.requests)) {
-            return { requests: parsed.requests };
-        }
-        if (Array.isArray(parsed)) {
-            return { requests: parsed };
-        }
-        return { requests: [] };
-    } catch (err) {
-        console.error("Errore caricamento dati ferie:", err);
-        return { requests: [] };
+    const parsed = loadPayload();
+    const normalized = normalizeBalances(parsed, assigneeGroups);
+    const deductions = applyMissingRequestDeductions(normalized.payload);
+    const payload = deductions.payload;
+    const changed = normalized.changed || deductions.changed;
+    if (changed) {
+        saveData(payload);
     }
+    return payload;
 }
 
 function saveData(payload) {
-    try {
-        ensureDataFolder();
-        fs.writeFileSync(DATA_PATH, JSON.stringify(payload, null, 2), "utf8");
-    } catch (err) {
-        console.error("Errore salvataggio ferie:", err);
-        showDialog("warning", UI_TEXTS.dataSaveFailure, err.message || String(err));
+    ensureDataFolder();
+    const ok = savePayload(payload);
+    if (!ok) {
+        showDialog("warning", UI_TEXTS.dataSaveFailure, "Errore scrittura file.");
     }
 }
 
 function syncData(updateFn) {
     const data = loadData();
     const next = updateFn ? updateFn(data) || data : data;
-    saveData(next);
-    return next;
+    const normalized = normalizeBalances(next, assigneeGroups);
+    const deductions = applyMissingRequestDeductions(normalized.payload);
+    saveData(deductions.payload);
+    return deductions.payload;
+}
+
+function syncBalancesAfterAssignees() {
+    syncData((payload) => payload);
 }
 
 function setMessage(el, text, isError = false) {
@@ -326,6 +332,10 @@ const pendingUi = createPendingPanel({
     openPasswordModal: (action) => {
         if (openPasswordModalHandler) openPasswordModalHandler(action);
     },
+    applyBalanceForApproval,
+    showDialog,
+    getBalanceImpact,
+    loadData,
     getPendingUnlocked: () => pendingUnlocked,
     getPendingUnlockedBy: () => pendingUnlockedBy,
     getPendingPanelOpen: () => pendingPanelOpen,
@@ -407,6 +417,12 @@ const approvalUi = createApprovalModal({
     renderAdminList: () => adminUi.renderAdminList(),
     setAdminMessage,
     forceUnlockUI,
+    applyBalanceForApproval,
+    applyBalanceForDeletion,
+    getBalanceImpact,
+    onHoursAccess: () => {
+        ipcRenderer.send("open-ferie-permessi-hours-window");
+    },
 });
 
 const editUi = createEditModal({
@@ -430,6 +446,7 @@ const editUi = createEditModal({
     setEditingAdminName: (next) => {
         editingAdminName = next;
     },
+    applyBalanceForUpdate,
 });
 openEditModalHandler = editUi.openEditModal;
 
@@ -492,6 +509,7 @@ const assigneesUi = createAssigneesModal({
     renderDepartmentSelect,
     populateEmployees,
     saveAssigneeOptions,
+    syncBalancesAfterAssignees,
     getAssigneeGroups: () => assigneeGroups,
     setAssigneeGroups: (next) => {
         assigneeGroups = next;
@@ -541,6 +559,8 @@ const requestFormUi = createRequestForm({
     formatDate,
     formatDateTime,
     openConfirmModal,
+    showDialog,
+    getBalanceImpact: (request) => getBalanceImpact(loadData(), request),
     syncData,
     renderAll,
     refreshData: () => refreshUi.refreshData(),
@@ -927,6 +947,7 @@ function renderDepartmentList() {
                 }
                 assigneeOptions = Object.values(assigneeGroups).flat();
                 saveAssigneeOptions(assigneeGroups);
+                syncBalancesAfterAssignees();
                 editingDepartment = null;
                 renderDepartmentList();
                 renderEmployeesList();
@@ -968,6 +989,7 @@ function renderDepartmentList() {
                 delete assigneeGroups[group];
                 assigneeOptions = Object.values(assigneeGroups).flat();
                 saveAssigneeOptions(assigneeGroups);
+                syncBalancesAfterAssignees();
                 renderDepartmentList();
                 renderDepartmentSelect();
                 populateEmployees();
@@ -1046,6 +1068,7 @@ function renderEmployeesList() {
                 if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
                 assigneeOptions = Object.values(assigneeGroups).flat();
                 saveAssigneeOptions(assigneeGroups);
+                syncBalancesAfterAssignees();
                 editingEmployee = null;
                 renderEmployeesList();
                 renderDepartmentList();
@@ -1089,6 +1112,7 @@ function renderEmployeesList() {
                 if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
                 assigneeOptions = Object.values(assigneeGroups).flat();
                 saveAssigneeOptions(assigneeGroups);
+                syncBalancesAfterAssignees();
                 renderEmployeesList();
                 renderDepartmentList();
                 renderDepartmentSelect();
@@ -1196,6 +1220,18 @@ function init() {
     pendingUi.initPendingPanel();
 
     assigneesUi.initAssigneesModal();
+
+    const hoursManage = document.getElementById("fp-hours-manage");
+    if (hoursManage) {
+        hoursManage.addEventListener("click", () => {
+            approvalUi.openPasswordModal({
+                type: "hours-access",
+                id: "hours-access",
+                title: "Gestione ore",
+                description: UI_TEXTS.adminAccessDescription,
+            });
+        });
+    }
 
     const exportOpen = document.getElementById("fp-export-open");
     const exportClose = document.getElementById("fp-export-close");

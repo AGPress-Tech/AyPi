@@ -13,6 +13,10 @@ function createPendingPanel(options) {
         getPendingPanelOpen,
         setPendingPanelOpen,
         updatePendingBadge,
+        applyBalanceForApproval,
+        showDialog,
+        getBalanceImpact,
+        loadData,
     } = options || {};
 
     if (!document) {
@@ -61,6 +65,38 @@ function createPendingPanel(options) {
             approveBtn.textContent = "Approva";
             approveBtn.addEventListener("click", () => {
                 if (getPendingUnlocked()) {
+                    if (typeof getBalanceImpact === "function" && typeof showDialog === "function") {
+                        const impact = getBalanceImpact(loadData(), request);
+                        if (impact && impact.negative) {
+                            showDialog(
+                                "warning",
+                                "Ore sotto zero.",
+                                `Il dipendente ha ${impact.hoursBefore} ore disponibili. ` +
+                                    `La richiesta ne consuma ${impact.hoursDelta} e porterebbe il saldo a ${impact.hoursAfter}. ` +
+                                    "Vuoi procedere comunque?",
+                                ["Procedi", "Annulla"]
+                            ).then((response) => {
+                                if (!response || response.response !== 0) {
+                                    return;
+                                }
+                                const updated = syncData((payload) => {
+                                    const target = (payload.requests || []).find((req) => req.id === request.id);
+                                    if (target) {
+                                        target.status = "approved";
+                                        target.approvedAt = new Date().toISOString();
+                                        target.approvedBy =
+                                            getPendingUnlockedBy() || target.approvedBy || UI_TEXTS.defaultAdminLabel;
+                                        if (typeof applyBalanceForApproval === "function") {
+                                            applyBalanceForApproval(payload, target);
+                                        }
+                                    }
+                                    return payload;
+                                });
+                                renderAll(updated);
+                            });
+                            return;
+                        }
+                    }
                     const updated = syncData((payload) => {
                         const target = (payload.requests || []).find((req) => req.id === request.id);
                         if (target) {
@@ -68,6 +104,9 @@ function createPendingPanel(options) {
                             target.approvedAt = new Date().toISOString();
                             target.approvedBy =
                                 getPendingUnlockedBy() || target.approvedBy || UI_TEXTS.defaultAdminLabel;
+                            if (typeof applyBalanceForApproval === "function") {
+                                applyBalanceForApproval(payload, target);
+                            }
                         }
                         return payload;
                     });

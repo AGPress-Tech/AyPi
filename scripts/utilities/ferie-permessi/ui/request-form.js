@@ -13,6 +13,8 @@ function createRequestForm(options) {
         formatDate,
         formatDateTime,
         openConfirmModal,
+        showDialog,
+        getBalanceImpact,
         syncData,
         renderAll,
         refreshData,
@@ -119,6 +121,25 @@ function createRequestForm(options) {
             const confirmed = await openConfirmModal(confirmMessage);
             if (!confirmed) {
                 return;
+            }
+            if (typeof getBalanceImpact === "function") {
+                const impact = getBalanceImpact(request);
+                if (impact && impact.negative) {
+                    if (typeof showDialog !== "function") {
+                        return;
+                    }
+                    const response = await showDialog(
+                        "warning",
+                        "Ore sotto zero.",
+                        `Il dipendente ha ${impact.hoursBefore} ore disponibili. ` +
+                            `La richiesta ne consuma ${impact.hoursDelta} e porterebbe il saldo a ${impact.hoursAfter}. ` +
+                            "Vuoi procedere comunque?",
+                        ["Procedi", "Annulla"]
+                    );
+                    if (!response || response.response !== 0) {
+                        return;
+                    }
+                }
             }
             const updated = syncData((payload) => {
                 payload.requests = payload.requests || [];

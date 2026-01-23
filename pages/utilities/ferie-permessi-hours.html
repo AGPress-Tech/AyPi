@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Gestione Ore</title>
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-hours-style.css">
+</head>
+
+<body>
+    <div class="fp-hours-page">
+        <header class="fp-hours-header">
+            <div>
+                <h1>Gestione ore disponibili</h1>
+                <p>Archivio ore per dipendente con incremento mensile e scalaggio automatico.</p>
+            </div>
+            <div class="fp-hours-actions">
+                <button type="button" class="fp-hours-btn" id="fp-hours-refresh">Aggiorna</button>
+                <button type="button" class="fp-hours-btn fp-hours-btn--primary" id="fp-hours-save">Salva modifiche</button>
+            </div>
+        </header>
+
+        <main class="fp-hours-body">
+            <div class="fp-hours-card">
+                <table class="fp-hours-table">
+                    <thead>
+                        <tr>
+                            <th>Reparto</th>
+                            <th>Dipendente</th>
+                            <th>Ore disponibili</th>
+                            <th>Accredito mensile</th>
+                            <th>Ultimo accredito</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fp-hours-table-body"></tbody>
+                </table>
+            </div>
+        </main>
+
+        <footer class="fp-hours-footer">
+            <span id="fp-hours-status" class="fp-hours-status">Pronto</span>
+            <button type="button" class="fp-hours-btn" id="fp-hours-close">Chiudi</button>
+        </footer>
+    </div>
+
+    <script src="../../scripts/utilities/ferie-permessi-hours.js"></script>
+</body>
+
+</html>

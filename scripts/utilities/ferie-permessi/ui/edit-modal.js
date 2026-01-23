@@ -18,6 +18,7 @@ function createEditModal(options) {
         setEditingRequestId,
         getEditingAdminName,
         setEditingAdminName,
+        applyBalanceForUpdate,
     } = options || {};
 
     if (!document) {
@@ -140,7 +141,7 @@ function createEditModal(options) {
                     const idx = payload.requests.findIndex((req) => req.id === editingRequestId);
                     if (idx >= 0) {
                         const existing = payload.requests[idx];
-                        payload.requests[idx] = {
+                        const nextRequest = {
                             ...existing,
                             ...request,
                             status: "approved",
@@ -149,6 +150,10 @@ function createEditModal(options) {
                             modifiedAt: new Date().toISOString(),
                             modifiedBy: editingAdminName || existing.modifiedBy || "",
                         };
+                        if (typeof applyBalanceForUpdate === "function") {
+                            applyBalanceForUpdate(payload, existing, nextRequest);
+                        }
+                        payload.requests[idx] = nextRequest;
                     }
                     return payload;
                 });
