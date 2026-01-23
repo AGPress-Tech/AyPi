@@ -32,6 +32,7 @@ function createApprovalModal(options) {
         applyBalanceForApproval,
         applyBalanceForDeletion,
         getBalanceImpact,
+        confirmNegativeBalance,
         onHoursAccess,
     } = options || {};
 
@@ -118,16 +119,9 @@ function createApprovalModal(options) {
                 const target = (current.requests || []).find((req) => req.id === requestId);
                 if (target) {
                     const impact = getBalanceImpact(current, target);
-                    if (impact && impact.negative) {
-                        const response = await showDialog(
-                            "warning",
-                            "Ore sotto zero.",
-                            `Il dipendente ha ${impact.hoursBefore} ore disponibili. ` +
-                                `La richiesta ne consuma ${impact.hoursDelta} e porterebbe il saldo a ${impact.hoursAfter}. ` +
-                                "Vuoi procedere comunque?",
-                            ["Procedi", "Annulla"]
-                        );
-                        if (!response || response.response !== 0) {
+                    if (impact && impact.negative && typeof confirmNegativeBalance === "function") {
+                        const ok = await confirmNegativeBalance(impact);
+                        if (!ok) {
                             return;
                         }
                     }

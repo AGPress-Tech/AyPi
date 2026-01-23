@@ -57,6 +57,7 @@ body {
 .fp-hours-body {
     flex: 1;
     padding: 20px 28px;
+    overflow: auto;
 }
 
 .fp-hours-card {
@@ -119,7 +120,137 @@ body {
     border-top: 1px solid #e0e3e7;
 }
 
+.fp-hours-header,
+.fp-hours-footer {
+    position: sticky;
+    z-index: 5;
+}
+
+.fp-hours-header {
+    top: 0;
+}
+
+.fp-hours-footer {
+    bottom: 0;
+}
+
 .fp-hours-status {
     color: #5f6368;
     font-size: 12px;
+}
+
+body.fp-dark {
+    background: #111827;
+    color: #e5e7eb;
+}
+
+body.fp-dark .fp-hours-header,
+body.fp-dark .fp-hours-footer,
+body.fp-dark .fp-hours-card {
+    background: #1f2933;
+    border-color: #2a3440;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+body.fp-dark .fp-hours-header p,
+body.fp-dark .fp-hours-status {
+    color: #9aa5b1;
+}
+
+body.fp-dark .fp-hours-btn {
+    background: #1b2532;
+    border-color: #2a3440;
+    color: #e5e7eb;
+}
+
+body.fp-dark .fp-hours-btn--primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+}
+
+body.fp-dark .fp-hours-table th,
+body.fp-dark .fp-hours-table td {
+    border-bottom-color: #2a3440;
+}
+
+body.fp-dark .fp-hours-table th {
+    background: #1b2430;
+    color: #9aa5b1;
+}
+
+body.fp-dark .fp-hours-table tbody tr:hover {
+    background: #222c38;
+}
+
+body.fp-dark .fp-hours-input {
+    background: #0f172a;
+    color: #e5e7eb;
+    border-color: #334155;
+}
+
+body.fp-dark .fp-hours-input.is-negative {
+    background: #3a1f1f;
+    border-color: #d93025;
+    color: #fca5a5;
+}
+
+body.fp-aypi {
+    background: #332f2b;
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-hours-header,
+body.fp-aypi .fp-hours-footer,
+body.fp-aypi .fp-hours-card {
+    background: #2b2824;
+    border-color: #4a433d;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+
+body.fp-aypi .fp-hours-header h1 {
+    color: #cc930e;
+}
+
+body.fp-aypi .fp-hours-header p,
+body.fp-aypi .fp-hours-status {
+    color: #c4b8a6;
+}
+
+body.fp-aypi .fp-hours-btn {
+    background: #1f1c19;
+    border-color: #4a433d;
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-hours-btn--primary {
+    background: #cc930e;
+    border-color: #cc930e;
+    color: #2b2824;
+}
+
+body.fp-aypi .fp-hours-table th,
+body.fp-aypi .fp-hours-table td {
+    border-bottom-color: #4a433d;
+}
+
+body.fp-aypi .fp-hours-table th {
+    background: #24211d;
+    color: #c4b8a6;
+}
+
+body.fp-aypi .fp-hours-table tbody tr:hover {
+    background: #2a2622;
+}
+
+body.fp-aypi .fp-hours-input {
+    background: #1f1c19;
+    color: #f3e6d5;
+    border-color: #4a433d;
+}
+
+body.fp-aypi .fp-hours-input.is-negative {
+    background: #3b1f1f;
+    border-color: #cc5c4a;
+    color: #f3b2a5;
 }

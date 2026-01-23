@@ -25,6 +25,24 @@ const {
     savePayload,
     getMonthKey,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
+const { THEME_STORAGE_KEY } = bootRequire(path.join(fpBaseDir, "config", "constants"));
+
+function loadThemeSetting() {
+    try {
+        const value = window.localStorage?.getItem(THEME_STORAGE_KEY);
+        if (value === "dark" || value === "aypi") {
+            return value;
+        }
+        return "light";
+    } catch (err) {
+        return "light";
+    }
+}
+
+function applyTheme(theme) {
+    document.body.classList.toggle("fp-dark", theme === "dark");
+    document.body.classList.toggle("fp-aypi", theme === "aypi");
+}
 
 function setStatus(text) {
     const el = document.getElementById("fp-hours-status");
@@ -162,6 +180,13 @@ function saveChanges() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+    applyTheme(loadThemeSetting());
+
+    window.addEventListener("storage", (event) => {
+        if (!event || event.key !== THEME_STORAGE_KEY) return;
+        applyTheme(loadThemeSetting());
+    });
+
     const refreshBtn = document.getElementById("fp-hours-refresh");
     const saveBtn = document.getElementById("fp-hours-save");
     const closeBtn = document.getElementById("fp-hours-close");

@@ -333,9 +333,9 @@ const pendingUi = createPendingPanel({
         if (openPasswordModalHandler) openPasswordModalHandler(action);
     },
     applyBalanceForApproval,
-    showDialog,
     getBalanceImpact,
     loadData,
+    confirmNegativeBalance,
     getPendingUnlocked: () => pendingUnlocked,
     getPendingUnlockedBy: () => pendingUnlockedBy,
     getPendingPanelOpen: () => pendingPanelOpen,
@@ -420,6 +420,7 @@ const approvalUi = createApprovalModal({
     applyBalanceForApproval,
     applyBalanceForDeletion,
     getBalanceImpact,
+    confirmNegativeBalance,
     onHoursAccess: () => {
         ipcRenderer.send("open-ferie-permessi-hours-window");
     },
@@ -559,7 +560,7 @@ const requestFormUi = createRequestForm({
     formatDate,
     formatDateTime,
     openConfirmModal,
-    showDialog,
+    confirmNegativeBalance,
     getBalanceImpact: (request) => getBalanceImpact(loadData(), request),
     syncData,
     renderAll,
@@ -696,9 +697,9 @@ function openConfirmModal(message) {
             cleanup();
             resolve(false);
         };
-    const onBackdrop = (event) => {
-        event.stopPropagation();
-    };
+        const onBackdrop = (event) => {
+            event.stopPropagation();
+        };
         const onKeydown = (event) => {
             if (event.key === "Escape") {
                 event.preventDefault();
@@ -711,6 +712,27 @@ function openConfirmModal(message) {
         modal.addEventListener("click", onBackdrop);
         document.addEventListener("keydown", onKeydown);
     });
+}
+
+function formatBalanceValue(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "0";
+    return num.toFixed(2);
+}
+
+function confirmNegativeBalance(impact) {
+    if (!impact || !impact.negative) {
+        return Promise.resolve(true);
+    }
+    const before = formatBalanceValue(impact.hoursBefore);
+    const delta = formatBalanceValue(impact.hoursDelta);
+    const after = formatBalanceValue(impact.hoursAfter);
+    const message =
+        `<strong>Ore sotto zero.</strong><br>` +
+        `Il dipendente ha <strong>${before}</strong> ore disponibili. ` +
+        `La richiesta ne consuma <strong>${delta}</strong> e porterebbe il saldo a <strong>${after}</strong>.` +
+        "<br>Vuoi procedere comunque?";
+    return openConfirmModal(message);
 }
 
 function resetForm(prefix) {

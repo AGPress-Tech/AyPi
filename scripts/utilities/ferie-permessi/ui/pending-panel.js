@@ -14,9 +14,9 @@ function createPendingPanel(options) {
         setPendingPanelOpen,
         updatePendingBadge,
         applyBalanceForApproval,
-        showDialog,
         getBalanceImpact,
         loadData,
+        confirmNegativeBalance,
     } = options || {};
 
     if (!document) {
@@ -63,37 +63,12 @@ function createPendingPanel(options) {
             approveBtn.type = "button";
             approveBtn.className = "fp-btn fp-btn--primary";
             approveBtn.textContent = "Approva";
-            approveBtn.addEventListener("click", () => {
+            approveBtn.addEventListener("click", async () => {
                 if (getPendingUnlocked()) {
-                    if (typeof getBalanceImpact === "function" && typeof showDialog === "function") {
+                    if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
                         const impact = getBalanceImpact(loadData(), request);
-                        if (impact && impact.negative) {
-                            showDialog(
-                                "warning",
-                                "Ore sotto zero.",
-                                `Il dipendente ha ${impact.hoursBefore} ore disponibili. ` +
-                                    `La richiesta ne consuma ${impact.hoursDelta} e porterebbe il saldo a ${impact.hoursAfter}. ` +
-                                    "Vuoi procedere comunque?",
-                                ["Procedi", "Annulla"]
-                            ).then((response) => {
-                                if (!response || response.response !== 0) {
-                                    return;
-                                }
-                                const updated = syncData((payload) => {
-                                    const target = (payload.requests || []).find((req) => req.id === request.id);
-                                    if (target) {
-                                        target.status = "approved";
-                                        target.approvedAt = new Date().toISOString();
-                                        target.approvedBy =
-                                            getPendingUnlockedBy() || target.approvedBy || UI_TEXTS.defaultAdminLabel;
-                                        if (typeof applyBalanceForApproval === "function") {
-                                            applyBalanceForApproval(payload, target);
-                                        }
-                                    }
-                                    return payload;
-                                });
-                                renderAll(updated);
-                            });
+                        const ok = await confirmNegativeBalance(impact);
+                        if (!ok) {
                             return;
                         }
                     }
