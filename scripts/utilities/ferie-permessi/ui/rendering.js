@@ -8,6 +8,7 @@ function createRenderer(options) {
         applyCalendarListStyles,
         applyCalendarListHoverStyles,
         getTypeColor,
+        shouldIncludeRequest,
     } = options || {};
 
     if (!document) {
@@ -58,6 +59,9 @@ function createRenderer(options) {
         calendar.removeAllEvents();
         const approved = (data.requests || []).filter((req) => req.status === "approved");
         approved.forEach((request) => {
+            if (typeof shouldIncludeRequest === "function" && !shouldIncludeRequest(request)) {
+                return;
+            }
             calendar.addEvent(buildEventFromRequest(request));
         });
     }

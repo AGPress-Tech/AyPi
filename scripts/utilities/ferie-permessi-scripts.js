@@ -98,6 +98,10 @@ let editingDepartment = null;
 let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
+let calendarFilters = {
+    leave: true,
+    overtime: true,
+};
 let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
@@ -342,6 +346,13 @@ renderer = createRenderer({
     applyCalendarListStyles,
     applyCalendarListHoverStyles,
     getTypeColor,
+    shouldIncludeRequest: (request) => {
+        if (!request || !request.type) return false;
+        if (request.type === "straordinari") {
+            return calendarFilters.overtime;
+        }
+        return calendarFilters.leave;
+    },
 });
 
 const refreshUi = createRefreshController({
@@ -1312,6 +1323,24 @@ function init() {
     }
 
     pendingUi.closePendingPanel();
+
+    const leaveToggle = document.getElementById("fp-filter-leave");
+    const overtimeToggle = document.getElementById("fp-filter-overtime");
+    const applyCalendarFilters = () => {
+        if (leaveToggle) {
+            calendarFilters.leave = !!leaveToggle.checked;
+        }
+        if (overtimeToggle) {
+            calendarFilters.overtime = !!overtimeToggle.checked;
+        }
+        renderer.renderCalendar(cachedData);
+    };
+    if (leaveToggle) {
+        leaveToggle.addEventListener("change", applyCalendarFilters);
+    }
+    if (overtimeToggle) {
+        overtimeToggle.addEventListener("change", applyCalendarFilters);
+    }
 
     document.addEventListener("keydown", (event) => {
         if (event.key !== "Delete") return;

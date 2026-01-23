@@ -42,6 +42,29 @@ body {
     gap: 12px;
 }
 
+.fp-calendar-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.fp-filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ffffff;
+    border: 1px solid #e0e3e7;
+    border-radius: 999px;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.fp-filter-toggle input {
+    accent-color: #1a73e8;
+}
+
 .fp-legend {
     display: flex;
     align-items: center;
@@ -938,6 +961,12 @@ body.fp-dark .fp-legend {
     color: #b0b7c3;
 }
 
+body.fp-dark .fp-filter-toggle {
+    background: #15181d;
+    border-color: #2b2f36;
+    color: #b0b7c3;
+}
+
 body.fp-dark .fp-admin-list {
     border-color: #2b2f36;
     background: #15181d;
@@ -1186,6 +1215,12 @@ body.fp-aypi .fp-badge {
 }
 
 body.fp-aypi .fp-legend {
+    background: #1f1c19;
+    border-color: #4a433d;
+    color: #c4b8a6;
+}
+
+body.fp-aypi .fp-filter-toggle {
     background: #1f1c19;
     border-color: #4a433d;
     color: #c4b8a6;
