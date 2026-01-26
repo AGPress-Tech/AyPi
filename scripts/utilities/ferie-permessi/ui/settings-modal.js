@@ -67,6 +67,7 @@ function createSettingsModal(options) {
         const ferieInput = document.getElementById("fp-color-ferie");
         const permessoInput = document.getElementById("fp-color-permesso");
         const straordinariInput = document.getElementById("fp-color-straordinari");
+        const mutuaInput = document.getElementById("fp-color-mutua");
         const themeInputs = document.querySelectorAll("input[name='fp-theme']");
 
         if (settingsBtn) {
@@ -90,6 +91,7 @@ function createSettingsModal(options) {
                     ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
                     permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
                     straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
+                    mutua: normalizeHexColor(mutuaInput?.value, DEFAULT_TYPE_COLORS.mutua),
                 };
                 const selectedTheme = Array.from(themeInputs).find((input) => input.checked)?.value || "light";
                 setTypeColors({ ...nextColors });
@@ -129,6 +131,7 @@ function createSettingsModal(options) {
                 ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
                 permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
                 straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
+                mutua: normalizeHexColor(mutuaInput?.value, DEFAULT_TYPE_COLORS.mutua),
             };
             setTypeColors({ ...nextColors });
             applyTypeColors();
@@ -137,6 +140,7 @@ function createSettingsModal(options) {
         if (ferieInput) ferieInput.addEventListener("input", handleColorPreview);
         if (permessoInput) permessoInput.addEventListener("input", handleColorPreview);
         if (straordinariInput) straordinariInput.addEventListener("input", handleColorPreview);
+        if (mutuaInput) mutuaInput.addEventListener("input", handleColorPreview);
     }
 
     return { openSettingsModal, closeSettingsModal, initSettingsModal };

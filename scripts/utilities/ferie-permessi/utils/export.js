@@ -24,14 +24,19 @@ function getExportDates(request) {
 function buildExportRows(requests) {
     return requests.map((request) => {
         const { startValue, endValue } = getExportDates(request);
+        const hours = calculateHours(request);
+        const isMutua = request.type === "mutua";
+        const mutuaHours = isMutua ? hours : 0;
         return {
             "Nome Operatore": request.employee || "",
             "Reparto": request.department || "",
             "Data Inizio": startValue || "",
             "Data Fine": endValue || "",
-            "Ore": calculateHours(request),
+            "Ore": hours,
+            "Ore Mutua": mutuaHours,
             "Tipo": getTypeLabel(request.type),
-            "Approvato da": request.approvedBy || "",
+            "Approvato da": isMutua ? "" : request.approvedBy || "",
+            "Inserito da": isMutua ? request.approvedBy || "" : "",
             "Modificato da": request.modifiedBy || "",
         };
     });

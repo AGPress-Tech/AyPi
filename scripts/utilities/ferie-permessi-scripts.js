@@ -111,6 +111,7 @@ let cachedData = { requests: [] };
 let calendarFilters = {
     leave: true,
     overtime: true,
+    mutua: true,
 };
 let editingAdminName = "";
 let adminCache = [];
@@ -142,6 +143,7 @@ function loadColorSettings() {
             ferie: normalizeHexColor(parsed.ferie, DEFAULT_TYPE_COLORS.ferie),
             permesso: normalizeHexColor(parsed.permesso, DEFAULT_TYPE_COLORS.permesso),
             straordinari: normalizeHexColor(parsed.straordinari, DEFAULT_TYPE_COLORS.straordinari),
+            mutua: normalizeHexColor(parsed.mutua, DEFAULT_TYPE_COLORS.mutua),
         };
     } catch (err) {
         return { ...DEFAULT_TYPE_COLORS };
@@ -165,18 +167,22 @@ function applyTypeColors() {
     const ferieDot = document.querySelector(".fp-legend__dot--ferie");
     const permessoDot = document.querySelector(".fp-legend__dot--permesso");
     const straordinariDot = document.querySelector(".fp-legend__dot--straordinari");
+    const mutuaDot = document.querySelector(".fp-legend__dot--mutua");
     if (ferieDot) ferieDot.style.background = getTypeColor("ferie");
     if (permessoDot) permessoDot.style.background = getTypeColor("permesso");
     if (straordinariDot) straordinariDot.style.background = getTypeColor("straordinari");
+    if (mutuaDot) mutuaDot.style.background = getTypeColor("mutua");
 }
 
 function setSettingsInputsFromColors() {
     const ferieInput = document.getElementById("fp-color-ferie");
     const permessoInput = document.getElementById("fp-color-permesso");
     const straordinariInput = document.getElementById("fp-color-straordinari");
+    const mutuaInput = document.getElementById("fp-color-mutua");
     if (ferieInput) ferieInput.value = getTypeColor("ferie");
     if (permessoInput) permessoInput.value = getTypeColor("permesso");
     if (straordinariInput) straordinariInput.value = getTypeColor("straordinari");
+    if (mutuaInput) mutuaInput.value = getTypeColor("mutua");
 }
 
 function loadThemeSetting() {
@@ -303,7 +309,11 @@ function buildHoverText(request) {
         lines.push(`${formatDateTime(request.start)} - ${formatDateTime(request.end)}`);
     }
     if (request.approvedBy) {
-        lines.push(`Approvato da: ${request.approvedBy}`);
+        if (request.type === "mutua") {
+            lines.push(`Inserito da: ${request.approvedBy}`);
+        } else {
+            lines.push(`Approvato da: ${request.approvedBy}`);
+        }
     }
     if (request.modifiedBy) {
         lines.push(`Modificato da: ${request.modifiedBy}`);
@@ -360,6 +370,9 @@ renderer = createRenderer({
         if (!request || !request.type) return false;
         if (request.type === "straordinari") {
             return calendarFilters.overtime;
+        }
+        if (request.type === "mutua") {
+            return calendarFilters.mutua;
         }
         return calendarFilters.leave;
     },
@@ -423,6 +436,28 @@ const approvalUi = createApprovalModal({
     confirmNegativeBalance,
     onHoursAccess: () => {
         ipcRenderer.send("open-ferie-permessi-hours-window");
+    },
+    onMutuaCreate: (admin, request) => {
+        if (!request) return;
+        const updated = syncData((payload) => {
+            payload.requests = payload.requests || [];
+            const next = {
+                ...request,
+                status: "approved",
+                approvedAt: new Date().toISOString(),
+                approvedBy: admin?.name || UI_TEXTS.defaultAdminLabel,
+                balanceHours: 0,
+                balanceAppliedAt: new Date().toISOString(),
+            };
+            payload.requests.push(next);
+            return payload;
+        });
+        const message = document.getElementById("fp-form-message");
+        setMessage(message, UI_TEXTS.mutuaInserted, false);
+        if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+            requestFormUi.resetNewRequestForm();
+        }
+        renderAll(updated);
     },
 });
 
@@ -562,6 +597,7 @@ const requestFormUi = createRequestForm({
     openConfirmModal,
     confirmNegativeBalance,
     getBalanceImpact: (request) => getBalanceImpact(loadData(), request),
+    openPasswordModal: (action) => approvalUi.openPasswordModal(action),
     syncData,
     renderAll,
     refreshData: () => refreshUi.refreshData(),
@@ -608,7 +644,8 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
     if (startParsed.getFullYear() > maxYear || endParsed.getFullYear() > maxYear) {
         return { error: `L'anno non puo superare ${maxYear}.` };
     }
-    if (!allowPast) {
+    const allowPastDates = allowPast || type === "mutua";
+    if (!allowPastDates) {
         if (startParsed < todayMidnight || endParsed < todayMidnight) {
             return { error: UI_TEXTS.requestNoPastDates };
         }
@@ -1212,6 +1249,22 @@ function init() {
         editEndDateInit.readOnly = false;
     }
 
+    const typeSelect = document.getElementById("fp-type");
+    const updateDateBounds = () => {
+        if (!startDate || !endDate || !typeSelect) return;
+        if (typeSelect.value === "mutua") {
+            startDate.removeAttribute("min");
+            endDate.removeAttribute("min");
+            return;
+        }
+        startDate.setAttribute("min", today);
+        endDate.setAttribute("min", today);
+    };
+    if (typeSelect) {
+        typeSelect.addEventListener("change", updateDateBounds);
+        updateDateBounds();
+    }
+
     const allDayToggle = document.getElementById("fp-all-day");
     updateAllDayLock(startDate, endDate, allDayToggle, "fp");
     if (allDayToggle) {
@@ -1315,7 +1368,8 @@ function init() {
             const includeFerie = !!document.getElementById("fp-export-ferie")?.checked;
             const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
             const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
-            if (!includeFerie && !includePermessi && !includeStraordinari) {
+            const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
+            if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua) {
                 setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
                 return;
             }
@@ -1327,6 +1381,7 @@ function init() {
                 if (req.type === "ferie" && !includeFerie) return false;
                 if (req.type === "permesso" && !includePermessi) return false;
                 if (req.type === "straordinari" && !includeStraordinari) return false;
+                if (req.type === "mutua" && !includeMutua) return false;
                 if (departments.length && req.department && !departments.includes(req.department)) return false;
                 if (rangeMode === "custom") {
                     const { start, end } = getRequestDates(req);
@@ -1357,9 +1412,13 @@ function init() {
                 });
             });
             rows.forEach((_, idx) => {
-                const cell = ws[`E${idx + 2}`];
-                if (cell && cell.t === "n") {
-                    cell.z = "0.00";
+                const hoursCell = ws[`E${idx + 2}`];
+                const mutuaCell = ws[`F${idx + 2}`];
+                if (hoursCell && hoursCell.t === "n") {
+                    hoursCell.z = "0.00";
+                }
+                if (mutuaCell && mutuaCell.t === "n") {
+                    mutuaCell.z = "0.00";
                 }
             });
             XLSX.utils.book_append_sheet(wb, ws, "Ferie e Permessi");
@@ -1384,6 +1443,7 @@ function init() {
 
     const leaveToggle = document.getElementById("fp-filter-leave");
     const overtimeToggle = document.getElementById("fp-filter-overtime");
+    const mutuaToggle = document.getElementById("fp-filter-mutua");
     const applyCalendarFilters = () => {
         if (leaveToggle) {
             calendarFilters.leave = !!leaveToggle.checked;
@@ -1391,13 +1451,19 @@ function init() {
         if (overtimeToggle) {
             calendarFilters.overtime = !!overtimeToggle.checked;
         }
-        renderer.renderCalendar(cachedData);
+        if (mutuaToggle) {
+            calendarFilters.mutua = !!mutuaToggle.checked;
+        }
+               renderer.renderCalendar(cachedData);
     };
     if (leaveToggle) {
         leaveToggle.addEventListener("change", applyCalendarFilters);
     }
     if (overtimeToggle) {
         overtimeToggle.addEventListener("change", applyCalendarFilters);
+    }
+    if (mutuaToggle) {
+        mutuaToggle.addEventListener("change", applyCalendarFilters);
     }
 
     document.addEventListener("keydown", (event) => {

@@ -15,6 +15,7 @@ function createRequestForm(options) {
         openConfirmModal,
         confirmNegativeBalance,
         getBalanceImpact,
+        openPasswordModal,
         syncData,
         renderAll,
         refreshData,
@@ -46,6 +47,7 @@ function createRequestForm(options) {
             toggleAllDayState(false);
         }
         if (typeSelect) typeSelect.selectedIndex = 0;
+        if (typeSelect) typeSelect.dispatchEvent(new Event("change"));
         if (departmentSelect) {
             departmentSelect.selectedIndex = 0;
             departmentSelect.dispatchEvent(new Event("change"));
@@ -117,9 +119,23 @@ function createRequestForm(options) {
             const typeLabel = escapeHtml(getTypeLabel(request.type));
             const startLabel = escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start));
             const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
-            const confirmMessage = UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
+            const confirmMessage = request.type === "mutua"
+                ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
+                : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
             const confirmed = await openConfirmModal(confirmMessage);
             if (!confirmed) {
+                return;
+            }
+            if (request.type === "mutua") {
+                if (typeof openPasswordModal === "function") {
+                    openPasswordModal({
+                        type: "mutua-create",
+                        id: request.id,
+                        title: "Conferma mutua",
+                        description: UI_TEXTS.mutuaPasswordDescription,
+                        request,
+                    });
+                }
                 return;
             }
             if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {

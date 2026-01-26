@@ -24,6 +24,7 @@ const UI_TEXTS = {
     pendingApprovePasswordDescription: "Inserisci la password per approvare la richiesta.",
     pendingRejectPasswordDescription: "Inserisci la password per rifiutare la richiesta.",
     pendingAccessPasswordDescription: "Inserisci la password per visualizzare le richieste in attesa.",
+    mutuaPasswordDescription: "Inserisci la password admin per confermare la mutua.",
     hashingUnavailableTitle: "Modulo hashing non disponibile.",
     hashingUnavailableDetail: "Esegui 'npm install hash-wasm' nella cartella del progetto.",
     otpUnavailableTitle: "Modulo OTP non disponibile.",
@@ -51,9 +52,12 @@ const UI_TEXTS = {
     requestMultiDayAllDayOnly: "Per periodi di piu giorni serve giornata intera.",
     requestMissingTimes: "Inserisci orari di inizio e fine.",
     requestSent: "Richiesta inviata.",
+    mutuaInserted: "Mutua registrata.",
     requestUpdated: "Richiesta aggiornata.",
     requestConfirm: (typeLabel, startLabel, endLabel) =>
         `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
+    mutuaConfirm: (startLabel, endLabel) =>
+        `Confermi l'inserimento della <strong>Mutua</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
     emptyDepartment: "Nessun reparto.",
     emptyEmployee: "Nessun operatore.",
     emptyAssignee: "Nessun dipendente",

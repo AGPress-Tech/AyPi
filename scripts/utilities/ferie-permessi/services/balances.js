@@ -6,6 +6,10 @@ const { calculateHours } = require("../utils/requests");
 const DEFAULT_INITIAL_HOURS = 100;
 const MONTHLY_ACCRUAL_HOURS = 16;
 
+function isBalanceNeutral(request) {
+    return request && (request.type === "straordinari" || request.type === "mutua");
+}
+
 function getMonthKey(date = new Date()) {
     const yyyy = date.getFullYear();
     const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -52,6 +56,24 @@ function listEmployees(assigneeGroups) {
     return rows;
 }
 
+function getApprovedHoursForEmployee(requests, employee, department) {
+    if (!Array.isArray(requests)) return 0;
+    const key = getEmployeeKey(employee, department);
+    if (!key) return 0;
+    return requests.reduce((total, req) => {
+        if (!req || req.status !== "approved") return total;
+        if (req.type === "straordinari") return total;
+        const reqKey = getEmployeeKey(req.employee, req.department);
+        if (reqKey !== key) return total;
+        const hours = Number(req.balanceHours);
+        if (Number.isFinite(hours) && hours > 0) {
+            return total + hours;
+        }
+        const computed = Math.max(0, Math.round(calculateHours(req) * 100) / 100);
+        return total + computed;
+    }, 0);
+}
+
 function normalizeBalances(payload, assigneeGroups, options = {}) {
     const initialHours = options.initialHours ?? DEFAULT_INITIAL_HOURS;
     const monthlyAccrual = options.monthlyAccrual ?? MONTHLY_ACCRUAL_HOURS;
@@ -85,8 +107,9 @@ function normalizeBalances(payload, assigneeGroups, options = {}) {
     employees.forEach((row) => {
         const existing = nextBalances[row.key];
         if (!existing) {
+            const approvedHours = getApprovedHoursForEmployee(nextPayload.requests, row.employee, row.department);
             nextBalances[row.key] = {
-                hoursAvailable: initialHours,
+                hoursAvailable: Math.round((initialHours - approvedHours) * 100) / 100,
                 lastAccrualMonth: currentMonth,
                 monthlyAccrualHours: monthlyAccrual,
                 employee: row.employee,
@@ -143,7 +166,7 @@ function applyBalanceForApproval(payload, request) {
     const key = getEmployeeKey(request.employee, request.department);
     if (!key) return payload;
 
-    if (request.type === "straordinari") {
+    if (isBalanceNeutral(request)) {
         request.balanceHours = 0;
         request.balanceAppliedAt = new Date().toISOString();
         return payload;
@@ -165,7 +188,7 @@ function getBalanceImpact(payload, request) {
     if (!key) {
         return { negative: false, hoursBefore: 0, hoursAfter: 0, hoursDelta: 0 };
     }
-    if (request.type === "straordinari") {
+    if (isBalanceNeutral(request)) {
         const entry = payload.balances ? payload.balances[key] : null;
         const hoursBefore = entry ? Number(entry.hoursAvailable) || 0 : DEFAULT_INITIAL_HOURS;
         return { negative: false, hoursBefore, hoursAfter: hoursBefore, hoursDelta: 0 };
@@ -185,7 +208,7 @@ function applyMissingRequestDeductions(payload) {
     payload.requests.forEach((req) => {
         if (!req || req.status !== "approved") return;
         if (req.balanceAppliedAt) return;
-        if (req.type === "straordinari") {
+        if (isBalanceNeutral(req)) {
             req.balanceHours = 0;
             req.balanceAppliedAt = new Date().toISOString();
             changed = true;
@@ -219,10 +242,9 @@ function applyBalanceForUpdate(payload, existingRequest, nextRequest) {
     const newKey = getEmployeeKey(nextRequest.employee, nextRequest.department);
 
     const oldHours = Number(existingRequest.balanceHours) || 0;
-    const newHours =
-        nextRequest.type === "straordinari"
-            ? 0
-            : Math.max(0, Math.round(calculateHours(nextRequest) * 100) / 100);
+    const newHours = isBalanceNeutral(nextRequest)
+        ? 0
+        : Math.max(0, Math.round(calculateHours(nextRequest) * 100) / 100);
 
     if (!isApproved) {
         if (wasApproved && oldHours > 0 && oldKey) {

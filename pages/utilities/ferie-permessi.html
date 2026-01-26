@@ -27,11 +27,16 @@
                         <input type="checkbox" id="fp-filter-overtime" checked>
                         <span>Straordinari</span>
                     </label>
+                    <label class="fp-filter-toggle">
+                        <input type="checkbox" id="fp-filter-mutua" checked>
+                        <span>Mutua</span>
+                    </label>
                 </div>
                 <div class="fp-legend" id="fp-legend">
                     <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie</span>
                     <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi</span>
                     <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari</span>
+                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua</span>
                 </div>
                 <button type="button" class="fp-btn" id="fp-refresh">Aggiorna</button>
                 <button type="button" class="fp-btn fp-btn--icon" id="fp-settings" aria-label="Impostazioni">
@@ -97,6 +102,7 @@
                             <option value="ferie">Ferie</option>
                             <option value="permesso">Permesso</option>
                             <option value="straordinari">Straordinari</option>
+                            <option value="mutua">Mutua</option>
                         </select>
                     </div>
                     <div class="fp-field fp-checkbox">
@@ -205,6 +211,10 @@
                     <label class="fp-settings-row">
                         <span>Straordinari</span>
                         <input type="color" class="fp-color-input" id="fp-color-straordinari" value="#1a73e8">
+                    </label>
+                    <label class="fp-settings-row">
+                        <span>Mutua</span>
+                        <input type="color" class="fp-color-input" id="fp-color-mutua" value="#00acc1">
                     </label>
                 </div>
             </div>
@@ -358,6 +368,7 @@
                     <label><input type="checkbox" id="fp-export-ferie" checked> Ferie</label>
                     <label><input type="checkbox" id="fp-export-permessi" checked> Permessi</label>
                     <label><input type="checkbox" id="fp-export-straordinari" checked> Straordinari</label>
+                    <label><input type="checkbox" id="fp-export-mutua" checked> Mutua</label>
                 </div>
             </div>
             <div class="fp-export-section">
@@ -435,6 +446,7 @@
                         <option value="ferie">Ferie</option>
                         <option value="permesso">Permesso</option>
                         <option value="straordinari">Straordinari</option>
+                        <option value="mutua">Mutua</option>
                     </select>
                 </div>
                     <div class="fp-field fp-checkbox">

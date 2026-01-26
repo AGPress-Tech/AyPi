@@ -8,6 +8,7 @@ const DEFAULT_TYPE_COLORS = {
     ferie: "#2f9e44",
     permesso: "#f08c00",
     straordinari: "#1a73e8",
+    mutua: "#00acc1",
 };
 
 module.exports = {

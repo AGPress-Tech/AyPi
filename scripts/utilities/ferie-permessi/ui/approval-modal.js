@@ -34,6 +34,7 @@ function createApprovalModal(options) {
         getBalanceImpact,
         confirmNegativeBalance,
         onHoursAccess,
+        onMutuaCreate,
     } = options || {};
 
 
@@ -59,7 +60,15 @@ function createApprovalModal(options) {
         input.value = "";
         input.disabled = false;
         input.readOnly = false;
-        setTimeout(() => input.focus(), 0);
+        input.removeAttribute("disabled");
+        input.removeAttribute("readonly");
+        input.style.pointerEvents = "auto";
+        input.style.userSelect = "text";
+        input.tabIndex = 0;
+        setTimeout(() => {
+            input.focus();
+            input.select?.();
+        }, 0);
     }
 
     function closeApprovalModal() {
@@ -113,6 +122,13 @@ function createApprovalModal(options) {
         }
         const actionType = pendingAction.type;
         const requestId = pendingAction.id;
+        if (actionType === "mutua-create") {
+            closeApprovalModal();
+            if (typeof onMutuaCreate === "function") {
+                onMutuaCreate(admin, pendingAction.request);
+            }
+            return;
+        }
         if (actionType === "approve") {
             if (typeof getBalanceImpact === "function") {
                 const current = loadData();
