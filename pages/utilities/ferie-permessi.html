@@ -49,10 +49,27 @@
                     </label>
                 </div>
                 <div class="fp-legend" id="fp-legend">
-                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie</span>
-                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi</span>
-                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari</span>
-                    <span class="fp-legend__item"><span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua</span>
+                    <button type="button" class="fp-legend__item" data-type="ferie">
+                        <span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie
+                    </button>
+                    <button type="button" class="fp-legend__item" data-type="permesso">
+                        <span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi
+                    </button>
+                    <button type="button" class="fp-legend__item" data-type="straordinari">
+                        <span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari
+                    </button>
+                    <button type="button" class="fp-legend__item" data-type="mutua">
+                        <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua
+                    </button>
+                    <div class="fp-legend-editor is-hidden" id="fp-legend-editor">
+                        <div class="fp-legend-editor__title" id="fp-legend-editor-title">Colore legenda</div>
+                        <div class="fp-legend-editor__row">
+                            <input type="color" class="fp-color-input" id="fp-legend-color-input">
+                            <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-default">Default</button>
+                            <button type="button" class="fp-btn fp-btn--primary" id="fp-legend-save">Salva</button>
+                            <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-cancel">Chiudi</button>
+                        </div>
+                    </div>
                 </div>
                 <button type="button" class="fp-btn" id="fp-refresh">Aggiorna</button>
                 <button type="button" class="fp-btn fp-btn--icon" id="fp-settings" aria-label="Impostazioni">
@@ -222,16 +239,6 @@
                 <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-close">Chiudi</button>
             </div>
             <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-settings-colors-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
-                            <path d="M12 2a10 10 0 0 0-3.54 19.38c.56.2 1.04-.3.9-.87l-.35-1.52a1.5 1.5 0 0 1 1.47-1.87h1.52a3 3 0 0 0 0-6h-1a2 2 0 1 1 0-4h1a2 2 0 1 1 0 4h1a4 4 0 0 1 0 8h-1.52a.5.5 0 0 0-.49.62l.35 1.52a.5.5 0 0 1-.32.58A10 10 0 0 0 12 2Z"></path>
-                        </svg>
-                    </span>
-                    <span class="fp-btn__label">Colori calendario</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
                 <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-settings-theme-open">
                     <span class="fp-btn__icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
@@ -262,38 +269,6 @@
                 </button>
             </div>
             <div id="fp-settings-message" class="fp-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-settings-colors-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-settings-colors-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-settings-colors-title">Colori calendario</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-colors-close">Chiudi</button>
-            </div>
-            <div class="fp-settings-grid">
-                <label class="fp-settings-row">
-                    <span>Ferie</span>
-                    <input type="color" class="fp-color-input" id="fp-color-ferie" value="#2f9e44">
-                </label>
-                <label class="fp-settings-row">
-                    <span>Permessi</span>
-                    <input type="color" class="fp-color-input" id="fp-color-permesso" value="#f08c00">
-                </label>
-                <label class="fp-settings-row">
-                    <span>Straordinari</span>
-                    <input type="color" class="fp-color-input" id="fp-color-straordinari" value="#1a73e8">
-                </label>
-                <label class="fp-settings-row">
-                    <span>Mutua</span>
-                    <input type="color" class="fp-color-input" id="fp-color-mutua" value="#00acc1">
-                </label>
-            </div>
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-colors-reset">Ripristina default</button>
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-settings-colors-save">Salva</button>
-            </div>
-            <div id="fp-settings-colors-message" class="fp-message is-hidden"></div>
         </div>
     </div>
 

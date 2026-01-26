@@ -87,12 +87,19 @@ body.fp-calendar-ready .fp-page {
     border: 1px solid #e0e3e7;
     border-radius: 999px;
     padding: 6px 10px;
+    position: relative;
 }
 
 .fp-legend__item {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
 }
 
 .fp-legend__dot {
@@ -116,6 +123,37 @@ body.fp-calendar-ready .fp-page {
 
 .fp-legend__dot--mutua {
     background: #00acc1;
+}
+
+.fp-legend-editor {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: #ffffff;
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+    min-width: 260px;
+    box-shadow: 0 8px 20px rgba(60, 64, 67, 0.2);
+    z-index: 1200;
+}
+
+.fp-legend-editor.is-hidden {
+    display: none;
+}
+
+.fp-legend-editor__title {
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.fp-legend-editor__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .fp-holidays-controls {
@@ -916,54 +954,6 @@ body.fp-calendar-ready .fp-page {
     display: none;
 }
 
-.fp-settings-grid {
-    display: grid;
-    gap: 12px;
-}
-
-.fp-settings-section {
-    display: grid;
-    gap: 10px;
-}
-
-.fp-settings-toggle {
-    width: 100%;
-    justify-content: space-between;
-    font-size: 13px;
-    text-transform: none;
-    letter-spacing: normal;
-    color: #1a73e8;
-    display: flex;
-    align-items: center;
-}
-
-.fp-settings-toggle::after {
-    content: "+";
-    font-size: 14px;
-    line-height: 1;
-}
-
-.fp-settings-section:not(.is-collapsed) .fp-settings-toggle::after {
-    content: "-";
-}
-
-.fp-settings-section.is-collapsed .fp-settings-panel {
-    display: none;
-}
-
-.fp-settings-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 13px;
-    color: #202124;
-    border: 1px solid #e0e3e7;
-    border-radius: 12px;
-    padding: 10px 12px;
-    background: #ffffff;
-}
-
 .fp-color-input {
     width: 48px;
     height: 32px;
@@ -1147,6 +1137,15 @@ body.fp-dark .fp-legend {
     color: #b0b7c3;
 }
 
+body.fp-dark .fp-legend-editor {
+    background: #1f232a;
+    border-color: #30343b;
+}
+
+body.fp-dark .fp-legend-editor__title {
+    color: #b0b7c3;
+}
+
 body.fp-dark .fp-filter-toggle {
     background: #15181d;
     border-color: #2b2f36;
@@ -1170,16 +1169,6 @@ body.fp-dark .fp-link-btn {
 body.fp-dark .fp-admin-password {
     border-color: #2b2f36;
     background: #15181d;
-}
-
-body.fp-dark .fp-settings-row {
-    background: #15181d;
-    border-color: #2b2f36;
-    color: #e8eaed;
-}
-
-body.fp-dark .fp-settings-toggle {
-    color: #8ab4f8;
 }
 
 body.fp-dark .fp-theme-option {
@@ -1428,6 +1417,15 @@ body.fp-aypi .fp-legend {
     color: #c4b8a6;
 }
 
+body.fp-aypi .fp-legend-editor {
+    background: #2b2824;
+    border-color: #4a433d;
+}
+
+body.fp-aypi .fp-legend-editor__title {
+    color: #c4b8a6;
+}
+
 body.fp-aypi .fp-filter-toggle {
     background: #1f1c19;
     border-color: #4a433d;
@@ -1459,15 +1457,10 @@ body.fp-aypi #fp-calendar .fc a {
     color: #e4ab32;
 }
 
-body.fp-aypi .fp-settings-row,
 body.fp-aypi .fp-theme-option {
     background: #1f1c19;
     border-color: #4a433d;
     color: #f3e6d5;
-}
-
-body.fp-aypi .fp-settings-toggle {
-    color: #e4ab32;
 }
 
 body.fp-aypi .fp-card--modal {

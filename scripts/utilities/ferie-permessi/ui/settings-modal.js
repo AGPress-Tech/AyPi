@@ -24,7 +24,6 @@ function createSettingsModal(options) {
         throw new Error("document richiesto.");
     }
 
-    let colorsSnapshot = null;
     let themeSnapshot = null;
 
     function openSettingsModal() {
@@ -38,27 +37,6 @@ function createSettingsModal(options) {
     function closeSettingsModal() {
         const modal = document.getElementById("fp-settings-modal");
         if (!modal) return;
-        hideModal(modal);
-    }
-
-    function openColorsModal() {
-        const modal = document.getElementById("fp-settings-colors-modal");
-        const message = document.getElementById("fp-settings-colors-message");
-        if (!modal) return;
-        colorsSnapshot = { ...getTypeColors() };
-        setSettingsInputsFromColors();
-        setMessage(message, "");
-        showModal(modal);
-    }
-
-    function closeColorsModal() {
-        const modal = document.getElementById("fp-settings-colors-modal");
-        if (!modal) return;
-        if (colorsSnapshot) {
-            setTypeColors({ ...colorsSnapshot });
-            applyTypeColors();
-            renderAll(loadData());
-        }
         hideModal(modal);
     }
 
@@ -89,22 +67,12 @@ function createSettingsModal(options) {
         const settingsBtn = document.getElementById("fp-settings");
         const settingsClose = document.getElementById("fp-settings-close");
         const settingsModal = document.getElementById("fp-settings-modal");
-        const colorsOpen = document.getElementById("fp-settings-colors-open");
-        const colorsClose = document.getElementById("fp-settings-colors-close");
-        const colorsSave = document.getElementById("fp-settings-colors-save");
-        const colorsReset = document.getElementById("fp-settings-colors-reset");
-        const colorsModal = document.getElementById("fp-settings-colors-modal");
-        const colorsMessage = document.getElementById("fp-settings-colors-message");
         const themeOpen = document.getElementById("fp-settings-theme-open");
         const themeClose = document.getElementById("fp-settings-theme-close");
         const themeSave = document.getElementById("fp-settings-theme-save");
         const themeReset = document.getElementById("fp-settings-theme-reset");
         const themeModal = document.getElementById("fp-settings-theme-modal");
         const themeMessage = document.getElementById("fp-settings-theme-message");
-        const ferieInput = document.getElementById("fp-color-ferie");
-        const permessoInput = document.getElementById("fp-color-permesso");
-        const straordinariInput = document.getElementById("fp-color-straordinari");
-        const mutuaInput = document.getElementById("fp-color-mutua");
         const themeInputs = document.querySelectorAll("input[name='fp-theme']");
 
         if (settingsBtn) {
@@ -122,50 +90,6 @@ function createSettingsModal(options) {
                 if (event.target === settingsModal) {
                     // no-op: keep modal open on backdrop click
                 }
-            });
-        }
-
-        if (colorsOpen) {
-            colorsOpen.addEventListener("click", () => {
-                openColorsModal();
-            });
-        }
-        if (colorsClose) {
-            colorsClose.addEventListener("click", () => {
-                closeColorsModal();
-            });
-        }
-        if (colorsModal) {
-            colorsModal.addEventListener("click", (event) => {
-                if (event.target === colorsModal) {
-                    // no-op: keep modal open on backdrop click
-                }
-            });
-        }
-        if (colorsSave) {
-            colorsSave.addEventListener("click", () => {
-                const nextColors = {
-                    ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
-                    permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
-                    straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
-                    mutua: normalizeHexColor(mutuaInput?.value, DEFAULT_TYPE_COLORS.mutua),
-                };
-                setTypeColors({ ...nextColors });
-                saveColorSettings(getTypeColors());
-                applyTypeColors();
-                renderAll(loadData());
-                setMessage(colorsMessage, "");
-                colorsSnapshot = { ...nextColors };
-                hideModal(colorsModal);
-            });
-        }
-        if (colorsReset) {
-            colorsReset.addEventListener("click", () => {
-                setTypeColors({ ...DEFAULT_TYPE_COLORS });
-                setSettingsInputsFromColors();
-                applyTypeColors();
-                renderAll(loadData());
-                setMessage(colorsMessage, UI_TEXTS.colorsReset, false);
             });
         }
 
@@ -215,21 +139,6 @@ function createSettingsModal(options) {
             });
         });
 
-        const handleColorPreview = () => {
-            const nextColors = {
-                ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
-                permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
-                straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
-                mutua: normalizeHexColor(mutuaInput?.value, DEFAULT_TYPE_COLORS.mutua),
-            };
-            setTypeColors({ ...nextColors });
-            applyTypeColors();
-            renderAll(loadData());
-        };
-        if (ferieInput) ferieInput.addEventListener("input", handleColorPreview);
-        if (permessoInput) permessoInput.addEventListener("input", handleColorPreview);
-        if (straordinariInput) straordinariInput.addEventListener("input", handleColorPreview);
-        if (mutuaInput) mutuaInput.addEventListener("input", handleColorPreview);
     }
 
     return { openSettingsModal, closeSettingsModal, initSettingsModal };

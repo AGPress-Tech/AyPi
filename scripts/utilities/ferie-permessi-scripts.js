@@ -118,6 +118,8 @@ let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
 let passwordFailCount = 0;
+let legendEditingType = null;
+let legendColorSnapshot = null;
 const exportUi = createExportController({
     document,
     showModal,
@@ -164,6 +166,14 @@ function getTypeColor(type) {
     return typeColors[type] || DEFAULT_TYPE_COLORS[type] || "#1a73e8";
 }
 
+function getTypeColors() {
+    return { ...typeColors };
+}
+
+function setTypeColors(next) {
+    typeColors = { ...next };
+}
+
 function applyTypeColors() {
     const ferieDot = document.querySelector(".fp-legend__dot--ferie");
     const permessoDot = document.querySelector(".fp-legend__dot--permesso");
@@ -173,6 +183,34 @@ function applyTypeColors() {
     if (permessoDot) permessoDot.style.background = getTypeColor("permesso");
     if (straordinariDot) straordinariDot.style.background = getTypeColor("straordinari");
     if (mutuaDot) mutuaDot.style.background = getTypeColor("mutua");
+}
+
+function openLegendEditor(type) {
+    const editor = document.getElementById("fp-legend-editor");
+    const title = document.getElementById("fp-legend-editor-title");
+    const colorInput = document.getElementById("fp-legend-color-input");
+    if (!editor || !colorInput) return;
+    legendEditingType = type;
+    legendColorSnapshot = getTypeColors();
+    colorInput.value = getTypeColor(type);
+    if (title) {
+        const label = getTypeLabel(type) || "Colore legenda";
+        title.textContent = `Colore ${label}`;
+    }
+    editor.classList.remove("is-hidden");
+}
+
+function closeLegendEditor(revert) {
+    const editor = document.getElementById("fp-legend-editor");
+    if (!editor) return;
+    editor.classList.add("is-hidden");
+    if (revert && legendColorSnapshot) {
+        setTypeColors(legendColorSnapshot);
+        applyTypeColors();
+        renderAll(loadData());
+    }
+    legendEditingType = null;
+    legendColorSnapshot = null;
 }
 
 function setSettingsInputsFromColors() {
@@ -665,10 +703,8 @@ const settingsUi = createSettingsModal({
     loadData,
     normalizeHexColor,
     DEFAULT_TYPE_COLORS,
-    getTypeColors: () => typeColors,
-    setTypeColors: (next) => {
-        typeColors = next;
-    },
+    getTypeColors,
+    setTypeColors,
 });
 
 const requestFormUi = createRequestForm({
@@ -1590,6 +1626,70 @@ function init() {
 
     refreshUi.refreshData();
     refreshUi.scheduleAutoRefresh();
+
+    const legend = document.getElementById("fp-legend");
+    const legendEditor = document.getElementById("fp-legend-editor");
+    const legendColorInput = document.getElementById("fp-legend-color-input");
+    const legendSave = document.getElementById("fp-legend-save");
+    const legendDefault = document.getElementById("fp-legend-default");
+    const legendCancel = document.getElementById("fp-legend-cancel");
+
+    if (legend) {
+        legend.addEventListener("click", (event) => {
+            const target = event.target.closest(".fp-legend__item");
+            if (!target) return;
+            const type = target.getAttribute("data-type");
+            if (!type) return;
+            openLegendEditor(type);
+        });
+    }
+
+    if (legendEditor) {
+        legendEditor.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+
+    document.addEventListener("click", (event) => {
+        if (!legendEditor || legendEditor.classList.contains("is-hidden")) return;
+        if (event.target.closest("#fp-legend-editor")) return;
+        if (event.target.closest(".fp-legend__item")) return;
+        // no-op: keep editor open; close only via "Chiudi"
+    });
+
+    if (legendColorInput) {
+        legendColorInput.addEventListener("input", () => {
+            if (!legendEditingType) return;
+            const next = normalizeHexColor(legendColorInput.value, getTypeColor(legendEditingType));
+            setTypeColors({ ...getTypeColors(), [legendEditingType]: next });
+            applyTypeColors();
+            renderAll(loadData());
+        });
+    }
+
+    if (legendDefault) {
+        legendDefault.addEventListener("click", () => {
+            if (!legendEditingType) return;
+            const next = DEFAULT_TYPE_COLORS[legendEditingType] || getTypeColor(legendEditingType);
+            if (legendColorInput) legendColorInput.value = next;
+            setTypeColors({ ...getTypeColors(), [legendEditingType]: next });
+            applyTypeColors();
+            renderAll(loadData());
+        });
+    }
+
+    if (legendSave) {
+        legendSave.addEventListener("click", () => {
+            saveColorSettings(getTypeColors());
+            closeLegendEditor(false);
+        });
+    }
+
+    if (legendCancel) {
+        legendCancel.addEventListener("click", () => {
+            closeLegendEditor(true);
+        });
+    }
 
 }
 
