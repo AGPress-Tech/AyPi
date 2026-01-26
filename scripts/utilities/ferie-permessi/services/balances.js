@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { DATA_PATH } = require("../config/paths");
+const { DATA_PATH, REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH } = require("../config/paths");
 const { ensureFolderFor } = require("./storage");
 const { calculateHours } = require("../utils/requests");
 
@@ -283,24 +283,83 @@ function applyBalanceForUpdate(payload, existingRequest, nextRequest) {
     return payload;
 }
 
+function readJsonFile(filePath) {
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, "utf8");
+    if (!raw) return null;
+    return JSON.parse(raw);
+}
+
+function normalizeRequestsData(value) {
+    if (Array.isArray(value)) return value;
+    if (value && Array.isArray(value.requests)) return value.requests;
+    return [];
+}
+
+function normalizeHolidaysData(value) {
+    if (Array.isArray(value)) return value;
+    if (value && Array.isArray(value.holidays)) return value.holidays;
+    return [];
+}
+
+function normalizeBalancesData(value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        if (value.balances && typeof value.balances === "object") {
+            return value.balances;
+        }
+        return value;
+    }
+    return {};
+}
+
+function writeJsonFile(filePath, value) {
+    if (!filePath) return;
+    ensureFolderFor(filePath);
+    fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
+}
+
 function loadPayload() {
     try {
-        if (!fs.existsSync(DATA_PATH)) {
-            return { requests: [], balances: {} };
+        const parsedRequests = readJsonFile(REQUESTS_PATH);
+        const parsedHolidays = readJsonFile(HOLIDAYS_PATH);
+        const parsedBalances = readJsonFile(BALANCES_PATH);
+
+        let requests = parsedRequests == null ? null : normalizeRequestsData(parsedRequests);
+        let holidays = parsedHolidays == null ? null : normalizeHolidaysData(parsedHolidays);
+        let balances = parsedBalances == null ? null : normalizeBalancesData(parsedBalances);
+
+        const needsLegacy = requests == null || holidays == null || balances == null;
+        if (needsLegacy && fs.existsSync(DATA_PATH)) {
+            const legacyParsed = readJsonFile(DATA_PATH);
+            if (requests == null) {
+                requests = normalizeRequestsData(legacyParsed);
+            }
+            if (holidays == null) {
+                holidays = normalizeHolidaysData(legacyParsed);
+            }
+            if (balances == null) {
+                balances = normalizeBalancesData(legacyParsed);
+            }
+
+            if (requests != null || holidays != null || balances != null) {
+                if (requests == null) requests = [];
+                if (holidays == null) holidays = [];
+                if (balances == null) balances = {};
+                try {
+                    if (parsedRequests == null) writeJsonFile(REQUESTS_PATH, requests);
+                    if (parsedHolidays == null) writeJsonFile(HOLIDAYS_PATH, holidays);
+                    if (parsedBalances == null) writeJsonFile(BALANCES_PATH, balances);
+                } catch (err) {
+                    console.error("Errore migrazione dati ferie:", err);
+                }
+            }
         }
-        const raw = fs.readFileSync(DATA_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.requests)) {
-            return {
-                requests: parsed.requests || [],
-                balances: parsed.balances || {},
-                holidays: parsed.holidays || [],
-            };
-        }
-        if (Array.isArray(parsed)) {
-            return { requests: parsed, balances: {}, holidays: [] };
-        }
-        return { requests: [], balances: {}, holidays: [] };
+
+        return {
+            requests: requests || [],
+            balances: balances || {},
+            holidays: holidays || [],
+        };
     } catch (err) {
         console.error("Errore caricamento dati ferie:", err);
         return { requests: [], balances: {}, holidays: [] };
@@ -309,8 +368,12 @@ function loadPayload() {
 
 function savePayload(payload) {
     try {
-        ensureFolderFor(DATA_PATH);
-        fs.writeFileSync(DATA_PATH, JSON.stringify(payload, null, 2), "utf8");
+        const requests = normalizeRequestsData(payload);
+        const holidays = normalizeHolidaysData(payload);
+        const balances = normalizeBalancesData(payload?.balances ?? payload);
+        writeJsonFile(REQUESTS_PATH, requests);
+        writeJsonFile(HOLIDAYS_PATH, holidays);
+        writeJsonFile(BALANCES_PATH, balances);
         return true;
     } catch (err) {
         console.error("Errore salvataggio ferie:", err);

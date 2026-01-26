@@ -1,6 +1,9 @@
 const NETWORK_PATHS = {
     dl360ServerCheck: "\\\\Dl360\\private\\AyPi Server Validator.txt",
     feriePermessiData: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi.json",
+    feriePermessiRequests: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-requests.json",
+    feriePermessiHolidays: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-holidays.json",
+    feriePermessiBalances: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-balances.json",
     feriePermessiAdmins: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-admins.json",
     otpMailServer: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\otp-mail.json",
     amministrazioneAssignees: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json",

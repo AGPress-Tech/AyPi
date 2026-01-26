@@ -16,7 +16,7 @@ const bootRequire = (modulePath) => {
     }
 };
 
-const { DATA_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
+const { REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
 const {
     AUTO_REFRESH_MS,
     OTP_EXPIRY_MS,
@@ -224,7 +224,9 @@ function setAdminMessage(id, text, isError = false) {
 }
 
 function ensureDataFolder() {
-    ensureFolderFor(DATA_PATH);
+    ensureFolderFor(REQUESTS_PATH);
+    ensureFolderFor(HOLIDAYS_PATH);
+    ensureFolderFor(BALANCES_PATH);
 }
 
 function loadData() {
