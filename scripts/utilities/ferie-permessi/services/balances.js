@@ -56,7 +56,7 @@ function listEmployees(assigneeGroups) {
     return rows;
 }
 
-function getApprovedHoursForEmployee(requests, employee, department) {
+function getApprovedHoursForEmployee(requests, employee, department, holidays) {
     if (!Array.isArray(requests)) return 0;
     const key = getEmployeeKey(employee, department);
     if (!key) return 0;
@@ -69,7 +69,7 @@ function getApprovedHoursForEmployee(requests, employee, department) {
         if (Number.isFinite(hours) && hours > 0) {
             return total + hours;
         }
-        const computed = Math.max(0, Math.round(calculateHours(req) * 100) / 100);
+        const computed = Math.max(0, Math.round(calculateHours(req, holidays) * 100) / 100);
         return total + computed;
     }, 0);
 }
@@ -107,7 +107,12 @@ function normalizeBalances(payload, assigneeGroups, options = {}) {
     employees.forEach((row) => {
         const existing = nextBalances[row.key];
         if (!existing) {
-            const approvedHours = getApprovedHoursForEmployee(nextPayload.requests, row.employee, row.department);
+            const approvedHours = getApprovedHoursForEmployee(
+                nextPayload.requests,
+                row.employee,
+                row.department,
+                nextPayload.holidays
+            );
             nextBalances[row.key] = {
                 hoursAvailable: Math.round((initialHours - approvedHours) * 100) / 100,
                 lastAccrualMonth: currentMonth,
@@ -172,7 +177,7 @@ function applyBalanceForApproval(payload, request) {
         return payload;
     }
 
-    const hours = Math.max(0, Math.round(calculateHours(request) * 100) / 100);
+    const hours = Math.max(0, Math.round(calculateHours(request, payload.holidays) * 100) / 100);
     const entry = ensureBalanceEntry(payload, key);
     entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) - hours;
     request.balanceHours = hours;
@@ -193,7 +198,7 @@ function getBalanceImpact(payload, request) {
         const hoursBefore = entry ? Number(entry.hoursAvailable) || 0 : DEFAULT_INITIAL_HOURS;
         return { negative: false, hoursBefore, hoursAfter: hoursBefore, hoursDelta: 0 };
     }
-    const hoursDelta = Math.max(0, Math.round(calculateHours(request) * 100) / 100);
+    const hoursDelta = Math.max(0, Math.round(calculateHours(request, payload.holidays) * 100) / 100);
     const entry = payload.balances ? payload.balances[key] : null;
     const hoursBefore = entry ? Number(entry.hoursAvailable) || 0 : DEFAULT_INITIAL_HOURS;
     const hoursAfter = Math.round((hoursBefore - hoursDelta) * 100) / 100;
@@ -244,7 +249,7 @@ function applyBalanceForUpdate(payload, existingRequest, nextRequest) {
     const oldHours = Number(existingRequest.balanceHours) || 0;
     const newHours = isBalanceNeutral(nextRequest)
         ? 0
-        : Math.max(0, Math.round(calculateHours(nextRequest) * 100) / 100);
+        : Math.max(0, Math.round(calculateHours(nextRequest, payload.holidays) * 100) / 100);
 
     if (!isApproved) {
         if (wasApproved && oldHours > 0 && oldKey) {
@@ -289,15 +294,16 @@ function loadPayload() {
             return {
                 requests: parsed.requests || [],
                 balances: parsed.balances || {},
+                holidays: parsed.holidays || [],
             };
         }
         if (Array.isArray(parsed)) {
-            return { requests: parsed, balances: {} };
+            return { requests: parsed, balances: {}, holidays: [] };
         }
-        return { requests: [], balances: {} };
+        return { requests: [], balances: {}, holidays: [] };
     } catch (err) {
         console.error("Errore caricamento dati ferie:", err);
-        return { requests: [], balances: {} };
+        return { requests: [], balances: {}, holidays: [] };
     }
 }
 

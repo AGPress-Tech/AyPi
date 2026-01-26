@@ -35,6 +35,9 @@ function createApprovalModal(options) {
         confirmNegativeBalance,
         onHoursAccess,
         onMutuaCreate,
+        onHolidayCreate,
+        onHolidayRemove,
+        onHolidayUpdate,
     } = options || {};
 
 
@@ -126,6 +129,27 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onMutuaCreate === "function") {
                 onMutuaCreate(admin, pendingAction.request);
+            }
+            return;
+        }
+        if (actionType === "holiday-create") {
+            closeApprovalModal();
+            if (typeof onHolidayCreate === "function") {
+                onHolidayCreate(admin, pendingAction.dates, pendingAction.name);
+            }
+            return;
+        }
+        if (actionType === "holiday-remove") {
+            closeApprovalModal();
+            if (typeof onHolidayRemove === "function") {
+                onHolidayRemove(admin, pendingAction.date);
+            }
+            return;
+        }
+        if (actionType === "holiday-update") {
+            closeApprovalModal();
+            if (typeof onHolidayUpdate === "function") {
+                onHolidayUpdate(admin, pendingAction.date, pendingAction.nextDate, pendingAction.nextName);
             }
             return;
         }

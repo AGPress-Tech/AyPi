@@ -203,12 +203,18 @@ function initCalendar(options) {
             }, 0);
         },
         eventClick: (info) => {
+            if (info?.event?.extendedProps?.isHoliday) {
+                return;
+            }
             if (typeof onEventSelect === "function") {
                 onEventSelect(info?.event?.id || null);
             }
         },
         eventDidMount: (info) => {
             if (!info || !info.el) return;
+            if (info.event?.extendedProps?.isHoliday) {
+                return;
+            }
             if (typeof getRequestById === "function") {
                 const request = getRequestById(info.event?.id);
                 if (request) {

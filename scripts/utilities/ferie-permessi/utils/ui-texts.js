@@ -53,6 +53,13 @@ const UI_TEXTS = {
     requestMissingTimes: "Inserisci orari di inizio e fine.",
     requestSent: "Richiesta inviata.",
     mutuaInserted: "Mutua registrata.",
+    holidayInvalidDate: "Seleziona una data valida.",
+    holidayRangeInvalid: "Seleziona un intervallo valido.",
+    holidayAlreadyExists: "Festivita gia presente.",
+    holidayAdded: "Festivita aggiunta.",
+    holidayRemoved: "Festivita rimossa.",
+    holidayUpdated: "Festivita aggiornata.",
+    holidayPasswordDescription: "Inserisci la password admin per confermare la festivita.",
     requestUpdated: "Richiesta aggiornata.",
     requestConfirm: (typeLabel, startLabel, endLabel) =>
         `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,

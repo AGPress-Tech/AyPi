@@ -106,6 +106,101 @@ body {
     background: #00acc1;
 }
 
+.fp-holidays-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 12px 0;
+    flex-wrap: wrap;
+}
+
+.fp-holidays-card {
+    width: min(520px, 92vw);
+    max-width: 520px;
+}
+
+.fp-holidays-date-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.fp-holidays-date-grid .fp-btn {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+}
+
+.fp-holidays-date-grid .fp-field__input {
+    min-width: 0;
+    width: 100%;
+}
+
+.fp-holidays-date-grid .fp-btn {
+    justify-self: end;
+}
+
+@media (max-width: 640px) {
+    .fp-holidays-date-grid {
+        grid-template-columns: 1fr;
+        justify-items: stretch;
+    }
+}
+
+.fp-holidays-row__edit {
+    display: grid;
+    gap: 6px;
+}
+
+.fp-holidays-list {
+    display: grid;
+    gap: 8px;
+}
+
+.fp-holidays-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    background: #f7f8fa;
+    font-size: 13px;
+}
+
+.fp-holidays-row.is-highlight {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.15);
+}
+
+.fp-holidays-row__info {
+    display: grid;
+    gap: 4px;
+}
+
+.fp-holidays-row__name {
+    font-weight: 600;
+}
+
+.fp-holidays-row__date {
+    color: #5f6368;
+}
+
+.fc .fp-holiday-bg {
+    background-color: #e6f4ff !important;
+    opacity: 0.7;
+}
+
+.fc .fp-holiday-name {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 600;
+    margin-top: 4px;
+    pointer-events: none;
+}
+
 .fp-summary {
     font-size: 13px;
     color: #5f6368;
@@ -933,6 +1028,23 @@ body.fp-dark .fp-btn--primary:hover {
     background: #7aa2e6;
 }
 
+body.fp-dark .fp-holidays-row {
+    background: #15181d;
+    border-color: #2b2f36;
+}
+
+body.fp-dark .fp-holidays-row__date {
+    color: #9aa5b1;
+}
+
+body.fp-dark .fc .fp-holiday-name {
+    color: #aab8c4;
+}
+
+body.fp-dark .fc .fp-holiday-bg {
+    background-color: #1d3a52 !important;
+}
+
 body.fp-dark .fp-btn--danger {
     background: #3b1f1c;
     border-color: #3b1f1c;
@@ -1190,6 +1302,23 @@ body.fp-aypi .fp-btn--primary {
 
 body.fp-aypi .fp-btn--primary:hover {
     background: #e4ab32;
+}
+
+body.fp-aypi .fp-holidays-row {
+    background: #1f1c19;
+    border-color: #4a433d;
+}
+
+body.fp-aypi .fp-holidays-row__date {
+    color: #c4b8a6;
+}
+
+body.fp-aypi .fc .fp-holiday-name {
+    color: #d7c3a3;
+}
+
+body.fp-aypi .fc .fp-holiday-bg {
+    background-color: #324257 !important;
 }
 
 body.fp-aypi .fp-btn--danger {

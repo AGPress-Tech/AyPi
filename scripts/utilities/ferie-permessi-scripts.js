@@ -70,6 +70,7 @@ const { createSettingsModal } = bootRequire(path.join(fpUiDir, "settings-modal")
 const { createApprovalModal } = bootRequire(path.join(fpUiDir, "approval-modal"));
 const { createEditModal } = bootRequire(path.join(fpUiDir, "edit-modal"));
 const { createRequestForm } = bootRequire(path.join(fpUiDir, "request-form"));
+const { createHolidaysModal } = bootRequire(path.join(fpUiDir, "holidays-modal"));
 const { createPendingPanel } = bootRequire(path.join(fpUiDir, "pending-panel"));
 const { createSummary } = bootRequire(path.join(fpUiDir, "summary"));
 const { createRenderer } = bootRequire(path.join(fpUiDir, "rendering"));
@@ -459,6 +460,91 @@ const approvalUi = createApprovalModal({
         }
         renderAll(updated);
     },
+    onHolidayCreate: (_admin, dates, name) => {
+        if (!Array.isArray(dates) || !dates.length) return;
+        const updated = syncData((payload) => {
+            const existing = Array.isArray(payload.holidays) ? payload.holidays.slice() : [];
+            const map = new Map();
+            existing.forEach((item) => {
+                if (typeof item === "string") {
+                    map.set(item, { date: item, name: "" });
+                } else if (item && typeof item.date === "string") {
+                    map.set(item.date, { date: item.date, name: item.name || "" });
+                }
+            });
+            let added = 0;
+            dates.forEach((date, index) => {
+                if (!map.has(date)) {
+                    map.set(date, { date, name: index === 0 ? (name || "") : "" });
+                    added += 1;
+                }
+            });
+            payload.holidays = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+            payload.holidaysAdded = added;
+            return payload;
+        });
+        holidaysUi.renderHolidayList(updated);
+        const message = document.getElementById("fp-holidays-message");
+        if (updated.holidaysAdded && updated.holidaysAdded > 0) {
+            setMessage(message, UI_TEXTS.holidayAdded, false);
+        } else {
+            setMessage(message, UI_TEXTS.holidayAlreadyExists, true);
+        }
+        delete updated.holidaysAdded;
+        renderAll(updated);
+    },
+    onHolidayRemove: (_admin, date) => {
+        if (!date) return;
+        const updated = syncData((payload) => {
+            const existing = Array.isArray(payload.holidays) ? payload.holidays.slice() : [];
+            payload.holidays = existing.filter((item) => (typeof item === "string" ? item : item?.date) !== date);
+            return payload;
+        });
+        holidaysUi.renderHolidayList(updated);
+        setMessage(document.getElementById("fp-holidays-message"), UI_TEXTS.holidayRemoved, false);
+        renderAll(updated);
+    },
+    onHolidayUpdate: (_admin, date, nextDate, nextName) => {
+        if (!date || !nextDate) return;
+        const updated = syncData((payload) => {
+            const existing = Array.isArray(payload.holidays) ? payload.holidays.slice() : [];
+            const normalized = existing.map((item) => {
+                if (typeof item === "string") return { date: item, name: "" };
+                if (item && typeof item.date === "string") return { date: item.date, name: item.name || "" };
+                return null;
+            }).filter(Boolean);
+            const hasConflict = normalized.some((item) => item.date === nextDate && item.date !== date);
+            if (hasConflict) {
+                payload.holidaysUpdated = false;
+                return payload;
+            }
+            payload.holidays = normalized.map((item) => {
+                if (item.date !== date) return item;
+                return { date: nextDate, name: nextName || "" };
+            });
+            payload.holidaysUpdated = true;
+            return payload;
+        });
+        holidaysUi.renderHolidayList(updated);
+        if (updated.holidaysUpdated) {
+            setMessage(document.getElementById("fp-holidays-message"), UI_TEXTS.holidayUpdated, false);
+        } else {
+            setMessage(document.getElementById("fp-holidays-message"), UI_TEXTS.holidayAlreadyExists, true);
+        }
+        delete updated.holidaysUpdated;
+        renderAll(updated);
+    },
+});
+
+const holidaysUi = createHolidaysModal({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    syncData,
+    renderAll,
+    loadData,
+    openPasswordModal: (action) => approvalUi.openPasswordModal(action),
 });
 
 const editUi = createEditModal({
@@ -1295,6 +1381,7 @@ function init() {
     pendingUi.initPendingPanel();
 
     assigneesUi.initAssigneesModal();
+    holidaysUi.initHolidaysModal();
 
     const hoursManage = document.getElementById("fp-hours-manage");
     if (hoursManage) {
@@ -1375,7 +1462,8 @@ function init() {
             }
             const departments = exportUi.getExportSelectedDepartments();
 
-            const raw = loadData().requests || [];
+            const payload = loadData();
+            const raw = payload.requests || [];
             const approved = raw.filter((req) => req.status === "approved");
             const filtered = approved.filter((req) => {
                 if (req.type === "ferie" && !includeFerie) return false;
@@ -1399,7 +1487,7 @@ function init() {
                 return;
             }
 
-            const rows = buildExportRows(filtered);
+            const rows = buildExportRows(filtered, payload.holidays);
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(rows);
             const dateColumns = ["C", "D"];
@@ -1464,6 +1552,21 @@ function init() {
     }
     if (mutuaToggle) {
         mutuaToggle.addEventListener("change", applyCalendarFilters);
+    }
+
+    const calendarRoot = document.getElementById("fp-calendar");
+    if (calendarRoot) {
+        calendarRoot.addEventListener("contextmenu", (event) => {
+            const cell = event.target.closest("[data-date]");
+            if (!cell) return;
+            const date = cell.getAttribute("data-date");
+            if (!date) return;
+            const holidays = Array.isArray(cachedData.holidays) ? cachedData.holidays : [];
+            const match = holidays.find((item) => (typeof item === "string" ? item : item?.date) === date);
+            if (!match) return;
+            event.preventDefault();
+            holidaysUi.openHolidaysListModal(date);
+        });
     }
 
     document.addEventListener("keydown", (event) => {
