@@ -8,7 +8,6 @@ function createSettingsModal(options) {
         setMessage,
         loadThemeSetting,
         saveThemeSetting,
-        loadColorSettings,
         saveColorSettings,
         setSettingsInputsFromColors,
         applyTypeColors,
@@ -25,18 +24,50 @@ function createSettingsModal(options) {
         throw new Error("document richiesto.");
     }
 
-    let settingsSnapshot = null;
+    let colorsSnapshot = null;
+    let themeSnapshot = null;
 
     function openSettingsModal() {
         const modal = document.getElementById("fp-settings-modal");
         const message = document.getElementById("fp-settings-message");
         if (!modal) return;
-        const themeValue = loadThemeSetting();
-        settingsSnapshot = {
-            theme: themeValue,
-            colors: { ...getTypeColors() },
-        };
+        setMessage(message, "");
+        showModal(modal);
+    }
+
+    function closeSettingsModal() {
+        const modal = document.getElementById("fp-settings-modal");
+        if (!modal) return;
+        hideModal(modal);
+    }
+
+    function openColorsModal() {
+        const modal = document.getElementById("fp-settings-colors-modal");
+        const message = document.getElementById("fp-settings-colors-message");
+        if (!modal) return;
+        colorsSnapshot = { ...getTypeColors() };
         setSettingsInputsFromColors();
+        setMessage(message, "");
+        showModal(modal);
+    }
+
+    function closeColorsModal() {
+        const modal = document.getElementById("fp-settings-colors-modal");
+        if (!modal) return;
+        if (colorsSnapshot) {
+            setTypeColors({ ...colorsSnapshot });
+            applyTypeColors();
+            renderAll(loadData());
+        }
+        hideModal(modal);
+    }
+
+    function openThemeModal() {
+        const modal = document.getElementById("fp-settings-theme-modal");
+        const message = document.getElementById("fp-settings-theme-message");
+        if (!modal) return;
+        const themeValue = loadThemeSetting();
+        themeSnapshot = themeValue;
         const themeInputs = document.querySelectorAll("input[name='fp-theme']");
         themeInputs.forEach((input) => {
             input.checked = input.value === themeValue;
@@ -45,14 +76,11 @@ function createSettingsModal(options) {
         showModal(modal);
     }
 
-    function closeSettingsModal() {
-        const modal = document.getElementById("fp-settings-modal");
+    function closeThemeModal() {
+        const modal = document.getElementById("fp-settings-theme-modal");
         if (!modal) return;
-        if (settingsSnapshot) {
-            setTypeColors({ ...settingsSnapshot.colors });
-            applyTypeColors();
-            applyTheme(settingsSnapshot.theme);
-            renderAll(loadData());
+        if (themeSnapshot) {
+            applyTheme(themeSnapshot);
         }
         hideModal(modal);
     }
@@ -60,10 +88,19 @@ function createSettingsModal(options) {
     function initSettingsModal() {
         const settingsBtn = document.getElementById("fp-settings");
         const settingsClose = document.getElementById("fp-settings-close");
-        const settingsSave = document.getElementById("fp-settings-save");
-        const settingsReset = document.getElementById("fp-settings-reset");
         const settingsModal = document.getElementById("fp-settings-modal");
-        const settingsMessage = document.getElementById("fp-settings-message");
+        const colorsOpen = document.getElementById("fp-settings-colors-open");
+        const colorsClose = document.getElementById("fp-settings-colors-close");
+        const colorsSave = document.getElementById("fp-settings-colors-save");
+        const colorsReset = document.getElementById("fp-settings-colors-reset");
+        const colorsModal = document.getElementById("fp-settings-colors-modal");
+        const colorsMessage = document.getElementById("fp-settings-colors-message");
+        const themeOpen = document.getElementById("fp-settings-theme-open");
+        const themeClose = document.getElementById("fp-settings-theme-close");
+        const themeSave = document.getElementById("fp-settings-theme-save");
+        const themeReset = document.getElementById("fp-settings-theme-reset");
+        const themeModal = document.getElementById("fp-settings-theme-modal");
+        const themeMessage = document.getElementById("fp-settings-theme-message");
         const ferieInput = document.getElementById("fp-color-ferie");
         const permessoInput = document.getElementById("fp-color-permesso");
         const straordinariInput = document.getElementById("fp-color-straordinari");
@@ -82,30 +119,92 @@ function createSettingsModal(options) {
         }
         if (settingsModal) {
             settingsModal.addEventListener("click", (event) => {
-                if (event.target === settingsModal) closeSettingsModal();
+                if (event.target === settingsModal) {
+                    // no-op: keep modal open on backdrop click
+                }
             });
         }
-        if (settingsSave) {
-            settingsSave.addEventListener("click", () => {
+
+        if (colorsOpen) {
+            colorsOpen.addEventListener("click", () => {
+                openColorsModal();
+            });
+        }
+        if (colorsClose) {
+            colorsClose.addEventListener("click", () => {
+                closeColorsModal();
+            });
+        }
+        if (colorsModal) {
+            colorsModal.addEventListener("click", (event) => {
+                if (event.target === colorsModal) {
+                    // no-op: keep modal open on backdrop click
+                }
+            });
+        }
+        if (colorsSave) {
+            colorsSave.addEventListener("click", () => {
                 const nextColors = {
                     ferie: normalizeHexColor(ferieInput?.value, DEFAULT_TYPE_COLORS.ferie),
                     permesso: normalizeHexColor(permessoInput?.value, DEFAULT_TYPE_COLORS.permesso),
                     straordinari: normalizeHexColor(straordinariInput?.value, DEFAULT_TYPE_COLORS.straordinari),
                     mutua: normalizeHexColor(mutuaInput?.value, DEFAULT_TYPE_COLORS.mutua),
                 };
-                const selectedTheme = Array.from(themeInputs).find((input) => input.checked)?.value || "light";
                 setTypeColors({ ...nextColors });
                 saveColorSettings(getTypeColors());
                 applyTypeColors();
+                renderAll(loadData());
+                setMessage(colorsMessage, "");
+                colorsSnapshot = { ...nextColors };
+                hideModal(colorsModal);
+            });
+        }
+        if (colorsReset) {
+            colorsReset.addEventListener("click", () => {
+                setTypeColors({ ...DEFAULT_TYPE_COLORS });
+                setSettingsInputsFromColors();
+                applyTypeColors();
+                renderAll(loadData());
+                setMessage(colorsMessage, UI_TEXTS.colorsReset, false);
+            });
+        }
+
+        if (themeOpen) {
+            themeOpen.addEventListener("click", () => {
+                openThemeModal();
+            });
+        }
+        if (themeClose) {
+            themeClose.addEventListener("click", () => {
+                closeThemeModal();
+            });
+        }
+        if (themeModal) {
+            themeModal.addEventListener("click", (event) => {
+                if (event.target === themeModal) {
+                    // no-op: keep modal open on backdrop click
+                }
+            });
+        }
+        if (themeSave) {
+            themeSave.addEventListener("click", () => {
+                const selectedTheme = Array.from(themeInputs).find((input) => input.checked)?.value || "light";
                 saveThemeSetting(selectedTheme);
                 applyTheme(selectedTheme);
                 renderAll(loadData());
-                setMessage(settingsMessage, "");
-                hideModal(settingsModal);
-                settingsSnapshot = {
-                    theme: selectedTheme,
-                    colors: { ...nextColors },
-                };
+                setMessage(themeMessage, "");
+                themeSnapshot = selectedTheme;
+                hideModal(themeModal);
+            });
+        }
+        if (themeReset) {
+            themeReset.addEventListener("click", () => {
+                const nextTheme = "light";
+                themeInputs.forEach((input) => {
+                    input.checked = input.value === nextTheme;
+                });
+                applyTheme(nextTheme);
+                setMessage(themeMessage, "", false);
             });
         }
 
@@ -115,16 +214,6 @@ function createSettingsModal(options) {
                 applyTheme(input.value);
             });
         });
-        if (settingsReset) {
-            settingsReset.addEventListener("click", () => {
-                setTypeColors({ ...DEFAULT_TYPE_COLORS });
-                saveColorSettings(getTypeColors());
-                setSettingsInputsFromColors();
-                applyTypeColors();
-                renderAll(loadData());
-                setMessage(settingsMessage, UI_TEXTS.colorsReset, false);
-            });
-        }
 
         const handleColorPreview = () => {
             const nextColors = {

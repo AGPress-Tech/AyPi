@@ -921,6 +921,36 @@ body.fp-calendar-ready .fp-page {
     gap: 12px;
 }
 
+.fp-settings-section {
+    display: grid;
+    gap: 10px;
+}
+
+.fp-settings-toggle {
+    width: 100%;
+    justify-content: space-between;
+    font-size: 13px;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #1a73e8;
+    display: flex;
+    align-items: center;
+}
+
+.fp-settings-toggle::after {
+    content: "+";
+    font-size: 14px;
+    line-height: 1;
+}
+
+.fp-settings-section:not(.is-collapsed) .fp-settings-toggle::after {
+    content: "-";
+}
+
+.fp-settings-section.is-collapsed .fp-settings-panel {
+    display: none;
+}
+
 .fp-settings-row {
     display: flex;
     align-items: center;
@@ -1146,6 +1176,10 @@ body.fp-dark .fp-settings-row {
     background: #15181d;
     border-color: #2b2f36;
     color: #e8eaed;
+}
+
+body.fp-dark .fp-settings-toggle {
+    color: #8ab4f8;
 }
 
 body.fp-dark .fp-theme-option {
@@ -1430,6 +1464,10 @@ body.fp-aypi .fp-theme-option {
     background: #1f1c19;
     border-color: #4a433d;
     color: #f3e6d5;
+}
+
+body.fp-aypi .fp-settings-toggle {
+    color: #e4ab32;
 }
 
 body.fp-aypi .fp-card--modal {

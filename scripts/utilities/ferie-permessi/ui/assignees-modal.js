@@ -60,7 +60,9 @@ function createAssigneesModal(options) {
 
         if (assigneesModal) {
             assigneesModal.addEventListener("click", (event) => {
-                if (event.target === assigneesModal) closeAssigneesModal();
+                if (event.target === assigneesModal) {
+                    // no-op: keep modal open on backdrop click
+                }
             });
         }
 

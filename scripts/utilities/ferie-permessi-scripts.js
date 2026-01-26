@@ -1419,7 +1419,9 @@ function init() {
 
     if (exportModal) {
         exportModal.addEventListener("click", (event) => {
-            if (event.target === exportModal) exportUi.closeExportModal();
+            if (event.target === exportModal) {
+                // no-op: keep modal open on backdrop click
+            }
         });
     }
 
