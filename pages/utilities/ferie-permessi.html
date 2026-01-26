@@ -9,7 +9,23 @@
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
 </head>
 
-<body class="fp-splash-active">
+<body>
+    <div id="fp-calendar-splash" class="fp-calendar-splash">
+        <img src="../../assets/AyPi Calendar.png" alt="AyPi Calendar">
+    </div>
+    <script>
+        (function () {
+            try {
+                var params = new URLSearchParams(window.location.search || "");
+                if (params.get("fpSplash") === "1") {
+                    var splashEl = document.getElementById("fp-calendar-splash");
+                    if (splashEl) {
+                        splashEl.classList.add("is-visible");
+                    }
+                }
+            } catch (err) {}
+        })();
+    </script>
     <div class="fp-page">
         <header class="fp-header">
             <div>
@@ -152,10 +168,6 @@
                 <div id="fp-calendar"></div>
             </section>
         </main>
-    </div>
-
-    <div id="fp-calendar-splash" class="fp-calendar-splash">
-        <img src="../../assets/AyPi Calendar.png" alt="AyPi Calendar">
     </div>
 
     <div class="fp-pending-flyout" id="fp-pending-panel" aria-hidden="true">

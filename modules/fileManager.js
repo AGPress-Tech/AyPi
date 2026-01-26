@@ -397,6 +397,7 @@ let timerWindow = null;
 let amministrazioneWindow = null;
 let feriePermessiWindow = null;
 let feriePermessiHoursWindow = null;
+let feriePermessiSplashShown = false;
 let isAppQuitting = false;
 
 function openBatchRenameWindow(mainWindow) {
@@ -546,6 +547,9 @@ function openFeriePermessiWindow(mainWindow) {
         return;
     }
 
+    const shouldShowSplash = !feriePermessiSplashShown;
+    feriePermessiSplashShown = true;
+
     feriePermessiWindow = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -558,7 +562,10 @@ function openFeriePermessiWindow(mainWindow) {
     });
 
     feriePermessiWindow.maximize();
-    feriePermessiWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"));
+    feriePermessiWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"),
+        { query: { fpSplash: shouldShowSplash ? "1" : "0" } }
+    );
     feriePermessiWindow.setMenu(null);
 
     feriePermessiWindow.once("ready-to-show", () => {

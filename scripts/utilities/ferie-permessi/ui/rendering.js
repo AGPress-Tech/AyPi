@@ -1,5 +1,3 @@
-const { ipcRenderer } = require("electron");
-
 function createRenderer(options) {
     const {
         document,
@@ -98,6 +96,7 @@ function createRenderer(options) {
             setCachedData(next);
         }
         const splash = document.getElementById("fp-calendar-splash");
+        const shouldShowSplash = new URLSearchParams(window.location.search).get("fpSplash") === "1";
         const showModule = () => {
             document.body.classList.remove("fp-splash-active");
             document.body.classList.add("fp-calendar-ready");
@@ -126,8 +125,8 @@ function createRenderer(options) {
                 splash.dataset.started = "1";
                 splash.classList.remove("is-hidden", "is-fading");
                 splash.classList.add("is-visible");
-                const fullOpacityMs = 2000;
-                const fadeMs = 1200;
+                const fullOpacityMs = 800;
+                const fadeMs = 800;
                 setTimeout(() => {
                     splash.classList.add("is-fading");
                     showModule();
@@ -141,22 +140,15 @@ function createRenderer(options) {
             };
             if (splash.dataset.checked !== "1") {
                 splash.dataset.checked = "1";
-                ipcRenderer.invoke("fp-calendar-splash-should-show")
-                    .then((shouldShow) => {
-                        if (!shouldShow) {
-                            splash.classList.add("is-hidden");
-                            splash.dataset.hidden = "1";
-                            showModule();
-                            scheduleRender();
-                            return;
-                        }
-                        startSplash();
-                        scheduleRender();
-                    })
-                    .catch(() => {
-                        startSplash();
-                        scheduleRender();
-                    });
+                if (!shouldShowSplash) {
+                    splash.classList.add("is-hidden");
+                    splash.dataset.hidden = "1";
+                    showModule();
+                    scheduleRender();
+                    return;
+                }
+                startSplash();
+                scheduleRender();
                 return;
             }
         }
