@@ -10,6 +10,7 @@ let isQuitting = false;
 let trayTimers = [];
 let trayMenu = null;
 let pendingTrayPopup = false;
+let fpCalendarSplashShown = false;
 
 const APP_NAME = "AyPi";
 const SCROLLBAR_CSS = `
@@ -192,4 +193,10 @@ ipcMain.on("timers-tray-update", (event, payload) => {
         pendingTrayPopup = false;
         tray.popUpContextMenu(trayMenu || undefined);
     }
+});
+
+ipcMain.handle("fp-calendar-splash-should-show", () => {
+    const shouldShow = !fpCalendarSplashShown;
+    fpCalendarSplashShown = true;
+    return shouldShow;
 });

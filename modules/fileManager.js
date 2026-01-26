@@ -553,14 +553,17 @@ function openFeriePermessiWindow(mainWindow) {
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f6f8fc",
     });
 
+    feriePermessiWindow.maximize();
     feriePermessiWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"));
     feriePermessiWindow.setMenu(null);
 
     feriePermessiWindow.once("ready-to-show", () => {
         if (!feriePermessiWindow.isDestroyed()) {
-            feriePermessiWindow.maximize();
+            feriePermessiWindow.show();
         }
     });
 

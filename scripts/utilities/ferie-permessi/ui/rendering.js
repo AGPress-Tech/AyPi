@@ -1,3 +1,5 @@
+const { ipcRenderer } = require("electron");
+
 function createRenderer(options) {
     const {
         document,
@@ -95,16 +97,32 @@ function createRenderer(options) {
         if (typeof setCachedData === "function") {
             setCachedData(next);
         }
-        if (summaryUi) {
-            summaryUi.renderSummary(next);
-        }
-        if (pendingUi) {
-            pendingUi.renderPendingList(next);
-        }
-        renderCalendar(next);
         const splash = document.getElementById("fp-calendar-splash");
+        const showModule = () => {
+            document.body.classList.remove("fp-splash-active");
+            document.body.classList.add("fp-calendar-ready");
+        };
+        const renderHeavyUi = () => {
+            if (summaryUi) {
+                summaryUi.renderSummary(next);
+            }
+            if (pendingUi) {
+                pendingUi.renderPendingList(next);
+            }
+            renderCalendar(next);
+            applyCalendarListStyles(document);
+            applyCalendarListHoverStyles(document);
+        };
+
+        const scheduleRender = () => {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(renderHeavyUi);
+            });
+        };
+
         if (splash && splash.dataset.hidden !== "1") {
-            if (splash.dataset.started !== "1") {
+            const startSplash = () => {
+                if (splash.dataset.started === "1") return;
                 splash.dataset.started = "1";
                 splash.classList.remove("is-hidden", "is-fading");
                 splash.classList.add("is-visible");
@@ -112,20 +130,38 @@ function createRenderer(options) {
                 const fadeMs = 1200;
                 setTimeout(() => {
                     splash.classList.add("is-fading");
-                    if (!document.body.classList.contains("fp-calendar-ready")) {
-                        document.body.classList.add("fp-calendar-ready");
-                    }
+                    showModule();
                 }, fullOpacityMs);
                 setTimeout(() => {
                     splash.classList.add("is-hidden");
                     splash.classList.remove("is-visible", "is-fading");
                     splash.dataset.hidden = "1";
-                    document.body.classList.add("fp-calendar-ready");
+                    showModule();
                 }, fullOpacityMs + fadeMs);
+            };
+            if (splash.dataset.checked !== "1") {
+                splash.dataset.checked = "1";
+                ipcRenderer.invoke("fp-calendar-splash-should-show")
+                    .then((shouldShow) => {
+                        if (!shouldShow) {
+                            splash.classList.add("is-hidden");
+                            splash.dataset.hidden = "1";
+                            showModule();
+                            scheduleRender();
+                            return;
+                        }
+                        startSplash();
+                        scheduleRender();
+                    })
+                    .catch(() => {
+                        startSplash();
+                        scheduleRender();
+                    });
+                return;
             }
         }
-        applyCalendarListStyles(document);
-        applyCalendarListHoverStyles(document);
+        showModule();
+        scheduleRender();
     }
 
     return { renderAll, renderCalendar, buildEventFromRequest, addDaysToDateString };
