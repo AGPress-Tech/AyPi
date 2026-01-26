@@ -56,10 +56,6 @@ function createRenderer(options) {
     function renderCalendar(data) {
         const calendar = getCalendar();
         if (!calendar) return;
-        const root = document.getElementById("fp-calendar");
-        if (root) {
-            root.querySelectorAll(".fp-holiday-name").forEach((node) => node.remove());
-        }
         calendar.removeAllEvents();
         const approved = (data.requests || []).filter((req) => req.status === "approved");
         approved.forEach((request) => {
@@ -76,24 +72,15 @@ function createRenderer(options) {
             if (!date) return;
             calendar.addEvent({
                 id: `holiday-${date}`,
-                title: name || "Festivita",
+                title: "",
                 start: date,
                 end: addDaysToDateString(date, 1),
                 allDay: true,
                 display: "background",
                 className: "fp-holiday-bg",
                 interactive: false,
-                extendedProps: { isHoliday: true },
+                extendedProps: { isHoliday: true, holidayName: name || "" },
             });
-            if (name) {
-                const root = document.querySelector(`#fp-calendar [data-date='${date}']`);
-                if (!root) return;
-                if (root.querySelector(".fp-holiday-name")) return;
-                const label = document.createElement("div");
-                label.className = "fp-holiday-name";
-                label.textContent = name;
-                root.appendChild(label);
-            }
         });
     }
 

@@ -193,13 +193,6 @@ body {
     opacity: 0.7;
 }
 
-.fc .fp-holiday-name {
-    font-size: 12px;
-    color: #6b7280;
-    font-weight: 600;
-    margin-top: 4px;
-    pointer-events: none;
-}
 
 .fp-summary {
     font-size: 13px;
@@ -1037,9 +1030,6 @@ body.fp-dark .fp-holidays-row__date {
     color: #9aa5b1;
 }
 
-body.fp-dark .fc .fp-holiday-name {
-    color: #aab8c4;
-}
 
 body.fp-dark .fc .fp-holiday-bg {
     background-color: #1d3a52 !important;
@@ -1313,9 +1303,6 @@ body.fp-aypi .fp-holidays-row__date {
     color: #c4b8a6;
 }
 
-body.fp-aypi .fc .fp-holiday-name {
-    color: #d7c3a3;
-}
 
 body.fp-aypi .fc .fp-holiday-bg {
     background-color: #324257 !important;

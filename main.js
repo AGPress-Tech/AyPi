@@ -12,6 +12,26 @@ let trayMenu = null;
 let pendingTrayPopup = false;
 
 const APP_NAME = "AyPi";
+const SCROLLBAR_CSS = `
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(120, 120, 120, 0.45) transparent;
+    }
+    *::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    *::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+        background-color: rgba(120, 120, 120, 0.45);
+        border-radius: 999px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(120, 120, 120, 0.7);
+    }
+`;
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -138,6 +158,13 @@ app.whenReady().then(() => {
     setupAutoUpdater(mainWindow);
     setupFileManager(mainWindow);
     setupRobotManager();
+});
+
+app.on("browser-window-created", (_event, win) => {
+    if (!win || !win.webContents) return;
+    win.webContents.on("did-finish-load", () => {
+        win.webContents.insertCSS(SCROLLBAR_CSS).catch(() => {});
+    });
 });
 
 app.on("before-quit", () => {

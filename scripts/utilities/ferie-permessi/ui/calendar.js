@@ -213,6 +213,10 @@ function initCalendar(options) {
         eventDidMount: (info) => {
             if (!info || !info.el) return;
             if (info.event?.extendedProps?.isHoliday) {
+                const name = info.event?.extendedProps?.holidayName;
+                if (name) {
+                    info.el.title = name;
+                }
                 return;
             }
             if (typeof getRequestById === "function") {
