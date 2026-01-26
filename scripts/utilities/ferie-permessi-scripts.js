@@ -120,6 +120,7 @@ let adminEditingIndex = -1;
 let passwordFailCount = 0;
 let legendEditingType = null;
 let legendColorSnapshot = null;
+let legendPreviewTimer = null;
 const exportUi = createExportController({
     document,
     showModal,
@@ -1663,7 +1664,13 @@ function init() {
             const next = normalizeHexColor(legendColorInput.value, getTypeColor(legendEditingType));
             setTypeColors({ ...getTypeColors(), [legendEditingType]: next });
             applyTypeColors();
-            renderAll(loadData());
+            if (legendPreviewTimer) {
+                clearTimeout(legendPreviewTimer);
+            }
+            legendPreviewTimer = setTimeout(() => {
+                renderer.renderCalendar(cachedData);
+                legendPreviewTimer = null;
+            }, 80);
         });
     }
 
