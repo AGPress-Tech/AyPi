@@ -28,6 +28,7 @@ body.fp-calendar-ready .fp-page {
     background: #ffffff;
     border-bottom: 1px solid #e0e3e7;
     gap: 16px;
+    user-select: none;
 }
 
 .fp-header h1 {
@@ -46,6 +47,11 @@ body.fp-calendar-ready .fp-page {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.fp-header__actions,
+.fp-header__actions * {
+    user-select: none;
 }
 
 .fp-calendar-filters {
