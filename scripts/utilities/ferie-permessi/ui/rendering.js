@@ -56,32 +56,38 @@ function createRenderer(options) {
     function renderCalendar(data) {
         const calendar = getCalendar();
         if (!calendar) return;
-        calendar.removeAllEvents();
         const approved = (data.requests || []).filter((req) => req.status === "approved");
-        approved.forEach((request) => {
-            if (typeof shouldIncludeRequest === "function" && !shouldIncludeRequest(request)) {
-                return;
-            }
-            calendar.addEvent(buildEventFromRequest(request));
-        });
-
         const holidays = Array.isArray(data.holidays) ? data.holidays : [];
-        holidays.forEach((entry) => {
-            const date = typeof entry === "string" ? entry : entry?.date;
-            const name = typeof entry === "string" ? "" : entry?.name;
-            if (!date) return;
-            calendar.addEvent({
-                id: `holiday-${date}`,
-                title: "",
-                start: date,
-                end: addDaysToDateString(date, 1),
-                allDay: true,
-                display: "background",
-                className: "fp-holiday-bg",
-                interactive: false,
-                extendedProps: { isHoliday: true, holidayName: name || "" },
+        const renderBatch = () => {
+            calendar.removeAllEvents();
+            approved.forEach((request) => {
+                if (typeof shouldIncludeRequest === "function" && !shouldIncludeRequest(request)) {
+                    return;
+                }
+                calendar.addEvent(buildEventFromRequest(request));
             });
-        });
+            holidays.forEach((entry) => {
+                const date = typeof entry === "string" ? entry : entry?.date;
+                const name = typeof entry === "string" ? "" : entry?.name;
+                if (!date) return;
+                calendar.addEvent({
+                    id: `holiday-${date}`,
+                    title: "",
+                    start: date,
+                    end: addDaysToDateString(date, 1),
+                    allDay: true,
+                    display: "background",
+                    className: "fp-holiday-bg",
+                    interactive: false,
+                    extendedProps: { isHoliday: true, holidayName: name || "" },
+                });
+            });
+        };
+        if (typeof calendar.batchRendering === "function") {
+            calendar.batchRendering(renderBatch);
+        } else {
+            renderBatch();
+        }
     }
 
     function renderAll(data) {
@@ -96,6 +102,28 @@ function createRenderer(options) {
             pendingUi.renderPendingList(next);
         }
         renderCalendar(next);
+        const splash = document.getElementById("fp-calendar-splash");
+        if (splash && splash.dataset.hidden !== "1") {
+            if (splash.dataset.started !== "1") {
+                splash.dataset.started = "1";
+                splash.classList.remove("is-hidden", "is-fading");
+                splash.classList.add("is-visible");
+                const fullOpacityMs = 2000;
+                const fadeMs = 1200;
+                setTimeout(() => {
+                    splash.classList.add("is-fading");
+                    if (!document.body.classList.contains("fp-calendar-ready")) {
+                        document.body.classList.add("fp-calendar-ready");
+                    }
+                }, fullOpacityMs);
+                setTimeout(() => {
+                    splash.classList.add("is-hidden");
+                    splash.classList.remove("is-visible", "is-fading");
+                    splash.dataset.hidden = "1";
+                    document.body.classList.add("fp-calendar-ready");
+                }, fullOpacityMs + fadeMs);
+            }
+        }
         applyCalendarListStyles(document);
         applyCalendarListHoverStyles(document);
     }
