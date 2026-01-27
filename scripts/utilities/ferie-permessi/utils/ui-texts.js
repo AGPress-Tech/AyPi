@@ -25,6 +25,7 @@ const UI_TEXTS = {
     pendingRejectPasswordDescription: "Inserisci la password per rifiutare la richiesta.",
     pendingAccessPasswordDescription: "Inserisci la password per visualizzare le richieste in attesa.",
     mutuaPasswordDescription: "Inserisci la password admin per confermare la mutua.",
+    specialePasswordDescription: "Inserisci la password admin per confermare il permesso speciale.",
     hashingUnavailableTitle: "Modulo hashing non disponibile.",
     hashingUnavailableDetail: "Esegui 'npm install hash-wasm' nella cartella del progetto.",
     otpUnavailableTitle: "Modulo OTP non disponibile.",
@@ -73,6 +74,8 @@ const UI_TEXTS = {
         `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
     mutuaConfirm: (startLabel, endLabel) =>
         `Confermi l'inserimento della <strong>Mutua</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
+    specialeConfirm: (startLabel, endLabel) =>
+        `Confermi l'inserimento del <strong>Permesso speciale</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
     emptyDepartment: "Nessun reparto.",
     emptyEmployee: "Nessun operatore.",
     emptyAssignee: "Nessun dipendente",
@@ -94,4 +97,3 @@ const UI_TEXTS = {
 };
 
 module.exports = { UI_TEXTS };
-

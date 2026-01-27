@@ -125,6 +125,10 @@ body.fp-calendar-ready .fp-page {
     background: #00acc1;
 }
 
+.fp-legend__dot--speciale {
+    background: #9e9d24;
+}
+
 .fp-legend-editor {
     position: absolute;
     top: calc(100% + 8px);

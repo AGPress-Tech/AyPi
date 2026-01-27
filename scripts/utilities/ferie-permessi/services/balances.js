@@ -10,6 +10,10 @@ function isBalanceNeutral(request) {
     return request && (request.type === "straordinari" || request.type === "mutua");
 }
 
+function isSpeciale(request) {
+    return request && request.type === "speciale";
+}
+
 function getMonthKey(date = new Date()) {
     const yyyy = date.getFullYear();
     const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -57,6 +61,64 @@ function buildHolidaySet(holidays) {
     return new Set(dates);
 }
 
+function buildClosureEligibleSet(closures, holidays) {
+    const holidaySet = buildHolidaySet(holidays);
+    const dates = new Set();
+    normalizeClosures(closures).forEach((closure) => {
+        const startDate = new Date(closure.start);
+        const endDate = new Date(closure.end || closure.start);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+        const rangeStart = startDate <= endDate ? startDate : endDate;
+        const rangeEnd = startDate <= endDate ? endDate : startDate;
+        const current = new Date(rangeStart);
+        while (current <= rangeEnd) {
+            const key = dateToKey(current);
+            if (!isWeekend(current) && !holidaySet.has(key)) {
+                dates.add(key);
+            }
+            current.setDate(current.getDate() + 1);
+        }
+    });
+    return dates;
+}
+
+function calculateSpecialeBonusHours(request, holidays, closures) {
+    if (!isSpeciale(request)) return 0;
+    const closureSet = buildClosureEligibleSet(closures, holidays);
+    if (!closureSet.size) return 0;
+    const totalHours = Math.max(0, Math.round(calculateHours(request, holidays, closures) * 100) / 100);
+    if (request.allDay) {
+        const startDate = request.start ? new Date(`${request.start}T00:00:00`) : null;
+        const endDate = request.end ? new Date(`${request.end}T00:00:00`) : startDate;
+        if (!startDate || !endDate) return 0;
+        const rangeStart = startDate <= endDate ? startDate : endDate;
+        const rangeEnd = startDate <= endDate ? endDate : startDate;
+        let days = 0;
+        const current = new Date(rangeStart);
+        while (current <= rangeEnd) {
+            const key = dateToKey(current);
+            if (closureSet.has(key)) {
+                days += 1;
+            }
+            current.setDate(current.getDate() + 1);
+        }
+        return days * 8;
+    }
+    const start = request.start ? new Date(request.start) : null;
+    if (!start) return 0;
+    const startKey = dateToKey(start);
+    if (!closureSet.has(startKey)) return 0;
+    return totalHours;
+}
+
+function getRequestBalanceHours(request, payload) {
+    if (isBalanceNeutral(request)) return 0;
+    if (isSpeciale(request)) {
+        const bonus = calculateSpecialeBonusHours(request, payload.holidays, payload.closures);
+        return bonus > 0 ? -bonus : 0;
+    }
+    return Math.max(0, Math.round(calculateHours(request, payload.holidays, payload.closures) * 100) / 100);
+}
 function normalizeClosures(closures) {
     if (!Array.isArray(closures)) return [];
     return closures.map((item) => {
@@ -130,8 +192,14 @@ function getApprovedHoursForEmployee(requests, employee, department, holidays, c
         const reqKey = getEmployeeKey(req.employee, req.department);
         if (reqKey !== key) return total;
         const hours = Number(req.balanceHours);
-        if (Number.isFinite(hours) && hours > 0) {
+        if (Number.isFinite(hours) && hours !== 0) {
             return total + hours;
+        }
+        if (isSpeciale(req)) {
+            const bonus = calculateSpecialeBonusHours(req, holidays, closures);
+            if (bonus > 0) {
+                return total - bonus;
+            }
         }
         const computed = Math.max(0, Math.round(calculateHours(req, holidays, closures) * 100) / 100);
         return total + computed;
@@ -262,7 +330,7 @@ function applyBalanceForApproval(payload, request) {
         return payload;
     }
 
-    const hours = Math.max(0, Math.round(calculateHours(request, payload.holidays, payload.closures) * 100) / 100);
+    const hours = getRequestBalanceHours(request, payload);
     const entry = ensureBalanceEntry(payload, key);
     entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) - hours;
     request.balanceHours = hours;
@@ -283,7 +351,7 @@ function getBalanceImpact(payload, request) {
         const hoursBefore = entry ? Number(entry.hoursAvailable) || 0 : DEFAULT_INITIAL_HOURS;
         return { negative: false, hoursBefore, hoursAfter: hoursBefore, hoursDelta: 0 };
     }
-    const hoursDelta = Math.max(0, Math.round(calculateHours(request, payload.holidays, payload.closures) * 100) / 100);
+    const hoursDelta = getRequestBalanceHours(request, payload);
     const entry = payload.balances ? payload.balances[key] : null;
     const hoursBefore = entry ? Number(entry.hoursAvailable) || 0 : DEFAULT_INITIAL_HOURS;
     const hoursAfter = Math.round((hoursBefore - hoursDelta) * 100) / 100;
@@ -315,7 +383,6 @@ function applyBalanceForDeletion(payload, request) {
     const key = getEmployeeKey(request.employee, request.department);
     if (!key) return payload;
     const hours = Number(request.balanceHours) || 0;
-    if (hours <= 0) return payload;
     const entry = ensureBalanceEntry(payload, key);
     entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) + hours;
     return payload;
@@ -334,10 +401,10 @@ function applyBalanceForUpdate(payload, existingRequest, nextRequest) {
     const oldHours = Number(existingRequest.balanceHours) || 0;
     const newHours = isBalanceNeutral(nextRequest)
         ? 0
-        : Math.max(0, Math.round(calculateHours(nextRequest, payload.holidays, payload.closures) * 100) / 100);
+        : getRequestBalanceHours(nextRequest, payload);
 
     if (!isApproved) {
-        if (wasApproved && oldHours > 0 && oldKey) {
+        if (wasApproved && oldHours !== 0 && oldKey) {
             const entry = ensureBalanceEntry(payload, oldKey);
             entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) + oldHours;
         }
@@ -349,7 +416,7 @@ function applyBalanceForUpdate(payload, existingRequest, nextRequest) {
     if (!oldKey || !newKey) return payload;
 
     if (oldKey !== newKey) {
-        if (oldHours > 0) {
+        if (oldHours !== 0) {
             const entry = ensureBalanceEntry(payload, oldKey);
             entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) + oldHours;
         }

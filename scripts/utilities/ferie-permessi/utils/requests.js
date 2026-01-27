@@ -84,14 +84,14 @@ function countWeekdays(startDate, endDate, holidaySet, closureSet) {
 
 function calculateHours(request, holidays, closures) {
     if (!request) return 0;
-    const isStraordinari = request.type === "straordinari";
-    const holidaySet = isStraordinari ? null : buildDateSet(holidays, "date");
-    const closureSet = isStraordinari ? null : buildClosureSet(closures);
+    const isOvertimeLike = request.type === "straordinari" || request.type === "speciale";
+    const holidaySet = isOvertimeLike ? null : buildDateSet(holidays, "date");
+    const closureSet = isOvertimeLike ? null : buildClosureSet(closures);
     if (request.allDay) {
         const startDate = request.start ? new Date(`${request.start}T00:00:00`) : null;
         const endDate = request.end ? new Date(`${request.end}T00:00:00`) : startDate;
         if (!startDate || !endDate) return 0;
-        const days = isStraordinari
+        const days = isOvertimeLike
             ? Math.floor((endDate - startDate) / 86400000) + 1
             : countWeekdays(startDate, endDate, holidaySet, closureSet);
         return days * 8;
@@ -99,7 +99,7 @@ function calculateHours(request, holidays, closures) {
     const start = request.start ? new Date(request.start) : null;
     const end = request.end ? new Date(request.end) : null;
     if (!start || !end) return 0;
-    if (!isStraordinari) {
+    if (!isOvertimeLike) {
         const startKey = formatDateKey(start);
         if (
             isWeekend(start) ||
@@ -114,7 +114,7 @@ function calculateHours(request, holidays, closures) {
     const hours = Math.max(0, Math.round(diffHours * 100) / 100);
     const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
     const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-    const days = isStraordinari
+    const days = isOvertimeLike
         ? Math.floor((endDay - startDay) / 86400000) + 1
         : countWeekdays(startDay, endDay, holidaySet, closureSet);
     const maxHours = Math.max(1, days) * 8;

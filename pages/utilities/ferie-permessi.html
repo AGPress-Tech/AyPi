@@ -53,6 +53,10 @@
                         <input type="checkbox" id="fp-filter-mutua">
                         <span>Mutua</span>
                     </label>
+                    <label class="fp-filter-toggle">
+                        <input type="checkbox" id="fp-filter-speciale">
+                        <span>Speciale</span>
+                    </label>
                 </div>
                 <div class="fp-legend" id="fp-legend">
                     <button type="button" class="fp-legend__item" data-type="ferie">
@@ -66,6 +70,9 @@
                     </button>
                     <button type="button" class="fp-legend__item" data-type="mutua">
                         <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua
+                    </button>
+                    <button type="button" class="fp-legend__item" data-type="speciale">
+                        <span class="fp-legend__dot fp-legend__dot--speciale"></span>Speciale
                     </button>
                     <div class="fp-legend-editor is-hidden" id="fp-legend-editor">
                         <div class="fp-legend-editor__title" id="fp-legend-editor-title">Colore legenda</div>
@@ -150,6 +157,7 @@
                             <option value="permesso">Permesso</option>
                             <option value="straordinari">Straordinari</option>
                             <option value="mutua">Mutua</option>
+                            <option value="speciale">Speciale</option>
                         </select>
                     </div>
                     <div class="fp-field fp-checkbox">
@@ -432,6 +440,7 @@
                     <label><input type="checkbox" id="fp-export-permessi" checked> Permessi</label>
                     <label><input type="checkbox" id="fp-export-straordinari" checked> Straordinari</label>
                     <label><input type="checkbox" id="fp-export-mutua" checked> Mutua</label>
+                    <label><input type="checkbox" id="fp-export-speciale" checked> Speciale</label>
                 </div>
             </div>
             <div class="fp-export-section">
@@ -589,6 +598,7 @@
                         <option value="permesso">Permesso</option>
                         <option value="straordinari">Straordinari</option>
                         <option value="mutua">Mutua</option>
+                        <option value="speciale">Speciale</option>
                     </select>
                 </div>
                     <div class="fp-field fp-checkbox">

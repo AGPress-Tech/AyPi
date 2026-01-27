@@ -121,7 +121,9 @@ function createRequestForm(options) {
             const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
             const confirmMessage = request.type === "mutua"
                 ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
-                : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
+                : request.type === "speciale"
+                    ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
+                    : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
             const confirmed = await openConfirmModal(confirmMessage);
             if (!confirmed) {
                 return;
@@ -133,6 +135,18 @@ function createRequestForm(options) {
                         id: request.id,
                         title: "Conferma mutua",
                         description: UI_TEXTS.mutuaPasswordDescription,
+                        request,
+                    });
+                }
+                return;
+            }
+            if (request.type === "speciale") {
+                if (typeof openPasswordModal === "function") {
+                    openPasswordModal({
+                        type: "speciale-create",
+                        id: request.id,
+                        title: "Conferma permesso speciale",
+                        description: UI_TEXTS.specialePasswordDescription,
                         request,
                     });
                 }

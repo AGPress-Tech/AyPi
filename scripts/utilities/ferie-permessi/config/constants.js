@@ -9,6 +9,7 @@ const DEFAULT_TYPE_COLORS = {
     permesso: "#f08c00",
     straordinari: "#1a73e8",
     mutua: "#00acc1",
+    speciale: "#9e9d24",
 };
 
 module.exports = {

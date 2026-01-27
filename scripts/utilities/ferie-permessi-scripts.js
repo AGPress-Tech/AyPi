@@ -105,6 +105,7 @@ let pendingUnlockedBy = "";
 let filterUnlocked = {
     overtime: false,
     mutua: false,
+    speciale: false,
 };
 let assigneesUnlocked = false;
 let assigneesOpenPending = false;
@@ -120,6 +121,7 @@ let calendarFilters = {
     leave: true,
     overtime: false,
     mutua: false,
+    speciale: false,
 };
 let editingAdminName = "";
 let adminCache = [];
@@ -155,6 +157,7 @@ function loadColorSettings() {
             permesso: normalizeHexColor(parsed.permesso, DEFAULT_TYPE_COLORS.permesso),
             straordinari: normalizeHexColor(parsed.straordinari, DEFAULT_TYPE_COLORS.straordinari),
             mutua: normalizeHexColor(parsed.mutua, DEFAULT_TYPE_COLORS.mutua),
+            speciale: normalizeHexColor(parsed.speciale, DEFAULT_TYPE_COLORS.speciale),
         };
     } catch (err) {
         return { ...DEFAULT_TYPE_COLORS };
@@ -187,10 +190,12 @@ function applyTypeColors() {
     const permessoDot = document.querySelector(".fp-legend__dot--permesso");
     const straordinariDot = document.querySelector(".fp-legend__dot--straordinari");
     const mutuaDot = document.querySelector(".fp-legend__dot--mutua");
+    const specialeDot = document.querySelector(".fp-legend__dot--speciale");
     if (ferieDot) ferieDot.style.background = getTypeColor("ferie");
     if (permessoDot) permessoDot.style.background = getTypeColor("permesso");
     if (straordinariDot) straordinariDot.style.background = getTypeColor("straordinari");
     if (mutuaDot) mutuaDot.style.background = getTypeColor("mutua");
+    if (specialeDot) specialeDot.style.background = getTypeColor("speciale");
 }
 
 function openLegendEditor(type) {
@@ -424,6 +429,9 @@ renderer = createRenderer({
         if (request.type === "mutua") {
             return calendarFilters.mutua;
         }
+        if (request.type === "speciale") {
+            return calendarFilters.speciale;
+        }
         return calendarFilters.leave;
     },
 });
@@ -509,6 +517,14 @@ const approvalUi = createApprovalModal({
             const mutuaToggle = document.getElementById("fp-filter-mutua");
             if (mutuaToggle) mutuaToggle.checked = true;
             renderer.renderCalendar(cachedData);
+            return;
+        }
+        if (filter === "speciale") {
+            calendarFilters.speciale = true;
+            filterUnlocked.speciale = true;
+            const specialeToggle = document.getElementById("fp-filter-speciale");
+            if (specialeToggle) specialeToggle.checked = true;
+            renderer.renderCalendar(cachedData);
         }
     },
     onMutuaCreate: (admin, request) => {
@@ -528,6 +544,26 @@ const approvalUi = createApprovalModal({
         });
         const message = document.getElementById("fp-form-message");
         setMessage(message, UI_TEXTS.mutuaInserted, false);
+        if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+            requestFormUi.resetNewRequestForm();
+        }
+        renderAll(updated);
+    },
+    onSpecialeCreate: (admin, request) => {
+        if (!request) return;
+        const updated = syncData((payload) => {
+            payload.requests = payload.requests || [];
+            const next = {
+                ...request,
+                status: "approved",
+                approvedAt: new Date().toISOString(),
+                approvedBy: admin?.name || UI_TEXTS.defaultAdminLabel,
+            };
+            payload.requests.push(next);
+            return payload;
+        });
+        const message = document.getElementById("fp-form-message");
+        setMessage(message, UI_TEXTS.requestSent, false);
         if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
             requestFormUi.resetNewRequestForm();
         }
@@ -1673,7 +1709,8 @@ function init() {
             const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
             const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
             const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
-            if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua) {
+            const includeSpeciale = !!document.getElementById("fp-export-speciale")?.checked;
+            if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale) {
                 setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
                 return;
             }
@@ -1687,6 +1724,7 @@ function init() {
                 if (req.type === "permesso" && !includePermessi) return false;
                 if (req.type === "straordinari" && !includeStraordinari) return false;
                 if (req.type === "mutua" && !includeMutua) return false;
+                if (req.type === "speciale" && !includeSpeciale) return false;
                 if (departments.length && req.department && !departments.includes(req.department)) return false;
                 if (rangeMode === "custom") {
                     const { start, end } = getRequestDates(req);
@@ -1745,13 +1783,17 @@ function init() {
     }
 
     pendingUi.closePendingPanel();
+
     const leaveToggle = document.getElementById("fp-filter-leave");
     const overtimeToggle = document.getElementById("fp-filter-overtime");
     const mutuaToggle = document.getElementById("fp-filter-mutua");
+    const specialeToggle = document.getElementById("fp-filter-speciale");
     if (overtimeToggle) overtimeToggle.checked = false;
     if (mutuaToggle) mutuaToggle.checked = false;
+    if (specialeToggle) specialeToggle.checked = false;
     calendarFilters.overtime = false;
     calendarFilters.mutua = false;
+    calendarFilters.speciale = false;
     const applyLeaveFilter = () => {
         if (leaveToggle) {
             calendarFilters.leave = !!leaveToggle.checked;
@@ -1806,9 +1848,24 @@ function init() {
             renderer.renderCalendar(cachedData);
         });
     }
-            calendarFilters.mutua = false;
+    if (specialeToggle) {
+        specialeToggle.addEventListener("change", () => {
+            if (specialeToggle.checked) {
+                if (filterUnlocked.speciale) {
+                    calendarFilters.speciale = true;
+                    renderer.renderCalendar(cachedData);
+                    return;
+                }
+                specialeToggle.checked = false;
+                calendarFilters.speciale = false;
+                renderer.renderCalendar(cachedData);
+                requestFilterAccess("speciale", "Speciale");
+                return;
+            }
+            calendarFilters.speciale = false;
             renderer.renderCalendar(cachedData);
-        }
+        });
+    }
 
     const calendarRoot = document.getElementById("fp-calendar");
     if (calendarRoot) {
@@ -1928,6 +1985,7 @@ function init() {
         });
     }
 
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     try {
