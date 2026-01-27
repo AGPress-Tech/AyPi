@@ -58,6 +58,7 @@ function createRenderer(options) {
         if (!calendar) return;
         const approved = (data.requests || []).filter((req) => req.status === "approved");
         const holidays = Array.isArray(data.holidays) ? data.holidays : [];
+        const closures = Array.isArray(data.closures) ? data.closures : [];
         const renderBatch = () => {
             calendar.removeAllEvents();
             approved.forEach((request) => {
@@ -80,6 +81,23 @@ function createRenderer(options) {
                     className: "fp-holiday-bg",
                     interactive: false,
                     extendedProps: { isHoliday: true, holidayName: name || "" },
+                });
+            });
+            closures.forEach((entry, index) => {
+                if (!entry) return;
+                const start = typeof entry.start === "string" ? entry.start : "";
+                const end = typeof entry.end === "string" ? entry.end : start;
+                if (!start) return;
+                calendar.addEvent({
+                    id: `closure-${start}-${end}-${index}`,
+                    title: "",
+                    start,
+                    end: addDaysToDateString(end || start, 1),
+                    allDay: true,
+                    display: "background",
+                    className: "fp-closure-bg",
+                    interactive: false,
+                    extendedProps: { isClosure: true, closureName: entry.name || "" },
                 });
             });
         };
@@ -120,6 +138,14 @@ function createRenderer(options) {
         };
 
         if (splash && splash.dataset.hidden !== "1") {
+            const maxHideMs = 4500;
+            setTimeout(() => {
+                if (splash.dataset.hidden === "1") return;
+                splash.classList.add("is-hidden");
+                splash.classList.remove("is-visible", "is-fading");
+                splash.dataset.hidden = "1";
+                showModule();
+            }, maxHideMs);
             const startSplash = () => {
                 if (splash.dataset.started === "1") return;
                 splash.dataset.started = "1";

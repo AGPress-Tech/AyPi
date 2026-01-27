@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { DATA_PATH, REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH } = require("../config/paths");
+const { DATA_PATH, REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH, CLOSURES_PATH } = require("../config/paths");
 const { ensureFolderFor } = require("./storage");
 const { calculateHours } = require("../utils/requests");
 
@@ -35,6 +35,70 @@ function monthDiff(fromKey, toKey) {
     return Math.max(0, toTotal - fromTotal);
 }
 
+function dateToKey(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function isWeekend(date) {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+}
+
+function buildHolidaySet(holidays) {
+    if (!Array.isArray(holidays)) return new Set();
+    const dates = holidays.map((value) => {
+        if (typeof value === "string") return value;
+        if (value && typeof value.date === "string") return value.date;
+        return null;
+    }).filter(Boolean);
+    return new Set(dates);
+}
+
+function normalizeClosures(closures) {
+    if (!Array.isArray(closures)) return [];
+    return closures.map((item) => {
+        if (!item) return null;
+        if (typeof item === "string") {
+            return { start: item, end: item, name: "" };
+        }
+        const start = typeof item.start === "string" ? item.start : "";
+        const end = typeof item.end === "string" ? item.end : start;
+        return { start, end: end || start, name: item.name || "" };
+    }).filter((item) => item && item.start);
+}
+
+function countClosureDaysForMonth(closures, holidays, monthKey) {
+    if (!monthKey) return 0;
+    const monthInfo = parseMonthKey(monthKey);
+    if (!monthInfo) return 0;
+    const holidaySet = buildHolidaySet(holidays);
+    const dates = new Set();
+    normalizeClosures(closures).forEach((closure) => {
+        const startDate = new Date(closure.start);
+        const endDate = new Date(closure.end || closure.start);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+        const rangeStart = startDate <= endDate ? startDate : endDate;
+        const rangeEnd = startDate <= endDate ? endDate : startDate;
+        const current = new Date(rangeStart);
+        while (current <= rangeEnd) {
+            if (
+                current.getFullYear() === monthInfo.year &&
+                current.getMonth() + 1 === monthInfo.month
+            ) {
+                const key = dateToKey(current);
+                if (!isWeekend(current) && !holidaySet.has(key)) {
+                    dates.add(key);
+                }
+            }
+            current.setDate(current.getDate() + 1);
+        }
+    });
+    return dates.size;
+}
+
 function getEmployeeKey(employee, department) {
     const name = (employee || "").trim();
     const dept = (department || "").trim();
@@ -56,7 +120,7 @@ function listEmployees(assigneeGroups) {
     return rows;
 }
 
-function getApprovedHoursForEmployee(requests, employee, department, holidays) {
+function getApprovedHoursForEmployee(requests, employee, department, holidays, closures) {
     if (!Array.isArray(requests)) return 0;
     const key = getEmployeeKey(employee, department);
     if (!key) return 0;
@@ -69,7 +133,7 @@ function getApprovedHoursForEmployee(requests, employee, department, holidays) {
         if (Number.isFinite(hours) && hours > 0) {
             return total + hours;
         }
-        const computed = Math.max(0, Math.round(calculateHours(req, holidays) * 100) / 100);
+        const computed = Math.max(0, Math.round(calculateHours(req, holidays, closures) * 100) / 100);
         return total + computed;
     }, 0);
 }
@@ -78,8 +142,9 @@ function normalizeBalances(payload, assigneeGroups, options = {}) {
     const initialHours = options.initialHours ?? DEFAULT_INITIAL_HOURS;
     const monthlyAccrual = options.monthlyAccrual ?? MONTHLY_ACCRUAL_HOURS;
     const currentMonth = getMonthKey();
-
     const nextPayload = payload && typeof payload === "object" ? payload : { requests: [] };
+    const closureDays = countClosureDaysForMonth(nextPayload.closures, nextPayload.holidays, currentMonth);
+    const closureHours = closureDays * 8;
     const currentBalances = nextPayload.balances && typeof nextPayload.balances === "object"
         ? nextPayload.balances
         : {};
@@ -111,7 +176,8 @@ function normalizeBalances(payload, assigneeGroups, options = {}) {
                 nextPayload.requests,
                 row.employee,
                 row.department,
-                nextPayload.holidays
+                nextPayload.holidays,
+                nextPayload.closures
             );
             nextBalances[row.key] = {
                 hoursAvailable: Math.round((initialHours - approvedHours) * 100) / 100,
@@ -119,7 +185,14 @@ function normalizeBalances(payload, assigneeGroups, options = {}) {
                 monthlyAccrualHours: monthlyAccrual,
                 employee: row.employee,
                 department: row.department,
+                closureAppliedMonth: currentMonth,
+                closureAppliedHours: 0,
             };
+            if (closureHours > 0) {
+                nextBalances[row.key].hoursAvailable =
+                    Math.round((nextBalances[row.key].hoursAvailable - closureHours) * 100) / 100;
+                nextBalances[row.key].closureAppliedHours = closureHours;
+            }
             changed = true;
             return;
         }
@@ -140,6 +213,18 @@ function normalizeBalances(payload, assigneeGroups, options = {}) {
         if (existing.employee !== row.employee || existing.department !== row.department) {
             existing.employee = row.employee;
             existing.department = row.department;
+            changed = true;
+        }
+
+        if (existing.closureAppliedMonth !== currentMonth) {
+            existing.closureAppliedMonth = currentMonth;
+            existing.closureAppliedHours = 0;
+        }
+        const prevApplied = Number(existing.closureAppliedHours) || 0;
+        if (closureHours !== prevApplied) {
+            const delta = closureHours - prevApplied;
+            existing.hoursAvailable = Math.round((Number(existing.hoursAvailable) - delta) * 100) / 100;
+            existing.closureAppliedHours = closureHours;
             changed = true;
         }
     });
@@ -177,7 +262,7 @@ function applyBalanceForApproval(payload, request) {
         return payload;
     }
 
-    const hours = Math.max(0, Math.round(calculateHours(request, payload.holidays) * 100) / 100);
+    const hours = Math.max(0, Math.round(calculateHours(request, payload.holidays, payload.closures) * 100) / 100);
     const entry = ensureBalanceEntry(payload, key);
     entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) - hours;
     request.balanceHours = hours;
@@ -198,7 +283,7 @@ function getBalanceImpact(payload, request) {
         const hoursBefore = entry ? Number(entry.hoursAvailable) || 0 : DEFAULT_INITIAL_HOURS;
         return { negative: false, hoursBefore, hoursAfter: hoursBefore, hoursDelta: 0 };
     }
-    const hoursDelta = Math.max(0, Math.round(calculateHours(request, payload.holidays) * 100) / 100);
+    const hoursDelta = Math.max(0, Math.round(calculateHours(request, payload.holidays, payload.closures) * 100) / 100);
     const entry = payload.balances ? payload.balances[key] : null;
     const hoursBefore = entry ? Number(entry.hoursAvailable) || 0 : DEFAULT_INITIAL_HOURS;
     const hoursAfter = Math.round((hoursBefore - hoursDelta) * 100) / 100;
@@ -249,7 +334,7 @@ function applyBalanceForUpdate(payload, existingRequest, nextRequest) {
     const oldHours = Number(existingRequest.balanceHours) || 0;
     const newHours = isBalanceNeutral(nextRequest)
         ? 0
-        : Math.max(0, Math.round(calculateHours(nextRequest, payload.holidays) * 100) / 100);
+        : Math.max(0, Math.round(calculateHours(nextRequest, payload.holidays, payload.closures) * 100) / 100);
 
     if (!isApproved) {
         if (wasApproved && oldHours > 0 && oldKey) {
@@ -302,6 +387,12 @@ function normalizeHolidaysData(value) {
     return [];
 }
 
+function normalizeClosuresData(value) {
+    if (Array.isArray(value)) return value;
+    if (value && Array.isArray(value.closures)) return value.closures;
+    return [];
+}
+
 function normalizeBalancesData(value) {
     if (value && typeof value === "object" && !Array.isArray(value)) {
         if (value.balances && typeof value.balances === "object") {
@@ -323,12 +414,14 @@ function loadPayload() {
         const parsedRequests = readJsonFile(REQUESTS_PATH);
         const parsedHolidays = readJsonFile(HOLIDAYS_PATH);
         const parsedBalances = readJsonFile(BALANCES_PATH);
+        const parsedClosures = readJsonFile(CLOSURES_PATH);
 
         let requests = parsedRequests == null ? null : normalizeRequestsData(parsedRequests);
         let holidays = parsedHolidays == null ? null : normalizeHolidaysData(parsedHolidays);
         let balances = parsedBalances == null ? null : normalizeBalancesData(parsedBalances);
+        let closures = parsedClosures == null ? null : normalizeClosuresData(parsedClosures);
 
-        const needsLegacy = requests == null || holidays == null || balances == null;
+        const needsLegacy = requests == null || holidays == null || balances == null || closures == null;
         if (needsLegacy && fs.existsSync(DATA_PATH)) {
             const legacyParsed = readJsonFile(DATA_PATH);
             if (requests == null) {
@@ -340,15 +433,20 @@ function loadPayload() {
             if (balances == null) {
                 balances = normalizeBalancesData(legacyParsed);
             }
+            if (closures == null) {
+                closures = normalizeClosuresData(legacyParsed);
+            }
 
-            if (requests != null || holidays != null || balances != null) {
+            if (requests != null || holidays != null || balances != null || closures != null) {
                 if (requests == null) requests = [];
                 if (holidays == null) holidays = [];
                 if (balances == null) balances = {};
+                if (closures == null) closures = [];
                 try {
                     if (parsedRequests == null) writeJsonFile(REQUESTS_PATH, requests);
                     if (parsedHolidays == null) writeJsonFile(HOLIDAYS_PATH, holidays);
                     if (parsedBalances == null) writeJsonFile(BALANCES_PATH, balances);
+                    if (parsedClosures == null) writeJsonFile(CLOSURES_PATH, closures);
                 } catch (err) {
                     console.error("Errore migrazione dati ferie:", err);
                 }
@@ -359,10 +457,11 @@ function loadPayload() {
             requests: requests || [],
             balances: balances || {},
             holidays: holidays || [],
+            closures: closures || [],
         };
     } catch (err) {
         console.error("Errore caricamento dati ferie:", err);
-        return { requests: [], balances: {}, holidays: [] };
+        return { requests: [], balances: {}, holidays: [], closures: [] };
     }
 }
 
@@ -370,10 +469,12 @@ function savePayload(payload) {
     try {
         const requests = normalizeRequestsData(payload);
         const holidays = normalizeHolidaysData(payload);
+        const closures = normalizeClosuresData(payload);
         const balances = normalizeBalancesData(payload?.balances ?? payload);
         writeJsonFile(REQUESTS_PATH, requests);
         writeJsonFile(HOLIDAYS_PATH, holidays);
         writeJsonFile(BALANCES_PATH, balances);
+        writeJsonFile(CLOSURES_PATH, closures);
         return true;
     } catch (err) {
         console.error("Errore salvataggio ferie:", err);

@@ -21,6 +21,12 @@
                     var splashEl = document.getElementById("fp-calendar-splash");
                     if (splashEl) {
                         splashEl.classList.add("is-visible");
+                        setTimeout(function () {
+                            splashEl.classList.add("is-hidden");
+                            splashEl.classList.remove("is-visible", "is-fading");
+                            document.body.classList.add("fp-calendar-ready");
+                            document.body.classList.remove("fp-splash-active");
+                        }, 5000);
                     }
                 }
             } catch (err) {}
@@ -40,11 +46,11 @@
                         <span>Ferie/permessi</span>
                     </label>
                     <label class="fp-filter-toggle">
-                        <input type="checkbox" id="fp-filter-overtime" checked>
+                        <input type="checkbox" id="fp-filter-overtime">
                         <span>Straordinari</span>
                     </label>
                     <label class="fp-filter-toggle">
-                        <input type="checkbox" id="fp-filter-mutua" checked>
+                        <input type="checkbox" id="fp-filter-mutua">
                         <span>Mutua</span>
                     </label>
                 </div>
@@ -110,14 +116,14 @@
                         </span>
                         <span class="fp-btn__label">Gestione ore</span>
                     </button>
-                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-holidays-manage">
-                        <span class="fp-btn__icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
-                                <path d="M7 2v2H5a2 2 0 0 0-2 2v2h18V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm14 8H3v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10Z"></path>
-                            </svg>
-                        </span>
-                        <span class="fp-btn__label">Gestione festività</span>
-                    </button>
+                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-manage">
+    <span class="fp-btn__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+            <path d="M3 4h18v2H3V4Zm2 4h14v12H5V8Zm4 2v2h6v-2H9Zm0 4v2h6v-2H9Z"></path>
+        </svg>
+    </span>
+    <span class="fp-btn__label">Festivita e chiusure</span>
+</button>
                     <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-export-open">
                         <span class="fp-btn__icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
@@ -232,6 +238,7 @@
         </div>
     </div>
 
+    
     <div class="fp-modal is-hidden" id="fp-settings-modal" aria-hidden="true">
         <div class="fp-modal__card fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-settings-title">
             <div class="fp-assignees-header">
@@ -259,6 +266,16 @@
                 </button>
             </div>
             <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-closures-list-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                            <path d="M3 4h18v2H3V4Zm2 4h14v12H5V8Zm4 2v2h6v-2H9Zm0 4v2h6v-2H9Z"></path>
+                        </svg>
+                    </span>
+                    <span class="fp-btn__label">Mostra chiusure future</span>
+                </button>
+            </div>
+            <div class="fp-export-section">
                 <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-admin-open">
                     <span class="fp-btn__icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
@@ -272,7 +289,7 @@
         </div>
     </div>
 
-    <div class="fp-modal is-hidden" id="fp-settings-theme-modal" aria-hidden="true">
+<div class="fp-modal is-hidden" id="fp-settings-theme-modal" aria-hidden="true">
         <div class="fp-modal__card fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-settings-theme-title">
             <div class="fp-assignees-header">
                 <h3 id="fp-settings-theme-title">Tema</h3>
@@ -446,22 +463,76 @@
         </div>
     </div>
 
-    <div class="fp-modal is-hidden" id="fp-holidays-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-holidays-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-holidays-title">Gestione festività</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-holidays-close">Chiudi</button>
-            </div>
-            <div class="fp-holidays-date-grid">
-                <input class="fp-field__input" type="text" id="fp-holidays-name" placeholder="Nome festivita">
-                <input class="fp-field__input" type="date" id="fp-holidays-start">
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-holidays-add">Aggiungi</button>
-            </div>
-            <div id="fp-holidays-message" class="fp-message is-hidden"></div>
+    <div class="fp-modal is-hidden" id="fp-days-picker-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-days-picker-title">
+        <div class="fp-assignees-header">
+            <h3 id="fp-days-picker-title">Gestione calendario</h3>
+            <button type="button" class="fp-btn fp-btn--ghost" id="fp-days-picker-close">Chiudi</button>
+        </div>
+        <div class="fp-days-picker">
+            <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-picker-holiday">
+                <span class="fp-btn__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                        <path d="M7 2v2H5a2 2 0 0 0-2 2v2h18V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm14 8H3v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10Z"></path>
+                    </svg>
+                </span>
+                <span class="fp-btn__label">Gestione festivita</span>
+            </button>
+            <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-picker-closure">
+                <span class="fp-btn__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                        <path d="M3 4h18v2H3V4Zm2 4h14v12H5V8Zm4 2v2h6v-2H9Zm0 4v2h6v-2H9Z"></path>
+                    </svg>
+                </span>
+                <span class="fp-btn__label">Chiusure azienda</span>
+            </button>
         </div>
     </div>
+</div>
 
-    <div class="fp-modal is-hidden" id="fp-holidays-list-modal" aria-hidden="true">
+<div class="fp-modal is-hidden" id="fp-holidays-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-holidays-title">
+        <div class="fp-assignees-header">
+            <h3 id="fp-holidays-title">Gestione festivita</h3>
+            <button type="button" class="fp-btn fp-btn--ghost" id="fp-holidays-close">Chiudi</button>
+        </div>
+        <div class="fp-holidays-date-grid">
+            <input class="fp-field__input fp-holidays-name" type="text" id="fp-holidays-name" placeholder="Nome festivita">
+            <input class="fp-field__input fp-holidays-start" type="date" id="fp-holidays-start">
+            <input class="fp-field__input fp-holidays-end" type="date" id="fp-holidays-end">
+            <button type="button" class="fp-btn fp-btn--primary fp-holidays-add" id="fp-holidays-add">Aggiungi</button>
+        </div>
+        <div id="fp-holidays-message" class="fp-message is-hidden"></div>
+    </div>
+</div>
+
+<div class="fp-modal is-hidden" id="fp-closures-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-closures-title">
+        <div class="fp-assignees-header">
+            <h3 id="fp-closures-title">Chiusure azienda</h3>
+            <button type="button" class="fp-btn fp-btn--ghost" id="fp-closures-close">Chiudi</button>
+        </div>
+        <div class="fp-closures-date-grid">
+            <input class="fp-field__input fp-closures-name" type="text" id="fp-closures-name" placeholder="Nome chiusura (opzionale)">
+            <input class="fp-field__input fp-closures-start" type="date" id="fp-closures-start">
+            <input class="fp-field__input fp-closures-end" type="date" id="fp-closures-end">
+            <button type="button" class="fp-btn fp-btn--primary fp-closures-add" id="fp-closures-add">Aggiungi</button>
+        </div>
+        <div id="fp-closures-message" class="fp-message is-hidden"></div>
+    </div>
+</div>
+
+<div class="fp-modal is-hidden" id="fp-closures-list-modal" aria-hidden="true">
+    <div class="fp-modal__card" role="dialog" aria-modal="true" aria-labelledby="fp-closures-list-title">
+        <div class="fp-assignees-header">
+            <h3 id="fp-closures-list-title">Chiusure future</h3>
+            <button type="button" class="fp-btn fp-btn--ghost" id="fp-closures-list-close">Chiudi</button>
+        </div>
+        <div id="fp-closures-future-list" class="fp-holidays-list"></div>
+    </div>
+</div>
+
+<div class="fp-modal is-hidden" id="fp-holidays-list-modal" aria-hidden="true">
         <div class="fp-modal__card" role="dialog" aria-modal="true" aria-labelledby="fp-holidays-list-title">
             <div class="fp-assignees-header">
                 <h3 id="fp-holidays-list-title">Festivita future</h3>
@@ -562,3 +633,6 @@
 </body>
 
 </html>
+
+
+

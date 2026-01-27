@@ -60,6 +60,14 @@ const UI_TEXTS = {
     holidayRemoved: "Festivita rimossa.",
     holidayUpdated: "Festivita aggiornata.",
     holidayPasswordDescription: "Inserisci la password admin per confermare la festivita.",
+    closureInvalidDate: "Seleziona una data valida.",
+    closureRangeInvalid: "Seleziona un intervallo valido.",
+    closureAlreadyExists: "Chiusura gia presente.",
+    closureAdded: "Chiusura aggiunta.",
+    closureRemoved: "Chiusura rimossa.",
+    closureUpdated: "Chiusura aggiornata.",
+    closurePasswordDescription: "Inserisci la password admin per confermare la chiusura.",
+    closureNone: "Nessuna chiusura futura configurata.",
     requestUpdated: "Richiesta aggiornata.",
     requestConfirm: (typeLabel, startLabel, endLabel) =>
         `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
@@ -81,6 +89,9 @@ const UI_TEXTS = {
     assigneesWriteFailure: "Impossibile salvare la lista dipendenti.",
     colorsReset: "Colori ripristinati.",
     initErrorTitle: "Errore inizializzazione ferie/permessi.",
+    filterAccessTitle: "Abilitazione filtro",
+    filterAccessDescription: (label) => `Inserisci la password admin per abilitare il filtro ${label}.`,
 };
 
 module.exports = { UI_TEXTS };
+

@@ -14,6 +14,7 @@ function createAssigneesModal(options) {
         setAssigneeOptions,
         setEditingDepartment,
         setEditingEmployee,
+        onOpenAttempt,
     } = options || {};
 
     if (!document) {
@@ -35,6 +36,17 @@ function createAssigneesModal(options) {
         renderDepartmentSelect();
     }
 
+    function openAssigneesModal() {
+        const assigneesModal = document.getElementById("fp-assignees-modal");
+        const departmentInput = document.getElementById("fp-department-name");
+        if (!assigneesModal) return;
+        showModal(assigneesModal);
+        renderDepartmentList();
+        renderEmployeesList();
+        renderDepartmentSelect();
+        if (departmentInput) departmentInput.focus();
+    }
+
     function initAssigneesModal() {
         const assigneesManage = document.getElementById("fp-assignees-manage");
         const assigneesModal = document.getElementById("fp-assignees-modal");
@@ -46,11 +58,11 @@ function createAssigneesModal(options) {
 
         if (assigneesManage && assigneesModal) {
             assigneesManage.addEventListener("click", () => {
-                showModal(assigneesModal);
-                renderDepartmentList();
-                renderEmployeesList();
-                renderDepartmentSelect();
-                if (departmentInput) departmentInput.focus();
+                if (typeof onOpenAttempt === "function") {
+                    onOpenAttempt();
+                    return;
+                }
+                openAssigneesModal();
             });
         }
 
@@ -110,7 +122,7 @@ function createAssigneesModal(options) {
         }
     }
 
-    return { initAssigneesModal, closeAssigneesModal };
+    return { initAssigneesModal, closeAssigneesModal, openAssigneesModal };
 }
 
 module.exports = { createAssigneesModal };

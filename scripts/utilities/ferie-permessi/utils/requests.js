@@ -26,11 +26,11 @@ function formatDateKey(date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-function buildHolidaySet(holidays) {
-    if (!Array.isArray(holidays)) return new Set();
-    const dates = holidays.map((value) => {
+function buildDateSet(items, dateKey = "date") {
+    if (!Array.isArray(items)) return new Set();
+    const dates = items.map((value) => {
         if (typeof value === "string") return value;
-        if (value && typeof value.date === "string") return value.date;
+        if (value && typeof value[dateKey] === "string") return value[dateKey];
         return null;
     });
     return new Set(
@@ -38,7 +38,30 @@ function buildHolidaySet(holidays) {
     );
 }
 
-function countWeekdays(startDate, endDate, holidaySet) {
+function buildClosureSet(closures) {
+    if (!Array.isArray(closures)) return new Set();
+    const dates = new Set();
+    closures.forEach((item) => {
+        if (!item) return;
+        const start = typeof item.start === "string" ? item.start : "";
+        const end = typeof item.end === "string" ? item.end : start;
+        if (!start) return;
+        const startDate = new Date(start);
+        const endDate = new Date(end || start);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+        const rangeStart = startDate <= endDate ? startDate : endDate;
+        const rangeEnd = startDate <= endDate ? endDate : startDate;
+        const current = new Date(rangeStart);
+        while (current <= rangeEnd) {
+            const key = formatDateKey(current);
+            dates.add(key);
+            current.setDate(current.getDate() + 1);
+        }
+    });
+    return dates;
+}
+
+function countWeekdays(startDate, endDate, holidaySet, closureSet) {
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
     const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
@@ -47,7 +70,11 @@ function countWeekdays(startDate, endDate, holidaySet) {
     const current = new Date(start);
     while (current <= end) {
         const key = formatDateKey(current);
-        if (!isWeekend(current) && !(holidaySet && holidaySet.has(key))) {
+        if (
+            !isWeekend(current) &&
+            !(holidaySet && holidaySet.has(key)) &&
+            !(closureSet && closureSet.has(key))
+        ) {
             count += 1;
         }
         current.setDate(current.getDate() + 1);
@@ -55,17 +82,18 @@ function countWeekdays(startDate, endDate, holidaySet) {
     return count;
 }
 
-function calculateHours(request, holidays) {
+function calculateHours(request, holidays, closures) {
     if (!request) return 0;
     const isStraordinari = request.type === "straordinari";
-    const holidaySet = isStraordinari ? null : buildHolidaySet(holidays);
+    const holidaySet = isStraordinari ? null : buildDateSet(holidays, "date");
+    const closureSet = isStraordinari ? null : buildClosureSet(closures);
     if (request.allDay) {
         const startDate = request.start ? new Date(`${request.start}T00:00:00`) : null;
         const endDate = request.end ? new Date(`${request.end}T00:00:00`) : startDate;
         if (!startDate || !endDate) return 0;
         const days = isStraordinari
             ? Math.floor((endDate - startDate) / 86400000) + 1
-            : countWeekdays(startDate, endDate, holidaySet);
+            : countWeekdays(startDate, endDate, holidaySet, closureSet);
         return days * 8;
     }
     const start = request.start ? new Date(request.start) : null;
@@ -73,7 +101,12 @@ function calculateHours(request, holidays) {
     if (!start || !end) return 0;
     if (!isStraordinari) {
         const startKey = formatDateKey(start);
-        if (isWeekend(start) || isWeekend(end) || (holidaySet && holidaySet.has(startKey))) {
+        if (
+            isWeekend(start) ||
+            isWeekend(end) ||
+            (holidaySet && holidaySet.has(startKey)) ||
+            (closureSet && closureSet.has(startKey))
+        ) {
             return 0;
         }
     }
@@ -83,7 +116,7 @@ function calculateHours(request, holidays) {
     const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
     const days = isStraordinari
         ? Math.floor((endDay - startDay) / 86400000) + 1
-        : countWeekdays(startDay, endDay, holidaySet);
+        : countWeekdays(startDay, endDay, holidaySet, closureSet);
     const maxHours = Math.max(1, days) * 8;
     return Math.min(hours, maxHours);
 }

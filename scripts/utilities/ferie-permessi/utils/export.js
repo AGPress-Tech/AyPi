@@ -21,10 +21,10 @@ function getExportDates(request) {
     return { startValue, endValue };
 }
 
-function buildExportRows(requests, holidays) {
+function buildExportRows(requests, holidays, closures) {
     return requests.map((request) => {
         const { startValue, endValue } = getExportDates(request);
-        const hours = calculateHours(request, holidays);
+        const hours = calculateHours(request, holidays, closures);
         const isMutua = request.type === "mutua";
         const mutuaHours = isMutua ? hours : 0;
         return {

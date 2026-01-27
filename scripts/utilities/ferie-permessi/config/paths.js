@@ -5,6 +5,7 @@ const DATA_PATH = NETWORK_PATHS.feriePermessiData;
 const REQUESTS_PATH = NETWORK_PATHS.feriePermessiRequests;
 const HOLIDAYS_PATH = NETWORK_PATHS.feriePermessiHolidays;
 const BALANCES_PATH = NETWORK_PATHS.feriePermessiBalances;
+const CLOSURES_PATH = NETWORK_PATHS.feriePermessiClosures;
 const ASSIGNEES_PATH = NETWORK_PATHS.amministrazioneAssignees;
 const ADMINS_PATH = NETWORK_PATHS.feriePermessiAdmins;
 const OTP_MAIL_SERVER_PATH = NETWORK_PATHS.otpMailServer;
@@ -15,6 +16,7 @@ module.exports = {
     REQUESTS_PATH,
     HOLIDAYS_PATH,
     BALANCES_PATH,
+    CLOSURES_PATH,
     ASSIGNEES_PATH,
     ADMINS_PATH,
     OTP_MAIL_SERVER_PATH,

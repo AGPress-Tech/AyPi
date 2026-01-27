@@ -19,6 +19,30 @@ function createHolidaysModal(options) {
     let highlightDate = null;
     let editingDate = null;
 
+    function dateToKey(date) {
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        const dd = String(date.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function buildDateRange(startValue, endValue) {
+        if (!startValue) return [];
+        const endFinal = endValue || startValue;
+        const startDate = new Date(startValue);
+        const endDate = new Date(endFinal);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [];
+        const rangeStart = startDate <= endDate ? startDate : endDate;
+        const rangeEnd = startDate <= endDate ? endDate : startDate;
+        const dates = [];
+        const current = new Date(rangeStart);
+        while (current <= rangeEnd) {
+            dates.push(dateToKey(current));
+            current.setDate(current.getDate() + 1);
+        }
+        return dates;
+    }
+
     function normalizeHolidays(payload) {
         const holidays = Array.isArray(payload?.holidays) ? payload.holidays.slice() : [];
         return holidays.map((item) => {
@@ -179,12 +203,14 @@ function createHolidaysModal(options) {
         const modal = document.getElementById("fp-holidays-modal");
         const message = document.getElementById("fp-holidays-message");
         const startInput = document.getElementById("fp-holidays-start");
+        const endInput = document.getElementById("fp-holidays-end");
         const nameInput = document.getElementById("fp-holidays-name");
         if (!modal) return;
         highlightDate = dateToHighlight || null;
         editingDate = null;
         setMessage(message, "");
         if (startInput) startInput.value = dateToHighlight || "";
+        if (endInput) endInput.value = dateToHighlight || "";
         if (nameInput) nameInput.value = "";
         showModal(modal);
     }
@@ -218,6 +244,7 @@ function createHolidaysModal(options) {
         const closeBtn = document.getElementById("fp-holidays-close");
         const addBtn = document.getElementById("fp-holidays-add");
         const startInput = document.getElementById("fp-holidays-start");
+        const endInput = document.getElementById("fp-holidays-end");
         const nameInput = document.getElementById("fp-holidays-name");
         const message = document.getElementById("fp-holidays-message");
         const modal = document.getElementById("fp-holidays-modal");
@@ -256,12 +283,21 @@ function createHolidaysModal(options) {
         if (addBtn) {
             addBtn.addEventListener("click", () => {
                 const startValue = startInput ? startInput.value : "";
+                const endValue = endInput ? endInput.value : "";
                 const nameValue = nameInput ? nameInput.value.trim() : "";
                 if (!startValue) {
                     setMessage(message, UI_TEXTS.holidayInvalidDate, true);
                     return;
                 }
-                const dates = [startValue];
+                if (endValue && endValue < startValue) {
+                    setMessage(message, UI_TEXTS.holidayRangeInvalid, true);
+                    return;
+                }
+                const dates = buildDateRange(startValue, endValue || startValue);
+                if (!dates.length) {
+                    setMessage(message, UI_TEXTS.holidayInvalidDate, true);
+                    return;
+                }
 
                 if (typeof openPasswordModal === "function") {
                     openPasswordModal({
@@ -277,6 +313,14 @@ function createHolidaysModal(options) {
         }
         if (startInput) {
             startInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    addBtn?.click();
+                }
+            });
+        }
+        if (endInput) {
+            endInput.addEventListener("keydown", (event) => {
                 if (event.key === "Enter") {
                     event.preventDefault();
                     addBtn?.click();

@@ -169,16 +169,37 @@ body.fp-calendar-ready .fp-page {
     max-width: 520px;
 }
 
+.fp-days-picker {
+    display: grid;
+    gap: 12px;
+}
+
 .fp-holidays-date-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(180px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+        "name name"
+        "start end"
+        "button button";
     gap: 10px;
     align-items: center;
     margin-bottom: 12px;
 }
 
-.fp-holidays-date-grid .fp-btn {
-    grid-column: 1 / -1;
+.fp-holidays-date-grid .fp-holidays-name {
+    grid-area: name;
+}
+
+.fp-holidays-date-grid .fp-holidays-start {
+    grid-area: start;
+}
+
+.fp-holidays-date-grid .fp-holidays-end {
+    grid-area: end;
+}
+
+.fp-holidays-date-grid .fp-holidays-add {
+    grid-area: button;
     justify-self: stretch;
 }
 
@@ -191,9 +212,60 @@ body.fp-calendar-ready .fp-page {
     justify-self: end;
 }
 
+.fp-closures-date-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+        "name name"
+        "start end"
+        "button button";
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.fp-closures-date-grid .fp-closures-name {
+    grid-area: name;
+}
+
+.fp-closures-date-grid .fp-closures-start {
+    grid-area: start;
+}
+
+.fp-closures-date-grid .fp-closures-end {
+    grid-area: end;
+}
+
+.fp-closures-date-grid .fp-closures-add {
+    grid-area: button;
+    justify-self: stretch;
+}
+
+.fp-closures-date-grid .fp-field__input {
+    min-width: 0;
+    width: 100%;
+}
+
+@media (max-width: 720px) {
+    .fp-closures-date-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "name"
+            "start"
+            "end"
+            "button";
+        justify-items: stretch;
+    }
+}
+
 @media (max-width: 640px) {
     .fp-holidays-date-grid {
         grid-template-columns: 1fr;
+        grid-template-areas:
+            "name"
+            "start"
+            "end"
+            "button";
         justify-items: stretch;
     }
 }
@@ -240,6 +312,11 @@ body.fp-calendar-ready .fp-page {
 
 .fc .fp-holiday-bg {
     background-color: #e6f4ff !important;
+    opacity: 0.7;
+}
+
+.fc .fp-closure-bg {
+    background-color: #e8f7e8 !important;
     opacity: 0.7;
 }
 
@@ -1105,6 +1182,10 @@ body.fp-dark .fc .fp-holiday-bg {
     background-color: #1d3a52 !important;
 }
 
+body.fp-dark .fc .fp-closure-bg {
+    background-color: #1f3a28 !important;
+}
+
 body.fp-dark .fp-btn--danger {
     background: #3b1f1c;
     border-color: #3b1f1c;
@@ -1383,6 +1464,10 @@ body.fp-aypi .fp-holidays-row__date {
 
 body.fp-aypi .fc .fp-holiday-bg {
     background-color: #324257 !important;
+}
+
+body.fp-aypi .fc .fp-closure-bg {
+    background-color: #2f3a2a !important;
 }
 
 body.fp-aypi .fp-btn--danger {

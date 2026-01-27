@@ -1,7 +1,7 @@
 const { UI_TEXTS } = require("../utils/ui-texts");
 
 function createApprovalModal(options) {
-    const {
+        const {
         document,
         showModal,
         hideModal,
@@ -34,10 +34,15 @@ function createApprovalModal(options) {
         getBalanceImpact,
         confirmNegativeBalance,
         onHoursAccess,
+        onAssigneesAccess,
         onMutuaCreate,
         onHolidayCreate,
         onHolidayRemove,
         onHolidayUpdate,
+        onClosureCreate,
+        onClosureRemove,
+        onClosureUpdate,
+        onFilterAccess,
     } = options || {};
 
 
@@ -132,6 +137,13 @@ function createApprovalModal(options) {
             }
             return;
         }
+        if (actionType === "filter-access") {
+            closeApprovalModal();
+            if (typeof onFilterAccess === "function") {
+                onFilterAccess(admin, pendingAction.filter);
+            }
+            return;
+        }
         if (actionType === "holiday-create") {
             closeApprovalModal();
             if (typeof onHolidayCreate === "function") {
@@ -150,6 +162,27 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onHolidayUpdate === "function") {
                 onHolidayUpdate(admin, pendingAction.date, pendingAction.nextDate, pendingAction.nextName);
+            }
+            return;
+        }
+        if (actionType === "closure-create") {
+            closeApprovalModal();
+            if (typeof onClosureCreate === "function") {
+                onClosureCreate(admin, pendingAction.entry);
+            }
+            return;
+        }
+        if (actionType === "closure-remove") {
+            closeApprovalModal();
+            if (typeof onClosureRemove === "function") {
+                onClosureRemove(admin, pendingAction.entry);
+            }
+            return;
+        }
+        if (actionType === "closure-update") {
+            closeApprovalModal();
+            if (typeof onClosureUpdate === "function") {
+                onClosureUpdate(admin, pendingAction.entry, pendingAction.next);
             }
             return;
         }
@@ -187,6 +220,13 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onHoursAccess === "function") {
                 onHoursAccess(admin);
+            }
+            return;
+        }
+        if (actionType === "assignees-access") {
+            closeApprovalModal();
+            if (typeof onAssigneesAccess === "function") {
+                onAssigneesAccess(admin);
             }
             return;
         }

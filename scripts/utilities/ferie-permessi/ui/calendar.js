@@ -203,7 +203,7 @@ function initCalendar(options) {
             }, 0);
         },
         eventClick: (info) => {
-            if (info?.event?.extendedProps?.isHoliday) {
+            if (info?.event?.extendedProps?.isHoliday || info?.event?.extendedProps?.isClosure) {
                 return;
             }
             if (typeof onEventSelect === "function") {
@@ -212,8 +212,8 @@ function initCalendar(options) {
         },
         eventDidMount: (info) => {
             if (!info || !info.el) return;
-            if (info.event?.extendedProps?.isHoliday) {
-                const name = info.event?.extendedProps?.holidayName;
+            if (info.event?.extendedProps?.isHoliday || info.event?.extendedProps?.isClosure) {
+                const name = info.event?.extendedProps?.holidayName || info.event?.extendedProps?.closureName;
                 if (name) {
                     info.el.title = name;
                 }

@@ -16,7 +16,7 @@ const bootRequire = (modulePath) => {
     }
 };
 
-const { REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
+const { REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH, CLOSURES_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
 const {
     AUTO_REFRESH_MS,
     OTP_EXPIRY_MS,
@@ -71,6 +71,7 @@ const { createApprovalModal } = bootRequire(path.join(fpUiDir, "approval-modal")
 const { createEditModal } = bootRequire(path.join(fpUiDir, "edit-modal"));
 const { createRequestForm } = bootRequire(path.join(fpUiDir, "request-form"));
 const { createHolidaysModal } = bootRequire(path.join(fpUiDir, "holidays-modal"));
+const { createClosuresModal } = bootRequire(path.join(fpUiDir, "closures-modal"));
 const { createPendingPanel } = bootRequire(path.join(fpUiDir, "pending-panel"));
 const { createSummary } = bootRequire(path.join(fpUiDir, "summary"));
 const { createRenderer } = bootRequire(path.join(fpUiDir, "rendering"));
@@ -101,6 +102,12 @@ let editingRequestId = null;
 let pendingPanelOpen = false;
 let pendingUnlocked = false;
 let pendingUnlockedBy = "";
+let filterUnlocked = {
+    overtime: false,
+    mutua: false,
+};
+let assigneesUnlocked = false;
+let assigneesOpenPending = false;
 let lastNonListViewType = "dayGridMonth";
 let handlingListRedirect = false;
 let assigneeOptions = [];
@@ -111,8 +118,8 @@ let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
 let calendarFilters = {
     leave: true,
-    overtime: true,
-    mutua: true,
+    overtime: false,
+    mutua: false,
 };
 let editingAdminName = "";
 let adminCache = [];
@@ -266,6 +273,7 @@ function ensureDataFolder() {
     ensureFolderFor(REQUESTS_PATH);
     ensureFolderFor(HOLIDAYS_PATH);
     ensureFolderFor(BALANCES_PATH);
+    ensureFolderFor(CLOSURES_PATH);
 }
 
 function loadData() {
@@ -479,6 +487,30 @@ const approvalUi = createApprovalModal({
     onHoursAccess: () => {
         ipcRenderer.send("open-ferie-permessi-hours-window");
     },
+    onAssigneesAccess: (_admin) => {
+        assigneesUnlocked = true;
+        if (assigneesOpenPending) {
+            assigneesOpenPending = false;
+            assigneesUi.openAssigneesModal();
+        }
+    },
+    onFilterAccess: (_admin, filter) => {
+        if (filter === "overtime") {
+            calendarFilters.overtime = true;
+            filterUnlocked.overtime = true;
+            const overtimeToggle = document.getElementById("fp-filter-overtime");
+            if (overtimeToggle) overtimeToggle.checked = true;
+            renderer.renderCalendar(cachedData);
+            return;
+        }
+        if (filter === "mutua") {
+            calendarFilters.mutua = true;
+            filterUnlocked.mutua = true;
+            const mutuaToggle = document.getElementById("fp-filter-mutua");
+            if (mutuaToggle) mutuaToggle.checked = true;
+            renderer.renderCalendar(cachedData);
+        }
+    },
     onMutuaCreate: (admin, request) => {
         if (!request) return;
         const updated = syncData((payload) => {
@@ -514,9 +546,9 @@ const approvalUi = createApprovalModal({
                 }
             });
             let added = 0;
-            dates.forEach((date, index) => {
+            dates.forEach((date) => {
                 if (!map.has(date)) {
-                    map.set(date, { date, name: index === 0 ? (name || "") : "" });
+                    map.set(date, { date, name: name || "" });
                     added += 1;
                 }
             });
@@ -575,9 +607,103 @@ const approvalUi = createApprovalModal({
         delete updated.holidaysUpdated;
         renderAll(updated);
     },
+    onClosureCreate: (_admin, entry) => {
+        if (!entry || !entry.start) return;
+        const updated = syncData((payload) => {
+            const existing = Array.isArray(payload.closures) ? payload.closures.slice() : [];
+            const key = `${entry.start}|${entry.end || entry.start}`;
+            const map = new Map();
+            existing.forEach((item) => {
+                if (!item) return;
+                const start = typeof item.start === "string" ? item.start : "";
+                const end = typeof item.end === "string" ? item.end : start;
+                if (!start) return;
+                map.set(`${start}|${end || start}`, { start, end: end || start, name: item.name || "" });
+            });
+            if (!map.has(key)) {
+                map.set(key, { start: entry.start, end: entry.end || entry.start, name: entry.name || "" });
+                payload.closureAdded = true;
+            } else {
+                payload.closureAdded = false;
+            }
+            payload.closures = Array.from(map.values()).sort((a, b) => a.start.localeCompare(b.start));
+            return payload;
+        });
+        closuresUi.renderClosureList(updated, { containerId: "fp-closures-future-list", futureOnly: true });
+        const message = document.getElementById("fp-closures-message");
+        if (updated.closureAdded) {
+            setMessage(message, UI_TEXTS.closureAdded, false);
+        } else {
+            setMessage(message, UI_TEXTS.closureAlreadyExists, true);
+        }
+        delete updated.closureAdded;
+        renderAll(updated);
+    },
+    onClosureRemove: (_admin, entry) => {
+        if (!entry) return;
+        const key = `${entry.start}|${entry.end || entry.start}`;
+        const updated = syncData((payload) => {
+            const existing = Array.isArray(payload.closures) ? payload.closures.slice() : [];
+            payload.closures = existing.filter((item) => {
+                if (!item) return false;
+                const start = typeof item.start === "string" ? item.start : "";
+                const end = typeof item.end === "string" ? item.end : start;
+                return `${start}|${end || start}` !== key;
+            });
+            return payload;
+        });
+        closuresUi.renderClosureList(updated, { containerId: "fp-closures-future-list", futureOnly: true });
+        setMessage(document.getElementById("fp-closures-message"), UI_TEXTS.closureRemoved, false);
+        renderAll(updated);
+    },
+    onClosureUpdate: (_admin, entry, next) => {
+        if (!entry || !entry.start || !next || !next.start) return;
+        const key = `${entry.start}|${entry.end || entry.start}`;
+        const nextKey = `${next.start}|${next.end || next.start}`;
+        const updated = syncData((payload) => {
+            const existing = Array.isArray(payload.closures) ? payload.closures.slice() : [];
+            const normalized = existing.map((item) => {
+                if (!item) return null;
+                const start = typeof item.start === "string" ? item.start : "";
+                const end = typeof item.end === "string" ? item.end : start;
+                if (!start) return null;
+                return { start, end: end || start, name: item.name || "" };
+            }).filter(Boolean);
+            const hasConflict = normalized.some((item) => `${item.start}|${item.end}` === nextKey && `${item.start}|${item.end}` !== key);
+            if (hasConflict) {
+                payload.closureUpdated = false;
+                return payload;
+            }
+            payload.closures = normalized.map((item) => {
+                if (`${item.start}|${item.end}` !== key) return item;
+                return { start: next.start, end: next.end || next.start, name: next.name || "" };
+            });
+            payload.closureUpdated = true;
+            return payload;
+        });
+        closuresUi.renderClosureList(updated, { containerId: "fp-closures-future-list", futureOnly: true });
+        if (updated.closureUpdated) {
+            setMessage(document.getElementById("fp-closures-message"), UI_TEXTS.closureUpdated, false);
+        } else {
+            setMessage(document.getElementById("fp-closures-message"), UI_TEXTS.closureAlreadyExists, true);
+        }
+        delete updated.closureUpdated;
+        renderAll(updated);
+    },
 });
 
 const holidaysUi = createHolidaysModal({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    syncData,
+    renderAll,
+    loadData,
+    openPasswordModal: (action) => approvalUi.openPasswordModal(action),
+});
+
+const closuresUi = createClosuresModal({
     document,
     showModal,
     hideModal,
@@ -685,6 +811,19 @@ const assigneesUi = createAssigneesModal({
     },
     setEditingEmployee: (next) => {
         editingEmployee = next;
+    },
+    onOpenAttempt: () => {
+        if (assigneesUnlocked) {
+            assigneesUi.openAssigneesModal();
+            return;
+        }
+        assigneesOpenPending = true;
+        approvalUi.openPasswordModal({
+            type: "assignees-access",
+            id: "assignees-access",
+            title: "Gestione dipendenti",
+            description: UI_TEXTS.adminAccessDescription,
+        });
     },
 });
 
@@ -1313,6 +1452,41 @@ function renderEmployeesList() {
     });
 }
 
+function initDaysPicker(holidaysUi, closuresUi) {
+    const openBtn = document.getElementById("fp-days-manage");
+    const modal = document.getElementById("fp-days-picker-modal");
+    const closeBtn = document.getElementById("fp-days-picker-close");
+    const holidayBtn = document.getElementById("fp-days-picker-holiday");
+    const closureBtn = document.getElementById("fp-days-picker-closure");
+    if (openBtn) {
+        openBtn.addEventListener("click", () => {
+            if (modal) showModal(modal);
+        });
+    }
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            if (modal) hideModal(modal);
+        });
+    }
+    if (holidayBtn) {
+        holidayBtn.addEventListener("click", () => {
+            if (modal) hideModal(modal);
+            holidaysUi?.openHolidaysModal?.();
+        });
+    }
+    if (closureBtn) {
+        closureBtn.addEventListener("click", () => {
+            if (modal) hideModal(modal);
+            closuresUi?.openClosuresModal?.();
+        });
+    }
+    if (modal) {
+        modal.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+}
+
 function init() {
     ipcRenderer.send("resize-normale");
     typeColors = loadColorSettings();
@@ -1421,6 +1595,8 @@ function init() {
 
     assigneesUi.initAssigneesModal();
     holidaysUi.initHolidaysModal();
+    closuresUi.initClosuresModal();
+    initDaysPicker(holidaysUi, closuresUi);
 
     const hoursManage = document.getElementById("fp-hours-manage");
     if (hoursManage) {
@@ -1528,7 +1704,7 @@ function init() {
                 return;
             }
 
-            const rows = buildExportRows(filtered, payload.holidays);
+            const rows = buildExportRows(filtered, payload.holidays, payload.closures);
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(rows);
             const dateColumns = ["C", "D"];
@@ -1569,31 +1745,70 @@ function init() {
     }
 
     pendingUi.closePendingPanel();
-
     const leaveToggle = document.getElementById("fp-filter-leave");
     const overtimeToggle = document.getElementById("fp-filter-overtime");
     const mutuaToggle = document.getElementById("fp-filter-mutua");
-    const applyCalendarFilters = () => {
+    if (overtimeToggle) overtimeToggle.checked = false;
+    if (mutuaToggle) mutuaToggle.checked = false;
+    calendarFilters.overtime = false;
+    calendarFilters.mutua = false;
+    const applyLeaveFilter = () => {
         if (leaveToggle) {
             calendarFilters.leave = !!leaveToggle.checked;
+            renderer.renderCalendar(cachedData);
         }
-        if (overtimeToggle) {
-            calendarFilters.overtime = !!overtimeToggle.checked;
-        }
-        if (mutuaToggle) {
-            calendarFilters.mutua = !!mutuaToggle.checked;
-        }
-               renderer.renderCalendar(cachedData);
+    };
+    const requestFilterAccess = (filterKey, label) => {
+        approvalUi.openPasswordModal({
+            type: "filter-access",
+            id: `filter-${filterKey}`,
+            title: UI_TEXTS.filterAccessTitle,
+            description: UI_TEXTS.filterAccessDescription(label),
+            filter: filterKey,
+        });
     };
     if (leaveToggle) {
-        leaveToggle.addEventListener("change", applyCalendarFilters);
+        leaveToggle.addEventListener("change", applyLeaveFilter);
     }
     if (overtimeToggle) {
-        overtimeToggle.addEventListener("change", applyCalendarFilters);
+        overtimeToggle.addEventListener("change", () => {
+            if (overtimeToggle.checked) {
+                if (filterUnlocked.overtime) {
+                    calendarFilters.overtime = true;
+                    renderer.renderCalendar(cachedData);
+                    return;
+                }
+                overtimeToggle.checked = false;
+                calendarFilters.overtime = false;
+                renderer.renderCalendar(cachedData);
+                requestFilterAccess("overtime", "Straordinari");
+                return;
+            }
+            calendarFilters.overtime = false;
+            renderer.renderCalendar(cachedData);
+        });
     }
     if (mutuaToggle) {
-        mutuaToggle.addEventListener("change", applyCalendarFilters);
+        mutuaToggle.addEventListener("change", () => {
+            if (mutuaToggle.checked) {
+                if (filterUnlocked.mutua) {
+                    calendarFilters.mutua = true;
+                    renderer.renderCalendar(cachedData);
+                    return;
+                }
+                mutuaToggle.checked = false;
+                calendarFilters.mutua = false;
+                renderer.renderCalendar(cachedData);
+                requestFilterAccess("mutua", "Mutua");
+                return;
+            }
+            calendarFilters.mutua = false;
+            renderer.renderCalendar(cachedData);
+        });
     }
+            calendarFilters.mutua = false;
+            renderer.renderCalendar(cachedData);
+        }
 
     const calendarRoot = document.getElementById("fp-calendar");
     if (calendarRoot) {
@@ -1604,9 +1819,24 @@ function init() {
             if (!date) return;
             const holidays = Array.isArray(cachedData.holidays) ? cachedData.holidays : [];
             const match = holidays.find((item) => (typeof item === "string" ? item : item?.date) === date);
-            if (!match) return;
+            if (match) {
+                event.preventDefault();
+                holidaysUi.openHolidaysListModal(date);
+                return;
+            }
+            const closures = Array.isArray(cachedData.closures) ? cachedData.closures : [];
+            const hasClosure = closures.some((entry) => {
+                if (!entry) return false;
+                const start = entry.start || "";
+                const end = entry.end || entry.start || "";
+                if (!start) return false;
+                const from = start <= end ? start : end;
+                const to = start <= end ? end : start;
+                return date >= from && date <= to;
+            });
+            if (!hasClosure) return;
             event.preventDefault();
-            holidaysUi.openHolidaysListModal(date);
+            closuresUi.openClosuresListModal(date);
         });
     }
 
@@ -1698,7 +1928,6 @@ function init() {
         });
     }
 
-}
 
 document.addEventListener("DOMContentLoaded", () => {
     try {
