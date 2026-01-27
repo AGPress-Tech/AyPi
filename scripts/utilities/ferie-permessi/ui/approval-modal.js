@@ -35,6 +35,7 @@ function createApprovalModal(options) {
         confirmNegativeBalance,
         onHoursAccess,
         onAssigneesAccess,
+        onManageAccess,
         onMutuaCreate,
         onSpecialeCreate,
         onHolidayCreate,
@@ -228,6 +229,13 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onHoursAccess === "function") {
                 onHoursAccess(admin);
+            }
+            return;
+        }
+        if (actionType === "manage-access") {
+            closeApprovalModal();
+            if (typeof onManageAccess === "function") {
+                onManageAccess(admin);
             }
             return;
         }

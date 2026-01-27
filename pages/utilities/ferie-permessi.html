@@ -107,21 +107,13 @@
                         </span>
                         <span class="fp-btn__label">Richieste in attesa</span>
                     </button>
-                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-assignees-manage">
-                        <span class="fp-btn__icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
-                                <path d="M16 11a4 4 0 1 0-3.99-4A4 4 0 0 0 16 11Zm-8 0a3 3 0 1 0-2.99-3A3 3 0 0 0 8 11Zm0 2c-2.67 0-8 1.34-8 4v2h10.5a6.45 6.45 0 0 1-.5-2.5 5.5 5.5 0 0 1 .66-2.5Zm8 0a5.5 5.5 0 0 0-5.5 5.5 6.5 6.5 0 0 0 .06.5H24v-2c0-2.66-5.33-4-8-4Z"></path>
-                            </svg>
-                        </span>
-                        <span class="fp-btn__label">Gestisci dipendenti</span>
-                    </button>
-                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-hours-manage">
+                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-open">
                         <span class="fp-btn__icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
                                 <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 11h-4V5h2v6h2Z"></path>
                             </svg>
                         </span>
-                        <span class="fp-btn__label">Gestione ore</span>
+                        <span class="fp-btn__label">Gestione</span>
                     </button>
                     <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-manage">
     <span class="fp-btn__icon" aria-hidden="true">
@@ -468,6 +460,33 @@
             <div class="fp-actions fp-actions--modal">
                 <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
                 <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-manage-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-manage-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-manage-title">Gestione</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-manage-close">Chiudi</button>
+            </div>
+            <div class="fp-days-picker">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-assignees">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                            <path d="M16 11a4 4 0 1 0-3.99-4A4 4 0 0 0 16 11Zm-8 0a3 3 0 1 0-2.99-3A3 3 0 0 0 8 11Zm0 2c-2.67 0-8 1.34-8 4v2h10.5a6.45 6.45 0 0 1-.5-2.5 5.5 5.5 0 0 1 .66-2.5Zm8 0a5.5 5.5 0 0 0-5.5 5.5 6.5 6.5 0 0 0 .06.5H24v-2c0-2.66-5.33-4-8-4Z"></path>
+                        </svg>
+                    </span>
+                    <span class="fp-btn__label">Gestisci dipendenti</span>
+                </button>
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-hours">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 11h-4V5h2v6h2Z"></path>
+                        </svg>
+                    </span>
+                    <span class="fp-btn__label">Gestione ore</span>
+                </button>
             </div>
         </div>
     </div>

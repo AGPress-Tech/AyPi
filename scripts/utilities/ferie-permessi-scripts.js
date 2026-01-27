@@ -109,6 +109,8 @@ let filterUnlocked = {
 };
 let assigneesUnlocked = false;
 let assigneesOpenPending = false;
+let manageUnlocked = false;
+let manageOpenPending = false;
 let lastNonListViewType = "dayGridMonth";
 let handlingListRedirect = false;
 let assigneeOptions = [];
@@ -502,6 +504,14 @@ const approvalUi = createApprovalModal({
             assigneesUi.openAssigneesModal();
         }
     },
+    onManageAccess: (_admin) => {
+        manageUnlocked = true;
+        if (manageOpenPending) {
+            manageOpenPending = false;
+            const manageModal = document.getElementById("fp-manage-modal");
+            if (manageModal) showModal(manageModal);
+        }
+    },
     onFilterAccess: (_admin, filter) => {
         if (filter === "overtime") {
             calendarFilters.overtime = true;
@@ -849,7 +859,7 @@ const assigneesUi = createAssigneesModal({
         editingEmployee = next;
     },
     onOpenAttempt: () => {
-        if (assigneesUnlocked) {
+        if (assigneesUnlocked || manageUnlocked) {
             assigneesUi.openAssigneesModal();
             return;
         }
@@ -1634,15 +1644,49 @@ function init() {
     closuresUi.initClosuresModal();
     initDaysPicker(holidaysUi, closuresUi);
 
-    const hoursManage = document.getElementById("fp-hours-manage");
-    if (hoursManage) {
-        hoursManage.addEventListener("click", () => {
+    const manageOpen = document.getElementById("fp-manage-open");
+    const manageModal = document.getElementById("fp-manage-modal");
+    const manageClose = document.getElementById("fp-manage-close");
+    const manageAssignees = document.getElementById("fp-manage-assignees");
+    const manageHours = document.getElementById("fp-manage-hours");
+
+    if (manageOpen) {
+        manageOpen.addEventListener("click", () => {
+            if (manageUnlocked) {
+                if (manageModal) showModal(manageModal);
+                return;
+            }
+            manageOpenPending = true;
             approvalUi.openPasswordModal({
-                type: "hours-access",
-                id: "hours-access",
-                title: "Gestione ore",
+                type: "manage-access",
+                id: "manage-access",
+                title: "Gestione",
                 description: UI_TEXTS.adminAccessDescription,
             });
+        });
+    }
+    if (manageClose) {
+        manageClose.addEventListener("click", () => {
+            if (manageModal) hideModal(manageModal);
+        });
+    }
+    if (manageModal) {
+        manageModal.addEventListener("click", (event) => {
+            if (event.target === manageModal) {
+                // no-op: keep modal open on backdrop click
+            }
+        });
+    }
+    if (manageAssignees) {
+        manageAssignees.addEventListener("click", () => {
+            if (manageModal) hideModal(manageModal);
+            assigneesUi.openAssigneesModal();
+        });
+    }
+    if (manageHours) {
+        manageHours.addEventListener("click", () => {
+            if (manageModal) hideModal(manageModal);
+            ipcRenderer.send("open-ferie-permessi-hours-window");
         });
     }
 
