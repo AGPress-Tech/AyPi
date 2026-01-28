@@ -145,7 +145,7 @@ function createRequestForm(options) {
                     openPasswordModal({
                         type: "speciale-create",
                         id: request.id,
-                        title: "Conferma permesso speciale",
+                        title: "Conferma permesso chiusura aziendale",
                         description: UI_TEXTS.specialePasswordDescription,
                         request,
                     });

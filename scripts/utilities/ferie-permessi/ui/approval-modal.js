@@ -36,6 +36,7 @@ function createApprovalModal(options) {
         onHoursAccess,
         onAssigneesAccess,
         onManageAccess,
+        onDaysAccess,
         onMutuaCreate,
         onSpecialeCreate,
         onHolidayCreate,
@@ -236,6 +237,13 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onManageAccess === "function") {
                 onManageAccess(admin);
+            }
+            return;
+        }
+        if (actionType === "days-access") {
+            closeApprovalModal();
+            if (typeof onDaysAccess === "function") {
+                onDaysAccess(admin);
             }
             return;
         }

@@ -111,6 +111,8 @@ let assigneesUnlocked = false;
 let assigneesOpenPending = false;
 let manageUnlocked = false;
 let manageOpenPending = false;
+let daysUnlocked = false;
+let daysOpenPending = false;
 let lastNonListViewType = "dayGridMonth";
 let handlingListRedirect = false;
 let assigneeOptions = [];
@@ -510,6 +512,14 @@ const approvalUi = createApprovalModal({
             manageOpenPending = false;
             const manageModal = document.getElementById("fp-manage-modal");
             if (manageModal) showModal(manageModal);
+        }
+    },
+    onDaysAccess: (_admin) => {
+        daysUnlocked = true;
+        if (daysOpenPending) {
+            daysOpenPending = false;
+            const daysModal = document.getElementById("fp-days-picker-modal");
+            if (daysModal) showModal(daysModal);
         }
     },
     onFilterAccess: (_admin, filter) => {
@@ -1506,7 +1516,17 @@ function initDaysPicker(holidaysUi, closuresUi) {
     const closureBtn = document.getElementById("fp-days-picker-closure");
     if (openBtn) {
         openBtn.addEventListener("click", () => {
-            if (modal) showModal(modal);
+            if (daysUnlocked) {
+                if (modal) showModal(modal);
+                return;
+            }
+            daysOpenPending = true;
+            approvalUi.openPasswordModal({
+                type: "days-access",
+                id: "days-access",
+                title: "Festivita e chiusure",
+                description: UI_TEXTS.adminAccessDescription,
+            });
         });
     }
     if (closeBtn) {
@@ -1903,7 +1923,7 @@ function init() {
                 specialeToggle.checked = false;
                 calendarFilters.speciale = false;
                 renderer.renderCalendar(cachedData);
-                requestFilterAccess("speciale", "Speciale");
+                requestFilterAccess("speciale", "Permesso Chiusura Aziendale");
                 return;
             }
             calendarFilters.speciale = false;
