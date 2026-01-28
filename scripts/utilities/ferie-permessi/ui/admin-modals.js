@@ -22,6 +22,8 @@ function createAdminModals(options) {
         setAdminCache,
         getAdminEditingIndex,
         setAdminEditingIndex,
+        isInitialSetupActive,
+        onInitialSetupComplete,
     } = options || {};
 
     if (!document) {
@@ -230,6 +232,9 @@ function createAdminModals(options) {
         }
         if (adminAddClose) {
             adminAddClose.addEventListener("click", () => {
+                if (typeof isInitialSetupActive === "function" && isInitialSetupActive()) {
+                    return;
+                }
                 if (adminAddModal) hideModal(adminAddModal);
                 if (adminNameInput) adminNameInput.value = "";
                 if (adminEmailInput) adminEmailInput.value = "";
@@ -241,6 +246,9 @@ function createAdminModals(options) {
         }
         if (adminAddCancel) {
             adminAddCancel.addEventListener("click", () => {
+                if (typeof isInitialSetupActive === "function" && isInitialSetupActive()) {
+                    return;
+                }
                 if (adminAddModal) hideModal(adminAddModal);
                 if (adminNameInput) adminNameInput.value = "";
                 if (adminEmailInput) adminEmailInput.value = "";
@@ -299,6 +307,9 @@ function createAdminModals(options) {
                 if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
                 setAdminMessage("fp-admin-add-message", UI_TEXTS.adminAdded, false);
                 if (adminAddModal) hideModal(adminAddModal);
+                if (typeof onInitialSetupComplete === "function") {
+                    onInitialSetupComplete();
+                }
             });
         }
         if (adminEditCancel) {
@@ -366,9 +377,26 @@ function createAdminModals(options) {
         }
     }
 
+    function openAdminAddModal() {
+        const adminAddModal = document.getElementById("fp-admin-add-modal");
+        const adminNameInput = document.getElementById("fp-admin-name");
+        const adminEmailInput = document.getElementById("fp-admin-email");
+        const adminPhoneInput = document.getElementById("fp-admin-phone");
+        const adminPasswordInput = document.getElementById("fp-admin-password");
+        const adminPasswordConfirmInput = document.getElementById("fp-admin-password-confirm");
+        if (adminNameInput) adminNameInput.value = "";
+        if (adminEmailInput) adminEmailInput.value = "";
+        if (adminPhoneInput) adminPhoneInput.value = "";
+        if (adminPasswordInput) adminPasswordInput.value = "";
+        if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
+        setAdminMessage("fp-admin-add-message", "");
+        if (adminAddModal) showModal(adminAddModal);
+    }
+
     return {
         renderAdminList,
         openAdminModal,
+        openAdminAddModal,
         closeAdminModal,
         initAdminModals,
     };

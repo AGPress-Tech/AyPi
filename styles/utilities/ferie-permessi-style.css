@@ -20,6 +20,20 @@ body.fp-calendar-ready .fp-page {
     opacity: 1;
 }
 
+body.fp-initial-setup .fp-page {
+    pointer-events: none;
+    user-select: none;
+    filter: grayscale(0.2);
+}
+
+body.fp-initial-setup .fp-modal {
+    pointer-events: auto;
+}
+
+body.fp-initial-setup #fp-admin-add-modal {
+    pointer-events: auto;
+}
+
 .fp-header {
     display: flex;
     align-items: center;

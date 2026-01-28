@@ -94,6 +94,8 @@ const UI_TEXTS = {
     initErrorTitle: "Errore inizializzazione ferie/permessi.",
     filterAccessTitle: "Abilitazione filtro",
     filterAccessDescription: (label) => `Inserisci la password admin per abilitare il filtro ${label}.`,
+    setupAdminTitle: "Prima configurazione",
+    setupAdminMessage: "Non esiste nessun admin. Inserisci il primo admin per iniziare.",
 };
 
 module.exports = { UI_TEXTS };

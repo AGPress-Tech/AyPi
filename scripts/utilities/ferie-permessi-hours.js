@@ -1,5 +1,6 @@
 const { ipcRenderer } = require("electron");
 const path = require("path");
+const fs = require("fs");
 
 const bootRequire = (modulePath) => {
     try {
@@ -26,6 +27,12 @@ const {
     getMonthKey,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { THEME_STORAGE_KEY } = bootRequire(path.join(fpBaseDir, "config", "constants"));
+let XLSX;
+try {
+    XLSX = require("xlsx");
+} catch (err) {
+    console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
+}
 
 function loadThemeSetting() {
     try {
@@ -179,6 +186,65 @@ function saveChanges() {
     setStatus("Modifiche salvate.");
 }
 
+async function exportExcel() {
+    if (!XLSX) {
+        await ipcRenderer.invoke("show-message-box", {
+            type: "error",
+            message: "Modulo 'xlsx' non trovato.",
+            detail: "Esegui 'npm install xlsx' nella cartella del progetto AyPi.",
+        });
+        return;
+    }
+    const assigneesData = loadAssigneeOptions();
+    const groups = assigneesData.groups || {};
+    const raw = loadPayload();
+    const normalized = normalizeBalances(raw, groups);
+    const deductions = applyMissingRequestDeductions(normalized.payload);
+    if (normalized.changed || deductions.changed) {
+        savePayload(deductions.payload);
+    }
+
+    const balances = deductions.payload.balances || {};
+    const rows = listEmployees(groups)
+        .sort((a, b) => {
+            const dept = a.department.localeCompare(b.department);
+            if (dept !== 0) return dept;
+            return a.employee.localeCompare(b.employee);
+        })
+        .map((row) => {
+            const record = balances[row.key] || {};
+            return {
+                "Reparto": row.department || "",
+                "Dipendente": row.employee || "",
+                "Ore disponibili": Number(record.hoursAvailable || 0),
+                "Accredito mensile": Number(record.monthlyAccrualHours || 16),
+                "Ultimo accredito": record.lastAccrualMonth || getMonthKey(),
+            };
+        });
+
+    if (!rows.length) {
+        setStatus("Nessun dato da esportare.");
+        return;
+    }
+
+    const outputPath = await ipcRenderer.invoke("select-output-file", {
+        defaultName: "gestione_ore.xlsx",
+        filters: [{ name: "File Excel", extensions: ["xlsx"] }],
+    });
+    if (!outputPath) return;
+
+    const dirOut = path.dirname(outputPath);
+    if (!fs.existsSync(dirOut)) {
+        fs.mkdirSync(dirOut, { recursive: true });
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Gestione Ore");
+    XLSX.writeFile(wb, outputPath, { cellDates: true });
+    setStatus("Export completato.");
+}
+
 window.addEventListener("DOMContentLoaded", () => {
     applyTheme(loadThemeSetting());
 
@@ -191,10 +257,12 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     const refreshBtn = document.getElementById("fp-hours-refresh");
+    const exportBtn = document.getElementById("fp-hours-export");
     const saveBtn = document.getElementById("fp-hours-save");
     const closeBtn = document.getElementById("fp-hours-close");
 
     if (refreshBtn) refreshBtn.addEventListener("click", loadAndRender);
+    if (exportBtn) exportBtn.addEventListener("click", exportExcel);
     if (saveBtn) saveBtn.addEventListener("click", saveChanges);
     if (closeBtn) closeBtn.addEventListener("click", () => window.close());
 

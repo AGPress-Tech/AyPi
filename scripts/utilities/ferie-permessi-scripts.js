@@ -16,7 +16,7 @@ const bootRequire = (modulePath) => {
     }
 };
 
-const { REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH, CLOSURES_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
+const { REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH, CLOSURES_PATH, ADMINS_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
 const {
     AUTO_REFRESH_MS,
     OTP_EXPIRY_MS,
@@ -113,6 +113,7 @@ let manageUnlocked = false;
 let manageOpenPending = false;
 let daysUnlocked = false;
 let daysOpenPending = false;
+let initialSetupActive = false;
 let lastNonListViewType = "dayGridMonth";
 let handlingListRedirect = false;
 let assigneeOptions = [];
@@ -841,6 +842,11 @@ const adminUi = createAdminModals({
     setAdminEditingIndex: (next) => {
         adminEditingIndex = next;
     },
+    isInitialSetupActive: () => initialSetupActive,
+    onInitialSetupComplete: () => {
+        initialSetupActive = false;
+        document.body.classList.remove("fp-initial-setup");
+    },
 });
 openAdminModalHandler = adminUi.openAdminModal;
 openPasswordModalHandler = approvalUi.openPasswordModal;
@@ -930,6 +936,28 @@ function getFieldValue(id) {
 
 function isChecked(id) {
     return !!document.getElementById(id)?.checked;
+}
+
+function isAdminFileMissingOrEmpty() {
+    try {
+        if (!ADMINS_PATH || !fs.existsSync(ADMINS_PATH)) return true;
+        const raw = fs.readFileSync(ADMINS_PATH, "utf8");
+        if (!raw) return true;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            return !parsed.some((item) => item && item.name && (item.password || item.passwordHash));
+        }
+        if (parsed && Array.isArray(parsed.admins)) {
+            return !parsed.admins.some((item) => item && item.name && (item.password || item.passwordHash));
+        }
+        if (parsed && typeof parsed === "object") {
+            return Object.keys(parsed).length === 0;
+        }
+        return true;
+    } catch (err) {
+        console.error("Errore lettura file admin:", err);
+        return true;
+    }
 }
 
 function buildRequestFromForm(prefix, requestId, allowPast = false) {
@@ -1643,6 +1671,12 @@ function init() {
     settingsUi.initSettingsModal();
 
     adminUi.initAdminModals();
+    if (isAdminFileMissingOrEmpty()) {
+        initialSetupActive = true;
+        document.body.classList.add("fp-initial-setup");
+        showDialog("info", UI_TEXTS.setupAdminTitle, UI_TEXTS.setupAdminMessage);
+        adminUi.openAdminAddModal();
+    }
 
     const approveRecover = document.getElementById("fp-approve-recover");
     approvalUi.initApprovalModal();
