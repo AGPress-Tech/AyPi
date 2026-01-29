@@ -255,9 +255,9 @@ function applyCaseTransform(baseName, config) {
     }
     if (mode === "title") {
         return baseName
-            .split(/([_\-\s]+)/)
+            .split(/([._\-\s]+)/)
             .map((part) => {
-                if (/^[_\-\s]+$/.test(part)) return part;
+                if (/^[._\-\s]+$/.test(part)) return part;
                 if (!part) return part;
                 return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
             })
