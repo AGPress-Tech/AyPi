@@ -1,9 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AyPi Calendar • Ore dipendenti</title>
+  <title>AyPi Calendar • Ferie/Permessi/Straordinari</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
@@ -12,8 +12,8 @@
       <div class="brand">
         <div class="logo" aria-hidden="true"></div>
         <div>
-          <h1>AyPi Calendar • Guida</h1>
-          <p>Guida operativa</p>
+          <h1>AyPi • Guida</h1>
+          <p>Stile helper (static)</p>
         </div>
       </div>
 
@@ -83,50 +83,44 @@
     </aside>
 
     <main class="main">
-<div class="topbar">
-  <span class="crumbs">AyPi Calendar / Gestione / Ore dipendenti</span>
-  <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
-</div>
+      <div class="topbar">
+        <div class="crumbs">AyPi Calendar / Richieste / Ferie-Permessi-Straordinari</div>
+        <div class="actions">
+          <button class="btn" id="copyLinkBtn" type="button">Copia link</button>
+        </div>
+      </div>
 
+      <div class="container">
 
-<div class="container"><section class="card">
-  <h2>Gestione ore dipendenti</h2>
-  <p>Il modulo <b>Gestione ore</b> consente di gestire ore disponibili e ore maturate mensilmente per ferie e permessi.</p>
+<section class="card">
+  <h2>Richiesta Ferie / Permesso / Straordinari</h2>
+  <p>Nella schermata iniziale, in basso a sinistra, trovi la sezione per inserire una nuova richiesta che verrà poi approvata da un amministratore.</p>
   <h3>Procedura</h3>
-  <ol><li>Premi <b>Gestione</b> e inserisci la password</li>
-<li>Scegli <b>Gestione ore</b></li>
-<li>Visualizza e modifica ore disponibili e accredito mensile per ciascun dipendente</li>
-<li>Usa <b>Esporta in Excel</b> per esportare la visualizzazione corrente</li></ol>
+  <ol><li><b>Seleziona Reparto</b></li>
+<li><b>Seleziona Dipendente</b></li>
+<li>Scegli la <b>tipologia</b> da far approvare: <b>Ferie</b>, <b>Permesso</b> o <b>Straordinario</b></li>
+<li>Imposta <b>Data Inizio</b> e <b>Data Fine</b> (incluse)</li>
+<li>Inserisci una <b>nota</b> (opzionale)</li>
+<li>Verifica e premi <b>Salva</b> per inviare la richiesta</li></ol>
   
-<div class="callout admin">
-  <div class="title">Solo Admin</div>
-  <p>Questa funzione è disponibile solo agli amministratori autorizzati (richiede password).</p>
-</div>
 <div class="callout note">
   <div class="title">Note</div>
-  <ul><li>Le ore vengono scalate automaticamente quando una richiesta viene approvata.</li>
-<li>Le ore aumentano automaticamente al cambio mese in base all’accredito mensile configurato.</li>
-<li>Se le ore scendono sotto zero la cella viene evidenziata, ma l’invio richieste resta possibile (con avviso).</li></ul>
+  <ul><li>La data di fine deve essere uguale o successiva alla data di inizio; altrimenti l’invio non è consentito.</li>
+<li>Per ferie e permessi è richiesto almeno <b>5 giorni</b> di preavviso; in caso contrario la richiesta potrebbe non essere approvata.</li>
+<li>Se la richiesta copre più giorni, l’opzione <b>giornata intera</b> viene applicata automaticamente.</li>
+<li>Se inizio e fine coincidono, puoi scegliere <b>giornata intera</b> (8 ore) oppure un intervallo orario <b>da–a</b>.</li>
+<li>Se non vedi la richiesta nel calendario, significa che è <b>in attesa</b> o <b>rifiutata</b>.</li>
+<li>Una richiesta inserita può essere modificata o rimossa <b>solo</b> da un amministratore.</li>
+<li>Se le ore disponibili non coprono la richiesta, viene mostrato un avviso, ma l’invio è comunque possibile.</li></ul>
 </div>
 </section>
-<figure class="shot">
-  <img src="../Img/Gestione ore.png" alt="Gestione ore.png" />
-</figure>
 
         <div class="footer">
-          AyPi Calendar • Guida • 2026
+          AyPi Documentation • Static build • 2026
         </div>
-      </div></main>
+      </div>
+    </main>
   </div>
   <script src="../assets/script.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

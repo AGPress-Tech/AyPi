@@ -1,9 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AyPi Calendar • Ore dipendenti</title>
+  <title>AyPi Calendar • Festività e chiusure</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
@@ -12,8 +12,8 @@
       <div class="brand">
         <div class="logo" aria-hidden="true"></div>
         <div>
-          <h1>AyPi Calendar • Guida</h1>
-          <p>Guida operativa</p>
+          <h1>AyPi • Guida</h1>
+          <p>Stile helper (static)</p>
         </div>
       </div>
 
@@ -83,20 +83,23 @@
     </aside>
 
     <main class="main">
-<div class="topbar">
-  <span class="crumbs">AyPi Calendar / Gestione / Ore dipendenti</span>
-  <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
-</div>
+      <div class="topbar">
+        <div class="crumbs">AyPi Calendar / Gestione / Festività e chiusure</div>
+        <div class="actions">
+          <button class="btn" id="copyLinkBtn" type="button">Copia link</button>
+        </div>
+      </div>
 
+      <div class="container">
 
-<div class="container"><section class="card">
-  <h2>Gestione ore dipendenti</h2>
-  <p>Il modulo <b>Gestione ore</b> consente di gestire ore disponibili e ore maturate mensilmente per ferie e permessi.</p>
+<section class="card">
+  <h2>Gestione festività e chiusura aziendale</h2>
+  <p>Da <b>Festività e chiusure</b> puoi inserire giorni festivi e periodi di chiusura aziendale che verranno riportati nel calendario.</p>
   <h3>Procedura</h3>
-  <ol><li>Premi <b>Gestione</b> e inserisci la password</li>
-<li>Scegli <b>Gestione ore</b></li>
-<li>Visualizza e modifica ore disponibili e accredito mensile per ciascun dipendente</li>
-<li>Usa <b>Esporta in Excel</b> per esportare la visualizzazione corrente</li></ol>
+  <ol><li>Premi <b>Festività e chiusure</b> e inserisci la password</li>
+<li>Scegli se inserire una <b>festività</b> o una <b>chiusura aziendale</b></li>
+<li>Inserisci un <b>nome</b> e una <b>data inizio</b> / <b>data fine</b> (incluse)</li>
+<li>Conferma per inserire a calendario (con colori dedicati)</li></ol>
   
 <div class="callout admin">
   <div class="title">Solo Admin</div>
@@ -104,29 +107,17 @@
 </div>
 <div class="callout note">
   <div class="title">Note</div>
-  <ul><li>Le ore vengono scalate automaticamente quando una richiesta viene approvata.</li>
-<li>Le ore aumentano automaticamente al cambio mese in base all’accredito mensile configurato.</li>
-<li>Se le ore scendono sotto zero la cella viene evidenziata, ma l’invio richieste resta possibile (con avviso).</li></ul>
+  <ul><li>I giorni di chiusura aziendale scalano automaticamente <b>8 ore</b> di ferie per giorno, esclusi sabato/domenica e festività.</li>
+<li>Se un dipendente lavora in un giorno di chiusura, si inserisce come <b>Permesso Chiusura Aziendale</b> per compensare lo scalo automatico.</li></ul>
 </div>
 </section>
-<figure class="shot">
-  <img src="../Img/Gestione ore.png" alt="Gestione ore.png" />
-</figure>
 
         <div class="footer">
-          AyPi Calendar • Guida • 2026
+          AyPi Documentation • Static build • 2026
         </div>
-      </div></main>
+      </div>
+    </main>
   </div>
   <script src="../assets/script.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

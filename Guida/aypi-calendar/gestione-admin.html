@@ -90,16 +90,25 @@
 
 
 <div class="container"><section class="card">
-  <h2>Gestione admin</h2>
-  <p>Nella sezione delle impostazioni del calendario, si può, tramite password, accedere all’area di configurazione admin.</p>
-  <ul>
-    <li>In questa sezione, l’amministratore principale può iniziare creando amministratori secondari tramite il pulsante “Aggiungi Admin”.Selezionando l’opzione di modifica, è possibile aggiornare le informazioni necessarie dell’amministratore, quali nome, cognome, indirizzo e-mail e password, oltre alle informazioni facoltative come il numero di telefono.Selezionando l’opzione di rimozione, è possibile eliminare un amministratore, a condizione che ne rimanga sempre almeno uno attivo. L’applicazione impedisce infatti la cancellazione dell’ultimo amministratore presente.L’unico modo per azzerare lo stato degli amministratori è tramite la riconfigurazione dell’applicazione, operazione possibile esclusivamente in modalità sviluppatore e non documentata nel presente manuale.All’interno di questa finestra è inoltre possibile effettuare il recupero della password, funzione accessibile anche dopo tre o più tentativi di inserimento della password errati.Per avviare la procedura di recupero è richiesto l’inserimento del nome e del cognome dell’amministratore per il quale si desidera recuperare la password</li>
-    <li>successivamente, l’amministratore interessato riceverà un’email contenente un codice numerico a sei cifre, valido per cinque minuti, da inserire nell’apposito modulo di recupero password.Se il codice risulta corretto ed è inserito entro il tempo previsto, sarà possibile impostare una nuova password.In caso di ulteriori problemi con il recupero della password, si consiglia di contattare un altro amministratore o l’assistenza tecnica (Ayrton).</li>
-  </ul>
-  <figure class="shot is-hidden" data-shot="auto">
-    <img alt="Screenshot guida AyPi Calendar">
-    <figcaption>Screenshot di riferimento.</figcaption>
-  </figure>
+  <h2>Gestione admin, Panel Control e mailing</h2>
+  <p>Nelle impostazioni puoi accedere (con password) all’area di configurazione amministratori.</p>
+  <h3>Procedura</h3>
+  <ol><li>Apri <b>Impostazioni</b> → <b>Gestione admin</b></li>
+<li>L’amministratore principale può creare admin secondari con <b>Aggiungi Admin</b></li>
+<li>In modifica puoi aggiornare: nome, cognome, email, password e (opzionale) telefono</li>
+<li>In rimozione puoi eliminare un admin, ma deve rimanerne almeno uno attivo</li>
+<li>Usa <b>recupero password</b> per inviare un codice a 6 cifre (valido 5 minuti) via email</li>
+<li>Inserisci il codice e imposta la nuova password</li></ol>
+  
+<div class="callout admin">
+  <div class="title">Solo Admin</div>
+  <p>Questa funzione è disponibile solo agli amministratori autorizzati (richiede password).</p>
+</div>
+<div class="callout note">
+  <div class="title">Note</div>
+  <ul><li>L’app impedisce la cancellazione dell’ultimo amministratore.</li>
+<li>L’azzeramento totale degli admin è possibile solo tramite riconfigurazione in modalità sviluppatore (non documentata).</li></ul>
+</div>
 </section>
 
         <div class="footer">

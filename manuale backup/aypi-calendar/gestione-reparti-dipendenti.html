@@ -1,9 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AyPi Calendar • Ore dipendenti</title>
+  <title>AyPi Calendar • Reparti e dipendenti</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
@@ -12,8 +12,8 @@
       <div class="brand">
         <div class="logo" aria-hidden="true"></div>
         <div>
-          <h1>AyPi Calendar • Guida</h1>
-          <p>Guida operativa</p>
+          <h1>AyPi • Guida</h1>
+          <p>Stile helper (static)</p>
         </div>
       </div>
 
@@ -83,50 +83,38 @@
     </aside>
 
     <main class="main">
-<div class="topbar">
-  <span class="crumbs">AyPi Calendar / Gestione / Ore dipendenti</span>
-  <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
-</div>
+      <div class="topbar">
+        <div class="crumbs">AyPi Calendar / Gestione / Reparti e dipendenti</div>
+        <div class="actions">
+          <button class="btn" id="copyLinkBtn" type="button">Copia link</button>
+        </div>
+      </div>
 
+      <div class="container">
 
-<div class="container"><section class="card">
-  <h2>Gestione ore dipendenti</h2>
-  <p>Il modulo <b>Gestione ore</b> consente di gestire ore disponibili e ore maturate mensilmente per ferie e permessi.</p>
+<section class="card">
+  <h2>Gestione reparti e dipendenti</h2>
+  <p>Da <b>Gestione</b> (in alto a sinistra) puoi inserire, modificare o rimuovere reparti e dipendenti.</p>
   <h3>Procedura</h3>
   <ol><li>Premi <b>Gestione</b> e inserisci la password</li>
-<li>Scegli <b>Gestione ore</b></li>
-<li>Visualizza e modifica ore disponibili e accredito mensile per ciascun dipendente</li>
-<li>Usa <b>Esporta in Excel</b> per esportare la visualizzazione corrente</li></ol>
+<li>Scegli <b>Gestione dipendenti</b></li>
+<li>Per aggiungere un reparto: scrivi il nome e premi <b>+</b></li>
+<li>Per aggiungere un dipendente: seleziona il reparto, scrivi il nome e premi <b>+</b></li>
+<li>Per modificare: usa il tasto <b>modifica</b> a fianco e poi <b>salva</b> o annulla</li>
+<li>Per cambiare reparto di un dipendente: entra in modifica, aggiorna e salva</li></ol>
   
 <div class="callout admin">
   <div class="title">Solo Admin</div>
   <p>Questa funzione è disponibile solo agli amministratori autorizzati (richiede password).</p>
 </div>
-<div class="callout note">
-  <div class="title">Note</div>
-  <ul><li>Le ore vengono scalate automaticamente quando una richiesta viene approvata.</li>
-<li>Le ore aumentano automaticamente al cambio mese in base all’accredito mensile configurato.</li>
-<li>Se le ore scendono sotto zero la cella viene evidenziata, ma l’invio richieste resta possibile (con avviso).</li></ul>
-</div>
 </section>
-<figure class="shot">
-  <img src="../Img/Gestione ore.png" alt="Gestione ore.png" />
-</figure>
 
         <div class="footer">
-          AyPi Calendar • Guida • 2026
+          AyPi Documentation • Static build • 2026
         </div>
-      </div></main>
+      </div>
+    </main>
   </div>
   <script src="../assets/script.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
