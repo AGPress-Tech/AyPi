@@ -847,6 +847,30 @@ body.fp-initial-setup #fp-admin-add-modal {
     width: min(560px, 92vw);
 }
 
+.fp-guide-card {
+    width: min(960px, 94vw);
+    max-height: 88vh;
+    display: grid;
+    grid-template-rows: auto auto auto 1fr;
+    gap: 12px;
+}
+
+.fp-guide-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.fp-guide-frame {
+    width: 100%;
+    height: 100%;
+    min-height: 360px;
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
 .fp-assignees-header {
     display: flex;
     align-items: center;
@@ -1148,6 +1172,11 @@ body.fp-dark .fp-field__input {
     color: #e8eaed;
 }
 
+body.fp-dark .fp-guide-frame {
+    border-color: #2b2f36;
+    background: #15181d;
+}
+
 body.fp-dark .fp-field input:focus,
 body.fp-dark .fp-field select:focus,
 body.fp-dark .fp-field textarea:focus,
@@ -1440,6 +1469,11 @@ body.fp-aypi .fp-field__input {
     background: #1f1c19;
     border-color: #4a433d;
     color: #f3e6d5;
+}
+
+body.fp-aypi .fp-guide-frame {
+    border-color: #4a433d;
+    background: #1f1c19;
 }
 
 body.fp-aypi #fp-approve-password {

@@ -23,6 +23,8 @@ const {
     OTP_RESEND_MS,
     COLOR_STORAGE_KEY,
     THEME_STORAGE_KEY,
+    GUIDE_URL,
+    GUIDE_SEARCH_PARAM,
     DEFAULT_TYPE_COLORS,
 } = bootRequire(path.join(fpBaseDir, "config", "constants"));
 const {
@@ -67,6 +69,7 @@ const { createAdminModals } = bootRequire(path.join(fpUiDir, "admin-modals"));
 const { createOtpModals } = bootRequire(path.join(fpUiDir, "otp-modals"));
 const { createAssigneesModal } = bootRequire(path.join(fpUiDir, "assignees-modal"));
 const { createSettingsModal } = bootRequire(path.join(fpUiDir, "settings-modal"));
+const { createGuideModal } = bootRequire(path.join(fpUiDir, "guide-modal"));
 const { createApprovalModal } = bootRequire(path.join(fpUiDir, "approval-modal"));
 const { createEditModal } = bootRequire(path.join(fpUiDir, "edit-modal"));
 const { createRequestForm } = bootRequire(path.join(fpUiDir, "request-form"));
@@ -1669,6 +1672,7 @@ function init() {
     requestFormUi.initRequestForm();
 
     settingsUi.initSettingsModal();
+    guideUi.initGuideModal();
 
     adminUi.initAdminModals();
     if (isAdminFileMissingOrEmpty()) {
@@ -1996,6 +2000,11 @@ function init() {
     }
 
     document.addEventListener("keydown", (event) => {
+        if (event.key === "F1") {
+            event.preventDefault();
+            guideUi.openGuideModal();
+            return;
+        }
         if (event.key !== "Delete") return;
         const target = event.target;
         if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
@@ -2091,4 +2100,13 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
         showDialog("error", UI_TEXTS.initErrorTitle, err.message || String(err));
     }
+});
+
+const guideUi = createGuideModal({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    guideUrl: GUIDE_URL,
+    guideSearchParam: GUIDE_SEARCH_PARAM,
 });
