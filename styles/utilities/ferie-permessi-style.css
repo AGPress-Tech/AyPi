@@ -847,12 +847,28 @@ body.fp-initial-setup #fp-admin-add-modal {
     width: min(560px, 92vw);
 }
 
-.fp-guide-card {
-    width: min(960px, 94vw);
-    max-height: 88vh;
-    display: grid;
-    grid-template-rows: auto auto auto 1fr;
+#fp-guide-modal {
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+#fp-guide-modal .fp-modal__card {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
     gap: 12px;
+    position: relative;
+}
+
+#fp-guide-modal #fp-guide-message {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: inherit;
 }
 
 .fp-guide-toolbar {
@@ -864,11 +880,11 @@ body.fp-initial-setup #fp-admin-add-modal {
 
 .fp-guide-frame {
     width: 100%;
-    height: 100%;
-    min-height: 360px;
-    border: 1px solid #e0e3e7;
-    border-radius: 12px;
-    background: #ffffff;
+    flex: 1 1 auto;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
 }
 
 .fp-assignees-header {
@@ -1173,8 +1189,7 @@ body.fp-dark .fp-field__input {
 }
 
 body.fp-dark .fp-guide-frame {
-    border-color: #2b2f36;
-    background: #15181d;
+    background: transparent;
 }
 
 body.fp-dark .fp-field input:focus,
@@ -1472,8 +1487,7 @@ body.fp-aypi .fp-field__input {
 }
 
 body.fp-aypi .fp-guide-frame {
-    border-color: #4a433d;
-    background: #1f1c19;
+    background: transparent;
 }
 
 body.fp-aypi #fp-approve-password {

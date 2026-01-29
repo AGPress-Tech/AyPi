@@ -1,6 +1,7 @@
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { pathToFileURL } = require("url");
 
 const fpBaseDir = path.join(__dirname, "..", "..", "scripts", "utilities", "ferie-permessi");
 const bootRequire = (modulePath) => {
@@ -2022,6 +2023,14 @@ function init() {
     refreshUi.refreshData();
     refreshUi.scheduleAutoRefresh();
 
+    window.addEventListener("message", (event) => {
+        if (!event || !event.data) return;
+        if (event.data.type === "guide-close") {
+            const modal = document.getElementById("fp-guide-modal");
+            if (modal) hideModal(modal);
+        }
+    });
+
     const legend = document.getElementById("fp-legend");
     const legendEditor = document.getElementById("fp-legend-editor");
     const legendColorInput = document.getElementById("fp-legend-color-input");
@@ -2102,11 +2111,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+const guideLocalPath = path.resolve(__dirname, "..", "..", "Guida", "index.html");
+const guideLocalUrl = fs.existsSync(guideLocalPath) ? `${pathToFileURL(guideLocalPath).toString()}?embed=1` : "";
+
 const guideUi = createGuideModal({
     document,
     showModal,
     hideModal,
     setMessage,
-    guideUrl: GUIDE_URL,
+    guideUrl: GUIDE_URL || guideLocalUrl,
     guideSearchParam: GUIDE_SEARCH_PARAM,
+    getTheme: () => loadThemeSetting(),
 });

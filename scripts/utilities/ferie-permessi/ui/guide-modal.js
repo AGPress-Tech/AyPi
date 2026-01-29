@@ -6,6 +6,7 @@ function createGuideModal(options) {
         setMessage,
         guideUrl,
         guideSearchParam,
+        getTheme,
     } = options || {};
 
     if (!document) {
@@ -16,17 +17,26 @@ function createGuideModal(options) {
 
     function buildGuideUrl(query) {
         if (!guideUrl) return "";
-        if (!query) return guideUrl;
+        const theme = typeof getTheme === "function" ? getTheme() : "";
         try {
             const url = new URL(guideUrl);
+            if (theme) {
+                url.searchParams.set("theme", theme);
+            }
             if (guideSearchParam) {
-                url.searchParams.set(guideSearchParam, query);
+                if (query) {
+                    url.searchParams.set(guideSearchParam, query);
+                }
             }
             return url.toString();
         } catch (err) {
+            if (!query && !theme) return guideUrl;
             if (guideSearchParam) {
                 const joiner = guideUrl.includes("?") ? "&" : "?";
-                return `${guideUrl}${joiner}${encodeURIComponent(guideSearchParam)}=${encodeURIComponent(query)}`;
+                const themeParam = theme ? `&theme=${encodeURIComponent(theme)}` : "";
+                const queryParam = query ? `${encodeURIComponent(guideSearchParam)}=${encodeURIComponent(query)}` : "";
+                const base = queryParam ? `${guideUrl}${joiner}${queryParam}` : guideUrl;
+                return `${base}${themeParam}`;
             }
             return guideUrl;
         }
@@ -52,8 +62,13 @@ function createGuideModal(options) {
         if (!modal) return;
         if (!guideUrl) {
             if (setMessage) setMessage(message, "Guida non configurata. Imposta GUIDE_URL in config/constants.js.");
-        } else if (frame && (!frame.getAttribute("src") || frame.getAttribute("src") === "about:blank")) {
-            frame.setAttribute("src", buildGuideUrl(""));
+        } else if (frame) {
+            const baseUrl = buildGuideUrl(lastQuery || "");
+            if (!frame.getAttribute("src") || frame.getAttribute("src") === "about:blank" || !lastQuery) {
+                frame.setAttribute("src", baseUrl);
+            } else if (baseUrl && !frame.getAttribute("src")?.includes(baseUrl)) {
+                frame.setAttribute("src", baseUrl);
+            }
             if (setMessage) setMessage(message, "");
         }
         showModal(modal);
@@ -82,16 +97,10 @@ function createGuideModal(options) {
 
     function initGuideModal() {
         const modal = document.getElementById("fp-guide-modal");
-        const close = document.getElementById("fp-guide-close");
         const searchBtn = document.getElementById("fp-guide-search-btn");
         const searchInput = document.getElementById("fp-guide-search");
         const frame = document.getElementById("fp-guide-frame");
 
-        if (close) {
-            close.addEventListener("click", () => {
-                closeGuideModal();
-            });
-        }
         if (modal) {
             modal.addEventListener("click", (event) => {
                 if (event.target === modal) {
