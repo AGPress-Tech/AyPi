@@ -382,6 +382,9 @@ function buildHoverText(request) {
     if (request.modifiedBy) {
         lines.push(`Modificato da: ${request.modifiedBy}`);
     }
+    if (request.note) {
+        lines.push(`Nota: ${request.note}`);
+    }
     return lines.filter(Boolean).join("\n");
 }
 
