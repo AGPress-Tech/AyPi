@@ -46,6 +46,7 @@ function createApprovalModal(options) {
         onClosureRemove,
         onClosureUpdate,
         onFilterAccess,
+        onExport,
     } = options || {};
 
 
@@ -193,6 +194,13 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onClosureUpdate === "function") {
                 onClosureUpdate(admin, pendingAction.entry, pendingAction.next);
+            }
+            return;
+        }
+        if (actionType === "export") {
+            closeApprovalModal();
+            if (typeof onExport === "function") {
+                onExport(admin, pendingAction);
             }
             return;
         }

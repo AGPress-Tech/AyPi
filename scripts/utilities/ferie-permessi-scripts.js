@@ -139,6 +139,7 @@ let passwordFailCount = 0;
 let legendEditingType = null;
 let legendColorSnapshot = null;
 let legendPreviewTimer = null;
+let runExport = null;
 const exportUi = createExportController({
     document,
     showModal,
@@ -553,6 +554,11 @@ const approvalUi = createApprovalModal({
             const specialeToggle = document.getElementById("fp-filter-speciale");
             if (specialeToggle) specialeToggle.checked = true;
             renderer.renderCalendar(cachedData);
+        }
+    },
+    onExport: () => {
+        if (typeof runExport === "function") {
+            runExport();
         }
     },
     onMutuaCreate: (admin, request) => {
@@ -1798,93 +1804,102 @@ function init() {
         });
     }
 
-    if (exportRun) {
-        exportRun.addEventListener("click", async () => {
-            if (!XLSX) {
-                await showDialog("error", UI_TEXTS.exportModuleMissingTitle, UI_TEXTS.exportModuleMissingDetail);
-                return;
-            }
-            const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
-            const startDate = exportUi.parseDateInput(document.getElementById("fp-export-start")?.value || "");
-            const endDate = exportUi.parseDateInput(document.getElementById("fp-export-end")?.value || "");
-            if (rangeMode === "custom" && (!startDate || !endDate || endDate < startDate)) {
-                setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportInvalidRange, true);
-                return;
-            }
-            const includeFerie = !!document.getElementById("fp-export-ferie")?.checked;
-            const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
-            const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
-            const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
-            const includeSpeciale = !!document.getElementById("fp-export-speciale")?.checked;
-            if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale) {
-                setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
-                return;
-            }
-            const departments = exportUi.getExportSelectedDepartments();
+    runExport = async () => {
+        if (!XLSX) {
+            await showDialog("error", UI_TEXTS.exportModuleMissingTitle, UI_TEXTS.exportModuleMissingDetail);
+            return;
+        }
+        const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
+        const startDate = exportUi.parseDateInput(document.getElementById("fp-export-start")?.value || "");
+        const endDate = exportUi.parseDateInput(document.getElementById("fp-export-end")?.value || "");
+        if (rangeMode === "custom" && (!startDate || !endDate || endDate < startDate)) {
+            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportInvalidRange, true);
+            return;
+        }
+        const includeFerie = !!document.getElementById("fp-export-ferie")?.checked;
+        const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
+        const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
+        const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
+        const includeSpeciale = !!document.getElementById("fp-export-speciale")?.checked;
+        if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale) {
+            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
+            return;
+        }
+        const departments = exportUi.getExportSelectedDepartments();
 
-            const payload = loadData();
-            const raw = payload.requests || [];
-            const approved = raw.filter((req) => req.status === "approved");
-            const filtered = approved.filter((req) => {
-                if (req.type === "ferie" && !includeFerie) return false;
-                if (req.type === "permesso" && !includePermessi) return false;
-                if (req.type === "straordinari" && !includeStraordinari) return false;
-                if (req.type === "mutua" && !includeMutua) return false;
-                if (req.type === "speciale" && !includeSpeciale) return false;
-                if (departments.length && req.department && !departments.includes(req.department)) return false;
-                if (rangeMode === "custom") {
-                    const { start, end } = getRequestDates(req);
-                    if (!start || !end) return false;
-                    const rangeStart = new Date(startDate);
-                    const rangeEnd = new Date(endDate);
-                    rangeEnd.setHours(23, 59, 59, 999);
-                    return start <= rangeEnd && end >= rangeStart;
-                }
-                return true;
-            });
-
-            if (!filtered.length) {
-                setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportNoData, true);
-                return;
+        const payload = loadData();
+        const raw = payload.requests || [];
+        const approved = raw.filter((req) => req.status === "approved");
+        const filtered = approved.filter((req) => {
+            if (req.type === "ferie" && !includeFerie) return false;
+            if (req.type === "permesso" && !includePermessi) return false;
+            if (req.type === "straordinari" && !includeStraordinari) return false;
+            if (req.type === "mutua" && !includeMutua) return false;
+            if (req.type === "speciale" && !includeSpeciale) return false;
+            if (departments.length && req.department && !departments.includes(req.department)) return false;
+            if (rangeMode === "custom") {
+                const { start, end } = getRequestDates(req);
+                if (!start || !end) return false;
+                const rangeStart = new Date(startDate);
+                const rangeEnd = new Date(endDate);
+                rangeEnd.setHours(23, 59, 59, 999);
+                return start <= rangeEnd && end >= rangeStart;
             }
+            return true;
+        });
 
-            const rows = buildExportRows(filtered, payload.holidays, payload.closures);
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(rows);
-            const dateColumns = ["C", "D"];
-            dateColumns.forEach((col) => {
-                rows.forEach((_, idx) => {
-                    const cell = ws[`${col}${idx + 2}`];
-                    if (cell && cell.t === "d") {
-                        cell.z = "dd/mm/yyyy hh:mm";
-                    }
-                });
-            });
+        if (!filtered.length) {
+            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportNoData, true);
+            return;
+        }
+
+        const rows = buildExportRows(filtered, payload.holidays, payload.closures);
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const dateColumns = ["C", "D"];
+        dateColumns.forEach((col) => {
             rows.forEach((_, idx) => {
-                const hoursCell = ws[`E${idx + 2}`];
-                const mutuaCell = ws[`F${idx + 2}`];
-                if (hoursCell && hoursCell.t === "n") {
-                    hoursCell.z = "0.00";
-                }
-                if (mutuaCell && mutuaCell.t === "n") {
-                    mutuaCell.z = "0.00";
+                const cell = ws[`${col}${idx + 2}`];
+                if (cell && cell.t === "d") {
+                    cell.z = "dd/mm/yyyy hh:mm";
                 }
             });
-            XLSX.utils.book_append_sheet(wb, ws, "Ferie e Permessi");
-
-            const outputPath = await ipcRenderer.invoke("select-output-file", {
-                defaultName: "ferie_permessi.xlsx",
-                filters: [{ name: "File Excel", extensions: ["xlsx"] }],
-            });
-            if (!outputPath) return;
-
-            const dirOut = path.dirname(outputPath);
-            if (!fs.existsSync(dirOut)) {
-                fs.mkdirSync(dirOut, { recursive: true });
+        });
+        rows.forEach((_, idx) => {
+            const hoursCell = ws[`E${idx + 2}`];
+            const mutuaCell = ws[`F${idx + 2}`];
+            if (hoursCell && hoursCell.t === "n") {
+                hoursCell.z = "0.00";
             }
+            if (mutuaCell && mutuaCell.t === "n") {
+                mutuaCell.z = "0.00";
+            }
+        });
+        XLSX.utils.book_append_sheet(wb, ws, "Ferie e Permessi");
 
-            XLSX.writeFile(wb, outputPath, { cellDates: true });
-            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSuccess, false);
+        const outputPath = await ipcRenderer.invoke("select-output-file", {
+            defaultName: "ferie_permessi.xlsx",
+            filters: [{ name: "File Excel", extensions: ["xlsx"] }],
+        });
+        if (!outputPath) return;
+
+        const dirOut = path.dirname(outputPath);
+        if (!fs.existsSync(dirOut)) {
+            fs.mkdirSync(dirOut, { recursive: true });
+        }
+
+        XLSX.writeFile(wb, outputPath, { cellDates: true });
+        setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSuccess, false);
+    };
+
+    if (exportRun) {
+        exportRun.addEventListener("click", () => {
+            approvalUi.openPasswordModal({
+                type: "export",
+                id: "export",
+                title: "Export calendario",
+                description: UI_TEXTS.exportPasswordDescription,
+            });
         });
     }
 

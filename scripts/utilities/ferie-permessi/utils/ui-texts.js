@@ -84,6 +84,7 @@ const UI_TEXTS = {
     exportSelectType: "Seleziona almeno un tipo.",
     exportNoData: "Nessun dato da esportare.",
     exportSuccess: "File Excel creato con successo.",
+    exportPasswordDescription: "Inserisci la password admin per esportare il calendario.",
     exportModuleMissingTitle: "Modulo 'xlsx' non trovato.",
     exportModuleMissingDetail: "Esegui 'npm install xlsx' nella cartella del progetto AyPi.",
     dataSaveFailure: "Impossibile salvare i dati sul server.",
