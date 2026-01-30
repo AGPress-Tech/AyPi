@@ -1,5 +1,5 @@
 const APPROVAL_PASSWORD = "AGPress";
-const AUTO_REFRESH_MS = 15000;
+const AUTO_REFRESH_MS = 60000;
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
 const OTP_RESEND_MS = 60 * 1000;
 const COLOR_STORAGE_KEY = "fpColorSettings";
