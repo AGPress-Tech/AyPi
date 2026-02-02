@@ -1,3 +1,38 @@
+function getGuidePrefix(){
+  const path = window.location.pathname || '';
+  // current structure: root pages + /aypi-calendar/ subfolder
+  return path.includes('/aypi-calendar/') ? '../' : './';
+}
+
+async function includeSidebar(){
+  const mount = document.querySelector('#sidebarMount');
+  if(!mount) return;
+
+  const prefix = getGuidePrefix();
+  try{
+    const res = await fetch(`${prefix}assets/sidebar.html`, { cache: 'no-store' });
+    if(!res.ok) return;
+
+    const html = await res.text();
+    mount.insertAdjacentHTML('beforebegin', html);
+    mount.remove();
+
+    const sidebar = document.querySelector('.sidebar');
+    if(!sidebar) return;
+
+    // Apply correct relative hrefs
+    sidebar.querySelectorAll('a[data-href]').forEach((a)=>{
+      const raw = (a.dataset.href || '').trim();
+      if(!raw) return;
+      if(raw.startsWith('#') || raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.match(/^[a-zA-Z]+:\/\//)){
+        a.setAttribute('href', raw);
+        return;
+      }
+      a.setAttribute('href', `${prefix}${raw}`);
+    });
+  }catch(_){}
+}
+
 function setActiveNav(){
   const path = window.location.pathname.split('/').pop() || 'index.html';
   document.querySelectorAll('.nav a').forEach(a=>{
@@ -74,8 +109,7 @@ function setupAutoShots(){
   const path = window.location.pathname;
   const file = path.split('/').pop() || 'index.html';
   const base = file.replace(/\.html?$/i,'');
-  const isSub = path.includes('/aypi-calendar/');
-  const prefix = isSub ? '../' : './';
+  const prefix = getGuidePrefix();
   const candidates = [
     `${prefix}assets/shots/${base}.png`,
     `${prefix}assets/shots/${base}.jpg`,
@@ -137,7 +171,8 @@ function bindGuideClose(){
   });
 }
 
-window.addEventListener('DOMContentLoaded', ()=>{
+window.addEventListener('DOMContentLoaded', async ()=>{
+  await includeSidebar();
   applyEmbedMode();
   setActiveNav();
   bindSearch();
