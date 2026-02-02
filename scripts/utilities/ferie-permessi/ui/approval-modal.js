@@ -53,6 +53,7 @@ function createApprovalModal(options) {
         getLoggedAdmin,
         onAdminLogin,
         showInfoModal,
+        requireAdminAccess,
     } = options || {};
 
 
@@ -294,8 +295,12 @@ function createApprovalModal(options) {
         const loggedIn = typeof isAdminLoggedIn === "function" ? isAdminLoggedIn() : false;
         if (action && !ALWAYS_REQUIRE_PASSWORD.has(action.type)) {
             if (!loggedIn) {
+                if (typeof requireAdminAccess === "function") {
+                    requireAdminAccess(() => openPasswordModal(action));
+                    return;
+                }
                 if (typeof showInfoModal === "function") {
-                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired, { showLogin: true });
                 } else {
                     showDialog("info", UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
                 }

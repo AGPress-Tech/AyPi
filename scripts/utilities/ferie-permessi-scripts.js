@@ -519,6 +519,30 @@ let openEditModalHandler = null;
 let openAdminModalHandler = null;
 let openPasswordModalHandler = null;
 let openBackupModalHandler = null;
+let pendingAdminAction = null;
+
+function showLoginRequired() {
+    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired, { showLogin: true });
+}
+
+function requireAdminAccess(action) {
+    if (isAdminLoggedIn()) {
+        if (typeof action === "function") action();
+        return;
+    }
+    pendingAdminAction = typeof action === "function" ? action : null;
+    showLoginRequired();
+}
+
+function consumePendingAdminAction() {
+    const action = pendingAdminAction;
+    pendingAdminAction = null;
+    if (typeof action === "function") {
+        action();
+        return true;
+    }
+    return false;
+}
 
 function isAdminLoggedIn() {
     return !!adminSession.loggedIn;
@@ -603,8 +627,9 @@ const pendingUi = createPendingPanel({
     getLoggedAdminName,
     isAdminLoggedIn,
     onAccessDenied: () => {
-        showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+        showLoginRequired();
     },
+    requireAdminAccess,
 });
 
 renderer = createRenderer({
@@ -654,6 +679,7 @@ const approvalUi = createApprovalModal({
     hideModal,
     showDialog,
     showInfoModal,
+    requireAdminAccess,
     isHashingAvailable,
     loadAdminCredentials,
     verifyAdminPassword,
@@ -773,7 +799,12 @@ const approvalUi = createApprovalModal({
     onAdminLogin: (admin) => {
         if (!admin) return;
         setAdminSession(admin);
-        showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginSuccess(admin?.name || ""));
+        const handled = consumePendingAdminAction();
+        if (!handled) {
+            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginSuccess(admin?.name || ""), {
+                showLogin: false,
+            });
+        }
     },
     onMutuaCreate: (admin, request) => {
         if (!request) return;
@@ -1007,6 +1038,7 @@ const holidaysUi = createHolidaysModal({
     renderAll,
     loadData,
     openPasswordModal: (action) => approvalUi.openPasswordModal(action),
+    requireAdminAccess,
 });
 
 const closuresUi = createClosuresModal({
@@ -1018,6 +1050,7 @@ const closuresUi = createClosuresModal({
     renderAll,
     loadData,
     openPasswordModal: (action) => approvalUi.openPasswordModal(action),
+    requireAdminAccess,
 });
 
 const editUi = createEditModal({
@@ -1231,20 +1264,18 @@ const assigneesUi = createAssigneesModal({
         editingEmployee = next;
     },
     onOpenAttempt: () => {
-        if (!isAdminLoggedIn()) {
-            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-            return;
-        }
-        if (assigneesUnlocked || manageUnlocked) {
-            assigneesUi.openAssigneesModal();
-            return;
-        }
-        assigneesOpenPending = true;
-        approvalUi.openPasswordModal({
-            type: "assignees-access",
-            id: "assignees-access",
-            title: "Gestione dipendenti",
-            description: UI_TEXTS.adminAccessDescription,
+        requireAdminAccess(() => {
+            if (assigneesUnlocked || manageUnlocked) {
+                assigneesUi.openAssigneesModal();
+                return;
+            }
+            assigneesOpenPending = true;
+            approvalUi.openPasswordModal({
+                type: "assignees-access",
+                id: "assignees-access",
+                title: "Gestione dipendenti",
+                description: UI_TEXTS.adminAccessDescription,
+            });
         });
     },
 });
@@ -1459,26 +1490,53 @@ function openConfirmModal(message) {
     });
 }
 
-function showInfoModal(title, message) {
+function showInfoModal(title, message, options = {}) {
     const modal = document.getElementById("fp-info-modal");
     const titleEl = document.getElementById("fp-info-title");
     const text = document.getElementById("fp-info-message");
     const okBtn = document.getElementById("fp-info-ok");
+    const loginBtn = document.getElementById("fp-info-login");
     if (!modal || !text || !okBtn) {
         return;
     }
+    const opts = options === true ? { showLogin: true } : options;
     if (titleEl) titleEl.textContent = title || "Avviso";
     text.textContent = message || "";
+    if (loginBtn) {
+        if (opts.showLogin) {
+            loginBtn.classList.remove("is-hidden");
+            loginBtn.style.display = "";
+        } else {
+            loginBtn.classList.add("is-hidden");
+            loginBtn.style.display = "none";
+        }
+    }
     showModal(modal);
-    okBtn.focus();
+    if (opts.showLogin && loginBtn) {
+        loginBtn.focus();
+    } else {
+        okBtn.focus();
+    }
     const cleanup = () => {
         okBtn.removeEventListener("click", onOk);
+        if (loginBtn) loginBtn.removeEventListener("click", onLogin);
         modal.removeEventListener("click", onBackdrop);
         document.removeEventListener("keydown", onKeydown);
         hideModal(modal);
     };
     const onOk = () => {
         cleanup();
+    };
+    const onLogin = () => {
+        cleanup();
+        if (openPasswordModalHandler) {
+            openPasswordModalHandler({
+                type: "admin-login",
+                id: "admin-login",
+                title: UI_TEXTS.adminLoginTitle,
+                description: UI_TEXTS.adminLoginDescription,
+            });
+        }
     };
     const onBackdrop = (event) => {
         event.stopPropagation();
@@ -1490,6 +1548,9 @@ function showInfoModal(title, message) {
         }
     };
     okBtn.addEventListener("click", onOk);
+    if (loginBtn && opts.showLogin) {
+        loginBtn.addEventListener("click", onLogin);
+    }
     modal.addEventListener("click", onBackdrop);
     document.addEventListener("keydown", onKeydown);
 }
@@ -1939,20 +2000,18 @@ function initDaysPicker(holidaysUi, closuresUi) {
     const closureBtn = document.getElementById("fp-days-picker-closure");
     if (openBtn) {
         openBtn.addEventListener("click", () => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            if (daysUnlocked) {
-                if (modal) showModal(modal);
-                return;
-            }
-            daysOpenPending = true;
-            approvalUi.openPasswordModal({
-                type: "days-access",
-                id: "days-access",
-                title: "Festivita e chiusure",
-                description: UI_TEXTS.adminAccessDescription,
+            requireAdminAccess(() => {
+                if (daysUnlocked) {
+                    if (modal) showModal(modal);
+                    return;
+                }
+                daysOpenPending = true;
+                approvalUi.openPasswordModal({
+                    type: "days-access",
+                    id: "days-access",
+                    title: "Festivita e chiusure",
+                    description: UI_TEXTS.adminAccessDescription,
+                });
             });
         });
     }
@@ -1963,22 +2022,18 @@ function initDaysPicker(holidaysUi, closuresUi) {
     }
     if (holidayBtn) {
         holidayBtn.addEventListener("click", () => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            if (modal) hideModal(modal);
-            holidaysUi?.openHolidaysModal?.();
+            requireAdminAccess(() => {
+                if (modal) hideModal(modal);
+                holidaysUi?.openHolidaysModal?.();
+            });
         });
     }
     if (closureBtn) {
         closureBtn.addEventListener("click", () => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            if (modal) hideModal(modal);
-            closuresUi?.openClosuresModal?.();
+            requireAdminAccess(() => {
+                if (modal) hideModal(modal);
+                closuresUi?.openClosuresModal?.();
+            });
         });
     }
     if (modal) {
@@ -2007,12 +2062,10 @@ function init() {
         buildHoverText,
         openPasswordModal: (action) => approvalUi.openPasswordModal(action),
         openEditModal: (request) => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            editingAdminName = isAdminLoggedIn() ? adminSession.name : "";
-            if (openEditModalHandler) openEditModalHandler(request);
+            requireAdminAccess(() => {
+                editingAdminName = isAdminLoggedIn() ? adminSession.name : "";
+                if (openEditModalHandler) openEditModalHandler(request);
+            });
         },
         getLastNonListViewType: () => lastNonListViewType,
         setLastNonListViewType: (value) => {
@@ -2086,6 +2139,19 @@ function init() {
     settingsUi.initSettingsModal();
     guideUi.initGuideModal();
 
+    const guideNews = document.getElementById("fp-guide-news");
+    if (guideNews) {
+        guideNews.addEventListener("click", () => {
+            if (guideUi?.openGuideModalAtPath) {
+                guideUi.openGuideModalAtPath("aypi-calendar/novita.html");
+            } else if (guideUi?.openGuideModalWithQuery) {
+                guideUi.openGuideModalWithQuery("Novita");
+            } else {
+                guideUi.openGuideModal();
+            }
+        });
+    }
+
     adminUi.initAdminModals();
     if (isAdminFileMissingOrEmpty()) {
         initialSetupActive = true;
@@ -2111,7 +2177,7 @@ function init() {
             if (isAdminLoggedIn()) {
                 setAdminSession(null);
                 lockAdminAreas();
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLogoffSuccess);
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLogoffSuccess, { showLogin: false });
                 return;
             }
             approvalUi.openPasswordModal({
@@ -2140,20 +2206,18 @@ function init() {
 
     if (manageOpen) {
         manageOpen.addEventListener("click", () => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            if (manageUnlocked) {
-                if (manageModal) showModal(manageModal);
-                return;
-            }
-            manageOpenPending = true;
-            approvalUi.openPasswordModal({
-                type: "manage-access",
-                id: "manage-access",
-                title: "Gestione",
-                description: UI_TEXTS.adminAccessDescription,
+            requireAdminAccess(() => {
+                if (manageUnlocked) {
+                    if (manageModal) showModal(manageModal);
+                    return;
+                }
+                manageOpenPending = true;
+                approvalUi.openPasswordModal({
+                    type: "manage-access",
+                    id: "manage-access",
+                    title: "Gestione",
+                    description: UI_TEXTS.adminAccessDescription,
+                });
             });
         });
     }
@@ -2171,22 +2235,18 @@ function init() {
     }
     if (manageAssignees) {
         manageAssignees.addEventListener("click", () => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            if (manageModal) hideModal(manageModal);
-            assigneesUi.openAssigneesModal();
+            requireAdminAccess(() => {
+                if (manageModal) hideModal(manageModal);
+                assigneesUi.openAssigneesModal();
+            });
         });
     }
     if (manageHours) {
         manageHours.addEventListener("click", () => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            if (manageModal) hideModal(manageModal);
-            ipcRenderer.send("open-ferie-permessi-hours-window");
+            requireAdminAccess(() => {
+                if (manageModal) hideModal(manageModal);
+                ipcRenderer.send("open-ferie-permessi-hours-window");
+            });
         });
     }
 
@@ -2206,11 +2266,9 @@ function init() {
 
     if (exportOpen) {
         exportOpen.addEventListener("click", () => {
-            if (!isAdminLoggedIn()) {
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-                return;
-            }
-            exportUi.openExportModal();
+            requireAdminAccess(() => {
+                exportUi.openExportModal();
+            });
         });
     }
 
@@ -2241,11 +2299,13 @@ function init() {
 
     if (backupOpen) {
         backupOpen.addEventListener("click", () => {
-            approvalUi.openPasswordModal({
-                type: "backup-access",
-                id: "backup-access",
-                title: "Backup calendario",
-                description: UI_TEXTS.backupPasswordDescription,
+            requireAdminAccess(() => {
+                approvalUi.openPasswordModal({
+                    type: "backup-access",
+                    id: "backup-access",
+                    title: "Backup calendario",
+                    description: UI_TEXTS.backupPasswordDescription,
+                });
             });
         });
     }
@@ -2284,7 +2344,7 @@ function init() {
 
     runExport = async () => {
         if (!isAdminLoggedIn()) {
-            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+            requireAdminAccess(() => runExport());
             return;
         }
         if (!XLSX) {
@@ -2431,24 +2491,30 @@ function init() {
 
     if (exportRun) {
         exportRun.addEventListener("click", () => {
-            approvalUi.openPasswordModal({
-                type: "export",
-                id: "export",
-                title: "Export calendario",
-                description: UI_TEXTS.exportPasswordDescription,
+            requireAdminAccess(() => {
+                approvalUi.openPasswordModal({
+                    type: "export",
+                    id: "export",
+                    title: "Export calendario",
+                    description: UI_TEXTS.exportPasswordDescription,
+                });
             });
         });
     }
 
     if (backupRun) {
         backupRun.addEventListener("click", () => {
-            createBackup();
+            requireAdminAccess(() => {
+                createBackup();
+            });
         });
     }
 
     if (backupRestore) {
         backupRestore.addEventListener("click", () => {
-            restoreBackup();
+            requireAdminAccess(() => {
+                restoreBackup();
+            });
         });
     }
 
@@ -2524,7 +2590,11 @@ function init() {
                     overtimeToggle.checked = false;
                     calendarFilters.overtime = false;
                     renderer.renderCalendar(cachedData);
-                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                    requireAdminAccess(() => {
+                        overtimeToggle.checked = true;
+                        calendarFilters.overtime = true;
+                        renderer.renderCalendar(cachedData);
+                    });
                     return;
                 }
                 calendarFilters.overtime = true;
@@ -2542,7 +2612,11 @@ function init() {
                     mutuaToggle.checked = false;
                     calendarFilters.mutua = false;
                     renderer.renderCalendar(cachedData);
-                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                    requireAdminAccess(() => {
+                        mutuaToggle.checked = true;
+                        calendarFilters.mutua = true;
+                        renderer.renderCalendar(cachedData);
+                    });
                     return;
                 }
                 calendarFilters.mutua = true;
@@ -2560,7 +2634,11 @@ function init() {
                     specialeToggle.checked = false;
                     calendarFilters.speciale = false;
                     renderer.renderCalendar(cachedData);
-                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                    requireAdminAccess(() => {
+                        specialeToggle.checked = true;
+                        calendarFilters.speciale = true;
+                        renderer.renderCalendar(cachedData);
+                    });
                     return;
                 }
                 calendarFilters.speciale = true;
@@ -2578,7 +2656,11 @@ function init() {
                     giustificatoToggle.checked = false;
                     calendarFilters.giustificato = false;
                     renderer.renderCalendar(cachedData);
-                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                    requireAdminAccess(() => {
+                        giustificatoToggle.checked = true;
+                        calendarFilters.giustificato = true;
+                        renderer.renderCalendar(cachedData);
+                    });
                     return;
                 }
                 calendarFilters.giustificato = true;
@@ -2632,20 +2714,18 @@ function init() {
             return;
         }
         if (!selectedEventId) return;
-        if (!isAdminLoggedIn()) {
-            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
-            return;
-        }
-        const targetId = selectedEventId;
-        const updated = syncData((payload) => {
-            const target = (payload.requests || []).find((req) => req.id === targetId);
-            if (target && typeof applyBalanceForDeletion === "function") {
-                applyBalanceForDeletion(payload, target);
-            }
-            payload.requests = (payload.requests || []).filter((req) => req.id !== targetId);
-            return payload;
+        requireAdminAccess(() => {
+            const targetId = selectedEventId;
+            const updated = syncData((payload) => {
+                const target = (payload.requests || []).find((req) => req.id === targetId);
+                if (target && typeof applyBalanceForDeletion === "function") {
+                    applyBalanceForDeletion(payload, target);
+                }
+                payload.requests = (payload.requests || []).filter((req) => req.id !== targetId);
+                return payload;
+            });
+            renderAll(updated);
         });
-        renderAll(updated);
     });
 
     refreshUi.refreshData();

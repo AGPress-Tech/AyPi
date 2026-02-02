@@ -42,6 +42,29 @@ function createGuideModal(options) {
         }
     }
 
+    function buildGuideUrlForPath(relativePath) {
+        if (!guideUrl || !relativePath) return "";
+        const theme = typeof getTheme === "function" ? getTheme() : "";
+        try {
+            const base = new URL(guideUrl);
+            const target = new URL(relativePath, base);
+            if (theme) {
+                target.searchParams.set("theme", theme);
+            }
+            if (guideSearchParam) {
+                target.searchParams.delete(guideSearchParam);
+            }
+            return target.toString();
+        } catch (err) {
+            const [baseNoQuery] = guideUrl.split("?");
+            const baseDir = baseNoQuery.endsWith("/")
+                ? baseNoQuery
+                : baseNoQuery.replace(/[^/]*$/, "");
+            const themeParam = theme ? `?theme=${encodeURIComponent(theme)}` : "";
+            return `${baseDir}${relativePath}${themeParam}`;
+        }
+    }
+
     function tryFindInIframe(frame, query) {
         if (!frame || !query) return false;
         try {
@@ -68,6 +91,36 @@ function createGuideModal(options) {
                 frame.setAttribute("src", baseUrl);
             } else if (baseUrl && !frame.getAttribute("src")?.includes(baseUrl)) {
                 frame.setAttribute("src", baseUrl);
+            }
+            if (setMessage) setMessage(message, "");
+        }
+        showModal(modal);
+    }
+
+    function openGuideModalWithQuery(query) {
+        lastQuery = query || "";
+        openGuideModal();
+        if (query) {
+            const frame = document.getElementById("fp-guide-frame");
+            const nextUrl = buildGuideUrl(query);
+            if (frame && nextUrl) {
+                frame.setAttribute("src", nextUrl);
+            }
+        }
+    }
+
+    function openGuideModalAtPath(relativePath) {
+        lastQuery = "";
+        const modal = document.getElementById("fp-guide-modal");
+        const frame = document.getElementById("fp-guide-frame");
+        const message = document.getElementById("fp-guide-message");
+        if (!modal) return;
+        if (!guideUrl) {
+            if (setMessage) setMessage(message, "Guida non configurata. Imposta GUIDE_URL in config/constants.js.");
+        } else if (frame) {
+            const targetUrl = buildGuideUrlForPath(relativePath);
+            if (targetUrl) {
+                frame.setAttribute("src", targetUrl);
             }
             if (setMessage) setMessage(message, "");
         }
@@ -127,7 +180,7 @@ function createGuideModal(options) {
         }
     }
 
-    return { openGuideModal, closeGuideModal, initGuideModal };
+    return { openGuideModal, openGuideModalWithQuery, openGuideModalAtPath, closeGuideModal, initGuideModal };
 }
 
 module.exports = { createGuideModal };

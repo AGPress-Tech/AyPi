@@ -10,6 +10,7 @@ function createHolidaysModal(options) {
         renderAll,
         loadData,
         openPasswordModal,
+        requireAdminAccess,
     } = options || {};
 
     if (!document) {
@@ -257,7 +258,11 @@ function createHolidaysModal(options) {
         }
         if (listOpenBtn) {
             listOpenBtn.addEventListener("click", () => {
-                openHolidaysListModal();
+                if (typeof requireAdminAccess === "function") {
+                    requireAdminAccess(() => openHolidaysListModal());
+                } else {
+                    openHolidaysListModal();
+                }
             });
         }
         if (listCloseBtn) {

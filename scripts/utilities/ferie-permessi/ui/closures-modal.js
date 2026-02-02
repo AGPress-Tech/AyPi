@@ -10,6 +10,7 @@ function createClosuresModal(options) {
         renderAll,
         loadData,
         openPasswordModal,
+        requireAdminAccess,
     } = options || {};
 
     if (!document) {
@@ -255,7 +256,11 @@ function createClosuresModal(options) {
         }
         if (listOpenBtn) {
             listOpenBtn.addEventListener("click", () => {
-                openClosuresListModal();
+                if (typeof requireAdminAccess === "function") {
+                    requireAdminAccess(() => openClosuresListModal());
+                } else {
+                    openClosuresListModal();
+                }
             });
         }
         if (listCloseBtn) {

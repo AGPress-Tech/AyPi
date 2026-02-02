@@ -18,6 +18,7 @@ function createPendingPanel(options) {
         getLoggedAdminName,
         isAdminLoggedIn,
         onAccessDenied,
+        requireAdminAccess,
     } = options || {};
 
     if (!document) {
@@ -66,7 +67,11 @@ function createPendingPanel(options) {
             approveBtn.textContent = "Approva";
             approveBtn.addEventListener("click", async () => {
                 if (!isAdminLoggedIn?.()) {
-                    onAccessDenied?.();
+                    if (typeof requireAdminAccess === "function") {
+                        requireAdminAccess(() => approveBtn.click());
+                    } else {
+                        onAccessDenied?.();
+                    }
                     return;
                 }
                 if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
@@ -101,7 +106,11 @@ function createPendingPanel(options) {
             rejectBtn.textContent = "Rifiuta";
             rejectBtn.addEventListener("click", () => {
                 if (!isAdminLoggedIn?.()) {
-                    onAccessDenied?.();
+                    if (typeof requireAdminAccess === "function") {
+                        requireAdminAccess(() => rejectBtn.click());
+                    } else {
+                        onAccessDenied?.();
+                    }
                     return;
                 }
                 const updated = syncData((payload) => {
@@ -144,7 +153,11 @@ function createPendingPanel(options) {
         if (pendingToggle) {
             pendingToggle.addEventListener("click", () => {
                 if (!isAdminLoggedIn?.()) {
-                    onAccessDenied?.();
+                    if (typeof requireAdminAccess === "function") {
+                        requireAdminAccess(() => openPendingPanel());
+                    } else {
+                        onAccessDenied?.();
+                    }
                     return;
                 }
                 if (getPendingPanelOpen()) {

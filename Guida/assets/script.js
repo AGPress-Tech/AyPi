@@ -48,9 +48,14 @@ function bindSearch(){
   if(!input) return;
   const params = new URLSearchParams(window.location.search || '');
   const preset = params.get('q');
-  if(preset){
-    input.value = preset;
-  }
+  try{
+    const saved = sessionStorage.getItem('aypiGuideSearch');
+    if(preset){
+      input.value = preset;
+    }else if(saved){
+      input.value = saved;
+    }
+  }catch(_){}
   input.addEventListener('input', ()=>{
     const q = input.value.trim().toLowerCase();
     document.querySelectorAll('.nav a[data-title]').forEach(a=>{
@@ -68,9 +73,33 @@ function bindSearch(){
       sec.style.display = anyVisible ? '' : 'none';
     });
   });
-  if(preset){
+  if(input.value){
     input.dispatchEvent(new Event('input'));
   }
+  updateNavSearchLinks();
+  input.addEventListener('input', updateNavSearchLinks);
+}
+
+function updateNavSearchLinks(){
+  const input = document.querySelector('#navSearch');
+  if(!input) return;
+  const q = input.value.trim();
+  try{
+    sessionStorage.setItem('aypiGuideSearch', q);
+  }catch(_){}
+  document.querySelectorAll('.nav a[href]').forEach((link)=>{
+    const href = link.getAttribute('href');
+    if(!href || href.startsWith('http')) return;
+    const parts = href.split('?');
+    const base = parts[0];
+    const next = new URLSearchParams(parts[1] || '');
+    if(q){
+      next.set('q', q);
+    }else{
+      next.delete('q');
+    }
+    link.setAttribute('href', next.toString() ? `${base}?${next.toString()}` : base);
+  });
 }
 
 function applyEmbedMode(){
