@@ -131,7 +131,8 @@ let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
 let calendarFilters = {
-    leave: true,
+    ferie: true,
+    permesso: true,
     overtime: false,
     mutua: false,
     speciale: false,
@@ -557,7 +558,13 @@ renderer = createRenderer({
         if (request.type === "giustificato") {
             return calendarFilters.giustificato;
         }
-        return calendarFilters.leave;
+        if (request.type === "ferie") {
+            return calendarFilters.ferie;
+        }
+        if (request.type === "permesso") {
+            return calendarFilters.permesso;
+        }
+        return true;
     },
 });
 
@@ -2187,22 +2194,33 @@ function init() {
 
     pendingUi.closePendingPanel();
 
-    const leaveToggle = document.getElementById("fp-filter-leave");
+    const ferieToggle = document.getElementById("fp-filter-ferie");
+    const permessoToggle = document.getElementById("fp-filter-permesso");
     const overtimeToggle = document.getElementById("fp-filter-overtime");
     const mutuaToggle = document.getElementById("fp-filter-mutua");
     const specialeToggle = document.getElementById("fp-filter-speciale");
     const giustificatoToggle = document.getElementById("fp-filter-giustificato");
+    if (ferieToggle) ferieToggle.checked = true;
+    if (permessoToggle) permessoToggle.checked = true;
     if (overtimeToggle) overtimeToggle.checked = false;
     if (mutuaToggle) mutuaToggle.checked = false;
     if (specialeToggle) specialeToggle.checked = false;
     if (giustificatoToggle) giustificatoToggle.checked = false;
+    calendarFilters.ferie = true;
+    calendarFilters.permesso = true;
     calendarFilters.overtime = false;
     calendarFilters.mutua = false;
     calendarFilters.speciale = false;
     calendarFilters.giustificato = false;
-    const applyLeaveFilter = () => {
-        if (leaveToggle) {
-            calendarFilters.leave = !!leaveToggle.checked;
+    const applyFerieFilter = () => {
+        if (ferieToggle) {
+            calendarFilters.ferie = !!ferieToggle.checked;
+            renderer.renderCalendar(cachedData);
+        }
+    };
+    const applyPermessoFilter = () => {
+        if (permessoToggle) {
+            calendarFilters.permesso = !!permessoToggle.checked;
             renderer.renderCalendar(cachedData);
         }
     };
@@ -2215,8 +2233,11 @@ function init() {
             filter: filterKey,
         });
     };
-    if (leaveToggle) {
-        leaveToggle.addEventListener("change", applyLeaveFilter);
+    if (ferieToggle) {
+        ferieToggle.addEventListener("change", applyFerieFilter);
+    }
+    if (permessoToggle) {
+        permessoToggle.addEventListener("change", applyPermessoFilter);
     }
     if (overtimeToggle) {
         overtimeToggle.addEventListener("change", () => {

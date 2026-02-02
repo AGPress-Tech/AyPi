@@ -34,62 +34,68 @@
     </script>
     <div class="fp-page">
         <header class="fp-header">
-            <div>
+            <div class="fp-header__title">
                 <h1>Calendario Dipendenti e Richieste</h1>
                 <p>Gestione richieste, assenze e straordinari dei dipendenti</p>
             </div>
-            <div class="fp-header__actions">
-                <div class="fp-calendar-filters" id="fp-calendar-filters">
-                    <label class="fp-filter-toggle">
-                        <input type="checkbox" id="fp-filter-leave" checked>
-                        <span>Ferie/permessi</span>
-                    </label>
-                    <label class="fp-filter-toggle">
-                        <input type="checkbox" id="fp-filter-overtime">
-                        <span>Straordinari</span>
-                    </label>
-                    <label class="fp-filter-toggle">
-                        <input type="checkbox" id="fp-filter-mutua">
-                        <span>Mutua</span>
-                    </label>
-                    <label class="fp-filter-toggle">
-                        <input type="checkbox" id="fp-filter-speciale">
-                        <span>Permesso Chiusura Aziendale</span>
-                    </label>
-                    <label class="fp-filter-toggle">
-                        <input type="checkbox" id="fp-filter-giustificato">
-                        <span>Permessi Giustificati</span>
-                    </label>
-                </div>
-                <div class="fp-legend" id="fp-legend">
-                    <button type="button" class="fp-legend__item" data-type="ferie">
-                        <span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie
-                    </button>
-                    <button type="button" class="fp-legend__item" data-type="permesso">
-                        <span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi
-                    </button>
-                    <button type="button" class="fp-legend__item" data-type="straordinari">
-                        <span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari
-                    </button>
-                    <button type="button" class="fp-legend__item" data-type="mutua">
-                        <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua
-                    </button>
-                    <button type="button" class="fp-legend__item" data-type="speciale">
-                        <span class="fp-legend__dot fp-legend__dot--speciale"></span>Permesso Chiusura Aziendale
-                    </button>
-                    <button type="button" class="fp-legend__item" data-type="giustificato">
-                        <span class="fp-legend__dot fp-legend__dot--giustificato"></span>Permesso Giustificato
-                    </button>
-                    <div class="fp-legend-editor is-hidden" id="fp-legend-editor">
-                        <div class="fp-legend-editor__title" id="fp-legend-editor-title">Colore legenda</div>
-                        <div class="fp-legend-editor__row">
-                            <input type="color" class="fp-color-input" id="fp-legend-color-input">
-                            <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-default">Default</button>
-                            <button type="button" class="fp-btn fp-btn--primary" id="fp-legend-save">Salva</button>
-                            <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-cancel">Chiudi</button>
+            <div class="fp-filters-legend">
+                    <div class="fp-calendar-filters" id="fp-calendar-filters">
+                        <label class="fp-filter-toggle">
+                            <input type="checkbox" id="fp-filter-ferie" checked>
+                            <span>Ferie</span>
+                        </label>
+                        <label class="fp-filter-toggle">
+                            <input type="checkbox" id="fp-filter-permesso" checked>
+                            <span>Permessi</span>
+                        </label>
+                        <label class="fp-filter-toggle">
+                            <input type="checkbox" id="fp-filter-overtime">
+                            <span>Straordinari</span>
+                        </label>
+                        <label class="fp-filter-toggle">
+                            <input type="checkbox" id="fp-filter-mutua">
+                            <span>Mutua</span>
+                        </label>
+                        <label class="fp-filter-toggle">
+                            <input type="checkbox" id="fp-filter-speciale">
+                            <span>Permesso Chiusura Aziendale</span>
+                        </label>
+                        <label class="fp-filter-toggle">
+                            <input type="checkbox" id="fp-filter-giustificato">
+                            <span>Permessi Giustificati</span>
+                        </label>
+                    </div>
+                    <div class="fp-legend" id="fp-legend">
+                        <button type="button" class="fp-legend__item" data-type="ferie">
+                            <span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie
+                        </button>
+                        <button type="button" class="fp-legend__item" data-type="permesso">
+                            <span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi
+                        </button>
+                        <button type="button" class="fp-legend__item" data-type="straordinari">
+                            <span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari
+                        </button>
+                        <button type="button" class="fp-legend__item" data-type="mutua">
+                            <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua
+                        </button>
+                        <button type="button" class="fp-legend__item" data-type="speciale">
+                            <span class="fp-legend__dot fp-legend__dot--speciale"></span>Permesso Chiusura Aziendale
+                        </button>
+                        <button type="button" class="fp-legend__item" data-type="giustificato">
+                            <span class="fp-legend__dot fp-legend__dot--giustificato"></span>Permesso Giustificato
+                        </button>
+                        <div class="fp-legend-editor is-hidden" id="fp-legend-editor">
+                            <div class="fp-legend-editor__title" id="fp-legend-editor-title">Colore legenda</div>
+                            <div class="fp-legend-editor__row">
+                                <input type="color" class="fp-color-input" id="fp-legend-color-input">
+                                <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-default">Default</button>
+                                <button type="button" class="fp-btn fp-btn--primary" id="fp-legend-save">Salva</button>
+                                <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-cancel">Chiudi</button>
+                            </div>
                         </div>
                     </div>
-                </div>
+            </div>
+            <div class="fp-header__actions">
                 <div id="fp-summary" class="fp-summary">...</div>
                 <button type="button" class="fp-btn" id="fp-refresh">Aggiorna</button>
                 <button type="button" class="fp-btn fp-btn--icon" id="fp-settings" aria-label="Impostazioni">

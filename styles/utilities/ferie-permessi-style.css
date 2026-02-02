@@ -37,12 +37,17 @@ body.fp-initial-setup #fp-admin-add-modal {
 .fp-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     padding: 16px 24px;
     background: #ffffff;
     border-bottom: 1px solid #e0e3e7;
-    gap: 16px;
+    gap: 8px;
     user-select: none;
+}
+
+.fp-header__title {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .fp-header h1 {
@@ -61,6 +66,17 @@ body.fp-initial-setup #fp-admin-add-modal {
     display: flex;
     align-items: center;
     gap: 12px;
+    margin-left: auto;
+}
+
+.fp-filters-legend {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-left: 0;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .fp-header__actions,
@@ -95,15 +111,17 @@ body.fp-initial-setup #fp-admin-add-modal {
 .fp-legend {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     font-size: 12px;
     color: #5f6368;
     background: #f8f9fa;
     border: 1px solid #e0e3e7;
     border-radius: 999px;
-    padding: 6px 10px;
+    padding: 6px 12px;
     position: relative;
     flex-wrap: wrap;
+    max-width: 100%;
 }
 
 @media (max-width: 1200px) {
