@@ -87,6 +87,9 @@ const { buildExportRows } = bootRequire(path.join(fpBaseDir, "utils", "export"))
 const { getTypeLabel } = bootRequire(path.join(fpBaseDir, "utils", "labels"));
 const { UI_TEXTS } = bootRequire(path.join(fpBaseDir, "utils", "ui-texts"));
 
+const BACKUP_BASE_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
+const BACKUP_ROOT_DIR = path.join(BACKUP_BASE_DIR, "Backup AyPi Calendar");
+
 let calendar = null;
 let XLSX;
 try {
@@ -341,6 +344,106 @@ function setMessage(el, text, isError = false) {
     }
 }
 
+function formatBackupDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function ensureDir(dirPath) {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+    }
+}
+
+function copyDirectory(sourceDir, targetDir, options) {
+    ensureDir(targetDir);
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+    entries.forEach((entry) => {
+        const name = entry.name;
+        if (options && typeof options.exclude === "function" && options.exclude(name, sourceDir)) {
+            return;
+        }
+        const srcPath = path.join(sourceDir, name);
+        const dstPath = path.join(targetDir, name);
+        if (entry.isDirectory()) {
+            copyDirectory(srcPath, dstPath, options);
+            return;
+        }
+        if (entry.isFile()) {
+            fs.copyFileSync(srcPath, dstPath);
+        }
+    });
+}
+
+function parseBackupFolderDate(name) {
+    if (!name) return null;
+    const match = String(name).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!year || !month || !day) return null;
+    const date = new Date(year, month - 1, day);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+}
+
+function listBackupFolders() {
+    if (!fs.existsSync(BACKUP_ROOT_DIR)) return [];
+    return fs
+        .readdirSync(BACKUP_ROOT_DIR, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+            const fullPath = path.join(BACKUP_ROOT_DIR, entry.name);
+            const parsedDate = parseBackupFolderDate(entry.name);
+            let mtime = null;
+            try {
+                const stat = fs.statSync(fullPath);
+                mtime = stat.mtime;
+            } catch (err) {
+                mtime = null;
+            }
+            return {
+                name: entry.name,
+                fullPath,
+                date: parsedDate,
+                mtime,
+            };
+        });
+}
+
+function getLatestBackupInfo() {
+    const folders = listBackupFolders();
+    if (!folders.length) return null;
+    folders.sort((a, b) => {
+        const dateA = a.date ? a.date.getTime() : (a.mtime ? a.mtime.getTime() : 0);
+        const dateB = b.date ? b.date.getTime() : (b.mtime ? b.mtime.getTime() : 0);
+        return dateB - dateA;
+    });
+    return folders[0];
+}
+
+function pruneOldBackups(maxCount) {
+    const limit = Number.isFinite(maxCount) ? maxCount : 10;
+    const folders = listBackupFolders();
+    if (folders.length <= limit) return;
+    folders.sort((a, b) => {
+        const dateA = a.date ? a.date.getTime() : (a.mtime ? a.mtime.getTime() : 0);
+        const dateB = b.date ? b.date.getTime() : (b.mtime ? b.mtime.getTime() : 0);
+        return dateA - dateB;
+    });
+    const toDelete = folders.slice(0, Math.max(0, folders.length - limit));
+    toDelete.forEach((entry) => {
+        try {
+            fs.rmSync(entry.fullPath, { recursive: true, force: true });
+        } catch (err) {
+            console.error("Errore rimozione backup:", entry.fullPath, err);
+        }
+    });
+}
+
 function formatRange(request) {
     if (!request) return "";
     if (request.allDay) {
@@ -399,6 +502,7 @@ function renderAll(data) {
 let openEditModalHandler = null;
 let openAdminModalHandler = null;
 let openPasswordModalHandler = null;
+let openBackupModalHandler = null;
 
 const summaryUi = createSummary({ document });
 
@@ -559,6 +663,11 @@ const approvalUi = createApprovalModal({
     onExport: () => {
         if (typeof runExport === "function") {
             runExport();
+        }
+    },
+    onBackupAccess: () => {
+        if (openBackupModalHandler) {
+            openBackupModalHandler();
         }
     },
     onMutuaCreate: (admin, request) => {
@@ -1765,6 +1874,12 @@ function init() {
     const exportSelectAll = document.getElementById("fp-export-select-all");
     const exportSelectNone = document.getElementById("fp-export-select-none");
     const exportRangeRadios = document.querySelectorAll("input[name='fp-export-range']");
+    const backupOpen = document.getElementById("fp-backup-open");
+    const backupClose = document.getElementById("fp-backup-close");
+    const backupRun = document.getElementById("fp-backup-run");
+    const backupRestore = document.getElementById("fp-backup-restore");
+    const backupModal = document.getElementById("fp-backup-modal");
+    const backupMessage = document.getElementById("fp-backup-message");
 
     if (exportOpen) {
         exportOpen.addEventListener("click", () => {
@@ -1781,6 +1896,42 @@ function init() {
     if (exportModal) {
         exportModal.addEventListener("click", (event) => {
             if (event.target === exportModal) {
+                // no-op: keep modal open on backdrop click
+            }
+        });
+    }
+
+    const openBackupModal = () => {
+        if (!backupModal) return;
+        setMessage(backupMessage, "");
+        showModal(backupModal);
+    };
+
+    const closeBackupModal = () => {
+        if (!backupModal) return;
+        hideModal(backupModal);
+    };
+
+    if (backupOpen) {
+        backupOpen.addEventListener("click", () => {
+            approvalUi.openPasswordModal({
+                type: "backup-access",
+                id: "backup-access",
+                title: "Backup calendario",
+                description: UI_TEXTS.backupPasswordDescription,
+            });
+        });
+    }
+
+    if (backupClose) {
+        backupClose.addEventListener("click", () => {
+            closeBackupModal();
+        });
+    }
+
+    if (backupModal) {
+        backupModal.addEventListener("click", (event) => {
+            if (event.target === backupModal) {
                 // no-op: keep modal open on backdrop click
             }
         });
@@ -1892,6 +2043,59 @@ function init() {
         setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSuccess, false);
     };
 
+    const createBackup = async (options = {}) => {
+        try {
+            const isSilent = !!options.silent;
+            if (!isSilent) {
+                setMessage(backupMessage, "");
+            }
+            ensureDir(BACKUP_ROOT_DIR);
+            const dateLabel = formatBackupDate(new Date());
+            let targetDir = path.join(BACKUP_ROOT_DIR, dateLabel);
+            let suffix = 1;
+            while (fs.existsSync(targetDir)) {
+                suffix += 1;
+                targetDir = path.join(BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
+            }
+            ensureDir(targetDir);
+            copyDirectory(BACKUP_BASE_DIR, targetDir, {
+                exclude: (name, parent) =>
+                    parent === BACKUP_BASE_DIR && name.toLowerCase() === "backup aypi calendar",
+            });
+            pruneOldBackups(10);
+            if (!isSilent) {
+                setMessage(backupMessage, UI_TEXTS.backupCreateSuccess(targetDir), false);
+            }
+        } catch (err) {
+            if (!options.silent) {
+                setMessage(backupMessage, UI_TEXTS.backupCreateError(err.message || String(err)), true);
+            }
+        }
+    };
+
+    const restoreBackup = async () => {
+        try {
+            setMessage(backupMessage, "");
+            const confirm = await showDialog(
+                "warning",
+                "Ripristino backup",
+                UI_TEXTS.backupRestoreConfirm,
+                ["Annulla", "Ripristina"]
+            );
+            if (!confirm || confirm.response !== 1) return;
+            const folder = await ipcRenderer.invoke("select-root-folder");
+            if (!folder) return;
+            copyDirectory(folder, BACKUP_BASE_DIR, {
+                exclude: (name) => name.toLowerCase() === "backup aypi calendar",
+            });
+            renderAll(loadData());
+            pruneOldBackups(10);
+            setMessage(backupMessage, UI_TEXTS.backupRestoreSuccess, false);
+        } catch (err) {
+            setMessage(backupMessage, UI_TEXTS.backupRestoreError(err.message || String(err)), true);
+        }
+    };
+
     if (exportRun) {
         exportRun.addEventListener("click", () => {
             approvalUi.openPasswordModal({
@@ -1902,6 +2106,44 @@ function init() {
             });
         });
     }
+
+    if (backupRun) {
+        backupRun.addEventListener("click", () => {
+            createBackup();
+        });
+    }
+
+    if (backupRestore) {
+        backupRestore.addEventListener("click", () => {
+            restoreBackup();
+        });
+    }
+
+    openBackupModalHandler = () => openBackupModal();
+
+    const ensureRecentBackup = () => {
+        try {
+            const latest = getLatestBackupInfo();
+            if (!latest) {
+                createBackup({ silent: true });
+                return;
+            }
+            const latestDate = latest.date || latest.mtime;
+            if (!latestDate) {
+                createBackup({ silent: true });
+                return;
+            }
+            const now = new Date();
+            const diffMs = now.getTime() - latestDate.getTime();
+            const diffDays = diffMs / (24 * 60 * 60 * 1000);
+            if (diffDays > 7) {
+                createBackup({ silent: true });
+            }
+            pruneOldBackups(10);
+        } catch (err) {
+            console.error("Errore controllo backup:", err);
+        }
+    };
 
     pendingUi.closePendingPanel();
 
@@ -2040,6 +2282,9 @@ function init() {
 
     refreshUi.refreshData();
     refreshUi.scheduleAutoRefresh();
+    setTimeout(() => {
+        ensureRecentBackup();
+    }, 30000);
 
     window.addEventListener("message", (event) => {
         if (!event || !event.data) return;

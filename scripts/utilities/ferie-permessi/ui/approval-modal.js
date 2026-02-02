@@ -47,6 +47,7 @@ function createApprovalModal(options) {
         onClosureUpdate,
         onFilterAccess,
         onExport,
+        onBackupAccess,
     } = options || {};
 
 
@@ -201,6 +202,13 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onExport === "function") {
                 onExport(admin, pendingAction);
+            }
+            return;
+        }
+        if (actionType === "backup-access") {
+            closeApprovalModal();
+            if (typeof onBackupAccess === "function") {
+                onBackupAccess(admin);
             }
             return;
         }
