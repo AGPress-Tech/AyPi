@@ -13,6 +13,104 @@ const WINDOW_WEB_PREFERENCES = {
 };
 
 const APP_ICON_PATH = path.join(__dirname, "..", "assets", "app-icon.png");
+const FP_BASE_CONFIG = path.join(app.getPath("userData"), "ferie-permessi-base.json");
+
+function getDefaultFpBaseDir() {
+    try {
+        return path.dirname(NETWORK_PATHS.feriePermessiData);
+    } catch (err) {
+        return "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
+    }
+}
+
+function loadFpBaseDir() {
+    try {
+        if (!fs.existsSync(FP_BASE_CONFIG)) return null;
+        const raw = fs.readFileSync(FP_BASE_CONFIG, "utf8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.baseDir === "string" && parsed.baseDir.trim()) {
+            return parsed.baseDir.trim();
+        }
+        return null;
+    } catch (err) {
+        log.warn("[ferie-permessi] impossibile leggere base dir:", err);
+        return null;
+    }
+}
+
+function saveFpBaseDir(baseDir) {
+    try {
+        const payload = { baseDir };
+        fs.writeFileSync(FP_BASE_CONFIG, JSON.stringify(payload, null, 2), "utf8");
+    } catch (err) {
+        log.warn("[ferie-permessi] impossibile salvare base dir:", err);
+    }
+}
+
+function ensureFpFiles(baseDir) {
+    if (!baseDir) return;
+    if (!fs.existsSync(baseDir)) {
+        fs.mkdirSync(baseDir, { recursive: true });
+    }
+    const files = [
+        { name: "ferie-permessi.json", value: { requests: [], balances: {}, holidays: [], closures: [] } },
+        { name: "ferie-permessi-requests.json", value: [] },
+        { name: "ferie-permessi-holidays.json", value: [] },
+        { name: "ferie-permessi-balances.json", value: {} },
+        { name: "ferie-permessi-closures.json", value: [] },
+        { name: "ferie-permessi-admins.json", value: [] },
+        { name: "amministrazione-assignees.json", value: {} },
+    ];
+    files.forEach((item) => {
+        const filePath = path.join(baseDir, item.name);
+        if (fs.existsSync(filePath)) return;
+        try {
+            fs.writeFileSync(filePath, JSON.stringify(item.value, null, 2), "utf8");
+        } catch (err) {
+            log.warn("[ferie-permessi] impossibile creare file:", filePath, err);
+        }
+    });
+}
+
+function resolveFpBaseDirSync(senderWin) {
+    let baseDir = loadFpBaseDir() || getDefaultFpBaseDir();
+    const baseExists = baseDir && fs.existsSync(baseDir);
+
+    if (baseExists) {
+        ensureFpFiles(baseDir);
+        return baseDir;
+    }
+
+    const dialogOptions = {
+        title: "Seleziona la cartella dati AyPi Calendar",
+        properties: ["openDirectory", "createDirectory"],
+    };
+    const result = senderWin
+        ? dialog.showOpenDialogSync(senderWin, dialogOptions)
+        : dialog.showOpenDialogSync(dialogOptions);
+
+    if (result && result.length) {
+        baseDir = result[0];
+        ensureFpFiles(baseDir);
+        saveFpBaseDir(baseDir);
+        const infoOptions = {
+            type: "info",
+            buttons: ["OK"],
+            title: "AyPi Calendar",
+            message: "Percorso dati configurato.",
+            detail: `Percorso selezionato:\n${baseDir}\n\nNota: otp-mail.json non viene creato automaticamente. Se manca, il sistema usa il fallback locale.`,
+        };
+        if (senderWin && !senderWin.isDestroyed()) {
+            dialog.showMessageBoxSync(senderWin, infoOptions);
+        } else {
+            dialog.showMessageBoxSync(infoOptions);
+        }
+        return baseDir;
+    }
+
+    // fallback to default (even if missing) to avoid blocking startup
+    return getDefaultFpBaseDir();
+}
 
 function animateResize(mainWindow, targetWidth, targetHeight, duration = 100) {
     if (!mainWindow) return;
@@ -759,6 +857,12 @@ function setupFileManager(mainWindow) {
             return null;
         }
         return result.filePath;
+    });
+
+    ipcMain.on("fp-get-base-dir", (event) => {
+        const senderWin = BrowserWindow.fromWebContents(event.sender);
+        const baseDir = resolveFpBaseDirSync(senderWin);
+        event.returnValue = baseDir;
     });
 
     ipcMain.handle("show-message-box", async (event, options) => {

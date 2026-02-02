@@ -488,6 +488,18 @@ body.fp-initial-setup #fp-admin-add-modal {
     gap: 10px;
 }
 
+.fp-field__checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #5f6368;
+}
+
+.fp-field__checkbox input {
+    margin: 0;
+}
+
 .fp-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -891,6 +903,56 @@ body.fp-initial-setup #fp-admin-add-modal {
     margin: 0;
     color: #5f6368;
     font-size: 14px;
+}
+
+.fp-setup-card {
+    width: min(560px, 92vw);
+}
+
+.fp-setup-intro {
+    margin: 0 0 12px 0;
+    color: #5f6368;
+}
+
+.fp-setup-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #e0e3e7;
+    border-radius: 12px;
+    background: #f8f9fa;
+    margin-bottom: 14px;
+}
+
+.fp-setup-label {
+    font-weight: 600;
+    color: #1f1f1f;
+}
+
+.fp-setup-path {
+    font-size: 12px;
+    color: #1f1f1f;
+    word-break: break-all;
+    background: #ffffff;
+    border: 1px dashed #d0d5dd;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.fp-setup-note {
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.fp-setup-choice {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.fp-setup-mail {
+    margin-top: 10px;
 }
 
 .fp-assignees-card {

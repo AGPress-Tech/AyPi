@@ -17,7 +17,14 @@ const bootRequire = (modulePath) => {
     }
 };
 
-const { REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH, CLOSURES_PATH, ADMINS_PATH } = bootRequire(path.join(fpBaseDir, "config", "paths"));
+const {
+    BASE_DIR,
+    REQUESTS_PATH,
+    HOLIDAYS_PATH,
+    BALANCES_PATH,
+    CLOSURES_PATH,
+    ADMINS_PATH,
+} = bootRequire(path.join(fpBaseDir, "config", "paths"));
 const {
     AUTO_REFRESH_MS,
     OTP_EXPIRY_MS,
@@ -56,7 +63,9 @@ const {
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
 const { ensureFolderFor } = bootRequire(path.join(fpBaseDir, "services", "storage"));
-const { isMailerAvailable, getMailerError, sendOtpEmail } = bootRequire(path.join(fpBaseDir, "services", "otp-mail"));
+const { isMailerAvailable, getMailerError, saveMailConfig, sendTestEmail, sendOtpEmail } = bootRequire(
+    path.join(fpBaseDir, "services", "otp-mail")
+);
 const fpUiDir = path.join(fpBaseDir, "ui");
 const { createModalHelpers } = bootRequire(path.join(fpUiDir, "modals"));
 const { createExportController } = bootRequire(path.join(fpUiDir, "export"));
@@ -1018,6 +1027,113 @@ const adminUi = createAdminModals({
 openAdminModalHandler = adminUi.openAdminModal;
 openPasswordModalHandler = approvalUi.openPasswordModal;
 
+function openInitialSetupWizard() {
+    const setupModal = document.getElementById("fp-setup-modal");
+    if (!setupModal) {
+        showDialog("info", UI_TEXTS.setupAdminTitle, UI_TEXTS.setupAdminMessage);
+        adminUi.openAdminAddModal();
+        return;
+    }
+    const alreadyInit = setupModal.dataset.fpSetupInit === "1";
+
+    const intro = document.getElementById("fp-setup-intro");
+    const pathLabel = document.getElementById("fp-setup-path");
+    const noteLabel = document.getElementById("fp-setup-note");
+    const mailOpen = document.getElementById("fp-setup-mail-open");
+    const mailSkip = document.getElementById("fp-setup-mail-skip");
+    const mailSection = document.getElementById("fp-setup-mail-section");
+    const mailSave = document.getElementById("fp-mail-save");
+    const mailTest = document.getElementById("fp-mail-test-send");
+    const mailMessage = document.getElementById("fp-setup-mail-message");
+    const continueBtn = document.getElementById("fp-setup-continue");
+
+    if (intro) intro.textContent = UI_TEXTS.setupWizardMessage || UI_TEXTS.setupAdminMessage;
+    if (pathLabel) pathLabel.textContent = BASE_DIR || path.dirname(REQUESTS_PATH);
+    if (noteLabel) noteLabel.textContent = UI_TEXTS.setupPathNote || "";
+
+    if (alreadyInit) {
+        showModal(setupModal);
+        return;
+    }
+
+    const toggleMailSection = (show) => {
+        if (!mailSection) return;
+        mailSection.classList.toggle("is-hidden", !show);
+    };
+
+    const getMailFormData = () => ({
+        host: document.getElementById("fp-mail-host")?.value || "",
+        port: document.getElementById("fp-mail-port")?.value || "",
+        secure: !!document.getElementById("fp-mail-secure")?.checked,
+        user: document.getElementById("fp-mail-user")?.value || "",
+        pass: document.getElementById("fp-mail-pass")?.value || "",
+        from: document.getElementById("fp-mail-from")?.value || "",
+    });
+
+    const getTestEmail = () => document.getElementById("fp-mail-test")?.value || "";
+
+    const setMailMessage = (text, isError) => {
+        if (!mailMessage) return;
+        setMessage(mailMessage, text, isError);
+    };
+
+    const proceedToAdmin = () => {
+        hideModal(setupModal);
+        adminUi.openAdminAddModal();
+    };
+
+    if (mailOpen) {
+        mailOpen.addEventListener("click", () => {
+            toggleMailSection(true);
+        });
+    }
+
+    if (mailSkip) {
+        mailSkip.addEventListener("click", () => {
+            toggleMailSection(false);
+        });
+    }
+
+    if (mailTest) {
+        mailTest.addEventListener("click", async () => {
+            const payload = getMailFormData();
+            const testEmail = getTestEmail();
+            if (!isMailerAvailable()) {
+                setMailMessage(UI_TEXTS.mailModuleMissing, true);
+                return;
+            }
+            try {
+                setMailMessage("", false);
+                await sendTestEmail(payload, testEmail);
+                setMailMessage(UI_TEXTS.mailTestSent, false);
+            } catch (err) {
+                setMailMessage(UI_TEXTS.mailTestError(err.message || String(err)), true);
+            }
+        });
+    }
+
+    if (mailSave) {
+        mailSave.addEventListener("click", () => {
+            const payload = getMailFormData();
+            try {
+                setMailMessage("", false);
+                saveMailConfig(payload);
+                setMailMessage(UI_TEXTS.mailConfigSaved, false);
+                proceedToAdmin();
+            } catch (err) {
+                setMailMessage(UI_TEXTS.mailConfigError(err.message || String(err)), true);
+            }
+        });
+    }
+
+    if (continueBtn) {
+        continueBtn.addEventListener("click", proceedToAdmin);
+    }
+
+    setupModal.dataset.fpSetupInit = "1";
+    showModal(setupModal);
+}
+
 const assigneesUi = createAssigneesModal({
     document,
     showModal,
@@ -1842,8 +1958,7 @@ function init() {
     if (isAdminFileMissingOrEmpty()) {
         initialSetupActive = true;
         document.body.classList.add("fp-initial-setup");
-        showDialog("info", UI_TEXTS.setupAdminTitle, UI_TEXTS.setupAdminMessage);
-        adminUi.openAdminAddModal();
+        openInitialSetupWizard();
     }
 
     const approveRecover = document.getElementById("fp-approve-recover");

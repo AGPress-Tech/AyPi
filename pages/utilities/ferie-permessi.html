@@ -320,7 +320,7 @@
         </div>
     </div>
 
-<div class="fp-modal is-hidden" id="fp-settings-theme-modal" aria-hidden="true">
+    <div class="fp-modal is-hidden" id="fp-settings-theme-modal" aria-hidden="true">
         <div class="fp-modal__card fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-settings-theme-title">
             <div class="fp-assignees-header">
                 <h3 id="fp-settings-theme-title">Tema</h3>
@@ -345,6 +345,49 @@
                 <button type="button" class="fp-btn fp-btn--primary" id="fp-settings-theme-save">Salva</button>
             </div>
             <div id="fp-settings-theme-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-setup-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-setup-card" role="dialog" aria-modal="true" aria-labelledby="fp-setup-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-setup-title">Configurazione iniziale</h3>
+            </div>
+            <p class="fp-setup-intro" id="fp-setup-intro"></p>
+            <div class="fp-setup-section">
+                <div class="fp-setup-label">Percorso dati</div>
+                <div class="fp-setup-path" id="fp-setup-path"></div>
+                <div class="fp-setup-note" id="fp-setup-note"></div>
+            </div>
+            <div class="fp-setup-section">
+                <div class="fp-setup-label">Mailing OTP</div>
+                <div class="fp-setup-choice">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-setup-mail-skip">Non ora</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-setup-mail-open">Configura ora</button>
+                </div>
+                <div class="fp-setup-mail is-hidden" id="fp-setup-mail-section">
+                    <div class="fp-admin-grid fp-admin-grid--stack">
+                        <input class="fp-field__input" id="fp-mail-host" type="text" placeholder="Host SMTP (es. smtp.domain.it)">
+                        <input class="fp-field__input" id="fp-mail-port" type="number" placeholder="Porta (es. 587)">
+                        <label class="fp-field__checkbox">
+                            <input type="checkbox" id="fp-mail-secure">
+                            <span>Connessione sicura (SSL/TLS)</span>
+                        </label>
+                        <input class="fp-field__input" id="fp-mail-user" type="text" placeholder="User (email o utente SMTP)">
+                        <input class="fp-field__input" id="fp-mail-pass" type="password" placeholder="Password SMTP">
+                        <input class="fp-field__input" id="fp-mail-from" type="text" placeholder="Mittente (opzionale)">
+                        <input class="fp-field__input" id="fp-mail-test" type="email" placeholder="Email di prova">
+                    </div>
+                    <div class="fp-actions fp-actions--modal">
+                        <button type="button" class="fp-btn fp-btn--ghost" id="fp-mail-test-send">Invia test</button>
+                        <button type="button" class="fp-btn fp-btn--primary" id="fp-mail-save">Salva mailing e continua</button>
+                    </div>
+                    <div id="fp-setup-mail-message" class="fp-message is-hidden"></div>
+                </div>
+            </div>
+            <div class="fp-actions fp-actions--modal">
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-setup-continue">Continua senza mailing</button>
+            </div>
         </div>
     </div>
 

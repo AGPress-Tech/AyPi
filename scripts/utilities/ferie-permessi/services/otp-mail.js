@@ -40,6 +40,70 @@ function loadMailConfig() {
     }
 }
 
+function normalizeMailConfig(payload) {
+    if (!payload || typeof payload !== "object") {
+        throw new Error("Config mail non valida.");
+    }
+    const host = String(payload.host || "").trim();
+    const user = String(payload.user || "").trim();
+    const pass = String(payload.pass || "").trim();
+    const from = String(payload.from || "").trim();
+    const portRaw = payload.port;
+    const port = portRaw !== undefined && portRaw !== null && String(portRaw).trim() !== ""
+        ? Number(portRaw)
+        : undefined;
+    const secure = !!payload.secure;
+
+    if (!host || !user || !pass) {
+        throw new Error("Compila host, user e password del servizio email.");
+    }
+    if (port !== undefined && (!Number.isFinite(port) || port <= 0)) {
+        throw new Error("Porta non valida.");
+    }
+
+    return {
+        host,
+        user,
+        pass,
+        port: port !== undefined ? port : undefined,
+        secure,
+        from: from || undefined,
+    };
+}
+
+function saveMailConfig(payload, destinationPath = OTP_MAIL_SERVER_PATH) {
+    const config = normalizeMailConfig(payload);
+    fs.writeFileSync(destinationPath, JSON.stringify(config, null, 2), "utf8");
+    return { config, path: destinationPath };
+}
+
+async function sendTestEmail(payload, to) {
+    if (!nodemailer) {
+        throw new Error("Modulo 'nodemailer' non disponibile.");
+    }
+    const config = normalizeMailConfig(payload);
+    const recipient = String(to || "").trim();
+    if (!recipient) {
+        throw new Error("Inserisci l'email di prova.");
+    }
+    const transporter = nodemailer.createTransport({
+        host: config.host,
+        port: config.port || 587,
+        secure: !!config.secure,
+        auth: {
+            user: config.user,
+            pass: config.pass,
+        },
+    });
+    const from = config.from || config.user;
+    await transporter.sendMail({
+        from,
+        to: recipient,
+        subject: "Test configurazione mailing AyPi Calendar",
+        text: "Test invio email completato con successo.",
+    });
+}
+
 async function sendOtpEmail(admin, code) {
     if (!nodemailer) {
         throw new Error("Modulo 'nodemailer' non disponibile.");
@@ -67,5 +131,7 @@ module.exports = {
     isMailerAvailable,
     getMailerError,
     loadMailConfig,
+    saveMailConfig,
+    sendTestEmail,
     sendOtpEmail,
 };
