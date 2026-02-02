@@ -100,7 +100,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     background: #ffffff;
     border: 1px solid #e0e3e7;
     border-radius: 999px;
-    padding: 6px 10px;
+    padding: 4px 9px;
     cursor: pointer;
 }
 
@@ -118,7 +118,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     background: #f8f9fa;
     border: 1px solid #e0e3e7;
     border-radius: 999px;
-    padding: 6px 12px;
+    padding: 4px 10px;
     position: relative;
     flex-wrap: wrap;
     max-width: 100%;
@@ -156,7 +156,7 @@ body.fp-initial-setup #fp-admin-add-modal {
 
 .fp-legend__item,
 .fp-filter-toggle {
-    min-height: 30px;
+    min-height: 26px;
 }
 
 .fp-legend__item {
