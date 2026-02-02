@@ -57,54 +57,10 @@ async function handleSelectFolderB() {
 }
 
 async function selectRootFolderSafe() {
-    const TIMEOUT_MS = 8000;
-    const timeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout apertura dialog selezione cartella.")), TIMEOUT_MS);
-    });
     if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-        return pickFolderWithInput();
+        throw new Error("IPC non disponibile per la selezione cartella.");
     }
-    try {
-        return await Promise.race([ipcRenderer.invoke("select-root-folder"), timeout]);
-    } catch (err) {
-        console.warn("Fallback selezione cartella (input web):", err);
-        return pickFolderWithInput();
-    }
-}
-
-function pickFolderWithInput() {
-    return new Promise((resolve) => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.setAttribute("webkitdirectory", "");
-        input.setAttribute("directory", "");
-        input.style.display = "none";
-        document.body.appendChild(input);
-
-        input.addEventListener("change", () => {
-            const files = Array.from(input.files || []);
-            let folder = null;
-            if (files.length > 0) {
-                const file = files[0];
-                const fullPath = file.path || "";
-                const relPath = file.webkitRelativePath || "";
-                if (fullPath && relPath) {
-                    const relNorm = relPath.replace(/\//g, path.sep);
-                    const idx = fullPath.lastIndexOf(relNorm);
-                    if (idx >= 0) {
-                        folder = fullPath.slice(0, idx).replace(/[\\\/]+$/, "");
-                    }
-                }
-                if (!folder && fullPath) {
-                    folder = path.dirname(fullPath);
-                }
-            }
-            document.body.removeChild(input);
-            resolve(folder);
-        });
-
-        input.click();
-    });
+    return ipcRenderer.invoke("select-root-folder");
 }
 
 window.addEventListener("error", (event) => {

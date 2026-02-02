@@ -78,13 +78,6 @@ window.addEventListener("unhandledrejection", (event) => {
     showDialog("error", "Errore promessa non gestita (Ferie/Permessi).", detail);
 });
 
-async function invokeWithTimeout(promise, label) {
-    const TIMEOUT_MS = 15000;
-    const timeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Timeout ${label}.`)), TIMEOUT_MS);
-    });
-    return Promise.race([promise, timeout]);
-}
 const fpUiDir = path.join(fpBaseDir, "ui");
 const { createModalHelpers } = bootRequire(path.join(fpUiDir, "modals"));
 const { createExportController } = bootRequire(path.join(fpUiDir, "export"));
@@ -1074,6 +1067,7 @@ const holidaysUi = createHolidaysModal({
     loadData,
     openPasswordModal: (action) => approvalUi.openPasswordModal(action),
     requireAdminAccess,
+    confirmAction: (message) => openConfirmModal(message),
 });
 
 const closuresUi = createClosuresModal({
@@ -1086,6 +1080,7 @@ const closuresUi = createClosuresModal({
     loadData,
     openPasswordModal: (action) => approvalUi.openPasswordModal(action),
     requireAdminAccess,
+    confirmAction: (message) => openConfirmModal(message),
 });
 
 const editUi = createEditModal({
@@ -1098,6 +1093,11 @@ const editUi = createEditModal({
     toggleAllDayStateFor,
     updateAllDayLock,
     buildRequestFromForm,
+    openConfirmModal,
+    escapeHtml,
+    getTypeLabel,
+    formatDate,
+    formatDateTime,
     syncData,
     renderAll,
     getEditingRequestId: () => editingRequestId,
@@ -2458,13 +2458,10 @@ function init() {
 
         let outputPath;
         try {
-            outputPath = await invokeWithTimeout(
-                ipcRenderer.invoke("select-output-file", {
-                    defaultName: "ferie_permessi.xlsx",
-                    filters: [{ name: "File Excel", extensions: ["xlsx"] }],
-                }),
-                "apertura dialog selezione file destinazione"
-            );
+            outputPath = await ipcRenderer.invoke("select-output-file", {
+                defaultName: "ferie_permessi.xlsx",
+                filters: [{ name: "File Excel", extensions: ["xlsx"] }],
+            });
         } catch (err) {
             await showDialog("error", "Errore selezione file di destinazione.", err.message || String(err));
             return;
@@ -2522,10 +2519,7 @@ function init() {
             if (!confirm || confirm.response !== 1) return;
             let folder;
             try {
-                folder = await invokeWithTimeout(
-                    ipcRenderer.invoke("select-root-folder"),
-                    "apertura dialog selezione cartella"
-                );
+                folder = await ipcRenderer.invoke("select-root-folder");
             } catch (err) {
                 setMessage(backupMessage, UI_TEXTS.backupRestoreError(err.message || String(err)), true);
                 return;
@@ -2736,7 +2730,9 @@ function init() {
             const match = holidays.find((item) => (typeof item === "string" ? item : item?.date) === date);
             if (match) {
                 event.preventDefault();
-                holidaysUi.openHolidaysListModal(date);
+                requireAdminAccess(() => {
+                    holidaysUi.openHolidaysListModal(date);
+                });
                 return;
             }
             const closures = Array.isArray(cachedData.closures) ? cachedData.closures : [];
@@ -2751,7 +2747,9 @@ function init() {
             });
             if (!hasClosure) return;
             event.preventDefault();
-            closuresUi.openClosuresListModal(date);
+            requireAdminAccess(() => {
+                closuresUi.openClosuresListModal(date);
+            });
         });
     }
 
@@ -2769,15 +2767,22 @@ function init() {
         if (!selectedEventId) return;
         requireAdminAccess(() => {
             const targetId = selectedEventId;
-            const updated = syncData((payload) => {
-                const target = (payload.requests || []).find((req) => req.id === targetId);
-                if (target && typeof applyBalanceForDeletion === "function") {
-                    applyBalanceForDeletion(payload, target);
-                }
-                payload.requests = (payload.requests || []).filter((req) => req.id !== targetId);
-                return payload;
+            const snapshot = (cachedData.requests || []).find((req) => req.id === targetId);
+            const typeLabel = snapshot ? getTypeLabel(snapshot.type) : "richiesta";
+            const employeeLabel = snapshot?.employee ? ` di <strong>${escapeHtml(snapshot.employee)}</strong>` : "";
+            const message = `Confermi l'eliminazione della <strong>${escapeHtml(typeLabel)}</strong>${employeeLabel}?`;
+            openConfirmModal(message).then((ok) => {
+                if (!ok) return;
+                const updated = syncData((payload) => {
+                    const target = (payload.requests || []).find((req) => req.id === targetId);
+                    if (target && typeof applyBalanceForDeletion === "function") {
+                        applyBalanceForDeletion(payload, target);
+                    }
+                    payload.requests = (payload.requests || []).filter((req) => req.id !== targetId);
+                    return payload;
+                });
+                renderAll(updated);
             });
-            renderAll(updated);
         });
     });
 

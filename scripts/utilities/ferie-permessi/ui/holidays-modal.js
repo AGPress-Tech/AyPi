@@ -11,11 +11,14 @@ function createHolidaysModal(options) {
         loadData,
         openPasswordModal,
         requireAdminAccess,
+        confirmAction,
     } = options || {};
 
     if (!document) {
         throw new Error("document richiesto.");
     }
+
+    const confirm = typeof confirmAction === "function" ? confirmAction : async () => true;
 
     let highlightDate = null;
     let editingDate = null;
@@ -102,15 +105,26 @@ function createHolidaysModal(options) {
             remove.className = "fp-btn fp-btn--ghost";
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", () => {
-                if (typeof openPasswordModal === "function") {
-                    openPasswordModal({
-                        type: "holiday-remove",
-                        id: date,
-                        title: "Rimuovi festivita",
-                        description: UI_TEXTS.holidayPasswordDescription,
-                        date,
+                const run = async () => {
+                    const ok = await confirm("Confermi la rimozione della festivita?");
+                    if (!ok) return;
+                    if (typeof openPasswordModal === "function") {
+                        openPasswordModal({
+                            type: "holiday-remove",
+                            id: date,
+                            title: "Rimuovi festivita",
+                            description: UI_TEXTS.holidayPasswordDescription,
+                            date,
+                        });
+                    }
+                };
+                if (typeof requireAdminAccess === "function") {
+                    requireAdminAccess(() => {
+                        run();
                     });
+                    return;
                 }
+                run();
             });
 
             const edit = document.createElement("button");
@@ -118,8 +132,15 @@ function createHolidaysModal(options) {
             edit.className = "fp-btn";
             edit.textContent = "Modifica";
             edit.addEventListener("click", () => {
-                editingDate = date;
-                renderHolidayList(payload);
+                const run = () => {
+                    editingDate = date;
+                    renderHolidayList(payload);
+                };
+                if (typeof requireAdminAccess === "function") {
+                    requireAdminAccess(run);
+                    return;
+                }
+                run();
             });
 
             if (editingDate === date) {
@@ -156,7 +177,7 @@ function createHolidaysModal(options) {
                 saveBtn.type = "button";
                 saveBtn.className = "fp-btn fp-btn--primary";
                 saveBtn.textContent = "Salva";
-                saveBtn.addEventListener("click", () => {
+                saveBtn.addEventListener("click", async () => {
                     const input = row.querySelector("input[type='date']");
                     const nameInput = row.querySelector("input[type='text']");
                     const nextValue = input ? input.value : "";
@@ -165,18 +186,29 @@ function createHolidaysModal(options) {
                         setMessage(document.getElementById("fp-holidays-message"), UI_TEXTS.holidayInvalidDate, true);
                         return;
                     }
-                    if (typeof openPasswordModal === "function") {
-                        openPasswordModal({
-                            type: "holiday-update",
-                            id: date,
-                            title: "Modifica festivita",
-                            description: UI_TEXTS.holidayPasswordDescription,
-                            date,
-                            nextDate: nextValue,
-                            nextName,
+                    const run = async () => {
+                        const ok = await confirm("Confermi la modifica della festivita?");
+                        if (!ok) return;
+                        if (typeof openPasswordModal === "function") {
+                            openPasswordModal({
+                                type: "holiday-update",
+                                id: date,
+                                title: "Modifica festivita",
+                                description: UI_TEXTS.holidayPasswordDescription,
+                                date,
+                                nextDate: nextValue,
+                                nextName,
+                            });
+                        }
+                        editingDate = null;
+                    };
+                    if (typeof requireAdminAccess === "function") {
+                        requireAdminAccess(() => {
+                            run();
                         });
+                        return;
                     }
-                    editingDate = null;
+                    run();
                 });
 
                 const cancelBtn = document.createElement("button");

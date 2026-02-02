@@ -497,7 +497,6 @@ let feriePermessiWindow = null;
 let feriePermessiHoursWindow = null;
 let feriePermessiSplashShown = false;
 let isAppQuitting = false;
-let selectRootFolderInFlight = false;
 
 function openBatchRenameWindow(mainWindow) {
     if (isWindowAlive(batchRenameWindow)) {
@@ -823,76 +822,26 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("select-root-folder", async (event) => {
-        if (selectRootFolderInFlight) {
+        const senderWin = BrowserWindow.fromWebContents(event.sender);
+        const mainWin = isWindowAlive(mainWindow) ? mainWindow : null;
+        const win = isWindowAlive(senderWin) ? senderWin : mainWin;
+        if (win) {
+            win.show();
+            win.focus();
+        }
+
+        const dialogOptions = {
+            title: "Seleziona la cartella",
+            properties: ["openDirectory"],
+        };
+        const result = win
+            ? await dialog.showOpenDialog(win, dialogOptions)
+            : await dialog.showOpenDialog(dialogOptions);
+
+        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
             return null;
         }
-        selectRootFolderInFlight = true;
-        try {
-            const senderWin = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
-            const focusedWin = BrowserWindow.getFocusedWindow();
-            const mainWin = isWindowAlive(mainWindow) ? mainWindow : null;
-            const win = isWindowAlive(senderWin)
-                ? senderWin
-                : (isWindowAlive(focusedWin) ? focusedWin : mainWin);
-
-            if (win) {
-                try {
-                    win.show();
-                    win.focus();
-                } catch (err) {
-                    log.warn("[select-root-folder] impossibile mostrare finestra:", err);
-                }
-            }
-
-            const dialogOptions = {
-                title: "Seleziona la cartella",
-                properties: ["openDirectory"],
-            };
-
-            let result;
-            try {
-                const dialogPromise = win
-                    ? dialog.showOpenDialog(win, dialogOptions)
-                    : dialog.showOpenDialog(dialogOptions);
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => {
-                        reject(new Error("Timeout apertura dialog selezione cartella."));
-                    }, 15000);
-                });
-                result = await Promise.race([dialogPromise, timeoutPromise]);
-            } catch (err) {
-                log.warn("[select-root-folder] errore dialog, retry senza parent:", err);
-                const dialogPromise = dialog.showOpenDialog(dialogOptions);
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => {
-                        reject(new Error("Timeout apertura dialog selezione cartella (fallback)."));
-                    }, 15000);
-                });
-                result = await Promise.race([dialogPromise, timeoutPromise]);
-            }
-
-            if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-                return null;
-            }
-            return result.filePaths[0] || null;
-        } catch (err) {
-            log.error("[select-root-folder] errore inatteso:", err);
-            try {
-                const alertWin = BrowserWindow.getFocusedWindow() || mainWindow;
-                dialog.showMessageBox(alertWin || undefined, {
-                    type: "error",
-                    buttons: ["OK"],
-                    title: "AyPi",
-                    message: "Errore apertura selezione cartella.",
-                    detail: err && err.message ? err.message : String(err),
-                });
-            } catch (notifyErr) {
-                log.warn("[select-root-folder] impossibile mostrare messaggio errore:", notifyErr);
-            }
-            return null;
-        } finally {
-            selectRootFolderInFlight = false;
-        }
+        return result.filePaths[0];
     });
 
     ipcMain.handle("select-output-file", async (event, options) => {

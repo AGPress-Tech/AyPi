@@ -17,14 +17,6 @@ try {
 const fs = require("fs");
 const path = require("path");
 
-async function invokeWithTimeout(promise, label) {
-    const TIMEOUT_MS = 15000;
-    const timeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Timeout ${label}.`)), TIMEOUT_MS);
-    });
-    return Promise.race([promise, timeout]);
-}
-
 window.addEventListener("error", (event) => {
     const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
     ipcRenderer.invoke("show-message-box", {
@@ -111,10 +103,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
             let rootFolder;
             try {
-                rootFolder = await invokeWithTimeout(
-                    ipcRenderer.invoke("select-root-folder"),
-                    "apertura dialog selezione cartella"
-                );
+                rootFolder = await ipcRenderer.invoke("select-root-folder");
             } catch (err) {
                 await showError("Errore selezione cartella.", err.message || String(err));
                 return;
@@ -128,12 +117,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
             let outputPath;
             try {
-                outputPath = await invokeWithTimeout(
-                    ipcRenderer.invoke("select-output-file", {
-                        defaultName: "lista_file.xlsx"
-                    }),
-                    "apertura dialog selezione file destinazione"
-                );
+                outputPath = await ipcRenderer.invoke("select-output-file", {
+                    defaultName: "lista_file.xlsx"
+                });
             } catch (err) {
                 await showError("Errore selezione file di destinazione.", err.message || String(err));
                 return;

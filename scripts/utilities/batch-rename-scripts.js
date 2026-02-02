@@ -30,11 +30,10 @@ const { buildPresetFromUI, applyPresetToUI, loadPresetsIntoUI } = bootRequire(pa
 const { handleApply, handleOpenFolder, handleUndoLast } = bootRequire(path.join(batchBaseDir, "operations"));
 
 async function selectRootFolderSafe() {
-    const TIMEOUT_MS = 15000;
-    const timeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout apertura dialog selezione cartella.")), TIMEOUT_MS);
-    });
-    return Promise.race([ipcRenderer.invoke("select-root-folder"), timeout]);
+    if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
+        throw new Error("IPC non disponibile per la selezione cartella.");
+    }
+    return ipcRenderer.invoke("select-root-folder");
 }
 
 window.addEventListener("error", (event) => {

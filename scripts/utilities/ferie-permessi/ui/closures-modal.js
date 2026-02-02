@@ -11,11 +11,14 @@ function createClosuresModal(options) {
         loadData,
         openPasswordModal,
         requireAdminAccess,
+        confirmAction,
     } = options || {};
 
     if (!document) {
         throw new Error("document richiesto.");
     }
+
+    const confirm = typeof confirmAction === "function" ? confirmAction : async () => true;
 
     let editingKey = null;
     let highlightDate = null;
@@ -97,15 +100,26 @@ function createClosuresModal(options) {
             remove.className = "fp-btn fp-btn--ghost";
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", () => {
-                if (typeof openPasswordModal === "function") {
-                    openPasswordModal({
-                        type: "closure-remove",
-                        id: buildKey(entry),
-                        title: "Rimuovi chiusura",
-                        description: UI_TEXTS.closurePasswordDescription,
-                        entry,
+                const run = async () => {
+                    const ok = await confirm("Confermi la rimozione della chiusura?");
+                    if (!ok) return;
+                    if (typeof openPasswordModal === "function") {
+                        openPasswordModal({
+                            type: "closure-remove",
+                            id: buildKey(entry),
+                            title: "Rimuovi chiusura",
+                            description: UI_TEXTS.closurePasswordDescription,
+                            entry,
+                        });
+                    }
+                };
+                if (typeof requireAdminAccess === "function") {
+                    requireAdminAccess(() => {
+                        run();
                     });
+                    return;
                 }
+                run();
             });
 
             const edit = document.createElement("button");
@@ -113,8 +127,15 @@ function createClosuresModal(options) {
             edit.className = "fp-btn";
             edit.textContent = "Modifica";
             edit.addEventListener("click", () => {
-                editingKey = buildKey(entry);
-                renderClosureList(payload, options);
+                const run = () => {
+                    editingKey = buildKey(entry);
+                    renderClosureList(payload, options);
+                };
+                if (typeof requireAdminAccess === "function") {
+                    requireAdminAccess(run);
+                    return;
+                }
+                run();
             });
 
             if (editingKey === buildKey(entry)) {
@@ -146,7 +167,7 @@ function createClosuresModal(options) {
                 saveBtn.type = "button";
                 saveBtn.className = "fp-btn fp-btn--primary";
                 saveBtn.textContent = "Salva";
-                saveBtn.addEventListener("click", () => {
+                saveBtn.addEventListener("click", async () => {
                     const inputs = row.querySelectorAll("input");
                     const nameInput = inputs[0];
                     const startInput = inputs[1];
@@ -162,21 +183,32 @@ function createClosuresModal(options) {
                         setMessage(document.getElementById("fp-closures-message"), UI_TEXTS.closureRangeInvalid, true);
                         return;
                     }
-                    if (typeof openPasswordModal === "function") {
-                        openPasswordModal({
-                            type: "closure-update",
-                            id: buildKey(entry),
-                            title: "Modifica chiusura",
-                            description: UI_TEXTS.closurePasswordDescription,
-                            entry,
-                            next: {
-                                start: startValue,
-                                end: endValue || startValue,
-                                name: nameValue,
-                            },
+                    const run = async () => {
+                        const ok = await confirm("Confermi la modifica della chiusura?");
+                        if (!ok) return;
+                        if (typeof openPasswordModal === "function") {
+                            openPasswordModal({
+                                type: "closure-update",
+                                id: buildKey(entry),
+                                title: "Modifica chiusura",
+                                description: UI_TEXTS.closurePasswordDescription,
+                                entry,
+                                next: {
+                                    start: startValue,
+                                    end: endValue || startValue,
+                                    name: nameValue,
+                                },
+                            });
+                        }
+                        editingKey = null;
+                    };
+                    if (typeof requireAdminAccess === "function") {
+                        requireAdminAccess(() => {
+                            run();
                         });
+                        return;
                     }
-                    editingKey = null;
+                    run();
                 });
 
                 const cancelBtn = document.createElement("button");

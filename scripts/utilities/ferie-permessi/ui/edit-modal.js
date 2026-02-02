@@ -11,6 +11,11 @@ function createEditModal(options) {
         toggleAllDayStateFor,
         updateAllDayLock,
         buildRequestFromForm,
+        openConfirmModal,
+        escapeHtml,
+        getTypeLabel,
+        formatDate,
+        formatDateTime,
         syncData,
         renderAll,
         getEditingRequestId,
@@ -99,9 +104,13 @@ function createEditModal(options) {
         }
 
         if (editDelete) {
-            editDelete.addEventListener("click", () => {
+            editDelete.addEventListener("click", async () => {
                 const editingRequestId = getEditingRequestId();
                 if (!editingRequestId) return;
+                if (typeof openConfirmModal === "function") {
+                    const ok = await openConfirmModal("Confermi l'eliminazione della richiesta?");
+                    if (!ok) return;
+                }
                 const updated = syncData((payload) => {
                     const target = (payload.requests || []).find((req) => req.id === editingRequestId);
                     if (target && typeof applyBalanceForDeletion === "function") {
@@ -122,7 +131,7 @@ function createEditModal(options) {
         }
 
         if (editForm) {
-            editForm.addEventListener("submit", (event) => {
+            editForm.addEventListener("submit", async (event) => {
                 event.preventDefault();
                 const editingRequestId = getEditingRequestId();
                 if (!editingRequestId) return;
@@ -136,6 +145,20 @@ function createEditModal(options) {
                         setInlineError("fp-edit-end-date-error", "");
                     }
                     return;
+                }
+                if (typeof openConfirmModal === "function") {
+                    const typeLabel = escapeHtml && getTypeLabel ? escapeHtml(getTypeLabel(request.type)) : "richiesta";
+                    const startLabel = escapeHtml && formatDate && formatDateTime
+                        ? escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start))
+                        : "";
+                    const endLabel = escapeHtml && formatDate && formatDateTime
+                        ? escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end))
+                        : "";
+                    const rangeLabel = startLabel ? ` (${startLabel}${endLabel && endLabel !== startLabel ? ` - ${endLabel}` : ""})` : "";
+                    const ok = await openConfirmModal(`Confermi la modifica della <strong>${typeLabel}</strong>${rangeLabel}?`);
+                    if (!ok) {
+                        return;
+                    }
                 }
                 const editingAdminName = getEditingAdminName();
                 const updated = syncData((payload) => {
