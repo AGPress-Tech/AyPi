@@ -13,6 +13,7 @@
   --max: 1200px;
   --sidebar: 300px;
   --topbar: 56px;
+  --topbar-h: 40px;
   --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
@@ -181,14 +182,13 @@ kbd{
   height:16px;
 }
 .topbar{
-  position:sticky;
-  top:0;
-  z-index:20;
-  min-height:46px;
+  position:static;
+  min-height:var(--topbar-h);
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:6px 10px;
+  padding:4px 12px;
+  padding-right:56px;
   border:1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -201,8 +201,23 @@ kbd{
 .topbar .actions{
   display:flex; gap:10px; align-items:center;
 }
+.btn-close{
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 30;
+  height: var(--topbar-h);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: var(--shadow);
+}
+body.embed .btn-close{
+  top: 16px;
+  right: 16px;
+}
 .btn{
-  padding:8px 10px;
+  padding:6px 10px;
   border-radius:12px;
   border:1px solid var(--border);
   background:var(--panel);
