@@ -38,6 +38,7 @@ function createApprovalModal(options) {
         onManageAccess,
         onDaysAccess,
         onMutuaCreate,
+        onGiustificatoCreate,
         onSpecialeCreate,
         onHolidayCreate,
         onHolidayRemove,
@@ -139,6 +140,13 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onMutuaCreate === "function") {
                 onMutuaCreate(admin, pendingAction.request);
+            }
+            return;
+        }
+        if (actionType === "giustificato-create") {
+            closeApprovalModal();
+            if (typeof onGiustificatoCreate === "function") {
+                onGiustificatoCreate(admin, pendingAction.request);
             }
             return;
         }

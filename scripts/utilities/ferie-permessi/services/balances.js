@@ -7,7 +7,11 @@ const DEFAULT_INITIAL_HOURS = 100;
 const MONTHLY_ACCRUAL_HOURS = 16;
 
 function isBalanceNeutral(request) {
-    return request && (request.type === "straordinari" || request.type === "mutua");
+    return request && (
+        request.type === "straordinari" ||
+        request.type === "mutua" ||
+        request.type === "giustificato"
+    );
 }
 
 function isSpeciale(request) {
@@ -188,7 +192,7 @@ function getApprovedHoursForEmployee(requests, employee, department, holidays, c
     if (!key) return 0;
     return requests.reduce((total, req) => {
         if (!req || req.status !== "approved") return total;
-        if (req.type === "straordinari") return total;
+        if (isBalanceNeutral(req)) return total;
         const reqKey = getEmployeeKey(req.employee, req.department);
         if (reqKey !== key) return total;
         const hours = Number(req.balanceHours);

@@ -74,6 +74,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     gap: 8px;
     font-size: 12px;
     color: #5f6368;
+    flex-wrap: wrap;
 }
 
 .fp-filter-toggle {
@@ -102,6 +103,25 @@ body.fp-initial-setup #fp-admin-add-modal {
     border-radius: 999px;
     padding: 6px 10px;
     position: relative;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 1200px) {
+    .fp-calendar-filters {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .fp-legend {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px 10px;
+    }
+
+    .fp-legend__item {
+        justify-content: flex-start;
+    }
 }
 
 .fp-legend__item {
@@ -114,6 +134,15 @@ body.fp-initial-setup #fp-admin-add-modal {
     cursor: pointer;
     color: inherit;
     font: inherit;
+}
+
+.fp-legend__item,
+.fp-filter-toggle {
+    min-height: 30px;
+}
+
+.fp-legend__item {
+    padding: 0 4px;
 }
 
 .fp-legend__dot {
@@ -141,6 +170,10 @@ body.fp-initial-setup #fp-admin-add-modal {
 
 .fp-legend__dot--speciale {
     background: #9e9d24;
+}
+
+.fp-legend__dot--giustificato {
+    background: #c2185b;
 }
 
 .fp-legend-editor {
@@ -342,6 +375,13 @@ body.fp-initial-setup #fp-admin-add-modal {
 .fp-summary {
     font-size: 13px;
     color: #5f6368;
+    white-space: nowrap;
+}
+
+@media (max-width: 1600px) {
+    .fp-summary {
+        display: none;
+    }
 }
 
 .fp-body {

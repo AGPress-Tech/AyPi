@@ -113,6 +113,7 @@ let filterUnlocked = {
     overtime: false,
     mutua: false,
     speciale: false,
+    giustificato: false,
 };
 let assigneesUnlocked = false;
 let assigneesOpenPending = false;
@@ -134,6 +135,7 @@ let calendarFilters = {
     overtime: false,
     mutua: false,
     speciale: false,
+    giustificato: false,
 };
 let editingAdminName = "";
 let adminCache = [];
@@ -171,6 +173,7 @@ function loadColorSettings() {
             straordinari: normalizeHexColor(parsed.straordinari, DEFAULT_TYPE_COLORS.straordinari),
             mutua: normalizeHexColor(parsed.mutua, DEFAULT_TYPE_COLORS.mutua),
             speciale: normalizeHexColor(parsed.speciale, DEFAULT_TYPE_COLORS.speciale),
+            giustificato: normalizeHexColor(parsed.giustificato, DEFAULT_TYPE_COLORS.giustificato),
         };
     } catch (err) {
         return { ...DEFAULT_TYPE_COLORS };
@@ -204,11 +207,13 @@ function applyTypeColors() {
     const straordinariDot = document.querySelector(".fp-legend__dot--straordinari");
     const mutuaDot = document.querySelector(".fp-legend__dot--mutua");
     const specialeDot = document.querySelector(".fp-legend__dot--speciale");
+    const giustificatoDot = document.querySelector(".fp-legend__dot--giustificato");
     if (ferieDot) ferieDot.style.background = getTypeColor("ferie");
     if (permessoDot) permessoDot.style.background = getTypeColor("permesso");
     if (straordinariDot) straordinariDot.style.background = getTypeColor("straordinari");
     if (mutuaDot) mutuaDot.style.background = getTypeColor("mutua");
     if (specialeDot) specialeDot.style.background = getTypeColor("speciale");
+    if (giustificatoDot) giustificatoDot.style.background = getTypeColor("giustificato");
 }
 
 function openLegendEditor(type) {
@@ -549,6 +554,9 @@ renderer = createRenderer({
         if (request.type === "speciale") {
             return calendarFilters.speciale;
         }
+        if (request.type === "giustificato") {
+            return calendarFilters.giustificato;
+        }
         return calendarFilters.leave;
     },
 });
@@ -658,6 +666,14 @@ const approvalUi = createApprovalModal({
             const specialeToggle = document.getElementById("fp-filter-speciale");
             if (specialeToggle) specialeToggle.checked = true;
             renderer.renderCalendar(cachedData);
+            return;
+        }
+        if (filter === "giustificato") {
+            calendarFilters.giustificato = true;
+            filterUnlocked.giustificato = true;
+            const giustificatoToggle = document.getElementById("fp-filter-giustificato");
+            if (giustificatoToggle) giustificatoToggle.checked = true;
+            renderer.renderCalendar(cachedData);
         }
     },
     onExport: () => {
@@ -687,6 +703,28 @@ const approvalUi = createApprovalModal({
         });
         const message = document.getElementById("fp-form-message");
         setMessage(message, UI_TEXTS.mutuaInserted, false);
+        if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+            requestFormUi.resetNewRequestForm();
+        }
+        renderAll(updated);
+    },
+    onGiustificatoCreate: (admin, request) => {
+        if (!request) return;
+        const updated = syncData((payload) => {
+            payload.requests = payload.requests || [];
+            const next = {
+                ...request,
+                status: "approved",
+                approvedAt: new Date().toISOString(),
+                approvedBy: admin?.name || UI_TEXTS.defaultAdminLabel,
+                balanceHours: 0,
+                balanceAppliedAt: new Date().toISOString(),
+            };
+            payload.requests.push(next);
+            return payload;
+        });
+        const message = document.getElementById("fp-form-message");
+        setMessage(message, UI_TEXTS.giustificatoInserted, false);
         if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
             requestFormUi.resetNewRequestForm();
         }
@@ -1972,7 +2010,8 @@ function init() {
         const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
         const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
         const includeSpeciale = !!document.getElementById("fp-export-speciale")?.checked;
-        if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale) {
+        const includeGiustificato = !!document.getElementById("fp-export-giustificato")?.checked;
+        if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale && !includeGiustificato) {
             setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
             return;
         }
@@ -1987,6 +2026,7 @@ function init() {
             if (req.type === "straordinari" && !includeStraordinari) return false;
             if (req.type === "mutua" && !includeMutua) return false;
             if (req.type === "speciale" && !includeSpeciale) return false;
+            if (req.type === "giustificato" && !includeGiustificato) return false;
             if (departments.length && req.department && !departments.includes(req.department)) return false;
             if (rangeMode === "custom") {
                 const { start, end } = getRequestDates(req);
@@ -2151,12 +2191,15 @@ function init() {
     const overtimeToggle = document.getElementById("fp-filter-overtime");
     const mutuaToggle = document.getElementById("fp-filter-mutua");
     const specialeToggle = document.getElementById("fp-filter-speciale");
+    const giustificatoToggle = document.getElementById("fp-filter-giustificato");
     if (overtimeToggle) overtimeToggle.checked = false;
     if (mutuaToggle) mutuaToggle.checked = false;
     if (specialeToggle) specialeToggle.checked = false;
+    if (giustificatoToggle) giustificatoToggle.checked = false;
     calendarFilters.overtime = false;
     calendarFilters.mutua = false;
     calendarFilters.speciale = false;
+    calendarFilters.giustificato = false;
     const applyLeaveFilter = () => {
         if (leaveToggle) {
             calendarFilters.leave = !!leaveToggle.checked;
@@ -2226,6 +2269,24 @@ function init() {
                 return;
             }
             calendarFilters.speciale = false;
+            renderer.renderCalendar(cachedData);
+        });
+    }
+    if (giustificatoToggle) {
+        giustificatoToggle.addEventListener("change", () => {
+            if (giustificatoToggle.checked) {
+                if (filterUnlocked.giustificato) {
+                    calendarFilters.giustificato = true;
+                    renderer.renderCalendar(cachedData);
+                    return;
+                }
+                giustificatoToggle.checked = false;
+                calendarFilters.giustificato = false;
+                renderer.renderCalendar(cachedData);
+                requestFilterAccess("giustificato", "Permessi Giustificati");
+                return;
+            }
+            calendarFilters.giustificato = false;
             renderer.renderCalendar(cachedData);
         });
     }

@@ -9,7 +9,7 @@ Questo manuale spiega come usare il modulo "Ferie e Permessi" di AyPi per inseri
 ## 1) Panoramica del modulo
 
 Il modulo permette di:
-- Inserire richieste di Ferie/Permessi.
+- Inserire richieste di Ferie/Permessi/Permessi Giustificati.
 - Registrare Straordinari.
 - Registrare Mutua (inserimento con password, senza approvazione successiva).
 - Registrare Permesso Chiusura Aziendale (inserimento con password, senza approvazione successiva).
@@ -25,7 +25,7 @@ Il modulo permette di:
 ### 2.1 Barra in alto
 - **Titolo e descrizione**: Calendario Dipendenti e Richieste.
 - **Riepilogo**: mostra conteggio di richieste in attesa e approvate.
-- **Filtri**: permettono di mostrare/nascondere i tipi di eventi (ferie/permessi, straordinari, mutua, permesso chiusura aziendale).
+- **Filtri**: permettono di mostrare/nascondere i tipi di eventi (ferie/permessi, permessi giustificati, straordinari, mutua, permesso chiusura aziendale).
 - **Legenda**: indica i colori dei tipi evento.
 - **Aggiorna**: ricarica i dati.
 - **Impostazioni**: accesso a temi e ad alcune funzioni di configurazione.
@@ -53,6 +53,7 @@ Nella sezione Nuova richiesta:
 3. **Scegli il tipo**:
    - Ferie
    - Permesso
+   - Permesso Giustificato
    - Straordinari
    - Mutua
    - Permesso Chiusura Aziendale
@@ -65,6 +66,12 @@ Nella sezione Nuova richiesta:
 - Per periodi di più giorni è richiesta la modalità "Giornata intera".
 
 ### 3.2 Tipi speciali
+
+#### Permesso Giustificato
+- Non necessita approvazione successiva.
+- All'invio viene richiesta la **password admin**.
+- Se la password � corretta, la richiesta viene inserita **direttamente nel calendario**.
+- Non riduce il monte ore.
 
 #### Mutua
 - Non necessita approvazione successiva.
@@ -86,6 +93,7 @@ I filtri permettono di mostrare o nascondere le tipologie.
 - **Straordinari**: disattivo di default (richiede password admin al primo utilizzo).
 - **Mutua**: disattivo di default (richiede password admin al primo utilizzo).
 - **Permesso Chiusura Aziendale**: disattivo di default (richiede password admin al primo utilizzo).
+- **Permessi Giustificati**: disattivo di default (richiede password admin al primo utilizzo).
 
 > Una volta sbloccato un filtro, non richiede di nuovo la password finch� il modulo resta aperto.
 
@@ -159,6 +167,7 @@ Clicca sul pulsante **Gestione**:
 
 - **Ferie**: assenza programmata con consumo ore.
 - **Permesso**: assenza breve con consumo ore.
+- **Permesso Giustificato**: assenza giustificata che non riduce il monte ore.
 - **Straordinari**: ore extra lavorate (non influenzano il saldo ferie).
 - **Mutua**: assenza sanitaria inserita direttamente con password (non influenza il saldo ferie).
 - **Permesso Chiusura Aziendale**: lavoro svolto in giorni di chiusura, accredita ore al saldo.

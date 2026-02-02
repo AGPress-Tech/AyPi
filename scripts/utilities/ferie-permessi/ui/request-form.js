@@ -121,9 +121,11 @@ function createRequestForm(options) {
             const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
             const confirmMessage = request.type === "mutua"
                 ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
-                : request.type === "speciale"
-                    ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
-                    : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
+                : request.type === "giustificato"
+                    ? UI_TEXTS.giustificatoConfirm(startLabel, endLabel)
+                    : request.type === "speciale"
+                        ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
+                        : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
             const confirmed = await openConfirmModal(confirmMessage);
             if (!confirmed) {
                 return;
@@ -135,6 +137,18 @@ function createRequestForm(options) {
                         id: request.id,
                         title: "Conferma mutua",
                         description: UI_TEXTS.mutuaPasswordDescription,
+                        request,
+                    });
+                }
+                return;
+            }
+            if (request.type === "giustificato") {
+                if (typeof openPasswordModal === "function") {
+                    openPasswordModal({
+                        type: "giustificato-create",
+                        id: request.id,
+                        title: "Conferma permesso giustificato",
+                        description: UI_TEXTS.giustificatoPasswordDescription,
                         request,
                     });
                 }
