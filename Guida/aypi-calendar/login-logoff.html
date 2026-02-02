@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AyPi Calendar - Login e Logoff</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+
+<body>
+  <div class="shell">
+    <div id="sidebarMount"></div>
+
+    <main class="main">
+      <div class="topbar">
+        <span class="crumbs">AyPi Calendar / Accesso / Login e logoff</span>
+        <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
+      </div>
+
+
+      <div class="container">
+        <section class="card">
+          <h2>Login e Logoff (Modalita Admin)</h2>
+          <p>Per utilizzare le funzioni amministrative e necessario attivare la modalita admin tramite il pulsante
+            <b>Login</b> nella barra in alto (tra <b>Aggiorna</b> e <b>Impostazioni</b>).</p>
+
+          <h3>Come funziona</h3>
+          <ol>
+            <li>Clicca <b>Login</b> e inserisci la password admin</li>
+            <li>Il pulsante diventa <b>Logoff</b> quando la modalita admin e attiva</li>
+            <li>Chiudendo l'app, la sessione admin viene chiusa (torna in logoff)</li>
+            <li>Premendo <b>Logoff</b> si bloccano tutte le funzioni admin</li>
+          </ol>
+
+          <h3>Quando e necessario il login</h3>
+          <ul>
+            <li><b>Richieste in attesa</b> (approva/rifiuta)</li>
+            <li><b>Modifica/Eliminazione</b> delle richieste gia approvate</li>
+            <li><b>Gestione</b> dipendenti, reparti e ore</li>
+            <li><b>Festivita e chiusure</b></li>
+            <li><b>Inserimento</b> mutua, permesso giustificato e chiusura aziendale</li>
+            <li><b>Export Excel</b> e <b>Backup/Ripristino</b></li>
+            <li><b>Filtri avanzati</b> (straordinari, mutua, chiusura aziendale, permessi giustificati)</li>
+          </ul>
+
+          <div class="callout admin">
+            <div class="title">Solo Admin</div>
+            <p>Se non sei loggato, le funzioni admin sono bloccate e viene mostrato il messaggio
+              "Accedere per utilizzare la seguente funzione".</p>
+          </div>
+
+          <div class="callout note">
+            <div class="title">Gestione Admin</div>
+            <p>La sezione <b>Gestione Admin</b> richiede sempre l'inserimento della password, anche se sei gia loggato.</p>
+          </div>
+        </section>
+
+        <div class="footer">
+          AyPi Calendar - Guida - 2026
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/script.js"></script>
+</body>
+
+</html>
