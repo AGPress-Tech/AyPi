@@ -7,8 +7,6 @@ function createPendingPanel(options) {
         createRangeLine,
         syncData,
         renderAll,
-        openPasswordModal,
-        getPendingUnlocked,
         getPendingUnlockedBy,
         getPendingPanelOpen,
         setPendingPanelOpen,
@@ -17,6 +15,9 @@ function createPendingPanel(options) {
         getBalanceImpact,
         loadData,
         confirmNegativeBalance,
+        getLoggedAdminName,
+        isAdminLoggedIn,
+        onAccessDenied,
     } = options || {};
 
     if (!document) {
@@ -64,36 +65,34 @@ function createPendingPanel(options) {
             approveBtn.className = "fp-btn fp-btn--primary";
             approveBtn.textContent = "Approva";
             approveBtn.addEventListener("click", async () => {
-                if (getPendingUnlocked()) {
-                    if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
-                        const impact = getBalanceImpact(loadData(), request);
-                        const ok = await confirmNegativeBalance(impact);
-                        if (!ok) {
-                            return;
-                        }
-                    }
-                    const updated = syncData((payload) => {
-                        const target = (payload.requests || []).find((req) => req.id === request.id);
-                        if (target) {
-                            target.status = "approved";
-                            target.approvedAt = new Date().toISOString();
-                            target.approvedBy =
-                                getPendingUnlockedBy() || target.approvedBy || UI_TEXTS.defaultAdminLabel;
-                            if (typeof applyBalanceForApproval === "function") {
-                                applyBalanceForApproval(payload, target);
-                            }
-                        }
-                        return payload;
-                    });
-                    renderAll(updated);
+                if (!isAdminLoggedIn?.()) {
+                    onAccessDenied?.();
                     return;
                 }
-                openPasswordModal({
-                    type: "approve",
-                    id: request.id,
-                    title: "Approva richiesta",
-                    description: UI_TEXTS.pendingApprovePasswordDescription,
+                if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
+                    const impact = getBalanceImpact(loadData(), request);
+                    const ok = await confirmNegativeBalance(impact);
+                    if (!ok) {
+                        return;
+                    }
+                }
+                const updated = syncData((payload) => {
+                    const target = (payload.requests || []).find((req) => req.id === request.id);
+                    if (target) {
+                        target.status = "approved";
+                        target.approvedAt = new Date().toISOString();
+                        target.approvedBy =
+                            getLoggedAdminName?.() ||
+                            getPendingUnlockedBy?.() ||
+                            target.approvedBy ||
+                            UI_TEXTS.defaultAdminLabel;
+                        if (typeof applyBalanceForApproval === "function") {
+                            applyBalanceForApproval(payload, target);
+                        }
+                    }
+                    return payload;
                 });
+                renderAll(updated);
             });
 
             const rejectBtn = document.createElement("button");
@@ -101,20 +100,15 @@ function createPendingPanel(options) {
             rejectBtn.className = "fp-btn";
             rejectBtn.textContent = "Rifiuta";
             rejectBtn.addEventListener("click", () => {
-                if (getPendingUnlocked()) {
-                    const updated = syncData((payload) => {
-                        payload.requests = (payload.requests || []).filter((req) => req.id !== request.id);
-                        return payload;
-                    });
-                    renderAll(updated);
+                if (!isAdminLoggedIn?.()) {
+                    onAccessDenied?.();
                     return;
                 }
-                openPasswordModal({
-                    type: "reject",
-                    id: request.id,
-                    title: "Rifiuta richiesta",
-                    description: UI_TEXTS.pendingRejectPasswordDescription,
+                const updated = syncData((payload) => {
+                    payload.requests = (payload.requests || []).filter((req) => req.id !== request.id);
+                    return payload;
                 });
+                renderAll(updated);
             });
 
             actions.appendChild(rejectBtn);
@@ -149,20 +143,15 @@ function createPendingPanel(options) {
         const pendingClose = document.getElementById("fp-pending-close");
         if (pendingToggle) {
             pendingToggle.addEventListener("click", () => {
+                if (!isAdminLoggedIn?.()) {
+                    onAccessDenied?.();
+                    return;
+                }
                 if (getPendingPanelOpen()) {
                     closePendingPanel();
                     return;
                 }
-                if (getPendingUnlocked()) {
-                    openPendingPanel();
-                    return;
-                }
-                openPasswordModal({
-                    type: "pending-access",
-                    id: "pending-access",
-                    title: "Richieste in attesa",
-                    description: UI_TEXTS.pendingAccessPasswordDescription,
-                });
+                openPendingPanel();
             });
         }
         if (pendingClose) {

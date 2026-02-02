@@ -153,6 +153,7 @@ function initCalendar(options) {
         getRequestById,
         buildHoverText,
         openPasswordModal,
+        openEditModal,
         getLastNonListViewType,
         setLastNonListViewType,
         getHandlingListRedirect,
@@ -228,13 +229,11 @@ function initCalendar(options) {
             info.el.addEventListener("dblclick", () => {
                 const requestId = info.event?.id;
                 if (!requestId) return;
-                if (typeof openPasswordModal === "function") {
-                    openPasswordModal({
-                        type: "edit",
-                        id: requestId,
-                        title: "Modifica richiesta",
-                        description: UI_TEXTS.requestEditPasswordDescription,
-                    });
+                if (typeof getRequestById === "function") {
+                    const request = getRequestById(requestId);
+                    if (request && typeof openEditModal === "function") {
+                        openEditModal(request);
+                    }
                 }
             });
         },

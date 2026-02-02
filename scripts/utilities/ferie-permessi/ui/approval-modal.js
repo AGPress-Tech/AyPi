@@ -1,7 +1,7 @@
 const { UI_TEXTS } = require("../utils/ui-texts");
 
 function createApprovalModal(options) {
-        const {
+    const {
         document,
         showModal,
         hideModal,
@@ -49,6 +49,10 @@ function createApprovalModal(options) {
         onFilterAccess,
         onExport,
         onBackupAccess,
+        isAdminLoggedIn,
+        getLoggedAdmin,
+        onAdminLogin,
+        showInfoModal,
     } = options || {};
 
 
@@ -56,86 +60,22 @@ function createApprovalModal(options) {
         throw new Error("document richiesto.");
     }
 
-    function openPasswordModal(action) {
-        const modal = document.getElementById("fp-approve-modal");
-        const input = document.getElementById("fp-approve-password");
-        const error = document.getElementById("fp-approve-error");
-        const title = document.getElementById("fp-approve-title");
-        const desc = document.getElementById("fp-approve-desc");
-        if (!modal || !input) return;
-        setPendingAction(action);
-        if (title && action?.title) title.textContent = action.title;
-        if (desc && action?.description) desc.textContent = action.description;
-        document.querySelectorAll(".fp-modal").forEach((item) => hideModal(item));
-        showModal(modal);
-        if (error) {
-            error.classList.add("is-hidden");
-        }
-        input.value = "";
-        input.disabled = false;
-        input.readOnly = false;
-        input.removeAttribute("disabled");
-        input.removeAttribute("readonly");
-        input.style.pointerEvents = "auto";
-        input.style.userSelect = "text";
-        input.tabIndex = 0;
-        setTimeout(() => {
-            input.focus();
-            input.select?.();
-        }, 0);
-    }
+    const ALWAYS_REQUIRE_PASSWORD = new Set(["admin-access", "admin-delete", "admin-login"]);
 
-    function closeApprovalModal() {
-        const modal = document.getElementById("fp-approve-modal");
-        const input = document.getElementById("fp-approve-password");
-        const error = document.getElementById("fp-approve-error");
-        const recoverBtn = document.getElementById("fp-approve-recover");
-        if (!modal) return;
-        hideModal(modal);
-        if (input) input.value = "";
-        if (error) error.classList.add("is-hidden");
-        if (recoverBtn) recoverBtn.classList.add("is-hidden");
-        setPendingAction(null);
-        if (document.activeElement && typeof document.activeElement.blur === "function") {
-            document.activeElement.blur();
-        }
-    }
-
-    async function confirmApproval() {
-        const input = document.getElementById("fp-approve-password");
-        const error = document.getElementById("fp-approve-error");
-        const recoverBtn = document.getElementById("fp-approve-recover");
-        const password = input ? input.value : "";
-        if (!isHashingAvailable()) {
-            const hasHashes = loadAdminCredentials().some((item) => item.passwordHash);
-            if (hasHashes) {
-                await showDialog(
-                    "error",
-                    UI_TEXTS.hashingUnavailableTitle,
-                    UI_TEXTS.hashingUnavailableDetail
-                );
-                return;
-            }
-        }
-        const result = await verifyAdminPassword(password);
-        const admin = result ? result.admin : null;
-        if (!admin) {
-            if (error) error.classList.remove("is-hidden");
-            setPasswordFailCount(getPasswordFailCount() + 1);
-            if (recoverBtn && getPasswordFailCount() >= 3) {
-                recoverBtn.classList.remove("is-hidden");
-            }
-            return;
-        }
-        setPasswordFailCount(0);
-        if (recoverBtn) recoverBtn.classList.add("is-hidden");
-        const pendingAction = getPendingAction();
+    async function handleAction(admin, pendingAction) {
         if (!pendingAction) {
             closeApprovalModal();
             return;
         }
         const actionType = pendingAction.type;
         const requestId = pendingAction.id;
+        if (actionType === "admin-login") {
+            closeApprovalModal();
+            if (typeof onAdminLogin === "function") {
+                onAdminLogin(admin);
+            }
+            return;
+        }
         if (actionType === "mutua-create") {
             closeApprovalModal();
             if (typeof onMutuaCreate === "function") {
@@ -240,7 +180,7 @@ function createApprovalModal(options) {
                 if (target) {
                     target.status = "approved";
                     target.approvedAt = new Date().toISOString();
-                    target.approvedBy = admin.name;
+                    target.approvedBy = admin?.name || UI_TEXTS.defaultAdminLabel;
                     if (typeof applyBalanceForApproval === "function") {
                         applyBalanceForApproval(payload, target);
                     }
@@ -310,13 +250,14 @@ function createApprovalModal(options) {
             const target = (data.requests || []).find((req) => req.id === requestId);
             if (target) {
                 setEditingRequestId(requestId);
-                setEditingAdminName(admin.name);
+                setEditingAdminName(admin?.name || "");
                 openEditModal(target);
             }
+            return;
         }
         if (actionType === "pending-access") {
             setPendingUnlocked(true);
-            setPendingUnlockedBy(admin.name);
+            setPendingUnlockedBy(admin?.name || "");
             closeApprovalModal();
             openPendingPanel();
             return;
@@ -328,7 +269,8 @@ function createApprovalModal(options) {
         }
         if (actionType === "admin-delete") {
             const targetName = pendingAction?.adminName || pendingAction?.id || "";
-            if (!targetName || admin.name !== targetName) {
+            if (!targetName || admin?.name !== targetName) {
+                const error = document.getElementById("fp-approve-error");
                 if (error) error.classList.remove("is-hidden");
                 return;
             }
@@ -346,6 +288,98 @@ function createApprovalModal(options) {
             closeApprovalModal();
             setAdminMessage("fp-admin-message", UI_TEXTS.adminRemoved, false);
         }
+    }
+
+    function openPasswordModal(action) {
+        const loggedIn = typeof isAdminLoggedIn === "function" ? isAdminLoggedIn() : false;
+        if (action && !ALWAYS_REQUIRE_PASSWORD.has(action.type)) {
+            if (!loggedIn) {
+                if (typeof showInfoModal === "function") {
+                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                } else {
+                    showDialog("info", UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                }
+                return;
+            }
+            setPendingAction(action);
+            const admin = typeof getLoggedAdmin === "function" ? getLoggedAdmin() : null;
+            handleAction(admin, action);
+            return;
+        }
+        const modal = document.getElementById("fp-approve-modal");
+        const input = document.getElementById("fp-approve-password");
+        const error = document.getElementById("fp-approve-error");
+        const title = document.getElementById("fp-approve-title");
+        const desc = document.getElementById("fp-approve-desc");
+        if (!modal || !input) return;
+        setPendingAction(action);
+        if (title && action?.title) title.textContent = action.title;
+        if (desc && action?.description) desc.textContent = action.description;
+        document.querySelectorAll(".fp-modal").forEach((item) => hideModal(item));
+        showModal(modal);
+        if (error) {
+            error.classList.add("is-hidden");
+        }
+        input.value = "";
+        input.disabled = false;
+        input.readOnly = false;
+        input.removeAttribute("disabled");
+        input.removeAttribute("readonly");
+        input.style.pointerEvents = "auto";
+        input.style.userSelect = "text";
+        input.tabIndex = 0;
+        setTimeout(() => {
+            input.focus();
+            input.select?.();
+        }, 0);
+    }
+
+    function closeApprovalModal() {
+        const modal = document.getElementById("fp-approve-modal");
+        const input = document.getElementById("fp-approve-password");
+        const error = document.getElementById("fp-approve-error");
+        const recoverBtn = document.getElementById("fp-approve-recover");
+        if (!modal) return;
+        hideModal(modal);
+        if (input) input.value = "";
+        if (error) error.classList.add("is-hidden");
+        if (recoverBtn) recoverBtn.classList.add("is-hidden");
+        setPendingAction(null);
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+        }
+    }
+
+    async function confirmApproval() {
+        const input = document.getElementById("fp-approve-password");
+        const error = document.getElementById("fp-approve-error");
+        const recoverBtn = document.getElementById("fp-approve-recover");
+        const password = input ? input.value : "";
+        if (!isHashingAvailable()) {
+            const hasHashes = loadAdminCredentials().some((item) => item.passwordHash);
+            if (hasHashes) {
+                await showDialog(
+                    "error",
+                    UI_TEXTS.hashingUnavailableTitle,
+                    UI_TEXTS.hashingUnavailableDetail
+                );
+                return;
+            }
+        }
+        const result = await verifyAdminPassword(password);
+        const admin = result ? result.admin : null;
+        if (!admin) {
+            if (error) error.classList.remove("is-hidden");
+            setPasswordFailCount(getPasswordFailCount() + 1);
+            if (recoverBtn && getPasswordFailCount() >= 3) {
+                recoverBtn.classList.remove("is-hidden");
+            }
+            return;
+        }
+        setPasswordFailCount(0);
+        if (recoverBtn) recoverBtn.classList.add("is-hidden");
+        const pendingAction = getPendingAction();
+        await handleAction(admin, pendingAction);
     }
 
     function initApprovalModal() {

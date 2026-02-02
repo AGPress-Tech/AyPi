@@ -13,12 +13,12 @@ function createEditModal(options) {
         buildRequestFromForm,
         syncData,
         renderAll,
-        openPasswordModal,
         getEditingRequestId,
         setEditingRequestId,
         getEditingAdminName,
         setEditingAdminName,
         applyBalanceForUpdate,
+        applyBalanceForDeletion,
     } = options || {};
 
     if (!document) {
@@ -102,14 +102,16 @@ function createEditModal(options) {
             editDelete.addEventListener("click", () => {
                 const editingRequestId = getEditingRequestId();
                 if (!editingRequestId) return;
-                const targetId = editingRequestId;
-                closeEditModal();
-                openPasswordModal({
-                    type: "delete",
-                    id: targetId,
-                    title: "Elimina richiesta",
-                    description: UI_TEXTS.requestDeletePasswordDescription,
+                const updated = syncData((payload) => {
+                    const target = (payload.requests || []).find((req) => req.id === editingRequestId);
+                    if (target && typeof applyBalanceForDeletion === "function") {
+                        applyBalanceForDeletion(payload, target);
+                    }
+                    payload.requests = (payload.requests || []).filter((req) => req.id !== editingRequestId);
+                    return payload;
                 });
+                closeEditModal();
+                renderAll(updated);
             });
         }
 

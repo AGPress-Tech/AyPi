@@ -131,6 +131,7 @@ let manageOpenPending = false;
 let daysUnlocked = false;
 let daysOpenPending = false;
 let initialSetupActive = false;
+let adminSession = { loggedIn: false, name: "" };
 let lastNonListViewType = "dayGridMonth";
 let handlingListRedirect = false;
 let assigneeOptions = [];
@@ -519,6 +520,69 @@ let openAdminModalHandler = null;
 let openPasswordModalHandler = null;
 let openBackupModalHandler = null;
 
+function isAdminLoggedIn() {
+    return !!adminSession.loggedIn;
+}
+
+function getLoggedAdminName() {
+    return adminSession.loggedIn ? adminSession.name : "";
+}
+
+function getLoggedAdmin() {
+    if (!adminSession.loggedIn) return null;
+    return { name: adminSession.name || UI_TEXTS.defaultAdminLabel };
+}
+
+function updateAdminToggleButton() {
+    const toggle = document.getElementById("fp-admin-toggle");
+    if (!toggle) return;
+    toggle.textContent = adminSession.loggedIn ? "Logoff" : "Login";
+}
+
+function lockAdminAreas() {
+    pendingUnlocked = false;
+    manageUnlocked = false;
+    daysUnlocked = false;
+    assigneesUnlocked = false;
+    filterUnlocked = {
+        overtime: false,
+        mutua: false,
+        speciale: false,
+        giustificato: false,
+    };
+
+    const overtimeToggle = document.getElementById("fp-filter-overtime");
+    const mutuaToggle = document.getElementById("fp-filter-mutua");
+    const specialeToggle = document.getElementById("fp-filter-speciale");
+    const giustificatoToggle = document.getElementById("fp-filter-giustificato");
+    if (overtimeToggle) overtimeToggle.checked = false;
+    if (mutuaToggle) mutuaToggle.checked = false;
+    if (specialeToggle) specialeToggle.checked = false;
+    if (giustificatoToggle) giustificatoToggle.checked = false;
+    calendarFilters.overtime = false;
+    calendarFilters.mutua = false;
+    calendarFilters.speciale = false;
+    calendarFilters.giustificato = false;
+    renderer?.renderCalendar?.(cachedData);
+
+    pendingUi.closePendingPanel();
+
+    const manageModal = document.getElementById("fp-manage-modal");
+    if (manageModal) hideModal(manageModal);
+    const daysModal = document.getElementById("fp-days-picker-modal");
+    if (daysModal) hideModal(daysModal);
+    const assigneesModal = document.getElementById("fp-assignees-modal");
+    if (assigneesModal) hideModal(assigneesModal);
+}
+
+function setAdminSession(admin) {
+    adminSession = {
+        loggedIn: !!admin,
+        name: admin?.name ? String(admin.name) : "",
+    };
+    updateAdminToggleButton();
+}
+
 const summaryUi = createSummary({ document });
 
 const pendingUi = createPendingPanel({
@@ -526,20 +590,21 @@ const pendingUi = createPendingPanel({
     createRangeLine,
     syncData,
     renderAll,
-    openPasswordModal: (action) => {
-        if (openPasswordModalHandler) openPasswordModalHandler(action);
-    },
     applyBalanceForApproval,
     getBalanceImpact,
     loadData,
     confirmNegativeBalance,
-    getPendingUnlocked: () => pendingUnlocked,
     getPendingUnlockedBy: () => pendingUnlockedBy,
     getPendingPanelOpen: () => pendingPanelOpen,
     setPendingPanelOpen: (next) => {
         pendingPanelOpen = next;
     },
     updatePendingBadge: (count) => summaryUi.updatePendingBadge(count),
+    getLoggedAdminName,
+    isAdminLoggedIn,
+    onAccessDenied: () => {
+        showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+    },
 });
 
 renderer = createRenderer({
@@ -588,6 +653,7 @@ const approvalUi = createApprovalModal({
     showModal,
     hideModal,
     showDialog,
+    showInfoModal,
     isHashingAvailable,
     loadAdminCredentials,
     verifyAdminPassword,
@@ -701,6 +767,13 @@ const approvalUi = createApprovalModal({
         if (openBackupModalHandler) {
             openBackupModalHandler();
         }
+    },
+    isAdminLoggedIn,
+    getLoggedAdmin,
+    onAdminLogin: (admin) => {
+        if (!admin) return;
+        setAdminSession(admin);
+        showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginSuccess(admin?.name || ""));
     },
     onMutuaCreate: (admin, request) => {
         if (!request) return;
@@ -959,7 +1032,6 @@ const editUi = createEditModal({
     buildRequestFromForm,
     syncData,
     renderAll,
-    openPasswordModal: (action) => approvalUi.openPasswordModal(action),
     getEditingRequestId: () => editingRequestId,
     setEditingRequestId: (next) => {
         editingRequestId = next;
@@ -969,6 +1041,7 @@ const editUi = createEditModal({
         editingAdminName = next;
     },
     applyBalanceForUpdate,
+    applyBalanceForDeletion,
 });
 openEditModalHandler = editUi.openEditModal;
 
@@ -1158,6 +1231,10 @@ const assigneesUi = createAssigneesModal({
         editingEmployee = next;
     },
     onOpenAttempt: () => {
+        if (!isAdminLoggedIn()) {
+            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+            return;
+        }
         if (assigneesUnlocked || manageUnlocked) {
             assigneesUi.openAssigneesModal();
             return;
@@ -1380,6 +1457,41 @@ function openConfirmModal(message) {
         modal.addEventListener("click", onBackdrop);
         document.addEventListener("keydown", onKeydown);
     });
+}
+
+function showInfoModal(title, message) {
+    const modal = document.getElementById("fp-info-modal");
+    const titleEl = document.getElementById("fp-info-title");
+    const text = document.getElementById("fp-info-message");
+    const okBtn = document.getElementById("fp-info-ok");
+    if (!modal || !text || !okBtn) {
+        return;
+    }
+    if (titleEl) titleEl.textContent = title || "Avviso";
+    text.textContent = message || "";
+    showModal(modal);
+    okBtn.focus();
+    const cleanup = () => {
+        okBtn.removeEventListener("click", onOk);
+        modal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKeydown);
+        hideModal(modal);
+    };
+    const onOk = () => {
+        cleanup();
+    };
+    const onBackdrop = (event) => {
+        event.stopPropagation();
+    };
+    const onKeydown = (event) => {
+        if (event.key === "Escape") {
+            event.preventDefault();
+            cleanup();
+        }
+    };
+    okBtn.addEventListener("click", onOk);
+    modal.addEventListener("click", onBackdrop);
+    document.addEventListener("keydown", onKeydown);
 }
 
 function formatBalanceValue(value) {
@@ -1827,6 +1939,10 @@ function initDaysPicker(holidaysUi, closuresUi) {
     const closureBtn = document.getElementById("fp-days-picker-closure");
     if (openBtn) {
         openBtn.addEventListener("click", () => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
             if (daysUnlocked) {
                 if (modal) showModal(modal);
                 return;
@@ -1847,12 +1963,20 @@ function initDaysPicker(holidaysUi, closuresUi) {
     }
     if (holidayBtn) {
         holidayBtn.addEventListener("click", () => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
             if (modal) hideModal(modal);
             holidaysUi?.openHolidaysModal?.();
         });
     }
     if (closureBtn) {
         closureBtn.addEventListener("click", () => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
             if (modal) hideModal(modal);
             closuresUi?.openClosuresModal?.();
         });
@@ -1882,6 +2006,14 @@ function init() {
         getRequestById: (eventId) => (cachedData.requests || []).find((req) => req.id === eventId),
         buildHoverText,
         openPasswordModal: (action) => approvalUi.openPasswordModal(action),
+        openEditModal: (request) => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
+            editingAdminName = isAdminLoggedIn() ? adminSession.name : "";
+            if (openEditModalHandler) openEditModalHandler(request);
+        },
         getLastNonListViewType: () => lastNonListViewType,
         setLastNonListViewType: (value) => {
             lastNonListViewType = value;
@@ -1972,6 +2104,25 @@ function init() {
 
     otpUi.initOtpModals();
 
+    const adminToggle = document.getElementById("fp-admin-toggle");
+    if (adminToggle) {
+        updateAdminToggleButton();
+        adminToggle.addEventListener("click", () => {
+            if (isAdminLoggedIn()) {
+                setAdminSession(null);
+                lockAdminAreas();
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLogoffSuccess);
+                return;
+            }
+            approvalUi.openPasswordModal({
+                type: "admin-login",
+                id: "admin-login",
+                title: UI_TEXTS.adminLoginTitle,
+                description: UI_TEXTS.adminLoginDescription,
+            });
+        });
+    }
+
     editUi.initEditModal();
 
     pendingUi.initPendingPanel();
@@ -1989,6 +2140,10 @@ function init() {
 
     if (manageOpen) {
         manageOpen.addEventListener("click", () => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
             if (manageUnlocked) {
                 if (manageModal) showModal(manageModal);
                 return;
@@ -2016,12 +2171,20 @@ function init() {
     }
     if (manageAssignees) {
         manageAssignees.addEventListener("click", () => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
             if (manageModal) hideModal(manageModal);
             assigneesUi.openAssigneesModal();
         });
     }
     if (manageHours) {
         manageHours.addEventListener("click", () => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
             if (manageModal) hideModal(manageModal);
             ipcRenderer.send("open-ferie-permessi-hours-window");
         });
@@ -2043,6 +2206,10 @@ function init() {
 
     if (exportOpen) {
         exportOpen.addEventListener("click", () => {
+            if (!isAdminLoggedIn()) {
+                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+                return;
+            }
             exportUi.openExportModal();
         });
     }
@@ -2116,6 +2283,10 @@ function init() {
     }
 
     runExport = async () => {
+        if (!isAdminLoggedIn()) {
+            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+            return;
+        }
         if (!XLSX) {
             await showDialog("error", UI_TEXTS.exportModuleMissingTitle, UI_TEXTS.exportModuleMissingDetail);
             return;
@@ -2339,15 +2510,7 @@ function init() {
             renderer.renderCalendar(cachedData);
         }
     };
-    const requestFilterAccess = (filterKey, label) => {
-        approvalUi.openPasswordModal({
-            type: "filter-access",
-            id: `filter-${filterKey}`,
-            title: UI_TEXTS.filterAccessTitle,
-            description: UI_TEXTS.filterAccessDescription(label),
-            filter: filterKey,
-        });
-    };
+    const requestFilterAccess = () => {};
     if (ferieToggle) {
         ferieToggle.addEventListener("change", applyFerieFilter);
     }
@@ -2357,15 +2520,15 @@ function init() {
     if (overtimeToggle) {
         overtimeToggle.addEventListener("change", () => {
             if (overtimeToggle.checked) {
-                if (filterUnlocked.overtime) {
-                    calendarFilters.overtime = true;
+                if (!isAdminLoggedIn()) {
+                    overtimeToggle.checked = false;
+                    calendarFilters.overtime = false;
                     renderer.renderCalendar(cachedData);
+                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
                     return;
                 }
-                overtimeToggle.checked = false;
-                calendarFilters.overtime = false;
+                calendarFilters.overtime = true;
                 renderer.renderCalendar(cachedData);
-                requestFilterAccess("overtime", "Straordinari");
                 return;
             }
             calendarFilters.overtime = false;
@@ -2375,15 +2538,15 @@ function init() {
     if (mutuaToggle) {
         mutuaToggle.addEventListener("change", () => {
             if (mutuaToggle.checked) {
-                if (filterUnlocked.mutua) {
-                    calendarFilters.mutua = true;
+                if (!isAdminLoggedIn()) {
+                    mutuaToggle.checked = false;
+                    calendarFilters.mutua = false;
                     renderer.renderCalendar(cachedData);
+                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
                     return;
                 }
-                mutuaToggle.checked = false;
-                calendarFilters.mutua = false;
+                calendarFilters.mutua = true;
                 renderer.renderCalendar(cachedData);
-                requestFilterAccess("mutua", "Mutua");
                 return;
             }
             calendarFilters.mutua = false;
@@ -2393,15 +2556,15 @@ function init() {
     if (specialeToggle) {
         specialeToggle.addEventListener("change", () => {
             if (specialeToggle.checked) {
-                if (filterUnlocked.speciale) {
-                    calendarFilters.speciale = true;
+                if (!isAdminLoggedIn()) {
+                    specialeToggle.checked = false;
+                    calendarFilters.speciale = false;
                     renderer.renderCalendar(cachedData);
+                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
                     return;
                 }
-                specialeToggle.checked = false;
-                calendarFilters.speciale = false;
+                calendarFilters.speciale = true;
                 renderer.renderCalendar(cachedData);
-                requestFilterAccess("speciale", "Permesso Chiusura Aziendale");
                 return;
             }
             calendarFilters.speciale = false;
@@ -2411,15 +2574,15 @@ function init() {
     if (giustificatoToggle) {
         giustificatoToggle.addEventListener("change", () => {
             if (giustificatoToggle.checked) {
-                if (filterUnlocked.giustificato) {
-                    calendarFilters.giustificato = true;
+                if (!isAdminLoggedIn()) {
+                    giustificatoToggle.checked = false;
+                    calendarFilters.giustificato = false;
                     renderer.renderCalendar(cachedData);
+                    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
                     return;
                 }
-                giustificatoToggle.checked = false;
-                calendarFilters.giustificato = false;
+                calendarFilters.giustificato = true;
                 renderer.renderCalendar(cachedData);
-                requestFilterAccess("giustificato", "Permessi Giustificati");
                 return;
             }
             calendarFilters.giustificato = false;
@@ -2469,12 +2632,20 @@ function init() {
             return;
         }
         if (!selectedEventId) return;
-        approvalUi.openPasswordModal({
-            type: "delete",
-            id: selectedEventId,
-            title: "Elimina richiesta",
-            description: UI_TEXTS.requestDeletePasswordDescription,
+        if (!isAdminLoggedIn()) {
+            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired);
+            return;
+        }
+        const targetId = selectedEventId;
+        const updated = syncData((payload) => {
+            const target = (payload.requests || []).find((req) => req.id === targetId);
+            if (target && typeof applyBalanceForDeletion === "function") {
+                applyBalanceForDeletion(payload, target);
+            }
+            payload.requests = (payload.requests || []).filter((req) => req.id !== targetId);
+            return payload;
         });
+        renderAll(updated);
     });
 
     refreshUi.refreshData();
