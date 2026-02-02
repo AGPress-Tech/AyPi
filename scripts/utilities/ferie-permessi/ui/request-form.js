@@ -121,8 +121,8 @@ function createRequestForm(options) {
             const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
             const confirmMessage = request.type === "mutua"
                 ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
-                : request.type === "giustificato"
-                    ? UI_TEXTS.giustificatoConfirm(startLabel, endLabel)
+                : request.type === "retribuito"
+                    ? UI_TEXTS.retribuitoConfirm(startLabel, endLabel)
                     : request.type === "speciale"
                         ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
                         : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
@@ -142,13 +142,13 @@ function createRequestForm(options) {
                 }
                 return;
             }
-            if (request.type === "giustificato") {
+            if (request.type === "retribuito") {
                 if (typeof openPasswordModal === "function") {
                     openPasswordModal({
-                        type: "giustificato-create",
+                        type: "retribuito-create",
                         id: request.id,
-                        title: "Conferma permesso giustificato",
-                        description: UI_TEXTS.giustificatoPasswordDescription,
+                        title: "Conferma permesso retribuito",
+                        description: UI_TEXTS.retribuitoPasswordDescription,
                         request,
                     });
                 }
@@ -206,3 +206,4 @@ function createRequestForm(options) {
 }
 
 module.exports = { createRequestForm };
+

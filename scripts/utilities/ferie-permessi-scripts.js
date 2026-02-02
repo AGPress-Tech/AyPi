@@ -66,6 +66,25 @@ const { ensureFolderFor } = bootRequire(path.join(fpBaseDir, "services", "storag
 const { isMailerAvailable, getMailerError, saveMailConfig, sendTestEmail, sendOtpEmail } = bootRequire(
     path.join(fpBaseDir, "services", "otp-mail")
 );
+
+window.addEventListener("error", (event) => {
+    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    showDialog("error", "Errore JS Ferie/Permessi.", detail);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    showDialog("error", "Errore promessa non gestita (Ferie/Permessi).", detail);
+});
+
+async function invokeWithTimeout(promise, label) {
+    const TIMEOUT_MS = 15000;
+    const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Timeout ${label}.`)), TIMEOUT_MS);
+    });
+    return Promise.race([promise, timeout]);
+}
 const fpUiDir = path.join(fpBaseDir, "ui");
 const { createModalHelpers } = bootRequire(path.join(fpUiDir, "modals"));
 const { createExportController } = bootRequire(path.join(fpUiDir, "export"));
@@ -122,7 +141,7 @@ let filterUnlocked = {
     overtime: false,
     mutua: false,
     speciale: false,
-    giustificato: false,
+    retribuito: false,
 };
 let assigneesUnlocked = false;
 let assigneesOpenPending = false;
@@ -146,7 +165,7 @@ let calendarFilters = {
     overtime: false,
     mutua: false,
     speciale: false,
-    giustificato: false,
+    retribuito: false,
 };
 let editingAdminName = "";
 let adminCache = [];
@@ -178,13 +197,14 @@ function loadColorSettings() {
         if (!raw) return { ...DEFAULT_TYPE_COLORS };
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object") return { ...DEFAULT_TYPE_COLORS };
+        const legacyRetribuito = parsed.retribuito ?? parsed.giustificato;
         return {
             ferie: normalizeHexColor(parsed.ferie, DEFAULT_TYPE_COLORS.ferie),
             permesso: normalizeHexColor(parsed.permesso, DEFAULT_TYPE_COLORS.permesso),
             straordinari: normalizeHexColor(parsed.straordinari, DEFAULT_TYPE_COLORS.straordinari),
             mutua: normalizeHexColor(parsed.mutua, DEFAULT_TYPE_COLORS.mutua),
             speciale: normalizeHexColor(parsed.speciale, DEFAULT_TYPE_COLORS.speciale),
-            giustificato: normalizeHexColor(parsed.giustificato, DEFAULT_TYPE_COLORS.giustificato),
+            retribuito: normalizeHexColor(legacyRetribuito, DEFAULT_TYPE_COLORS.retribuito),
         };
     } catch (err) {
         return { ...DEFAULT_TYPE_COLORS };
@@ -218,13 +238,13 @@ function applyTypeColors() {
     const straordinariDot = document.querySelector(".fp-legend__dot--straordinari");
     const mutuaDot = document.querySelector(".fp-legend__dot--mutua");
     const specialeDot = document.querySelector(".fp-legend__dot--speciale");
-    const giustificatoDot = document.querySelector(".fp-legend__dot--giustificato");
+    const retribuitoDot = document.querySelector(".fp-legend__dot--retribuito");
     if (ferieDot) ferieDot.style.background = getTypeColor("ferie");
     if (permessoDot) permessoDot.style.background = getTypeColor("permesso");
     if (straordinariDot) straordinariDot.style.background = getTypeColor("straordinari");
     if (mutuaDot) mutuaDot.style.background = getTypeColor("mutua");
     if (specialeDot) specialeDot.style.background = getTypeColor("speciale");
-    if (giustificatoDot) giustificatoDot.style.background = getTypeColor("giustificato");
+    if (retribuitoDot) retribuitoDot.style.background = getTypeColor("retribuito");
 }
 
 function openLegendEditor(type) {
@@ -310,12 +330,26 @@ function ensureDataFolder() {
     ensureFolderFor(CLOSURES_PATH);
 }
 
+function migrateRetribuitoTypes(payload) {
+    if (!payload || !Array.isArray(payload.requests)) return { payload, changed: false };
+    let changed = false;
+    payload.requests = payload.requests.map((request) => {
+        if (request && request.type === "giustificato") {
+            changed = true;
+            return { ...request, type: "retribuito" };
+        }
+        return request;
+    });
+    return { payload, changed };
+}
+
 function loadData() {
     const parsed = loadPayload();
     const normalized = normalizeBalances(parsed, assigneeGroups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
-    const payload = deductions.payload;
-    const changed = normalized.changed || deductions.changed;
+    const migration = migrateRetribuitoTypes(deductions.payload);
+    const payload = migration.payload;
+    const changed = normalized.changed || deductions.changed || migration.changed;
     if (changed) {
         saveData(payload);
     }
@@ -335,8 +369,9 @@ function syncData(updateFn) {
     const next = updateFn ? updateFn(data) || data : data;
     const normalized = normalizeBalances(next, assigneeGroups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
-    saveData(deductions.payload);
-    return deductions.payload;
+    const migration = migrateRetribuitoTypes(deductions.payload);
+    saveData(migration.payload);
+    return migration.payload;
 }
 
 function syncBalancesAfterAssignees() {
@@ -572,21 +607,21 @@ function lockAdminAreas() {
         overtime: false,
         mutua: false,
         speciale: false,
-        giustificato: false,
+        retribuito: false,
     };
 
     const overtimeToggle = document.getElementById("fp-filter-overtime");
     const mutuaToggle = document.getElementById("fp-filter-mutua");
     const specialeToggle = document.getElementById("fp-filter-speciale");
-    const giustificatoToggle = document.getElementById("fp-filter-giustificato");
+    const retribuitoToggle = document.getElementById("fp-filter-retribuito");
     if (overtimeToggle) overtimeToggle.checked = false;
     if (mutuaToggle) mutuaToggle.checked = false;
     if (specialeToggle) specialeToggle.checked = false;
-    if (giustificatoToggle) giustificatoToggle.checked = false;
+    if (retribuitoToggle) retribuitoToggle.checked = false;
     calendarFilters.overtime = false;
     calendarFilters.mutua = false;
     calendarFilters.speciale = false;
-    calendarFilters.giustificato = false;
+    calendarFilters.retribuito = false;
     renderer?.renderCalendar?.(cachedData);
 
     pendingUi.closePendingPanel();
@@ -654,8 +689,8 @@ renderer = createRenderer({
         if (request.type === "speciale") {
             return calendarFilters.speciale;
         }
-        if (request.type === "giustificato") {
-            return calendarFilters.giustificato;
+        if (request.type === "retribuito") {
+            return calendarFilters.retribuito;
         }
         if (request.type === "ferie") {
             return calendarFilters.ferie;
@@ -776,11 +811,11 @@ const approvalUi = createApprovalModal({
             renderer.renderCalendar(cachedData);
             return;
         }
-        if (filter === "giustificato") {
-            calendarFilters.giustificato = true;
-            filterUnlocked.giustificato = true;
-            const giustificatoToggle = document.getElementById("fp-filter-giustificato");
-            if (giustificatoToggle) giustificatoToggle.checked = true;
+        if (filter === "retribuito") {
+            calendarFilters.retribuito = true;
+            filterUnlocked.retribuito = true;
+            const retribuitoToggle = document.getElementById("fp-filter-retribuito");
+            if (retribuitoToggle) retribuitoToggle.checked = true;
             renderer.renderCalendar(cachedData);
         }
     },
@@ -828,7 +863,7 @@ const approvalUi = createApprovalModal({
         }
         renderAll(updated);
     },
-    onGiustificatoCreate: (admin, request) => {
+    onRetribuitoCreate: (admin, request) => {
         if (!request) return;
         const updated = syncData((payload) => {
             payload.requests = payload.requests || [];
@@ -844,7 +879,7 @@ const approvalUi = createApprovalModal({
             return payload;
         });
         const message = document.getElementById("fp-form-message");
-        setMessage(message, UI_TEXTS.giustificatoInserted, false);
+        setMessage(message, UI_TEXTS.retribuitoInserted, false);
         if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
             requestFormUi.resetNewRequestForm();
         }
@@ -2363,8 +2398,8 @@ function init() {
         const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
         const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
         const includeSpeciale = !!document.getElementById("fp-export-speciale")?.checked;
-        const includeGiustificato = !!document.getElementById("fp-export-giustificato")?.checked;
-        if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale && !includeGiustificato) {
+        const includeRetribuito = !!document.getElementById("fp-export-retribuito")?.checked;
+        if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale && !includeRetribuito) {
             setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
             return;
         }
@@ -2379,7 +2414,7 @@ function init() {
             if (req.type === "straordinari" && !includeStraordinari) return false;
             if (req.type === "mutua" && !includeMutua) return false;
             if (req.type === "speciale" && !includeSpeciale) return false;
-            if (req.type === "giustificato" && !includeGiustificato) return false;
+            if (req.type === "retribuito" && !includeRetribuito) return false;
             if (departments.length && req.department && !departments.includes(req.department)) return false;
             if (rangeMode === "custom") {
                 const { start, end } = getRequestDates(req);
@@ -2421,10 +2456,19 @@ function init() {
         });
         XLSX.utils.book_append_sheet(wb, ws, "Ferie e Permessi");
 
-        const outputPath = await ipcRenderer.invoke("select-output-file", {
-            defaultName: "ferie_permessi.xlsx",
-            filters: [{ name: "File Excel", extensions: ["xlsx"] }],
-        });
+        let outputPath;
+        try {
+            outputPath = await invokeWithTimeout(
+                ipcRenderer.invoke("select-output-file", {
+                    defaultName: "ferie_permessi.xlsx",
+                    filters: [{ name: "File Excel", extensions: ["xlsx"] }],
+                }),
+                "apertura dialog selezione file destinazione"
+            );
+        } catch (err) {
+            await showDialog("error", "Errore selezione file di destinazione.", err.message || String(err));
+            return;
+        }
         if (!outputPath) return;
 
         const dirOut = path.dirname(outputPath);
@@ -2476,7 +2520,16 @@ function init() {
                 ["Annulla", "Ripristina"]
             );
             if (!confirm || confirm.response !== 1) return;
-            const folder = await ipcRenderer.invoke("select-root-folder");
+            let folder;
+            try {
+                folder = await invokeWithTimeout(
+                    ipcRenderer.invoke("select-root-folder"),
+                    "apertura dialog selezione cartella"
+                );
+            } catch (err) {
+                setMessage(backupMessage, UI_TEXTS.backupRestoreError(err.message || String(err)), true);
+                return;
+            }
             if (!folder) return;
             copyDirectory(folder, BACKUP_BASE_DIR, {
                 exclude: (name) => name.toLowerCase() === "backup aypi calendar",
@@ -2551,19 +2604,19 @@ function init() {
     const overtimeToggle = document.getElementById("fp-filter-overtime");
     const mutuaToggle = document.getElementById("fp-filter-mutua");
     const specialeToggle = document.getElementById("fp-filter-speciale");
-    const giustificatoToggle = document.getElementById("fp-filter-giustificato");
+    const retribuitoToggle = document.getElementById("fp-filter-retribuito");
     if (ferieToggle) ferieToggle.checked = true;
     if (permessoToggle) permessoToggle.checked = true;
     if (overtimeToggle) overtimeToggle.checked = false;
     if (mutuaToggle) mutuaToggle.checked = false;
     if (specialeToggle) specialeToggle.checked = false;
-    if (giustificatoToggle) giustificatoToggle.checked = false;
+    if (retribuitoToggle) retribuitoToggle.checked = false;
     calendarFilters.ferie = true;
     calendarFilters.permesso = true;
     calendarFilters.overtime = false;
     calendarFilters.mutua = false;
     calendarFilters.speciale = false;
-    calendarFilters.giustificato = false;
+    calendarFilters.retribuito = false;
     const applyFerieFilter = () => {
         if (ferieToggle) {
             calendarFilters.ferie = !!ferieToggle.checked;
@@ -2649,25 +2702,25 @@ function init() {
             renderer.renderCalendar(cachedData);
         });
     }
-    if (giustificatoToggle) {
-        giustificatoToggle.addEventListener("change", () => {
-            if (giustificatoToggle.checked) {
+    if (retribuitoToggle) {
+        retribuitoToggle.addEventListener("change", () => {
+            if (retribuitoToggle.checked) {
                 if (!isAdminLoggedIn()) {
-                    giustificatoToggle.checked = false;
-                    calendarFilters.giustificato = false;
+                    retribuitoToggle.checked = false;
+                    calendarFilters.retribuito = false;
                     renderer.renderCalendar(cachedData);
                     requireAdminAccess(() => {
-                        giustificatoToggle.checked = true;
-                        calendarFilters.giustificato = true;
+                        retribuitoToggle.checked = true;
+                        calendarFilters.retribuito = true;
                         renderer.renderCalendar(cachedData);
                     });
                     return;
                 }
-                calendarFilters.giustificato = true;
+                calendarFilters.retribuito = true;
                 renderer.renderCalendar(cachedData);
                 return;
             }
-            calendarFilters.giustificato = false;
+            calendarFilters.retribuito = false;
             renderer.renderCalendar(cachedData);
         });
     }
@@ -2834,3 +2887,4 @@ const guideUi = createGuideModal({
     guideSearchParam: GUIDE_SEARCH_PARAM,
     getTheme: () => loadThemeSetting(),
 });
+

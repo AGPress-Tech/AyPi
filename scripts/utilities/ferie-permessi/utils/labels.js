@@ -1,6 +1,6 @@
 function getTypeLabel(value) {
     if (value === "permesso") return "Permesso";
-    if (value === "giustificato") return "Permesso Giustificato";
+    if (value === "retribuito" || value === "giustificato") return "Permesso Retribuito";
     if (value === "straordinari") return "Straordinari";
     if (value === "mutua") return "Mutua";
     if (value === "speciale") return "Permesso Chiusura Aziendale";
@@ -8,3 +8,5 @@ function getTypeLabel(value) {
 }
 
 module.exports = { getTypeLabel };
+
+

@@ -2,12 +2,121 @@ const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { showInfo, showWarning, showError } = require("../shared/dialogs");
+
+const showInfo = (message, detail = "") =>
+    ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
+const showWarning = (message, detail = "") =>
+    ipcRenderer.invoke("show-message-box", { type: "warning", message, detail });
+const showError = (message, detail = "") =>
+    ipcRenderer.invoke("show-message-box", { type: "error", message, detail });
+
 
 let folderA = null;
 let folderB = null;
 let results = [];
 let selectedIndex = null;
+
+let selectInProgress = false;
+
+async function handleSelectFolderA() {
+    if (selectInProgress) return;
+    selectInProgress = true;
+    try {
+        const f = await selectRootFolderSafe();
+        if (!f) {
+            return;
+        }
+        folderA = f;
+        const lbl = document.getElementById("lblFolderA");
+        if (lbl) lbl.textContent = f;
+    } catch (err) {
+        console.error("Errore selezione cartella A:", err);
+        await showError("Errore selezione cartella A.", err.message || String(err));
+    } finally {
+        selectInProgress = false;
+    }
+}
+
+async function handleSelectFolderB() {
+    if (selectInProgress) return;
+    selectInProgress = true;
+    try {
+        const f = await selectRootFolderSafe();
+        if (!f) {
+            return;
+        }
+        folderB = f;
+        const lbl = document.getElementById("lblFolderB");
+        if (lbl) lbl.textContent = f;
+    } catch (err) {
+        console.error("Errore selezione cartella B:", err);
+        await showError("Errore selezione cartella B.", err.message || String(err));
+    } finally {
+        selectInProgress = false;
+    }
+}
+
+async function selectRootFolderSafe() {
+    const TIMEOUT_MS = 8000;
+    const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout apertura dialog selezione cartella.")), TIMEOUT_MS);
+    });
+    if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
+        return pickFolderWithInput();
+    }
+    try {
+        return await Promise.race([ipcRenderer.invoke("select-root-folder"), timeout]);
+    } catch (err) {
+        console.warn("Fallback selezione cartella (input web):", err);
+        return pickFolderWithInput();
+    }
+}
+
+function pickFolderWithInput() {
+    return new Promise((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.setAttribute("webkitdirectory", "");
+        input.setAttribute("directory", "");
+        input.style.display = "none";
+        document.body.appendChild(input);
+
+        input.addEventListener("change", () => {
+            const files = Array.from(input.files || []);
+            let folder = null;
+            if (files.length > 0) {
+                const file = files[0];
+                const fullPath = file.path || "";
+                const relPath = file.webkitRelativePath || "";
+                if (fullPath && relPath) {
+                    const relNorm = relPath.replace(/\//g, path.sep);
+                    const idx = fullPath.lastIndexOf(relNorm);
+                    if (idx >= 0) {
+                        folder = fullPath.slice(0, idx).replace(/[\\\/]+$/, "");
+                    }
+                }
+                if (!folder && fullPath) {
+                    folder = path.dirname(fullPath);
+                }
+            }
+            document.body.removeChild(input);
+            resolve(folder);
+        });
+
+        input.click();
+    });
+}
+
+window.addEventListener("error", (event) => {
+    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    showError("Errore JS Confronta cartelle.", detail);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    showError("Errore promessa non gestita (Confronta cartelle).", detail);
+});
 
 function formatMeta(info) {
     if (!info) return "-";
@@ -282,8 +391,8 @@ async function handleOpenIn(side) {
     ipcRenderer.send("open-file", dir);
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-    console.log("compare-folders-scripts.js caricato ✔");
+function initCompareFolders() {
+    console.log("compare-folders-scripts.js caricato OK");
 
     const btnSelectFolderA = document.getElementById("btnSelectFolderA");
     const btnSelectFolderB = document.getElementById("btnSelectFolderB");
@@ -300,19 +409,25 @@ window.addEventListener("DOMContentLoaded", () => {
     const filterDiff = document.getElementById("filterDiff");
     const filterSame = document.getElementById("filterSame");
 
-    btnSelectFolderA.addEventListener("click", async () => {
-        const f = await ipcRenderer.invoke("select-root-folder");
-        if (!f) return;
-        folderA = f;
-        lblFolderA.textContent = f;
-    });
+    if (!btnSelectFolderA || !btnSelectFolderB || !lblFolderA || !lblFolderB) {
+        showError(
+            "UI Confronta cartelle incompleta.",
+            "Mancano uno o piu elementi: btnSelectFolderA/btnSelectFolderB/lblFolderA/lblFolderB."
+        );
+        return;
+    }
 
-    btnSelectFolderB.addEventListener("click", async () => {
-        const f = await ipcRenderer.invoke("select-root-folder");
-        if (!f) return;
-        folderB = f;
-        lblFolderB.textContent = f;
-    });
+    if (!btnCompare || !btnOpenInA || !btnOpenInB || !btnClose) {
+        showError(
+            "UI Confronta cartelle incompleta.",
+            "Mancano uno o piu pulsanti principali (Confronta/Apri/Chiudi)."
+        );
+        return;
+    }
+
+    btnSelectFolderA.addEventListener("click", handleSelectFolderA);
+
+    btnSelectFolderB.addEventListener("click", handleSelectFolderB);
 
     btnCompare.addEventListener("click", handleCompare);
 
@@ -323,10 +438,12 @@ window.addEventListener("DOMContentLoaded", () => {
         window.close();
     });
 
-    filterOnlyA.addEventListener("change", renderTable);
-    filterOnlyB.addEventListener("change", renderTable);
-    filterDiff.addEventListener("change", renderTable);
-    filterSame.addEventListener("change", renderTable);
+    if (filterOnlyA && filterOnlyB && filterDiff && filterSame) {
+        filterOnlyA.addEventListener("change", renderTable);
+        filterOnlyB.addEventListener("change", renderTable);
+        filterDiff.addEventListener("change", renderTable);
+        filterSame.addEventListener("change", renderTable);
+    }
 
     ipcRenderer.on("compare-folders-set-A", (event, folderPath) => {
         if (folderPath) {
@@ -341,4 +458,26 @@ window.addEventListener("DOMContentLoaded", () => {
             lblFolderB.textContent = folderPath;
         }
     });
-});
+
+    window.__aypiCompareSelectA = handleSelectFolderA;
+    window.__aypiCompareSelectB = handleSelectFolderB;
+    window.__aypiCompareInitAttached = true;
+}
+
+if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", () => {
+        try {
+            initCompareFolders();
+        } catch (err) {
+            console.error("Errore inizializzazione Confronta cartelle:", err);
+            showError("Errore inizializzazione Confronta cartelle.", err.message || String(err));
+        }
+    });
+} else {
+    try {
+        initCompareFolders();
+    } catch (err) {
+        console.error("Errore inizializzazione Confronta cartelle:", err);
+        showError("Errore inizializzazione Confronta cartelle.", err.message || String(err));
+    }
+}

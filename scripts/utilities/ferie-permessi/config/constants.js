@@ -12,7 +12,7 @@ const DEFAULT_TYPE_COLORS = {
     straordinari: "#1a73e8",
     mutua: "#00acc1",
     speciale: "#9e9d24",
-    giustificato: "#c2185b",
+    retribuito: "#c2185b",
 };
 
 module.exports = {
@@ -26,3 +26,4 @@ module.exports = {
     GUIDE_SEARCH_PARAM,
     DEFAULT_TYPE_COLORS,
 };
+

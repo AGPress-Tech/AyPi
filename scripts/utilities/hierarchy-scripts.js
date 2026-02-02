@@ -1,7 +1,23 @@
 const { ipcRenderer } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const { showInfo, showError } = require("../shared/dialogs");
+
+const showInfo = (message, detail = "") =>
+    ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
+const showError = (message, detail = "") =>
+    ipcRenderer.invoke("show-message-box", { type: "error", message, detail });
+
+
+window.addEventListener("error", (event) => {
+    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    showError("Errore JS Gerarchia cartelle.", detail);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    showError("Errore promessa non gestita (Gerarchia).", detail);
+});
 
 let XLSX;
 try {
@@ -39,6 +55,91 @@ let contextMenuNode = null;
 let topElementsLimitInput = null;
 let topElementsModeSelect = null;
 let topElementsTableEl = null;
+
+let selectHierarchyInProgress = false;
+
+async function handleSelectFolderHierarchy() {
+    if (selectHierarchyInProgress) return;
+    selectHierarchyInProgress = true;
+    try {
+        const folder = await selectRootFolderSafe();
+
+        if (!folder) {
+            console.log("Nessuna cartella selezionata.");
+            return;
+        }
+
+        selectedFolder = folder;
+        rootTree = null;
+        originalRootTree = null;
+        selectedElement = null;
+        lastSelectedNodeData = null;
+        pendingEntries = [];
+        isBuildingTree = false;
+
+        if (lblSelectedFolder) lblSelectedFolder.textContent = folder;
+        if (treeRootEl) treeRootEl.innerHTML = "<p>Premi 'Avvia scansione' per visualizzare la gerarchia...</p>";
+        if (detailsBox) detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
+
+        console.log("Cartella selezionata:", folder);
+    } catch (err) {
+        console.error("Errore selezione cartella:", err);
+        await showError("Errore selezione cartella.", err.message || String(err));
+    } finally {
+        selectHierarchyInProgress = false;
+    }
+}
+
+async function selectRootFolderSafe() {
+    const TIMEOUT_MS = 8000;
+    const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout apertura dialog selezione cartella.")), TIMEOUT_MS);
+    });
+    if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
+        return pickFolderWithInput();
+    }
+    try {
+        return await Promise.race([ipcRenderer.invoke("select-root-folder"), timeout]);
+    } catch (err) {
+        console.warn("Fallback selezione cartella (input web):", err);
+        return pickFolderWithInput();
+    }
+}
+
+function pickFolderWithInput() {
+    return new Promise((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.setAttribute("webkitdirectory", "");
+        input.setAttribute("directory", "");
+        input.style.display = "none";
+        document.body.appendChild(input);
+
+        input.addEventListener("change", () => {
+            const files = Array.from(input.files || []);
+            let folder = null;
+            if (files.length > 0) {
+                const file = files[0];
+                const fullPath = file.path || "";
+                const relPath = file.webkitRelativePath || "";
+                if (fullPath && relPath) {
+                    const relNorm = relPath.replace(/\//g, path.sep);
+                    const idx = fullPath.lastIndexOf(relNorm);
+                    if (idx >= 0) {
+                        folder = fullPath.slice(0, idx).replace(/[\\\/]+$/, "");
+                    }
+                }
+                if (!folder && fullPath) {
+                    folder = path.dirname(fullPath);
+                }
+            }
+            document.body.removeChild(input);
+            resolve(folder);
+        });
+
+        input.click();
+    });
+}
 
 const FUN_MESSAGES = [
     "Calcolo degli atomi dei file...",
@@ -1389,7 +1490,7 @@ async function scanFolderRecursively(rootFolder, onProgress) {
         try {
             dirEntries = await fs.promises.readdir(currentPath, { withFileTypes: true });
         } catch (err) {
-            console.warn("Impossibile leggere cartella:", currentPath, err);
+            console.error("Errore lettura cartella:", currentPath, err);
             return;
         }
 
@@ -1410,7 +1511,7 @@ async function scanFolderRecursively(rootFolder, onProgress) {
             try {
                 stat = await fs.promises.stat(full);
             } catch (err) {
-                console.warn("Impossibile determinare tipo elemento:", full, err);
+                console.error("Errore stat elemento:", full, err);
                 continue;
             }
 
@@ -1932,7 +2033,6 @@ function selectNode(domNode, data) {
 
                     await showInfo("Esportazione completata.", outputPath);
                 } catch (err) {
-                    console.error("Errore durante l'esportazione Excel:", err);
                     await showError(
                         "Errore durante l'esportazione Excel.",
                         err.message || String(err)
@@ -1999,7 +2099,6 @@ function exportSameNameList(list) {
             XLSX.writeFile(wb, outputPath);
             showInfo("Esportazione completata.", outputPath);
         } catch (err) {
-            console.error("Errore export same-name:", err);
             showError(
                 "Errore durante l'esportazione.",
                 err.message || String(err)
@@ -2101,7 +2200,7 @@ function initContextMenu() {
                     shell.openPath(fullPath);
                 }
             } catch (err) {
-                console.error("Errore aprendo percorso:", err);
+                console.error("Errore apertura percorso:", err);
             }
         } else if (action === "copy-full") {
             copyToClipboard(fullPath);
@@ -2272,7 +2371,7 @@ function normalizeTreeIcons() {
     });
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+function initHierarchy() {
     treeRootEl = document.getElementById("treeRoot");
     lblSelectedFolder = document.getElementById("selectedFolder");
     detailsBox = document.getElementById("detailsBox");
@@ -2282,6 +2381,26 @@ window.addEventListener("DOMContentLoaded", () => {
     topElementsLimitInput = document.getElementById("topElementsLimit");
     topElementsModeSelect = document.getElementById("topElementsMode");
     topElementsTableEl = document.getElementById("topElementsTable");
+
+    const btnClose = document.getElementById("btnClose");
+    const btnSelectFolder = document.getElementById("btnSelectFolder");
+    const btnStartScan = document.getElementById("btnStartScan");
+    const btnExportNavigableReport = document.getElementById("btnExportNavigableReport");
+
+    if (!treeRootEl || !lblSelectedFolder || !detailsBox) {
+        showError(
+            "UI Gerarchia incompleta.",
+            "Elementi mancanti: treeRoot/selectedFolder/detailsBox."
+        );
+        return;
+    }
+    if (!btnSelectFolder) {
+        showError(
+            "UI Gerarchia incompleta.",
+            "Pulsante selezione cartella non trovato (btnSelectFolder)."
+        );
+        return;
+    }
 
     if (detailsTabButtons && detailsTabs) {
         detailsTabButtons.forEach((btn) => {
@@ -2334,11 +2453,6 @@ window.addEventListener("DOMContentLoaded", () => {
     const excludeFilesInputEl = document.getElementById("excludeFiles");
     const btnApplyScanFilter = document.getElementById("btnApplyScanFilter");
 
-    const btnClose = document.getElementById("btnClose");
-    const btnSelectFolder = document.getElementById("btnSelectFolder");
-    const btnStartScan = document.getElementById("btnStartScan");
-    const btnExportNavigableReport = document.getElementById("btnExportNavigableReport");
-
     const searchInput = document.getElementById("searchInput");
     const btnSearch = document.getElementById("btnSearch");
     const searchResultsEl = document.getElementById("searchResults");
@@ -2348,7 +2462,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (scanOptionsPanelEl && scanOptionsToggleEl && scanOptionsArrowEl) {
         const updateArrow = () => {
             const collapsed = scanOptionsPanelEl.classList.contains("collapsed");
-            scanOptionsArrowEl.textContent = collapsed ? "\u25B6" : "\u25BC"; // ? / ?
+            scanOptionsArrowEl.textContent = collapsed ? "▶" : "▼";
         };
 
         updateArrow();
@@ -2430,114 +2544,97 @@ window.addEventListener("DOMContentLoaded", () => {
     treeRootEl.innerHTML = "<p>Seleziona una cartella e premi 'Avvia scansione'.</p>";
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
 
-    btnClose.addEventListener("click", () => {
-        window.close();
-    });
+    if (btnClose) {
+        btnClose.addEventListener("click", () => {
+            window.close();
+        });
+    }
 
-    btnSelectFolder.addEventListener("click", async () => {
-        const folder = await ipcRenderer.invoke("select-root-folder");
+    btnSelectFolder.addEventListener("click", handleSelectFolderHierarchy);
 
-        if (!folder) {
-            console.log("Nessuna cartella selezionata.");
-            return;
-        }
+    if (btnStartScan) {
+        btnStartScan.addEventListener("click", async () => {
+            if (!selectedFolder) {
+                console.warn("Seleziona prima una cartella!");
+                return;
+            }
 
-        selectedFolder = folder;
-        rootTree = null;
-        originalRootTree = null;
-        selectedElement = null;
-        lastSelectedNodeData = null;
-        pendingEntries = [];
-        isBuildingTree = false;
+            btnStartScan.disabled = true;
 
-        lblSelectedFolder.textContent = folder;
-        treeRootEl.innerHTML = "<p>Premi 'Avvia scansione' per visualizzare la gerarchia...</p>";
-        detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
+            rootTree = null;
+            originalRootTree = null;
+            selectedElement = null;
+            lastSelectedNodeData = null;
+            pendingEntries = [];
+            isBuildingTree = false;
 
-        console.log("Cartella selezionata:", folder);
-    });
+            treeRootEl.innerHTML = "<p>Scansione in corso...</p>";
 
-    btnStartScan.addEventListener("click", async () => {
-        if (!selectedFolder) {
-            console.warn("Seleziona prima una cartella!");
-            return;
-        }
-
-        btnStartScan.disabled = true;
-
-        rootTree = null;
-        originalRootTree = null;
-        selectedElement = null;
-        lastSelectedNodeData = null;
-        pendingEntries = [];
-        isBuildingTree = false;
-
-        treeRootEl.innerHTML = "<p>Scansione in corso...</p>";
-
-        detailsBox.innerHTML = `
+            detailsBox.innerHTML = `
             <p>Scansione in corso... Attendere.</p>
             <p id="scanFunStatus" class="fun-status muted"></p>
         `;
 
-        funMessageIndex = pickRandomFunMessageIndex();
-        lastFunMessageTime = performance.now();
-        const scanFunStatus = document.getElementById("scanFunStatus");
-        if (scanFunStatus) {
-            scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
-        }
+            funMessageIndex = pickRandomFunMessageIndex();
+            lastFunMessageTime = performance.now();
+            const scanFunStatus = document.getElementById("scanFunStatus");
+            if (scanFunStatus) {
+                scanFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
+            }
 
-        try {
-            const entries = await scanFolderRecursively(
-                selectedFolder,
-                ({ totalFiles, totalDirs }) => {
-                    if (treeRootEl) {
-                        treeRootEl.innerHTML = `
+            try {
+                const entries = await scanFolderRecursively(
+                    selectedFolder,
+                    ({ totalFiles, totalDirs }) => {
+                        if (treeRootEl) {
+                            treeRootEl.innerHTML = `
                             <p>Scansione in corso...</p>
                             <p>File scansionati: ${totalFiles}</p>
                             <p>Cartelle scansionate: ${totalDirs}</p>
                         `;
-                    }
+                        }
 
-                    const scanFunStatusEl = document.getElementById("scanFunStatus");
-                    if (scanFunStatusEl) {
-                        const now = performance.now();
-                        if (now - lastFunMessageTime > 5000) {
-                            scanFunStatusEl.textContent = getRandomFunMessage();
-                            lastFunMessageTime = now;
+                        const scanFunStatusEl = document.getElementById("scanFunStatus");
+                        if (scanFunStatusEl) {
+                            const now = performance.now();
+                            if (now - lastFunMessageTime > 5000) {
+                                scanFunStatusEl.textContent = getRandomFunMessage();
+                                lastFunMessageTime = now;
+                            }
                         }
                     }
-                }
-            );
+                );
 
-            rootTree = createRootTree(selectedFolder);
-            pendingEntries = entries.slice();
+                rootTree = createRootTree(selectedFolder);
+                pendingEntries = entries.slice();
 
-            detailsBox.innerHTML = `
+                detailsBox.innerHTML = `
                 <p>Costruzione dell'albero in corso... Attendere.</p>
                 <p id="buildFunStatus" class="fun-status muted"></p>
             `;
-            funMessageIndex = pickRandomFunMessageIndex();
-            lastFunMessageTime = performance.now();
-            const buildFunStatus = document.getElementById("buildFunStatus");
-            if (buildFunStatus) {
-                buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
-            }
+                funMessageIndex = pickRandomFunMessageIndex();
+                lastFunMessageTime = performance.now();
+                const buildFunStatus = document.getElementById("buildFunStatus");
+                if (buildFunStatus) {
+                    buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
+                }
 
-            buildTreeFromPendingAsync(() => {
-                originalRootTree = cloneTree(rootTree);
-                renderTreeFromModel();
+                buildTreeFromPendingAsync(() => {
+                    originalRootTree = cloneTree(rootTree);
+                    renderTreeFromModel();
+                    detailsBox.innerHTML =
+                        "<p>Seleziona un nodo per vedere i dettagli.</p>";
+                    btnStartScan.disabled = false;
+                });
+            } catch (err) {
+                console.error("Errore durante la scansione locale:", err);
+                treeRootEl.innerHTML = "<p>Errore durante la scansione.</p>";
                 detailsBox.innerHTML =
-                    "<p>Seleziona un nodo per vedere i dettagli.</p>";
+                    "<p>Errore durante la scansione. Controlla la console.</p>";
                 btnStartScan.disabled = false;
-            });
-        } catch (err) {
-            console.error("Errore durante la scansione locale:", err);
-            treeRootEl.innerHTML = "<p>Errore durante la scansione.</p>";
-            detailsBox.innerHTML =
-                "<p>Errore durante la scansione. Controlla la console.</p>";
-            btnStartScan.disabled = false;
-        }
-    });
+            }
+        });
+    }
 
     if (btnSearch && searchInput && searchResultsEl) {
 
@@ -2573,7 +2670,7 @@ window.addEventListener("DOMContentLoaded", () => {
                     }
 
                     let html = `<p><b>Risultati: ${matches.length}</b></p><ul>`;
-                    for (const node of matches.slice(0, 500)) { // limitiamo la visualizzazione per non esplodere
+                    for (const node of matches.slice(0, 500)) {
                         const safePath = (node.fullPath || node.name || "")
                             .replace(/&/g, "&amp;")
                             .replace(/</g, "&lt;");
@@ -2614,7 +2711,27 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-});
+    window.__aypiHierarchySelectFolder = handleSelectFolderHierarchy;
+    window.__aypiHierarchyInitAttached = true;
+}
+
+if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", () => {
+        try {
+            initHierarchy();
+        } catch (err) {
+            console.error("Errore inizializzazione Gerarchia:", err);
+            showError("Errore inizializzazione Gerarchia.", err.message || String(err));
+        }
+    });
+} else {
+    try {
+        initHierarchy();
+    } catch (err) {
+        console.error("Errore inizializzazione Gerarchia:", err);
+        showError("Errore inizializzazione Gerarchia.", err.message || String(err));
+    }
+}
 
 async function exportNavigableReport() {
     if (!rootTree) {
@@ -2640,7 +2757,8 @@ async function exportNavigableReport() {
         } else {
             await showInfo(
                 "Report navigabile esportato.",
-                `File HTML: ${result.htmlPath}\nDati JSON: ${result.jsonPath}`
+                `File HTML: ${result.htmlPath}
+Dati JSON: ${result.jsonPath}`
             );
         }
     } catch (err) {

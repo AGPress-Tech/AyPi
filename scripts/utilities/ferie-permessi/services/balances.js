@@ -10,6 +10,7 @@ function isBalanceNeutral(request) {
     return request && (
         request.type === "straordinari" ||
         request.type === "mutua" ||
+        request.type === "retribuito" ||
         request.type === "giustificato"
     );
 }
@@ -568,3 +569,4 @@ module.exports = {
     loadPayload,
     savePayload,
 };
+

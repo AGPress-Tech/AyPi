@@ -38,7 +38,7 @@ function createApprovalModal(options) {
         onManageAccess,
         onDaysAccess,
         onMutuaCreate,
-        onGiustificatoCreate,
+        onRetribuitoCreate,
         onSpecialeCreate,
         onHolidayCreate,
         onHolidayRemove,
@@ -84,10 +84,10 @@ function createApprovalModal(options) {
             }
             return;
         }
-        if (actionType === "giustificato-create") {
+        if (actionType === "retribuito-create" || actionType === "giustificato-create") {
             closeApprovalModal();
-            if (typeof onGiustificatoCreate === "function") {
-                onGiustificatoCreate(admin, pendingAction.request);
+            if (typeof onRetribuitoCreate === "function") {
+                onRetribuitoCreate(admin, pendingAction.request);
             }
             return;
         }
@@ -425,3 +425,4 @@ function createApprovalModal(options) {
 }
 
 module.exports = { createApprovalModal };
+

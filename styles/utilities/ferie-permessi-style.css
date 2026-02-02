@@ -205,7 +205,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     background: #9e9d24;
 }
 
-.fp-legend__dot--giustificato {
+.fp-legend__dot--retribuito {
     background: #c2185b;
 }
 
@@ -1806,3 +1806,4 @@ body.fp-aypi #fp-calendar .fc .fc-list-empty {
         grid-template-columns: 1fr;
     }
 }
+

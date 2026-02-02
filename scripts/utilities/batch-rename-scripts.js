@@ -29,6 +29,14 @@ const { getTransformsConfigFromUI } = bootRequire(path.join(batchBaseDir, "trans
 const { buildPresetFromUI, applyPresetToUI, loadPresetsIntoUI } = bootRequire(path.join(batchBaseDir, "presets"));
 const { handleApply, handleOpenFolder, handleUndoLast } = bootRequire(path.join(batchBaseDir, "operations"));
 
+async function selectRootFolderSafe() {
+    const TIMEOUT_MS = 15000;
+    const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout apertura dialog selezione cartella.")), TIMEOUT_MS);
+    });
+    return Promise.race([ipcRenderer.invoke("select-root-folder"), timeout]);
+}
+
 window.addEventListener("error", (event) => {
     const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
     ipcRenderer.invoke("show-message-box", {
@@ -36,6 +44,12 @@ window.addEventListener("error", (event) => {
         message: "Errore JS Batch Rename.",
         detail,
     });
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    showError("Errore promessa non gestita (Batch Rename).", detail);
 });
 
 async function handlePreview() {
@@ -183,11 +197,16 @@ window.addEventListener("DOMContentLoaded", () => {
     const rmAll = document.getElementById("rmAll");
 
     btnSelectFolder.addEventListener("click", async () => {
-        const folder = await ipcRenderer.invoke("select-root-folder");
-        if (!folder) return;
-        state.rootFolder = folder;
-        updateSelectedFolderLabel();
-        refreshFolderTree();
+        try {
+            const folder = await selectRootFolderSafe();
+            if (!folder) return;
+            state.rootFolder = folder;
+            updateSelectedFolderLabel();
+            refreshFolderTree();
+        } catch (err) {
+            console.error("Errore selezione cartella:", err);
+            await showError("Errore selezione cartella.", err.message || String(err));
+        }
     });
 
     btnPreview.addEventListener("click", handlePreview);

@@ -17,11 +17,29 @@ try {
 const fs = require("fs");
 const path = require("path");
 
+async function invokeWithTimeout(promise, label) {
+    const TIMEOUT_MS = 15000;
+    const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Timeout ${label}.`)), TIMEOUT_MS);
+    });
+    return Promise.race([promise, timeout]);
+}
+
 window.addEventListener("error", (event) => {
     const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
     ipcRenderer.invoke("show-message-box", {
         type: "error",
         message: "Errore JS Utilities.",
+        detail,
+    });
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    ipcRenderer.invoke("show-message-box", {
+        type: "error",
+        message: "Errore promessa non gestita (Utilities).",
         detail,
     });
 });
@@ -91,7 +109,16 @@ window.addEventListener("DOMContentLoaded", () => {
         try {
             await showInfo("Seleziona la cartella da analizzare.");
 
-            const rootFolder = await ipcRenderer.invoke("select-root-folder");
+            let rootFolder;
+            try {
+                rootFolder = await invokeWithTimeout(
+                    ipcRenderer.invoke("select-root-folder"),
+                    "apertura dialog selezione cartella"
+                );
+            } catch (err) {
+                await showError("Errore selezione cartella.", err.message || String(err));
+                return;
+            }
             if (!rootFolder) {
                 await showWarning("Operazione annullata dall'utente.");
                 return;
@@ -99,9 +126,18 @@ window.addEventListener("DOMContentLoaded", () => {
 
             await showInfo("Seleziona dove salvare il file Excel.");
 
-            const outputPath = await ipcRenderer.invoke("select-output-file", {
-                defaultName: "lista_file.xlsx"
-            });
+            let outputPath;
+            try {
+                outputPath = await invokeWithTimeout(
+                    ipcRenderer.invoke("select-output-file", {
+                        defaultName: "lista_file.xlsx"
+                    }),
+                    "apertura dialog selezione file destinazione"
+                );
+            } catch (err) {
+                await showError("Errore selezione file di destinazione.", err.message || String(err));
+                return;
+            }
             if (!outputPath) {
                 await showWarning("Operazione annullata dall'utente.");
                 return;
