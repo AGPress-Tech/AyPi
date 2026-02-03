@@ -48,11 +48,15 @@ function createGuideModal(options) {
         try {
             const base = new URL(guideUrl);
             const target = new URL(relativePath, base);
-            if (theme) {
-                target.searchParams.set("theme", theme);
-            }
+            base.searchParams.forEach((value, key) => {
+                if (guideSearchParam && key === guideSearchParam) return;
+                target.searchParams.set(key, value);
+            });
             if (guideSearchParam) {
                 target.searchParams.delete(guideSearchParam);
+            }
+            if (theme) {
+                target.searchParams.set("theme", theme);
             }
             return target.toString();
         } catch (err) {

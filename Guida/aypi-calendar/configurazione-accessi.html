@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AyPi Calendar - Configurazione accessi</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <div id="sidebarMount"></div>
+
+    <main class="main">
+      <div class="topbar">
+        <span class="crumbs">AyPi Calendar / Configurazione accessi</span>
+        <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
+      </div>
+
+      <div class="container">
+        <section class="card">
+          <h2>Configurazione accessi</h2>
+          <p>Questa sezione permette di scegliere quali operazioni richiedono il login admin e quali sono disponibili a tutti.</p>
+          <div class="callout admin">
+            <div class="title">Password obbligatoria</div>
+            <p>La voce <b>Configurazione</b> richiede sempre la password admin, anche se sei gia loggato.</p>
+          </div>
+
+          <h3>Come aprire</h3>
+          <ol>
+            <li>Apri <b>Impostazioni</b> (icona ingranaggio).</li>
+            <li>Seleziona <b>Configurazione</b>.</li>
+            <li>Inserisci la password admin.</li>
+          </ol>
+
+          <h3>Significato degli switch</h3>
+          <ul>
+            <li><b>ON</b>: operazione riservata agli admin.</li>
+            <li><b>OFF</b>: operazione consentita a tutti.</li>
+          </ul>
+
+          <h3>Voci disponibili</h3>
+          <ul>
+            <li>Nuove richieste: Ferie, Permessi, Straordinari, Mutua, Chiusura Aziendale, Retribuito.</li>
+            <li>Richieste in attesa: accesso al menu, approvazione, rifiuto.</li>
+            <li>Richieste approvate: modifica, eliminazione.</li>
+            <li>Filtri calendario: Ferie, Permessi, Straordinari, Mutua, Chiusura Aziendale, Retribuito.</li>
+            <li>Gestione: ore e dipendenti.</li>
+            <li>Festivita e chiusure aziendali.</li>
+            <li>Export Excel.</li>
+          </ul>
+
+          <div class="callout note">
+            <div class="title">Nota</div>
+            <p>La configurazione e globale e viene salvata nel file <b>config-calendar.json</b> sul server dei dati del calendario.</p>
+          </div>
+        </section>
+
+        <div class="footer">
+          AyPi Calendar - Guida - 2026
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/script.js"></script>
+</body>
+</html>
