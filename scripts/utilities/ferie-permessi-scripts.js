@@ -638,9 +638,11 @@ let openAdminModalHandler = null;
 let openPasswordModalHandler = null;
 let openBackupModalHandler = null;
 let pendingAdminAction = null;
+let pendingAdminActionArmed = false;
+let loginFromPrompt = false;
 
 function showLoginRequired() {
-    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired, { showLogin: true });
+    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired, { showLogin: true, clearPendingAction: true });
 }
 
 function requireAdminAccess(action) {
@@ -649,12 +651,22 @@ function requireAdminAccess(action) {
         return;
     }
     pendingAdminAction = typeof action === "function" ? action : null;
+    pendingAdminActionArmed = true;
     showLoginRequired();
 }
 
-function consumePendingAdminAction() {
-    const action = pendingAdminAction;
+function clearPendingAdminAction() {
     pendingAdminAction = null;
+    pendingAdminActionArmed = false;
+}
+
+function consumePendingAdminAction(fromPrompt) {
+    if (!pendingAdminAction || !pendingAdminActionArmed || !fromPrompt) {
+        clearPendingAdminAction();
+        return false;
+    }
+    const action = pendingAdminAction;
+    clearPendingAdminAction();
     if (typeof action === "function") {
         action();
         return true;
@@ -989,7 +1001,8 @@ const approvalUi = createApprovalModal({
     onAdminLogin: (admin) => {
         if (!admin) return;
         setAdminSession(admin);
-        const handled = consumePendingAdminAction();
+        const handled = consumePendingAdminAction(loginFromPrompt);
+        loginFromPrompt = false;
         if (!handled) {
             showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginSuccess(admin?.name || ""), {
                 showLogin: false,
@@ -1686,10 +1699,14 @@ function showInfoModal(title, message, options = {}) {
         hideModal(modal);
     };
     const onOk = () => {
+        if (opts.clearPendingAction) {
+            clearPendingAdminAction();
+        }
         cleanup();
     };
     const onLogin = () => {
         cleanup();
+        loginFromPrompt = true;
         if (openPasswordModalHandler) {
             openPasswordModalHandler({
                 type: "admin-login",
@@ -1705,6 +1722,9 @@ function showInfoModal(title, message, options = {}) {
     const onKeydown = (event) => {
         if (event.key === "Escape") {
             event.preventDefault();
+            if (opts.clearPendingAction) {
+                clearPendingAdminAction();
+            }
             cleanup();
         }
     };
@@ -2348,6 +2368,8 @@ function init() {
                 showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLogoffSuccess, { showLogin: false });
                 return;
             }
+            clearPendingAdminAction();
+            loginFromPrompt = false;
             approvalUi.openPasswordModal({
                 type: "admin-login",
                 id: "admin-login",
