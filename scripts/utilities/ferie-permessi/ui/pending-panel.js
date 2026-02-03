@@ -16,9 +16,12 @@ function createPendingPanel(options) {
         loadData,
         confirmNegativeBalance,
         getLoggedAdminName,
-        isAdminLoggedIn,
         onAccessDenied,
         requireAdminAccess,
+        requireAccess,
+        isAdminRequiredForPendingAccess,
+        isAdminRequiredForPendingApprove,
+        isAdminRequiredForPendingReject,
     } = options || {};
 
     if (!document) {
@@ -66,38 +69,46 @@ function createPendingPanel(options) {
             approveBtn.className = "fp-btn fp-btn--primary";
             approveBtn.textContent = "Approva";
             approveBtn.addEventListener("click", async () => {
-                if (!isAdminLoggedIn?.()) {
-                    if (typeof requireAdminAccess === "function") {
-                        requireAdminAccess(() => approveBtn.click());
-                    } else {
-                        onAccessDenied?.();
-                    }
-                    return;
-                }
-                if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
-                    const impact = getBalanceImpact(loadData(), request);
-                    const ok = await confirmNegativeBalance(impact);
-                    if (!ok) {
-                        return;
-                    }
-                }
-                const updated = syncData((payload) => {
-                    const target = (payload.requests || []).find((req) => req.id === request.id);
-                    if (target) {
-                        target.status = "approved";
-                        target.approvedAt = new Date().toISOString();
-                        target.approvedBy =
-                            getLoggedAdminName?.() ||
-                            getPendingUnlockedBy?.() ||
-                            target.approvedBy ||
-                            UI_TEXTS.defaultAdminLabel;
-                        if (typeof applyBalanceForApproval === "function") {
-                            applyBalanceForApproval(payload, target);
+                const needsAdmin = typeof isAdminRequiredForPendingApprove === "function"
+                    ? !!isAdminRequiredForPendingApprove()
+                    : true;
+                const run = async () => {
+                    if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
+                        const impact = getBalanceImpact(loadData(), request);
+                        const ok = await confirmNegativeBalance(impact);
+                        if (!ok) {
+                            return;
                         }
                     }
-                    return payload;
-                });
-                renderAll(updated);
+                    const updated = syncData((payload) => {
+                        const target = (payload.requests || []).find((req) => req.id === request.id);
+                        if (target) {
+                            target.status = "approved";
+                            target.approvedAt = new Date().toISOString();
+                            target.approvedBy =
+                                getLoggedAdminName?.() ||
+                                getPendingUnlockedBy?.() ||
+                                target.approvedBy ||
+                                "";
+                            if (typeof applyBalanceForApproval === "function") {
+                                applyBalanceForApproval(payload, target);
+                            }
+                        }
+                        return payload;
+                    });
+                    renderAll(updated);
+                };
+                if (needsAdmin && typeof requireAccess === "function") {
+                    requireAccess(true, run);
+                    return;
+                } else if (needsAdmin && typeof requireAdminAccess === "function") {
+                    requireAdminAccess(run);
+                    return;
+                } else if (needsAdmin) {
+                    onAccessDenied?.();
+                    return;
+                }
+                run();
             });
 
             const rejectBtn = document.createElement("button");
@@ -105,19 +116,27 @@ function createPendingPanel(options) {
             rejectBtn.className = "fp-btn";
             rejectBtn.textContent = "Rifiuta";
             rejectBtn.addEventListener("click", () => {
-                if (!isAdminLoggedIn?.()) {
-                    if (typeof requireAdminAccess === "function") {
-                        requireAdminAccess(() => rejectBtn.click());
-                    } else {
-                        onAccessDenied?.();
-                    }
+                const needsAdmin = typeof isAdminRequiredForPendingReject === "function"
+                    ? !!isAdminRequiredForPendingReject()
+                    : true;
+                const run = () => {
+                    const updated = syncData((payload) => {
+                        payload.requests = (payload.requests || []).filter((req) => req.id !== request.id);
+                        return payload;
+                    });
+                    renderAll(updated);
+                };
+                if (needsAdmin && typeof requireAccess === "function") {
+                    requireAccess(true, run);
+                    return;
+                } else if (needsAdmin && typeof requireAdminAccess === "function") {
+                    requireAdminAccess(run);
+                    return;
+                } else if (needsAdmin) {
+                    onAccessDenied?.();
                     return;
                 }
-                const updated = syncData((payload) => {
-                    payload.requests = (payload.requests || []).filter((req) => req.id !== request.id);
-                    return payload;
-                });
-                renderAll(updated);
+                run();
             });
 
             actions.appendChild(rejectBtn);
@@ -152,19 +171,27 @@ function createPendingPanel(options) {
         const pendingClose = document.getElementById("fp-pending-close");
         if (pendingToggle) {
             pendingToggle.addEventListener("click", () => {
-                if (!isAdminLoggedIn?.()) {
-                    if (typeof requireAdminAccess === "function") {
-                        requireAdminAccess(() => openPendingPanel());
-                    } else {
-                        onAccessDenied?.();
+                const needsAdmin = typeof isAdminRequiredForPendingAccess === "function"
+                    ? !!isAdminRequiredForPendingAccess()
+                    : true;
+                const run = () => {
+                    if (getPendingPanelOpen()) {
+                        closePendingPanel();
+                        return;
                     }
+                    openPendingPanel();
+                };
+                if (needsAdmin && typeof requireAccess === "function") {
+                    requireAccess(true, run);
+                    return;
+                } else if (needsAdmin && typeof requireAdminAccess === "function") {
+                    requireAdminAccess(run);
+                    return;
+                } else if (needsAdmin) {
+                    onAccessDenied?.();
                     return;
                 }
-                if (getPendingPanelOpen()) {
-                    closePendingPanel();
-                    return;
-                }
-                openPendingPanel();
+                run();
             });
         }
         if (pendingClose) {

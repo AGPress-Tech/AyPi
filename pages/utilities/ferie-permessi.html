@@ -303,6 +303,16 @@
                 </button>
             </div>
             <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-settings-config-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
+                            <path d="M12 4a2 2 0 0 1 2 2v1h4a1 1 0 0 1 0 2h-4v4h4a1 1 0 1 1 0 2h-4v1a2 2 0 1 1-4 0v-1H6a1 1 0 1 1 0-2h4V9H6a1 1 0 0 1 0-2h4V6a2 2 0 0 1 2-2Z"></path>
+                        </svg>
+                    </span>
+                    <span class="fp-btn__label">Configurazione</span>
+                </button>
+            </div>
+            <div class="fp-export-section">
                 <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-backup-open">
                     <span class="fp-btn__icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" class="fp-icon" focusable="false" aria-hidden="true">
@@ -313,6 +323,76 @@
                 </button>
             </div>
             <div id="fp-settings-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-config-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-config-card" role="dialog" aria-modal="true" aria-labelledby="fp-config-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-config-title">Configurazione accessi</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-config-close">Chiudi</button>
+            </div>
+            <div class="fp-config-hint">
+                Attiva lo switch per richiedere il login admin. Disattivalo per consentire l'operazione a tutti.
+            </div>
+
+            <div class="fp-config-body">
+                <div class="fp-config-section">
+                    <h4>Nuove richieste</h4>
+                    <div class="fp-config-grid">
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-ferie"><span class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-permesso"><span class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-straordinari"><span class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-speciale"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura Aziendale</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-retribuito"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
+                    </div>
+                </div>
+
+                <div class="fp-config-section">
+                    <h4>Richieste in attesa</h4>
+                    <div class="fp-config-grid">
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-pending-access"><span class="fp-switch__track"></span><span class="fp-switch__label">Accedi al menu richieste</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-pending-approve"><span class="fp-switch__track"></span><span class="fp-switch__label">Convalida richieste</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-pending-reject"><span class="fp-switch__track"></span><span class="fp-switch__label">Rifiuta richieste</span></label>
+                    </div>
+                </div>
+
+                <div class="fp-config-section">
+                    <h4>Richieste approvate</h4>
+                    <div class="fp-config-grid">
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-edit-approved"><span class="fp-switch__track"></span><span class="fp-switch__label">Modifica richieste approvate</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-delete-approved"><span class="fp-switch__track"></span><span class="fp-switch__label">Elimina richieste approvate</span></label>
+                    </div>
+                </div>
+
+                <div class="fp-config-section">
+                    <h4>Filtri calendario</h4>
+                    <div class="fp-config-grid">
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-ferie"><span class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-permesso"><span class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-straordinari"><span class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-speciale"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura Aziendale</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-retribuito"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
+                    </div>
+                </div>
+
+                <div class="fp-config-section">
+                    <h4>Gestione e calendario</h4>
+                    <div class="fp-config-grid">
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-manage-access"><span class="fp-switch__track"></span><span class="fp-switch__label">Gestione ore e dipendenti</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-days-access"><span class="fp-switch__track"></span><span class="fp-switch__label">Festivita e chiusure aziendali</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-export"><span class="fp-switch__track"></span><span class="fp-switch__label">Export Excel</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fp-actions fp-actions--modal">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-config-reset">Ripristina default</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-config-save">Salva</button>
+            </div>
+            <div id="fp-config-message" class="fp-message is-hidden"></div>
         </div>
     </div>
 

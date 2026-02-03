@@ -10,7 +10,7 @@ function createHolidaysModal(options) {
         renderAll,
         loadData,
         openPasswordModal,
-        requireAdminAccess,
+        requireDaysAccess,
         confirmAction,
     } = options || {};
 
@@ -118,8 +118,8 @@ function createHolidaysModal(options) {
                         });
                     }
                 };
-                if (typeof requireAdminAccess === "function") {
-                    requireAdminAccess(() => {
+                if (typeof requireDaysAccess === "function") {
+                    requireDaysAccess(() => {
                         run();
                     });
                     return;
@@ -136,8 +136,8 @@ function createHolidaysModal(options) {
                     editingDate = date;
                     renderHolidayList(payload);
                 };
-                if (typeof requireAdminAccess === "function") {
-                    requireAdminAccess(run);
+                if (typeof requireDaysAccess === "function") {
+                    requireDaysAccess(run);
                     return;
                 }
                 run();
@@ -202,8 +202,8 @@ function createHolidaysModal(options) {
                         }
                         editingDate = null;
                     };
-                    if (typeof requireAdminAccess === "function") {
-                        requireAdminAccess(() => {
+                    if (typeof requireDaysAccess === "function") {
+                        requireDaysAccess(() => {
                             run();
                         });
                         return;
@@ -290,8 +290,8 @@ function createHolidaysModal(options) {
         }
         if (listOpenBtn) {
             listOpenBtn.addEventListener("click", () => {
-                if (typeof requireAdminAccess === "function") {
-                    requireAdminAccess(() => openHolidaysListModal());
+                if (typeof requireDaysAccess === "function") {
+                    requireDaysAccess(() => openHolidaysListModal());
                 } else {
                     openHolidaysListModal();
                 }

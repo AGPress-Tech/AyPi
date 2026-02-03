@@ -49,6 +49,8 @@ function createApprovalModal(options) {
         onFilterAccess,
         onExport,
         onBackupAccess,
+        onConfigAccess,
+        isAdminRequiredForAction,
         isAdminLoggedIn,
         getLoggedAdmin,
         onAdminLogin,
@@ -61,7 +63,13 @@ function createApprovalModal(options) {
         throw new Error("document richiesto.");
     }
 
-    const ALWAYS_REQUIRE_PASSWORD = new Set(["admin-access", "admin-delete", "admin-login"]);
+    const ALWAYS_REQUIRE_PASSWORD = new Set([
+        "admin-access",
+        "admin-delete",
+        "admin-login",
+        "config-access",
+        "backup-access",
+    ]);
 
     async function handleAction(admin, pendingAction) {
         if (!pendingAction) {
@@ -158,6 +166,13 @@ function createApprovalModal(options) {
             closeApprovalModal();
             if (typeof onBackupAccess === "function") {
                 onBackupAccess(admin);
+            }
+            return;
+        }
+        if (actionType === "config-access") {
+            closeApprovalModal();
+            if (typeof onConfigAccess === "function") {
+                onConfigAccess(admin);
             }
             return;
         }
@@ -294,7 +309,10 @@ function createApprovalModal(options) {
     function openPasswordModal(action) {
         const loggedIn = typeof isAdminLoggedIn === "function" ? isAdminLoggedIn() : false;
         if (action && !ALWAYS_REQUIRE_PASSWORD.has(action.type)) {
-            if (!loggedIn) {
+            const needsAdmin = typeof isAdminRequiredForAction === "function"
+                ? !!isAdminRequiredForAction(action)
+                : true;
+            if (needsAdmin && !loggedIn) {
                 if (typeof requireAdminAccess === "function") {
                     requireAdminAccess(() => openPasswordModal(action));
                     return;
@@ -307,6 +325,10 @@ function createApprovalModal(options) {
                 return;
             }
             setPendingAction(action);
+            if (!needsAdmin && !loggedIn) {
+                handleAction(null, action);
+                return;
+            }
             const admin = typeof getLoggedAdmin === "function" ? getLoggedAdmin() : null;
             handleAction(admin, action);
             return;

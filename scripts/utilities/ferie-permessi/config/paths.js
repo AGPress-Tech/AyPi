@@ -34,6 +34,7 @@ const BALANCES_PATH = path.join(BASE_DIR, "ferie-permessi-balances.json");
 const CLOSURES_PATH = path.join(BASE_DIR, "ferie-permessi-closures.json");
 const ASSIGNEES_PATH = path.join(BASE_DIR, "amministrazione-assignees.json");
 const ADMINS_PATH = path.join(BASE_DIR, "ferie-permessi-admins.json");
+const CONFIG_PATH = path.join(BASE_DIR, "config-calendar.json");
 const OTP_MAIL_SERVER_PATH = path.join(BASE_DIR, "otp-mail.json");
 const OTP_MAIL_LOCAL_PATH = path.join(__dirname, "..", "..", "..", "..", "config", "otp-mail.json");
 
@@ -46,6 +47,7 @@ module.exports = {
     CLOSURES_PATH,
     ASSIGNEES_PATH,
     ADMINS_PATH,
+    CONFIG_PATH,
     OTP_MAIL_SERVER_PATH,
     OTP_MAIL_LOCAL_PATH,
 };

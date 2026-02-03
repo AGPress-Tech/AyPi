@@ -10,7 +10,7 @@ function createClosuresModal(options) {
         renderAll,
         loadData,
         openPasswordModal,
-        requireAdminAccess,
+        requireDaysAccess,
         confirmAction,
     } = options || {};
 
@@ -113,8 +113,8 @@ function createClosuresModal(options) {
                         });
                     }
                 };
-                if (typeof requireAdminAccess === "function") {
-                    requireAdminAccess(() => {
+                if (typeof requireDaysAccess === "function") {
+                    requireDaysAccess(() => {
                         run();
                     });
                     return;
@@ -131,8 +131,8 @@ function createClosuresModal(options) {
                     editingKey = buildKey(entry);
                     renderClosureList(payload, options);
                 };
-                if (typeof requireAdminAccess === "function") {
-                    requireAdminAccess(run);
+                if (typeof requireDaysAccess === "function") {
+                    requireDaysAccess(run);
                     return;
                 }
                 run();
@@ -202,8 +202,8 @@ function createClosuresModal(options) {
                         }
                         editingKey = null;
                     };
-                    if (typeof requireAdminAccess === "function") {
-                        requireAdminAccess(() => {
+                    if (typeof requireDaysAccess === "function") {
+                        requireDaysAccess(() => {
                             run();
                         });
                         return;
@@ -288,8 +288,8 @@ function createClosuresModal(options) {
         }
         if (listOpenBtn) {
             listOpenBtn.addEventListener("click", () => {
-                if (typeof requireAdminAccess === "function") {
-                    requireAdminAccess(() => openClosuresListModal());
+                if (typeof requireDaysAccess === "function") {
+                    requireDaysAccess(() => openClosuresListModal());
                 } else {
                     openClosuresListModal();
                 }

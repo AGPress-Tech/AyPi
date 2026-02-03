@@ -16,6 +16,11 @@ function createRequestForm(options) {
         confirmNegativeBalance,
         getBalanceImpact,
         openPasswordModal,
+        requireAdminAccess,
+        isAdminRequiredForCreate,
+        onDirectMutuaCreate,
+        onDirectRetribuitoCreate,
+        onDirectSpecialeCreate,
         syncData,
         renderAll,
         refreshData,
@@ -116,71 +121,99 @@ function createRequestForm(options) {
                 }
                 return;
             }
-            const typeLabel = escapeHtml(getTypeLabel(request.type));
-            const startLabel = escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start));
-            const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
-            const confirmMessage = request.type === "mutua"
-                ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
-                : request.type === "retribuito"
-                    ? UI_TEXTS.retribuitoConfirm(startLabel, endLabel)
-                    : request.type === "speciale"
-                        ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
-                        : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
-            const confirmed = await openConfirmModal(confirmMessage);
-            if (!confirmed) {
-                return;
-            }
-            if (request.type === "mutua") {
-                if (typeof openPasswordModal === "function") {
-                    openPasswordModal({
-                        type: "mutua-create",
-                        id: request.id,
-                        title: "Conferma mutua",
-                        description: UI_TEXTS.mutuaPasswordDescription,
-                        request,
-                    });
-                }
-                return;
-            }
-            if (request.type === "retribuito") {
-                if (typeof openPasswordModal === "function") {
-                    openPasswordModal({
-                        type: "retribuito-create",
-                        id: request.id,
-                        title: "Conferma permesso retribuito",
-                        description: UI_TEXTS.retribuitoPasswordDescription,
-                        request,
-                    });
-                }
-                return;
-            }
-            if (request.type === "speciale") {
-                if (typeof openPasswordModal === "function") {
-                    openPasswordModal({
-                        type: "speciale-create",
-                        id: request.id,
-                        title: "Conferma permesso chiusura aziendale",
-                        description: UI_TEXTS.specialePasswordDescription,
-                        request,
-                    });
-                }
-                return;
-            }
-            if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
-                const impact = getBalanceImpact(request);
-                const ok = await confirmNegativeBalance(impact);
-                if (!ok) {
+            const run = async () => {
+                const typeLabel = escapeHtml(getTypeLabel(request.type));
+                const startLabel = escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start));
+                const endLabel = escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end));
+                const confirmMessage = request.type === "mutua"
+                    ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
+                    : request.type === "retribuito"
+                        ? UI_TEXTS.retribuitoConfirm(startLabel, endLabel)
+                        : request.type === "speciale"
+                            ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
+                            : UI_TEXTS.requestConfirm(typeLabel, startLabel, endLabel);
+                const confirmed = await openConfirmModal(confirmMessage);
+                if (!confirmed) {
                     return;
                 }
+                const adminRequired = typeof isAdminRequiredForCreate === "function"
+                    ? !!isAdminRequiredForCreate(request.type)
+                    : false;
+                if (request.type === "mutua") {
+                    if (adminRequired && typeof openPasswordModal === "function") {
+                        openPasswordModal({
+                            type: "mutua-create",
+                            id: request.id,
+                            title: "Conferma mutua",
+                            description: UI_TEXTS.mutuaPasswordDescription,
+                            request,
+                        });
+                        return;
+                    }
+                    if (typeof onDirectMutuaCreate === "function") {
+                        onDirectMutuaCreate(request);
+                    }
+                    return;
+                }
+                if (request.type === "retribuito") {
+                    if (adminRequired && typeof openPasswordModal === "function") {
+                        openPasswordModal({
+                            type: "retribuito-create",
+                            id: request.id,
+                            title: "Conferma permesso retribuito",
+                            description: UI_TEXTS.retribuitoPasswordDescription,
+                            request,
+                        });
+                        return;
+                    }
+                    if (typeof onDirectRetribuitoCreate === "function") {
+                        onDirectRetribuitoCreate(request);
+                    }
+                    return;
+                }
+                if (request.type === "speciale") {
+                    if (adminRequired && typeof openPasswordModal === "function") {
+                        openPasswordModal({
+                            type: "speciale-create",
+                            id: request.id,
+                            title: "Conferma permesso chiusura aziendale",
+                            description: UI_TEXTS.specialePasswordDescription,
+                            request,
+                        });
+                        return;
+                    }
+                    if (typeof onDirectSpecialeCreate === "function") {
+                        onDirectSpecialeCreate(request);
+                    }
+                    return;
+                }
+                if (typeof getBalanceImpact === "function" && typeof confirmNegativeBalance === "function") {
+                    const impact = getBalanceImpact(request);
+                    const ok = await confirmNegativeBalance(impact);
+                    if (!ok) {
+                        return;
+                    }
+                }
+                const updated = syncData((payload) => {
+                    payload.requests = payload.requests || [];
+                    payload.requests.push(request);
+                    return payload;
+                });
+                setMessage(message, UI_TEXTS.requestSent, false);
+                resetNewRequestForm();
+                renderAll(updated);
+            };
+
+            const adminRequired = typeof isAdminRequiredForCreate === "function"
+                ? !!isAdminRequiredForCreate(request.type)
+                : false;
+            if (adminRequired && typeof requireAdminAccess === "function") {
+                requireAdminAccess(() => {
+                    run();
+                });
+                return;
             }
-            const updated = syncData((payload) => {
-                payload.requests = payload.requests || [];
-                payload.requests.push(request);
-                return payload;
-            });
-            setMessage(message, UI_TEXTS.requestSent, false);
-            resetNewRequestForm();
-            renderAll(updated);
+            run();
         };
         if (form) {
             form.addEventListener("submit", (event) => {

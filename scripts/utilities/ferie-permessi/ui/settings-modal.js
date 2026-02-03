@@ -18,6 +18,7 @@ function createSettingsModal(options) {
         DEFAULT_TYPE_COLORS,
         getTypeColors,
         setTypeColors,
+        openPasswordModal,
     } = options || {};
 
     if (!document) {
@@ -74,6 +75,7 @@ function createSettingsModal(options) {
         const themeModal = document.getElementById("fp-settings-theme-modal");
         const themeMessage = document.getElementById("fp-settings-theme-message");
         const themeInputs = document.querySelectorAll("input[name='fp-theme']");
+        const configOpen = document.getElementById("fp-settings-config-open");
 
         if (settingsBtn) {
             settingsBtn.addEventListener("click", () => {
@@ -139,6 +141,18 @@ function createSettingsModal(options) {
             });
         });
 
+        if (configOpen) {
+            configOpen.addEventListener("click", () => {
+                if (typeof openPasswordModal === "function") {
+                    openPasswordModal({
+                        type: "config-access",
+                        id: "config-access",
+                        title: "Configurazione",
+                        description: "Inserisci la password per accedere alla configurazione.",
+                    });
+                }
+            });
+        }
     }
 
     return { openSettingsModal, closeSettingsModal, initSettingsModal };

@@ -531,6 +531,117 @@ body.fp-initial-setup #fp-admin-add-modal {
     gap: 10px;
 }
 
+
+.fp-config-card {
+    max-width: 720px;
+    width: min(92vw, 720px);
+}
+
+.fp-config-hint {
+    font-size: 12px;
+    color: #5f6368;
+    margin: 6px 0 12px;
+}
+
+.fp-config-section {
+    margin-bottom: 14px;
+}
+
+.fp-config-section h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #202124;
+}
+
+.fp-config-body {
+    max-height: 52vh;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.fp-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px 14px;
+}
+
+.fp-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #202124;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fp-switch input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fp-switch__track {
+    position: relative;
+    width: 38px;
+    height: 20px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.26);
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.fp-switch__track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s ease;
+}
+
+.fp-switch input:checked + .fp-switch__track {
+    background: rgba(26, 115, 232, 0.5);
+}
+
+.fp-switch input:checked + .fp-switch__track::after {
+    transform: translateX(18px);
+    background: #1a73e8;
+}
+
+.fp-switch input:focus-visible + .fp-switch__track {
+    outline: 2px solid rgba(26, 115, 232, 0.35);
+    outline-offset: 2px;
+}
+
+body.fp-dark .fp-switch {
+    color: #f1f3f4;
+}
+
+body.fp-dark .fp-switch__track {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+body.fp-dark .fp-switch input:checked + .fp-switch__track {
+    background: rgba(138, 180, 248, 0.55);
+}
+
+body.fp-dark .fp-switch input:checked + .fp-switch__track::after {
+    background: #8ab4f8;
+}
+
+body.fp-aypi .fp-switch input:checked + .fp-switch__track {
+    background: rgba(39, 107, 86, 0.5);
+}
+
+body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
+    background: #276b56;
+}
+
 .fp-btn {
     border: 1px solid #dadce0;
     background: #ffffff;

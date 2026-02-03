@@ -24,6 +24,8 @@ function createEditModal(options) {
         setEditingAdminName,
         applyBalanceForUpdate,
         applyBalanceForDeletion,
+        requireEditAccess,
+        requireDeleteAccess,
     } = options || {};
 
     if (!document) {
@@ -105,22 +107,29 @@ function createEditModal(options) {
 
         if (editDelete) {
             editDelete.addEventListener("click", async () => {
-                const editingRequestId = getEditingRequestId();
-                if (!editingRequestId) return;
-                if (typeof openConfirmModal === "function") {
-                    const ok = await openConfirmModal("Confermi l'eliminazione della richiesta?");
-                    if (!ok) return;
-                }
-                const updated = syncData((payload) => {
-                    const target = (payload.requests || []).find((req) => req.id === editingRequestId);
-                    if (target && typeof applyBalanceForDeletion === "function") {
-                        applyBalanceForDeletion(payload, target);
+                const run = async () => {
+                    const editingRequestId = getEditingRequestId();
+                    if (!editingRequestId) return;
+                    if (typeof openConfirmModal === "function") {
+                        const ok = await openConfirmModal("Confermi l'eliminazione della richiesta?");
+                        if (!ok) return;
                     }
-                    payload.requests = (payload.requests || []).filter((req) => req.id !== editingRequestId);
-                    return payload;
-                });
-                closeEditModal();
-                renderAll(updated);
+                    const updated = syncData((payload) => {
+                        const target = (payload.requests || []).find((req) => req.id === editingRequestId);
+                        if (target && typeof applyBalanceForDeletion === "function") {
+                            applyBalanceForDeletion(payload, target);
+                        }
+                        payload.requests = (payload.requests || []).filter((req) => req.id !== editingRequestId);
+                        return payload;
+                    });
+                    closeEditModal();
+                    renderAll(updated);
+                };
+                if (typeof requireDeleteAccess === "function") {
+                    requireDeleteAccess(run);
+                    return;
+                }
+                run();
             });
         }
 
@@ -133,58 +142,65 @@ function createEditModal(options) {
         if (editForm) {
             editForm.addEventListener("submit", async (event) => {
                 event.preventDefault();
-                const editingRequestId = getEditingRequestId();
-                if (!editingRequestId) return;
-                setMessage(editMessage, "");
-                const { request, error } = buildRequestFromForm("fp-edit", editingRequestId, true);
-                if (error) {
-                    setMessage(editMessage, error, true);
-                    if (error.includes("data fine")) {
-                        setInlineError("fp-edit-end-date-error", error);
-                    } else {
-                        setInlineError("fp-edit-end-date-error", "");
-                    }
-                    return;
-                }
-                if (typeof openConfirmModal === "function") {
-                    const typeLabel = escapeHtml && getTypeLabel ? escapeHtml(getTypeLabel(request.type)) : "richiesta";
-                    const startLabel = escapeHtml && formatDate && formatDateTime
-                        ? escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start))
-                        : "";
-                    const endLabel = escapeHtml && formatDate && formatDateTime
-                        ? escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end))
-                        : "";
-                    const rangeLabel = startLabel ? ` (${startLabel}${endLabel && endLabel !== startLabel ? ` - ${endLabel}` : ""})` : "";
-                    const ok = await openConfirmModal(`Confermi la modifica della <strong>${typeLabel}</strong>${rangeLabel}?`);
-                    if (!ok) {
+                const run = async () => {
+                    const editingRequestId = getEditingRequestId();
+                    if (!editingRequestId) return;
+                    setMessage(editMessage, "");
+                    const { request, error } = buildRequestFromForm("fp-edit", editingRequestId, true);
+                    if (error) {
+                        setMessage(editMessage, error, true);
+                        if (error.includes("data fine")) {
+                            setInlineError("fp-edit-end-date-error", error);
+                        } else {
+                            setInlineError("fp-edit-end-date-error", "");
+                        }
                         return;
                     }
-                }
-                const editingAdminName = getEditingAdminName();
-                const updated = syncData((payload) => {
-                    payload.requests = payload.requests || [];
-                    const idx = payload.requests.findIndex((req) => req.id === editingRequestId);
-                    if (idx >= 0) {
-                        const existing = payload.requests[idx];
-                        const nextRequest = {
-                            ...existing,
-                            ...request,
-                            status: "approved",
-                            approvedAt: existing.approvedAt || new Date().toISOString(),
-                            createdAt: existing.createdAt || new Date().toISOString(),
-                            modifiedAt: new Date().toISOString(),
-                            modifiedBy: editingAdminName || existing.modifiedBy || "",
-                        };
-                        if (typeof applyBalanceForUpdate === "function") {
-                            applyBalanceForUpdate(payload, existing, nextRequest);
+                    if (typeof openConfirmModal === "function") {
+                        const typeLabel = escapeHtml && getTypeLabel ? escapeHtml(getTypeLabel(request.type)) : "richiesta";
+                        const startLabel = escapeHtml && formatDate && formatDateTime
+                            ? escapeHtml(request.allDay ? formatDate(request.start) : formatDateTime(request.start))
+                            : "";
+                        const endLabel = escapeHtml && formatDate && formatDateTime
+                            ? escapeHtml(request.allDay ? formatDate(request.end || request.start) : formatDateTime(request.end))
+                            : "";
+                        const rangeLabel = startLabel ? ` (${startLabel}${endLabel && endLabel !== startLabel ? ` - ${endLabel}` : ""})` : "";
+                        const ok = await openConfirmModal(`Confermi la modifica della <strong>${typeLabel}</strong>${rangeLabel}?`);
+                        if (!ok) {
+                            return;
                         }
-                        payload.requests[idx] = nextRequest;
                     }
-                    return payload;
-                });
-                setMessage(editMessage, UI_TEXTS.requestUpdated, false);
-                closeEditModal();
-                renderAll(updated);
+                    const editingAdminName = getEditingAdminName();
+                    const updated = syncData((payload) => {
+                        payload.requests = payload.requests || [];
+                        const idx = payload.requests.findIndex((req) => req.id === editingRequestId);
+                        if (idx >= 0) {
+                            const existing = payload.requests[idx];
+                            const nextRequest = {
+                                ...existing,
+                                ...request,
+                                status: "approved",
+                                approvedAt: existing.approvedAt || new Date().toISOString(),
+                                createdAt: existing.createdAt || new Date().toISOString(),
+                                modifiedAt: new Date().toISOString(),
+                                modifiedBy: editingAdminName || existing.modifiedBy || "",
+                            };
+                            if (typeof applyBalanceForUpdate === "function") {
+                                applyBalanceForUpdate(payload, existing, nextRequest);
+                            }
+                            payload.requests[idx] = nextRequest;
+                        }
+                        return payload;
+                    });
+                    setMessage(editMessage, UI_TEXTS.requestUpdated, false);
+                    closeEditModal();
+                    renderAll(updated);
+                };
+                if (typeof requireEditAccess === "function") {
+                    requireEditAccess(run);
+                    return;
+                }
+                run();
             });
         }
     }
