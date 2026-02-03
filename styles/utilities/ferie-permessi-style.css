@@ -1125,6 +1125,7 @@ body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
     border-color: #e0e3e7;
 }
 
+
 #fp-calendar .fc .fc-day-today {
     background: #e6f4ea !important;
 }
@@ -1844,14 +1845,22 @@ body.fp-dark #fp-calendar .fc .fc-list-empty {
     color: #e8eaed;
 }
 
+
 body.fp-dark #fp-calendar .fc .fc-day-today,
 body.fp-dark #fp-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame,
 body.fp-dark #fp-calendar .fc .fc-timegrid-col.fc-day-today {
-    background: #20322a !important;
+    background: #214b73 !important;
 }
 
 body.fp-dark #fp-calendar .fc .fc-non-business {
-    background: rgba(255, 255, 255, 0.04) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+body.fp-dark #fp-calendar .fc .fc-daygrid-day.fc-day-sat,
+body.fp-dark #fp-calendar .fc .fc-daygrid-day.fc-day-sun,
+body.fp-dark #fp-calendar .fc .fc-timegrid-col.fc-day-sat,
+body.fp-dark #fp-calendar .fc .fc-timegrid-col.fc-day-sun {
+    background: #323843;
 }
 
 #fp-calendar .fc .fc-non-business {
@@ -2165,6 +2174,7 @@ body.fp-aypi #fp-calendar .fc .fc-list-event-time,
 body.fp-aypi #fp-calendar .fc .fc-list-empty {
     color: #f3e6d5;
 }
+
 
 @media (max-width: 980px) {
     .fp-body {

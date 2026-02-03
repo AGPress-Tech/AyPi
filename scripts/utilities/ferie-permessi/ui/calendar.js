@@ -167,6 +167,10 @@ function initCalendar(options) {
         initialView: "dayGridMonth",
         locale: "it",
         height: "100%",
+        expandRows: true,
+        fixedWeekCount: true,
+        dayMaxEvents: true,
+        dayMaxEventRows: 3,
         headerToolbar: {
             left: "prev,next today",
             center: "title",
