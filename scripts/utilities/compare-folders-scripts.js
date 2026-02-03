@@ -2,6 +2,15 @@ const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+let pickFolder;
+let withButtonLock;
+try {
+    ({ pickFolder, withButtonLock } = require("./shared/folder-picker"));
+} catch (err) {
+    console.error("Errore caricamento folder-picker:", err);
+    pickFolder = () => ipcRenderer.invoke("select-root-folder");
+    withButtonLock = async (_btn, fn) => fn();
+}
 
 const showInfo = (message, detail = "") =>
     ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
@@ -22,7 +31,8 @@ async function handleSelectFolderA() {
     if (selectInProgress) return;
     selectInProgress = true;
     try {
-        const f = await selectRootFolderSafe();
+        const btn = document.getElementById("btnSelectFolderA");
+        const f = await withButtonLock(btn, () => pickFolder({ cooldownMs: 400 }));
         if (!f) {
             return;
         }
@@ -41,7 +51,8 @@ async function handleSelectFolderB() {
     if (selectInProgress) return;
     selectInProgress = true;
     try {
-        const f = await selectRootFolderSafe();
+        const btn = document.getElementById("btnSelectFolderB");
+        const f = await withButtonLock(btn, () => pickFolder({ cooldownMs: 400 }));
         if (!f) {
             return;
         }
@@ -57,10 +68,7 @@ async function handleSelectFolderB() {
 }
 
 async function selectRootFolderSafe() {
-    if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-        throw new Error("IPC non disponibile per la selezione cartella.");
-    }
-    return ipcRenderer.invoke("select-root-folder");
+    return pickFolder({ cooldownMs: 400 });
 }
 
 window.addEventListener("error", (event) => {

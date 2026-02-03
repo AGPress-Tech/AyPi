@@ -28,12 +28,18 @@ const { buildPreviewWithCopyMove, renderPreviewTable } = bootRequire(path.join(b
 const { getTransformsConfigFromUI } = bootRequire(path.join(batchBaseDir, "transforms"));
 const { buildPresetFromUI, applyPresetToUI, loadPresetsIntoUI } = bootRequire(path.join(batchBaseDir, "presets"));
 const { handleApply, handleOpenFolder, handleUndoLast } = bootRequire(path.join(batchBaseDir, "operations"));
+let pickFolder;
+let withButtonLock;
+try {
+    ({ pickFolder, withButtonLock } = bootRequire(path.join(scriptsDir, "utilities", "shared", "folder-picker")));
+} catch (err) {
+    console.error("Errore caricamento folder-picker:", err);
+    pickFolder = () => ipcRenderer.invoke("select-root-folder");
+    withButtonLock = async (_btn, fn) => fn();
+}
 
 async function selectRootFolderSafe() {
-    if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-        throw new Error("IPC non disponibile per la selezione cartella.");
-    }
-    return ipcRenderer.invoke("select-root-folder");
+    return pickFolder({ cooldownMs: 400 });
 }
 
 window.addEventListener("error", (event) => {
@@ -197,7 +203,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     btnSelectFolder.addEventListener("click", async () => {
         try {
-            const folder = await selectRootFolderSafe();
+            const folder = await withButtonLock(btnSelectFolder, () => selectRootFolderSafe());
             if (!folder) return;
             state.rootFolder = folder;
             updateSelectedFolderLabel();

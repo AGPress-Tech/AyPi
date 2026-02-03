@@ -497,6 +497,8 @@ let feriePermessiWindow = null;
 let feriePermessiHoursWindow = null;
 let feriePermessiSplashShown = false;
 let isAppQuitting = false;
+let lastFolderDialogPath = null;
+let lastFolderDialogClosedAt = 0;
 
 function openBatchRenameWindow(mainWindow) {
     if (isWindowAlive(batchRenameWindow)) {
@@ -822,26 +824,80 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("select-root-folder", async (event) => {
+        const t0 = Date.now();
         const senderWin = BrowserWindow.fromWebContents(event.sender);
         const mainWin = isWindowAlive(mainWindow) ? mainWindow : null;
         const win = isWindowAlive(senderWin) ? senderWin : mainWin;
-        if (win) {
-            win.show();
-            win.focus();
+
+        const now = Date.now();
+        if (now - lastFolderDialogClosedAt < 300) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+
+        const getSafeLocalPath = () => {
+            if (process.platform === "win32") {
+                return "C:\\";
+            }
+            try {
+                return app.getPath("home");
+            } catch {
+                return undefined;
+            }
+        };
+
+        if (!lastFolderDialogPath) {
+            lastFolderDialogPath = getSafeLocalPath();
         }
 
         const dialogOptions = {
             title: "Seleziona la cartella",
-            properties: ["openDirectory"],
+            defaultPath: (app.isPackaged ? getSafeLocalPath() : lastFolderDialogPath) || undefined,
+            properties: ["openDirectory", "dontAddToRecent"],
         };
-        const result = win
-            ? await dialog.showOpenDialog(win, dialogOptions)
-            : await dialog.showOpenDialog(dialogOptions);
+
+        // In build (packaged) evita parent modal: su alcuni PC crea un blocco lungo dopo annulla.
+        if (app.isPackaged) {
+            try {
+                app.clearRecentDocuments();
+            } catch (err) {
+                log.warn("[select-root-folder] clearRecentDocuments failed:", err);
+            }
+        }
+        log.info("[select-root-folder] open dialog", {
+            packaged: app.isPackaged,
+            hasParent: !!win,
+            defaultPath: dialogOptions.defaultPath,
+        });
+        const result = app.isPackaged
+            ? await dialog.showOpenDialog(dialogOptions)
+            : (win ? await dialog.showOpenDialog(win, dialogOptions) : await dialog.showOpenDialog(dialogOptions));
+
+        lastFolderDialogClosedAt = Date.now();
+        log.info("[select-root-folder] dialog closed", {
+            canceled: !!result.canceled,
+            hasPath: !!(result.filePaths && result.filePaths[0]),
+            ms: Date.now() - t0,
+        });
 
         if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+            lastFolderDialogPath = getSafeLocalPath();
             return null;
         }
-        return result.filePaths[0];
+        const chosen = result.filePaths[0];
+        if (chosen && !chosen.startsWith("\\\\")) {
+            lastFolderDialogPath = chosen;
+        } else {
+            lastFolderDialogPath = getSafeLocalPath();
+        }
+        return chosen;
+    });
+
+    ipcMain.on("folder-picker-log", (_event, payload) => {
+        try {
+            log.info("[folder-picker]", payload || {});
+        } catch (err) {
+            log.warn("[folder-picker] log failed", err);
+        }
     });
 
     ipcMain.handle("select-output-file", async (event, options) => {

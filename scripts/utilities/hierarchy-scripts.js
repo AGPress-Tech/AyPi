@@ -1,6 +1,15 @@
 const { ipcRenderer } = require("electron");
 const path = require("path");
 const fs = require("fs");
+let pickFolder;
+let withButtonLock;
+try {
+    ({ pickFolder, withButtonLock } = require("./shared/folder-picker"));
+} catch (err) {
+    console.error("Errore caricamento folder-picker:", err);
+    pickFolder = () => ipcRenderer.invoke("select-root-folder");
+    withButtonLock = async (_btn, fn) => fn();
+}
 
 const showInfo = (message, detail = "") =>
     ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
@@ -62,7 +71,8 @@ async function handleSelectFolderHierarchy() {
     if (selectHierarchyInProgress) return;
     selectHierarchyInProgress = true;
     try {
-        const folder = await selectRootFolderSafe();
+        const btn = document.getElementById("btnSelectFolder");
+        const folder = await withButtonLock(btn, () => selectRootFolderSafe());
 
         if (!folder) {
             console.log("Nessuna cartella selezionata.");
@@ -91,10 +101,7 @@ async function handleSelectFolderHierarchy() {
 }
 
 async function selectRootFolderSafe() {
-    if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-        throw new Error("IPC non disponibile per la selezione cartella.");
-    }
-    return ipcRenderer.invoke("select-root-folder");
+    return pickFolder({ cooldownMs: 400 });
 }
 
 const FUN_MESSAGES = [
