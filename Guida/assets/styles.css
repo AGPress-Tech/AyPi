@@ -104,8 +104,20 @@ kbd{
 }
 .logo{
   width:34px; height:34px; border-radius:10px;
-  background: conic-gradient(from 180deg, var(--accent), var(--accent2), var(--accent));
-  box-shadow: var(--shadow);
+  background-color: var(--accent);
+  background-image: url("../../assets/AYPI logo square.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.08), var(--shadow);
+}
+
+body.theme-dark .logo{
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), var(--shadow);
+}
+
+body.theme-aypi .logo{
+  box-shadow: inset 0 0 0 1px rgba(255,240,210,.14), var(--shadow);
 }
 .brand h1{
   margin:0; font-size:15px; letter-spacing:.2px;
