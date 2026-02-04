@@ -67,13 +67,20 @@ async function installAddinFunction() {
 }
 
 function fadeInBodyOnLoad() {
-    document.body.style.opacity = 0;
-    document.body.style.transition = "opacity 0.3s ease";
-    window.addEventListener("DOMContentLoaded", () => {
+    const applyFadeIn = () => {
+        if (!document.body) return;
+        document.body.style.opacity = 0;
+        document.body.style.transition = "opacity 0.3s ease";
         requestAnimationFrame(() => {
             document.body.style.opacity = 1;
         });
-    });
+    };
+
+    if (document.readyState === "loading") {
+        window.addEventListener("DOMContentLoaded", applyFadeIn, { once: true });
+    } else {
+        applyFadeIn();
+    }
 }
 
 function wireGithubIcon() {

@@ -24,7 +24,18 @@ h4 {
     margin-bottom: 20px;
     color: #cc930e;
     font-size: 32px;
+    position: relative;
 }
+
+h4::after {
+    content: "";
+    display: block;
+    width: 140px;
+    height: 2px;
+    margin: 12px auto 0;
+    background: linear-gradient(90deg, transparent, #cc930e, transparent);
+}
+
 
 button {
     padding: 12px;
