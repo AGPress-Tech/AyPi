@@ -13,6 +13,7 @@ let pendingTrayPopup = false;
 let triggerAdminHotkey = null;
 
 const APP_NAME = "AyPi";
+const APP_ID = "com.Agpress.AyPi";
 const SCROLLBAR_CSS = `
     * {
         scrollbar-width: thin;
@@ -45,6 +46,14 @@ if (!gotLock) {
 
 app.setPath("userData", path.join(app.getPath("appData"), "AyPiUserData"));
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+if (process.platform === "win32") {
+    try {
+        app.setAppUserModelId(APP_ID);
+        app.setJumpList([]);
+    } catch {
+        // ignore: only relevant for Windows shell integration
+    }
+}
 
 function getTrayIconPath() {
     const icoPath = path.join(__dirname, "assets", "app-icon.ico");

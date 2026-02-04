@@ -5,6 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "build:dir": "electron-builder --dir",
+    "start:packaged": "npm run build:dir && dist\\win-unpacked\\AyPi.exe --remote-debugging-port=9222",
     "build": "electron-builder",
     "release": "electron-builder --publish always",
     "postversion": "electron-builder --publish always",

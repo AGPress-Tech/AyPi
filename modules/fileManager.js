@@ -1018,6 +1018,13 @@ function setupFileManager(mainWindow) {
 
         const getSafeLocalPath = () => {
             if (process.platform === "win32") {
+                if (!app.isPackaged) {
+                    try {
+                        return app.getPath("home");
+                    } catch {
+                        return "C:\\";
+                    }
+                }
                 return "C:\\";
             }
             try {
@@ -1038,7 +1045,10 @@ function setupFileManager(mainWindow) {
         };
 
         // In build (packaged) evita parent modal: su alcuni PC crea un blocco lungo dopo annulla.
-        if (app.isPackaged) {
+        const isWindows = process.platform === "win32";
+        const useParentWindow = !isWindows && !app.isPackaged;
+
+        if (isWindows) {
             try {
                 app.clearRecentDocuments();
             } catch (err) {
@@ -1047,12 +1057,12 @@ function setupFileManager(mainWindow) {
         }
         log.info("[select-root-folder] open dialog", {
             packaged: app.isPackaged,
-            hasParent: !!win,
+            hasParent: !!(win && useParentWindow),
             defaultPath: dialogOptions.defaultPath,
         });
-        const result = app.isPackaged
-            ? await dialog.showOpenDialog(dialogOptions)
-            : (win ? await dialog.showOpenDialog(win, dialogOptions) : await dialog.showOpenDialog(dialogOptions));
+        const result = useParentWindow && win
+            ? await dialog.showOpenDialog(win, dialogOptions)
+            : await dialog.showOpenDialog(dialogOptions);
 
         lastFolderDialogClosedAt = Date.now();
         log.info("[select-root-folder] dialog closed", {
@@ -1062,7 +1072,9 @@ function setupFileManager(mainWindow) {
         });
 
         if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-            lastFolderDialogPath = getSafeLocalPath();
+            if (!lastFolderDialogPath) {
+                lastFolderDialogPath = getSafeLocalPath();
+            }
             return null;
         }
         const chosen = result.filePaths[0];
