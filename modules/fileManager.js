@@ -6,6 +6,7 @@ const { exec } = require("child_process");
 const fs = require("fs");
 const log = require("electron-log");
 const { NETWORK_PATHS } = require("../config/paths");
+const { ADDRESS_DEFAULTS } = require("../config/addresses");
 
 const WINDOW_WEB_PREFERENCES = {
     nodeIntegration: true,
@@ -14,6 +15,172 @@ const WINDOW_WEB_PREFERENCES = {
 
 const APP_ICON_PATH = path.join(__dirname, "..", "assets", "app-icon.png");
 const FP_BASE_CONFIG = path.join(app.getPath("userData"), "ferie-permessi-base.json");
+const ADDRESS_BOOK_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\addresses";
+const ADDRESS_BOOK_PATH = path.join(ADDRESS_BOOK_DIR, "aypi-addresses.json");
+
+let addressBookCache = null;
+let adminEnabled = false;
+
+function ensureAddressBookDir() {
+    try {
+        if (!fs.existsSync(ADDRESS_BOOK_DIR)) {
+            fs.mkdirSync(ADDRESS_BOOK_DIR, { recursive: true });
+        }
+    } catch (err) {
+        log.warn("[addresses] impossibile creare cartella:", ADDRESS_BOOK_DIR, err);
+    }
+}
+
+function buildDefaultAddressBook() {
+    return {
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        items: JSON.parse(JSON.stringify(ADDRESS_DEFAULTS)),
+    };
+}
+
+function loadAddressBook() {
+    if (addressBookCache) return addressBookCache;
+
+    const defaults = buildDefaultAddressBook();
+    ensureAddressBookDir();
+
+    if (!fs.existsSync(ADDRESS_BOOK_PATH)) {
+        addressBookCache = defaults;
+        try {
+            fs.writeFileSync(ADDRESS_BOOK_PATH, JSON.stringify(addressBookCache, null, 2), "utf8");
+        } catch (err) {
+            log.warn("[addresses] impossibile salvare file iniziale:", err);
+        }
+        return addressBookCache;
+    }
+
+    try {
+        const raw = fs.readFileSync(ADDRESS_BOOK_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        const items = parsed && typeof parsed === "object" ? parsed.items || {} : {};
+        const merged = buildDefaultAddressBook();
+
+        Object.keys(items || {}).forEach((key) => {
+            const entry = items[key];
+            if (!entry || typeof entry !== "object") return;
+            if (typeof entry.path === "string" && entry.path.trim()) {
+                merged.items[key] = {
+                    path: entry.path.trim(),
+                    kind: entry.kind || merged.items[key]?.kind || "file",
+                    id: entry.id || merged.items[key]?.id,
+                };
+            }
+        });
+
+        addressBookCache = {
+            version: parsed && parsed.version ? parsed.version : 1,
+            updatedAt: parsed && parsed.updatedAt ? parsed.updatedAt : merged.updatedAt,
+            items: merged.items,
+        };
+    } catch (err) {
+        log.warn("[addresses] errore lettura, uso default:", err);
+        addressBookCache = defaults;
+    }
+
+    try {
+        fs.writeFileSync(ADDRESS_BOOK_PATH, JSON.stringify(addressBookCache, null, 2), "utf8");
+    } catch (err) {
+        log.warn("[addresses] impossibile salvare file dopo merge:", err);
+    }
+
+    return addressBookCache;
+}
+
+function saveAddressBook(book) {
+    addressBookCache = book;
+    ensureAddressBookDir();
+    try {
+        fs.writeFileSync(ADDRESS_BOOK_PATH, JSON.stringify(book, null, 2), "utf8");
+        return true;
+    } catch (err) {
+        log.warn("[addresses] errore salvataggio:", err);
+        return false;
+    }
+}
+
+function getAddressEntry(key) {
+    const book = loadAddressBook();
+    if (!book || !book.items) return null;
+    return book.items[key] || null;
+}
+
+function updateAddressEntry(key, nextPath) {
+    if (!key || typeof nextPath !== "string" || !nextPath.trim()) return null;
+    const book = loadAddressBook();
+    const entry = book.items[key] || { path: "", kind: "file" };
+    const updated = {
+        path: nextPath.trim(),
+        kind: entry.kind || "file",
+        id: entry.id,
+    };
+    book.items[key] = updated;
+    book.updatedAt = new Date().toISOString();
+    saveAddressBook(book);
+    return updated;
+}
+
+function openFilePath(mainWindow, filePath) {
+    const testFile = NETWORK_PATHS.dl360ServerCheck;
+
+    fs.access(testFile, fs.constants.F_OK, (err) => {
+        if (err) {
+            log.warn("Server non raggiungibile:", err.message);
+            dialog.showMessageBox(mainWindow, {
+                type: "warning",
+                buttons: ["Ok"],
+                title: "Server Non Raggiungibile",
+                message: "Il server DL360 non \u00e8 disponibile. Verificare la connessione.",
+            });
+            return;
+        }
+
+        fs.stat(filePath, (statErr, stats) => {
+            if (statErr) {
+                dialog.showMessageBox(mainWindow, {
+                    type: "warning",
+                    buttons: ["Ok"],
+                    title: "Percorso Non Trovato",
+                    message: "Il file o la cartella non \u00e8 disponibile. Controllare e riprovare.",
+                });
+                return;
+            }
+
+            if (stats.isDirectory()) {
+                shell.openPath(filePath);
+            } else {
+                exec(`start "" "${filePath}"`, (error) => {
+                    if (error) {
+                        if (error.message.includes("utilizzato da un altro processo")) {
+                            dialog.showMessageBox(mainWindow, {
+                                type: "warning",
+                                buttons: ["Apri in sola lettura", "Annulla"],
+                                title: "File in Uso",
+                                message: "Vuoi aprirlo in sola lettura?",
+                            }).then(result => {
+                                if (result.response === 0) {
+                                    shell.openPath(filePath);
+                                }
+                            });
+                        } else {
+                            dialog.showMessageBox(mainWindow, {
+                                type: "error",
+                                buttons: ["Ok"],
+                                title: "Errore",
+                                message: "Errore nell'apertura del file.",
+                            });
+                        }
+                    }
+                });
+            }
+        });
+    });
+}
 
 function getDefaultFpBaseDir() {
     try {
@@ -758,6 +925,7 @@ function setupFileManager(mainWindow) {
     app.on("before-quit", () => {
         isAppQuitting = true;
     });
+    loadAddressBook();
     ipcMain.on("resize-calcolatore", () => {
         animateResize(mainWindow, 750, 750, 100);
     });
@@ -767,60 +935,79 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.on("open-file", (event, filePath) => {
-        const testFile = NETWORK_PATHS.dl360ServerCheck;
+        if (!filePath) return;
+        openFilePath(mainWindow, filePath);
+    });
 
-        fs.access(testFile, fs.constants.F_OK, (err) => {
-            if (err) {
-                log.warn("Server non raggiungibile:", err.message);
-                dialog.showMessageBox(mainWindow, {
-                    type: 'warning',
-                    buttons: ['Ok'],
-                    title: "Server Non Raggiungibile",
-                    message: "Il server DL360 non è disponibile. Verificare la connessione."
-                });
-                return;
-            }
-
-            fs.stat(filePath, (err, stats) => {
-                if (err) {
-                    dialog.showMessageBox(mainWindow, {
-                        type: 'warning',
-                        buttons: ['Ok'],
-                        title: "Percorso Non Trovato",
-                        message: "Il file o la cartella non è disponibile. Controllare e riprovare."
-                    });
-                    return;
-                }
-
-                if (stats.isDirectory()) {
-                    shell.openPath(filePath);
-                } else {
-                    exec(`start "" "${filePath}"`, (error) => {
-                        if (error) {
-                            if (error.message.includes("utilizzato da un altro processo")) {
-                                dialog.showMessageBox(mainWindow, {
-                                    type: 'warning',
-                                    buttons: ['Apri in sola lettura', 'Annulla'],
-                                    title: "File in Uso",
-                                    message: "Vuoi aprirlo in sola lettura?"
-                                }).then(result => {
-                                    if (result.response === 0) {
-                                        shell.openPath(filePath);
-                                    }
-                                });
-                            } else {
-                                dialog.showMessageBox(mainWindow, {
-                                    type: 'error',
-                                    buttons: ['Ok'],
-                                    title: "Errore",
-                                    message: "Errore nell'apertura del file."
-                                });
-                            }
-                        }
-                    });
-                }
+    ipcMain.on("open-address", (event, payload) => {
+        const key = payload && payload.key ? String(payload.key) : "";
+        if (!key) return;
+        const entry = getAddressEntry(key);
+        if (!entry || !entry.path) {
+            dialog.showMessageBox(mainWindow, {
+                type: "warning",
+                buttons: ["Ok"],
+                title: "Percorso Non Trovato",
+                message: "Il percorso configurato non \u00e8 disponibile.",
             });
+            return;
+        }
+        openFilePath(mainWindow, entry.path);
+    });
+
+    ipcMain.handle("addresses-get", async () => {
+        const book = loadAddressBook();
+        return book.items || {};
+    });
+
+    ipcMain.handle("addresses-reconfigure", async (event, payload) => {
+        const key = payload && payload.key ? String(payload.key) : "";
+        if (!key) return { canceled: true };
+        const entry = getAddressEntry(key);
+        const kind = entry && entry.kind === "directory" ? "directory" : "file";
+
+        const senderWin = BrowserWindow.fromWebContents(event.sender);
+        const win = isWindowAlive(senderWin) ? senderWin : mainWindow;
+
+        const result = await dialog.showOpenDialog(win, {
+            title: "Seleziona il percorso da associare",
+            properties: [kind === "directory" ? "openDirectory" : "openFile", "dontAddToRecent"],
         });
+
+        if (result.canceled || !result.filePaths || !result.filePaths[0]) {
+            return { canceled: true };
+        }
+
+        const chosen = result.filePaths[0];
+        const updated = updateAddressEntry(key, chosen);
+
+        dialog.showMessageBox(win, {
+            type: "info",
+            buttons: ["Ok"],
+            title: "Percorso aggiornato",
+            message: "Percorso aggiornato con successo.",
+            detail: chosen,
+        });
+
+        return { canceled: false, updated };
+    });
+
+    ipcMain.handle("admin-auth", async (_event, payload) => {
+        const password = typeof payload === "string" ? payload : (payload && payload.password) ? String(payload.password) : "";
+        if (password === "AGPress") {
+            adminEnabled = true;
+            return { ok: true };
+        }
+        return { ok: false };
+    });
+
+    ipcMain.handle("admin-is-enabled", async () => {
+        return adminEnabled;
+    });
+
+    ipcMain.handle("admin-disable", async () => {
+        adminEnabled = false;
+        return { ok: true };
     });
 
     ipcMain.handle("select-root-folder", async (event) => {

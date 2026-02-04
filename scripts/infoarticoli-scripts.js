@@ -1,14 +1,24 @@
 const { ipcRenderer, shell } = require("electron");
 const { initCommonUI } = require("../modules/utils");
-const { INFOARTICOLI_PATHS } = require("../config/paths");
+const { ADDRESS_BY_ID } = require("../config/addresses");
 
 initCommonUI();
 
-["openTavole", "openCicli", "openMontaggioStampi", "openDifettiProduzione"].forEach((id, index) => {
+["openTavole", "openCicli", "openMontaggioStampi", "openDifettiProduzione"].forEach((id) => {
     const btn = document.getElementById(id);
+    const entry = ADDRESS_BY_ID[id];
+    const key = entry ? entry.key : null;
     if (btn) {
         btn.addEventListener("click", () => {
-            ipcRenderer.send("open-file", INFOARTICOLI_PATHS[index]);
+            if (!key) return;
+            ipcRenderer.send("open-address", { key });
+        });
+        btn.addEventListener("contextmenu", async (event) => {
+            event.preventDefault();
+            if (!key) return;
+            const isAdmin = await ipcRenderer.invoke("admin-is-enabled");
+            if (!isAdmin) return;
+            ipcRenderer.invoke("addresses-reconfigure", { key });
         });
     }
 });
