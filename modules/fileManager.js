@@ -955,11 +955,6 @@ function setupFileManager(mainWindow) {
         openFilePath(mainWindow, entry.path);
     });
 
-    ipcMain.handle("addresses-get", async () => {
-        const book = loadAddressBook();
-        return book.items || {};
-    });
-
     ipcMain.handle("addresses-reconfigure", async (event, payload) => {
         const key = payload && payload.key ? String(payload.key) : "";
         if (!key) return { canceled: true };

@@ -36,6 +36,9 @@ function createEditModal(options) {
         const modal = document.getElementById("fp-edit-modal");
         const message = document.getElementById("fp-edit-message");
         if (!modal) return;
+        if (request && request.id) {
+            setEditingRequestId(request.id);
+        }
         showModal(modal);
         setMessage(message, "");
         setInlineError("fp-edit-end-date-error", "");

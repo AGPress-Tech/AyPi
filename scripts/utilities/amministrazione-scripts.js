@@ -368,21 +368,6 @@ function extendTimelineRange(direction, anchorDate) {
     }
 }
 
-function extendRange(direction) {
-    if (!gantt) return;
-    const padding = getPaddingDays();
-    const scroll = gantt.getScrollState();
-    if (direction < 0) {
-        gantt.config.start_date = addDays(gantt.config.start_date, -padding);
-    } else {
-        gantt.config.end_date = addDays(gantt.config.end_date, padding);
-    }
-    gantt.render();
-    if (gantt.$task) {
-        gantt.$task.scrollLeft = scroll.x;
-    }
-}
-
 function getDateValue(value) {
     if (!value) return null;
     return value instanceof Date ? value : new Date(value);

@@ -67,10 +67,6 @@ async function handleSelectFolderB() {
     }
 }
 
-async function selectRootFolderSafe() {
-    return pickFolder({ cooldownMs: 400 });
-}
-
 window.addEventListener("error", (event) => {
     const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
     showError("Errore JS Confronta cartelle.", detail);

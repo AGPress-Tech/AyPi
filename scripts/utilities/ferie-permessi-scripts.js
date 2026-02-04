@@ -194,10 +194,6 @@ function ensureAccessConfigFile() {
     }
 }
 
-function getAccessConfig() {
-    return accessConfig;
-}
-
 function persistAccessConfig(next) {
     const saved = saveAccessConfig(next);
     setAccessConfig(saved);
@@ -576,20 +572,6 @@ function pruneOldBackups(maxCount) {
             console.error("Errore rimozione backup:", entry.fullPath, err);
         }
     });
-}
-
-function formatRange(request) {
-    if (!request) return "";
-    if (request.allDay) {
-        if (request.start === request.end || !request.end) {
-            return `Giornata intera (${request.start})`;
-        }
-        return `Giornata intera (${request.start} - ${request.end})`;
-    }
-    if (request.start && request.end) {
-        return `${request.start} - ${request.end}`;
-    }
-    return request.start || "";
 }
 
 function buildHoverText(request) {
@@ -2771,19 +2753,6 @@ function init() {
     calendarFilters.mutua = false;
     calendarFilters.speciale = false;
     calendarFilters.retribuito = false;
-    const applyFerieFilter = () => {
-        if (ferieToggle) {
-            calendarFilters.ferie = !!ferieToggle.checked;
-            renderer.renderCalendar(cachedData);
-        }
-    };
-    const applyPermessoFilter = () => {
-        if (permessoToggle) {
-            calendarFilters.permesso = !!permessoToggle.checked;
-            renderer.renderCalendar(cachedData);
-        }
-    };
-    const requestFilterAccess = () => {};
     const handleFilterToggle = (type, toggleEl) => {
         if (!toggleEl) return;
         toggleEl.addEventListener("change", () => {

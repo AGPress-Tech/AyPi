@@ -1,5 +1,3 @@
-const { UI_TEXTS } = require("../utils/ui-texts");
-
 function createSettingsModal(options) {
     const {
         document,

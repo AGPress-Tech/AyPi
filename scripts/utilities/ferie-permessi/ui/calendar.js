@@ -1,5 +1,3 @@
-const { UI_TEXTS } = require("../utils/ui-texts");
-
 function applyCalendarButtonStyles(document) {
     const root = document.getElementById("fp-calendar");
     if (!root) return;

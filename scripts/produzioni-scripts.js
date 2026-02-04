@@ -1,4 +1,4 @@
-const { ipcRenderer, shell } = require("electron");
+const { ipcRenderer } = require("electron");
 const { initCommonUI } = require("../modules/utils");
 const { ADDRESS_BY_ID } = require("../config/addresses");
 

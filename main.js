@@ -10,7 +10,6 @@ let isQuitting = false;
 let trayTimers = [];
 let trayMenu = null;
 let pendingTrayPopup = false;
-let fpCalendarSplashShown = false;
 let triggerAdminHotkey = null;
 
 const APP_NAME = "AyPi";
@@ -379,8 +378,3 @@ ipcMain.on("timers-tray-update", (event, payload) => {
     }
 });
 
-ipcMain.handle("fp-calendar-splash-should-show", () => {
-    const shouldShow = !fpCalendarSplashShown;
-    fpCalendarSplashShown = true;
-    return shouldShow;
-});

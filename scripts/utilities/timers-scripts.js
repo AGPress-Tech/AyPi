@@ -98,33 +98,6 @@ window.addEventListener("DOMContentLoaded", () => {
         nameInput.focus();
     }
 
-    function openDialogFromPreset(preset) {
-        editingTimerId = null;
-        if (dialogTitle) dialogTitle.textContent = "Nuovo timer / cronometro";
-        if (confirmDialogBtn) confirmDialogBtn.textContent = "Aggiungi";
-
-        typeSelect.value = preset.type === "stopwatch" ? "stopwatch" : "timer";
-        nameInput.value = preset.name || "";
-
-        if (preset.type === "timer") {
-            const total = preset.initialSeconds || 0;
-            const h = Math.floor(total / 3600);
-            const m = Math.floor((total % 3600) / 60);
-            const s = total % 60;
-            hoursInput.value = String(h);
-            minutesInput.value = String(m);
-            secondsInput.value = String(s);
-        } else {
-            hoursInput.value = "0";
-            minutesInput.value = "0";
-            secondsInput.value = "0";
-        }
-
-        handleTypeChange();
-        dialogBackdrop.classList.remove("hidden");
-        nameInput.focus();
-    }
-
     function closeDialog() {
         dialogBackdrop.classList.add("hidden");
     }

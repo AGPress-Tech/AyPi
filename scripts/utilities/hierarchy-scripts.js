@@ -221,7 +221,6 @@ function getRandomFunMessage() {
 
 const FOLDER_CLOSED_ICON = "\u25B6";
 const FOLDER_OPEN_ICON = "\u25BC";
-const FILE_ICON = "-";
 
 let searchGeneration = 0;
 let lastSearchProgressTime = 0;
@@ -2246,43 +2245,6 @@ function hideTreeContextMenu() {
     contextMenuNode = null;
 }
 
-function focusNodeInTree(fullPath) {
-    if (!rootTree || !treeRootEl) return;
-    const rootDom = treeRootEl.querySelector(".tree-node");
-    if (!rootDom) return;
-
-    const stack = [{ node: rootTree, dom: rootDom }];
-
-    while (stack.length > 0) {
-        const { node, dom } = stack.pop();
-
-        if (node.fullPath === fullPath) {
-            dom.scrollIntoView({ behavior: "smooth", block: "center" });
-            selectNode(dom, node);
-            return;
-        }
-
-        if (node.type === "folder" && Array.isArray(node.children)) {
-            const childrenContainer = dom.querySelector(":scope > .tree-children");
-            if (!childrenContainer) continue;
-
-            childrenContainer.classList.add("open");
-            const icon = dom.querySelector(":scope > .node-icon");
-            if (icon) icon.textContent = FOLDER_CLOSED_ICON;
-
-            const domChildren = childrenContainer.querySelectorAll(":scope > .tree-node");
-            const sorted = getSortedChildren(node);
-
-            for (let i = 0; i < sorted.length && i < domChildren.length; i++) {
-                stack.push({
-                    node: sorted[i],
-                    dom: domChildren[i]
-                });
-            }
-        }
-    }
-}
-
 function focusNodeInTreeSmart(fullPath) {
     if (!rootTree || !treeRootEl) return;
     let targetDom = null;
@@ -2732,80 +2694,3 @@ Dati JSON: ${result.jsonPath}`
         );
     }
 }
-
-ipcRenderer.on("hierarchy-progress", (event, payload) => {
-    const { totalFiles, totalDirs } = payload;
-
-    if (treeRootEl) {
-        treeRootEl.innerHTML = `
-            <p>Scansione in corso...</p>
-            <p>File scansionati: ${totalFiles}</p>
-            <p>Cartelle scansionate: ${totalDirs}</p>
-        `;
-    }
-
-    if (detailsBox) {
-        const scanFunStatus = document.getElementById("scanFunStatus");
-        if (scanFunStatus) {
-            const now = performance.now();
-            if (now - lastFunMessageTime > 15000) {
-                scanFunStatus.textContent = getRandomFunMessage();
-                lastFunMessageTime = now;
-            }
-        }
-    }
-});
-
-ipcRenderer.on("hierarchy-complete", (event, payload) => {
-    const { rootFolder, totalFiles, totalDirs, entries } = payload;
-
-    console.log(
-        `%cScansione completata. File: ${totalFiles}, Cartelle: ${totalDirs}`,
-        "color: lightgreen;"
-    );
-
-    if (!treeRootEl || !detailsBox) return;
-
-    treeRootEl.innerHTML = `
-        <p>Scansione completata.</p>
-        <p>Costruzione albero in corso...</p>
-    `;
-
-    detailsBox.innerHTML = `
-        <p>Costruzione dell'albero in corso... Attendere.</p>
-        <p id="buildFunStatus" class="fun-status muted"></p>
-    `;
-
-    funMessageIndex = pickRandomFunMessageIndex();
-    lastFunMessageTime = performance.now();
-    const buildFunStatus = document.getElementById("buildFunStatus");
-    if (buildFunStatus) {
-        buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
-    }
-
-    rootTree = createRootTree(rootFolder || selectedFolder || "");
-    originalRootTree = null;
-    pendingEntries = Array.isArray(entries) ? entries.slice() : [];
-    isBuildingTree = false;
-
-    if (!Array.isArray(entries) || entries.length === 0) {
-        treeRootEl.innerHTML = "<p>Nessun elemento trovato.</p>";
-        detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
-        return;
-    }
-
-    buildTreeFromPendingAsync(() => {
-        originalRootTree = cloneTree(rootTree);
-        renderTreeFromModel();
-        detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
-    });
-
-    return;
-
-    pendingEntries = [];
-    isBuildingTree = false;
-
-    originalRootTree = cloneTree(rootTree);
-    renderTreeFromModel();
-    detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
-});
