@@ -214,6 +214,7 @@ function wireAdminHotkey() {
     };
 
     const runPrompt = async () => {
+        if (document.hidden || !document.hasFocus()) return;
         const isAdmin = await ipcRenderer.invoke("admin-is-enabled");
         if (isAdmin) {
             await ipcRenderer.invoke("admin-disable");
@@ -236,11 +237,21 @@ function wireAdminHotkey() {
     window.addEventListener("keydown", async (event) => {
         if (event.key !== "F2") return;
         event.preventDefault();
+        if (document.hidden || !document.hasFocus()) return;
         runPrompt();
     });
 
     ipcRenderer.on("admin-hotkey", () => {
+        if (document.hidden || !document.hasFocus()) return;
         runPrompt();
+    });
+
+    ipcRenderer.on("admin-hotkey-close", () => {
+        const overlay = document.getElementById("aypi-admin-overlay");
+        if (!overlay) return;
+        const input = overlay.querySelector("input");
+        overlay.style.display = "none";
+        if (input) input.value = "";
     });
 }
 
