@@ -1,7 +1,13 @@
 function getGuidePrefix(){
   const path = window.location.pathname || '';
-  // current structure: root pages + /aypi-calendar/ subfolder
-  return path.includes('/aypi-calendar/') ? '../' : './';
+  // current structure: root pages + /aypi-calendar/ + /aypi-purchasing/ subfolder
+  return (path.includes('/aypi-calendar/') || path.includes('/aypi-purchasing/')) ? '../' : './';
+}
+
+function getSidebarPath(){
+  const path = window.location.pathname || '';
+  if(path.includes('/aypi-purchasing/')) return 'assets/sidebar-purchasing.html';
+  return 'assets/sidebar.html';
 }
 
 async function includeSidebar(){
@@ -10,7 +16,7 @@ async function includeSidebar(){
 
   const prefix = getGuidePrefix();
   try{
-    const res = await fetch(`${prefix}assets/sidebar.html`, { cache: 'no-store' });
+    const res = await fetch(`${prefix}${getSidebarPath()}`, { cache: 'no-store' });
     if(!res.ok) return;
 
     const html = await res.text();

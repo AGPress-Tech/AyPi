@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Product Manager</title>
-    <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
@@ -250,6 +250,13 @@
             <div class="pm-actions">
                 <button type="button" class="pm-btn pm-btn--primary" id="pm-alert-ok">Ok</button>
             </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-guide-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-guide-card" role="dialog" aria-modal="true" aria-labelledby="fp-guide-title">
+            <div id="fp-guide-message" class="fp-message is-hidden"></div>
+            <iframe id="fp-guide-frame" class="fp-guide-frame" title="Guida AyPi" src="about:blank"></iframe>
         </div>
     </div>
 

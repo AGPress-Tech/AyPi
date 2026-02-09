@@ -10,6 +10,8 @@ const { createAssigneesModal } = require("./ferie-permessi/ui/assignees-modal");
 const { createAdminModals } = require("./ferie-permessi/ui/admin-modals");
 const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const { isHashingAvailable, hashPassword } = require("./ferie-permessi/config/security");
+const { GUIDE_URL, GUIDE_SEARCH_PARAM } = require("./ferie-permessi/config/constants");
+const { createGuideModal } = require("./ferie-permessi/ui/guide-modal");
 const { REQUESTS_PATH, CATALOG_PATH, CATEGORIES_PATH, PRODUCTS_DIR } = require("./product-manager/config/paths");
 const {
     loadAdminCredentials,
@@ -56,6 +58,42 @@ let categoryColorSnapshot = null;
 let categoryPreviewTimer = null;
 
 const { showModal, hideModal } = createModalHelpers({ document });
+
+function setMessage(el, text, isError = false) {
+    if (!el) return;
+    if (!text) {
+        el.classList.add("is-hidden");
+        el.textContent = "";
+        el.classList.remove("fp-message--error");
+        return;
+    }
+    el.textContent = text;
+    el.classList.remove("is-hidden");
+    if (isError) {
+        el.classList.add("fp-message--error");
+    } else {
+        el.classList.remove("fp-message--error");
+    }
+}
+
+const guideLocalPath = path.resolve(__dirname, "..", "..", "Guida", "aypi-purchasing", "index.html");
+const guideLocalUrl = fs.existsSync(guideLocalPath) ? `${pathToFileURL(guideLocalPath).toString()}?embed=1` : "";
+
+const guideUi = createGuideModal({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    guideUrl: GUIDE_URL || guideLocalUrl,
+    guideSearchParam: GUIDE_SEARCH_PARAM,
+    getTheme: () => {
+        try {
+            return window.localStorage.getItem("pm-theme") || "light";
+        } catch {
+            return "light";
+        }
+    },
+});
 
 const URGENCY_OPTIONS = ["Alta", "Media", "Bassa"];
 const PLACEHOLDER_IMAGE =
@@ -2834,6 +2872,22 @@ function initLogoutModal() {
     }
 }
 
+function initGuideModal() {
+    if (guideUi?.initGuideModal) {
+        guideUi.initGuideModal();
+    }
+    window.addEventListener("keydown", (event) => {
+        if (event.key === "F1") {
+            event.preventDefault();
+            if (guideUi?.openGuideModalAtPath) {
+                guideUi.openGuideModalAtPath("introduzione.html");
+            } else if (guideUi?.openGuideModal) {
+                guideUi.openGuideModal();
+            }
+        }
+    });
+}
+
 async function init() {
     const warning = document.getElementById("pm-js-warning");
     if (warning) warning.classList.add("is-hidden");
@@ -2865,6 +2919,7 @@ async function init() {
     setupHeaderButtons();
     initSettingsModals();
     initLogoutModal();
+    initGuideModal();
     updateGreeting();
     updateLoginButton();
     updateAdminControls();
@@ -2888,6 +2943,14 @@ window.addEventListener("unhandledrejection", (event) => {
     const reason = event?.reason;
     const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
     showError("Errore Product Manager (Promise).", detail);
+});
+
+window.addEventListener("message", (event) => {
+    if (!event || !event.data) return;
+    if (event.data.type === "guide-close") {
+        const modal = document.getElementById("fp-guide-modal");
+        if (modal) hideModal(modal);
+    }
 });
 
 ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
