@@ -664,6 +664,8 @@ let feriePermessiWindow = null;
 let feriePermessiHoursWindow = null;
 let productManagerWindow = null;
 let productManagerCartWindow = null;
+let productManagerSession = null;
+let productManagerForceLogout = false;
 let feriePermessiSplashShown = false;
 let isAppQuitting = false;
 let lastFolderDialogPath = null;
@@ -855,12 +857,14 @@ function openProductManagerWindow(mainWindow) {
         showWindow(productManagerWindow);
         return;
     }
+    if (!isWindowAlive(productManagerCartWindow)) {
+        productManagerSession = null;
+        productManagerForceLogout = true;
+    }
 
     productManagerWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        parent: mainWindow,
-        modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
@@ -878,10 +882,19 @@ function openProductManagerWindow(mainWindow) {
             productManagerWindow.show();
         }
     });
+    productManagerWindow.webContents.once("did-finish-load", () => {
+        if (!productManagerWindow.isDestroyed()) {
+            productManagerWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            productManagerForceLogout = false;
+        }
+    });
 
     productManagerWindow.on("closed", () => {
         productManagerWindow = null;
-        showMainWindow(mainWindow);
+        if (!isWindowAlive(productManagerCartWindow)) {
+            productManagerSession = null;
+            productManagerForceLogout = true;
+        }
     });
 }
 
@@ -891,12 +904,14 @@ function openProductManagerCartWindow(mainWindow) {
         showWindow(productManagerCartWindow);
         return;
     }
+    if (!isWindowAlive(productManagerWindow)) {
+        productManagerSession = null;
+        productManagerForceLogout = true;
+    }
 
     productManagerCartWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        parent: mainWindow,
-        modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
@@ -915,10 +930,21 @@ function openProductManagerCartWindow(mainWindow) {
         }
     });
 
+    productManagerCartWindow.webContents.once("did-finish-load", () => {
+        if (!productManagerCartWindow.isDestroyed()) {
+            productManagerCartWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            productManagerForceLogout = false;
+        }
+    });
+
     productManagerCartWindow.on("closed", () => {
         productManagerCartWindow = null;
-        showMainWindow(mainWindow);
+        if (!isWindowAlive(productManagerWindow)) {
+            productManagerSession = null;
+            productManagerForceLogout = true;
+        }
     });
+
 }
 
 function openFeriePermessiHoursWindow(mainWindow) {
@@ -999,6 +1025,7 @@ function setupFileManager(mainWindow) {
     app.on("before-quit", () => {
         isAppQuitting = true;
     });
+
     loadAddressBook();
     ipcMain.on("resize-calcolatore", () => {
         animateResize(mainWindow, 750, 750, 100);
@@ -1192,6 +1219,31 @@ function setupFileManager(mainWindow) {
         const senderWin = BrowserWindow.fromWebContents(event.sender);
         const baseDir = resolveFpBaseDirSync(senderWin);
         event.returnValue = baseDir;
+    });
+
+    ipcMain.handle("pm-session-get", async () => {
+        return productManagerSession;
+    });
+
+    ipcMain.handle("pm-session-set", async (_event, payload) => {
+        productManagerSession = payload && typeof payload === "object" ? payload : null;
+        return true;
+    });
+
+    ipcMain.handle("pm-session-clear", async () => {
+        productManagerSession = null;
+        return true;
+    });
+
+    ipcMain.handle("pm-select-image", async () => {
+        const win = BrowserWindow.getFocusedWindow() || mainWindow;
+        const result = await dialog.showOpenDialog(win, {
+            title: "Seleziona immagine prodotto",
+            properties: ["openFile"],
+            filters: [{ name: "Immagini", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] }],
+        });
+        if (result.canceled || !result.filePaths.length) return "";
+        return result.filePaths[0];
     });
 
     ipcMain.handle("show-message-box", async (event, options) => {

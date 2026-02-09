@@ -53,9 +53,22 @@
             </section>
 
             <section class="pm-list">
-                <div class="pm-card">
-                    <h2>Catalogo prodotti</h2>
-                    <p class="pm-message">Catalogo in sviluppo.</p>
+                <div class="pm-card" id="pm-catalog-panel">
+                    <div class="pm-catalog-header">
+                        <h2>Catalogo prodotti</h2>
+                        <button type="button" class="pm-btn pm-btn--ghost" id="pm-catalog-add">Aggiungi prodotto</button>
+                    </div>
+                    <div class="pm-catalog-filters">
+                        <input type="text" id="pm-catalog-search" class="pm-field__input" placeholder="Cerca prodotto">
+                        <select id="pm-catalog-filter" class="pm-field__input"></select>
+                        <select id="pm-catalog-sort" class="pm-field__input">
+                            <option value="name_asc">Nome (A-Z)</option>
+                            <option value="name_desc">Nome (Z-A)</option>
+                            <option value="created_desc">Data (nuove)</option>
+                            <option value="created_asc">Data (vecchie)</option>
+                        </select>
+                    </div>
+                    <div id="pm-catalog-grid" class="pm-catalog-grid"></div>
                 </div>
             </section>
         </main>
@@ -167,6 +180,61 @@
         </div>
     </div>
 
+    <div class="pm-modal is-hidden" id="pm-catalog-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-catalog-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-catalog-title">Nuovo prodotto catalogo</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-catalog-close">Chiudi</button>
+            </div>
+            <input type="hidden" id="pm-catalog-id">
+            <div class="pm-field">
+                <label for="pm-catalog-name">Nome prodotto</label>
+                <input type="text" id="pm-catalog-name" placeholder="Nome prodotto">
+            </div>
+            <div class="pm-field">
+                <label for="pm-catalog-description">Descrizione</label>
+                <input type="text" id="pm-catalog-description" placeholder="Descrizione">
+            </div>
+            <div class="pm-field">
+                <label for="pm-catalog-category">Categoria/Tag</label>
+                <div id="pm-catalog-category"></div>
+            </div>
+            <div class="pm-field">
+                <label for="pm-catalog-unit">UM</label>
+                <input type="text" id="pm-catalog-unit" placeholder="Pezzi / Scatole">
+            </div>
+            <div class="pm-field">
+                <label for="pm-catalog-url">URL</label>
+                <input type="text" id="pm-catalog-url" placeholder="Link prodotto">
+            </div>
+            <div class="pm-field">
+                <label for="pm-catalog-image">Immagine</label>
+                <div class="pm-file-row">
+                    <input type="text" id="pm-catalog-image" placeholder="Seleziona immagine" readonly>
+                    <button type="button" class="pm-tag-icon-btn" id="pm-catalog-remove-image" title="Rimuovi immagine">
+                        <span class="material-icons">delete</span>
+                    </button>
+                    <button type="button" class="pm-btn pm-btn--ghost" id="pm-catalog-browse">Sfoglia</button>
+                </div>
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-catalog-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-catalog-save">Salva prodotto</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-image-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-image-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-image-title">Dettaglio prodotto</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-image-close">Chiudi</button>
+            </div>
+            <img id="pm-image-preview" class="pm-image-preview" alt="">
+            <a id="pm-image-link" class="pm-link" href="#" target="_blank">Apri link</a>
+        </div>
+    </div>
+
     <div class="fp-modal is-hidden" id="pm-settings-modal" aria-hidden="true">
         <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="pm-settings-title">
             <div class="fp-assignees-header">
@@ -196,6 +264,28 @@
                     </span>
                     <span class="fp-btn__label">Gestione admin</span>
                 </button>
+            </div>
+            <div class="fp-export-section is-hidden" id="pm-categories-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-categories-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">category</span>
+                    </span>
+                    <span class="fp-btn__label">Gestione categorie</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-categories-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-categories-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-categories-title">Gestione categorie</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-categories-close">Chiudi</button>
+            </div>
+            <div id="pm-categories-list" class="pm-list-box"></div>
+            <div class="pm-line-actions">
+                <input type="text" id="pm-category-name" class="pm-field__input" placeholder="Nuova categoria">
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-category-add">Aggiungi</button>
             </div>
         </div>
     </div>
