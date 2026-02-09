@@ -2851,7 +2851,7 @@ function init() {
         ensureRecentBackup();
     }, 30000);
 
-    window.addEventListener("message", (event) => {
+window.addEventListener("message", (event) => {
         if (!event || !event.data) return;
         if (event.data.type === "guide-close") {
             const modal = document.getElementById("fp-guide-modal");
@@ -2937,6 +2937,24 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
         showDialog("error", UI_TEXTS.initErrorTitle, err.message || String(err));
     }
+});
+
+ipcRenderer.on("pm-open-calendar-assignees", () => {
+    const manageOpen = document.getElementById("fp-manage-open");
+    const manageAssignees = document.getElementById("fp-manage-assignees");
+    if (manageOpen) manageOpen.click();
+    setTimeout(() => {
+        if (manageAssignees) manageAssignees.click();
+    }, 80);
+});
+
+ipcRenderer.on("pm-open-calendar-admins", () => {
+    const settingsOpen = document.getElementById("fp-settings");
+    const adminOpen = document.getElementById("fp-admin-open");
+    if (settingsOpen) settingsOpen.click();
+    setTimeout(() => {
+        if (adminOpen) adminOpen.click();
+    }, 80);
 });
 
 const guideLocalPath = path.resolve(__dirname, "..", "..", "Guida", "index.html");

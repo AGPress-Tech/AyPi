@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Product Manager</title>
+    <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+</head>
+
+<body>
+    <div class="pm-js-warning" id="pm-js-warning">Errore: script non caricato.</div>
+    <div class="pm-page">
+        <header class="pm-header">
+            <div class="pm-header__title">
+                <h1 id="pm-greeting">Buongiorno</h1>
+                <div class="pm-header__subtitle">Cosa vuoi ordinare?</div>
+            </div>
+            <div class="pm-header__actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-open-cart">Mega carrello</button>
+                <button type="button" class="pm-btn" id="pm-refresh">Aggiorna</button>
+                <button type="button" class="pm-btn" id="pm-login-toggle">Login</button>
+                <button type="button" class="pm-btn pm-btn--icon" id="pm-settings" aria-label="Impostazioni">
+                    <span class="material-icons pm-icon" aria-hidden="true">settings</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="pm-body">
+            <section class="pm-panel">
+                <form id="pm-request-form" class="pm-card">
+                    <h2>Nuova richiesta</h2>
+                    <div class="pm-field">
+                        <label for="pm-notes">Note generali</label>
+                        <textarea id="pm-notes" rows="2" placeholder="Note generali per la richiesta"></textarea>
+                    </div>
+                    <div class="pm-lines" id="pm-lines"></div>
+                    <datalist id="pm-category-options"></datalist>
+                    <div class="pm-line-actions">
+                        <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-line">+ Aggiungi prodotto</button>
+                    </div>
+                    <div class="pm-actions">
+                        <button type="button" class="pm-btn pm-btn--primary" id="pm-request-save">Invia richiesta</button>
+                    </div>
+                    <div id="pm-form-message" class="pm-message is-hidden"></div>
+                </form>
+            </section>
+
+            <section class="pm-list">
+                <div class="pm-card">
+                    <h2>Catalogo prodotti</h2>
+                    <p class="pm-message">Catalogo in sviluppo.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="pm-modal" id="pm-login-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-login-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-login-title">Accedi</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-login-close">Chiudi</button>
+            </div>
+            <div class="pm-login-choice">
+                <button type="button" class="pm-btn" id="pm-login-choice-employee">Dipendente</button>
+                <button type="button" class="pm-btn" id="pm-login-choice-admin">Admin</button>
+            </div>
+            <div class="pm-login-panel" id="pm-login-employee-panel">
+                <div class="pm-field">
+                    <label for="pm-login-department">Reparto</label>
+                    <select id="pm-login-department"></select>
+                </div>
+                <div class="pm-field">
+                    <label for="pm-login-employee-name">Dipendente</label>
+                    <select id="pm-login-employee-name"></select>
+                </div>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-login-employee-confirm">Entra</button>
+            </div>
+            <div class="pm-login-panel is-hidden" id="pm-login-admin-panel">
+                <div class="pm-field">
+                    <label for="pm-login-admin-name">Admin</label>
+                    <select id="pm-login-admin-name"></select>
+                </div>
+                <div class="pm-field">
+                    <label for="pm-login-admin-password">Password</label>
+                    <input type="password" id="pm-login-admin-password" placeholder="Password">
+                </div>
+                <div id="pm-login-admin-error" class="pm-message pm-message--error is-hidden">Password errata.</div>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-login-admin-confirm">Entra</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-suborder-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-suborder-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-suborder-title">Aggiungi sub-ordine</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-suborder-close">Chiudi</button>
+            </div>
+            <div class="pm-field">
+                <label for="pm-suborder-department">Reparto</label>
+                <select id="pm-suborder-department"></select>
+            </div>
+            <div class="pm-field">
+                <label for="pm-suborder-employee">Dipendente</label>
+                <select id="pm-suborder-employee"></select>
+            </div>
+            <div class="pm-field">
+                <label for="pm-suborder-quantity">Quantita</label>
+                <input type="number" id="pm-suborder-quantity" min="0" step="0.01">
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-suborder-save">Aggiungi</button>
+            </div>
+            <div id="pm-suborder-message" class="pm-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-approve-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-approve-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-approve-title">Approva prodotto</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-approve-close">Chiudi</button>
+            </div>
+            <div class="pm-field">
+                <label for="pm-approve-price">Prezzo unitario</label>
+                <input type="number" id="pm-approve-price" min="0" step="0.01">
+            </div>
+            <div class="pm-field pm-checkbox">
+                <input type="checkbox" id="pm-approve-save-price">
+                <label for="pm-approve-save-price">Memorizza prezzo per acquisti futuri</label>
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-approve-save">Approva</button>
+            </div>
+            <div id="pm-approve-message" class="pm-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-logout-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-logout-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-logout-title">Logout</h3>
+            </div>
+            <p>Vuoi uscire dalla sessione corrente?</p>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-logout-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-logout-confirm">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="pm-settings-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="pm-settings-title">
+            <div class="fp-assignees-header">
+                <h3 id="pm-settings-title">Impostazioni</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="pm-settings-close">Chiudi</button>
+            </div>
+            <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-theme-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">palette</span>
+                    </span>
+                    <span class="fp-btn__label">Tema</span>
+                </button>
+            </div>
+            <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-assignees-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">groups</span>
+                    </span>
+                    <span class="fp-btn__label">Gestione dipendenti</span>
+                </button>
+            </div>
+            <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-admin-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">admin_panel_settings</span>
+                    </span>
+                    <span class="fp-btn__label">Gestione admin</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="pm-theme-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="pm-theme-title">
+            <div class="fp-assignees-header">
+                <h3 id="pm-theme-title">Tema</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="pm-theme-close">Chiudi</button>
+            </div>
+            <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-theme-light">Light</button>
+            </div>
+            <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-theme-dark">Dark</button>
+            </div>
+            <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-theme-aypi">AyPi</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-assignees-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-assignees-card" role="dialog" aria-modal="true" aria-labelledby="fp-assignees-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-assignees-title">Gestione dipendenti</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-assignees-close">Chiudi</button>
+            </div>
+            <div class="fp-assignees-section">
+                <div class="fp-assignees-subtitle">Reparti</div>
+                <div class="fp-assignees-grid" id="fp-departments-list"></div>
+                <div class="fp-assignees-form">
+                    <input class="fp-field__input" id="fp-department-name" type="text" placeholder="Nuovo reparto">
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-department-add">+</button>
+                </div>
+            </div>
+            <div class="fp-assignees-section">
+                <div class="fp-assignees-subtitle">Operatori</div>
+                <div class="fp-assignees-grid" id="fp-employees-list"></div>
+                <div class="fp-assignees-form fp-assignees-form--employee">
+                    <select class="fp-field__input" id="fp-employee-department"></select>
+                    <input class="fp-field__input" id="fp-employee-name" type="text" placeholder="Nome e cognome">
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-employee-add">+</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-admin-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-admin-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-admin-title">Gestione admin</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-close">Chiudi</button>
+            </div>
+            <div class="fp-assignees-subtitle">Admin registrati</div>
+            <div id="fp-admin-list" class="fp-admin-list"></div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-admin-add-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">person_add</span>
+                    </span>
+                    <span class="fp-btn__label">Aggiungi admin</span>
+                </button>
+            </div>
+            <div id="fp-admin-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-admin-add-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-admin-add-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-admin-add-title">Nuovo admin</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-add-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack">
+                <input class="fp-field__input" id="fp-admin-name" type="text" placeholder="Nome e cognome">
+                <input class="fp-field__input" id="fp-admin-email" type="email" placeholder="Email">
+                <input class="fp-field__input" id="fp-admin-phone" type="tel" placeholder="+39 3xx xxx xxxx">
+                <input class="fp-field__input" id="fp-admin-password" type="password" placeholder="Password">
+                <input class="fp-field__input" id="fp-admin-password-confirm" type="password" placeholder="Conferma password">
+            </div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-add-cancel">Annulla</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-admin-add">Salva admin</button>
+            </div>
+            <div id="fp-admin-add-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-admin-edit-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-admin-edit-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-admin-edit-title">Modifica admin</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-edit-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--single">
+                <input class="fp-field__input" id="fp-admin-edit-name" type="text" placeholder="Nome e cognome">
+                <input class="fp-field__input" id="fp-admin-edit-email" type="email" placeholder="Email">
+                <input class="fp-field__input" id="fp-admin-edit-phone" type="tel" placeholder="+39 3xx xxx xxxx">
+            </div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-edit-cancel">Annulla</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-admin-edit-save">Salva modifica</button>
+            </div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-admin-password-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">lock_reset</span>
+                    </span>
+                    <span class="fp-btn__label">Cambia password</span>
+                </button>
+            </div>
+            <div class="fp-admin-section fp-admin-password is-hidden" id="fp-admin-password-panel">
+                <div class="fp-admin-grid fp-admin-grid--stack">
+                    <input class="fp-field__input" id="fp-admin-current" type="password" placeholder="Password attuale">
+                    <input class="fp-field__input" id="fp-admin-new" type="password" placeholder="Nuova password">
+                    <input class="fp-field__input" id="fp-admin-new-confirm" type="password" placeholder="Conferma nuova password">
+                </div>
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-forgot">Password dimenticata</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-admin-change">Aggiorna password</button>
+                </div>
+            </div>
+            <div id="fp-admin-edit-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-otp-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-otp-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-otp-title">Recupero password</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack">
+                <input class="fp-field__input" id="fp-otp-admin-name" type="text" placeholder="Nome e cognome admin">
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-send">Invia OTP via email</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-verify-section">
+                <input class="fp-field__input" id="fp-otp-code" type="text" placeholder="Codice OTP">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-resend">Invia di nuovo OTP</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-verify">Verifica OTP</button>
+                </div>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-reset-section">
+                <input class="fp-field__input" id="fp-otp-new" type="password" placeholder="Nuova password">
+                <input class="fp-field__input" id="fp-otp-new-confirm" type="password" placeholder="Conferma nuova password">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-reset">Aggiorna password</button>
+                </div>
+            </div>
+            <div id="fp-otp-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
+            <h3 id="fp-approve-title">Conferma</h3>
+            <p id="fp-approve-desc">Inserisci la password per continuare.</p>
+            <input type="password" id="fp-approve-password" placeholder="Password">
+            <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">Password errata.</div>
+            <button type="button" class="fp-link-btn is-hidden" id="fp-approve-recover">Recupero password?</button>
+            <div class="fp-actions fp-actions--modal">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            try {
+                var path = require("path");
+                var scriptPath = path.join(__dirname, "..", "..", "scripts", "utilities", "product-manager-scripts.js");
+                require(scriptPath);
+                var warn = document.getElementById("pm-js-warning");
+                if (warn) warn.classList.add("is-hidden");
+            } catch (err) {
+                var warn = document.getElementById("pm-js-warning");
+                if (warn) warn.textContent = "Errore: script non caricato.";
+                try {
+                    var ipcRenderer = require("electron").ipcRenderer;
+                    if (ipcRenderer) {
+                        ipcRenderer.invoke("show-message-box", {
+                            type: "error",
+                            message: "Errore Product Manager",
+                            detail: err && err.message ? err.message : String(err),
+                        });
+                    }
+                } catch (innerErr) {}
+            }
+        })();
+    </script>
+</body>
+
+</html>

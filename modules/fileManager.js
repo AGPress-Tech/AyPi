@@ -662,6 +662,8 @@ let timerWindow = null;
 let amministrazioneWindow = null;
 let feriePermessiWindow = null;
 let feriePermessiHoursWindow = null;
+let productManagerWindow = null;
+let productManagerCartWindow = null;
 let feriePermessiSplashShown = false;
 let isAppQuitting = false;
 let lastFolderDialogPath = null;
@@ -847,6 +849,78 @@ function openFeriePermessiWindow(mainWindow) {
     });
 }
 
+function openProductManagerWindow(mainWindow) {
+    if (isWindowAlive(productManagerWindow)) {
+        productManagerWindow.reload();
+        showWindow(productManagerWindow);
+        return;
+    }
+
+    productManagerWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f4f2ef",
+    });
+
+    productManagerWindow.maximize();
+    productManagerWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "product-manager.html")
+    );
+    productManagerWindow.setMenu(null);
+
+    productManagerWindow.once("ready-to-show", () => {
+        if (!productManagerWindow.isDestroyed()) {
+            productManagerWindow.show();
+        }
+    });
+
+    productManagerWindow.on("closed", () => {
+        productManagerWindow = null;
+        showMainWindow(mainWindow);
+    });
+}
+
+function openProductManagerCartWindow(mainWindow) {
+    if (isWindowAlive(productManagerCartWindow)) {
+        productManagerCartWindow.reload();
+        showWindow(productManagerCartWindow);
+        return;
+    }
+
+    productManagerCartWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f4f2ef",
+    });
+
+    productManagerCartWindow.maximize();
+    productManagerCartWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "product-manager-cart.html")
+    );
+    productManagerCartWindow.setMenu(null);
+
+    productManagerCartWindow.once("ready-to-show", () => {
+        if (!productManagerCartWindow.isDestroyed()) {
+            productManagerCartWindow.show();
+        }
+    });
+
+    productManagerCartWindow.on("closed", () => {
+        productManagerCartWindow = null;
+        showMainWindow(mainWindow);
+    });
+}
+
 function openFeriePermessiHoursWindow(mainWindow) {
     if (isWindowAlive(feriePermessiHoursWindow)) {
         showWindow(feriePermessiHoursWindow);
@@ -937,6 +1011,11 @@ function setupFileManager(mainWindow) {
     ipcMain.on("open-file", (event, filePath) => {
         if (!filePath) return;
         openFilePath(mainWindow, filePath);
+    });
+
+    ipcMain.on("open-external", (_event, url) => {
+        if (typeof url !== "string" || !url.trim()) return;
+        shell.openExternal(url.trim());
     });
 
     ipcMain.on("open-address", (event, payload) => {
@@ -1236,6 +1315,28 @@ function setupFileManager(mainWindow) {
 
       ipcMain.on("open-ferie-permessi-window", () => {
           openFeriePermessiWindow(mainWindow);
+      });
+
+      ipcMain.on("open-product-manager-window", () => {
+          openProductManagerWindow(mainWindow);
+      });
+
+      ipcMain.on("open-product-manager-cart-window", () => {
+          openProductManagerCartWindow(mainWindow);
+      });
+
+      ipcMain.on("pm-open-calendar-assignees", () => {
+          openFeriePermessiWindow(mainWindow);
+          if (feriePermessiWindow && !feriePermessiWindow.isDestroyed()) {
+              feriePermessiWindow.webContents.send("pm-open-calendar-assignees");
+          }
+      });
+
+      ipcMain.on("pm-open-calendar-admins", () => {
+          openFeriePermessiWindow(mainWindow);
+          if (feriePermessiWindow && !feriePermessiWindow.isDestroyed()) {
+              feriePermessiWindow.webContents.send("pm-open-calendar-admins");
+          }
       });
 
       ipcMain.on("open-ferie-permessi-hours-window", () => {

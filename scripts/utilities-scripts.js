@@ -241,11 +241,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
     const btnPurchaseRequests = document.getElementById("purchaseRequests");
     if (btnPurchaseRequests) {
-        btnPurchaseRequests.addEventListener("click", async () => {
-            await showInfo(
-                "Funzione in sviluppo.",
-                "Questo pulsante aprirà un modulo dedicato alle richieste di acquisto."
-            );
+        btnPurchaseRequests.addEventListener("click", () => {
+            ipcRenderer.send("open-product-manager-window");
         });
     }
 
