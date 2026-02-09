@@ -36,6 +36,7 @@ let passwordFailCount = 0;
 let requestLines = [];
 let catalogItems = [];
 let catalogCategories = [];
+let categoryColors = {};
 let catalogFilterTag = "";
 let catalogSearch = "";
 let catalogSort = "name_asc";
@@ -50,12 +51,26 @@ let cartState = {
 let pendingConfirmResolve = null;
 let pendingAddRow = null;
 let catalogRemoveImage = false;
+let categoryEditingName = null;
+let categoryColorSnapshot = null;
+let categoryPreviewTimer = null;
 
 const { showModal, hideModal } = createModalHelpers({ document });
 
 const URGENCY_OPTIONS = ["Alta", "Media", "Bassa"];
 const PLACEHOLDER_IMAGE =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='240'><rect width='100%' height='100%' fill='%23f1f3f4'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239aa0a6' font-family='Arial' font-size='14'>Nessuna immagine</text></svg>";
+const CATEGORY_COLOR_STORAGE_KEY = "pm-category-colors";
+const DEFAULT_CATEGORY_COLORS = [
+    "#e8f0fe",
+    "#e6f4ea",
+    "#fce8e6",
+    "#fef7e0",
+    "#ede7f6",
+    "#e0f2f1",
+    "#fff3e0",
+    "#f3e5f5",
+];
 
 function createEmptyLine() {
     return {
@@ -365,8 +380,9 @@ function renderCatalog() {
         tags.className = "pm-tag-list";
         toTags(item.category || "").forEach((tag) => {
             const pill = document.createElement("span");
-            pill.className = `pm-pill ${getCategoryColorClass(tag)}`;
+            pill.className = "pm-pill";
             pill.textContent = tag;
+            applyCategoryColor(pill, tag);
             tags.appendChild(pill);
         });
         const actions = document.createElement("div");
@@ -680,6 +696,76 @@ function toTags(raw) {
         .filter(Boolean);
 }
 
+function normalizeHexColor(value, fallback) {
+    if (!value || typeof value !== "string") return fallback || "#1a73e8";
+    let next = value.trim().toLowerCase();
+    if (!next.startsWith("#")) next = `#${next}`;
+    if (/^#([0-9a-f]{3}){1,2}$/i.test(next)) {
+        if (next.length === 4) {
+            next = `#${next[1]}${next[1]}${next[2]}${next[2]}${next[3]}${next[3]}`;
+        }
+        return next;
+    }
+    return fallback || "#1a73e8";
+}
+
+function loadCategoryColors() {
+    try {
+        if (!window.localStorage) return {};
+        const raw = window.localStorage.getItem(CATEGORY_COLOR_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return {};
+        const cleaned = {};
+        Object.keys(parsed).forEach((key) => {
+            cleaned[key] = normalizeHexColor(parsed[key]);
+        });
+        return cleaned;
+    } catch (err) {
+        console.error("Errore lettura colori categorie:", err);
+        return {};
+    }
+}
+
+function saveCategoryColors(next) {
+    try {
+        if (!window.localStorage) return;
+        window.localStorage.setItem(CATEGORY_COLOR_STORAGE_KEY, JSON.stringify(next));
+    } catch (err) {
+        console.error("Errore salvataggio colori categorie:", err);
+    }
+}
+
+function hashCategoryToColor(value) {
+    if (!value) return DEFAULT_CATEGORY_COLORS[0];
+    let hash = 0;
+    for (let i = 0; i < value.length; i += 1) {
+        hash = (hash * 31 + value.charCodeAt(i)) % DEFAULT_CATEGORY_COLORS.length;
+    }
+    return DEFAULT_CATEGORY_COLORS[Math.abs(hash) % DEFAULT_CATEGORY_COLORS.length];
+}
+
+function getCategoryColor(value) {
+    if (!value) return DEFAULT_CATEGORY_COLORS[0];
+    const stored = categoryColors[value];
+    return stored || hashCategoryToColor(value);
+}
+
+function getContrastText(hex) {
+    const clean = normalizeHexColor(hex, "#ffffff").replace("#", "");
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 160 ? "#2b2b2b" : "#ffffff";
+}
+
+function applyCategoryColor(pill, tag) {
+    const color = getCategoryColor(tag);
+    pill.style.background = color;
+    pill.style.color = getContrastText(color);
+}
+
 function buildProductCell(productName, tags) {
     const wrapper = document.createElement("div");
     wrapper.className = "pm-product-cell";
@@ -692,8 +778,9 @@ function buildProductCell(productName, tags) {
         tagWrap.className = "pm-tag-list";
         tags.forEach((tag) => {
             const pill = document.createElement("span");
-            pill.className = `pm-pill ${getCategoryColorClass(tag)}`;
+            pill.className = "pm-pill";
             pill.textContent = tag;
+            applyCategoryColor(pill, tag);
             tagWrap.appendChild(pill);
         });
         wrapper.appendChild(tagWrap);
@@ -1306,16 +1393,6 @@ function saveCategories(list) {
     }
 }
 
-function getCategoryColorClass(value) {
-    const palette = ["pm-pill--c1", "pm-pill--c2", "pm-pill--c3", "pm-pill--c4", "pm-pill--c5", "pm-pill--c6", "pm-pill--c7", "pm-pill--c8"];
-    if (!value) return palette[0];
-    let hash = 0;
-    for (let i = 0; i < value.length; i += 1) {
-        hash = (hash * 31 + value.charCodeAt(i)) % palette.length;
-    }
-    return palette[Math.abs(hash) % palette.length];
-}
-
 function renderCategoryOptions(selected = []) {
     const container = document.getElementById("pm-catalog-category");
     if (!container) return;
@@ -1480,6 +1557,44 @@ function closeImageModal() {
     modal.setAttribute("aria-hidden", "true");
 }
 
+function openCategoryEditor(category) {
+    const editor = document.getElementById("pm-category-editor");
+    const title = document.getElementById("pm-category-editor-title");
+    const colorInput = document.getElementById("pm-category-color-input");
+    if (!editor || !colorInput) return;
+    categoryEditingName = category;
+    categoryColorSnapshot = { ...categoryColors };
+    colorInput.value = getCategoryColor(category);
+    if (title) title.textContent = `Colore ${category}`;
+    editor.classList.remove("is-hidden");
+}
+
+function closeCategoryEditor(revert) {
+    const editor = document.getElementById("pm-category-editor");
+    if (!editor) return;
+    editor.classList.add("is-hidden");
+    if (revert && categoryColorSnapshot) {
+        categoryColors = { ...categoryColorSnapshot };
+        saveCategoryColors(categoryColors);
+        renderCatalog();
+        renderCartTable();
+        renderCategoriesList();
+    }
+    categoryEditingName = null;
+    categoryColorSnapshot = null;
+}
+
+function updateCategoryChipPreview(name, color) {
+    const list = document.getElementById("pm-categories-list");
+    if (!list) return;
+    const chips = Array.from(list.querySelectorAll(".pm-category-chip"));
+    const chip = chips.find((item) => item.dataset.category === name);
+    if (!chip) return;
+    chip.style.background = color;
+    const dot = chip.querySelector(".pm-category-chip__dot");
+    if (dot) dot.style.background = getContrastText(color);
+}
+
 function renderCategoriesList() {
     const list = document.getElementById("pm-categories-list");
     if (!list) return;
@@ -1487,8 +1602,26 @@ function renderCategoriesList() {
     catalogCategories.forEach((cat) => {
         const row = document.createElement("div");
         row.className = "pm-list-item";
+        row.dataset.category = cat;
+        const labelWrap = document.createElement("div");
+        labelWrap.style.display = "flex";
+        labelWrap.style.alignItems = "center";
+        labelWrap.style.gap = "8px";
+        const chipBtn = document.createElement("button");
+        chipBtn.type = "button";
+        chipBtn.className = "pm-category-chip";
+        chipBtn.title = "Modifica colore";
+        chipBtn.dataset.category = cat;
+        const dot = document.createElement("span");
+        dot.className = "pm-category-chip__dot";
+        const chipColor = getCategoryColor(cat);
+        chipBtn.style.background = chipColor;
+        dot.style.background = getContrastText(chipColor);
+        chipBtn.appendChild(dot);
+        chipBtn.addEventListener("click", () => openCategoryEditor(cat));
         const label = document.createElement("span");
         label.textContent = cat;
+        labelWrap.append(chipBtn, label);
         const actions = document.createElement("div");
         actions.className = "pm-table__cell pm-table__actions";
         const editBtn = document.createElement("button");
@@ -1508,6 +1641,11 @@ function renderCategoriesList() {
                 return;
             }
             catalogCategories = catalogCategories.map((entry) => (entry === cat ? nextName : entry));
+            if (categoryColors[cat]) {
+                categoryColors = { ...categoryColors, [nextName]: categoryColors[cat] };
+                delete categoryColors[cat];
+                saveCategoryColors(categoryColors);
+            }
             // Cascata su catalogo
             catalogItems = catalogItems.map((item) => {
                 const tags = toTags(item.category || "").map((t) => (t === cat ? nextName : t));
@@ -1544,6 +1682,10 @@ function renderCategoriesList() {
             const ok = await openConfirmModal(`Vuoi eliminare la categoria \"${cat}\"?`);
             if (!ok) return;
             catalogCategories = catalogCategories.filter((entry) => entry !== cat);
+            if (categoryColors[cat]) {
+                delete categoryColors[cat];
+                saveCategoryColors(categoryColors);
+            }
             // Rimuovi dal catalogo e richieste
             catalogItems = catalogItems.map((item) => {
                 const tags = toTags(item.category || "").filter((t) => t !== cat);
@@ -1566,7 +1708,7 @@ function renderCategoriesList() {
             }
         });
         actions.append(editBtn, removeBtn);
-        row.append(label, actions);
+        row.append(labelWrap, actions);
         list.appendChild(row);
     });
     if (!catalogCategories.length) {
@@ -1591,6 +1733,7 @@ function closeCategoriesModal() {
     if (!modal) return;
     modal.classList.add("is-hidden");
     modal.setAttribute("aria-hidden", "true");
+    closeCategoryEditor(true);
 }
 
 function addCategory() {
@@ -2420,6 +2563,11 @@ function initCategoriesModal() {
     const openBtn = document.getElementById("pm-categories-open");
     const closeBtn = document.getElementById("pm-categories-close");
     const addBtn = document.getElementById("pm-category-add");
+    const colorInput = document.getElementById("pm-category-color-input");
+    const colorSave = document.getElementById("pm-category-color-save");
+    const colorDefault = document.getElementById("pm-category-color-default");
+    const colorCancel = document.getElementById("pm-category-color-cancel");
+    const editor = document.getElementById("pm-category-editor");
     if (openBtn) openBtn.addEventListener("click", () => {
         const settings = document.getElementById("pm-settings-modal");
         if (settings) settings.classList.add("is-hidden");
@@ -2427,6 +2575,46 @@ function initCategoriesModal() {
     });
     if (closeBtn) closeBtn.addEventListener("click", () => closeCategoriesModal());
     if (addBtn) addBtn.addEventListener("click", () => addCategory());
+    if (editor) {
+        editor.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+    if (colorInput) {
+        colorInput.addEventListener("input", () => {
+            if (!categoryEditingName) return;
+            const next = normalizeHexColor(colorInput.value, getCategoryColor(categoryEditingName));
+            categoryColors = { ...categoryColors, [categoryEditingName]: next };
+            updateCategoryChipPreview(categoryEditingName, next);
+            if (categoryPreviewTimer) clearTimeout(categoryPreviewTimer);
+            categoryPreviewTimer = setTimeout(() => {
+                renderCatalog();
+                renderCartTable();
+                categoryPreviewTimer = null;
+            }, 80);
+        });
+    }
+    if (colorDefault) {
+        colorDefault.addEventListener("click", () => {
+            if (!categoryEditingName) return;
+            const next = hashCategoryToColor(categoryEditingName);
+            if (colorInput) colorInput.value = next;
+            categoryColors = { ...categoryColors, [categoryEditingName]: next };
+            updateCategoryChipPreview(categoryEditingName, next);
+            renderCatalog();
+            renderCartTable();
+        });
+    }
+    if (colorSave) {
+        colorSave.addEventListener("click", () => {
+            if (!categoryEditingName) return;
+            saveCategoryColors(categoryColors);
+            closeCategoryEditor(false);
+        });
+    }
+    if (colorCancel) {
+        colorCancel.addEventListener("click", () => closeCategoryEditor(true));
+    }
 }
 
 function initAddModal() {
@@ -2655,6 +2843,7 @@ async function init() {
     renderAdminSelect();
     catalogItems = loadCatalog();
     catalogCategories = loadCategories();
+    categoryColors = loadCategoryColors();
     renderCatalog();
     renderCategoryOptions();
     renderCatalogFilterOptions();
