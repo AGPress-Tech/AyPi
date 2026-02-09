@@ -69,6 +69,7 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     max-height: calc(100vh - 200px);
+    padding: 0;
 }
 
 .pm-requests-list {
@@ -669,4 +670,30 @@ body.fp-aypi .pm-btn--primary {
     .pm-cart-toolbar {
         grid-template-columns: 1fr;
     }
+}
+.pm-request-sticky {
+    position: sticky;
+    z-index: 2;
+    background: var(--pm-surface);
+    padding: 0 16px;
+}
+
+.pm-request-sticky--top {
+    top: 0;
+    padding-bottom: 12px;
+    box-shadow: 0 8px 12px -12px rgba(60, 64, 67, 0.4);
+}
+
+.pm-request-sticky--bottom {
+    bottom: 0;
+    padding-top: 12px;
+    box-shadow: 0 -8px 12px -12px rgba(60, 64, 67, 0.4);
+}
+
+.pm-request-sticky--bottom .pm-line-actions {
+    margin-top: 0;
+}
+
+.pm-lines {
+    padding: 0 16px;
 }

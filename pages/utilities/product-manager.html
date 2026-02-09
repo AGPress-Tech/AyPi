@@ -31,18 +31,22 @@
         <main class="pm-body">
             <section class="pm-panel">
                 <form id="pm-request-form" class="pm-card">
-                    <h2>Nuova richiesta</h2>
-                    <div class="pm-field">
-                        <label for="pm-notes">Note generali</label>
-                        <textarea id="pm-notes" rows="2" placeholder="Note generali per la richiesta"></textarea>
+                    <div class="pm-request-sticky pm-request-sticky--top">
+                        <h2>Nuova richiesta</h2>
+                        <div class="pm-field">
+                            <label for="pm-notes">Note generali</label>
+                            <textarea id="pm-notes" rows="2" placeholder="Note generali per la richiesta"></textarea>
+                        </div>
                     </div>
                     <div class="pm-lines" id="pm-lines"></div>
                     <datalist id="pm-category-options"></datalist>
-                    <div class="pm-line-actions">
-                        <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-line">+ Aggiungi prodotto</button>
-                    </div>
-                    <div class="pm-actions">
-                        <button type="button" class="pm-btn pm-btn--primary" id="pm-request-save">Invia richiesta</button>
+                    <div class="pm-request-sticky pm-request-sticky--bottom">
+                        <div class="pm-line-actions">
+                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-line">+ Aggiungi prodotto</button>
+                        </div>
+                        <div class="pm-actions">
+                            <button type="button" class="pm-btn pm-btn--primary" id="pm-request-save">Invia richiesta</button>
+                        </div>
                     </div>
                     <div id="pm-form-message" class="pm-message is-hidden"></div>
                 </form>
