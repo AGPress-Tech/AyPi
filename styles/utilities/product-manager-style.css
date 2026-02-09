@@ -57,6 +57,12 @@ select {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+body.pm-ready .pm-page {
+    opacity: 1;
 }
 
 .pm-header {
@@ -66,6 +72,39 @@ select {
     padding: 18px 24px;
     background: var(--pm-surface);
     border-bottom: 1px solid var(--pm-border);
+}
+
+.pm-splash {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000000;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+}
+
+.pm-splash img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.pm-splash.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pm-splash.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.pm-splash.is-fading {
+    opacity: 0;
 }
 
 .pm-header__title h1 {
@@ -659,6 +698,7 @@ select {
     margin-top: 6px;
     white-space: pre-wrap;
 }
+
 
 .pm-message--error {
     color: var(--pm-danger);

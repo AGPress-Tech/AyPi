@@ -667,6 +667,7 @@ let productManagerCartWindow = null;
 let productManagerSession = null;
 let productManagerForceLogout = false;
 let feriePermessiSplashShown = false;
+let productManagerSplashShown = false;
 let isAppQuitting = false;
 let lastFolderDialogPath = null;
 let lastFolderDialogClosedAt = 0;
@@ -872,8 +873,11 @@ function openProductManagerWindow(mainWindow) {
     });
 
     productManagerWindow.maximize();
+    const shouldShowSplash = !productManagerSplashShown;
+    productManagerSplashShown = true;
     productManagerWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "product-manager.html")
+        path.join(__dirname, "..", "pages", "utilities", "product-manager.html"),
+        { query: { pmSplash: shouldShowSplash ? "1" : "0" } }
     );
     productManagerWindow.setMenu(null);
 

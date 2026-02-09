@@ -11,6 +11,68 @@
 </head>
 
 <body>
+    <div id="pm-splash" class="pm-splash">
+        <img src="../../assets/AyPi Purchasing.png" alt="AyPi Purchasing">
+    </div>
+    <script>
+        (function () {
+            try {
+                var params = new URLSearchParams(window.location.search || "");
+                var shouldShow = params.get("pmSplash") === "1";
+                var splashEl = document.getElementById("pm-splash");
+                var showModule = function () {
+                    document.body.classList.add("pm-ready");
+                    document.body.classList.remove("pm-splash-active");
+                };
+                if (!splashEl || !shouldShow) {
+                    if (splashEl) {
+                        splashEl.classList.add("is-hidden");
+                        splashEl.dataset.hidden = "1";
+                    }
+                    showModule();
+                    return;
+                }
+                document.body.classList.add("pm-splash-active");
+                var maxHideMs = 4500;
+                setTimeout(function () {
+                    if (splashEl.dataset.hidden === "1") return;
+                    splashEl.classList.add("is-hidden");
+                    splashEl.classList.remove("is-visible", "is-fading");
+                    splashEl.dataset.hidden = "1";
+                    showModule();
+                }, maxHideMs);
+                var startSplash = function () {
+                    if (splashEl.dataset.started === "1") return;
+                    splashEl.dataset.started = "1";
+                    splashEl.classList.remove("is-hidden", "is-fading");
+                    splashEl.classList.add("is-visible");
+                    var fullOpacityMs = 800;
+                    var fadeMs = 800;
+                    setTimeout(function () {
+                        splashEl.classList.add("is-fading");
+                        showModule();
+                    }, fullOpacityMs);
+                    setTimeout(function () {
+                        splashEl.classList.add("is-hidden");
+                        splashEl.classList.remove("is-visible", "is-fading");
+                        splashEl.dataset.hidden = "1";
+                        showModule();
+                    }, fullOpacityMs + fadeMs);
+                };
+                if (splashEl.dataset.checked !== "1") {
+                    splashEl.dataset.checked = "1";
+                    if (!shouldShow) {
+                        splashEl.classList.add("is-hidden");
+                        splashEl.dataset.hidden = "1";
+                        showModule();
+                        return;
+                    }
+                    startSplash();
+                    return;
+                }
+            } catch (err) {}
+        })();
+    </script>
     <div class="pm-js-warning" id="pm-js-warning">Errore: script non caricato.</div>
     <div class="pm-page">
         <header class="pm-header">
