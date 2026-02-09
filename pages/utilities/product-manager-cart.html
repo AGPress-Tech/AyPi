@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AyPi - Mega Carrello</title>
+    <title>AyPi - Lista acquisti</title>
     <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
@@ -13,10 +13,11 @@
     <div class="pm-page">
         <header class="pm-header">
             <div class="pm-header__title">
-                <h1>Mega Carrello</h1>
-                <div class="pm-header__subtitle">In sviluppo</div>
+                <h1>Lista acquisti</h1>
+                <div class="pm-header__subtitle">Elenco prodotti da acquistare</div>
             </div>
             <div class="pm-header__actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-close-cart">Chiudi</button>
                 <button type="button" class="pm-btn" id="pm-refresh">Aggiorna</button>
                 <button type="button" class="pm-btn" id="pm-login-toggle">Login</button>
             </div>
@@ -24,12 +25,38 @@
 
         <main class="pm-body">
             <section class="pm-list">
+                <div class="pm-cart-toolbar">
+                    <div class="pm-field">
+                        <label for="pm-cart-search">Ricerca</label>
+                        <input type="text" id="pm-cart-search" placeholder="Cerca per prodotto, tag, dipendente...">
+                    </div>
+                    <div class="pm-field">
+                        <label for="pm-cart-filter-urgency">Priorità</label>
+                        <select id="pm-cart-filter-urgency">
+                            <option value="">Tutte</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Media">Media</option>
+                            <option value="Bassa">Bassa</option>
+                        </select>
+                    </div>
+                    <div class="pm-field">
+                        <label for="pm-cart-sort">Ordina per</label>
+                        <select id="pm-cart-sort">
+                            <option value="created_desc">Data (nuove)</option>
+                            <option value="created_asc">Data (vecchie)</option>
+                            <option value="product_asc">Prodotto (A-Z)</option>
+                            <option value="product_desc">Prodotto (Z-A)</option>
+                            <option value="urgency_desc">Priorità</option>
+                            <option value="requester_asc">Richiesto da (A-Z)</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="pm-requests-list" class="pm-requests-list"></div>
             </section>
         </main>
     </div>
 
-    <div class="pm-modal" id="pm-login-modal" aria-hidden="true">
+    <div class="pm-modal is-hidden" id="pm-login-modal" aria-hidden="true">
         <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-login-title">
             <div class="pm-modal__header">
                 <h3 id="pm-login-title">Accedi</h3>
@@ -61,6 +88,30 @@
                 </div>
                 <div id="pm-login-admin-error" class="pm-message pm-message--error is-hidden">Password errata.</div>
                 <button type="button" class="pm-btn pm-btn--primary" id="pm-login-admin-confirm">Entra</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-logout-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-logout-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-logout-title">Logout</h3>
+            </div>
+            <p>Vuoi uscire dalla sessione corrente?</p>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-logout-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-logout-confirm">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-confirm-modal" aria-hidden="true">
+        <div class="pm-modal__card pm-confirm-card" role="dialog" aria-modal="true" aria-labelledby="pm-confirm-title">
+            <h3 id="pm-confirm-title">Conferma</h3>
+            <p id="pm-confirm-message"></p>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-confirm-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-confirm-ok">Ok</button>
             </div>
         </div>
     </div>
@@ -108,6 +159,73 @@
                 <button type="button" class="pm-btn pm-btn--primary" id="pm-approve-save">Approva</button>
             </div>
             <div id="pm-approve-message" class="pm-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-edit-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-edit-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-edit-title">Modifica prodotto</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-edit-close">Chiudi</button>
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-product">Prodotto</label>
+                <input type="text" id="pm-edit-product">
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-tags">Tipologia (tag)</label>
+                <input type="text" id="pm-edit-tags" placeholder="Tag separati da virgola">
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-quantity">Quantità</label>
+                <input type="number" id="pm-edit-quantity" min="0" step="1">
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-unit">UM</label>
+                <input type="text" id="pm-edit-unit">
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-urgency">Priorità</label>
+                <select id="pm-edit-urgency">
+                    <option value="">Seleziona priorità</option>
+                    <option value="Alta">Alta</option>
+                    <option value="Media">Media</option>
+                    <option value="Bassa">Bassa</option>
+                </select>
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-url">URL</label>
+                <input type="text" id="pm-edit-url">
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-price">Prezzo C.A.D</label>
+                <input type="number" id="pm-edit-price" min="0" step="0.01">
+            </div>
+            <div class="pm-field">
+                <label for="pm-edit-note">Note</label>
+                <input type="text" id="pm-edit-note">
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-edit-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-edit-save">Salva</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-add-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-add-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-add-title">Aggiungi quantità</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-close">Chiudi</button>
+            </div>
+            <div class="pm-field">
+                <label for="pm-add-quantity">Quantità</label>
+                <input type="number" id="pm-add-quantity" min="0" step="1" placeholder="0">
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-add-save">Conferma</button>
+            </div>
         </div>
     </div>
 

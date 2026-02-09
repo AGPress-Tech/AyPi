@@ -1,4 +1,4 @@
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, shell } = require("electron");
 const fs = require("fs");
 
 const { showInfo, showWarning, showError, showDialog } = require("../shared/dialogs");
@@ -8,6 +8,7 @@ const { createAssigneesModal } = require("./ferie-permessi/ui/assignees-modal");
 const { createAdminModals } = require("./ferie-permessi/ui/admin-modals");
 const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const { isHashingAvailable, hashPassword } = require("./ferie-permessi/config/security");
+const { REQUESTS_PATH, SESSION_PATH } = require("./product-manager/config/paths");
 const {
     loadAdminCredentials,
     saveAdminCredentials,
@@ -30,8 +31,779 @@ let adminCache = [];
 let adminEditingIndex = -1;
 let pendingPasswordAction = null;
 let passwordFailCount = 0;
+let requestLines = [];
+let cartState = {
+    search: "",
+    urgency: "",
+    sort: "created_desc",
+    editingKey: null,
+    editingRow: null,
+};
+let pendingConfirmResolve = null;
+let pendingAddRow = null;
 
 const { showModal, hideModal } = createModalHelpers({ document });
+
+const URGENCY_OPTIONS = ["Alta", "Media", "Bassa"];
+
+function createEmptyLine() {
+    return {
+        product: "",
+        category: "",
+        quantity: "",
+        unit: "",
+        urgency: "",
+        url: "",
+        note: "",
+    };
+}
+
+function normalizePriceCad(value) {
+    if (value === null || value === undefined) return "";
+    const raw = String(value).replace(",", ".").replace(/[^\d.-]/g, "").trim();
+    if (!raw) return "";
+    const num = Number.parseFloat(raw);
+    if (Number.isNaN(num)) return "";
+    return num.toFixed(2);
+}
+
+function formatPriceCadDisplay(value) {
+    const normalized = normalizePriceCad(value);
+    if (!normalized) return "";
+    return `? ${normalized}`;
+}
+
+function updateLineField(index, field, value) {
+    if (!requestLines[index]) return;
+    requestLines[index][field] = value;
+}
+
+function createLineElement(line, index) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pm-line";
+    wrapper.dataset.index = String(index);
+
+    const grid = document.createElement("div");
+    grid.className = "pm-line-grid";
+
+    const productField = document.createElement("div");
+    productField.className = "pm-field";
+    const productLabel = document.createElement("label");
+    productLabel.textContent = "Prodotto";
+    const productInput = document.createElement("input");
+    productInput.type = "text";
+    productInput.value = line.product;
+    productInput.placeholder = "Nome prodotto";
+    productInput.addEventListener("input", (event) =>
+        updateLineField(index, "product", event.target.value)
+    );
+    productField.append(productLabel, productInput);
+
+    const categoryField = document.createElement("div");
+    categoryField.className = "pm-field";
+    const categoryLabel = document.createElement("label");
+    categoryLabel.textContent = "Tipologia";
+    const categoryInput = document.createElement("input");
+    categoryInput.type = "text";
+    categoryInput.value = line.category;
+    categoryInput.placeholder = "Tag (separati da virgola)";
+    categoryInput.setAttribute("list", "pm-category-options");
+    categoryInput.addEventListener("input", (event) =>
+        updateLineField(index, "category", event.target.value)
+    );
+    categoryField.append(categoryLabel, categoryInput);
+
+    const quantityField = document.createElement("div");
+    quantityField.className = "pm-field";
+    const quantityLabel = document.createElement("label");
+    quantityLabel.textContent = "Quantità";
+    const quantityInput = document.createElement("input");
+    quantityInput.type = "number";
+    quantityInput.min = "0";
+    quantityInput.step = "1";
+    quantityInput.value = line.quantity;
+    quantityInput.placeholder = "0";
+    quantityInput.addEventListener("input", (event) =>
+        updateLineField(index, "quantity", event.target.value)
+    );
+    quantityField.append(quantityLabel, quantityInput);
+
+    const unitField = document.createElement("div");
+    unitField.className = "pm-field";
+    const unitLabel = document.createElement("label");
+    unitLabel.textContent = "UM";
+    const unitInput = document.createElement("input");
+    unitInput.type = "text";
+    unitInput.value = line.unit;
+    unitInput.placeholder = "Pezzi / Scatole";
+    unitInput.addEventListener("input", (event) =>
+        updateLineField(index, "unit", event.target.value)
+    );
+    unitField.append(unitLabel, unitInput);
+
+    const urgencyField = document.createElement("div");
+    urgencyField.className = "pm-field";
+    const urgencyLabel = document.createElement("label");
+    urgencyLabel.textContent = "Urgenza";
+    const urgencySelect = document.createElement("select");
+    const urgencyPlaceholder = document.createElement("option");
+    urgencyPlaceholder.value = "";
+    urgencyPlaceholder.textContent = "Seleziona urgenza";
+    urgencyPlaceholder.disabled = true;
+    urgencyPlaceholder.selected = !line.urgency;
+    urgencySelect.appendChild(urgencyPlaceholder);
+    URGENCY_OPTIONS.forEach((option) => {
+        const opt = document.createElement("option");
+        opt.value = option;
+        opt.textContent = option;
+        if (line.urgency === option) opt.selected = true;
+        urgencySelect.appendChild(opt);
+    });
+    urgencySelect.addEventListener("change", (event) =>
+        updateLineField(index, "urgency", event.target.value)
+    );
+    urgencyField.append(urgencyLabel, urgencySelect);
+
+    grid.append(productField, categoryField, quantityField, unitField, urgencyField);
+
+    const secondary = document.createElement("div");
+    secondary.className = "pm-line-grid pm-line-grid--secondary";
+
+    const urlField = document.createElement("div");
+    urlField.className = "pm-field";
+    const urlLabel = document.createElement("label");
+    urlLabel.textContent = "URL";
+    const urlInput = document.createElement("input");
+    urlInput.type = "text";
+    urlInput.value = line.url;
+    urlInput.placeholder = "Link prodotto (opzionale)";
+    urlInput.addEventListener("input", (event) =>
+        updateLineField(index, "url", event.target.value)
+    );
+    urlField.append(urlLabel, urlInput);
+
+    const noteField = document.createElement("div");
+    noteField.className = "pm-field";
+    const noteLabel = document.createElement("label");
+    noteLabel.textContent = "Note riga";
+    const noteInput = document.createElement("input");
+    noteInput.type = "text";
+    noteInput.value = line.note;
+    noteInput.placeholder = "Note specifiche";
+    noteInput.addEventListener("input", (event) =>
+        updateLineField(index, "note", event.target.value)
+    );
+    noteField.append(noteLabel, noteInput);
+
+    const actionsField = document.createElement("div");
+    actionsField.className = "pm-field";
+    const actionLabel = document.createElement("label");
+    actionLabel.textContent = "Azioni";
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "pm-btn pm-btn--ghost";
+    removeBtn.textContent = "Rimuovi";
+    removeBtn.addEventListener("click", () => removeLine(index));
+    actionsField.append(actionLabel, removeBtn);
+
+    secondary.append(urlField, noteField, actionsField);
+
+    wrapper.append(grid, secondary);
+    return wrapper;
+}
+
+function renderLines() {
+    const container = document.getElementById("pm-lines");
+    if (!container) return;
+    container.innerHTML = "";
+    requestLines.forEach((line, index) => {
+        container.appendChild(createLineElement(line, index));
+    });
+}
+
+function addLine() {
+    requestLines.push(createEmptyLine());
+    renderLines();
+}
+
+function removeLine(index) {
+    if (requestLines.length <= 1) {
+        requestLines = [createEmptyLine()];
+    } else {
+        requestLines.splice(index, 1);
+    }
+    renderLines();
+}
+
+function readRequestsFile() {
+    try {
+        if (!fs.existsSync(REQUESTS_PATH)) return [];
+        const raw = fs.readFileSync(REQUESTS_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+        showError("Errore lettura richieste.", err.message || String(err));
+        return [];
+    }
+}
+
+function saveRequestsFile(payload) {
+    try {
+        fs.writeFileSync(REQUESTS_PATH, JSON.stringify(payload, null, 2), "utf8");
+        return true;
+    } catch (err) {
+        showError("Errore salvataggio richieste.", err.message || String(err));
+        return false;
+    }
+}
+
+function collectRequestPayload() {
+    const notes = document.getElementById("pm-notes")?.value?.trim() || "";
+    const cleanedLines = requestLines
+        .map((line) => ({
+            product: (line.product || "").trim(),
+            category: (line.category || "").trim(),
+            quantity: (line.quantity || "").toString().trim(),
+            unit: (line.unit || "").trim(),
+            urgency: (line.urgency || "").trim(),
+            url: (line.url || "").trim(),
+            note: (line.note || "").trim(),
+        }))
+        .filter((line) => line.product || line.quantity || line.unit || line.category || line.urgency);
+
+    return {
+        notes,
+        lines: cleanedLines,
+    };
+}
+
+function validateRequestPayload(payload) {
+    if (!payload.lines.length) return "Aggiungi almeno un prodotto.";
+    const invalidLine = payload.lines.find(
+        (line) => !line.product || !line.quantity || !line.unit || !line.urgency
+    );
+    if (invalidLine) {
+        return "Compila prodotto, quantità, UM e urgenza per ogni riga.";
+    }
+    return "";
+}
+
+function buildRequestRecord(payload) {
+    const now = new Date().toISOString();
+    const id = `REQ-${Date.now()}`;
+    const employeeName =
+        session.employee || (session.role === "admin" ? session.adminName || "Admin" : "");
+    return {
+        id,
+        createdAt: now,
+        status: "pending",
+        department: session.department || "",
+        employee: employeeName,
+        createdBy: session.role,
+        adminName: session.adminName || "",
+        notes: payload.notes,
+        lines: payload.lines,
+        history: [
+            {
+                at: now,
+                by: session.role,
+                adminName: session.adminName || "",
+                action: "created",
+            },
+        ],
+    };
+}
+
+function showFormMessage(text, type = "info") {
+    const message = document.getElementById("pm-form-message");
+    if (!message) return;
+    message.textContent = text;
+    message.classList.remove("is-hidden", "pm-message--error", "pm-message--success");
+    if (type === "error") message.classList.add("pm-message--error");
+    if (type === "success") message.classList.add("pm-message--success");
+}
+
+function clearForm() {
+    const notes = document.getElementById("pm-notes");
+    if (notes) notes.value = "";
+    requestLines = [createEmptyLine()];
+    renderLines();
+}
+
+function toTags(raw) {
+    if (!raw) return [];
+    return raw
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
+function buildProductCell(productName, tags) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pm-product-cell";
+    const title = document.createElement("div");
+    title.className = "pm-product-title";
+    title.textContent = productName || "-";
+    wrapper.appendChild(title);
+    if (tags.length) {
+        const tagWrap = document.createElement("div");
+        tagWrap.className = "pm-tag-list";
+        tags.forEach((tag) => {
+            const pill = document.createElement("span");
+            pill.className = "pm-pill";
+            pill.textContent = tag;
+            tagWrap.appendChild(pill);
+        });
+        wrapper.appendChild(tagWrap);
+    }
+    return wrapper;
+}
+
+function buildUrlCell(url) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pm-url-cell";
+    if (!url) {
+        wrapper.textContent = "-";
+        return wrapper;
+    }
+    const shortUrl = url.length > 45 ? `${url.slice(0, 42)}...` : url;
+    const link = document.createElement("a");
+    link.href = url;
+    link.textContent = shortUrl;
+    link.className = "pm-link";
+    link.title = url;
+    link.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (shell && shell.openExternal) {
+            shell.openExternal(url);
+        }
+    });
+    wrapper.appendChild(link);
+    return wrapper;
+}
+
+function renderCartTable() {
+    const list = document.getElementById("pm-requests-list");
+    if (!list) return;
+    const requests = readRequestsFile();
+    const rows = [];
+    let needsSave = false;
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    requests.forEach((request, requestIndex) => {
+        const requester = [request.employee, request.department]
+            .filter(Boolean)
+            .join(" - ");
+        const nextLines = [];
+        (request.lines || []).forEach((line, lineIndex) => {
+            const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
+            if (deletedAt && now - deletedAt >= weekMs) {
+                needsSave = true;
+                return;
+            }
+            nextLines.push(line);
+            const nextIndex = nextLines.length - 1;
+            const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
+            if (confirmedAt && now - confirmedAt >= monthMs) {
+                return;
+            }
+            rows.push({
+                key: `${request.id || requestIndex}-${nextIndex}`,
+                requestIndex,
+                lineIndex: nextIndex,
+                product: line.product || "",
+                category: line.category || "",
+                tags: toTags(line.category || ""),
+                quantity: line.quantity || "",
+                unit: line.unit || "",
+                urgency: line.urgency || "",
+                url: line.url || "",
+                priceCad: line.priceCad || "",
+                confirmed: Boolean(line.confirmed),
+                confirmedAt: line.confirmedAt || "",
+                deletedAt: line.deletedAt || "",
+                requester,
+                createdAt: request.createdAt || "",
+            });
+        });
+        if (nextLines.length !== (request.lines || []).length) {
+            request.lines = nextLines;
+        }
+    });
+    if (needsSave) {
+        const cleaned = requests.filter((request) => Array.isArray(request.lines) && request.lines.length);
+        saveRequestsFile(cleaned);
+    }
+
+    const filtered = rows.filter((row) => {
+        if (cartState.urgency && row.urgency !== cartState.urgency) return false;
+        if (cartState.search) {
+            const haystack = [
+                row.product,
+                row.tags.join(" "),
+                row.requester,
+                row.url,
+                row.unit,
+                row.urgency,
+                row.priceCad,
+            ]
+                .join(" ")
+                .toLowerCase();
+            if (!haystack.includes(cartState.search.toLowerCase())) return false;
+        }
+        return true;
+    });
+
+    const sortKey = cartState.sort || "created_desc";
+    filtered.sort((a, b) => {
+        if (sortKey === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
+        if (sortKey === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
+        if (sortKey === "product_asc") return a.product.localeCompare(b.product);
+        if (sortKey === "product_desc") return b.product.localeCompare(a.product);
+        if (sortKey === "urgency_desc") {
+            const order = { Alta: 3, Media: 2, Bassa: 1, "": 0 };
+            return (order[b.urgency] || 0) - (order[a.urgency] || 0);
+        }
+        if (sortKey === "requester_asc") return a.requester.localeCompare(b.requester);
+        return 0;
+    });
+
+    if (!filtered.length) {
+        list.innerHTML = "<div class=\"pm-message\">Nessun prodotto in lista.</div>";
+        return;
+    }
+
+    const table = document.createElement("div");
+    table.className = "pm-table";
+
+    const header = document.createElement("div");
+    header.className = "pm-table__row pm-table__row--header";
+    ["", "Prodotto", "Quantità", "UM", "Priorità", "URL", "Prezzo C.A.D", "Richiesto da", "Azioni"].forEach((title) => {
+        const cell = document.createElement("div");
+        cell.className = "pm-table__cell";
+        cell.textContent = title;
+        header.appendChild(cell);
+    });
+    table.appendChild(header);
+
+    filtered.forEach((row) => {
+        const tr = document.createElement("div");
+        tr.className = "pm-table__row";
+        if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
+        if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
+
+        const statusCell = document.createElement("div");
+        statusCell.className = "pm-table__cell pm-table__cell--icons";
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
+        deleteBtn.title = "Elimina";
+        deleteBtn.disabled = !isAdmin() || Boolean(row.deletedAt);
+        deleteBtn.addEventListener("click", () => deleteCartRow(row));
+        const deleteIcon = document.createElement("span");
+        deleteIcon.className = "material-icons";
+        deleteIcon.textContent = "close";
+        deleteBtn.appendChild(deleteIcon);
+
+        const confirmBtn = document.createElement("button");
+        confirmBtn.type = "button";
+        confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
+        confirmBtn.title = "Convalida";
+        confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
+        confirmBtn.addEventListener("click", () => confirmCartRow(row));
+        const confirmIcon = document.createElement("span");
+        confirmIcon.className = "material-icons";
+        confirmIcon.textContent = "check";
+        confirmBtn.appendChild(confirmIcon);
+
+        statusCell.append(deleteBtn, confirmBtn);
+
+        const admin = isAdmin();
+
+        const productCell = document.createElement("div");
+        productCell.className = "pm-table__cell";
+        productCell.appendChild(buildProductCell(row.product, row.tags));
+
+        const quantityCell = document.createElement("div");
+        quantityCell.className = "pm-table__cell";
+        quantityCell.textContent = row.quantity || "-";
+
+        const unitCell = document.createElement("div");
+        unitCell.className = "pm-table__cell";
+        unitCell.textContent = row.unit || "-";
+
+        const urgencyCell = document.createElement("div");
+        urgencyCell.className = "pm-table__cell";
+        urgencyCell.textContent = row.urgency || "-";
+
+        const urlCell = document.createElement("div");
+        urlCell.className = "pm-table__cell";
+        urlCell.appendChild(buildUrlCell(row.url));
+
+        const priceCell = document.createElement("div");
+        priceCell.className = "pm-table__cell";
+        priceCell.textContent = row.priceCad ? formatPriceCadDisplay(row.priceCad) : "-";
+
+        const requesterCell = document.createElement("div");
+        requesterCell.className = "pm-table__cell";
+        requesterCell.textContent = row.requester || "-";
+
+        const actionsCell = document.createElement("div");
+        actionsCell.className = "pm-table__cell pm-table__actions";
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.className = "pm-btn pm-btn--ghost";
+        addBtn.textContent = "Aggiungi";
+        addBtn.addEventListener("click", () => openAddModal(row));
+        actionsCell.appendChild(addBtn);
+        if (row.deletedAt) {
+            addBtn.disabled = true;
+        }
+        if (admin) {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "pm-btn pm-btn--ghost";
+            editBtn.textContent = "Modifica";
+            editBtn.addEventListener("click", () => openEditModal(row));
+            if (row.deletedAt) editBtn.disabled = true;
+            actionsCell.append(editBtn);
+        } else if (!isLoggedIn()) {
+            addBtn.disabled = true;
+        }
+
+        tr.append(
+            statusCell,
+            productCell,
+            quantityCell,
+            unitCell,
+            urgencyCell,
+            urlCell,
+            priceCell,
+            requesterCell,
+            actionsCell
+        );
+        table.appendChild(tr);
+    });
+
+    list.innerHTML = "";
+    list.appendChild(table);
+}
+
+function getEditFieldValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value : "";
+}
+
+function openEditModal(row) {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono modificare.");
+        return;
+    }
+    cartState.editingRow = row;
+    const modal = document.getElementById("pm-edit-modal");
+    if (!modal) return;
+    const product = document.getElementById("pm-edit-product");
+    const tags = document.getElementById("pm-edit-tags");
+    const quantity = document.getElementById("pm-edit-quantity");
+    const unit = document.getElementById("pm-edit-unit");
+    const urgency = document.getElementById("pm-edit-urgency");
+    const url = document.getElementById("pm-edit-url");
+    const price = document.getElementById("pm-edit-price");
+    const note = document.getElementById("pm-edit-note");
+    if (product) product.value = row.product || "";
+    if (tags) tags.value = row.tags.join(", ");
+    if (quantity) quantity.value = row.quantity || "";
+    if (unit) unit.value = row.unit || "";
+    if (urgency) urgency.value = row.urgency || "";
+    if (url) url.value = row.url || "";
+    if (price) price.value = row.priceCad ? String(row.priceCad).replace(/[^\d.,-]/g, "") : "";
+    if (note) note.value = row.note || "";
+    modal.classList.remove("is-hidden");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function closeEditModal() {
+    const modal = document.getElementById("pm-edit-modal");
+    if (!modal) return;
+    modal.classList.add("is-hidden");
+    modal.setAttribute("aria-hidden", "true");
+    cartState.editingRow = null;
+}
+
+function saveEditModal() {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono modificare.");
+        return;
+    }
+    const row = cartState.editingRow;
+    if (!row) return;
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono modificare.");
+        return;
+    }
+    const requests = readRequestsFile();
+    const request = requests[row.requestIndex];
+    if (!request || !request.lines || !request.lines[row.lineIndex]) {
+        showError("Elemento non trovato.", "La riga potrebbe essere stata modificata da un altro utente.");
+        return;
+    }
+    const line = request.lines[row.lineIndex];
+    line.product = getEditFieldValue("pm-edit-product").trim();
+    line.category = getEditFieldValue("pm-edit-tags").trim();
+    line.quantity = getEditFieldValue("pm-edit-quantity").toString().trim();
+    line.unit = getEditFieldValue("pm-edit-unit").trim();
+    line.urgency = getEditFieldValue("pm-edit-urgency").trim();
+    line.url = getEditFieldValue("pm-edit-url").trim();
+    line.priceCad = normalizePriceCad(getEditFieldValue("pm-edit-price"));
+    line.note = getEditFieldValue("pm-edit-note").trim();
+    request.history = Array.isArray(request.history) ? request.history : [];
+    request.history.push({
+        at: new Date().toISOString(),
+        by: "admin",
+        adminName: session.adminName || "",
+        action: "line-updated",
+    });
+    if (saveRequestsFile(requests)) {
+        closeEditModal();
+        renderCartTable();
+    }
+}
+
+function openAddModal(row) {
+    if (!requireLogin()) return;
+    pendingAddRow = row;
+    const modal = document.getElementById("pm-add-modal");
+    const qty = document.getElementById("pm-add-quantity");
+    if (!modal) return;
+    if (qty) qty.value = "";
+    modal.classList.remove("is-hidden");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function closeAddModal() {
+    const modal = document.getElementById("pm-add-modal");
+    if (!modal) return;
+    modal.classList.add("is-hidden");
+    modal.setAttribute("aria-hidden", "true");
+    pendingAddRow = null;
+}
+
+function saveAddModal() {
+    if (!pendingAddRow) {
+        closeAddModal();
+        return;
+    }
+    if (!isLoggedIn()) {
+        showWarning("Accesso richiesto.", "Per continuare effettua il login.");
+        openLoginModal();
+        return;
+    }
+    const qtyRaw = document.getElementById("pm-add-quantity")?.value || "";
+    const qty = qtyRaw.toString().trim();
+    if (!qty || Number.parseFloat(qty) <= 0) {
+        showWarning("Quantità non valida.");
+        return;
+    }
+
+    const baseLine = pendingAddRow;
+    const newLine = {
+        product: baseLine.product || "",
+        category: baseLine.tags ? baseLine.tags.join(", ") : baseLine.category || "",
+        quantity: qty,
+        unit: baseLine.unit || "",
+        urgency: baseLine.urgency || "",
+        url: baseLine.url || "",
+        note: "",
+    };
+    const record = buildRequestRecord({ notes: "", lines: [newLine] });
+    const requests = readRequestsFile();
+    requests.push(record);
+    if (saveRequestsFile(requests)) {
+        closeAddModal();
+        renderCartTable();
+    }
+}
+
+async function confirmCartRow(row) {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono convalidare.");
+        return;
+    }
+    const ok = await openConfirmModal("Vuoi convalidare questo elemento?");
+    if (!ok) return;
+    const requests = readRequestsFile();
+    const request = requests[row.requestIndex];
+    if (!request || !request.lines || !request.lines[row.lineIndex]) {
+        showError("Elemento non trovato.", "La riga potrebbe essere stata modificata da un altro utente.");
+        return;
+    }
+    const line = request.lines[row.lineIndex];
+    if (line.deletedAt) return;
+    if (line.confirmed) return;
+    line.confirmed = true;
+    line.confirmedAt = new Date().toISOString();
+    line.confirmedBy = session.adminName || "";
+    request.history = Array.isArray(request.history) ? request.history : [];
+    request.history.push({
+        at: line.confirmedAt,
+        by: "admin",
+        adminName: session.adminName || "",
+        action: "line-confirmed",
+    });
+    if (saveRequestsFile(requests)) renderCartTable();
+}
+
+async function deleteCartRow(row) {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono eliminare.");
+        return;
+    }
+    const ok = await openConfirmModal("Vuoi eliminare questo elemento?");
+    if (!ok) return;
+    const requests = readRequestsFile();
+    const request = requests[row.requestIndex];
+    if (!request || !request.lines || !request.lines[row.lineIndex]) {
+        showError("Elemento non trovato.", "La riga potrebbe essere stata modificata da un altro utente.");
+        return;
+    }
+    const line = request.lines[row.lineIndex];
+    if (line.deletedAt) return;
+    line.deletedAt = new Date().toISOString();
+    line.deletedBy = session.adminName || "";
+    request.history = Array.isArray(request.history) ? request.history : [];
+    request.history.push({
+        at: line.deletedAt,
+        by: "admin",
+        adminName: session.adminName || "",
+        action: "line-deleted",
+    });
+    if (saveRequestsFile(requests)) renderCartTable();
+}
+
+function initCartFilters() {
+    const searchInput = document.getElementById("pm-cart-search");
+    const urgencySelect = document.getElementById("pm-cart-filter-urgency");
+    const sortSelect = document.getElementById("pm-cart-sort");
+    if (searchInput) {
+        searchInput.addEventListener("input", (event) => {
+            cartState.search = event.target.value || "";
+            renderCartTable();
+        });
+    }
+    if (urgencySelect) {
+        urgencySelect.addEventListener("change", (event) => {
+            cartState.urgency = event.target.value || "";
+            renderCartTable();
+        });
+    }
+    if (sortSelect) {
+        sortSelect.addEventListener("change", (event) => {
+            cartState.sort = event.target.value || "created_desc";
+            renderCartTable();
+        });
+    }
+}
 
 function normalizeAssigneesPayload(parsed) {
     if (parsed && typeof parsed === "object") {
@@ -87,6 +859,49 @@ function saveSession() {
     } catch (err) {
         console.error("Errore salvataggio sessione:", err);
     }
+    try {
+        fs.writeFileSync(SESSION_PATH, JSON.stringify(session, null, 2), "utf8");
+    } catch (err) {
+        console.error("Errore salvataggio sessione file:", err);
+    }
+}
+
+function loadSession() {
+    try {
+        const raw = window.localStorage.getItem(SESSION_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object") {
+                session = {
+                    role: parsed.role || "guest",
+                    adminName: parsed.adminName || "",
+                    department: parsed.department || "",
+                    employee: parsed.employee || "",
+                };
+                return;
+            }
+        }
+    } catch (err) {
+        console.error("Errore lettura sessione:", err);
+    }
+    try {
+        if (fs.existsSync(SESSION_PATH)) {
+            const rawFile = fs.readFileSync(SESSION_PATH, "utf8");
+            const parsed = JSON.parse(rawFile);
+            if (parsed && typeof parsed === "object") {
+                session = {
+                    role: parsed.role || "guest",
+                    adminName: parsed.adminName || "",
+                    department: parsed.department || "",
+                    employee: parsed.employee || "",
+                };
+                return;
+            }
+        }
+    } catch (err) {
+        console.error("Errore lettura sessione file:", err);
+    }
+    session = { role: "guest", adminName: "", department: "", employee: "" };
 }
 
 function clearSession() {
@@ -95,6 +910,13 @@ function clearSession() {
         window.localStorage.removeItem(SESSION_KEY);
     } catch (err) {
         console.error("Errore clear session:", err);
+    }
+    try {
+        if (fs.existsSync(SESSION_PATH)) {
+            fs.unlinkSync(SESSION_PATH);
+        }
+    } catch (err) {
+        console.error("Errore clear session file:", err);
     }
 }
 
@@ -241,6 +1063,31 @@ function closeLogoutModal() {
     if (!modal) return;
     modal.classList.add("is-hidden");
     modal.setAttribute("aria-hidden", "true");
+}
+
+function openConfirmModal(message) {
+    const modal = document.getElementById("pm-confirm-modal");
+    const desc = document.getElementById("pm-confirm-message");
+    if (!modal || !desc) return Promise.resolve(false);
+    desc.textContent = message || "";
+    modal.classList.remove("is-hidden");
+    modal.setAttribute("aria-hidden", "false");
+    return new Promise((resolve) => {
+        pendingConfirmResolve = resolve;
+    });
+}
+
+function closeConfirmModal(result = false) {
+    const modal = document.getElementById("pm-confirm-modal");
+    if (modal) {
+        modal.classList.add("is-hidden");
+        modal.setAttribute("aria-hidden", "true");
+    }
+    if (typeof pendingConfirmResolve === "function") {
+        const resolver = pendingConfirmResolve;
+        pendingConfirmResolve = null;
+        resolver(result);
+    }
 }
 
 function requireLogin() {
@@ -547,11 +1394,6 @@ function setAdminEditingIndex(next) {
     adminEditingIndex = next;
 }
 
-async function openConfirmModal(message) {
-    const result = await showDialog("warning", "Conferma", message, ["Annulla", "Conferma"]);
-    return result && result.response === 1;
-}
-
 function openOtpModal() {
     showInfo("Recupero password", "Funzione OTP non configurata in Product Manager.");
 }
@@ -654,6 +1496,7 @@ function setupLogin() {
             saveSession();
             updateGreeting();
             updateLoginButton();
+            renderCartTable();
             closeLoginModal();
         });
     }
@@ -676,7 +1519,39 @@ function setupLogin() {
             saveSession();
             updateGreeting();
             updateLoginButton();
+            renderCartTable();
             closeLoginModal();
+        });
+    }
+}
+
+function initEditModal() {
+    const closeBtn = document.getElementById("pm-edit-close");
+    const cancelBtn = document.getElementById("pm-edit-cancel");
+    const saveBtn = document.getElementById("pm-edit-save");
+    if (closeBtn) closeBtn.addEventListener("click", () => closeEditModal());
+    if (cancelBtn) cancelBtn.addEventListener("click", () => closeEditModal());
+    if (saveBtn) saveBtn.addEventListener("click", () => saveEditModal());
+}
+
+function initAddModal() {
+    const closeBtn = document.getElementById("pm-add-close");
+    const cancelBtn = document.getElementById("pm-add-cancel");
+    const saveBtn = document.getElementById("pm-add-save");
+    if (closeBtn) closeBtn.addEventListener("click", () => closeAddModal());
+    if (cancelBtn) cancelBtn.addEventListener("click", () => closeAddModal());
+    if (saveBtn) saveBtn.addEventListener("click", () => saveAddModal());
+}
+
+function initConfirmModal() {
+    const cancelBtn = document.getElementById("pm-confirm-cancel");
+    const okBtn = document.getElementById("pm-confirm-ok");
+    const modal = document.getElementById("pm-confirm-modal");
+    if (cancelBtn) cancelBtn.addEventListener("click", () => closeConfirmModal(false));
+    if (okBtn) okBtn.addEventListener("click", () => closeConfirmModal(true));
+    if (modal) {
+        modal.addEventListener("click", (event) => {
+            if (event.target === modal) closeConfirmModal(false);
         });
     }
 }
@@ -687,11 +1562,13 @@ function setupHeaderButtons() {
     const cartBtn = document.getElementById("pm-open-cart");
     const addLineBtn = document.getElementById("pm-add-line");
     const saveBtn = document.getElementById("pm-request-save");
+    const closeCartBtn = document.getElementById("pm-close-cart");
 
     if (refreshBtn) {
         refreshBtn.addEventListener("click", () => {
             syncAssignees();
             renderLoginSelectors();
+            renderCartTable();
         });
     }
 
@@ -710,6 +1587,17 @@ function setupHeaderButtons() {
         cartBtn.addEventListener("click", () => {
             if (!requireLogin()) return;
             ipcRenderer.send("open-product-manager-cart-window");
+            if (document.getElementById("pm-request-form")) {
+                window.close();
+            }
+        });
+    }
+
+    if (closeCartBtn) {
+        closeCartBtn.addEventListener("click", () => {
+            saveSession();
+            ipcRenderer.send("open-product-manager-window");
+            window.close();
         });
     }
 
@@ -718,15 +1606,33 @@ function setupHeaderButtons() {
             if (!requireLogin()) {
                 event.preventDefault();
                 event.stopPropagation();
+                return;
             }
+            addLine();
         });
     }
 
     if (saveBtn) {
-        saveBtn.addEventListener("click", (event) => {
+        saveBtn.addEventListener("click", async (event) => {
             if (!requireLogin()) {
                 event.preventDefault();
                 event.stopPropagation();
+                return;
+            }
+            const payload = collectRequestPayload();
+            const validationError = validateRequestPayload(payload);
+            if (validationError) {
+                showFormMessage(validationError, "error");
+                return;
+            }
+            const ok = await openConfirmModal("Vuoi inviare la richiesta?");
+            if (!ok) return;
+            const requests = readRequestsFile();
+            const record = buildRequestRecord(payload);
+            requests.push(record);
+            if (saveRequestsFile(requests)) {
+                showFormMessage("Richiesta inviata correttamente.", "success");
+                clearForm();
             }
         });
     }
@@ -820,6 +1726,7 @@ function initLogoutModal() {
             clearSession();
             updateGreeting();
             updateLoginButton();
+            renderCartTable();
             closeLogoutModal();
         });
     }
@@ -828,17 +1735,26 @@ function initLogoutModal() {
 function init() {
     const warning = document.getElementById("pm-js-warning");
     if (warning) warning.classList.add("is-hidden");
-    clearSession();
+    loadSession();
     syncAssignees();
     renderLoginSelectors();
     renderAdminSelect();
+    requestLines = [createEmptyLine()];
+    renderLines();
+    renderCartTable();
+    initCartFilters();
+    initEditModal();
+    initAddModal();
+    initConfirmModal();
     setupLogin();
     setupHeaderButtons();
     initSettingsModals();
     initLogoutModal();
     updateGreeting();
     updateLoginButton();
-    openLoginModal();
+    if (document.getElementById("pm-request-form") && !isLoggedIn()) {
+        openLoginModal();
+    }
 }
 
 window.addEventListener("DOMContentLoaded", () => {

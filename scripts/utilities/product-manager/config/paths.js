@@ -7,6 +7,7 @@ const CATALOG_PATH = path.join(BASE_DIR, "catalog.json");
 const CATEGORIES_PATH = path.join(BASE_DIR, "categories.json");
 const UNITS_PATH = path.join(BASE_DIR, "units.json");
 const SETTINGS_PATH = path.join(BASE_DIR, "settings.json");
+const SESSION_PATH = path.join(BASE_DIR, "session.json");
 
 module.exports = {
     BASE_DIR,
@@ -15,4 +16,5 @@ module.exports = {
     CATEGORIES_PATH,
     UNITS_PATH,
     SETTINGS_PATH,
+    SESSION_PATH,
 };
