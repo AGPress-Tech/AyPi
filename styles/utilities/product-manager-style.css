@@ -627,6 +627,13 @@ select {
     color: #1a73e8;
 }
 
+.pm-alert-detail {
+    font-size: 12px;
+    color: var(--pm-muted);
+    margin-top: 6px;
+    white-space: pre-wrap;
+}
+
 .pm-message--error {
     color: var(--pm-danger);
 }
@@ -853,6 +860,11 @@ body.fp-aypi .pm-btn--primary {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+}
+
+#pm-confirm-modal,
+#pm-alert-modal {
+    z-index: 1200;
 }
 
 .pm-modal__card {

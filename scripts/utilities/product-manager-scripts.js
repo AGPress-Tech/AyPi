@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
 
-const { showInfo, showWarning, showError, showDialog } = require("../shared/dialogs");
+const sharedDialogs = require("../shared/dialogs");
 const { NETWORK_PATHS } = require("../../config/paths");
 const { createModalHelpers } = require("./ferie-permessi/ui/modals");
 const { createAssigneesModal } = require("./ferie-permessi/ui/assignees-modal");
@@ -1837,6 +1837,71 @@ function closeConfirmModal(result = false) {
     }
 }
 
+let pendingAlertResolve = null;
+
+function openAlertModal(title, message, detail = "") {
+    const modal = document.getElementById("pm-alert-modal");
+    const titleEl = document.getElementById("pm-alert-title");
+    const messageEl = document.getElementById("pm-alert-message");
+    const detailEl = document.getElementById("pm-alert-detail");
+    if (!modal || !messageEl) {
+        return Promise.resolve(false);
+    }
+    if (titleEl) titleEl.textContent = title || "Avviso";
+    messageEl.textContent = message || "";
+    if (detailEl) {
+        if (detail) {
+            detailEl.textContent = detail;
+            detailEl.classList.remove("is-hidden");
+        } else {
+            detailEl.textContent = "";
+            detailEl.classList.add("is-hidden");
+        }
+    }
+    modal.classList.remove("is-hidden");
+    modal.setAttribute("aria-hidden", "false");
+    return new Promise((resolve) => {
+        pendingAlertResolve = resolve;
+    });
+}
+
+function closeAlertModal() {
+    const modal = document.getElementById("pm-alert-modal");
+    if (modal) {
+        modal.classList.add("is-hidden");
+        modal.setAttribute("aria-hidden", "true");
+    }
+    if (pendingAlertResolve) {
+        const resolver = pendingAlertResolve;
+        pendingAlertResolve = null;
+        resolver(true);
+    }
+}
+
+function showInfo(message, detail = "") {
+    const modal = document.getElementById("pm-alert-modal");
+    if (!modal) {
+        return sharedDialogs.showInfo(message, detail);
+    }
+    return openAlertModal("Info", message, detail);
+}
+
+function showWarning(message, detail = "") {
+    const modal = document.getElementById("pm-alert-modal");
+    if (!modal) {
+        return sharedDialogs.showWarning(message, detail);
+    }
+    return openAlertModal("Attenzione", message, detail);
+}
+
+function showError(message, detail = "") {
+    const modal = document.getElementById("pm-alert-modal");
+    if (!modal) {
+        return sharedDialogs.showError(message, detail);
+    }
+    return openAlertModal("Errore", message, detail);
+}
+
 function requireLogin() {
     if (isLoggedIn()) return true;
     showWarning("Accesso richiesto.", "Per continuare effettua il login.");
@@ -2179,7 +2244,7 @@ const adminUi = createAdminModals({
     isHashingAvailable,
     isValidEmail,
     isValidPhone,
-    showDialog,
+    showDialog: sharedDialogs.showDialog,
     getAdminCache,
     setAdminCache,
     getAdminEditingIndex,
@@ -2315,7 +2380,9 @@ function initCatalogModal() {
         });
     }
     if (removeBtn) {
-        removeBtn.addEventListener("click", () => {
+        removeBtn.addEventListener("click", async () => {
+            const confirmed = await openConfirmModal("Vuoi rimuovere l'immagine da questo prodotto?");
+            if (!confirmed) return;
             if (imageInput) {
                 imageInput.value = "";
                 imageInput.dataset.path = "";
@@ -2380,6 +2447,17 @@ function initConfirmModal() {
     if (modal) {
         modal.addEventListener("click", (event) => {
             if (event.target === modal) closeConfirmModal(false);
+        });
+    }
+}
+
+function initAlertModal() {
+    const okBtn = document.getElementById("pm-alert-ok");
+    const modal = document.getElementById("pm-alert-modal");
+    if (okBtn) okBtn.addEventListener("click", () => closeAlertModal());
+    if (modal) {
+        modal.addEventListener("click", (event) => {
+            if (event.target === modal) closeAlertModal();
         });
     }
 }
@@ -2589,6 +2667,7 @@ async function init() {
     initEditModal();
     initAddModal();
     initConfirmModal();
+    initAlertModal();
     initCatalogModal();
     initCatalogFilters();
     initCategoriesModal();
