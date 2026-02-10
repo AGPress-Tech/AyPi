@@ -177,10 +177,129 @@ let legendColorSnapshot = null;
 let legendPreviewTimer = null;
 let runExport = null;
 let accessConfig = normalizeAccessConfig(loadAccessConfig());
+const FILTER_STORAGE_KEY_GUEST = "fp-calendar-filters-guest";
+const FILTER_STORAGE_KEY_ADMIN_PREFIX = "fp-calendar-filters-admin:";
 
 function setAccessConfig(next) {
     accessConfig = normalizeAccessConfig(next);
     return accessConfig;
+}
+
+function toBoolValue(value, fallback) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") {
+        const trimmed = value.trim().toLowerCase();
+        if (trimmed === "true" || trimmed === "1" || trimmed === "on" || trimmed === "si") return true;
+        if (trimmed === "false" || trimmed === "0" || trimmed === "off" || trimmed === "no") return false;
+    }
+    return fallback;
+}
+
+function getDefaultFilterState(type) {
+    return !isAdminRequiredForFilter(type);
+}
+
+function buildDefaultFilterState() {
+    return {
+        ferie: getDefaultFilterState("ferie"),
+        permesso: getDefaultFilterState("permesso"),
+        overtime: getDefaultFilterState("overtime"),
+        mutua: getDefaultFilterState("mutua"),
+        speciale: getDefaultFilterState("speciale"),
+        retribuito: getDefaultFilterState("retribuito"),
+    };
+}
+
+function getFilterStorageKey() {
+    if (isAdminLoggedIn() && adminSession.name) {
+        return `${FILTER_STORAGE_KEY_ADMIN_PREFIX}${adminSession.name}`;
+    }
+    return FILTER_STORAGE_KEY_GUEST;
+}
+
+function readStoredFilterState(key) {
+    try {
+        if (!window.localStorage) return null;
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (err) {
+        return null;
+    }
+}
+
+function persistFilterState() {
+    try {
+        if (!window.localStorage) return;
+        const key = getFilterStorageKey();
+        const payload = {
+            ferie: !!calendarFilters.ferie,
+            permesso: !!calendarFilters.permesso,
+            overtime: !!calendarFilters.overtime,
+            mutua: !!calendarFilters.mutua,
+            speciale: !!calendarFilters.speciale,
+            retribuito: !!calendarFilters.retribuito,
+        };
+        window.localStorage.setItem(key, JSON.stringify(payload));
+    } catch (err) {
+        // no-op: localStorage not available
+    }
+}
+
+function applyFilterState(state) {
+    const ferieToggle = document.getElementById("fp-filter-ferie");
+    const permessoToggle = document.getElementById("fp-filter-permesso");
+    const overtimeToggle = document.getElementById("fp-filter-overtime");
+    const mutuaToggle = document.getElementById("fp-filter-mutua");
+    const specialeToggle = document.getElementById("fp-filter-speciale");
+    const retribuitoToggle = document.getElementById("fp-filter-retribuito");
+
+    const defaults = buildDefaultFilterState();
+    const nextFerie = toBoolValue(state?.ferie, defaults.ferie);
+    const nextPermesso = toBoolValue(state?.permesso, defaults.permesso);
+    const nextOvertime = toBoolValue(state?.overtime, defaults.overtime);
+    const nextMutua = toBoolValue(state?.mutua, defaults.mutua);
+    const nextSpeciale = toBoolValue(state?.speciale, defaults.speciale);
+    const nextRetribuito = toBoolValue(state?.retribuito, defaults.retribuito);
+
+    const allowAdminFilters = isAdminLoggedIn();
+    const finalOvertime = allowAdminFilters || !isAdminRequiredForFilter("overtime") ? nextOvertime : false;
+    const finalMutua = allowAdminFilters || !isAdminRequiredForFilter("mutua") ? nextMutua : false;
+    const finalSpeciale = allowAdminFilters || !isAdminRequiredForFilter("speciale") ? nextSpeciale : false;
+    const finalRetribuito = allowAdminFilters || !isAdminRequiredForFilter("retribuito") ? nextRetribuito : false;
+    const finalFerie = allowAdminFilters || !isAdminRequiredForFilter("ferie") ? nextFerie : false;
+    const finalPermesso = allowAdminFilters || !isAdminRequiredForFilter("permesso") ? nextPermesso : false;
+
+    if (ferieToggle) ferieToggle.checked = finalFerie;
+    if (permessoToggle) permessoToggle.checked = finalPermesso;
+    if (overtimeToggle) overtimeToggle.checked = finalOvertime;
+    if (mutuaToggle) mutuaToggle.checked = finalMutua;
+    if (specialeToggle) specialeToggle.checked = finalSpeciale;
+    if (retribuitoToggle) retribuitoToggle.checked = finalRetribuito;
+    calendarFilters.ferie = finalFerie;
+    calendarFilters.permesso = finalPermesso;
+    calendarFilters.overtime = finalOvertime;
+    calendarFilters.mutua = finalMutua;
+    calendarFilters.speciale = finalSpeciale;
+    calendarFilters.retribuito = finalRetribuito;
+    renderer?.renderCalendar?.(cachedData);
+}
+
+function applyFilterDefaultsFromAccessConfig() {
+    applyFilterState(buildDefaultFilterState());
+    persistFilterState();
+}
+
+function applyStoredFilterStateForCurrentUser() {
+    const key = getFilterStorageKey();
+    const stored = readStoredFilterState(key);
+    if (stored) {
+        applyFilterState(stored);
+        return true;
+    }
+    return false;
 }
 
 function ensureAccessConfigFile() {
@@ -936,6 +1055,7 @@ const approvalUi = createApprovalModal({
             filterUnlocked.overtime = true;
             const overtimeToggle = document.getElementById("fp-filter-overtime");
             if (overtimeToggle) overtimeToggle.checked = true;
+            persistFilterState();
             renderer.renderCalendar(cachedData);
             return;
         }
@@ -944,6 +1064,7 @@ const approvalUi = createApprovalModal({
             filterUnlocked.mutua = true;
             const mutuaToggle = document.getElementById("fp-filter-mutua");
             if (mutuaToggle) mutuaToggle.checked = true;
+            persistFilterState();
             renderer.renderCalendar(cachedData);
             return;
         }
@@ -952,6 +1073,7 @@ const approvalUi = createApprovalModal({
             filterUnlocked.speciale = true;
             const specialeToggle = document.getElementById("fp-filter-speciale");
             if (specialeToggle) specialeToggle.checked = true;
+            persistFilterState();
             renderer.renderCalendar(cachedData);
             return;
         }
@@ -960,6 +1082,7 @@ const approvalUi = createApprovalModal({
             filterUnlocked.retribuito = true;
             const retribuitoToggle = document.getElementById("fp-filter-retribuito");
             if (retribuitoToggle) retribuitoToggle.checked = true;
+            persistFilterState();
             renderer.renderCalendar(cachedData);
         }
     },
@@ -983,6 +1106,9 @@ const approvalUi = createApprovalModal({
     onAdminLogin: (admin) => {
         if (!admin) return;
         setAdminSession(admin);
+        if (!applyStoredFilterStateForCurrentUser()) {
+            applyFilterDefaultsFromAccessConfig();
+        }
         const handled = consumePendingAdminAction(loginFromPrompt);
         loginFromPrompt = false;
         if (!handled) {
@@ -1448,6 +1574,7 @@ const configUi = createConfigModal({
     normalizeAccessConfig,
     onConfigUpdated: (config) => {
         setAccessConfig(config);
+        applyFilterDefaultsFromAccessConfig();
     },
 });
 
@@ -2347,6 +2474,9 @@ function init() {
             if (isAdminLoggedIn()) {
                 setAdminSession(null);
                 lockAdminAreas();
+                if (!applyStoredFilterStateForCurrentUser()) {
+                    applyFilterDefaultsFromAccessConfig();
+                }
                 showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLogoffSuccess, { showLogin: false });
                 return;
             }
@@ -2741,25 +2871,9 @@ function init() {
     const mutuaToggle = document.getElementById("fp-filter-mutua");
     const specialeToggle = document.getElementById("fp-filter-speciale");
     const retribuitoToggle = document.getElementById("fp-filter-retribuito");
-    const getDefaultFilterState = (type) => !isAdminRequiredForFilter(type);
-    const defaultFerie = getDefaultFilterState("ferie");
-    const defaultPermesso = getDefaultFilterState("permesso");
-    const defaultOvertime = getDefaultFilterState("overtime");
-    const defaultMutua = getDefaultFilterState("mutua");
-    const defaultSpeciale = getDefaultFilterState("speciale");
-    const defaultRetribuito = getDefaultFilterState("retribuito");
-    if (ferieToggle) ferieToggle.checked = defaultFerie;
-    if (permessoToggle) permessoToggle.checked = defaultPermesso;
-    if (overtimeToggle) overtimeToggle.checked = defaultOvertime;
-    if (mutuaToggle) mutuaToggle.checked = defaultMutua;
-    if (specialeToggle) specialeToggle.checked = defaultSpeciale;
-    if (retribuitoToggle) retribuitoToggle.checked = defaultRetribuito;
-    calendarFilters.ferie = defaultFerie;
-    calendarFilters.permesso = defaultPermesso;
-    calendarFilters.overtime = defaultOvertime;
-    calendarFilters.mutua = defaultMutua;
-    calendarFilters.speciale = defaultSpeciale;
-    calendarFilters.retribuito = defaultRetribuito;
+    if (!applyStoredFilterStateForCurrentUser()) {
+        applyFilterDefaultsFromAccessConfig();
+    }
     const handleFilterToggle = (type, toggleEl) => {
         if (!toggleEl) return;
         toggleEl.addEventListener("change", () => {
@@ -2770,11 +2884,13 @@ function init() {
                 requireAccess(true, () => {
                     toggleEl.checked = nextChecked;
                     calendarFilters[type] = nextChecked;
+                    persistFilterState();
                     renderer.renderCalendar(cachedData);
                 });
                 return;
             }
             calendarFilters[type] = nextChecked;
+            persistFilterState();
             renderer.renderCalendar(cachedData);
         });
     };
