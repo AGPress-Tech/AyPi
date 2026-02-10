@@ -2741,18 +2741,25 @@ function init() {
     const mutuaToggle = document.getElementById("fp-filter-mutua");
     const specialeToggle = document.getElementById("fp-filter-speciale");
     const retribuitoToggle = document.getElementById("fp-filter-retribuito");
-    if (ferieToggle) ferieToggle.checked = true;
-    if (permessoToggle) permessoToggle.checked = true;
-    if (overtimeToggle) overtimeToggle.checked = false;
-    if (mutuaToggle) mutuaToggle.checked = false;
-    if (specialeToggle) specialeToggle.checked = false;
-    if (retribuitoToggle) retribuitoToggle.checked = false;
-    calendarFilters.ferie = true;
-    calendarFilters.permesso = true;
-    calendarFilters.overtime = false;
-    calendarFilters.mutua = false;
-    calendarFilters.speciale = false;
-    calendarFilters.retribuito = false;
+    const getDefaultFilterState = (type) => !isAdminRequiredForFilter(type);
+    const defaultFerie = getDefaultFilterState("ferie");
+    const defaultPermesso = getDefaultFilterState("permesso");
+    const defaultOvertime = getDefaultFilterState("overtime");
+    const defaultMutua = getDefaultFilterState("mutua");
+    const defaultSpeciale = getDefaultFilterState("speciale");
+    const defaultRetribuito = getDefaultFilterState("retribuito");
+    if (ferieToggle) ferieToggle.checked = defaultFerie;
+    if (permessoToggle) permessoToggle.checked = defaultPermesso;
+    if (overtimeToggle) overtimeToggle.checked = defaultOvertime;
+    if (mutuaToggle) mutuaToggle.checked = defaultMutua;
+    if (specialeToggle) specialeToggle.checked = defaultSpeciale;
+    if (retribuitoToggle) retribuitoToggle.checked = defaultRetribuito;
+    calendarFilters.ferie = defaultFerie;
+    calendarFilters.permesso = defaultPermesso;
+    calendarFilters.overtime = defaultOvertime;
+    calendarFilters.mutua = defaultMutua;
+    calendarFilters.speciale = defaultSpeciale;
+    calendarFilters.retribuito = defaultRetribuito;
     const handleFilterToggle = (type, toggleEl) => {
         if (!toggleEl) return;
         toggleEl.addEventListener("change", () => {

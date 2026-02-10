@@ -28,6 +28,19 @@ try {
     console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
 }
 
+let Ajv = null;
+let ajv = null;
+let validateRequestsSchema = null;
+let validateCatalogSchema = null;
+let validateCategoriesSchema = null;
+
+try {
+    Ajv = require("ajv");
+    ajv = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
+} catch (err) {
+    console.error("Modulo 'ajv' non trovato. Esegui: npm install ajv");
+}
+
 window.pmLoaded = true;
 
 const ASSIGNEES_FALLBACK = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
@@ -117,6 +130,90 @@ const DEFAULT_CATEGORY_COLORS = [
     "#f3e5f5",
 ];
 
+const REQUEST_LINE_SCHEMA = {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+        product: { type: "string" },
+        category: { type: "string" },
+        quantity: { type: ["string", "number"] },
+        unit: { type: "string" },
+        urgency: { type: "string" },
+        url: { type: "string" },
+        note: { type: "string" },
+        priceCad: { type: ["string", "number"] },
+        deletedAt: { type: ["string", "null"] },
+        approvedAt: { type: ["string", "null"] },
+    },
+};
+
+const REQUEST_SCHEMA = {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+        id: { type: "string" },
+        createdAt: { type: "string" },
+        status: { type: "string" },
+        department: { type: "string" },
+        employee: { type: "string" },
+        createdBy: { type: "string" },
+        adminName: { type: "string" },
+        notes: { type: "string" },
+        lines: { type: "array", items: REQUEST_LINE_SCHEMA },
+        history: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+                properties: {
+                    at: { type: "string" },
+                    by: { type: "string" },
+                    adminName: { type: "string" },
+                    action: { type: "string" },
+                },
+            },
+        },
+    },
+};
+
+const REQUESTS_SCHEMA = {
+    type: "array",
+    items: REQUEST_SCHEMA,
+};
+
+const CATALOG_ITEM_SCHEMA = {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+        id: { type: "string" },
+        name: { type: "string" },
+        description: { type: "string" },
+        category: { type: "string" },
+        unit: { type: "string" },
+        url: { type: "string" },
+        imageUrl: { type: "string" },
+        imageFile: { type: "string" },
+        createdAt: { type: "string" },
+        updatedAt: { type: "string" },
+    },
+};
+
+const CATALOG_SCHEMA = {
+    type: "array",
+    items: CATALOG_ITEM_SCHEMA,
+};
+
+const CATEGORIES_SCHEMA = {
+    type: "array",
+    items: { type: "string" },
+};
+
+if (ajv) {
+    validateRequestsSchema = ajv.compile(REQUESTS_SCHEMA);
+    validateCatalogSchema = ajv.compile(CATALOG_SCHEMA);
+    validateCategoriesSchema = ajv.compile(CATEGORIES_SCHEMA);
+}
+
 function createEmptyLine() {
     return {
         product: "",
@@ -142,6 +239,119 @@ function formatPriceCadDisplay(value) {
     const normalized = normalizePriceCad(value);
     if (!normalized) return "";
     return `\u20AC ${normalized}`;
+}
+
+function normalizeString(value) {
+    if (value === null || value === undefined) return "";
+    return String(value).trim();
+}
+
+function formatAjvErrors(validator, limit = 12) {
+    if (!validator || !Array.isArray(validator.errors) || !validator.errors.length) return "";
+    return validator.errors
+        .map((err) => {
+            const path = err.instancePath || err.dataPath || "";
+            return `${path || "root"} ${err.message || "non valido"}`;
+        })
+        .slice(0, limit)
+        .join("\n");
+}
+
+function normalizeRequestLine(line) {
+    const base = line && typeof line === "object" ? { ...line } : {};
+    base.product = normalizeString(base.product);
+    base.category = normalizeString(base.category);
+    base.quantity = normalizeString(base.quantity);
+    base.unit = normalizeString(base.unit);
+    base.urgency = normalizeString(base.urgency);
+    base.url = normalizeString(base.url);
+    base.note = normalizeString(base.note);
+    if (base.priceCad !== undefined) base.priceCad = normalizePriceCad(base.priceCad);
+    return base;
+}
+
+function normalizeRequestsData(payload) {
+    if (!Array.isArray(payload)) return [];
+    return payload
+        .map((req) => {
+            if (!req || typeof req !== "object") return null;
+            const normalized = { ...req };
+            normalized.id = normalizeString(normalized.id);
+            normalized.createdAt = normalizeString(normalized.createdAt);
+            normalized.status = normalizeString(normalized.status);
+            normalized.department = normalizeString(normalized.department);
+            normalized.employee = normalizeString(normalized.employee);
+            normalized.createdBy = normalizeString(normalized.createdBy);
+            normalized.adminName = normalizeString(normalized.adminName);
+            normalized.notes = normalizeString(normalized.notes);
+            const lines = Array.isArray(normalized.lines) ? normalized.lines : [];
+            normalized.lines = lines.map((line) => normalizeRequestLine(line)).filter(Boolean);
+            normalized.history = Array.isArray(normalized.history) ? normalized.history : [];
+            return normalized;
+        })
+        .filter(Boolean);
+}
+
+function normalizeCatalogData(payload) {
+    if (!Array.isArray(payload)) return [];
+    return payload
+        .map((item, index) => {
+            if (!item || typeof item !== "object") return null;
+            const normalized = { ...item };
+            const fallbackId = `CAT-${Date.now()}-${index}`;
+            normalized.id = normalizeString(normalized.id) || fallbackId;
+            normalized.name = normalizeString(normalized.name);
+            normalized.description = normalizeString(normalized.description);
+            normalized.category = normalizeString(normalized.category);
+            normalized.unit = normalizeString(normalized.unit);
+            normalized.url = normalizeString(normalized.url);
+            normalized.imageUrl = normalizeString(normalized.imageUrl);
+            normalized.imageFile = normalizeString(normalized.imageFile);
+            normalized.createdAt = normalizeString(normalized.createdAt);
+            normalized.updatedAt = normalizeString(normalized.updatedAt);
+            return normalized;
+        })
+        .filter(Boolean);
+}
+
+function normalizeCategoriesData(payload) {
+    if (!Array.isArray(payload)) return [];
+    const cleaned = payload
+        .map((item) => normalizeString(item))
+        .filter(Boolean);
+    return Array.from(new Set(cleaned));
+}
+
+function showAjvReport(label, validator) {
+    const detail = formatAjvErrors(validator, 24);
+    if (detail) {
+        showError(`Errori schema AJV (${label}).`, detail);
+    }
+}
+
+function validateWithAjv(validator, data, label) {
+    if (!validator) return { ok: true, errors: "" };
+    const ok = validator(data);
+    if (!ok) {
+        const detail = formatAjvErrors(validator, 12);
+        showWarning(`Dati ${label} non validi.`, detail);
+        showAjvReport(label, validator);
+        return { ok: false, errors: detail };
+    }
+    return { ok: true, errors: "" };
+}
+
+function tryAutoCleanJson(filePath, original, normalized, validator, label) {
+    try {
+        const originalStr = JSON.stringify(original);
+        const normalizedStr = JSON.stringify(normalized);
+        if (originalStr === normalizedStr) return;
+        const result = validateWithAjv(validator, normalized, label);
+        if (!result.ok) return;
+        fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+    } catch (err) {
+        console.error("Errore ripulitura JSON:", err);
+    }
 }
 
 function updateLineField(index, field, value) {
@@ -674,7 +884,10 @@ function readRequestsFile() {
         if (!fs.existsSync(REQUESTS_PATH)) return [];
         const raw = fs.readFileSync(REQUESTS_PATH, "utf8");
         const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
+        const normalized = normalizeRequestsData(parsed);
+        validateWithAjv(validateRequestsSchema, normalized, "richieste");
+        tryAutoCleanJson(REQUESTS_PATH, parsed, normalized, validateRequestsSchema, "richieste");
+        return normalized;
     } catch (err) {
         showError("Errore lettura richieste.", err.message || String(err));
         return [];
@@ -683,7 +896,9 @@ function readRequestsFile() {
 
 function saveRequestsFile(payload) {
     try {
-        fs.writeFileSync(REQUESTS_PATH, JSON.stringify(payload, null, 2), "utf8");
+        const normalized = normalizeRequestsData(payload);
+        if (!validateWithAjv(validateRequestsSchema, normalized, "richieste").ok) return false;
+        fs.writeFileSync(REQUESTS_PATH, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
         showError("Errore salvataggio richieste.", err.message || String(err));
@@ -1430,7 +1645,10 @@ function loadCatalog() {
         if (!fs.existsSync(CATALOG_PATH)) return [];
         const raw = fs.readFileSync(CATALOG_PATH, "utf8");
         const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
+        const normalized = normalizeCatalogData(parsed);
+        validateWithAjv(validateCatalogSchema, normalized, "catalogo");
+        tryAutoCleanJson(CATALOG_PATH, parsed, normalized, validateCatalogSchema, "catalogo");
+        return normalized;
     } catch (err) {
         console.error("Errore lettura catalogo:", err);
         return [];
@@ -1439,7 +1657,9 @@ function loadCatalog() {
 
 function saveCatalog(list) {
     try {
-        fs.writeFileSync(CATALOG_PATH, JSON.stringify(list, null, 2), "utf8");
+        const normalized = normalizeCatalogData(list);
+        if (!validateWithAjv(validateCatalogSchema, normalized, "catalogo").ok) return false;
+        fs.writeFileSync(CATALOG_PATH, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
         showError("Errore salvataggio catalogo.", err.message || String(err));
@@ -1452,7 +1672,10 @@ function loadCategories() {
         if (!fs.existsSync(CATEGORIES_PATH)) return [];
         const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
         const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
+        const normalized = normalizeCategoriesData(parsed);
+        validateWithAjv(validateCategoriesSchema, normalized, "categorie");
+        tryAutoCleanJson(CATEGORIES_PATH, parsed, normalized, validateCategoriesSchema, "categorie");
+        return normalized;
     } catch (err) {
         console.error("Errore lettura categorie:", err);
         return [];
@@ -1461,7 +1684,9 @@ function loadCategories() {
 
 function saveCategories(list) {
     try {
-        fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(list, null, 2), "utf8");
+        const normalized = normalizeCategoriesData(list);
+        if (!validateWithAjv(validateCategoriesSchema, normalized, "categorie").ok) return false;
+        fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
         showError("Errore salvataggio categorie.", err.message || String(err));
@@ -1830,17 +2055,6 @@ function addCategory() {
         if (input) input.value = "";
         renderCategoriesList();
         renderCategoryOptions();
-    }
-}
-function loadCategories() {
-    try {
-        if (!fs.existsSync(CATEGORIES_PATH)) return [];
-        const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
-    } catch (err) {
-        console.error("Errore lettura categorie:", err);
-        return [];
     }
 }
 
