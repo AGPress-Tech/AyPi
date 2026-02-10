@@ -26,6 +26,7 @@
                 <button type="button" class="pm-btn pm-btn--ghost" id="pm-debug-clean" title="Pulizia debug">
                     <span class="material-icons">warning</span>
                 </button>
+                <button type="button" class="pm-btn" id="pm-export-open">Export Excel</button>
                 <button type="button" class="pm-btn" id="pm-refresh">Aggiorna</button>
                 <button type="button" class="pm-btn" id="pm-login-toggle">Login</button>
             </div>
@@ -125,6 +126,52 @@
                 <button type="button" class="pm-btn pm-btn--ghost" id="pm-confirm-cancel">Annulla</button>
                 <button type="button" class="pm-btn pm-btn--primary" id="pm-confirm-ok">Ok</button>
             </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-export-modal" aria-hidden="true">
+        <div class="pm-modal__card pm-export-card" role="dialog" aria-modal="true" aria-labelledby="pm-export-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-export-title">Export Excel</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-export-close">Chiudi</button>
+            </div>
+            <div class="pm-field">
+                <label for="pm-export-urgency">Priorità</label>
+                <div id="pm-export-urgency"></div>
+            </div>
+            <div class="pm-field">
+                <label for="pm-export-tag">Tag</label>
+                <div id="pm-export-tag"></div>
+            </div>
+            <div class="pm-field pm-checkbox">
+                <label>Stato</label>
+                <div id="pm-export-state"></div>
+            </div>
+            <div class="pm-field pm-checkbox">
+                <label>Intervallo</label>
+                <div class="pm-filter-row">
+                    <label><input type="radio" name="pm-export-range" value="all" checked> Sempre</label>
+                    <label><input type="radio" name="pm-export-range" value="year"> Anno</label>
+                    <label><input type="radio" name="pm-export-range" value="range"> Da/ A</label>
+                </div>
+            </div>
+            <div class="pm-field">
+                <label for="pm-export-year">Anno</label>
+                <select id="pm-export-year"></select>
+            </div>
+            <div class="pm-field">
+                <label for="pm-export-start">Da</label>
+                <input type="date" id="pm-export-start">
+            </div>
+            <div class="pm-field">
+                <label for="pm-export-end">A</label>
+                <input type="date" id="pm-export-end">
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-export-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-export-run">Esporta</button>
+            </div>
+            <div id="pm-export-message" class="pm-message is-hidden"></div>
         </div>
     </div>
 
