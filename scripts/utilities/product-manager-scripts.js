@@ -497,6 +497,7 @@ function openCatalogModal(item = null) {
     const category = document.getElementById("pm-catalog-category");
     const unit = document.getElementById("pm-catalog-unit");
     const url = document.getElementById("pm-catalog-url");
+    const imageUrl = document.getElementById("pm-catalog-image-url");
     const image = document.getElementById("pm-catalog-image");
     const removeBtn = document.getElementById("pm-catalog-remove-image");
     const selectedTags = item ? toTags(item.category || "") : [];
@@ -510,11 +511,12 @@ function openCatalogModal(item = null) {
         if (category) category.dataset.value = item.category || "";
         if (unit) unit.value = item.unit || "";
         if (url) url.value = item.url || "";
+        if (imageUrl) imageUrl.value = item.imageUrl || "";
         if (image) {
             image.value = item.imageFile ? "Immagine presente" : "";
             image.dataset.path = "";
         }
-        if (removeBtn) removeBtn.style.display = item.imageFile ? "inline-flex" : "none";
+        if (removeBtn) removeBtn.style.display = item.imageFile || item.imageUrl ? "inline-flex" : "none";
     } else {
         if (title) title.textContent = "Nuovo prodotto catalogo";
         if (saveBtn) saveBtn.textContent = "Salva prodotto";
@@ -524,6 +526,7 @@ function openCatalogModal(item = null) {
         if (category) category.dataset.value = "";
         if (unit) unit.value = "";
         if (url) url.value = "";
+        if (imageUrl) imageUrl.value = "";
         if (image) image.value = "";
         if (removeBtn) removeBtn.style.display = "none";
     }
@@ -547,6 +550,7 @@ function clearCatalogForm() {
         "pm-catalog-category",
         "pm-catalog-unit",
         "pm-catalog-url",
+        "pm-catalog-image-url",
         "pm-catalog-image",
     ];
     ids.forEach((id) => {
@@ -572,6 +576,7 @@ function saveCatalogItem() {
             ? categoryContainer.querySelector(".pm-multiselect__button").textContent
             : "";
     const imageInput = document.getElementById("pm-catalog-image");
+    const imageUrlInput = document.getElementById("pm-catalog-image-url");
     const imageSource = imageInput && imageInput.dataset ? imageInput.dataset.path || "" : "";
     const existingId = idInput?.value?.trim() || "";
     const targetId = existingId || `CAT-${Date.now()}`;
@@ -586,6 +591,7 @@ function saveCatalogItem() {
         category,
         unit: document.getElementById("pm-catalog-unit")?.value?.trim() || "",
         url: document.getElementById("pm-catalog-url")?.value?.trim() || "",
+        imageUrl: imageUrlInput?.value?.trim() || "",
         imageFile: imageFileName,
         createdAt: new Date().toISOString(),
     };
@@ -595,6 +601,7 @@ function saveCatalogItem() {
             return {
                 ...entry,
                 ...item,
+                imageUrl: item.imageUrl || entry.imageUrl || "",
                 imageFile: catalogRemoveImage ? "" : imageFileName || entry.imageFile || "",
             };
         });
@@ -1554,6 +1561,7 @@ function getCatalogImagePath(item) {
 }
 
 function getCatalogImageSrc(item) {
+    if (item && item.imageUrl) return item.imageUrl;
     const filePath = getCatalogImagePath(item);
     if (!filePath) return "";
     try {
@@ -2567,6 +2575,9 @@ function initCatalogModal() {
             if (imageInput) {
                 imageInput.value = "";
                 imageInput.dataset.path = "";
+            }
+            if (imageUrlInput) {
+                imageUrlInput.value = "";
             }
             catalogRemoveImage = true;
         });
