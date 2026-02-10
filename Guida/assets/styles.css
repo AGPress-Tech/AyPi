@@ -185,8 +185,13 @@ body.theme-aypi .logo{
 .main{
   padding:16px 18px 16px;
   height:100%;
-  overflow:auto;
+  overflow:hidden;
   box-sizing:border-box;
+}
+.content-scroll{
+  height:calc(100% - var(--topbar-h) - 12px);
+  overflow:auto;
+  padding-top:12px;
 }
 .main::after{
   content:"";
@@ -194,7 +199,8 @@ body.theme-aypi .logo{
   height:16px;
 }
 .topbar{
-  position:static;
+  position:sticky;
+  top:0;
   min-height:var(--topbar-h);
   display:flex;
   align-items:center;
@@ -205,6 +211,7 @@ body.theme-aypi .logo{
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow);
+  z-index:5;
 }
 .topbar .crumbs{
   font-size:12px;

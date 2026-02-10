@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AyPi Purchasing • Novita</title>
+  <title>AyPi Purchasing • Lista acquisti: Elimina</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 
@@ -14,18 +14,24 @@
 
     <main class="main">
       <div class="topbar">
-        <span class="crumbs">AyPi Purchasing / Novita</span>
+        <span class="crumbs">AyPi Purchasing / Lista acquisti / Elimina</span>
         <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
       </div>
 
       <div class="content-scroll"><div class="container">
         <section class="card">
-          <h2>Novita e aggiornamenti</h2>
-          <ul>
-            <li><b>02/2026</b>: prima versione Product Manager con catalogo, lista acquisti e gestione categorie.</li>
-            <li><b>02/2026</b>: supporto temi light/dark/AyPi e guida integrata (F1).</li>
-            <li><b>02/2026</b>: personalizzazione colori categorie con salvataggio locale.</li>
-          </ul>
+          <h2>Eliminazione riga</h2>
+          <p>Solo gli admin possono eliminare le righe.</p>
+          <ol>
+            <li>Clicca l’icona <b>X</b> sulla riga.</li>
+            <li>Conferma nel prompt.</li>
+            <li>La riga diventa rossa e resta visibile per il periodo di retention.</li>
+          </ol>
+
+          <div class="callout warn">
+            <div class="title">Attenzione</div>
+            <p>Dopo 1 settimana le righe eliminate vengono rimosse definitivamente dal JSON.</p>
+          </div>
         </section>
       </div></div>
     </main>
@@ -34,4 +40,3 @@
 </body>
 
 </html>
-

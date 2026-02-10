@@ -18,28 +18,35 @@
         <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
       </div>
 
-      <div class="container">
+      <div class="content-scroll"><div class="container">
         <section class="card">
           <h2>Categorie e colori</h2>
           <p>Le categorie determinano i tag mostrati sulle pillole in catalogo e lista acquisti.</p>
 
-          <h3>Gestione categorie</h3>
+          <h3>Gestione categorie (admin)</h3>
           <ul>
             <li>Solo gli admin possono aggiungere, rinominare o rimuovere categorie.</li>
             <li>Le modifiche vengono propagate a catalogo e richieste già presenti.</li>
+            <li>La rimozione elimina il tag dalle righe dove era presente.</li>
           </ul>
 
           <h3>Colori personalizzati</h3>
           <ul>
             <li>Ogni categoria ha un colore base automatico.</li>
             <li>Puoi cambiare colore dal pannello categorie con il color picker.</li>
-            <li>I colori vengono salvati in locale.</li>
+            <li>I colori vengono salvati in locale e rimangono su quella postazione.</li>
           </ul>
+
+          <div class="callout note">
+            <div class="title">Nota</div>
+            <p>I colori sono locali: se cambi PC dovrai reimpostarli.</p>
+          </div>
         </section>
-      </div>
+      </div></div>
     </main>
   </div>
   <script src="../assets/script.js"></script>
 </body>
 
 </html>
+
