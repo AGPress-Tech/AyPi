@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AyPi - Lista acquisti</title>
+    <title>AyPi - Lista interventi</title>
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body data-pm-list-mode="purchase">
+<body data-pm-list-mode="intervention">
     <script>
         (function () {
             document.body.classList.add("pm-ready");
@@ -19,8 +19,8 @@
     <div class="pm-page">
         <header class="pm-header">
             <div class="pm-header__title">
-                <h1>Lista acquisti</h1>
-                <div class="pm-header__subtitle">Elenco prodotti da acquistare</div>
+                <h1>Lista interventi</h1>
+                <div class="pm-header__subtitle">Elenco interventi richiesti</div>
             </div>
             <div class="pm-header__actions">
                 <button type="button" class="pm-btn pm-btn--ghost" id="pm-debug-clean" title="Pulizia debug">
@@ -37,7 +37,8 @@
                 <div class="pm-cart-toolbar">
                     <div class="pm-field">
                         <label for="pm-cart-search">Ricerca</label>
-                        <input type="text" id="pm-cart-search" placeholder="Cerca per prodotto, tag, dipendente...">
+                        <input type="text" id="pm-cart-search"
+                            placeholder="Cerca per tipologia, descrizione, dipendente...">
                     </div>
                     <div class="pm-field">
                         <label for="pm-cart-filter-urgency">Priorità</label>
@@ -57,8 +58,8 @@
                         <select id="pm-cart-sort">
                             <option value="created_desc">Data (nuove)</option>
                             <option value="created_asc">Data (vecchie)</option>
-                            <option value="product_asc">Prodotto (A-Z)</option>
-                            <option value="product_desc">Prodotto (Z-A)</option>
+                            <option value="type_asc">Tipologia (A-Z)</option>
+                            <option value="type_desc">Tipologia (Z-A)</option>
                             <option value="urgency_desc">Priorità</option>
                             <option value="requester_asc">Richiesto da (A-Z)</option>
                         </select>
@@ -140,7 +141,7 @@
                 <div id="pm-export-urgency"></div>
             </div>
             <div class="pm-field">
-                <label for="pm-export-tag">Tag</label>
+                <label for="pm-export-tag">Tipologia</label>
                 <div id="pm-export-tag"></div>
             </div>
             <div class="pm-field pm-checkbox">
@@ -186,123 +187,41 @@
         </div>
     </div>
 
-    <div class="fp-modal is-hidden" id="fp-guide-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-guide-card" role="dialog" aria-modal="true" aria-labelledby="fp-guide-title">
-            <div id="fp-guide-message" class="fp-message is-hidden"></div>
-            <iframe id="fp-guide-frame" class="fp-guide-frame" title="Guida AyPi" src="about:blank"></iframe>
-        </div>
-    </div>
-
-    <div class="pm-modal is-hidden" id="pm-suborder-modal" aria-hidden="true">
-        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-suborder-title">
+    <div class="pm-modal is-hidden" id="pm-intervention-edit-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-intervention-edit-title">
             <div class="pm-modal__header">
-                <h3 id="pm-suborder-title">Aggiungi sub-ordine</h3>
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-suborder-close">Chiudi</button>
+                <h3 id="pm-intervention-edit-title">Modifica intervento</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-intervention-edit-close">Chiudi</button>
             </div>
             <div class="pm-field">
-                <label for="pm-suborder-department">Reparto</label>
-                <select id="pm-suborder-department"></select>
+                <label for="pm-intervention-edit-type">Tipologia di intervento</label>
+                <input type="text" id="pm-intervention-edit-type">
             </div>
             <div class="pm-field">
-                <label for="pm-suborder-employee">Dipendente</label>
-                <select id="pm-suborder-employee"></select>
+                <label for="pm-intervention-edit-description">Descrizione</label>
+                <textarea id="pm-intervention-edit-description" rows="3"></textarea>
             </div>
             <div class="pm-field">
-                <label for="pm-suborder-quantity">Quantita</label>
-                <input type="number" id="pm-suborder-quantity" min="0" step="0.01">
-            </div>
-            <div class="pm-actions">
-                <button type="button" class="pm-btn pm-btn--primary" id="pm-suborder-save">Aggiungi</button>
-            </div>
-            <div id="pm-suborder-message" class="pm-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="pm-modal is-hidden" id="pm-approve-modal" aria-hidden="true">
-        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-approve-title">
-            <div class="pm-modal__header">
-                <h3 id="pm-approve-title">Approva prodotto</h3>
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-approve-close">Chiudi</button>
-            </div>
-            <div class="pm-field">
-                <label for="pm-approve-price">Prezzo unitario</label>
-                <input type="number" id="pm-approve-price" min="0" step="0.01">
-            </div>
-            <div class="pm-field pm-checkbox">
-                <input type="checkbox" id="pm-approve-save-price">
-                <label for="pm-approve-save-price">Memorizza prezzo per acquisti futuri</label>
-            </div>
-            <div class="pm-actions">
-                <button type="button" class="pm-btn pm-btn--primary" id="pm-approve-save">Approva</button>
-            </div>
-            <div id="pm-approve-message" class="pm-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="pm-modal is-hidden" id="pm-edit-modal" aria-hidden="true">
-        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-edit-title">
-            <div class="pm-modal__header">
-                <h3 id="pm-edit-title">Modifica prodotto</h3>
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-edit-close">Chiudi</button>
-            </div>
-            <div class="pm-field">
-                <label for="pm-edit-product">Prodotto</label>
-                <input type="text" id="pm-edit-product">
-            </div>
-            <div class="pm-field">
-                <label for="pm-edit-tags">Tipologia (tag)</label>
-                <input type="text" id="pm-edit-tags" placeholder="Tag separati da virgola">
-            </div>
-            <div class="pm-field">
-                <label for="pm-edit-quantity">Quantità</label>
-                <input type="number" id="pm-edit-quantity" min="0" step="1">
-            </div>
-            <div class="pm-field">
-                <label for="pm-edit-unit">UM</label>
-                <input type="text" id="pm-edit-unit">
-            </div>
-            <div class="pm-field">
-                <label for="pm-edit-urgency">Priorità</label>
-                <select id="pm-edit-urgency">
-                    <option value="">Seleziona priorità</option>
+                <label for="pm-intervention-edit-urgency">Urgenza</label>
+                <select id="pm-intervention-edit-urgency">
+                    <option value="">Seleziona urgenza</option>
                     <option value="Alta">Alta</option>
                     <option value="Media">Media</option>
                     <option value="Bassa">Bassa</option>
                 </select>
             </div>
-            <div class="pm-field">
-                <label for="pm-edit-url">URL</label>
-                <input type="text" id="pm-edit-url">
-            </div>
-            <div class="pm-field">
-                <label for="pm-edit-price">Prezzo C.A.D</label>
-                <input type="number" id="pm-edit-price" min="0" step="0.01">
-            </div>
-            <div class="pm-field">
-                <label for="pm-edit-note">Note</label>
-                <input type="text" id="pm-edit-note">
-            </div>
             <div class="pm-actions">
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-edit-cancel">Annulla</button>
-                <button type="button" class="pm-btn pm-btn--primary" id="pm-edit-save">Salva</button>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-intervention-edit-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-intervention-edit-save">Salva</button>
             </div>
         </div>
     </div>
 
-    <div class="pm-modal is-hidden" id="pm-add-modal" aria-hidden="true">
-        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-add-title">
-            <div class="pm-modal__header">
-                <h3 id="pm-add-title">Aggiungi quantità</h3>
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-close">Chiudi</button>
-            </div>
-            <div class="pm-field">
-                <label for="pm-add-quantity">Quantità</label>
-                <input type="number" id="pm-add-quantity" min="0" step="1" placeholder="0">
-            </div>
-            <div class="pm-actions">
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-cancel">Annulla</button>
-                <button type="button" class="pm-btn pm-btn--primary" id="pm-add-save">Conferma</button>
-            </div>
+    <div class="fp-modal is-hidden" id="fp-guide-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-guide-card" role="dialog" aria-modal="true"
+            aria-labelledby="fp-guide-title">
+            <div id="fp-guide-message" class="fp-message is-hidden"></div>
+            <iframe id="fp-guide-frame" class="fp-guide-frame" title="Guida AyPi" src="about:blank"></iframe>
         </div>
     </div>
 
@@ -312,8 +231,6 @@
                 var path = require("path");
                 var scriptPath = path.join(__dirname, "..", "..", "scripts", "utilities", "product-manager-scripts.js");
                 require(scriptPath);
-                var warn = document.getElementById("pm-js-warning");
-                if (warn) warn.classList.add("is-hidden");
             } catch (err) {
                 try {
                     var ipcRenderer = require("electron").ipcRenderer;
@@ -324,7 +241,7 @@
                             detail: err && err.message ? err.message : String(err),
                         });
                     }
-                } catch (innerErr) {}
+                } catch (innerErr) { }
             }
         })();
     </script>

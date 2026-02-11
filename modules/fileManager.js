@@ -320,6 +320,14 @@ function showWindow(win) {
     win.focus();
 }
 
+function broadcastProductManagerSession(payload) {
+    [productManagerWindow, productManagerCartWindow, productManagerInterventionsWindow].forEach((win) => {
+        if (isWindowAlive(win)) {
+            win.webContents.send("pm-session-updated", payload || null);
+        }
+    });
+}
+
 function buildHierarchyReportHtml() {
     return "<!DOCTYPE html>\n" +
         "<html lang=\"it\">\n" +
@@ -664,6 +672,7 @@ let feriePermessiWindow = null;
 let feriePermessiHoursWindow = null;
 let productManagerWindow = null;
 let productManagerCartWindow = null;
+let productManagerInterventionsWindow = null;
 let productManagerSession = null;
 let productManagerForceLogout = false;
 let feriePermessiSplashShown = false;
@@ -858,7 +867,7 @@ function openProductManagerWindow(mainWindow) {
         showWindow(productManagerWindow);
         return;
     }
-    if (!isWindowAlive(productManagerCartWindow)) {
+    if (!isWindowAlive(productManagerCartWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
         productManagerSession = null;
         productManagerForceLogout = true;
     }
@@ -895,7 +904,7 @@ function openProductManagerWindow(mainWindow) {
 
     productManagerWindow.on("closed", () => {
         productManagerWindow = null;
-        if (!isWindowAlive(productManagerCartWindow)) {
+        if (!isWindowAlive(productManagerCartWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
             productManagerSession = null;
             productManagerForceLogout = true;
         }
@@ -908,7 +917,7 @@ function openProductManagerCartWindow(mainWindow) {
         showWindow(productManagerCartWindow);
         return;
     }
-    if (!isWindowAlive(productManagerWindow)) {
+    if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
         productManagerSession = null;
         productManagerForceLogout = true;
     }
@@ -943,12 +952,60 @@ function openProductManagerCartWindow(mainWindow) {
 
     productManagerCartWindow.on("closed", () => {
         productManagerCartWindow = null;
-        if (!isWindowAlive(productManagerWindow)) {
+        if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
             productManagerSession = null;
             productManagerForceLogout = true;
         }
     });
 
+}
+
+function openProductManagerInterventionsWindow(mainWindow) {
+    if (isWindowAlive(productManagerInterventionsWindow)) {
+        productManagerInterventionsWindow.reload();
+        showWindow(productManagerInterventionsWindow);
+        return;
+    }
+    if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerCartWindow)) {
+        productManagerSession = null;
+        productManagerForceLogout = true;
+    }
+
+    productManagerInterventionsWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f4f2ef",
+    });
+
+    productManagerInterventionsWindow.maximize();
+    productManagerInterventionsWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "product-manager-interventions.html")
+    );
+    productManagerInterventionsWindow.setMenu(null);
+
+    productManagerInterventionsWindow.once("ready-to-show", () => {
+        if (!productManagerInterventionsWindow.isDestroyed()) {
+            showWindow(productManagerInterventionsWindow);
+        }
+    });
+
+    productManagerInterventionsWindow.webContents.once("did-finish-load", () => {
+        if (!productManagerInterventionsWindow.isDestroyed()) {
+            productManagerInterventionsWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            productManagerForceLogout = false;
+        }
+    });
+
+    productManagerInterventionsWindow.on("closed", () => {
+        productManagerInterventionsWindow = null;
+        if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerCartWindow)) {
+            productManagerSession = null;
+            productManagerForceLogout = true;
+        }
+    });
 }
 
 function openFeriePermessiHoursWindow(mainWindow) {
@@ -1231,11 +1288,13 @@ function setupFileManager(mainWindow) {
 
     ipcMain.handle("pm-session-set", async (_event, payload) => {
         productManagerSession = payload && typeof payload === "object" ? payload : null;
+        broadcastProductManagerSession(productManagerSession);
         return true;
     });
 
     ipcMain.handle("pm-session-clear", async () => {
         productManagerSession = null;
+        broadcastProductManagerSession(null);
         return true;
     });
 
@@ -1379,6 +1438,14 @@ function setupFileManager(mainWindow) {
 
       ipcMain.on("open-product-manager-cart-window", () => {
           openProductManagerCartWindow(mainWindow);
+      });
+
+      ipcMain.on("open-product-manager-interventions-window", () => {
+          openProductManagerInterventionsWindow(mainWindow);
+      });
+      ipcMain.handle("open-product-manager-interventions-window", () => {
+          openProductManagerInterventionsWindow(mainWindow);
+          return { ok: true };
       });
 
       ipcMain.on("pm-open-calendar-assignees", () => {

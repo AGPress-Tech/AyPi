@@ -1,4 +1,4 @@
-const { ipcRenderer, shell } = require("electron");
+﻿const { ipcRenderer, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
@@ -12,7 +12,14 @@ const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const { isHashingAvailable, hashPassword } = require("./ferie-permessi/config/security");
 const { GUIDE_URL, GUIDE_SEARCH_PARAM } = require("./ferie-permessi/config/constants");
 const { createGuideModal } = require("./ferie-permessi/ui/guide-modal");
-const { REQUESTS_PATH, CATALOG_PATH, CATEGORIES_PATH, PRODUCTS_DIR } = require("./product-manager/config/paths");
+const {
+    REQUESTS_PATH,
+    INTERVENTIONS_PATH,
+    CATALOG_PATH,
+    CATEGORIES_PATH,
+    INTERVENTION_TYPES_PATH,
+    PRODUCTS_DIR,
+} = require("./product-manager/config/paths");
 const {
     loadAdminCredentials,
     saveAdminCredentials,
@@ -33,6 +40,7 @@ let ajv = null;
 let validateRequestsSchema = null;
 let validateCatalogSchema = null;
 let validateCategoriesSchema = null;
+let validateInterventionTypesSchema = null;
 
 try {
     Ajv = require("ajv");
@@ -58,6 +66,7 @@ let passwordFailCount = 0;
 let requestLines = [];
 let catalogItems = [];
 let catalogCategories = [];
+let interventionTypes = [];
 let categoryColors = {};
 let catalogFilterTag = "";
 let catalogSearch = "";
@@ -72,6 +81,7 @@ let cartState = {
 };
 let pendingConfirmResolve = null;
 let pendingAddRow = null;
+let interventionEditingRow = null;
 let catalogRemoveImage = false;
 let categoryEditingName = null;
 let categoryColorSnapshot = null;
@@ -129,6 +139,14 @@ const DEFAULT_CATEGORY_COLORS = [
     "#fff3e0",
     "#f3e5f5",
 ];
+
+const REQUEST_MODES = {
+    PURCHASE: "purchase",
+    INTERVENTION: "intervention",
+};
+const REQUEST_MODE_STORAGE_KEY = "pm-request-mode";
+const DEFAULT_REQUEST_MODE = REQUEST_MODES.PURCHASE;
+let currentRequestMode = DEFAULT_REQUEST_MODE;
 
 const REQUEST_LINE_SCHEMA = {
     type: "object",
@@ -212,9 +230,94 @@ if (ajv) {
     validateRequestsSchema = ajv.compile(REQUESTS_SCHEMA);
     validateCatalogSchema = ajv.compile(CATALOG_SCHEMA);
     validateCategoriesSchema = ajv.compile(CATEGORIES_SCHEMA);
+    validateInterventionTypesSchema = ajv.compile(CATEGORIES_SCHEMA);
 }
 
-function createEmptyLine() {
+function isFormPage() {
+    return Boolean(document.getElementById("pm-request-form"));
+}
+
+function getListMode() {
+    return document.body?.dataset?.pmListMode || DEFAULT_REQUEST_MODE;
+}
+
+function getActiveMode() {
+    const listMode = document.body?.dataset?.pmListMode;
+    return listMode || currentRequestMode;
+}
+
+function isInterventionMode(mode = getActiveMode()) {
+    return mode === REQUEST_MODES.INTERVENTION;
+}
+
+function loadStoredRequestMode() {
+    try {
+        const stored = window.localStorage.getItem(REQUEST_MODE_STORAGE_KEY);
+        if (stored === REQUEST_MODES.INTERVENTION) return REQUEST_MODES.INTERVENTION;
+        return REQUEST_MODES.PURCHASE;
+    } catch {
+        return REQUEST_MODES.PURCHASE;
+    }
+}
+
+function storeRequestMode(mode) {
+    try {
+        window.localStorage.setItem(REQUEST_MODE_STORAGE_KEY, mode);
+    } catch {}
+}
+
+function applyRequestModeUI() {
+    if (!isFormPage()) return;
+    const isIntervention = isInterventionMode(currentRequestMode);
+    document.body.classList.toggle("pm-mode-intervention", isIntervention);
+    const formTitle = document.getElementById("pm-form-title");
+    const toggleBtn = document.getElementById("pm-toggle-request");
+    const notesLabel = document.getElementById("pm-notes-label");
+    const addLineBtn = document.getElementById("pm-add-line");
+    const saveBtn = document.getElementById("pm-request-save");
+    const subtitle = document.getElementById("pm-header-subtitle");
+    if (formTitle) formTitle.textContent = isIntervention ? "Richiesta intervento" : "Nuova richiesta";
+    if (toggleBtn) toggleBtn.textContent = isIntervention ? "Richiedi acquisto" : "Richiedi Intervento";
+    if (notesLabel) notesLabel.textContent = isIntervention ? "Note generali intervento" : "Note generali";
+    if (addLineBtn) addLineBtn.textContent = isIntervention ? "+ Aggiungi intervento" : "+ Aggiungi prodotto";
+    if (saveBtn) saveBtn.textContent = isIntervention ? "Invia intervento" : "Invia richiesta";
+    if (subtitle) {
+        subtitle.textContent = isIntervention ? "Quale intervento vuoi richiedere?" : "Cosa vuoi ordinare?";
+    }
+}
+
+function setRequestMode(mode, { persist = true, reset = true } = {}) {
+    if (mode !== REQUEST_MODES.INTERVENTION && mode !== REQUEST_MODES.PURCHASE) {
+        return;
+    }
+    currentRequestMode = mode;
+    if (persist) storeRequestMode(mode);
+    applyRequestModeUI();
+    renderCatalog();
+    if (reset) {
+        showFormMessage("", "info");
+        requestLines = [];
+        renderLines();
+    }
+}
+
+function initRequestModeToggle() {
+    const toggleBtn = document.getElementById("pm-toggle-request");
+    if (!toggleBtn) return;
+    toggleBtn.addEventListener("click", () => {
+        const next = isInterventionMode(currentRequestMode) ? REQUEST_MODES.PURCHASE : REQUEST_MODES.INTERVENTION;
+        setRequestMode(next, { persist: true, reset: true });
+    });
+}
+
+function createEmptyLine(mode = getActiveMode()) {
+    if (isInterventionMode(mode)) {
+        return {
+            interventionType: "",
+            description: "",
+            urgency: "",
+        };
+    }
     return {
         product: "",
         category: "",
@@ -266,6 +369,8 @@ function normalizeRequestLine(line) {
     base.urgency = normalizeString(base.urgency);
     base.url = normalizeString(base.url);
     base.note = normalizeString(base.note);
+    base.interventionType = normalizeString(base.interventionType || base.type);
+    base.description = normalizeString(base.description || base.details);
     if (base.priceCad !== undefined) base.priceCad = normalizePriceCad(base.priceCad);
     return base;
 }
@@ -320,6 +425,10 @@ function normalizeCategoriesData(payload) {
         .map((item) => normalizeString(item))
         .filter(Boolean);
     return Array.from(new Set(cleaned));
+}
+
+function normalizeInterventionTypesData(payload) {
+    return normalizeCategoriesData(payload);
 }
 
 function showAjvReport(label, validator) {
@@ -441,11 +550,15 @@ function createLineElement(line, index) {
     });
     categoryDisplay.addEventListener("click", (event) => {
         event.stopPropagation();
-        dropdown.classList.toggle("is-hidden");
+        if (dropdown.classList.contains("is-hidden")) {
+            openMultiselectMenu(dropdown, categoryDisplay, categoryWrap);
+        } else {
+            closeMultiselectMenu(dropdown, categoryWrap);
+        }
     });
     document.addEventListener("click", (event) => {
-        if (!categoryWrap.contains(event.target)) {
-            dropdown.classList.add("is-hidden");
+        if (!categoryWrap.contains(event.target) && !dropdown.contains(event.target)) {
+            closeMultiselectMenu(dropdown, categoryWrap);
         }
     });
     categoryDisplay.textContent = selected.size ? Array.from(selected.values()).join(", ") : "Seleziona tipologie";
@@ -552,16 +665,99 @@ function createLineElement(line, index) {
     return wrapper;
 }
 
+function createInterventionLineElement(line, index) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pm-line";
+    wrapper.dataset.index = String(index);
+
+    const grid = document.createElement("div");
+    grid.className = "pm-line-grid pm-line-grid--intervention";
+
+    const typeField = document.createElement("div");
+    typeField.className = "pm-field";
+    const typeLabel = document.createElement("label");
+    typeLabel.textContent = "Tipologia di intervento";
+    const { wrap, selectedSet, button } = renderInterventionTypeOptions(
+        toTags(line.interventionType || "")
+    );
+    const syncTypes = () => {
+        const values = Array.from(selectedSet.values());
+        updateLineField(index, "interventionType", values.join(", "));
+        button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
+    };
+    wrap.addEventListener("change", syncTypes);
+    typeField.append(typeLabel, wrap);
+
+    const descField = document.createElement("div");
+    descField.className = "pm-field";
+    const descLabel = document.createElement("label");
+    descLabel.textContent = "Descrizione";
+    const descInput = document.createElement("textarea");
+    descInput.rows = 2;
+    descInput.value = line.description || "";
+    descInput.placeholder = "Descrizione intervento";
+    descInput.addEventListener("input", (event) =>
+        updateLineField(index, "description", event.target.value)
+    );
+    descField.append(descLabel, descInput);
+
+    const urgencyField = document.createElement("div");
+    urgencyField.className = "pm-field";
+    const urgencyLabel = document.createElement("label");
+    urgencyLabel.textContent = "Urgenza";
+    const urgencySelect = document.createElement("select");
+    const urgencyPlaceholder = document.createElement("option");
+    urgencyPlaceholder.value = "";
+    urgencyPlaceholder.textContent = "Seleziona urgenza";
+    urgencyPlaceholder.disabled = true;
+    urgencyPlaceholder.selected = !line.urgency;
+    urgencySelect.appendChild(urgencyPlaceholder);
+    URGENCY_OPTIONS.forEach((option) => {
+        const opt = document.createElement("option");
+        opt.value = option;
+        opt.textContent = option;
+        if (line.urgency === option) opt.selected = true;
+        urgencySelect.appendChild(opt);
+    });
+    urgencySelect.addEventListener("change", (event) =>
+        updateLineField(index, "urgency", event.target.value)
+    );
+    urgencyField.append(urgencyLabel, urgencySelect);
+
+    grid.append(typeField, descField, urgencyField);
+
+    const actionsField = document.createElement("div");
+    actionsField.className = "pm-field";
+    const actionLabel = document.createElement("label");
+    actionLabel.textContent = "Azioni";
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "pm-btn pm-btn--ghost";
+    removeBtn.textContent = "Rimuovi";
+    removeBtn.addEventListener("click", () => removeLine(index));
+    actionsField.append(actionLabel, removeBtn);
+
+    wrapper.append(grid, actionsField);
+    return wrapper;
+}
+
 function renderLines() {
     const container = document.getElementById("pm-lines");
     if (!container) return;
     container.innerHTML = "";
     if (!requestLines.length) {
-        container.innerHTML = "<div class=\"pm-message\">Aggiungi un prodotto per iniziare.</div>";
+        const emptyMessage = isInterventionMode()
+            ? "Aggiungi un intervento per iniziare."
+            : "Aggiungi un prodotto per iniziare.";
+        container.innerHTML = `<div class="pm-message">${emptyMessage}</div>`;
         return;
     }
     requestLines.forEach((line, index) => {
-        container.appendChild(createLineElement(line, index));
+        if (isInterventionMode()) {
+            container.appendChild(createInterventionLineElement(line, index));
+        } else {
+            container.appendChild(createLineElement(line, index));
+        }
     });
 }
 
@@ -574,6 +770,9 @@ function addLine() {
 }
 
 function addLineFromCatalog(item, quantity) {
+    if (isInterventionMode()) {
+        return;
+    }
     if (!requestLines.length) {
         requestLines = [];
     }
@@ -667,17 +866,11 @@ function renderCatalog() {
         const actions = document.createElement("div");
         actions.className = "pm-catalog-actions";
         const qty = document.createElement("input");
-        qty.type = "text";
+        qty.type = "number";
+        qty.min = "1";
+        qty.step = "1";
+        qty.inputMode = "numeric";
         qty.placeholder = "Q.t\u00E0";
-        const listId = `pm-qty-list-${item.id}`;
-        qty.setAttribute("list", listId);
-        const dataList = document.createElement("datalist");
-        dataList.id = listId;
-        for (let i = 1; i <= 20; i += 1) {
-            const opt = document.createElement("option");
-            opt.value = String(i);
-            dataList.appendChild(opt);
-        }
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "pm-cart-btn";
@@ -690,13 +883,13 @@ function renderCatalog() {
             if (!requireLogin()) return;
             const quantity = qty.value.toString().trim();
             if (!quantity || Number.parseFloat(quantity) <= 0) {
-                showWarning("Inserisci una quantità valida.");
+                showWarning("Inserisci una quantitÃ  valida.");
                 return;
             }
             addLineFromCatalog(item, quantity);
             qty.value = "";
         });
-        actions.append(qty, addBtn, dataList);
+        actions.append(qty, addBtn);
 
         if (isAdmin()) {
             const trashBtn = document.createElement("button");
@@ -856,18 +1049,7 @@ function saveCatalogItem() {
     }
 }
 
-function addLineFromCatalog(item, quantity) {
-    requestLines.push({
-        product: item.name || "",
-        category: item.category || "",
-        quantity: quantity || "",
-        unit: item.unit || "",
-        urgency: "",
-        url: item.url || "",
-        note: "",
-    });
-    renderLines();
-}
+
 
 function removeLine(index) {
     if (!requestLines.length) return;
@@ -879,14 +1061,19 @@ function removeLine(index) {
     renderLines();
 }
 
-function readRequestsFile() {
+function getRequestsPath(mode) {
+    return mode === REQUEST_MODES.INTERVENTION ? INTERVENTIONS_PATH : REQUESTS_PATH;
+}
+
+function readRequestsFile(mode = getActiveMode()) {
+    const filePath = getRequestsPath(mode);
     try {
-        if (!fs.existsSync(REQUESTS_PATH)) return [];
-        const raw = fs.readFileSync(REQUESTS_PATH, "utf8");
+        if (!fs.existsSync(filePath)) return [];
+        const raw = fs.readFileSync(filePath, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeRequestsData(parsed);
         validateWithAjv(validateRequestsSchema, normalized, "richieste");
-        tryAutoCleanJson(REQUESTS_PATH, parsed, normalized, validateRequestsSchema, "richieste");
+        tryAutoCleanJson(filePath, parsed, normalized, validateRequestsSchema, "richieste");
         return normalized;
     } catch (err) {
         showError("Errore lettura richieste.", err.message || String(err));
@@ -894,11 +1081,12 @@ function readRequestsFile() {
     }
 }
 
-function saveRequestsFile(payload) {
+function saveRequestsFile(payload, mode = getActiveMode()) {
+    const filePath = getRequestsPath(mode);
     try {
         const normalized = normalizeRequestsData(payload);
         if (!validateWithAjv(validateRequestsSchema, normalized, "richieste").ok) return false;
-        fs.writeFileSync(REQUESTS_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
         showError("Errore salvataggio richieste.", err.message || String(err));
@@ -908,6 +1096,21 @@ function saveRequestsFile(payload) {
 
 function collectRequestPayload() {
     const notes = document.getElementById("pm-notes")?.value?.trim() || "";
+    if (isInterventionMode()) {
+        const cleanedLines = requestLines
+            .map((line) => ({
+                interventionType: (line.interventionType || line.type || "").trim(),
+                description: (line.description || line.details || "").trim(),
+                urgency: (line.urgency || "").trim(),
+            }))
+            .filter((line) => line.interventionType || line.description || line.urgency);
+
+        return {
+            notes,
+            lines: cleanedLines,
+        };
+    }
+
     const cleanedLines = requestLines
         .map((line) => ({
             product: (line.product || "").trim(),
@@ -927,12 +1130,22 @@ function collectRequestPayload() {
 }
 
 function validateRequestPayload(payload) {
+    if (isInterventionMode()) {
+        if (!payload.lines.length) return "Aggiungi almeno un intervento.";
+        const invalidLine = payload.lines.find(
+            (line) => !line.interventionType || !line.description || !line.urgency
+        );
+        if (invalidLine) {
+            return "Compila tipologia, descrizione e urgenza per ogni riga.";
+        }
+        return "";
+    }
     if (!payload.lines.length) return "Aggiungi almeno un prodotto.";
     const invalidLine = payload.lines.find(
         (line) => !line.product || !line.quantity || !line.unit || !line.urgency
     );
     if (invalidLine) {
-        return "Compila prodotto, quantità, UM e urgenza per ogni riga.";
+        return "Compila prodotto, quantita, UM e urgenza per ogni riga.";
     }
     return "";
 }
@@ -985,6 +1198,16 @@ function toTags(raw) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+}
+
+function getInterventionType(line) {
+    if (!line) return "";
+    return normalizeString(line.interventionType || line.type);
+}
+
+function getInterventionDescription(line) {
+    if (!line) return "";
+    return normalizeString(line.description || line.details);
 }
 
 function normalizeHexColor(value, fallback) {
@@ -1102,9 +1325,20 @@ function buildUrlCell(url, productName) {
     return wrapper;
 }
 
+function formatDateDisplay(value) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("it-IT");
+}
+
 function renderCartTable() {
     const list = document.getElementById("pm-requests-list");
     if (!list) return;
+    if (isInterventionMode()) {
+        renderInterventionTable();
+        return;
+    }
     const requests = readRequestsFile();
     const rows = [];
     let needsSave = false;
@@ -1112,9 +1346,7 @@ function renderCartTable() {
     const weekMs = 7 * 24 * 60 * 60 * 1000;
     const monthMs = 30 * 24 * 60 * 60 * 1000;
     requests.forEach((request, requestIndex) => {
-        const requester = [request.employee, request.department]
-            .filter(Boolean)
-            .join(" - ");
+        const requester = request.employee || "";
         const nextLines = [];
         (request.lines || []).forEach((line, lineIndex) => {
             const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
@@ -1139,6 +1371,7 @@ function renderCartTable() {
                 unit: line.unit || "",
                 urgency: line.urgency || "",
                 url: line.url || "",
+                note: line.note || "",
                 priceCad: line.priceCad || "",
                 confirmed: Boolean(line.confirmed),
                 confirmedAt: line.confirmedAt || "",
@@ -1168,6 +1401,7 @@ function renderCartTable() {
                 row.unit,
                 row.urgency,
                 row.priceCad,
+                row.note,
             ]
                 .join(" ")
                 .toLowerCase();
@@ -1200,7 +1434,19 @@ function renderCartTable() {
 
     const header = document.createElement("div");
     header.className = "pm-table__row pm-table__row--header";
-    ["", "Prodotto", "Quantità", "UM", "Priorità", "URL", "Prezzo C.A.D", "Richiesto da", "Azioni"].forEach((title) => {
+    [
+        "",
+        "Prodotto",
+        "Quantità",
+        "UM",
+        "Priorità",
+        "Note",
+        "URL",
+        "Prezzo C.A.D",
+        "Richiesto da",
+        "Data",
+        "Azioni",
+    ].forEach((title) => {
         const cell = document.createElement("div");
         cell.className = "pm-table__cell";
         cell.textContent = title;
@@ -1258,6 +1504,13 @@ function renderCartTable() {
         urgencyCell.className = "pm-table__cell";
         urgencyCell.textContent = row.urgency || "-";
 
+        const noteCell = document.createElement("div");
+
+        noteCell.className = "pm-table__cell";
+
+        noteCell.textContent = row.note || "-";
+
+
         const urlCell = document.createElement("div");
         urlCell.className = "pm-table__cell";
         urlCell.appendChild(buildUrlCell(row.url, row.product));
@@ -1270,12 +1523,24 @@ function renderCartTable() {
         requesterCell.className = "pm-table__cell";
         requesterCell.textContent = row.requester || "-";
 
+        const dateCell = document.createElement("div");
+
+        dateCell.className = "pm-table__cell";
+
+        dateCell.textContent = formatDateDisplay(row.createdAt);
+
+
         const actionsCell = document.createElement("div");
-        actionsCell.className = "pm-table__cell pm-table__actions";
+        actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
         const addBtn = document.createElement("button");
         addBtn.type = "button";
-        addBtn.className = "pm-btn pm-btn--ghost";
-        addBtn.textContent = "Aggiungi";
+        addBtn.className = "pm-icon-btn";
+        addBtn.title = "Aggiungi";
+        addBtn.setAttribute("aria-label", "Aggiungi");
+        const addIcon = document.createElement("span");
+        addIcon.className = "material-icons";
+        addIcon.textContent = "add";
+        addBtn.appendChild(addIcon);
         addBtn.addEventListener("click", () => openAddModal(row));
         actionsCell.appendChild(addBtn);
         if (row.deletedAt) {
@@ -1284,14 +1549,24 @@ function renderCartTable() {
         if (admin) {
             const editBtn = document.createElement("button");
             editBtn.type = "button";
-            editBtn.className = "pm-btn pm-btn--ghost";
-            editBtn.textContent = "Modifica";
+            editBtn.className = "pm-icon-btn";
+            editBtn.title = "Modifica";
+            editBtn.setAttribute("aria-label", "Modifica");
+            const editIcon = document.createElement("span");
+            editIcon.className = "material-icons";
+            editIcon.textContent = "edit";
+            editBtn.appendChild(editIcon);
             editBtn.addEventListener("click", () => openEditModal(row));
             if (row.deletedAt) editBtn.disabled = true;
             const addCatalogBtn = document.createElement("button");
             addCatalogBtn.type = "button";
-            addCatalogBtn.className = "pm-btn pm-btn--ghost";
-            addCatalogBtn.textContent = "Inserisci a catalogo";
+            addCatalogBtn.className = "pm-icon-btn";
+            addCatalogBtn.title = "Inserisci a catalogo";
+            addCatalogBtn.setAttribute("aria-label", "Inserisci a catalogo");
+            const addCatalogIcon = document.createElement("span");
+            addCatalogIcon.className = "material-icons";
+            addCatalogIcon.textContent = "inventory_2";
+            addCatalogBtn.appendChild(addCatalogIcon);
             addCatalogBtn.addEventListener("click", async () => {
                 const ok = await openConfirmModal("Vuoi aggiungere questo prodotto al catalogo?");
                 if (!ok) return;
@@ -1322,11 +1597,184 @@ function renderCartTable() {
             quantityCell,
             unitCell,
             urgencyCell,
+            noteCell,
             urlCell,
             priceCell,
             requesterCell,
+            dateCell,
             actionsCell
         );
+        table.appendChild(tr);
+    });
+
+    list.innerHTML = "";
+    list.appendChild(table);
+}
+
+function renderInterventionTable() {
+    const list = document.getElementById("pm-requests-list");
+    if (!list) return;
+    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+    const rows = [];
+    let needsSave = false;
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    requests.forEach((request, requestIndex) => {
+        const requester = request.employee || "";
+        const nextLines = [];
+        (request.lines || []).forEach((line) => {
+            const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
+            if (deletedAt && now - deletedAt >= weekMs) {
+                needsSave = true;
+                return;
+            }
+            nextLines.push(line);
+            const nextIndex = nextLines.length - 1;
+            const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
+            if (confirmedAt && now - confirmedAt >= monthMs) {
+                return;
+            }
+            const typeValue = getInterventionType(line);
+            const typeTags = toTags(typeValue);
+            rows.push({
+                key: `${request.id || requestIndex}-${nextIndex}`,
+                requestIndex,
+                lineIndex: nextIndex,
+                interventionType: typeTags.length ? typeTags.join(", ") : typeValue,
+                tags: typeTags,
+                description: getInterventionDescription(line),
+                urgency: line.urgency || "",
+                confirmed: Boolean(line.confirmed),
+                confirmedAt: line.confirmedAt || "",
+                deletedAt: line.deletedAt || "",
+                requester,
+                createdAt: request.createdAt || "",
+            });
+        });
+        if (nextLines.length !== (request.lines || []).length) {
+            request.lines = nextLines;
+        }
+    });
+    if (needsSave) {
+        const cleaned = requests.filter((request) => Array.isArray(request.lines) && request.lines.length);
+        saveRequestsFile(cleaned, REQUEST_MODES.INTERVENTION);
+    }
+
+    const filtered = rows.filter((row) => {
+        if (cartState.urgency && row.urgency !== cartState.urgency) return false;
+        if (cartState.tag && !(row.tags || []).includes(cartState.tag)) return false;
+        if (cartState.search) {
+            const haystack = [row.interventionType, row.description, row.requester, row.urgency]
+                .join(" ")
+                .toLowerCase();
+            if (!haystack.includes(cartState.search.toLowerCase())) return false;
+        }
+        return true;
+    });
+
+    const sortKey = cartState.sort || "created_desc";
+    filtered.sort((a, b) => {
+        if (sortKey === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
+        if (sortKey === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
+        if (sortKey === "type_asc") return a.interventionType.localeCompare(b.interventionType);
+        if (sortKey === "type_desc") return b.interventionType.localeCompare(a.interventionType);
+        if (sortKey === "urgency_desc") {
+            const order = { Alta: 3, Media: 2, Bassa: 1, "": 0 };
+            return (order[b.urgency] || 0) - (order[a.urgency] || 0);
+        }
+        if (sortKey === "requester_asc") return a.requester.localeCompare(b.requester);
+        return 0;
+    });
+
+    if (!filtered.length) {
+        list.innerHTML = "<div class=\"pm-message\">Nessun intervento in lista.</div>";
+        return;
+    }
+
+    const table = document.createElement("div");
+    table.className = "pm-table pm-table--interventions";
+
+    const header = document.createElement("div");
+    header.className = "pm-table__row pm-table__row--header";
+    ["", "Tipologia", "Descrizione", "Priorità", "Richiesto da", "Data", "Azioni"].forEach((title) => {
+        const cell = document.createElement("div");
+        cell.className = "pm-table__cell";
+        cell.textContent = title;
+        header.appendChild(cell);
+    });
+    table.appendChild(header);
+
+    filtered.forEach((row) => {
+        const tr = document.createElement("div");
+        tr.className = "pm-table__row";
+        if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
+        if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
+
+        const statusCell = document.createElement("div");
+        statusCell.className = "pm-table__cell pm-table__cell--icons";
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
+        deleteBtn.title = "Elimina";
+        deleteBtn.disabled = !isAdmin() || Boolean(row.deletedAt);
+        deleteBtn.addEventListener("click", () => deleteCartRow(row));
+        const deleteIcon = document.createElement("span");
+        deleteIcon.className = "material-icons";
+        deleteIcon.textContent = "close";
+        deleteBtn.appendChild(deleteIcon);
+
+        const confirmBtn = document.createElement("button");
+        confirmBtn.type = "button";
+        confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
+        confirmBtn.title = "Convalida";
+        confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
+        confirmBtn.addEventListener("click", () => confirmCartRow(row));
+        const confirmIcon = document.createElement("span");
+        confirmIcon.className = "material-icons";
+        confirmIcon.textContent = "check";
+        confirmBtn.appendChild(confirmIcon);
+
+        statusCell.append(deleteBtn, confirmBtn);
+
+        const typeCell = document.createElement("div");
+        typeCell.className = "pm-table__cell";
+        typeCell.textContent = row.interventionType || "-";
+
+        const descCell = document.createElement("div");
+        descCell.className = "pm-table__cell";
+        descCell.textContent = row.description || "-";
+
+        const urgencyCell = document.createElement("div");
+        urgencyCell.className = "pm-table__cell";
+        urgencyCell.textContent = row.urgency || "-";
+
+        const requesterCell = document.createElement("div");
+        requesterCell.className = "pm-table__cell";
+        requesterCell.textContent = row.requester || "-";
+
+        const dateCell = document.createElement("div");
+        dateCell.className = "pm-table__cell";
+        dateCell.textContent = formatDateDisplay(row.createdAt);
+
+        const actionsCell = document.createElement("div");
+        actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
+        if (isAdmin()) {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "pm-icon-btn";
+            editBtn.title = "Modifica";
+            editBtn.setAttribute("aria-label", "Modifica");
+            const editIcon = document.createElement("span");
+            editIcon.className = "material-icons";
+            editIcon.textContent = "edit";
+            editBtn.appendChild(editIcon);
+            editBtn.addEventListener("click", () => openInterventionEditModal(row));
+            if (row.deletedAt) editBtn.disabled = true;
+            actionsCell.appendChild(editBtn);
+        }
+
+        tr.append(statusCell, typeCell, descCell, urgencyCell, requesterCell, dateCell, actionsCell);
         table.appendChild(tr);
     });
 
@@ -1337,6 +1785,62 @@ function renderCartTable() {
 function getEditFieldValue(id) {
     const el = document.getElementById(id);
     return el ? el.value : "";
+}
+
+function openInterventionEditModal(row) {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono modificare.");
+        return;
+    }
+    interventionEditingRow = row;
+    const modal = document.getElementById("pm-intervention-edit-modal");
+    if (!modal) return;
+    const typeInput = document.getElementById("pm-intervention-edit-type");
+    const descInput = document.getElementById("pm-intervention-edit-description");
+    const urgencyInput = document.getElementById("pm-intervention-edit-urgency");
+    if (typeInput) typeInput.value = row.interventionType || "";
+    if (descInput) descInput.value = row.description || "";
+    if (urgencyInput) urgencyInput.value = row.urgency || "";
+    modal.classList.remove("is-hidden");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function closeInterventionEditModal() {
+    const modal = document.getElementById("pm-intervention-edit-modal");
+    if (!modal) return;
+    modal.classList.add("is-hidden");
+    modal.setAttribute("aria-hidden", "true");
+    interventionEditingRow = null;
+}
+
+function saveInterventionEditModal() {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono modificare.");
+        return;
+    }
+    const row = interventionEditingRow;
+    if (!row) return;
+    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+    const request = requests[row.requestIndex];
+    if (!request || !request.lines || !request.lines[row.lineIndex]) {
+        showError("Elemento non trovato.", "La riga potrebbe essere stata modificata da un altro utente.");
+        return;
+    }
+    const line = request.lines[row.lineIndex];
+    line.interventionType = getEditFieldValue("pm-intervention-edit-type").trim();
+    line.description = getEditFieldValue("pm-intervention-edit-description").trim();
+    line.urgency = getEditFieldValue("pm-intervention-edit-urgency").trim();
+    request.history = Array.isArray(request.history) ? request.history : [];
+    request.history.push({
+        at: new Date().toISOString(),
+        by: "admin",
+        adminName: session.adminName || "",
+        action: "line-updated",
+    });
+    if (saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+        closeInterventionEditModal();
+        renderCartTable();
+    }
 }
 
 function openEditModal(row) {
@@ -1446,7 +1950,7 @@ function saveAddModal() {
     const qtyRaw = document.getElementById("pm-add-quantity")?.value || "";
     const qty = qtyRaw.toString().trim();
     if (!qty || Number.parseFloat(qty) <= 0) {
-        showWarning("Quantità non valida.");
+        showWarning("QuantitÃ  non valida.");
         return;
     }
 
@@ -1563,7 +2067,8 @@ function initCartFilters() {
             }
             const ok = await openConfirmModal("Vuoi rimuovere dal JSON tutti gli elementi eliminati o convalidati?");
             if (!ok) return;
-            const requests = readRequestsFile();
+            const mode = getActiveMode();
+            const requests = readRequestsFile(mode);
             const cleaned = [];
             requests.forEach((req) => {
                 const lines = (req.lines || []).filter((line) => !line.deletedAt && !line.confirmedAt);
@@ -1572,7 +2077,7 @@ function initCartFilters() {
                     cleaned.push(req);
                 }
             });
-            if (saveRequestsFile(cleaned)) {
+            if (saveRequestsFile(cleaned, mode)) {
                 renderCartTable();
             }
         });
@@ -1694,6 +2199,39 @@ function saveCategories(list) {
     }
 }
 
+function loadInterventionTypes() {
+    try {
+        if (!fs.existsSync(INTERVENTION_TYPES_PATH)) return [];
+        const raw = fs.readFileSync(INTERVENTION_TYPES_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        const normalized = normalizeInterventionTypesData(parsed);
+        validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi");
+        tryAutoCleanJson(
+            INTERVENTION_TYPES_PATH,
+            parsed,
+            normalized,
+            validateInterventionTypesSchema,
+            "tipologie interventi"
+        );
+        return normalized;
+    } catch (err) {
+        console.error("Errore lettura tipologie interventi:", err);
+        return [];
+    }
+}
+
+function saveInterventionTypes(list) {
+    try {
+        const normalized = normalizeInterventionTypesData(list);
+        if (!validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi").ok) return false;
+        fs.writeFileSync(INTERVENTION_TYPES_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        return true;
+    } catch (err) {
+        showError("Errore salvataggio tipologie interventi.", err.message || String(err));
+        return false;
+    }
+}
+
 function renderCategoryOptions(selected = []) {
     const container = document.getElementById("pm-catalog-category");
     if (!container) return;
@@ -1746,6 +2284,7 @@ function renderCategoryOptions(selected = []) {
 }
 
 function renderCatalogFilterOptions() {
+    if (isInterventionMode()) return;
     const select = document.getElementById("pm-catalog-filter");
     if (!select) return;
     select.innerHTML = "";
@@ -1762,7 +2301,63 @@ function renderCatalogFilterOptions() {
     select.value = catalogFilterTag || "";
 }
 
+function renderInterventionTypeOptions(selected = []) {
+    const wrap = document.createElement("div");
+    wrap.className = "pm-multiselect";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pm-multiselect__button";
+    button.textContent = "Seleziona tipologie";
+    const menu = document.createElement("div");
+    menu.className = "pm-multiselect__menu is-hidden";
+    const selectedSet = new Set(selected);
+    if (!interventionTypes.length) {
+        const empty = document.createElement("div");
+        empty.className = "pm-message";
+        empty.textContent = "Nessuna tipologia disponibile.";
+        menu.appendChild(empty);
+    }
+    interventionTypes.forEach((type) => {
+        const option = document.createElement("label");
+        option.className = "pm-multiselect__option";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = type;
+        if (selectedSet.has(type)) checkbox.checked = true;
+        const span = document.createElement("span");
+        span.textContent = type;
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked) {
+                selectedSet.add(type);
+            } else {
+                selectedSet.delete(type);
+            }
+            const values = Array.from(selectedSet.values());
+            button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
+        });
+        option.append(checkbox, span);
+        menu.appendChild(option);
+    });
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (menu.classList.contains("is-hidden")) {
+            openMultiselectMenu(menu, button, wrap);
+        } else {
+            closeMultiselectMenu(menu, wrap);
+        }
+    });
+    document.addEventListener("click", (event) => {
+        if (!wrap.contains(event.target) && !menu.contains(event.target)) {
+            closeMultiselectMenu(menu, wrap);
+        }
+    });
+    button.textContent = selectedSet.size ? Array.from(selectedSet.values()).join(", ") : "Seleziona tipologie";
+    wrap.append(button, menu);
+    return { wrap, selectedSet, button };
+}
+
 function syncCatalogControls() {
+    if (isInterventionMode()) return;
     const search = document.getElementById("pm-catalog-search");
     const sort = document.getElementById("pm-catalog-sort");
     if (search) search.value = catalogSearch || "";
@@ -1777,12 +2372,32 @@ function renderCartTagFilterOptions() {
     all.value = "";
     all.textContent = "Tutte";
     select.appendChild(all);
-    catalogCategories.forEach((cat) => {
-        const opt = document.createElement("option");
-        opt.value = cat;
-        opt.textContent = cat;
-        select.appendChild(opt);
-    });
+    if (isInterventionMode()) {
+        const types = new Set(interventionTypes);
+        if (!types.size) {
+            const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+            requests.forEach((req) => {
+                (req.lines || []).forEach((line) => {
+                    toTags(getInterventionType(line)).forEach((type) => {
+                        if (type) types.add(type);
+                    });
+                });
+            });
+        }
+        Array.from(types.values()).sort((a, b) => a.localeCompare(b)).forEach((type) => {
+            const opt = document.createElement("option");
+            opt.value = type;
+            opt.textContent = type;
+            select.appendChild(opt);
+        });
+    } else {
+        catalogCategories.forEach((cat) => {
+            const opt = document.createElement("option");
+            opt.value = cat;
+            opt.textContent = cat;
+            select.appendChild(opt);
+        });
+    }
     select.value = cartState.tag || "";
 }
 
@@ -1939,7 +2554,7 @@ function renderCategoriesList() {
             const nextName = input?.value?.trim() || "";
             if (!nextName || nextName === cat) return;
             if (catalogCategories.includes(nextName)) {
-                showWarning("Categoria già esistente.");
+                showWarning("Categoria giÃ  esistente.");
                 return;
             }
             catalogCategories = catalogCategories.map((entry) => (entry === cat ? nextName : entry));
@@ -2018,6 +2633,126 @@ function renderCategoriesList() {
     }
 }
 
+function renderInterventionTypesList() {
+    const list = document.getElementById("pm-intervention-types-list");
+    if (!list) return;
+    list.innerHTML = "";
+    interventionTypes.forEach((type) => {
+        const row = document.createElement("div");
+        row.className = "pm-list-item";
+        row.dataset.type = type;
+        const label = document.createElement("span");
+        label.textContent = type;
+        const actions = document.createElement("div");
+        actions.className = "pm-table__cell pm-table__actions";
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "pm-tag-icon-btn";
+        editBtn.title = "Modifica";
+        const editIcon = document.createElement("span");
+        editIcon.className = "material-icons";
+        editIcon.textContent = "edit";
+        editBtn.appendChild(editIcon);
+        editBtn.addEventListener("click", async () => {
+            const input = document.getElementById("pm-intervention-type-name");
+            const nextName = input?.value?.trim() || "";
+            if (!nextName || nextName === type) return;
+            if (interventionTypes.includes(nextName)) {
+                showWarning("Tipologia giÃ  esistente.");
+                return;
+            }
+            interventionTypes = interventionTypes.map((entry) => (entry === type ? nextName : entry));
+            const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+            requests.forEach((req) => {
+                (req.lines || []).forEach((line) => {
+                    const tags = toTags(getInterventionType(line)).map((t) => (t === type ? nextName : t));
+                    line.interventionType = tags.join(", ");
+                });
+            });
+            if (saveInterventionTypes(interventionTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+                if (input) input.value = "";
+                renderInterventionTypesList();
+                renderCartTagFilterOptions();
+                renderLines();
+                renderCartTable();
+            }
+        });
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "pm-tag-icon-btn";
+        removeBtn.title = "Rimuovi";
+        const trashIcon = document.createElement("span");
+        trashIcon.className = "material-icons";
+        trashIcon.textContent = "delete";
+        removeBtn.appendChild(trashIcon);
+        removeBtn.addEventListener("click", async () => {
+            closeInterventionTypesModal();
+            const ok = await openConfirmModal(`Vuoi eliminare la tipologia \"${type}\"?`);
+            if (!ok) return;
+            interventionTypes = interventionTypes.filter((entry) => entry !== type);
+            const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+            requests.forEach((req) => {
+                (req.lines || []).forEach((line) => {
+                    const tags = toTags(getInterventionType(line)).filter((t) => t !== type);
+                    line.interventionType = tags.join(", ");
+                });
+            });
+            if (saveInterventionTypes(interventionTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+                renderInterventionTypesList();
+                renderCartTagFilterOptions();
+                renderLines();
+                renderCartTable();
+            }
+        });
+        actions.append(editBtn, removeBtn);
+        row.append(label, actions);
+        list.appendChild(row);
+    });
+    if (!interventionTypes.length) {
+        list.innerHTML = "<div class=\"pm-message\">Nessuna tipologia disponibile.</div>";
+    }
+}
+
+function openInterventionTypesModal() {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono gestire le tipologie.");
+        return;
+    }
+    const modal = document.getElementById("pm-intervention-types-modal");
+    if (!modal) return;
+    renderInterventionTypesList();
+    modal.classList.remove("is-hidden");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function closeInterventionTypesModal() {
+    const modal = document.getElementById("pm-intervention-types-modal");
+    if (!modal) return;
+    modal.classList.add("is-hidden");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+function addInterventionType() {
+    if (!isAdmin()) {
+        showWarning("Solo gli admin possono gestire le tipologie.");
+        return;
+    }
+    const input = document.getElementById("pm-intervention-type-name");
+    const value = input?.value?.trim() || "";
+    if (!value) return;
+    if (interventionTypes.includes(value)) {
+        showWarning("Tipologia giÃ  esistente.");
+        return;
+    }
+    interventionTypes.push(value);
+    if (saveInterventionTypes(interventionTypes)) {
+        if (input) input.value = "";
+        renderInterventionTypesList();
+        renderCartTagFilterOptions();
+        renderLines();
+    }
+}
+
 function openCategoriesModal() {
     if (!isAdmin()) {
         showWarning("Solo gli admin possono gestire le categorie.");
@@ -2047,7 +2782,7 @@ function addCategory() {
     const value = input?.value?.trim() || "";
     if (!value) return;
     if (catalogCategories.includes(value)) {
-        showWarning("Categoria già esistente.");
+        showWarning("Categoria giÃ  esistente.");
         return;
     }
     catalogCategories.push(value);
@@ -2133,12 +2868,55 @@ function updateLoginButton() {
 function updateAdminControls() {
     const section = document.getElementById("pm-categories-section");
     if (section) section.classList.toggle("is-hidden", !isAdmin());
+    const typesSection = document.getElementById("pm-intervention-types-section");
+    if (typesSection) typesSection.classList.toggle("is-hidden", !isAdmin());
     const catalogAdd = document.getElementById("pm-catalog-add");
     if (catalogAdd) catalogAdd.style.display = isAdmin() ? "inline-flex" : "none";
     const assigneesBtn = document.getElementById("pm-assignees-open");
     if (assigneesBtn) assigneesBtn.style.display = isAdmin() ? "inline-flex" : "none";
     const adminBtn = document.getElementById("pm-admin-open");
     if (adminBtn) adminBtn.style.display = isAdmin() ? "inline-flex" : "none";
+}
+
+function syncSessionUI() {
+    updateGreeting();
+    updateLoginButton();
+    updateAdminControls();
+    renderCatalog();
+    renderCategoryOptions();
+    renderCatalogFilterOptions();
+    renderCartTagFilterOptions();
+    renderCartTable();
+    renderLines();
+}
+
+function applySharedSession(payload) {
+    if (payload && (payload.role === "admin" || payload.role === "employee")) {
+        session = {
+            role: payload.role,
+            adminName: payload.adminName || "",
+            department: payload.department || "",
+            employee: payload.employee || "",
+        };
+        try {
+            window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        } catch (err) {
+            console.error("Errore salvataggio sessione:", err);
+        }
+    } else {
+        session = { role: "guest", adminName: "", department: "", employee: "" };
+        try {
+            window.localStorage.removeItem(SESSION_KEY);
+        } catch (err) {
+            console.error("Errore clear session:", err);
+        }
+    }
+    closeLoginModal();
+    closeLogoutModal();
+    syncSessionUI();
+    if (!isLoggedIn() && document.getElementById("pm-request-form")) {
+        openLoginModal();
+    }
 }
 
 function fillSelectOptions(selectEl, options, placeholder) {
@@ -2740,11 +3518,7 @@ function setupLogin() {
             }
             session = { role: "employee", adminName: "", department: dept, employee: emp };
             saveSession();
-            updateGreeting();
-            updateLoginButton();
-            updateAdminControls();
-            renderCatalog();
-            renderCartTable();
+            syncSessionUI();
             closeLoginModal();
         });
     }
@@ -2765,11 +3539,7 @@ function setupLogin() {
             }
             session = { role: "admin", adminName: verified.admin.name, department: "", employee: "" };
             saveSession();
-            updateGreeting();
-            updateLoginButton();
-            updateAdminControls();
-            renderCatalog();
-            renderCartTable();
+            syncSessionUI();
             closeLoginModal();
         });
     }
@@ -2782,6 +3552,15 @@ function initEditModal() {
     if (closeBtn) closeBtn.addEventListener("click", () => closeEditModal());
     if (cancelBtn) cancelBtn.addEventListener("click", () => closeEditModal());
     if (saveBtn) saveBtn.addEventListener("click", () => saveEditModal());
+}
+
+function initInterventionEditModal() {
+    const closeBtn = document.getElementById("pm-intervention-edit-close");
+    const cancelBtn = document.getElementById("pm-intervention-edit-cancel");
+    const saveBtn = document.getElementById("pm-intervention-edit-save");
+    if (closeBtn) closeBtn.addEventListener("click", () => closeInterventionEditModal());
+    if (cancelBtn) cancelBtn.addEventListener("click", () => closeInterventionEditModal());
+    if (saveBtn) saveBtn.addEventListener("click", () => saveInterventionEditModal());
 }
 
 function initCatalogModal() {
@@ -2911,6 +3690,19 @@ function initCategoriesModal() {
     }
 }
 
+function initInterventionTypesModal() {
+    const openBtn = document.getElementById("pm-intervention-types-open");
+    const closeBtn = document.getElementById("pm-intervention-types-close");
+    const addBtn = document.getElementById("pm-intervention-type-add");
+    if (openBtn) openBtn.addEventListener("click", () => {
+        const settings = document.getElementById("pm-settings-modal");
+        if (settings) settings.classList.add("is-hidden");
+        openInterventionTypesModal();
+    });
+    if (closeBtn) closeBtn.addEventListener("click", () => closeInterventionTypesModal());
+    if (addBtn) addBtn.addEventListener("click", () => addInterventionType());
+}
+
 function initAddModal() {
     const closeBtn = document.getElementById("pm-add-close");
     const cancelBtn = document.getElementById("pm-add-cancel");
@@ -2959,6 +3751,7 @@ function setupHeaderButtons() {
     const refreshBtn = document.getElementById("pm-refresh");
     const settingsBtn = document.getElementById("pm-settings");
     const cartBtn = document.getElementById("pm-open-cart");
+    const interventionsBtn = document.getElementById("pm-open-interventions");
     const addLineBtn = document.getElementById("pm-add-line");
     const saveBtn = document.getElementById("pm-request-save");
 
@@ -2968,11 +3761,13 @@ function setupHeaderButtons() {
             renderLoginSelectors();
             catalogItems = loadCatalog();
             catalogCategories = loadCategories();
+            interventionTypes = loadInterventionTypes();
             renderCatalog();
             renderCatalogFilterOptions();
             syncCatalogControls();
             renderCartTagFilterOptions();
             renderCartTable();
+            renderLines();
         });
     }
 
@@ -2991,6 +3786,20 @@ function setupHeaderButtons() {
         cartBtn.addEventListener("click", () => {
             if (!requireLogin()) return;
             ipcRenderer.send("open-product-manager-cart-window");
+        });
+    }
+
+    if (interventionsBtn) {
+        interventionsBtn.addEventListener("click", () => {
+            if (!requireLogin()) return;
+            ipcRenderer
+                .invoke("open-product-manager-interventions-window")
+                .catch((err) =>
+                    showError(
+                        "Impossibile aprire la lista interventi.",
+                        err && err.message ? err.message : String(err)
+                    )
+                );
         });
     }
 
@@ -3025,7 +3834,10 @@ function setupHeaderButtons() {
             const record = buildRequestRecord(payload);
             requests.push(record);
             if (saveRequestsFile(requests)) {
-                showFormMessage("Richiesta inviata correttamente.", "success");
+                const successMessage = isInterventionMode()
+                    ? "Intervento inviato correttamente."
+                    : "Richiesta inviata correttamente.";
+                showFormMessage(successMessage, "success");
                 clearForm();
             }
         });
@@ -3137,7 +3949,36 @@ function parseDateInput(value) {
 }
 
 function buildExportRows() {
-    const requests = readRequestsFile();
+    const mode = getActiveMode();
+    if (isInterventionMode(mode)) {
+        const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+        const rows = [];
+        requests.forEach((request) => {
+            const requester = [request.employee, request.department].filter(Boolean).join(" - ");
+            (request.lines || []).forEach((line) => {
+                const status = line.deletedAt ? "deleted" : line.confirmedAt || line.confirmed ? "confirmed" : "pending";
+                const typeValue = getInterventionType(line);
+                rows.push({
+                    requestId: request.id || "",
+                    createdAt: request.createdAt || "",
+                    employee: request.employee || "",
+                    department: request.department || "",
+                    requester,
+                    category: typeValue || "",
+                    description: getInterventionDescription(line),
+                    urgency: line.urgency || "",
+                    notes: request.notes || "",
+                    status,
+                    confirmedAt: line.confirmedAt || "",
+                    confirmedBy: line.confirmedBy || "",
+                    deletedAt: line.deletedAt || "",
+                    deletedBy: line.deletedBy || "",
+                });
+            });
+        });
+        return rows;
+    }
+    const requests = readRequestsFile(REQUEST_MODES.PURCHASE);
     const rows = [];
     requests.forEach((request) => {
         const requester = [request.employee, request.department].filter(Boolean).join(" - ");
@@ -3194,11 +4035,13 @@ function filterExportRows(rows, options) {
             const haystack = [
                 row.product,
                 row.category,
+                row.description,
                 row.requester,
                 row.url,
                 row.unit,
                 row.urgency,
                 row.priceCad,
+                row.notes,
             ]
                 .join(" ")
                 .toLowerCase();
@@ -3225,6 +4068,7 @@ function filterExportRows(rows, options) {
 }
 
 function buildExportSheet(rows) {
+    if (isInterventionMode()) return buildInterventionExportSheet(rows);
     const headers = [
         "ID Richiesta",
         "Data richiesta",
@@ -3233,7 +4077,7 @@ function buildExportSheet(rows) {
         "Richiesto da",
         "Prodotto",
         "Tipologia",
-        "Quantità",
+        "Quantit\u00e0",
         "UM",
         "Urgenza",
         "URL",
@@ -3259,6 +4103,42 @@ function buildExportSheet(rows) {
         row.url,
         row.note,
         row.priceCad,
+        row.status,
+        row.confirmedAt,
+        row.confirmedBy,
+        row.deletedAt,
+        row.deletedBy,
+    ]);
+    return XLSX.utils.aoa_to_sheet([headers, ...data]);
+}
+
+function buildInterventionExportSheet(rows) {
+    const headers = [
+        "ID Richiesta",
+        "Data richiesta",
+        "Dipendente",
+        "Reparto",
+        "Richiesto da",
+        "Tipologia",
+        "Descrizione",
+        "Urgenza",
+        "Note generali",
+        "Stato",
+        "Data convalida",
+        "Convalidato da",
+        "Data eliminazione",
+        "Eliminato da",
+    ];
+    const data = rows.map((row) => [
+        row.requestId,
+        row.createdAt,
+        row.employee,
+        row.department,
+        row.requester,
+        row.category,
+        row.description,
+        row.urgency,
+        row.notes,
         row.status,
         row.confirmedAt,
         row.confirmedBy,
@@ -3327,14 +4207,15 @@ async function exportCartExcel() {
         setExportMessage("Nessun dato da esportare.", true);
         return;
     }
+    const isIntervention = isInterventionMode();
     const filePath = await ipcRenderer.invoke("select-output-file", {
-        defaultName: "lista_acquisti.xlsx",
+        defaultName: isIntervention ? "lista_interventi.xlsx" : "lista_acquisti.xlsx",
         filters: [{ name: "File Excel", extensions: ["xlsx"] }],
     });
     if (!filePath) return;
     const wb = XLSX.utils.book_new();
     const sheet = buildExportSheet(filtered);
-    XLSX.utils.book_append_sheet(wb, sheet, "Acquisti");
+    XLSX.utils.book_append_sheet(wb, sheet, isIntervention ? "Interventi" : "Acquisti");
     XLSX.writeFile(wb, filePath);
     setExportMessage("File Excel creato con successo.", false);
 }
@@ -3446,7 +4327,8 @@ function initExportModal() {
 
     const openModal = () => {
         if (!modal) return;
-        exportTagSelect = buildExportMultiSelect(tagSelect, catalogCategories, []);
+        const tagValues = isInterventionMode() ? interventionTypes : catalogCategories;
+        exportTagSelect = buildExportMultiSelect(tagSelect, tagValues, []);
         exportUrgencySelect = buildExportMultiSelect(
             urgencySelect,
             ["Alta", "Media", "Bassa"],
@@ -3492,11 +4374,7 @@ function initLogoutModal() {
     if (logoutConfirm) {
         logoutConfirm.addEventListener("click", () => {
             clearSession();
-            updateGreeting();
-            updateLoginButton();
-            updateAdminControls();
-            renderCatalog();
-            renderCartTable();
+            syncSessionUI();
             closeLogoutModal();
         });
     }
@@ -3527,23 +4405,33 @@ async function init() {
     renderAdminSelect();
     catalogItems = loadCatalog();
     catalogCategories = loadCategories();
+    interventionTypes = loadInterventionTypes();
     categoryColors = loadCategoryColors();
     renderCatalog();
     renderCategoryOptions();
     renderCatalogFilterOptions();
     syncCatalogControls();
     renderCartTagFilterOptions();
+    if (isFormPage()) {
+        currentRequestMode = REQUEST_MODES.PURCHASE;
+        storeRequestMode(REQUEST_MODES.PURCHASE);
+        applyRequestModeUI();
+        renderCatalog();
+        initRequestModeToggle();
+    }
     requestLines = [];
     renderLines();
     renderCartTable();
     initCartFilters();
     initEditModal();
+    initInterventionEditModal();
     initAddModal();
     initConfirmModal();
     initAlertModal();
     initCatalogModal();
     initCatalogFilters();
     initCategoriesModal();
+    initInterventionTypesModal();
     initImageModal();
     initExportModal();
     setupLogin();
@@ -3576,6 +4464,25 @@ window.addEventListener("unhandledrejection", (event) => {
     showError("Errore Product Manager (Promise).", detail);
 });
 
+async function refreshSessionFromMain() {
+    try {
+        const shared = await ipcRenderer.invoke("pm-session-get");
+        applySharedSession(shared);
+    } catch (err) {
+        console.error("Errore sync sessione:", err);
+    }
+}
+
+window.addEventListener("focus", () => {
+    refreshSessionFromMain();
+});
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        refreshSessionFromMain();
+    }
+});
+
 window.addEventListener("message", (event) => {
     if (!event || !event.data) return;
     if (event.data.type === "guide-close") {
@@ -3587,13 +4494,13 @@ window.addEventListener("message", (event) => {
 ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
     if (!shouldLogout) return;
     clearSession();
-    updateGreeting();
-    updateLoginButton();
-    updateAdminControls();
-    renderCatalog();
-    renderCartTable();
+    syncSessionUI();
     if (document.getElementById("pm-request-form")) {
         openLoginModal();
     }
+});
+
+ipcRenderer.on("pm-session-updated", (_event, payload) => {
+    applySharedSession(payload);
 });
 
