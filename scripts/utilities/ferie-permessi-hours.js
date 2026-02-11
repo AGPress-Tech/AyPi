@@ -73,7 +73,7 @@ function renderTable(payload, assigneeGroups) {
     if (!rows.length) {
         const tr = document.createElement("tr");
         const td = document.createElement("td");
-        td.colSpan = 4;
+        td.colSpan = 6;
         td.textContent = "Nessun dipendente configurato.";
         tr.appendChild(td);
         tbody.appendChild(tr);
@@ -119,11 +119,15 @@ function renderTable(payload, assigneeGroups) {
         const tdMonth = document.createElement("td");
         tdMonth.textContent = record.lastAccrualMonth || getMonthKey();
 
+        const tdClosure = document.createElement("td");
+        tdClosure.textContent = Number(record.closureAppliedHours || 0).toFixed(2);
+
         tr.appendChild(tdDept);
         tr.appendChild(tdEmp);
         tr.appendChild(tdHours);
         tr.appendChild(tdAccrual);
         tr.appendChild(tdMonth);
+        tr.appendChild(tdClosure);
         tbody.appendChild(tr);
     });
 }
@@ -219,6 +223,7 @@ async function exportExcel() {
                 "Ore disponibili": Number(record.hoursAvailable || 0),
                 "Accredito mensile": Number(record.monthlyAccrualHours || 16),
                 "Ultimo accredito": record.lastAccrualMonth || getMonthKey(),
+                "Chiusure scalate (mese) - provvisorio": Number(record.closureAppliedHours || 0),
             };
         });
 

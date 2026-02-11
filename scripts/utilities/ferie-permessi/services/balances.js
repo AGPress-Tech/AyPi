@@ -137,11 +137,12 @@ function normalizeClosures(closures) {
     }).filter((item) => item && item.start);
 }
 
-function countClosureDaysForMonth(closures, holidays, monthKey) {
+function countClosureDaysForMonth(closures, holidays, monthKey, cutoffDate) {
     if (!monthKey) return 0;
     const monthInfo = parseMonthKey(monthKey);
     if (!monthInfo) return 0;
     const holidaySet = buildHolidaySet(holidays);
+    const cutoffKey = cutoffDate ? dateToKey(cutoffDate) : null;
     const dates = new Set();
     normalizeClosures(closures).forEach((closure) => {
         const startDate = new Date(closure.start);
@@ -156,6 +157,10 @@ function countClosureDaysForMonth(closures, holidays, monthKey) {
                 current.getMonth() + 1 === monthInfo.month
             ) {
                 const key = dateToKey(current);
+                if (cutoffKey && key > cutoffKey) {
+                    current.setDate(current.getDate() + 1);
+                    continue;
+                }
                 if (!isWeekend(current) && !holidaySet.has(key)) {
                     dates.add(key);
                 }
@@ -216,7 +221,15 @@ function normalizeBalances(payload, assigneeGroups, options = {}) {
     const monthlyAccrual = options.monthlyAccrual ?? MONTHLY_ACCRUAL_HOURS;
     const currentMonth = getMonthKey();
     const nextPayload = payload && typeof payload === "object" ? payload : { requests: [] };
-    const closureDays = countClosureDaysForMonth(nextPayload.closures, nextPayload.holidays, currentMonth);
+    const today = new Date();
+    const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    cutoff.setDate(cutoff.getDate() - 1);
+    const closureDays = countClosureDaysForMonth(
+        nextPayload.closures,
+        nextPayload.holidays,
+        currentMonth,
+        cutoff
+    );
     const closureHours = closureDays * 8;
     const currentBalances = nextPayload.balances && typeof nextPayload.balances === "object"
         ? nextPayload.balances
