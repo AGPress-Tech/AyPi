@@ -865,12 +865,101 @@ function renderCatalog() {
         });
         const actions = document.createElement("div");
         actions.className = "pm-catalog-actions";
+        const qtyWrap = document.createElement("div");
+        qtyWrap.className = "pm-qty-spinner";
+        const qtyMinus = document.createElement("button");
+        qtyMinus.type = "button";
+        qtyMinus.className = "pm-qty-btn";
+        qtyMinus.title = "Diminuisci quantit\u00e0";
+        qtyMinus.setAttribute("aria-label", "Diminuisci quantit\u00e0");
+        const qtyMinusIcon = document.createElement("span");
+        qtyMinusIcon.className = "material-icons";
+        qtyMinusIcon.textContent = "remove";
+        qtyMinus.appendChild(qtyMinusIcon);
         const qty = document.createElement("input");
+        qty.className = "pm-qty-input";
         qty.type = "number";
         qty.min = "1";
         qty.step = "1";
         qty.inputMode = "numeric";
         qty.placeholder = "Q.t\u00E0";
+        qty.value = "";
+        const qtyPlus = document.createElement("button");
+        qtyPlus.type = "button";
+        qtyPlus.className = "pm-qty-btn";
+        qtyPlus.title = "Aumenta quantit\u00e0";
+        qtyPlus.setAttribute("aria-label", "Aumenta quantit\u00e0");
+        const qtyPlusIcon = document.createElement("span");
+        qtyPlusIcon.className = "material-icons";
+        qtyPlusIcon.textContent = "add";
+        qtyPlus.appendChild(qtyPlusIcon);
+        const clampQty = (value) => {
+            if (value === "" || value === null || value === undefined) return "";
+            const num = Number.parseInt(String(value || "").trim(), 10);
+            if (Number.isNaN(num) || num < 1) return 1;
+            return num;
+        };
+        const syncQty = (nextValue) => {
+            const clamped = clampQty(nextValue);
+            qty.value = clamped === "" ? "" : String(clamped);
+        };
+        let holdTimer = null;
+        let holdActive = false;
+        let holdStart = 0;
+
+        const stopHold = () => {
+            holdActive = false;
+            if (holdTimer) clearTimeout(holdTimer);
+            holdTimer = null;
+        };
+
+        const stepOnce = (direction) => {
+            const base = Number.parseInt(qty.value || "0", 10) || 0;
+            const next = base + direction;
+            syncQty(next);
+        };
+
+        const scheduleHold = (direction) => {
+            if (!holdActive) return;
+            const elapsed = Date.now() - holdStart;
+            // accelera da ~320ms fino a 50ms in 3s
+            const minDelay = 50;
+            const maxDelay = 320;
+            const accelWindow = 3000;
+            const progress = Math.min(1, elapsed / accelWindow);
+            const delay = Math.round(maxDelay - (maxDelay - minDelay) * progress);
+            holdTimer = setTimeout(() => {
+                stepOnce(direction);
+                scheduleHold(direction);
+            }, delay);
+        };
+
+        const startHold = (direction) => {
+            stopHold();
+            holdActive = true;
+            holdStart = Date.now();
+            stepOnce(direction);
+            scheduleHold(direction);
+        };
+
+        const bindHold = (btn, direction) => {
+            btn.addEventListener("mousedown", () => startHold(direction));
+            btn.addEventListener("touchstart", (event) => {
+                event.preventDefault();
+                startHold(direction);
+            });
+            btn.addEventListener("mouseup", stopHold);
+            btn.addEventListener("mouseleave", stopHold);
+            btn.addEventListener("touchend", stopHold);
+            btn.addEventListener("touchcancel", stopHold);
+        };
+
+        bindHold(qtyMinus, -1);
+        bindHold(qtyPlus, 1);
+        qty.addEventListener("blur", () => {
+            syncQty(qty.value);
+        });
+        qtyWrap.append(qtyMinus, qty, qtyPlus);
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "pm-cart-btn";
@@ -889,7 +978,7 @@ function renderCatalog() {
             addLineFromCatalog(item, quantity);
             qty.value = "";
         });
-        actions.append(qty, addBtn);
+        actions.append(qtyWrap, addBtn);
 
         if (isAdmin()) {
             const trashBtn = document.createElement("button");

@@ -423,8 +423,8 @@ body.pm-mode-intervention .pm-list {
 
 .pm-catalog-actions {
     display: grid;
-    grid-template-columns: 180px auto;
-    gap: 8px;
+    grid-template-columns: max-content auto;
+    gap: 6px;
     align-items: center;
 }
 
@@ -481,6 +481,80 @@ body.pm-mode-intervention .pm-list {
     justify-content: center;
     cursor: pointer;
     opacity: 0.8;
+}
+
+.pm-qty-spinner {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--pm-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--pm-surface);
+    height: 38px;
+    white-space: nowrap;
+}
+
+.pm-qty-spinner .pm-qty-input {
+    width: 46px;
+    text-align: center;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    background: transparent;
+    height: 38px;
+}
+
+.pm-catalog-actions .pm-qty-spinner,
+.pm-catalog-actions .pm-qty-btn,
+.pm-catalog-actions .pm-qty-input {
+    width: auto;
+}
+
+.pm-qty-btn {
+    width: 32px;
+    min-width: 32px;
+    height: 38px;
+    border: none;
+    background: var(--pm-surface);
+    color: var(--pm-accent);
+    border-right: 1px solid var(--pm-border);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-family: inherit;
+    font-weight: 700;
+}
+
+.pm-qty-btn .material-icons {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.pm-qty-btn:last-child {
+    border-right: none;
+    border-left: 1px solid var(--pm-border);
+}
+
+.pm-qty-btn:hover {
+    background: #eef3ff;
+}
+
+.pm-qty-btn:active {
+    background: #e1e9ff;
+}
+
+.pm-qty-spinner .pm-qty-input::-webkit-outer-spin-button,
+.pm-qty-spinner .pm-qty-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.pm-qty-spinner .pm-qty-input[type="number"] {
+    -moz-appearance: textfield;
 }
 
 .pm-multiselect {
