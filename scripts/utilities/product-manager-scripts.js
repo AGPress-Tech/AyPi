@@ -28,6 +28,11 @@ const { renderCatalog: renderCatalogUi } = require("./product-manager/ui/catalog
 const { initCartFilters: initCartFiltersUi } = require("./product-manager/ui/cart-controls");
 const { renderCartTable: renderCartTableUi } = require("./product-manager/ui/cart-table");
 const { initExportModal: initExportModalUi } = require("./product-manager/ui/export");
+const { initLogoutModal: initLogoutModalUi, initGuideModal: initGuideModalUi } = require("./product-manager/ui/app-init");
+const { setupHeaderButtons: setupHeaderButtonsUi } = require("./product-manager/ui/header-buttons");
+const { initSettingsModals: initSettingsModalsUi } = require("./product-manager/ui/settings-modals");
+const { initCategoriesModal: initCategoriesModalUi, initInterventionTypesModal: initInterventionTypesModalUi } = require("./product-manager/ui/categories-modals");
+const { initAddModal: initAddModalUi, initConfirmModal: initConfirmModalUi, initAlertModal: initAlertModalUi, initImageModal: initImageModalUi } = require("./product-manager/ui/basic-modals");
 const { validators } = require("./product-manager/data/schemas");
 const {
     normalizePriceCad,
@@ -113,6 +118,36 @@ let cartState = {
 };
 
 const { showModal, hideModal } = createModalHelpers({ document });
+
+function assertFn(label, value) {
+    if (typeof value !== "function") {
+        throw new Error(`Modulo mancante o non valido: ${label}`);
+    }
+}
+
+function validateModuleBindings() {
+    assertFn("ui.messages.setMessage", setMessage);
+    assertFn("ui.multiselect.openMultiselectMenu", openMultiselectMenu);
+    assertFn("ui.multiselect.closeMultiselectMenu", closeMultiselectMenu);
+    assertFn("ui.filters.renderCategoryOptions", renderCategoryOptionsUi);
+    assertFn("ui.filters.renderCatalogFilterOptions", renderCatalogFilterOptionsUi);
+    assertFn("ui.filters.renderInterventionTypeOptions", renderInterventionTypeOptionsUi);
+    assertFn("ui.filters.renderCartTagFilterOptions", renderCartTagFilterOptionsUi);
+    assertFn("ui.catalogControls.syncCatalogControls", syncCatalogControlsUi);
+    assertFn("ui.catalogControls.initCatalogFilters", initCatalogFiltersUi);
+    assertFn("ui.catalogView.renderCatalog", renderCatalogUi);
+    assertFn("ui.cartControls.initCartFilters", initCartFiltersUi);
+    assertFn("ui.cartTable.renderCartTable", renderCartTableUi);
+    assertFn("ui.export.initExportModal", initExportModalUi);
+    assertFn("ui.headerButtons.setupHeaderButtons", setupHeaderButtonsUi);
+    assertFn("ui.settingsModals.initSettingsModals", initSettingsModalsUi);
+    assertFn("ui.categoriesModals.initCategoriesModal", initCategoriesModalUi);
+    assertFn("ui.categoriesModals.initInterventionTypesModal", initInterventionTypesModalUi);
+    assertFn("ui.basicModals.initAddModal", initAddModalUi);
+    assertFn("ui.basicModals.initConfirmModal", initConfirmModalUi);
+    assertFn("ui.basicModals.initAlertModal", initAlertModalUi);
+    assertFn("ui.basicModals.initImageModal", initImageModalUi);
+}
 
 const guideLocalPath = path.resolve(__dirname, "..", "..", "Guida", "aypi-purchasing", "index.html");
 const guideLocalUrl = fs.existsSync(guideLocalPath) ? `${pathToFileURL(guideLocalPath).toString()}?embed=1` : "";
@@ -2664,297 +2699,114 @@ function initCatalogFilters() {
 }
 
 function initCategoriesModal() {
-    const openBtn = document.getElementById("pm-categories-open");
-    const closeBtn = document.getElementById("pm-categories-close");
-    const addBtn = document.getElementById("pm-category-add");
-    const colorInput = document.getElementById("pm-category-color-input");
-    const colorSave = document.getElementById("pm-category-color-save");
-    const colorDefault = document.getElementById("pm-category-color-default");
-    const colorCancel = document.getElementById("pm-category-color-cancel");
-    const editor = document.getElementById("pm-category-editor");
-    if (openBtn) openBtn.addEventListener("click", () => {
-        const settings = document.getElementById("pm-settings-modal");
-        if (settings) settings.classList.add("is-hidden");
-        openCategoriesModal();
+    initCategoriesModalUi({
+        document,
+        normalizeHexColor,
+        getCategoryColor,
+        hashCategoryToColor,
+        updateCategoryChipPreview,
+        saveCategoryColors,
+        closeCategoryEditor,
+        renderCatalog,
+        renderCartTable,
+        uiState,
+        openCategoriesModal,
+        closeCategoriesModal,
+        addCategory,
+        categoryColors: () => categoryColors,
+        setCategoryColors: (next) => {
+            categoryColors = next;
+        },
     });
-    if (closeBtn) closeBtn.addEventListener("click", () => closeCategoriesModal());
-    if (addBtn) addBtn.addEventListener("click", () => addCategory());
-    if (editor) {
-        editor.addEventListener("click", (event) => {
-            event.stopPropagation();
-        });
-    }
-    if (colorInput) {
-        colorInput.addEventListener("input", () => {
-            if (!uiState.categoryEditingName) return;
-            const next = normalizeHexColor(
-                colorInput.value,
-                getCategoryColor(uiState.categoryEditingName)
-            );
-            categoryColors = { ...categoryColors, [uiState.categoryEditingName]: next };
-            updateCategoryChipPreview(uiState.categoryEditingName, next);
-            if (uiState.categoryPreviewTimer) clearTimeout(uiState.categoryPreviewTimer);
-            uiState.categoryPreviewTimer = setTimeout(() => {
-                renderCatalog();
-                renderCartTable();
-                uiState.categoryPreviewTimer = null;
-            }, 80);
-        });
-    }
-    if (colorDefault) {
-        colorDefault.addEventListener("click", () => {
-            if (!uiState.categoryEditingName) return;
-            const next = hashCategoryToColor(uiState.categoryEditingName);
-            if (colorInput) colorInput.value = next;
-            categoryColors = { ...categoryColors, [uiState.categoryEditingName]: next };
-            updateCategoryChipPreview(uiState.categoryEditingName, next);
-            renderCatalog();
-            renderCartTable();
-        });
-    }
-    if (colorSave) {
-        colorSave.addEventListener("click", () => {
-            if (!uiState.categoryEditingName) return;
-            saveCategoryColors(categoryColors);
-            closeCategoryEditor(false);
-        });
-    }
-    if (colorCancel) {
-        colorCancel.addEventListener("click", () => closeCategoryEditor(true));
-    }
 }
 
 function initInterventionTypesModal() {
-    const openBtn = document.getElementById("pm-intervention-types-open");
-    const closeBtn = document.getElementById("pm-intervention-types-close");
-    const addBtn = document.getElementById("pm-intervention-type-add");
-    if (openBtn) openBtn.addEventListener("click", () => {
-        const settings = document.getElementById("pm-settings-modal");
-        if (settings) settings.classList.add("is-hidden");
-        openInterventionTypesModal();
+    initInterventionTypesModalUi({
+        document,
+        openInterventionTypesModal,
+        closeInterventionTypesModal,
+        addInterventionType,
     });
-    if (closeBtn) closeBtn.addEventListener("click", () => closeInterventionTypesModal());
-    if (addBtn) addBtn.addEventListener("click", () => addInterventionType());
 }
 
 function initAddModal() {
-    const closeBtn = document.getElementById("pm-add-close");
-    const cancelBtn = document.getElementById("pm-add-cancel");
-    const saveBtn = document.getElementById("pm-add-save");
-    if (closeBtn) closeBtn.addEventListener("click", () => closeAddModal());
-    if (cancelBtn) cancelBtn.addEventListener("click", () => closeAddModal());
-    if (saveBtn) saveBtn.addEventListener("click", () => saveAddModal());
+    initAddModalUi({
+        document,
+        closeAddModal,
+        saveAddModal,
+    });
 }
 
 function initConfirmModal() {
-    const cancelBtn = document.getElementById("pm-confirm-cancel");
-    const okBtn = document.getElementById("pm-confirm-ok");
-    const modal = document.getElementById("pm-confirm-modal");
-    if (cancelBtn) cancelBtn.addEventListener("click", () => closeConfirmModal(false));
-    if (okBtn) okBtn.addEventListener("click", () => closeConfirmModal(true));
-    if (modal) {
-        modal.addEventListener("click", (event) => {
-            if (event.target === modal) closeConfirmModal(false);
-        });
-    }
+    initConfirmModalUi({
+        document,
+        closeConfirmModal,
+    });
 }
 
 function initAlertModal() {
-    const okBtn = document.getElementById("pm-alert-ok");
-    const modal = document.getElementById("pm-alert-modal");
-    if (okBtn) okBtn.addEventListener("click", () => closeAlertModal());
-    if (modal) {
-        modal.addEventListener("click", (event) => {
-            if (event.target === modal) closeAlertModal();
-        });
-    }
+    initAlertModalUi({
+        document,
+        closeAlertModal,
+    });
 }
 
 function initImageModal() {
-    const closeBtn = document.getElementById("pm-image-close");
-    const modal = document.getElementById("pm-image-modal");
-    if (closeBtn) closeBtn.addEventListener("click", () => closeImageModal());
-    if (modal) {
-        modal.addEventListener("click", (event) => {
-            if (event.target === modal) closeImageModal();
-        });
-    }
+    initImageModalUi({
+        document,
+        closeImageModal,
+    });
 }
 
 function setupHeaderButtons() {
-    const refreshBtn = document.getElementById("pm-refresh");
-    const settingsBtn = document.getElementById("pm-settings");
-    const cartBtn = document.getElementById("pm-open-cart");
-    const interventionsBtn = document.getElementById("pm-open-interventions");
-    const addLineBtn = document.getElementById("pm-add-line");
-    const saveBtn = document.getElementById("pm-request-save");
-
-    if (refreshBtn) {
-        refreshBtn.addEventListener("click", () => {
-            syncAssignees();
-            renderLoginSelectors();
-            catalogItems = loadCatalog();
-            catalogCategories = loadCategories();
-            interventionTypes = loadInterventionTypes();
-            renderCatalog();
-            renderCatalogFilterOptions();
-            syncCatalogControls();
-            renderCartTagFilterOptions();
-            renderCartTable();
-            renderLines();
-        });
-    }
-
-    if (settingsBtn) {
-        settingsBtn.addEventListener("click", () => {
-            if (!requireLogin()) return;
-            const modal = document.getElementById("pm-settings-modal");
-            if (modal) {
-                modal.classList.remove("is-hidden");
-                modal.setAttribute("aria-hidden", "false");
-            }
-        });
-    }
-
-    if (cartBtn) {
-        cartBtn.addEventListener("click", () => {
-            if (!requireLogin()) return;
-            ipcRenderer.send("open-product-manager-cart-window");
-        });
-    }
-
-    if (interventionsBtn) {
-        interventionsBtn.addEventListener("click", () => {
-            if (!requireLogin()) return;
-            ipcRenderer
-                .invoke("open-product-manager-interventions-window")
-                .catch((err) =>
-                    showError(
-                        "Impossibile aprire la lista interventi.",
-                        err && err.message ? err.message : String(err)
-                    )
-                );
-        });
-    }
-
-
-    if (addLineBtn) {
-        addLineBtn.addEventListener("click", (event) => {
-            if (!requireLogin()) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            addLine();
-        });
-    }
-
-    if (saveBtn) {
-        saveBtn.addEventListener("click", async (event) => {
-            if (!requireLogin()) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            const payload = collectRequestPayload();
-            const validationError = validateRequestPayload(payload);
-            if (validationError) {
-                showFormMessage(validationError, "error");
-                return;
-            }
-            const ok = await openConfirmModal("Vuoi inviare la richiesta?");
-            if (!ok) return;
-            const requests = readRequestsFile();
-            const record = buildRequestRecord(payload);
-            requests.push(record);
-            if (saveRequestsFile(requests)) {
-                const successMessage = isInterventionMode()
-                    ? "Intervento inviato correttamente."
-                    : "Richiesta inviata correttamente.";
-                showFormMessage(successMessage, "success");
-                clearForm();
-            }
-        });
-    }
+    setupHeaderButtonsUi({
+        document,
+        ipcRenderer,
+        showError,
+        requireLogin,
+        syncAssignees,
+        renderLoginSelectors,
+        loadCatalog,
+        loadCategories,
+        loadInterventionTypes,
+        renderCatalog,
+        renderCatalogFilterOptions,
+        syncCatalogControls,
+        renderCartTagFilterOptions,
+        renderCartTable,
+        renderLines,
+        isInterventionMode,
+        collectRequestPayload,
+        validateRequestPayload,
+        showFormMessage,
+        openConfirmModal,
+        readRequestsFile,
+        buildRequestRecord,
+        saveRequestsFile,
+        clearForm,
+        addLine,
+        setCatalogItems: (next) => {
+            catalogItems = next;
+        },
+        setCatalogCategories: (next) => {
+            catalogCategories = next;
+        },
+        setInterventionTypes: (next) => {
+            interventionTypes = next;
+        },
+    });
 }
 
 function initSettingsModals() {
-    const settingsClose = document.getElementById("pm-settings-close");
-    if (settingsClose) settingsClose.addEventListener("click", () => {
-        const modal = document.getElementById("pm-settings-modal");
-        if (modal) {
-            modal.classList.add("is-hidden");
-            modal.setAttribute("aria-hidden", "true");
-        }
+    initSettingsModalsUi({
+        document,
+        requireAdminAccess,
+        assigneesUi,
+        adminUi,
+        initPasswordModal,
+        openPasswordModal,
+        UI_TEXTS,
     });
-
-    const themeOpen = document.getElementById("pm-theme-open");
-    const themeClose = document.getElementById("pm-theme-close");
-    const themeModal = document.getElementById("pm-theme-modal");
-    if (themeOpen && themeModal) {
-        themeOpen.addEventListener("click", () => {
-            themeModal.classList.remove("is-hidden");
-            themeModal.setAttribute("aria-hidden", "false");
-        });
-    }
-    if (themeClose && themeModal) {
-        themeClose.addEventListener("click", () => {
-            themeModal.classList.add("is-hidden");
-            themeModal.setAttribute("aria-hidden", "true");
-        });
-    }
-
-    const setTheme = (theme) => {
-        document.body.classList.remove("fp-dark", "fp-aypi");
-        if (theme === "dark") document.body.classList.add("fp-dark");
-        if (theme === "aypi") document.body.classList.add("fp-aypi");
-        try {
-            window.localStorage.setItem("pm-theme", theme);
-        } catch {}
-    };
-    const themeLight = document.getElementById("pm-theme-light");
-    const themeDark = document.getElementById("pm-theme-dark");
-    const themeAyPi = document.getElementById("pm-theme-aypi");
-    if (themeLight) themeLight.addEventListener("click", () => setTheme("light"));
-    if (themeDark) themeDark.addEventListener("click", () => setTheme("dark"));
-    if (themeAyPi) themeAyPi.addEventListener("click", () => setTheme("aypi"));
-    try {
-        const saved = window.localStorage.getItem("pm-theme");
-        if (saved) {
-            setTheme(saved);
-        } else {
-            setTheme("light");
-        }
-    } catch {}
-
-    const assigneesOpen = document.getElementById("pm-assignees-open");
-    if (assigneesOpen) {
-        assigneesOpen.addEventListener("click", () => {
-            const modal = document.getElementById("pm-settings-modal");
-            if (modal) modal.classList.add("is-hidden");
-            requireAdminAccess(() => assigneesUi.openAssigneesModal());
-        });
-    }
-
-    const adminOpen = document.getElementById("pm-admin-open");
-    if (adminOpen) {
-        adminOpen.addEventListener("click", () => {
-            const modal = document.getElementById("pm-settings-modal");
-            if (modal) modal.classList.add("is-hidden");
-            requireAdminAccess(() => {
-                openPasswordModal({
-                    type: "admin-access",
-                    id: "admin-access",
-                    title: "Gestione admin",
-                    description: UI_TEXTS.adminAccessDescription,
-                });
-            });
-        });
-    }
-
-    adminUi.initAdminModals();
-    assigneesUi.initAssigneesModal();
-    initPasswordModal();
 }
 
 function initExportModal() {
@@ -2978,35 +2830,26 @@ function initExportModal() {
 }
 
 function initLogoutModal() {
-    const logoutCancel = document.getElementById("pm-logout-cancel");
-    const logoutConfirm = document.getElementById("pm-logout-confirm");
-    if (logoutCancel) logoutCancel.addEventListener("click", () => closeLogoutModal());
-    if (logoutConfirm) {
-        logoutConfirm.addEventListener("click", () => {
-            clearSession();
-            syncSessionUI();
-            closeLogoutModal();
-        });
-    }
-}
-
-function initGuideModal() {
-    if (guideUi?.initGuideModal) {
-        guideUi.initGuideModal();
-    }
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "F1") {
-            event.preventDefault();
-            if (guideUi?.openGuideModalAtPath) {
-                guideUi.openGuideModalAtPath("introduzione.html");
-            } else if (guideUi?.openGuideModal) {
-                guideUi.openGuideModal();
-            }
-        }
+    initLogoutModalUi({
+        document,
+        clearSession,
+        syncSessionUI,
+        closeLogoutModal,
     });
 }
 
+function initGuideModal() {
+    initGuideModalUi({ guideUi });
+}
+
 async function init() {
+    try {
+        validateModuleBindings();
+    } catch (err) {
+        const detail = err && err.message ? err.message : String(err);
+        showError("Errore caricamento moduli Product Manager.", detail);
+        throw err;
+    }
     const warning = document.getElementById("pm-js-warning");
     if (warning) warning.classList.add("is-hidden");
     await loadSession();
