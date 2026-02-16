@@ -55,6 +55,39 @@ const {
     renderEmployeesList: renderEmployeesListUi,
 } = require("./product-manager/ui/assignees-admin-ui");
 const {
+    normalizeHexColor: normalizeHexColorSection,
+    loadCategoryColors: loadCategoryColorsSection,
+    saveCategoryColors: saveCategoryColorsSection,
+    hashCategoryToColor: hashCategoryToColorSection,
+    getCategoryColor: getCategoryColorSection,
+    getContrastText: getContrastTextSection,
+    applyCategoryColor: applyCategoryColorSection,
+    updateCategoryChipPreview: updateCategoryChipPreviewSection,
+    openCategoryEditor: openCategoryEditorSection,
+    closeCategoryEditor: closeCategoryEditorSection,
+    loadCatalog: loadCatalogSection,
+    saveCatalog: saveCatalogSection,
+    loadCategories: loadCategoriesSection,
+    saveCategories: saveCategoriesSection,
+    renderCatalog: renderCatalogSection,
+    openCatalogModal: openCatalogModalSection,
+    closeCatalogModal: closeCatalogModalSection,
+    clearCatalogForm: clearCatalogFormSection,
+    saveCatalogItem: saveCatalogItemSection,
+    openCategoriesModal: openCategoriesModalSection,
+    closeCategoriesModal: closeCategoriesModalSection,
+    addCategory: addCategorySection,
+} = require("./product-manager/sections/catalog");
+const {
+    getInterventionType: getInterventionTypeSection,
+    getInterventionDescription: getInterventionDescriptionSection,
+    loadInterventionTypes: loadInterventionTypesSection,
+    saveInterventionTypes: saveInterventionTypesSection,
+    openInterventionTypesModal: openInterventionTypesModalSection,
+    closeInterventionTypesModal: closeInterventionTypesModalSection,
+    addInterventionType: addInterventionTypeSection,
+} = require("./product-manager/sections/interventions");
+const {
     updateGreeting: updateGreetingUi,
     updateLoginButton: updateLoginButtonUi,
     updateAdminControls: updateAdminControlsUi,
@@ -172,6 +205,109 @@ let cartState = {
 
 const { showModal, hideModal } = createModalHelpers({ document });
 
+function getCatalogSectionCtx() {
+    return {
+        document,
+        window,
+        uiState,
+        shell,
+        fs,
+        path,
+        pathToFileURL,
+        CATEGORY_COLOR_STORAGE_KEY,
+        DEFAULT_CATEGORY_COLORS,
+        CATALOG_PATH,
+        CATEGORIES_PATH,
+        normalizeCatalogData,
+        normalizeCategoriesData,
+        validateWithAjv,
+        validateCatalogSchema,
+        validateCategoriesSchema,
+        tryAutoCleanJson,
+        renderCatalogUi,
+        showWarning,
+        showError,
+        isAdmin,
+        toTags,
+        getCatalogImageSrc,
+        PLACEHOLDER_IMAGE,
+        openImageModal,
+        applyCategoryColor,
+        addLineFromCatalog,
+        requireLogin,
+        openConfirmModal,
+        saveCatalog,
+        renderCategoryOptions,
+        renderCategoriesList,
+        renderCatalogFilterOptions,
+        renderCartTagFilterOptions,
+        renderCatalog,
+        renderCartTable,
+        openCatalogModal,
+        getCatalogItems: () => catalogItems,
+        setCatalogItems: (next) => {
+            catalogItems = next;
+        },
+        getCatalogCategories: () => catalogCategories,
+        setCatalogCategories: (next) => {
+            catalogCategories = next;
+        },
+        getCategoryColors: () => categoryColors,
+        setCategoryColors: (next) => {
+            categoryColors = next;
+        },
+        getCatalogFilterTag: () => catalogFilterTag,
+        getCatalogSearch: () => catalogSearch,
+        getCatalogSort: () => catalogSort,
+        setCatalogFilterTag: (next) => {
+            catalogFilterTag = next;
+        },
+        setCatalogSearch: (next) => {
+            catalogSearch = next;
+        },
+        setCatalogSort: (next) => {
+            catalogSort = next;
+        },
+        copyCatalogImage,
+        saveCategories,
+        saveCategoryColors,
+        saveRequestsFile,
+        readRequestsFile,
+        getCategoryColor,
+        getContrastText,
+        openCategoryEditor,
+        closeCategoryEditor,
+        updateCategoryChipPreview,
+        openCategoriesModal,
+        closeCategoriesModal,
+        addCategory,
+    };
+}
+
+function getInterventionsSectionCtx() {
+    return {
+        document,
+        fs,
+        INTERVENTION_TYPES_PATH,
+        normalizeInterventionTypesData,
+        validateWithAjv,
+        validateInterventionTypesSchema,
+        tryAutoCleanJson,
+        showWarning,
+        showError,
+        isAdmin,
+        renderInterventionTypesList,
+        renderCartTagFilterOptions,
+        renderLines,
+        getInterventionTypes: () => interventionTypes,
+        setInterventionTypes: (next) => {
+            interventionTypes = next;
+        },
+        normalizeString,
+        saveInterventionTypes,
+    };
+}
+
 function assertFn(label, value) {
     if (typeof value !== "function") {
         throw new Error(`Modulo mancante o non valido: ${label}`);
@@ -206,6 +342,35 @@ function validateModuleBindings() {
     assertFn("ui.assigneesAdminUi.renderDepartmentSelect", renderDepartmentSelectUi);
     assertFn("ui.assigneesAdminUi.renderDepartmentList", renderDepartmentListUi);
     assertFn("ui.assigneesAdminUi.renderEmployeesList", renderEmployeesListUi);
+    assertFn("sections.catalog.normalizeHexColor", normalizeHexColorSection);
+    assertFn("sections.catalog.loadCategoryColors", loadCategoryColorsSection);
+    assertFn("sections.catalog.saveCategoryColors", saveCategoryColorsSection);
+    assertFn("sections.catalog.hashCategoryToColor", hashCategoryToColorSection);
+    assertFn("sections.catalog.getCategoryColor", getCategoryColorSection);
+    assertFn("sections.catalog.getContrastText", getContrastTextSection);
+    assertFn("sections.catalog.applyCategoryColor", applyCategoryColorSection);
+    assertFn("sections.catalog.updateCategoryChipPreview", updateCategoryChipPreviewSection);
+    assertFn("sections.catalog.openCategoryEditor", openCategoryEditorSection);
+    assertFn("sections.catalog.closeCategoryEditor", closeCategoryEditorSection);
+    assertFn("sections.catalog.loadCatalog", loadCatalogSection);
+    assertFn("sections.catalog.saveCatalog", saveCatalogSection);
+    assertFn("sections.catalog.loadCategories", loadCategoriesSection);
+    assertFn("sections.catalog.saveCategories", saveCategoriesSection);
+    assertFn("sections.catalog.renderCatalog", renderCatalogSection);
+    assertFn("sections.catalog.openCatalogModal", openCatalogModalSection);
+    assertFn("sections.catalog.closeCatalogModal", closeCatalogModalSection);
+    assertFn("sections.catalog.clearCatalogForm", clearCatalogFormSection);
+    assertFn("sections.catalog.saveCatalogItem", saveCatalogItemSection);
+    assertFn("sections.catalog.openCategoriesModal", openCategoriesModalSection);
+    assertFn("sections.catalog.closeCategoriesModal", closeCategoriesModalSection);
+    assertFn("sections.catalog.addCategory", addCategorySection);
+    assertFn("sections.interventions.getInterventionType", getInterventionTypeSection);
+    assertFn("sections.interventions.getInterventionDescription", getInterventionDescriptionSection);
+    assertFn("sections.interventions.loadInterventionTypes", loadInterventionTypesSection);
+    assertFn("sections.interventions.saveInterventionTypes", saveInterventionTypesSection);
+    assertFn("sections.interventions.openInterventionTypesModal", openInterventionTypesModalSection);
+    assertFn("sections.interventions.closeInterventionTypesModal", closeInterventionTypesModalSection);
+    assertFn("sections.interventions.addInterventionType", addInterventionTypeSection);
     assertFn("ui.sessionUi.updateGreeting", updateGreetingUi);
     assertFn("ui.sessionUi.updateLoginButton", updateLoginButtonUi);
     assertFn("ui.sessionUi.updateAdminControls", updateAdminControlsUi);
@@ -281,10 +446,6 @@ function isFormPage() {
     return Boolean(document.getElementById("pm-request-form"));
 }
 
-function getListMode() {
-    return document.body?.dataset?.pmListMode || DEFAULT_REQUEST_MODE;
-}
-
 function getActiveMode() {
     const listMode = document.body?.dataset?.pmListMode;
     return listMode || currentRequestMode;
@@ -292,16 +453,6 @@ function getActiveMode() {
 
 function isInterventionMode(mode = getActiveMode()) {
     return mode === REQUEST_MODES.INTERVENTION;
-}
-
-function loadStoredRequestMode() {
-    try {
-        const stored = window.localStorage.getItem(REQUEST_MODE_STORAGE_KEY);
-        if (stored === REQUEST_MODES.INTERVENTION) return REQUEST_MODES.INTERVENTION;
-        return REQUEST_MODES.PURCHASE;
-    } catch {
-        return REQUEST_MODES.PURCHASE;
-    }
 }
 
 function storeRequestMode(mode) {
@@ -563,15 +714,12 @@ function createInterventionLineElement(line, index) {
     typeField.className = "pm-field";
     const typeLabel = document.createElement("label");
     typeLabel.textContent = "Tipologia di intervento";
-    const { wrap, selectedSet, button } = renderInterventionTypeOptions(
-        toTags(line.interventionType || "")
+    const { wrap } = renderInterventionTypeOptions(
+        toTags(line.interventionType || ""),
+        (values) => {
+            updateLineField(index, "interventionType", values.join(", "));
+        }
     );
-    const syncTypes = () => {
-        const values = Array.from(selectedSet.values());
-        updateLineField(index, "interventionType", values.join(", "));
-        button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
-    };
-    wrap.addEventListener("change", syncTypes);
     typeField.append(typeLabel, wrap);
 
     const descField = document.createElement("div");
@@ -675,164 +823,29 @@ function addLineFromCatalog(item, quantity) {
 }
 
 function renderCatalog() {
-    renderCatalogUi({
-        document,
-        shell,
-        isAdmin,
-        catalogItems,
-        catalogFilterTag,
-        catalogSearch,
-        catalogSort,
-        toTags,
-        getCatalogImageSrc,
-        PLACEHOLDER_IMAGE,
-        openImageModal,
-        applyCategoryColor,
-        addLineFromCatalog,
-        requireLogin,
-        showWarning,
-        openConfirmModal,
-        saveCatalog,
-        setCatalogItems: (next) => {
-            catalogItems = next;
-        },
-        rerenderCatalog: renderCatalog,
-        openCatalogModal,
-    });
+    return renderCatalogSection(getCatalogSectionCtx());
 }
+
 
 function openCatalogModal(item = null) {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono aggiungere prodotti.");
-        return;
-    }
-    const modal = document.getElementById("pm-catalog-modal");
-    if (!modal) return;
-    const title = document.getElementById("pm-catalog-title");
-    const saveBtn = document.getElementById("pm-catalog-save");
-    const idInput = document.getElementById("pm-catalog-id");
-    const name = document.getElementById("pm-catalog-name");
-    const desc = document.getElementById("pm-catalog-description");
-    const category = document.getElementById("pm-catalog-category");
-    const unit = document.getElementById("pm-catalog-unit");
-    const url = document.getElementById("pm-catalog-url");
-    const imageUrl = document.getElementById("pm-catalog-image-url");
-    const image = document.getElementById("pm-catalog-image");
-    const removeBtn = document.getElementById("pm-catalog-remove-image");
-    const selectedTags = item ? toTags(item.category || "") : [];
-    renderCategoryOptions(selectedTags);
-    if (item) {
-        if (title) title.textContent = "Modifica prodotto catalogo";
-        if (saveBtn) saveBtn.textContent = "Salva modifiche";
-        if (idInput) idInput.value = item.id || "";
-        if (name) name.value = item.name || "";
-        if (desc) desc.value = item.description || "";
-        if (category) category.dataset.value = item.category || "";
-        if (unit) unit.value = item.unit || "";
-        if (url) url.value = item.url || "";
-        if (imageUrl) imageUrl.value = item.imageUrl || "";
-        if (image) {
-            image.value = item.imageFile ? "Immagine presente" : "";
-            image.dataset.path = "";
-        }
-        if (removeBtn) removeBtn.style.display = item.imageFile || item.imageUrl ? "inline-flex" : "none";
-    } else {
-        if (title) title.textContent = "Nuovo prodotto catalogo";
-        if (saveBtn) saveBtn.textContent = "Salva prodotto";
-        if (idInput) idInput.value = "";
-        if (name) name.value = "";
-        if (desc) desc.value = "";
-        if (category) category.dataset.value = "";
-        if (unit) unit.value = "";
-        if (url) url.value = "";
-        if (imageUrl) imageUrl.value = "";
-        if (image) image.value = "";
-        if (removeBtn) removeBtn.style.display = "none";
-    }
-    uiState.catalogRemoveImage = false;
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    return openCatalogModalSection(getCatalogSectionCtx(), item);
 }
+
 
 function closeCatalogModal() {
-    const modal = document.getElementById("pm-catalog-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
+    return closeCatalogModalSection(getCatalogSectionCtx());
 }
+
 
 function clearCatalogForm() {
-    const ids = [
-        "pm-catalog-id",
-        "pm-catalog-name",
-        "pm-catalog-description",
-        "pm-catalog-category",
-        "pm-catalog-unit",
-        "pm-catalog-url",
-        "pm-catalog-image-url",
-        "pm-catalog-image",
-    ];
-    ids.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.value = "";
-    });
+    return clearCatalogFormSection(getCatalogSectionCtx());
 }
 
+
 function saveCatalogItem() {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono aggiungere prodotti.");
-        return;
-    }
-    const idInput = document.getElementById("pm-catalog-id");
-    const name = document.getElementById("pm-catalog-name")?.value?.trim() || "";
-    if (!name) {
-        showWarning("Inserisci il nome prodotto.");
-        return;
-    }
-    const categoryContainer = document.getElementById("pm-catalog-category");
-    const category =
-        categoryContainer && categoryContainer.querySelector(".pm-multiselect__button")
-            ? categoryContainer.querySelector(".pm-multiselect__button").textContent
-            : "";
-    const imageInput = document.getElementById("pm-catalog-image");
-    const imageUrlInput = document.getElementById("pm-catalog-image-url");
-    const imageSource = imageInput && imageInput.dataset ? imageInput.dataset.path || "" : "";
-    const existingId = idInput?.value?.trim() || "";
-    const targetId = existingId || `CAT-${Date.now()}`;
-    let imageFileName = "";
-    if (imageSource) {
-        imageFileName = copyCatalogImage(imageSource, targetId);
-    }
-    const item = {
-        id: targetId,
-        name,
-        description: document.getElementById("pm-catalog-description")?.value?.trim() || "",
-        category,
-        unit: document.getElementById("pm-catalog-unit")?.value?.trim() || "",
-        url: document.getElementById("pm-catalog-url")?.value?.trim() || "",
-        imageUrl: imageUrlInput?.value?.trim() || "",
-        imageFile: imageFileName,
-        createdAt: new Date().toISOString(),
-    };
-    if (existingId) {
-        catalogItems = catalogItems.map((entry) => {
-            if (entry.id !== existingId) return entry;
-            return {
-                ...entry,
-                ...item,
-                imageUrl: item.imageUrl || entry.imageUrl || "",
-                imageFile: uiState.catalogRemoveImage ? "" : imageFileName || entry.imageFile || "",
-            };
-        });
-    } else {
-        catalogItems.push(item);
-    }
-    if (saveCatalog(catalogItems)) {
-        renderCatalog();
-        clearCatalogForm();
-        closeCatalogModal();
-    }
+    return saveCatalogItemSection(getCatalogSectionCtx());
 }
+
 
 
 
@@ -995,84 +1008,49 @@ function toTags(raw) {
 }
 
 function getInterventionType(line) {
-    if (!line) return "";
-    return normalizeString(line.interventionType || line.type);
+    return getInterventionTypeSection(getInterventionsSectionCtx(), line);
 }
+
 
 function getInterventionDescription(line) {
-    if (!line) return "";
-    return normalizeString(line.description || line.details);
+    return getInterventionDescriptionSection(getInterventionsSectionCtx(), line);
 }
+
 
 function normalizeHexColor(value, fallback) {
-    if (!value || typeof value !== "string") return fallback || "#1a73e8";
-    let next = value.trim().toLowerCase();
-    if (!next.startsWith("#")) next = `#${next}`;
-    if (/^#([0-9a-f]{3}){1,2}$/i.test(next)) {
-        if (next.length === 4) {
-            next = `#${next[1]}${next[1]}${next[2]}${next[2]}${next[3]}${next[3]}`;
-        }
-        return next;
-    }
-    return fallback || "#1a73e8";
+    return normalizeHexColorSection(getCatalogSectionCtx(), value, fallback);
 }
+
 
 function loadCategoryColors() {
-    try {
-        if (!window.localStorage) return {};
-        const raw = window.localStorage.getItem(CATEGORY_COLOR_STORAGE_KEY);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object") return {};
-        const cleaned = {};
-        Object.keys(parsed).forEach((key) => {
-            cleaned[key] = normalizeHexColor(parsed[key]);
-        });
-        return cleaned;
-    } catch (err) {
-        console.error("Errore lettura colori categorie:", err);
-        return {};
-    }
+    return loadCategoryColorsSection(getCatalogSectionCtx());
 }
+
 
 function saveCategoryColors(next) {
-    try {
-        if (!window.localStorage) return;
-        window.localStorage.setItem(CATEGORY_COLOR_STORAGE_KEY, JSON.stringify(next));
-    } catch (err) {
-        console.error("Errore salvataggio colori categorie:", err);
-    }
+    return saveCategoryColorsSection(getCatalogSectionCtx(), next);
 }
+
 
 function hashCategoryToColor(value) {
-    if (!value) return DEFAULT_CATEGORY_COLORS[0];
-    let hash = 0;
-    for (let i = 0; i < value.length; i += 1) {
-        hash = (hash * 31 + value.charCodeAt(i)) % DEFAULT_CATEGORY_COLORS.length;
-    }
-    return DEFAULT_CATEGORY_COLORS[Math.abs(hash) % DEFAULT_CATEGORY_COLORS.length];
+    return hashCategoryToColorSection(getCatalogSectionCtx(), value);
 }
+
 
 function getCategoryColor(value) {
-    if (!value) return DEFAULT_CATEGORY_COLORS[0];
-    const stored = categoryColors[value];
-    return stored || hashCategoryToColor(value);
+    return getCategoryColorSection(getCatalogSectionCtx(), value);
 }
+
 
 function getContrastText(hex) {
-    const clean = normalizeHexColor(hex, "#ffffff").replace("#", "");
-    const r = parseInt(clean.slice(0, 2), 16);
-    const g = parseInt(clean.slice(2, 4), 16);
-    const b = parseInt(clean.slice(4, 6), 16);
-    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-    return yiq >= 160 ? "#2b2b2b" : "#ffffff";
+    return getContrastTextSection(getCatalogSectionCtx(), hex);
 }
 
+
 function applyCategoryColor(pill, tag) {
-    const color = getCategoryColor(tag);
-    pill.style.background = color;
-    pill.style.color = getContrastText(color);
+    return applyCategoryColorSection(getCatalogSectionCtx(), pill, tag);
 }
+
 
 function buildProductCell(productName, tags) {
     return buildProductCellUi({ document, applyCategoryColor }, productName, tags);
@@ -1428,119 +1406,34 @@ function syncAssignees() {
 }
 
 function loadCatalog() {
-    try {
-        if (!fs.existsSync(CATALOG_PATH)) return [];
-        const raw = fs.readFileSync(CATALOG_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const normalized = normalizeCatalogData(parsed);
-        validateWithAjv(validateCatalogSchema, normalized, "catalogo", { showWarning, showError });
-        tryAutoCleanJson(CATALOG_PATH, parsed, normalized, validateCatalogSchema, "catalogo", {
-            showWarning,
-            showError,
-        });
-        return normalized;
-    } catch (err) {
-        console.error("Errore lettura catalogo:", err);
-        return [];
-    }
+    return loadCatalogSection(getCatalogSectionCtx());
 }
+
 
 function saveCatalog(list) {
-    try {
-        const normalized = normalizeCatalogData(list);
-        if (
-            !validateWithAjv(validateCatalogSchema, normalized, "catalogo", {
-                showWarning,
-                showError,
-            }).ok
-        )
-            return false;
-        fs.writeFileSync(CATALOG_PATH, JSON.stringify(normalized, null, 2), "utf8");
-        return true;
-    } catch (err) {
-        showError("Errore salvataggio catalogo.", err.message || String(err));
-        return false;
-    }
+    return saveCatalogSection(getCatalogSectionCtx(), list);
 }
+
 
 function loadCategories() {
-    try {
-        if (!fs.existsSync(CATEGORIES_PATH)) return [];
-        const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const normalized = normalizeCategoriesData(parsed);
-        validateWithAjv(validateCategoriesSchema, normalized, "categorie", { showWarning, showError });
-        tryAutoCleanJson(CATEGORIES_PATH, parsed, normalized, validateCategoriesSchema, "categorie", {
-            showWarning,
-            showError,
-        });
-        return normalized;
-    } catch (err) {
-        console.error("Errore lettura categorie:", err);
-        return [];
-    }
+    return loadCategoriesSection(getCatalogSectionCtx());
 }
+
 
 function saveCategories(list) {
-    try {
-        const normalized = normalizeCategoriesData(list);
-        if (
-            !validateWithAjv(validateCategoriesSchema, normalized, "categorie", {
-                showWarning,
-                showError,
-            }).ok
-        )
-            return false;
-        fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(normalized, null, 2), "utf8");
-        return true;
-    } catch (err) {
-        showError("Errore salvataggio categorie.", err.message || String(err));
-        return false;
-    }
+    return saveCategoriesSection(getCatalogSectionCtx(), list);
 }
+
 
 function loadInterventionTypes() {
-    try {
-        if (!fs.existsSync(INTERVENTION_TYPES_PATH)) return [];
-        const raw = fs.readFileSync(INTERVENTION_TYPES_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const normalized = normalizeInterventionTypesData(parsed);
-        validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi", {
-            showWarning,
-            showError,
-        });
-        tryAutoCleanJson(
-            INTERVENTION_TYPES_PATH,
-            parsed,
-            normalized,
-            validateInterventionTypesSchema,
-            "tipologie interventi",
-            { showWarning, showError }
-        );
-        return normalized;
-    } catch (err) {
-        console.error("Errore lettura tipologie interventi:", err);
-        return [];
-    }
+    return loadInterventionTypesSection(getInterventionsSectionCtx());
 }
 
+
 function saveInterventionTypes(list) {
-    try {
-        const normalized = normalizeInterventionTypesData(list);
-        if (
-            !validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi", {
-                showWarning,
-                showError,
-            }).ok
-        )
-            return false;
-        fs.writeFileSync(INTERVENTION_TYPES_PATH, JSON.stringify(normalized, null, 2), "utf8");
-        return true;
-    } catch (err) {
-        showError("Errore salvataggio tipologie interventi.", err.message || String(err));
-        return false;
-    }
+    return saveInterventionTypesSection(getInterventionsSectionCtx(), list);
 }
+
 
 function renderCategoryOptions(selected = []) {
     renderCategoryOptionsUi({ document, catalogCategories, selected });
@@ -1555,13 +1448,14 @@ function renderCatalogFilterOptions() {
     });
 }
 
-function renderInterventionTypeOptions(selected = []) {
+function renderInterventionTypeOptions(selected = [], onChange) {
     return renderInterventionTypeOptionsUi({
         document,
         interventionTypes,
         openMultiselectMenu,
         closeMultiselectMenu,
         selected,
+        onChange,
     });
 }
 
@@ -1599,11 +1493,7 @@ function getCatalogImageSrc(item) {
     return getCatalogImageSrcSvc({ pathToFileURL, path, PRODUCTS_DIR }, item);
 }
 
-function findCatalogItemByName(name) {
-    if (!name) return null;
-    const lower = name.toLowerCase();
-    return catalogItems.find((item) => (item.name || "").toLowerCase() === lower) || null;
-}
+
 
 function openImageModal(imageSrc, link, title) {
     openImageModalUi({ document, PLACEHOLDER_IMAGE }, imageSrc, link, title);
@@ -1614,42 +1504,19 @@ function closeImageModal() {
 }
 
 function openCategoryEditor(category) {
-    const editor = document.getElementById("pm-category-editor");
-    const title = document.getElementById("pm-category-editor-title");
-    const colorInput = document.getElementById("pm-category-color-input");
-    if (!editor || !colorInput) return;
-    uiState.categoryEditingName = category;
-    uiState.categoryColorSnapshot = { ...categoryColors };
-    colorInput.value = getCategoryColor(category);
-    if (title) title.textContent = `Colore ${category}`;
-    editor.classList.remove("is-hidden");
+    return openCategoryEditorSection(getCatalogSectionCtx(), category);
 }
+
 
 function closeCategoryEditor(revert) {
-    const editor = document.getElementById("pm-category-editor");
-    if (!editor) return;
-    editor.classList.add("is-hidden");
-    if (revert && uiState.categoryColorSnapshot) {
-        categoryColors = { ...uiState.categoryColorSnapshot };
-        saveCategoryColors(categoryColors);
-        renderCatalog();
-        renderCartTable();
-        renderCategoriesList();
-    }
-    uiState.categoryEditingName = null;
-    uiState.categoryColorSnapshot = null;
+    return closeCategoryEditorSection(getCatalogSectionCtx(), revert);
 }
 
+
 function updateCategoryChipPreview(name, color) {
-    const list = document.getElementById("pm-categories-list");
-    if (!list) return;
-    const chips = Array.from(list.querySelectorAll(".pm-category-chip"));
-    const chip = chips.find((item) => item.dataset.category === name);
-    if (!chip) return;
-    chip.style.background = color;
-    const dot = chip.querySelector(".pm-category-chip__dot");
-    if (dot) dot.style.background = getContrastText(color);
+    return updateCategoryChipPreviewSection(getCatalogSectionCtx(), name, color);
 }
+
 
 function renderCategoriesList() {
     renderCategoriesListUi({
@@ -1709,84 +1576,34 @@ function renderInterventionTypesList() {
 }
 
 function openInterventionTypesModal() {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono gestire le tipologie.");
-        return;
-    }
-    const modal = document.getElementById("pm-intervention-types-modal");
-    if (!modal) return;
-    renderInterventionTypesList();
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    return openInterventionTypesModalSection(getInterventionsSectionCtx());
 }
+
 
 function closeInterventionTypesModal() {
-    const modal = document.getElementById("pm-intervention-types-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
+    return closeInterventionTypesModalSection(getInterventionsSectionCtx());
 }
+
 
 function addInterventionType() {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono gestire le tipologie.");
-        return;
-    }
-    const input = document.getElementById("pm-intervention-type-name");
-    const value = input?.value?.trim() || "";
-    if (!value) return;
-    if (interventionTypes.includes(value)) {
-        showWarning("Tipologia giÃ  esistente.");
-        return;
-    }
-    interventionTypes.push(value);
-    if (saveInterventionTypes(interventionTypes)) {
-        if (input) input.value = "";
-        renderInterventionTypesList();
-        renderCartTagFilterOptions();
-        renderLines();
-    }
+    return addInterventionTypeSection(getInterventionsSectionCtx());
 }
+
 
 function openCategoriesModal() {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono gestire le categorie.");
-        return;
-    }
-    const modal = document.getElementById("pm-categories-modal");
-    if (!modal) return;
-    renderCategoriesList();
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    return openCategoriesModalSection(getCatalogSectionCtx());
 }
+
 
 function closeCategoriesModal() {
-    const modal = document.getElementById("pm-categories-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
-    closeCategoryEditor(true);
+    return closeCategoriesModalSection(getCatalogSectionCtx());
 }
 
+
 function addCategory() {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono gestire le categorie.");
-        return;
-    }
-    const input = document.getElementById("pm-category-name");
-    const value = input?.value?.trim() || "";
-    if (!value) return;
-    if (catalogCategories.includes(value)) {
-        showWarning("Categoria giÃ  esistente.");
-        return;
-    }
-    catalogCategories.push(value);
-    if (saveCategories(catalogCategories)) {
-        if (input) input.value = "";
-        renderCategoriesList();
-        renderCategoryOptions();
-    }
+    return addCategorySection(getCatalogSectionCtx());
 }
+
 
 function updateGreeting() {
     updateGreetingUi({ document, isEmployee, isAdmin, session });

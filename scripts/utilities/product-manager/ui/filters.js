@@ -78,6 +78,7 @@ function renderInterventionTypeOptions({
     openMultiselectMenu,
     closeMultiselectMenu,
     selected = [],
+    onChange,
 }) {
     const wrap = document.createElement("div");
     wrap.className = "pm-multiselect";
@@ -111,6 +112,9 @@ function renderInterventionTypeOptions({
             }
             const values = Array.from(selectedSet.values());
             button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
+            if (typeof onChange === "function") {
+                onChange(values, selectedSet, button);
+            }
         });
         option.append(checkbox, span);
         menu.appendChild(option);
