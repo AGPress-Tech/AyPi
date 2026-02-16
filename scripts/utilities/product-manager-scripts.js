@@ -9,9 +9,10 @@ const { createModalHelpers } = require("./ferie-permessi/ui/modals");
 const { createAssigneesModal } = require("./ferie-permessi/ui/assignees-modal");
 const { createAdminModals } = require("./ferie-permessi/ui/admin-modals");
 const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
-const { isHashingAvailable, hashPassword } = require("./ferie-permessi/config/security");
-const { GUIDE_URL, GUIDE_SEARCH_PARAM } = require("./ferie-permessi/config/constants");
+const { isHashingAvailable, hashPassword, getAuthenticator, otpState, resetOtpState } = require("./ferie-permessi/config/security");
+const { GUIDE_URL, GUIDE_SEARCH_PARAM, OTP_EXPIRY_MS, OTP_RESEND_MS } = require("./ferie-permessi/config/constants");
 const { createGuideModal } = require("./ferie-permessi/ui/guide-modal");
+const { createOtpModals } = require("./ferie-permessi/ui/otp-modals");
 const { setMessage } = require("./product-manager/ui/messages");
 const { openMultiselectMenu, closeMultiselectMenu } = require("./product-manager/ui/multiselect");
 const {
@@ -144,9 +145,11 @@ const {
     loadAdminCredentials,
     saveAdminCredentials,
     verifyAdminPassword,
+    findAdminByName,
     isValidEmail,
     isValidPhone,
 } = require("./ferie-permessi/services/admins");
+const { isMailerAvailable, getMailerError, sendOtpEmail } = require("./ferie-permessi/services/otp-mail");
 const {
     session,
     setSession,
@@ -186,6 +189,7 @@ let adminCache = [];
 let adminEditingIndex = -1;
 let pendingPasswordAction = null;
 let passwordFailCount = 0;
+let adminLoginFailCount = 0;
 let requestLines = [];
 let catalogItems = [];
 let catalogCategories = [];
@@ -1759,6 +1763,7 @@ function openPasswordModal(action) {
     const modal = document.getElementById("fp-approve-modal");
     const input = document.getElementById("fp-approve-password");
     const error = document.getElementById("fp-approve-error");
+    const recover = document.getElementById("fp-approve-recover");
     const title = document.getElementById("fp-approve-title");
     const desc = document.getElementById("fp-approve-desc");
     if (!modal || !input) return;
@@ -1766,6 +1771,7 @@ function openPasswordModal(action) {
     if (desc && action?.description) desc.textContent = action.description;
     showModal(modal);
     if (error) error.classList.add("is-hidden");
+    if (recover) recover.classList.add("is-hidden");
     input.value = "";
     setTimeout(() => {
         input.focus();
@@ -1776,10 +1782,12 @@ function openPasswordModal(action) {
 async function confirmPassword() {
     const input = document.getElementById("fp-approve-password");
     const error = document.getElementById("fp-approve-error");
+    const recover = document.getElementById("fp-approve-recover");
     const password = input ? input.value : "";
     const action = pendingPasswordAction;
     if (!action) {
         if (error) error.classList.add("is-hidden");
+        if (recover) recover.classList.add("is-hidden");
         return;
     }
     const targetName = action?.adminName || action?.id || "";
@@ -1788,10 +1796,14 @@ async function confirmPassword() {
     if (!result || !result.admin) {
         if (error) error.classList.remove("is-hidden");
         passwordFailCount += 1;
+        if (recover && passwordFailCount >= 3) {
+            recover.classList.remove("is-hidden");
+        }
         return;
     }
     passwordFailCount = 0;
     if (error) error.classList.add("is-hidden");
+    if (recover) recover.classList.add("is-hidden");
     hideModal(document.getElementById("fp-approve-modal"));
 
     if (action.type === "admin-access") {
@@ -1816,8 +1828,15 @@ async function confirmPassword() {
 function initPasswordModal() {
     const cancel = document.getElementById("fp-approve-cancel");
     const confirm = document.getElementById("fp-approve-confirm");
+    const recover = document.getElementById("fp-approve-recover");
     if (cancel) cancel.addEventListener("click", () => hideModal(document.getElementById("fp-approve-modal")));
     if (confirm) confirm.addEventListener("click", confirmPassword);
+    if (recover) {
+        recover.addEventListener("click", () => {
+            hideModal(document.getElementById("fp-approve-modal"));
+            openOtpModal();
+        });
+    }
 }
 
 function renderDepartmentSelect() {
@@ -1896,8 +1915,29 @@ function setAdminEditingIndex(next) {
     adminEditingIndex = next;
 }
 
+const otpUi = createOtpModals({
+    document,
+    showModal,
+    hideModal,
+    setMessage,
+    showDialog: sharedDialogs.showDialog,
+    isMailerAvailable,
+    getMailerError,
+    sendOtpEmail,
+    findAdminByName,
+    getAdminCache,
+    saveAdminCredentials,
+    getAuthenticator,
+    otpState,
+    resetOtpState,
+    isHashingAvailable,
+    hashPassword,
+    OTP_EXPIRY_MS,
+    OTP_RESEND_MS,
+});
+
 function openOtpModal() {
-    showInfo("Recupero password", "Funzione OTP non configurata in Product Manager.");
+    otpUi.openOtpModal();
 }
 
 const assigneesUi = createAssigneesModal({
@@ -1953,6 +1993,7 @@ function setupLogin() {
     const employeeConfirm = document.getElementById("pm-login-employee-confirm");
     const adminConfirm = document.getElementById("pm-login-admin-confirm");
     const adminError = document.getElementById("pm-login-admin-error");
+    const adminRecover = document.getElementById("pm-login-admin-recover");
 
     if (loginBtn) {
         loginBtn.addEventListener("click", () => {
@@ -1961,11 +2002,19 @@ function setupLogin() {
                 return;
             }
             openLoginModal();
+            adminLoginFailCount = 0;
+            if (adminError) adminError.classList.add("is-hidden");
+            if (adminRecover) adminRecover.classList.add("is-hidden");
         });
     }
 
     if (loginClose) {
-        loginClose.addEventListener("click", () => closeLoginModal());
+        loginClose.addEventListener("click", () => {
+            closeLoginModal();
+            adminLoginFailCount = 0;
+            if (adminError) adminError.classList.add("is-hidden");
+            if (adminRecover) adminRecover.classList.add("is-hidden");
+        });
     }
 
     if (choiceEmployee) {
@@ -1974,6 +2023,9 @@ function setupLogin() {
             if (adminPanel) adminPanel.classList.add("is-hidden");
             choiceEmployee.classList.add("is-active");
             if (choiceAdmin) choiceAdmin.classList.remove("is-active");
+            adminLoginFailCount = 0;
+            if (adminError) adminError.classList.add("is-hidden");
+            if (adminRecover) adminRecover.classList.add("is-hidden");
         });
     }
 
@@ -1983,6 +2035,9 @@ function setupLogin() {
             if (employeePanel) employeePanel.classList.add("is-hidden");
             choiceAdmin.classList.add("is-active");
             if (choiceEmployee) choiceEmployee.classList.remove("is-active");
+            adminLoginFailCount = 0;
+            if (adminError) adminError.classList.add("is-hidden");
+            if (adminRecover) adminRecover.classList.add("is-hidden");
         });
     }
 
@@ -2006,19 +2061,36 @@ function setupLogin() {
             const adminName = document.getElementById("pm-login-admin-name")?.value || "";
             const password = document.getElementById("pm-login-admin-password")?.value || "";
             if (adminError) adminError.classList.add("is-hidden");
+            if (adminRecover) adminRecover.classList.add("is-hidden");
             if (!adminName || !password) {
                 if (adminError) adminError.classList.remove("is-hidden");
+                adminLoginFailCount += 1;
+                if (adminRecover && adminLoginFailCount >= 3) {
+                    adminRecover.classList.remove("is-hidden");
+                }
                 return;
             }
             const verified = await verifyAdminPassword(password, adminName);
             if (!verified || !verified.admin) {
                 if (adminError) adminError.classList.remove("is-hidden");
+                adminLoginFailCount += 1;
+                if (adminRecover && adminLoginFailCount >= 3) {
+                    adminRecover.classList.remove("is-hidden");
+                }
                 return;
             }
+            adminLoginFailCount = 0;
+            if (adminRecover) adminRecover.classList.add("is-hidden");
             setSession({ role: "admin", adminName: verified.admin.name, department: "", employee: "" });
             saveSession();
             syncSessionUI();
             closeLoginModal();
+        });
+    }
+
+    if (adminRecover) {
+        adminRecover.addEventListener("click", () => {
+            openOtpModal();
         });
     }
 }
@@ -2300,6 +2372,7 @@ async function init() {
     initSettingsModals();
     initLogoutModal();
     initGuideModal();
+    otpUi.initOtpModals();
     updateGreeting();
     updateLoginButton();
     updateAdminControls();
