@@ -15,6 +15,53 @@ const { createGuideModal } = require("./ferie-permessi/ui/guide-modal");
 const { setMessage } = require("./product-manager/ui/messages");
 const { openMultiselectMenu, closeMultiselectMenu } = require("./product-manager/ui/multiselect");
 const {
+    renderLoginSelectors: renderLoginSelectorsUi,
+    renderAdminSelect: renderAdminSelectUi,
+} = require("./product-manager/ui/login-selectors");
+const {
+    buildProductCell: buildProductCellUi,
+    buildUrlCell: buildUrlCellUi,
+} = require("./product-manager/ui/catalog-cells");
+const {
+    openImageModal: openImageModalUi,
+    closeImageModal: closeImageModalUi,
+} = require("./product-manager/ui/image-viewer");
+const {
+    openLoginModal: openLoginModalUi,
+    closeLoginModal: closeLoginModalUi,
+    openLogoutModal: openLogoutModalUi,
+    closeLogoutModal: closeLogoutModalUi,
+} = require("./product-manager/ui/auth-modals");
+const {
+    openConfirmModal: openConfirmModalUi,
+    closeConfirmModal: closeConfirmModalUi,
+    openAlertModal: openAlertModalUi,
+    closeAlertModal: closeAlertModalUi,
+} = require("./product-manager/ui/confirm-alert");
+const {
+    showInfo: showInfoUi,
+    showWarning: showWarningUi,
+    showError: showErrorUi,
+    requireLogin: requireLoginUi,
+    requireAdminAccess: requireAdminAccessUi,
+} = require("./product-manager/ui/notifications");
+const {
+    renderCategoriesList: renderCategoriesListUi,
+    renderInterventionTypesList: renderInterventionTypesListUi,
+} = require("./product-manager/ui/categories-lists");
+const {
+    renderDepartmentSelect: renderDepartmentSelectUi,
+    renderDepartmentList: renderDepartmentListUi,
+    renderEmployeesList: renderEmployeesListUi,
+} = require("./product-manager/ui/assignees-admin-ui");
+const {
+    updateGreeting: updateGreetingUi,
+    updateLoginButton: updateLoginButtonUi,
+    updateAdminControls: updateAdminControlsUi,
+    syncSessionUI: syncSessionUi,
+    applySharedSession: applySharedSessionUi,
+} = require("./product-manager/ui/session-ui");
+const {
     renderCategoryOptions: renderCategoryOptionsUi,
     renderCatalogFilterOptions: renderCatalogFilterOptionsUi,
     renderInterventionTypeOptions: renderInterventionTypeOptionsUi,
@@ -23,7 +70,7 @@ const {
 const {
     syncCatalogControls: syncCatalogControlsUi,
     initCatalogFilters: initCatalogFiltersUi,
-} = require("./product-manager/ui/catalog-controls");
+} = require("./product-manager/ui/catalog-search");
 const { renderCatalog: renderCatalogUi } = require("./product-manager/ui/catalog-view");
 const { initCartFilters: initCartFiltersUi } = require("./product-manager/ui/cart-controls");
 const { renderCartTable: renderCartTableUi } = require("./product-manager/ui/cart-table");
@@ -34,6 +81,12 @@ const { initSettingsModals: initSettingsModalsUi } = require("./product-manager/
 const { initCategoriesModal: initCategoriesModalUi, initInterventionTypesModal: initInterventionTypesModalUi } = require("./product-manager/ui/categories-modals");
 const { initAddModal: initAddModalUi, initConfirmModal: initConfirmModalUi, initAlertModal: initAlertModalUi, initImageModal: initImageModalUi } = require("./product-manager/ui/basic-modals");
 const { validators } = require("./product-manager/data/schemas");
+const {
+    getCatalogImagePath: getCatalogImagePathSvc,
+    getCatalogImageSrc: getCatalogImageSrcSvc,
+    ensureProductsDir: ensureProductsDirSvc,
+    copyCatalogImage: copyCatalogImageSvc,
+} = require("./product-manager/services/catalog-images");
 const {
     normalizePriceCad,
     formatPriceCadDisplay,
@@ -129,6 +182,39 @@ function validateModuleBindings() {
     assertFn("ui.messages.setMessage", setMessage);
     assertFn("ui.multiselect.openMultiselectMenu", openMultiselectMenu);
     assertFn("ui.multiselect.closeMultiselectMenu", closeMultiselectMenu);
+    assertFn("ui.loginSelectors.renderLoginSelectors", renderLoginSelectorsUi);
+    assertFn("ui.loginSelectors.renderAdminSelect", renderAdminSelectUi);
+    assertFn("ui.catalogCells.buildProductCell", buildProductCellUi);
+    assertFn("ui.catalogCells.buildUrlCell", buildUrlCellUi);
+    assertFn("ui.imageViewer.openImageModal", openImageModalUi);
+    assertFn("ui.imageViewer.closeImageModal", closeImageModalUi);
+    assertFn("ui.authModals.openLoginModal", openLoginModalUi);
+    assertFn("ui.authModals.closeLoginModal", closeLoginModalUi);
+    assertFn("ui.authModals.openLogoutModal", openLogoutModalUi);
+    assertFn("ui.authModals.closeLogoutModal", closeLogoutModalUi);
+    assertFn("ui.confirmAlert.openConfirmModal", openConfirmModalUi);
+    assertFn("ui.confirmAlert.closeConfirmModal", closeConfirmModalUi);
+    assertFn("ui.confirmAlert.openAlertModal", openAlertModalUi);
+    assertFn("ui.confirmAlert.closeAlertModal", closeAlertModalUi);
+    assertFn("ui.notifications.showInfo", showInfoUi);
+    assertFn("ui.notifications.showWarning", showWarningUi);
+    assertFn("ui.notifications.showError", showErrorUi);
+    assertFn("ui.notifications.requireLogin", requireLoginUi);
+    assertFn("ui.notifications.requireAdminAccess", requireAdminAccessUi);
+    assertFn("ui.categoriesLists.renderCategoriesList", renderCategoriesListUi);
+    assertFn("ui.categoriesLists.renderInterventionTypesList", renderInterventionTypesListUi);
+    assertFn("ui.assigneesAdminUi.renderDepartmentSelect", renderDepartmentSelectUi);
+    assertFn("ui.assigneesAdminUi.renderDepartmentList", renderDepartmentListUi);
+    assertFn("ui.assigneesAdminUi.renderEmployeesList", renderEmployeesListUi);
+    assertFn("ui.sessionUi.updateGreeting", updateGreetingUi);
+    assertFn("ui.sessionUi.updateLoginButton", updateLoginButtonUi);
+    assertFn("ui.sessionUi.updateAdminControls", updateAdminControlsUi);
+    assertFn("ui.sessionUi.syncSessionUI", syncSessionUi);
+    assertFn("ui.sessionUi.applySharedSession", applySharedSessionUi);
+    assertFn("services.catalogImages.getCatalogImagePath", getCatalogImagePathSvc);
+    assertFn("services.catalogImages.getCatalogImageSrc", getCatalogImageSrcSvc);
+    assertFn("services.catalogImages.ensureProductsDir", ensureProductsDirSvc);
+    assertFn("services.catalogImages.copyCatalogImage", copyCatalogImageSvc);
     assertFn("ui.filters.renderCategoryOptions", renderCategoryOptionsUi);
     assertFn("ui.filters.renderCatalogFilterOptions", renderCatalogFilterOptionsUi);
     assertFn("ui.filters.renderInterventionTypeOptions", renderInterventionTypeOptionsUi);
@@ -989,48 +1075,11 @@ function applyCategoryColor(pill, tag) {
 }
 
 function buildProductCell(productName, tags) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "pm-product-cell";
-    const title = document.createElement("div");
-    title.className = "pm-product-title";
-    title.textContent = productName || "-";
-    wrapper.appendChild(title);
-    if (tags.length) {
-        const tagWrap = document.createElement("div");
-        tagWrap.className = "pm-tag-list";
-        tags.forEach((tag) => {
-            const pill = document.createElement("span");
-            pill.className = "pm-pill";
-            pill.textContent = tag;
-            applyCategoryColor(pill, tag);
-            tagWrap.appendChild(pill);
-        });
-        wrapper.appendChild(tagWrap);
-    }
-    return wrapper;
+    return buildProductCellUi({ document, applyCategoryColor }, productName, tags);
 }
 
 function buildUrlCell(url, productName) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "pm-url-cell";
-    if (!url) {
-        wrapper.textContent = "-";
-        return wrapper;
-    }
-    const shortUrl = url.length > 45 ? `${url.slice(0, 42)}...` : url;
-    const link = document.createElement("a");
-    link.href = url;
-    link.textContent = shortUrl;
-    link.className = "pm-link";
-    link.title = url;
-    link.addEventListener("click", (event) => {
-        event.preventDefault();
-        if (shell && shell.openExternal) {
-            shell.openExternal(url);
-        }
-    });
-    wrapper.appendChild(link);
-    return wrapper;
+    return buildUrlCellUi({ document, shell }, url, productName);
 }
 
 function formatDateDisplay(value) {
@@ -1535,44 +1584,19 @@ function renderCartTagFilterOptions() {
 }
 
 function ensureProductsDir() {
-    try {
-        if (!fs.existsSync(PRODUCTS_DIR)) {
-            fs.mkdirSync(PRODUCTS_DIR, { recursive: true });
-        }
-    } catch (err) {
-        console.error("Errore creazione cartella prodotti:", err);
-    }
+    ensureProductsDirSvc({ fs, PRODUCTS_DIR });
 }
 
 function copyCatalogImage(filePath, catalogId) {
-    if (!filePath) return "";
-    ensureProductsDir();
-    const ext = path.extname(filePath) || ".png";
-    const filename = `${catalogId}${ext}`;
-    const target = path.join(PRODUCTS_DIR, filename);
-    try {
-        fs.copyFileSync(filePath, target);
-        return filename;
-    } catch (err) {
-        showError("Errore copia immagine.", err.message || String(err));
-        return "";
-    }
+    return copyCatalogImageSvc({ fs, path, PRODUCTS_DIR, showError }, filePath, catalogId);
 }
 
 function getCatalogImagePath(item) {
-    if (!item || !item.imageFile) return "";
-    return path.join(PRODUCTS_DIR, item.imageFile);
+    return getCatalogImagePathSvc({ path, PRODUCTS_DIR }, item);
 }
 
 function getCatalogImageSrc(item) {
-    if (item && item.imageUrl) return item.imageUrl;
-    const filePath = getCatalogImagePath(item);
-    if (!filePath) return "";
-    try {
-        return pathToFileURL(filePath).href;
-    } catch {
-        return filePath;
-    }
+    return getCatalogImageSrcSvc({ pathToFileURL, path, PRODUCTS_DIR }, item);
 }
 
 function findCatalogItemByName(name) {
@@ -1582,29 +1606,11 @@ function findCatalogItemByName(name) {
 }
 
 function openImageModal(imageSrc, link, title) {
-    const modal = document.getElementById("pm-image-modal");
-    const img = document.getElementById("pm-image-preview");
-    const linkEl = document.getElementById("pm-image-link");
-    const titleEl = document.getElementById("pm-image-title");
-    if (!modal || !img || !linkEl || !titleEl) return;
-    titleEl.textContent = title || "Dettaglio prodotto";
-    img.src = imageSrc || PLACEHOLDER_IMAGE;
-    if (link) {
-        linkEl.textContent = link;
-        linkEl.href = link;
-        linkEl.classList.remove("is-hidden");
-    } else {
-        linkEl.classList.add("is-hidden");
-    }
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    openImageModalUi({ document, PLACEHOLDER_IMAGE }, imageSrc, link, title);
 }
 
 function closeImageModal() {
-    const modal = document.getElementById("pm-image-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
+    closeImageModalUi({ document });
 }
 
 function openCategoryEditor(category) {
@@ -1646,204 +1652,60 @@ function updateCategoryChipPreview(name, color) {
 }
 
 function renderCategoriesList() {
-    const list = document.getElementById("pm-categories-list");
-    if (!list) return;
-    list.innerHTML = "";
-    catalogCategories.forEach((cat) => {
-        const row = document.createElement("div");
-        row.className = "pm-list-item";
-        row.dataset.category = cat;
-        const labelWrap = document.createElement("div");
-        labelWrap.style.display = "flex";
-        labelWrap.style.alignItems = "center";
-        labelWrap.style.gap = "8px";
-        const chipBtn = document.createElement("button");
-        chipBtn.type = "button";
-        chipBtn.className = "pm-category-chip";
-        chipBtn.title = "Modifica colore";
-        chipBtn.dataset.category = cat;
-        const dot = document.createElement("span");
-        dot.className = "pm-category-chip__dot";
-        const chipColor = getCategoryColor(cat);
-        chipBtn.style.background = chipColor;
-        dot.style.background = getContrastText(chipColor);
-        chipBtn.appendChild(dot);
-        chipBtn.addEventListener("click", () => openCategoryEditor(cat));
-        const label = document.createElement("span");
-        label.textContent = cat;
-        labelWrap.append(chipBtn, label);
-        const actions = document.createElement("div");
-        actions.className = "pm-table__cell pm-table__actions";
-        const editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.className = "pm-tag-icon-btn";
-        editBtn.title = "Modifica";
-        const editIcon = document.createElement("span");
-        editIcon.className = "material-icons";
-        editIcon.textContent = "edit";
-        editBtn.appendChild(editIcon);
-        editBtn.addEventListener("click", async () => {
-            const input = document.getElementById("pm-category-name");
-            const nextName = input?.value?.trim() || "";
-            if (!nextName || nextName === cat) return;
-            if (catalogCategories.includes(nextName)) {
-                showWarning("Categoria giÃ  esistente.");
-                return;
-            }
-            catalogCategories = catalogCategories.map((entry) => (entry === cat ? nextName : entry));
-            if (categoryColors[cat]) {
-                categoryColors = { ...categoryColors, [nextName]: categoryColors[cat] };
-                delete categoryColors[cat];
-                saveCategoryColors(categoryColors);
-            }
-            // Cascata su catalogo
-            catalogItems = catalogItems.map((item) => {
-                const tags = toTags(item.category || "").map((t) => (t === cat ? nextName : t));
-                return { ...item, category: tags.join(", ") };
-            });
-            // Cascata su richieste
-            const requests = readRequestsFile();
-            requests.forEach((req) => {
-                (req.lines || []).forEach((line) => {
-                    const tags = toTags(line.category || "").map((t) => (t === cat ? nextName : t));
-                    line.category = tags.join(", ");
-                });
-            });
-            if (saveCategories(catalogCategories) && saveCatalog(catalogItems) && saveRequestsFile(requests)) {
-                if (input) input.value = "";
-                renderCategoriesList();
-                renderCategoryOptions();
-                renderCatalogFilterOptions();
-                renderCartTagFilterOptions();
-                renderCatalog();
-                renderCartTable();
-            }
-        });
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "pm-tag-icon-btn";
-        removeBtn.title = "Rimuovi";
-        const trashIcon = document.createElement("span");
-        trashIcon.className = "material-icons";
-        trashIcon.textContent = "delete";
-        removeBtn.appendChild(trashIcon);
-        removeBtn.addEventListener("click", async () => {
-            closeCategoriesModal();
-            const ok = await openConfirmModal(`Vuoi eliminare la categoria \"${cat}\"?`);
-            if (!ok) return;
-            catalogCategories = catalogCategories.filter((entry) => entry !== cat);
-            if (categoryColors[cat]) {
-                delete categoryColors[cat];
-                saveCategoryColors(categoryColors);
-            }
-            // Rimuovi dal catalogo e richieste
-            catalogItems = catalogItems.map((item) => {
-                const tags = toTags(item.category || "").filter((t) => t !== cat);
-                return { ...item, category: tags.join(", ") };
-            });
-            const requests = readRequestsFile();
-            requests.forEach((req) => {
-                (req.lines || []).forEach((line) => {
-                    const tags = toTags(line.category || "").filter((t) => t !== cat);
-                    line.category = tags.join(", ");
-                });
-            });
-            if (saveCategories(catalogCategories) && saveCatalog(catalogItems) && saveRequestsFile(requests)) {
-                renderCategoriesList();
-                renderCategoryOptions();
-                renderCatalogFilterOptions();
-                renderCartTagFilterOptions();
-                renderCatalog();
-                renderCartTable();
-            }
-        });
-        actions.append(editBtn, removeBtn);
-        row.append(labelWrap, actions);
-        list.appendChild(row);
+    renderCategoriesListUi({
+        document,
+        catalogCategories: () => catalogCategories,
+        getCategoryColors: () => categoryColors,
+        getCategoryColor,
+        getContrastText,
+        openCategoryEditor,
+        closeCategoriesModal,
+        openConfirmModal,
+        showWarning,
+        saveCategories,
+        saveCatalog,
+        saveRequestsFile,
+        readRequestsFile,
+        toTags,
+        renderCategoryOptions,
+        renderCatalogFilterOptions,
+        renderCartTagFilterOptions,
+        renderCatalog,
+        renderCartTable,
+        setCatalogCategories: (next) => {
+            catalogCategories = next;
+        },
+        setCategoryColors: (next) => {
+            categoryColors = next;
+        },
+        getCatalogItems: () => catalogItems,
+        setCatalogItems: (next) => {
+            catalogItems = next;
+        },
+        saveCategoryColors,
     });
-    if (!catalogCategories.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessuna categoria disponibile.</div>";
-    }
 }
 
 function renderInterventionTypesList() {
-    const list = document.getElementById("pm-intervention-types-list");
-    if (!list) return;
-    list.innerHTML = "";
-    interventionTypes.forEach((type) => {
-        const row = document.createElement("div");
-        row.className = "pm-list-item";
-        row.dataset.type = type;
-        const label = document.createElement("span");
-        label.textContent = type;
-        const actions = document.createElement("div");
-        actions.className = "pm-table__cell pm-table__actions";
-        const editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.className = "pm-tag-icon-btn";
-        editBtn.title = "Modifica";
-        const editIcon = document.createElement("span");
-        editIcon.className = "material-icons";
-        editIcon.textContent = "edit";
-        editBtn.appendChild(editIcon);
-        editBtn.addEventListener("click", async () => {
-            const input = document.getElementById("pm-intervention-type-name");
-            const nextName = input?.value?.trim() || "";
-            if (!nextName || nextName === type) return;
-            if (interventionTypes.includes(nextName)) {
-                showWarning("Tipologia giÃ  esistente.");
-                return;
-            }
-            interventionTypes = interventionTypes.map((entry) => (entry === type ? nextName : entry));
-            const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-            requests.forEach((req) => {
-                (req.lines || []).forEach((line) => {
-                    const tags = toTags(getInterventionType(line)).map((t) => (t === type ? nextName : t));
-                    line.interventionType = tags.join(", ");
-                });
-            });
-            if (saveInterventionTypes(interventionTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
-                if (input) input.value = "";
-                renderInterventionTypesList();
-                renderCartTagFilterOptions();
-                renderLines();
-                renderCartTable();
-            }
-        });
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "pm-tag-icon-btn";
-        removeBtn.title = "Rimuovi";
-        const trashIcon = document.createElement("span");
-        trashIcon.className = "material-icons";
-        trashIcon.textContent = "delete";
-        removeBtn.appendChild(trashIcon);
-        removeBtn.addEventListener("click", async () => {
-            closeInterventionTypesModal();
-            const ok = await openConfirmModal(`Vuoi eliminare la tipologia \"${type}\"?`);
-            if (!ok) return;
-            interventionTypes = interventionTypes.filter((entry) => entry !== type);
-            const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-            requests.forEach((req) => {
-                (req.lines || []).forEach((line) => {
-                    const tags = toTags(getInterventionType(line)).filter((t) => t !== type);
-                    line.interventionType = tags.join(", ");
-                });
-            });
-            if (saveInterventionTypes(interventionTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
-                renderInterventionTypesList();
-                renderCartTagFilterOptions();
-                renderLines();
-                renderCartTable();
-            }
-        });
-        actions.append(editBtn, removeBtn);
-        row.append(label, actions);
-        list.appendChild(row);
+    renderInterventionTypesListUi({
+        document,
+        interventionTypes: () => interventionTypes,
+        showWarning,
+        closeInterventionTypesModal,
+        openConfirmModal,
+        readRequestsFile,
+        saveRequestsFile,
+        saveInterventionTypes,
+        renderCartTagFilterOptions,
+        renderLines,
+        renderCartTable,
+        getInterventionType,
+        REQUEST_MODES,
+        toTags,
+        setInterventionTypes: (next) => {
+            interventionTypes = next;
+        },
     });
-    if (!interventionTypes.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessuna tipologia disponibile.</div>";
-    }
 }
 
 function openInterventionTypesModal() {
@@ -1927,108 +1789,55 @@ function addCategory() {
 }
 
 function updateGreeting() {
-    const greeting = document.getElementById("pm-greeting");
-    if (!greeting) return;
-    if (isEmployee()) {
-        greeting.textContent = `Buongiorno, ${session.employee}!`;
-        return;
-    }
-    if (isAdmin()) {
-        greeting.textContent = `Buongiorno, ${session.adminName}!`;
-        return;
-    }
-    greeting.textContent = "Buongiorno";
+    updateGreetingUi({ document, isEmployee, isAdmin, session });
 }
 
 function updateLoginButton() {
-    const btn = document.getElementById("pm-login-toggle");
-    if (!btn) return;
-    if (isAdmin()) {
-        btn.textContent = `Admin: ${session.adminName}`;
-        return;
-    }
-    if (isEmployee()) {
-        btn.textContent = `Dipendente: ${session.employee}`;
-        return;
-    }
-    btn.textContent = "Login";
+    updateLoginButtonUi({ document, isAdmin, isEmployee, session });
 }
 
 function updateAdminControls() {
-    const section = document.getElementById("pm-categories-section");
-    if (section) section.classList.toggle("is-hidden", !isAdmin());
-    const typesSection = document.getElementById("pm-intervention-types-section");
-    if (typesSection) typesSection.classList.toggle("is-hidden", !isAdmin());
-    const catalogAdd = document.getElementById("pm-catalog-add");
-    if (catalogAdd) catalogAdd.style.display = isAdmin() ? "inline-flex" : "none";
-    const assigneesBtn = document.getElementById("pm-assignees-open");
-    if (assigneesBtn) assigneesBtn.style.display = isAdmin() ? "inline-flex" : "none";
-    const adminBtn = document.getElementById("pm-admin-open");
-    if (adminBtn) adminBtn.style.display = isAdmin() ? "inline-flex" : "none";
+    updateAdminControlsUi({ document, isAdmin });
 }
 
 function syncSessionUI() {
-    updateGreeting();
-    updateLoginButton();
-    updateAdminControls();
-    renderCatalog();
-    renderCategoryOptions();
-    renderCatalogFilterOptions();
-    renderCartTagFilterOptions();
-    renderCartTable();
-    renderLines();
-}
-
-function applySharedSession(payload) {
-    applySharedSessionData(payload);
-    closeLoginModal();
-    closeLogoutModal();
-    syncSessionUI();
-    if (!isLoggedIn() && document.getElementById("pm-request-form")) {
-        openLoginModal();
-    }
-}
-
-function fillSelectOptions(selectEl, options, placeholder) {
-    if (!selectEl) return;
-    selectEl.innerHTML = "";
-    if (placeholder) {
-        const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = placeholder;
-        opt.disabled = true;
-        opt.selected = true;
-        selectEl.appendChild(opt);
-    }
-    options.forEach((value) => {
-        const opt = document.createElement("option");
-        opt.value = value;
-        opt.textContent = value;
-        selectEl.appendChild(opt);
+    syncSessionUi({
+        updateGreeting,
+        updateLoginButton,
+        updateAdminControls,
+        renderCatalog,
+        renderCategoryOptions,
+        renderCatalogFilterOptions,
+        renderCartTagFilterOptions,
+        renderCartTable,
+        renderLines,
     });
 }
 
+function applySharedSession(payload) {
+    applySharedSessionUi({
+        applySharedSessionData,
+        closeLoginModal,
+        closeLogoutModal,
+        syncSessionUI,
+        isLoggedIn,
+        openLoginModal,
+        document,
+    }, payload);
+}
+
 function renderLoginSelectors() {
-    const deptSelect = document.getElementById("pm-login-department");
-    const empSelect = document.getElementById("pm-login-employee-name");
-
-    const departments = Object.keys(assigneeGroups || {}).sort();
-    fillSelectOptions(deptSelect, departments, "Seleziona reparto");
-    fillSelectOptions(empSelect, [], "Seleziona dipendente");
-
-    if (deptSelect) {
-        deptSelect.addEventListener("change", () => {
-            const list = assigneeGroups[deptSelect.value] || [];
-            fillSelectOptions(empSelect, list, "Seleziona dipendente");
-        });
-    }
+    renderLoginSelectorsUi({
+        document,
+        getAssigneeGroups: () => ({ ...assigneeGroups }),
+    });
 }
 
 function renderAdminSelect() {
-    const adminSelect = document.getElementById("pm-login-admin-name");
-    if (!adminSelect) return;
-    const names = loadAdminCredentials().map((admin) => admin.name).filter(Boolean);
-    fillSelectOptions(adminSelect, names, "Seleziona admin");
+    renderAdminSelectUi({
+        document,
+        loadAdminCredentials,
+    });
 }
 
 function setAdminMessage(id, text, isError = false) {
@@ -2059,145 +1868,73 @@ function escapeHtml(value) {
 }
 
 function openLoginModal() {
-    const modal = document.getElementById("pm-login-modal");
-    const employeePanel = document.getElementById("pm-login-employee-panel");
-    const adminPanel = document.getElementById("pm-login-admin-panel");
-    const choiceEmployee = document.getElementById("pm-login-choice-employee");
-    const choiceAdmin = document.getElementById("pm-login-choice-admin");
-    if (!modal) return;
-    if (employeePanel) employeePanel.classList.remove("is-hidden");
-    if (adminPanel) adminPanel.classList.add("is-hidden");
-    if (choiceEmployee) choiceEmployee.classList.add("is-active");
-    if (choiceAdmin) choiceAdmin.classList.remove("is-active");
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    openLoginModalUi({ document });
 }
 
 function closeLoginModal() {
-    const modal = document.getElementById("pm-login-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
+    closeLoginModalUi({ document });
 }
 
 function openLogoutModal() {
-    const modal = document.getElementById("pm-logout-modal");
-    if (!modal) return;
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    openLogoutModalUi({ document });
 }
 
 function closeLogoutModal() {
-    const modal = document.getElementById("pm-logout-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
+    closeLogoutModalUi({ document });
 }
 
 function openConfirmModal(message) {
-    const modal = document.getElementById("pm-confirm-modal");
-    const desc = document.getElementById("pm-confirm-message");
-    if (!modal || !desc) return Promise.resolve(false);
-    desc.textContent = message || "";
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
-    return new Promise((resolve) => {
-        uiState.pendingConfirmResolve = resolve;
-    });
+    return openConfirmModalUi({ document, uiState }, message);
 }
 
 function closeConfirmModal(result = false) {
-    const modal = document.getElementById("pm-confirm-modal");
-    if (modal) {
-        modal.classList.add("is-hidden");
-        modal.setAttribute("aria-hidden", "true");
-    }
-    if (typeof uiState.pendingConfirmResolve === "function") {
-        const resolver = uiState.pendingConfirmResolve;
-        uiState.pendingConfirmResolve = null;
-        resolver(result);
-    }
+    closeConfirmModalUi({ document, uiState }, result);
 }
 
 let pendingAlertResolve = null;
 
 function openAlertModal(title, message, detail = "") {
-    const modal = document.getElementById("pm-alert-modal");
-    const titleEl = document.getElementById("pm-alert-title");
-    const messageEl = document.getElementById("pm-alert-message");
-    const detailEl = document.getElementById("pm-alert-detail");
-    if (!modal || !messageEl) {
-        return Promise.resolve(false);
-    }
-    if (titleEl) titleEl.textContent = title || "Avviso";
-    messageEl.textContent = message || "";
-    if (detailEl) {
-        if (detail) {
-            detailEl.textContent = detail;
-            detailEl.classList.remove("is-hidden");
-        } else {
-            detailEl.textContent = "";
-            detailEl.classList.add("is-hidden");
-        }
-    }
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
-    return new Promise((resolve) => {
-        pendingAlertResolve = resolve;
-    });
+    return openAlertModalUi(
+        {
+            document,
+            pendingAlertResolveSetter: (next) => {
+                pendingAlertResolve = next;
+            },
+        },
+        title,
+        message,
+        detail
+    );
 }
 
 function closeAlertModal() {
-    const modal = document.getElementById("pm-alert-modal");
-    if (modal) {
-        modal.classList.add("is-hidden");
-        modal.setAttribute("aria-hidden", "true");
-    }
-    if (pendingAlertResolve) {
-        const resolver = pendingAlertResolve;
-        pendingAlertResolve = null;
-        resolver(true);
-    }
+    closeAlertModalUi({
+        document,
+        pendingAlertResolveGetter: () => pendingAlertResolve,
+        pendingAlertResolveSetter: (next) => {
+            pendingAlertResolve = next;
+        },
+    });
 }
 
 function showInfo(message, detail = "") {
-    const modal = document.getElementById("pm-alert-modal");
-    if (!modal) {
-        return sharedDialogs.showInfo(message, detail);
-    }
-    return openAlertModal("Info", message, detail);
+    return showInfoUi({ document, sharedDialogs, openAlertModal }, message, detail);
 }
 
 function showWarning(message, detail = "") {
-    const modal = document.getElementById("pm-alert-modal");
-    if (!modal) {
-        return sharedDialogs.showWarning(message, detail);
-    }
-    return openAlertModal("Attenzione", message, detail);
+    return showWarningUi({ document, sharedDialogs, openAlertModal }, message, detail);
 }
 
 function showError(message, detail = "") {
-    const modal = document.getElementById("pm-alert-modal");
-    if (!modal) {
-        return sharedDialogs.showError(message, detail);
-    }
-    return openAlertModal("Errore", message, detail);
+    return showErrorUi({ document, sharedDialogs, openAlertModal }, message, detail);
 }
 
 function requireLogin() {
-    if (isLoggedIn()) return true;
-    showWarning("Accesso richiesto.", "Per continuare effettua il login.");
-    openLoginModal();
-    return false;
+    return requireLoginUi({ isLoggedIn, showWarning, openLoginModal });
 }
 
 function requireAdminAccess(action) {
-    if (isAdmin()) {
-        if (typeof action === "function") action();
-        return;
-    }
-    showWarning("Accesso admin richiesto.", "Effettua il login come admin per continuare.");
-    openLoginModal();
+    return requireAdminAccessUi({ isAdmin, showWarning, openLoginModal }, action);
 }
 
 function openPasswordModal(action) {
@@ -2267,188 +2004,42 @@ function initPasswordModal() {
 }
 
 function renderDepartmentSelect() {
-    const select = document.getElementById("fp-employee-department");
-    if (!select) return;
-    select.innerHTML = "";
-    Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b)).forEach((group) => {
-        const option = document.createElement("option");
-        option.value = group;
-        option.textContent = group;
-        select.appendChild(option);
+    renderDepartmentSelectUi({
+        document,
+        getAssigneeGroups: () => ({ ...assigneeGroups }),
     });
 }
 
 function renderDepartmentList() {
-    const list = document.getElementById("fp-departments-list");
-    if (!list) return;
-    list.innerHTML = "";
-    const groups = Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b));
-    if (!groups.length) {
-        list.textContent = UI_TEXTS.emptyDepartment;
-        return;
-    }
-    groups.forEach((group) => {
-        const row = document.createElement("div");
-        row.className = "fp-assignees-row";
-        const actions = document.createElement("div");
-        actions.className = "fp-assignees-row__actions";
-
-        if (editingDepartment === group) {
-            const input = document.createElement("input");
-            input.className = "fp-field__input";
-            input.value = group;
-
-            const save = document.createElement("button");
-            save.type = "button";
-            save.className = "fp-assignees-link";
-            save.textContent = "Salva";
-            save.addEventListener("click", () => {
-                const next = input.value.trim();
-                if (!next) return;
-                if (assigneeGroups[next] && next !== group) return;
-                const copy = { ...assigneeGroups };
-                const employees = copy[group] || [];
-                delete copy[group];
-                copy[next] = employees;
-                assigneeGroups = copy;
-                editingDepartment = null;
-                saveAssignees();
-                renderDepartmentList();
-                renderEmployeesList();
-                renderDepartmentSelect();
-            });
-
-            const cancel = document.createElement("button");
-            cancel.type = "button";
-            cancel.className = "fp-assignees-link fp-assignees-link--danger";
-            cancel.textContent = "Annulla";
-            cancel.addEventListener("click", () => {
-                editingDepartment = null;
-                renderDepartmentList();
-            });
-
-            row.appendChild(input);
-            actions.appendChild(save);
-            actions.appendChild(cancel);
-        } else {
-            const name = document.createElement("div");
-            name.textContent = group;
-
-            const edit = document.createElement("button");
-            edit.type = "button";
-            edit.className = "fp-assignees-link";
-            edit.textContent = "Modifica";
-            edit.addEventListener("click", () => {
-                editingDepartment = group;
-                renderDepartmentList();
-            });
-
-            const remove = document.createElement("button");
-            remove.type = "button";
-            remove.className = "fp-assignees-link fp-assignees-link--danger";
-            remove.textContent = "Rimuovi";
-            remove.addEventListener("click", () => {
-                delete assigneeGroups[group];
-                saveAssignees();
-                renderDepartmentList();
-                renderEmployeesList();
-                renderDepartmentSelect();
-            });
-
-            row.appendChild(name);
-            actions.appendChild(edit);
-            actions.appendChild(remove);
-        }
-
-        row.appendChild(actions);
-        list.appendChild(row);
+    renderDepartmentListUi({
+        document,
+        getAssigneeGroups: () => ({ ...assigneeGroups }),
+        editingDepartment: () => editingDepartment,
+        setEditingDepartment: (next) => {
+            editingDepartment = next;
+        },
+        setAssigneeGroups: (next) => {
+            assigneeGroups = { ...next };
+        },
+        saveAssignees,
+        renderEmployeesList,
+        renderDepartmentSelect,
+        UI_TEXTS,
     });
 }
 
 function renderEmployeesList() {
-    const list = document.getElementById("fp-employees-list");
-    if (!list) return;
-    list.innerHTML = "";
-    const employees = Object.entries(assigneeGroups)
-        .flatMap(([dept, names]) => (names || []).map((name) => ({ name, dept })))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-    if (!employees.length) {
-        list.textContent = UI_TEXTS.emptyAssignee;
-        return;
-    }
-
-    employees.forEach((emp) => {
-        const row = document.createElement("div");
-        row.className = "fp-assignees-row";
-        const actions = document.createElement("div");
-        actions.className = "fp-assignees-row__actions";
-
-        if (editingEmployee && editingEmployee.name === emp.name && editingEmployee.dept === emp.dept) {
-            const input = document.createElement("input");
-            input.className = "fp-field__input";
-            input.value = emp.name;
-
-            const save = document.createElement("button");
-            save.type = "button";
-            save.className = "fp-assignees-link";
-            save.textContent = "Salva";
-            save.addEventListener("click", () => {
-                const next = input.value.trim();
-                if (!next) return;
-                const listForDept = assigneeGroups[emp.dept] || [];
-                const idx = listForDept.indexOf(emp.name);
-                if (idx >= 0) listForDept[idx] = next;
-                assigneeGroups[emp.dept] = Array.from(new Set(listForDept)).sort((a, b) => a.localeCompare(b));
-                editingEmployee = null;
-                saveAssignees();
-                renderEmployeesList();
-                renderDepartmentList();
-            });
-
-            const cancel = document.createElement("button");
-            cancel.type = "button";
-            cancel.className = "fp-assignees-link fp-assignees-link--danger";
-            cancel.textContent = "Annulla";
-            cancel.addEventListener("click", () => {
-                editingEmployee = null;
-                renderEmployeesList();
-            });
-
-            row.appendChild(input);
-            actions.appendChild(save);
-            actions.appendChild(cancel);
-        } else {
-            const name = document.createElement("div");
-            name.textContent = `${emp.name} (${emp.dept})`;
-
-            const edit = document.createElement("button");
-            edit.type = "button";
-            edit.className = "fp-assignees-link";
-            edit.textContent = "Modifica";
-            edit.addEventListener("click", () => {
-                editingEmployee = { name: emp.name, dept: emp.dept };
-                renderEmployeesList();
-            });
-
-            const remove = document.createElement("button");
-            remove.type = "button";
-            remove.className = "fp-assignees-link fp-assignees-link--danger";
-            remove.textContent = "Rimuovi";
-            remove.addEventListener("click", () => {
-                assigneeGroups[emp.dept] = (assigneeGroups[emp.dept] || []).filter((n) => n !== emp.name);
-                saveAssignees();
-                renderEmployeesList();
-                renderDepartmentList();
-            });
-
-            row.appendChild(name);
-            actions.appendChild(edit);
-            actions.appendChild(remove);
-        }
-
-        row.appendChild(actions);
-        list.appendChild(row);
+    renderEmployeesListUi({
+        document,
+        getAssigneeGroups: () => ({ ...assigneeGroups }),
+        editingEmployee: () => editingEmployee,
+        setEditingEmployee: (next) => {
+            editingEmployee = next;
+        },
+        saveAssignees,
+        renderDepartmentSelect,
+        renderLoginSelectors,
+        UI_TEXTS,
     });
 }
 
