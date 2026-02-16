@@ -1,4 +1,4 @@
-﻿const { ipcRenderer, shell } = require("electron");
+const { ipcRenderer, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
@@ -12,6 +12,35 @@ const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const { isHashingAvailable, hashPassword } = require("./ferie-permessi/config/security");
 const { GUIDE_URL, GUIDE_SEARCH_PARAM } = require("./ferie-permessi/config/constants");
 const { createGuideModal } = require("./ferie-permessi/ui/guide-modal");
+const { setMessage } = require("./product-manager/ui/messages");
+const { openMultiselectMenu, closeMultiselectMenu } = require("./product-manager/ui/multiselect");
+const {
+    renderCategoryOptions: renderCategoryOptionsUi,
+    renderCatalogFilterOptions: renderCatalogFilterOptionsUi,
+    renderInterventionTypeOptions: renderInterventionTypeOptionsUi,
+    renderCartTagFilterOptions: renderCartTagFilterOptionsUi,
+} = require("./product-manager/ui/filters");
+const {
+    syncCatalogControls: syncCatalogControlsUi,
+    initCatalogFilters: initCatalogFiltersUi,
+} = require("./product-manager/ui/catalog-controls");
+const { renderCatalog: renderCatalogUi } = require("./product-manager/ui/catalog-view");
+const { initCartFilters: initCartFiltersUi } = require("./product-manager/ui/cart-controls");
+const { renderCartTable: renderCartTableUi } = require("./product-manager/ui/cart-table");
+const { initExportModal: initExportModalUi } = require("./product-manager/ui/export");
+const { validators } = require("./product-manager/data/schemas");
+const {
+    normalizePriceCad,
+    formatPriceCadDisplay,
+    normalizeString,
+    normalizeRequestLine,
+    normalizeRequestsData,
+    normalizeCatalogData,
+    normalizeCategoriesData,
+    normalizeInterventionTypesData,
+    validateWithAjv,
+    tryAutoCleanJson,
+} = require("./product-manager/data/normalize");
 const {
     REQUESTS_PATH,
     INTERVENTIONS_PATH,
@@ -27,6 +56,25 @@ const {
     isValidEmail,
     isValidPhone,
 } = require("./ferie-permessi/services/admins");
+const {
+    session,
+    setSession,
+    saveSession,
+    loadSession,
+    clearSession,
+    applySharedSessionData,
+    isAdmin,
+    isEmployee,
+    isLoggedIn,
+} = require("./product-manager/state/session");
+const { uiState } = require("./product-manager/state/ui");
+
+const {
+    validateRequestsSchema,
+    validateCatalogSchema,
+    validateCategoriesSchema,
+    validateInterventionTypesSchema,
+} = validators;
 
 let XLSX = null;
 try {
@@ -35,26 +83,10 @@ try {
     console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
 }
 
-let Ajv = null;
-let ajv = null;
-let validateRequestsSchema = null;
-let validateCatalogSchema = null;
-let validateCategoriesSchema = null;
-let validateInterventionTypesSchema = null;
-
-try {
-    Ajv = require("ajv");
-    ajv = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
-} catch (err) {
-    console.error("Modulo 'ajv' non trovato. Esegui: npm install ajv");
-}
-
 window.pmLoaded = true;
 
 const ASSIGNEES_FALLBACK = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
-const SESSION_KEY = "pm-session";
-
-let session = { role: "guest", adminName: "", department: "", employee: "" };
+// session handled by state/session
 let assigneeGroups = {};
 let assigneeOptions = [];
 let editingDepartment = null;
@@ -79,32 +111,8 @@ let cartState = {
     editingKey: null,
     editingRow: null,
 };
-let pendingConfirmResolve = null;
-let pendingAddRow = null;
-let interventionEditingRow = null;
-let catalogRemoveImage = false;
-let categoryEditingName = null;
-let categoryColorSnapshot = null;
-let categoryPreviewTimer = null;
 
 const { showModal, hideModal } = createModalHelpers({ document });
-
-function setMessage(el, text, isError = false) {
-    if (!el) return;
-    if (!text) {
-        el.classList.add("is-hidden");
-        el.textContent = "";
-        el.classList.remove("fp-message--error");
-        return;
-    }
-    el.textContent = text;
-    el.classList.remove("is-hidden");
-    if (isError) {
-        el.classList.add("fp-message--error");
-    } else {
-        el.classList.remove("fp-message--error");
-    }
-}
 
 const guideLocalPath = path.resolve(__dirname, "..", "..", "Guida", "aypi-purchasing", "index.html");
 const guideLocalUrl = fs.existsSync(guideLocalPath) ? `${pathToFileURL(guideLocalPath).toString()}?embed=1` : "";
@@ -147,91 +155,6 @@ const REQUEST_MODES = {
 const REQUEST_MODE_STORAGE_KEY = "pm-request-mode";
 const DEFAULT_REQUEST_MODE = REQUEST_MODES.PURCHASE;
 let currentRequestMode = DEFAULT_REQUEST_MODE;
-
-const REQUEST_LINE_SCHEMA = {
-    type: "object",
-    additionalProperties: true,
-    properties: {
-        product: { type: "string" },
-        category: { type: "string" },
-        quantity: { type: ["string", "number"] },
-        unit: { type: "string" },
-        urgency: { type: "string" },
-        url: { type: "string" },
-        note: { type: "string" },
-        priceCad: { type: ["string", "number"] },
-        deletedAt: { type: ["string", "null"] },
-        approvedAt: { type: ["string", "null"] },
-    },
-};
-
-const REQUEST_SCHEMA = {
-    type: "object",
-    additionalProperties: true,
-    properties: {
-        id: { type: "string" },
-        createdAt: { type: "string" },
-        status: { type: "string" },
-        department: { type: "string" },
-        employee: { type: "string" },
-        createdBy: { type: "string" },
-        adminName: { type: "string" },
-        notes: { type: "string" },
-        lines: { type: "array", items: REQUEST_LINE_SCHEMA },
-        history: {
-            type: "array",
-            items: {
-                type: "object",
-                additionalProperties: true,
-                properties: {
-                    at: { type: "string" },
-                    by: { type: "string" },
-                    adminName: { type: "string" },
-                    action: { type: "string" },
-                },
-            },
-        },
-    },
-};
-
-const REQUESTS_SCHEMA = {
-    type: "array",
-    items: REQUEST_SCHEMA,
-};
-
-const CATALOG_ITEM_SCHEMA = {
-    type: "object",
-    additionalProperties: true,
-    properties: {
-        id: { type: "string" },
-        name: { type: "string" },
-        description: { type: "string" },
-        category: { type: "string" },
-        unit: { type: "string" },
-        url: { type: "string" },
-        imageUrl: { type: "string" },
-        imageFile: { type: "string" },
-        createdAt: { type: "string" },
-        updatedAt: { type: "string" },
-    },
-};
-
-const CATALOG_SCHEMA = {
-    type: "array",
-    items: CATALOG_ITEM_SCHEMA,
-};
-
-const CATEGORIES_SCHEMA = {
-    type: "array",
-    items: { type: "string" },
-};
-
-if (ajv) {
-    validateRequestsSchema = ajv.compile(REQUESTS_SCHEMA);
-    validateCatalogSchema = ajv.compile(CATALOG_SCHEMA);
-    validateCategoriesSchema = ajv.compile(CATEGORIES_SCHEMA);
-    validateInterventionTypesSchema = ajv.compile(CATEGORIES_SCHEMA);
-}
 
 function isFormPage() {
     return Boolean(document.getElementById("pm-request-form"));
@@ -329,167 +252,9 @@ function createEmptyLine(mode = getActiveMode()) {
     };
 }
 
-function normalizePriceCad(value) {
-    if (value === null || value === undefined) return "";
-    const raw = String(value).replace(",", ".").replace(/[^\d.-]/g, "").trim();
-    if (!raw) return "";
-    const num = Number.parseFloat(raw);
-    if (Number.isNaN(num)) return "";
-    return num.toFixed(2);
-}
-
-function formatPriceCadDisplay(value) {
-    const normalized = normalizePriceCad(value);
-    if (!normalized) return "";
-    return `\u20AC ${normalized}`;
-}
-
-function normalizeString(value) {
-    if (value === null || value === undefined) return "";
-    return String(value).trim();
-}
-
-function formatAjvErrors(validator, limit = 12) {
-    if (!validator || !Array.isArray(validator.errors) || !validator.errors.length) return "";
-    return validator.errors
-        .map((err) => {
-            const path = err.instancePath || err.dataPath || "";
-            return `${path || "root"} ${err.message || "non valido"}`;
-        })
-        .slice(0, limit)
-        .join("\n");
-}
-
-function normalizeRequestLine(line) {
-    const base = line && typeof line === "object" ? { ...line } : {};
-    base.product = normalizeString(base.product);
-    base.category = normalizeString(base.category);
-    base.quantity = normalizeString(base.quantity);
-    base.unit = normalizeString(base.unit);
-    base.urgency = normalizeString(base.urgency);
-    base.url = normalizeString(base.url);
-    base.note = normalizeString(base.note);
-    base.interventionType = normalizeString(base.interventionType || base.type);
-    base.description = normalizeString(base.description || base.details);
-    if (base.priceCad !== undefined) base.priceCad = normalizePriceCad(base.priceCad);
-    return base;
-}
-
-function normalizeRequestsData(payload) {
-    if (!Array.isArray(payload)) return [];
-    return payload
-        .map((req) => {
-            if (!req || typeof req !== "object") return null;
-            const normalized = { ...req };
-            normalized.id = normalizeString(normalized.id);
-            normalized.createdAt = normalizeString(normalized.createdAt);
-            normalized.status = normalizeString(normalized.status);
-            normalized.department = normalizeString(normalized.department);
-            normalized.employee = normalizeString(normalized.employee);
-            normalized.createdBy = normalizeString(normalized.createdBy);
-            normalized.adminName = normalizeString(normalized.adminName);
-            normalized.notes = normalizeString(normalized.notes);
-            const lines = Array.isArray(normalized.lines) ? normalized.lines : [];
-            normalized.lines = lines.map((line) => normalizeRequestLine(line)).filter(Boolean);
-            normalized.history = Array.isArray(normalized.history) ? normalized.history : [];
-            return normalized;
-        })
-        .filter(Boolean);
-}
-
-function normalizeCatalogData(payload) {
-    if (!Array.isArray(payload)) return [];
-    return payload
-        .map((item, index) => {
-            if (!item || typeof item !== "object") return null;
-            const normalized = { ...item };
-            const fallbackId = `CAT-${Date.now()}-${index}`;
-            normalized.id = normalizeString(normalized.id) || fallbackId;
-            normalized.name = normalizeString(normalized.name);
-            normalized.description = normalizeString(normalized.description);
-            normalized.category = normalizeString(normalized.category);
-            normalized.unit = normalizeString(normalized.unit);
-            normalized.url = normalizeString(normalized.url);
-            normalized.imageUrl = normalizeString(normalized.imageUrl);
-            normalized.imageFile = normalizeString(normalized.imageFile);
-            normalized.createdAt = normalizeString(normalized.createdAt);
-            normalized.updatedAt = normalizeString(normalized.updatedAt);
-            return normalized;
-        })
-        .filter(Boolean);
-}
-
-function normalizeCategoriesData(payload) {
-    if (!Array.isArray(payload)) return [];
-    const cleaned = payload
-        .map((item) => normalizeString(item))
-        .filter(Boolean);
-    return Array.from(new Set(cleaned));
-}
-
-function normalizeInterventionTypesData(payload) {
-    return normalizeCategoriesData(payload);
-}
-
-function showAjvReport(label, validator) {
-    const detail = formatAjvErrors(validator, 24);
-    if (detail) {
-        showError(`Errori schema AJV (${label}).`, detail);
-    }
-}
-
-function validateWithAjv(validator, data, label) {
-    if (!validator) return { ok: true, errors: "" };
-    const ok = validator(data);
-    if (!ok) {
-        const detail = formatAjvErrors(validator, 12);
-        showWarning(`Dati ${label} non validi.`, detail);
-        showAjvReport(label, validator);
-        return { ok: false, errors: detail };
-    }
-    return { ok: true, errors: "" };
-}
-
-function tryAutoCleanJson(filePath, original, normalized, validator, label) {
-    try {
-        const originalStr = JSON.stringify(original);
-        const normalizedStr = JSON.stringify(normalized);
-        if (originalStr === normalizedStr) return;
-        const result = validateWithAjv(validator, normalized, label);
-        if (!result.ok) return;
-        fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
-    } catch (err) {
-        console.error("Errore ripulitura JSON:", err);
-    }
-}
-
 function updateLineField(index, field, value) {
     if (!requestLines[index]) return;
     requestLines[index][field] = value;
-}
-
-function openMultiselectMenu(menu, trigger, host) {
-    if (!menu) return;
-    const rect = trigger.getBoundingClientRect();
-    menu.classList.remove("is-hidden");
-    menu.classList.add("pm-multiselect__menu--floating");
-    menu.style.top = `${rect.bottom + 6}px`;
-    menu.style.left = `${rect.left}px`;
-    menu.style.width = `${rect.width}px`;
-    document.body.appendChild(menu);
-    menu.dataset.pmHostId = host?.dataset?.pmHostId || "";
-}
-
-function closeMultiselectMenu(menu, host) {
-    if (!menu) return;
-    menu.classList.add("is-hidden");
-    menu.classList.remove("pm-multiselect__menu--floating");
-    menu.style.top = "";
-    menu.style.left = "";
-    menu.style.width = "";
-    if (host && !host.contains(menu)) {
-        host.appendChild(menu);
-    }
 }
 
 function createLineElement(line, index) {
@@ -789,219 +554,29 @@ function addLineFromCatalog(item, quantity) {
 }
 
 function renderCatalog() {
-    const grid = document.getElementById("pm-catalog-grid");
-    const addBtnHeader = document.getElementById("pm-catalog-add");
-    if (addBtnHeader) {
-        addBtnHeader.style.display = isAdmin() ? "inline-flex" : "none";
-    }
-    if (!grid) return;
-    grid.innerHTML = "";
-    if (!catalogItems.length) {
-        grid.innerHTML = "<div class=\"pm-message\">Nessun prodotto a catalogo.</div>";
-        return;
-    }
-    let visibleItems = catalogFilterTag
-        ? catalogItems.filter((item) => toTags(item.category || "").includes(catalogFilterTag))
-        : catalogItems;
-    if (catalogSearch) {
-        const needle = catalogSearch.toLowerCase();
-        visibleItems = visibleItems.filter((item) => {
-            const haystack = `${item.name || ""} ${item.description || ""} ${item.category || ""}`.toLowerCase();
-            return haystack.includes(needle);
-        });
-    }
-    visibleItems = [...visibleItems].sort((a, b) => {
-        if (catalogSort === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
-        if (catalogSort === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
-        if (catalogSort === "name_desc") return String(b.name || "").localeCompare(String(a.name || ""));
-        return String(a.name || "").localeCompare(String(b.name || ""));
-    });
-    if (!visibleItems.length) {
-        grid.innerHTML = "<div class=\"pm-message\">Nessun prodotto per questa categoria.</div>";
-        return;
-    }
-    visibleItems.forEach((item) => {
-        const card = document.createElement("div");
-        card.className = "pm-catalog-card";
-        if (isAdmin()) {
-            card.addEventListener("dblclick", () => openCatalogModal(item));
-        }
-        const imageSrc = getCatalogImageSrc(item);
-        const img = document.createElement("img");
-        img.className = "pm-catalog-image";
-        img.alt = item.name || "Prodotto";
-        img.src = imageSrc || PLACEHOLDER_IMAGE;
-        img.addEventListener("click", () =>
-            openImageModal(imageSrc || PLACEHOLDER_IMAGE, "", item.name || "Prodotto")
-        );
-        const title = document.createElement("div");
-        title.className = "pm-catalog-title";
-        title.textContent = item.name || "Prodotto";
-        const desc = document.createElement("div");
-        desc.className = "pm-catalog-desc";
-        desc.textContent = item.description || "";
-        const linkRow = document.createElement("a");
-        linkRow.className = "pm-link";
-        linkRow.textContent = item.url ? "Apri link" : "";
-        linkRow.href = item.url || "#";
-        if (item.url) {
-            linkRow.addEventListener("click", (event) => {
-                event.preventDefault();
-                if (shell && shell.openExternal) {
-                    shell.openExternal(item.url);
-                }
-            });
-        } else {
-            linkRow.classList.add("is-hidden");
-        }
-        const tags = document.createElement("div");
-        tags.className = "pm-tag-list";
-        toTags(item.category || "").forEach((tag) => {
-            const pill = document.createElement("span");
-            pill.className = "pm-pill";
-            pill.textContent = tag;
-            applyCategoryColor(pill, tag);
-            tags.appendChild(pill);
-        });
-        const actions = document.createElement("div");
-        actions.className = "pm-catalog-actions";
-        const qtyWrap = document.createElement("div");
-        qtyWrap.className = "pm-qty-spinner";
-        const qtyMinus = document.createElement("button");
-        qtyMinus.type = "button";
-        qtyMinus.className = "pm-qty-btn";
-        qtyMinus.title = "Diminuisci quantit\u00e0";
-        qtyMinus.setAttribute("aria-label", "Diminuisci quantit\u00e0");
-        const qtyMinusIcon = document.createElement("span");
-        qtyMinusIcon.className = "material-icons";
-        qtyMinusIcon.textContent = "remove";
-        qtyMinus.appendChild(qtyMinusIcon);
-        const qty = document.createElement("input");
-        qty.className = "pm-qty-input";
-        qty.type = "number";
-        qty.min = "1";
-        qty.step = "1";
-        qty.inputMode = "numeric";
-        qty.placeholder = "Q.t\u00E0";
-        qty.value = "";
-        const qtyPlus = document.createElement("button");
-        qtyPlus.type = "button";
-        qtyPlus.className = "pm-qty-btn";
-        qtyPlus.title = "Aumenta quantit\u00e0";
-        qtyPlus.setAttribute("aria-label", "Aumenta quantit\u00e0");
-        const qtyPlusIcon = document.createElement("span");
-        qtyPlusIcon.className = "material-icons";
-        qtyPlusIcon.textContent = "add";
-        qtyPlus.appendChild(qtyPlusIcon);
-        const clampQty = (value) => {
-            if (value === "" || value === null || value === undefined) return "";
-            const num = Number.parseInt(String(value || "").trim(), 10);
-            if (Number.isNaN(num) || num < 1) return 1;
-            return num;
-        };
-        const syncQty = (nextValue) => {
-            const clamped = clampQty(nextValue);
-            qty.value = clamped === "" ? "" : String(clamped);
-        };
-        let holdTimer = null;
-        let holdActive = false;
-        let holdStart = 0;
-
-        const stopHold = () => {
-            holdActive = false;
-            if (holdTimer) clearTimeout(holdTimer);
-            holdTimer = null;
-        };
-
-        const stepOnce = (direction) => {
-            const base = Number.parseInt(qty.value || "0", 10) || 0;
-            const next = base + direction;
-            syncQty(next);
-        };
-
-        const scheduleHold = (direction) => {
-            if (!holdActive) return;
-            const elapsed = Date.now() - holdStart;
-            // accelera da ~320ms fino a 50ms in 3s
-            const minDelay = 50;
-            const maxDelay = 320;
-            const accelWindow = 3000;
-            const progress = Math.min(1, elapsed / accelWindow);
-            const delay = Math.round(maxDelay - (maxDelay - minDelay) * progress);
-            holdTimer = setTimeout(() => {
-                stepOnce(direction);
-                scheduleHold(direction);
-            }, delay);
-        };
-
-        const startHold = (direction) => {
-            stopHold();
-            holdActive = true;
-            holdStart = Date.now();
-            stepOnce(direction);
-            scheduleHold(direction);
-        };
-
-        const bindHold = (btn, direction) => {
-            btn.addEventListener("mousedown", () => startHold(direction));
-            btn.addEventListener("touchstart", (event) => {
-                event.preventDefault();
-                startHold(direction);
-            });
-            btn.addEventListener("mouseup", stopHold);
-            btn.addEventListener("mouseleave", stopHold);
-            btn.addEventListener("touchend", stopHold);
-            btn.addEventListener("touchcancel", stopHold);
-        };
-
-        bindHold(qtyMinus, -1);
-        bindHold(qtyPlus, 1);
-        qty.addEventListener("blur", () => {
-            syncQty(qty.value);
-        });
-        qtyWrap.append(qtyMinus, qty, qtyPlus);
-        const addBtn = document.createElement("button");
-        addBtn.type = "button";
-        addBtn.className = "pm-cart-btn";
-        addBtn.title = "Aggiungi al carrello";
-        const icon = document.createElement("span");
-        icon.className = "material-icons";
-        icon.textContent = "shopping_cart";
-        addBtn.appendChild(icon);
-        addBtn.addEventListener("click", () => {
-            if (!requireLogin()) return;
-            const quantity = qty.value.toString().trim();
-            if (!quantity || Number.parseFloat(quantity) <= 0) {
-                showWarning("Inserisci una quantitÃ  valida.");
-                return;
-            }
-            addLineFromCatalog(item, quantity);
-            qty.value = "";
-        });
-        actions.append(qtyWrap, addBtn);
-
-        if (isAdmin()) {
-            const trashBtn = document.createElement("button");
-            trashBtn.type = "button";
-            trashBtn.className = "pm-catalog-trash";
-            trashBtn.title = "Elimina prodotto";
-            const trashIcon = document.createElement("span");
-            trashIcon.className = "material-icons";
-            trashIcon.textContent = "delete";
-            trashBtn.appendChild(trashIcon);
-            trashBtn.addEventListener("click", async () => {
-                const ok = await openConfirmModal("Vuoi eliminare questo prodotto dal catalogo?");
-                if (!ok) return;
-                catalogItems = catalogItems.filter((entry) => entry.id !== item.id);
-                if (saveCatalog(catalogItems)) renderCatalog();
-            });
-            card.appendChild(trashBtn);
-        }
-
-        card.append(img, title, desc, linkRow);
-        if (tags.childElementCount) card.appendChild(tags);
-        card.appendChild(actions);
-        grid.appendChild(card);
+    renderCatalogUi({
+        document,
+        shell,
+        isAdmin,
+        catalogItems,
+        catalogFilterTag,
+        catalogSearch,
+        catalogSort,
+        toTags,
+        getCatalogImageSrc,
+        PLACEHOLDER_IMAGE,
+        openImageModal,
+        applyCategoryColor,
+        addLineFromCatalog,
+        requireLogin,
+        showWarning,
+        openConfirmModal,
+        saveCatalog,
+        setCatalogItems: (next) => {
+            catalogItems = next;
+        },
+        rerenderCatalog: renderCatalog,
+        openCatalogModal,
     });
 }
 
@@ -1053,7 +628,7 @@ function openCatalogModal(item = null) {
         if (image) image.value = "";
         if (removeBtn) removeBtn.style.display = "none";
     }
-    catalogRemoveImage = false;
+    uiState.catalogRemoveImage = false;
     modal.classList.remove("is-hidden");
     modal.setAttribute("aria-hidden", "false");
 }
@@ -1125,7 +700,7 @@ function saveCatalogItem() {
                 ...entry,
                 ...item,
                 imageUrl: item.imageUrl || entry.imageUrl || "",
-                imageFile: catalogRemoveImage ? "" : imageFileName || entry.imageFile || "",
+                imageFile: uiState.catalogRemoveImage ? "" : imageFileName || entry.imageFile || "",
             };
         });
     } else {
@@ -1161,8 +736,11 @@ function readRequestsFile(mode = getActiveMode()) {
         const raw = fs.readFileSync(filePath, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeRequestsData(parsed);
-        validateWithAjv(validateRequestsSchema, normalized, "richieste");
-        tryAutoCleanJson(filePath, parsed, normalized, validateRequestsSchema, "richieste");
+        validateWithAjv(validateRequestsSchema, normalized, "richieste", { showWarning, showError });
+        tryAutoCleanJson(filePath, parsed, normalized, validateRequestsSchema, "richieste", {
+            showWarning,
+            showError,
+        });
         return normalized;
     } catch (err) {
         showError("Errore lettura richieste.", err.message || String(err));
@@ -1174,7 +752,13 @@ function saveRequestsFile(payload, mode = getActiveMode()) {
     const filePath = getRequestsPath(mode);
     try {
         const normalized = normalizeRequestsData(payload);
-        if (!validateWithAjv(validateRequestsSchema, normalized, "richieste").ok) return false;
+        if (
+            !validateWithAjv(validateRequestsSchema, normalized, "richieste", {
+                showWarning,
+                showError,
+            }).ok
+        )
+            return false;
         fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
@@ -1422,453 +1006,32 @@ function formatDateDisplay(value) {
 }
 
 function renderCartTable() {
-    const list = document.getElementById("pm-requests-list");
-    if (!list) return;
-    if (isInterventionMode()) {
-        renderInterventionTable();
-        return;
-    }
-    const requests = readRequestsFile();
-    const rows = [];
-    let needsSave = false;
-    const now = Date.now();
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-    const monthMs = 30 * 24 * 60 * 60 * 1000;
-    requests.forEach((request, requestIndex) => {
-        const requester = request.employee || "";
-        const nextLines = [];
-        (request.lines || []).forEach((line, lineIndex) => {
-            const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
-            if (deletedAt && now - deletedAt >= weekMs) {
-                needsSave = true;
-                return;
-            }
-            nextLines.push(line);
-            const nextIndex = nextLines.length - 1;
-            const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
-            if (confirmedAt && now - confirmedAt >= monthMs) {
-                return;
-            }
-            rows.push({
-                key: `${request.id || requestIndex}-${nextIndex}`,
-                requestIndex,
-                lineIndex: nextIndex,
-                product: line.product || "",
-                category: line.category || "",
-                tags: toTags(line.category || ""),
-                quantity: line.quantity || "",
-                unit: line.unit || "",
-                urgency: line.urgency || "",
-                url: line.url || "",
-                note: line.note || "",
-                priceCad: line.priceCad || "",
-                confirmed: Boolean(line.confirmed),
-                confirmedAt: line.confirmedAt || "",
-                deletedAt: line.deletedAt || "",
-                requester,
-                createdAt: request.createdAt || "",
-            });
-        });
-        if (nextLines.length !== (request.lines || []).length) {
-            request.lines = nextLines;
-        }
+    renderCartTableUi({
+        document,
+        isAdmin,
+        isInterventionMode,
+        cartState,
+        toTags,
+        readRequestsFile,
+        saveRequestsFile,
+        REQUEST_MODES,
+        formatPriceCadDisplay,
+        formatDateDisplay,
+        buildProductCell,
+        buildUrlCell,
+        getInterventionType,
+        getInterventionDescription,
+        openConfirmModal,
+        confirmCartRow,
+        deleteCartRow,
+        openEditModal,
+        openInterventionEditModal,
+        openAddModal,
+        isLoggedIn,
+        renderCatalog,
+        saveCatalog,
+        catalogItems,
     });
-    if (needsSave) {
-        const cleaned = requests.filter((request) => Array.isArray(request.lines) && request.lines.length);
-        saveRequestsFile(cleaned);
-    }
-
-    const filtered = rows.filter((row) => {
-        if (cartState.urgency && row.urgency !== cartState.urgency) return false;
-        if (cartState.tag && !row.tags.includes(cartState.tag)) return false;
-        if (cartState.search) {
-            const haystack = [
-                row.product,
-                row.tags.join(" "),
-                row.requester,
-                row.url,
-                row.unit,
-                row.urgency,
-                row.priceCad,
-                row.note,
-            ]
-                .join(" ")
-                .toLowerCase();
-            if (!haystack.includes(cartState.search.toLowerCase())) return false;
-        }
-        return true;
-    });
-
-    const sortKey = cartState.sort || "created_desc";
-    filtered.sort((a, b) => {
-        if (sortKey === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
-        if (sortKey === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
-        if (sortKey === "product_asc") return a.product.localeCompare(b.product);
-        if (sortKey === "product_desc") return b.product.localeCompare(a.product);
-        if (sortKey === "urgency_desc") {
-            const order = { Alta: 3, Media: 2, Bassa: 1, "": 0 };
-            return (order[b.urgency] || 0) - (order[a.urgency] || 0);
-        }
-        if (sortKey === "requester_asc") return a.requester.localeCompare(b.requester);
-        return 0;
-    });
-
-    if (!filtered.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessun prodotto in lista.</div>";
-        return;
-    }
-
-    const table = document.createElement("div");
-    table.className = "pm-table";
-
-    const header = document.createElement("div");
-    header.className = "pm-table__row pm-table__row--header";
-    [
-        "",
-        "Prodotto",
-        "Quantità",
-        "UM",
-        "Priorità",
-        "Note",
-        "URL",
-        "Prezzo C.A.D",
-        "Richiesto da",
-        "Data",
-        "Azioni",
-    ].forEach((title) => {
-        const cell = document.createElement("div");
-        cell.className = "pm-table__cell";
-        cell.textContent = title;
-        header.appendChild(cell);
-    });
-    table.appendChild(header);
-
-    filtered.forEach((row) => {
-        const tr = document.createElement("div");
-        tr.className = "pm-table__row";
-        if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
-        if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
-
-        const statusCell = document.createElement("div");
-        statusCell.className = "pm-table__cell pm-table__cell--icons";
-        const deleteBtn = document.createElement("button");
-        deleteBtn.type = "button";
-        deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
-        deleteBtn.title = "Elimina";
-        deleteBtn.disabled = !isAdmin() || Boolean(row.deletedAt);
-        deleteBtn.addEventListener("click", () => deleteCartRow(row));
-        const deleteIcon = document.createElement("span");
-        deleteIcon.className = "material-icons";
-        deleteIcon.textContent = "close";
-        deleteBtn.appendChild(deleteIcon);
-
-        const confirmBtn = document.createElement("button");
-        confirmBtn.type = "button";
-        confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
-        confirmBtn.title = "Convalida";
-        confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
-        confirmBtn.addEventListener("click", () => confirmCartRow(row));
-        const confirmIcon = document.createElement("span");
-        confirmIcon.className = "material-icons";
-        confirmIcon.textContent = "check";
-        confirmBtn.appendChild(confirmIcon);
-
-        statusCell.append(deleteBtn, confirmBtn);
-
-        const admin = isAdmin();
-
-        const productCell = document.createElement("div");
-        productCell.className = "pm-table__cell";
-        productCell.appendChild(buildProductCell(row.product, row.tags));
-
-        const quantityCell = document.createElement("div");
-        quantityCell.className = "pm-table__cell";
-        quantityCell.textContent = row.quantity || "-";
-
-        const unitCell = document.createElement("div");
-        unitCell.className = "pm-table__cell";
-        unitCell.textContent = row.unit || "-";
-
-        const urgencyCell = document.createElement("div");
-        urgencyCell.className = "pm-table__cell";
-        urgencyCell.textContent = row.urgency || "-";
-
-        const noteCell = document.createElement("div");
-
-        noteCell.className = "pm-table__cell";
-
-        noteCell.textContent = row.note || "-";
-
-
-        const urlCell = document.createElement("div");
-        urlCell.className = "pm-table__cell";
-        urlCell.appendChild(buildUrlCell(row.url, row.product));
-
-        const priceCell = document.createElement("div");
-        priceCell.className = "pm-table__cell";
-        priceCell.textContent = row.priceCad ? formatPriceCadDisplay(row.priceCad) : "-";
-
-        const requesterCell = document.createElement("div");
-        requesterCell.className = "pm-table__cell";
-        requesterCell.textContent = row.requester || "-";
-
-        const dateCell = document.createElement("div");
-
-        dateCell.className = "pm-table__cell";
-
-        dateCell.textContent = formatDateDisplay(row.createdAt);
-
-
-        const actionsCell = document.createElement("div");
-        actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
-        const addBtn = document.createElement("button");
-        addBtn.type = "button";
-        addBtn.className = "pm-icon-btn";
-        addBtn.title = "Aggiungi";
-        addBtn.setAttribute("aria-label", "Aggiungi");
-        const addIcon = document.createElement("span");
-        addIcon.className = "material-icons";
-        addIcon.textContent = "add";
-        addBtn.appendChild(addIcon);
-        addBtn.addEventListener("click", () => openAddModal(row));
-        actionsCell.appendChild(addBtn);
-        if (row.deletedAt) {
-            addBtn.disabled = true;
-        }
-        if (admin) {
-            const editBtn = document.createElement("button");
-            editBtn.type = "button";
-            editBtn.className = "pm-icon-btn";
-            editBtn.title = "Modifica";
-            editBtn.setAttribute("aria-label", "Modifica");
-            const editIcon = document.createElement("span");
-            editIcon.className = "material-icons";
-            editIcon.textContent = "edit";
-            editBtn.appendChild(editIcon);
-            editBtn.addEventListener("click", () => openEditModal(row));
-            if (row.deletedAt) editBtn.disabled = true;
-            const addCatalogBtn = document.createElement("button");
-            addCatalogBtn.type = "button";
-            addCatalogBtn.className = "pm-icon-btn";
-            addCatalogBtn.title = "Inserisci a catalogo";
-            addCatalogBtn.setAttribute("aria-label", "Inserisci a catalogo");
-            const addCatalogIcon = document.createElement("span");
-            addCatalogIcon.className = "material-icons";
-            addCatalogIcon.textContent = "inventory_2";
-            addCatalogBtn.appendChild(addCatalogIcon);
-            addCatalogBtn.addEventListener("click", async () => {
-                const ok = await openConfirmModal("Vuoi aggiungere questo prodotto al catalogo?");
-                if (!ok) return;
-                const item = {
-                    id: `CAT-${Date.now()}`,
-                    name: row.product || "",
-                    description: "",
-                    category: row.category || row.tags.join(", "),
-                    unit: row.unit || "",
-                    url: row.url || "",
-                    imageFile: "",
-                    createdAt: new Date().toISOString(),
-                };
-                catalogItems.push(item);
-                if (saveCatalog(catalogItems)) {
-                    renderCatalog();
-                }
-            });
-            if (row.deletedAt) addCatalogBtn.disabled = true;
-            actionsCell.append(editBtn, addCatalogBtn);
-        } else if (!isLoggedIn()) {
-            addBtn.disabled = true;
-        }
-
-        tr.append(
-            statusCell,
-            productCell,
-            quantityCell,
-            unitCell,
-            urgencyCell,
-            noteCell,
-            urlCell,
-            priceCell,
-            requesterCell,
-            dateCell,
-            actionsCell
-        );
-        table.appendChild(tr);
-    });
-
-    list.innerHTML = "";
-    list.appendChild(table);
-}
-
-function renderInterventionTable() {
-    const list = document.getElementById("pm-requests-list");
-    if (!list) return;
-    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-    const rows = [];
-    let needsSave = false;
-    const now = Date.now();
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-    const monthMs = 30 * 24 * 60 * 60 * 1000;
-    requests.forEach((request, requestIndex) => {
-        const requester = request.employee || "";
-        const nextLines = [];
-        (request.lines || []).forEach((line) => {
-            const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
-            if (deletedAt && now - deletedAt >= weekMs) {
-                needsSave = true;
-                return;
-            }
-            nextLines.push(line);
-            const nextIndex = nextLines.length - 1;
-            const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
-            if (confirmedAt && now - confirmedAt >= monthMs) {
-                return;
-            }
-            const typeValue = getInterventionType(line);
-            const typeTags = toTags(typeValue);
-            rows.push({
-                key: `${request.id || requestIndex}-${nextIndex}`,
-                requestIndex,
-                lineIndex: nextIndex,
-                interventionType: typeTags.length ? typeTags.join(", ") : typeValue,
-                tags: typeTags,
-                description: getInterventionDescription(line),
-                urgency: line.urgency || "",
-                confirmed: Boolean(line.confirmed),
-                confirmedAt: line.confirmedAt || "",
-                deletedAt: line.deletedAt || "",
-                requester,
-                createdAt: request.createdAt || "",
-            });
-        });
-        if (nextLines.length !== (request.lines || []).length) {
-            request.lines = nextLines;
-        }
-    });
-    if (needsSave) {
-        const cleaned = requests.filter((request) => Array.isArray(request.lines) && request.lines.length);
-        saveRequestsFile(cleaned, REQUEST_MODES.INTERVENTION);
-    }
-
-    const filtered = rows.filter((row) => {
-        if (cartState.urgency && row.urgency !== cartState.urgency) return false;
-        if (cartState.tag && !(row.tags || []).includes(cartState.tag)) return false;
-        if (cartState.search) {
-            const haystack = [row.interventionType, row.description, row.requester, row.urgency]
-                .join(" ")
-                .toLowerCase();
-            if (!haystack.includes(cartState.search.toLowerCase())) return false;
-        }
-        return true;
-    });
-
-    const sortKey = cartState.sort || "created_desc";
-    filtered.sort((a, b) => {
-        if (sortKey === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
-        if (sortKey === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
-        if (sortKey === "type_asc") return a.interventionType.localeCompare(b.interventionType);
-        if (sortKey === "type_desc") return b.interventionType.localeCompare(a.interventionType);
-        if (sortKey === "urgency_desc") {
-            const order = { Alta: 3, Media: 2, Bassa: 1, "": 0 };
-            return (order[b.urgency] || 0) - (order[a.urgency] || 0);
-        }
-        if (sortKey === "requester_asc") return a.requester.localeCompare(b.requester);
-        return 0;
-    });
-
-    if (!filtered.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessun intervento in lista.</div>";
-        return;
-    }
-
-    const table = document.createElement("div");
-    table.className = "pm-table pm-table--interventions";
-
-    const header = document.createElement("div");
-    header.className = "pm-table__row pm-table__row--header";
-    ["", "Tipologia", "Descrizione", "Priorità", "Richiesto da", "Data", "Azioni"].forEach((title) => {
-        const cell = document.createElement("div");
-        cell.className = "pm-table__cell";
-        cell.textContent = title;
-        header.appendChild(cell);
-    });
-    table.appendChild(header);
-
-    filtered.forEach((row) => {
-        const tr = document.createElement("div");
-        tr.className = "pm-table__row";
-        if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
-        if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
-
-        const statusCell = document.createElement("div");
-        statusCell.className = "pm-table__cell pm-table__cell--icons";
-        const deleteBtn = document.createElement("button");
-        deleteBtn.type = "button";
-        deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
-        deleteBtn.title = "Elimina";
-        deleteBtn.disabled = !isAdmin() || Boolean(row.deletedAt);
-        deleteBtn.addEventListener("click", () => deleteCartRow(row));
-        const deleteIcon = document.createElement("span");
-        deleteIcon.className = "material-icons";
-        deleteIcon.textContent = "close";
-        deleteBtn.appendChild(deleteIcon);
-
-        const confirmBtn = document.createElement("button");
-        confirmBtn.type = "button";
-        confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
-        confirmBtn.title = "Convalida";
-        confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
-        confirmBtn.addEventListener("click", () => confirmCartRow(row));
-        const confirmIcon = document.createElement("span");
-        confirmIcon.className = "material-icons";
-        confirmIcon.textContent = "check";
-        confirmBtn.appendChild(confirmIcon);
-
-        statusCell.append(deleteBtn, confirmBtn);
-
-        const typeCell = document.createElement("div");
-        typeCell.className = "pm-table__cell";
-        typeCell.textContent = row.interventionType || "-";
-
-        const descCell = document.createElement("div");
-        descCell.className = "pm-table__cell";
-        descCell.textContent = row.description || "-";
-
-        const urgencyCell = document.createElement("div");
-        urgencyCell.className = "pm-table__cell";
-        urgencyCell.textContent = row.urgency || "-";
-
-        const requesterCell = document.createElement("div");
-        requesterCell.className = "pm-table__cell";
-        requesterCell.textContent = row.requester || "-";
-
-        const dateCell = document.createElement("div");
-        dateCell.className = "pm-table__cell";
-        dateCell.textContent = formatDateDisplay(row.createdAt);
-
-        const actionsCell = document.createElement("div");
-        actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
-        if (isAdmin()) {
-            const editBtn = document.createElement("button");
-            editBtn.type = "button";
-            editBtn.className = "pm-icon-btn";
-            editBtn.title = "Modifica";
-            editBtn.setAttribute("aria-label", "Modifica");
-            const editIcon = document.createElement("span");
-            editIcon.className = "material-icons";
-            editIcon.textContent = "edit";
-            editBtn.appendChild(editIcon);
-            editBtn.addEventListener("click", () => openInterventionEditModal(row));
-            if (row.deletedAt) editBtn.disabled = true;
-            actionsCell.appendChild(editBtn);
-        }
-
-        tr.append(statusCell, typeCell, descCell, urgencyCell, requesterCell, dateCell, actionsCell);
-        table.appendChild(tr);
-    });
-
-    list.innerHTML = "";
-    list.appendChild(table);
 }
 
 function getEditFieldValue(id) {
@@ -1881,7 +1044,7 @@ function openInterventionEditModal(row) {
         showWarning("Solo gli admin possono modificare.");
         return;
     }
-    interventionEditingRow = row;
+    uiState.interventionEditingRow = row;
     const modal = document.getElementById("pm-intervention-edit-modal");
     if (!modal) return;
     const typeInput = document.getElementById("pm-intervention-edit-type");
@@ -1899,7 +1062,7 @@ function closeInterventionEditModal() {
     if (!modal) return;
     modal.classList.add("is-hidden");
     modal.setAttribute("aria-hidden", "true");
-    interventionEditingRow = null;
+    uiState.interventionEditingRow = null;
 }
 
 function saveInterventionEditModal() {
@@ -1907,7 +1070,7 @@ function saveInterventionEditModal() {
         showWarning("Solo gli admin possono modificare.");
         return;
     }
-    const row = interventionEditingRow;
+    const row = uiState.interventionEditingRow;
     if (!row) return;
     const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
     const request = requests[row.requestIndex];
@@ -2009,7 +1172,7 @@ function saveEditModal() {
 
 function openAddModal(row) {
     if (!requireLogin()) return;
-    pendingAddRow = row;
+    uiState.pendingAddRow = row;
     const modal = document.getElementById("pm-add-modal");
     const qty = document.getElementById("pm-add-quantity");
     if (!modal) return;
@@ -2023,11 +1186,11 @@ function closeAddModal() {
     if (!modal) return;
     modal.classList.add("is-hidden");
     modal.setAttribute("aria-hidden", "true");
-    pendingAddRow = null;
+    uiState.pendingAddRow = null;
 }
 
 function saveAddModal() {
-    if (!pendingAddRow) {
+    if (!uiState.pendingAddRow) {
         closeAddModal();
         return;
     }
@@ -2043,7 +1206,7 @@ function saveAddModal() {
         return;
     }
 
-    const baseLine = pendingAddRow;
+    const baseLine = uiState.pendingAddRow;
     const newLine = {
         product: baseLine.product || "",
         category: baseLine.tags ? baseLine.tags.join(", ") : baseLine.category || "",
@@ -2119,58 +1282,17 @@ async function deleteCartRow(row) {
 }
 
 function initCartFilters() {
-    const searchInput = document.getElementById("pm-cart-search");
-    const urgencySelect = document.getElementById("pm-cart-filter-urgency");
-    const tagSelect = document.getElementById("pm-cart-filter-tag");
-    const sortSelect = document.getElementById("pm-cart-sort");
-    const debugClean = document.getElementById("pm-debug-clean");
-    if (searchInput) {
-        searchInput.addEventListener("input", (event) => {
-            cartState.search = event.target.value || "";
-            renderCartTable();
-        });
-    }
-    if (urgencySelect) {
-        urgencySelect.addEventListener("change", (event) => {
-            cartState.urgency = event.target.value || "";
-            renderCartTable();
-        });
-    }
-    if (tagSelect) {
-        tagSelect.addEventListener("change", (event) => {
-            cartState.tag = event.target.value || "";
-            renderCartTable();
-        });
-    }
-    if (sortSelect) {
-        sortSelect.addEventListener("change", (event) => {
-            cartState.sort = event.target.value || "created_desc";
-            renderCartTable();
-        });
-    }
-    if (debugClean) {
-        debugClean.addEventListener("click", async () => {
-            if (!isAdmin()) {
-                showWarning("Solo gli admin possono usare la pulizia debug.");
-                return;
-            }
-            const ok = await openConfirmModal("Vuoi rimuovere dal JSON tutti gli elementi eliminati o convalidati?");
-            if (!ok) return;
-            const mode = getActiveMode();
-            const requests = readRequestsFile(mode);
-            const cleaned = [];
-            requests.forEach((req) => {
-                const lines = (req.lines || []).filter((line) => !line.deletedAt && !line.confirmedAt);
-                if (lines.length) {
-                    req.lines = lines;
-                    cleaned.push(req);
-                }
-            });
-            if (saveRequestsFile(cleaned, mode)) {
-                renderCartTable();
-            }
-        });
-    }
+    initCartFiltersUi({
+        document,
+        cartState,
+        renderCartTable,
+        isAdmin,
+        showWarning,
+        openConfirmModal,
+        getActiveMode,
+        readRequestsFile,
+        saveRequestsFile,
+    });
 }
 
 function normalizeAssigneesPayload(parsed) {
@@ -2221,27 +1343,17 @@ function syncAssignees() {
     }
 }
 
-function saveSession() {
-    try {
-        window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    } catch (err) {
-        console.error("Errore salvataggio sessione:", err);
-    }
-    try {
-        ipcRenderer.invoke("pm-session-set", session);
-    } catch (err) {
-        console.error("Errore salvataggio sessione IPC:", err);
-    }
-}
-
 function loadCatalog() {
     try {
         if (!fs.existsSync(CATALOG_PATH)) return [];
         const raw = fs.readFileSync(CATALOG_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeCatalogData(parsed);
-        validateWithAjv(validateCatalogSchema, normalized, "catalogo");
-        tryAutoCleanJson(CATALOG_PATH, parsed, normalized, validateCatalogSchema, "catalogo");
+        validateWithAjv(validateCatalogSchema, normalized, "catalogo", { showWarning, showError });
+        tryAutoCleanJson(CATALOG_PATH, parsed, normalized, validateCatalogSchema, "catalogo", {
+            showWarning,
+            showError,
+        });
         return normalized;
     } catch (err) {
         console.error("Errore lettura catalogo:", err);
@@ -2252,7 +1364,13 @@ function loadCatalog() {
 function saveCatalog(list) {
     try {
         const normalized = normalizeCatalogData(list);
-        if (!validateWithAjv(validateCatalogSchema, normalized, "catalogo").ok) return false;
+        if (
+            !validateWithAjv(validateCatalogSchema, normalized, "catalogo", {
+                showWarning,
+                showError,
+            }).ok
+        )
+            return false;
         fs.writeFileSync(CATALOG_PATH, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
@@ -2267,8 +1385,11 @@ function loadCategories() {
         const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeCategoriesData(parsed);
-        validateWithAjv(validateCategoriesSchema, normalized, "categorie");
-        tryAutoCleanJson(CATEGORIES_PATH, parsed, normalized, validateCategoriesSchema, "categorie");
+        validateWithAjv(validateCategoriesSchema, normalized, "categorie", { showWarning, showError });
+        tryAutoCleanJson(CATEGORIES_PATH, parsed, normalized, validateCategoriesSchema, "categorie", {
+            showWarning,
+            showError,
+        });
         return normalized;
     } catch (err) {
         console.error("Errore lettura categorie:", err);
@@ -2279,7 +1400,13 @@ function loadCategories() {
 function saveCategories(list) {
     try {
         const normalized = normalizeCategoriesData(list);
-        if (!validateWithAjv(validateCategoriesSchema, normalized, "categorie").ok) return false;
+        if (
+            !validateWithAjv(validateCategoriesSchema, normalized, "categorie", {
+                showWarning,
+                showError,
+            }).ok
+        )
+            return false;
         fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
@@ -2294,13 +1421,17 @@ function loadInterventionTypes() {
         const raw = fs.readFileSync(INTERVENTION_TYPES_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeInterventionTypesData(parsed);
-        validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi");
+        validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi", {
+            showWarning,
+            showError,
+        });
         tryAutoCleanJson(
             INTERVENTION_TYPES_PATH,
             parsed,
             normalized,
             validateInterventionTypesSchema,
-            "tipologie interventi"
+            "tipologie interventi",
+            { showWarning, showError }
         );
         return normalized;
     } catch (err) {
@@ -2312,7 +1443,13 @@ function loadInterventionTypes() {
 function saveInterventionTypes(list) {
     try {
         const normalized = normalizeInterventionTypesData(list);
-        if (!validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi").ok) return false;
+        if (
+            !validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi", {
+                showWarning,
+                showError,
+            }).ok
+        )
+            return false;
         fs.writeFileSync(INTERVENTION_TYPES_PATH, JSON.stringify(normalized, null, 2), "utf8");
         return true;
     } catch (err) {
@@ -2322,172 +1459,44 @@ function saveInterventionTypes(list) {
 }
 
 function renderCategoryOptions(selected = []) {
-    const container = document.getElementById("pm-catalog-category");
-    if (!container) return;
-    container.innerHTML = "";
-    const wrap = document.createElement("div");
-    wrap.className = "pm-multiselect";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "pm-multiselect__button";
-    button.textContent = "Seleziona tipologie";
-    const menu = document.createElement("div");
-    menu.className = "pm-multiselect__menu is-hidden";
-    const selectedSet = new Set(selected);
-    catalogCategories.forEach((cat) => {
-        const option = document.createElement("label");
-        option.className = "pm-multiselect__option";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = cat;
-        if (selectedSet.has(cat)) checkbox.checked = true;
-        const span = document.createElement("span");
-        span.textContent = cat;
-        checkbox.addEventListener("change", () => {
-            if (checkbox.checked) {
-                selectedSet.add(cat);
-            } else {
-                selectedSet.delete(cat);
-            }
-            const values = Array.from(selectedSet.values());
-            button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
-        });
-        option.append(checkbox, span);
-        menu.appendChild(option);
-    });
-    button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        menu.classList.toggle("is-hidden");
-    });
-    document.addEventListener("click", (event) => {
-        if (!wrap.contains(event.target)) {
-            menu.classList.add("is-hidden");
-        }
-    });
-    button.textContent = selectedSet.size ? Array.from(selectedSet.values()).join(", ") : "Seleziona tipologie";
-    if (container.dataset && container.dataset.value && selectedSet.size === 0) {
-        button.textContent = container.dataset.value;
-    }
-    wrap.append(button, menu);
-    container.appendChild(wrap);
+    renderCategoryOptionsUi({ document, catalogCategories, selected });
 }
 
 function renderCatalogFilterOptions() {
-    if (isInterventionMode()) return;
-    const select = document.getElementById("pm-catalog-filter");
-    if (!select) return;
-    select.innerHTML = "";
-    const all = document.createElement("option");
-    all.value = "";
-    all.textContent = "Tutte le categorie";
-    select.appendChild(all);
-    catalogCategories.forEach((cat) => {
-        const opt = document.createElement("option");
-        opt.value = cat;
-        opt.textContent = cat;
-        select.appendChild(opt);
+    renderCatalogFilterOptionsUi({
+        document,
+        isInterventionMode,
+        catalogCategories,
+        catalogFilterTag,
     });
-    select.value = catalogFilterTag || "";
 }
 
 function renderInterventionTypeOptions(selected = []) {
-    const wrap = document.createElement("div");
-    wrap.className = "pm-multiselect";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "pm-multiselect__button";
-    button.textContent = "Seleziona tipologie";
-    const menu = document.createElement("div");
-    menu.className = "pm-multiselect__menu is-hidden";
-    const selectedSet = new Set(selected);
-    if (!interventionTypes.length) {
-        const empty = document.createElement("div");
-        empty.className = "pm-message";
-        empty.textContent = "Nessuna tipologia disponibile.";
-        menu.appendChild(empty);
-    }
-    interventionTypes.forEach((type) => {
-        const option = document.createElement("label");
-        option.className = "pm-multiselect__option";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = type;
-        if (selectedSet.has(type)) checkbox.checked = true;
-        const span = document.createElement("span");
-        span.textContent = type;
-        checkbox.addEventListener("change", () => {
-            if (checkbox.checked) {
-                selectedSet.add(type);
-            } else {
-                selectedSet.delete(type);
-            }
-            const values = Array.from(selectedSet.values());
-            button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
-        });
-        option.append(checkbox, span);
-        menu.appendChild(option);
+    return renderInterventionTypeOptionsUi({
+        document,
+        interventionTypes,
+        openMultiselectMenu,
+        closeMultiselectMenu,
+        selected,
     });
-    button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (menu.classList.contains("is-hidden")) {
-            openMultiselectMenu(menu, button, wrap);
-        } else {
-            closeMultiselectMenu(menu, wrap);
-        }
-    });
-    document.addEventListener("click", (event) => {
-        if (!wrap.contains(event.target) && !menu.contains(event.target)) {
-            closeMultiselectMenu(menu, wrap);
-        }
-    });
-    button.textContent = selectedSet.size ? Array.from(selectedSet.values()).join(", ") : "Seleziona tipologie";
-    wrap.append(button, menu);
-    return { wrap, selectedSet, button };
 }
 
 function syncCatalogControls() {
-    if (isInterventionMode()) return;
-    const search = document.getElementById("pm-catalog-search");
-    const sort = document.getElementById("pm-catalog-sort");
-    if (search) search.value = catalogSearch || "";
-    if (sort) sort.value = catalogSort || "name_asc";
+    syncCatalogControlsUi({ document, isInterventionMode, catalogSearch, catalogSort });
 }
 
 function renderCartTagFilterOptions() {
-    const select = document.getElementById("pm-cart-filter-tag");
-    if (!select) return;
-    select.innerHTML = "";
-    const all = document.createElement("option");
-    all.value = "";
-    all.textContent = "Tutte";
-    select.appendChild(all);
-    if (isInterventionMode()) {
-        const types = new Set(interventionTypes);
-        if (!types.size) {
-            const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-            requests.forEach((req) => {
-                (req.lines || []).forEach((line) => {
-                    toTags(getInterventionType(line)).forEach((type) => {
-                        if (type) types.add(type);
-                    });
-                });
-            });
-        }
-        Array.from(types.values()).sort((a, b) => a.localeCompare(b)).forEach((type) => {
-            const opt = document.createElement("option");
-            opt.value = type;
-            opt.textContent = type;
-            select.appendChild(opt);
-        });
-    } else {
-        catalogCategories.forEach((cat) => {
-            const opt = document.createElement("option");
-            opt.value = cat;
-            opt.textContent = cat;
-            select.appendChild(opt);
-        });
-    }
-    select.value = cartState.tag || "";
+    renderCartTagFilterOptionsUi({
+        document,
+        isInterventionMode,
+        interventionTypes,
+        catalogCategories,
+        cartState,
+        readRequestsFile,
+        REQUEST_MODES,
+        toTags,
+        getInterventionType,
+    });
 }
 
 function ensureProductsDir() {
@@ -2568,8 +1577,8 @@ function openCategoryEditor(category) {
     const title = document.getElementById("pm-category-editor-title");
     const colorInput = document.getElementById("pm-category-color-input");
     if (!editor || !colorInput) return;
-    categoryEditingName = category;
-    categoryColorSnapshot = { ...categoryColors };
+    uiState.categoryEditingName = category;
+    uiState.categoryColorSnapshot = { ...categoryColors };
     colorInput.value = getCategoryColor(category);
     if (title) title.textContent = `Colore ${category}`;
     editor.classList.remove("is-hidden");
@@ -2579,15 +1588,15 @@ function closeCategoryEditor(revert) {
     const editor = document.getElementById("pm-category-editor");
     if (!editor) return;
     editor.classList.add("is-hidden");
-    if (revert && categoryColorSnapshot) {
-        categoryColors = { ...categoryColorSnapshot };
+    if (revert && uiState.categoryColorSnapshot) {
+        categoryColors = { ...uiState.categoryColorSnapshot };
         saveCategoryColors(categoryColors);
         renderCatalog();
         renderCartTable();
         renderCategoriesList();
     }
-    categoryEditingName = null;
-    categoryColorSnapshot = null;
+    uiState.categoryEditingName = null;
+    uiState.categoryColorSnapshot = null;
 }
 
 function updateCategoryChipPreview(name, color) {
@@ -2882,50 +1891,6 @@ function addCategory() {
     }
 }
 
-async function loadSession() {
-    try {
-        const shared = await ipcRenderer.invoke("pm-session-get");
-        if (shared && (shared.role === "admin" || shared.role === "employee")) {
-            session = {
-                role: shared.role,
-                adminName: shared.adminName || "",
-                department: shared.department || "",
-                employee: shared.employee || "",
-            };
-            return;
-        }
-    } catch (err) {
-        console.error("Errore lettura sessione IPC:", err);
-    }
-    session = { role: "guest", adminName: "", department: "", employee: "" };
-}
-
-function clearSession() {
-    session = { role: "guest", adminName: "", department: "", employee: "" };
-    try {
-        window.localStorage.removeItem(SESSION_KEY);
-    } catch (err) {
-        console.error("Errore clear session:", err);
-    }
-    try {
-        ipcRenderer.invoke("pm-session-clear");
-    } catch (err) {
-        console.error("Errore clear session IPC:", err);
-    }
-}
-
-function isAdmin() {
-    return session.role === "admin";
-}
-
-function isEmployee() {
-    return session.role === "employee";
-}
-
-function isLoggedIn() {
-    return isAdmin() || isEmployee();
-}
-
 function updateGreeting() {
     const greeting = document.getElementById("pm-greeting");
     if (!greeting) return;
@@ -2980,26 +1945,7 @@ function syncSessionUI() {
 }
 
 function applySharedSession(payload) {
-    if (payload && (payload.role === "admin" || payload.role === "employee")) {
-        session = {
-            role: payload.role,
-            adminName: payload.adminName || "",
-            department: payload.department || "",
-            employee: payload.employee || "",
-        };
-        try {
-            window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        } catch (err) {
-            console.error("Errore salvataggio sessione:", err);
-        }
-    } else {
-        session = { role: "guest", adminName: "", department: "", employee: "" };
-        try {
-            window.localStorage.removeItem(SESSION_KEY);
-        } catch (err) {
-            console.error("Errore clear session:", err);
-        }
-    }
+    applySharedSessionData(payload);
     closeLoginModal();
     closeLogoutModal();
     syncSessionUI();
@@ -3121,7 +2067,7 @@ function openConfirmModal(message) {
     modal.classList.remove("is-hidden");
     modal.setAttribute("aria-hidden", "false");
     return new Promise((resolve) => {
-        pendingConfirmResolve = resolve;
+        uiState.pendingConfirmResolve = resolve;
     });
 }
 
@@ -3131,9 +2077,9 @@ function closeConfirmModal(result = false) {
         modal.classList.add("is-hidden");
         modal.setAttribute("aria-hidden", "true");
     }
-    if (typeof pendingConfirmResolve === "function") {
-        const resolver = pendingConfirmResolve;
-        pendingConfirmResolve = null;
+    if (typeof uiState.pendingConfirmResolve === "function") {
+        const resolver = uiState.pendingConfirmResolve;
+        uiState.pendingConfirmResolve = null;
         resolver(result);
     }
 }
@@ -3605,7 +2551,7 @@ function setupLogin() {
                 showWarning("Seleziona reparto e dipendente per accedere.");
                 return;
             }
-            session = { role: "employee", adminName: "", department: dept, employee: emp };
+            setSession({ role: "employee", adminName: "", department: dept, employee: emp });
             saveSession();
             syncSessionUI();
             closeLoginModal();
@@ -3626,7 +2572,7 @@ function setupLogin() {
                 if (adminError) adminError.classList.remove("is-hidden");
                 return;
             }
-            session = { role: "admin", adminName: verified.admin.name, department: "", employee: "" };
+            setSession({ role: "admin", adminName: verified.admin.name, department: "", employee: "" });
             saveSession();
             syncSessionUI();
             closeLoginModal();
@@ -3671,7 +2617,7 @@ function initCatalogModal() {
                 if (selected && imageInput) {
                     imageInput.value = selected;
                     imageInput.dataset.path = selected;
-                    catalogRemoveImage = false;
+                    uiState.catalogRemoveImage = false;
                 }
             } catch (err) {
                 showError(
@@ -3692,33 +2638,29 @@ function initCatalogModal() {
             if (imageUrlInput) {
                 imageUrlInput.value = "";
             }
-            catalogRemoveImage = true;
+            uiState.catalogRemoveImage = true;
         });
     }
 }
 
 function initCatalogFilters() {
-    const filter = document.getElementById("pm-catalog-filter");
-    const search = document.getElementById("pm-catalog-search");
-    const sort = document.getElementById("pm-catalog-sort");
-    if (filter) {
-        filter.addEventListener("change", (event) => {
-            catalogFilterTag = event.target.value || "";
-            renderCatalog();
-        });
-    }
-    if (search) {
-        search.addEventListener("input", (event) => {
-            catalogSearch = event.target.value || "";
-            renderCatalog();
-        });
-    }
-    if (sort) {
-        sort.addEventListener("change", (event) => {
-            catalogSort = event.target.value || "name_asc";
-            renderCatalog();
-        });
-    }
+    initCatalogFiltersUi({
+        document,
+        isInterventionMode,
+        renderCatalog,
+        getCatalogFilterTag: () => catalogFilterTag,
+        setCatalogFilterTag: (value) => {
+            catalogFilterTag = value;
+        },
+        getCatalogSearch: () => catalogSearch,
+        setCatalogSearch: (value) => {
+            catalogSearch = value;
+        },
+        getCatalogSort: () => catalogSort,
+        setCatalogSort: (value) => {
+            catalogSort = value;
+        },
+    });
 }
 
 function initCategoriesModal() {
@@ -3744,32 +2686,35 @@ function initCategoriesModal() {
     }
     if (colorInput) {
         colorInput.addEventListener("input", () => {
-            if (!categoryEditingName) return;
-            const next = normalizeHexColor(colorInput.value, getCategoryColor(categoryEditingName));
-            categoryColors = { ...categoryColors, [categoryEditingName]: next };
-            updateCategoryChipPreview(categoryEditingName, next);
-            if (categoryPreviewTimer) clearTimeout(categoryPreviewTimer);
-            categoryPreviewTimer = setTimeout(() => {
+            if (!uiState.categoryEditingName) return;
+            const next = normalizeHexColor(
+                colorInput.value,
+                getCategoryColor(uiState.categoryEditingName)
+            );
+            categoryColors = { ...categoryColors, [uiState.categoryEditingName]: next };
+            updateCategoryChipPreview(uiState.categoryEditingName, next);
+            if (uiState.categoryPreviewTimer) clearTimeout(uiState.categoryPreviewTimer);
+            uiState.categoryPreviewTimer = setTimeout(() => {
                 renderCatalog();
                 renderCartTable();
-                categoryPreviewTimer = null;
+                uiState.categoryPreviewTimer = null;
             }, 80);
         });
     }
     if (colorDefault) {
         colorDefault.addEventListener("click", () => {
-            if (!categoryEditingName) return;
-            const next = hashCategoryToColor(categoryEditingName);
+            if (!uiState.categoryEditingName) return;
+            const next = hashCategoryToColor(uiState.categoryEditingName);
             if (colorInput) colorInput.value = next;
-            categoryColors = { ...categoryColors, [categoryEditingName]: next };
-            updateCategoryChipPreview(categoryEditingName, next);
+            categoryColors = { ...categoryColors, [uiState.categoryEditingName]: next };
+            updateCategoryChipPreview(uiState.categoryEditingName, next);
             renderCatalog();
             renderCartTable();
         });
     }
     if (colorSave) {
         colorSave.addEventListener("click", () => {
-            if (!categoryEditingName) return;
+            if (!uiState.categoryEditingName) return;
             saveCategoryColors(categoryColors);
             closeCategoryEditor(false);
         });
@@ -4012,448 +2957,24 @@ function initSettingsModals() {
     initPasswordModal();
 }
 
-function setExportMessage(text, isError = false) {
-    const el = document.getElementById("pm-export-message");
-    if (!el) return;
-    if (!text) {
-        el.classList.add("is-hidden");
-        el.textContent = "";
-        el.classList.remove("pm-message--error", "pm-message--success");
-        return;
-    }
-    el.textContent = text;
-    el.classList.remove("is-hidden", "pm-message--error", "pm-message--success");
-    if (isError) {
-        el.classList.add("pm-message--error");
-    } else {
-        el.classList.add("pm-message--success");
-    }
-}
-
-function parseDateInput(value) {
-    if (!value) return null;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-    return date;
-}
-
-function buildExportRows() {
-    const mode = getActiveMode();
-    if (isInterventionMode(mode)) {
-        const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-        const rows = [];
-        requests.forEach((request) => {
-            const requester = [request.employee, request.department].filter(Boolean).join(" - ");
-            (request.lines || []).forEach((line) => {
-                const status = line.deletedAt ? "deleted" : line.confirmedAt || line.confirmed ? "confirmed" : "pending";
-                const typeValue = getInterventionType(line);
-                rows.push({
-                    requestId: request.id || "",
-                    createdAt: request.createdAt || "",
-                    employee: request.employee || "",
-                    department: request.department || "",
-                    requester,
-                    category: typeValue || "",
-                    description: getInterventionDescription(line),
-                    urgency: line.urgency || "",
-                    notes: request.notes || "",
-                    status,
-                    confirmedAt: line.confirmedAt || "",
-                    confirmedBy: line.confirmedBy || "",
-                    deletedAt: line.deletedAt || "",
-                    deletedBy: line.deletedBy || "",
-                });
-            });
-        });
-        return rows;
-    }
-    const requests = readRequestsFile(REQUEST_MODES.PURCHASE);
-    const rows = [];
-    requests.forEach((request) => {
-        const requester = [request.employee, request.department].filter(Boolean).join(" - ");
-        (request.lines || []).forEach((line) => {
-            const status = line.deletedAt ? "deleted" : line.confirmedAt || line.confirmed ? "confirmed" : "pending";
-            rows.push({
-                requestId: request.id || "",
-                createdAt: request.createdAt || "",
-                employee: request.employee || "",
-                department: request.department || "",
-                requester,
-                product: line.product || "",
-                category: line.category || "",
-                quantity: line.quantity || "",
-                unit: line.unit || "",
-                urgency: line.urgency || "",
-                url: line.url || "",
-                note: line.note || "",
-                priceCad: line.priceCad || "",
-                status,
-                confirmedAt: line.confirmedAt || "",
-                confirmedBy: line.confirmedBy || "",
-                deletedAt: line.deletedAt || "",
-                deletedBy: line.deletedBy || "",
-            });
-        });
-    });
-    return rows;
-}
-
-function filterExportRows(rows, options) {
-    const {
-        search,
-        urgency,
-        tag,
-        includePending,
-        includeConfirmed,
-        includeDeleted,
-        rangeMode,
-        year,
-        start,
-        end,
-    } = options;
-
-    return rows.filter((row) => {
-        if (urgency && Array.isArray(urgency) && urgency.length) {
-            if (!urgency.includes(row.urgency || "")) return false;
-        }
-        if (tag && Array.isArray(tag) && tag.length) {
-            const tags = toTags(row.category || "");
-            if (!tag.some((value) => tags.includes(value))) return false;
-        }
-        if (search) {
-            const haystack = [
-                row.product,
-                row.category,
-                row.description,
-                row.requester,
-                row.url,
-                row.unit,
-                row.urgency,
-                row.priceCad,
-                row.notes,
-            ]
-                .join(" ")
-                .toLowerCase();
-            if (!haystack.includes(search.toLowerCase())) return false;
-        }
-
-        if (row.status === "pending" && !includePending) return false;
-        if (row.status === "confirmed" && !includeConfirmed) return false;
-        if (row.status === "deleted" && !includeDeleted) return false;
-
-        const dateValue = row.confirmedAt || row.deletedAt || row.createdAt;
-        const date = dateValue ? new Date(dateValue) : null;
-        if (!date || Number.isNaN(date.getTime())) return false;
-
-        if (rangeMode === "year" && year) {
-            if (date.getFullYear() !== year) return false;
-        }
-        if (rangeMode === "range") {
-            if (start && date < start) return false;
-            if (end && date > end) return false;
-        }
-        return true;
-    });
-}
-
-function buildExportSheet(rows) {
-    if (isInterventionMode()) return buildInterventionExportSheet(rows);
-    const headers = [
-        "ID Richiesta",
-        "Data richiesta",
-        "Dipendente",
-        "Reparto",
-        "Richiesto da",
-        "Prodotto",
-        "Tipologia",
-        "Quantit\u00e0",
-        "UM",
-        "Urgenza",
-        "URL",
-        "Note",
-        "Prezzo C.A.D",
-        "Stato",
-        "Data convalida",
-        "Convalidato da",
-        "Data eliminazione",
-        "Eliminato da",
-    ];
-    const data = rows.map((row) => [
-        row.requestId,
-        row.createdAt,
-        row.employee,
-        row.department,
-        row.requester,
-        row.product,
-        row.category,
-        row.quantity,
-        row.unit,
-        row.urgency,
-        row.url,
-        row.note,
-        row.priceCad,
-        row.status,
-        row.confirmedAt,
-        row.confirmedBy,
-        row.deletedAt,
-        row.deletedBy,
-    ]);
-    return XLSX.utils.aoa_to_sheet([headers, ...data]);
-}
-
-function buildInterventionExportSheet(rows) {
-    const headers = [
-        "ID Richiesta",
-        "Data richiesta",
-        "Dipendente",
-        "Reparto",
-        "Richiesto da",
-        "Tipologia",
-        "Descrizione",
-        "Urgenza",
-        "Note generali",
-        "Stato",
-        "Data convalida",
-        "Convalidato da",
-        "Data eliminazione",
-        "Eliminato da",
-    ];
-    const data = rows.map((row) => [
-        row.requestId,
-        row.createdAt,
-        row.employee,
-        row.department,
-        row.requester,
-        row.category,
-        row.description,
-        row.urgency,
-        row.notes,
-        row.status,
-        row.confirmedAt,
-        row.confirmedBy,
-        row.deletedAt,
-        row.deletedBy,
-    ]);
-    return XLSX.utils.aoa_to_sheet([headers, ...data]);
-}
-
-async function exportCartExcel() {
-    if (!XLSX) {
-        showError("Modulo 'xlsx' non trovato.", "Esegui 'npm install xlsx' nella cartella del progetto AyPi.");
-        return;
-    }
-    const rangeMode = document.querySelector("input[name='pm-export-range']:checked")?.value || "all";
-    const start = parseDateInput(document.getElementById("pm-export-start")?.value || "");
-    const end = parseDateInput(document.getElementById("pm-export-end")?.value || "");
-    const yearValue = parseInt(document.getElementById("pm-export-year")?.value || "", 10);
-    const year = Number.isNaN(yearValue) ? null : yearValue;
-    if (rangeMode === "range" && start && end && start > end) {
-        setExportMessage("Seleziona un intervallo valido.", true);
-        return;
-    }
-    const stateValues = [];
-    const stateContainer = document.getElementById("pm-export-state");
-    if (stateContainer) {
-        stateContainer.querySelectorAll('input[type="checkbox"]:checked').forEach((input) => {
-            stateValues.push(input.value);
-        });
-    }
-    const includePending = stateValues.length ? stateValues.includes("Pending") : true;
-    const includeConfirmed = stateValues.length ? stateValues.includes("Convalidati") : true;
-    const includeDeleted = stateValues.length ? stateValues.includes("Eliminati") : false;
-    if (!includePending && !includeConfirmed && !includeDeleted) {
-        setExportMessage("Seleziona almeno uno stato.", true);
-        return;
-    }
-    const rows = buildExportRows();
-    const urgencyValues = [];
-    const tagValues = [];
-    const urgencyContainer = document.getElementById("pm-export-urgency");
-    if (urgencyContainer) {
-        urgencyContainer.querySelectorAll('input[type="checkbox"]:checked').forEach((input) => {
-            urgencyValues.push(input.value);
-        });
-    }
-    const tagContainer = document.getElementById("pm-export-tag");
-    if (tagContainer) {
-        tagContainer.querySelectorAll('input[type="checkbox"]:checked').forEach((input) => {
-            tagValues.push(input.value);
-        });
-    }
-    const filtered = filterExportRows(rows, {
-        search: "",
-        urgency: urgencyValues,
-        tag: tagValues,
-        includePending,
-        includeConfirmed,
-        includeDeleted,
-        rangeMode,
-        year,
-        start,
-        end,
-    });
-    if (!filtered.length) {
-        setExportMessage("Nessun dato da esportare.", true);
-        return;
-    }
-    const isIntervention = isInterventionMode();
-    const filePath = await ipcRenderer.invoke("select-output-file", {
-        defaultName: isIntervention ? "lista_interventi.xlsx" : "lista_acquisti.xlsx",
-        filters: [{ name: "File Excel", extensions: ["xlsx"] }],
-    });
-    if (!filePath) return;
-    const wb = XLSX.utils.book_new();
-    const sheet = buildExportSheet(filtered);
-    XLSX.utils.book_append_sheet(wb, sheet, isIntervention ? "Interventi" : "Acquisti");
-    XLSX.writeFile(wb, filePath);
-    setExportMessage("File Excel creato con successo.", false);
-}
-
 function initExportModal() {
-    const openBtn = document.getElementById("pm-export-open");
-    const closeBtn = document.getElementById("pm-export-close");
-    const cancelBtn = document.getElementById("pm-export-cancel");
-    const runBtn = document.getElementById("pm-export-run");
-    const modal = document.getElementById("pm-export-modal");
-    const rangeRadios = document.querySelectorAll("input[name='pm-export-range']");
-    const tagSelect = document.getElementById("pm-export-tag");
-    const yearSelect = document.getElementById("pm-export-year");
-    const searchInput = document.getElementById("pm-export-search");
-    const urgencySelect = document.getElementById("pm-export-urgency");
-    const stateSelect = document.getElementById("pm-export-state");
-
-    const setRangeState = () => {
-        const mode = document.querySelector("input[name='pm-export-range']:checked")?.value || "all";
-        const yearField = document.getElementById("pm-export-year");
-        const startField = document.getElementById("pm-export-start");
-        const endField = document.getElementById("pm-export-end");
-        if (yearField) yearField.disabled = mode !== "year";
-        if (startField) startField.disabled = mode !== "range";
-        if (endField) endField.disabled = mode !== "range";
-    };
-
-    const populateYearOptions = () => {
-        if (!yearSelect) return;
-        yearSelect.innerHTML = "";
-        const rows = buildExportRows();
-        const years = new Set();
-        rows.forEach((row) => {
-            const dateValue = row.confirmedAt || row.deletedAt || row.createdAt;
-            if (!dateValue) return;
-            const date = new Date(dateValue);
-            if (Number.isNaN(date.getTime())) return;
-            years.add(date.getFullYear());
-        });
-        const sorted = Array.from(years.values()).sort((a, b) => b - a);
-        if (!sorted.length) {
-            const option = document.createElement("option");
-            option.value = "";
-            option.textContent = "Nessun dato";
-            yearSelect.appendChild(option);
-            return;
-        }
-        sorted.forEach((year) => {
-            const option = document.createElement("option");
-            option.value = String(year);
-            option.textContent = String(year);
-            yearSelect.appendChild(option);
-        });
-    };
-
-    const buildExportMultiSelect = (container, values, selectedValues) => {
-        if (!container) return null;
-        container.innerHTML = "";
-        const wrap = document.createElement("div");
-        wrap.className = "pm-multiselect";
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "pm-multiselect__button";
-        button.textContent = "Tutte";
-        const menu = document.createElement("div");
-        menu.className = "pm-multiselect__menu is-hidden";
-        const selectedSet = new Set(selectedValues || []);
-        values.forEach((value) => {
-            const option = document.createElement("label");
-            option.className = "pm-multiselect__option";
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.value = value;
-            if (selectedSet.has(value)) checkbox.checked = true;
-            const span = document.createElement("span");
-            span.textContent = value;
-            checkbox.addEventListener("change", () => {
-                if (checkbox.checked) selectedSet.add(value);
-                else selectedSet.delete(value);
-                const list = Array.from(selectedSet.values());
-                button.textContent = list.length ? list.join(", ") : "Tutte";
-            });
-            option.append(checkbox, span);
-            menu.appendChild(option);
-        });
-        button.addEventListener("click", (event) => {
-            event.stopPropagation();
-            if (menu.classList.contains("is-hidden")) {
-                openMultiselectMenu(menu, button, wrap);
-            } else {
-                closeMultiselectMenu(menu, wrap);
-            }
-        });
-        document.addEventListener("click", (event) => {
-            if (!wrap.contains(event.target) && !menu.contains(event.target)) {
-                closeMultiselectMenu(menu, wrap);
-            }
-        });
-        const list = Array.from(selectedSet.values());
-        button.textContent = list.length ? list.join(", ") : "Tutte";
-        wrap.append(button, menu);
-        container.appendChild(wrap);
-        return { getSelected: () => Array.from(selectedSet.values()) };
-    };
-
-    let exportTagSelect = null;
-    let exportUrgencySelect = null;
-    let exportStateSelect = null;
-
-    const openModal = () => {
-        if (!modal) return;
-        const tagValues = isInterventionMode() ? interventionTypes : catalogCategories;
-        exportTagSelect = buildExportMultiSelect(tagSelect, tagValues, []);
-        exportUrgencySelect = buildExportMultiSelect(
-            urgencySelect,
-            ["Alta", "Media", "Bassa"],
-            []
-        );
-        exportStateSelect = buildExportMultiSelect(
-            stateSelect,
-            ["Pending", "Convalidati", "Eliminati"],
-            []
-        );
-        populateYearOptions();
-        if (searchInput) searchInput.value = "";
-        setExportMessage("");
-        modal.classList.remove("is-hidden");
-        modal.setAttribute("aria-hidden", "false");
-        setRangeState();
-    };
-
-    const closeModal = () => {
-        if (!modal) return;
-        modal.classList.add("is-hidden");
-        modal.setAttribute("aria-hidden", "true");
-    };
-
-    if (openBtn) openBtn.addEventListener("click", () => openModal());
-    if (closeBtn) closeBtn.addEventListener("click", () => closeModal());
-    if (cancelBtn) cancelBtn.addEventListener("click", () => closeModal());
-    if (runBtn) runBtn.addEventListener("click", () => exportCartExcel());
-    if (rangeRadios.length) {
-        rangeRadios.forEach((radio) => radio.addEventListener("change", setRangeState));
-    }
-    if (modal) {
-        modal.addEventListener("click", (event) => {
-            if (event.target === modal) closeModal();
-        });
-    }
+    initExportModalUi({
+        document,
+        ipcRenderer,
+        XLSX,
+        isInterventionMode,
+        getActiveMode,
+        REQUEST_MODES,
+        readRequestsFile,
+        toTags,
+        getInterventionType,
+        getInterventionDescription,
+        openMultiselectMenu,
+        closeMultiselectMenu,
+        showError,
+        catalogCategories,
+        interventionTypes,
+    });
 }
 
 function initLogoutModal() {
