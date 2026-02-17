@@ -28,6 +28,13 @@ buttons.forEach((id) => {
     }
 });
 
+const openTicketV2Btn = document.getElementById("openTicketV2");
+if (openTicketV2Btn) {
+    openTicketV2Btn.addEventListener("click", () => {
+        ipcRenderer.send("open-ticket-support-window");
+    });
+}
+
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });

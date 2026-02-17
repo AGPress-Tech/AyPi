@@ -6,7 +6,6 @@ const { pathToFileURL } = require("url");
 const sharedDialogs = require("../shared/dialogs");
 const { NETWORK_PATHS } = require("../../config/paths");
 const { createModalHelpers } = require("./ferie-permessi/ui/modals");
-const { createAssigneesModal } = require("./ferie-permessi/ui/assignees-modal");
 const { createAdminModals } = require("./ferie-permessi/ui/admin-modals");
 const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const { isHashingAvailable, hashPassword, getAuthenticator, otpState, resetOtpState } = require("./ferie-permessi/config/security");
@@ -183,6 +182,7 @@ const ASSIGNEES_FALLBACK = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministr
 // session handled by state/session
 let assigneeGroups = {};
 let assigneeOptions = [];
+let assigneeEmails = {};
 let editingDepartment = null;
 let editingEmployee = null;
 let adminCache = [];
@@ -1364,15 +1364,38 @@ function initCartFilters() {
 function normalizeAssigneesPayload(parsed) {
     if (parsed && typeof parsed === "object") {
         const rawGroups = parsed.groups && typeof parsed.groups === "object" ? parsed.groups : parsed;
+        const rawEmails = parsed.emails && typeof parsed.emails === "object" ? parsed.emails : {};
         const groups = {};
+        const emails = {};
         Object.keys(rawGroups).forEach((key) => {
             const list = Array.isArray(rawGroups[key]) ? rawGroups[key] : [];
-            groups[key] = list.map((name) => String(name));
+            const names = [];
+            list.forEach((entry) => {
+                if (typeof entry === "string") {
+                    const name = entry.trim();
+                    if (!name) return;
+                    names.push(name);
+                    return;
+                }
+                if (entry && typeof entry === "object") {
+                    const name = String(entry.name || "").trim();
+                    const email = String(entry.email || "").trim();
+                    if (!name) return;
+                    names.push(name);
+                    if (email) emails[`${key}|${name}`] = email;
+                }
+            });
+            groups[key] = names;
+        });
+        Object.keys(rawEmails).forEach((k) => {
+            const value = String(rawEmails[k] || "").trim();
+            if (!value) return;
+            if (!emails[k]) emails[k] = value;
         });
         const options = Object.values(groups).flat();
-        return { groups, options };
+        return { groups, options, emails };
     }
-    return { groups: {}, options: [] };
+    return { groups: {}, options: [], emails: {} };
 }
 
 function loadAssignees() {
@@ -1391,7 +1414,10 @@ function loadAssignees() {
 function saveAssignees() {
     const pathHint = NETWORK_PATHS?.amministrazioneAssignees || ASSIGNEES_FALLBACK;
     try {
-        fs.writeFileSync(pathHint, JSON.stringify(assigneeGroups, null, 2), "utf8");
+        fs.writeFileSync(pathHint, JSON.stringify({
+            groups: assigneeGroups,
+            emails: assigneeEmails || {},
+        }, null, 2), "utf8");
     } catch (err) {
         showError("Errore salvataggio dipendenti.", err.message || String(err));
     }
@@ -1401,6 +1427,7 @@ function syncAssignees() {
     const payload = loadAssignees();
     assigneeGroups = payload.groups || {};
     assigneeOptions = payload.options || [];
+    assigneeEmails = payload.emails || {};
     if (!Object.keys(assigneeGroups).length) {
         showWarning(
             "Elenco dipendenti non disponibile.",
@@ -1862,6 +1889,10 @@ function renderDepartmentList() {
     renderDepartmentListUi({
         document,
         getAssigneeGroups: () => ({ ...assigneeGroups }),
+        getAssigneeEmails: () => ({ ...(assigneeEmails || {}) }),
+        setAssigneeEmails: (next) => {
+            assigneeEmails = next && typeof next === "object" ? { ...next } : {};
+        },
         editingDepartment: () => editingDepartment,
         setEditingDepartment: (next) => {
             editingDepartment = next;
@@ -1880,6 +1911,10 @@ function renderEmployeesList() {
     renderEmployeesListUi({
         document,
         getAssigneeGroups: () => ({ ...assigneeGroups }),
+        getAssigneeEmails: () => ({ ...(assigneeEmails || {}) }),
+        setAssigneeEmails: (next) => {
+            assigneeEmails = next && typeof next === "object" ? { ...next } : {};
+        },
         editingEmployee: () => editingEmployee,
         setEditingEmployee: (next) => {
             editingEmployee = next;
@@ -1951,24 +1986,6 @@ const otpUi = createOtpModals({
 function openOtpModal() {
     otpUi.openOtpModal();
 }
-
-const assigneesUi = createAssigneesModal({
-    document,
-    showModal,
-    hideModal,
-    renderDepartmentList,
-    renderEmployeesList,
-    renderDepartmentSelect,
-    populateEmployees: renderDepartmentSelect,
-    saveAssigneeOptions: saveAssignees,
-    syncBalancesAfterAssignees: null,
-    getAssigneeGroups,
-    setAssigneeGroups,
-    setAssigneeOptions,
-    setEditingDepartment,
-    setEditingEmployee,
-    onOpenAttempt: () => requireAdminAccess(() => assigneesUi.openAssigneesModal()),
-});
 
 const adminUi = createAdminModals({
     document,
@@ -2351,10 +2368,16 @@ function initSettingsModals() {
     initSettingsModalsUi({
         document,
         requireAdminAccess,
-        assigneesUi,
         adminUi,
         initPasswordModal,
         openPasswordModal,
+        openCalendarAssignees: () => {
+            try {
+                ipcRenderer.send("pm-open-calendar-assignees");
+            } catch (err) {
+                showError("Apertura gestione dipendenti non disponibile.", err.message || String(err));
+            }
+        },
         UI_TEXTS,
     });
 }

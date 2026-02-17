@@ -90,7 +90,6 @@ const {
 } = bootRequire(path.join(fpUiDir, "calendar"));
 const { createAdminModals } = bootRequire(path.join(fpUiDir, "admin-modals"));
 const { createOtpModals } = bootRequire(path.join(fpUiDir, "otp-modals"));
-const { createAssigneesModal } = bootRequire(path.join(fpUiDir, "assignees-modal"));
 const { createSettingsModal } = bootRequire(path.join(fpUiDir, "settings-modal"));
 const { createGuideModal } = bootRequire(path.join(fpUiDir, "guide-modal"));
 const { createApprovalModal } = bootRequire(path.join(fpUiDir, "approval-modal"));
@@ -156,6 +155,7 @@ let lastNonListViewType = "dayGridMonth";
 let handlingListRedirect = false;
 let assigneeOptions = [];
 let assigneeGroups = {};
+let assigneeEmails = {};
 let editingDepartment = null;
 let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
@@ -372,6 +372,14 @@ function getApproverName(admin) {
     if (admin?.name) return admin.name;
     if (isAdminLoggedIn()) return adminSession.name || "";
     return "";
+}
+
+function getAssigneeEmailKey(group, name) {
+    return `${String(group || "").trim()}|${String(name || "").trim()}`;
+}
+
+function getAssigneeEmail(group, name) {
+    return String(assigneeEmails[getAssigneeEmailKey(group, name)] || "");
 }
 const exportUi = createExportController({
     document,
@@ -826,8 +834,6 @@ function lockAdminAreas() {
     if (manageModal) hideModal(manageModal);
     const daysModal = document.getElementById("fp-days-picker-modal");
     if (daysModal) hideModal(daysModal);
-    const assigneesModal = document.getElementById("fp-assignees-modal");
-    if (assigneesModal) hideModal(assigneesModal);
 }
 
 function setAdminSession(admin) {
@@ -1030,7 +1036,7 @@ const approvalUi = createApprovalModal({
         assigneesUnlocked = true;
         if (assigneesOpenPending) {
             assigneesOpenPending = false;
-            assigneesUi.openAssigneesModal();
+            ipcRenderer.send("open-assignees-manager-window");
         }
     },
     onManageAccess: (_admin) => {
@@ -1498,50 +1504,6 @@ function openInitialSetupWizard() {
     setupModal.dataset.fpSetupInit = "1";
     showModal(setupModal);
 }
-
-const assigneesUi = createAssigneesModal({
-    document,
-    showModal,
-    hideModal,
-    renderDepartmentList,
-    renderEmployeesList,
-    renderDepartmentSelect,
-    populateEmployees,
-    saveAssigneeOptions,
-    syncBalancesAfterAssignees,
-    getAssigneeGroups: () => assigneeGroups,
-    setAssigneeGroups: (next) => {
-        assigneeGroups = next;
-    },
-    setAssigneeOptions: (next) => {
-        assigneeOptions = next;
-    },
-    setEditingDepartment: (next) => {
-        editingDepartment = next;
-    },
-    setEditingEmployee: (next) => {
-        editingEmployee = next;
-    },
-    onOpenAttempt: () => {
-        if (!isAdminRequiredForManageAccess()) {
-            assigneesUi.openAssigneesModal();
-            return;
-        }
-        requireAdminAccess(() => {
-            if (assigneesUnlocked || manageUnlocked) {
-                assigneesUi.openAssigneesModal();
-                return;
-            }
-            assigneesOpenPending = true;
-            approvalUi.openPasswordModal({
-                type: "assignees-access",
-                id: "assignees-access",
-                title: "Gestione dipendenti",
-                description: UI_TEXTS.adminAccessDescription,
-            });
-        });
-    },
-});
 
 const settingsUi = createSettingsModal({
     document,
@@ -2095,11 +2057,21 @@ function renderDepartmentList() {
                 if (assigneeGroups[trimmed]) return;
                 assigneeGroups[trimmed] = assigneeGroups[group];
                 delete assigneeGroups[group];
+                const migratedEmails = { ...assigneeEmails };
+                (assigneeGroups[trimmed] || []).forEach((name) => {
+                    const oldKey = getAssigneeEmailKey(group, name);
+                    const newKey = getAssigneeEmailKey(trimmed, name);
+                    if (migratedEmails[oldKey]) {
+                        migratedEmails[newKey] = migratedEmails[oldKey];
+                        delete migratedEmails[oldKey];
+                    }
+                });
+                assigneeEmails = migratedEmails;
                 if (editingEmployee && editingEmployee.group === group) {
                     editingEmployee = { ...editingEmployee, group: trimmed };
                 }
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions(assigneeGroups);
+                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
                 syncBalancesAfterAssignees();
                 editingDepartment = null;
                 renderDepartmentList();
@@ -2139,9 +2111,15 @@ function renderDepartmentList() {
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", () => {
                 if (!window.confirm(`Rimuovere il reparto \"${group}\"?`)) return;
+                const list = Array.isArray(assigneeGroups[group]) ? [...assigneeGroups[group]] : [];
                 delete assigneeGroups[group];
+                const nextEmails = { ...assigneeEmails };
+                list.forEach((name) => {
+                    delete nextEmails[getAssigneeEmailKey(group, name)];
+                });
+                assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions(assigneeGroups);
+                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
                 syncBalancesAfterAssignees();
                 renderDepartmentList();
                 renderDepartmentSelect();
@@ -2180,12 +2158,13 @@ function renderEmployeesList() {
     });
     employees.forEach((employee) => {
         const row = document.createElement("div");
-        row.className = "fp-assignees-row";
+        row.className = "fp-assignees-row fp-assignees-row--employee";
 
         const actions = document.createElement("div");
         actions.className = "fp-assignees-row__actions";
 
         if (editingEmployee && editingEmployee.name === employee.name && editingEmployee.group === employee.group) {
+            row.classList.add("fp-assignees-row--employee-edit");
             const select = document.createElement("select");
             select.className = "fp-field__input";
             Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b)).forEach((group) => {
@@ -2199,6 +2178,11 @@ function renderEmployeesList() {
             const input = document.createElement("input");
             input.className = "fp-field__input";
             input.value = employee.name;
+            const emailInput = document.createElement("input");
+            emailInput.className = "fp-field__input";
+            emailInput.type = "email";
+            emailInput.placeholder = "Email (opzionale)";
+            emailInput.value = getAssigneeEmail(employee.group, employee.name);
             input.addEventListener("keydown", (event) => {
                 if (event.key === "Enter") {
                     event.preventDefault();
@@ -2213,14 +2197,21 @@ function renderEmployeesList() {
             save.addEventListener("click", () => {
                 const trimmedName = input.value.trim();
                 const trimmedGroup = select.value;
+                const trimmedEmail = emailInput.value.trim();
                 if (!trimmedName || !trimmedGroup) return;
                 assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
                 if (!assigneeGroups[trimmedGroup]) assigneeGroups[trimmedGroup] = [];
                 assigneeGroups[trimmedGroup].push(trimmedName);
                 assigneeGroups[trimmedGroup].sort((a, b) => a.localeCompare(b));
                 if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                const nextEmails = { ...assigneeEmails };
+                delete nextEmails[getAssigneeEmailKey(employee.group, employee.name)];
+                if (trimmedEmail) {
+                    nextEmails[getAssigneeEmailKey(trimmedGroup, trimmedName)] = trimmedEmail;
+                }
+                assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions(assigneeGroups);
+                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
                 syncBalancesAfterAssignees();
                 editingEmployee = null;
                 renderEmployeesList();
@@ -2240,11 +2231,15 @@ function renderEmployeesList() {
 
             row.appendChild(select);
             row.appendChild(input);
+            row.appendChild(emailInput);
             actions.appendChild(save);
             actions.appendChild(cancel);
         } else {
             const label = document.createElement("div");
-            label.textContent = `${employee.name} (${employee.group})`;
+            const mail = getAssigneeEmail(employee.group, employee.name);
+            label.textContent = mail
+                ? `${employee.name} (${employee.group}) - ${mail}`
+                : `${employee.name} (${employee.group})`;
 
             const edit = document.createElement("button");
             edit.type = "button";
@@ -2263,8 +2258,11 @@ function renderEmployeesList() {
                 if (!window.confirm(`Rimuovere \"${employee.name}\"?`)) return;
                 assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
                 if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                const nextEmails = { ...assigneeEmails };
+                delete nextEmails[getAssigneeEmailKey(employee.group, employee.name)];
+                assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions(assigneeGroups);
+                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
                 syncBalancesAfterAssignees();
                 renderEmployeesList();
                 renderDepartmentList();
@@ -2347,6 +2345,7 @@ function init() {
     const assigneesData = loadAssigneeOptions();
     assigneeOptions = assigneesData.options;
     assigneeGroups = assigneesData.groups;
+    assigneeEmails = assigneesData.emails || {};
     populateEmployees();
     calendar = initCalendar({
         document,
@@ -2495,7 +2494,6 @@ function init() {
 
     pendingUi.initPendingPanel();
 
-    assigneesUi.initAssigneesModal();
     holidaysUi.initHolidaysModal();
     closuresUi.initClosuresModal();
     initDaysPicker(holidaysUi, closuresUi);
@@ -2543,7 +2541,7 @@ function init() {
         manageAssignees.addEventListener("click", () => {
             requireAccess(isAdminRequiredForManageAccess(), () => {
                 if (manageModal) hideModal(manageModal);
-                assigneesUi.openAssigneesModal();
+                ipcRenderer.send("open-assignees-manager-window");
             });
         });
     }
@@ -3063,12 +3061,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 ipcRenderer.on("pm-open-calendar-assignees", () => {
-    const manageOpen = document.getElementById("fp-manage-open");
-    const manageAssignees = document.getElementById("fp-manage-assignees");
-    if (manageOpen) manageOpen.click();
-    setTimeout(() => {
-        if (manageAssignees) manageAssignees.click();
-    }, 80);
+    ipcRenderer.send("open-assignees-manager-window");
 });
 
 ipcRenderer.on("pm-open-calendar-admins", () => {

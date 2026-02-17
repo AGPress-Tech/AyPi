@@ -17,6 +17,8 @@ function renderDepartmentList(ctx) {
     const {
         document,
         getAssigneeGroups,
+        getAssigneeEmails,
+        setAssigneeEmails,
         editingDepartment,
         setEditingDepartment,
         setAssigneeGroups,
@@ -57,7 +59,18 @@ function renderDepartmentList(ctx) {
                 const employees = copy[group] || [];
                 delete copy[group];
                 copy[next] = employees;
+                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                const migrated = { ...emails };
+                employees.forEach((name) => {
+                    const oldKey = `${group}|${name}`;
+                    const newKey = `${next}|${name}`;
+                    if (migrated[oldKey]) {
+                        migrated[newKey] = migrated[oldKey];
+                        delete migrated[oldKey];
+                    }
+                });
                 setAssigneeGroups(copy);
+                if (typeof setAssigneeEmails === "function") setAssigneeEmails(migrated);
                 setEditingDepartment(null);
                 saveAssignees();
                 renderDepartmentList(ctx);
@@ -96,8 +109,15 @@ function renderDepartmentList(ctx) {
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", () => {
                 const copy = { ...getAssigneeGroups() };
+                const employees = Array.isArray(copy[group]) ? [...copy[group]] : [];
                 delete copy[group];
+                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                const cleaned = { ...emails };
+                employees.forEach((name) => {
+                    delete cleaned[`${group}|${name}`];
+                });
                 setAssigneeGroups(copy);
+                if (typeof setAssigneeEmails === "function") setAssigneeEmails(cleaned);
                 saveAssignees();
                 renderDepartmentList(ctx);
                 renderEmployeesList(ctx);
@@ -118,6 +138,8 @@ function renderEmployeesList(ctx) {
     const {
         document,
         getAssigneeGroups,
+        getAssigneeEmails,
+        setAssigneeEmails,
         editingEmployee,
         setEditingEmployee,
         saveAssignees,
@@ -139,15 +161,24 @@ function renderEmployeesList(ctx) {
 
     employees.forEach((employee) => {
         const row = document.createElement("div");
-        row.className = "fp-assignees-row";
+        row.className = "fp-assignees-row fp-assignees-row--employee";
         const actions = document.createElement("div");
         actions.className = "fp-assignees-row__actions";
+        const emailKey = `${employee.dept}|${employee.name}`;
+        const allEmails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+        const currentEmail = String(allEmails[emailKey] || "");
 
         const currentEditing = editingEmployee();
         if (currentEditing && currentEditing.name === employee.name && currentEditing.dept === employee.dept) {
+            row.classList.add("fp-assignees-row--employee-edit");
             const input = document.createElement("input");
             input.className = "fp-field__input";
             input.value = employee.name;
+            const emailInput = document.createElement("input");
+            emailInput.className = "fp-field__input";
+            emailInput.type = "email";
+            emailInput.placeholder = "Email (opzionale)";
+            emailInput.value = currentEmail;
 
             const deptSelect = document.createElement("select");
             deptSelect.className = "fp-field__input";
@@ -166,6 +197,7 @@ function renderEmployeesList(ctx) {
             save.addEventListener("click", () => {
                 const nextName = input.value.trim();
                 const nextDept = deptSelect.value;
+                const nextEmail = emailInput.value.trim();
                 if (!nextName) return;
                 const currentGroups = getAssigneeGroups();
                 const currentList = currentGroups[employee.dept] || [];
@@ -174,7 +206,11 @@ function renderEmployeesList(ctx) {
                 const nextList = nextGroups[nextDept] ? [...nextGroups[nextDept]] : [];
                 nextList.push(nextName);
                 nextGroups[nextDept] = nextList;
+                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                delete emails[`${employee.dept}|${employee.name}`];
+                if (nextEmail) emails[`${nextDept}|${nextName}`] = nextEmail;
                 setAssigneeGroups(nextGroups);
+                if (typeof setAssigneeEmails === "function") setAssigneeEmails(emails);
                 setEditingEmployee(null);
                 saveAssignees();
                 renderEmployeesList(ctx);
@@ -192,14 +228,19 @@ function renderEmployeesList(ctx) {
             });
 
             row.appendChild(input);
+            row.appendChild(emailInput);
             row.appendChild(deptSelect);
             actions.appendChild(save);
             actions.appendChild(cancel);
         } else {
+            const info = document.createElement("div");
+            info.className = "fp-assignees-employee-info";
             const name = document.createElement("div");
-            name.textContent = employee.name;
+            name.className = "fp-assignees-employee-name";
+            name.textContent = currentEmail ? `${employee.name} (${currentEmail})` : employee.name;
 
             const dept = document.createElement("div");
+            dept.className = "fp-assignees-employee-dept";
             dept.textContent = employee.dept;
 
             const edit = document.createElement("button");
@@ -220,15 +261,19 @@ function renderEmployeesList(ctx) {
                 const list = currentGroups[employee.dept] || [];
                 const nextGroups = { ...currentGroups };
                 nextGroups[employee.dept] = list.filter((name) => name !== employee.name);
+                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                delete emails[`${employee.dept}|${employee.name}`];
                 setAssigneeGroups(nextGroups);
+                if (typeof setAssigneeEmails === "function") setAssigneeEmails(emails);
                 saveAssignees();
                 renderEmployeesList(ctx);
                 renderDepartmentSelect(ctx);
                 renderLoginSelectors();
             });
 
-            row.appendChild(name);
-            row.appendChild(dept);
+            info.appendChild(name);
+            info.appendChild(dept);
+            row.appendChild(info);
             actions.appendChild(edit);
             actions.appendChild(remove);
         }

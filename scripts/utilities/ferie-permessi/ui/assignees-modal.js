@@ -12,6 +12,8 @@ function createAssigneesModal(options) {
         getAssigneeGroups,
         setAssigneeGroups,
         setAssigneeOptions,
+        getAssigneeEmails,
+        setAssigneeEmails,
         setEditingDepartment,
         setEditingEmployee,
         onOpenAttempt,
@@ -25,10 +27,12 @@ function createAssigneesModal(options) {
         const assigneesModal = document.getElementById("fp-assignees-modal");
         const departmentInput = document.getElementById("fp-department-name");
         const employeeNameInput = document.getElementById("fp-employee-name");
+        const employeeEmailInput = document.getElementById("fp-employee-email");
         if (!assigneesModal) return;
         hideModal(assigneesModal);
         if (departmentInput) departmentInput.value = "";
         if (employeeNameInput) employeeNameInput.value = "";
+        if (employeeEmailInput) employeeEmailInput.value = "";
         setEditingDepartment(null);
         setEditingEmployee(null);
         renderDepartmentList();
@@ -54,6 +58,7 @@ function createAssigneesModal(options) {
         const departmentInput = document.getElementById("fp-department-name");
         const departmentAdd = document.getElementById("fp-department-add");
         const employeeNameInput = document.getElementById("fp-employee-name");
+        const employeeEmailInput = document.getElementById("fp-employee-email");
         const employeeAdd = document.getElementById("fp-employee-add");
 
         if (assigneesManage && assigneesModal) {
@@ -86,7 +91,10 @@ function createAssigneesModal(options) {
                 assigneeGroups[name] = [];
                 setAssigneeGroups(assigneeGroups);
                 setAssigneeOptions(Object.values(assigneeGroups).flat());
-                saveAssigneeOptions(assigneeGroups);
+                saveAssigneeOptions({
+                    groups: assigneeGroups,
+                    emails: typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {},
+                });
                 if (typeof syncBalancesAfterAssignees === "function") {
                     syncBalancesAfterAssignees();
                 }
@@ -102,6 +110,7 @@ function createAssigneesModal(options) {
                 const select = document.getElementById("fp-employee-department");
                 const department = select ? select.value : "";
                 const name = employeeNameInput ? employeeNameInput.value.trim() : "";
+                const email = employeeEmailInput ? employeeEmailInput.value.trim() : "";
                 if (!department || !name) return;
                 const assigneeGroups = getAssigneeGroups();
                 if (!assigneeGroups[department]) assigneeGroups[department] = [];
@@ -109,15 +118,26 @@ function createAssigneesModal(options) {
                     assigneeGroups[department].push(name);
                     assigneeGroups[department].sort((a, b) => a.localeCompare(b));
                 }
+                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                if (typeof setAssigneeEmails === "function") {
+                    const key = `${department}|${name}`;
+                    if (email) emails[key] = email;
+                    else delete emails[key];
+                    setAssigneeEmails(emails);
+                }
                 setAssigneeGroups(assigneeGroups);
                 setAssigneeOptions(Object.values(assigneeGroups).flat());
-                saveAssigneeOptions(assigneeGroups);
+                saveAssigneeOptions({
+                    groups: assigneeGroups,
+                    emails: typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {},
+                });
                 if (typeof syncBalancesAfterAssignees === "function") {
                     syncBalancesAfterAssignees();
                 }
                 renderEmployeesList();
                 populateEmployees();
                 if (employeeNameInput) employeeNameInput.value = "";
+                if (employeeEmailInput) employeeEmailInput.value = "";
             });
         }
     }

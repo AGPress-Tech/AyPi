@@ -320,8 +320,24 @@ function showWindow(win) {
     win.focus();
 }
 
+function hasAnyProductOrTicketWindow() {
+    return [
+        productManagerWindow,
+        productManagerCartWindow,
+        productManagerInterventionsWindow,
+        ticketSupportWindow,
+        ticketSupportAdminWindow,
+    ].some((win) => isWindowAlive(win));
+}
+
 function broadcastProductManagerSession(payload) {
-    [productManagerWindow, productManagerCartWindow, productManagerInterventionsWindow].forEach((win) => {
+    [
+        productManagerWindow,
+        productManagerCartWindow,
+        productManagerInterventionsWindow,
+        ticketSupportWindow,
+        ticketSupportAdminWindow,
+    ].forEach((win) => {
         if (isWindowAlive(win)) {
             win.webContents.send("pm-session-updated", payload || null);
         }
@@ -673,6 +689,9 @@ let feriePermessiHoursWindow = null;
 let productManagerWindow = null;
 let productManagerCartWindow = null;
 let productManagerInterventionsWindow = null;
+let ticketSupportWindow = null;
+let ticketSupportAdminWindow = null;
+let assigneesManagerWindow = null;
 let productManagerSession = null;
 let productManagerForceLogout = false;
 let feriePermessiSplashShown = false;
@@ -867,7 +886,7 @@ function openProductManagerWindow(mainWindow) {
         showWindow(productManagerWindow);
         return;
     }
-    if (!isWindowAlive(productManagerCartWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
+    if (!hasAnyProductOrTicketWindow()) {
         productManagerSession = null;
         productManagerForceLogout = true;
     }
@@ -904,7 +923,7 @@ function openProductManagerWindow(mainWindow) {
 
     productManagerWindow.on("closed", () => {
         productManagerWindow = null;
-        if (!isWindowAlive(productManagerCartWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
+        if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
         }
@@ -917,7 +936,7 @@ function openProductManagerCartWindow(mainWindow) {
         showWindow(productManagerCartWindow);
         return;
     }
-    if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
+    if (!hasAnyProductOrTicketWindow()) {
         productManagerSession = null;
         productManagerForceLogout = true;
     }
@@ -952,7 +971,7 @@ function openProductManagerCartWindow(mainWindow) {
 
     productManagerCartWindow.on("closed", () => {
         productManagerCartWindow = null;
-        if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerInterventionsWindow)) {
+        if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
         }
@@ -966,7 +985,7 @@ function openProductManagerInterventionsWindow(mainWindow) {
         showWindow(productManagerInterventionsWindow);
         return;
     }
-    if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerCartWindow)) {
+    if (!hasAnyProductOrTicketWindow()) {
         productManagerSession = null;
         productManagerForceLogout = true;
     }
@@ -1001,7 +1020,7 @@ function openProductManagerInterventionsWindow(mainWindow) {
 
     productManagerInterventionsWindow.on("closed", () => {
         productManagerInterventionsWindow = null;
-        if (!isWindowAlive(productManagerWindow) && !isWindowAlive(productManagerCartWindow)) {
+        if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
         }
@@ -1037,6 +1056,145 @@ function openFeriePermessiHoursWindow(mainWindow) {
     feriePermessiHoursWindow.on("closed", () => {
         feriePermessiHoursWindow = null;
         showMainWindow(mainWindow);
+    });
+}
+
+function openTicketSupportWindow(mainWindow) {
+    if (isWindowAlive(ticketSupportWindow)) {
+        ticketSupportWindow.reload();
+        showWindow(ticketSupportWindow);
+        return;
+    }
+
+    if (!hasAnyProductOrTicketWindow()) {
+        productManagerSession = null;
+        productManagerForceLogout = true;
+    }
+
+    ticketSupportWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f4f7fb",
+    });
+
+    ticketSupportWindow.maximize();
+    ticketSupportWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "ticket-support.html")
+    );
+    ticketSupportWindow.setMenu(null);
+
+    ticketSupportWindow.once("ready-to-show", () => {
+        if (!ticketSupportWindow.isDestroyed()) {
+            ticketSupportWindow.show();
+        }
+    });
+
+    ticketSupportWindow.webContents.once("did-finish-load", () => {
+        if (!ticketSupportWindow.isDestroyed()) {
+            ticketSupportWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            productManagerForceLogout = false;
+        }
+    });
+
+    ticketSupportWindow.on("closed", () => {
+        ticketSupportWindow = null;
+        if (!hasAnyProductOrTicketWindow()) {
+            productManagerSession = null;
+            productManagerForceLogout = true;
+        }
+        if (isWindowAlive(ticketSupportAdminWindow)) {
+            showWindow(ticketSupportAdminWindow);
+        }
+    });
+}
+
+function openTicketSupportAdminWindow(mainWindow) {
+    if (isWindowAlive(ticketSupportAdminWindow)) {
+        ticketSupportAdminWindow.reload();
+        showWindow(ticketSupportAdminWindow);
+        return;
+    }
+
+    if (!hasAnyProductOrTicketWindow()) {
+        productManagerSession = null;
+        productManagerForceLogout = true;
+    }
+
+    ticketSupportAdminWindow = new BrowserWindow({
+        width: 1280,
+        height: 840,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f6f8fc",
+    });
+
+    ticketSupportAdminWindow.maximize();
+    ticketSupportAdminWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "ticket-support-admin.html"),
+        { query: { tsView: "admin" } }
+    );
+    ticketSupportAdminWindow.setMenu(null);
+
+    ticketSupportAdminWindow.once("ready-to-show", () => {
+        if (!ticketSupportAdminWindow.isDestroyed()) {
+            ticketSupportAdminWindow.show();
+        }
+    });
+
+    ticketSupportAdminWindow.webContents.once("did-finish-load", () => {
+        if (!ticketSupportAdminWindow.isDestroyed()) {
+            ticketSupportAdminWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            productManagerForceLogout = false;
+        }
+    });
+
+    ticketSupportAdminWindow.on("closed", () => {
+        ticketSupportAdminWindow = null;
+        if (!hasAnyProductOrTicketWindow()) {
+            productManagerSession = null;
+            productManagerForceLogout = true;
+        }
+        if (isWindowAlive(ticketSupportWindow)) {
+            showWindow(ticketSupportWindow);
+        } else {
+            openTicketSupportWindow(mainWindow);
+        }
+    });
+}
+
+function openAssigneesManagerWindow(mainWindow) {
+    if (isWindowAlive(assigneesManagerWindow)) {
+        showWindow(assigneesManagerWindow);
+        return;
+    }
+
+    assigneesManagerWindow = new BrowserWindow({
+        width: 1040,
+        height: 760,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f5f7fb",
+    });
+
+    assigneesManagerWindow.maximize();
+    assigneesManagerWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "assignees-manager.html")
+    );
+    assigneesManagerWindow.setMenu(null);
+
+    assigneesManagerWindow.once("ready-to-show", () => {
+        if (!assigneesManagerWindow.isDestroyed()) {
+            showWindow(assigneesManagerWindow);
+        }
+    });
+
+    assigneesManagerWindow.on("closed", () => {
+        assigneesManagerWindow = null;
     });
 }
 
@@ -1448,11 +1606,20 @@ function setupFileManager(mainWindow) {
           return { ok: true };
       });
 
+      ipcMain.on("open-ticket-support-window", () => {
+          openTicketSupportWindow(mainWindow);
+      });
+
+      ipcMain.on("open-ticket-support-admin-window", () => {
+          openTicketSupportAdminWindow(mainWindow);
+      });
+
+      ipcMain.on("open-assignees-manager-window", () => {
+          openAssigneesManagerWindow(mainWindow);
+      });
+
       ipcMain.on("pm-open-calendar-assignees", () => {
-          openFeriePermessiWindow(mainWindow);
-          if (feriePermessiWindow && !feriePermessiWindow.isDestroyed()) {
-              feriePermessiWindow.webContents.send("pm-open-calendar-assignees");
-          }
+          openAssigneesManagerWindow(mainWindow);
       });
 
       ipcMain.on("pm-open-calendar-admins", () => {

@@ -2,10 +2,10 @@ function initSettingsModals(ctx) {
     const {
         document,
         requireAdminAccess,
-        assigneesUi,
         adminUi,
         initPasswordModal,
         openPasswordModal,
+        openCalendarAssignees,
         UI_TEXTS,
     } = ctx;
 
@@ -64,7 +64,11 @@ function initSettingsModals(ctx) {
         assigneesOpen.addEventListener("click", () => {
             const modal = document.getElementById("pm-settings-modal");
             if (modal) modal.classList.add("is-hidden");
-            requireAdminAccess(() => assigneesUi.openAssigneesModal());
+            requireAdminAccess(() => {
+                if (typeof openCalendarAssignees === "function") {
+                    openCalendarAssignees();
+                }
+            });
         });
     }
 
@@ -85,7 +89,6 @@ function initSettingsModals(ctx) {
     }
 
     adminUi.initAdminModals();
-    assigneesUi.initAssigneesModal();
     initPasswordModal();
 }
 

@@ -175,7 +175,9 @@ function countClosureDaysForMonth(closures, holidays, monthKey, cutoffDate) {
 }
 
 function getEmployeeKey(employee, department) {
-    const name = (employee || "").trim();
+    const name = typeof employee === "string"
+        ? employee.trim()
+        : (employee && typeof employee === "object" ? String(employee.name || "").trim() : "");
     const dept = (department || "").trim();
     if (!name && !dept) return null;
     return `${dept}|${name}`;
@@ -186,7 +188,10 @@ function listEmployees(assigneeGroups) {
     const groups = assigneeGroups || {};
     Object.keys(groups).forEach((department) => {
         const employees = Array.isArray(groups[department]) ? groups[department] : [];
-        employees.forEach((employee) => {
+        employees.forEach((employeeEntry) => {
+            const employee = typeof employeeEntry === "string"
+                ? employeeEntry
+                : String(employeeEntry?.name || "");
             const key = getEmployeeKey(employee, department);
             if (!key) return;
             rows.push({ key, employee, department });

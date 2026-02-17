@@ -1,0 +1,204 @@
+.pm-body {
+    display: grid;
+    grid-template-columns: minmax(320px, 40%) minmax(420px, 60%);
+    gap: 16px;
+}
+
+body.ts-view-form #ts-list-section {
+    display: block;
+}
+
+body.ts-view-admin #ts-form-section {
+    display: none;
+}
+
+body.ts-view-admin .pm-body {
+    grid-template-columns: minmax(720px, 1fr);
+}
+
+.ts-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ts-field-full {
+    grid-column: 1 / -1;
+}
+
+.ts-detail {
+    white-space: pre-wrap;
+    line-height: 1.45;
+    font-size: 14px;
+}
+
+.ts-kpi {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.ts-kpi-card {
+    border: 1px solid rgba(120, 140, 165, 0.35);
+    border-radius: 10px;
+    padding: 10px;
+    background: rgba(240, 246, 255, 0.45);
+}
+
+.ts-kpi-label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.ts-kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.ts-analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.ts-analysis-grid h3 {
+    margin: 0 0 8px;
+    font-size: 14px;
+}
+
+.ts-metric-row {
+    display: grid;
+    grid-template-columns: 1fr 42px;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.ts-metric-bar {
+    position: relative;
+    height: 22px;
+    border-radius: 7px;
+    background: rgba(98, 130, 164, 0.18);
+    overflow: hidden;
+}
+
+.ts-metric-fill {
+    display: block;
+    height: 100%;
+    border-radius: 7px;
+    background: linear-gradient(90deg, #587ca4, #86a9d3);
+}
+
+.ts-metric-name {
+    position: absolute;
+    left: 7px;
+    top: 3px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ts-table-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ts-icon-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ts-icon-btn .material-icons {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.ts-table-meta {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.ts-hidden {
+    display: none;
+}
+
+.ts-operator-list {
+    display: grid;
+    gap: 10px;
+}
+
+.ts-ticket-card {
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.ts-ticket-card__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.ts-ticket-card__title {
+    font-weight: 700;
+}
+
+.ts-ticket-card__status {
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(80, 120, 165, 0.15);
+}
+
+.ts-ticket-card__meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.ts-ticket-card__desc {
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+}
+
+.ts-ticket-card__actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ts-admin-list-card {
+    width: min(1400px, 96vw);
+    max-height: 88vh;
+    overflow: auto;
+}
+
+#ts-admin-table.pm-table--interventions {
+    grid-template-columns: 0.8fr 1.3fr 1fr 1.1fr 1fr 0.9fr 0.9fr 1.8fr 1.4fr;
+}
+
+@media (max-width: 1000px) {
+    .pm-body,
+    .ts-form-grid,
+    .ts-analysis-grid,
+    .ts-kpi {
+        grid-template-columns: 1fr;
+    }
+
+    #ts-admin-table.pm-table--interventions {
+        grid-template-columns: 0.8fr 1.2fr 1fr 1fr 1fr 0.9fr 0.9fr 1.6fr 1.3fr;
+    }
+}

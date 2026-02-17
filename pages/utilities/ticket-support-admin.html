@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Lista Ticket</title>
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/ticket-support-style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+</head>
+
+<body class="pm-ready ts-view-admin" data-pm-list-mode="intervention">
+    <div class="pm-page">
+        <header class="pm-header">
+            <div class="pm-header__title">
+                <h1>Lista Ticket</h1>
+                <div class="pm-header__subtitle">Vista completa admin</div>
+                <div id="ts-role-label" class="pm-header__subtitle">Ruolo attivo: Guest</div>
+            </div>
+            <div class="pm-header__actions">
+                <button type="button" class="pm-btn" id="ts-refresh">Aggiorna</button>
+                <button type="button" class="pm-btn" id="pm-login-toggle">Login</button>
+            </div>
+        </header>
+
+        <main class="pm-body">
+            <section class="pm-list" id="ts-list-section">
+                <div class="pm-card">
+                    <h2>Lista Ticket</h2>
+                    <div class="pm-cart-toolbar">
+                        <div class="pm-field">
+                            <label for="ts-admin-filter-search">Ricerca</label>
+                            <input type="text" id="ts-admin-filter-search" placeholder="ID, descrizione, ambito, dipendente...">
+                        </div>
+                        <div class="pm-field">
+                            <label for="ts-admin-filter-status">Stato</label>
+                            <select id="ts-admin-filter-status">
+                                <option value="">Tutti</option>
+                                <option value="Da prendere in carico">Da prendere in carico</option>
+                                <option value="Presa in carico">Presa in carico</option>
+                                <option value="In Attesa">In Attesa</option>
+                                <option value="Risolto">Risolto</option>
+                                <option value="Chiuso">Chiuso</option>
+                            </select>
+                        </div>
+                        <div class="pm-field">
+                            <label for="ts-admin-filter-area">Ambito</label>
+                            <select id="ts-admin-filter-area">
+                                <option value="">Tutti</option>
+                                <option value="Mail">Mail</option>
+                                <option value="MES">MES</option>
+                                <option value="Gestionale">Gestionale</option>
+                                <option value="Hardware">Hardware</option>
+                                <option value="Rete">Rete</option>
+                                <option value="Altro">Altro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="ts-admin-table" class="pm-table pm-table--interventions"></div>
+                    <div id="ts-admin-message" class="pm-message is-hidden"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-login-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-login-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-login-title">Accedi</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-login-close">Chiudi</button>
+            </div>
+            <div class="pm-login-choice">
+                <button type="button" class="pm-btn" id="pm-login-choice-employee">Dipendente</button>
+                <button type="button" class="pm-btn" id="pm-login-choice-admin">Admin</button>
+            </div>
+            <div class="pm-login-panel" id="pm-login-employee-panel">
+                <div class="pm-field">
+                    <label for="pm-login-department">Reparto</label>
+                    <select id="pm-login-department"></select>
+                </div>
+                <div class="pm-field">
+                    <label for="pm-login-employee-name">Dipendente</label>
+                    <select id="pm-login-employee-name"></select>
+                </div>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-login-employee-confirm">Entra</button>
+            </div>
+            <div class="pm-login-panel is-hidden" id="pm-login-admin-panel">
+                <div class="pm-field">
+                    <label for="pm-login-admin-name">Admin</label>
+                    <select id="pm-login-admin-name"></select>
+                </div>
+                <div class="pm-field">
+                    <label for="pm-login-admin-password">Password</label>
+                    <input type="password" id="pm-login-admin-password" placeholder="Password" autocomplete="off">
+                </div>
+                <div id="pm-login-admin-error" class="pm-message pm-message--error is-hidden">Password errata.</div>
+                <button type="button" class="fp-link-btn is-hidden" id="pm-login-admin-recover">Recupero password?</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-login-admin-confirm">Entra</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-logout-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-logout-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-logout-title">Logout</h3>
+            </div>
+            <p>Vuoi uscire dalla sessione corrente?</p>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-logout-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-logout-confirm">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="ts-status-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="ts-status-title">
+            <div class="pm-modal__header">
+                <h3 id="ts-status-title">Cambia stato ticket</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-status-close">Chiudi</button>
+            </div>
+            <div class="pm-field">
+                <label for="ts-status-select">Nuovo stato</label>
+                <select id="ts-status-select">
+                    <option value="Da prendere in carico">Da prendere in carico</option>
+                    <option value="Presa in carico">Presa in carico</option>
+                    <option value="In Attesa">In Attesa</option>
+                    <option value="Risolto">Risolto</option>
+                    <option value="Chiuso">Chiuso</option>
+                </select>
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-status-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="ts-status-save">Salva</button>
+            </div>
+            <div id="ts-status-message" class="pm-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="ts-edit-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="ts-edit-title">
+            <div class="pm-modal__header">
+                <h3 id="ts-edit-title">Modifica Ticket</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-edit-close">Chiudi</button>
+            </div>
+            <div class="pm-field">
+                <label for="ts-edit-type">Tipo intervento</label>
+                <select id="ts-edit-type">
+                    <option value="Assistenza">Assistenza</option>
+                    <option value="Bug">Bug</option>
+                    <option value="Richiesta nuova funzione">Richiesta nuova funzione</option>
+                    <option value="Altro">Altro</option>
+                </select>
+            </div>
+            <div class="pm-field">
+                <label for="ts-edit-area">Ambito</label>
+                <select id="ts-edit-area">
+                    <option value="Mail">Mail</option>
+                    <option value="MES">MES</option>
+                    <option value="Gestionale">Gestionale</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Rete">Rete</option>
+                    <option value="Altro">Altro</option>
+                </select>
+            </div>
+            <div class="pm-field">
+                <label for="ts-edit-priority">Priorita</label>
+                <select id="ts-edit-priority">
+                    <option value="Bassa">Bassa</option>
+                    <option value="Media">Media</option>
+                    <option value="Alta">Alta</option>
+                    <option value="Urgente">Urgente</option>
+                </select>
+            </div>
+            <div class="pm-field">
+                <label for="ts-edit-description">Descrizione</label>
+                <textarea id="ts-edit-description" rows="4"></textarea>
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-edit-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="ts-edit-save">Salva</button>
+            </div>
+            <div id="ts-edit-message" class="pm-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-otp-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-otp-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-otp-title">Recupero password</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack">
+                <input class="fp-field__input" id="fp-otp-admin-name" type="text" placeholder="Nome e cognome admin">
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-send">Invia OTP via email</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-verify-section">
+                <input class="fp-field__input" id="fp-otp-code" type="text" placeholder="Codice OTP">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-resend">Invia di nuovo OTP</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-verify">Verifica OTP</button>
+                </div>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-reset-section">
+                <input class="fp-field__input" id="fp-otp-new" type="password" placeholder="Nuova password">
+                <input class="fp-field__input" id="fp-otp-new-confirm" type="password" placeholder="Conferma nuova password">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-reset">Aggiorna password</button>
+                </div>
+            </div>
+            <div id="fp-otp-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            try {
+                var path = require("path");
+                var scriptPath = path.join(__dirname, "..", "..", "scripts", "utilities", "ticket-support-scripts.js");
+                require(scriptPath);
+            } catch (err) {
+                try {
+                    var ipcRenderer = require("electron").ipcRenderer;
+                    if (ipcRenderer) {
+                        ipcRenderer.invoke("show-message-box", {
+                            type: "error",
+                            message: "Errore Ticket Support Admin",
+                            detail: err && err.message ? err.message : String(err),
+                        });
+                    }
+                } catch (_innerErr) { }
+            }
+        })();
+    </script>
+</body>
+
+</html>

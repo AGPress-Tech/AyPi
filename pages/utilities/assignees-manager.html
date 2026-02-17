@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Gestione dipendenti</title>
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/assignees-manager-style.css">
+</head>
+<body>
+    <div class="am-page">
+        <header class="am-header">
+            <div>
+                <h1>Gestione dipendenti</h1>
+                <p>Modulo condiviso Calendar/Purchasing</p>
+            </div>
+            <div class="am-actions">
+                <button type="button" class="fp-btn" id="am-refresh">Aggiorna</button>
+                <button type="button" class="fp-btn fp-btn--ghost" id="am-close">Chiudi</button>
+            </div>
+        </header>
+
+        <main class="am-main">
+            <section class="fp-modal__card fp-modal__card--tech fp-assignees-card am-card" role="region" aria-label="Gestione dipendenti">
+                <div class="fp-assignees-section">
+                    <div class="fp-assignees-subtitle">Reparti</div>
+                    <div class="fp-assignees-grid" id="fp-departments-list"></div>
+                    <div class="fp-assignees-form">
+                        <input class="fp-field__input" id="fp-department-name" type="text" placeholder="Nuovo reparto">
+                        <button type="button" class="fp-btn fp-btn--primary" id="fp-department-add">+</button>
+                    </div>
+                </div>
+
+                <div class="fp-assignees-section">
+                    <div class="fp-assignees-subtitle">Operatori</div>
+                    <div class="fp-assignees-grid" id="fp-employees-list"></div>
+                    <div class="fp-assignees-form fp-assignees-form--employee">
+                        <select class="fp-field__input" id="fp-employee-department"></select>
+                        <input class="fp-field__input" id="fp-employee-name" type="text" placeholder="Nome e cognome">
+                        <input class="fp-field__input" id="fp-employee-email" type="email" placeholder="Email (opzionale)">
+                        <button type="button" class="fp-btn fp-btn--primary" id="fp-employee-add">+</button>
+                    </div>
+                </div>
+
+                <div id="am-message" class="fp-message is-hidden"></div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        (function () {
+            try {
+                var path = require("path");
+                var scriptPath = path.join(__dirname, "..", "..", "scripts", "utilities", "assignees-manager-scripts.js");
+                require(scriptPath);
+            } catch (err) {
+                try {
+                    var ipcRenderer = require("electron").ipcRenderer;
+                    if (ipcRenderer) {
+                        ipcRenderer.invoke("show-message-box", {
+                            type: "error",
+                            message: "Errore Gestione Dipendenti",
+                            detail: err && err.message ? err.message : String(err),
+                        });
+                    }
+                } catch (_innerErr) {}
+            }
+        })();
+    </script>
+</body>
+</html>
