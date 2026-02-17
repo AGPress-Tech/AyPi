@@ -3,8 +3,11 @@ const fs = require("fs");
 const path = require("path");
 
 let gantt = window.gantt;
-const DATA_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-obiettivi.json";
-const ASSIGNEES_PATH = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
+const ROOT_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
+const DATA_PATH = path.join(ROOT_DIR, "AyPi Gantt", "amministrazione-obiettivi.json");
+const LEGACY_DATA_PATH = path.join(ROOT_DIR, "amministrazione-obiettivi.json");
+const ASSIGNEES_PATH = path.join(ROOT_DIR, "General", "amministrazione-assignees.json");
+const LEGACY_ASSIGNEES_PATH = path.join(ROOT_DIR, "amministrazione-assignees.json");
 const sharedBaseDir = path.join(__dirname, "..", "..", "scripts", "utilities", "shared");
 const bootRequire = (modulePath) => {
     try {
@@ -53,6 +56,9 @@ function resolveGantt() {
 
 const { loadAssigneeOptions, saveAssigneeOptions } = createAssigneesStore({
     assigneesPath: ASSIGNEES_PATH,
+    assigneesLegacyPath: LEGACY_ASSIGNEES_PATH,
+    assigneesReadPaths: [ASSIGNEES_PATH, LEGACY_ASSIGNEES_PATH],
+    assigneesWritePaths: [ASSIGNEES_PATH, LEGACY_ASSIGNEES_PATH],
     showDialog,
     createIfMissing: true,
 });
@@ -550,10 +556,11 @@ function normalizePayload(payload) {
 
 function loadData() {
     try {
-        if (!fs.existsSync(DATA_PATH)) {
+        const target = [DATA_PATH, LEGACY_DATA_PATH].find((item) => fs.existsSync(item));
+        if (!target) {
             return { data: [], links: [] };
         }
-        const raw = fs.readFileSync(DATA_PATH, "utf8");
+        const raw = fs.readFileSync(target, "utf8");
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
             return { data: [], links: [] };
@@ -570,7 +577,11 @@ function saveData() {
     try {
         ensureDataFolder();
         const payload = normalizePayload(gantt.serialize());
-        fs.writeFileSync(DATA_PATH, JSON.stringify(payload, null, 2), "utf8");
+        [DATA_PATH, LEGACY_DATA_PATH].forEach((targetPath) => {
+            const dir = path.dirname(targetPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(targetPath, JSON.stringify(payload, null, 2), "utf8");
+        });
     } catch (err) {
         console.error("Errore salvataggio dati:", err);
         showDialog("warning", "Impossibile salvare i dati sul server.", err.message || String(err));

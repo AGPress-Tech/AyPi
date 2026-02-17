@@ -67,6 +67,9 @@ function normalizeAssigneesPayload(parsed) {
 function createAssigneesStore(options) {
     const {
         assigneesPath,
+        assigneesLegacyPath,
+        assigneesReadPaths,
+        assigneesWritePaths,
         showDialog,
         readErrorMessage,
         writeErrorMessage,
@@ -74,9 +77,16 @@ function createAssigneesStore(options) {
         ensureFolderFor = ensureFolderForPath,
     } = options || {};
 
-    if (!assigneesPath) {
+    if (!assigneesPath && !assigneesReadPaths && !assigneesWritePaths) {
         throw new Error("assigneesPath richiesto.");
     }
+
+    const readPaths = (Array.isArray(assigneesReadPaths) ? assigneesReadPaths : [assigneesPath, assigneesLegacyPath])
+        .filter((item) => typeof item === "string" && item.trim())
+        .map((item) => item.trim());
+    const writePaths = (Array.isArray(assigneesWritePaths) ? assigneesWritePaths : [assigneesPath, assigneesLegacyPath])
+        .filter((item) => typeof item === "string" && item.trim())
+        .map((item) => item.trim());
 
     const notify = (type, message, detail) => {
         if (typeof showDialog === "function") {
@@ -86,14 +96,18 @@ function createAssigneesStore(options) {
 
     function loadAssigneeOptions() {
         try {
-            if (!fs.existsSync(assigneesPath)) {
+            const target = readPaths.find((item) => fs.existsSync(item));
+            if (!target) {
                 if (createIfMissing) {
-                    ensureFolderFor(assigneesPath);
-                    fs.writeFileSync(assigneesPath, JSON.stringify({}, null, 2), "utf8");
+                    const firstWrite = writePaths[0] || readPaths[0];
+                    if (firstWrite) {
+                        ensureFolderFor(firstWrite);
+                        fs.writeFileSync(firstWrite, JSON.stringify({}, null, 2), "utf8");
+                    }
                 }
                 return { groups: {}, options: [], emails: {} };
             }
-            const raw = fs.readFileSync(assigneesPath, "utf8");
+            const raw = fs.readFileSync(target, "utf8");
             const parsed = JSON.parse(raw);
             return normalizeAssigneesPayload(parsed);
         } catch (err) {
@@ -109,7 +123,6 @@ function createAssigneesStore(options) {
 
     function saveAssigneeOptions(payloadOrGroups) {
         try {
-            ensureFolderFor(assigneesPath);
             let groups = payloadOrGroups;
             let emails = {};
             if (payloadOrGroups && typeof payloadOrGroups === "object" && payloadOrGroups.groups) {
@@ -120,11 +133,11 @@ function createAssigneesStore(options) {
             }
             const safeGroups = groups && typeof groups === "object" ? groups : {};
             const safeEmails = emails && typeof emails === "object" ? emails : {};
-            fs.writeFileSync(
-                assigneesPath,
-                JSON.stringify({ groups: safeGroups, emails: safeEmails }, null, 2),
-                "utf8"
-            );
+            const payload = JSON.stringify({ groups: safeGroups, emails: safeEmails }, null, 2);
+            writePaths.forEach((targetPath) => {
+                ensureFolderFor(targetPath);
+                fs.writeFileSync(targetPath, payload, "utf8");
+            });
         } catch (err) {
             console.error("Errore salvataggio assignees:", err);
             notify(

@@ -1,6 +1,10 @@
 const fs = require("fs");
 
-const { OTP_MAIL_SERVER_PATH, OTP_MAIL_LOCAL_PATH } = require("../config/paths");
+const {
+    OTP_MAIL_SERVER_PATH,
+    LEGACY_OTP_MAIL_SERVER_PATH,
+    OTP_MAIL_LOCAL_PATH,
+} = require("../config/paths");
 
 let nodemailer;
 let nodemailerError = null;
@@ -20,9 +24,10 @@ function getMailerError() {
 }
 
 function loadMailConfig() {
-    const configPath = fs.existsSync(OTP_MAIL_SERVER_PATH) ? OTP_MAIL_SERVER_PATH : OTP_MAIL_LOCAL_PATH;
-    if (!fs.existsSync(configPath)) {
-        throw new Error(`Config mail non trovata. Percorsi verificati: ${OTP_MAIL_SERVER_PATH}, ${OTP_MAIL_LOCAL_PATH}`);
+    const configPath = [OTP_MAIL_SERVER_PATH, LEGACY_OTP_MAIL_SERVER_PATH, OTP_MAIL_LOCAL_PATH]
+        .find((item) => item && fs.existsSync(item));
+    if (!configPath || !fs.existsSync(configPath)) {
+        throw new Error(`Config mail non trovata. Percorsi verificati: ${OTP_MAIL_SERVER_PATH}, ${LEGACY_OTP_MAIL_SERVER_PATH}, ${OTP_MAIL_LOCAL_PATH}`);
     }
     try {
         let raw = fs.readFileSync(configPath, "utf8");
@@ -73,7 +78,13 @@ function normalizeMailConfig(payload) {
 
 function saveMailConfig(payload, destinationPath = OTP_MAIL_SERVER_PATH) {
     const config = normalizeMailConfig(payload);
-    fs.writeFileSync(destinationPath, JSON.stringify(config, null, 2), "utf8");
+    const targets = [destinationPath, LEGACY_OTP_MAIL_SERVER_PATH]
+        .filter((item) => typeof item === "string" && item.trim());
+    targets.forEach((targetPath) => {
+        const dir = require("path").dirname(targetPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(targetPath, JSON.stringify(config, null, 2), "utf8");
+    });
     return { config, path: destinationPath };
 }
 

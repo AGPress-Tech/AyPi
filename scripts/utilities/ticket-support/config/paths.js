@@ -27,13 +27,15 @@ function resolveBaseDir() {
 }
 
 const BASE_DIR = resolveBaseDir();
-const TICKET_DIR = path.join(BASE_DIR, "ticket");
+const TICKET_DIR = path.join(BASE_DIR, "Ticket");
+const LEGACY_TICKET_DIR = path.join(BASE_DIR, "ticket");
 const LEGACY_DATA_PATH = path.join(BASE_DIR, "ticket-support.json");
 const DATA_PATH = TICKET_DIR;
 
 module.exports = {
     BASE_DIR,
     TICKET_DIR,
+    LEGACY_TICKET_DIR,
     LEGACY_DATA_PATH,
     DATA_PATH,
 };

@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { TICKET_DIR, LEGACY_DATA_PATH, DATA_PATH } = require("../config/paths");
+const { TICKET_DIR, LEGACY_TICKET_DIR, LEGACY_DATA_PATH, DATA_PATH } = require("../config/paths");
 
 const EMPTY_STORE = {
     version: 1,
@@ -53,12 +53,12 @@ function readTicketsFromFile(filePath) {
     }
 }
 
-function listYearFiles() {
-    if (!fs.existsSync(TICKET_DIR)) return [];
+function listYearFiles(directory = TICKET_DIR) {
+    if (!directory || !fs.existsSync(directory)) return [];
     try {
-        return fs.readdirSync(TICKET_DIR)
+        return fs.readdirSync(directory)
             .filter((name) => /^ticket-\d{4}\.json$/i.test(name))
-            .map((name) => path.join(TICKET_DIR, name));
+            .map((name) => path.join(directory, name));
     } catch (err) {
         console.error("[ticket-support] errore lettura cartella ticket:", err);
         return [];
@@ -66,7 +66,8 @@ function listYearFiles() {
 }
 
 function loadFromYearFiles() {
-    const files = listYearFiles();
+    const primaryFiles = listYearFiles(TICKET_DIR);
+    const files = primaryFiles.length ? primaryFiles : listYearFiles(LEGACY_TICKET_DIR);
     if (!files.length) return [];
     const tickets = [];
     files.forEach((filePath) => {
@@ -173,19 +174,19 @@ function saveStore(store) {
     }, {});
 
     Object.keys(byYear).forEach((year) => {
-        const filePath = getYearFilePath(year);
-        ensureFolderFor(filePath);
         const payload = {
             version: 1,
             year: Number(year),
             tickets: byYear[year],
         };
+        const filePath = getYearFilePath(year);
+        ensureFolderFor(filePath);
         fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf8");
     });
 
     // Rimuove eventuali file annuali non più presenti nel payload corrente.
-    const expectedNames = new Set(Object.keys(byYear).map((year) => path.basename(getYearFilePath(year)).toLowerCase()));
-    listYearFiles().forEach((filePath) => {
+    const expectedNames = new Set(Object.keys(byYear).map((year) => `ticket-${year}.json`.toLowerCase()));
+    listYearFiles(TICKET_DIR).forEach((filePath) => {
         const name = path.basename(filePath).toLowerCase();
         if (!expectedNames.has(name)) {
             try {

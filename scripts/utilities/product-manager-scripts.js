@@ -133,12 +133,22 @@ const {
     tryAutoCleanJson,
 } = require("./product-manager/data/normalize");
 const {
+    ROOT_DIR,
+    PURCHASING_DIR,
     REQUESTS_PATH,
+    LEGACY_REQUESTS_PATH,
     INTERVENTIONS_PATH,
+    LEGACY_INTERVENTIONS_PATH,
     CATALOG_PATH,
+    LEGACY_CATALOG_PATH,
     CATEGORIES_PATH,
+    LEGACY_CATEGORIES_PATH,
     INTERVENTION_TYPES_PATH,
+    LEGACY_INTERVENTION_TYPES_PATH,
     PRODUCTS_DIR,
+    LEGACY_PRODUCTS_DIR,
+    LEGACY_PRODUCTS_DIR_ALT,
+    REQUESTS_SHARDS_DIR,
 } = require("./product-manager/config/paths");
 const {
     loadAdminCredentials,
@@ -179,6 +189,9 @@ try {
 window.pmLoaded = true;
 
 const ASSIGNEES_FALLBACK = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
+const ROOT_SHARED_DIR = path.dirname(NETWORK_PATHS?.feriePermessiData || ASSIGNEES_FALLBACK);
+const GENERAL_ASSIGNEES_PATH = path.join(ROOT_SHARED_DIR, "General", "amministrazione-assignees.json");
+const ASSIGNEES_PATHS = [GENERAL_ASSIGNEES_PATH, NETWORK_PATHS?.amministrazioneAssignees || ASSIGNEES_FALLBACK];
 // session handled by state/session
 let assigneeGroups = {};
 let assigneeOptions = [];
@@ -221,7 +234,9 @@ function getCatalogSectionCtx() {
         CATEGORY_COLOR_STORAGE_KEY,
         DEFAULT_CATEGORY_COLORS,
         CATALOG_PATH,
+        LEGACY_CATALOG_PATH,
         CATEGORIES_PATH,
+        LEGACY_CATEGORIES_PATH,
         normalizeCatalogData,
         normalizeCategoriesData,
         validateWithAjv,
@@ -293,6 +308,7 @@ function getInterventionsSectionCtx() {
         document,
         fs,
         INTERVENTION_TYPES_PATH,
+        LEGACY_INTERVENTION_TYPES_PATH,
         normalizeInterventionTypesData,
         validateWithAjv,
         validateInterventionTypesSchema,
@@ -445,9 +461,140 @@ const REQUEST_MODES = {
 const REQUEST_MODE_STORAGE_KEY = "pm-request-mode";
 const DEFAULT_REQUEST_MODE = REQUEST_MODES.PURCHASE;
 let currentRequestMode = DEFAULT_REQUEST_MODE;
+const PURCHASING_BACKUP_ROOT_DIR = path.join(ROOT_DIR, "Backup AyPi Purchasing");
 
 function isFormPage() {
     return Boolean(document.getElementById("pm-request-form"));
+}
+
+function ensureDir(targetDir) {
+    if (!targetDir) return;
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+    }
+}
+
+function copyDirectory(sourceDir, targetDir) {
+    if (!sourceDir || !targetDir) return;
+    ensureDir(targetDir);
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+    entries.forEach((entry) => {
+        const srcPath = path.join(sourceDir, entry.name);
+        const dstPath = path.join(targetDir, entry.name);
+        if (entry.isDirectory()) {
+            copyDirectory(srcPath, dstPath);
+            return;
+        }
+        if (entry.isFile()) {
+            ensureDir(path.dirname(dstPath));
+            fs.copyFileSync(srcPath, dstPath);
+        }
+    });
+}
+
+function formatBackupDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function getPurchasingBackups() {
+    if (!fs.existsSync(PURCHASING_BACKUP_ROOT_DIR)) return [];
+    return fs
+        .readdirSync(PURCHASING_BACKUP_ROOT_DIR, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+            const fullPath = path.join(PURCHASING_BACKUP_ROOT_DIR, entry.name);
+            let mtime = 0;
+            try {
+                mtime = fs.statSync(fullPath).mtimeMs || 0;
+            } catch (err) {
+                mtime = 0;
+            }
+            return { name: entry.name, fullPath, mtime };
+        })
+        .sort((a, b) => b.mtime - a.mtime);
+}
+
+function prunePurchasingBackups(limit = 10) {
+    const backups = getPurchasingBackups();
+    if (backups.length <= limit) return;
+    backups.slice(limit).forEach((entry) => {
+        try {
+            fs.rmSync(entry.fullPath, { recursive: true, force: true });
+        } catch (err) {
+            console.error("Errore rimozione backup Purchasing:", entry.fullPath, err);
+        }
+    });
+}
+
+function initPurchasingBackupModal() {
+    const modal = document.getElementById("pm-backup-modal");
+    const closeBtn = document.getElementById("pm-backup-close");
+    const runBtn = document.getElementById("pm-backup-run");
+    const restoreBtn = document.getElementById("pm-backup-restore");
+    const messageEl = document.getElementById("pm-backup-message");
+
+    const setBackupMessage = (text, type = "") => {
+        if (!messageEl) return;
+        setMessage(messageEl, text, type === "error");
+    };
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            hideModal(modal);
+        });
+    }
+
+    if (runBtn) {
+        runBtn.addEventListener("click", () => {
+            try {
+                setBackupMessage("", "");
+                ensureDir(PURCHASING_DIR);
+                ensureDir(PURCHASING_BACKUP_ROOT_DIR);
+                const dateLabel = formatBackupDate(new Date());
+                let targetDir = path.join(PURCHASING_BACKUP_ROOT_DIR, dateLabel);
+                let suffix = 1;
+                while (fs.existsSync(targetDir)) {
+                    suffix += 1;
+                    targetDir = path.join(PURCHASING_BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
+                }
+                copyDirectory(PURCHASING_DIR, targetDir);
+                prunePurchasingBackups(10);
+                setBackupMessage(`Backup creato: ${targetDir}`, "success");
+            } catch (err) {
+                setBackupMessage(`Errore creazione backup: ${err.message || String(err)}`, "error");
+            }
+        });
+    }
+
+    if (restoreBtn) {
+        restoreBtn.addEventListener("click", async () => {
+            try {
+                setBackupMessage("", "");
+                const ok = await openConfirmModal("Ripristinare un backup Purchasing? I file correnti verranno sovrascritti.");
+                if (!ok) return;
+                const selected = await ipcRenderer.invoke("select-root-folder");
+                if (!selected) return;
+                ensureDir(PURCHASING_DIR);
+                copyDirectory(selected, PURCHASING_DIR);
+                renderCartTable();
+                setBackupMessage("Ripristino completato.", "success");
+            } catch (err) {
+                setBackupMessage(`Errore ripristino backup: ${err.message || String(err)}`, "error");
+            }
+        });
+    }
+}
+
+function openPurchasingBackup() {
+    requireAdminAccess(() => {
+        const modal = document.getElementById("pm-backup-modal");
+        const messageEl = document.getElementById("pm-backup-message");
+        if (messageEl) setMessage(messageEl, "", "");
+        if (modal) showModal(modal);
+    });
 }
 
 function getActiveMode() {
@@ -867,18 +1014,165 @@ function getRequestsPath(mode) {
     return mode === REQUEST_MODES.INTERVENTION ? INTERVENTIONS_PATH : REQUESTS_PATH;
 }
 
-function readRequestsFile(mode = getActiveMode()) {
-    const filePath = getRequestsPath(mode);
+function getLegacyRequestsPath(mode) {
+    return mode === REQUEST_MODES.INTERVENTION ? LEGACY_INTERVENTIONS_PATH : LEGACY_REQUESTS_PATH;
+}
+
+const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
+
+function getRequestYearKey(request) {
+    const value = String(request?.createdAt || request?.updatedAt || "").trim();
+    if (!value) return "undated";
+    const direct = /^(\d{4})/.exec(value);
+    if (direct) return direct[1];
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return String(date.getFullYear());
+    return "undated";
+}
+
+function getShardLatestMtimeMs() {
     try {
-        if (!fs.existsSync(filePath)) return [];
-        const raw = fs.readFileSync(filePath, "utf8");
+        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return 0;
+        const files = fs.readdirSync(REQUESTS_SHARDS_DIR).filter((name) => REQUESTS_SHARD_REGEX.test(name));
+        let latest = 0;
+        files.forEach((name) => {
+            try {
+                const ms = Number(fs.statSync(path.join(REQUESTS_SHARDS_DIR, name)).mtimeMs) || 0;
+                if (ms > latest) latest = ms;
+            } catch {}
+        });
+        return latest;
+    } catch {
+        return 0;
+    }
+}
+
+function hasPurchasingShards() {
+    try {
+        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return false;
+        return fs.readdirSync(REQUESTS_SHARDS_DIR).some((name) => REQUESTS_SHARD_REGEX.test(name));
+    } catch {
+        return false;
+    }
+}
+
+function shouldWriteLegacyPurchaseFile() {
+    return fs.existsSync(LEGACY_REQUESTS_PATH);
+}
+
+function readRequestsFromShards() {
+    try {
+        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return null;
+        const files = fs.readdirSync(REQUESTS_SHARDS_DIR)
+            .filter((name) => REQUESTS_SHARD_REGEX.test(name))
+            .sort();
+        if (!files.length) return null;
+        const out = [];
+        files.forEach((name) => {
+            const raw = fs.readFileSync(path.join(REQUESTS_SHARDS_DIR, name), "utf8");
+            const parsed = JSON.parse(raw);
+            normalizeRequestsData(parsed).forEach((row) => out.push(row));
+        });
+        return out;
+    } catch (err) {
+        showError("Errore lettura shard richieste.", err.message || String(err));
+        return null;
+    }
+}
+
+function writeRequestsShards(payload) {
+    const normalized = normalizeRequestsData(payload);
+    try {
+        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) {
+            fs.mkdirSync(REQUESTS_SHARDS_DIR, { recursive: true });
+        }
+        const buckets = {};
+        normalized.forEach((item) => {
+            const year = getRequestYearKey(item);
+            if (!buckets[year]) buckets[year] = [];
+            buckets[year].push(item);
+        });
+        const expected = new Set();
+        Object.keys(buckets).forEach((year) => {
+            const fileName = `requests-${year}.json`;
+            expected.add(fileName.toLowerCase());
+            fs.writeFileSync(
+                path.join(REQUESTS_SHARDS_DIR, fileName),
+                JSON.stringify(buckets[year], null, 2),
+                "utf8"
+            );
+        });
+        const existing = fs.readdirSync(REQUESTS_SHARDS_DIR);
+        existing.forEach((name) => {
+            if (!REQUESTS_SHARD_REGEX.test(name)) return;
+            if (expected.has(name.toLowerCase())) return;
+            fs.unlinkSync(path.join(REQUESTS_SHARDS_DIR, name));
+        });
+    } catch (err) {
+        showError("Errore salvataggio shard richieste.", err.message || String(err));
+    }
+}
+
+function bootstrapPurchasingShardsFromLegacy() {
+    try {
+        if (hasPurchasingShards()) return;
+        if (!fs.existsSync(LEGACY_REQUESTS_PATH)) return;
+        const raw = fs.readFileSync(LEGACY_REQUESTS_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeRequestsData(parsed);
+        if (!normalized.length) return;
+        writeRequestsShards(normalized);
+    } catch (err) {
+        showError("Errore migrazione iniziale richieste Purchasing.", err.message || String(err));
+    }
+}
+
+function readRequestsFile(mode = getActiveMode()) {
+    const filePath = getRequestsPath(mode);
+    const legacyPath = getLegacyRequestsPath(mode);
+    try {
+        if (mode === REQUEST_MODES.INTERVENTION) {
+            const candidates = [filePath, legacyPath].filter((item) => item && fs.existsSync(item));
+            if (!candidates.length) return [];
+            let sourcePath = candidates[0];
+            if (candidates.length > 1) {
+                const a = Number(fs.statSync(candidates[0]).mtimeMs) || 0;
+                const b = Number(fs.statSync(candidates[1]).mtimeMs) || 0;
+                sourcePath = b > a ? candidates[1] : candidates[0];
+            }
+            const raw = fs.readFileSync(sourcePath, "utf8");
+            const parsed = JSON.parse(raw);
+            const normalized = normalizeRequestsData(parsed);
+            validateWithAjv(validateRequestsSchema, normalized, "richieste", { showWarning, showError });
+            tryAutoCleanJson(sourcePath, parsed, normalized, validateRequestsSchema, "richieste", {
+                showWarning,
+                showError,
+            });
+            return normalized;
+        }
+
+        const primaryData = fs.existsSync(filePath)
+            ? normalizeRequestsData(JSON.parse(fs.readFileSync(filePath, "utf8")))
+            : null;
+        const legacyData = fs.existsSync(legacyPath)
+            ? normalizeRequestsData(JSON.parse(fs.readFileSync(legacyPath, "utf8")))
+            : null;
+        let fileData = primaryData || legacyData || null;
+        if (primaryData && legacyData) {
+            const primaryMs = Number(fs.statSync(filePath).mtimeMs) || 0;
+            const legacyMs = Number(fs.statSync(legacyPath).mtimeMs) || 0;
+            fileData = legacyMs > primaryMs ? legacyData : primaryData;
+        }
+        const shardData = readRequestsFromShards();
+        let normalized = [];
+        if (fileData && shardData) {
+            const fileMs = Number(fs.statSync(filePath).mtimeMs) || 0;
+            const shardMs = getShardLatestMtimeMs();
+            normalized = fileMs >= shardMs ? fileData : shardData;
+        } else {
+            normalized = fileData || shardData || [];
+        }
         validateWithAjv(validateRequestsSchema, normalized, "richieste", { showWarning, showError });
-        tryAutoCleanJson(filePath, parsed, normalized, validateRequestsSchema, "richieste", {
-            showWarning,
-            showError,
-        });
         return normalized;
     } catch (err) {
         showError("Errore lettura richieste.", err.message || String(err));
@@ -888,6 +1182,7 @@ function readRequestsFile(mode = getActiveMode()) {
 
 function saveRequestsFile(payload, mode = getActiveMode()) {
     const filePath = getRequestsPath(mode);
+    const legacyPath = getLegacyRequestsPath(mode);
     try {
         const normalized = normalizeRequestsData(payload);
         if (
@@ -897,7 +1192,18 @@ function saveRequestsFile(payload, mode = getActiveMode()) {
             }).ok
         )
             return false;
-        fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+        if (mode === REQUEST_MODES.INTERVENTION) {
+            fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+            if (legacyPath && fs.existsSync(legacyPath)) {
+                fs.writeFileSync(legacyPath, JSON.stringify(normalized, null, 2), "utf8");
+            }
+        } else {
+            if (shouldWriteLegacyPurchaseFile()) {
+                fs.writeFileSync(legacyPath, JSON.stringify(normalized, null, 2), "utf8");
+            }
+            fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+            writeRequestsShards(normalized);
+        }
         return true;
     } catch (err) {
         showError("Errore salvataggio richieste.", err.message || String(err));
@@ -1399,7 +1705,7 @@ function normalizeAssigneesPayload(parsed) {
 }
 
 function loadAssignees() {
-    const pathHint = NETWORK_PATHS?.amministrazioneAssignees || ASSIGNEES_FALLBACK;
+    const pathHint = ASSIGNEES_PATHS.find((item) => item && fs.existsSync(item)) || ASSIGNEES_PATHS[0];
     try {
         if (!fs.existsSync(pathHint)) return { groups: {}, options: [] };
         const raw = fs.readFileSync(pathHint, "utf8");
@@ -1412,12 +1718,17 @@ function loadAssignees() {
 }
 
 function saveAssignees() {
-    const pathHint = NETWORK_PATHS?.amministrazioneAssignees || ASSIGNEES_FALLBACK;
     try {
-        fs.writeFileSync(pathHint, JSON.stringify({
+        const payload = JSON.stringify({
             groups: assigneeGroups,
             emails: assigneeEmails || {},
-        }, null, 2), "utf8");
+        }, null, 2);
+        ASSIGNEES_PATHS.forEach((pathHint) => {
+            if (!pathHint) return;
+            const dir = path.dirname(pathHint);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(pathHint, payload, "utf8");
+        });
     } catch (err) {
         showError("Errore salvataggio dipendenti.", err.message || String(err));
     }
@@ -1509,19 +1820,19 @@ function renderCartTagFilterOptions() {
 }
 
 function ensureProductsDir() {
-    ensureProductsDirSvc({ fs, PRODUCTS_DIR });
+    ensureProductsDirSvc({ fs, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT });
 }
 
 function copyCatalogImage(filePath, catalogId) {
-    return copyCatalogImageSvc({ fs, path, PRODUCTS_DIR, showError }, filePath, catalogId);
+    return copyCatalogImageSvc({ fs, path, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT, showError }, filePath, catalogId);
 }
 
 function getCatalogImagePath(item) {
-    return getCatalogImagePathSvc({ path, PRODUCTS_DIR }, item);
+    return getCatalogImagePathSvc({ fs, path, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT }, item);
 }
 
 function getCatalogImageSrc(item) {
-    return getCatalogImageSrcSvc({ pathToFileURL, path, PRODUCTS_DIR }, item);
+    return getCatalogImageSrcSvc({ fs, pathToFileURL, path, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR }, item);
 }
 
 
@@ -2361,6 +2672,7 @@ function setupHeaderButtons() {
         setInterventionTypes: (next) => {
             interventionTypes = next;
         },
+        openPurchasingBackup,
     });
 }
 
@@ -2435,6 +2747,7 @@ async function init() {
     catalogItems = loadCatalog();
     catalogCategories = loadCategories();
     interventionTypes = loadInterventionTypes();
+    bootstrapPurchasingShardsFromLegacy();
     categoryColors = loadCategoryColors();
     renderCatalog();
     renderCategoryOptions();
@@ -2463,6 +2776,7 @@ async function init() {
     initInterventionTypesModal();
     initImageModal();
     initExportModal();
+    initPurchasingBackupModal();
     setupLogin();
     setupHeaderButtons();
     initSettingsModals();

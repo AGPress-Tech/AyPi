@@ -118,6 +118,7 @@ function loadCatalog(ctx) {
     const {
         fs,
         CATALOG_PATH,
+        LEGACY_CATALOG_PATH,
         normalizeCatalogData,
         validateWithAjv,
         validateCatalogSchema,
@@ -126,12 +127,19 @@ function loadCatalog(ctx) {
         showError,
     } = ctx;
     try {
-        if (!fs.existsSync(CATALOG_PATH)) return [];
-        const raw = fs.readFileSync(CATALOG_PATH, "utf8");
+        const candidates = [CATALOG_PATH, LEGACY_CATALOG_PATH].filter((item) => item && fs.existsSync(item));
+        if (!candidates.length) return [];
+        let sourcePath = candidates[0];
+        if (candidates.length > 1) {
+            const a = Number(fs.statSync(candidates[0]).mtimeMs) || 0;
+            const b = Number(fs.statSync(candidates[1]).mtimeMs) || 0;
+            sourcePath = b > a ? candidates[1] : candidates[0];
+        }
+        const raw = fs.readFileSync(sourcePath, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeCatalogData(parsed);
         validateWithAjv(validateCatalogSchema, normalized, "catalogo", { showWarning, showError });
-        tryAutoCleanJson(CATALOG_PATH, parsed, normalized, validateCatalogSchema, "catalogo", {
+        tryAutoCleanJson(sourcePath, parsed, normalized, validateCatalogSchema, "catalogo", {
             showWarning,
             showError,
         });
@@ -146,6 +154,7 @@ function saveCatalog(ctx, list) {
     const {
         fs,
         CATALOG_PATH,
+        LEGACY_CATALOG_PATH,
         normalizeCatalogData,
         validateWithAjv,
         validateCatalogSchema,
@@ -162,6 +171,9 @@ function saveCatalog(ctx, list) {
         )
             return false;
         fs.writeFileSync(CATALOG_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        if (LEGACY_CATALOG_PATH && fs.existsSync(LEGACY_CATALOG_PATH)) {
+            fs.writeFileSync(LEGACY_CATALOG_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        }
         return true;
     } catch (err) {
         showError("Errore salvataggio catalogo.", err.message || String(err));
@@ -173,6 +185,7 @@ function loadCategories(ctx) {
     const {
         fs,
         CATEGORIES_PATH,
+        LEGACY_CATEGORIES_PATH,
         normalizeCategoriesData,
         validateWithAjv,
         validateCategoriesSchema,
@@ -181,12 +194,19 @@ function loadCategories(ctx) {
         showError,
     } = ctx;
     try {
-        if (!fs.existsSync(CATEGORIES_PATH)) return [];
-        const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
+        const candidates = [CATEGORIES_PATH, LEGACY_CATEGORIES_PATH].filter((item) => item && fs.existsSync(item));
+        if (!candidates.length) return [];
+        let sourcePath = candidates[0];
+        if (candidates.length > 1) {
+            const a = Number(fs.statSync(candidates[0]).mtimeMs) || 0;
+            const b = Number(fs.statSync(candidates[1]).mtimeMs) || 0;
+            sourcePath = b > a ? candidates[1] : candidates[0];
+        }
+        const raw = fs.readFileSync(sourcePath, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeCategoriesData(parsed);
         validateWithAjv(validateCategoriesSchema, normalized, "categorie", { showWarning, showError });
-        tryAutoCleanJson(CATEGORIES_PATH, parsed, normalized, validateCategoriesSchema, "categorie", {
+        tryAutoCleanJson(sourcePath, parsed, normalized, validateCategoriesSchema, "categorie", {
             showWarning,
             showError,
         });
@@ -201,6 +221,7 @@ function saveCategories(ctx, list) {
     const {
         fs,
         CATEGORIES_PATH,
+        LEGACY_CATEGORIES_PATH,
         normalizeCategoriesData,
         validateWithAjv,
         validateCategoriesSchema,
@@ -217,6 +238,9 @@ function saveCategories(ctx, list) {
         )
             return false;
         fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        if (LEGACY_CATEGORIES_PATH && fs.existsSync(LEGACY_CATEGORIES_PATH)) {
+            fs.writeFileSync(LEGACY_CATEGORIES_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        }
         return true;
     } catch (err) {
         showError("Errore salvataggio categorie.", err.message || String(err));

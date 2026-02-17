@@ -27,10 +27,12 @@ function setupHeaderButtons(ctx) {
         setCatalogItems,
         setCatalogCategories,
         setInterventionTypes,
+        openPurchasingBackup,
     } = ctx;
 
     const refreshBtn = document.getElementById("pm-refresh");
     const settingsBtn = document.getElementById("pm-settings");
+    const backupBtn = document.getElementById("pm-backup-open");
     const cartBtn = document.getElementById("pm-open-cart");
     const interventionsBtn = document.getElementById("pm-open-interventions");
     const addLineBtn = document.getElementById("pm-add-line");
@@ -59,6 +61,14 @@ function setupHeaderButtons(ctx) {
             if (modal) {
                 modal.classList.remove("is-hidden");
                 modal.setAttribute("aria-hidden", "false");
+            }
+        });
+    }
+
+    if (backupBtn) {
+        backupBtn.addEventListener("click", () => {
+            if (typeof openPurchasingBackup === "function") {
+                openPurchasingBackup();
             }
         });
     }

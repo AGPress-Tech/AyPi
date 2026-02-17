@@ -11,7 +11,9 @@ try {
     console.error("[ticket-support] modulo nodemailer non disponibile:", err);
 }
 
-const OTP_MAIL_SERVER_PATH = NETWORK_PATHS.otpMailServer;
+const ROOT_DIR = path.dirname(NETWORK_PATHS.feriePermessiData);
+const OTP_MAIL_SERVER_PATH = path.join(ROOT_DIR, "General", "otp-mail.json");
+const OTP_MAIL_LEGACY_PATH = NETWORK_PATHS.otpMailServer;
 const OTP_MAIL_LOCAL_PATH = path.join(__dirname, "..", "..", "..", "..", "config", "otp-mail.json");
 
 function isMailerAvailable() {
@@ -23,9 +25,10 @@ function getMailerError() {
 }
 
 function loadMailConfig() {
-    const configPath = fs.existsSync(OTP_MAIL_SERVER_PATH) ? OTP_MAIL_SERVER_PATH : OTP_MAIL_LOCAL_PATH;
-    if (!fs.existsSync(configPath)) {
-        throw new Error(`Config mail non trovata. Percorsi verificati: ${OTP_MAIL_SERVER_PATH}, ${OTP_MAIL_LOCAL_PATH}`);
+    const configPath = [OTP_MAIL_SERVER_PATH, OTP_MAIL_LEGACY_PATH, OTP_MAIL_LOCAL_PATH]
+        .find((item) => item && fs.existsSync(item));
+    if (!configPath || !fs.existsSync(configPath)) {
+        throw new Error(`Config mail non trovata. Percorsi verificati: ${OTP_MAIL_SERVER_PATH}, ${OTP_MAIL_LEGACY_PATH}, ${OTP_MAIL_LOCAL_PATH}`);
     }
     let raw = fs.readFileSync(configPath, "utf8");
     if (raw.charCodeAt(0) === 0xfeff) {

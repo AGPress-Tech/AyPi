@@ -1,6 +1,6 @@
 const fs = require("fs");
 
-const { ADMINS_PATH } = require("../config/paths");
+const { ADMINS_PATH, LEGACY_ADMINS_PATH } = require("../config/paths");
 const { APPROVAL_PASSWORD } = require("../config/constants");
 const {
     hashPassword,
@@ -11,11 +11,8 @@ const { showDialog } = require("./dialogs");
 const { ensureFolderFor } = require("./storage");
 
 function loadAdminCredentials() {
-    try {
-        if (!fs.existsSync(ADMINS_PATH)) {
-            return [{ name: "Admin", password: APPROVAL_PASSWORD }];
-        }
-        const raw = fs.readFileSync(ADMINS_PATH, "utf8");
+    const parseAdminsFromPath = (targetPath) => {
+        const raw = fs.readFileSync(targetPath, "utf8");
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
             return parsed
@@ -49,6 +46,18 @@ function loadAdminCredentials() {
                         : { name: String(name), password: value, email: "", phone: "" };
                 });
         }
+        return [];
+    };
+
+    try {
+        const candidates = [ADMINS_PATH, LEGACY_ADMINS_PATH].filter((item) => item && fs.existsSync(item));
+        if (!candidates.length) {
+            return [{ name: "Admin", password: APPROVAL_PASSWORD }];
+        }
+        for (const filePath of candidates) {
+            const admins = parseAdminsFromPath(filePath);
+            if (admins.length) return admins;
+        }
         return [{ name: "Admin", password: APPROVAL_PASSWORD }];
     } catch (err) {
         console.error("Errore caricamento admins:", err);
@@ -58,7 +67,6 @@ function loadAdminCredentials() {
 
 function saveAdminCredentials(admins) {
     try {
-        ensureFolderFor(ADMINS_PATH);
         const payload = admins.map((admin) => ({
             name: admin.name,
             passwordHash: admin.passwordHash,
@@ -66,7 +74,11 @@ function saveAdminCredentials(admins) {
             email: admin.email || "",
             phone: admin.phone || "",
         }));
-        fs.writeFileSync(ADMINS_PATH, JSON.stringify({ admins: payload }, null, 2), "utf8");
+        const targets = [ADMINS_PATH, LEGACY_ADMINS_PATH].filter(Boolean);
+        targets.forEach((targetPath) => {
+            ensureFolderFor(targetPath);
+            fs.writeFileSync(targetPath, JSON.stringify({ admins: payload }, null, 2), "utf8");
+        });
     } catch (err) {
         console.error("Errore salvataggio admins:", err);
         const { UI_TEXTS } = require("../utils/ui-texts");

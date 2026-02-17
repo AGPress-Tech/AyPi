@@ -219,24 +219,150 @@ function ensureFpFiles(baseDir) {
     if (!fs.existsSync(baseDir)) {
         fs.mkdirSync(baseDir, { recursive: true });
     }
-    const files = [
-        { name: "ferie-permessi.json", value: { requests: [], balances: {}, holidays: [], closures: [] } },
-        { name: "ferie-permessi-requests.json", value: [] },
-        { name: "ferie-permessi-holidays.json", value: [] },
-        { name: "ferie-permessi-balances.json", value: {} },
-        { name: "ferie-permessi-closures.json", value: [] },
-        { name: "ferie-permessi-admins.json", value: [] },
-        { name: "amministrazione-assignees.json", value: {} },
-    ];
-    files.forEach((item) => {
-        const filePath = path.join(baseDir, item.name);
-        if (fs.existsSync(filePath)) return;
+    const calendarDir = path.join(baseDir, "AyPi Calendar");
+    const calendarYearsDir = path.join(calendarDir, "Calendar Years");
+    const productManagerDir = path.join(baseDir, "Product Manager");
+    const legacyProductManagerExists = fs.existsSync(productManagerDir);
+    const purchasingDir = path.join(baseDir, "AyPi Purchasing");
+    const generalDir = path.join(baseDir, "General");
+    const ganttDir = path.join(baseDir, "AyPi Gantt");
+    const ticketDir = path.join(baseDir, "Ticket");
+
+    [
+        calendarDir,
+        calendarYearsDir,
+        purchasingDir,
+        path.join(purchasingDir, "products"),
+        path.join(purchasingDir, "requests"),
+        generalDir,
+        ganttDir,
+        ticketDir,
+        ...(legacyProductManagerExists
+            ? [productManagerDir, path.join(productManagerDir, "products"), path.join(productManagerDir, "Products")]
+            : []),
+    ].forEach((dirPath) => {
         try {
-            fs.writeFileSync(filePath, JSON.stringify(item.value, null, 2), "utf8");
+            if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
         } catch (err) {
-            log.warn("[ferie-permessi] impossibile creare file:", filePath, err);
+            log.warn("[ferie-permessi] impossibile creare cartella:", dirPath, err);
         }
     });
+
+    const isJsonEmpty = (filePath) => {
+        try {
+            if (!fs.existsSync(filePath)) return true;
+            const raw = fs.readFileSync(filePath, "utf8");
+            if (!raw || !raw.trim()) return true;
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed.length === 0;
+            if (parsed && typeof parsed === "object") return Object.keys(parsed).length === 0;
+            return false;
+        } catch (err) {
+            return false;
+        }
+    };
+
+    const copyFileIfNeeded = (sourcePath, targetPath) => {
+        try {
+            if (!sourcePath || !targetPath) return;
+            if (!fs.existsSync(sourcePath)) return;
+            if (!isJsonEmpty(targetPath)) return;
+            const targetDir = path.dirname(targetPath);
+            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+            fs.copyFileSync(sourcePath, targetPath);
+        } catch (err) {
+            log.warn("[ferie-permessi] impossibile migrare file:", sourcePath, "->", targetPath, err);
+        }
+    };
+
+    const copyDirectoryContent = (sourceDir, targetDir) => {
+        try {
+            if (!sourceDir || !targetDir) return;
+            if (!fs.existsSync(sourceDir)) return;
+            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+            const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+            entries.forEach((entry) => {
+                const src = path.join(sourceDir, entry.name);
+                const dst = path.join(targetDir, entry.name);
+                if (entry.isDirectory()) {
+                    copyDirectoryContent(src, dst);
+                    return;
+                }
+                if (entry.isFile() && !fs.existsSync(dst)) {
+                    fs.copyFileSync(src, dst);
+                }
+            });
+        } catch (err) {
+            log.warn("[ferie-permessi] impossibile migrare cartella:", sourceDir, "->", targetDir, err);
+        }
+    };
+
+    // Migrazione iniziale legacy -> nuova struttura (senza sovrascrivere dati gia' presenti)
+    copyFileIfNeeded(path.join(baseDir, "config-calendar.json"), path.join(calendarDir, "config-calendar.json"));
+    copyFileIfNeeded(path.join(baseDir, "ferie-permessi.json"), path.join(calendarDir, "ferie-permessi.json"));
+    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-requests.json"), path.join(calendarDir, "ferie-permessi-requests.json"));
+    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-holidays.json"), path.join(calendarDir, "ferie-permessi-holidays.json"));
+    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-balances.json"), path.join(calendarDir, "ferie-permessi-balances.json"));
+    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-closures.json"), path.join(calendarDir, "ferie-permessi-closures.json"));
+    copyFileIfNeeded(path.join(baseDir, "otp-mail.json"), path.join(generalDir, "otp-mail.json"));
+    copyFileIfNeeded(path.join(baseDir, "amministrazione-assignees.json"), path.join(generalDir, "amministrazione-assignees.json"));
+    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-admins.json"), path.join(generalDir, "ferie-permessi-admins.json"));
+    copyFileIfNeeded(path.join(baseDir, "amministrazione-obiettivi.json"), path.join(ganttDir, "amministrazione-obiettivi.json"));
+    copyDirectoryContent(path.join(baseDir, "Calendar Years"), calendarYearsDir);
+    copyFileIfNeeded(path.join(productManagerDir, "catalog.json"), path.join(purchasingDir, "catalog.json"));
+    copyFileIfNeeded(path.join(productManagerDir, "categories.json"), path.join(purchasingDir, "categories.json"));
+    copyFileIfNeeded(path.join(productManagerDir, "interventions.json"), path.join(purchasingDir, "interventions.json"));
+    copyFileIfNeeded(path.join(productManagerDir, "intervention-types.json"), path.join(purchasingDir, "intervention-types.json"));
+    copyFileIfNeeded(path.join(productManagerDir, "requests.json"), path.join(purchasingDir, "requests.json"));
+    copyFileIfNeeded(path.join(productManagerDir, "session.json"), path.join(purchasingDir, "session.json"));
+    copyDirectoryContent(path.join(productManagerDir, "products"), path.join(purchasingDir, "products"));
+    copyDirectoryContent(path.join(productManagerDir, "Products"), path.join(purchasingDir, "products"));
+
+    // Purchasing: bootstrap shard richieste da legacy Product Manager/requests.json
+    try {
+        const purchasingRequestsDir = path.join(purchasingDir, "requests");
+        const legacyPmRequestsPath = path.join(productManagerDir, "requests.json");
+        const shardRegex = /^requests-(\d{4}|undated)\.json$/i;
+        const hasShards = fs.existsSync(purchasingRequestsDir)
+            && fs.readdirSync(purchasingRequestsDir).some((name) => shardRegex.test(name));
+
+        if (!hasShards && fs.existsSync(legacyPmRequestsPath)) {
+            const raw = fs.readFileSync(legacyPmRequestsPath, "utf8");
+            const parsed = JSON.parse(raw);
+            const rows = Array.isArray(parsed) ? parsed : [];
+            if (rows.length) {
+                const getYearKey = (item) => {
+                    const value = String(item?.createdAt || item?.updatedAt || "").trim();
+                    if (!value) return "undated";
+                    const direct = /^(\d{4})/.exec(value);
+                    if (direct) return direct[1];
+                    const date = new Date(value);
+                    if (!Number.isNaN(date.getTime())) return String(date.getFullYear());
+                    return "undated";
+                };
+
+                const byYear = rows.reduce((acc, item) => {
+                    const key = getYearKey(item);
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(item);
+                    return acc;
+                }, {});
+
+                Object.keys(byYear).forEach((yearKey) => {
+                    const shardPath = path.join(purchasingRequestsDir, `requests-${yearKey}.json`);
+                    if (!fs.existsSync(shardPath)) {
+                        fs.writeFileSync(shardPath, JSON.stringify(byYear[yearKey], null, 2), "utf8");
+                    }
+                });
+            }
+        }
+    } catch (err) {
+        log.warn("[ferie-permessi] bootstrap shard purchasing non riuscito:", err);
+    }
+
+    // Nota: non creare file automaticamente.
+    // La logica applicativa deve leggere/scrivere sul legacy solo se esiste,
+    // altrimenti usare esclusivamente i nuovi percorsi.
 }
 
 function resolveFpBaseDirSync(senderWin) {

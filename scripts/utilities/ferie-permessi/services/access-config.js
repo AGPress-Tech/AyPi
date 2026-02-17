@@ -1,6 +1,6 @@
 const fs = require("fs");
 
-const { CONFIG_PATH } = require("../config/paths");
+const { CONFIG_PATH, LEGACY_CONFIG_PATH } = require("../config/paths");
 const { ensureFolderFor } = require("./storage");
 
 const DEFAULT_ACCESS_CONFIG = {
@@ -85,10 +85,11 @@ function normalizeAccessConfig(raw) {
 
 function loadAccessConfig() {
     try {
-        if (!CONFIG_PATH || !fs.existsSync(CONFIG_PATH)) {
+        const targetPath = [CONFIG_PATH, LEGACY_CONFIG_PATH].find((item) => item && fs.existsSync(item));
+        if (!targetPath) {
             return normalizeAccessConfig(null);
         }
-        const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+        const raw = fs.readFileSync(targetPath, "utf8");
         if (!raw) return normalizeAccessConfig(null);
         const parsed = JSON.parse(raw);
         return normalizeAccessConfig(parsed);
@@ -100,9 +101,11 @@ function loadAccessConfig() {
 
 function saveAccessConfig(config) {
     try {
-        ensureFolderFor(CONFIG_PATH);
         const normalized = normalizeAccessConfig(config);
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        [CONFIG_PATH, LEGACY_CONFIG_PATH].filter(Boolean).forEach((targetPath) => {
+            ensureFolderFor(targetPath);
+            fs.writeFileSync(targetPath, JSON.stringify(normalized, null, 2), "utf8");
+        });
         return normalized;
     } catch (err) {
         console.error("Errore salvataggio config calendario:", err);

@@ -1,12 +1,24 @@
 const fs = require("fs");
 const path = require("path");
-const { DATA_PATH, REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH, CLOSURES_PATH } = require("../config/paths");
+const {
+    DATA_PATH,
+    REQUESTS_PATH,
+    HOLIDAYS_PATH,
+    BALANCES_PATH,
+    CLOSURES_PATH,
+    LEGACY_DATA_PATH,
+    LEGACY_REQUESTS_PATH,
+    LEGACY_HOLIDAYS_PATH,
+    LEGACY_BALANCES_PATH,
+    LEGACY_CLOSURES_PATH,
+} = require("../config/paths");
 const { ensureFolderFor } = require("./storage");
 const { calculateHours } = require("../utils/requests");
 
 const DEFAULT_INITIAL_HOURS = 100;
 const MONTHLY_ACCRUAL_HOURS = 16;
 const REQUESTS_SHARDS_DIR = path.join(path.dirname(REQUESTS_PATH), "Calendar Years");
+const LEGACY_REQUESTS_SHARDS_DIR = path.join(path.dirname(LEGACY_REQUESTS_PATH), "Calendar Years");
 const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
 
 function isBalanceNeutral(request) {
@@ -500,16 +512,16 @@ function isRequestsManifest(value) {
     return !!(value && typeof value === "object" && !Array.isArray(value) && value.format === "sharded-v1");
 }
 
-function readRequestsFromShards() {
-    if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return null;
-    const files = fs.readdirSync(REQUESTS_SHARDS_DIR)
+function readRequestsFromShardsIn(directory) {
+    if (!directory || !fs.existsSync(directory)) return null;
+    const files = fs.readdirSync(directory)
         .filter((name) => REQUESTS_SHARD_REGEX.test(name))
         .sort();
     if (!files.length) return null;
 
     const requests = [];
     files.forEach((name) => {
-        const filePath = path.join(REQUESTS_SHARDS_DIR, name);
+        const filePath = path.join(directory, name);
         const parsed = readJsonFile(filePath);
         const rows = normalizeRequestsData(parsed);
         rows.forEach((row) => requests.push(row));
@@ -517,13 +529,24 @@ function readRequestsFromShards() {
     return requests;
 }
 
-function getLatestShardWriteTimeMs() {
-    if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return 0;
-    const files = fs.readdirSync(REQUESTS_SHARDS_DIR).filter((name) => REQUESTS_SHARD_REGEX.test(name));
+function readRequestsFromShards() {
+    const primary = readRequestsFromShardsIn(REQUESTS_SHARDS_DIR);
+    const legacy = readRequestsFromShardsIn(LEGACY_REQUESTS_SHARDS_DIR);
+    if (primary && legacy) {
+        return getLatestShardWriteTimeMs(REQUESTS_SHARDS_DIR) >= getLatestShardWriteTimeMs(LEGACY_REQUESTS_SHARDS_DIR)
+            ? primary
+            : legacy;
+    }
+    return primary || legacy;
+}
+
+function getLatestShardWriteTimeMs(directory = REQUESTS_SHARDS_DIR) {
+    if (!directory || !fs.existsSync(directory)) return 0;
+    const files = fs.readdirSync(directory).filter((name) => REQUESTS_SHARD_REGEX.test(name));
     let latest = 0;
     files.forEach((name) => {
         try {
-            const stat = fs.statSync(path.join(REQUESTS_SHARDS_DIR, name));
+            const stat = fs.statSync(path.join(directory, name));
             const ms = stat && stat.mtimeMs ? Number(stat.mtimeMs) : 0;
             if (Number.isFinite(ms) && ms > latest) latest = ms;
         } catch (err) {
@@ -561,23 +584,28 @@ function writeRequestsData(requests) {
     });
 
     ensureFolderFor(path.join(REQUESTS_SHARDS_DIR, "index.json"));
+    ensureFolderFor(path.join(LEGACY_REQUESTS_SHARDS_DIR, "index.json"));
 
     const shardFiles = [];
     buckets.forEach((items, key) => {
         const fileName = `requests-${key}.json`;
         shardFiles.push(fileName);
         writeJsonFile(path.join(REQUESTS_SHARDS_DIR, fileName), items);
+        writeJsonFile(path.join(LEGACY_REQUESTS_SHARDS_DIR, fileName), items);
     });
 
     const expected = new Set(shardFiles);
-    const existing = fs.existsSync(REQUESTS_SHARDS_DIR) ? fs.readdirSync(REQUESTS_SHARDS_DIR) : [];
-    existing.forEach((name) => {
-        if (!REQUESTS_SHARD_REGEX.test(name)) return;
-        if (expected.has(name)) return;
-        fs.unlinkSync(path.join(REQUESTS_SHARDS_DIR, name));
+    [REQUESTS_SHARDS_DIR, LEGACY_REQUESTS_SHARDS_DIR].forEach((directory) => {
+        const existing = fs.existsSync(directory) ? fs.readdirSync(directory) : [];
+        existing.forEach((name) => {
+            if (!REQUESTS_SHARD_REGEX.test(name)) return;
+            if (expected.has(name)) return;
+            fs.unlinkSync(path.join(directory, name));
+        });
     });
 
     writeJsonFile(REQUESTS_PATH, list);
+    writeJsonFile(LEGACY_REQUESTS_PATH, list);
 }
 
 function writeJsonFile(filePath, value) {
@@ -586,46 +614,65 @@ function writeJsonFile(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
 }
 
+function getFileMtimeMs(filePath) {
+    try {
+        if (!filePath || !fs.existsSync(filePath)) return 0;
+        const stat = fs.statSync(filePath);
+        return Number(stat.mtimeMs) || 0;
+    } catch (err) {
+        return 0;
+    }
+}
+
 function loadPayload() {
     try {
         const parsedRequests = readJsonFile(REQUESTS_PATH);
+        const parsedLegacyRequests = readJsonFile(LEGACY_REQUESTS_PATH);
         const parsedHolidays = readJsonFile(HOLIDAYS_PATH);
+        const parsedLegacyHolidays = readJsonFile(LEGACY_HOLIDAYS_PATH);
         const parsedBalances = readJsonFile(BALANCES_PATH);
+        const parsedLegacyBalances = readJsonFile(LEGACY_BALANCES_PATH);
         const parsedClosures = readJsonFile(CLOSURES_PATH);
+        const parsedLegacyClosures = readJsonFile(LEGACY_CLOSURES_PATH);
         const requestsFromShards = readRequestsFromShards();
-        const requestsFromLegacy = parsedRequests == null || isRequestsManifest(parsedRequests)
-            ? null
-            : normalizeRequestsData(parsedRequests);
+        const requestsFromFiles =
+            parsedRequests != null && !isRequestsManifest(parsedRequests)
+                ? normalizeRequestsData(parsedRequests)
+                : (parsedLegacyRequests != null && !isRequestsManifest(parsedLegacyRequests)
+                    ? normalizeRequestsData(parsedLegacyRequests)
+                    : null);
         let shouldSyncRequestsData = false;
 
         let requests = null;
-        if (requestsFromLegacy != null && requestsFromShards != null) {
-            const legacyMs = (() => {
-                try {
-                    const stat = fs.statSync(REQUESTS_PATH);
-                    return Number(stat.mtimeMs) || 0;
-                } catch (err) {
-                    return 0;
-                }
-            })();
-            const shardsMs = getLatestShardWriteTimeMs();
-            requests = legacyMs >= shardsMs ? requestsFromLegacy : requestsFromShards;
-            shouldSyncRequestsData = legacyMs !== shardsMs;
-        } else if (requestsFromLegacy != null) {
-            requests = requestsFromLegacy;
+        if (requestsFromFiles != null && requestsFromShards != null) {
+            const filesMs = Math.max(getFileMtimeMs(REQUESTS_PATH), getFileMtimeMs(LEGACY_REQUESTS_PATH));
+            const shardsMs = Math.max(
+                getLatestShardWriteTimeMs(REQUESTS_SHARDS_DIR),
+                getLatestShardWriteTimeMs(LEGACY_REQUESTS_SHARDS_DIR)
+            );
+            requests = filesMs >= shardsMs ? requestsFromFiles : requestsFromShards;
+            shouldSyncRequestsData = filesMs !== shardsMs;
+        } else if (requestsFromFiles != null) {
+            requests = requestsFromFiles;
             shouldSyncRequestsData = true;
         } else if (requestsFromShards != null) {
             requests = requestsFromShards;
             shouldSyncRequestsData = true;
         }
 
-        let holidays = parsedHolidays == null ? null : normalizeHolidaysData(parsedHolidays);
-        let balances = parsedBalances == null ? null : normalizeBalancesData(parsedBalances);
-        let closures = parsedClosures == null ? null : normalizeClosuresData(parsedClosures);
+        let holidays = parsedHolidays == null
+            ? (parsedLegacyHolidays == null ? null : normalizeHolidaysData(parsedLegacyHolidays))
+            : normalizeHolidaysData(parsedHolidays);
+        let balances = parsedBalances == null
+            ? (parsedLegacyBalances == null ? null : normalizeBalancesData(parsedLegacyBalances))
+            : normalizeBalancesData(parsedBalances);
+        let closures = parsedClosures == null
+            ? (parsedLegacyClosures == null ? null : normalizeClosuresData(parsedLegacyClosures))
+            : normalizeClosuresData(parsedClosures);
 
         const needsLegacy = requests == null || holidays == null || balances == null || closures == null;
-        if (needsLegacy && fs.existsSync(DATA_PATH)) {
-            const legacyParsed = readJsonFile(DATA_PATH);
+        if (needsLegacy && (fs.existsSync(DATA_PATH) || fs.existsSync(LEGACY_DATA_PATH))) {
+            const legacyParsed = readJsonFile(DATA_PATH) || readJsonFile(LEGACY_DATA_PATH);
             if (requests == null) {
                 requests = normalizeRequestsData(legacyParsed);
             }
@@ -645,10 +692,19 @@ function loadPayload() {
                 if (balances == null) balances = {};
                 if (closures == null) closures = [];
                 try {
-                    if (requestsFromLegacy == null || requestsFromShards == null) writeRequestsData(requests);
-                    if (parsedHolidays == null) writeJsonFile(HOLIDAYS_PATH, holidays);
-                    if (parsedBalances == null) writeJsonFile(BALANCES_PATH, balances);
-                    if (parsedClosures == null) writeJsonFile(CLOSURES_PATH, closures);
+                    if (requestsFromFiles == null || requestsFromShards == null) writeRequestsData(requests);
+                    if (parsedHolidays == null || parsedLegacyHolidays == null) {
+                        writeJsonFile(HOLIDAYS_PATH, holidays);
+                        writeJsonFile(LEGACY_HOLIDAYS_PATH, holidays);
+                    }
+                    if (parsedBalances == null || parsedLegacyBalances == null) {
+                        writeJsonFile(BALANCES_PATH, balances);
+                        writeJsonFile(LEGACY_BALANCES_PATH, balances);
+                    }
+                    if (parsedClosures == null || parsedLegacyClosures == null) {
+                        writeJsonFile(CLOSURES_PATH, closures);
+                        writeJsonFile(LEGACY_CLOSURES_PATH, closures);
+                    }
                 } catch (err) {
                     console.error("Errore migrazione dati ferie:", err);
                 }
@@ -683,8 +739,13 @@ function savePayload(payload) {
         const balances = normalizeBalancesData(payload?.balances ?? payload);
         writeRequestsData(requests);
         writeJsonFile(HOLIDAYS_PATH, holidays);
+        writeJsonFile(LEGACY_HOLIDAYS_PATH, holidays);
         writeJsonFile(BALANCES_PATH, balances);
+        writeJsonFile(LEGACY_BALANCES_PATH, balances);
         writeJsonFile(CLOSURES_PATH, closures);
+        writeJsonFile(LEGACY_CLOSURES_PATH, closures);
+        writeJsonFile(DATA_PATH, { requests, balances, holidays, closures });
+        writeJsonFile(LEGACY_DATA_PATH, { requests, balances, holidays, closures });
         return true;
     } catch (err) {
         console.error("Errore salvataggio ferie:", err);

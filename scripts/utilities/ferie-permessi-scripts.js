@@ -19,11 +19,13 @@ const bootRequire = (modulePath) => {
 
 const {
     BASE_DIR,
+    CALENDAR_DIR,
     REQUESTS_PATH,
     HOLIDAYS_PATH,
     BALANCES_PATH,
     CLOSURES_PATH,
     ADMINS_PATH,
+    LEGACY_ADMINS_PATH,
     CONFIG_PATH,
 } = bootRequire(path.join(fpBaseDir, "config", "paths"));
 const {
@@ -115,8 +117,14 @@ const {
     saveAccessConfig,
 } = bootRequire(path.join(fpBaseDir, "services", "access-config"));
 
-const BACKUP_BASE_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
-const BACKUP_ROOT_DIR = path.join(BACKUP_BASE_DIR, "Backup AyPi Calendar");
+const BACKUP_ROOT_DIR = path.join(BASE_DIR, "Backup AyPi Calendar");
+
+function getBackupSourceDir() {
+    if (CALENDAR_DIR && !fs.existsSync(CALENDAR_DIR)) {
+        fs.mkdirSync(CALENDAR_DIR, { recursive: true });
+    }
+    return CALENDAR_DIR;
+}
 
 let calendar = null;
 let XLSX;
@@ -1577,21 +1585,24 @@ function isChecked(id) {
 }
 
 function isAdminFileMissingOrEmpty() {
-    try {
-        if (!ADMINS_PATH || !fs.existsSync(ADMINS_PATH)) return true;
-        const raw = fs.readFileSync(ADMINS_PATH, "utf8");
-        if (!raw) return true;
+    const hasValidAdmins = (targetPath) => {
+        if (!targetPath || !fs.existsSync(targetPath)) return false;
+        const raw = fs.readFileSync(targetPath, "utf8");
+        if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-            return !parsed.some((item) => item && item.name && (item.password || item.passwordHash));
+            return parsed.some((item) => item && item.name && (item.password || item.passwordHash));
         }
         if (parsed && Array.isArray(parsed.admins)) {
-            return !parsed.admins.some((item) => item && item.name && (item.password || item.passwordHash));
+            return parsed.admins.some((item) => item && item.name && (item.password || item.passwordHash));
         }
         if (parsed && typeof parsed === "object") {
-            return Object.keys(parsed).length === 0;
+            return Object.keys(parsed).length > 0;
         }
-        return true;
+        return false;
+    };
+    try {
+        return !hasValidAdmins(ADMINS_PATH) && !hasValidAdmins(LEGACY_ADMINS_PATH);
     } catch (err) {
         console.error("Errore lettura file admin:", err);
         return true;
@@ -2764,10 +2775,7 @@ function init() {
                 targetDir = path.join(BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
             }
             ensureDir(targetDir);
-            copyDirectory(BACKUP_BASE_DIR, targetDir, {
-                exclude: (name, parent) =>
-                    parent === BACKUP_BASE_DIR && name.toLowerCase() === "backup aypi calendar",
-            });
+            copyDirectory(getBackupSourceDir(), targetDir);
             pruneOldBackups(10);
             if (!isSilent) {
                 setMessage(backupMessage, UI_TEXTS.backupCreateSuccess(targetDir), false);
@@ -2797,9 +2805,7 @@ function init() {
                 return;
             }
             if (!folder) return;
-            copyDirectory(folder, BACKUP_BASE_DIR, {
-                exclude: (name) => name.toLowerCase() === "backup aypi calendar",
-            });
+            copyDirectory(folder, getBackupSourceDir());
             renderAll(loadData());
             pruneOldBackups(10);
             setMessage(backupMessage, UI_TEXTS.backupRestoreSuccess, false);
