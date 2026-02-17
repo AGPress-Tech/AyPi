@@ -2368,9 +2368,6 @@ function initSettingsModals() {
     initSettingsModalsUi({
         document,
         requireAdminAccess,
-        adminUi,
-        initPasswordModal,
-        openPasswordModal,
         openCalendarAssignees: () => {
             try {
                 ipcRenderer.send("pm-open-calendar-assignees");
@@ -2378,7 +2375,13 @@ function initSettingsModals() {
                 showError("Apertura gestione dipendenti non disponibile.", err.message || String(err));
             }
         },
-        UI_TEXTS,
+        openCalendarAdmins: () => {
+            try {
+                ipcRenderer.send("open-admin-manager-window");
+            } catch (err) {
+                showError("Apertura gestione admin non disponibile.", err.message || String(err));
+            }
+        },
     });
 }
 

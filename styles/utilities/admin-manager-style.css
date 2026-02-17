@@ -1,0 +1,145 @@
+html,
+body {
+    height: 100%;
+    margin: 0;
+    background: #f5f7fb;
+}
+
+.adm-page {
+    min-height: 100%;
+}
+
+.adm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #dfe4ec;
+    background: #ffffff;
+}
+
+.adm-header h1 {
+    margin: 0;
+    font-size: 22px;
+    color: #1a73e8;
+}
+
+.adm-header p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.adm-actions {
+    display: flex;
+    gap: 6px;
+}
+
+#fp-admin-modal {
+    position: fixed;
+    inset: 64px 12px 12px 12px;
+    background: transparent;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+}
+
+#fp-admin-modal.is-hidden {
+    display: none;
+}
+
+#fp-admin-modal .fp-modal__card {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    overflow: auto;
+    margin: 0;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+#fp-admin-modal .fp-admin-card {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    gap: 10px;
+}
+
+#fp-admin-modal .fp-assignees-header {
+    gap: 8px;
+}
+
+#fp-admin-modal .fp-assignees-subtitle {
+    margin-top: 4px;
+}
+
+#fp-admin-modal .fp-admin-list {
+    max-height: none;
+    height: 100%;
+    min-height: 0;
+}
+
+#fp-admin-modal .fp-admin-row {
+    padding: 6px 12px;
+    font-size: 14px;
+}
+
+#fp-admin-modal .fp-admin-row__actions,
+#fp-admin-modal .fp-assignees-row__actions,
+#fp-admin-modal .fp-admin-actions {
+    gap: 6px;
+}
+
+#fp-admin-modal .fp-btn,
+.adm-header .fp-btn,
+#fp-admin-add-modal .fp-btn,
+#fp-admin-edit-modal .fp-btn,
+#fp-otp-modal .fp-btn,
+#fp-approve-modal .fp-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+#fp-admin-modal #fp-admin-add-open {
+    width: auto;
+    justify-content: center;
+    margin-left: auto;
+}
+
+#fp-admin-modal #fp-admin-add-open .fp-btn__label {
+    margin-left: 6px;
+}
+
+#fp-admin-add-modal .fp-modal__card,
+#fp-admin-edit-modal .fp-modal__card,
+#fp-otp-modal .fp-modal__card,
+#fp-approve-modal .fp-modal__card {
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+}
+
+#fp-admin-add-modal .fp-admin-grid,
+#fp-admin-edit-modal .fp-admin-grid,
+#fp-otp-modal .fp-admin-grid {
+    gap: 6px;
+}
+
+@media (max-height: 820px) {
+    #fp-admin-modal {
+        inset: 60px 10px 10px 10px;
+    }
+
+    #fp-admin-modal .fp-modal__card {
+        height: calc(100vh - 70px);
+        max-height: calc(100vh - 70px);
+        padding: 12px;
+    }
+
+    #fp-admin-modal .fp-admin-row {
+        padding: 5px 10px;
+    }
+}

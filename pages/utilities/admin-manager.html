@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Gestione admin</title>
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/admin-manager-style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+</head>
+<body>
+    <div class="adm-page">
+        <header class="adm-header">
+            <div>
+                <h1>Gestione admin</h1>
+                <p>Modulo condiviso Calendar/Purchasing</p>
+            </div>
+            <div class="adm-actions">
+                <button type="button" class="fp-btn" id="adm-refresh">Aggiorna</button>
+                <button type="button" class="fp-btn fp-btn--ghost" id="adm-close">Chiudi</button>
+            </div>
+        </header>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-admin-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-label="Gestione admin">
+            <div class="fp-assignees-subtitle">Admin registrati</div>
+            <div id="fp-admin-list" class="fp-admin-list"></div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-admin-add-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">person_add</span>
+                    </span>
+                    <span class="fp-btn__label">Aggiungi admin</span>
+                </button>
+            </div>
+            <div id="fp-admin-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-admin-add-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-admin-add-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-admin-add-title">Nuovo admin</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-add-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack">
+                <input class="fp-field__input" id="fp-admin-name" type="text" placeholder="Nome e cognome">
+                <input class="fp-field__input" id="fp-admin-email" type="email" placeholder="Email">
+                <input class="fp-field__input" id="fp-admin-phone" type="tel" placeholder="+39 3xx xxx xxxx">
+                <input class="fp-field__input" id="fp-admin-password" type="password" placeholder="Password">
+                <input class="fp-field__input" id="fp-admin-password-confirm" type="password" placeholder="Conferma password">
+            </div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-add-cancel">Annulla</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-admin-add">Salva admin</button>
+            </div>
+            <div id="fp-admin-add-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-admin-edit-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-admin-edit-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-admin-edit-title">Modifica admin</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-edit-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--single">
+                <input class="fp-field__input" id="fp-admin-edit-name" type="text" placeholder="Nome e cognome">
+                <input class="fp-field__input" id="fp-admin-edit-email" type="email" placeholder="Email">
+                <input class="fp-field__input" id="fp-admin-edit-phone" type="tel" placeholder="+39 3xx xxx xxxx">
+            </div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-edit-cancel">Annulla</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-admin-edit-save">Salva modifica</button>
+            </div>
+            <div class="fp-admin-actions">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-admin-password-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">lock_reset</span>
+                    </span>
+                    <span class="fp-btn__label">Cambia password</span>
+                </button>
+            </div>
+            <div class="fp-admin-section fp-admin-password is-hidden" id="fp-admin-password-panel">
+                <div class="fp-admin-grid fp-admin-grid--stack">
+                    <input class="fp-field__input" id="fp-admin-current" type="password" placeholder="Password attuale">
+                    <input class="fp-field__input" id="fp-admin-new" type="password" placeholder="Nuova password">
+                    <input class="fp-field__input" id="fp-admin-new-confirm" type="password" placeholder="Conferma nuova password">
+                </div>
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-admin-forgot">Password dimenticata</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-admin-change">Aggiorna password</button>
+                </div>
+            </div>
+            <div id="fp-admin-edit-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-otp-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-otp-title">
+            <div class="fp-assignees-header">
+                <h3 id="fp-otp-title">Recupero password</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-close">Chiudi</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack">
+                <input class="fp-field__input" id="fp-otp-admin-name" type="text" placeholder="Nome e cognome admin">
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-send">Invia OTP via email</button>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-verify-section">
+                <input class="fp-field__input" id="fp-otp-code" type="text" placeholder="Codice OTP">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-resend">Invia di nuovo OTP</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-verify">Verifica OTP</button>
+                </div>
+            </div>
+            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-reset-section">
+                <input class="fp-field__input" id="fp-otp-new" type="password" placeholder="Nuova password">
+                <input class="fp-field__input" id="fp-otp-new-confirm" type="password" placeholder="Conferma nuova password">
+                <div class="fp-admin-actions">
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-reset">Aggiorna password</button>
+                </div>
+            </div>
+            <div id="fp-otp-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
+            <h3 id="fp-approve-title">Conferma</h3>
+            <p id="fp-approve-desc">Inserisci la password per continuare.</p>
+            <input type="password" id="fp-approve-password" placeholder="Password">
+            <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">Password errata.</div>
+            <button type="button" class="fp-link-btn is-hidden" id="fp-approve-recover">Recupero password?</button>
+            <div class="fp-actions fp-actions--modal">
+                <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
+                <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            try {
+                var path = require("path");
+                var scriptPath = path.join(__dirname, "..", "..", "scripts", "utilities", "admin-manager-scripts.js");
+                require(scriptPath);
+            } catch (err) {
+                try {
+                    var ipcRenderer = require("electron").ipcRenderer;
+                    if (ipcRenderer) {
+                        ipcRenderer.invoke("show-message-box", {
+                            type: "error",
+                            message: "Errore Gestione Admin",
+                            detail: err && err.message ? err.message : String(err),
+                        });
+                    }
+                } catch (_innerErr) {}
+            }
+        })();
+    </script>
+</body>
+</html>

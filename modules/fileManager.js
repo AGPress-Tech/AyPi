@@ -692,6 +692,7 @@ let productManagerInterventionsWindow = null;
 let ticketSupportWindow = null;
 let ticketSupportAdminWindow = null;
 let assigneesManagerWindow = null;
+let adminManagerWindow = null;
 let productManagerSession = null;
 let productManagerForceLogout = false;
 let feriePermessiSplashShown = false;
@@ -1198,6 +1199,37 @@ function openAssigneesManagerWindow(mainWindow) {
     });
 }
 
+function openAdminManagerWindow(mainWindow) {
+    if (isWindowAlive(adminManagerWindow)) {
+        showWindow(adminManagerWindow);
+        return;
+    }
+
+    adminManagerWindow = new BrowserWindow({
+        width: 980,
+        height: 760,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f5f7fb",
+    });
+
+    adminManagerWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "admin-manager.html")
+    );
+    adminManagerWindow.setMenu(null);
+
+    adminManagerWindow.once("ready-to-show", () => {
+        if (!adminManagerWindow.isDestroyed()) {
+            showWindow(adminManagerWindow);
+        }
+    });
+
+    adminManagerWindow.on("closed", () => {
+        adminManagerWindow = null;
+    });
+}
+
 function openCompareFoldersWindow(slot, folder) {
     const createWindow = () => {
         compareFoldersWindow = new BrowserWindow({
@@ -1623,10 +1655,11 @@ function setupFileManager(mainWindow) {
       });
 
       ipcMain.on("pm-open-calendar-admins", () => {
-          openFeriePermessiWindow(mainWindow);
-          if (feriePermessiWindow && !feriePermessiWindow.isDestroyed()) {
-              feriePermessiWindow.webContents.send("pm-open-calendar-admins");
-          }
+          openAdminManagerWindow(mainWindow);
+      });
+
+      ipcMain.on("open-admin-manager-window", () => {
+          openAdminManagerWindow(mainWindow);
       });
 
       ipcMain.on("open-ferie-permessi-hours-window", () => {

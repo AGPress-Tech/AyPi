@@ -2,11 +2,8 @@ function initSettingsModals(ctx) {
     const {
         document,
         requireAdminAccess,
-        adminUi,
-        initPasswordModal,
-        openPasswordModal,
         openCalendarAssignees,
-        UI_TEXTS,
+        openCalendarAdmins,
     } = ctx;
 
     const settingsClose = document.getElementById("pm-settings-close");
@@ -78,18 +75,12 @@ function initSettingsModals(ctx) {
             const modal = document.getElementById("pm-settings-modal");
             if (modal) modal.classList.add("is-hidden");
             requireAdminAccess(() => {
-                openPasswordModal({
-                    type: "admin-access",
-                    id: "admin-access",
-                    title: "Gestione admin",
-                    description: UI_TEXTS.adminAccessDescription,
-                });
+                if (typeof openCalendarAdmins === "function") {
+                    openCalendarAdmins();
+                }
             });
         });
     }
-
-    adminUi.initAdminModals();
-    initPasswordModal();
 }
 
 module.exports = { initSettingsModals };

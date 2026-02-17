@@ -1395,14 +1395,16 @@ const adminUi = createAdminModals({
         document.body.classList.remove("fp-initial-setup");
     },
 });
-openAdminModalHandler = adminUi.openAdminModal;
+openAdminModalHandler = () => {
+    ipcRenderer.send("open-admin-manager-window");
+};
 openPasswordModalHandler = approvalUi.openPasswordModal;
 
 function openInitialSetupWizard() {
     const setupModal = document.getElementById("fp-setup-modal");
     if (!setupModal) {
         showDialog("info", UI_TEXTS.setupAdminTitle, UI_TEXTS.setupAdminMessage);
-        adminUi.openAdminAddModal();
+        openAdminModalHandler?.();
         return;
     }
     const alreadyInit = setupModal.dataset.fpSetupInit === "1";
@@ -1450,7 +1452,7 @@ function openInitialSetupWizard() {
 
     const proceedToAdmin = () => {
         hideModal(setupModal);
-        adminUi.openAdminAddModal();
+        openAdminModalHandler?.();
     };
 
     if (mailOpen) {
@@ -3065,12 +3067,7 @@ ipcRenderer.on("pm-open-calendar-assignees", () => {
 });
 
 ipcRenderer.on("pm-open-calendar-admins", () => {
-    const settingsOpen = document.getElementById("fp-settings");
-    const adminOpen = document.getElementById("fp-admin-open");
-    if (settingsOpen) settingsOpen.click();
-    setTimeout(() => {
-        if (adminOpen) adminOpen.click();
-    }, 80);
+    ipcRenderer.send("open-admin-manager-window");
 });
 
 const guideLocalPath = path.resolve(__dirname, "..", "..", "Guida", "index.html");
