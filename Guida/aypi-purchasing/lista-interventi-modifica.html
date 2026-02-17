@@ -1,10 +1,10 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="it">
 
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AyPi Purchasing • Lista acquisti: Modifica</title>
+  <title>AyPi Purchasing • Lista interventi: Modifica</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 
@@ -14,28 +14,32 @@
 
     <main class="main">
       <div class="topbar">
-        <span class="crumbs">AyPi Purchasing / Lista acquisti / Modifica</span>
+        <span class="crumbs">AyPi Purchasing / Lista interventi / Modifica</span>
         <div class="actions"><button class="btn btn-close" id="guideCloseBtn" type="button">Chiudi</button></div>
       </div>
 
       <div class="content-scroll"><div class="container">
         <section class="card">
-          <h2>Modifica riga (admin)</h2>
+          <h2>Modifica riga intervento (admin)</h2>
+          <p>La modifica è disponibile solo per utenti admin.</p>
           <ol>
-            <li>Clicca il pulsante <b>Modifica</b> sulla riga.</li>
-            <li>Nel form modifica aggiorna i campi necessari:</li>
+            <li>Nella lista interventi clicca l'icona <b>Modifica</b> (matita).</li>
+            <li>Aggiorna i campi necessari:</li>
           </ol>
           <ul>
-            <li>Nome prodotto</li>
-            <li>Tag / Tipologie</li>
-            <li>Quantità e UM</li>
-            <li>URL e note</li>
-            <li>Prezzo C.A.D (solo admin)</li>
+            <li>Tipologia di intervento</li>
+            <li>Descrizione</li>
+            <li>Urgenza</li>
           </ul>
           <ol start="3">
             <li>Clicca <b>Salva</b> per applicare le modifiche.</li>
           </ol>
-          <p>Scorciatoia: nel form di modifica puoi premere <b>Invio</b> per eseguire <b>Salva</b>.</p>
+          <p>Scorciatoia: nel form puoi premere <b>Invio</b> per eseguire <b>Salva</b>.</p>
+
+          <div class="callout admin">
+            <div class="title">Permessi</div>
+            <p>Un operatore può consultare la lista, ma non può modificare righe intervento.</p>
+          </div>
         </section>
       </div></div>
     </main>
@@ -44,3 +48,4 @@
 </body>
 
 </html>
+

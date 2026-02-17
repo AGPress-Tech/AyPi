@@ -1829,8 +1829,20 @@ function initPasswordModal() {
     const cancel = document.getElementById("fp-approve-cancel");
     const confirm = document.getElementById("fp-approve-confirm");
     const recover = document.getElementById("fp-approve-recover");
+    const input = document.getElementById("fp-approve-password");
     if (cancel) cancel.addEventListener("click", () => hideModal(document.getElementById("fp-approve-modal")));
     if (confirm) confirm.addEventListener("click", confirmPassword);
+    if (input) {
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                confirmPassword();
+            } else if (event.key === "Escape") {
+                event.preventDefault();
+                hideModal(document.getElementById("fp-approve-modal"));
+            }
+        });
+    }
     if (recover) {
         recover.addEventListener("click", () => {
             hideModal(document.getElementById("fp-approve-modal"));
@@ -1994,6 +2006,10 @@ function setupLogin() {
     const adminConfirm = document.getElementById("pm-login-admin-confirm");
     const adminError = document.getElementById("pm-login-admin-error");
     const adminRecover = document.getElementById("pm-login-admin-recover");
+    const employeeDepartment = document.getElementById("pm-login-department");
+    const employeeName = document.getElementById("pm-login-employee-name");
+    const adminNameInput = document.getElementById("pm-login-admin-name");
+    const adminPasswordInput = document.getElementById("pm-login-admin-password");
 
     if (loginBtn) {
         loginBtn.addEventListener("click", () => {
@@ -2055,6 +2071,15 @@ function setupLogin() {
             closeLoginModal();
         });
     }
+    [employeeDepartment, employeeName].forEach((field) => {
+        if (!field || !employeeConfirm) return;
+        field.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            if (employeePanel && employeePanel.classList.contains("is-hidden")) return;
+            event.preventDefault();
+            employeeConfirm.click();
+        });
+    });
 
     if (adminConfirm) {
         adminConfirm.addEventListener("click", async () => {
@@ -2087,6 +2112,15 @@ function setupLogin() {
             closeLoginModal();
         });
     }
+    [adminNameInput, adminPasswordInput].forEach((field) => {
+        if (!field || !adminConfirm) return;
+        field.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            if (adminPanel && adminPanel.classList.contains("is-hidden")) return;
+            event.preventDefault();
+            adminConfirm.click();
+        });
+    });
 
     if (adminRecover) {
         adminRecover.addEventListener("click", () => {
@@ -2099,21 +2133,46 @@ function initEditModal() {
     const closeBtn = document.getElementById("pm-edit-close");
     const cancelBtn = document.getElementById("pm-edit-cancel");
     const saveBtn = document.getElementById("pm-edit-save");
+    const modal = document.getElementById("pm-edit-modal");
     if (closeBtn) closeBtn.addEventListener("click", () => closeEditModal());
     if (cancelBtn) cancelBtn.addEventListener("click", () => closeEditModal());
     if (saveBtn) saveBtn.addEventListener("click", () => saveEditModal());
+    if (modal) {
+        const fields = modal.querySelectorAll("input, select");
+        fields.forEach((field) => {
+            field.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                if (modal.classList.contains("is-hidden")) return;
+                event.preventDefault();
+                saveEditModal();
+            });
+        });
+    }
 }
 
 function initInterventionEditModal() {
     const closeBtn = document.getElementById("pm-intervention-edit-close");
     const cancelBtn = document.getElementById("pm-intervention-edit-cancel");
     const saveBtn = document.getElementById("pm-intervention-edit-save");
+    const modal = document.getElementById("pm-intervention-edit-modal");
     if (closeBtn) closeBtn.addEventListener("click", () => closeInterventionEditModal());
     if (cancelBtn) cancelBtn.addEventListener("click", () => closeInterventionEditModal());
     if (saveBtn) saveBtn.addEventListener("click", () => saveInterventionEditModal());
+    if (modal) {
+        const fields = modal.querySelectorAll("input, select");
+        fields.forEach((field) => {
+            field.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                if (modal.classList.contains("is-hidden")) return;
+                event.preventDefault();
+                saveInterventionEditModal();
+            });
+        });
+    }
 }
 
 function initCatalogModal() {
+    const modal = document.getElementById("pm-catalog-modal");
     const openBtn = document.getElementById("pm-catalog-add");
     const closeBtn = document.getElementById("pm-catalog-close");
     const cancelBtn = document.getElementById("pm-catalog-cancel");
@@ -2125,6 +2184,17 @@ function initCatalogModal() {
     if (closeBtn) closeBtn.addEventListener("click", () => closeCatalogModal());
     if (cancelBtn) cancelBtn.addEventListener("click", () => closeCatalogModal());
     if (saveBtn) saveBtn.addEventListener("click", () => saveCatalogItem());
+    if (modal) {
+        const fields = modal.querySelectorAll("input, select");
+        fields.forEach((field) => {
+            field.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                if (modal.classList.contains("is-hidden")) return;
+                event.preventDefault();
+                saveCatalogItem();
+            });
+        });
+    }
     if (browseBtn) {
         browseBtn.addEventListener("click", async () => {
             try {
@@ -2319,7 +2389,7 @@ function initLogoutModal() {
 }
 
 function initGuideModal() {
-    initGuideModalUi({ guideUi });
+    initGuideModalUi({ document, guideUi });
 }
 
 async function init() {

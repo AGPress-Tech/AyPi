@@ -2,9 +2,18 @@ function initAddModal({ document, closeAddModal, saveAddModal }) {
     const closeBtn = document.getElementById("pm-add-close");
     const cancelBtn = document.getElementById("pm-add-cancel");
     const saveBtn = document.getElementById("pm-add-save");
+    const quantityInput = document.getElementById("pm-add-quantity");
     if (closeBtn) closeBtn.addEventListener("click", () => closeAddModal());
     if (cancelBtn) cancelBtn.addEventListener("click", () => closeAddModal());
     if (saveBtn) saveBtn.addEventListener("click", () => saveAddModal());
+    if (quantityInput) {
+        quantityInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                saveAddModal();
+            }
+        });
+    }
 }
 
 function initConfirmModal({ document, closeConfirmModal }) {
@@ -17,6 +26,12 @@ function initConfirmModal({ document, closeConfirmModal }) {
         modal.addEventListener("click", (event) => {
             if (event.target === modal) closeConfirmModal(false);
         });
+        modal.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            if (modal.classList.contains("is-hidden")) return;
+            event.preventDefault();
+            closeConfirmModal(true);
+        });
     }
 }
 
@@ -27,6 +42,12 @@ function initAlertModal({ document, closeAlertModal }) {
     if (modal) {
         modal.addEventListener("click", (event) => {
             if (event.target === modal) closeAlertModal();
+        });
+        modal.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            if (modal.classList.contains("is-hidden")) return;
+            event.preventDefault();
+            closeAlertModal();
         });
     }
 }

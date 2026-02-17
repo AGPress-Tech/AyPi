@@ -117,6 +117,17 @@ body.pm-ready .pm-page {
     color: var(--pm-muted);
 }
 
+#pm-guide-news {
+    font-size: 11px;
+    color: var(--pm-muted);
+    line-height: 1.2;
+    margin-top: 1px;
+}
+
+#pm-guide-news:hover {
+    color: var(--pm-accent);
+}
+
 .pm-header__actions {
     display: flex;
     gap: 10px;

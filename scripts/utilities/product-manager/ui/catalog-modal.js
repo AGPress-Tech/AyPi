@@ -156,6 +156,7 @@ function saveCatalogItem(ctx) {
 
 function initCatalogModal(ctx) {
     const { document, ipcRenderer, showError, uiState, openCatalogModal, closeCatalogModal, saveCatalogItem } = ctx;
+    const modal = document.getElementById("pm-catalog-modal");
     const openBtn = document.getElementById("pm-catalog-add");
     const closeBtn = document.getElementById("pm-catalog-close");
     const cancelBtn = document.getElementById("pm-catalog-cancel");
@@ -168,6 +169,17 @@ function initCatalogModal(ctx) {
     if (closeBtn) closeBtn.addEventListener("click", () => closeCatalogModal());
     if (cancelBtn) cancelBtn.addEventListener("click", () => closeCatalogModal());
     if (saveBtn) saveBtn.addEventListener("click", () => saveCatalogItem());
+    if (modal) {
+        const fields = modal.querySelectorAll("input, select");
+        fields.forEach((field) => {
+            field.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                if (modal.classList.contains("is-hidden")) return;
+                event.preventDefault();
+                saveCatalogItem();
+            });
+        });
+    }
     if (browseBtn) {
         browseBtn.addEventListener("click", async () => {
             try {

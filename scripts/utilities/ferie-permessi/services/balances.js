@@ -1,10 +1,13 @@
 const fs = require("fs");
+const path = require("path");
 const { DATA_PATH, REQUESTS_PATH, HOLIDAYS_PATH, BALANCES_PATH, CLOSURES_PATH } = require("../config/paths");
 const { ensureFolderFor } = require("./storage");
 const { calculateHours } = require("../utils/requests");
 
 const DEFAULT_INITIAL_HOURS = 100;
 const MONTHLY_ACCRUAL_HOURS = 16;
+const REQUESTS_SHARDS_DIR = path.join(path.dirname(REQUESTS_PATH), "Calendar Years");
+const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
 
 function isBalanceNeutral(request) {
     return request && (
@@ -488,6 +491,90 @@ function normalizeBalancesData(value) {
     return {};
 }
 
+function isRequestsManifest(value) {
+    return !!(value && typeof value === "object" && !Array.isArray(value) && value.format === "sharded-v1");
+}
+
+function readRequestsFromShards() {
+    if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return null;
+    const files = fs.readdirSync(REQUESTS_SHARDS_DIR)
+        .filter((name) => REQUESTS_SHARD_REGEX.test(name))
+        .sort();
+    if (!files.length) return null;
+
+    const requests = [];
+    files.forEach((name) => {
+        const filePath = path.join(REQUESTS_SHARDS_DIR, name);
+        const parsed = readJsonFile(filePath);
+        const rows = normalizeRequestsData(parsed);
+        rows.forEach((row) => requests.push(row));
+    });
+    return requests;
+}
+
+function getLatestShardWriteTimeMs() {
+    if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return 0;
+    const files = fs.readdirSync(REQUESTS_SHARDS_DIR).filter((name) => REQUESTS_SHARD_REGEX.test(name));
+    let latest = 0;
+    files.forEach((name) => {
+        try {
+            const stat = fs.statSync(path.join(REQUESTS_SHARDS_DIR, name));
+            const ms = stat && stat.mtimeMs ? Number(stat.mtimeMs) : 0;
+            if (Number.isFinite(ms) && ms > latest) latest = ms;
+        } catch (err) {
+            // ignore stat errors for single shard
+        }
+    });
+    return latest;
+}
+
+function toShardKey(request) {
+    if (!request || typeof request !== "object") return "undated";
+    const candidates = [request.start, request.end, request.createdAt, request.updatedAt];
+    for (let i = 0; i < candidates.length; i += 1) {
+        const value = candidates[i];
+        if (typeof value !== "string" || !value.trim()) continue;
+        const trimmed = value.trim();
+        const direct = /^(\d{4})/.exec(trimmed);
+        if (direct) return direct[1];
+        const parsed = new Date(trimmed);
+        if (!Number.isNaN(parsed.getTime())) {
+            const year = parsed.getFullYear();
+            if (year >= 1900 && year <= 2500) return String(year);
+        }
+    }
+    return "undated";
+}
+
+function writeRequestsData(requests) {
+    const list = normalizeRequestsData(requests);
+    const buckets = new Map();
+    list.forEach((request) => {
+        const key = toShardKey(request);
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(request);
+    });
+
+    ensureFolderFor(path.join(REQUESTS_SHARDS_DIR, "index.json"));
+
+    const shardFiles = [];
+    buckets.forEach((items, key) => {
+        const fileName = `requests-${key}.json`;
+        shardFiles.push(fileName);
+        writeJsonFile(path.join(REQUESTS_SHARDS_DIR, fileName), items);
+    });
+
+    const expected = new Set(shardFiles);
+    const existing = fs.existsSync(REQUESTS_SHARDS_DIR) ? fs.readdirSync(REQUESTS_SHARDS_DIR) : [];
+    existing.forEach((name) => {
+        if (!REQUESTS_SHARD_REGEX.test(name)) return;
+        if (expected.has(name)) return;
+        fs.unlinkSync(path.join(REQUESTS_SHARDS_DIR, name));
+    });
+
+    writeJsonFile(REQUESTS_PATH, list);
+}
+
 function writeJsonFile(filePath, value) {
     if (!filePath) return;
     ensureFolderFor(filePath);
@@ -500,8 +587,33 @@ function loadPayload() {
         const parsedHolidays = readJsonFile(HOLIDAYS_PATH);
         const parsedBalances = readJsonFile(BALANCES_PATH);
         const parsedClosures = readJsonFile(CLOSURES_PATH);
+        const requestsFromShards = readRequestsFromShards();
+        const requestsFromLegacy = parsedRequests == null || isRequestsManifest(parsedRequests)
+            ? null
+            : normalizeRequestsData(parsedRequests);
+        let shouldSyncRequestsData = false;
 
-        let requests = parsedRequests == null ? null : normalizeRequestsData(parsedRequests);
+        let requests = null;
+        if (requestsFromLegacy != null && requestsFromShards != null) {
+            const legacyMs = (() => {
+                try {
+                    const stat = fs.statSync(REQUESTS_PATH);
+                    return Number(stat.mtimeMs) || 0;
+                } catch (err) {
+                    return 0;
+                }
+            })();
+            const shardsMs = getLatestShardWriteTimeMs();
+            requests = legacyMs >= shardsMs ? requestsFromLegacy : requestsFromShards;
+            shouldSyncRequestsData = legacyMs !== shardsMs;
+        } else if (requestsFromLegacy != null) {
+            requests = requestsFromLegacy;
+            shouldSyncRequestsData = true;
+        } else if (requestsFromShards != null) {
+            requests = requestsFromShards;
+            shouldSyncRequestsData = true;
+        }
+
         let holidays = parsedHolidays == null ? null : normalizeHolidaysData(parsedHolidays);
         let balances = parsedBalances == null ? null : normalizeBalancesData(parsedBalances);
         let closures = parsedClosures == null ? null : normalizeClosuresData(parsedClosures);
@@ -528,13 +640,21 @@ function loadPayload() {
                 if (balances == null) balances = {};
                 if (closures == null) closures = [];
                 try {
-                    if (parsedRequests == null) writeJsonFile(REQUESTS_PATH, requests);
+                    if (requestsFromLegacy == null || requestsFromShards == null) writeRequestsData(requests);
                     if (parsedHolidays == null) writeJsonFile(HOLIDAYS_PATH, holidays);
                     if (parsedBalances == null) writeJsonFile(BALANCES_PATH, balances);
                     if (parsedClosures == null) writeJsonFile(CLOSURES_PATH, closures);
                 } catch (err) {
                     console.error("Errore migrazione dati ferie:", err);
                 }
+            }
+        }
+
+        if (requests != null && shouldSyncRequestsData) {
+            try {
+                writeRequestsData(requests);
+            } catch (err) {
+                console.error("Errore sincronizzazione dual storage richieste ferie:", err);
             }
         }
 
@@ -556,7 +676,7 @@ function savePayload(payload) {
         const holidays = normalizeHolidaysData(payload);
         const closures = normalizeClosuresData(payload);
         const balances = normalizeBalancesData(payload?.balances ?? payload);
-        writeJsonFile(REQUESTS_PATH, requests);
+        writeRequestsData(requests);
         writeJsonFile(HOLIDAYS_PATH, holidays);
         writeJsonFile(BALANCES_PATH, balances);
         writeJsonFile(CLOSURES_PATH, closures);
