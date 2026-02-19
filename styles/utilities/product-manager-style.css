@@ -708,6 +708,21 @@ body.pm-mode-intervention .pm-list {
     font-family: inherit;
 }
 
+body:not(.fp-dark):not(.fp-aypi) .pm-field input:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-field select:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-field textarea:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-field__input:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-admin-actions input:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-catalog-actions input:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-catalog-actions select:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-table__input:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-catalog-qty:focus,
+body:not(.fp-dark):not(.fp-aypi) .pm-multiselect__button:focus {
+    border-color: #1a73e8;
+    outline: 2px solid rgba(26, 115, 232, 0.25);
+    outline-offset: 2px;
+}
+
 .pm-lines {
     display: flex;
     flex-direction: column;
@@ -1072,6 +1087,21 @@ body.fp-dark .pm-multiselect__button {
     color: var(--pm-ink);
 }
 
+body.fp-dark .pm-field input:focus,
+body.fp-dark .pm-field select:focus,
+body.fp-dark .pm-field textarea:focus,
+body.fp-dark .pm-field__input:focus,
+body.fp-dark .pm-admin-actions input:focus,
+body.fp-dark .pm-catalog-actions input:focus,
+body.fp-dark .pm-catalog-actions select:focus,
+body.fp-dark .pm-table__input:focus,
+body.fp-dark .pm-catalog-qty:focus,
+body.fp-dark .pm-multiselect__button:focus {
+    border-color: #8ab4f8;
+    outline: 2px solid rgba(138, 180, 248, 0.35);
+    outline-offset: 2px;
+}
+
 body.fp-dark .pm-line {
     background: #1a1b1e;
     border-color: var(--pm-border);
@@ -1149,6 +1179,10 @@ body.fp-aypi .pm-table__row--header {
     color: var(--pm-accent);
 }
 
+body.fp-aypi .pm-table__row--header .pm-table__cell {
+    color: var(--pm-accent);
+}
+
 body.fp-aypi .pm-table__row--confirmed {
     background: rgba(52, 168, 83, 0.2);
 }
@@ -1187,6 +1221,7 @@ body.fp-aypi .pm-multiselect__button {
     border-color: var(--pm-border);
     color: var(--pm-ink);
 }
+
 
 body.fp-aypi .pm-line {
     background: #1f1c19;
@@ -1238,6 +1273,12 @@ body.fp-aypi .pm-tag-icon-btn {
     color: var(--pm-accent);
     background: #1f1c19;
     opacity: 0.8;
+}
+
+body.fp-aypi .pm-login-choice .pm-btn.is-active {
+    background: var(--pm-accent);
+    border-color: var(--pm-accent);
+    color: #2b2824;
 }
 
 .pm-pill {
@@ -1502,5 +1543,5 @@ body.fp-aypi .pm-filter-row input[type="radio"] {
 
 #pm-greeting {
     font-size: 26px;
-    color: #1a73e8;
+    color: var(--pm-accent);
 }
