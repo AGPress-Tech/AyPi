@@ -1165,26 +1165,53 @@ function readRequestsFile(mode = getActiveMode()) {
             return normalized;
         }
 
-        const primaryData = fs.existsSync(filePath)
+        const primaryExists = filePath && fs.existsSync(filePath);
+        const legacyExists = legacyPath && fs.existsSync(legacyPath);
+        const primaryData = primaryExists
             ? normalizeRequestsData(JSON.parse(fs.readFileSync(filePath, "utf8")))
             : null;
-        const legacyData = fs.existsSync(legacyPath)
+        const legacyData = legacyExists
             ? normalizeRequestsData(JSON.parse(fs.readFileSync(legacyPath, "utf8")))
             : null;
         let fileData = primaryData || legacyData || null;
+        let fileSourcePath = primaryData ? filePath : legacyPath;
         if (primaryData && legacyData) {
             const primaryMs = Number(fs.statSync(filePath).mtimeMs) || 0;
             const legacyMs = Number(fs.statSync(legacyPath).mtimeMs) || 0;
-            fileData = legacyMs > primaryMs ? legacyData : primaryData;
+            if (legacyMs > primaryMs) {
+                fileData = legacyData;
+                fileSourcePath = legacyPath;
+            } else {
+                fileData = primaryData;
+                fileSourcePath = filePath;
+            }
         }
         const shardData = readRequestsFromShards();
         let normalized = [];
         if (fileData && shardData) {
-            const fileMs = Number(fs.statSync(filePath).mtimeMs) || 0;
+            const fileMs = fileSourcePath && fs.existsSync(fileSourcePath)
+                ? Number(fs.statSync(fileSourcePath).mtimeMs) || 0
+                : 0;
             const shardMs = getShardLatestMtimeMs();
-            normalized = fileMs >= shardMs ? fileData : shardData;
+            if (fileMs >= shardMs) {
+                normalized = fileData;
+                if (fileMs > shardMs) {
+                    writeRequestsShards(fileData);
+                }
+            } else {
+                normalized = shardData;
+                if (primaryExists) {
+                    fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+                }
+            }
         } else {
             normalized = fileData || shardData || [];
+            if (fileData && !shardData) {
+                writeRequestsShards(fileData);
+            }
+            if (fileData && fileSourcePath === legacyPath && primaryExists) {
+                fs.writeFileSync(filePath, JSON.stringify(fileData, null, 2), "utf8");
+            }
         }
         validateWithAjv(validateRequestsSchema, normalized, "richieste", { showWarning, showError });
         return normalized;

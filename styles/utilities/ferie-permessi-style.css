@@ -6,6 +6,7 @@ body {
     font-family: Arial, sans-serif;
     background: #f6f8fc;
     color: #1f1f1f;
+    overflow-x: hidden;
 }
 
 .fp-page {
@@ -14,6 +15,7 @@ body {
     min-height: 100%;
     opacity: 0;
     transition: opacity 0.3s ease;
+    overflow-x: hidden;
 }
 
 body.fp-calendar-ready .fp-page {
@@ -43,6 +45,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     border-bottom: 1px solid #e0e3e7;
     gap: 8px;
     user-select: none;
+    overflow-x: hidden;
 }
 
 .fp-header__title {
@@ -106,6 +109,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     font-size: 12px;
     color: #5f6368;
     flex-wrap: wrap;
+    min-width: 0;
 }
 
 .fp-filter-toggle {
@@ -137,6 +141,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     position: relative;
     flex-wrap: wrap;
     max-width: 100%;
+    min-width: 0;
 }
 
 @media (max-width: 1200px) {
@@ -424,6 +429,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     padding: 20px 24px;
     flex: 1;
     min-height: 0;
+    min-width: 0;
 }
 
 .fp-panel {
@@ -431,6 +437,7 @@ body.fp-initial-setup #fp-admin-add-modal {
     flex-direction: column;
     gap: 16px;
     min-height: 0;
+    min-width: 0;
 }
 
 .fp-card {
@@ -482,6 +489,11 @@ body.fp-initial-setup #fp-admin-add-modal {
     box-sizing: border-box;
 }
 
+.fp-field select {
+    padding: 6px 10px;
+    height: 32px;
+}
+
 .fp-field input:focus,
 .fp-field select:focus,
 .fp-field textarea:focus,
@@ -494,6 +506,100 @@ body.fp-initial-setup #fp-admin-add-modal {
 
 .fp-field textarea {
     resize: vertical;
+}
+
+.fp-custom-select {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.fp-custom-select__native {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+}
+
+.fp-custom-select__button {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #ffffff;
+    color: #202124;
+    text-align: left;
+    cursor: pointer;
+    height: 32px;
+    line-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fp-custom-select__button.is-placeholder {
+    color: #5f6368;
+}
+
+.fp-custom-select__button:focus {
+    border-color: #1a73e8;
+    outline: 2px solid rgba(26, 115, 232, 0.25);
+    outline-offset: 2px;
+}
+
+.fp-custom-select__list {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    background: #ffffff;
+    display: none;
+    z-index: 50;
+    padding: 6px;
+    box-shadow: 0 8px 20px rgba(60, 64, 67, 0.2);
+}
+
+.fp-custom-select.is-open .fp-custom-select__list {
+    display: grid;
+    gap: 4px;
+}
+
+.fp-custom-select__option {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 4px 8px;
+    text-align: left;
+    font-size: 13px;
+    background: transparent;
+    color: #202124;
+    cursor: pointer;
+}
+
+.fp-custom-select__option:hover {
+    background: rgba(26, 115, 232, 0.12);
+    border-color: rgba(26, 115, 232, 0.25);
+}
+
+.fp-custom-select__option.is-selected {
+    background: rgba(26, 115, 232, 0.18);
+    border-color: rgba(26, 115, 232, 0.35);
+}
+
+.fp-custom-select__option.is-disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
 .fp-checkbox {
@@ -1035,6 +1141,7 @@ body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
     border-radius: 16px;
     padding: 12px;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
     box-shadow: 0 1px 2px rgba(60, 64, 67, 0.2);
     position: relative;
@@ -1077,6 +1184,8 @@ body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
 #fp-calendar {
     height: 100%;
     min-height: 600px;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 #fp-calendar .fc {
@@ -1084,6 +1193,15 @@ body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
     color: #202124;
     border-radius: 10px;
     padding: 8px;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+#fp-calendar .fc-scrollgrid,
+#fp-calendar .fc-view-harness,
+#fp-calendar .fc-view-harness-active {
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 #fp-calendar .fc .fc-toolbar-title {
@@ -1493,6 +1611,11 @@ body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
     width: 100%;
 }
 
+.fp-admin-grid select {
+    padding: 6px 10px;
+    height: 32px;
+}
+
 .fp-export-choice {
     display: flex;
     flex-wrap: wrap;
@@ -1605,6 +1728,33 @@ body.fp-dark .fp-modal__card--tech {
 
 body.fp-dark .fp-calendar-splash {
     background: #000000;
+}
+
+body.fp-dark .fp-custom-select__button,
+body.fp-dark .fp-custom-select__list {
+    background: #1f232a;
+    border-color: #30343b;
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-custom-select__button:focus {
+    border-color: #8ab4f8;
+    outline: 2px solid rgba(138, 180, 248, 0.35);
+    outline-offset: 2px;
+}
+
+body.fp-dark .fp-custom-select__option {
+    color: #e8eaed;
+}
+
+body.fp-dark .fp-custom-select__option:hover {
+    background: rgba(138, 180, 248, 0.18);
+    border-color: rgba(138, 180, 248, 0.35);
+}
+
+body.fp-dark .fp-custom-select__option.is-selected {
+    background: rgba(138, 180, 248, 0.26);
+    border-color: rgba(138, 180, 248, 0.45);
 }
 
 body.fp-dark .fp-header h1 {
@@ -1944,6 +2094,33 @@ body.fp-aypi .fp-modal__card--tech {
 
 body.fp-aypi .fp-calendar-splash {
     background: #000000;
+}
+
+body.fp-aypi .fp-custom-select__button,
+body.fp-aypi .fp-custom-select__list {
+    background: #1f1c19;
+    border-color: #4a433d;
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-custom-select__button:focus {
+    border-color: #cc930e;
+    outline: 2px solid rgba(204, 147, 14, 0.35);
+    outline-offset: 2px;
+}
+
+body.fp-aypi .fp-custom-select__option {
+    color: #f3e6d5;
+}
+
+body.fp-aypi .fp-custom-select__option:hover {
+    background: rgba(204, 147, 14, 0.18);
+    border-color: rgba(204, 147, 14, 0.35);
+}
+
+body.fp-aypi .fp-custom-select__option.is-selected {
+    background: rgba(204, 147, 14, 0.3);
+    border-color: rgba(204, 147, 14, 0.5);
 }
 
 body.fp-aypi .fp-header h1 {

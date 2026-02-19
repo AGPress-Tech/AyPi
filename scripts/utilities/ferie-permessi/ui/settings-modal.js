@@ -30,6 +30,9 @@ function createSettingsModal(options) {
         const message = document.getElementById("fp-settings-message");
         if (!modal) return;
         setMessage(message, "");
+        if (typeof options?.refreshLegacySyncButton === "function") {
+            options.refreshLegacySyncButton();
+        }
         showModal(modal);
     }
 
@@ -79,6 +82,9 @@ function createSettingsModal(options) {
             settingsBtn.addEventListener("click", () => {
                 openSettingsModal();
             });
+        }
+        if (typeof options?.refreshLegacySyncButton === "function") {
+            options.refreshLegacySyncButton();
         }
         if (settingsClose) {
             settingsClose.addEventListener("click", () => {

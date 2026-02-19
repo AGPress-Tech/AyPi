@@ -612,6 +612,47 @@ function writeRequestsData(requests) {
     }
 }
 
+function syncLegacyRequestsToShards() {
+    try {
+        if (!LEGACY_REQUESTS_PATH || !fs.existsSync(LEGACY_REQUESTS_PATH)) {
+            return { ok: false, reason: "missing_legacy" };
+        }
+        const parsed = readJsonFile(LEGACY_REQUESTS_PATH);
+        if (parsed == null) {
+            return { ok: false, reason: "invalid_legacy" };
+        }
+        const list = normalizeRequestsData(parsed);
+        ensureFolderFor(path.join(REQUESTS_SHARDS_DIR, "index.json"));
+        const buckets = new Map();
+        list.forEach((request) => {
+            const key = toShardKey(request);
+            if (!buckets.has(key)) buckets.set(key, []);
+            buckets.get(key).push(request);
+        });
+
+        const shardFiles = [];
+        buckets.forEach((items, key) => {
+            const fileName = `requests-${key}.json`;
+            shardFiles.push(fileName);
+            writeJsonFile(path.join(REQUESTS_SHARDS_DIR, fileName), items);
+        });
+
+        const expected = new Set(shardFiles);
+        const existing = fs.existsSync(REQUESTS_SHARDS_DIR) ? fs.readdirSync(REQUESTS_SHARDS_DIR) : [];
+        existing.forEach((name) => {
+            if (!REQUESTS_SHARD_REGEX.test(name)) return;
+            if (expected.has(name)) return;
+            fs.unlinkSync(path.join(REQUESTS_SHARDS_DIR, name));
+        });
+
+        writeJsonFile(REQUESTS_PATH, list);
+        return { ok: true, count: list.length, shards: shardFiles.length };
+    } catch (err) {
+        console.error("Errore sync legacy -> shard:", err);
+        return { ok: false, reason: err.message || String(err) };
+    }
+}
+
 function writeJsonFile(filePath, value) {
     if (!filePath) return;
     ensureFolderFor(filePath);
@@ -750,5 +791,6 @@ module.exports = {
     applyBalanceForUpdate,
     loadPayload,
     savePayload,
+    syncLegacyRequestsToShards,
 };
 
