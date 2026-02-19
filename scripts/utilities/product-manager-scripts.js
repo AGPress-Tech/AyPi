@@ -18,6 +18,7 @@ const {
     renderLoginSelectors: renderLoginSelectorsUi,
     renderAdminSelect: renderAdminSelectUi,
 } = require("./product-manager/ui/login-selectors");
+const { initCustomSelects: initCustomSelectsUi } = require("./product-manager/ui/custom-select");
 const {
     buildProductCell: buildProductCellUi,
     buildUrlCell: buildUrlCellUi,
@@ -99,6 +100,7 @@ const {
     renderCatalogFilterOptions: renderCatalogFilterOptionsUi,
     renderInterventionTypeOptions: renderInterventionTypeOptionsUi,
     renderCartTagFilterOptions: renderCartTagFilterOptionsUi,
+    renderCartUrgencyFilterOptions: renderCartUrgencyFilterOptionsUi,
 } = require("./product-manager/ui/filters");
 const {
     syncCatalogControls: syncCatalogControlsUi,
@@ -208,13 +210,13 @@ let catalogItems = [];
 let catalogCategories = [];
 let interventionTypes = [];
 let categoryColors = {};
-let catalogFilterTag = "";
+let catalogFilterTag = [];
 let catalogSearch = "";
 let catalogSort = "name_asc";
 let cartState = {
     search: "",
-    urgency: "",
-    tag: "",
+    urgency: [],
+    tag: [],
     sort: "created_desc",
     editingKey: null,
     editingRow: null,
@@ -661,7 +663,7 @@ function createEmptyLine(mode = getActiveMode()) {
         return {
             interventionType: "",
             description: "",
-            urgency: "",
+            urgency: "Bassa",
         };
     }
     return {
@@ -669,7 +671,7 @@ function createEmptyLine(mode = getActiveMode()) {
         category: "",
         quantity: "",
         unit: "",
-        urgency: "",
+        urgency: "Bassa",
         url: "",
         note: "",
     };
@@ -710,7 +712,18 @@ function createLineElement(line, index) {
     const categoryDisplay = document.createElement("button");
     categoryDisplay.type = "button";
     categoryDisplay.className = "pm-multiselect__button";
-    categoryDisplay.textContent = "Seleziona tipologie";
+    const updateCategoryDisplay = (values) => {
+        if (!values.length) {
+            categoryDisplay.textContent = "Seleziona tipologie";
+            return;
+        }
+        if (values.length > 2) {
+            categoryDisplay.textContent = `${values.slice(0, 2).join(", ")} +${values.length - 2} more`;
+            return;
+        }
+        categoryDisplay.textContent = values.join(", ");
+    };
+    updateCategoryDisplay([]);
     const dropdown = document.createElement("div");
     dropdown.className = "pm-multiselect__menu is-hidden";
     const selected = new Set(toTags(line.category || ""));
@@ -731,7 +744,7 @@ function createLineElement(line, index) {
             }
             const values = Array.from(selected.values());
             updateLineField(index, "category", values.join(", "));
-            categoryDisplay.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
+            updateCategoryDisplay(values);
         });
         option.append(checkbox, span);
         dropdown.appendChild(option);
@@ -749,7 +762,7 @@ function createLineElement(line, index) {
             closeMultiselectMenu(dropdown, categoryWrap);
         }
     });
-    categoryDisplay.textContent = selected.size ? Array.from(selected.values()).join(", ") : "Seleziona tipologie";
+    updateCategoryDisplay(Array.from(selected.values()));
     categoryWrap.append(categoryDisplay, dropdown);
     categoryField.append(categoryLabel, categoryWrap);
 
@@ -944,6 +957,7 @@ function renderLines() {
             container.appendChild(createLineElement(line, index));
         }
     });
+    initCustomSelectsUi({ document, selector: "#pm-lines select" });
 }
 
 function addLine() {
@@ -966,7 +980,7 @@ function addLineFromCatalog(item, quantity) {
         category: item.category || "",
         quantity: quantity || "",
         unit: item.unit || "",
-        urgency: "",
+        urgency: "Bassa",
         url: item.url || "",
         note: "",
     });
@@ -1787,6 +1801,12 @@ function renderCatalogFilterOptions() {
         isInterventionMode,
         catalogCategories,
         catalogFilterTag,
+        openMultiselectMenu,
+        closeMultiselectMenu,
+        onChange: (values) => {
+            catalogFilterTag = values;
+            renderCatalog();
+        },
     });
 }
 
@@ -1816,6 +1836,25 @@ function renderCartTagFilterOptions() {
         REQUEST_MODES,
         toTags,
         getInterventionType,
+        openMultiselectMenu,
+        closeMultiselectMenu,
+        onChange: (values) => {
+            cartState.tag = values;
+            renderCartTable();
+        },
+    });
+}
+
+function renderCartUrgencyFilterOptions() {
+    renderCartUrgencyFilterOptionsUi({
+        document,
+        cartState,
+        openMultiselectMenu,
+        closeMultiselectMenu,
+        onChange: (values) => {
+            cartState.urgency = values;
+            renderCartTable();
+        },
     });
 }
 
@@ -2755,6 +2794,7 @@ async function init() {
     renderCatalogFilterOptions();
     syncCatalogControls();
     renderCartTagFilterOptions();
+    renderCartUrgencyFilterOptions();
     if (isFormPage()) {
         currentRequestMode = REQUEST_MODES.PURCHASE;
         storeRequestMode(REQUEST_MODES.PURCHASE);
@@ -2784,6 +2824,7 @@ async function init() {
     initLogoutModal();
     initGuideModal();
     otpUi.initOtpModals();
+    initCustomSelectsUi({ document, selector: "select" });
     updateGreeting();
     updateLoginButton();
     updateAdminControls();

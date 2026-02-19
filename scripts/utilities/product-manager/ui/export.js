@@ -377,6 +377,9 @@ function initExportModal(ctx) {
         container.innerHTML = "";
         const wrap = document.createElement("div");
         wrap.className = "pm-multiselect";
+        if (!wrap.dataset.pmHostId) {
+            wrap.dataset.pmHostId = `pm-export-${Math.random().toString(36).slice(2)}`;
+        }
         const button = document.createElement("button");
         button.type = "button";
         button.className = "pm-multiselect__button";
@@ -402,9 +405,22 @@ function initExportModal(ctx) {
             option.append(checkbox, span);
             menu.appendChild(option);
         });
+        const closeOtherMenus = () => {
+            document.querySelectorAll(".pm-multiselect__menu--floating").forEach((menuEl) => {
+                if (menuEl === menu) return;
+                const hostId = menuEl.dataset.pmHostId || "";
+                const host = hostId ? document.querySelector(`[data-pm-host-id="${hostId}"]`) : null;
+                closeMultiselectMenu(menuEl, host || null);
+            });
+            document.querySelectorAll(".pm-custom-select.is-open").forEach((custom) => {
+                custom.classList.remove("is-open");
+            });
+        };
+
         button.addEventListener("click", (event) => {
             event.stopPropagation();
             if (menu.classList.contains("is-hidden")) {
+                closeOtherMenus();
                 openMultiselectMenu(menu, button, wrap);
             } else {
                 closeMultiselectMenu(menu, wrap);

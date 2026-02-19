@@ -31,8 +31,16 @@ function renderCatalog({
         grid.innerHTML = "<div class=\"pm-message\">Nessun prodotto a catalogo.</div>";
         return;
     }
-    let visibleItems = catalogFilterTag
-        ? catalogItems.filter((item) => toTags(item.category || "").includes(catalogFilterTag))
+    const activeTags = Array.isArray(catalogFilterTag)
+        ? catalogFilterTag.filter(Boolean)
+        : catalogFilterTag
+        ? [catalogFilterTag]
+        : [];
+    let visibleItems = activeTags.length
+        ? catalogItems.filter((item) => {
+              const tags = toTags(item.category || "");
+              return activeTags.some((tag) => tags.includes(tag));
+          })
         : catalogItems;
     if (catalogSearch) {
         const needle = catalogSearch.toLowerCase();

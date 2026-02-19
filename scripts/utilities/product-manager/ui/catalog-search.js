@@ -20,12 +20,6 @@ function initCatalogFilters({
     const filter = document.getElementById("pm-catalog-filter");
     const search = document.getElementById("pm-catalog-search");
     const sort = document.getElementById("pm-catalog-sort");
-    if (filter) {
-        filter.addEventListener("change", (event) => {
-            setCatalogFilterTag(event.target.value || "");
-            renderCatalog();
-        });
-    }
     if (search) {
         search.addEventListener("input", (event) => {
             setCatalogSearch(event.target.value || "");
@@ -44,7 +38,6 @@ function initCatalogFilters({
         catalogSearch: getCatalogSearch(),
         catalogSort: getCatalogSort(),
     });
-    if (filter) filter.value = getCatalogFilterTag() || "";
 }
 
 module.exports = {

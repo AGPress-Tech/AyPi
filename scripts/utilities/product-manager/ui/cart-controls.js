@@ -10,25 +10,11 @@ function initCartFilters({
     saveRequestsFile,
 }) {
     const searchInput = document.getElementById("pm-cart-search");
-    const urgencySelect = document.getElementById("pm-cart-filter-urgency");
-    const tagSelect = document.getElementById("pm-cart-filter-tag");
     const sortSelect = document.getElementById("pm-cart-sort");
     const debugClean = document.getElementById("pm-debug-clean");
     if (searchInput) {
         searchInput.addEventListener("input", (event) => {
             cartState.search = event.target.value || "";
-            renderCartTable();
-        });
-    }
-    if (urgencySelect) {
-        urgencySelect.addEventListener("change", (event) => {
-            cartState.urgency = event.target.value || "";
-            renderCartTable();
-        });
-    }
-    if (tagSelect) {
-        tagSelect.addEventListener("change", (event) => {
-            cartState.tag = event.target.value || "";
             renderCartTable();
         });
     }

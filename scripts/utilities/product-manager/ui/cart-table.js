@@ -96,8 +96,17 @@ function renderCartTable({
     }
 
     const filtered = rows.filter((row) => {
-        if (cartState.urgency && row.urgency !== cartState.urgency) return false;
-        if (cartState.tag && !row.tags.includes(cartState.tag)) return false;
+        if (Array.isArray(cartState.urgency) && cartState.urgency.length) {
+            if (!cartState.urgency.includes(row.urgency || "")) return false;
+        } else if (cartState.urgency && row.urgency !== cartState.urgency) {
+            return false;
+        }
+        if (Array.isArray(cartState.tag) && cartState.tag.length) {
+            const tags = row.tags || [];
+            if (!cartState.tag.some((tag) => tags.includes(tag))) return false;
+        } else if (cartState.tag && !row.tags.includes(cartState.tag)) {
+            return false;
+        }
         if (cartState.search) {
             const haystack = [
                 row.product,
@@ -375,8 +384,17 @@ function renderInterventionTable({
     }
 
     const filtered = rows.filter((row) => {
-        if (cartState.urgency && row.urgency !== cartState.urgency) return false;
-        if (cartState.tag && !(row.tags || []).includes(cartState.tag)) return false;
+        if (Array.isArray(cartState.urgency) && cartState.urgency.length) {
+            if (!cartState.urgency.includes(row.urgency || "")) return false;
+        } else if (cartState.urgency && row.urgency !== cartState.urgency) {
+            return false;
+        }
+        if (Array.isArray(cartState.tag) && cartState.tag.length) {
+            const tags = row.tags || [];
+            if (!cartState.tag.some((tag) => tags.includes(tag))) return false;
+        } else if (cartState.tag && !(row.tags || []).includes(cartState.tag)) {
+            return false;
+        }
         if (cartState.search) {
             const haystack = [row.interventionType, row.description, row.requester, row.urgency]
                 .join(" ")

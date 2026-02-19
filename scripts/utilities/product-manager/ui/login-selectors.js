@@ -1,3 +1,5 @@
+const { ensureCustomSelect, syncCustomSelect } = require("./custom-select");
+
 function fillSelectOptions(selectEl, options, placeholder) {
     if (!selectEl) return;
     const doc = selectEl.ownerDocument || document;
@@ -16,6 +18,7 @@ function fillSelectOptions(selectEl, options, placeholder) {
         opt.textContent = value;
         selectEl.appendChild(opt);
     });
+    syncCustomSelect(selectEl);
 }
 
 function renderLoginSelectors({ document, getAssigneeGroups }) {
@@ -26,6 +29,8 @@ function renderLoginSelectors({ document, getAssigneeGroups }) {
     const departments = Object.keys(groups || {}).sort();
     fillSelectOptions(deptSelect, departments, "Seleziona reparto");
     fillSelectOptions(empSelect, [], "Seleziona dipendente");
+    ensureCustomSelect(deptSelect);
+    ensureCustomSelect(empSelect);
 
     if (deptSelect) {
         deptSelect.addEventListener("change", () => {
@@ -41,6 +46,7 @@ function renderAdminSelect({ document, loadAdminCredentials }) {
     if (!adminSelect) return;
     const names = loadAdminCredentials().map((admin) => admin.name).filter(Boolean);
     fillSelectOptions(adminSelect, names, "Seleziona admin");
+    ensureCustomSelect(adminSelect);
 }
 
 module.exports = {
