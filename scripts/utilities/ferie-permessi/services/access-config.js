@@ -102,7 +102,11 @@ function loadAccessConfig() {
 function saveAccessConfig(config) {
     try {
         const normalized = normalizeAccessConfig(config);
-        [CONFIG_PATH, LEGACY_CONFIG_PATH].filter(Boolean).forEach((targetPath) => {
+        const targets = [CONFIG_PATH];
+        if (LEGACY_CONFIG_PATH && fs.existsSync(LEGACY_CONFIG_PATH)) {
+            targets.push(LEGACY_CONFIG_PATH);
+        }
+        targets.filter(Boolean).forEach((targetPath) => {
             ensureFolderFor(targetPath);
             fs.writeFileSync(targetPath, JSON.stringify(normalized, null, 2), "utf8");
         });

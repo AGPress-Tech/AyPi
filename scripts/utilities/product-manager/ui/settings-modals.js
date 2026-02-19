@@ -4,6 +4,7 @@ function initSettingsModals(ctx) {
         requireAdminAccess,
         openCalendarAssignees,
         openCalendarAdmins,
+        openPurchasingBackup,
     } = ctx;
 
     const settingsClose = document.getElementById("pm-settings-close");
@@ -77,6 +78,19 @@ function initSettingsModals(ctx) {
             requireAdminAccess(() => {
                 if (typeof openCalendarAdmins === "function") {
                     openCalendarAdmins();
+                }
+            });
+        });
+    }
+
+    const backupOpen = document.getElementById("pm-settings-backup-open");
+    if (backupOpen) {
+        backupOpen.addEventListener("click", () => {
+            const modal = document.getElementById("pm-settings-modal");
+            if (modal) modal.classList.add("is-hidden");
+            requireAdminAccess(() => {
+                if (typeof openPurchasingBackup === "function") {
+                    openPurchasingBackup();
                 }
             });
         });

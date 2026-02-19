@@ -2680,6 +2680,7 @@ function initSettingsModals() {
     initSettingsModalsUi({
         document,
         requireAdminAccess,
+        openPurchasingBackup,
         openCalendarAssignees: () => {
             try {
                 ipcRenderer.send("pm-open-calendar-assignees");

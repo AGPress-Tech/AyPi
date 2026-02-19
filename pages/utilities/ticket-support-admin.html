@@ -22,6 +22,9 @@
             <div class="pm-header__actions">
                 <button type="button" class="pm-btn" id="ts-refresh">Aggiorna</button>
                 <button type="button" class="pm-btn" id="pm-login-toggle">Login</button>
+                <button type="button" class="pm-btn pm-btn--icon" id="ts-settings" aria-label="Impostazioni">
+                    <span class="material-icons pm-icon" aria-hidden="true">settings</span>
+                </button>
             </div>
         </header>
 
@@ -55,6 +58,16 @@
                                 <option value="Hardware">Hardware</option>
                                 <option value="Rete">Rete</option>
                                 <option value="Altro">Altro</option>
+                            </select>
+                        </div>
+                        <div class="pm-field">
+                            <label for="ts-admin-filter-priority">Priorita</label>
+                            <select id="ts-admin-filter-priority">
+                                <option value="">Tutte</option>
+                                <option value="Bassa">Bassa</option>
+                                <option value="Media">Media</option>
+                                <option value="Alta">Alta</option>
+                                <option value="Urgente">Urgente</option>
                             </select>
                         </div>
                     </div>
@@ -211,6 +224,66 @@
                 </div>
             </div>
             <div id="fp-otp-message" class="fp-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="ts-settings-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="ts-settings-title">
+            <div class="fp-assignees-header">
+                <h3 id="ts-settings-title">Impostazioni</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="ts-settings-close">Chiudi</button>
+            </div>
+            <div class="fp-export-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-theme-open">
+                    <span class="fp-btn__icon" aria-hidden="true"><span class="material-icons fp-icon-mi">palette</span></span>
+                    <span class="fp-btn__label">Tema</span>
+                </button>
+            </div>
+            <div class="fp-export-section ts-hidden" id="ts-settings-assignees-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-settings-assignees-open">
+                    <span class="fp-btn__icon" aria-hidden="true"><span class="material-icons fp-icon-mi">groups</span></span>
+                    <span class="fp-btn__label">Gestione dipendenti</span>
+                </button>
+            </div>
+            <div class="fp-export-section ts-hidden" id="ts-settings-admin-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-settings-admin-open">
+                    <span class="fp-btn__icon" aria-hidden="true"><span class="material-icons fp-icon-mi">admin_panel_settings</span></span>
+                    <span class="fp-btn__label">Gestione admin</span>
+                </button>
+            </div>
+            <div class="fp-export-section ts-hidden" id="ts-settings-backup-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-settings-backup-open">
+                    <span class="fp-btn__icon" aria-hidden="true"><span class="material-icons fp-icon-mi">backup</span></span>
+                    <span class="fp-btn__label">Backup Ticket</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fp-modal is-hidden" id="ts-theme-modal" aria-hidden="true">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="ts-theme-title">
+            <div class="fp-assignees-header">
+                <h3 id="ts-theme-title">Tema</h3>
+                <button type="button" class="fp-btn fp-btn--ghost" id="ts-theme-close">Chiudi</button>
+            </div>
+            <div class="fp-export-section"><button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-theme-light">Light</button></div>
+            <div class="fp-export-section"><button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-theme-dark">Dark</button></div>
+            <div class="fp-export-section"><button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-theme-aypi">AyPi</button></div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="ts-backup-modal" aria-hidden="true">
+        <div class="pm-modal__card pm-confirm-card" role="dialog" aria-modal="true" aria-labelledby="ts-backup-title">
+            <div class="pm-modal__header">
+                <h3 id="ts-backup-title">Backup Ticket</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-backup-close">Chiudi</button>
+            </div>
+            <p>Gestione backup della cartella <strong>Ticket</strong>.</p>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--primary" id="ts-backup-run">Crea backup</button>
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-backup-restore">Ripristina backup</button>
+            </div>
+            <div id="ts-backup-message" class="pm-message is-hidden"></div>
         </div>
     </div>
 

@@ -30,16 +30,19 @@ function updateLoginButton(ctx) {
 
 function updateAdminControls(ctx) {
     const { document, isAdmin } = ctx;
+    const adminMode = isAdmin();
     const section = document.getElementById("pm-categories-section");
-    if (section) section.classList.toggle("is-hidden", !isAdmin());
+    if (section) section.classList.toggle("is-hidden", !adminMode);
     const typesSection = document.getElementById("pm-intervention-types-section");
-    if (typesSection) typesSection.classList.toggle("is-hidden", !isAdmin());
+    if (typesSection) typesSection.classList.toggle("is-hidden", !adminMode);
+    const backupSection = document.getElementById("pm-backup-section");
+    if (backupSection) backupSection.classList.toggle("is-hidden", !adminMode);
     const catalogAdd = document.getElementById("pm-catalog-add");
-    if (catalogAdd) catalogAdd.style.display = isAdmin() ? "inline-flex" : "none";
+    if (catalogAdd) catalogAdd.style.display = adminMode ? "inline-flex" : "none";
     const assigneesBtn = document.getElementById("pm-assignees-open");
-    if (assigneesBtn) assigneesBtn.style.display = isAdmin() ? "inline-flex" : "none";
+    if (assigneesBtn) assigneesBtn.style.display = adminMode ? "inline-flex" : "none";
     const adminBtn = document.getElementById("pm-admin-open");
-    if (adminBtn) adminBtn.style.display = isAdmin() ? "inline-flex" : "none";
+    if (adminBtn) adminBtn.style.display = adminMode ? "inline-flex" : "none";
 }
 
 function syncSessionUI(ctx) {

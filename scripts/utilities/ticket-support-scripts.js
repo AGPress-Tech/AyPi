@@ -1,4 +1,7 @@
+const fs = require("fs");
+const path = require("path");
 const { loadStore, saveStore, DATA_PATH } = require("./ticket-support/services/storage");
+const { BASE_DIR, TICKET_DIR } = require("./ticket-support/config/paths");
 const { isMailerAvailable, getMailerError, sendMail } = require("./ticket-support/services/mailer");
 const { ipcRenderer } = require("electron");
 const { loadAssigneeOptions } = require("./ferie-permessi/services/assignees");
@@ -20,6 +23,7 @@ const {
     saveSession,
     loadSession,
     clearSession,
+    applySharedSessionData,
     isAdmin,
     isEmployee,
     isLoggedIn,
@@ -38,7 +42,10 @@ let statusEditingTicketId = "";
 let editTicketId = "";
 let editMode = "";
 let adminLoginFailCount = 0;
-const adminFilters = { search: "", status: "", area: "" };
+const adminFilters = { search: "", status: "", area: "", priority: "" };
+const operatorFilters = { search: "", status: "", area: "", priority: "" };
+const TS_THEME_KEY = "ts-theme";
+const TICKET_BACKUP_ROOT_DIR = path.join(BASE_DIR, "Backup Ticket");
 
 function nowIso() {
     return new Date().toISOString();
@@ -62,6 +69,129 @@ function formatDateTime(value) {
     const date = value instanceof Date ? value : new Date(value);
     if (!Number.isFinite(date.getTime())) return "-";
     return new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "medium" }).format(date);
+}
+
+function setTheme(theme) {
+    const mode = theme === "dark" || theme === "aypi" ? theme : "light";
+    document.body.classList.remove("fp-dark", "fp-aypi");
+    if (mode === "dark") document.body.classList.add("fp-dark");
+    if (mode === "aypi") document.body.classList.add("fp-aypi");
+    try {
+        window.localStorage.setItem(TS_THEME_KEY, mode);
+    } catch {}
+}
+
+function initTheme() {
+    try {
+        const saved = window.localStorage.getItem(TS_THEME_KEY);
+        setTheme(saved || "light");
+    } catch {
+        setTheme("light");
+    }
+}
+
+function ensureDir(targetDir) {
+    if (!targetDir) return;
+    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+}
+
+function copyDirectory(sourceDir, targetDir) {
+    if (!sourceDir || !targetDir) return;
+    ensureDir(targetDir);
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+    entries.forEach((entry) => {
+        const src = path.join(sourceDir, entry.name);
+        const dst = path.join(targetDir, entry.name);
+        if (entry.isDirectory()) {
+            copyDirectory(src, dst);
+            return;
+        }
+        if (entry.isFile()) {
+            ensureDir(path.dirname(dst));
+            fs.copyFileSync(src, dst);
+        }
+    });
+}
+
+function formatBackupDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function openSettingsModal() {
+    if (!isLoggedIn()) {
+        showWarning("Accesso richiesto.");
+        openLoginModal();
+        return;
+    }
+    openModal("ts-settings-modal");
+}
+
+function closeSettingsModal() {
+    closeModal("ts-settings-modal");
+}
+
+function openThemeModal() {
+    openModal("ts-theme-modal");
+}
+
+function closeThemeModal() {
+    closeModal("ts-theme-modal");
+}
+
+function setBackupMessage(text, isError = false) {
+    setMessage(document.getElementById("ts-backup-message"), text, isError);
+}
+
+function openBackupModal() {
+    if (!isAdmin()) {
+        showWarning("Accesso admin richiesto.");
+        return;
+    }
+    setBackupMessage("");
+    openModal("ts-backup-modal");
+}
+
+function closeBackupModal() {
+    closeModal("ts-backup-modal");
+}
+
+function createTicketBackup() {
+    try {
+        setBackupMessage("");
+        ensureDir(TICKET_DIR);
+        ensureDir(TICKET_BACKUP_ROOT_DIR);
+        const dateLabel = formatBackupDate(new Date());
+        let targetDir = path.join(TICKET_BACKUP_ROOT_DIR, dateLabel);
+        let suffix = 1;
+        while (fs.existsSync(targetDir)) {
+            suffix += 1;
+            targetDir = path.join(TICKET_BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
+        }
+        copyDirectory(TICKET_DIR, targetDir);
+        setBackupMessage(`Backup creato: ${targetDir}`);
+    } catch (err) {
+        setBackupMessage(`Errore creazione backup: ${err.message || String(err)}`, true);
+    }
+}
+
+async function restoreTicketBackup() {
+    try {
+        setBackupMessage("");
+        const ok = window.confirm("Ripristinare un backup Ticket? I file correnti verranno sovrascritti.");
+        if (!ok) return;
+        const selected = await ipcRenderer.invoke("select-root-folder");
+        if (!selected) return;
+        ensureDir(TICKET_DIR);
+        copyDirectory(selected, TICKET_DIR);
+        store = loadStore();
+        renderAll();
+        setBackupMessage("Ripristino completato.");
+    } catch (err) {
+        setBackupMessage(`Errore ripristino backup: ${err.message || String(err)}`, true);
+    }
 }
 
 function showInlineMessage(nodeId, text, type = "") {
@@ -101,24 +231,52 @@ function showWarning(message) {
     showInlineMessage(id, message, "error");
 }
 
+function getPersonKey(name) {
+    return `person|${toKey(name)}`;
+}
+
 function getCurrentRequester() {
     if (isEmployee()) {
+        const personKey = getPersonKey(session.employee || "");
         return {
             role: "employee",
             name: session.employee || "",
             department: session.department || "",
+            personKey,
             key: `${toKey(session.department)}|${toKey(session.employee)}`,
         };
     }
     if (isAdmin()) {
+        const personKey = getPersonKey(session.adminName || "Admin");
         return {
             role: "admin",
             name: session.adminName || "Admin",
             department: "Admin",
+            personKey,
             key: `admin|${toKey(session.adminName)}`,
         };
     }
-    return { role: "guest", name: "", department: "", key: "" };
+    return { role: "guest", name: "", department: "", personKey: "", key: "" };
+}
+
+function getTicketOwnerPersonKey(ticket) {
+    if (!ticket) return "";
+    const createdByKey = String(ticket.createdByKey || "").trim().toLowerCase();
+    if (createdByKey.startsWith("person|")) return createdByKey;
+    const requesterName = String(ticket.requester?.name || "").trim();
+    if (requesterName) return getPersonKey(requesterName);
+    return "";
+}
+
+function isTicketOwnedByRequester(ticket, requester) {
+    if (!ticket || !requester) return false;
+    const personKey = String(requester.personKey || "").trim().toLowerCase();
+    const legacyKey = String(requester.key || "").trim().toLowerCase();
+    const ticketKey = String(ticket.createdByKey || "").trim().toLowerCase();
+    const ticketPersonKey = getTicketOwnerPersonKey(ticket);
+    if (personKey && (ticketKey === personKey || ticketPersonKey === personKey)) return true;
+    if (legacyKey && ticketKey === legacyKey) return true;
+    return false;
 }
 
 function buildTicketId() {
@@ -155,7 +313,7 @@ function getTicketById(ticketId) {
 function canEmployeeEdit(ticket) {
     if (!isEmployee()) return false;
     const me = getCurrentRequester();
-    return !!ticket && ticket.createdByKey === me.key && ticket.status === "Da prendere in carico";
+    return !!ticket && isTicketOwnedByRequester(ticket, me) && ticket.status === "Da prendere in carico";
 }
 
 function canEmployeeDelete(ticket) {
@@ -179,11 +337,33 @@ function filterAdminTickets(tickets) {
         .filter((ticket) => {
             if (adminFilters.status && ticket.status !== adminFilters.status) return false;
             if (adminFilters.area && ticket.area !== adminFilters.area) return false;
+            if (adminFilters.priority && ticket.priority !== adminFilters.priority) return false;
             if (!search) return true;
             const haystack = [
                 ticket.id,
                 ticket.requester?.name,
                 ticket.requester?.department,
+                ticket.issueType,
+                ticket.area,
+                ticket.priority,
+                ticket.status,
+                ticket.description,
+            ].join(" ").toLowerCase();
+            return haystack.includes(search);
+        })
+        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+function filterOperatorTickets(tickets) {
+    const search = operatorFilters.search.toLowerCase();
+    return tickets
+        .filter((ticket) => {
+            if (operatorFilters.status && ticket.status !== operatorFilters.status) return false;
+            if (operatorFilters.area && ticket.area !== operatorFilters.area) return false;
+            if (operatorFilters.priority && ticket.priority !== operatorFilters.priority) return false;
+            if (!search) return true;
+            const haystack = [
+                ticket.id,
                 ticket.issueType,
                 ticket.area,
                 ticket.priority,
@@ -250,9 +430,7 @@ function renderOperatorList() {
     }
 
     const me = getCurrentRequester();
-    const mine = store.tickets
-        .filter((ticket) => ticket.createdByKey === me.key)
-        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    const mine = filterOperatorTickets(store.tickets.filter((ticket) => isTicketOwnedByRequester(ticket, me)));
 
     if (!mine.length) {
         container.innerHTML = `<div class="ts-ticket-card"><div class="ts-ticket-card__desc">Nessun ticket creato.</div></div>`;
@@ -446,11 +624,11 @@ function updateRoleBadge() {
 }
 
 function updateAdminButtonVisibility() {
-    const adminOnlyIds = ["ts-open-admin-list"];
-    adminOnlyIds.forEach((id) => {
-        const btn = document.getElementById(id);
-        if (!btn) return;
-        btn.classList.toggle("ts-hidden", !isAdmin());
+    const isAdminUser = isAdmin();
+    ["ts-open-admin-list", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-backup-section"].forEach((id) => {
+        const node = document.getElementById(id);
+        if (!node) return;
+        node.classList.toggle("ts-hidden", !isAdminUser);
     });
 }
 
@@ -489,6 +667,15 @@ function hideModal(node) {
     node.setAttribute("aria-hidden", "true");
 }
 
+function resetAdminLoginSensitiveFields() {
+    const password = document.getElementById("pm-login-admin-password");
+    const error = document.getElementById("pm-login-admin-error");
+    const recover = document.getElementById("pm-login-admin-recover");
+    if (password) password.value = "";
+    if (error) error.classList.add("is-hidden");
+    if (recover) recover.classList.add("is-hidden");
+}
+
 function openLoginModal() {
     const modal = document.getElementById("pm-login-modal");
     if (modal && !modal.classList.contains("is-hidden")) {
@@ -498,18 +685,16 @@ function openLoginModal() {
     const adminPanel = document.getElementById("pm-login-admin-panel");
     const employeeChoice = document.getElementById("pm-login-choice-employee");
     const adminChoice = document.getElementById("pm-login-choice-admin");
-    const error = document.getElementById("pm-login-admin-error");
-    const recover = document.getElementById("pm-login-admin-recover");
     if (employeePanel) employeePanel.classList.remove("is-hidden");
     if (adminPanel) adminPanel.classList.add("is-hidden");
     if (employeeChoice) employeeChoice.classList.add("is-active");
     if (adminChoice) adminChoice.classList.remove("is-active");
-    if (error) error.classList.add("is-hidden");
-    if (recover) recover.classList.add("is-hidden");
+    resetAdminLoginSensitiveFields();
     openModal("pm-login-modal");
 }
 
 function closeLoginModal() {
+    resetAdminLoginSensitiveFields();
     closeModal("pm-login-modal");
 }
 
@@ -707,7 +892,7 @@ async function handleCreateTicket(event) {
         resolvedAt: "",
         closedAt: "",
         lastStatusChangeAt: createdAt,
-        createdByKey: requester.key,
+        createdByKey: requester.personKey || requester.key,
         createdByRole: requester.role,
         history: [
             createHistory({
@@ -850,8 +1035,7 @@ function bindLoginEvents() {
             choiceEmployee.classList.add("is-active");
             if (choiceAdmin) choiceAdmin.classList.remove("is-active");
             adminLoginFailCount = 0;
-            if (adminError) adminError.classList.add("is-hidden");
-            if (adminRecover) adminRecover.classList.add("is-hidden");
+            resetAdminLoginSensitiveFields();
         });
     }
     if (choiceAdmin) {
@@ -942,6 +1126,7 @@ function bindLogoutEvents() {
     document.getElementById("pm-logout-cancel")?.addEventListener("click", closeLogoutModal);
     document.getElementById("pm-logout-confirm")?.addEventListener("click", () => {
         clearSession();
+        resetAdminLoginSensitiveFields();
         closeLogoutModal();
         closeAdminListModal();
         renderAll();
@@ -981,10 +1166,34 @@ function bindAdminListEvents() {
         adminFilters.area = String(event.target?.value || "");
         renderAdminTable();
     });
+    document.getElementById("ts-admin-filter-priority")?.addEventListener("change", (event) => {
+        adminFilters.priority = String(event.target?.value || "");
+        renderAdminTable();
+    });
+}
+
+function bindOperatorListEvents() {
+    document.getElementById("ts-op-filter-search")?.addEventListener("input", (event) => {
+        operatorFilters.search = String(event.target?.value || "");
+        renderOperatorList();
+    });
+    document.getElementById("ts-op-filter-status")?.addEventListener("change", (event) => {
+        operatorFilters.status = String(event.target?.value || "");
+        renderOperatorList();
+    });
+    document.getElementById("ts-op-filter-area")?.addEventListener("change", (event) => {
+        operatorFilters.area = String(event.target?.value || "");
+        renderOperatorList();
+    });
+    document.getElementById("ts-op-filter-priority")?.addEventListener("change", (event) => {
+        operatorFilters.priority = String(event.target?.value || "");
+        renderOperatorList();
+    });
 }
 
 function bindMainEvents() {
     document.getElementById("ts-ticket-form")?.addEventListener("submit", handleCreateTicket);
+    bindOperatorListEvents();
     document.getElementById("ts-refresh")?.addEventListener("click", () => {
         store = loadStore();
         renderAll();
@@ -992,8 +1201,46 @@ function bindMainEvents() {
     });
 }
 
+function bindSettingsEvents() {
+    document.getElementById("ts-settings")?.addEventListener("click", () => {
+        openSettingsModal();
+    });
+    document.getElementById("ts-settings-close")?.addEventListener("click", () => {
+        closeSettingsModal();
+    });
+    document.getElementById("ts-theme-open")?.addEventListener("click", () => {
+        openThemeModal();
+    });
+    document.getElementById("ts-theme-close")?.addEventListener("click", () => {
+        closeThemeModal();
+    });
+    document.getElementById("ts-theme-light")?.addEventListener("click", () => setTheme("light"));
+    document.getElementById("ts-theme-dark")?.addEventListener("click", () => setTheme("dark"));
+    document.getElementById("ts-theme-aypi")?.addEventListener("click", () => setTheme("aypi"));
+    document.getElementById("ts-settings-admin-open")?.addEventListener("click", () => {
+        closeSettingsModal();
+        if (!isAdmin()) return;
+        ipcRenderer.send("open-admin-manager-window");
+    });
+    document.getElementById("ts-settings-assignees-open")?.addEventListener("click", () => {
+        closeSettingsModal();
+        if (!isAdmin()) return;
+        ipcRenderer.send("open-assignees-manager-window");
+    });
+    document.getElementById("ts-settings-backup-open")?.addEventListener("click", () => {
+        closeSettingsModal();
+        openBackupModal();
+    });
+    document.getElementById("ts-backup-close")?.addEventListener("click", closeBackupModal);
+    document.getElementById("ts-backup-run")?.addEventListener("click", createTicketBackup);
+    document.getElementById("ts-backup-restore")?.addEventListener("click", () => {
+        restoreTicketBackup();
+    });
+}
+
 function applySharedSession(payload) {
     applySharedSessionData(payload);
+    if (!isLoggedIn()) resetAdminLoginSensitiveFields();
     renderAll();
     if (isLoggedIn()) {
         closeLoginModal();
@@ -1028,8 +1275,7 @@ async function refreshSessionFromMain() {
 }
 
 async function init() {
-    document.body.classList.remove("fp-dark");
-    document.body.classList.remove("fp-aypi");
+    initTheme();
     document.body.classList.toggle("ts-view-form", currentView === "form");
     document.body.classList.toggle("ts-view-admin", currentView === "admin");
 
@@ -1042,6 +1288,7 @@ async function init() {
     bindEditModalEvents();
     bindAdminListEvents();
     bindMainEvents();
+    bindSettingsEvents();
     otpUi.initOtpModals();
 
     await loadSession();
@@ -1082,6 +1329,7 @@ document.addEventListener("visibilitychange", () => {
 ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
     if (!shouldLogout) return;
     clearSession();
+    resetAdminLoginSensitiveFields();
     renderAll();
     openLoginModal();
 });

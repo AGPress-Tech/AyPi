@@ -311,14 +311,8 @@ function applyStoredFilterStateForCurrentUser() {
 }
 
 function ensureAccessConfigFile() {
-    if (!CONFIG_PATH) return;
-    try {
-        if (!fs.existsSync(CONFIG_PATH)) {
-            saveAccessConfig(accessConfig);
-        }
-    } catch (err) {
-        console.error("Errore verifica config calendario:", err);
-    }
+    // Nessuna creazione automatica file: la configurazione viene salvata
+    // solo dopo un'azione esplicita dell'utente.
 }
 
 function persistAccessConfig(next) {

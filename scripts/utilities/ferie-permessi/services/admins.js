@@ -74,7 +74,10 @@ function saveAdminCredentials(admins) {
             email: admin.email || "",
             phone: admin.phone || "",
         }));
-        const targets = [ADMINS_PATH, LEGACY_ADMINS_PATH].filter(Boolean);
+        const targets = [ADMINS_PATH];
+        if (LEGACY_ADMINS_PATH && fs.existsSync(LEGACY_ADMINS_PATH)) {
+            targets.push(LEGACY_ADMINS_PATH);
+        }
         targets.forEach((targetPath) => {
             ensureFolderFor(targetPath);
             fs.writeFileSync(targetPath, JSON.stringify({ admins: payload }, null, 2), "utf8");

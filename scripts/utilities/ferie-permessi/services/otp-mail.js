@@ -78,9 +78,12 @@ function normalizeMailConfig(payload) {
 
 function saveMailConfig(payload, destinationPath = OTP_MAIL_SERVER_PATH) {
     const config = normalizeMailConfig(payload);
-    const targets = [destinationPath, LEGACY_OTP_MAIL_SERVER_PATH]
-        .filter((item) => typeof item === "string" && item.trim());
-    targets.forEach((targetPath) => {
+    const targets = [destinationPath];
+    if (LEGACY_OTP_MAIL_SERVER_PATH && fs.existsSync(LEGACY_OTP_MAIL_SERVER_PATH)) {
+        targets.push(LEGACY_OTP_MAIL_SERVER_PATH);
+    }
+    const filteredTargets = targets.filter((item) => typeof item === "string" && item.trim());
+    filteredTargets.forEach((targetPath) => {
         const dir = require("path").dirname(targetPath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(targetPath, JSON.stringify(config, null, 2), "utf8");
