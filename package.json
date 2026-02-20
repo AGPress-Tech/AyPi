@@ -2,14 +2,15 @@
   "name": "aypi",
   "version": "0.8.6",
   "description": "Software AyPi per gestione applicativi AGPress",
-  "main": "main.js",
+  "main": "dist-ts/main.js",
   "scripts": {
-    "start": "electron .",
-    "build:dir": "electron-builder --dir",
+    "start": "npm run build:ts && electron .",
+    "build:ts": "node tools\\build-ts.js",
+    "build:dir": "npm run build:ts && electron-builder --dir",
     "start:packaged": "npm run build:dir && dist\\win-unpacked\\AyPi.exe --remote-debugging-port=9222",
-    "build": "electron-builder",
-    "release": "electron-builder --publish always",
-    "postversion": "electron-builder --publish always",
+    "build": "npm run build:ts && electron-builder",
+    "release": "npm run build:ts && electron-builder --publish always",
+    "postversion": "npm run build:ts && electron-builder --publish always",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "scriptsComments": {
@@ -18,8 +19,11 @@
   "author": "Ayrton Pizzi",
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^22.13.4",
     "electron": "^34.3.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
   },
   "dependencies": {
     "@network-utils/arp-lookup": "^2.1.0",
