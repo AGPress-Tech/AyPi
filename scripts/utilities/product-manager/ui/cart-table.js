@@ -48,6 +48,8 @@ function renderCartTable({
     const requests = readRequestsFile();
     const rows = [];
     let needsSave = false;
+    let droppedDeleted = 0;
+    let droppedConfirmed = 0;
     const now = Date.now();
     const weekMs = 7 * 24 * 60 * 60 * 1000;
     const monthMs = 30 * 24 * 60 * 60 * 1000;
@@ -58,12 +60,14 @@ function renderCartTable({
             const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
             if (deletedAt && now - deletedAt >= weekMs) {
                 needsSave = true;
+                droppedDeleted += 1;
                 return;
             }
             nextLines.push(line);
             const nextIndex = nextLines.length - 1;
             const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
             if (confirmedAt && now - confirmedAt >= monthMs) {
+                droppedConfirmed += 1;
                 return;
             }
             rows.push({
@@ -95,17 +99,28 @@ function renderCartTable({
         saveRequestsFile(cleaned);
     }
 
+    const urgencyFilter = Array.isArray(cartState.urgency)
+        ? cartState.urgency.filter((value) => value)
+        : cartState.urgency
+        ? [cartState.urgency]
+        : [];
+    const tagFilter = Array.isArray(cartState.tag) ? cartState.tag.filter((value) => value) : cartState.tag ? [cartState.tag] : [];
+    let failUrgency = 0;
+    let failTag = 0;
+    let failSearch = 0;
     const filtered = rows.filter((row) => {
-        if (Array.isArray(cartState.urgency) && cartState.urgency.length) {
-            if (!cartState.urgency.includes(row.urgency || "")) return false;
-        } else if (cartState.urgency && row.urgency !== cartState.urgency) {
-            return false;
+        if (urgencyFilter.length) {
+            if (!urgencyFilter.includes(row.urgency || "")) {
+                failUrgency += 1;
+                return false;
+            }
         }
-        if (Array.isArray(cartState.tag) && cartState.tag.length) {
+        if (tagFilter.length) {
             const tags = row.tags || [];
-            if (!cartState.tag.some((tag) => tags.includes(tag))) return false;
-        } else if (cartState.tag && !row.tags.includes(cartState.tag)) {
-            return false;
+            if (!tagFilter.some((tag) => tags.includes(tag))) {
+                failTag += 1;
+                return false;
+            }
         }
         if (cartState.search) {
             const haystack = [
@@ -120,7 +135,10 @@ function renderCartTable({
             ]
                 .join(" ")
                 .toLowerCase();
-            if (!haystack.includes(cartState.search.toLowerCase())) return false;
+            if (!haystack.includes(cartState.search.toLowerCase())) {
+                failSearch += 1;
+                return false;
+            }
         }
         return true;
     });
@@ -383,17 +401,19 @@ function renderInterventionTable({
         saveRequestsFile(cleaned, REQUEST_MODES.INTERVENTION);
     }
 
+    const urgencyFilter = Array.isArray(cartState.urgency)
+        ? cartState.urgency.filter((value) => value)
+        : cartState.urgency
+        ? [cartState.urgency]
+        : [];
+    const tagFilter = Array.isArray(cartState.tag) ? cartState.tag.filter((value) => value) : cartState.tag ? [cartState.tag] : [];
     const filtered = rows.filter((row) => {
-        if (Array.isArray(cartState.urgency) && cartState.urgency.length) {
-            if (!cartState.urgency.includes(row.urgency || "")) return false;
-        } else if (cartState.urgency && row.urgency !== cartState.urgency) {
-            return false;
+        if (urgencyFilter.length) {
+            if (!urgencyFilter.includes(row.urgency || "")) return false;
         }
-        if (Array.isArray(cartState.tag) && cartState.tag.length) {
+        if (tagFilter.length) {
             const tags = row.tags || [];
-            if (!cartState.tag.some((tag) => tags.includes(tag))) return false;
-        } else if (cartState.tag && !(row.tags || []).includes(cartState.tag)) {
-            return false;
+            if (!tagFilter.some((tag) => tags.includes(tag))) return false;
         }
         if (cartState.search) {
             const haystack = [row.interventionType, row.description, row.requester, row.urgency]
@@ -511,6 +531,12 @@ function renderInterventionTable({
 
     list.innerHTML = "";
     list.appendChild(table);
+    if (window.pmDebug) {
+        const debugLine = document.createElement("div");
+        debugLine.className = "pm-message";
+        debugLine.textContent = `DEBUG source=${window.pmDebug.source} count=${window.pmDebug.count}`;
+        list.appendChild(debugLine);
+    }
 }
 
 module.exports = { renderCartTable };

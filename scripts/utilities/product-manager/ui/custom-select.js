@@ -128,6 +128,26 @@ function ensureCustomSelect(selectEl) {
     };
 
     button.addEventListener("click", () => {
+        if (!wrapper.classList.contains("is-open")) {
+            doc.querySelectorAll(".pm-custom-select.is-open").forEach((other) => {
+                if (other === wrapper) return;
+                other.classList.remove("is-open");
+                const otherList = other.querySelector(".pm-custom-select__list");
+                if (otherList) clearFloating(otherList);
+            });
+            doc.querySelectorAll(".pm-multiselect__menu--floating").forEach((menuEl) => {
+                menuEl.classList.add("is-hidden");
+                menuEl.classList.remove("pm-multiselect__menu--floating");
+                menuEl.style.top = "";
+                menuEl.style.left = "";
+                menuEl.style.width = "";
+                const hostId = menuEl.dataset.pmHostId || "";
+                const hostEl = hostId ? doc.querySelector(`[data-pm-host-id="${hostId}"]`) : null;
+                if (hostEl && !hostEl.contains(menuEl)) {
+                    hostEl.appendChild(menuEl);
+                }
+            });
+        }
         wrapper.classList.toggle("is-open");
         handleOpenChange();
     });

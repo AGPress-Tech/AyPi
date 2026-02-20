@@ -18,6 +18,7 @@ const PRODUCTS_DIR = path.join(PURCHASING_DIR, "products");
 const LEGACY_PRODUCTS_DIR = path.join(LEGACY_BASE_DIR, "products");
 const LEGACY_PRODUCTS_DIR_ALT = path.join(LEGACY_BASE_DIR, "Products");
 const REQUESTS_SHARDS_DIR = path.join(PURCHASING_DIR, "requests");
+const INTERVENTIONS_SHARDS_DIR = path.join(PURCHASING_DIR, "interventions");
 
 const LEGACY_REQUESTS_PATH = path.join(LEGACY_BASE_DIR, "requests.json");
 const LEGACY_INTERVENTIONS_PATH = path.join(LEGACY_BASE_DIR, "interventions.json");
@@ -45,6 +46,7 @@ module.exports = {
     LEGACY_PRODUCTS_DIR,
     LEGACY_PRODUCTS_DIR_ALT,
     REQUESTS_SHARDS_DIR,
+    INTERVENTIONS_SHARDS_DIR,
     LEGACY_REQUESTS_PATH,
     LEGACY_INTERVENTIONS_PATH,
     LEGACY_CATALOG_PATH,

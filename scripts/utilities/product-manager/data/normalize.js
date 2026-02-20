@@ -46,9 +46,21 @@ function normalizeRequestLine(line) {
     return base;
 }
 
+function unwrapRequestsArray(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === "object") {
+        const candidates = ["requests", "items", "data", "rows", "entries"];
+        for (const key of candidates) {
+            if (Array.isArray(payload[key])) return payload[key];
+        }
+    }
+    return [];
+}
+
 function normalizeRequestsData(payload) {
-    if (!Array.isArray(payload)) return [];
-    return payload
+    const rows = unwrapRequestsArray(payload);
+    if (!Array.isArray(rows) || !rows.length) return [];
+    return rows
         .map((req) => {
             if (!req || typeof req !== "object") return null;
             const normalized = { ...req };
@@ -60,7 +72,26 @@ function normalizeRequestsData(payload) {
             normalized.createdBy = normalizeString(normalized.createdBy);
             normalized.adminName = normalizeString(normalized.adminName);
             normalized.notes = normalizeString(normalized.notes);
-            const lines = Array.isArray(normalized.lines) ? normalized.lines : [];
+            let lines = Array.isArray(normalized.lines) ? normalized.lines : null;
+            if (!lines) {
+                const lineKeys = [
+                    "items",
+                    "products",
+                    "rows",
+                    "entries",
+                    "records",
+                    "righe",
+                    "prodotti",
+                    "articoli",
+                ];
+                for (const key of lineKeys) {
+                    if (Array.isArray(normalized[key])) {
+                        lines = normalized[key];
+                        break;
+                    }
+                }
+            }
+            if (!Array.isArray(lines)) lines = [];
             normalized.lines = lines.map((line) => normalizeRequestLine(line)).filter(Boolean);
             normalized.history = Array.isArray(normalized.history) ? normalized.history : [];
             return normalized;

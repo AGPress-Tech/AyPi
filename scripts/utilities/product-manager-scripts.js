@@ -151,6 +151,7 @@ const {
     LEGACY_PRODUCTS_DIR,
     LEGACY_PRODUCTS_DIR_ALT,
     REQUESTS_SHARDS_DIR,
+    INTERVENTIONS_SHARDS_DIR,
 } = require("./product-manager/config/paths");
 const {
     loadAdminCredentials,
@@ -1033,8 +1034,19 @@ function getLegacyRequestsPath(mode) {
 }
 
 const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
+const INTERVENTIONS_SHARD_REGEX = /^interventions-(\d{4}|undated)\.json$/i;
 
 function getRequestYearKey(request) {
+    const value = String(request?.createdAt || request?.updatedAt || "").trim();
+    if (!value) return "undated";
+    const direct = /^(\d{4})/.exec(value);
+    if (direct) return direct[1];
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return String(date.getFullYear());
+    return "undated";
+}
+
+function getInterventionYearKey(request) {
     const value = String(request?.createdAt || request?.updatedAt || "").trim();
     if (!value) return "undated";
     const direct = /^(\d{4})/.exec(value);
@@ -1061,10 +1073,36 @@ function getShardLatestMtimeMs() {
     }
 }
 
+function getInterventionShardLatestMtimeMs() {
+    try {
+        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) return 0;
+        const files = fs.readdirSync(INTERVENTIONS_SHARDS_DIR).filter((name) => INTERVENTIONS_SHARD_REGEX.test(name));
+        let latest = 0;
+        files.forEach((name) => {
+            try {
+                const ms = Number(fs.statSync(path.join(INTERVENTIONS_SHARDS_DIR, name)).mtimeMs) || 0;
+                if (ms > latest) latest = ms;
+            } catch {}
+        });
+        return latest;
+    } catch {
+        return 0;
+    }
+}
+
 function hasPurchasingShards() {
     try {
         if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return false;
         return fs.readdirSync(REQUESTS_SHARDS_DIR).some((name) => REQUESTS_SHARD_REGEX.test(name));
+    } catch {
+        return false;
+    }
+}
+
+function hasInterventionShards() {
+    try {
+        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) return false;
+        return fs.readdirSync(INTERVENTIONS_SHARDS_DIR).some((name) => INTERVENTIONS_SHARD_REGEX.test(name));
     } catch {
         return false;
     }
@@ -1090,6 +1128,26 @@ function readRequestsFromShards() {
         return out;
     } catch (err) {
         showError("Errore lettura shard richieste.", err.message || String(err));
+        return null;
+    }
+}
+
+function readInterventionsFromShards() {
+    try {
+        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) return null;
+        const files = fs.readdirSync(INTERVENTIONS_SHARDS_DIR)
+            .filter((name) => INTERVENTIONS_SHARD_REGEX.test(name))
+            .sort();
+        if (!files.length) return null;
+        const out = [];
+        files.forEach((name) => {
+            const raw = fs.readFileSync(path.join(INTERVENTIONS_SHARDS_DIR, name), "utf8");
+            const parsed = JSON.parse(raw);
+            normalizeRequestsData(parsed).forEach((row) => out.push(row));
+        });
+        return out;
+    } catch (err) {
+        showError("Errore lettura shard interventi.", err.message || String(err));
         return null;
     }
 }
@@ -1127,6 +1185,39 @@ function writeRequestsShards(payload) {
     }
 }
 
+function writeInterventionsShards(payload) {
+    const normalized = normalizeRequestsData(payload);
+    try {
+        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) {
+            fs.mkdirSync(INTERVENTIONS_SHARDS_DIR, { recursive: true });
+        }
+        const buckets = {};
+        normalized.forEach((item) => {
+            const year = getInterventionYearKey(item);
+            if (!buckets[year]) buckets[year] = [];
+            buckets[year].push(item);
+        });
+        const expected = new Set();
+        Object.keys(buckets).forEach((year) => {
+            const fileName = `interventions-${year}.json`;
+            expected.add(fileName.toLowerCase());
+            fs.writeFileSync(
+                path.join(INTERVENTIONS_SHARDS_DIR, fileName),
+                JSON.stringify(buckets[year], null, 2),
+                "utf8"
+            );
+        });
+        const existing = fs.readdirSync(INTERVENTIONS_SHARDS_DIR);
+        existing.forEach((name) => {
+            if (!INTERVENTIONS_SHARD_REGEX.test(name)) return;
+            if (expected.has(name.toLowerCase())) return;
+            fs.unlinkSync(path.join(INTERVENTIONS_SHARDS_DIR, name));
+        });
+    } catch (err) {
+        showError("Errore salvataggio shard interventi.", err.message || String(err));
+    }
+}
+
 function bootstrapPurchasingShardsFromLegacy() {
     try {
         if (hasPurchasingShards()) return;
@@ -1141,28 +1232,52 @@ function bootstrapPurchasingShardsFromLegacy() {
     }
 }
 
+function bootstrapInterventionShardsFromLegacy() {
+    try {
+        if (hasInterventionShards()) return;
+        if (!fs.existsSync(LEGACY_INTERVENTIONS_PATH)) return;
+        const raw = fs.readFileSync(LEGACY_INTERVENTIONS_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        const normalized = normalizeRequestsData(parsed);
+        if (!normalized.length) return;
+        writeInterventionsShards(normalized);
+    } catch (err) {
+        showError("Errore migrazione iniziale interventi Purchasing.", err.message || String(err));
+    }
+}
+
 function readRequestsFile(mode = getActiveMode()) {
     const filePath = getRequestsPath(mode);
     const legacyPath = getLegacyRequestsPath(mode);
     try {
         if (mode === REQUEST_MODES.INTERVENTION) {
-            const candidates = [filePath, legacyPath].filter((item) => item && fs.existsSync(item));
-            if (!candidates.length) return [];
-            let sourcePath = candidates[0];
-            if (candidates.length > 1) {
-                const a = Number(fs.statSync(candidates[0]).mtimeMs) || 0;
-                const b = Number(fs.statSync(candidates[1]).mtimeMs) || 0;
-                sourcePath = b > a ? candidates[1] : candidates[0];
+            const candidates = [];
+            if (filePath && fs.existsSync(filePath)) {
+                const raw = fs.readFileSync(filePath, "utf8");
+                const parsed = JSON.parse(raw);
+                const normalized = normalizeRequestsData(parsed);
+                const ms = Number(fs.statSync(filePath).mtimeMs) || 0;
+                if (normalized.length) candidates.push({ data: normalized, ms });
             }
-            const raw = fs.readFileSync(sourcePath, "utf8");
-            const parsed = JSON.parse(raw);
-            const normalized = normalizeRequestsData(parsed);
-            validateWithAjv(validateRequestsSchema, normalized, "richieste", { showWarning, showError });
-            tryAutoCleanJson(sourcePath, parsed, normalized, validateRequestsSchema, "richieste", {
-                showWarning,
-                showError,
-            });
-            return normalized;
+            const shardData = readInterventionsFromShards();
+            const shardHasItems = Array.isArray(shardData) && shardData.length > 0;
+            if (shardHasItems) {
+                const ms = getInterventionShardLatestMtimeMs();
+                candidates.push({ data: shardData, ms });
+            }
+            if (legacyPath && fs.existsSync(legacyPath)) {
+                const raw = fs.readFileSync(legacyPath, "utf8");
+                const parsed = JSON.parse(raw);
+                const normalized = normalizeRequestsData(parsed);
+                const ms = Number(fs.statSync(legacyPath).mtimeMs) || 0;
+                if (normalized.length) candidates.push({ data: normalized, ms });
+            }
+            if (!candidates.length) {
+                return [];
+            }
+            const best = candidates.sort((a, b) => b.ms - a.ms)[0];
+            validateWithAjv(validateRequestsSchema, best.data, "richieste", { showWarning, showError });
+            return best.data;
         }
 
         const primaryExists = filePath && fs.existsSync(filePath);
@@ -1173,48 +1288,29 @@ function readRequestsFile(mode = getActiveMode()) {
         const legacyData = legacyExists
             ? normalizeRequestsData(JSON.parse(fs.readFileSync(legacyPath, "utf8")))
             : null;
-        let fileData = primaryData || legacyData || null;
-        let fileSourcePath = primaryData ? filePath : legacyPath;
-        if (primaryData && legacyData) {
-            const primaryMs = Number(fs.statSync(filePath).mtimeMs) || 0;
-            const legacyMs = Number(fs.statSync(legacyPath).mtimeMs) || 0;
-            if (legacyMs > primaryMs) {
-                fileData = legacyData;
-                fileSourcePath = legacyPath;
-            } else {
-                fileData = primaryData;
-                fileSourcePath = filePath;
-            }
-        }
+        const primaryHasItems = Array.isArray(primaryData) && primaryData.length > 0;
+        const legacyHasItems = Array.isArray(legacyData) && legacyData.length > 0;
         const shardData = readRequestsFromShards();
-        let normalized = [];
-        if (fileData && shardData) {
-            const fileMs = fileSourcePath && fs.existsSync(fileSourcePath)
-                ? Number(fs.statSync(fileSourcePath).mtimeMs) || 0
-                : 0;
-            const shardMs = getShardLatestMtimeMs();
-            if (fileMs >= shardMs) {
-                normalized = fileData;
-                if (fileMs > shardMs) {
-                    writeRequestsShards(fileData);
-                }
-            } else {
-                normalized = shardData;
-                if (primaryExists) {
-                    fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
-                }
-            }
-        } else {
-            normalized = fileData || shardData || [];
-            if (fileData && !shardData) {
-                writeRequestsShards(fileData);
-            }
-            if (fileData && fileSourcePath === legacyPath && primaryExists) {
-                fs.writeFileSync(filePath, JSON.stringify(fileData, null, 2), "utf8");
-            }
+        const shardHasItems = Array.isArray(shardData) && shardData.length > 0;
+        const candidates = [];
+        if (primaryHasItems) {
+            const ms = Number(fs.statSync(filePath).mtimeMs) || 0;
+            candidates.push({ data: primaryData, ms });
         }
-        validateWithAjv(validateRequestsSchema, normalized, "richieste", { showWarning, showError });
-        return normalized;
+        if (shardHasItems) {
+            const ms = getShardLatestMtimeMs();
+            candidates.push({ data: shardData, ms });
+        }
+        if (legacyHasItems) {
+            const ms = Number(fs.statSync(legacyPath).mtimeMs) || 0;
+            candidates.push({ data: legacyData, ms });
+        }
+        if (!candidates.length) {
+            return [];
+        }
+        const best = candidates.sort((a, b) => b.ms - a.ms)[0];
+        validateWithAjv(validateRequestsSchema, best.data, "richieste", { showWarning, showError });
+        return best.data;
     } catch (err) {
         showError("Errore lettura richieste.", err.message || String(err));
         return [];
@@ -1238,6 +1334,7 @@ function saveRequestsFile(payload, mode = getActiveMode()) {
             if (legacyPath && fs.existsSync(legacyPath)) {
                 fs.writeFileSync(legacyPath, JSON.stringify(normalized, null, 2), "utf8");
             }
+            writeInterventionsShards(normalized);
         } else {
             if (shouldWriteLegacyPurchaseFile()) {
                 fs.writeFileSync(legacyPath, JSON.stringify(normalized, null, 2), "utf8");
@@ -1866,7 +1963,7 @@ function renderCartTagFilterOptions() {
         openMultiselectMenu,
         closeMultiselectMenu,
         onChange: (values) => {
-            cartState.tag = values;
+            cartState.tag = Array.isArray(values) ? values.filter((value) => value) : [];
             renderCartTable();
         },
     });
@@ -1879,7 +1976,7 @@ function renderCartUrgencyFilterOptions() {
         openMultiselectMenu,
         closeMultiselectMenu,
         onChange: (values) => {
-            cartState.urgency = values;
+            cartState.urgency = Array.isArray(values) ? values.filter((value) => value) : [];
             renderCartTable();
         },
     });
@@ -2815,6 +2912,7 @@ async function init() {
     catalogCategories = loadCategories();
     interventionTypes = loadInterventionTypes();
     bootstrapPurchasingShardsFromLegacy();
+    bootstrapInterventionShardsFromLegacy();
     categoryColors = loadCategoryColors();
     renderCatalog();
     renderCategoryOptions();
