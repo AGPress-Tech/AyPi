@@ -18,6 +18,8 @@ import { renderLoginSelectors, renderAdminSelect } from "./product-manager/ui/lo
 
 const ADMIN_EMAIL = "tech@agpress-srl.it";
 const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
+const FINAL_STATUSES = new Set(["Risolto", "Chiuso"]);
+const FINAL_STATUS_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 const params = new URLSearchParams(window.location.search || "");
 const currentView = (params.get("tsView") || "form").toLowerCase() === "admin" ? "admin" : "form";
 
@@ -317,9 +319,35 @@ function updateStatusDates(ticket, nextStatus, at) {
     }
 }
 
+function isFinalStatus(status) {
+    return FINAL_STATUSES.has(String(status || "").trim());
+}
+
+function getFinalStatusTimestamp(ticket) {
+    const status = String(ticket?.status || "").trim();
+    let raw = "";
+    if (status === "Chiuso") {
+        raw = ticket?.closedAt || ticket?.resolvedAt || ticket?.lastStatusChangeAt || ticket?.updatedAt || ticket?.createdAt || "";
+    } else if (status === "Risolto") {
+        raw = ticket?.resolvedAt || ticket?.lastStatusChangeAt || ticket?.updatedAt || ticket?.createdAt || "";
+    }
+    if (!raw) return 0;
+    const ts = new Date(raw).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+}
+
+function isTicketExpired(ticket, nowMs) {
+    if (!isFinalStatus(ticket?.status)) return false;
+    const at = getFinalStatusTimestamp(ticket);
+    if (!at) return false;
+    return nowMs - at >= FINAL_STATUS_KEEP_MS;
+}
+
 function filterAdminTickets(tickets) {
     const search = adminFilters.search.toLowerCase();
+    const nowMs = Date.now();
     return tickets
+        .filter((ticket) => !isTicketExpired(ticket, nowMs))
         .filter((ticket) => {
             if (adminFilters.status && ticket.status !== adminFilters.status) return false;
             if (adminFilters.area && ticket.area !== adminFilters.area) return false;
@@ -342,7 +370,9 @@ function filterAdminTickets(tickets) {
 
 function filterOperatorTickets(tickets) {
     const search = operatorFilters.search.toLowerCase();
+    const nowMs = Date.now();
     return tickets
+        .filter((ticket) => !isTicketExpired(ticket, nowMs))
         .filter((ticket) => {
             if (operatorFilters.status && ticket.status !== operatorFilters.status) return false;
             if (operatorFilters.area && ticket.area !== operatorFilters.area) return false;
@@ -429,8 +459,13 @@ function renderOperatorList() {
             .sort((a, b) => String(a.at).localeCompare(String(b.at)))
             .map((item) => `[${formatDateTime(item.at)}] ${item.event}${item.fromStatus || item.toStatus ? ` (${item.fromStatus || "-"} -> ${item.toStatus || "-"})` : ""}`)
             .join("\n");
+        const statusClass = ticket.status === "Risolto"
+            ? " ts-ticket-card--resolved"
+            : ticket.status === "Chiuso"
+            ? " ts-ticket-card--closed"
+            : "";
         return `
-            <article class="ts-ticket-card" data-ticket-id="${escapeHtml(ticket.id)}">
+            <article class="ts-ticket-card${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
                 <div class="ts-ticket-card__head">
                     <div class="ts-ticket-card__title">${escapeHtml(ticket.id)}</div>
                     <div class="ts-ticket-card__status">${escapeHtml(ticket.status)}</div>
@@ -522,8 +557,14 @@ function renderAdminTable() {
             <div class="pm-table__cell">Azioni</div>
         </div>
     `;
-    const body = rows.map((ticket) => `
-        <div class="pm-table__row" data-ticket-id="${escapeHtml(ticket.id)}">
+    const body = rows.map((ticket) => {
+        const statusClass = ticket.status === "Risolto"
+            ? " pm-table__row--confirmed"
+            : ticket.status === "Chiuso"
+            ? " pm-table__row--deleted"
+            : "";
+        return `
+        <div class="pm-table__row${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
             <div class="pm-table__cell">${escapeHtml(ticket.id)}</div>
             <div class="pm-table__cell">${escapeHtml(ticket.requester?.name || "-")}</div>
             <div class="pm-table__cell">${escapeHtml(ticket.requester?.department || "-")}</div>
@@ -546,7 +587,8 @@ function renderAdminTable() {
                 </div>
             </div>
         </div>
-    `).join("");
+    `;
+    }).join("");
 
     table.innerHTML = header + body;
     if (table.dataset.tsBound !== "1") {
@@ -611,7 +653,7 @@ function updateRoleBadge() {
 
 function updateAdminButtonVisibility() {
     const isAdminUser = isAdmin();
-    ["ts-open-admin-list", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-backup-section"].forEach((id) => {
+    ["ts-open-admin-list", "ts-clean-closed", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-backup-section"].forEach((id) => {
         const node = document.getElementById(id);
         if (!node) return;
         node.classList.toggle("ts-hidden", !isAdminUser);
@@ -929,6 +971,34 @@ function deleteTicketByAdmin(ticketId) {
     renderAll();
 }
 
+function cleanClosedTickets() {
+    if (!isAdmin()) {
+        showWarning("Accesso admin richiesto.");
+        return;
+    }
+    const ok = window.confirm("Vuoi rimuovere dal JSON tutti i ticket chiusi o risolti?");
+    if (!ok) return;
+    const before = store.tickets.length;
+    const remaining = store.tickets.filter((ticket) => !isFinalStatus(ticket.status));
+    const removed = before - remaining.length;
+    if (!removed) {
+        showInlineMessage(
+            currentView === "admin" ? "ts-admin-message" : "ts-create-message",
+            "Nessun ticket chiuso o risolto da rimuovere.",
+            "success"
+        );
+        return;
+    }
+    store.tickets = remaining;
+    saveAll();
+    renderAll();
+    showInlineMessage(
+        currentView === "admin" ? "ts-admin-message" : "ts-create-message",
+        `Pulizia completata: rimossi ${removed} ticket.`,
+        "success"
+    );
+}
+
 function updateLoginSelectors() {
     renderLoginSelectors({ document, getAssigneeGroups: () => assigneeGroups });
     renderAdminSelect({ document, loadAdminCredentials });
@@ -1139,6 +1209,9 @@ function bindAdminListEvents() {
     });
     document.getElementById("ts-admin-list-close")?.addEventListener("click", () => {
         closeAdminListModal();
+    });
+    document.getElementById("ts-clean-closed")?.addEventListener("click", () => {
+        cleanClosedTickets();
     });
     document.getElementById("ts-admin-filter-search")?.addEventListener("input", (event) => {
         adminFilters.search = String(event.target?.value || "");

@@ -165,18 +165,11 @@ import {
     ROOT_DIR,
     PURCHASING_DIR,
     REQUESTS_PATH,
-    LEGACY_REQUESTS_PATH,
     INTERVENTIONS_PATH,
-    LEGACY_INTERVENTIONS_PATH,
     CATALOG_PATH,
-    LEGACY_CATALOG_PATH,
     CATEGORIES_PATH,
-    LEGACY_CATEGORIES_PATH,
     INTERVENTION_TYPES_PATH,
-    LEGACY_INTERVENTION_TYPES_PATH,
     PRODUCTS_DIR,
-    LEGACY_PRODUCTS_DIR,
-    LEGACY_PRODUCTS_DIR_ALT,
     REQUESTS_SHARDS_DIR,
     INTERVENTIONS_SHARDS_DIR,
 } from "./product-manager/config/paths";
@@ -278,9 +271,7 @@ function getCatalogSectionCtx() {
         CATEGORY_COLOR_STORAGE_KEY,
         DEFAULT_CATEGORY_COLORS,
         CATALOG_PATH,
-        LEGACY_CATALOG_PATH,
         CATEGORIES_PATH,
-        LEGACY_CATEGORIES_PATH,
         normalizeCatalogData,
         normalizeCategoriesData,
         validateWithAjv,
@@ -352,7 +343,6 @@ function getInterventionsSectionCtx() {
         document,
         fs,
         INTERVENTION_TYPES_PATH,
-        LEGACY_INTERVENTION_TYPES_PATH,
         normalizeInterventionTypesData,
         validateWithAjv,
         validateInterventionTypesSchema,
@@ -1189,12 +1179,6 @@ function getRequestsPath(mode) {
         : REQUESTS_PATH;
 }
 
-function getLegacyRequestsPath(mode) {
-    return mode === REQUEST_MODES.INTERVENTION
-        ? LEGACY_INTERVENTIONS_PATH
-        : LEGACY_REQUESTS_PATH;
-}
-
 const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
 const INTERVENTIONS_SHARD_REGEX = /^interventions-(\d{4}|undated)\.json$/i;
 
@@ -1286,9 +1270,6 @@ function hasInterventionShards() {
     }
 }
 
-function shouldWriteLegacyPurchaseFile() {
-    return fs.existsSync(LEGACY_REQUESTS_PATH);
-}
 
 function readRequestsFromShards() {
     try {
@@ -1416,43 +1397,9 @@ function writeInterventionsShards(payload) {
     }
 }
 
-function bootstrapPurchasingShardsFromLegacy() {
-    try {
-        if (hasPurchasingShards()) return;
-        if (!fs.existsSync(LEGACY_REQUESTS_PATH)) return;
-        const raw = fs.readFileSync(LEGACY_REQUESTS_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const normalized = normalizeRequestsData(parsed);
-        if (!normalized.length) return;
-        writeRequestsShards(normalized);
-    } catch (err) {
-        showError(
-            "Errore migrazione iniziale richieste Purchasing.",
-            err.message || String(err),
-        );
-    }
-}
-
-function bootstrapInterventionShardsFromLegacy() {
-    try {
-        if (hasInterventionShards()) return;
-        if (!fs.existsSync(LEGACY_INTERVENTIONS_PATH)) return;
-        const raw = fs.readFileSync(LEGACY_INTERVENTIONS_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const normalized = normalizeRequestsData(parsed);
-        if (!normalized.length) return;
-        writeInterventionsShards(normalized);
-    } catch (err) {
-        showError(
-            "Errore migrazione iniziale interventi Purchasing.",
-            err.message || String(err),
-        );
-    }
-}
 
 function readRequestsFile(mode = getActiveMode()) {
     const filePath = getRequestsPath(mode);
-    const legacyPath = getLegacyRequestsPath(mode);
     try {
         if (mode === REQUEST_MODES.INTERVENTION) {
             const candidates = [];
@@ -1471,14 +1418,6 @@ function readRequestsFile(mode = getActiveMode()) {
                 const ms = getInterventionShardLatestMtimeMs();
                 candidates.push({ data: shardData, ms });
             }
-            if (legacyPath && fs.existsSync(legacyPath)) {
-                const raw = fs.readFileSync(legacyPath, "utf8");
-                const parsed = JSON.parse(raw);
-                const normalized = normalizeRequestsData(parsed);
-                const ms = Number(fs.statSync(legacyPath).mtimeMs) || 0;
-                if (normalized.length)
-                    candidates.push({ data: normalized, ms });
-            }
             if (!candidates.length) {
                 return [];
             }
@@ -1491,21 +1430,13 @@ function readRequestsFile(mode = getActiveMode()) {
         }
 
         const primaryExists = filePath && fs.existsSync(filePath);
-        const legacyExists = legacyPath && fs.existsSync(legacyPath);
         const primaryData = primaryExists
             ? normalizeRequestsData(
                   JSON.parse(fs.readFileSync(filePath, "utf8")),
               )
             : null;
-        const legacyData = legacyExists
-            ? normalizeRequestsData(
-                  JSON.parse(fs.readFileSync(legacyPath, "utf8")),
-              )
-            : null;
         const primaryHasItems =
             Array.isArray(primaryData) && primaryData.length > 0;
-        const legacyHasItems =
-            Array.isArray(legacyData) && legacyData.length > 0;
         const shardData = readRequestsFromShards();
         const shardHasItems = Array.isArray(shardData) && shardData.length > 0;
         const candidates = [];
@@ -1516,10 +1447,6 @@ function readRequestsFile(mode = getActiveMode()) {
         if (shardHasItems) {
             const ms = getShardLatestMtimeMs();
             candidates.push({ data: shardData, ms });
-        }
-        if (legacyHasItems) {
-            const ms = Number(fs.statSync(legacyPath).mtimeMs) || 0;
-            candidates.push({ data: legacyData, ms });
         }
         if (!candidates.length) {
             return [];
@@ -1538,7 +1465,6 @@ function readRequestsFile(mode = getActiveMode()) {
 
 function saveRequestsFile(payload, mode = getActiveMode()) {
     const filePath = getRequestsPath(mode);
-    const legacyPath = getLegacyRequestsPath(mode);
     try {
         const normalized = normalizeRequestsData(payload);
         if (
@@ -1554,22 +1480,8 @@ function saveRequestsFile(payload, mode = getActiveMode()) {
                 JSON.stringify(normalized, null, 2),
                 "utf8",
             );
-            if (legacyPath && fs.existsSync(legacyPath)) {
-                fs.writeFileSync(
-                    legacyPath,
-                    JSON.stringify(normalized, null, 2),
-                    "utf8",
-                );
-            }
             writeInterventionsShards(normalized);
         } else {
-            if (shouldWriteLegacyPurchaseFile()) {
-                fs.writeFileSync(
-                    legacyPath,
-                    JSON.stringify(normalized, null, 2),
-                    "utf8",
-                );
-            }
             fs.writeFileSync(
                 filePath,
                 JSON.stringify(normalized, null, 2),
@@ -2280,8 +2192,6 @@ function ensureProductsDir() {
     ensureProductsDirSvc({
         fs,
         PRODUCTS_DIR,
-        LEGACY_PRODUCTS_DIR,
-        LEGACY_PRODUCTS_DIR_ALT,
     });
 }
 
@@ -2291,8 +2201,6 @@ function copyCatalogImage(filePath, catalogId) {
             fs,
             path,
             PRODUCTS_DIR,
-            LEGACY_PRODUCTS_DIR,
-            LEGACY_PRODUCTS_DIR_ALT,
             showError,
         },
         filePath,
@@ -2306,8 +2214,6 @@ function getCatalogImagePath(item) {
             fs,
             path,
             PRODUCTS_DIR,
-            LEGACY_PRODUCTS_DIR,
-            LEGACY_PRODUCTS_DIR_ALT,
         },
         item,
     );
@@ -2315,7 +2221,7 @@ function getCatalogImagePath(item) {
 
 function getCatalogImageSrc(item) {
     return getCatalogImageSrcSvc(
-        { fs, pathToFileURL, path, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR },
+        { fs, pathToFileURL, path, PRODUCTS_DIR },
         item,
     );
 }
@@ -3288,8 +3194,6 @@ async function init() {
     catalogItems = loadCatalog();
     catalogCategories = loadCategories();
     interventionTypes = loadInterventionTypes();
-    bootstrapPurchasingShardsFromLegacy();
-    bootstrapInterventionShardsFromLegacy();
     categoryColors = loadCategoryColors();
     renderCatalog();
     renderCategoryOptions();

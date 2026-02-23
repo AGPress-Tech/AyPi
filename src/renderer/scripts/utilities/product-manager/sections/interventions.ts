@@ -16,7 +16,6 @@ function loadInterventionTypes(ctx) {
     const {
         fs,
         INTERVENTION_TYPES_PATH,
-        LEGACY_INTERVENTION_TYPES_PATH,
         normalizeInterventionTypesData,
         validateWithAjv,
         validateInterventionTypesSchema,
@@ -25,15 +24,8 @@ function loadInterventionTypes(ctx) {
         showError,
     } = ctx;
     try {
-        const candidates = [INTERVENTION_TYPES_PATH, LEGACY_INTERVENTION_TYPES_PATH].filter((item) => item && fs.existsSync(item));
-        if (!candidates.length) return [];
-        let sourcePath = candidates[0];
-        if (candidates.length > 1) {
-            const a = Number(fs.statSync(candidates[0]).mtimeMs) || 0;
-            const b = Number(fs.statSync(candidates[1]).mtimeMs) || 0;
-            sourcePath = b > a ? candidates[1] : candidates[0];
-        }
-        const raw = fs.readFileSync(sourcePath, "utf8");
+        if (!INTERVENTION_TYPES_PATH || !fs.existsSync(INTERVENTION_TYPES_PATH)) return [];
+        const raw = fs.readFileSync(INTERVENTION_TYPES_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeInterventionTypesData(parsed);
         validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi", {
@@ -41,7 +33,7 @@ function loadInterventionTypes(ctx) {
             showError,
         });
         tryAutoCleanJson(
-            sourcePath,
+            INTERVENTION_TYPES_PATH,
             parsed,
             normalized,
             validateInterventionTypesSchema,
@@ -59,7 +51,6 @@ function saveInterventionTypes(ctx, list) {
     const {
         fs,
         INTERVENTION_TYPES_PATH,
-        LEGACY_INTERVENTION_TYPES_PATH,
         normalizeInterventionTypesData,
         validateWithAjv,
         validateInterventionTypesSchema,
@@ -76,9 +67,6 @@ function saveInterventionTypes(ctx, list) {
         )
             return false;
         fs.writeFileSync(INTERVENTION_TYPES_PATH, JSON.stringify(normalized, null, 2), "utf8");
-        if (LEGACY_INTERVENTION_TYPES_PATH && fs.existsSync(LEGACY_INTERVENTION_TYPES_PATH)) {
-            fs.writeFileSync(LEGACY_INTERVENTION_TYPES_PATH, JSON.stringify(normalized, null, 2), "utf8");
-        }
         return true;
     } catch (err) {
         showError("Errore salvataggio tipologie interventi.", err.message || String(err));

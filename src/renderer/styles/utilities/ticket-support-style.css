@@ -140,6 +140,17 @@ body.ts-view-admin .pm-body {
     background: rgba(255, 255, 255, 0.7);
 }
 
+.ts-ticket-card--resolved {
+    border-color: rgba(52, 168, 83, 0.4);
+    background: rgba(52, 168, 83, 0.08);
+}
+
+.ts-ticket-card--closed {
+    border-color: rgba(234, 67, 53, 0.4);
+    background: rgba(234, 67, 53, 0.08);
+    opacity: 0.85;
+}
+
 .ts-ticket-card__head {
     display: flex;
     justify-content: space-between;

@@ -242,12 +242,10 @@ function ensureFpFiles(baseDir: string) {
     }
     const calendarDir = path.join(baseDir, "AyPi Calendar");
     const calendarYearsDir = path.join(calendarDir, "Calendar Years");
-    const productManagerDir = path.join(baseDir, "Product Manager");
-    const legacyProductManagerExists = fs.existsSync(productManagerDir);
     const purchasingDir = path.join(baseDir, "AyPi Purchasing");
     const generalDir = path.join(baseDir, "General");
     const ganttDir = path.join(baseDir, "AyPi Gantt");
-    const ticketDir = path.join(baseDir, "Ticket");
+    const ticketDir = path.join(baseDir, "AyPi Ticket");
 
     [
         calendarDir,
@@ -258,9 +256,6 @@ function ensureFpFiles(baseDir: string) {
         generalDir,
         ganttDir,
         ticketDir,
-        ...(legacyProductManagerExists
-            ? [productManagerDir, path.join(productManagerDir, "products"), path.join(productManagerDir, "Products")]
-            : []),
     ].forEach((dirPath) => {
         try {
             if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -330,60 +325,15 @@ function ensureFpFiles(baseDir: string) {
     copyFileIfNeeded(path.join(baseDir, "ferie-permessi-admins.json"), path.join(generalDir, "ferie-permessi-admins.json"));
     copyFileIfNeeded(path.join(baseDir, "amministrazione-obiettivi.json"), path.join(ganttDir, "amministrazione-obiettivi.json"));
     copyDirectoryContent(path.join(baseDir, "Calendar Years"), calendarYearsDir);
-    copyFileIfNeeded(path.join(productManagerDir, "catalog.json"), path.join(purchasingDir, "catalog.json"));
-    copyFileIfNeeded(path.join(productManagerDir, "categories.json"), path.join(purchasingDir, "categories.json"));
-    copyFileIfNeeded(path.join(productManagerDir, "interventions.json"), path.join(purchasingDir, "interventions.json"));
-    copyFileIfNeeded(path.join(productManagerDir, "intervention-types.json"), path.join(purchasingDir, "intervention-types.json"));
-    copyFileIfNeeded(path.join(productManagerDir, "requests.json"), path.join(purchasingDir, "requests.json"));
-    copyFileIfNeeded(path.join(productManagerDir, "session.json"), path.join(purchasingDir, "session.json"));
-    copyDirectoryContent(path.join(productManagerDir, "products"), path.join(purchasingDir, "products"));
-    copyDirectoryContent(path.join(productManagerDir, "Products"), path.join(purchasingDir, "products"));
-
-    // Purchasing: bootstrap shard richieste da legacy Product Manager/requests.json
-    try {
-        const purchasingRequestsDir = path.join(purchasingDir, "requests");
-        const legacyPmRequestsPath = path.join(productManagerDir, "requests.json");
-        const shardRegex = /^requests-(\d{4}|undated)\.json$/i;
-        const hasShards = fs.existsSync(purchasingRequestsDir)
-            && fs.readdirSync(purchasingRequestsDir).some((name) => shardRegex.test(name));
-
-        if (!hasShards && fs.existsSync(legacyPmRequestsPath)) {
-            const raw = fs.readFileSync(legacyPmRequestsPath, "utf8");
-            const parsed = JSON.parse(raw);
-            const rows = Array.isArray(parsed) ? parsed : [];
-            if (rows.length) {
-                const getYearKey = (item) => {
-                    const value = String(item?.createdAt || item?.updatedAt || "").trim();
-                    if (!value) return "undated";
-                    const direct = /^(\d{4})/.exec(value);
-                    if (direct) return direct[1];
-                    const date = new Date(value);
-                    if (!Number.isNaN(date.getTime())) return String(date.getFullYear());
-                    return "undated";
-                };
-
-                const byYear = rows.reduce((acc, item) => {
-                    const key = getYearKey(item);
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(item);
-                    return acc;
-                }, {});
-
-                Object.keys(byYear).forEach((yearKey) => {
-                    const shardPath = path.join(purchasingRequestsDir, `requests-${yearKey}.json`);
-                    if (!fs.existsSync(shardPath)) {
-                        fs.writeFileSync(shardPath, JSON.stringify(byYear[yearKey], null, 2), "utf8");
-                    }
-                });
-            }
+    // Rimuove i file legacy di Purchasing (Product Manager).
+    const productManagerDir = path.join(baseDir, "Product Manager");
+    if (fs.existsSync(productManagerDir)) {
+        try {
+            fs.rmSync(productManagerDir, { recursive: true, force: true });
+        } catch (err) {
+            log.warn("[ferie-permessi] impossibile rimuovere legacy Product Manager:", productManagerDir, err);
         }
-    } catch (err) {
-        log.warn("[ferie-permessi] bootstrap shard purchasing non riuscito:", err);
     }
-
-    // Nota: non creare file automaticamente.
-    // La logica applicativa deve leggere/scrivere sul legacy solo se esiste,
-    // altrimenti usare esclusivamente i nuovi percorsi.
 }
 
 function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {

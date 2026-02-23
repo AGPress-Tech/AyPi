@@ -3,8 +3,6 @@ import fs from "fs";
 import path from "path";
 import {
     TICKET_DIR,
-    LEGACY_TICKET_DIR,
-    LEGACY_DATA_PATH,
     DATA_PATH,
 } from "../config/paths";
 
@@ -58,6 +56,32 @@ function ensureFolderFor(filePath: string) {
 
 function ensureTickerDir() {
     try {
+        // Rimuove vecchie cartelle e file legacy.
+        ["Ticket", "ticket"].forEach((legacyName) => {
+            try {
+                const legacyPath = path.join(path.dirname(TICKET_DIR), legacyName);
+                if (fs.existsSync(legacyPath)) {
+                    fs.rmSync(legacyPath, { recursive: true, force: true });
+                }
+            } catch (err) {
+                console.warn(
+                    "[ticket-support] rimozione cartella legacy ticket non riuscita:",
+                    legacyName,
+                    err,
+                );
+            }
+        });
+        try {
+            const legacyFile = path.join(path.dirname(TICKET_DIR), "ticket-support.json");
+            if (fs.existsSync(legacyFile)) {
+                fs.rmSync(legacyFile, { force: true });
+            }
+        } catch (err) {
+            console.warn(
+                "[ticket-support] rimozione file legacy ticket non riuscita:",
+                err,
+            );
+        }
         if (!fs.existsSync(TICKET_DIR)) {
             fs.mkdirSync(TICKET_DIR, { recursive: true });
         }
@@ -114,30 +138,12 @@ function listYearFiles(directory = TICKET_DIR) {
 
 function loadFromYearFiles() {
     const primaryFiles = listYearFiles(TICKET_DIR);
-    const files = primaryFiles.length
-        ? primaryFiles
-        : listYearFiles(LEGACY_TICKET_DIR);
-    if (!files.length) return [];
+    if (!primaryFiles.length) return [];
     const tickets = [];
-    files.forEach((filePath) => {
+    primaryFiles.forEach((filePath) => {
         tickets.push(...readTicketsFromFile(filePath));
     });
     return tickets;
-}
-
-function loadFromLegacyFile() {
-    try {
-        if (!fs.existsSync(LEGACY_DATA_PATH)) return [];
-        const raw = fs.readFileSync(LEGACY_DATA_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const tickets = Array.isArray(parsed?.tickets)
-            ? parsed.tickets.map(normalizeTicket)
-            : [];
-        return tickets;
-    } catch (err) {
-        console.error("[ticket-support] errore lettura legacy store:", err);
-        return [];
-    }
 }
 
 function normalizeTicket(input: any): Ticket {
@@ -189,13 +195,6 @@ function loadStore(): TicketStore {
             };
         }
 
-        const legacyTickets = loadFromLegacyFile();
-        if (legacyTickets.length) {
-            // Migrazione automatica da file unico legacy a file annuali.
-            saveStore({ version: 1, tickets: legacyTickets });
-            return { version: 1, tickets: legacyTickets };
-        }
-
         return { ...EMPTY_STORE, tickets: [] };
     } catch (err) {
         console.error("[ticket-support] errore lettura store:", err);
@@ -210,23 +209,7 @@ function saveStore(store: TicketStore): TicketStore {
     const tickerDirReady = ensureTickerDir();
 
     if (!tickerDirReady) {
-        // Fallback: mantiene operativitÃ  su file unico se la cartella annuale non Ã¨ scrivibile.
-        const fallbackPayload = { version: 1, tickets: normalizedTickets };
-        try {
-            ensureFolderFor(LEGACY_DATA_PATH);
-            fs.writeFileSync(
-                LEGACY_DATA_PATH,
-                JSON.stringify(fallbackPayload, null, 2),
-                "utf8",
-            );
-        } catch (err) {
-            console.error(
-                "[ticket-support] fallback legacy non riuscito:",
-                LEGACY_DATA_PATH,
-                err,
-            );
-        }
-        return fallbackPayload;
+        return { version: 1, tickets: normalizedTickets };
     }
 
     const byYear = normalizedTickets.reduce((acc: Record<string, Ticket[]>, ticket) => {

@@ -5,8 +5,6 @@ type CatalogImageContext = {
     fs: typeof import("fs");
     pathToFileURL: (filePath: string) => URL;
     PRODUCTS_DIR: string;
-    LEGACY_PRODUCTS_DIR?: string;
-    LEGACY_PRODUCTS_DIR_ALT?: string;
     showError: (message: string, detail?: string) => void;
 };
 
@@ -16,15 +14,10 @@ type CatalogItem = {
 };
 
 function getCatalogImagePath(ctx: CatalogImageContext, item?: CatalogItem | null) {
-    const { path, fs, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT } = ctx;
+    const { path, fs, PRODUCTS_DIR } = ctx;
     if (!item || !item.imageFile) return "";
     const primary = path.join(PRODUCTS_DIR, item.imageFile);
     if (fs && fs.existsSync(primary)) return primary;
-    const legacyDirs = [LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT].filter(Boolean);
-    for (const dir of legacyDirs) {
-        const legacy = path.join(dir as string, item.imageFile);
-        if (!fs || fs.existsSync(legacy)) return legacy;
-    }
     return primary;
 }
 
@@ -41,32 +34,25 @@ function getCatalogImageSrc(ctx: CatalogImageContext, item?: CatalogItem | null)
 }
 
 function ensureProductsDir(ctx: CatalogImageContext) {
-    const { fs, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT } = ctx;
+    const { fs, PRODUCTS_DIR } = ctx;
     try {
         if (PRODUCTS_DIR && !fs.existsSync(PRODUCTS_DIR)) {
             fs.mkdirSync(PRODUCTS_DIR, { recursive: true });
         }
-        [LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT].filter(Boolean).forEach((dir) => {
-            // Legacy: non ricreare cartelle eliminate manualmente.
-            if (fs.existsSync(dir as string)) return;
-        });
     } catch (err) {
         console.error("Errore creazione cartella prodotti:", err);
     }
 }
 
 function copyCatalogImage(ctx: CatalogImageContext, filePath: string, catalogId: string) {
-    const { fs, path, PRODUCTS_DIR, LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT, showError } = ctx;
+    const { fs, path, PRODUCTS_DIR, showError } = ctx;
     if (!filePath) return "";
     ensureProductsDir(ctx);
     const ext = path.extname(filePath) || ".png";
     const filename = `${catalogId}${ext}`;
     try {
-        const targets = [path.join(PRODUCTS_DIR, filename)];
-        [LEGACY_PRODUCTS_DIR, LEGACY_PRODUCTS_DIR_ALT].filter(Boolean).forEach((dir) => {
-            if (fs.existsSync(dir as string)) targets.push(path.join(dir as string, filename));
-        });
-        targets.forEach((target) => fs.copyFileSync(filePath, target));
+        const target = path.join(PRODUCTS_DIR, filename);
+        fs.copyFileSync(filePath, target);
         return filename;
     } catch (err) {
         showError("Errore copia immagine.", err instanceof Error ? err.message : String(err));
