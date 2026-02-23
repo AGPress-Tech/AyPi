@@ -6,17 +6,23 @@ const IS_DEV =
     (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "development");
 
 if (IS_DEV) {
-    // 1) DOM id checks
-    const warnedIds = new Set<string>();
-    const originalGetById = document.getElementById.bind(document);
-    document.getElementById = (id: string) => {
-        const el = originalGetById(id);
-        if (!el && !warnedIds.has(id)) {
-            warnedIds.add(id);
-            console.warn(`[aypi-dev] Missing element id="${id}"`);
-        }
-        return el;
-    };
+    // 1) DOM id checks (opt-in to avoid noisy logs)
+    if (process.env && process.env.AYPI_DEV_WARN_IDS === "1") {
+        const globalKey = "__aypiWarnedIds";
+        const globalStore = window as unknown as Record<string, unknown>;
+        const warnedIds =
+            (globalStore[globalKey] as Set<string>) || new Set<string>();
+        globalStore[globalKey] = warnedIds;
+        const originalGetById = document.getElementById.bind(document);
+        document.getElementById = (id: string) => {
+            const el = originalGetById(id);
+            if (!el && !warnedIds.has(id)) {
+                warnedIds.add(id);
+                console.warn(`[aypi-dev] Missing element id="${id}"`);
+            }
+            return el;
+        };
+    }
 
     // 2) onclick checks
     const checkOnclickBindings = () => {

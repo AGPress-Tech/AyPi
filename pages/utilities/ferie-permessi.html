@@ -2,10 +2,11 @@
 <html lang="it">
 
 <head>
+            <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi Calendar</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
+    <!-- FullCalendar CSS: CDN removed due to incorrect MIME type -->
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
@@ -720,11 +721,19 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <script src="../../assets/vendor/fullcalendar/index.global.min.js"></script>
+    <script>
+        if (!window.FullCalendar) {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"><\\/script>');
+        }
+    </script>
     <script src="../../scripts/utilities/ferie-permessi-scripts.js"></script>
 </body>
 
 </html>
+
+
+
 
 
 

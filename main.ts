@@ -1,6 +1,5 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut } from "electron";
 import path from "path";
-import { setupAutoUpdater } from "./modules/updater";
 import { setupFileManager, openTimerWindow } from "./modules/fileManager";
 import { setupRobotManager } from "./modules/robotManager";
 
@@ -38,6 +37,8 @@ const SCROLLBAR_CSS = `
 const IS_DEV = !app.isPackaged;
 if (IS_DEV) {
     process.env.AYPI_DEV = "1";
+    // Suppress Electron security warnings in dev console
+    process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -224,7 +225,14 @@ app.whenReady().then(() => {
 
     createTray();
 
-    setupAutoUpdater(mainWindow);
+    try {
+        const { setupAutoUpdater } = require("./modules/updater");
+        if (typeof setupAutoUpdater === "function") {
+            setupAutoUpdater(mainWindow);
+        }
+    } catch (err) {
+        console.error("Auto-updater non disponibile:", err);
+    }
     setupFileManager(mainWindow);
     setupRobotManager();
 
@@ -257,6 +265,18 @@ app.on("browser-window-created", (_event, win) => {
             }
         }
     });
+
+    if (IS_DEV) {
+        win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+            console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
+        });
+        win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+            console.error(`[renderer] did-fail-load ${errorCode} ${errorDescription} ${validatedURL}`);
+        });
+        win.webContents.on("render-process-gone", (_event, details) => {
+            console.error("[renderer] process gone:", details);
+        });
+    }
 });
 
 app.on("before-quit", () => {

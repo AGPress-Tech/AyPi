@@ -1,4 +1,4 @@
-require("../../shared/dev-guards");
+﻿require("../../shared/dev-guards");
 import fs from "fs";
 import path from "path";
 
@@ -107,7 +107,7 @@ function normalizeAssigneesPayload(parsed: unknown): AssigneesPayload {
     return { groups: {}, options: [], emails: {} };
 }
 
-function createAssigneesStore(options?: AssigneesStoreOptions) {
+export function createAssigneesStore(options?: AssigneesStoreOptions) {
     const {
         assigneesPath,
         assigneesLegacyPath,
@@ -229,10 +229,13 @@ function createAssigneesStore(options?: AssigneesStoreOptions) {
     return { loadAssigneeOptions, saveAssigneeOptions };
 }
 
-module.exports = {
-    createAssigneesStore,
-};
+// Keep CommonJS compatibility for legacy JS callers
+if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
+    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
+        createAssigneesStore,
+    };
+}
 
-export {};
+
 
 

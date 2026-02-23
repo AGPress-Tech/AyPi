@@ -1,7 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="it">
 
 <head>
+            <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Rinomina File in Batch</title>
@@ -59,10 +60,10 @@
                             <option value="nameDesc">Nome (Z-A)</option>
                             <option value="extAsc">Estensione (A-Z)</option>
                             <option value="extDesc">Estensione (Z-A)</option>
-                            <option value="sizeAsc">Dimensione (↑)</option>
-                            <option value="sizeDesc">Dimensione (↓)</option>
-                            <option value="dateAsc">Data modifica (vecchi → nuovi)</option>
-                            <option value="dateDesc">Data modifica (nuovi → vecchi)</option>
+                            <option value="sizeAsc">Dimensione (â†‘)</option>
+                            <option value="sizeDesc">Dimensione (â†“)</option>
+                            <option value="dateAsc">Data modifica (vecchi â†’ nuovi)</option>
+                            <option value="dateDesc">Data modifica (nuovi â†’ vecchi)</option>
                         </select>
                     </div>
                 </div>
@@ -394,7 +395,7 @@
                                 <input type="text" id="partsDelimiterCustom" placeholder="Delimitatore custom">
                             </div>
 
-                            <label>Sposta parte nome (indice da → a)</label>
+                            <label>Sposta parte nome (indice da â†’ a)</label>
                             <div class="two-input-row">
                                 <input type="number" id="partsMoveFrom" min="1" placeholder="da">
                                 <input type="number" id="partsMoveTo" min="1" placeholder="a">
@@ -449,7 +450,7 @@
                             </div>
 
                             <p style="font-size: 11px; opacity: 0.8;">
-                                La destinazione verrà usata al posto della cartella originale per le operazioni di
+                                La destinazione verrÃ  usata al posto della cartella originale per le operazioni di
                                 rinomina/spostamento.
                             </p>
                         </div>
@@ -509,3 +510,6 @@
 </body>
 
 </html>
+
+
+

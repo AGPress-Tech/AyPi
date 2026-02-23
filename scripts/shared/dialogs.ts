@@ -1,4 +1,4 @@
-require("./dev-guards");
+﻿require("./dev-guards");
 const { ipcRenderer } = require("electron");
 
 export function showDialog(type: string, message: string, detail = "") {
@@ -18,14 +18,16 @@ export function showError(message: string, detail = "") {
 }
 
 // Keep CommonJS compatibility for legacy JS files (renderer)
-if (typeof module !== "undefined" && module.exports) {
-    module.exports = {
+if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
+    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
         showDialog,
         showInfo,
         showWarning,
         showError,
     };
 }
+
+
 
 
 

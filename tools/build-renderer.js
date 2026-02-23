@@ -5,15 +5,8 @@ const esbuild = require("esbuild");
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist-ts");
 
-const excludeNameContains = ["ferie-permessi", "ticket", "product-manager"];
-const excludePatterns = [
-    "\\scripts\\utilities\\ferie-permessi\\",
-    "\\scripts\\utilities\\product-manager\\",
-    "\\scripts\\utilities\\ticket\\",
-    "\\pages\\utilities\\ferie-permessi\\",
-    "\\pages\\utilities\\product-manager\\",
-    "\\pages\\utilities\\ticket\\",
-];
+const excludeNameContains = ["tsconfig"];
+const excludePatterns = [];
 
 const rendererRoots = [
     path.join(rootDir, "scripts"),
@@ -69,7 +62,6 @@ async function buildRenderer() {
         const destPath = path.join(distDir, rel).replace(/\.ts$/i, ".js");
 
         if (isExcluded(filePath)) {
-            copyFile(filePath, path.join(distDir, rel));
             continue;
         }
 
@@ -90,7 +82,7 @@ async function buildRenderer() {
         outdir: distDir,
         bundle: true,
         platform: "node",
-        format: "iife",
+        format: "cjs",
         target: "es2020",
         logLevel: "silent",
         external: [
@@ -118,8 +110,13 @@ async function buildRenderer() {
             "axios",
             "dhtmlx-gantt",
             "chart.js",
+            "chart.js/auto",
             "qrcode",
             "bwip-js",
+            "ajv",
+            "hash-wasm",
+            "nodemailer",
+            "otplib",
         ],
     });
 }

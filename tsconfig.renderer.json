@@ -12,12 +12,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "dist-ts",
-    "scripts/utilities/ferie-permessi/**",
-    "scripts/utilities/product-manager/**",
-    "scripts/utilities/ticket/**",
-    "templates/ferie-permessi/**",
-    "templates/product-manager/**",
-    "templates/ticket/**"
+    "dist-ts"
   ]
 }

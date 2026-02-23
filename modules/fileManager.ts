@@ -15,7 +15,13 @@ const WINDOW_WEB_PREFERENCES = {
 };
 
 const APP_ICON_PATH = path.join(__dirname, "..", "assets", "app-icon.png");
-const FP_BASE_CONFIG = path.join(app.getPath("userData"), "ferie-permessi-base.json");
+let fpBaseConfigPath: string | null = null;
+function getFpBaseConfigPath() {
+    if (!fpBaseConfigPath) {
+        fpBaseConfigPath = path.join(app.getPath("userData"), "ferie-permessi-base.json");
+    }
+    return fpBaseConfigPath;
+}
 const ADDRESS_BOOK_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\addresses";
 const ADDRESS_BOOK_PATH = path.join(ADDRESS_BOOK_DIR, "aypi-addresses.json");
 
@@ -205,8 +211,9 @@ function getDefaultFpBaseDir(): string {
 
 function loadFpBaseDir(): string | null {
     try {
-        if (!fs.existsSync(FP_BASE_CONFIG)) return null;
-        const raw = fs.readFileSync(FP_BASE_CONFIG, "utf8");
+        const configPath = getFpBaseConfigPath();
+        if (!fs.existsSync(configPath)) return null;
+        const raw = fs.readFileSync(configPath, "utf8");
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed.baseDir === "string" && parsed.baseDir.trim()) {
             return parsed.baseDir.trim();
@@ -221,7 +228,8 @@ function loadFpBaseDir(): string | null {
 function saveFpBaseDir(baseDir: string) {
     try {
         const payload = { baseDir };
-        fs.writeFileSync(FP_BASE_CONFIG, JSON.stringify(payload, null, 2), "utf8");
+        const configPath = getFpBaseConfigPath();
+        fs.writeFileSync(configPath, JSON.stringify(payload, null, 2), "utf8");
     } catch (err) {
         log.warn("[ferie-permessi] impossibile salvare base dir:", err);
     }
