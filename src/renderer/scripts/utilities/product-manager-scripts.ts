@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 require("../shared/dev-guards");
 import { ipcRenderer, shell } from "electron";
 import fs from "fs";
@@ -6,7 +6,7 @@ import path from "path";
 import { pathToFileURL } from "url";
 
 import * as sharedDialogs from "../shared/dialogs";
-import { NETWORK_PATHS } from "../../config/paths";
+import { NETWORK_PATHS } from "../../../main/config/paths";
 import { createModalHelpers } from "./ferie-permessi/ui/modals";
 import { createAdminModals } from "./ferie-permessi/ui/admin-modals";
 import { UI_TEXTS } from "./ferie-permessi/utils/ui-texts";
@@ -929,7 +929,7 @@ function createLineElement(line, index) {
     const quantityField = document.createElement("div");
     quantityField.className = "pm-field";
     const quantityLabel = document.createElement("label");
-    quantityLabel.textContent = "Quantità";
+    quantityLabel.textContent = "QuantitÃ ";
     const quantityInput = document.createElement("input");
     quantityInput.className = "pm-qty-input";
     quantityInput.type = "number";
@@ -1983,7 +1983,7 @@ function saveAddModal() {
     const qtyRaw = document.getElementById("pm-add-quantity")?.value || "";
     const qty = qtyRaw.toString().trim();
     if (!qty || Number.parseFloat(qty) <= 0) {
-        showWarning("QuantitÃ  non valida.");
+        showWarning("QuantitÃƒÂ  non valida.");
         return;
     }
 
@@ -3398,3 +3398,4 @@ ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
 ipcRenderer.on("pm-session-updated", (_event, payload) => {
     applySharedSession(payload);
 });
+

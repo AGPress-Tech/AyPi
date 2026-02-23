@@ -33,10 +33,10 @@ rmDir(distDir);
 
 // Copy non-JS/TS runtime assets
 copyDir(path.join(rootDir, "assets"), path.join(distDir, "assets"));
-copyDir(path.join(rootDir, "pages"), path.join(distDir, "pages"));
-copyDir(path.join(rootDir, "styles"), path.join(distDir, "styles"));
-copyDir(path.join(rootDir, "Guida"), path.join(distDir, "Guida"), { skipExt: [".ts"] });
-copyDir(path.join(rootDir, "templates"), path.join(distDir, "templates"), { skipExt: [".ts"] });
+copyDir(path.join(rootDir, "src", "renderer", "pages"), path.join(distDir, "pages"));
+copyDir(path.join(rootDir, "src", "renderer", "styles"), path.join(distDir, "styles"));
+copyDir(path.join(rootDir, "src", "renderer", "Guida"), path.join(distDir, "Guida"), { skipExt: [".ts"] });
+copyDir(path.join(rootDir, "src", "renderer", "templates"), path.join(distDir, "templates"), { skipExt: [".ts"] });
 
 // Copy required vendor assets from node_modules (renderer expects these paths)
 const ganttSrc = path.join(rootDir, "node_modules", "dhtmlx-gantt", "codebase");

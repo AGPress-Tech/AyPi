@@ -1,7 +1,7 @@
 ﻿// @ts-nocheck
 require("../../../shared/dev-guards");
 import path from "path";
-import { NETWORK_PATHS } from "../../../../config/paths";
+import { NETWORK_PATHS } from "../../../../../main/config/paths";
 
 const ROOT_DIR = path.dirname(NETWORK_PATHS.feriePermessiData);
 const LEGACY_BASE_DIR = path.join(ROOT_DIR, "Product Manager");
@@ -67,4 +67,5 @@ if (typeof module !== "undefined" && module.exports && !(globalThis as any).__ay
     LEGACY_SETTINGS_PATH,
     LEGACY_SESSION_PATH,
 };
+
 

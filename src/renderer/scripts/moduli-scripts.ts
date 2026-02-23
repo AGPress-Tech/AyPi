@@ -1,8 +1,8 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 require("./shared/dev-guards");
 const { ipcRenderer } = require("electron");
 const { initCommonUI } = require("../modules/utils");
-const { ADDRESS_BY_ID } = require("../config/addresses");
+const { ADDRESS_BY_ID } = require("../../main/config/addresses");
 
 initCommonUI();
 
@@ -40,6 +40,7 @@ if (openTicketV2Btn) {
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
+
 
 
 

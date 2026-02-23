@@ -1,12 +1,12 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 require("./shared/dev-guards");
 const { ipcRenderer } = require("electron");
 const { initCommonUI } = require("../modules/utils");
-const { ADDRESS_BY_ID } = require("../config/addresses");
+const { ADDRESS_BY_ID } = require("../../main/config/addresses");
 
 initCommonUI();
 
-["openTavole", "openCicli", "openMontaggioStampi", "openDifettiProduzione"].forEach((id) => {
+["openRegStampaggio", "openRegTranceria", "openRegTorneria"].forEach((id) => {
     const btn = document.getElementById(id);
     const entry = ADDRESS_BY_ID[id];
     const key = entry ? entry.key : null;
@@ -28,6 +28,7 @@ initCommonUI();
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
+
 
 
 

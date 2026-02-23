@@ -1,7 +1,7 @@
 ﻿// @ts-nocheck
 require("../../../shared/dev-guards");
 import path from "path";
-import { NETWORK_PATHS } from "../../../../config/paths";
+import { NETWORK_PATHS } from "../../../../../main/config/paths";
 
 let ipcRenderer = null;
 try {
@@ -41,4 +41,5 @@ if (typeof module !== "undefined" && module.exports && !(globalThis as any).__ay
     LEGACY_DATA_PATH,
     DATA_PATH,
 };
+
 

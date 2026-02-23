@@ -4,14 +4,15 @@ const esbuild = require("esbuild");
 
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist-ts");
+const rendererRoot = path.join(rootDir, "src", "renderer");
 
 const excludeNameContains = ["tsconfig"];
 const excludePatterns = [];
 
 const rendererRoots = [
-    path.join(rootDir, "scripts"),
-    path.join(rootDir, "templates"),
-    path.join(rootDir, "Guida", "assets"),
+    path.join(rendererRoot, "scripts"),
+    path.join(rendererRoot, "templates"),
+    path.join(rendererRoot, "Guida", "assets"),
 ];
 
 function isExcluded(filePath) {
@@ -58,7 +59,7 @@ async function buildRenderer() {
 
     for (const filePath of files) {
         const ext = path.extname(filePath);
-        const rel = path.relative(rootDir, filePath);
+        const rel = path.relative(rendererRoot, filePath);
         const destPath = path.join(distDir, rel).replace(/\.ts$/i, ".js");
 
         if (isExcluded(filePath)) {
@@ -78,7 +79,7 @@ async function buildRenderer() {
 
     await esbuild.build({
         entryPoints,
-        outbase: rootDir,
+        outbase: rendererRoot,
         outdir: distDir,
         bundle: true,
         platform: "node",

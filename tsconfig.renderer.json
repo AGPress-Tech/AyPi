@@ -4,9 +4,10 @@
     "noEmit": true
   },
   "include": [
-    "scripts/**/*.ts",
-    "templates/**/*.ts",
-    "Guida/assets/**/*.ts",
+    "src/renderer/scripts/**/*.ts",
+    "src/renderer/modules/**/*.ts",
+    "src/renderer/templates/**/*.ts",
+    "src/renderer/Guida/assets/**/*.ts",
     "types/**/*.d.ts"
   ],
   "exclude": [

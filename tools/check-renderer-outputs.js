@@ -3,11 +3,12 @@ const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist-ts');
+const rendererRoot = path.join(rootDir, 'src', 'renderer');
 
 const rendererRoots = [
-  path.join(rootDir, 'scripts'),
-  path.join(rootDir, 'templates'),
-  path.join(rootDir, 'Guida', 'assets'),
+  path.join(rendererRoot, 'scripts'),
+  path.join(rendererRoot, 'templates'),
+  path.join(rendererRoot, 'Guida', 'assets'),
 ];
 
 function walk(dir, out = []) {
@@ -35,7 +36,7 @@ for (const filePath of files) {
   const ext = path.extname(filePath);
   if (ext !== '.ts') continue;
   seenTs++;
-  const rel = path.relative(rootDir, filePath);
+  const rel = path.relative(rendererRoot, filePath);
   const outPath = path.join(distDir, rel).replace(/\.ts$/i, '.js');
   if (!fs.existsSync(outPath)) {
     if (missing < 20) {

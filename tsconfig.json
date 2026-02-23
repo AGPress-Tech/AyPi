@@ -10,9 +10,9 @@
     "resolveJsonModule": true,
     "allowJs": false,
     "checkJs": false,
-    "rootDir": ".",
+    "rootDir": "src/main",
     "outDir": "dist-ts"
   },
-  "include": ["main.ts", "modules/**/*.ts", "config/**/*.ts"],
+  "include": ["src/main/**/*.ts"],
   "exclude": ["node_modules", "dist", "dist-ts"]
 }
