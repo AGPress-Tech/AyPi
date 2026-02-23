@@ -210,6 +210,9 @@ function bindGuideClose(){
 window.addEventListener('DOMContentLoaded', async ()=>{
   await includeSidebar();
   applyEmbedMode();
+  if(!document.querySelector('.content-scroll')){
+    document.body.classList.add('no-content-scroll');
+  }
   setActiveNav();
   bindSearch();
   setupAutoShots();

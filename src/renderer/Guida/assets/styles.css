@@ -188,6 +188,10 @@ body.theme-aypi .logo{
   overflow:hidden;
   box-sizing:border-box;
 }
+.no-content-scroll .main{
+  overflow-y:auto;
+  overflow-x:hidden;
+}
 .content-scroll{
   height:calc(100% - var(--topbar-h) - 12px);
   overflow:auto;
