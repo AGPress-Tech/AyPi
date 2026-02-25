@@ -1,4 +1,4 @@
-body {
+﻿body {
     font-family: Arial, sans-serif;
     background-color: #332f2b;
     color: white;
@@ -60,6 +60,9 @@ button:focus {
 }
 
 #appVersion {
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
     position: fixed;
     bottom: 5px;
     right: 10px;
@@ -235,3 +238,4 @@ span {
 .error.is-hidden {
     display: none;
 }
+

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Infografiche</title>
+    <link rel="stylesheet" href="../../styles/infographics-style.css">
+</head>
+
+<body>
+    <div class="page">
+        <div class="top-dock">
+            <header class="page-header">
+                <div>
+                    <p class="eyebrow">Infografiche</p>
+                    <h1>Code frequency</h1>
+                    <p class="subtitle">Additions and deletions per week</p>
+                </div>
+                <div class="meta">
+                    <span class="repo">AGPress-Tech/AyPi</span>
+                    <span class="range" id="rangeLabel">Ultimi 7 mesi</span>
+                </div>
+            </header>
+
+            <section class="controls">
+                <div class="preset-group">
+                    <button class="preset-btn" data-range="3m">3 mesi</button>
+                    <button class="preset-btn is-active" data-range="6m">6 mesi</button>
+                    <button class="preset-btn" data-range="1y">1 anno</button>
+                    <button class="preset-btn" data-range="all">Tutto</button>
+                </div>
+                <div class="granularity">
+                    <span id="granularityLabel">Granularità: settimanale</span>
+                </div>
+            </section>
+
+            <section class="summary-grid">
+                <div class="summary-card">
+                    <p>Commit</p>
+                    <h3 id="summaryCommits">0</h3>
+                </div>
+                <div class="summary-card additions">
+                    <p>Additions</p>
+                    <h3 id="summaryAdditions">0</h3>
+                </div>
+                <div class="summary-card deletions">
+                    <p>Deletions</p>
+                    <h3 id="summaryDeletions">0</h3>
+                </div>
+                <div class="summary-card net">
+                    <p>Net</p>
+                    <h3 id="summaryNet">0</h3>
+                </div>
+            </section>
+        </div>
+
+        <div class="charts-grid" id="chartsGrid">
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Code frequency</h2>
+                        <p>Additions and deletions per period</p>
+                    </div>
+                    <div class="legend">
+                        <span class="legend-item">
+                            <span class="swatch additions"></span>
+                            Additions
+                        </span>
+                        <span class="legend-item">
+                            <span class="swatch deletions"></span>
+                            Deletions
+                        </span>
+                        <span class="legend-item">
+                            <span class="swatch net"></span>
+                            Diff
+                        </span>
+                    </div>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="codeFrequencyChart" height="320"></canvas>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Commits over time</h2>
+                        <p>Commit per period</p>
+                    </div>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="commitsChart" height="320"></canvas>
+                </div>
+            </section>
+        </div>
+
+
+        <div class="timeline-block">
+            <section class="card timeline-card">
+                <div class="card-header">
+                    <div>
+                        <h2>Timeline</h2>
+                        <p>Commit e release lungo il tempo</p>
+                    </div>
+                </div>
+                <div class="timeline" id="releaseTimeline">
+                    <div class="timeline-line"></div>
+                </div>
+            </section>
+            <div class="date-strip" id="timelineDates"></div>
+        </div>
+
+        <!-- removed duplicate date strip -->
+
+        <div class="range-dock">
+            <div class="range-dock-label">
+                Intervallo temporale
+            </div>
+            <div class="range-wrap">
+                <div class="range-fill" id="rangeFill"></div>
+                <div class="range-grab left" id="rangeGrabLeft"></div>
+                <div class="range-grab right" id="rangeGrabRight"></div>
+                <input id="rangeStart" type="range" min="0" max="0" value="0">
+                <input id="rangeEnd" type="range" min="0" max="0" value="0">
+            </div>
+        </div>
+    </div>
+
+    <script src="../../scripts/utilities/infographics-scripts.js"></script>
+</body>
+
+</html>

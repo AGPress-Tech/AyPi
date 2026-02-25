@@ -3,7 +3,7 @@
 import { ipcMain, dialog, shell, BrowserWindow, app } from "electron";
 import type { OpenDialogOptions, OpenDialogSyncOptions } from "electron";
 import path from "path";
-import { exec } from "child_process";
+import { exec, execSync, execFileSync } from "child_process";
 import fs from "fs";
 import log from "electron-log";
 import { NETWORK_PATHS } from "../config/paths";
@@ -333,6 +333,118 @@ function ensureFpFiles(baseDir: string) {
         } catch (err) {
             log.warn("[ferie-permessi] impossibile rimuovere legacy Product Manager:", productManagerDir, err);
         }
+    }
+}
+
+function resolveGitRepoRoot() {
+    const candidates = [
+        process.cwd(),
+        app.getAppPath(),
+    ];
+
+    for (const start of candidates) {
+        let current = start;
+        for (let i = 0; i < 8; i += 1) {
+            if (fs.existsSync(path.join(current, ".git"))) {
+                return current;
+            }
+            const parent = path.dirname(current);
+            if (!parent || parent === current) break;
+            current = parent;
+        }
+    }
+
+    return "";
+}
+
+function getGitDailyStats(repoRoot: string) {
+    try {
+        execSync("git --version", { stdio: "ignore" });
+    } catch (err) {
+        return { ok: false, reason: "git-not-found", data: [], tags: [] };
+    }
+
+    try {
+        const raw = execFileSync(
+            "git",
+            ["-C", repoRoot, "log", "--numstat", "--date=iso", "--pretty=format:@@@%H|%ad"],
+            { encoding: "utf8" }
+        );
+
+        const map = new Map<string, { date: string; additions: number; deletions: number; commits: number }>();
+        let currentDate = "";
+
+        raw.split(/\r?\n/).forEach((line) => {
+            if (!line.trim()) return;
+            if (line.startsWith("@@@")) {
+                const parts = line.replace("@@@", "").split("|");
+                const datePart = parts[1] || "";
+                const date = new Date(datePart);
+                if (Number.isNaN(date.getTime())) {
+                    currentDate = "";
+                    return;
+                }
+                const key = date.toISOString().slice(0, 10);
+                currentDate = key;
+                if (!map.has(key)) {
+                    map.set(key, { date: key, additions: 0, deletions: 0, commits: 0 });
+                }
+                map.get(key)!.commits += 1;
+                return;
+            }
+
+            if (!currentDate) return;
+            const parts = line.split("\t");
+            if (parts.length < 2) return;
+            const additions = parseInt(parts[0], 10);
+            const deletions = parseInt(parts[1], 10);
+            const safeAdd = Number.isFinite(additions) ? additions : 0;
+            const safeDel = Number.isFinite(deletions) ? deletions : 0;
+            const entry = map.get(currentDate);
+            if (!entry) return;
+            entry.additions += safeAdd;
+            entry.deletions += safeDel;
+        });
+
+        const data = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+        let tags: { name: string; date: string }[] = [];
+        try {
+            const rawTags = execFileSync(
+                "git",
+                ["-C", repoRoot, "for-each-ref", "refs/tags", "--sort=creatordate", "--format=%(refname:short)|%(creatordate:iso)"],
+                { encoding: "utf8" }
+            );
+            tags = rawTags
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((line) => {
+                    const [name, date] = line.split("|");
+                    return { name, date };
+                })
+                .filter((entry) => entry.name && entry.date);
+        } catch (_err) {
+            tags = [];
+        }
+
+        return { ok: true, data, tags };
+    } catch (err) {
+        return { ok: false, reason: "git-log-failed", data: [], tags: [] };
+    }
+}
+
+function getCachedGitStats() {
+    try {
+        const appPath = app.getAppPath();
+        const cachedPath = path.join(appPath, "pages", "utilities", "git-stats.json");
+        if (!fs.existsSync(cachedPath)) return null;
+        const raw = fs.readFileSync(cachedPath, "utf8");
+        const parsed = JSON.parse(raw);
+        if (!parsed || !Array.isArray(parsed.data)) return null;
+        return parsed;
+    } catch (err) {
+        return null;
     }
 }
 
@@ -780,6 +892,7 @@ let qrGeneratorWindow: BrowserWindow | null = null;
 let compareFoldersWindow: BrowserWindow | null = null;
 let hierarchyWindow: BrowserWindow | null = null;
 let timerWindow: BrowserWindow | null = null;
+let infographicsWindow: BrowserWindow | null = null;
 let amministrazioneWindow: BrowserWindow | null = null;
 let feriePermessiWindow: BrowserWindow | null = null;
 let feriePermessiHoursWindow: BrowserWindow | null = null;
@@ -875,6 +988,39 @@ function openHierarchyWindow(mainWindow) {
 
     hierarchyWindow.on("closed", () => {
         hierarchyWindow = null;
+        showMainWindow(mainWindow);
+    });
+}
+
+function openInfographicsWindow(mainWindow) {
+    if (isWindowAlive(infographicsWindow)) {
+        showWindow(infographicsWindow);
+        return;
+    }
+
+    infographicsWindow = new BrowserWindow({
+        width: 980,
+        height: 640,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        backgroundColor: "#0f1115",
+        show: false,
+    });
+
+    infographicsWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "infographics.html"));
+    infographicsWindow.setMenu(null);
+    infographicsWindow.maximize();
+
+    infographicsWindow.once("ready-to-show", () => {
+        if (!infographicsWindow.isDestroyed()) {
+            infographicsWindow.show();
+        }
+    });
+
+    infographicsWindow.on("closed", () => {
+        infographicsWindow = null;
         showMainWindow(mainWindow);
     });
 }
@@ -1614,6 +1760,19 @@ function setupFileManager(mainWindow) {
         return app.getVersion();
     });
 
+    ipcMain.handle("git-stats-get", async () => {
+        const cached = getCachedGitStats();
+        if (cached && cached.ok && cached.data && cached.data.length) {
+            return cached;
+        }
+
+        const repoRoot = resolveGitRepoRoot();
+        if (!repoRoot) {
+            return { ok: false, reason: "repo-not-found", data: [], tags: [] };
+        }
+        return getGitDailyStats(repoRoot);
+    });
+
     const presetsPath = path.join(app.getPath("userData"), "batch-rename-presets.json");
 
     function loadBatchRenamePresets() {
@@ -1705,13 +1864,17 @@ function setupFileManager(mainWindow) {
         openCompareFoldersWindow(null, null);
     });
 
-      ipcMain.on("open-hierarchy-window", () => {
-          openHierarchyWindow(mainWindow);
-      });
+    ipcMain.on("open-hierarchy-window", () => {
+        openHierarchyWindow(mainWindow);
+    });
 
-      ipcMain.on("open-timer-window", () => {
-          openTimerWindow(mainWindow);
-      });
+    ipcMain.on("open-infographics-window", () => {
+        openInfographicsWindow(mainWindow);
+    });
+
+    ipcMain.on("open-timer-window", () => {
+        openTimerWindow(mainWindow);
+    });
 
       ipcMain.on("open-amministrazione-window", () => {
           openAmministrazioneWindow(mainWindow);

@@ -98,6 +98,9 @@ function wireAppVersion() {
     ipcRenderer.invoke("get-app-version").then((version) => {
         appVersionElement.textContent = `AyPi v${version}`;
     });
+    appVersionElement.addEventListener("dblclick", () => {
+        ipcRenderer.send("open-infographics-window");
+    });
 }
 
 function wireAdminHotkey() {

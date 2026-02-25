@@ -38,6 +38,18 @@ copyDir(path.join(rootDir, "src", "renderer", "styles"), path.join(distDir, "sty
 copyDir(path.join(rootDir, "src", "renderer", "Guida"), path.join(distDir, "Guida"), { skipExt: [".ts"] });
 copyDir(path.join(rootDir, "src", "renderer", "templates"), path.join(distDir, "templates"), { skipExt: [".ts"] });
 
+// Generate git stats cache for infographics (optional).
+try {
+    const outPath = path.join(distDir, "pages", "utilities", "git-stats.json");
+    spawnSync("node", [path.join(__dirname, "generate-git-stats.js"), outPath], {
+        stdio: "inherit",
+        shell: true,
+        cwd: rootDir,
+    });
+} catch (err) {
+    // Non-blocking: UI can still attempt live git access in dev.
+}
+
 // Copy required vendor assets from node_modules (renderer expects these paths)
 const ganttSrc = path.join(rootDir, "node_modules", "dhtmlx-gantt", "codebase");
 const ganttDest = path.join(distDir, "node_modules", "dhtmlx-gantt", "codebase");
