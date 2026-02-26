@@ -105,12 +105,20 @@ function wireAppVersion() {
 
 function wireAdminHotkey() {
     const ensureAdminPrompt = () => {
-        if (document.getElementById("aypi-admin-overlay")) {
+        let overlay = document.getElementById("aypi-admin-overlay") as HTMLDivElement | null;
+        if (!overlay) {
+            overlay = document.createElement("div");
+            overlay.id = "aypi-admin-overlay";
+        }
+        if (overlay.parentElement !== document.body) {
+            document.body.appendChild(overlay);
+        }
+        if (overlay.dataset.aypiAdminInit === "1") {
             return;
         }
 
-        const overlay = document.createElement("div");
-        overlay.id = "aypi-admin-overlay";
+        overlay.dataset.aypiAdminInit = "1";
+        overlay.innerHTML = "";
         overlay.style.position = "fixed";
         overlay.style.inset = "0";
         overlay.style.background = "rgba(0, 0, 0, 0.55)";
@@ -175,7 +183,6 @@ function wireAdminHotkey() {
         card.appendChild(input);
         card.appendChild(actions);
         overlay.appendChild(card);
-        document.body.appendChild(overlay);
 
         const close = () => {
             overlay.style.display = "none";
@@ -218,7 +225,7 @@ function wireAdminHotkey() {
     };
 
     const runPrompt = async () => {
-        if (document.hidden || !document.hasFocus()) return;
+        if (document.hidden) return;
         const isAdmin = await ipcRenderer.invoke("admin-is-enabled");
         if (isAdmin) {
             await ipcRenderer.invoke("admin-disable");
@@ -238,15 +245,18 @@ function wireAdminHotkey() {
         (input as HTMLInputElement).select();
     };
 
-    window.addEventListener("keydown", async (event) => {
+    const onHotkey = (event: KeyboardEvent) => {
         if (event.key !== "F2") return;
         event.preventDefault();
-        if (document.hidden || !document.hasFocus()) return;
+        if (document.hidden) return;
         runPrompt();
-    });
+    };
+
+    window.addEventListener("keydown", onHotkey, true);
+    document.addEventListener("keydown", onHotkey, true);
 
     ipcRenderer.on("admin-hotkey", () => {
-        if (document.hidden || !document.hasFocus()) return;
+        if (document.hidden) return;
         runPrompt();
     });
 

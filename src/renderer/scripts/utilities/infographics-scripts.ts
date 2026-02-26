@@ -111,7 +111,8 @@ async function reloadStats(force: boolean) {
     const payload = await ipcRenderer.invoke("github-stats-get", {
         owner: "AGPress-Tech",
         repo: "AyPi",
-        persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
+        persistPath:
+            "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
         force,
     });
     if (!payload || !payload.ok || !payload.data || !payload.data.length) {
@@ -120,8 +121,8 @@ async function reloadStats(force: boolean) {
             fetchError.textContent = payload?.error
                 ? `Errore fetch: ${payload.error}`
                 : payload?.reason
-                    ? `Errore fetch: ${payload.reason}`
-                    : "";
+                  ? `Errore fetch: ${payload.reason}`
+                  : "";
         }
         return;
     }
@@ -141,7 +142,8 @@ async function reloadStats(force: boolean) {
     }
     if (fetchError) {
         if (payload.warning === "github-commits-zero") {
-            fetchError.textContent = "Attenzione: GitHub ha restituito 0 commit";
+            fetchError.textContent =
+                "Attenzione: GitHub ha restituito 0 commit";
         } else if (payload.warning === "github-fetch-failed") {
             fetchError.textContent = payload.error
                 ? `Errore fetch: ${payload.error}`
@@ -399,9 +401,15 @@ async function openGitflowModal(force: boolean) {
         repo,
         force,
         maxCommits: 5000,
-        persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
+        persistPath:
+            "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
     });
-    if (!payload || !payload.ok || !payload.commits || !payload.commits.length) {
+    if (
+        !payload ||
+        !payload.ok ||
+        !payload.commits ||
+        !payload.commits.length
+    ) {
         const reason = payload?.reason ? `Motivo: ${payload.reason}` : "";
         const error = payload?.error ? `Errore: ${payload.error}` : "";
         gitflowTrack.innerHTML = `<div style="color:#8a95a8; padding:16px;">
@@ -449,7 +457,9 @@ function renderGitflow(
     const orderedCommits = commits
         .slice()
         .filter((c) => c && c.sha && c.date)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        .sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+        );
     const orderedTags = tags
         .slice()
         .filter((t) => t && t.name && t.date)
@@ -471,7 +481,7 @@ function renderGitflow(
 
     const pad = 80;
     const tagSpacing = 180;
-    const width = pad * 2 + (Math.max(orderedTags.length - 1, 1)) * tagSpacing;
+    const width = pad * 2 + Math.max(orderedTags.length - 1, 1) * tagSpacing;
     gitflowTrack.style.minWidth = `${Math.max(1200, width)}px`;
 
     const tagPositions = orderedTags.map((tag, idx) => ({
@@ -483,10 +493,15 @@ function renderGitflow(
     const firstTime = tagTimes[0];
     const lastTime = tagTimes[tagTimes.length - 1];
     const firstGap =
-        tagTimes.length > 1 ? Math.max(1, tagTimes[1] - tagTimes[0]) : 1000 * 60 * 60 * 24 * 30;
+        tagTimes.length > 1
+            ? Math.max(1, tagTimes[1] - tagTimes[0])
+            : 1000 * 60 * 60 * 24 * 30;
     const lastGap =
         tagTimes.length > 1
-            ? Math.max(1, tagTimes[tagTimes.length - 1] - tagTimes[tagTimes.length - 2])
+            ? Math.max(
+                  1,
+                  tagTimes[tagTimes.length - 1] - tagTimes[tagTimes.length - 2],
+              )
             : 1000 * 60 * 60 * 24 * 30;
     const leadingSpan = tagSpacing * 0.6;
     const trailingSpan = tagSpacing * 0.6;
@@ -506,7 +521,9 @@ function renderGitflow(
             } else if (time >= lastTime) {
                 segmentIndex = tagPositions.length;
                 const ratio = Math.min(1, (time - lastTime) / trailingWindow);
-                x = tagPositions[tagPositions.length - 1].x + trailingSpan * ratio;
+                x =
+                    tagPositions[tagPositions.length - 1].x +
+                    trailingSpan * ratio;
             } else {
                 let idx = 0;
                 while (idx < tagTimes.length - 1 && time > tagTimes[idx + 1]) {
@@ -516,7 +533,10 @@ function renderGitflow(
                 const left = tagPositions[idx];
                 const right = tagPositions[idx + 1];
                 const denom = Math.max(1, right.time - left.time);
-                const ratio = Math.max(0, Math.min(1, (time - left.time) / denom));
+                const ratio = Math.max(
+                    0,
+                    Math.min(1, (time - left.time) / denom),
+                );
                 x = left.x + (right.x - left.x) * ratio;
             }
             const dot = document.createElement("div");
@@ -605,8 +625,14 @@ function drawGitflowArrows(nodePositions: Record<string, number[]>) {
             const dx = Math.max(40, x2 - x1);
             const c1 = x1 + dx * 0.4;
             const c2 = x2 - dx * 0.4;
-            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            path.setAttribute("d", `M ${x1} ${y} C ${c1} ${y} ${c2} ${y} ${x2} ${y}`);
+            const path = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "path",
+            );
+            path.setAttribute(
+                "d",
+                `M ${x1} ${y} C ${c1} ${y} ${c2} ${y} ${x2} ${y}`,
+            );
             path.setAttribute("stroke", "#5a6c86");
             path.setAttribute("stroke-width", "2");
             path.setAttribute("fill", "none");
@@ -751,7 +777,7 @@ function resolveGranularity(monthsSpan: number) {
 }
 
 function applyPreset(preset: string) {
-    const key = (preset in presets ? (preset as PresetKey) : "6m");
+    const key = preset in presets ? (preset as PresetKey) : "6m";
     currentPreset = key;
     const months = presets[key] ?? 6;
     const lastDate = dailyStats[dailyStats.length - 1].date;
@@ -1211,7 +1237,7 @@ function getClusterColorMix(names: string[]) {
 
     const colors = {
         main: [58, 193, 115], // green
-        sub: [216, 75, 75],  // red
+        sub: [216, 75, 75], // red
         patch: [242, 181, 68], // yellow
     };
     const mix = [0, 0, 0];

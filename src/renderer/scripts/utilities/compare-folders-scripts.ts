@@ -9,10 +9,13 @@ const crypto = require("crypto");
 const showInfo = (message, detail = "") =>
     ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
 const showWarning = (message, detail = "") =>
-    ipcRenderer.invoke("show-message-box", { type: "warning", message, detail });
+    ipcRenderer.invoke("show-message-box", {
+        type: "warning",
+        message,
+        detail,
+    });
 const showError = (message, detail = "") =>
     ipcRenderer.invoke("show-message-box", { type: "error", message, detail });
-
 
 let folderA = null;
 let folderB = null;
@@ -26,7 +29,9 @@ async function handleSelectFolderA() {
     selectInProgress = true;
     try {
         const btn = document.getElementById("btnSelectFolderA");
-        const f = await withButtonLock(btn, () => pickFolder({ cooldownMs: 400 }));
+        const f = await withButtonLock(btn, () =>
+            pickFolder({ cooldownMs: 400 }),
+        );
         if (!f) {
             return;
         }
@@ -35,7 +40,10 @@ async function handleSelectFolderA() {
         if (lbl) lbl.textContent = f;
     } catch (err) {
         console.error("Errore selezione cartella A:", err);
-        await showError("Errore selezione cartella A.", err.message || String(err));
+        await showError(
+            "Errore selezione cartella A.",
+            err.message || String(err),
+        );
     } finally {
         selectInProgress = false;
     }
@@ -46,7 +54,9 @@ async function handleSelectFolderB() {
     selectInProgress = true;
     try {
         const btn = document.getElementById("btnSelectFolderB");
-        const f = await withButtonLock(btn, () => pickFolder({ cooldownMs: 400 }));
+        const f = await withButtonLock(btn, () =>
+            pickFolder({ cooldownMs: 400 }),
+        );
         if (!f) {
             return;
         }
@@ -55,20 +65,27 @@ async function handleSelectFolderB() {
         if (lbl) lbl.textContent = f;
     } catch (err) {
         console.error("Errore selezione cartella B:", err);
-        await showError("Errore selezione cartella B.", err.message || String(err));
+        await showError(
+            "Errore selezione cartella B.",
+            err.message || String(err),
+        );
     } finally {
         selectInProgress = false;
     }
 }
 
 window.addEventListener("error", (event) => {
-    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    const detail =
+        event?.error?.stack || event?.message || "Errore sconosciuto";
     showError("Errore JS Confronta cartelle.", detail);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
     const reason = event?.reason;
-    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    const detail =
+        reason?.stack ||
+        reason?.message ||
+        String(reason || "Errore sconosciuto");
     showError("Errore promessa non gestita (Confronta cartelle).", detail);
 });
 
@@ -98,7 +115,11 @@ function collectFiles(rootPath, includeSubfolders) {
             try {
                 stat = fs.statSync(full);
             } catch (err) {
-                console.error("Impossibile determinare tipo elemento:", full, err);
+                console.error(
+                    "Impossibile determinare tipo elemento:",
+                    full,
+                    err,
+                );
                 continue;
             }
 
@@ -277,7 +298,7 @@ function renderTable() {
             tr.classList.add("row-selected");
 
             const realIndex = results.findIndex(
-                (r) => r.relPath === item.relPath && r.status === item.status
+                (r) => r.relPath === item.relPath && r.status === item.status,
             );
             selectedIndex = realIndex;
 
@@ -299,7 +320,7 @@ async function handleCompare() {
     if (mode === "hash") {
         await showInfo(
             "Attenzione",
-            "La modalità hash può essere lenta su cartelle grandi. AyPi confronterà i file solo se dimensione/data non coincidono."
+            "La modalità hash può essere lenta su cartelle grandi. AyPi confronterà i file solo se dimensione/data non coincidono.",
         );
     }
 
@@ -317,16 +338,23 @@ async function handleCompare() {
 
         await showInfo(
             "Confronto completato.",
-            `Totale percorsi: ${total}\nSolo in A: ${onlyA}\nSolo in B: ${onlyB}\nDiversi: ${diff}\nUguali: ${same}`
+            `Totale percorsi: ${total}\nSolo in A: ${onlyA}\nSolo in B: ${onlyB}\nDiversi: ${diff}\nUguali: ${same}`,
         );
     } catch (err) {
         console.error("Errore nel confronto cartelle:", err);
-        await showError("Errore nel confronto delle cartelle.", err.message || String(err));
+        await showError(
+            "Errore nel confronto delle cartelle.",
+            err.message || String(err),
+        );
     }
 }
 
 async function handleOpenIn(side) {
-    if (selectedIndex === null || selectedIndex < 0 || selectedIndex >= results.length) {
+    if (
+        selectedIndex === null ||
+        selectedIndex < 0 ||
+        selectedIndex >= results.length
+    ) {
         await showWarning("Seleziona prima una riga nella tabella.");
         return;
     }
@@ -366,7 +394,7 @@ function initCompareFolders() {
     if (!btnSelectFolderA || !btnSelectFolderB || !lblFolderA || !lblFolderB) {
         showError(
             "UI Confronta cartelle incompleta.",
-            "Mancano uno o piu elementi: btnSelectFolderA/btnSelectFolderB/lblFolderA/lblFolderB."
+            "Mancano uno o piu elementi: btnSelectFolderA/btnSelectFolderB/lblFolderA/lblFolderB.",
         );
         return;
     }
@@ -374,7 +402,7 @@ function initCompareFolders() {
     if (!btnCompare || !btnOpenInA || !btnOpenInB || !btnClose) {
         showError(
             "UI Confronta cartelle incompleta.",
-            "Mancano uno o piu pulsanti principali (Confronta/Apri/Chiudi)."
+            "Mancano uno o piu pulsanti principali (Confronta/Apri/Chiudi).",
         );
         return;
     }
@@ -424,7 +452,10 @@ if (document.readyState === "loading") {
             initCompareFolders();
         } catch (err) {
             console.error("Errore inizializzazione Confronta cartelle:", err);
-            showError("Errore inizializzazione Confronta cartelle.", err.message || String(err));
+            showError(
+                "Errore inizializzazione Confronta cartelle.",
+                err.message || String(err),
+            );
         }
     });
 } else {
@@ -432,9 +463,9 @@ if (document.readyState === "loading") {
         initCompareFolders();
     } catch (err) {
         console.error("Errore inizializzazione Confronta cartelle:", err);
-        showError("Errore inizializzazione Confronta cartelle.", err.message || String(err));
+        showError(
+            "Errore inizializzazione Confronta cartelle.",
+            err.message || String(err),
+        );
     }
 }
-
-
-

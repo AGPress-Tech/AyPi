@@ -219,3 +219,20 @@ span {
 
 
 
+
+/* Global non-selectable text */
+body,
+body * {
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -ms-user-select: text !important;
+}

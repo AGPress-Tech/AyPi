@@ -34,7 +34,7 @@
                     return;
                 }
                 document.body.classList.add("pm-splash-active");
-                var maxHideMs = 4500;
+                var maxHideMs = 5000;
                 setTimeout(function () {
                     if (splashEl.dataset.hidden === "1") return;
                     splashEl.classList.add("is-hidden");
@@ -47,11 +47,10 @@
                     splashEl.dataset.started = "1";
                     splashEl.classList.remove("is-hidden", "is-fading");
                     splashEl.classList.add("is-visible");
-                    var fullOpacityMs = 800;
+                    var fullOpacityMs = 4200;
                     var fadeMs = 800;
                     setTimeout(function () {
                         splashEl.classList.add("is-fading");
-                        showModule();
                     }, fullOpacityMs);
                     setTimeout(function () {
                         splashEl.classList.add("is-hidden");
