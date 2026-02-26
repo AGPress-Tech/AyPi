@@ -494,6 +494,51 @@ function readGitStatsSnapshot(targetPath?: string) {
     }
 }
 
+function writeGitflowSnapshot(payload, targetPath?: string) {
+    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
+    const outputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    try {
+        if (payload && typeof payload === "object" && !payload.fetchedAt) {
+            payload.fetchedAt = new Date().toISOString();
+        }
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2), "utf8");
+        return { ok: true, path: outputPath };
+    } catch (err) {
+        log.warn("[gitflow] write snapshot failed:", err);
+        return { ok: false, path: outputPath, error: err?.message || String(err) };
+    }
+}
+
+function readGitflowSnapshot(targetPath?: string) {
+    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
+    const inputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    try {
+        if (!fs.existsSync(inputPath)) return null;
+        const raw = fs.readFileSync(inputPath, "utf8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+            if (!parsed.fetchedAt) {
+                try {
+                    const stat = fs.statSync(inputPath);
+                    if (stat && stat.mtime) {
+                        parsed.fetchedAt = stat.mtime.toISOString();
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+            return parsed;
+        }
+        return null;
+    } catch (err) {
+        return null;
+    }
+}
+
 function isSameDay(a: Date, b: Date) {
     return a.getFullYear() === b.getFullYear()
         && a.getMonth() === b.getMonth()
@@ -2098,8 +2143,21 @@ function setupFileManager(mainWindow) {
             ? String(options.token)
             : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN);
         const maxCommits = options && options.maxCommits ? Number(options.maxCommits) : 400;
+        const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
+        const force = !!(options && options.force);
         const tokenPresent = !!token;
         try {
+            const cached = readGitflowSnapshot(targetPath);
+            if (!force && cached && cached.fetchedAt) {
+                try {
+                    const last = new Date(cached.fetchedAt);
+                    if (!Number.isNaN(last.getTime()) && isSameDay(last, new Date())) {
+                        return cached;
+                    }
+                } catch (_err) {
+                    // ignore
+                }
+            }
             const tags = await fetchGithubTags(owner, repo, token);
             const oldestTagDate = tags.reduce<Date | null>((acc, tag) => {
                 const date = tag?.date ? new Date(tag.date) : null;
@@ -2114,14 +2172,24 @@ function setupFileManager(mainWindow) {
                 maxCommits,
                 oldestTagDate || undefined,
             );
-            return {
+            const payload = {
                 ok: true,
                 tokenPresent,
                 commits,
                 tags,
             };
+            writeGitflowSnapshot(payload, targetPath);
+            return payload;
         } catch (err) {
-            return {
+            const cached = readGitflowSnapshot(targetPath);
+            if (cached && cached.ok) {
+                return {
+                    ...cached,
+                    warning: "github-fetch-failed",
+                    error: err && err.message ? String(err.message) : String(err),
+                };
+            }
+            const payload = {
                 ok: false,
                 reason: "github-fetch-failed",
                 error: err && err.message ? String(err.message) : String(err),
@@ -2129,6 +2197,8 @@ function setupFileManager(mainWindow) {
                 commits: [],
                 tags: [],
             };
+            writeGitflowSnapshot(payload, targetPath);
+            return payload;
         }
     });
 

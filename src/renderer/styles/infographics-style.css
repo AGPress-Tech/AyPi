@@ -151,9 +151,13 @@ body, button, input, canvas, .page {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #5a6c86;
+    background: #6f865a;
     transform: translate(-50%, -50%);
     z-index: 2;
+}
+
+.gitflow-commit.alt {
+    background: #7f93b4;
 }
 
 .gitflow-empty {

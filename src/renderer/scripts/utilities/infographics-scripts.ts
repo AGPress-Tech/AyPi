@@ -62,6 +62,7 @@ const gitflowClose = document.getElementById("gitflowClose");
 const gitflowBackdrop = document.getElementById("gitflowBackdrop");
 const gitflowTrack = document.getElementById("gitflowTrack");
 const gitflowScroller = document.getElementById("gitflowScroller");
+const gitflowFetchLabel = document.getElementById("gitflowFetchLabel");
 const rangeStart = document.getElementById(
     "rangeStart",
 ) as HTMLInputElement | null;
@@ -398,6 +399,7 @@ async function openGitflowModal(force: boolean) {
         repo,
         force,
         maxCommits: 5000,
+        persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
     });
     if (!payload || !payload.ok || !payload.commits || !payload.commits.length) {
         const reason = payload?.reason ? `Motivo: ${payload.reason}` : "";
@@ -406,6 +408,20 @@ async function openGitflowModal(force: boolean) {
             Nessun dato disponibile.<br>${reason}<br>${error}
         </div>`;
         return;
+    }
+    if (gitflowFetchLabel) {
+        const raw = payload.fetchedAt ? new Date(payload.fetchedAt) : null;
+        if (raw && !Number.isNaN(raw.getTime())) {
+            const datePart = raw.toLocaleDateString("it-IT");
+            const timePart = raw.toLocaleTimeString("it-IT", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+            });
+            gitflowFetchLabel.textContent = `Ultimo aggiornamento: ${datePart} ${timePart}`;
+        } else {
+            gitflowFetchLabel.textContent = "Ultimo aggiornamento: --";
+        }
     }
     renderGitflow(payload.commits || [], payload.tags || [], owner, repo);
 }
@@ -482,10 +498,13 @@ function renderGitflow(
             const time = new Date(entry.date).getTime();
             if (Number.isNaN(time)) return;
             let x = pad;
+            let segmentIndex = 0;
             if (time <= firstTime) {
+                segmentIndex = 0;
                 const ratio = Math.min(1, (firstTime - time) / leadingWindow);
                 x = tagPositions[0].x - leadingSpan * ratio;
             } else if (time >= lastTime) {
+                segmentIndex = tagPositions.length;
                 const ratio = Math.min(1, (time - lastTime) / trailingWindow);
                 x = tagPositions[tagPositions.length - 1].x + trailingSpan * ratio;
             } else {
@@ -493,6 +512,7 @@ function renderGitflow(
                 while (idx < tagTimes.length - 1 && time > tagTimes[idx + 1]) {
                     idx += 1;
                 }
+                segmentIndex = idx + 1;
                 const left = tagPositions[idx];
                 const right = tagPositions[idx + 1];
                 const denom = Math.max(1, right.time - left.time);
@@ -500,7 +520,7 @@ function renderGitflow(
                 x = left.x + (right.x - left.x) * ratio;
             }
             const dot = document.createElement("div");
-            dot.className = "gitflow-commit";
+            dot.className = `gitflow-commit${segmentIndex % 2 ? " alt" : ""}`;
             dot.style.left = `${x}px`;
             gitflowTrack.appendChild(dot);
         });

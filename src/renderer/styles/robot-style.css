@@ -1,4 +1,4 @@
-﻿body {
+body {
     font-family: Arial, sans-serif;
     background-color: #332f2b;
     color: white;
@@ -6,6 +6,32 @@
     opacity: 0;
     animation: fadeInBody 0.3s ease forwards;
 }
+body,
+button,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+label,
+a {
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
 
 @keyframes fadeInBody {
     from { opacity: 0; }
@@ -199,4 +225,6 @@ span {
 ::-webkit-scrollbar-corner {
     background: #2b2824;
 }
+
+
 
