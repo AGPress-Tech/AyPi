@@ -738,6 +738,19 @@ function renderTimeline(dates: Date[], commits: number[]) {
         dot.style.height = `${size}px`;
         dot.style.left = `${x}%`;
         container.appendChild(dot);
+
+        const commitTooltip = document.createElement("div");
+        commitTooltip.className = "timeline-tooltip";
+        commitTooltip.style.left = `${x}%`;
+        commitTooltip.textContent = `Commit: ${count}`;
+        container.appendChild(commitTooltip);
+
+        dot.addEventListener("mouseenter", () => {
+            commitTooltip.classList.add("is-visible");
+        });
+        dot.addEventListener("mouseleave", () => {
+            commitTooltip.classList.remove("is-visible");
+        });
     });
 
     const width = container.getBoundingClientRect().width;
