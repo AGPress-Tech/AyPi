@@ -4,6 +4,7 @@ import { ipcMain, dialog, shell, BrowserWindow, app } from "electron";
 import type { OpenDialogOptions, OpenDialogSyncOptions } from "electron";
 import path from "path";
 import { exec, execSync, execFileSync } from "child_process";
+import https from "https";
 import fs from "fs";
 import log from "electron-log";
 import { NETWORK_PATHS } from "../config/paths";
@@ -446,6 +447,136 @@ function getCachedGitStats() {
     } catch (err) {
         return null;
     }
+}
+
+function writeGitStatsSnapshot(payload, targetPath?: string) {
+    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
+    const outputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    try {
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2), "utf8");
+        return { ok: true, path: outputPath };
+    } catch (err) {
+        log.warn("[git-stats] write snapshot failed:", err);
+        return { ok: false, path: outputPath, error: err?.message || String(err) };
+    }
+}
+
+function readGitStatsSnapshot(targetPath?: string) {
+    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
+    const inputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    try {
+        if (!fs.existsSync(inputPath)) return null;
+        const raw = fs.readFileSync(inputPath, "utf8");
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (err) {
+        return null;
+    }
+}
+
+function isSameDay(a: Date, b: Date) {
+    return a.getFullYear() === b.getFullYear()
+        && a.getMonth() === b.getMonth()
+        && a.getDate() === b.getDate();
+}
+
+function fetchJson(url: string, token?: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const headers: Record<string, string> = {
+            "User-Agent": "AyPi",
+            Accept: "application/vnd.github+json",
+        };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        const req = https.get(url, { headers }, (res) => {
+            const chunks: Buffer[] = [];
+            res.on("data", (chunk) => chunks.push(chunk));
+            res.on("end", () => {
+                const raw = Buffer.concat(chunks).toString("utf8");
+                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        resolve(JSON.parse(raw));
+                    } catch (err) {
+                        reject(err);
+                    }
+                } else if (res.statusCode === 202) {
+                    resolve({ __pending: true });
+                } else {
+                    reject(new Error(`HTTP ${res.statusCode || 0}: ${raw}`));
+                }
+            });
+        });
+        req.on("error", reject);
+        req.end();
+    });
+}
+
+async function fetchGithubStats(owner: string, repo: string, token?: string) {
+    const base = `https://api.github.com/repos/${owner}/${repo}`;
+    const retry = async (url: string, attempts = 4) => {
+        for (let i = 0; i < attempts; i += 1) {
+            const res = await fetchJson(url, token);
+            if (res && res.__pending) {
+                await new Promise((resolve) => setTimeout(resolve, 800));
+                continue;
+            }
+            return res;
+        }
+        return [];
+    };
+
+    const [codeFrequency, commitActivity, tags] = await Promise.all([
+        retry(`${base}/stats/code_frequency`),
+        retry(`${base}/stats/commit_activity`),
+        fetchJson(`${base}/tags?per_page=100`, token),
+    ]);
+
+    const commitsByWeek = new Map<number, number>();
+    (Array.isArray(commitActivity) ? commitActivity : []).forEach((entry) => {
+        if (!entry || typeof entry.week !== "number") return;
+        commitsByWeek.set(entry.week, entry.total || 0);
+    });
+
+    const data = (Array.isArray(codeFrequency) ? codeFrequency : []).map((entry) => {
+        const week = entry[0];
+        const additions = entry[1] || 0;
+        const deletions = Math.abs(entry[2] || 0);
+        return {
+            date: new Date(week * 1000).toISOString().slice(0, 10),
+            additions,
+            deletions,
+            commits: commitsByWeek.get(week) || 0,
+        };
+    });
+
+    const tagList = Array.isArray(tags) ? tags.slice(0, 50) : [];
+    const tagDetails = await Promise.all(
+        tagList.map(async (tag) => {
+            const sha = tag?.commit?.sha;
+            if (!sha) return null;
+            try {
+                const commit = await fetchJson(`${base}/commits/${sha}`, token);
+                const date = commit?.commit?.author?.date;
+                return date ? { name: tag.name, date } : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+
+    const tagPayload = tagDetails.filter(Boolean);
+
+    return {
+        ok: true,
+        fetchedAt: new Date().toISOString(),
+        data,
+        tags: tagPayload,
+    };
 }
 
 function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
@@ -1760,17 +1891,53 @@ function setupFileManager(mainWindow) {
         return app.getVersion();
     });
 
-    ipcMain.handle("git-stats-get", async () => {
-        const cached = getCachedGitStats();
-        if (cached && cached.ok && cached.data && cached.data.length) {
-            return cached;
+    ipcMain.handle("git-stats-get", async (_event, options) => {
+        const fresh = !!(options && options.fresh);
+        const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
+
+        if (!fresh) {
+            const cached = getCachedGitStats();
+            if (cached && cached.ok && cached.data && cached.data.length) {
+                return cached;
+            }
         }
 
         const repoRoot = resolveGitRepoRoot();
         if (!repoRoot) {
-            return { ok: false, reason: "repo-not-found", data: [], tags: [] };
+            const payload = { ok: false, reason: "repo-not-found", data: [], tags: [] };
+            writeGitStatsSnapshot(payload, targetPath);
+            return payload;
         }
-        return getGitDailyStats(repoRoot);
+        const payload = getGitDailyStats(repoRoot);
+        writeGitStatsSnapshot(payload, targetPath);
+        return payload;
+    });
+
+    ipcMain.handle("github-stats-get", async (_event, options) => {
+        const owner = (options && options.owner) ? String(options.owner) : "AGPress-Tech";
+        const repo = (options && options.repo) ? String(options.repo) : "AyPi";
+        const token = options && options.token ? String(options.token) : process.env.GITHUB_TOKEN;
+        const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
+        const cached = readGitStatsSnapshot(targetPath);
+        if (cached && cached.fetchedAt) {
+            try {
+                const last = new Date(cached.fetchedAt);
+                if (!Number.isNaN(last.getTime()) && isSameDay(last, new Date())) {
+                    return cached;
+                }
+            } catch (_err) {
+                // ignore
+            }
+        }
+        try {
+            const payload = await fetchGithubStats(owner, repo, token);
+            writeGitStatsSnapshot(payload, targetPath);
+            return payload;
+        } catch (err) {
+            const payload = { ok: false, reason: "github-fetch-failed", data: [], tags: [] };
+            writeGitStatsSnapshot(payload, targetPath);
+            return payload;
+        }
     });
 
     const presetsPath = path.join(app.getPath("userData"), "batch-rename-presets.json");

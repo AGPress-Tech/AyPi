@@ -8,11 +8,16 @@ Chart.register({
             .map((dataset, index) => ({ dataset, index }))
             .filter((item) => item.dataset.type === "line");
 
-        lineDatasets.forEach(({ dataset, index }) => {
+        lineDatasets.forEach(({ index }) => {
             const meta = chart.getDatasetMeta(index);
             if (!meta || meta.hidden) return;
             ctx.save();
-            meta.dataset.draw(ctx);
+            const drawable = meta.dataset as
+                | { draw?: (context: CanvasRenderingContext2D) => void }
+                | undefined;
+            if (drawable?.draw) {
+                drawable.draw(ctx);
+            }
             ctx.restore();
         });
     },
@@ -77,11 +82,22 @@ const presets = {
     "1y": 12,
     all: 0,
 };
+type PresetKey = keyof typeof presets;
 
 init();
 
 async function init() {
-    const payload = await ipcRenderer.invoke("git-stats-get");
+    let payload = await ipcRenderer.invoke("github-stats-get", {
+        owner: "AGPress-Tech",
+        repo: "AyPi",
+        persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
+    });
+    if (!payload || !payload.ok || !payload.data || !payload.data.length) {
+        payload = await ipcRenderer.invoke("git-stats-get", {
+            fresh: true,
+            persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
+        });
+    }
     if (!payload || !payload.ok || !payload.data || !payload.data.length) {
         updateEmptyState(payload?.reason);
         return;
@@ -396,7 +412,8 @@ function resolveGranularity(monthsSpan: number) {
 }
 
 function applyPreset(preset: string) {
-    const months = presets[preset] ?? 6;
+    const key = (preset in presets ? (preset as PresetKey) : "6m");
+    const months = presets[key] ?? 6;
     const lastDate = dailyStats[dailyStats.length - 1].date;
     const target = months
         ? new Date(
@@ -762,11 +779,20 @@ function renderTimeline(dates: Date[], commits: number[]) {
                 : "timeline-dot is-release";
         if (group.length > 1) {
             dot.textContent = `${group.length}`;
+            const mix = getClusterColorMix(group.map((g) => g.name));
+            if (mix) {
+                dot.style.background = mix.fill;
+                dot.style.boxShadow = mix.shadow;
+            }
         }
         dot.style.left = `${x}%`;
         container.appendChild(dot);
 
         if (group.length === 1) {
+            const kind = getReleaseKind(group[0].name);
+            if (kind) {
+                dot.classList.add(kind);
+            }
             const label = document.createElement("div");
             label.className = "timeline-label";
             if (lastLabelX !== null && Math.abs(x - lastLabelX) < 4) {
@@ -774,6 +800,9 @@ function renderTimeline(dates: Date[], commits: number[]) {
             }
             label.style.left = `${x}%`;
             label.textContent = group[0].name;
+            if (kind && kind !== "patch") {
+                label.classList.add(kind);
+            }
             container.appendChild(label);
             lastLabelX = x;
         } else {
@@ -797,6 +826,52 @@ function renderTimeline(dates: Date[], commits: number[]) {
             });
         }
     });
+}
+
+function getReleaseKind(tagName: string) {
+    const raw = String(tagName || "").trim();
+    const cleaned = raw.replace(/^v/i, "");
+    const parts = cleaned.split(".").map((p) => parseInt(p, 10));
+    if (parts.length < 2 || parts.some((p) => Number.isNaN(p))) return "";
+    const major = parts[0];
+    const minor = parts[1];
+    const patch = parts.length >= 3 ? parts[2] : 0;
+    if (major >= 0 && minor === 0 && patch === 0) {
+        return "main";
+    }
+    if (minor > 0 && patch === 0) {
+        return "sub";
+    }
+    return "patch";
+}
+
+function getClusterColorMix(names: string[]) {
+    const counts = { main: 0, sub: 0, patch: 0 };
+    names.forEach((name) => {
+        const kind = getReleaseKind(name);
+        if (kind === "main") counts.main += 1;
+        else if (kind === "sub") counts.sub += 1;
+        else if (kind === "patch") counts.patch += 1;
+    });
+    const total = counts.main + counts.sub + counts.patch;
+    if (!total) return null;
+
+    const colors = {
+        main: [58, 193, 115], // green
+        sub: [216, 75, 75],  // red
+        patch: [242, 181, 68], // yellow
+    };
+    const mix = [0, 0, 0];
+    (Object.keys(counts) as Array<keyof typeof counts>).forEach((key) => {
+        const weight = counts[key] / total;
+        const c = colors[key];
+        mix[0] += c[0] * weight;
+        mix[1] += c[1] * weight;
+        mix[2] += c[2] * weight;
+    });
+    const fill = `rgb(${mix.map((v) => Math.round(v)).join(",")})`;
+    const shadow = `0 0 0 6px rgba(${Math.round(mix[0])}, ${Math.round(mix[1])}, ${Math.round(mix[2])}, 0.22)`;
+    return { fill, shadow };
 }
 
 function rollingAverage(values: number[], windowSize: number) {

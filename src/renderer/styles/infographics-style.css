@@ -380,6 +380,16 @@ canvas {
     opacity: 1;
 }
 
+.timeline-dot.is-release.sub {
+    background: #d84b4b;
+    box-shadow: 0 0 0 4px rgba(216, 75, 75, 0.2);
+}
+
+.timeline-dot.is-release.main {
+    background: #3ac173;
+    box-shadow: 0 0 0 4px rgba(58, 193, 115, 0.2);
+}
+
 .timeline-dot.is-cluster {
     width: 18px;
     height: 18px;
@@ -401,6 +411,14 @@ canvas {
     font-size: 11px;
     color: #f6d18a;
     white-space: nowrap;
+}
+
+.timeline-label.sub {
+    color: #ff9a9a;
+}
+
+.timeline-label.main {
+    color: #9be7b7;
 }
 
 .timeline-label.alt {
