@@ -1,6 +1,6 @@
 // Gestione finestre e IPC lato main per AyPi
 
-import { ipcMain, dialog, shell, BrowserWindow, app } from "electron";
+import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
 import type { OpenDialogOptions, OpenDialogSyncOptions } from "electron";
 import path from "path";
 import { exec, execSync, execFileSync } from "child_process";
@@ -453,6 +453,9 @@ function writeGitStatsSnapshot(payload, targetPath?: string) {
     const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
     const outputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
     try {
+        if (payload && typeof payload === "object" && !payload.fetchedAt) {
+            payload.fetchedAt = new Date().toISOString();
+        }
         const dir = path.dirname(outputPath);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
@@ -472,7 +475,20 @@ function readGitStatsSnapshot(targetPath?: string) {
         if (!fs.existsSync(inputPath)) return null;
         const raw = fs.readFileSync(inputPath, "utf8");
         const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === "object" ? parsed : null;
+        if (parsed && typeof parsed === "object") {
+            if (!parsed.fetchedAt) {
+                try {
+                    const stat = fs.statSync(inputPath);
+                    if (stat && stat.mtime) {
+                        parsed.fetchedAt = stat.mtime.toISOString();
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+            return parsed;
+        }
+        return null;
     } catch (err) {
         return null;
     }
@@ -514,6 +530,32 @@ function fetchJson(url: string, token?: string): Promise<any> {
         req.on("error", reject);
         req.end();
     });
+}
+
+async function resolveGithubTagCommit(
+    base: string,
+    sha: string,
+    token?: string,
+): Promise<{ sha: string; date: string } | null> {
+    try {
+        const commit = await fetchJson(`${base}/commits/${sha}`, token);
+        const date = commit?.commit?.author?.date;
+        if (date) {
+            return { sha, date };
+        }
+    } catch {
+        // fallthrough
+    }
+    try {
+        const tagObj = await fetchJson(`${base}/git/tags/${sha}`, token);
+        const targetSha = tagObj?.object?.sha;
+        if (!targetSha) return null;
+        const commit = await fetchJson(`${base}/commits/${targetSha}`, token);
+        const date = commit?.commit?.author?.date;
+        return date ? { sha: targetSha, date } : null;
+    } catch {
+        return null;
+    }
 }
 
 async function fetchGithubStats(owner: string, repo: string, token?: string) {
@@ -559,13 +601,8 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
         tagList.map(async (tag) => {
             const sha = tag?.commit?.sha;
             if (!sha) return null;
-            try {
-                const commit = await fetchJson(`${base}/commits/${sha}`, token);
-                const date = commit?.commit?.author?.date;
-                return date ? { name: tag.name, date } : null;
-            } catch {
-                return null;
-            }
+            const resolved = await resolveGithubTagCommit(base, sha, token);
+            return resolved ? { name: tag.name, date: resolved.date } : null;
         }),
     );
 
@@ -578,6 +615,54 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
         tags: tagPayload,
     };
 }
+
+async function fetchGithubCommits(
+    owner: string,
+    repo: string,
+    token?: string,
+    maxCommits = 400,
+    minDate?: Date,
+) {
+    const base = `https://api.github.com/repos/${owner}/${repo}`;
+    const commits: Array<{ sha: string; date: string }> = [];
+    let page = 1;
+    const minTime = minDate ? new Date(minDate).getTime() : null;
+    while (commits.length < maxCommits) {
+        const res = await fetchJson(`${base}/commits?per_page=100&page=${page}`, token);
+        if (!Array.isArray(res) || res.length === 0) break;
+        res.forEach((entry) => {
+            const sha = entry?.sha;
+            const date = entry?.commit?.author?.date;
+            if (sha && date) commits.push({ sha, date });
+        });
+        if (minTime && commits.length) {
+            const oldest = new Date(commits[commits.length - 1].date).getTime();
+            if (!Number.isNaN(oldest) && oldest <= minTime) {
+                break;
+            }
+        }
+        if (res.length < 100) break;
+        page += 1;
+    }
+    return commits.slice(0, maxCommits);
+}
+
+async function fetchGithubTags(owner: string, repo: string, token?: string) {
+    const base = `https://api.github.com/repos/${owner}/${repo}`;
+    const tags = await fetchJson(`${base}/tags?per_page=100`, token);
+    if (!Array.isArray(tags)) return [];
+    const tagList = tags.slice(0, 200);
+    const tagDetails = await Promise.all(
+        tagList.map(async (tag) => {
+            const sha = tag?.commit?.sha;
+            if (!sha) return null;
+            const resolved = await resolveGithubTagCommit(base, sha, token);
+            return resolved ? { name: tag.name, date: resolved.date, sha: resolved.sha } : null;
+        }),
+    );
+    return tagDetails.filter(Boolean);
+}
+
 
 function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
     let baseDir = loadFpBaseDir() || getDefaultFpBaseDir();
@@ -1024,6 +1109,7 @@ let compareFoldersWindow: BrowserWindow | null = null;
 let hierarchyWindow: BrowserWindow | null = null;
 let timerWindow: BrowserWindow | null = null;
 let infographicsWindow: BrowserWindow | null = null;
+let gitflowWindow: BrowserWindow | null = null;
 let amministrazioneWindow: BrowserWindow | null = null;
 let feriePermessiWindow: BrowserWindow | null = null;
 let feriePermessiHoursWindow: BrowserWindow | null = null;
@@ -1152,6 +1238,39 @@ function openInfographicsWindow(mainWindow) {
 
     infographicsWindow.on("closed", () => {
         infographicsWindow = null;
+        showMainWindow(mainWindow);
+    });
+}
+
+function openGitflowWindow(mainWindow, options?: { force?: boolean }) {
+    if (isWindowAlive(gitflowWindow)) {
+        showWindow(gitflowWindow);
+        return;
+    }
+
+    const workArea = screen.getPrimaryDisplay().workAreaSize;
+    const targetWidth = Math.max(1000, Math.min(1800, workArea.width - 120));
+    const targetHeight = Math.max(520, Math.min(820, Math.round(workArea.height * 0.75)));
+
+    gitflowWindow = new BrowserWindow({
+        width: targetWidth,
+        height: targetHeight,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        backgroundColor: "#0f1115",
+    });
+
+    const force = options && options.force ? "1" : "0";
+    gitflowWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "gitflow.html"), {
+        query: { force },
+    });
+    gitflowWindow.setMenu(null);
+    gitflowWindow.center();
+
+    gitflowWindow.on("closed", () => {
+        gitflowWindow = null;
         showMainWindow(mainWindow);
     });
 }
@@ -1916,10 +2035,14 @@ function setupFileManager(mainWindow) {
     ipcMain.handle("github-stats-get", async (_event, options) => {
         const owner = (options && options.owner) ? String(options.owner) : "AGPress-Tech";
         const repo = (options && options.repo) ? String(options.repo) : "AyPi";
-        const token = options && options.token ? String(options.token) : process.env.GITHUB_TOKEN;
+        const token = options && options.token
+            ? String(options.token)
+            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN);
+        const tokenPresent = !!token;
         const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
+        const force = !!(options && options.force);
         const cached = readGitStatsSnapshot(targetPath);
-        if (cached && cached.fetchedAt) {
+        if (!force && cached && cached.fetchedAt) {
             try {
                 const last = new Date(cached.fetchedAt);
                 if (!Number.isNaN(last.getTime()) && isSameDay(last, new Date())) {
@@ -1931,12 +2054,81 @@ function setupFileManager(mainWindow) {
         }
         try {
             const payload = await fetchGithubStats(owner, repo, token);
-            writeGitStatsSnapshot(payload, targetPath);
-            return payload;
+            const payloadWithToken = { ...payload, tokenPresent };
+            const totalCommits = Array.isArray(payloadWithToken.data)
+                ? payloadWithToken.data.reduce(
+                      (sum, entry) =>
+                          sum + (entry && typeof entry.commits === "number" ? entry.commits : 0),
+                      0,
+                  )
+                : 0;
+            if (cached && cached.ok && cached.data && cached.data.length && totalCommits === 0) {
+                return {
+                    ...cached,
+                    warning: "github-commits-zero",
+                };
+            }
+            writeGitStatsSnapshot(payloadWithToken, targetPath);
+            return payloadWithToken;
         } catch (err) {
-            const payload = { ok: false, reason: "github-fetch-failed", data: [], tags: [] };
+            if (cached && cached.ok && cached.data && cached.data.length) {
+                return {
+                    ...cached,
+                    warning: "github-fetch-failed",
+                    error: err && err.message ? String(err.message) : String(err),
+                };
+            }
+            const payload = {
+                ok: false,
+                reason: "github-fetch-failed",
+                error: err && err.message ? String(err.message) : String(err),
+                data: [],
+                tags: [],
+                tokenPresent,
+            };
             writeGitStatsSnapshot(payload, targetPath);
             return payload;
+        }
+    });
+
+    ipcMain.handle("github-gitflow-get", async (_event, options) => {
+        const owner = (options && options.owner) ? String(options.owner) : "AGPress-Tech";
+        const repo = (options && options.repo) ? String(options.repo) : "AyPi";
+        const token = options && options.token
+            ? String(options.token)
+            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN);
+        const maxCommits = options && options.maxCommits ? Number(options.maxCommits) : 400;
+        const tokenPresent = !!token;
+        try {
+            const tags = await fetchGithubTags(owner, repo, token);
+            const oldestTagDate = tags.reduce<Date | null>((acc, tag) => {
+                const date = tag?.date ? new Date(tag.date) : null;
+                if (!date || Number.isNaN(date.getTime())) return acc;
+                if (!acc || date < acc) return date;
+                return acc;
+            }, null);
+            const commits = await fetchGithubCommits(
+                owner,
+                repo,
+                token,
+                maxCommits,
+                oldestTagDate || undefined,
+            );
+            return {
+                ok: true,
+                tokenPresent,
+                commits,
+                tags,
+            };
+        } catch (err) {
+            return {
+                ok: false,
+                reason: "github-fetch-failed",
+                error: err && err.message ? String(err.message) : String(err),
+                tokenPresent,
+                commits: [],
+                tags: [],
+            };
         }
     });
 
@@ -2037,6 +2229,11 @@ function setupFileManager(mainWindow) {
 
     ipcMain.on("open-infographics-window", () => {
         openInfographicsWindow(mainWindow);
+    });
+
+    ipcMain.on("open-gitflow-window", (_event, payload) => {
+        const force = !!(payload && payload.force);
+        openGitflowWindow(mainWindow, { force });
     });
 
     ipcMain.on("open-timer-window", () => {

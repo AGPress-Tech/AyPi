@@ -1,0 +1,125 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap");
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: radial-gradient(circle at top left, #1b1f29 0%, #0d0f13 55%, #0b0c0f 100%);
+    color: #e9eef6;
+    font-family: "Space Grotesk", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.flow-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px 28px;
+}
+
+.flow-header .eyebrow {
+    margin: 0 0 6px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 12px;
+    color: #8a95a8;
+}
+
+.flow-header h1 {
+    margin: 0;
+    font-size: 28px;
+}
+
+.flow-header .subtitle {
+    margin: 6px 0 0 0;
+    color: #a8b2c1;
+    font-size: 14px;
+}
+
+.flow-scroller {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: rgba(12, 14, 18, 0.8);
+    border: 1px solid #1e2430;
+    border-radius: 14px;
+    padding: 18px 18px 28px;
+}
+
+.flow-track {
+    position: relative;
+    min-width: 1200px;
+    height: 360px;
+}
+
+.lane {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(120, 140, 180, 0.2), rgba(120, 140, 180, 0.6), rgba(120, 140, 180, 0.2));
+}
+
+.lane.main {
+    top: 80px;
+}
+
+.lane.minor {
+    top: 180px;
+}
+
+.lane.patch {
+    top: 280px;
+}
+
+.node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #111;
+}
+
+.node.main {
+    top: 80px;
+    background: #3ac173;
+}
+
+.node.minor {
+    top: 180px;
+    background: #d84b4b;
+}
+
+.node.patch {
+    top: 280px;
+    background: #f2b544;
+}
+
+.commit-dot {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #5a6c86;
+    transform: translate(-50%, -50%);
+}
+
+.commit-dot.main {
+    top: 80px;
+}
+
+.commit-dot.minor {
+    top: 180px;
+}
+
+.commit-dot.patch {
+    top: 280px;
+}

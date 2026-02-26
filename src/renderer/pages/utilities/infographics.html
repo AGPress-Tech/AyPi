@@ -17,11 +17,13 @@
                 <div>
                     <p class="eyebrow">Infografiche</p>
                     <h1>Code frequency</h1>
-                    <p class="subtitle">Additions and deletions per week</p>
+                    <p class="subtitle">Aggiunte e rimozioni settimanali</p>
                 </div>
                 <div class="meta">
                     <span class="repo">AGPress-Tech/AyPi</span>
                     <span class="range" id="rangeLabel">Ultimi 7 mesi</span>
+                    <span class="meta-sub" id="fetchLabel">Ultimo aggiornamento: --</span>
+                    <span class="meta-sub meta-warn" id="fetchError"></span>
                 </div>
             </header>
 
@@ -38,20 +40,24 @@
             </section>
 
             <section class="summary-grid">
+                <div class="summary-card release-card" id="releaseCard">
+                    <p>Release</p>
+                    <h3 id="releaseCount">0</h3>
+                </div>
                 <div class="summary-card">
                     <p>Commit</p>
                     <h3 id="summaryCommits">0</h3>
                 </div>
                 <div class="summary-card additions">
-                    <p>Additions</p>
+                    <p>Aggiunte</p>
                     <h3 id="summaryAdditions">0</h3>
                 </div>
                 <div class="summary-card deletions">
-                    <p>Deletions</p>
+                    <p>Rimozioni</p>
                     <h3 id="summaryDeletions">0</h3>
                 </div>
                 <div class="summary-card net">
-                    <p>Net</p>
+                    <p>Netto</p>
                     <h3 id="summaryNet">0</h3>
                 </div>
             </section>
@@ -62,20 +68,20 @@
                 <div class="card-header">
                     <div>
                         <h2>Code frequency</h2>
-                        <p>Additions and deletions per period</p>
+                        <p>Aggiunte e rimozioni per periodo</p>
                     </div>
                     <div class="legend">
                         <span class="legend-item">
                             <span class="swatch additions"></span>
-                            Additions
+                            Aggiunte
                         </span>
                         <span class="legend-item">
                             <span class="swatch deletions"></span>
-                            Deletions
+                            Rimozioni
                         </span>
                         <span class="legend-item">
                             <span class="swatch net"></span>
-                            Diff
+                            Netto
                         </span>
                     </div>
                 </div>
@@ -88,7 +94,7 @@
                 <div class="card-header">
                     <div>
                         <h2>Commits over time</h2>
-                        <p>Commit per period</p>
+                        <p>Commit per periodo</p>
                     </div>
                 </div>
                 <div class="chart-wrap">
@@ -103,7 +109,7 @@
                 <div class="card-header">
                     <div>
                         <h2>Timeline</h2>
-                        <p>Commit e release lungo il tempo</p>
+                        <p>Commit e release</p>
                     </div>
                 </div>
                 <div class="timeline" id="releaseTimeline">
@@ -125,6 +131,28 @@
                 <div class="range-grab right" id="rangeGrabRight"></div>
                 <input id="rangeStart" type="range" min="0" max="0" value="0">
                 <input id="rangeEnd" type="range" min="0" max="0" value="0">
+            </div>
+        </div>
+    </div>
+
+    <div class="gitflow-modal" id="gitflowModal" aria-hidden="true">
+        <div class="gitflow-backdrop" id="gitflowBackdrop"></div>
+        <div class="gitflow-panel">
+            <div class="gitflow-header">
+                <div>
+                    <p class="eyebrow">Gitflow</p>
+                    <h2>Release &amp; Commit Stream</h2>
+                    <p class="subtitle">Main, minor, patch e commit</p>
+                </div>
+                <button class="gitflow-close" id="gitflowClose">Chiudi</button>
+            </div>
+            <div class="gitflow-scroller" id="gitflowScroller">
+                <div class="gitflow-track" id="gitflowTrack">
+                    <div class="gitflow-lane commits"></div>
+                    <div class="gitflow-lane main"></div>
+                    <div class="gitflow-lane minor"></div>
+                    <div class="gitflow-lane patch"></div>
+                </div>
             </div>
         </div>
     </div>

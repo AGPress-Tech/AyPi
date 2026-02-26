@@ -22,7 +22,7 @@ Chart.register({
         });
     },
 });
-import { ipcRenderer } from "electron";
+import { ipcRenderer, shell } from "electron";
 
 type DailyStats = {
     date: Date;
@@ -53,6 +53,15 @@ const summaryCommits = document.getElementById("summaryCommits");
 const summaryAdditions = document.getElementById("summaryAdditions");
 const summaryDeletions = document.getElementById("summaryDeletions");
 const summaryNet = document.getElementById("summaryNet");
+const releaseCount = document.getElementById("releaseCount");
+const fetchLabel = document.getElementById("fetchLabel");
+const fetchError = document.getElementById("fetchError");
+const releaseCard = document.getElementById("releaseCard");
+const gitflowModal = document.getElementById("gitflowModal");
+const gitflowClose = document.getElementById("gitflowClose");
+const gitflowBackdrop = document.getElementById("gitflowBackdrop");
+const gitflowTrack = document.getElementById("gitflowTrack");
+const gitflowScroller = document.getElementById("gitflowScroller");
 const rangeStart = document.getElementById(
     "rangeStart",
 ) as HTMLInputElement | null;
@@ -75,6 +84,7 @@ let granularity: "week" | "month" = "week";
 let series: Series | null = null;
 let codeFrequencyChart: Chart | null = null;
 let commitsChart: Chart | null = null;
+let currentPreset: string = "6m";
 
 const presets = {
     "3m": 3,
@@ -87,20 +97,57 @@ type PresetKey = keyof typeof presets;
 init();
 
 async function init() {
-    let payload = await ipcRenderer.invoke("github-stats-get", {
+    await reloadStats(false);
+    bindControls();
+    window.addEventListener("resize", () => {
+        if (lastTimelineDates.length) {
+            renderTimeline(lastTimelineDates, lastTimelineCommits);
+        }
+    });
+}
+
+async function reloadStats(force: boolean) {
+    const payload = await ipcRenderer.invoke("github-stats-get", {
         owner: "AGPress-Tech",
         repo: "AyPi",
         persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
+        force,
     });
     if (!payload || !payload.ok || !payload.data || !payload.data.length) {
-        payload = await ipcRenderer.invoke("git-stats-get", {
-            fresh: true,
-            persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
-        });
-    }
-    if (!payload || !payload.ok || !payload.data || !payload.data.length) {
         updateEmptyState(payload?.reason);
+        if (fetchError) {
+            fetchError.textContent = payload?.error
+                ? `Errore fetch: ${payload.error}`
+                : payload?.reason
+                    ? `Errore fetch: ${payload.reason}`
+                    : "";
+        }
         return;
+    }
+    if (fetchLabel) {
+        const raw = payload.fetchedAt ? new Date(payload.fetchedAt) : null;
+        if (raw && !Number.isNaN(raw.getTime())) {
+            const datePart = raw.toLocaleDateString("it-IT");
+            const timePart = raw.toLocaleTimeString("it-IT", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+            });
+            fetchLabel.textContent = `Ultimo aggiornamento: ${datePart} ${timePart}`;
+        } else {
+            fetchLabel.textContent = "Ultimo aggiornamento: --";
+        }
+    }
+    if (fetchError) {
+        if (payload.warning === "github-commits-zero") {
+            fetchError.textContent = "Attenzione: GitHub ha restituito 0 commit";
+        } else if (payload.warning === "github-fetch-failed") {
+            fetchError.textContent = payload.error
+                ? `Errore fetch: ${payload.error}`
+                : "Errore fetch GitHub";
+        } else {
+            fetchError.textContent = "";
+        }
     }
 
     dailyStats = payload.data.map(
@@ -124,17 +171,62 @@ async function init() {
               }),
           )
         : [];
+    if (releaseCount) {
+        releaseCount.textContent = `${tagStats.length}`;
+    }
 
-    applyPreset("6m");
-    bindControls();
-    window.addEventListener("resize", () => {
-        if (lastTimelineDates.length) {
-            renderTimeline(lastTimelineDates, lastTimelineCommits);
-        }
-    });
+    applyPreset(currentPreset || "6m");
 }
 
 function bindControls() {
+    if (releaseCard) {
+        releaseCard.addEventListener("click", async (event: MouseEvent) => {
+            const force = !!event.shiftKey;
+            await openGitflowModal(force);
+        });
+    }
+    if (gitflowClose) {
+        gitflowClose.addEventListener("click", closeGitflowModal);
+    }
+    if (gitflowBackdrop) {
+        gitflowBackdrop.addEventListener("click", closeGitflowModal);
+    }
+    if (gitflowScroller) {
+        let isDragging = false;
+        let startX = 0;
+        let startScroll = 0;
+
+        const onMove = (event: MouseEvent) => {
+            if (!isDragging) return;
+            const dx = event.clientX - startX;
+            gitflowScroller.scrollLeft = startScroll - dx;
+        };
+
+        const onUp = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            gitflowScroller.classList.remove("is-dragging");
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+            window.removeEventListener("mouseleave", onUp);
+            window.removeEventListener("blur", onUp);
+        };
+
+        gitflowScroller.addEventListener("mousedown", (event) => {
+            if (event.button !== 0) return;
+            if ((event.target as HTMLElement)?.closest?.(".gitflow-node")) {
+                return;
+            }
+            isDragging = true;
+            startX = event.clientX;
+            startScroll = gitflowScroller.scrollLeft;
+            gitflowScroller.classList.add("is-dragging");
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", onUp);
+            window.addEventListener("mouseleave", onUp);
+            window.addEventListener("blur", onUp);
+        });
+    }
     presetButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
             const range = btn.dataset.range || "6m";
@@ -144,6 +236,13 @@ function bindControls() {
             );
         });
     });
+    if (rangeLabel) {
+        rangeLabel.addEventListener("click", (event: MouseEvent) => {
+            if (event.shiftKey) {
+                reloadStats(true);
+            }
+        });
+    }
 
     if (chartsGrid) {
         chartsGrid.classList.remove("is-split");
@@ -287,6 +386,226 @@ function bindControls() {
     }
 }
 
+async function openGitflowModal(force: boolean) {
+    if (!gitflowModal || !gitflowTrack) return;
+    gitflowModal.classList.add("is-open");
+    gitflowModal.setAttribute("aria-hidden", "false");
+
+    const owner = "AGPress-Tech";
+    const repo = "AyPi";
+    const payload = await ipcRenderer.invoke("github-gitflow-get", {
+        owner,
+        repo,
+        force,
+        maxCommits: 5000,
+    });
+    if (!payload || !payload.ok || !payload.commits || !payload.commits.length) {
+        const reason = payload?.reason ? `Motivo: ${payload.reason}` : "";
+        const error = payload?.error ? `Errore: ${payload.error}` : "";
+        gitflowTrack.innerHTML = `<div style="color:#8a95a8; padding:16px;">
+            Nessun dato disponibile.<br>${reason}<br>${error}
+        </div>`;
+        return;
+    }
+    renderGitflow(payload.commits || [], payload.tags || [], owner, repo);
+}
+
+function closeGitflowModal() {
+    if (!gitflowModal) return;
+    gitflowModal.classList.remove("is-open");
+    gitflowModal.setAttribute("aria-hidden", "true");
+}
+
+function renderGitflow(
+    commits: Array<{ sha: string; date: string }>,
+    tags: Array<{ name: string; date: string; sha?: string }>,
+    owner: string,
+    repo: string,
+) {
+    if (!gitflowTrack) return;
+    gitflowTrack.innerHTML = `
+        <div class="gitflow-lane commits"></div>
+        <div class="gitflow-lane main"></div>
+        <div class="gitflow-lane minor"></div>
+        <div class="gitflow-lane patch"></div>
+    `;
+
+    const orderedCommits = commits
+        .slice()
+        .filter((c) => c && c.sha && c.date)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const orderedTags = tags
+        .slice()
+        .filter((t) => t && t.name && t.date)
+        .map((t) => ({
+            ...t,
+            time: new Date(t.date).getTime(),
+        }))
+        .filter((t) => !Number.isNaN(t.time))
+        .sort((a, b) => a.time - b.time);
+    if (!orderedTags.length) {
+        gitflowTrack.innerHTML += `
+            <div class="gitflow-empty">
+                Nessuna release valida disponibile per il Gitflow.
+            </div>
+        `;
+        return;
+    }
+    const hasCommits = orderedCommits.length > 0;
+
+    const pad = 80;
+    const tagSpacing = 180;
+    const width = pad * 2 + (Math.max(orderedTags.length - 1, 1)) * tagSpacing;
+    gitflowTrack.style.minWidth = `${Math.max(1200, width)}px`;
+
+    const tagPositions = orderedTags.map((tag, idx) => ({
+        ...tag,
+        x: pad + idx * tagSpacing,
+    }));
+
+    const tagTimes = tagPositions.map((t) => t.time);
+    const firstTime = tagTimes[0];
+    const lastTime = tagTimes[tagTimes.length - 1];
+    const firstGap =
+        tagTimes.length > 1 ? Math.max(1, tagTimes[1] - tagTimes[0]) : 1000 * 60 * 60 * 24 * 30;
+    const lastGap =
+        tagTimes.length > 1
+            ? Math.max(1, tagTimes[tagTimes.length - 1] - tagTimes[tagTimes.length - 2])
+            : 1000 * 60 * 60 * 24 * 30;
+    const leadingSpan = tagSpacing * 0.6;
+    const trailingSpan = tagSpacing * 0.6;
+    const leadingWindow = Math.max(firstGap, 1000 * 60 * 60 * 24 * 14);
+    const trailingWindow = Math.max(lastGap, 1000 * 60 * 60 * 24 * 14);
+
+    if (hasCommits) {
+        orderedCommits.forEach((entry) => {
+            const time = new Date(entry.date).getTime();
+            if (Number.isNaN(time)) return;
+            let x = pad;
+            if (time <= firstTime) {
+                const ratio = Math.min(1, (firstTime - time) / leadingWindow);
+                x = tagPositions[0].x - leadingSpan * ratio;
+            } else if (time >= lastTime) {
+                const ratio = Math.min(1, (time - lastTime) / trailingWindow);
+                x = tagPositions[tagPositions.length - 1].x + trailingSpan * ratio;
+            } else {
+                let idx = 0;
+                while (idx < tagTimes.length - 1 && time > tagTimes[idx + 1]) {
+                    idx += 1;
+                }
+                const left = tagPositions[idx];
+                const right = tagPositions[idx + 1];
+                const denom = Math.max(1, right.time - left.time);
+                const ratio = Math.max(0, Math.min(1, (time - left.time) / denom));
+                x = left.x + (right.x - left.x) * ratio;
+            }
+            const dot = document.createElement("div");
+            dot.className = "gitflow-commit";
+            dot.style.left = `${x}px`;
+            gitflowTrack.appendChild(dot);
+        });
+    } else {
+        const notice = document.createElement("div");
+        notice.className = "gitflow-empty";
+        notice.textContent =
+            "Commit non disponibili (controlla token/rate limit).";
+        gitflowTrack.appendChild(notice);
+    }
+
+    const nodePositions: Record<string, number[]> = {
+        main: [],
+        minor: [],
+        patch: [],
+    };
+    const nodeMap = new Map<
+        string,
+        { x: number; kind: "main" | "minor" | "patch" }
+    >();
+    tagPositions.forEach((tag) => {
+        const x = tag.x;
+        const kindRaw = getReleaseKind(tag.name);
+        const kind = kindRaw === "sub" ? "minor" : kindRaw;
+        if (!kind || !(kind in nodePositions)) return;
+        const node = document.createElement("div");
+        node.className = `gitflow-node ${kind}`;
+        node.style.left = `${x}px`;
+        node.textContent = tag.name;
+        node.setAttribute("role", "link");
+        node.setAttribute("tabindex", "0");
+        node.dataset.tag = tag.name;
+        node.addEventListener("click", () => {
+            const encoded = encodeURIComponent(tag.name);
+            shell.openExternal(
+                `https://github.com/${owner}/${repo}/releases/tag/${encoded}`,
+            );
+        });
+        node.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                const encoded = encodeURIComponent(tag.name);
+                shell.openExternal(
+                    `https://github.com/${owner}/${repo}/releases/tag/${encoded}`,
+                );
+            }
+        });
+        gitflowTrack.appendChild(node);
+        nodePositions[kind].push(x);
+        nodeMap.set(tag.name, { x, kind: kind as "main" | "minor" | "patch" });
+
+        const dateLabel = document.createElement("div");
+        dateLabel.className = `gitflow-date ${kind}`;
+        dateLabel.style.left = `${x}px`;
+        dateLabel.textContent = formatGitflowDate(tag.time);
+        gitflowTrack.appendChild(dateLabel);
+    });
+
+    drawGitflowArrows(nodePositions);
+}
+
+function drawGitflowArrows(nodePositions: Record<string, number[]>) {
+    if (!gitflowTrack) return;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "gitflow-svg");
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "100%");
+    svg.innerHTML = `
+        <defs>
+            <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill="#5a6c86"></path>
+            </marker>
+        </defs>
+    `;
+    const laneY = { main: 150, minor: 230, patch: 310 };
+    (["main", "minor", "patch"] as const).forEach((lane) => {
+        const xs = nodePositions[lane] || [];
+        for (let i = 1; i < xs.length; i += 1) {
+            const x1 = xs[i - 1];
+            const x2 = xs[i];
+            const y = laneY[lane];
+            const dx = Math.max(40, x2 - x1);
+            const c1 = x1 + dx * 0.4;
+            const c2 = x2 - dx * 0.4;
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", `M ${x1} ${y} C ${c1} ${y} ${c2} ${y} ${x2} ${y}`);
+            path.setAttribute("stroke", "#5a6c86");
+            path.setAttribute("stroke-width", "2");
+            path.setAttribute("fill", "none");
+            path.setAttribute("marker-end", "url(#arrowHead)");
+            svg.appendChild(path);
+        }
+    });
+    gitflowTrack.appendChild(svg);
+}
+
+function formatGitflowDate(time: number) {
+    if (!time || Number.isNaN(time)) return "";
+    return new Date(time).toLocaleDateString("it-IT", {
+        day: "2-digit",
+        month: "short",
+        year: "2-digit",
+    });
+}
+
 function updateEmptyState(reason?: string) {
     let message = "Nessun dato Git disponibile";
     if (reason === "git-not-found") {
@@ -413,6 +732,7 @@ function resolveGranularity(monthsSpan: number) {
 
 function applyPreset(preset: string) {
     const key = (preset in presets ? (preset as PresetKey) : "6m");
+    currentPreset = key;
     const months = presets[key] ?? 6;
     const lastDate = dailyStats[dailyStats.length - 1].date;
     const target = months
