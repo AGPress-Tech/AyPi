@@ -82,6 +82,7 @@ function renderCartTable({
                 quantity: line.quantity || "",
                 unit: line.unit || "",
                 urgency: line.urgency || "",
+                supplier: line.supplier || "",
                 url: line.url || "",
                 note: line.note || "",
                 priceCad: line.priceCad || "",
@@ -132,6 +133,7 @@ function renderCartTable({
                 row.url,
                 row.unit,
                 row.urgency,
+                row.supplier,
                 row.priceCad,
                 row.note,
             ]
@@ -175,6 +177,7 @@ function renderCartTable({
         "QuantitÃ ",
         "UM",
         "Priorità",
+        "Fornitore",
         "Note",
         "URL",
         "Prezzo C.A.D",
@@ -238,6 +241,10 @@ function renderCartTable({
         const urgencyCell = document.createElement("div");
         urgencyCell.className = "pm-table__cell";
         urgencyCell.textContent = row.urgency || "-";
+
+        const supplierCell = document.createElement("div");
+        supplierCell.className = "pm-table__cell";
+        supplierCell.textContent = row.supplier || "-";
 
         const noteCell = document.createElement("div");
         noteCell.className = "pm-table__cell";
@@ -306,6 +313,7 @@ function renderCartTable({
                     category: row.category || row.tags.join(", "),
                     unit: row.unit || "",
                     url: row.url || "",
+                    supplier: row.supplier || "",
                     imageFile: "",
                     createdAt: new Date().toISOString(),
                 };
@@ -326,6 +334,7 @@ function renderCartTable({
             quantityCell,
             unitCell,
             urgencyCell,
+            supplierCell,
             noteCell,
             urlCell,
             priceCell,

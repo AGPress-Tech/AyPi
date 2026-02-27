@@ -47,7 +47,7 @@ function renderCatalog({
     if (catalogSearch) {
         const needle = catalogSearch.toLowerCase();
         visibleItems = visibleItems.filter((item) => {
-            const haystack = `${item.name || ""} ${item.description || ""} ${item.category || ""}`.toLowerCase();
+            const haystack = `${item.name || ""} ${item.description || ""} ${item.category || ""} ${item.supplier || ""}`.toLowerCase();
             return haystack.includes(needle);
         });
     }
@@ -81,6 +81,9 @@ function renderCatalog({
         const desc = document.createElement("div");
         desc.className = "pm-catalog-desc";
         desc.textContent = item.description || "";
+        const supplier = document.createElement("div");
+        supplier.className = "pm-catalog-desc";
+        supplier.textContent = item.supplier ? `Fornitore: ${item.supplier}` : "";
         const linkRow = document.createElement("a");
         linkRow.className = "pm-link";
         linkRow.textContent = item.url ? "Apri link" : "";
@@ -239,7 +242,9 @@ function renderCatalog({
             card.appendChild(trashBtn);
         }
 
-        card.append(img, title, desc, linkRow);
+        card.append(img, title, desc);
+        if (item.supplier) card.appendChild(supplier);
+        card.appendChild(linkRow);
         if (tags.childElementCount) card.appendChild(tags);
         card.appendChild(actions);
         grid.appendChild(card);

@@ -819,6 +819,7 @@ function createEmptyLine(mode = getActiveMode()) {
         quantity: "",
         unit: "",
         urgency: "Bassa",
+        supplier: "",
         url: "",
         note: "",
     };
@@ -919,7 +920,7 @@ function createLineElement(line, index) {
     const quantityField = document.createElement("div");
     quantityField.className = "pm-field";
     const quantityLabel = document.createElement("label");
-    quantityLabel.textContent = "QuantitÃ ";
+    quantityLabel.textContent = "Quantità";
     const quantityInput = document.createElement("input");
     quantityInput.className = "pm-qty-input";
     quantityInput.type = "number";
@@ -979,6 +980,19 @@ function createLineElement(line, index) {
     const secondary = document.createElement("div");
     secondary.className = "pm-line-grid pm-line-grid--secondary";
 
+    const supplierField = document.createElement("div");
+    supplierField.className = "pm-field";
+    const supplierLabel = document.createElement("label");
+    supplierLabel.textContent = "Fornitore";
+    const supplierInput = document.createElement("input");
+    supplierInput.type = "text";
+    supplierInput.value = line.supplier || "";
+    supplierInput.placeholder = "Nome fornitore (opzionale)";
+    supplierInput.addEventListener("input", (event) =>
+        updateLineField(index, "supplier", event.target.value),
+    );
+    supplierField.append(supplierLabel, supplierInput);
+
     const urlField = document.createElement("div");
     urlField.className = "pm-field";
     const urlLabel = document.createElement("label");
@@ -1016,7 +1030,7 @@ function createLineElement(line, index) {
     removeBtn.addEventListener("click", () => removeLine(index));
     actionsField.append(actionLabel, removeBtn);
 
-    secondary.append(urlField, noteField, actionsField);
+    secondary.append(supplierField, urlField, noteField, actionsField);
 
     wrapper.append(grid, secondary);
     return wrapper;
@@ -1137,6 +1151,7 @@ function addLineFromCatalog(item, quantity) {
         quantity: quantity || "",
         unit: item.unit || "",
         urgency: "Bassa",
+        supplier: item.supplier || "",
         url: item.url || "",
         note: "",
     });
@@ -1270,7 +1285,6 @@ function hasInterventionShards() {
     }
 }
 
-
 function readRequestsFromShards() {
     try {
         if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return null;
@@ -1396,7 +1410,6 @@ function writeInterventionsShards(payload) {
         );
     }
 }
-
 
 function readRequestsFile(mode = getActiveMode()) {
     const filePath = getRequestsPath(mode);
@@ -1527,6 +1540,7 @@ function collectRequestPayload() {
             quantity: (line.quantity || "").toString().trim(),
             unit: (line.unit || "").trim(),
             urgency: (line.urgency || "").trim(),
+            supplier: (line.supplier || "").trim(),
             url: (line.url || "").trim(),
             note: (line.note || "").trim(),
         }))
@@ -1795,6 +1809,7 @@ function openEditModal(row) {
     const quantity = document.getElementById("pm-edit-quantity");
     const unit = document.getElementById("pm-edit-unit");
     const urgency = document.getElementById("pm-edit-urgency");
+    const supplier = document.getElementById("pm-edit-supplier");
     const url = document.getElementById("pm-edit-url");
     const price = document.getElementById("pm-edit-price");
     const note = document.getElementById("pm-edit-note");
@@ -1803,6 +1818,7 @@ function openEditModal(row) {
     if (quantity) quantity.value = row.quantity || "";
     if (unit) unit.value = row.unit || "";
     if (urgency) urgency.value = row.urgency || "";
+    if (supplier) supplier.value = row.supplier || "";
     if (url) url.value = row.url || "";
     if (price)
         price.value = row.priceCad
@@ -1847,6 +1863,7 @@ function saveEditModal() {
     line.quantity = getEditFieldValue("pm-edit-quantity").toString().trim();
     line.unit = getEditFieldValue("pm-edit-unit").trim();
     line.urgency = getEditFieldValue("pm-edit-urgency").trim();
+    line.supplier = getEditFieldValue("pm-edit-supplier").trim();
     line.url = getEditFieldValue("pm-edit-url").trim();
     line.priceCad = normalizePriceCad(getEditFieldValue("pm-edit-price"));
     line.note = getEditFieldValue("pm-edit-note").trim();
@@ -1908,6 +1925,7 @@ function saveAddModal() {
         quantity: qty,
         unit: baseLine.unit || "",
         urgency: baseLine.urgency || "",
+        supplier: baseLine.supplier || "",
         url: baseLine.url || "",
         note: "",
     };
@@ -3302,4 +3320,3 @@ ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
 ipcRenderer.on("pm-session-updated", (_event, payload) => {
     applySharedSession(payload);
 });
-

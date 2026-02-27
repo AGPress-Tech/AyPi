@@ -288,6 +288,7 @@ function openCatalogModal(ctx, item = null) {
     const desc = document.getElementById("pm-catalog-description");
     const category = document.getElementById("pm-catalog-category");
     const unit = document.getElementById("pm-catalog-unit");
+    const supplier = document.getElementById("pm-catalog-supplier");
     const url = document.getElementById("pm-catalog-url");
     const imageUrl = document.getElementById("pm-catalog-image-url");
     const image = document.getElementById("pm-catalog-image");
@@ -302,6 +303,7 @@ function openCatalogModal(ctx, item = null) {
         if (desc) desc.value = item.description || "";
         if (category) category.dataset.value = item.category || "";
         if (unit) unit.value = item.unit || "";
+        if (supplier) supplier.value = item.supplier || "";
         if (url) url.value = item.url || "";
         if (imageUrl) imageUrl.value = item.imageUrl || "";
         if (image) {
@@ -317,6 +319,7 @@ function openCatalogModal(ctx, item = null) {
         if (desc) desc.value = "";
         if (category) category.dataset.value = "";
         if (unit) unit.value = "";
+        if (supplier) supplier.value = "";
         if (url) url.value = "";
         if (imageUrl) imageUrl.value = "";
         if (image) image.value = "";
@@ -343,6 +346,7 @@ function clearCatalogForm(ctx) {
         "pm-catalog-description",
         "pm-catalog-category",
         "pm-catalog-unit",
+        "pm-catalog-supplier",
         "pm-catalog-url",
         "pm-catalog-image-url",
         "pm-catalog-image",
@@ -396,6 +400,7 @@ function saveCatalogItem(ctx) {
         description: document.getElementById("pm-catalog-description")?.value?.trim() || "",
         category,
         unit: document.getElementById("pm-catalog-unit")?.value?.trim() || "",
+        supplier: document.getElementById("pm-catalog-supplier")?.value?.trim() || "",
         url: document.getElementById("pm-catalog-url")?.value?.trim() || "",
         imageUrl: imageUrlInput?.value?.trim() || "",
         imageFile: imageFileName,

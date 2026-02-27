@@ -48,6 +48,7 @@ function normalizeRequestLine(line) {
     base.quantity = normalizeString(base.quantity);
     base.unit = normalizeString(base.unit);
     base.urgency = normalizeString(base.urgency);
+    base.supplier = normalizeString(base.supplier);
     base.url = normalizeString(base.url);
     base.note = normalizeString(base.note);
     base.interventionType = normalizeString(base.interventionType || base.type);
@@ -128,6 +129,7 @@ function normalizeCatalogData(payload) {
             normalized.description = normalizeString(normalized.description);
             normalized.category = normalizeString(normalized.category);
             normalized.unit = normalizeString(normalized.unit);
+            normalized.supplier = normalizeString(normalized.supplier);
             normalized.url = normalizeString(normalized.url);
             normalized.imageUrl = normalizeString(normalized.imageUrl);
             normalized.imageFile = normalizeString(normalized.imageFile);
