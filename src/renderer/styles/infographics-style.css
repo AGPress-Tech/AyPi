@@ -277,6 +277,10 @@ body, button, input, canvas, .page {
     color: #e3a23b;
 }
 
+.meta-token {
+    color: #6fa8ff;
+}
+
 .card {
     background: #0f1115;
     border: 1px solid #1e2430;

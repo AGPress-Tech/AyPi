@@ -56,6 +56,7 @@ const summaryNet = document.getElementById("summaryNet");
 const releaseCount = document.getElementById("releaseCount");
 const fetchLabel = document.getElementById("fetchLabel");
 const fetchError = document.getElementById("fetchError");
+const tokenLabel = document.getElementById("tokenLabel");
 const releaseCard = document.getElementById("releaseCard");
 const gitflowModal = document.getElementById("gitflowModal");
 const gitflowClose = document.getElementById("gitflowClose");
@@ -126,6 +127,20 @@ async function reloadStats(force: boolean) {
         }
         return;
     }
+    if (!force && payload.fetchedAt) {
+        const last = new Date(payload.fetchedAt);
+        const now = new Date();
+        if (!Number.isNaN(last.getTime())) {
+            const sameDay =
+                last.getFullYear() === now.getFullYear() &&
+                last.getMonth() === now.getMonth() &&
+                last.getDate() === now.getDate();
+            if (!sameDay) {
+                await reloadStats(true);
+                return;
+            }
+        }
+    }
     if (fetchLabel) {
         const raw = payload.fetchedAt ? new Date(payload.fetchedAt) : null;
         if (raw && !Number.isNaN(raw.getTime())) {
@@ -144,12 +159,33 @@ async function reloadStats(force: boolean) {
         if (payload.warning === "github-commits-zero") {
             fetchError.textContent =
                 "Attenzione: GitHub ha restituito 0 commit";
+        } else if (payload.warning === "commit-activity-gitflow-cache") {
+            fetchError.textContent =
+                "Nota: commit calcolati da cache Gitflow";
+        } else if (payload.warning === "commit-activity-fallback") {
+            fetchError.textContent =
+                "Nota: commit calcolati via lista commit (fallback)";
+        } else if (payload.warning === "commit-week-partial") {
+            fetchError.textContent =
+                "Nota: inclusa settimana corrente (parziale)";
+        } else if (payload.warning === "commit-activity-empty") {
+            fetchError.textContent =
+                "Attenzione: GitHub non ha fornito commit activity";
         } else if (payload.warning === "github-fetch-failed") {
             fetchError.textContent = payload.error
                 ? `Errore fetch: ${payload.error}`
                 : "Errore fetch GitHub";
         } else {
             fetchError.textContent = "";
+        }
+    }
+    if (tokenLabel) {
+        if (payload.tokenPresent) {
+            tokenLabel.textContent = "Token: attivo";
+            tokenLabel.classList.add("meta-token");
+        } else {
+            tokenLabel.textContent = "Token: non trovato";
+            tokenLabel.classList.remove("meta-token");
         }
     }
 

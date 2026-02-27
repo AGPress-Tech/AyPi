@@ -577,6 +577,29 @@ function fetchJson(url: string, token?: string): Promise<any> {
     });
 }
 
+function readSharedEnvToken() {
+    const envPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\.env";
+    try {
+        if (!fs.existsSync(envPath)) return "";
+        const raw = fs.readFileSync(envPath, "utf8");
+        const lines = raw.split(/\r?\n/);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) continue;
+            const idx = trimmed.indexOf("=");
+            if (idx <= 0) continue;
+            const key = trimmed.slice(0, idx).trim();
+            const value = trimmed.slice(idx + 1).trim();
+            if (key === "GH_TOKEN" || key === "GITHUB_TOKEN") {
+                return value.replace(/^\"|\"$/g, "").replace(/^'|'$/g, "");
+            }
+        }
+        return "";
+    } catch {
+        return "";
+    }
+}
+
 async function resolveGithubTagCommit(
     base: string,
     sha: string,
@@ -640,6 +663,54 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
             commits: commitsByWeek.get(week) || 0,
         };
     });
+    let warning: string | undefined;
+    if ((!Array.isArray(commitActivity) || commitActivity.length === 0) && data.length) {
+        try {
+            const minWeek = data[0]?.date ? new Date(`${data[0].date}T00:00:00Z`) : null;
+            const minDate = minWeek && !Number.isNaN(minWeek.getTime()) ? minWeek : undefined;
+            const commitList = await fetchGithubCommits(owner, repo, token, 5000, minDate);
+            const commitCounts = new Map<number, number>();
+            commitList.forEach((entry) => {
+                const time = new Date(entry.date).getTime();
+                if (Number.isNaN(time)) return;
+                const week = Math.floor(time / 1000 / 604800) * 604800;
+                commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+            });
+            data.forEach((row) => {
+                const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
+                row.commits = commitCounts.get(week) || 0;
+            });
+            warning = "commit-activity-fallback";
+        } catch {
+            warning = "commit-activity-empty";
+        }
+    }
+
+    // include current (incomplete) week commit count
+    if (data.length) {
+        const lastDate = new Date(`${data[data.length - 1].date}T00:00:00Z`);
+        const lastWeek = Math.floor(lastDate.getTime() / 1000 / 604800) * 604800;
+        const nowWeek = Math.floor(Date.now() / 1000 / 604800) * 604800;
+        if (nowWeek > lastWeek) {
+            try {
+                const sinceDate = new Date(nowWeek * 1000);
+                const recentCommits = await fetchGithubCommits(owner, repo, token, 800, sinceDate);
+                const weekCommits = recentCommits.filter((entry) => {
+                    const time = new Date(entry.date).getTime();
+                    return !Number.isNaN(time) && time >= sinceDate.getTime();
+                }).length;
+                data.push({
+                    date: new Date(nowWeek * 1000).toISOString().slice(0, 10),
+                    additions: 0,
+                    deletions: 0,
+                    commits: weekCommits,
+                });
+                warning = warning || "commit-week-partial";
+            } catch {
+                // ignore
+            }
+        }
+    }
 
     const tagList = Array.isArray(tags) ? tags.slice(0, 50) : [];
     const tagDetails = await Promise.all(
@@ -658,6 +729,7 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
         fetchedAt: new Date().toISOString(),
         data,
         tags: tagPayload,
+        warning,
     };
 }
 
@@ -2082,7 +2154,7 @@ function setupFileManager(mainWindow) {
         const repo = (options && options.repo) ? String(options.repo) : "AyPi";
         const token = options && options.token
             ? String(options.token)
-            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN);
+            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || readSharedEnvToken());
         const tokenPresent = !!token;
         const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
         const force = !!(options && options.force);
@@ -2107,7 +2179,88 @@ function setupFileManager(mainWindow) {
                       0,
                   )
                 : 0;
-            if (cached && cached.ok && cached.data && cached.data.length && totalCommits === 0) {
+            // Prefer Gitflow cache commits if it yields a higher (more complete) total
+            if (Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+                const gitflowCached = readGitflowSnapshot(
+                    "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
+                );
+                if (gitflowCached && Array.isArray(gitflowCached.commits)) {
+                    const commitCounts = new Map<number, number>();
+                    gitflowCached.commits.forEach((entry) => {
+                        const time = new Date(entry.date).getTime();
+                        if (Number.isNaN(time)) return;
+                        const week = Math.floor(time / 1000 / 604800) * 604800;
+                        commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+                    });
+                    const rebuilt = payloadWithToken.data.map((row) => {
+                        const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
+                        return {
+                            ...row,
+                            commits: commitCounts.get(week) || 0,
+                        };
+                    });
+                    const rebuiltTotal = rebuilt.reduce((sum, row) => sum + (row.commits || 0), 0);
+                    if (rebuiltTotal > totalCommits) {
+                        payloadWithToken.data = rebuilt;
+                        payloadWithToken.warning = "commit-activity-gitflow-cache";
+                    }
+                }
+            }
+            if (totalCommits === 0 && Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+                const gitflowCached = readGitflowSnapshot(
+                    "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
+                );
+                if (gitflowCached && Array.isArray(gitflowCached.commits)) {
+                    const commitCounts = new Map<number, number>();
+                    gitflowCached.commits.forEach((entry) => {
+                        const time = new Date(entry.date).getTime();
+                        if (Number.isNaN(time)) return;
+                        const week = Math.floor(time / 1000 / 604800) * 604800;
+                        commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+                    });
+                    payloadWithToken.data.forEach((row) => {
+                        const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
+                        row.commits = commitCounts.get(week) || 0;
+                    });
+                    payloadWithToken.warning = "commit-activity-gitflow-cache";
+                }
+            }
+            if (totalCommits === 0 && Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+                try {
+                    const firstDate = payloadWithToken.data[0]?.date
+                        ? new Date(`${payloadWithToken.data[0].date}T00:00:00Z`)
+                        : null;
+                    const minDate = firstDate && !Number.isNaN(firstDate.getTime()) ? firstDate : undefined;
+                    const commitList = await fetchGithubCommits(owner, repo, token, 5000, minDate);
+                    const commitCounts = new Map<number, number>();
+                    commitList.forEach((entry) => {
+                        const time = new Date(entry.date).getTime();
+                        if (Number.isNaN(time)) return;
+                        const week = Math.floor(time / 1000 / 604800) * 604800;
+                        commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+                    });
+                    payloadWithToken.data.forEach((row) => {
+                        const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
+                        row.commits = commitCounts.get(week) || 0;
+                    });
+                    payloadWithToken.warning = "commit-activity-fallback";
+                } catch {
+                    if (cached && cached.ok && cached.data && cached.data.length) {
+                        return {
+                            ...cached,
+                            warning: "github-commits-zero",
+                        };
+                    }
+                }
+            }
+            const refreshedCommits = Array.isArray(payloadWithToken.data)
+                ? payloadWithToken.data.reduce(
+                      (sum, entry) =>
+                          sum + (entry && typeof entry.commits === "number" ? entry.commits : 0),
+                      0,
+                  )
+                : 0;
+            if (cached && cached.ok && cached.data && cached.data.length && refreshedCommits === 0) {
                 return {
                     ...cached,
                     warning: "github-commits-zero",
@@ -2141,7 +2294,7 @@ function setupFileManager(mainWindow) {
         const repo = (options && options.repo) ? String(options.repo) : "AyPi";
         const token = options && options.token
             ? String(options.token)
-            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN);
+            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || readSharedEnvToken());
         const maxCommits = options && options.maxCommits ? Number(options.maxCommits) : 400;
         const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
         const force = !!(options && options.force);
