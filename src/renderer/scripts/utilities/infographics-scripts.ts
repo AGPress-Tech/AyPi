@@ -101,6 +101,7 @@ init();
 async function init() {
     await reloadStats(false);
     bindControls();
+    scheduleDailyRefresh();
     window.addEventListener("resize", () => {
         if (lastTimelineDates.length) {
             renderTimeline(lastTimelineDates, lastTimelineCommits);
@@ -160,8 +161,7 @@ async function reloadStats(force: boolean) {
             fetchError.textContent =
                 "Attenzione: GitHub ha restituito 0 commit";
         } else if (payload.warning === "commit-activity-gitflow-cache") {
-            fetchError.textContent =
-                "Nota: commit calcolati da cache Gitflow";
+            fetchError.textContent = "Nota: commit calcolati da cache Gitflow";
         } else if (payload.warning === "commit-activity-fallback") {
             fetchError.textContent =
                 "Nota: commit calcolati via lista commit (fallback)";
@@ -423,6 +423,17 @@ function bindControls() {
             window.addEventListener("blur", onUp);
         });
     }
+}
+
+function scheduleDailyRefresh() {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const delay = Math.max(1000, nextMidnight.getTime() - now.getTime());
+
+    setTimeout(() => {
+        reloadStats(true);
+        setInterval(() => reloadStats(true), 24 * 60 * 60 * 1000);
+    }, delay);
 }
 
 async function openGitflowModal(force: boolean) {

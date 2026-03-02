@@ -545,6 +545,22 @@ function isSameDay(a: Date, b: Date) {
         && a.getDate() === b.getDate();
 }
 
+function startOfWeekMonday(date: Date) {
+    const day = date.getDay();
+    const diff = (day + 6) % 7;
+    const start = new Date(date);
+    start.setDate(date.getDate() - diff);
+    start.setHours(0, 0, 0, 0);
+    return start;
+}
+
+function toDateKey(date: Date) {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
 function fetchJson(url: string, token?: string): Promise<any> {
     return new Promise((resolve, reject) => {
         const headers: Record<string, string> = {
@@ -559,20 +575,28 @@ function fetchJson(url: string, token?: string): Promise<any> {
             res.on("data", (chunk) => chunks.push(chunk));
             res.on("end", () => {
                 const raw = Buffer.concat(chunks).toString("utf8");
-                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                const status = res.statusCode || 0;
+                if (status >= 200 && status < 300) {
                     try {
                         resolve(JSON.parse(raw));
                     } catch (err) {
+                        log.warn("[github] JSON parse failed", { url, status, error: err?.message || String(err) });
                         reject(err);
                     }
-                } else if (res.statusCode === 202) {
-                    resolve({ __pending: true });
+                } else if (status === 202) {
+                    log.warn("[github] pending (202)", { url });
+                    resolve({ __pending: true, __status: status });
                 } else {
-                    reject(new Error(`HTTP ${res.statusCode || 0}: ${raw}`));
+                    const body = raw ? raw.slice(0, 600) : "";
+                    log.warn("[github] request failed", { url, status, body });
+                    reject(new Error(`HTTP ${status}: ${body}`));
                 }
             });
         });
-        req.on("error", reject);
+        req.on("error", (err) => {
+            log.warn("[github] request error", { url, error: err?.message || String(err) });
+            reject(err);
+        });
         req.end();
     });
 }
@@ -628,15 +652,18 @@ async function resolveGithubTagCommit(
 
 async function fetchGithubStats(owner: string, repo: string, token?: string) {
     const base = `https://api.github.com/repos/${owner}/${repo}`;
-    const retry = async (url: string, attempts = 4) => {
+    const retry = async (url: string, attempts = 8) => {
         for (let i = 0; i < attempts; i += 1) {
             const res = await fetchJson(url, token);
             if (res && res.__pending) {
-                await new Promise((resolve) => setTimeout(resolve, 800));
+                const delay = Math.min(1200 + i * 600, 5000);
+                log.warn("[github-stats] pending (202), retrying", { url, attempt: i + 1, delayMs: delay });
+                await new Promise((resolve) => setTimeout(resolve, delay));
                 continue;
             }
             return res;
         }
+        log.warn("[github-stats] pending (202) after retries, giving up", { url, attempts });
         return [];
     };
 
@@ -647,68 +674,111 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
     ]);
 
     const commitsByWeek = new Map<number, number>();
-    (Array.isArray(commitActivity) ? commitActivity : []).forEach((entry) => {
+    const commitActivityList = Array.isArray(commitActivity) ? commitActivity : [];
+    const codeFrequencyList = Array.isArray(codeFrequency) ? codeFrequency : [];
+    if (!codeFrequencyList.length) {
+        log.warn("[github-stats] code_frequency empty", { owner, repo });
+    }
+    if (!commitActivityList.length) {
+        log.warn("[github-stats] commit_activity empty", { owner, repo });
+    }
+
+    commitActivityList.forEach((entry) => {
         if (!entry || typeof entry.week !== "number") return;
         commitsByWeek.set(entry.week, entry.total || 0);
     });
 
-    const data = (Array.isArray(codeFrequency) ? codeFrequency : []).map((entry) => {
+    let data = codeFrequencyList.map((entry) => {
         const week = entry[0];
         const additions = entry[1] || 0;
         const deletions = Math.abs(entry[2] || 0);
+        // GitHub stats weeks are anchored to Sunday (UTC). Shift to Monday to match UI week labels.
+        const weekDate = new Date((week + 86400) * 1000);
         return {
-            date: new Date(week * 1000).toISOString().slice(0, 10),
+            date: weekDate.toISOString().slice(0, 10),
             additions,
             deletions,
             commits: commitsByWeek.get(week) || 0,
         };
     });
     let warning: string | undefined;
-    if ((!Array.isArray(commitActivity) || commitActivity.length === 0) && data.length) {
+    if (!commitActivityList.length && data.length) {
         try {
             const minWeek = data[0]?.date ? new Date(`${data[0].date}T00:00:00Z`) : null;
             const minDate = minWeek && !Number.isNaN(minWeek.getTime()) ? minWeek : undefined;
             const commitList = await fetchGithubCommits(owner, repo, token, 5000, minDate);
-            const commitCounts = new Map<number, number>();
+            const commitCounts = new Map<string, number>();
             commitList.forEach((entry) => {
-                const time = new Date(entry.date).getTime();
-                if (Number.isNaN(time)) return;
-                const week = Math.floor(time / 1000 / 604800) * 604800;
-                commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+                const date = new Date(entry.date);
+                if (Number.isNaN(date.getTime())) return;
+                const key = toDateKey(startOfWeekMonday(date));
+                commitCounts.set(key, (commitCounts.get(key) || 0) + 1);
             });
             data.forEach((row) => {
-                const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
-                row.commits = commitCounts.get(week) || 0;
+                const rowDate = new Date(`${row.date}T00:00:00Z`);
+                const key = Number.isNaN(rowDate.getTime())
+                    ? row.date
+                    : toDateKey(startOfWeekMonday(rowDate));
+                row.commits = commitCounts.get(key) || 0;
             });
             warning = "commit-activity-fallback";
         } catch {
             warning = "commit-activity-empty";
         }
     }
+    if (!data.length) {
+        try {
+            const commitList = await fetchGithubCommits(owner, repo, token, 5000);
+            const commitCounts = new Map<string, number>();
+            commitList.forEach((entry) => {
+                const date = new Date(entry.date);
+                if (Number.isNaN(date.getTime())) return;
+                const key = toDateKey(startOfWeekMonday(date));
+                commitCounts.set(key, (commitCounts.get(key) || 0) + 1);
+            });
+            const weeks = Array.from(commitCounts.keys()).sort();
+            data = weeks.map((week) => ({
+                date: week,
+                additions: 0,
+                deletions: 0,
+                commits: commitCounts.get(week) || 0,
+            }));
+            warning = warning || (data.length ? "commit-activity-fallback" : "commit-activity-empty");
+        } catch {
+            warning = warning || "commit-activity-empty";
+        }
+    }
 
     // include current (incomplete) week commit count
     if (data.length) {
         const lastDate = new Date(`${data[data.length - 1].date}T00:00:00Z`);
-        const lastWeek = Math.floor(lastDate.getTime() / 1000 / 604800) * 604800;
-        const nowWeek = Math.floor(Date.now() / 1000 / 604800) * 604800;
-        if (nowWeek > lastWeek) {
+        const lastWeekStart = Number.isNaN(lastDate.getTime())
+            ? null
+            : startOfWeekMonday(lastDate);
+        const nowWeekStart = startOfWeekMonday(new Date());
+        if (!lastWeekStart || nowWeekStart.getTime() > lastWeekStart.getTime()) {
+            let weekCommits = 0;
             try {
-                const sinceDate = new Date(nowWeek * 1000);
+                const sinceDate = nowWeekStart;
                 const recentCommits = await fetchGithubCommits(owner, repo, token, 800, sinceDate);
-                const weekCommits = recentCommits.filter((entry) => {
+                weekCommits = recentCommits.filter((entry) => {
                     const time = new Date(entry.date).getTime();
                     return !Number.isNaN(time) && time >= sinceDate.getTime();
                 }).length;
-                data.push({
-                    date: new Date(nowWeek * 1000).toISOString().slice(0, 10),
-                    additions: 0,
-                    deletions: 0,
-                    commits: weekCommits,
+            } catch (err) {
+                log.warn("[github-stats] current week commits fetch failed", {
+                    owner,
+                    repo,
+                    error: err?.message || String(err),
                 });
-                warning = warning || "commit-week-partial";
-            } catch {
-                // ignore
             }
+            data.push({
+                date: toDateKey(nowWeekStart),
+                additions: 0,
+                deletions: 0,
+                commits: weekCommits,
+            });
+            warning = warning || "commit-week-partial";
         }
     }
 
@@ -2172,6 +2242,33 @@ function setupFileManager(mainWindow) {
         try {
             const payload = await fetchGithubStats(owner, repo, token);
             const payloadWithToken = { ...payload, tokenPresent };
+            const hasCodeFrequency = Array.isArray(payloadWithToken.data)
+                && payloadWithToken.data.some(
+                    (row) => (row?.additions || 0) !== 0 || (row?.deletions || 0) !== 0,
+                );
+            if (!hasCodeFrequency && cached && Array.isArray(cached.data) && cached.data.length) {
+                const cachedMap = new Map<string, { additions: number; deletions: number }>();
+                cached.data.forEach((row) => {
+                    const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
+                    if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+                    const key = toDateKey(startOfWeekMonday(rowDate));
+                    cachedMap.set(key, {
+                        additions: Number(row.additions || 0),
+                        deletions: Number(row.deletions || 0),
+                    });
+                });
+                payloadWithToken.data.forEach((row) => {
+                    const rowDate = new Date(`${row.date}T00:00:00Z`);
+                    if (Number.isNaN(rowDate.getTime())) return;
+                    const key = toDateKey(startOfWeekMonday(rowDate));
+                    const cachedRow = cachedMap.get(key);
+                    if (cachedRow) {
+                        row.additions = cachedRow.additions;
+                        row.deletions = cachedRow.deletions;
+                    }
+                });
+                payloadWithToken.warning = payloadWithToken.warning || "code-frequency-cache";
+            }
             const totalCommits = Array.isArray(payloadWithToken.data)
                 ? payloadWithToken.data.reduce(
                       (sum, entry) =>
@@ -2185,15 +2282,18 @@ function setupFileManager(mainWindow) {
                     "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
                 );
                 if (gitflowCached && Array.isArray(gitflowCached.commits)) {
-                    const commitCounts = new Map<number, number>();
+                    const commitCounts = new Map<string, number>();
                     gitflowCached.commits.forEach((entry) => {
-                        const time = new Date(entry.date).getTime();
-                        if (Number.isNaN(time)) return;
-                        const week = Math.floor(time / 1000 / 604800) * 604800;
-                        commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+                        const date = new Date(entry.date);
+                        if (Number.isNaN(date.getTime())) return;
+                        const key = toDateKey(startOfWeekMonday(date));
+                        commitCounts.set(key, (commitCounts.get(key) || 0) + 1);
                     });
                     const rebuilt = payloadWithToken.data.map((row) => {
-                        const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
+                        const rowDate = new Date(`${row.date}T00:00:00Z`);
+                        const week = Number.isNaN(rowDate.getTime())
+                            ? row.date
+                            : toDateKey(startOfWeekMonday(rowDate));
                         return {
                             ...row,
                             commits: commitCounts.get(week) || 0,
@@ -2211,15 +2311,18 @@ function setupFileManager(mainWindow) {
                     "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
                 );
                 if (gitflowCached && Array.isArray(gitflowCached.commits)) {
-                    const commitCounts = new Map<number, number>();
+                    const commitCounts = new Map<string, number>();
                     gitflowCached.commits.forEach((entry) => {
-                        const time = new Date(entry.date).getTime();
-                        if (Number.isNaN(time)) return;
-                        const week = Math.floor(time / 1000 / 604800) * 604800;
-                        commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+                        const date = new Date(entry.date);
+                        if (Number.isNaN(date.getTime())) return;
+                        const key = toDateKey(startOfWeekMonday(date));
+                        commitCounts.set(key, (commitCounts.get(key) || 0) + 1);
                     });
                     payloadWithToken.data.forEach((row) => {
-                        const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
+                        const rowDate = new Date(`${row.date}T00:00:00Z`);
+                        const week = Number.isNaN(rowDate.getTime())
+                            ? row.date
+                            : toDateKey(startOfWeekMonday(rowDate));
                         row.commits = commitCounts.get(week) || 0;
                     });
                     payloadWithToken.warning = "commit-activity-gitflow-cache";
@@ -2232,15 +2335,18 @@ function setupFileManager(mainWindow) {
                         : null;
                     const minDate = firstDate && !Number.isNaN(firstDate.getTime()) ? firstDate : undefined;
                     const commitList = await fetchGithubCommits(owner, repo, token, 5000, minDate);
-                    const commitCounts = new Map<number, number>();
+                    const commitCounts = new Map<string, number>();
                     commitList.forEach((entry) => {
-                        const time = new Date(entry.date).getTime();
-                        if (Number.isNaN(time)) return;
-                        const week = Math.floor(time / 1000 / 604800) * 604800;
-                        commitCounts.set(week, (commitCounts.get(week) || 0) + 1);
+                        const date = new Date(entry.date);
+                        if (Number.isNaN(date.getTime())) return;
+                        const key = toDateKey(startOfWeekMonday(date));
+                        commitCounts.set(key, (commitCounts.get(key) || 0) + 1);
                     });
                     payloadWithToken.data.forEach((row) => {
-                        const week = Math.floor(new Date(`${row.date}T00:00:00Z`).getTime() / 1000 / 604800) * 604800;
+                        const rowDate = new Date(`${row.date}T00:00:00Z`);
+                        const week = Number.isNaN(rowDate.getTime())
+                            ? row.date
+                            : toDateKey(startOfWeekMonday(rowDate));
                         row.commits = commitCounts.get(week) || 0;
                     });
                     payloadWithToken.warning = "commit-activity-fallback";
