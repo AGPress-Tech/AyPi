@@ -1726,7 +1726,7 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
     if (startParsed.getFullYear() > maxYear || endParsed.getFullYear() > maxYear) {
         return { error: `L'anno non puo superare ${maxYear}.` };
     }
-    const allowPastDates = allowPast || type === "mutua";
+    const allowPastDates = type === "straordinari";
     if (!allowPastDates) {
         if (startParsed < todayMidnight || endParsed < todayMidnight) {
             return { error: UI_TEXTS.requestNoPastDates };
