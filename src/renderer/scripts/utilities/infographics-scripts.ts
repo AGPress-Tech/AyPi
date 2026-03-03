@@ -1132,39 +1132,45 @@ function renderTimeline(dates: Date[], commits: number[]) {
     container
         .querySelectorAll(".timeline-dot, .timeline-label")
         .forEach((node) => node.remove());
-    if (dates.length <= 1) return;
+    const tagTimes = tagStats
+        .map((tag) => tag?.date?.getTime?.())
+        .filter((t) => Number.isFinite(t)) as number[];
 
-    const minTime = dates[0].getTime();
-    const maxTime = dates[dates.length - 1].getTime();
+    const dateTimes = dates.map((d) => d.getTime()).filter((t) => Number.isFinite(t));
+    if (!dateTimes.length && !tagTimes.length) return;
+
+    const minTime = Math.min(...dateTimes, ...tagTimes);
+    const maxTime = Math.max(...dateTimes, ...tagTimes);
     const span = Math.max(1, maxTime - minTime);
 
-    const maxCommits = Math.max(1, ...commits);
+    if (dates.length > 0) {
+        const maxCommits = Math.max(1, ...commits);
+        dates.forEach((date, index) => {
+            const count = commits[index] || 0;
+            if (!count) return;
+            const x = ((date.getTime() - minTime) / span) * 100;
+            const dot = document.createElement("div");
+            dot.className = "timeline-dot";
+            const size = 4 + Math.min(6, (count / maxCommits) * 6);
+            dot.style.width = `${size}px`;
+            dot.style.height = `${size}px`;
+            dot.style.left = `${x}%`;
+            container.appendChild(dot);
 
-    dates.forEach((date, index) => {
-        const count = commits[index] || 0;
-        if (!count) return;
-        const x = ((date.getTime() - minTime) / span) * 100;
-        const dot = document.createElement("div");
-        dot.className = "timeline-dot";
-        const size = 4 + Math.min(6, (count / maxCommits) * 6);
-        dot.style.width = `${size}px`;
-        dot.style.height = `${size}px`;
-        dot.style.left = `${x}%`;
-        container.appendChild(dot);
+            const commitTooltip = document.createElement("div");
+            commitTooltip.className = "timeline-tooltip";
+            commitTooltip.style.left = `${x}%`;
+            commitTooltip.textContent = `Commit: ${count}`;
+            container.appendChild(commitTooltip);
 
-        const commitTooltip = document.createElement("div");
-        commitTooltip.className = "timeline-tooltip";
-        commitTooltip.style.left = `${x}%`;
-        commitTooltip.textContent = `Commit: ${count}`;
-        container.appendChild(commitTooltip);
-
-        dot.addEventListener("mouseenter", () => {
-            commitTooltip.classList.add("is-visible");
+            dot.addEventListener("mouseenter", () => {
+                commitTooltip.classList.add("is-visible");
+            });
+            dot.addEventListener("mouseleave", () => {
+                commitTooltip.classList.remove("is-visible");
+            });
         });
-        dot.addEventListener("mouseleave", () => {
-            commitTooltip.classList.remove("is-visible");
-        });
-    });
+    }
 
     const width = container.getBoundingClientRect().width;
     const points = tagStats

@@ -2499,6 +2499,34 @@ function setupFileManager(mainWindow) {
                     }
                 });
                 payloadWithToken.warning = payloadWithToken.warning || "code-frequency-cache";
+            } else if (!hasCodeFrequency) {
+                const repoRoot = resolveGitRepoRoot();
+                if (repoRoot) {
+                    const local = getGitDailyStats(repoRoot);
+                    if (local && local.ok && Array.isArray(local.data)) {
+                        const localMap = new Map<string, { additions: number; deletions: number }>();
+                        local.data.forEach((row) => {
+                            const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
+                            if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+                            const key = toDateKey(startOfWeekMonday(rowDate));
+                            const prev = localMap.get(key) || { additions: 0, deletions: 0 };
+                            prev.additions += Number(row.additions || 0);
+                            prev.deletions += Number(row.deletions || 0);
+                            localMap.set(key, prev);
+                        });
+                        payloadWithToken.data.forEach((row) => {
+                            const rowDate = new Date(`${row.date}T00:00:00Z`);
+                            if (Number.isNaN(rowDate.getTime())) return;
+                            const key = toDateKey(startOfWeekMonday(rowDate));
+                            const localRow = localMap.get(key);
+                            if (localRow) {
+                                row.additions = localRow.additions;
+                                row.deletions = localRow.deletions;
+                            }
+                        });
+                        payloadWithToken.warning = payloadWithToken.warning || "code-frequency-local";
+                    }
+                }
             }
             const totalCommits = Array.isArray(payloadWithToken.data)
                 ? payloadWithToken.data.reduce(
