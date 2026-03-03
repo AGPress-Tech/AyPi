@@ -78,7 +78,7 @@ function scanFolder(rootPath) {
     return results;
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
     console.log("utilities-scripts.js caricato");
     ipcRenderer.send("resize-normale");
 
@@ -195,11 +195,18 @@ window.addEventListener("DOMContentLoaded", () => {
 
     const btnAdmin = document.getElementById("amministrazione");
     const btnFeriePermessi = document.getElementById("feriePermessi");
+    const btnSyncLegacyAll = document.getElementById("aypiSyncLegacyAll");
     const adminOverlay = document.getElementById("adminOverlay");
     const adminPassword = document.getElementById("adminPassword");
     const adminError = document.getElementById("adminError");
     const adminCancel = document.getElementById("adminCancel");
     const adminConfirm = document.getElementById("adminConfirm");
+    let adminPromptAction = null;
+
+    const setSyncLegacyVisible = (enabled) => {
+        if (!btnSyncLegacyAll) return;
+        btnSyncLegacyAll.classList.toggle("is-hidden", !enabled);
+    };
 
     function closeAdminPrompt() {
         if (!adminOverlay) return;
@@ -219,8 +226,22 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function confirmAdminPassword() {
+    async function confirmAdminPassword() {
         const password = adminPassword ? adminPassword.value : "";
+        if (!password) {
+            if (adminError) adminError.classList.remove("is-hidden");
+            return;
+        }
+        if (adminPromptAction === "login-only") {
+            const result = await ipcRenderer.invoke("admin-auth", { password });
+            if (!result || !result.ok) {
+                if (adminError) adminError.classList.remove("is-hidden");
+                return;
+            }
+            closeAdminPrompt();
+            setSyncLegacyVisible(true);
+            return;
+        }
         if (password !== "AGPress") {
             if (adminError) adminError.classList.remove("is-hidden");
             return;
@@ -231,6 +252,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     if (btnAdmin) {
         btnAdmin.addEventListener("click", () => {
+            adminPromptAction = "open-amministrazione";
             openAdminPrompt();
         });
     }
@@ -245,6 +267,34 @@ window.addEventListener("DOMContentLoaded", () => {
     if (btnPurchaseRequests) {
         btnPurchaseRequests.addEventListener("click", () => {
             ipcRenderer.send("open-product-manager-window");
+        });
+    }
+
+    if (btnSyncLegacyAll) {
+        btnSyncLegacyAll.addEventListener("click", async () => {
+            const confirm = await ipcRenderer.invoke("show-message-box", {
+                type: "warning",
+                buttons: ["Annulla", "Procedi"],
+                defaultId: 1,
+                cancelId: 0,
+                title: "Sincronizzazione e pulizia legacy",
+                message: "Confermi la sincronizzazione dai legacy ai nuovi shard e la rimozione dei dati legacy?",
+                detail: "Questa operazione va fatta solo quando tutte le postazioni sono aggiornate.",
+            });
+            if (!confirm || confirm.response !== 1) return;
+            const result = await ipcRenderer.invoke("aypi-sync-legacy-all");
+            if (!result || !result.ok) {
+                await showError("Operazione non riuscita.", result?.reason || "Errore sconosciuto");
+                return;
+            }
+            const removedCount = Array.isArray(result.removed) ? result.removed.length : 0;
+            const synced = result.synced || {};
+            const calendarInfo = synced.calendar ? `Calendar: ${synced.calendar}` : "Calendar: -";
+            const purchasingInfo = synced.purchasing ? `Purchasing: ${synced.purchasing}` : "Purchasing: -";
+            await showInfo(
+                "Operazione completata.",
+                `${calendarInfo}\n${purchasingInfo}\nRimossi: ${removedCount} elementi legacy.`,
+            );
         });
     }
 
@@ -270,6 +320,26 @@ window.addEventListener("DOMContentLoaded", () => {
                 closeAdminPrompt();
             }
         });
+    }
+
+    window.addEventListener("keydown", async (event) => {
+        if (event.key === "F2") {
+            event.preventDefault();
+            adminPromptAction = "login-only";
+            openAdminPrompt();
+        }
+    });
+
+    ipcRenderer.on("admin-state-changed", (_event, payload) => {
+        const enabled = !!payload?.enabled;
+        setSyncLegacyVisible(enabled);
+    });
+
+    try {
+        const enabled = await ipcRenderer.invoke("admin-is-enabled");
+        setSyncLegacyVisible(!!enabled);
+    } catch (err) {
+        setSyncLegacyVisible(false);
     }
 });
 

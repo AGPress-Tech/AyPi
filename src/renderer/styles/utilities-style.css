@@ -85,6 +85,19 @@ button:focus {
     outline: none;
 }
 
+button.danger {
+    background-color: #b3261e;
+    color: #fff;
+}
+
+button.danger:hover {
+    background-color: #8f1f19;
+}
+
+button.is-hidden {
+    display: none;
+}
+
 #appVersion {
     user-select: none;
     -webkit-user-select: none;
