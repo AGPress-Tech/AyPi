@@ -183,7 +183,7 @@ function initExportModal(ctx) {
             "Richiesto da",
             "Prodotto",
             "Tipologia",
-            "QuantitÃ ",
+            "Quantità",
             "UM",
             "Urgenza",
             "Fornitore",

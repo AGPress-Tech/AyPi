@@ -1412,64 +1412,24 @@ function writeInterventionsShards(payload) {
 }
 
 function readRequestsFile(mode = getActiveMode()) {
-    const filePath = getRequestsPath(mode);
     try {
         if (mode === REQUEST_MODES.INTERVENTION) {
-            const candidates = [];
-            if (filePath && fs.existsSync(filePath)) {
-                const raw = fs.readFileSync(filePath, "utf8");
-                const parsed = JSON.parse(raw);
-                const normalized = normalizeRequestsData(parsed);
-                const ms = Number(fs.statSync(filePath).mtimeMs) || 0;
-                if (normalized.length)
-                    candidates.push({ data: normalized, ms });
-            }
             const shardData = readInterventionsFromShards();
-            const shardHasItems =
-                Array.isArray(shardData) && shardData.length > 0;
-            if (shardHasItems) {
-                const ms = getInterventionShardLatestMtimeMs();
-                candidates.push({ data: shardData, ms });
-            }
-            if (!candidates.length) {
-                return [];
-            }
-            const best = candidates.sort((a, b) => b.ms - a.ms)[0];
-            validateWithAjv(validateRequestsSchema, best.data, "richieste", {
+            if (!Array.isArray(shardData) || shardData.length === 0) return [];
+            validateWithAjv(validateRequestsSchema, shardData, "richieste", {
                 showWarning,
                 showError,
             });
-            return best.data;
+            return shardData;
         }
 
-        const primaryExists = filePath && fs.existsSync(filePath);
-        const primaryData = primaryExists
-            ? normalizeRequestsData(
-                  JSON.parse(fs.readFileSync(filePath, "utf8")),
-              )
-            : null;
-        const primaryHasItems =
-            Array.isArray(primaryData) && primaryData.length > 0;
         const shardData = readRequestsFromShards();
-        const shardHasItems = Array.isArray(shardData) && shardData.length > 0;
-        const candidates = [];
-        if (primaryHasItems) {
-            const ms = Number(fs.statSync(filePath).mtimeMs) || 0;
-            candidates.push({ data: primaryData, ms });
-        }
-        if (shardHasItems) {
-            const ms = getShardLatestMtimeMs();
-            candidates.push({ data: shardData, ms });
-        }
-        if (!candidates.length) {
-            return [];
-        }
-        const best = candidates.sort((a, b) => b.ms - a.ms)[0];
-        validateWithAjv(validateRequestsSchema, best.data, "richieste", {
+        if (!Array.isArray(shardData) || shardData.length === 0) return [];
+        validateWithAjv(validateRequestsSchema, shardData, "richieste", {
             showWarning,
             showError,
         });
-        return best.data;
+        return shardData;
     } catch (err) {
         showError("Errore lettura richieste.", err.message || String(err));
         return [];
@@ -1477,7 +1437,6 @@ function readRequestsFile(mode = getActiveMode()) {
 }
 
 function saveRequestsFile(payload, mode = getActiveMode()) {
-    const filePath = getRequestsPath(mode);
     try {
         const normalized = normalizeRequestsData(payload);
         if (
@@ -1488,18 +1447,8 @@ function saveRequestsFile(payload, mode = getActiveMode()) {
         )
             return false;
         if (mode === REQUEST_MODES.INTERVENTION) {
-            fs.writeFileSync(
-                filePath,
-                JSON.stringify(normalized, null, 2),
-                "utf8",
-            );
             writeInterventionsShards(normalized);
         } else {
-            fs.writeFileSync(
-                filePath,
-                JSON.stringify(normalized, null, 2),
-                "utf8",
-            );
             writeRequestsShards(normalized);
         }
         return true;

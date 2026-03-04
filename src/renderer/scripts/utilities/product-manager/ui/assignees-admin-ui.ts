@@ -141,6 +141,7 @@ function renderEmployeesList(ctx) {
         document,
         getAssigneeGroups,
         getAssigneeEmails,
+        setAssigneeGroups,
         setAssigneeEmails,
         editingEmployee,
         setEditingEmployee,

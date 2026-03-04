@@ -174,7 +174,7 @@ function renderCartTable({
     [
         "",
         "Prodotto",
-        "QuantitÃ ",
+        "Quantità",
         "UM",
         "Priorità",
         "Fornitore",
