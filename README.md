@@ -26,12 +26,14 @@ Al momento supporta in 7 pagine di navigazione, **Moduli**, **Programmi**, **Art
 <li><b>Confronta Cartelle</b></li>
 <li><b>Analizzatore Gerarchia Cartelle</b></li>
 <li><b>Calendario Aziendale - AyPi Calendar</b></li>
+<li><b>Modulo Acquisti e Interventi - AyPi Purchasing</b></li>
 </ul>
 <br/>
 L'applicazione si auto-aggiorna all'apertura, verifica che l'utente è collegato ad internet e alla rete interna, ed è in grado di informare l'utente se i moduli interessati sono stati rimossi,
 spostati o sono in uso da altri operatori.
 
 Ha anche integrato un pulsante per scaricare e aggiornare l'<b>addin AyPi</b> per <b>Excel</b> e interagendo con l'orologio digitale della sidebar è possibile impostare timer (presettabili) e cronometri!
+
 
 
 
