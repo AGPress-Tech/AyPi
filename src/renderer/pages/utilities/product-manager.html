@@ -2,7 +2,8 @@
 <html lang="it">
 
 <head>
-                    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' 'unsafe-eval' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob: https:; connect-src 'self' file: https:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' 'unsafe-inline' 'unsafe-eval' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob: https:; connect-src 'self' file: https:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Product Manager</title>
@@ -70,7 +71,7 @@
                     startSplash();
                     return;
                 }
-            } catch (err) {}
+            } catch (err) { }
         })();
     </script>
     <div class="pm-js-warning" id="pm-js-warning">Errore: script non caricato.</div>
@@ -99,7 +100,8 @@
                 <form id="pm-request-form" class="pm-card">
                     <div class="pm-request-sticky pm-request-sticky--top">
                         <div class="pm-request-toggle">
-                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-toggle-request">Richiedi Intervento</button>
+                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-toggle-request">Richiedi
+                                Intervento</button>
                         </div>
                         <h2 id="pm-form-title">Nuova richiesta</h2>
                         <div class="pm-field">
@@ -111,10 +113,12 @@
                     <datalist id="pm-category-options"></datalist>
                     <div class="pm-request-sticky pm-request-sticky--bottom">
                         <div class="pm-line-actions">
-                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-line">+ Aggiungi prodotto</button>
+                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-line">+ Aggiungi
+                                prodotto</button>
                         </div>
                         <div class="pm-actions">
-                            <button type="button" class="pm-btn pm-btn--primary" id="pm-request-save">Invia richiesta</button>
+                            <button type="button" class="pm-btn pm-btn--primary" id="pm-request-save">Invia
+                                richiesta</button>
                         </div>
                     </div>
                     <div id="pm-form-message" class="pm-message is-hidden"></div>
@@ -125,7 +129,8 @@
                 <div class="pm-card" id="pm-catalog-panel">
                     <div class="pm-catalog-header">
                         <h2>Catalogo prodotti</h2>
-                        <button type="button" class="pm-btn pm-btn--ghost" id="pm-catalog-add">Aggiungi prodotto</button>
+                        <button type="button" class="pm-btn pm-btn--ghost" id="pm-catalog-add">Aggiungi
+                            prodotto</button>
                     </div>
                     <div class="pm-catalog-filters">
                         <input type="text" id="pm-catalog-search" class="pm-field__input" placeholder="Cerca prodotto">
@@ -174,7 +179,8 @@
                     <input type="password" id="pm-login-admin-password" placeholder="Password">
                 </div>
                 <div id="pm-login-admin-error" class="pm-message pm-message--error is-hidden">Password errata.</div>
-                <button type="button" class="fp-link-btn is-hidden" id="pm-login-admin-recover">Recupero password?</button>
+                <button type="button" class="fp-link-btn is-hidden" id="pm-login-admin-recover">Recupero
+                    password?</button>
                 <button type="button" class="pm-btn pm-btn--primary" id="pm-login-admin-confirm">Entra</button>
             </div>
         </div>
@@ -195,7 +201,7 @@
                 <select id="pm-suborder-employee"></select>
             </div>
             <div class="pm-field">
-                <label for="pm-suborder-quantity">Quantita</label>
+                <label for="pm-suborder-quantity">Quantità</label>
                 <input type="number" id="pm-suborder-quantity" min="0" step="0.01">
             </div>
             <div class="pm-actions">
@@ -277,7 +283,8 @@
     </div>
 
     <div class="fp-modal is-hidden" id="fp-guide-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-guide-card" role="dialog" aria-modal="true" aria-labelledby="fp-guide-title">
+        <div class="fp-modal__card fp-modal__card--tech fp-guide-card" role="dialog" aria-modal="true"
+            aria-labelledby="fp-guide-title">
             <div id="fp-guide-message" class="fp-message is-hidden"></div>
             <iframe id="fp-guide-frame" class="fp-guide-frame" title="Guida AyPi" src="about:blank"></iframe>
         </div>
@@ -347,7 +354,8 @@
     </div>
 
     <div class="fp-modal is-hidden" id="pm-settings-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="pm-settings-title">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true"
+            aria-labelledby="pm-settings-title">
             <div class="fp-assignees-header">
                 <h3 id="pm-settings-title">Impostazioni</h3>
                 <button type="button" class="fp-btn fp-btn--ghost" id="pm-settings-close">Chiudi</button>
@@ -441,7 +449,8 @@
     </div>
 
     <div class="fp-modal is-hidden" id="pm-theme-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="pm-theme-title">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true"
+            aria-labelledby="pm-theme-title">
             <div class="fp-assignees-header">
                 <h3 id="pm-theme-title">Tema</h3>
                 <button type="button" class="fp-btn fp-btn--ghost" id="pm-theme-close">Chiudi</button>
@@ -458,7 +467,8 @@
         </div>
     </div>
     <div class="fp-modal is-hidden" id="fp-otp-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-otp-title">
+        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true"
+            aria-labelledby="fp-otp-title">
             <div class="fp-assignees-header">
                 <h3 id="fp-otp-title">Recupero password</h3>
                 <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-close">Chiudi</button>
@@ -476,7 +486,8 @@
             </div>
             <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-reset-section">
                 <input class="fp-field__input" id="fp-otp-new" type="password" placeholder="Nuova password">
-                <input class="fp-field__input" id="fp-otp-new-confirm" type="password" placeholder="Conferma nuova password">
+                <input class="fp-field__input" id="fp-otp-new-confirm" type="password"
+                    placeholder="Conferma nuova password">
                 <div class="fp-admin-actions">
                     <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-reset">Aggiorna password</button>
                 </div>
@@ -486,7 +497,8 @@
     </div>
 
     <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
+        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true"
+            aria-labelledby="fp-approve-title">
             <h3 id="fp-approve-title">Conferma</h3>
             <p id="fp-approve-desc">Inserisci la password per continuare.</p>
             <input type="password" id="fp-approve-password" placeholder="Password">
@@ -519,16 +531,10 @@
                             detail: err && err.message ? err.message : String(err),
                         });
                     }
-                } catch (innerErr) {}
+                } catch (innerErr) { }
             }
         })();
     </script>
 </body>
 
 </html>
-
-
-
-
-
-

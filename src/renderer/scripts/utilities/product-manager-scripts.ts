@@ -1861,7 +1861,7 @@ function saveAddModal() {
     const qtyRaw = document.getElementById("pm-add-quantity")?.value || "";
     const qty = qtyRaw.toString().trim();
     if (!qty || Number.parseFloat(qty) <= 0) {
-        showWarning("QuantitÃƒÂ  non valida.");
+        showWarning("Quantità non valida.");
         return;
     }
 
