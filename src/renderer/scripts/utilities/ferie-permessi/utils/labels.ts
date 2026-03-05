@@ -7,6 +7,7 @@ export type RequestType =
     | "giustificato"
     | "straordinari"
     | "mutua"
+    | "infortunio"
     | "speciale"
     | string;
 
@@ -15,6 +16,7 @@ export function getTypeLabel(value: RequestType) {
     if (value === "retribuito" || value === "giustificato") return "Permesso Retribuito";
     if (value === "straordinari") return "Straordinari";
     if (value === "mutua") return "Mutua";
+    if (value === "infortunio") return "Infortunio";
     if (value === "speciale") return "Permesso Chiusura Aziendale";
     return "Ferie";
 }

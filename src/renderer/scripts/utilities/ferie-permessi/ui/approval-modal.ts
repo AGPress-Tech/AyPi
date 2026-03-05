@@ -15,6 +15,7 @@ type RequestLike = {
 type PendingAction =
     | { type: "admin-login" }
     | { type: "mutua-create"; request?: RequestLike; id?: string; title?: string; description?: string }
+    | { type: "infortunio-create"; request?: RequestLike; id?: string; title?: string; description?: string }
     | { type: "retribuito-create"; request?: RequestLike; id?: string; title?: string; description?: string }
     | { type: "giustificato-create"; request?: RequestLike; id?: string; title?: string; description?: string }
     | { type: "speciale-create"; request?: RequestLike; id?: string; title?: string; description?: string }
@@ -73,6 +74,7 @@ type ApprovalModalOptions = {
     onManageAccess: (admin?: AdminLike | null) => void;
     onDaysAccess: (admin?: AdminLike | null) => void;
     onMutuaCreate: (admin: AdminLike | null, request?: RequestLike) => void;
+    onInfortunioCreate: (admin: AdminLike | null, request?: RequestLike) => void;
     onRetribuitoCreate: (admin: AdminLike | null, request?: RequestLike) => void;
     onSpecialeCreate: (admin: AdminLike | null, request?: RequestLike) => void;
     onHolidayCreate: (admin: AdminLike | null, dates?: string[], name?: string) => void;
@@ -131,6 +133,7 @@ function createApprovalModal(options: ApprovalModalOptions) {
         onManageAccess,
         onDaysAccess,
         onMutuaCreate,
+        onInfortunioCreate,
         onRetribuitoCreate,
         onSpecialeCreate,
         onHolidayCreate,
@@ -181,6 +184,13 @@ function createApprovalModal(options: ApprovalModalOptions) {
             closeApprovalModal();
             if (typeof onMutuaCreate === "function") {
                 onMutuaCreate(admin, pendingAction.request);
+            }
+            return;
+        }
+        if (actionType === "infortunio-create") {
+            closeApprovalModal();
+            if (typeof onInfortunioCreate === "function") {
+                onInfortunioCreate(admin, pendingAction.request);
             }
             return;
         }

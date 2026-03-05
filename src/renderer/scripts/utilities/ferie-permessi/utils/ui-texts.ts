@@ -26,6 +26,7 @@ export const UI_TEXTS = {
     pendingRejectPasswordDescription: "Inserisci la password per rifiutare la richiesta.",
     pendingAccessPasswordDescription: "Inserisci la password per visualizzare le richieste in attesa.",
     mutuaPasswordDescription: "Inserisci la password admin per confermare la mutua.",
+    infortunioPasswordDescription: "Inserisci la password admin per confermare l'infortunio.",
     retribuitoPasswordDescription: "Inserisci la password admin per confermare il permesso retribuito.",
     specialePasswordDescription: "Inserisci la password admin per confermare il permesso chiusura aziendale.",
     hashingUnavailableTitle: "Modulo hashing non disponibile.",
@@ -56,6 +57,7 @@ export const UI_TEXTS = {
     requestMissingTimes: "Inserisci orari di inizio e fine.",
     requestSent: "Richiesta inviata.",
     mutuaInserted: "Mutua registrata.",
+    infortunioInserted: "Infortunio registrato.",
     retribuitoInserted: "Permesso retribuito registrato.",
     holidayInvalidDate: "Seleziona una data valida.",
     holidayRangeInvalid: "Seleziona un intervallo valido.",
@@ -77,6 +79,8 @@ export const UI_TEXTS = {
         `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
     mutuaConfirm: (startLabel, endLabel) =>
         `Confermi l'inserimento della <strong>Mutua</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
+    infortunioConfirm: (startLabel, endLabel) =>
+        `Confermi l'inserimento dell'<strong>Infortunio</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
     retribuitoConfirm: (startLabel, endLabel) =>
         `Confermi l'inserimento del <strong>Permesso Retribuito</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
     specialeConfirm: (startLabel, endLabel) =>

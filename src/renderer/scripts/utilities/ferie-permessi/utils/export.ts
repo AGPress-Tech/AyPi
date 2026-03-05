@@ -44,7 +44,9 @@ export function buildExportRows(
         const { startValue, endValue } = getExportDates(request);
         const hours = calculateHours(request, holidays, closures);
         const isMutua = request.type === "mutua";
+        const isInfortunio = request.type === "infortunio";
         const mutuaHours = isMutua ? hours : 0;
+        const infortunioHours = isInfortunio ? hours : 0;
         return {
             "Nome Operatore": request.employee || "",
             Reparto: request.department || "",
@@ -52,9 +54,10 @@ export function buildExportRows(
             "Data Fine": endValue || "",
             Ore: hours,
             "Ore Mutua": mutuaHours,
+            "Ore Infortunio": infortunioHours,
             Tipo: getTypeLabel(request.type),
-            "Approvato da": isMutua ? "" : request.approvedBy || "",
-            "Inserito da": isMutua ? request.approvedBy || "" : "",
+            "Approvato da": isMutua || isInfortunio ? "" : request.approvedBy || "",
+            "Inserito da": isMutua || isInfortunio ? request.approvedBy || "" : "",
             "Modificato da": request.modifiedBy || "",
         };
     });

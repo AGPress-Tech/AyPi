@@ -17,6 +17,8 @@ type AdminEntry = {
     passwordHash?: string;
     email?: string;
     phone?: string;
+    accessCalendar?: boolean;
+    accessPurchasing?: boolean;
 };
 
 type VerifyResult = { admin: AdminEntry; admins: AdminEntry[] };
@@ -41,6 +43,14 @@ function loadAdminCredentials(): AdminEntry[] {
                         : undefined,
                     email: item.email ? String(item.email) : "",
                     phone: item.phone ? String(item.phone) : "",
+                    accessCalendar:
+                        typeof item.accessCalendar === "boolean"
+                            ? item.accessCalendar
+                            : true,
+                    accessPurchasing:
+                        typeof item.accessPurchasing === "boolean"
+                            ? item.accessPurchasing
+                            : true,
                 }));
         }
         if (parsed && Array.isArray(parsed.admins)) {
@@ -59,6 +69,14 @@ function loadAdminCredentials(): AdminEntry[] {
                         : undefined,
                     email: item.email ? String(item.email) : "",
                     phone: item.phone ? String(item.phone) : "",
+                    accessCalendar:
+                        typeof item.accessCalendar === "boolean"
+                            ? item.accessCalendar
+                            : true,
+                    accessPurchasing:
+                        typeof item.accessPurchasing === "boolean"
+                            ? item.accessPurchasing
+                            : true,
                 }));
         }
         if (parsed && typeof parsed === "object") {
@@ -72,12 +90,16 @@ function loadAdminCredentials(): AdminEntry[] {
                               passwordHash: value,
                               email: "",
                               phone: "",
+                              accessCalendar: true,
+                              accessPurchasing: true,
                           } as AdminEntry)
                         : ({
                               name: String(name),
                               password: value,
                               email: "",
                               phone: "",
+                              accessCalendar: true,
+                              accessPurchasing: true,
                           } as AdminEntry);
                 });
         }
@@ -110,6 +132,14 @@ function saveAdminCredentials(admins: AdminEntry[]) {
             password: admin.passwordHash ? undefined : admin.password,
             email: admin.email || "",
             phone: admin.phone || "",
+            accessCalendar:
+                typeof admin.accessCalendar === "boolean"
+                    ? admin.accessCalendar
+                    : true,
+            accessPurchasing:
+                typeof admin.accessPurchasing === "boolean"
+                    ? admin.accessPurchasing
+                    : true,
         }));
         const targets = [ADMINS_PATH];
         if (LEGACY_ADMINS_PATH && fs.existsSync(LEGACY_ADMINS_PATH)) {

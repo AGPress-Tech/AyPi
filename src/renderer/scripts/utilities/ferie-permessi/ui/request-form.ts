@@ -34,6 +34,7 @@ type RequestFormOptions = {
     requireAdminAccess: (run: () => void) => void;
     isAdminRequiredForCreate: (type: string) => boolean;
     onDirectMutuaCreate: (request: RequestLike) => void;
+    onDirectInfortunioCreate: (request: RequestLike) => void;
     onDirectRetribuitoCreate: (request: RequestLike) => void;
     onDirectSpecialeCreate: (request: RequestLike) => void;
     syncData: (updater: (payload: any) => any) => any;
@@ -61,6 +62,7 @@ function createRequestForm(options: RequestFormOptions) {
         requireAdminAccess,
         isAdminRequiredForCreate,
         onDirectMutuaCreate,
+        onDirectInfortunioCreate,
         onDirectRetribuitoCreate,
         onDirectSpecialeCreate,
         syncData,
@@ -188,6 +190,8 @@ function createRequestForm(options: RequestFormOptions) {
                 const confirmMessage =
                     request.type === "mutua"
                         ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
+                        : request.type === "infortunio"
+                          ? UI_TEXTS.infortunioConfirm(startLabel, endLabel)
                         : request.type === "retribuito"
                           ? UI_TEXTS.retribuitoConfirm(startLabel, endLabel)
                           : request.type === "speciale"
@@ -221,6 +225,25 @@ function createRequestForm(options: RequestFormOptions) {
                     }
                     if (typeof onDirectMutuaCreate === "function") {
                         onDirectMutuaCreate(request);
+                    }
+                    return;
+                }
+                if (request.type === "infortunio") {
+                    if (
+                        adminRequired &&
+                        typeof openPasswordModal === "function"
+                    ) {
+                        openPasswordModal({
+                            type: "infortunio-create",
+                            id: request.id,
+                            title: "Conferma infortunio",
+                            description: UI_TEXTS.infortunioPasswordDescription,
+                            request,
+                        });
+                        return;
+                    }
+                    if (typeof onDirectInfortunioCreate === "function") {
+                        onDirectInfortunioCreate(request);
                     }
                     return;
                 }

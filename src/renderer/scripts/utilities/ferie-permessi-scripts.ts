@@ -209,6 +209,17 @@ let calendarFilters = {
 let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
+
+function hasCalendarAccess(admin) {
+    return !(admin && admin.accessCalendar === false);
+}
+
+async function verifyCalendarAdminPassword(password: string, targetName?: string | null) {
+    const result = await verifyAdminPassword(password, targetName);
+    if (!result || !result.admin) return null;
+    if (!hasCalendarAccess(result.admin)) return null;
+    return result;
+}
 let passwordFailCount = 0;
 let legendEditingType = null;
 let legendColorSnapshot = null;
@@ -352,7 +363,8 @@ function persistAccessConfig(next) {
 }
 
 function isAdminRequiredForCreate(type) {
-    return !!accessConfig?.operations?.create?.[type];
+    const key = type === "infortunio" ? "mutua" : type;
+    return !!accessConfig?.operations?.create?.[key];
 }
 
 function isAdminRequiredForFilter(type) {
@@ -459,6 +471,9 @@ function saveColorSettings(colors) {
 }
 
 function getTypeColor(type) {
+    if (type === "infortunio") {
+        return typeColors.mutua || DEFAULT_TYPE_COLORS.mutua || "#1a73e8";
+    }
     return typeColors[type] || DEFAULT_TYPE_COLORS[type] || "#1a73e8";
 }
 
@@ -752,7 +767,7 @@ function buildHoverText(request) {
         lines.push(`${formatDateTime(request.start)} - ${formatDateTime(request.end)}`);
     }
     if (request.approvedBy) {
-        if (request.type === "mutua") {
+        if (request.type === "mutua" || request.type === "infortunio") {
             lines.push(`Inserito da: ${request.approvedBy}`);
         } else {
             lines.push(`Approvato da: ${request.approvedBy}`);
@@ -970,6 +985,9 @@ renderer = createRenderer({
         if (request.type === "mutua") {
             return calendarFilters.mutua;
         }
+        if (request.type === "infortunio") {
+            return calendarFilters.mutua;
+        }
         if (request.type === "speciale") {
             return calendarFilters.speciale;
         }
@@ -1024,6 +1042,16 @@ function handleMutuaCreate(admin, request) {
     return updated;
 }
 
+function handleInfortunioCreate(admin, request) {
+    const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
+    const message = document.getElementById("fp-form-message");
+    setMessage(message, UI_TEXTS.infortunioInserted, false);
+    if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+        requestFormUi.resetNewRequestForm();
+    }
+    return updated;
+}
+
 function handleRetribuitoCreate(admin, request) {
     const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
     const message = document.getElementById("fp-form-message");
@@ -1054,6 +1082,7 @@ const approvalUi = createApprovalModal({
     isAdminRequiredForAction: (action) => {
         const type = action?.type || "";
         if (type === "mutua-create") return isAdminRequiredForCreate("mutua");
+        if (type === "infortunio-create") return isAdminRequiredForCreate("infortunio");
         if (type === "retribuito-create" || type === "giustificato-create") return isAdminRequiredForCreate("retribuito");
         if (type === "speciale-create") return isAdminRequiredForCreate("speciale");
         if (type === "holiday-create" || type === "holiday-remove" || type === "holiday-update") return isAdminRequiredForDaysAccess();
@@ -1065,7 +1094,7 @@ const approvalUi = createApprovalModal({
     },
     isHashingAvailable,
     loadAdminCredentials,
-    verifyAdminPassword,
+    verifyAdminPassword: verifyCalendarAdminPassword,
     loadData,
     syncData,
     renderAll,
@@ -1203,6 +1232,7 @@ const approvalUi = createApprovalModal({
         }
     },
     onMutuaCreate: (admin, request) => handleMutuaCreate(admin, request),
+    onInfortunioCreate: (admin, request) => handleInfortunioCreate(admin, request),
     onRetribuitoCreate: (admin, request) => handleRetribuitoCreate(admin, request),
     onSpecialeCreate: (admin, request) => handleSpecialeCreate(admin, request),
     onHolidayCreate: (_admin, dates, name) => {
@@ -1653,6 +1683,7 @@ const requestFormUi = createRequestForm({
     requireAdminAccess,
     isAdminRequiredForCreate,
     onDirectMutuaCreate: (request) => handleMutuaCreate(null, request),
+    onDirectInfortunioCreate: (request) => handleInfortunioCreate(null, request),
     onDirectRetribuitoCreate: (request) => handleRetribuitoCreate(null, request),
     onDirectSpecialeCreate: (request) => handleSpecialeCreate(null, request),
     syncData,
@@ -1729,6 +1760,7 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
     const allowPastDates =
         type === "straordinari" ||
         type === "mutua" ||
+        type === "infortunio" ||
         type === "retribuito" ||
         type === "speciale";
     if (!allowPastDates) {
@@ -2517,7 +2549,7 @@ function init() {
     const typeSelect = document.getElementById("fp-type");
     const updateDateBounds = () => {
         if (!startDate || !endDate || !typeSelect) return;
-        if (typeSelect.value === "mutua") {
+        if (typeSelect.value === "mutua" || typeSelect.value === "infortunio") {
             startDate.removeAttribute("min");
             endDate.removeAttribute("min");
             return;
@@ -2777,6 +2809,7 @@ function init() {
         const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
         const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
         const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
+        const includeInfortunio = !!document.getElementById("fp-export-infortunio")?.checked;
         const includeSpeciale = !!document.getElementById("fp-export-speciale")?.checked;
         const includeRetribuito = !!document.getElementById("fp-export-retribuito")?.checked;
         if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale && !includeRetribuito) {
@@ -2793,6 +2826,7 @@ function init() {
             if (req.type === "permesso" && !includePermessi) return false;
             if (req.type === "straordinari" && !includeStraordinari) return false;
             if (req.type === "mutua" && !includeMutua) return false;
+            if (req.type === "infortunio" && !includeInfortunio) return false;
             if (req.type === "speciale" && !includeSpeciale) return false;
             if (req.type === "retribuito" && !includeRetribuito) return false;
             if (departments.length && req.department && !departments.includes(req.department)) return false;

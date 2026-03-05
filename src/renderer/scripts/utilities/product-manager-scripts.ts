@@ -298,6 +298,7 @@ function getCatalogSectionCtx() {
         renderCatalog,
         renderCartTable,
         openCatalogModal,
+        closeCatalogModal,
         getCatalogItems: () => catalogItems,
         setCatalogItems: (next) => {
             catalogItems = next;
@@ -2808,9 +2809,11 @@ function setupLogin() {
                 document.getElementById("pm-login-admin-name")?.value || "";
             const password =
                 document.getElementById("pm-login-admin-password")?.value || "";
+            const defaultErrorText = "Password errata.";
             if (adminError) adminError.classList.add("is-hidden");
             if (adminRecover) adminRecover.classList.add("is-hidden");
             if (!adminName || !password) {
+                if (adminError) adminError.textContent = defaultErrorText;
                 if (adminError) adminError.classList.remove("is-hidden");
                 adminLoginFailCount += 1;
                 if (adminRecover && adminLoginFailCount >= 3) {
@@ -2820,6 +2823,7 @@ function setupLogin() {
             }
             const verified = await verifyAdminPassword(password, adminName);
             if (!verified || !verified.admin) {
+                if (adminError) adminError.textContent = defaultErrorText;
                 if (adminError) adminError.classList.remove("is-hidden");
                 adminLoginFailCount += 1;
                 if (adminRecover && adminLoginFailCount >= 3) {
@@ -2827,7 +2831,14 @@ function setupLogin() {
                 }
                 return;
             }
+            if (verified.admin && verified.admin.accessPurchasing === false) {
+                if (adminError) adminError.textContent = "Accesso admin non abilitato per Purchasing.";
+                if (adminError) adminError.classList.remove("is-hidden");
+                adminLoginFailCount += 1;
+                return;
+            }
             adminLoginFailCount = 0;
+            if (adminError) adminError.textContent = defaultErrorText;
             if (adminRecover) adminRecover.classList.add("is-hidden");
             setSession({
                 role: "admin",

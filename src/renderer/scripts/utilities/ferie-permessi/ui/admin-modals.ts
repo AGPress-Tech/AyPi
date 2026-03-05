@@ -7,6 +7,8 @@ type AdminEntry = {
     phone?: string;
     password?: string;
     passwordHash?: string;
+    accessCalendar?: boolean;
+    accessPurchasing?: boolean;
 };
 
 type AdminModalsOptions = {
@@ -86,6 +88,64 @@ function createAdminModals(options: AdminModalsOptions) {
 
             const actions = document.createElement("div");
             actions.className = "fp-assignees-row__actions";
+
+            const scopes = document.createElement("div");
+            scopes.className = "fp-admin-scopes";
+
+            const hasCalendar =
+                typeof admin.accessCalendar === "boolean"
+                    ? admin.accessCalendar
+                    : true;
+            const hasPurchasing =
+                typeof admin.accessPurchasing === "boolean"
+                    ? admin.accessPurchasing
+                    : true;
+
+            const makeScopeBtn = (label, active, onToggle) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "fp-admin-scope";
+                if (active) btn.classList.add("is-active");
+                btn.textContent = label;
+                btn.addEventListener("click", onToggle);
+                return btn;
+            };
+
+            const calendarBtn = makeScopeBtn("Calendar", hasCalendar, () => {
+                const next = !hasCalendar;
+                if (!next && !hasPurchasing) {
+                    setAdminMessage(
+                        "fp-admin-message",
+                        "Seleziona almeno un modulo.",
+                        true,
+                    );
+                    return;
+                }
+                admin.accessCalendar = next;
+                saveAdminCredentials(adminCache);
+                renderAdminList();
+                setAdminMessage("fp-admin-message", UI_TEXTS.adminUpdated, false);
+            });
+
+            const purchasingBtn = makeScopeBtn("Purchasing", hasPurchasing, () => {
+                const next = !hasPurchasing;
+                if (!next && !hasCalendar) {
+                    setAdminMessage(
+                        "fp-admin-message",
+                        "Seleziona almeno un modulo.",
+                        true,
+                    );
+                    return;
+                }
+                admin.accessPurchasing = next;
+                saveAdminCredentials(adminCache);
+                renderAdminList();
+                setAdminMessage("fp-admin-message", UI_TEXTS.adminUpdated, false);
+            });
+
+            scopes.appendChild(calendarBtn);
+            scopes.appendChild(purchasingBtn);
+            actions.appendChild(scopes);
 
             const edit = document.createElement("button");
             edit.type = "button";
@@ -330,7 +390,14 @@ function createAdminModals(options: AdminModalsOptions) {
                     return;
                 }
                 const hash = await hashPassword(pass);
-                adminCache.push({ name, passwordHash: hash, email, phone });
+                adminCache.push({
+                    name,
+                    passwordHash: hash,
+                    email,
+                    phone,
+                    accessCalendar: true,
+                    accessPurchasing: true,
+                });
                 adminCache.sort((a, b) => a.name.localeCompare(b.name));
                 saveAdminCredentials(adminCache);
                 renderAdminList();

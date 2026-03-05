@@ -58,7 +58,7 @@
                         </label>
                         <label class="fp-filter-toggle">
                             <input type="checkbox" id="fp-filter-mutua">
-                            <span>Mutua</span>
+                            <span>Mutua/Infortunio</span>
                         </label>
                         <label class="fp-filter-toggle">
                             <input type="checkbox" id="fp-filter-speciale">
@@ -80,7 +80,7 @@
                             <span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari
                         </button>
                         <button type="button" class="fp-legend__item" data-type="mutua">
-                            <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua
+                            <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua/Infortunio
                         </button>
                         <button type="button" class="fp-legend__item" data-type="speciale">
                             <span class="fp-legend__dot fp-legend__dot--speciale"></span>Permesso Chiusura Aziendale
@@ -157,6 +157,7 @@
                             <option value="permesso">Permesso</option>
                             <option value="straordinari">Straordinari</option>
                             <option value="mutua">Mutua</option>
+                            <option value="infortunio">Infortunio</option>
                             <option value="speciale">Permesso Chiusura Aziendale</option>
                             <option value="retribuito">Permesso Retribuito</option>
                         </select>
@@ -305,7 +306,7 @@
                         <label class="fp-switch"><input type="checkbox" id="fp-config-create-ferie"><span class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-create-permesso"><span class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-create-straordinari"><span class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua/Infortunio</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-create-speciale"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura Aziendale</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-create-retribuito"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
                     </div>
@@ -334,7 +335,7 @@
                         <label class="fp-switch"><input type="checkbox" id="fp-config-filter-ferie"><span class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-filter-permesso"><span class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-filter-straordinari"><span class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua</span></label>
+                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua/Infortunio</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-filter-speciale"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura Aziendale</span></label>
                         <label class="fp-switch"><input type="checkbox" id="fp-config-filter-retribuito"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
                     </div>
@@ -465,6 +466,7 @@
                     <label><input type="checkbox" id="fp-export-permessi" checked> Permessi</label>
                     <label><input type="checkbox" id="fp-export-straordinari" checked> Straordinari</label>
                     <label><input type="checkbox" id="fp-export-mutua" checked> Mutua</label>
+                    <label><input type="checkbox" id="fp-export-infortunio" checked> Infortunio</label>
                     <label><input type="checkbox" id="fp-export-speciale" checked> Permesso Chiusura Aziendale</label>
                     <label><input type="checkbox" id="fp-export-retribuito" checked> Permessi Retribuiti</label>
                 </div>
@@ -680,6 +682,7 @@
                         <option value="permesso">Permesso</option>
                         <option value="straordinari">Straordinari</option>
                         <option value="mutua">Mutua</option>
+                        <option value="infortunio">Infortunio</option>
                         <option value="speciale">Permesso Chiusura Aziendale</option>
                         <option value="retribuito">Permesso Retribuito</option>
                     </select>

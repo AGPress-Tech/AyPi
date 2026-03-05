@@ -67,6 +67,7 @@ function isBalanceNeutral(request: RequestLike | null | undefined) {
         request &&
         (request.type === "straordinari" ||
             request.type === "mutua" ||
+            request.type === "infortunio" ||
             request.type === "retribuito" ||
             request.type === "giustificato")
     );

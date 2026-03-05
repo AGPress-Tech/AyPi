@@ -93,6 +93,29 @@ body {
     gap: 6px;
 }
 
+#fp-admin-modal .fp-admin-scopes {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+
+#fp-admin-modal .fp-admin-scope {
+    border: 1px solid #d0d7e2;
+    background: #f6f8fe;
+    color: #5f6368;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    line-height: 1.2;
+}
+
+#fp-admin-modal .fp-admin-scope.is-active {
+    background: #1a73e8;
+    border-color: #1a73e8;
+    color: #ffffff;
+}
+
 #fp-admin-modal .fp-btn,
 .adm-header .fp-btn,
 #fp-admin-add-modal .fp-btn,
