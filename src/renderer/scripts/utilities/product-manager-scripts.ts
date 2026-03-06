@@ -237,6 +237,7 @@ let editingDepartment = null;
 let editingEmployee = null;
 let adminCache = [];
 let adminEditingIndex = -1;
+let editTagsSelect = null;
 let pendingPasswordAction = null;
 let passwordFailCount = 0;
 let adminLoginFailCount = 0;
@@ -1679,6 +1680,86 @@ function getEditFieldValue(id) {
     return el ? el.value : "";
 }
 
+function buildEditTagsMultiSelect({ container, input, values, selected }) {
+    if (!container || !input) return null;
+    container.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "pm-multiselect";
+    if (!wrap.dataset.pmHostId) {
+        wrap.dataset.pmHostId = `pm-edit-tags-${Math.random().toString(36).slice(2)}`;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "pm-multiselect__button";
+    const menu = document.createElement("div");
+    menu.className = "pm-multiselect__menu is-hidden";
+    const selectedSet = new Set((selected || []).filter(Boolean));
+    const options = Array.from(new Set((values || []).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+    const updateLabel = () => {
+        const list = Array.from(selectedSet.values());
+        button.textContent = list.length ? list.join(", ") : "Seleziona tipologie";
+        input.value = list.join(", ");
+    };
+
+    if (!options.length) {
+        const empty = document.createElement("div");
+        empty.className = "pm-message";
+        empty.textContent = "Nessuna tipologia disponibile.";
+        menu.appendChild(empty);
+    }
+
+    options.forEach((value) => {
+        const option = document.createElement("label");
+        option.className = "pm-multiselect__option";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = value;
+        if (selectedSet.has(value)) checkbox.checked = true;
+        const span = document.createElement("span");
+        span.textContent = value;
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked) selectedSet.add(value);
+            else selectedSet.delete(value);
+            updateLabel();
+        });
+        option.append(checkbox, span);
+        menu.appendChild(option);
+    });
+
+    const closeOtherMenus = () => {
+        document.querySelectorAll(".pm-multiselect__menu--floating").forEach((menuEl) => {
+            if (menuEl === menu) return;
+            const hostId = menuEl.dataset.pmHostId || "";
+            const host = hostId ? document.querySelector(`[data-pm-host-id="${hostId}"]`) : null;
+            closeMultiselectMenu(menuEl, host || null);
+        });
+        document.querySelectorAll(".pm-custom-select.is-open").forEach((custom) => {
+            custom.classList.remove("is-open");
+        });
+    };
+
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (menu.classList.contains("is-hidden")) {
+            closeOtherMenus();
+            openMultiselectMenu(menu, button, wrap);
+        } else {
+            closeMultiselectMenu(menu, wrap);
+        }
+    });
+    document.addEventListener("click", (event) => {
+        if (!wrap.contains(event.target) && !menu.contains(event.target)) {
+            closeMultiselectMenu(menu, wrap);
+        }
+    });
+
+    updateLabel();
+    wrap.append(button, menu);
+    container.appendChild(wrap);
+    return { getSelected: () => Array.from(selectedSet.values()) };
+}
+
 function openInterventionEditModal(row) {
     if (!isAdmin()) {
         showWarning("Solo gli admin possono modificare.");
@@ -1755,7 +1836,8 @@ function openEditModal(row) {
     const modal = document.getElementById("pm-edit-modal");
     if (!modal) return;
     const product = document.getElementById("pm-edit-product");
-    const tags = document.getElementById("pm-edit-tags");
+    const tagsContainer = document.getElementById("pm-edit-tags");
+    const tagsInput = document.getElementById("pm-edit-tags-input");
     const quantity = document.getElementById("pm-edit-quantity");
     const unit = document.getElementById("pm-edit-unit");
     const urgency = document.getElementById("pm-edit-urgency");
@@ -1764,10 +1846,20 @@ function openEditModal(row) {
     const price = document.getElementById("pm-edit-price");
     const note = document.getElementById("pm-edit-note");
     if (product) product.value = row.product || "";
-    if (tags) tags.value = row.tags.join(", ");
+    const selectedTags = Array.isArray(row.tags) ? row.tags : toTags(row.category || "");
+    if (tagsInput) tagsInput.value = selectedTags.join(", ");
+    editTagsSelect = buildEditTagsMultiSelect({
+        container: tagsContainer,
+        input: tagsInput,
+        values: [...catalogCategories, ...selectedTags],
+        selected: selectedTags,
+    });
     if (quantity) quantity.value = row.quantity || "";
     if (unit) unit.value = row.unit || "";
-    if (urgency) urgency.value = row.urgency || "";
+    if (urgency) {
+        urgency.value = row.urgency || "";
+        urgency.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     if (supplier) supplier.value = row.supplier || "";
     if (url) url.value = row.url || "";
     if (price)
@@ -1785,6 +1877,7 @@ function closeEditModal() {
     modal.classList.add("is-hidden");
     modal.setAttribute("aria-hidden", "true");
     cartState.editingRow = null;
+    editTagsSelect = null;
 }
 
 function saveEditModal() {
@@ -1809,7 +1902,7 @@ function saveEditModal() {
     }
     const line = request.lines[row.lineIndex];
     line.product = getEditFieldValue("pm-edit-product").trim();
-    line.category = getEditFieldValue("pm-edit-tags").trim();
+    line.category = getEditFieldValue("pm-edit-tags-input").trim();
     line.quantity = getEditFieldValue("pm-edit-quantity").toString().trim();
     line.unit = getEditFieldValue("pm-edit-unit").trim();
     line.urgency = getEditFieldValue("pm-edit-urgency").trim();

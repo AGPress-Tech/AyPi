@@ -41,17 +41,6 @@ type AddressBook = {
 let addressBookCache: AddressBook | null = null;
 let adminEnabled = false;
 
-type SyncLegacyResult = {
-    ok: boolean;
-    reason?: string;
-    baseDir?: string;
-    synced?: {
-        calendar?: string;
-        purchasing?: string;
-    };
-    removed?: string[];
-};
-
 function ensureAddressBookDir() {
     try {
         if (!fs.existsSync(ADDRESS_BOOK_DIR)) {
@@ -327,8 +316,6 @@ function ensureFpFiles(baseDir: string) {
 
     // Migrazione iniziale legacy -> nuova struttura (senza sovrascrivere dati gia' presenti)
     copyFileIfNeeded(path.join(baseDir, "config-calendar.json"), path.join(calendarDir, "config-calendar.json"));
-    copyFileIfNeeded(path.join(baseDir, "ferie-permessi.json"), path.join(calendarDir, "ferie-permessi.json"));
-    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-requests.json"), path.join(calendarDir, "ferie-permessi-requests.json"));
     copyFileIfNeeded(path.join(baseDir, "ferie-permessi-holidays.json"), path.join(calendarDir, "ferie-permessi-holidays.json"));
     copyFileIfNeeded(path.join(baseDir, "ferie-permessi-balances.json"), path.join(calendarDir, "ferie-permessi-balances.json"));
     copyFileIfNeeded(path.join(baseDir, "ferie-permessi-closures.json"), path.join(calendarDir, "ferie-permessi-closures.json"));
@@ -421,110 +408,6 @@ function writeShardFiles(
     return { shards: expected.size, items: items.length };
 }
 
-function syncCalendarLegacy(baseDir: string) {
-    const legacyRequestsPath = path.join(baseDir, "ferie-permessi-requests.json");
-    const calendarDir = path.join(baseDir, "AyPi Calendar");
-    const calendarYearsDir = path.join(calendarDir, "Calendar Years");
-    if (!fs.existsSync(legacyRequestsPath)) return { ok: false, reason: "missing_legacy_requests" };
-    const parsed = readJsonSafe(legacyRequestsPath);
-    if (parsed == null) return { ok: false, reason: "invalid_legacy_requests" };
-    const list = normalizeRequestsPayload(parsed);
-    const result = writeShardFiles(
-        calendarYearsDir,
-        "requests",
-        list,
-        getCalendarRequestYearKey,
-        /^requests-(\d{4}|undated)\.json$/i
-    );
-    const newRequestsPath = path.join(calendarDir, "ferie-permessi-requests.json");
-    fs.writeFileSync(newRequestsPath, JSON.stringify(list, null, 2), "utf8");
-    return { ok: true, shards: result.shards, items: result.items };
-}
-
-function syncPurchasingShards(baseDir: string) {
-    const purchasingDir = path.join(baseDir, "AyPi Purchasing");
-    const requestsPath = path.join(purchasingDir, "requests.json");
-    const interventionsPath = path.join(purchasingDir, "interventions.json");
-    const requestsShardsDir = path.join(purchasingDir, "requests");
-    const interventionsShardsDir = path.join(purchasingDir, "interventions");
-    const out: { requests?: string; interventions?: string } = {};
-
-    if (fs.existsSync(requestsPath)) {
-        const parsed = readJsonSafe(requestsPath);
-        const list = normalizeRequestsPayload(parsed);
-        const result = writeShardFiles(
-            requestsShardsDir,
-            "requests",
-            list,
-            getPurchasingYearKey,
-            /^requests-(\d{4}|undated)\.json$/i
-        );
-        out.requests = `${result.items} richieste, ${result.shards} shard`;
-    } else {
-        out.requests = "file richieste mancante";
-    }
-
-    if (fs.existsSync(interventionsPath)) {
-        const parsed = readJsonSafe(interventionsPath);
-        const list = normalizeRequestsPayload(parsed);
-        const result = writeShardFiles(
-            interventionsShardsDir,
-            "interventions",
-            list,
-            getPurchasingYearKey,
-            /^interventions-(\d{4}|undated)\.json$/i
-        );
-        out.interventions = `${result.items} interventi, ${result.shards} shard`;
-    } else {
-        out.interventions = "file interventi mancante";
-    }
-
-    return out;
-}
-
-function cleanupLegacyData(baseDir: string) {
-    const removed: string[] = [];
-    const legacyFiles = [
-        "config-calendar.json",
-        "ferie-permessi.json",
-        "ferie-permessi-requests.json",
-        "ferie-permessi-holidays.json",
-        "ferie-permessi-balances.json",
-        "ferie-permessi-closures.json",
-        "ferie-permessi-admins.json",
-        "amministrazione-assignees.json",
-        "amministrazione-obiettivi.json",
-        "otp-mail.json",
-    ];
-    legacyFiles.forEach((name) => {
-        const target = path.join(baseDir, name);
-        if (fs.existsSync(target)) {
-            try {
-                fs.rmSync(target, { force: true });
-                removed.push(target);
-            } catch (err) {
-                log.warn("[cleanup] impossibile rimuovere legacy file:", target, err);
-            }
-        }
-    });
-
-    const legacyDirs = [
-        path.join(baseDir, "Calendar Years"),
-        path.join(baseDir, "Product Manager"),
-    ];
-    legacyDirs.forEach((dirPath) => {
-        if (fs.existsSync(dirPath)) {
-            try {
-                fs.rmSync(dirPath, { recursive: true, force: true });
-                removed.push(dirPath);
-            } catch (err) {
-                log.warn("[cleanup] impossibile rimuovere legacy dir:", dirPath, err);
-            }
-        }
-    });
-
-    return removed;
-}
 
 function resolveGitRepoRoot() {
     const candidates = [
@@ -2240,38 +2123,6 @@ function setupFileManager(mainWindow) {
             } catch {}
         });
         return { ok: true };
-    });
-
-    ipcMain.handle("aypi-sync-legacy-all", async () => {
-        if (!adminEnabled) {
-            return { ok: false, reason: "not_admin" } as SyncLegacyResult;
-        }
-        try {
-            const baseDir = loadFpBaseDir() || getDefaultFpBaseDir();
-            ensureFpFiles(baseDir);
-            const calendarResult = syncCalendarLegacy(baseDir);
-            const purchasingResult = syncPurchasingShards(baseDir);
-            const removed = cleanupLegacyData(baseDir);
-            const calendarInfo = calendarResult.ok
-                ? `${calendarResult.items} richieste, ${calendarResult.shards} shard`
-                : calendarResult.reason || "errore";
-            const purchasingInfo = `richieste: ${purchasingResult.requests}; interventi: ${purchasingResult.interventions}`;
-
-            return {
-                ok: true,
-                baseDir,
-                synced: {
-                    calendar: calendarInfo,
-                    purchasing: purchasingInfo,
-                },
-                removed,
-            } as SyncLegacyResult;
-        } catch (err: any) {
-            return {
-                ok: false,
-                reason: err?.message || String(err),
-            } as SyncLegacyResult;
-        }
     });
 
     ipcMain.handle("select-root-folder", async (event) => {

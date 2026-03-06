@@ -18,7 +18,6 @@ type SettingsModalOptions = {
     getTypeColors: () => Record<string, string>;
     setTypeColors: (colors: Record<string, string>) => void;
     openPasswordModal: (payload: any) => void;
-    refreshLegacySyncButton?: () => void;
 };
 
 function createSettingsModal(options: SettingsModalOptions) {
@@ -53,9 +52,6 @@ function createSettingsModal(options: SettingsModalOptions) {
         const message = document.getElementById("fp-settings-message") as HTMLElement | null;
         if (!modal) return;
         setMessage(message, "");
-        if (typeof options?.refreshLegacySyncButton === "function") {
-            options.refreshLegacySyncButton();
-        }
         showModal(modal);
     }
 
@@ -105,9 +101,6 @@ function createSettingsModal(options: SettingsModalOptions) {
             settingsBtn.addEventListener("click", () => {
                 openSettingsModal();
             });
-        }
-        if (typeof options?.refreshLegacySyncButton === "function") {
-            options.refreshLegacySyncButton();
         }
         if (settingsClose) {
             settingsClose.addEventListener("click", () => {

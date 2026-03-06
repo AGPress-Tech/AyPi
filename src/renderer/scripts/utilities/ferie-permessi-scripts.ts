@@ -82,7 +82,6 @@ const {
     applyBalanceForUpdate,
     loadPayload,
     savePayload,
-    syncLegacyRequestsToShards,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
 const { ensureFolderFor } = bootRequire(path.join(fpBaseDir, "services", "storage"));
@@ -889,55 +888,7 @@ function setAdminSession(admin) {
         name: admin?.name ? String(admin.name) : "",
     };
     updateAdminToggleButton();
-    refreshLegacySyncButton();
 }
-
-function refreshLegacySyncButton() {
-    const btn = document.getElementById("fp-settings-sync-legacy-shards");
-    if (!btn) return;
-    const name = String(adminSession?.name || "").trim().toLowerCase();
-    const allowed = isAdminLoggedIn() && name === "ayrton pizzi";
-    btn.classList.toggle("is-hidden", !allowed);
-    btn.hidden = !allowed;
-    btn.style.display = allowed ? "" : "none";
-}
-
-function initLegacySyncButton() {
-    const btn = document.getElementById("fp-settings-sync-legacy-shards");
-    if (!btn) return;
-    if (btn.dataset.fpLegacySyncInit === "1") return;
-    btn.dataset.fpLegacySyncInit = "1";
-    const settingsBtn = document.getElementById("fp-settings");
-    if (settingsBtn) {
-        settingsBtn.addEventListener("click", () => refreshLegacySyncButton());
-    }
-    btn.addEventListener("click", async () => {
-        const name = String(adminSession?.name || "").trim().toLowerCase();
-        const message = document.getElementById("fp-settings-message");
-        if (!isAdminLoggedIn() || name !== "ayrton pizzi") {
-            setMessage(message, "Accesso non autorizzato per questa operazione.", true);
-            return;
-        }
-        const ok = await openConfirmModal(
-            "Sincronizzare le richieste legacy dentro gli shard del nuovo calendario? Il file legacy non verrà modificato."
-        );
-        if (!ok) return;
-        setMessage(message, "Sincronizzazione in corso...", false);
-        let result = null;
-        try {
-            result = syncLegacyRequestsToShards();
-        } catch (err) {
-            result = { ok: false, reason: err.message || String(err) };
-        }
-        if (result && result.ok) {
-            setMessage(message, `Sync completata: ${result.count || 0} richieste.`, false);
-        } else {
-            const reason = result?.reason || "Errore sconosciuto";
-            setMessage(message, `Errore sync legacy → shard: ${reason}`, true);
-        }
-    });
-}
-
 const summaryUi = createSummary({ document });
 
 const pendingUi = createPendingPanel({
@@ -1634,7 +1585,6 @@ const settingsUi = createSettingsModal({
     showModal,
     hideModal,
     setMessage,
-    refreshLegacySyncButton,
     loadThemeSetting,
     saveThemeSetting,
     loadColorSettings,
@@ -2486,7 +2436,6 @@ function init() {
         initCustomSelectsUi({ document, selector: "select" });
     });
     selectObserver.observe(document.body, { childList: true, subtree: true });
-    refreshLegacySyncButton();
     initCustomSelectsUi({ document, selector: "select" });
     calendar = initCalendar({
         document,
@@ -2573,7 +2522,6 @@ function init() {
     requestFormUi.initRequestForm();
 
     settingsUi.initSettingsModal();
-    initLegacySyncButton();
     configUi.initConfigModal();
     guideUi.initGuideModal();
 
