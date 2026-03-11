@@ -1694,11 +1694,15 @@ function buildEditTagsMultiSelect({ container, input, values, selected }) {
     const menu = document.createElement("div");
     menu.className = "pm-multiselect__menu is-hidden";
     const selectedSet = new Set((selected || []).filter(Boolean));
-    const options = Array.from(new Set((values || []).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const options = Array.from(new Set((values || []).filter(Boolean))).sort(
+        (a, b) => a.localeCompare(b),
+    );
 
     const updateLabel = () => {
         const list = Array.from(selectedSet.values());
-        button.textContent = list.length ? list.join(", ") : "Seleziona tipologie";
+        button.textContent = list.length
+            ? list.join(", ")
+            : "Seleziona tipologie";
         input.value = list.join(", ");
     };
 
@@ -1728,15 +1732,21 @@ function buildEditTagsMultiSelect({ container, input, values, selected }) {
     });
 
     const closeOtherMenus = () => {
-        document.querySelectorAll(".pm-multiselect__menu--floating").forEach((menuEl) => {
-            if (menuEl === menu) return;
-            const hostId = menuEl.dataset.pmHostId || "";
-            const host = hostId ? document.querySelector(`[data-pm-host-id="${hostId}"]`) : null;
-            closeMultiselectMenu(menuEl, host || null);
-        });
-        document.querySelectorAll(".pm-custom-select.is-open").forEach((custom) => {
-            custom.classList.remove("is-open");
-        });
+        document
+            .querySelectorAll(".pm-multiselect__menu--floating")
+            .forEach((menuEl) => {
+                if (menuEl === menu) return;
+                const hostId = menuEl.dataset.pmHostId || "";
+                const host = hostId
+                    ? document.querySelector(`[data-pm-host-id="${hostId}"]`)
+                    : null;
+                closeMultiselectMenu(menuEl, host || null);
+            });
+        document
+            .querySelectorAll(".pm-custom-select.is-open")
+            .forEach((custom) => {
+                custom.classList.remove("is-open");
+            });
     };
 
     button.addEventListener("click", (event) => {
@@ -1846,7 +1856,9 @@ function openEditModal(row) {
     const price = document.getElementById("pm-edit-price");
     const note = document.getElementById("pm-edit-note");
     if (product) product.value = row.product || "";
-    const selectedTags = Array.isArray(row.tags) ? row.tags : toTags(row.category || "");
+    const selectedTags = Array.isArray(row.tags)
+        ? row.tags
+        : toTags(row.category || "");
     if (tagsInput) tagsInput.value = selectedTags.join(", ");
     editTagsSelect = buildEditTagsMultiSelect({
         container: tagsContainer,
@@ -2925,7 +2937,9 @@ function setupLogin() {
                 return;
             }
             if (verified.admin && verified.admin.accessPurchasing === false) {
-                if (adminError) adminError.textContent = "Accesso admin non abilitato per Purchasing.";
+                if (adminError)
+                    adminError.textContent =
+                        "Accesso admin non abilitato per Purchasing.";
                 if (adminError) adminError.classList.remove("is-hidden");
                 adminLoginFailCount += 1;
                 return;

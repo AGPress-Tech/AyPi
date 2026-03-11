@@ -9,8 +9,13 @@ type RequestLike = {
     end?: string | null;
     allDay?: boolean;
     type?: RequestType;
+    status?: string;
     approvedBy?: string;
     modifiedBy?: string;
+    rejectedBy?: string;
+    rejectedAt?: string;
+    deletedBy?: string;
+    deletedAt?: string;
 };
 type HolidayLike = { date?: string } | string;
 type ClosureLike = { start?: string; end?: string };
@@ -47,6 +52,14 @@ export function buildExportRows(
         const isInfortunio = request.type === "infortunio";
         const mutuaHours = isMutua ? hours : 0;
         const infortunioHours = isInfortunio ? hours : 0;
+        const status =
+            request.status === "approved"
+                ? "Approvata"
+                : request.status === "rejected"
+                  ? "Rifiutata"
+                  : request.status === "deleted"
+                    ? "Eliminata"
+                    : request.status || "";
         return {
             "Nome Operatore": request.employee || "",
             Reparto: request.department || "",
@@ -56,9 +69,14 @@ export function buildExportRows(
             "Ore Mutua": mutuaHours,
             "Ore Infortunio": infortunioHours,
             Tipo: getTypeLabel(request.type),
+            Stato: status,
             "Approvato da": isMutua || isInfortunio ? "" : request.approvedBy || "",
             "Inserito da": isMutua || isInfortunio ? request.approvedBy || "" : "",
             "Modificato da": request.modifiedBy || "",
+            "Rifiutato da": request.rejectedBy || "",
+            "Rifiutato il": request.rejectedAt ? new Date(request.rejectedAt) : "",
+            "Eliminato da": request.deletedBy || "",
+            "Eliminato il": request.deletedAt ? new Date(request.deletedAt) : "",
         };
     });
 }

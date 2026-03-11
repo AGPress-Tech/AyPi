@@ -11,6 +11,9 @@ type RequestLike = {
     status?: string;
     approvedAt?: string;
     approvedBy?: string;
+    rejectedAt?: string;
+    rejectedBy?: string;
+    updatedAt?: string;
 };
 
 type BalanceImpact = {
@@ -176,9 +179,18 @@ function createPendingPanel(options: PendingPanelOptions) {
                         : true;
                 const run = () => {
                     const updated = syncData((payload) => {
-                        payload.requests = (payload.requests || []).filter(
-                            (req) => req.id !== request.id,
+                        const target = (payload.requests || []).find(
+                            (req) => req.id === request.id,
                         );
+                        if (target) {
+                            target.status = "rejected";
+                            target.rejectedAt = new Date().toISOString();
+                            target.rejectedBy =
+                                getLoggedAdminName?.() ||
+                                getPendingUnlockedBy?.() ||
+                                UI_TEXTS.defaultAdminLabel;
+                            target.updatedAt = new Date().toISOString();
+                        }
                         return payload;
                     });
                     renderAll(updated);

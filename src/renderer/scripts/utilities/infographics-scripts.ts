@@ -427,7 +427,11 @@ function bindControls() {
 
 function scheduleDailyRefresh() {
     const now = new Date();
-    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const nextMidnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+    );
     const delay = Math.max(1000, nextMidnight.getTime() - now.getTime());
 
     setTimeout(() => {
@@ -1136,7 +1140,9 @@ function renderTimeline(dates: Date[], commits: number[]) {
         .map((tag) => tag?.date?.getTime?.())
         .filter((t) => Number.isFinite(t)) as number[];
 
-    const dateTimes = dates.map((d) => d.getTime()).filter((t) => Number.isFinite(t));
+    const dateTimes = dates
+        .map((d) => d.getTime())
+        .filter((t) => Number.isFinite(t));
     if (!dateTimes.length && !tagTimes.length) return;
 
     const minTime = Math.min(...dateTimes, ...tagTimes);

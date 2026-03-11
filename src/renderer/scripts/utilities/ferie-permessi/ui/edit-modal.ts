@@ -11,6 +11,10 @@ type RequestLike = {
     createdAt?: string;
     modifiedAt?: string;
     modifiedBy?: string;
+    status?: string;
+    deletedAt?: string;
+    deletedBy?: string;
+    updatedAt?: string;
 };
 
 type EditModalOptions = {
@@ -162,7 +166,13 @@ function createEditModal(options: EditModalOptions) {
                         if (target && typeof applyBalanceForDeletion === "function") {
                             applyBalanceForDeletion(payload, target);
                         }
-                        payload.requests = (payload.requests || []).filter((req) => req.id !== editingRequestId);
+                        if (target) {
+                            const editingAdminName = getEditingAdminName();
+                            target.status = "deleted";
+                            target.deletedAt = new Date().toISOString();
+                            target.deletedBy = editingAdminName || target.deletedBy || "";
+                            target.updatedAt = new Date().toISOString();
+                        }
                         return payload;
                     });
                     closeEditModal();

@@ -2768,8 +2768,13 @@ function init() {
 
         const payload = loadData();
         const raw = payload.requests || [];
-        const approved = raw.filter((req) => req.status === "approved");
-        const filtered = approved.filter((req) => {
+        const exportable = raw.filter(
+            (req) =>
+                req.status === "approved" ||
+                req.status === "rejected" ||
+                req.status === "deleted",
+        );
+        const filtered = exportable.filter((req) => {
             if (req.type === "ferie" && !includeFerie) return false;
             if (req.type === "permesso" && !includePermessi) return false;
             if (req.type === "straordinari" && !includeStraordinari) return false;
@@ -2797,7 +2802,7 @@ function init() {
         const rows = buildExportRows(filtered, payload.holidays, payload.closures);
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(rows);
-        const dateColumns = ["C", "D"];
+        const dateColumns = ["C", "D", "N", "P"];
         dateColumns.forEach((col) => {
             rows.forEach((_, idx) => {
                 const cell = ws[`${col}${idx + 2}`];

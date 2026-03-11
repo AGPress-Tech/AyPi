@@ -7,6 +7,11 @@ type RequestLike = {
     status?: string;
     approvedAt?: string;
     approvedBy?: string;
+    rejectedAt?: string;
+    rejectedBy?: string;
+    deletedAt?: string;
+    deletedBy?: string;
+    updatedAt?: string;
     balanceHours?: number;
     balanceAppliedAt?: string | null;
     employee?: string;
@@ -356,9 +361,16 @@ function createApprovalModal(options: ApprovalModalOptions) {
         if (actionType === "reject") {
             closeApprovalModal();
             const updated = syncData((payload) => {
-                payload.requests = (payload.requests || []).filter(
-                    (req) => req.id !== requestId,
+                const target = (payload.requests || []).find(
+                    (req) => req.id === requestId,
                 );
+                if (target) {
+                    target.status = "rejected";
+                    target.rejectedAt = new Date().toISOString();
+                    target.rejectedBy =
+                        admin?.name || UI_TEXTS.defaultAdminLabel;
+                    target.updatedAt = new Date().toISOString();
+                }
                 return payload;
             });
             renderAll(updated);
@@ -372,9 +384,13 @@ function createApprovalModal(options: ApprovalModalOptions) {
                 if (target && typeof applyBalanceForDeletion === "function") {
                     applyBalanceForDeletion(payload, target);
                 }
-                payload.requests = (payload.requests || []).filter(
-                    (req) => req.id !== requestId,
-                );
+                if (target) {
+                    target.status = "deleted";
+                    target.deletedAt = new Date().toISOString();
+                    target.deletedBy =
+                        admin?.name || UI_TEXTS.defaultAdminLabel;
+                    target.updatedAt = new Date().toISOString();
+                }
                 return payload;
             });
             if (typeof forceUnlockUI === "function") {

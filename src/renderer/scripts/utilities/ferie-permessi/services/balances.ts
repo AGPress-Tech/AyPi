@@ -27,6 +27,10 @@ type RequestLike = {
     balanceHours?: number;
     balanceAppliedAt?: string | null;
     approvedBy?: string;
+    rejectedAt?: string;
+    rejectedBy?: string;
+    deletedAt?: string;
+    deletedBy?: string;
 };
 type BalanceEntry = {
     hoursAvailable: number;
