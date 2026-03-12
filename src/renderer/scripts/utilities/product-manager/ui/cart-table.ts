@@ -25,6 +25,8 @@ function renderCartTable({
     renderCatalog,
     saveCatalog,
     catalogItems,
+    canEditRow,
+    canDeleteRow,
 }) {
     const list = document.getElementById("pm-requests-list");
     if (!list) return;
@@ -91,6 +93,8 @@ function renderCartTable({
                 deletedAt: line.deletedAt || "",
                 requester,
                 createdAt: request.createdAt || "",
+                canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
+                canDelete: typeof canDeleteRow === "function" ? canDeleteRow({ request, line }) : isAdmin(),
             });
         });
         if (nextLines.length !== (request.lines || []).length) {
@@ -204,7 +208,7 @@ function renderCartTable({
         deleteBtn.type = "button";
         deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
         deleteBtn.title = "Elimina";
-        deleteBtn.disabled = !isAdmin() || Boolean(row.deletedAt);
+        deleteBtn.disabled = !row.canDelete || Boolean(row.deletedAt);
         deleteBtn.addEventListener("click", () => deleteCartRow(row));
         const deleteIcon = document.createElement("span");
         deleteIcon.className = "material-icons";
@@ -223,8 +227,6 @@ function renderCartTable({
         confirmBtn.appendChild(confirmIcon);
 
         statusCell.append(deleteBtn, confirmBtn);
-
-        const admin = isAdmin();
 
         const productCell = document.createElement("div");
         productCell.className = "pm-table__cell";
@@ -282,7 +284,7 @@ function renderCartTable({
         if (row.deletedAt) {
             addBtn.disabled = true;
         }
-        if (admin) {
+        if (row.canEdit) {
             const editBtn = document.createElement("button");
             editBtn.type = "button";
             editBtn.className = "pm-icon-btn";
@@ -322,8 +324,9 @@ function renderCartTable({
                     renderCatalog();
                 }
             });
-            if (row.deletedAt) addCatalogBtn.disabled = true;
-            actionsCell.append(editBtn, addCatalogBtn);
+            if (!isAdmin() || row.deletedAt) addCatalogBtn.disabled = true;
+            actionsCell.append(editBtn);
+            if (isAdmin()) actionsCell.append(addCatalogBtn);
         } else if (!isLoggedIn()) {
             addBtn.disabled = true;
         }
@@ -364,6 +367,8 @@ function renderInterventionTable({
     confirmCartRow,
     deleteCartRow,
     openInterventionEditModal,
+    canEditRow,
+    canDeleteRow,
 }) {
     const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
     const rows = [];
@@ -401,6 +406,8 @@ function renderInterventionTable({
                 deletedAt: line.deletedAt || "",
                 requester,
                 createdAt: request.createdAt || "",
+                canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
+                canDelete: typeof canDeleteRow === "function" ? canDeleteRow({ request, line }) : isAdmin(),
             });
         });
         if (nextLines.length !== (request.lines || []).length) {
@@ -479,7 +486,7 @@ function renderInterventionTable({
         deleteBtn.type = "button";
         deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
         deleteBtn.title = "Elimina";
-        deleteBtn.disabled = !isAdmin() || Boolean(row.deletedAt);
+        deleteBtn.disabled = !row.canDelete || Boolean(row.deletedAt);
         deleteBtn.addEventListener("click", () => deleteCartRow(row));
         const deleteIcon = document.createElement("span");
         deleteIcon.className = "material-icons";
@@ -521,7 +528,7 @@ function renderInterventionTable({
 
         const actionsCell = document.createElement("div");
         actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
-        if (isAdmin()) {
+        if (row.canEdit) {
             const editBtn = document.createElement("button");
             editBtn.type = "button";
             editBtn.className = "pm-icon-btn";
@@ -551,5 +558,4 @@ function renderInterventionTable({
 }
 
 if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { renderCartTable };
-
 

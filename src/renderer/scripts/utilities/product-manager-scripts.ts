@@ -1560,6 +1560,49 @@ function buildRequestRecord(payload) {
     };
 }
 
+function isRequestOwner(request) {
+    if (!request || !isEmployee()) return false;
+    const employee = normalizeString(session.employee);
+    if (!employee) return false;
+    if (normalizeString(request.employee) !== employee) return false;
+    const reqDept = normalizeString(request.department);
+    const sessionDept = normalizeString(session.department);
+    if (reqDept && sessionDept && reqDept !== sessionDept) return false;
+    const createdBy = normalizeString(request.createdBy);
+    if (createdBy && createdBy !== "employee") return false;
+    return true;
+}
+
+function hasAdminTouchedRequest(request) {
+    if (!request) return false;
+    const history = Array.isArray(request.history) ? request.history : [];
+    return history.some((entry) => entry && entry.by === "admin");
+}
+
+function isLineFinalized(line) {
+    return Boolean(line && (line.confirmed || line.confirmedAt || line.deletedAt));
+}
+
+function canEmployeeEditLine(request, line) {
+    if (!isEmployee()) return false;
+    if (!isRequestOwner(request)) return false;
+    if (hasAdminTouchedRequest(request)) return false;
+    if (isLineFinalized(line)) return false;
+    return true;
+}
+
+function canEditLine(request, line) {
+    if (isAdmin()) return true;
+    if (!line || line.deletedAt) return false;
+    return canEmployeeEditLine(request, line);
+}
+
+function canDeleteLine(request, line) {
+    if (isAdmin()) return true;
+    if (!line || line.deletedAt) return false;
+    return canEmployeeEditLine(request, line);
+}
+
 function showFormMessage(text, type = "info") {
     const message = document.getElementById("pm-form-message");
     if (!message) return;
@@ -1672,6 +1715,8 @@ function renderCartTable() {
         renderCatalog,
         saveCatalog,
         catalogItems,
+        canEditRow: ({ request, line }) => canEditLine(request, line),
+        canDeleteRow: ({ request, line }) => canDeleteLine(request, line),
     });
 }
 
@@ -1771,8 +1816,18 @@ function buildEditTagsMultiSelect({ container, input, values, selected }) {
 }
 
 function openInterventionEditModal(row) {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono modificare.");
+    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+    const request = requests[row.requestIndex];
+    const line = request?.lines?.[row.lineIndex];
+    if (!request || !line) {
+        showError(
+            "Elemento non trovato.",
+            "La riga potrebbe essere stata modificata da un altro utente.",
+        );
+        return;
+    }
+    if (!canEditLine(request, line) || line.deletedAt) {
+        showWarning("Non puoi modificare questa richiesta.");
         return;
     }
     uiState.interventionEditingRow = row;
@@ -1801,10 +1856,6 @@ function closeInterventionEditModal() {
 }
 
 function saveInterventionEditModal() {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono modificare.");
-        return;
-    }
     const row = uiState.interventionEditingRow;
     if (!row) return;
     const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
@@ -1817,6 +1868,10 @@ function saveInterventionEditModal() {
         return;
     }
     const line = request.lines[row.lineIndex];
+    if (!canEditLine(request, line) || line.deletedAt) {
+        showWarning("Non puoi modificare questa richiesta.");
+        return;
+    }
     line.interventionType = getEditFieldValue(
         "pm-intervention-edit-type",
     ).trim();
@@ -1825,10 +1880,12 @@ function saveInterventionEditModal() {
     ).trim();
     line.urgency = getEditFieldValue("pm-intervention-edit-urgency").trim();
     request.history = Array.isArray(request.history) ? request.history : [];
+    const actorRole = session.role || "guest";
     request.history.push({
         at: new Date().toISOString(),
-        by: "admin",
+        by: actorRole,
         adminName: session.adminName || "",
+        employee: actorRole === "employee" ? session.employee || "" : "",
         action: "line-updated",
     });
     if (saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
@@ -1838,8 +1895,18 @@ function saveInterventionEditModal() {
 }
 
 function openEditModal(row) {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono modificare.");
+    const requests = readRequestsFile();
+    const request = requests[row.requestIndex];
+    const line = request?.lines?.[row.lineIndex];
+    if (!request || !line) {
+        showError(
+            "Elemento non trovato.",
+            "La riga potrebbe essere stata modificata da un altro utente.",
+        );
+        return;
+    }
+    if (!canEditLine(request, line) || line.deletedAt) {
+        showWarning("Non puoi modificare questa richiesta.");
         return;
     }
     cartState.editingRow = row;
@@ -1893,16 +1960,8 @@ function closeEditModal() {
 }
 
 function saveEditModal() {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono modificare.");
-        return;
-    }
     const row = cartState.editingRow;
     if (!row) return;
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono modificare.");
-        return;
-    }
     const requests = readRequestsFile();
     const request = requests[row.requestIndex];
     if (!request || !request.lines || !request.lines[row.lineIndex]) {
@@ -1913,6 +1972,10 @@ function saveEditModal() {
         return;
     }
     const line = request.lines[row.lineIndex];
+    if (!canEditLine(request, line) || line.deletedAt) {
+        showWarning("Non puoi modificare questa richiesta.");
+        return;
+    }
     line.product = getEditFieldValue("pm-edit-product").trim();
     line.category = getEditFieldValue("pm-edit-tags-input").trim();
     line.quantity = getEditFieldValue("pm-edit-quantity").toString().trim();
@@ -1923,10 +1986,12 @@ function saveEditModal() {
     line.priceCad = normalizePriceCad(getEditFieldValue("pm-edit-price"));
     line.note = getEditFieldValue("pm-edit-note").trim();
     request.history = Array.isArray(request.history) ? request.history : [];
+    const actorRole = session.role || "guest";
     request.history.push({
         at: new Date().toISOString(),
-        by: "admin",
+        by: actorRole,
         adminName: session.adminName || "",
+        employee: actorRole === "employee" ? session.employee || "" : "",
         action: "line-updated",
     });
     if (saveRequestsFile(requests)) {
@@ -2026,10 +2091,6 @@ async function confirmCartRow(row) {
 }
 
 async function deleteCartRow(row) {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono eliminare.");
-        return;
-    }
     const ok = await openConfirmModal("Vuoi eliminare questo elemento?");
     if (!ok) return;
     const requests = readRequestsFile();
@@ -2042,14 +2103,20 @@ async function deleteCartRow(row) {
         return;
     }
     const line = request.lines[row.lineIndex];
+    if (!canDeleteLine(request, line) || line.deletedAt) {
+        showWarning("Non puoi eliminare questa richiesta.");
+        return;
+    }
     if (line.deletedAt) return;
     line.deletedAt = new Date().toISOString();
-    line.deletedBy = session.adminName || "";
+    line.deletedBy = isAdmin() ? session.adminName || "" : session.employee || "";
     request.history = Array.isArray(request.history) ? request.history : [];
+    const actorRole = session.role || "guest";
     request.history.push({
         at: line.deletedAt,
-        by: "admin",
+        by: actorRole,
         adminName: session.adminName || "",
+        employee: actorRole === "employee" ? session.employee || "" : "",
         action: "line-deleted",
     });
     if (saveRequestsFile(requests)) renderCartTable();
