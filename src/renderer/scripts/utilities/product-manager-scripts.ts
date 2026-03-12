@@ -1603,6 +1603,38 @@ function canDeleteLine(request, line) {
     return canEmployeeEditLine(request, line);
 }
 
+function getEditDenyReason(request, line) {
+    if (!isLoggedIn()) return "Effettua il login.";
+    if (!request || !line) return "Elemento non disponibile.";
+    if (line.deletedAt) return "Riga eliminata.";
+    if (line.confirmed || line.confirmedAt) {
+        if (!isAdmin()) return "Richiesta già convalidata.";
+    }
+    if (isAdmin()) return "";
+    if (!isEmployee()) return "Accesso admin richiesto.";
+    if (!isRequestOwner(request)) return "Richiesta di un altro dipendente.";
+    if (hasAdminTouchedRequest(request))
+        return "Richiesta già gestita da un admin.";
+    if (isLineFinalized(line)) return "Richiesta già convalidata o eliminata.";
+    return "Non puoi modificare questa richiesta.";
+}
+
+function getDeleteDenyReason(request, line) {
+    if (!isLoggedIn()) return "Effettua il login.";
+    if (!request || !line) return "Elemento non disponibile.";
+    if (line.deletedAt) return "Riga eliminata.";
+    if (line.confirmed || line.confirmedAt) {
+        if (!isAdmin()) return "Richiesta già convalidata.";
+    }
+    if (isAdmin()) return "";
+    if (!isEmployee()) return "Accesso admin richiesto.";
+    if (!isRequestOwner(request)) return "Richiesta di un altro dipendente.";
+    if (hasAdminTouchedRequest(request))
+        return "Richiesta già gestita da un admin.";
+    if (isLineFinalized(line)) return "Richiesta già convalidata o eliminata.";
+    return "Non puoi eliminare questa richiesta.";
+}
+
 function showFormMessage(text, type = "info") {
     const message = document.getElementById("pm-form-message");
     if (!message) return;
@@ -1712,11 +1744,13 @@ function renderCartTable() {
         openInterventionEditModal,
         openAddModal,
         isLoggedIn,
-        renderCatalog,
-        saveCatalog,
-        catalogItems,
-        canEditRow: ({ request, line }) => canEditLine(request, line),
-        canDeleteRow: ({ request, line }) => canDeleteLine(request, line),
+    renderCatalog,
+    saveCatalog,
+    catalogItems,
+    canEditRow: ({ request, line }) => canEditLine(request, line),
+    canDeleteRow: ({ request, line }) => canDeleteLine(request, line),
+    canEditReason: ({ request, line }) => getEditDenyReason(request, line),
+    canDeleteReason: ({ request, line }) => getDeleteDenyReason(request, line),
     });
 }
 

@@ -27,6 +27,8 @@ function renderCartTable({
     catalogItems,
     canEditRow,
     canDeleteRow,
+    canEditReason,
+    canDeleteReason,
 }) {
     const list = document.getElementById("pm-requests-list");
     if (!list) return;
@@ -95,6 +97,8 @@ function renderCartTable({
                 createdAt: request.createdAt || "",
                 canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
                 canDelete: typeof canDeleteRow === "function" ? canDeleteRow({ request, line }) : isAdmin(),
+                editReason: typeof canEditReason === "function" ? canEditReason({ request, line }) : "",
+                deleteReason: typeof canDeleteReason === "function" ? canDeleteReason({ request, line }) : "",
             });
         });
         if (nextLines.length !== (request.lines || []).length) {
@@ -207,7 +211,7 @@ function renderCartTable({
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
-        deleteBtn.title = "Elimina";
+        deleteBtn.title = row.deleteReason || (row.deletedAt ? "Riga eliminata." : "Elimina");
         deleteBtn.disabled = !row.canDelete || Boolean(row.deletedAt);
         deleteBtn.addEventListener("click", () => deleteCartRow(row));
         const deleteIcon = document.createElement("span");
@@ -220,6 +224,9 @@ function renderCartTable({
         confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
         confirmBtn.title = "Convalida";
         confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
+        if (!isAdmin()) confirmBtn.title = "Solo admin.";
+        if (row.deletedAt) confirmBtn.title = "Riga eliminata.";
+        if (row.confirmed) confirmBtn.title = "Riga già convalidata.";
         confirmBtn.addEventListener("click", () => confirmCartRow(row));
         const confirmIcon = document.createElement("span");
         confirmIcon.className = "material-icons";
@@ -283,8 +290,13 @@ function renderCartTable({
         actionsCell.appendChild(addBtn);
         if (row.deletedAt) {
             addBtn.disabled = true;
+            addBtn.title = "Riga eliminata.";
         }
-        if (row.canEdit) {
+        if (!isLoggedIn()) {
+            addBtn.disabled = true;
+            addBtn.title = "Effettua il login.";
+        }
+        if (isLoggedIn()) {
             const editBtn = document.createElement("button");
             editBtn.type = "button";
             editBtn.className = "pm-icon-btn";
@@ -295,7 +307,10 @@ function renderCartTable({
             editIcon.textContent = "edit";
             editBtn.appendChild(editIcon);
             editBtn.addEventListener("click", () => openEditModal(row));
-            if (row.deletedAt) editBtn.disabled = true;
+            if (!row.canEdit || row.deletedAt) editBtn.disabled = true;
+            editBtn.title =
+                row.editReason ||
+                (row.deletedAt ? "Riga eliminata." : "Modifica");
             const addCatalogBtn = document.createElement("button");
             addCatalogBtn.type = "button";
             addCatalogBtn.className = "pm-icon-btn";
@@ -325,10 +340,10 @@ function renderCartTable({
                 }
             });
             if (!isAdmin() || row.deletedAt) addCatalogBtn.disabled = true;
+            if (!isAdmin()) addCatalogBtn.title = "Solo admin.";
+            if (row.deletedAt) addCatalogBtn.title = "Riga eliminata.";
             actionsCell.append(editBtn);
             if (isAdmin()) actionsCell.append(addCatalogBtn);
-        } else if (!isLoggedIn()) {
-            addBtn.disabled = true;
         }
 
         tr.append(
@@ -369,6 +384,8 @@ function renderInterventionTable({
     openInterventionEditModal,
     canEditRow,
     canDeleteRow,
+    canEditReason,
+    canDeleteReason,
 }) {
     const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
     const rows = [];
@@ -408,6 +425,8 @@ function renderInterventionTable({
                 createdAt: request.createdAt || "",
                 canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
                 canDelete: typeof canDeleteRow === "function" ? canDeleteRow({ request, line }) : isAdmin(),
+                editReason: typeof canEditReason === "function" ? canEditReason({ request, line }) : "",
+                deleteReason: typeof canDeleteReason === "function" ? canDeleteReason({ request, line }) : "",
             });
         });
         if (nextLines.length !== (request.lines || []).length) {
@@ -486,6 +505,7 @@ function renderInterventionTable({
         deleteBtn.type = "button";
         deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
         deleteBtn.title = "Elimina";
+        deleteBtn.title = row.deleteReason || (row.deletedAt ? "Riga eliminata." : "Elimina");
         deleteBtn.disabled = !row.canDelete || Boolean(row.deletedAt);
         deleteBtn.addEventListener("click", () => deleteCartRow(row));
         const deleteIcon = document.createElement("span");
@@ -498,6 +518,9 @@ function renderInterventionTable({
         confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
         confirmBtn.title = "Convalida";
         confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
+        if (!isAdmin()) confirmBtn.title = "Solo admin.";
+        if (row.deletedAt) confirmBtn.title = "Riga eliminata.";
+        if (row.confirmed) confirmBtn.title = "Riga già convalidata.";
         confirmBtn.addEventListener("click", () => confirmCartRow(row));
         const confirmIcon = document.createElement("span");
         confirmIcon.className = "material-icons";
@@ -528,7 +551,7 @@ function renderInterventionTable({
 
         const actionsCell = document.createElement("div");
         actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
-        if (row.canEdit) {
+        if (isLoggedIn()) {
             const editBtn = document.createElement("button");
             editBtn.type = "button";
             editBtn.className = "pm-icon-btn";
@@ -539,7 +562,10 @@ function renderInterventionTable({
             editIcon.textContent = "edit";
             editBtn.appendChild(editIcon);
             editBtn.addEventListener("click", () => openInterventionEditModal(row));
-            if (row.deletedAt) editBtn.disabled = true;
+            if (!row.canEdit || row.deletedAt) editBtn.disabled = true;
+            editBtn.title =
+                row.editReason ||
+                (row.deletedAt ? "Riga eliminata." : "Modifica");
             actionsCell.appendChild(editBtn);
         }
 
@@ -558,4 +584,3 @@ function renderInterventionTable({
 }
 
 if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { renderCartTable };
-
