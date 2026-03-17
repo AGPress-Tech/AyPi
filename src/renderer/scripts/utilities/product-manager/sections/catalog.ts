@@ -87,7 +87,7 @@ function updateCategoryChipPreview(ctx, name, color) {
     if (dot) dot.style.background = getContrastText(ctx, color);
 }
 
-function openCategoryEditor(ctx, category) {
+function openCategoryEditor(ctx, category, anchorEl) {
     const { document, uiState, getCategoryColors } = ctx;
     const editor = document.getElementById("pm-category-editor");
     const title = document.getElementById("pm-category-editor-title");
@@ -97,6 +97,16 @@ function openCategoryEditor(ctx, category) {
     uiState.categoryColorSnapshot = { ...getCategoryColors() };
     colorInput.value = getCategoryColor(ctx, category);
     if (title) title.textContent = `Colore ${category}`;
+    if (anchorEl && typeof anchorEl.getBoundingClientRect === "function") {
+        const rect = anchorEl.getBoundingClientRect();
+        const modal = document.getElementById("pm-categories-modal");
+        const panel = document.getElementById("pm-categories-panel");
+        const parentRect = (panel || modal || document.body).getBoundingClientRect();
+        editor.style.left = `${Math.max(8, rect.right - parentRect.left + 8)}px`;
+        editor.style.top = `${Math.max(8, rect.top - parentRect.top - 6)}px`;
+        editor.style.right = "auto";
+        editor.style.bottom = "auto";
+    }
     editor.classList.remove("is-hidden");
 }
 
@@ -430,7 +440,7 @@ function saveCatalogItem(ctx) {
 }
 
 function openCategoriesModal(ctx) {
-    const { document, isAdmin, showWarning, renderCategoriesList } = ctx;
+    const { document, isAdmin, showWarning, renderCategoriesList, renderInterventionTypesList } = ctx;
     if (!isAdmin()) {
         showWarning("Solo gli admin possono gestire le categorie.");
         return;
@@ -438,8 +448,15 @@ function openCategoriesModal(ctx) {
     const modal = document.getElementById("pm-categories-modal");
     if (!modal) return;
     renderCategoriesList();
+    if (typeof renderInterventionTypesList === "function") {
+        renderInterventionTypesList();
+    }
     modal.classList.remove("is-hidden");
     modal.setAttribute("aria-hidden", "false");
+    const input = document.getElementById("pm-category-name");
+    if (input) {
+        setTimeout(() => input.focus(), 0);
+    }
 }
 
 function closeCategoriesModal(ctx) {

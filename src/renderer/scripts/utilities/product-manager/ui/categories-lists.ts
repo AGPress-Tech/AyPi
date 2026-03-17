@@ -3,6 +3,7 @@ require("../../../shared/dev-guards");
 function renderCategoriesList(ctx) {
     const {
         document,
+        uiState,
         catalogCategories,
         getCategoryColors,
         getCategoryColor,
@@ -32,14 +33,64 @@ function renderCategoriesList(ctx) {
     if (!list) return;
     list.innerHTML = "";
     const items = catalogCategories();
-    items.forEach((cat) => {
+    items.forEach((cat, index) => {
         const row = document.createElement("div");
-        row.className = "pm-list-item";
+        row.className = "fp-assignees-row pm-category-row";
         row.dataset.category = cat;
+        row.dataset.index = String(index);
+        const isEditing = uiState?.categoriesEditingName === cat;
+        if (!isEditing) {
+            row.setAttribute("draggable", "true");
+            row.addEventListener("dragstart", (event) => {
+                row.classList.add("is-dragging");
+                const dataTransfer = event.dataTransfer;
+                if (!dataTransfer) return;
+                dataTransfer.effectAllowed = "move";
+                dataTransfer.setData("text/plain", row.dataset.index || "");
+            });
+            row.addEventListener("dragend", () => {
+                row.classList.remove("is-dragging");
+            });
+            row.addEventListener("dragover", (event) => {
+                event.preventDefault();
+                row.classList.add("is-drop-target");
+            });
+            row.addEventListener("dragleave", () => {
+                row.classList.remove("is-drop-target");
+            });
+            row.addEventListener("drop", (event) => {
+                event.preventDefault();
+                row.classList.remove("is-drop-target");
+                const dataTransfer = event.dataTransfer;
+                if (!dataTransfer) return;
+                const fromIndex = Number(dataTransfer.getData("text/plain"));
+                const toIndex = Number(row.dataset.index || "0");
+                if (Number.isNaN(fromIndex) || Number.isNaN(toIndex) || fromIndex === toIndex) {
+                    return;
+                }
+                const current = catalogCategories();
+                const next = [...current];
+                const [moved] = next.splice(fromIndex, 1);
+                next.splice(toIndex, 0, moved);
+                setCatalogCategories(next);
+                if (saveCategories(next)) {
+                    renderCategoriesList(ctx);
+                    renderCategoryOptions();
+                    renderCatalogFilterOptions();
+                    renderCartTagFilterOptions();
+                    renderCatalog();
+                    renderCartTable();
+                }
+            });
+        }
         const labelWrap = document.createElement("div");
         labelWrap.style.display = "flex";
         labelWrap.style.alignItems = "center";
         labelWrap.style.gap = "8px";
+        const dragHandle = document.createElement("span");
+        dragHandle.className = "pm-drag-handle material-icons";
+        dragHandle.title = "Trascina per riordinare";
+        dragHandle.textContent = "drag_indicator";
         const chipBtn = document.createElement("button");
         chipBtn.type = "button";
         chipBtn.className = "pm-category-chip";
@@ -51,28 +102,29 @@ function renderCategoriesList(ctx) {
         chipBtn.style.background = chipColor;
         dot.style.background = getContrastText(chipColor);
         chipBtn.appendChild(dot);
-        chipBtn.addEventListener("click", () => openCategoryEditor(cat));
-        const label = document.createElement("span");
-        label.textContent = cat;
-        labelWrap.append(chipBtn, label);
+        chipBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            openCategoryEditor(cat, chipBtn);
+        });
+        if (isEditing) {
+            const input = document.createElement("input");
+            input.className = "fp-field__input pm-inline-input";
+            input.value = cat;
+            input.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                saveEdit();
+            });
+            labelWrap.append(dragHandle, chipBtn, input);
+        } else {
+            const label = document.createElement("span");
+            label.textContent = cat;
+            labelWrap.append(dragHandle, chipBtn, label);
+        }
         const actions = document.createElement("div");
-        actions.className = "pm-table__cell pm-table__actions";
-        const editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.className = "pm-tag-icon-btn";
-        editBtn.title = "Modifica";
-        const editIcon = document.createElement("span");
-        editIcon.className = "material-icons";
-        editIcon.textContent = "edit";
-        editBtn.appendChild(editIcon);
-        editBtn.addEventListener("click", async () => {
-            const input = document.getElementById("pm-category-name");
-            const nextName = input?.value?.trim() || "";
-            if (!nextName || nextName === cat) return;
-            if (items.includes(nextName)) {
-                showWarning("Categoria giÃ  esistente.");
-                return;
-            }
+        actions.className = "fp-assignees-row__actions";
+
+        const applyRename = (nextName) => {
             const nextCategories = items.map((entry) => (entry === cat ? nextName : entry));
             setCatalogCategories(nextCategories);
             const colors = getCategoryColors();
@@ -96,7 +148,7 @@ function renderCategoriesList(ctx) {
                 });
             });
             if (saveCategories(nextCategories) && saveCatalog(nextCatalog) && saveRequestsFile(requests)) {
-                if (input) input.value = "";
+                if (uiState) uiState.categoriesEditingName = null;
                 renderCategoriesList(ctx);
                 renderCategoryOptions();
                 renderCatalogFilterOptions();
@@ -104,51 +156,90 @@ function renderCategoriesList(ctx) {
                 renderCatalog();
                 renderCartTable();
             }
-        });
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "pm-tag-icon-btn";
-        removeBtn.title = "Rimuovi";
-        const trashIcon = document.createElement("span");
-        trashIcon.className = "material-icons";
-        trashIcon.textContent = "delete";
-        removeBtn.appendChild(trashIcon);
-        removeBtn.addEventListener("click", async () => {
-            closeCategoriesModal();
-            const ok = await openConfirmModal(`Vuoi eliminare la categoria \"${cat}\"?`);
-            if (!ok) return;
-            const nextCategories = items.filter((entry) => entry !== cat);
-            setCatalogCategories(nextCategories);
-            const colors = getCategoryColors();
-            if (colors[cat]) {
-                const nextColors = { ...colors };
-                delete nextColors[cat];
-                setCategoryColors(nextColors);
-                saveCategoryColors(nextColors);
+        };
+
+        const saveEdit = () => {
+            const inputEl = labelWrap.querySelector("input");
+            const nextName = inputEl?.value?.trim() || "";
+            if (!nextName || nextName === cat) {
+                if (uiState) uiState.categoriesEditingName = null;
+                renderCategoriesList(ctx);
+                return;
             }
-            const catalogItems = getCatalogItems();
-            const nextCatalog = catalogItems.map((item) => {
-                const tags = toTags(item.category || "").filter((t) => t !== cat);
-                return { ...item, category: tags.join(", ") };
+            if (items.includes(nextName)) {
+                showWarning("Categoria giÃ  esistente.");
+                return;
+            }
+            applyRename(nextName);
+        };
+
+        if (isEditing) {
+            const save = document.createElement("button");
+            save.type = "button";
+            save.className = "fp-assignees-link";
+            save.textContent = "Salva";
+            save.addEventListener("click", saveEdit);
+
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "fp-assignees-link fp-assignees-link--danger";
+            cancel.textContent = "Annulla";
+            cancel.addEventListener("click", () => {
+                if (uiState) uiState.categoriesEditingName = null;
+                renderCategoriesList(ctx);
             });
-            setCatalogItems(nextCatalog);
-            const requests = readRequestsFile();
-            requests.forEach((req) => {
-                (req.lines || []).forEach((line) => {
-                    const tags = toTags(line.category || "").filter((t) => t !== cat);
-                    line.category = tags.join(", ");
+            actions.append(save, cancel);
+        } else {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "fp-assignees-link";
+            editBtn.textContent = "Modifica";
+            editBtn.addEventListener("click", () => {
+                if (uiState) uiState.categoriesEditingName = cat;
+                renderCategoriesList(ctx);
+            });
+
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "fp-assignees-link fp-assignees-link--danger";
+            removeBtn.textContent = "Rimuovi";
+            removeBtn.addEventListener("click", async () => {
+                closeCategoriesModal();
+                const ok = await openConfirmModal(`Vuoi eliminare la categoria \"${cat}\"?`);
+                if (!ok) return;
+                const nextCategories = items.filter((entry) => entry !== cat);
+                setCatalogCategories(nextCategories);
+                const colors = getCategoryColors();
+                if (colors[cat]) {
+                    const nextColors = { ...colors };
+                    delete nextColors[cat];
+                    setCategoryColors(nextColors);
+                    saveCategoryColors(nextColors);
+                }
+                const catalogItems = getCatalogItems();
+                const nextCatalog = catalogItems.map((item) => {
+                    const tags = toTags(item.category || "").filter((t) => t !== cat);
+                    return { ...item, category: tags.join(", ") };
                 });
+                setCatalogItems(nextCatalog);
+                const requests = readRequestsFile();
+                requests.forEach((req) => {
+                    (req.lines || []).forEach((line) => {
+                        const tags = toTags(line.category || "").filter((t) => t !== cat);
+                        line.category = tags.join(", ");
+                    });
+                });
+                if (saveCategories(nextCategories) && saveCatalog(nextCatalog) && saveRequestsFile(requests)) {
+                    renderCategoriesList(ctx);
+                    renderCategoryOptions();
+                    renderCatalogFilterOptions();
+                    renderCartTagFilterOptions();
+                    renderCatalog();
+                    renderCartTable();
+                }
             });
-            if (saveCategories(nextCategories) && saveCatalog(nextCatalog) && saveRequestsFile(requests)) {
-                renderCategoriesList(ctx);
-                renderCategoryOptions();
-                renderCatalogFilterOptions();
-                renderCartTagFilterOptions();
-                renderCatalog();
-                renderCartTable();
-            }
-        });
-        actions.append(editBtn, removeBtn);
+            actions.append(editBtn, removeBtn);
+        }
         row.append(labelWrap, actions);
         list.appendChild(row);
     });
@@ -160,6 +251,7 @@ function renderCategoriesList(ctx) {
 function renderInterventionTypesList(ctx) {
     const {
         document,
+        uiState,
         interventionTypes,
         showWarning,
         closeInterventionTypesModal,
@@ -179,30 +271,81 @@ function renderInterventionTypesList(ctx) {
     if (!list) return;
     list.innerHTML = "";
     const types = interventionTypes();
-    types.forEach((type) => {
+    types.forEach((type, index) => {
         const row = document.createElement("div");
-        row.className = "pm-list-item";
+        row.className = "fp-assignees-row pm-type-row";
         row.dataset.type = type;
-        const label = document.createElement("span");
-        label.textContent = type;
+        row.dataset.index = String(index);
+        const isEditing = uiState?.interventionTypesEditingName === type;
+        if (!isEditing) {
+            row.setAttribute("draggable", "true");
+            row.addEventListener("dragstart", (event) => {
+                row.classList.add("is-dragging");
+                const dataTransfer = event.dataTransfer;
+                if (!dataTransfer) return;
+                dataTransfer.effectAllowed = "move";
+                dataTransfer.setData("text/plain", row.dataset.index || "");
+            });
+            row.addEventListener("dragend", () => {
+                row.classList.remove("is-dragging");
+            });
+            row.addEventListener("dragover", (event) => {
+                event.preventDefault();
+                row.classList.add("is-drop-target");
+            });
+            row.addEventListener("dragleave", () => {
+                row.classList.remove("is-drop-target");
+            });
+            row.addEventListener("drop", (event) => {
+                event.preventDefault();
+                row.classList.remove("is-drop-target");
+                const dataTransfer = event.dataTransfer;
+                if (!dataTransfer) return;
+                const fromIndex = Number(dataTransfer.getData("text/plain"));
+                const toIndex = Number(row.dataset.index || "0");
+                if (Number.isNaN(fromIndex) || Number.isNaN(toIndex) || fromIndex === toIndex) {
+                    return;
+                }
+                const current = interventionTypes();
+                const next = [...current];
+                const [moved] = next.splice(fromIndex, 1);
+                next.splice(toIndex, 0, moved);
+                setInterventionTypes(next);
+                if (saveInterventionTypes(next)) {
+                    renderInterventionTypesList(ctx);
+                    renderCartTagFilterOptions();
+                    renderLines();
+                    renderCartTable();
+                }
+            });
+        }
+        const labelWrap = document.createElement("div");
+        labelWrap.style.display = "flex";
+        labelWrap.style.alignItems = "center";
+        labelWrap.style.gap = "8px";
+        const dragHandle = document.createElement("span");
+        dragHandle.className = "pm-drag-handle material-icons";
+        dragHandle.title = "Trascina per riordinare";
+        dragHandle.textContent = "drag_indicator";
+        if (isEditing) {
+            const input = document.createElement("input");
+            input.className = "fp-field__input pm-inline-input";
+            input.value = type;
+            input.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                saveEdit();
+            });
+            labelWrap.append(dragHandle, input);
+        } else {
+            const label = document.createElement("span");
+            label.textContent = type;
+            labelWrap.append(dragHandle, label);
+        }
         const actions = document.createElement("div");
-        actions.className = "pm-table__cell pm-table__actions";
-        const editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.className = "pm-tag-icon-btn";
-        editBtn.title = "Modifica";
-        const editIcon = document.createElement("span");
-        editIcon.className = "material-icons";
-        editIcon.textContent = "edit";
-        editBtn.appendChild(editIcon);
-        editBtn.addEventListener("click", async () => {
-            const input = document.getElementById("pm-intervention-type-name");
-            const nextName = input?.value?.trim() || "";
-            if (!nextName || nextName === type) return;
-            if (types.includes(nextName)) {
-                showWarning("Tipologia giÃ  esistente.");
-                return;
-            }
+        actions.className = "fp-assignees-row__actions";
+
+        const applyRename = (nextName) => {
             const nextTypes = types.map((entry) => (entry === type ? nextName : entry));
             setInterventionTypes(nextTypes);
             const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
@@ -213,43 +356,81 @@ function renderInterventionTypesList(ctx) {
                 });
             });
             if (saveInterventionTypes(nextTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
-                if (input) input.value = "";
+                if (uiState) uiState.interventionTypesEditingName = null;
                 renderInterventionTypesList(ctx);
                 renderCartTagFilterOptions();
                 renderLines();
                 renderCartTable();
             }
-        });
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "pm-tag-icon-btn";
-        removeBtn.title = "Rimuovi";
-        const trashIcon = document.createElement("span");
-        trashIcon.className = "material-icons";
-        trashIcon.textContent = "delete";
-        removeBtn.appendChild(trashIcon);
-        removeBtn.addEventListener("click", async () => {
-            closeInterventionTypesModal();
-            const ok = await openConfirmModal(`Vuoi eliminare la tipologia \"${type}\"?`);
-            if (!ok) return;
-            const nextTypes = types.filter((entry) => entry !== type);
-            setInterventionTypes(nextTypes);
-            const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-            requests.forEach((req) => {
-                (req.lines || []).forEach((line) => {
-                    const tags = toTags(getInterventionType(line)).filter((t) => t !== type);
-                    line.interventionType = tags.join(", ");
-                });
+        };
+
+        const saveEdit = () => {
+            const inputEl = labelWrap.querySelector("input");
+            const nextName = inputEl?.value?.trim() || "";
+            if (!nextName || nextName === type) {
+                if (uiState) uiState.interventionTypesEditingName = null;
+                renderInterventionTypesList(ctx);
+                return;
+            }
+            if (types.includes(nextName)) {
+                showWarning("Tipologia giÃ  esistente.");
+                return;
+            }
+            applyRename(nextName);
+        };
+
+        if (isEditing) {
+            const save = document.createElement("button");
+            save.type = "button";
+            save.className = "fp-assignees-link";
+            save.textContent = "Salva";
+            save.addEventListener("click", saveEdit);
+
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "fp-assignees-link fp-assignees-link--danger";
+            cancel.textContent = "Annulla";
+            cancel.addEventListener("click", () => {
+                if (uiState) uiState.interventionTypesEditingName = null;
+                renderInterventionTypesList(ctx);
             });
-            if (saveInterventionTypes(nextTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+            actions.append(save, cancel);
+        } else {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "fp-assignees-link";
+            editBtn.textContent = "Modifica";
+            editBtn.addEventListener("click", () => {
+                if (uiState) uiState.interventionTypesEditingName = type;
                 renderInterventionTypesList(ctx);
-                renderCartTagFilterOptions();
-                renderLines();
-                renderCartTable();
-            }
-        });
-        actions.append(editBtn, removeBtn);
-        row.append(label, actions);
+            });
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "fp-assignees-link fp-assignees-link--danger";
+            removeBtn.textContent = "Rimuovi";
+            removeBtn.addEventListener("click", async () => {
+                closeInterventionTypesModal();
+                const ok = await openConfirmModal(`Vuoi eliminare la tipologia \"${type}\"?`);
+                if (!ok) return;
+                const nextTypes = types.filter((entry) => entry !== type);
+                setInterventionTypes(nextTypes);
+                const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+                requests.forEach((req) => {
+                    (req.lines || []).forEach((line) => {
+                        const tags = toTags(getInterventionType(line)).filter((t) => t !== type);
+                        line.interventionType = tags.join(", ");
+                    });
+                });
+                if (saveInterventionTypes(nextTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+                    renderInterventionTypesList(ctx);
+                    renderCartTagFilterOptions();
+                    renderLines();
+                    renderCartTable();
+                }
+            });
+            actions.append(editBtn, removeBtn);
+        }
+        row.append(labelWrap, actions);
         list.appendChild(row);
     });
     if (!types.length) {

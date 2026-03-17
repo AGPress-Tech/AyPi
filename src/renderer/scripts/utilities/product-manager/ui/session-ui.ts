@@ -35,8 +35,6 @@ function updateAdminControls(ctx) {
     const adminMode = isAdmin();
     const section = document.getElementById("pm-categories-section");
     if (section) section.classList.toggle("is-hidden", !adminMode);
-    const typesSection = document.getElementById("pm-intervention-types-section");
-    if (typesSection) typesSection.classList.toggle("is-hidden", !adminMode);
     const backupSection = document.getElementById("pm-backup-section");
     if (backupSection) backupSection.classList.toggle("is-hidden", !adminMode);
     const catalogAdd = document.getElementById("pm-catalog-add");

@@ -58,14 +58,16 @@ function renderCartTable({
     let droppedDeleted = 0;
     let droppedConfirmed = 0;
     const now = Date.now();
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    const confirmedDays = Number(cartState.retentionConfirmedDays) || 7;
+    const deletedDays = Number(cartState.retentionDeletedDays) || 7;
+    const confirmedMs = confirmedDays * 24 * 60 * 60 * 1000;
+    const deletedMs = deletedDays * 24 * 60 * 60 * 1000;
     requests.forEach((request, requestIndex) => {
         const requester = request.employee || "";
         const nextLines = [];
         (request.lines || []).forEach((line) => {
             const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
-            if (deletedAt && now - deletedAt >= weekMs) {
+            if (deletedAt && now - deletedAt >= deletedMs) {
                 needsSave = true;
                 droppedDeleted += 1;
                 return;
@@ -73,7 +75,7 @@ function renderCartTable({
             nextLines.push(line);
             const nextIndex = nextLines.length - 1;
             const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
-            if (confirmedAt && now - confirmedAt >= monthMs) {
+            if (confirmedAt && now - confirmedAt >= confirmedMs) {
                 droppedConfirmed += 1;
                 return;
             }
@@ -94,6 +96,9 @@ function renderCartTable({
                 confirmed: Boolean(line.confirmed),
                 confirmedAt: line.confirmedAt || "",
                 deletedAt: line.deletedAt || "",
+                deletedBy: line.deletedBy || "",
+                deletedByRole: line.deletedByRole || "",
+                deletedReason: line.deletedReason || "",
                 requester,
                 createdAt: request.createdAt || "",
                 canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
@@ -117,10 +122,27 @@ function renderCartTable({
         ? [cartState.urgency]
         : [];
     const tagFilter = Array.isArray(cartState.tag) ? cartState.tag.filter((value) => value) : cartState.tag ? [cartState.tag] : [];
+    const statusFilter = Array.isArray(cartState.status)
+        ? cartState.status.filter((value) => value)
+        : cartState.status
+        ? [cartState.status]
+        : [];
     let failUrgency = 0;
     let failTag = 0;
     let failSearch = 0;
+    let failStatus = 0;
     const filtered = rows.filter((row) => {
+        const rowStatus = row.deletedAt
+            ? "Rifiutate"
+            : row.confirmedAt || row.confirmed
+            ? "Convalidati"
+            : "In attesa";
+        if (statusFilter.length) {
+            if (!statusFilter.includes(rowStatus)) {
+                failStatus += 1;
+                return false;
+            }
+        }
         if (urgencyFilter.length) {
             if (!urgencyFilter.includes(row.urgency || "")) {
                 failUrgency += 1;
@@ -206,6 +228,13 @@ function renderCartTable({
         tr.className = "pm-table__row";
         if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
         if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
+        if (row.deletedAt) {
+            if (row.deletedByRole === "employee" || (!row.deletedReason && !row.deletedByRole)) {
+                tr.title = "Eliminato dall'utente";
+            } else if (row.deletedBy && row.deletedReason) {
+                tr.title = `Admin: ${row.deletedBy}\nMotivazione: ${row.deletedReason}`;
+            }
+        }
 
         const statusCell = document.createElement("div");
         statusCell.className = "pm-table__cell pm-table__cell--icons";
@@ -393,21 +422,23 @@ function renderInterventionTable({
     const rows = [];
     let needsSave = false;
     const now = Date.now();
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    const confirmedDays = Number(cartState.retentionConfirmedDays) || 7;
+    const deletedDays = Number(cartState.retentionDeletedDays) || 7;
+    const confirmedMs = confirmedDays * 24 * 60 * 60 * 1000;
+    const deletedMs = deletedDays * 24 * 60 * 60 * 1000;
     requests.forEach((request, requestIndex) => {
         const requester = request.employee || "";
         const nextLines = [];
         (request.lines || []).forEach((line) => {
             const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
-            if (deletedAt && now - deletedAt >= weekMs) {
+            if (deletedAt && now - deletedAt >= deletedMs) {
                 needsSave = true;
                 return;
             }
             nextLines.push(line);
             const nextIndex = nextLines.length - 1;
             const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
-            if (confirmedAt && now - confirmedAt >= monthMs) {
+            if (confirmedAt && now - confirmedAt >= confirmedMs) {
                 return;
             }
             const typeValue = getInterventionType(line);
@@ -423,6 +454,9 @@ function renderInterventionTable({
                 confirmed: Boolean(line.confirmed),
                 confirmedAt: line.confirmedAt || "",
                 deletedAt: line.deletedAt || "",
+                deletedBy: line.deletedBy || "",
+                deletedByRole: line.deletedByRole || "",
+                deletedReason: line.deletedReason || "",
                 requester,
                 createdAt: request.createdAt || "",
                 canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
@@ -446,7 +480,20 @@ function renderInterventionTable({
         ? [cartState.urgency]
         : [];
     const tagFilter = Array.isArray(cartState.tag) ? cartState.tag.filter((value) => value) : cartState.tag ? [cartState.tag] : [];
+    const statusFilter = Array.isArray(cartState.status)
+        ? cartState.status.filter((value) => value)
+        : cartState.status
+        ? [cartState.status]
+        : [];
     const filtered = rows.filter((row) => {
+        const rowStatus = row.deletedAt
+            ? "Rifiutate"
+            : row.confirmedAt || row.confirmed
+            ? "Convalidati"
+            : "In attesa";
+        if (statusFilter.length) {
+            if (!statusFilter.includes(rowStatus)) return false;
+        }
         if (urgencyFilter.length) {
             if (!urgencyFilter.includes(row.urgency || "")) return false;
         }
@@ -500,6 +547,13 @@ function renderInterventionTable({
         tr.className = "pm-table__row";
         if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
         if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
+        if (row.deletedAt) {
+            if (row.deletedByRole === "employee" || (!row.deletedReason && !row.deletedByRole)) {
+                tr.title = "Eliminato dall'utente";
+            } else if (row.deletedBy && row.deletedReason) {
+                tr.title = `Admin: ${row.deletedBy}\nMotivazione: ${row.deletedReason}`;
+            }
+        }
 
         const statusCell = document.createElement("div");
         statusCell.className = "pm-table__cell pm-table__cell--icons";

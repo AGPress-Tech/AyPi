@@ -37,6 +37,34 @@ function initConfirmModal({ document, closeConfirmModal }) {
     }
 }
 
+function initReasonModal({ document, closeReasonModal }) {
+    const cancelBtn = document.getElementById("pm-reason-cancel");
+    const okBtn = document.getElementById("pm-reason-ok");
+    const modal = document.getElementById("pm-reason-modal");
+    const input = document.getElementById("pm-reason-input");
+    if (cancelBtn) cancelBtn.addEventListener("click", () => closeReasonModal(null));
+    if (okBtn) {
+        okBtn.addEventListener("click", () => {
+            closeReasonModal(input ? input.value || "" : "");
+        });
+    }
+    if (modal) {
+        modal.addEventListener("click", (event) => {
+            if (event.target === modal) closeReasonModal(null);
+        });
+        modal.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeReasonModal(null);
+            }
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                closeReasonModal(input ? input.value || "" : "");
+            }
+        });
+    }
+}
+
 function initAlertModal({ document, closeAlertModal }) {
     const okBtn = document.getElementById("pm-alert-ok");
     const modal = document.getElementById("pm-alert-modal");
@@ -68,6 +96,7 @@ function initImageModal({ document, closeImageModal }) {
 if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
     initAddModal,
     initConfirmModal,
+    initReasonModal,
     initAlertModal,
     initImageModal,
 };

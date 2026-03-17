@@ -24,6 +24,9 @@ const REQUEST_LINE_SCHEMA = {
         note: { type: "string" },
         priceCad: { type: ["string", "number"] },
         deletedAt: { type: ["string", "null"] },
+        deletedBy: { type: ["string", "null"] },
+        deletedByRole: { type: ["string", "null"] },
+        deletedReason: { type: ["string", "null"] },
         approvedAt: { type: ["string", "null"] },
     },
 };

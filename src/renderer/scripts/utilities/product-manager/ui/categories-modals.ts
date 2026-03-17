@@ -20,6 +20,7 @@ function initCategoriesModal(ctx) {
     const openBtn = document.getElementById("pm-categories-open");
     const closeBtn = document.getElementById("pm-categories-close");
     const addBtn = document.getElementById("pm-category-add");
+    const nameInput = document.getElementById("pm-category-name");
     const colorInput = document.getElementById("pm-category-color-input");
     const colorSave = document.getElementById("pm-category-color-save");
     const colorDefault = document.getElementById("pm-category-color-default");
@@ -34,6 +35,13 @@ function initCategoriesModal(ctx) {
     }
     if (closeBtn) closeBtn.addEventListener("click", () => closeCategoriesModal());
     if (addBtn) addBtn.addEventListener("click", () => addCategory());
+    if (nameInput) {
+        nameInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            addCategory();
+        });
+    }
     if (editor) {
         editor.addEventListener("click", (event) => {
             event.stopPropagation();
@@ -83,18 +91,18 @@ function initCategoriesModal(ctx) {
 
 function initInterventionTypesModal(ctx) {
     const { document, openInterventionTypesModal, closeInterventionTypesModal, addInterventionType } = ctx;
-    const openBtn = document.getElementById("pm-intervention-types-open");
-    const closeBtn = document.getElementById("pm-intervention-types-close");
+    const closeBtn = document.getElementById("pm-categories-close");
     const addBtn = document.getElementById("pm-intervention-type-add");
-    if (openBtn) {
-        openBtn.addEventListener("click", () => {
-            const settings = document.getElementById("pm-settings-modal");
-            if (settings) settings.classList.add("is-hidden");
-            openInterventionTypesModal();
-        });
-    }
+    const nameInput = document.getElementById("pm-intervention-type-name");
     if (closeBtn) closeBtn.addEventListener("click", () => closeInterventionTypesModal());
     if (addBtn) addBtn.addEventListener("click", () => addInterventionType());
+    if (nameInput) {
+        nameInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            addInterventionType();
+        });
+    }
 }
 
 if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { initCategoriesModal, initInterventionTypesModal };

@@ -384,6 +384,14 @@
                     <span class="fp-btn__label">Gestione admin</span>
                 </button>
             </div>
+            <div class="fp-export-section is-hidden" id="pm-categories-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-categories-open">
+                    <span class="fp-btn__icon" aria-hidden="true">
+                        <span class="material-icons fp-icon-mi" aria-hidden="true">category</span>
+                    </span>
+                    <span class="fp-btn__label">Gestione categorie e tipologie</span>
+                </button>
+            </div>
             <div class="fp-export-section is-hidden" id="pm-backup-section">
                 <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-settings-backup-open">
                     <span class="fp-btn__icon" aria-hidden="true">
@@ -392,58 +400,45 @@
                     <span class="fp-btn__label">Backup Purchasing</span>
                 </button>
             </div>
-            <div class="fp-export-section is-hidden" id="pm-categories-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-categories-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">category</span>
-                    </span>
-                    <span class="fp-btn__label">Gestione categorie</span>
-                </button>
-            </div>
-            <div class="fp-export-section is-hidden" id="pm-intervention-types-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="pm-intervention-types-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">build</span>
-                    </span>
-                    <span class="fp-btn__label">Gestione tipologie interventi</span>
-                </button>
-            </div>
         </div>
     </div>
 
     <div class="pm-modal is-hidden" id="pm-categories-modal" aria-hidden="true">
         <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-categories-title">
             <div class="pm-modal__header">
-                <h3 id="pm-categories-title">Gestione categorie</h3>
+                <h3 id="pm-categories-title">Gestione categorie e tipologie interventi</h3>
                 <button type="button" class="pm-btn pm-btn--ghost" id="pm-categories-close">Chiudi</button>
             </div>
-            <div id="pm-categories-list" class="pm-list-box"></div>
-            <div class="pm-category-editor is-hidden" id="pm-category-editor">
-                <div class="pm-category-editor__title" id="pm-category-editor-title">Colore categoria</div>
-                <div class="pm-category-editor__row">
-                    <input type="color" class="pm-color-input" id="pm-category-color-input">
-                    <button type="button" class="pm-btn pm-btn--ghost" id="pm-category-color-default">Default</button>
-                    <button type="button" class="pm-btn pm-btn--primary" id="pm-category-color-save">Salva</button>
-                    <button type="button" class="pm-btn pm-btn--ghost" id="pm-category-color-cancel">Chiudi</button>
+            <div class="pm-dual-grid">
+                <div class="fp-assignees-section pm-dual-section" id="pm-categories-panel">
+                    <div class="fp-assignees-subtitle">Categorie</div>
+                    <div class="pm-dual-body">
+                        <div id="pm-categories-list" class="pm-list-box fp-assignees-grid"></div>
+                        <div class="pm-category-editor is-hidden" id="pm-category-editor">
+                            <div class="pm-category-editor__title" id="pm-category-editor-title">Colore categoria</div>
+                            <div class="pm-category-editor__row">
+                                <input type="color" class="pm-color-input" id="pm-category-color-input">
+                                <button type="button" class="pm-btn pm-btn--ghost" id="pm-category-color-default">Default</button>
+                                <button type="button" class="pm-btn pm-btn--primary" id="pm-category-color-save">Salva</button>
+                                <button type="button" class="pm-btn pm-btn--ghost" id="pm-category-color-cancel">Chiudi</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fp-assignees-form">
+                        <input type="text" id="pm-category-name" class="fp-field__input" placeholder="Nuova categoria (Invio per aggiungere)">
+                        <button type="button" class="fp-btn fp-btn--primary" id="pm-category-add">+</button>
+                    </div>
                 </div>
-            </div>
-            <div class="pm-line-actions">
-                <input type="text" id="pm-category-name" class="pm-field__input" placeholder="Nuova categoria">
-                <button type="button" class="pm-btn pm-btn--primary" id="pm-category-add">Aggiungi</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="pm-modal is-hidden" id="pm-intervention-types-modal" aria-hidden="true">
-        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-intervention-types-title">
-            <div class="pm-modal__header">
-                <h3 id="pm-intervention-types-title">Gestione tipologie interventi</h3>
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-intervention-types-close">Chiudi</button>
-            </div>
-            <div id="pm-intervention-types-list" class="pm-list-box"></div>
-            <div class="pm-line-actions">
-                <input type="text" id="pm-intervention-type-name" class="pm-field__input" placeholder="Nuova tipologia">
-                <button type="button" class="pm-btn pm-btn--primary" id="pm-intervention-type-add">Aggiungi</button>
+                <div class="fp-assignees-section pm-dual-section" id="pm-intervention-types-panel">
+                    <div class="fp-assignees-subtitle">Tipologie interventi</div>
+                    <div class="pm-dual-body">
+                        <div id="pm-intervention-types-list" class="pm-list-box fp-assignees-grid"></div>
+                    </div>
+                    <div class="fp-assignees-form">
+                        <input type="text" id="pm-intervention-type-name" class="fp-field__input" placeholder="Nuova tipologia (Invio per aggiungere)">
+                        <button type="button" class="fp-btn fp-btn--primary" id="pm-intervention-type-add">+</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

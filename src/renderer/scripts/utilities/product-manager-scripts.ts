@@ -52,6 +52,8 @@ import {
 import {
     openConfirmModal as openConfirmModalUi,
     closeConfirmModal as closeConfirmModalUi,
+    openReasonModal as openReasonModalUi,
+    closeReasonModal as closeReasonModalUi,
     openAlertModal as openAlertModalUi,
     closeAlertModal as closeAlertModalUi,
 } from "./product-manager/ui/confirm-alert";
@@ -117,6 +119,7 @@ import {
     renderInterventionTypeOptions as renderInterventionTypeOptionsUi,
     renderCartTagFilterOptions as renderCartTagFilterOptionsUi,
     renderCartUrgencyFilterOptions as renderCartUrgencyFilterOptionsUi,
+    renderCartStatusFilterOptions as renderCartStatusFilterOptionsUi,
 } from "./product-manager/ui/filters";
 import {
     syncCatalogControls as syncCatalogControlsUi,
@@ -139,6 +142,7 @@ import {
 import {
     initAddModal as initAddModalUi,
     initConfirmModal as initConfirmModalUi,
+    initReasonModal as initReasonModalUi,
     initAlertModal as initAlertModalUi,
     initImageModal as initImageModalUi,
 } from "./product-manager/ui/basic-modals";
@@ -253,10 +257,16 @@ let cartState = {
     search: "",
     urgency: [],
     tag: [],
+    status: [],
     sort: "created_desc",
+    retentionConfirmedDays: 7,
+    retentionDeletedDays: 7,
     editingKey: null,
     editingRow: null,
 };
+
+const RETENTION_SETTINGS_KEY = "pm-retention-settings";
+const DEFAULT_RETENTION_SETTINGS = { confirmedDays: 7, deletedDays: 7 };
 
 const { showModal, hideModal } = createModalHelpers({ document });
 
@@ -294,6 +304,7 @@ function getCatalogSectionCtx() {
         saveCatalog,
         renderCategoryOptions,
         renderCategoriesList,
+        renderInterventionTypesList,
         renderCatalogFilterOptions,
         renderCartTagFilterOptions,
         renderCatalog,
@@ -353,6 +364,7 @@ function getInterventionsSectionCtx() {
         showError,
         isAdmin,
         renderInterventionTypesList,
+        renderCategoriesList,
         renderCartTagFilterOptions,
         renderLines,
         getInterventionTypes: () => interventionTypes,
@@ -386,6 +398,8 @@ function validateModuleBindings() {
     assertFn("ui.authModals.closeLogoutModal", closeLogoutModalUi);
     assertFn("ui.confirmAlert.openConfirmModal", openConfirmModalUi);
     assertFn("ui.confirmAlert.closeConfirmModal", closeConfirmModalUi);
+    assertFn("ui.confirmAlert.openReasonModal", openReasonModalUi);
+    assertFn("ui.confirmAlert.closeReasonModal", closeReasonModalUi);
     assertFn("ui.confirmAlert.openAlertModal", openAlertModalUi);
     assertFn("ui.confirmAlert.closeAlertModal", closeAlertModalUi);
     assertFn("ui.notifications.showInfo", showInfoUi);
@@ -499,6 +513,10 @@ function validateModuleBindings() {
     assertFn(
         "ui.filters.renderCartTagFilterOptions",
         renderCartTagFilterOptionsUi,
+    );
+    assertFn(
+        "ui.filters.renderCartStatusFilterOptions",
+        renderCartStatusFilterOptionsUi,
     );
     assertFn("ui.catalogControls.syncCatalogControls", syncCatalogControlsUi);
     assertFn("ui.catalogControls.initCatalogFilters", initCatalogFiltersUi);
@@ -2142,8 +2160,28 @@ async function deleteCartRow(row) {
         return;
     }
     if (line.deletedAt) return;
+    let reason = "";
+    const createdBy = normalizeString(request.createdBy || "");
+    if (isAdmin() && createdBy === "employee") {
+        while (true) {
+            const value = await openReasonModal({
+                title: "Motivazione rifiuto",
+                message: "Inserisci una motivazione per il rifiuto della richiesta.",
+                placeholder: "Motivazione",
+            });
+            if (value === null) return;
+            const trimmed = String(value || "").trim();
+            if (trimmed) {
+                reason = trimmed;
+                break;
+            }
+            showWarning("Inserisci una motivazione.");
+        }
+    }
     line.deletedAt = new Date().toISOString();
     line.deletedBy = isAdmin() ? session.adminName || "" : session.employee || "";
+    line.deletedByRole = isAdmin() ? "admin" : "employee";
+    if (reason) line.deletedReason = reason;
     request.history = Array.isArray(request.history) ? request.history : [];
     const actorRole = session.role || "guest";
     request.history.push({
@@ -2152,6 +2190,7 @@ async function deleteCartRow(row) {
         adminName: session.adminName || "",
         employee: actorRole === "employee" ? session.employee || "" : "",
         action: "line-deleted",
+        reason: reason || "",
     });
     if (saveRequestsFile(requests)) renderCartTable();
 }
@@ -2362,6 +2401,21 @@ function renderCartUrgencyFilterOptions() {
     });
 }
 
+function renderCartStatusFilterOptions() {
+    renderCartStatusFilterOptionsUi({
+        document,
+        cartState,
+        openMultiselectMenu,
+        closeMultiselectMenu,
+        onChange: (values) => {
+            cartState.status = Array.isArray(values)
+                ? values.filter((value) => value)
+                : [];
+            renderCartTable();
+        },
+    });
+}
+
 function ensureProductsDir() {
     ensureProductsDirSvc({
         fs,
@@ -2427,6 +2481,7 @@ function updateCategoryChipPreview(name, color) {
 function renderCategoriesList() {
     renderCategoriesListUi({
         document,
+        uiState,
         catalogCategories: () => catalogCategories,
         getCategoryColors: () => categoryColors,
         getCategoryColor,
@@ -2462,6 +2517,7 @@ function renderCategoriesList() {
 function renderInterventionTypesList() {
     renderInterventionTypesListUi({
         document,
+        uiState,
         interventionTypes: () => interventionTypes,
         showWarning,
         closeInterventionTypesModal,
@@ -2611,6 +2667,14 @@ function closeConfirmModal(result = false) {
     closeConfirmModalUi({ document, uiState }, result);
 }
 
+function openReasonModal(options = {}) {
+    return openReasonModalUi({ document, uiState }, options);
+}
+
+function closeReasonModal(result = null) {
+    closeReasonModalUi({ document, uiState }, result);
+}
+
 let pendingAlertResolve = null;
 
 function openAlertModal(title, message, detail = "") {
@@ -2635,6 +2699,31 @@ function closeAlertModal() {
             pendingAlertResolve = next;
         },
     });
+}
+
+function loadRetentionSettings() {
+    try {
+        const raw = window.localStorage.getItem(RETENTION_SETTINGS_KEY);
+        if (!raw) return { ...DEFAULT_RETENTION_SETTINGS };
+        const parsed = JSON.parse(raw);
+        const confirmed = Number(parsed?.confirmedDays);
+        const deleted = Number(parsed?.deletedDays);
+        const confirmedDays =
+            Number.isFinite(confirmed) && confirmed >= 1 ? Math.floor(confirmed) : DEFAULT_RETENTION_SETTINGS.confirmedDays;
+        const deletedDays =
+            Number.isFinite(deleted) && deleted >= 1 ? Math.floor(deleted) : DEFAULT_RETENTION_SETTINGS.deletedDays;
+        return { confirmedDays, deletedDays };
+    } catch {
+        return { ...DEFAULT_RETENTION_SETTINGS };
+    }
+}
+
+function saveRetentionSettings(next) {
+    try {
+        window.localStorage.setItem(RETENTION_SETTINGS_KEY, JSON.stringify(next));
+    } catch (err) {
+        console.error("Errore salvataggio retention:", err);
+    }
 }
 
 function showInfo(message, detail = "") {
@@ -3248,6 +3337,13 @@ function initConfirmModal() {
     });
 }
 
+function initReasonModal() {
+    initReasonModalUi({
+        document,
+        closeReasonModal,
+    });
+}
+
 function initAlertModal() {
     initAlertModalUi({
         document,
@@ -3259,6 +3355,57 @@ function initImageModal() {
     initImageModalUi({
         document,
         closeImageModal,
+    });
+}
+
+function initRetentionModal() {
+    const openBtn = document.getElementById("pm-retention-open");
+    const modal = document.getElementById("pm-retention-modal");
+    const saveBtn = document.getElementById("pm-retention-save");
+    const cancelBtn = document.getElementById("pm-retention-cancel");
+    const confirmedInput = document.getElementById("pm-retention-confirmed");
+    const deletedInput = document.getElementById("pm-retention-deleted");
+    if (!openBtn || !modal) return;
+    const openModal = () => {
+        if (!isAdmin()) {
+            showWarning("Solo gli admin possono modificare la durata.");
+            return;
+        }
+        const settings = loadRetentionSettings();
+        if (confirmedInput) confirmedInput.value = String(settings.confirmedDays);
+        if (deletedInput) deletedInput.value = String(settings.deletedDays);
+        modal.classList.remove("is-hidden");
+        modal.setAttribute("aria-hidden", "false");
+        setTimeout(() => confirmedInput && confirmedInput.focus(), 0);
+    };
+    const closeModal = () => {
+        modal.classList.add("is-hidden");
+        modal.setAttribute("aria-hidden", "true");
+    };
+    openBtn.addEventListener("click", openModal);
+    if (cancelBtn) cancelBtn.addEventListener("click", () => closeModal());
+    if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+            const confirmed = Number(confirmedInput?.value || "");
+            const deleted = Number(deletedInput?.value || "");
+            if (!Number.isFinite(confirmed) || confirmed < 1 || confirmed > 365) {
+                showWarning("Inserisci un valore valido per i convalidati (1-365).");
+                return;
+            }
+            if (!Number.isFinite(deleted) || deleted < 1 || deleted > 365) {
+                showWarning("Inserisci un valore valido per i rifiutati/eliminati (1-365).");
+                return;
+            }
+            const next = { confirmedDays: Math.floor(confirmed), deletedDays: Math.floor(deleted) };
+            saveRetentionSettings(next);
+            cartState.retentionConfirmedDays = next.confirmedDays;
+            cartState.retentionDeletedDays = next.deletedDays;
+            closeModal();
+            renderCartTable();
+        });
+    }
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeModal();
     });
 }
 
@@ -3374,6 +3521,9 @@ async function init() {
     const warning = document.getElementById("pm-js-warning");
     if (warning) warning.classList.add("is-hidden");
     await loadSession();
+    const retentionSettings = loadRetentionSettings();
+    cartState.retentionConfirmedDays = retentionSettings.confirmedDays;
+    cartState.retentionDeletedDays = retentionSettings.deletedDays;
     syncAssignees();
     renderLoginSelectors();
     renderAdminSelect();
@@ -3387,6 +3537,7 @@ async function init() {
     syncCatalogControls();
     renderCartTagFilterOptions();
     renderCartUrgencyFilterOptions();
+    renderCartStatusFilterOptions();
     if (isFormPage()) {
         currentRequestMode = REQUEST_MODES.PURCHASE;
         storeRequestMode(REQUEST_MODES.PURCHASE);
@@ -3402,12 +3553,14 @@ async function init() {
     initInterventionEditModal();
     initAddModal();
     initConfirmModal();
+    initReasonModal();
     initAlertModal();
     initCatalogModal();
     initCatalogFilters();
     initCategoriesModal();
     initInterventionTypesModal();
     initImageModal();
+    initRetentionModal();
     initExportModal();
     initPurchasingBackupModal();
     setupLogin();

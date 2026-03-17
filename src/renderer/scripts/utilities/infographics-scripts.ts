@@ -519,7 +519,13 @@ function renderGitflow(
             time: new Date(t.date).getTime(),
         }))
         .filter((t) => !Number.isNaN(t.time))
-        .sort((a, b) => a.time - b.time);
+        .sort((a, b) => {
+            const timeDiff = a.time - b.time;
+            if (timeDiff !== 0) return timeDiff;
+            const vDiff = compareReleaseNames(a.name, b.name);
+            if (vDiff !== 0) return vDiff;
+            return String(a.name || "").localeCompare(String(b.name || ""));
+        });
     if (!orderedTags.length) {
         gitflowTrack.innerHTML += `
             <div class="gitflow-empty">
@@ -1191,7 +1197,13 @@ function renderTimeline(dates: Date[], commits: number[]) {
         })
         .filter((entry) => entry.time >= minTime && entry.time <= maxTime)
         .map((entry) => ({ ...entry, xPx: (entry.x / 100) * width }))
-        .sort((a, b) => a.xPx - b.xPx);
+        .sort((a, b) => {
+            const xDiff = a.xPx - b.xPx;
+            if (xDiff !== 0) return xDiff;
+            const vDiff = compareReleaseNames(a.name, b.name);
+            if (vDiff !== 0) return vDiff;
+            return String(a.name || "").localeCompare(String(b.name || ""));
+        });
 
     const clusters: (typeof points)[] = [];
     const threshold = 18;
@@ -1281,6 +1293,32 @@ function getReleaseKind(tagName: string) {
         return "sub";
     }
     return "patch";
+}
+
+function parseReleaseVersion(tagName: string) {
+    const raw = String(tagName || "").trim().replace(/^v/i, "");
+    if (!raw) return null;
+    const parts = raw.split(".").map((part) => parseInt(part, 10));
+    if (!parts.length || parts.some((p) => Number.isNaN(p))) return null;
+    return parts;
+}
+
+function compareReleaseNames(a: string, b: string) {
+    const va = parseReleaseVersion(a);
+    const vb = parseReleaseVersion(b);
+    if (va && vb) {
+        const max = Math.max(va.length, vb.length);
+        for (let i = 0; i < max; i += 1) {
+            const da = va[i] ?? 0;
+            const db = vb[i] ?? 0;
+            if (da !== db) return da - db;
+        }
+        return 0;
+    }
+    return String(a || "").localeCompare(String(b || ""), "it", {
+        numeric: true,
+        sensitivity: "base",
+    });
 }
 
 function getClusterColorMix(names: string[]) {

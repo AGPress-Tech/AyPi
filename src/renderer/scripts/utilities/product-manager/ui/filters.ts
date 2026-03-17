@@ -363,12 +363,40 @@ function renderCartUrgencyFilterOptions({
     });
 }
 
+function renderCartStatusFilterOptions({
+    document,
+    cartState,
+    openMultiselectMenu,
+    closeMultiselectMenu,
+    onChange,
+}) {
+    const select = document.getElementById("pm-cart-filter-status");
+    if (!select) return;
+    const options = ["In attesa", "Convalidati", "Rifiutate"];
+    const selected = Array.isArray(cartState.status)
+        ? cartState.status
+        : cartState.status
+        ? [cartState.status]
+        : [];
+    buildFilterMultiselect({
+        select,
+        options,
+        selected,
+        placeholder: "Tutti gli stati",
+        openMultiselectMenu,
+        closeMultiselectMenu,
+        onChange,
+        showActions: false,
+    });
+}
+
 if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
     renderCategoryOptions,
     renderCatalogFilterOptions,
     renderInterventionTypeOptions,
     renderCartTagFilterOptions,
     renderCartUrgencyFilterOptions,
+    renderCartStatusFilterOptions,
 };
 
 

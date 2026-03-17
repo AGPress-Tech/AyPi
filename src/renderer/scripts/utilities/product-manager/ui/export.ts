@@ -73,6 +73,7 @@ function initExportModal(ctx) {
                         confirmedBy: line.confirmedBy || "",
                         deletedAt: line.deletedAt || "",
                         deletedBy: line.deletedBy || "",
+                        deletedReason: line.deletedReason || "",
                     });
                 });
             });
@@ -108,6 +109,7 @@ function initExportModal(ctx) {
                     confirmedBy: line.confirmedBy || "",
                     deletedAt: line.deletedAt || "",
                     deletedBy: line.deletedBy || "",
+                    deletedReason: line.deletedReason || "",
                 });
             });
         });
@@ -195,7 +197,14 @@ function initExportModal(ctx) {
             "Convalidato da",
             "Data eliminazione",
             "Eliminato da",
+            "Motivazione eliminazione",
         ];
+        const formatDeletedReason = (row) => {
+            if (!row.deletedBy && !row.deletedReason) return "";
+            const admin = row.deletedBy || "";
+            const reason = row.deletedReason || "";
+            return `Admin: ${admin}\nMotivazione: ${reason}`.trim();
+        };
         const data = rows.map((row) => [
             row.requestId,
             row.createdAt,
@@ -216,6 +225,7 @@ function initExportModal(ctx) {
             row.confirmedBy,
             row.deletedAt,
             row.deletedBy,
+            formatDeletedReason(row),
         ]);
         return XLSX.utils.aoa_to_sheet([headers, ...data]);
     };
@@ -236,7 +246,14 @@ function initExportModal(ctx) {
             "Convalidato da",
             "Data eliminazione",
             "Eliminato da",
+            "Motivazione eliminazione",
         ];
+        const formatDeletedReason = (row) => {
+            if (!row.deletedBy && !row.deletedReason) return "";
+            const admin = row.deletedBy || "";
+            const reason = row.deletedReason || "";
+            return `Admin: ${admin}\nMotivazione: ${reason}`.trim();
+        };
         const data = rows.map((row) => [
             row.requestId,
             row.createdAt,
@@ -252,6 +269,7 @@ function initExportModal(ctx) {
             row.confirmedBy,
             row.deletedAt,
             row.deletedBy,
+            formatDeletedReason(row),
         ]);
         return XLSX.utils.aoa_to_sheet([headers, ...data]);
     };
@@ -487,4 +505,3 @@ function initExportModal(ctx) {
 }
 
 if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { initExportModal };
-

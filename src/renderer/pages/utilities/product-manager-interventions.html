@@ -27,8 +27,8 @@
                 </button>
             </div>
             <div class="pm-header__actions">
-                <button type="button" class="pm-btn pm-btn--ghost" id="pm-debug-clean" title="Pulizia debug">
-                    <span class="material-icons">warning</span>
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-retention-open" title="Durata richieste">
+                    <span class="material-icons">schedule</span>
                 </button>
                 <button type="button" class="pm-btn" id="pm-export-open">Export Excel</button>
                 <button type="button" class="pm-btn" id="pm-refresh">Aggiorna</button>
@@ -39,7 +39,7 @@
         <main class="pm-body">
             <section class="pm-list">
                 <div class="pm-cart-toolbar">
-                    <div class="pm-field">
+                    <div class="pm-field pm-field--wide">
                         <label for="pm-cart-search">Ricerca</label>
                         <input type="text" id="pm-cart-search"
                             placeholder="Cerca per tipologia, descrizione, dipendente...">
@@ -56,6 +56,15 @@
                     <div class="pm-field">
                         <label for="pm-cart-filter-tag">Tipologia</label>
                         <select id="pm-cart-filter-tag"></select>
+                    </div>
+                    <div class="pm-field">
+                        <label for="pm-cart-filter-status">Stato</label>
+                        <select id="pm-cart-filter-status">
+                            <option value="">Tutti</option>
+                            <option value="In attesa">In attesa</option>
+                            <option value="Convalidati">Convalidati</option>
+                            <option value="Rifiutate">Rifiutate</option>
+                        </select>
                     </div>
                     <div class="pm-field">
                         <label for="pm-cart-sort">Ordina per</label>
@@ -130,6 +139,40 @@
             <div class="pm-actions">
                 <button type="button" class="pm-btn pm-btn--ghost" id="pm-confirm-cancel">Annulla</button>
                 <button type="button" class="pm-btn pm-btn--primary" id="pm-confirm-ok">Ok</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-reason-modal" aria-hidden="true">
+        <div class="pm-modal__card pm-confirm-card" role="dialog" aria-modal="true" aria-labelledby="pm-reason-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-reason-title">Motivazione richiesta</h3>
+            </div>
+            <p id="pm-reason-message">Inserisci una motivazione per il rifiuto.</p>
+            <textarea id="pm-reason-input" class="fp-field__input" rows="3" placeholder="Motivazione"></textarea>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-reason-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-reason-ok">Salva</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="pm-retention-modal" aria-hidden="true">
+        <div class="pm-modal__card pm-confirm-card" role="dialog" aria-modal="true" aria-labelledby="pm-retention-title">
+            <div class="pm-modal__header">
+                <h3 id="pm-retention-title">Durata richieste</h3>
+            </div>
+            <div class="pm-field">
+                <label for="pm-retention-confirmed">Giorni visibili convalidati</label>
+                <input type="number" id="pm-retention-confirmed" class="fp-field__input" min="1" max="365" step="1">
+            </div>
+            <div class="pm-field">
+                <label for="pm-retention-deleted">Giorni visibili rifiutati/eliminati</label>
+                <input type="number" id="pm-retention-deleted" class="fp-field__input" min="1" max="365" step="1">
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="pm-retention-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="pm-retention-save">Salva</button>
             </div>
         </div>
     </div>
