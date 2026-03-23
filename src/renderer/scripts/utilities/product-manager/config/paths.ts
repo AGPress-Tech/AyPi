@@ -3,9 +3,34 @@ require("../../../shared/dev-guards");
 import path from "path";
 import { NETWORK_PATHS } from "../../../../../main/config/paths";
 
-const ROOT_DIR = path.dirname(NETWORK_PATHS.feriePermessiData);
-const PURCHASING_DIR = path.join(ROOT_DIR, "AyPi Purchasing");
-const BASE_DIR = PURCHASING_DIR;
+let ipcRenderer = null;
+try {
+    const electron = require("electron");
+    ipcRenderer = electron && electron.ipcRenderer ? electron.ipcRenderer : null;
+} catch (err) {
+    ipcRenderer = null;
+}
+
+const DEFAULT_BASE_DIR = path.dirname(NETWORK_PATHS.feriePermessiData);
+
+function resolveBaseDir() {
+    if (process.env.AYPI_FP_BASE_DIR) {
+        return process.env.AYPI_FP_BASE_DIR;
+    }
+    if (ipcRenderer && typeof ipcRenderer.sendSync === "function") {
+        try {
+            const base = ipcRenderer.sendSync("fp-get-base-dir");
+            if (base) return base;
+        } catch (err) {
+            // fallback al percorso default
+        }
+    }
+    return DEFAULT_BASE_DIR;
+}
+
+const ROOT_DIR = resolveBaseDir();
+const BASE_DIR = ROOT_DIR;
+const PURCHASING_DIR = path.join(BASE_DIR, "AyPi Purchasing");
 
 const REQUESTS_PATH = path.join(PURCHASING_DIR, "requests.json");
 const INTERVENTIONS_PATH = path.join(PURCHASING_DIR, "interventions.json");

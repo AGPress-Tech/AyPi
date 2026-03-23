@@ -21,3 +21,6 @@ src/main/config/otp-mail.json
 config/otp-mail.json
 .tmp-fullcalendar-*
 *.tmp
+
+# local bot knowledge files
+docs/bot/ticket-support-bot-checklist.txt

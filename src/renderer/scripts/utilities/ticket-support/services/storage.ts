@@ -1,11 +1,7 @@
 ﻿require("../../../shared/dev-guards");
 import fs from "fs";
 import path from "path";
-import {
-    TICKET_DIR,
-    DATA_PATH,
-    TICKET_YEARS_DIR,
-} from "../config/paths";
+import { TICKET_DIR, DATA_PATH, TICKET_YEARS_DIR } from "../config/paths";
 
 type TicketHistoryEntry = {
     at: string;
@@ -142,13 +138,8 @@ function listYearFiles(directory = TICKET_YEARS_DIR) {
 
 function loadFromYearFiles() {
     const primaryFiles = listYearFiles(TICKET_YEARS_DIR);
-    const legacyFiles = listYearFiles(TICKET_DIR);
-    if (!primaryFiles.length && !legacyFiles.length) return [];
-    const primaryNames = new Set(primaryFiles.map((filePath) => path.basename(filePath).toLowerCase()));
-    const files = [
-        ...primaryFiles,
-        ...legacyFiles.filter((filePath) => !primaryNames.has(path.basename(filePath).toLowerCase())),
-    ];
+    if (!primaryFiles.length) return [];
+    const files = primaryFiles;
     const tickets = [];
     files.forEach((filePath) => {
         tickets.push(...readTicketsFromFile(filePath));
@@ -256,19 +247,6 @@ function saveStore(store: TicketStore): TicketStore {
                     err,
                 );
             }
-        }
-    });
-
-    // Rimuove eventuali shard legacy nella root per evitare ricomparse.
-    listYearFiles(TICKET_DIR).forEach((filePath) => {
-        try {
-            fs.unlinkSync(filePath);
-        } catch (err) {
-            console.error(
-                "[ticket-support] impossibile rimuovere shard legacy:",
-                filePath,
-                err,
-            );
         }
     });
 
