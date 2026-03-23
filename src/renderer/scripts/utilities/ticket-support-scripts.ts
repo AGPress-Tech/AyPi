@@ -3,7 +3,7 @@ require("../shared/dev-guards");
 import fs from "fs";
 import path from "path";
 import { loadStore, saveStore, DATA_PATH } from "./ticket-support/services/storage";
-import { BASE_DIR, TICKET_DIR } from "./ticket-support/config/paths";
+import { BASE_DIR, TICKET_DIR, CATEGORIES_PATH } from "./ticket-support/config/paths";
 import { isMailerAvailable, getMailerError, sendMail } from "./ticket-support/services/mailer";
 import { ipcRenderer } from "electron";
 import { loadAssigneeOptions } from "./ferie-permessi/services/assignees";
@@ -20,6 +20,8 @@ const ADMIN_EMAIL = "tech@agpress-srl.it";
 const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
 const FINAL_STATUSES = new Set(["Risolto", "Chiuso"]);
 const FINAL_STATUS_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_ISSUE_TYPES = ["Assistenza", "Bug", "Richiesta nuova funzione", "Altro"];
+const DEFAULT_AREAS = ["Mail", "MES", "Gestionale", "Hardware", "Rete", "Altro"];
 const params = new URLSearchParams(window.location.search || "");
 const currentView = (params.get("tsView") || "form").toLowerCase() === "admin" ? "admin" : "form";
 
@@ -34,6 +36,8 @@ const adminFilters = { search: "", status: "", area: "", priority: "" };
 const operatorFilters = { search: "", status: "", area: "", priority: "" };
 const TS_THEME_KEY = "ts-theme";
 const TICKET_BACKUP_ROOT_DIR = path.join(BASE_DIR, "Backup Ticket");
+let ticketCategories = { issueTypes: [...DEFAULT_ISSUE_TYPES], areas: [...DEFAULT_AREAS] };
+const categoriesUiState = { issueTypesEditingName: null, areasEditingName: null };
 
 function nowIso() {
     return new Date().toISOString();
@@ -217,6 +221,425 @@ function setMessage(node, text, isError = false) {
 function showWarning(message) {
     const id = currentView === "admin" ? "ts-admin-message" : "ts-create-message";
     showInlineMessage(id, message, "error");
+}
+
+function normalizeList(values, fallback) {
+    const items = Array.isArray(values) ? values : [];
+    const seen = new Set();
+    const normalized = items
+        .map((item) => String(item || "").trim())
+        .filter((item) => item)
+        .filter((item) => {
+            const key = toKey(item);
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    if (!normalized.length) return [...fallback];
+    return normalized;
+}
+
+function normalizeCategories(input) {
+    const source = input && typeof input === "object" ? input : {};
+    return {
+        issueTypes: normalizeList(source.issueTypes, DEFAULT_ISSUE_TYPES),
+        areas: normalizeList(source.areas, DEFAULT_AREAS),
+    };
+}
+
+function loadTicketCategories() {
+    try {
+        ensureDir(TICKET_DIR);
+        if (!fs.existsSync(CATEGORIES_PATH)) {
+            const fallback = normalizeCategories({});
+            fs.writeFileSync(CATEGORIES_PATH, JSON.stringify({ version: 1, ...fallback }, null, 2), "utf8");
+            return fallback;
+        }
+        const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        return normalizeCategories(parsed);
+    } catch (err) {
+        console.error("[ticket-support] errore lettura categorie:", err);
+        return normalizeCategories({});
+    }
+}
+
+function saveTicketCategories(next) {
+    try {
+        ensureDir(TICKET_DIR);
+        const payload = { version: 1, ...normalizeCategories(next) };
+        fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(payload, null, 2), "utf8");
+        return true;
+    } catch (err) {
+        console.error("[ticket-support] errore salvataggio categorie:", err);
+        showWarning("Errore salvataggio categorie.");
+        return false;
+    }
+}
+
+function setTicketCategories(next) {
+    const normalized = normalizeCategories(next);
+    if (saveTicketCategories(normalized)) {
+        ticketCategories = normalized;
+        renderCategorySelects();
+        return true;
+    }
+    return false;
+}
+
+function getIssueTypes() {
+    return Array.isArray(ticketCategories.issueTypes) ? ticketCategories.issueTypes : [...DEFAULT_ISSUE_TYPES];
+}
+
+function getAreas() {
+    return Array.isArray(ticketCategories.areas) ? ticketCategories.areas : [...DEFAULT_AREAS];
+}
+
+function ensureOption(select, value, labelSuffix = " (legacy)") {
+    if (!select || !value) return;
+    const exists = Array.from(select.options).some((opt) => opt.value === value);
+    if (exists) return;
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = `${value}${labelSuffix}`;
+    option.dataset.legacy = "1";
+    select.appendChild(option);
+}
+
+function renderSelectOptions(select, items, placeholder) {
+    if (!select) return;
+    const previousValue = select.value;
+    select.innerHTML = "";
+    if (placeholder) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = placeholder;
+        select.appendChild(option);
+    }
+    items.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item;
+        option.textContent = item;
+        select.appendChild(option);
+    });
+    if (previousValue) {
+        ensureOption(select, previousValue);
+        select.value = previousValue;
+    }
+}
+
+function renderCategorySelects() {
+    const issueTypes = getIssueTypes();
+    const areas = getAreas();
+
+    renderSelectOptions(document.getElementById("ts-issue-type"), issueTypes, "Seleziona...");
+    renderSelectOptions(document.getElementById("ts-area"), areas, "Seleziona...");
+    renderSelectOptions(document.getElementById("ts-edit-type"), issueTypes, null);
+    renderSelectOptions(document.getElementById("ts-edit-area"), areas, null);
+    renderSelectOptions(document.getElementById("ts-admin-filter-area"), areas, "Tutti");
+    renderSelectOptions(document.getElementById("ts-op-filter-area"), areas, "Tutti");
+
+    const adminArea = document.getElementById("ts-admin-filter-area");
+    if (adminArea) {
+        ensureOption(adminArea, adminFilters.area);
+        adminArea.value = adminFilters.area || "";
+    }
+    const opArea = document.getElementById("ts-op-filter-area");
+    if (opArea) {
+        ensureOption(opArea, operatorFilters.area);
+        opArea.value = operatorFilters.area || "";
+    }
+}
+
+function renderEditableList({
+    listId,
+    items,
+    editingValue,
+    setEditingValue,
+    onRename,
+    onRemove,
+    onReorder,
+    emptyLabel,
+}) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.innerHTML = "";
+    items.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "fp-assignees-row pm-type-row";
+        row.dataset.value = item;
+        row.dataset.index = String(index);
+        const isEditing = editingValue() === item;
+        if (!isEditing) {
+            row.setAttribute("draggable", "true");
+            row.addEventListener("dragstart", (event) => {
+                row.classList.add("is-dragging");
+                const dataTransfer = event.dataTransfer;
+                if (!dataTransfer) return;
+                dataTransfer.effectAllowed = "move";
+                dataTransfer.setData("text/plain", row.dataset.index || "");
+            });
+            row.addEventListener("dragend", () => {
+                row.classList.remove("is-dragging");
+            });
+            row.addEventListener("dragover", (event) => {
+                event.preventDefault();
+                row.classList.add("is-drop-target");
+            });
+            row.addEventListener("dragleave", () => {
+                row.classList.remove("is-drop-target");
+            });
+            row.addEventListener("drop", (event) => {
+                event.preventDefault();
+                row.classList.remove("is-drop-target");
+                const dataTransfer = event.dataTransfer;
+                if (!dataTransfer) return;
+                const fromIndex = Number(dataTransfer.getData("text/plain"));
+                const toIndex = Number(row.dataset.index || "0");
+                if (Number.isNaN(fromIndex) || Number.isNaN(toIndex) || fromIndex === toIndex) {
+                    return;
+                }
+                onReorder(fromIndex, toIndex);
+            });
+        }
+        const labelWrap = document.createElement("div");
+        labelWrap.style.display = "flex";
+        labelWrap.style.alignItems = "center";
+        labelWrap.style.gap = "8px";
+        const dragHandle = document.createElement("span");
+        dragHandle.className = "pm-drag-handle material-icons";
+        dragHandle.title = "Trascina per riordinare";
+        dragHandle.textContent = "drag_indicator";
+        if (isEditing) {
+            const input = document.createElement("input");
+            input.className = "fp-field__input pm-inline-input";
+            input.value = item;
+            input.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                saveEdit();
+            });
+            labelWrap.append(dragHandle, input);
+        } else {
+            const label = document.createElement("span");
+            label.textContent = item;
+            labelWrap.append(dragHandle, label);
+        }
+        const actions = document.createElement("div");
+        actions.className = "fp-assignees-row__actions";
+
+        const saveEdit = () => {
+            const inputEl = labelWrap.querySelector("input");
+            const nextName = inputEl?.value?.trim() || "";
+            if (!nextName || nextName === item) {
+                setEditingValue(null);
+                renderCategoriesModal();
+                return;
+            }
+            if (items.some((entry) => toKey(entry) === toKey(nextName))) {
+                showWarning("Voce gia' esistente.");
+                return;
+            }
+            onRename(item, nextName);
+        };
+
+        if (isEditing) {
+            const save = document.createElement("button");
+            save.type = "button";
+            save.className = "fp-assignees-link";
+            save.textContent = "Salva";
+            save.addEventListener("click", saveEdit);
+
+            const cancel = document.createElement("button");
+            cancel.type = "button";
+            cancel.className = "fp-assignees-link fp-assignees-link--danger";
+            cancel.textContent = "Annulla";
+            cancel.addEventListener("click", () => {
+                setEditingValue(null);
+                renderCategoriesModal();
+            });
+            actions.append(save, cancel);
+        } else {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className = "fp-assignees-link";
+            editBtn.textContent = "Modifica";
+            editBtn.addEventListener("click", () => {
+                setEditingValue(item);
+                renderCategoriesModal();
+            });
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "fp-assignees-link fp-assignees-link--danger";
+            removeBtn.textContent = "Rimuovi";
+            removeBtn.addEventListener("click", () => {
+                const ok = window.confirm(`Vuoi eliminare "${item}"?`);
+                if (!ok) return;
+                onRemove(item);
+            });
+            actions.append(editBtn, removeBtn);
+        }
+        row.append(labelWrap, actions);
+        list.appendChild(row);
+    });
+    if (!items.length) {
+        list.innerHTML = `<div class="pm-message">${emptyLabel}</div>`;
+    }
+}
+
+function renderCategoriesModal() {
+    const issueTypes = getIssueTypes();
+    const areas = getAreas();
+    renderEditableList({
+        listId: "ts-issue-types-list",
+        items: issueTypes,
+        editingValue: () => categoriesUiState.issueTypesEditingName,
+        setEditingValue: (value) => {
+            categoriesUiState.issueTypesEditingName = value;
+        },
+        onRename: (from, to) => {
+            const next = issueTypes.map((item) => (item === from ? to : item));
+            if (setTicketCategories({ ...ticketCategories, issueTypes: next })) {
+                store.tickets.forEach((ticket) => {
+                    if (ticket.issueType === from) ticket.issueType = to;
+                });
+                saveAll();
+                renderAll();
+                categoriesUiState.issueTypesEditingName = null;
+                renderCategoriesModal();
+            }
+        },
+        onRemove: (value) => {
+            const next = issueTypes.filter((item) => item !== value);
+            if (setTicketCategories({ ...ticketCategories, issueTypes: next })) {
+                renderAll();
+                renderCategoriesModal();
+            }
+        },
+        onReorder: (fromIndex, toIndex) => {
+            const next = [...issueTypes];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            if (setTicketCategories({ ...ticketCategories, issueTypes: next })) {
+                renderCategoriesModal();
+            }
+        },
+        emptyLabel: "Nessuna tipologia disponibile.",
+    });
+
+    renderEditableList({
+        listId: "ts-areas-list",
+        items: areas,
+        editingValue: () => categoriesUiState.areasEditingName,
+        setEditingValue: (value) => {
+            categoriesUiState.areasEditingName = value;
+        },
+        onRename: (from, to) => {
+            const next = areas.map((item) => (item === from ? to : item));
+            if (setTicketCategories({ ...ticketCategories, areas: next })) {
+                store.tickets.forEach((ticket) => {
+                    if (ticket.area === from) ticket.area = to;
+                });
+                saveAll();
+                renderAll();
+                categoriesUiState.areasEditingName = null;
+                renderCategoriesModal();
+            }
+        },
+        onRemove: (value) => {
+            const next = areas.filter((item) => item !== value);
+            if (setTicketCategories({ ...ticketCategories, areas: next })) {
+                renderAll();
+                renderCategoriesModal();
+            }
+        },
+        onReorder: (fromIndex, toIndex) => {
+            const next = [...areas];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            if (setTicketCategories({ ...ticketCategories, areas: next })) {
+                renderCategoriesModal();
+            }
+        },
+        emptyLabel: "Nessun ambito disponibile.",
+    });
+}
+
+function openCategoriesModal() {
+    if (!isAdmin()) {
+        showWarning("Accesso admin richiesto.");
+        return;
+    }
+    renderCategoriesModal();
+    openModal("ts-categories-modal");
+}
+
+function closeCategoriesModal() {
+    closeModal("ts-categories-modal");
+    categoriesUiState.issueTypesEditingName = null;
+    categoriesUiState.areasEditingName = null;
+}
+
+function addIssueType() {
+    if (!isAdmin()) return;
+    const input = document.getElementById("ts-issue-type-name");
+    if (!input) return;
+    const value = String(input.value || "").trim();
+    if (!value) return;
+    const items = getIssueTypes();
+    if (items.some((item) => toKey(item) === toKey(value))) {
+        showWarning("Tipologia gia' presente.");
+        return;
+    }
+    const next = [...items, value];
+    if (setTicketCategories({ ...ticketCategories, issueTypes: next })) {
+        input.value = "";
+        renderCategoriesModal();
+    }
+}
+
+function addArea() {
+    if (!isAdmin()) return;
+    const input = document.getElementById("ts-area-name");
+    if (!input) return;
+    const value = String(input.value || "").trim();
+    if (!value) return;
+    const items = getAreas();
+    if (items.some((item) => toKey(item) === toKey(value))) {
+        showWarning("Ambito gia' presente.");
+        return;
+    }
+    const next = [...items, value];
+    if (setTicketCategories({ ...ticketCategories, areas: next })) {
+        input.value = "";
+        renderCategoriesModal();
+    }
+}
+
+function isValidSelectValue(select, value) {
+    if (!select) return false;
+    if (!value) return false;
+    return Array.from(select.options).some((opt) => opt.value === value);
+}
+
+function buildEditNote(before, after) {
+    if (!before || !after) return "Modifica salvata.";
+    const changes = [];
+    const map = [
+        { key: "issueType", label: "Tipo" },
+        { key: "area", label: "Ambito" },
+        { key: "priority", label: "Priorita" },
+        { key: "description", label: "Descrizione" },
+    ];
+    map.forEach(({ key, label }) => {
+        const prev = String(before[key] || "").trim();
+        const next = String(after[key] || "").trim();
+        if (prev !== next) {
+            changes.push(`${label}: "${prev || "-"}" -> "${next || "-"}"`);
+        }
+    });
+    if (!changes.length) return "Nessuna modifica ai campi principali.";
+    return `Modifiche: ${changes.join("; ")}`;
 }
 
 function getPersonKey(name) {
@@ -440,13 +863,18 @@ function renderOperatorList() {
     const title = document.getElementById("ts-list-title");
     if (title) title.textContent = "I miei ticket";
 
-    if (!isEmployee()) {
-        container.innerHTML = `<div class="ts-ticket-card"><div class="ts-ticket-card__desc">Accedi come dipendente per vedere le tue richieste.</div></div>`;
+    if (!isLoggedIn()) {
+        container.innerHTML = `<div class="ts-ticket-card"><div class="ts-ticket-card__desc">Accedi per vedere le tue richieste.</div></div>`;
         return;
     }
 
     const me = getCurrentRequester();
-    const mine = filterOperatorTickets(store.tickets.filter((ticket) => isTicketOwnedByRequester(ticket, me)));
+    const adminNameKey = isAdmin() ? toKey(session.adminName || "") : "";
+    const mine = filterOperatorTickets(store.tickets.filter((ticket) => {
+        if (isTicketOwnedByRequester(ticket, me)) return true;
+        if (adminNameKey && toKey(ticket.requester?.name || "") === adminNameKey) return true;
+        return false;
+    }));
 
     if (!mine.length) {
         container.innerHTML = `<div class="ts-ticket-card"><div class="ts-ticket-card__desc">Nessun ticket creato.</div></div>`;
@@ -457,7 +885,15 @@ function renderOperatorList() {
         const history = (ticket.history || [])
             .slice()
             .sort((a, b) => String(a.at).localeCompare(String(b.at)))
-            .map((item) => `[${formatDateTime(item.at)}] ${item.event}${item.fromStatus || item.toStatus ? ` (${item.fromStatus || "-"} -> ${item.toStatus || "-"})` : ""}`)
+            .map((item) => {
+                const rawEvent = String(item?.event || "");
+                const isCreated = rawEvent.trim().toLowerCase() === "ticket creato";
+                const statusPart = !isCreated && (item.fromStatus || item.toStatus)
+                    ? ` (${item.fromStatus || "-"} -> ${item.toStatus || "-"})`
+                    : "";
+                const notePart = item.note ? ` | Info: ${item.note}` : "";
+                return `[${formatDateTime(item.at)}] ${item.event}${statusPart}${notePart}`;
+            })
             .join("\n");
         const statusClass = ticket.status === "Risolto"
             ? " ts-ticket-card--resolved"
@@ -467,7 +903,9 @@ function renderOperatorList() {
         return `
             <article class="ts-ticket-card${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
                 <div class="ts-ticket-card__head">
-                    <div class="ts-ticket-card__title">${escapeHtml(ticket.id)}</div>
+                    <div class="ts-ticket-card__title">
+                        <button type="button" class="fp-link-btn ts-history-open" data-ticket-id="${escapeHtml(ticket.id)}">${escapeHtml(ticket.id)}</button>
+                    </div>
                     <div class="ts-ticket-card__status">${escapeHtml(ticket.status)}</div>
                 </div>
                 <div class="ts-ticket-card__meta">
@@ -510,6 +948,11 @@ function renderOperatorList() {
         container.addEventListener("click", (event) => {
             const target = event.target instanceof Element ? event.target : null;
             if (!target) return;
+            const historyBtn = target.closest(".ts-history-open");
+            if (historyBtn) {
+                openHistoryModal(historyBtn.getAttribute("data-ticket-id") || "");
+                return;
+            }
             const editBtn = target.closest(".ts-op-edit");
             if (editBtn) {
                 const ticketId = editBtn.getAttribute("data-ticket-id") || "";
@@ -565,7 +1008,9 @@ function renderAdminTable() {
             : "";
         return `
         <div class="pm-table__row${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
-            <div class="pm-table__cell">${escapeHtml(ticket.id)}</div>
+            <div class="pm-table__cell">
+                <button type="button" class="fp-link-btn ts-history-open" data-ticket-id="${escapeHtml(ticket.id)}">${escapeHtml(ticket.id)}</button>
+            </div>
             <div class="pm-table__cell">${escapeHtml(ticket.requester?.name || "-")}</div>
             <div class="pm-table__cell">${escapeHtml(ticket.requester?.department || "-")}</div>
             <div class="pm-table__cell">${escapeHtml(formatDateTime(ticket.createdAt))}</div>
@@ -595,6 +1040,11 @@ function renderAdminTable() {
         table.addEventListener("click", (event) => {
             const target = event.target instanceof Element ? event.target : null;
             if (!target) return;
+            const historyBtn = target.closest(".ts-history-open");
+            if (historyBtn) {
+                openHistoryModal(historyBtn.getAttribute("data-ticket-id") || "");
+                return;
+            }
             const editBtn = target.closest(".ts-admin-edit");
             if (editBtn) {
                 editTicketByAdmin(editBtn.getAttribute("data-ticket-id") || "");
@@ -653,7 +1103,7 @@ function updateRoleBadge() {
 
 function updateAdminButtonVisibility() {
     const isAdminUser = isAdmin();
-    ["ts-open-admin-list", "ts-clean-closed", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-backup-section"].forEach((id) => {
+    ["ts-open-admin-list", "ts-clean-closed", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-categories-section", "ts-settings-backup-section"].forEach((id) => {
         const node = document.getElementById(id);
         if (!node) return;
         node.classList.toggle("ts-hidden", !isAdminUser);
@@ -665,6 +1115,7 @@ function renderAll() {
     updateRoleBadge();
     updateRequesterFields();
     updateAdminButtonVisibility();
+    renderCategorySelects();
     renderOperatorList();
     renderAdminTable();
 }
@@ -693,6 +1144,84 @@ function hideModal(node) {
     if (!node) return;
     node.classList.add("is-hidden");
     node.setAttribute("aria-hidden", "true");
+}
+
+function formatHistoryEntry(entry) {
+    const at = formatDateTime(entry?.at);
+    const rawEvent = String(entry?.event || "");
+    const event = escapeHtml(rawEvent || "-");
+    const actor = escapeHtml(entry?.actor || "-");
+    const fromStatus = escapeHtml(entry?.fromStatus || "");
+    const toStatus = escapeHtml(entry?.toStatus || "");
+    const isCreated = rawEvent.trim().toLowerCase() === "ticket creato";
+    const statusPart = !isCreated && (fromStatus || toStatus)
+        ? ` (${fromStatus || "-"} -> ${toStatus || "-"})`
+        : "";
+    const rawNote = String(entry?.note || "").trim();
+    let noteBlock = "";
+    if (rawNote.startsWith("Modifiche:")) {
+        const payload = rawNote.replace(/^Modifiche:\s*/i, "").trim();
+        const parts = payload ? payload.split(";").map((item) => item.trim()).filter(Boolean) : [];
+        const rows = parts.map((item) => {
+            const match = item.match(/^([^:]+):\s*\"(.*)\"\s*->\s*\"(.*)\"$/);
+            if (!match) {
+                return `<div class="ts-history-change">${escapeHtml(item)}</div>`;
+            }
+            const label = escapeHtml(match[1].trim());
+            const fromVal = escapeHtml(match[2]);
+            const toVal = escapeHtml(match[3]);
+            return `
+                <div class="ts-history-change">
+                    <span class="ts-history-badge">${label}</span>
+                    <span class="ts-history-from">${fromVal || "-"}</span>
+                    <span class="ts-history-arrow">→</span>
+                    <span class="ts-history-to">${toVal || "-"}</span>
+                </div>
+            `;
+        });
+        if (rows.length) {
+            noteBlock = `<div class="ts-history-note ts-history-note--changes">${rows.join("")}</div>`;
+        }
+    } else if (rawNote) {
+        noteBlock = `<div class="ts-history-note">${escapeHtml(rawNote)}</div>`;
+    }
+    return `
+        <div class="ts-history-item">
+            <div class="ts-history-head">
+                <div class="ts-history-event">${event}${statusPart}</div>
+                <div class="ts-history-time">${escapeHtml(at)}</div>
+            </div>
+            <div class="ts-history-meta">Operatore: ${actor}</div>
+            ${noteBlock}
+        </div>
+    `;
+}
+
+function renderHistoryModal(ticket) {
+    const list = document.getElementById("ts-history-list");
+    if (!list) return;
+    if (!ticket) {
+        list.innerHTML = `<div class="pm-message">Ticket non trovato.</div>`;
+        return;
+    }
+    const entries = (ticket.history || [])
+        .slice()
+        .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+    if (!entries.length) {
+        list.innerHTML = `<div class="pm-message">Nessuno storico disponibile.</div>`;
+        return;
+    }
+    list.innerHTML = entries.map(formatHistoryEntry).join("");
+}
+
+function openHistoryModal(ticketId) {
+    const ticket = getTicketById(ticketId);
+    renderHistoryModal(ticket);
+    openModal("ts-history-modal");
+}
+
+function closeHistoryModal() {
+    closeModal("ts-history-modal");
 }
 
 function resetAdminLoginSensitiveFields() {
@@ -755,12 +1284,16 @@ function openStatusModal(ticketId) {
     statusEditingTicketId = ticketId;
     const select = document.getElementById("ts-status-select");
     if (select) select.value = ticket.status || "Da prendere in carico";
+    const info = document.getElementById("ts-status-info");
+    if (info) info.value = "";
     showInlineMessage("ts-status-message", "");
     openModal("ts-status-modal");
 }
 
 function closeStatusModal() {
     statusEditingTicketId = "";
+    const info = document.getElementById("ts-status-info");
+    if (info) info.value = "";
     closeModal("ts-status-modal");
 }
 
@@ -777,10 +1310,14 @@ function openEditModal(ticketId, mode) {
     const description = document.getElementById("ts-edit-description");
     if (!type || !area || !priority || !description) return;
 
+    renderCategorySelects();
+    ensureOption(type, ticket.issueType);
+    ensureOption(area, ticket.area);
+
     editTicketId = ticket.id;
     editMode = isEmployeeEdit ? "employee" : "admin";
-    type.value = ticket.issueType || "Assistenza";
-    area.value = ticket.area || "Altro";
+    type.value = ticket.issueType || getIssueTypes()[0] || "Assistenza";
+    area.value = ticket.area || getAreas()[0] || "Altro";
     priority.value = ticket.priority || "Media";
     description.value = ticket.description || "";
     showInlineMessage("ts-edit-message", "");
@@ -817,15 +1354,15 @@ function saveTicketEdit() {
     const priority = String(document.getElementById("ts-edit-priority")?.value || "").trim();
     const description = String(document.getElementById("ts-edit-description")?.value || "").trim();
 
-    if (!["Assistenza", "Bug", "Richiesta nuova funzione", "Altro"].includes(issueType)) {
+    if (!isValidSelectValue(document.getElementById("ts-edit-type"), issueType)) {
         showInlineMessage("ts-edit-message", "Tipo intervento non valido.", "error");
         return;
     }
-    if (!["Mail", "MES", "Gestionale", "Hardware", "Rete", "Altro"].includes(area)) {
+    if (!isValidSelectValue(document.getElementById("ts-edit-area"), area)) {
         showInlineMessage("ts-edit-message", "Ambito non valido.", "error");
         return;
     }
-    if (!["Bassa", "Media", "Alta", "Urgente"].includes(priority)) {
+    if (!isValidSelectValue(document.getElementById("ts-edit-priority"), priority)) {
         showInlineMessage("ts-edit-message", "Priorita non valida.", "error");
         return;
     }
@@ -833,6 +1370,19 @@ function saveTicketEdit() {
         showInlineMessage("ts-edit-message", "Descrizione obbligatoria.", "error");
         return;
     }
+
+    const before = {
+        issueType: ticket.issueType,
+        area: ticket.area,
+        priority: ticket.priority,
+        description: ticket.description,
+    };
+    const after = {
+        issueType,
+        area,
+        priority,
+        description,
+    };
 
     ticket.issueType = issueType;
     ticket.area = area;
@@ -842,7 +1392,7 @@ function saveTicketEdit() {
     ticket.history.push(createHistory({
         event: editMode === "employee" ? "Modifica dipendente" : "Modifica admin",
         actor: editMode === "employee" ? (session.employee || "Dipendente") : (session.adminName || "Admin"),
-        note: "Tipo/Ambito/Priorita/Descrizione aggiornati",
+        note: buildEditNote(before, after),
     }));
     saveAll();
     renderAll();
@@ -854,6 +1404,7 @@ async function saveStatusChange() {
     const ticket = getTicketById(statusEditingTicketId);
     if (!ticket) return;
     const toStatus = String(document.getElementById("ts-status-select")?.value || "").trim();
+    const infoText = String(document.getElementById("ts-status-info")?.value || "").trim();
     if (!STATUS_LIST.includes(toStatus)) {
         showInlineMessage("ts-status-message", "Stato non valido.", "error");
         return;
@@ -872,6 +1423,7 @@ async function saveStatusChange() {
         actor: session.adminName || "Admin",
         fromStatus,
         toStatus,
+        note: infoText,
     }));
     saveAll();
     renderAll();
@@ -899,6 +1451,18 @@ async function handleCreateTicket(event) {
     const description = String(document.getElementById("ts-description")?.value || "").trim();
     if (!issueType || !area || !description) {
         showInlineMessage("ts-create-message", "Compila tipo intervento, ambito e descrizione.", "error");
+        return;
+    }
+    if (!isValidSelectValue(document.getElementById("ts-issue-type"), issueType)) {
+        showInlineMessage("ts-create-message", "Tipo intervento non valido.", "error");
+        return;
+    }
+    if (!isValidSelectValue(document.getElementById("ts-area"), area)) {
+        showInlineMessage("ts-create-message", "Ambito non valido.", "error");
+        return;
+    }
+    if (!isValidSelectValue(document.getElementById("ts-priority"), priority)) {
+        showInlineMessage("ts-create-message", "Priorita non valida.", "error");
         return;
     }
 
@@ -1203,6 +1767,10 @@ function bindEditModalEvents() {
     document.getElementById("ts-edit-save")?.addEventListener("click", saveTicketEdit);
 }
 
+function bindHistoryEvents() {
+    document.getElementById("ts-history-close")?.addEventListener("click", closeHistoryModal);
+}
+
 function bindAdminListEvents() {
     document.getElementById("ts-open-admin-list")?.addEventListener("click", () => {
         openAdminListModal();
@@ -1255,8 +1823,8 @@ function bindMainEvents() {
     bindOperatorListEvents();
     document.getElementById("ts-refresh")?.addEventListener("click", () => {
         store = loadStore();
+        ticketCategories = loadTicketCategories();
         renderAll();
-        showInlineMessage("ts-create-message", `Dati ricaricati da ${DATA_PATH}.`, "success");
     });
 }
 
@@ -1290,11 +1858,37 @@ function bindSettingsEvents() {
         closeSettingsModal();
         openBackupModal();
     });
+    document.getElementById("ts-settings-categories-open")?.addEventListener("click", () => {
+        closeSettingsModal();
+        openCategoriesModal();
+    });
+    document.getElementById("ts-categories-close")?.addEventListener("click", closeCategoriesModal);
     document.getElementById("ts-backup-close")?.addEventListener("click", closeBackupModal);
     document.getElementById("ts-backup-run")?.addEventListener("click", createTicketBackup);
     document.getElementById("ts-backup-restore")?.addEventListener("click", () => {
         restoreTicketBackup();
     });
+}
+
+function bindCategoriesEvents() {
+    document.getElementById("ts-issue-type-add")?.addEventListener("click", addIssueType);
+    document.getElementById("ts-area-add")?.addEventListener("click", addArea);
+    const issueInput = document.getElementById("ts-issue-type-name");
+    if (issueInput) {
+        issueInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            addIssueType();
+        });
+    }
+    const areaInput = document.getElementById("ts-area-name");
+    if (areaInput) {
+        areaInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            addArea();
+        });
+    }
 }
 
 function applySharedSession(payload) {
@@ -1345,11 +1939,14 @@ async function init() {
     bindLogoutEvents();
     bindStatusModalEvents();
     bindEditModalEvents();
+    bindHistoryEvents();
     bindAdminListEvents();
     bindMainEvents();
     bindSettingsEvents();
+    bindCategoriesEvents();
     otpUi.initOtpModals();
 
+    ticketCategories = loadTicketCategories();
     await loadSession();
     renderAll();
     if (!isLoggedIn()) {
@@ -1357,7 +1954,6 @@ async function init() {
             showInlineMessage("ts-admin-message", "Accedi dalla home Ticket Support per usare questa finestra.", "error");
         } else {
             openLoginModal();
-            showInlineMessage("ts-create-message", "Accedi come admin per aprire la lista ticket.", "error");
         }
     } else if (currentView === "admin" && !isAdmin()) {
         showInlineMessage("ts-admin-message", "Accesso admin richiesto. Cambia utente dalla home Ticket Support.", "error");

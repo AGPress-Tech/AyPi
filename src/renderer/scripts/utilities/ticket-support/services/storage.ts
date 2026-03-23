@@ -4,6 +4,7 @@ import path from "path";
 import {
     TICKET_DIR,
     DATA_PATH,
+    TICKET_YEARS_DIR,
 } from "../config/paths";
 
 type TicketHistoryEntry = {
@@ -85,6 +86,9 @@ function ensureTickerDir() {
         if (!fs.existsSync(TICKET_DIR)) {
             fs.mkdirSync(TICKET_DIR, { recursive: true });
         }
+        if (!fs.existsSync(TICKET_YEARS_DIR)) {
+            fs.mkdirSync(TICKET_YEARS_DIR, { recursive: true });
+        }
         return true;
     } catch (err) {
         console.error(
@@ -107,7 +111,7 @@ function getYearFromTicket(ticket: Partial<Ticket>) {
 
 function getYearFilePath(year: string | number) {
     const safeYear = String(year || "").trim();
-    return path.join(TICKET_DIR, `ticket-${safeYear}.json`);
+    return path.join(TICKET_YEARS_DIR, `ticket-${safeYear}.json`);
 }
 
 function readTicketsFromFile(filePath: string): Ticket[] {
@@ -123,7 +127,7 @@ function readTicketsFromFile(filePath: string): Ticket[] {
     }
 }
 
-function listYearFiles(directory = TICKET_DIR) {
+function listYearFiles(directory = TICKET_YEARS_DIR) {
     if (!directory || !fs.existsSync(directory)) return [];
     try {
         return fs
@@ -137,10 +141,16 @@ function listYearFiles(directory = TICKET_DIR) {
 }
 
 function loadFromYearFiles() {
-    const primaryFiles = listYearFiles(TICKET_DIR);
-    if (!primaryFiles.length) return [];
+    const primaryFiles = listYearFiles(TICKET_YEARS_DIR);
+    const legacyFiles = listYearFiles(TICKET_DIR);
+    if (!primaryFiles.length && !legacyFiles.length) return [];
+    const primaryNames = new Set(primaryFiles.map((filePath) => path.basename(filePath).toLowerCase()));
+    const files = [
+        ...primaryFiles,
+        ...legacyFiles.filter((filePath) => !primaryNames.has(path.basename(filePath).toLowerCase())),
+    ];
     const tickets = [];
-    primaryFiles.forEach((filePath) => {
+    files.forEach((filePath) => {
         tickets.push(...readTicketsFromFile(filePath));
     });
     return tickets;
@@ -230,11 +240,11 @@ function saveStore(store: TicketStore): TicketStore {
         fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf8");
     });
 
-    // Rimuove eventuali file annuali non piÃ¹ presenti nel payload corrente.
+    // Rimuove eventuali file annuali non più presenti nel payload corrente.
     const expectedNames = new Set(
         Object.keys(byYear).map((year) => `ticket-${year}.json`.toLowerCase()),
     );
-    listYearFiles(TICKET_DIR).forEach((filePath) => {
+    listYearFiles(TICKET_YEARS_DIR).forEach((filePath) => {
         const name = path.basename(filePath).toLowerCase();
         if (!expectedNames.has(name)) {
             try {
@@ -246,6 +256,19 @@ function saveStore(store: TicketStore): TicketStore {
                     err,
                 );
             }
+        }
+    });
+
+    // Rimuove eventuali shard legacy nella root per evitare ricomparse.
+    listYearFiles(TICKET_DIR).forEach((filePath) => {
+        try {
+            fs.unlinkSync(filePath);
+        } catch (err) {
+            console.error(
+                "[ticket-support] impossibile rimuovere shard legacy:",
+                filePath,
+                err,
+            );
         }
     });
 

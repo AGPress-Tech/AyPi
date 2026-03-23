@@ -32,6 +32,12 @@ body.ts-view-admin .pm-body {
     font-size: 14px;
 }
 
+#ts-description,
+#ts-edit-description,
+#ts-status-info {
+    resize: vertical;
+}
+
 .ts-kpi {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -128,6 +134,126 @@ body.ts-view-admin .pm-body {
     display: none;
 }
 
+.ts-history-card {
+    width: min(960px, 94vw);
+    max-height: 86vh;
+}
+
+.ts-history-list {
+    display: grid;
+    gap: 10px;
+    max-height: 64vh;
+    overflow: auto;
+    padding: 4px 2px 2px;
+}
+
+.ts-history-item {
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.ts-history-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+}
+
+.ts-history-event {
+    font-weight: 600;
+}
+
+.ts-history-time {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.ts-history-meta {
+    font-size: 12px;
+    opacity: 0.75;
+    margin-top: 4px;
+}
+
+.ts-history-note {
+    margin-top: 6px;
+    font-size: 13px;
+    white-space: pre-wrap;
+}
+
+.ts-history-note--changes {
+    display: grid;
+    gap: 6px;
+}
+
+.ts-history-change {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 13px;
+}
+
+.ts-history-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(80, 120, 165, 0.12);
+    color: #2c4a6a;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ts-history-from {
+    color: rgba(0, 0, 0, 0.45);
+    font-weight: 400;
+}
+
+.ts-history-to {
+    font-weight: 700;
+}
+
+.ts-history-arrow {
+    opacity: 0.6;
+}
+
+body.fp-dark .ts-history-card,
+body.fp-aypi .ts-history-card {
+    background: rgba(20, 24, 30, 0.9);
+}
+
+body.fp-dark .ts-history-item,
+body.fp-aypi .ts-history-item {
+    background: rgba(20, 24, 30, 0.75);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: rgba(240, 245, 255, 0.92);
+}
+
+body.fp-dark .ts-history-time,
+body.fp-aypi .ts-history-time,
+body.fp-dark .ts-history-meta,
+body.fp-aypi .ts-history-meta {
+    color: rgba(220, 230, 245, 0.8);
+}
+
+body.fp-dark .ts-history-badge,
+body.fp-aypi .ts-history-badge {
+    background: rgba(120, 160, 210, 0.22);
+    color: rgba(235, 245, 255, 0.95);
+}
+
+body.fp-dark .ts-history-from,
+body.fp-aypi .ts-history-from {
+    color: rgba(220, 230, 245, 0.55);
+}
+
+body.fp-dark .ts-history-to,
+body.fp-aypi .ts-history-to {
+    color: rgba(240, 245, 255, 0.98);
+}
+
 .ts-operator-list {
     display: grid;
     gap: 10px;
@@ -185,6 +311,49 @@ body.ts-view-admin .pm-body {
     white-space: pre-wrap;
 }
 
+body.fp-dark .ts-ticket-card,
+body.fp-aypi .ts-ticket-card {
+    background: rgba(20, 24, 30, 0.75);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: rgba(240, 245, 255, 0.92);
+}
+
+body.fp-dark .ts-ticket-card__status,
+body.fp-aypi .ts-ticket-card__status {
+    background: rgba(120, 160, 210, 0.22);
+    color: rgba(235, 245, 255, 0.95);
+}
+
+body.fp-dark .ts-ticket-card__meta,
+body.fp-aypi .ts-ticket-card__meta {
+    color: rgba(220, 230, 245, 0.85);
+}
+
+body.fp-dark .ts-ticket-card__desc,
+body.fp-aypi .ts-ticket-card__desc {
+    color: rgba(235, 245, 255, 0.95);
+}
+
+body.fp-dark .ts-ticket-card a,
+body.fp-aypi .ts-ticket-card a,
+body.fp-dark .ts-ticket-card .fp-link-btn,
+body.fp-aypi .ts-ticket-card .fp-link-btn {
+    color: #8cc4ff;
+}
+
+body.fp-dark .ts-ticket-card--resolved,
+body.fp-aypi .ts-ticket-card--resolved {
+    background: rgba(52, 168, 83, 0.18);
+    border-color: rgba(52, 168, 83, 0.45);
+}
+
+body.fp-dark .ts-ticket-card--closed,
+body.fp-aypi .ts-ticket-card--closed {
+    background: rgba(234, 67, 53, 0.2);
+    border-color: rgba(234, 67, 53, 0.5);
+    opacity: 0.9;
+}
+
 .ts-ticket-card__actions {
     display: flex;
     gap: 6px;
@@ -199,6 +368,31 @@ body.ts-view-admin .pm-body {
 
 #ts-admin-table.pm-table--interventions {
     grid-template-columns: 0.8fr 1.3fr 1fr 1.1fr 1fr 0.9fr 0.9fr 1.8fr 1.4fr;
+}
+
+#ts-categories-modal .pm-modal__card {
+    width: min(1240px, 96vw);
+    max-height: 90vh;
+}
+
+#ts-categories-modal .pm-list-box {
+    padding: 0;
+    gap: 0;
+    display: block;
+}
+
+#ts-categories-modal .fp-assignees-row {
+    padding: 6px 12px;
+    min-height: 34px;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+#ts-categories-modal .fp-assignees-row:last-child {
+    border-bottom: none;
+}
+
+#ts-categories-modal .fp-assignees-row__actions {
+    align-items: center;
 }
 
 @media (max-width: 1000px) {

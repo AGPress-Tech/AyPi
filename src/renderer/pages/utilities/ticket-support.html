@@ -192,6 +192,10 @@
                     <option value="Chiuso">Chiuso</option>
                 </select>
             </div>
+            <div class="pm-field">
+                <label for="ts-status-info">Info</label>
+                <textarea id="ts-status-info" rows="3" placeholder="Cosa hai fatto o verificato"></textarea>
+            </div>
             <div class="pm-actions">
                 <button type="button" class="pm-btn pm-btn--ghost" id="ts-status-cancel">Annulla</button>
                 <button type="button" class="pm-btn pm-btn--primary" id="ts-status-save">Salva</button>
@@ -299,6 +303,12 @@
                     <span class="fp-btn__label">Gestione admin</span>
                 </button>
             </div>
+            <div class="fp-export-section ts-hidden" id="ts-settings-categories-section">
+                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-settings-categories-open">
+                    <span class="fp-btn__icon" aria-hidden="true"><span class="material-icons fp-icon-mi">category</span></span>
+                    <span class="fp-btn__label">Gestione categorie ticket</span>
+                </button>
+            </div>
             <div class="fp-export-section ts-hidden" id="ts-settings-backup-section">
                 <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="ts-settings-backup-open">
                     <span class="fp-btn__icon" aria-hidden="true"><span class="material-icons fp-icon-mi">backup</span></span>
@@ -320,6 +330,37 @@
         </div>
     </div>
 
+    <div class="pm-modal is-hidden" id="ts-categories-modal" aria-hidden="true">
+        <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="ts-categories-title">
+            <div class="pm-modal__header">
+                <h3 id="ts-categories-title">Gestione categorie ticket</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-categories-close">Chiudi</button>
+            </div>
+            <div class="pm-dual-grid">
+                <div class="fp-assignees-section pm-dual-section" id="ts-issue-types-panel">
+                    <div class="fp-assignees-subtitle">Tipologie ticket</div>
+                    <div class="pm-dual-body">
+                        <div id="ts-issue-types-list" class="pm-list-box fp-assignees-grid"></div>
+                    </div>
+                    <div class="fp-assignees-form">
+                        <input type="text" id="ts-issue-type-name" class="fp-field__input" placeholder="Nuova tipologia (Invio per aggiungere)">
+                        <button type="button" class="fp-btn fp-btn--primary" id="ts-issue-type-add">+</button>
+                    </div>
+                </div>
+                <div class="fp-assignees-section pm-dual-section" id="ts-areas-panel">
+                    <div class="fp-assignees-subtitle">Ambiti</div>
+                    <div class="pm-dual-body">
+                        <div id="ts-areas-list" class="pm-list-box fp-assignees-grid"></div>
+                    </div>
+                    <div class="fp-assignees-form">
+                        <input type="text" id="ts-area-name" class="fp-field__input" placeholder="Nuovo ambito (Invio per aggiungere)">
+                        <button type="button" class="fp-btn fp-btn--primary" id="ts-area-add">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="pm-modal is-hidden" id="ts-backup-modal" aria-hidden="true">
         <div class="pm-modal__card pm-confirm-card" role="dialog" aria-modal="true" aria-labelledby="ts-backup-title">
             <div class="pm-modal__header">
@@ -332,6 +373,16 @@
                 <button type="button" class="pm-btn pm-btn--ghost" id="ts-backup-restore">Ripristina backup</button>
             </div>
             <div id="ts-backup-message" class="pm-message is-hidden"></div>
+        </div>
+    </div>
+
+    <div class="pm-modal is-hidden" id="ts-history-modal" aria-hidden="true">
+        <div class="pm-modal__card ts-history-card" role="dialog" aria-modal="true" aria-labelledby="ts-history-title">
+            <div class="pm-modal__header">
+                <h3 id="ts-history-title">Storico ticket</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-history-close">Chiudi</button>
+            </div>
+            <div id="ts-history-list" class="ts-history-list"></div>
         </div>
     </div>
 

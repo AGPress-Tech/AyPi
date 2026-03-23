@@ -30,12 +30,16 @@ function resolveBaseDir() {
 
 const BASE_DIR = resolveBaseDir();
 const TICKET_DIR = path.join(BASE_DIR, "AyPi Ticket");
+const TICKET_YEARS_DIR = path.join(TICKET_DIR, "Ticket Years");
 const DATA_PATH = TICKET_DIR;
+const CATEGORIES_PATH = path.join(TICKET_DIR, "ticket-categories.json");
 
 if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
     BASE_DIR,
     TICKET_DIR,
+    TICKET_YEARS_DIR,
     DATA_PATH,
+    CATEGORIES_PATH,
 };
 
 
