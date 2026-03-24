@@ -1296,7 +1296,9 @@ function getReleaseKind(tagName: string) {
 }
 
 function parseReleaseVersion(tagName: string) {
-    const raw = String(tagName || "").trim().replace(/^v/i, "");
+    const raw = String(tagName || "")
+        .trim()
+        .replace(/^v/i, "");
     if (!raw) return null;
     const parts = raw.split(".").map((part) => parseInt(part, 10));
     if (!parts.length || parts.some((p) => Number.isNaN(p))) return null;
