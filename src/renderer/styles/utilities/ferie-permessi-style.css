@@ -15,7 +15,7 @@ body {
     min-height: 100%;
     opacity: 0;
     transition: opacity 0.3s ease;
-    overflow-x: hidden;
+    overflow: visible;
 }
 
 body.fp-calendar-ready .fp-page {
@@ -45,7 +45,9 @@ body.fp-initial-setup #fp-admin-add-modal {
     border-bottom: 1px solid #e0e3e7;
     gap: 8px;
     user-select: none;
-    overflow-x: hidden;
+    overflow: visible;
+    position: relative;
+    z-index: 20;
 }
 
 .fp-header__title {
@@ -142,6 +144,8 @@ body.fp-initial-setup #fp-admin-add-modal {
     flex-wrap: wrap;
     max-width: 100%;
     min-width: 0;
+    overflow: visible;
+    z-index: 30;
 }
 
 @media (max-width: 1200px) {

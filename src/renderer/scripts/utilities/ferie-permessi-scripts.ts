@@ -2994,7 +2994,7 @@ function init() {
     const calendarRoot = document.getElementById("fp-calendar");
     if (calendarRoot) {
         calendarRoot.addEventListener("contextmenu", (event) => {
-            const cell = event.target.closest("[data-date]");
+            const cell = event.target?.closest?.("[data-date]");
             if (!cell) return;
             const date = cell.getAttribute("data-date");
             if (!date) return;
@@ -3081,7 +3081,7 @@ window.addEventListener("message", (event) => {
 
     if (legend) {
         legend.addEventListener("click", (event) => {
-            const target = event.target.closest(".fp-legend__item");
+            const target = event.target?.closest?.(".fp-legend__item");
             if (!target) return;
             const type = target.getAttribute("data-type");
             if (!type) return;
@@ -3097,8 +3097,8 @@ window.addEventListener("message", (event) => {
 
     document.addEventListener("click", (event) => {
         if (!legendEditor || legendEditor.classList.contains("is-hidden")) return;
-        if (event.target.closest("#fp-legend-editor")) return;
-        if (event.target.closest(".fp-legend__item")) return;
+        if (event.target?.closest?.("#fp-legend-editor")) return;
+        if (event.target?.closest?.(".fp-legend__item")) return;
         // no-op: keep editor open; close only via "Chiudi"
     });
 
