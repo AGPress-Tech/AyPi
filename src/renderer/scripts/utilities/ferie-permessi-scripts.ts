@@ -2657,6 +2657,7 @@ function init() {
     const backupRestore = document.getElementById("fp-backup-restore");
     const backupModal = document.getElementById("fp-backup-modal");
     const backupMessage = document.getElementById("fp-backup-message");
+    const analysisOpen = document.getElementById("fp-analysis-open");
 
     if (exportOpen) {
         exportOpen.addEventListener("click", () => {
@@ -2718,6 +2719,14 @@ function init() {
         });
     }
 
+    if (analysisOpen) {
+        analysisOpen.addEventListener("click", () => {
+            requireAdminAccess(() => {
+                ipcRenderer.send("open-ferie-permessi-analysis-window");
+            });
+        });
+    }
+
     if (exportSelectAll) {
         exportSelectAll.addEventListener("click", () => {
             exportUi.setExportDepartmentsChecked(true);
@@ -2735,6 +2744,7 @@ function init() {
             radio.addEventListener("change", exportUi.updateExportDateState);
         });
     }
+
 
     runExport = async () => {
         const needsAdmin = isAdminRequiredForExport();

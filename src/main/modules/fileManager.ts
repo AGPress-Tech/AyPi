@@ -1372,6 +1372,7 @@ let gitflowWindow: BrowserWindow | null = null;
 let amministrazioneWindow: BrowserWindow | null = null;
 let feriePermessiWindow: BrowserWindow | null = null;
 let feriePermessiHoursWindow: BrowserWindow | null = null;
+let feriePermessiAnalysisWindow: BrowserWindow | null = null;
 let productManagerWindow: BrowserWindow | null = null;
 let productManagerCartWindow: BrowserWindow | null = null;
 let productManagerInterventionsWindow: BrowserWindow | null = null;
@@ -1606,7 +1607,6 @@ function openFeriePermessiWindow(mainWindow) {
     feriePermessiWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        parent: mainWindow,
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
@@ -1809,6 +1809,40 @@ function openFeriePermessiHoursWindow(mainWindow) {
     feriePermessiHoursWindow.on("closed", () => {
         feriePermessiHoursWindow = null;
         showMainWindow(mainWindow);
+    });
+}
+
+function openFeriePermessiAnalysisWindow(mainWindow) {
+    if (isWindowAlive(feriePermessiAnalysisWindow)) {
+        feriePermessiAnalysisWindow.reload();
+        showWindow(feriePermessiAnalysisWindow);
+        return;
+    }
+
+    feriePermessiAnalysisWindow = new BrowserWindow({
+        width: 1360,
+        height: 860,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f3f6fb",
+    });
+
+    feriePermessiAnalysisWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "ferie-permessi-analysis.html")
+    );
+    feriePermessiAnalysisWindow.setMenu(null);
+
+    feriePermessiAnalysisWindow.once("ready-to-show", () => {
+        if (!feriePermessiAnalysisWindow.isDestroyed()) {
+            feriePermessiAnalysisWindow.maximize();
+            feriePermessiAnalysisWindow.show();
+        }
+    });
+
+    feriePermessiAnalysisWindow.on("closed", () => {
+        feriePermessiAnalysisWindow = null;
     });
 }
 
@@ -2729,6 +2763,10 @@ function setupFileManager(mainWindow) {
 
       ipcMain.on("open-ferie-permessi-hours-window", () => {
           openFeriePermessiHoursWindow(mainWindow);
+      });
+
+      ipcMain.on("open-ferie-permessi-analysis-window", () => {
+          openFeriePermessiAnalysisWindow(mainWindow);
       });
 
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file:; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi Calendar - Analisi</title>
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-analysis-style.css">
+</head>
+
+<body>
+    <div class="fpa-page">
+        <header class="fpa-header">
+            <div>
+                <h1>AyPi Calendar - Analisi</h1>
+                <p>Dashboard operativa con filtri avanzati su assenze approvate.</p>
+            </div>
+            <div class="fpa-header-actions">
+                <button type="button" class="fpa-btn" id="fpa-refresh">Aggiorna</button>
+                <button type="button" class="fpa-btn fpa-btn--primary" id="fpa-close">Chiudi</button>
+            </div>
+        </header>
+
+        <main class="fpa-main">
+            <aside class="fpa-sidebar">
+                <section class="fpa-panel">
+                    <h3>Periodo</h3>
+                    <div class="fpa-radio-group">
+                        <label><input type="radio" name="fpa-range" value="month" checked> Mese corrente</label>
+                        <label><input type="radio" name="fpa-range" value="last30"> Ultimi 30 giorni</label>
+                        <label><input type="radio" name="fpa-range" value="custom"> Intervallo custom</label>
+                    </div>
+                    <div class="fpa-grid2">
+                        <div class="fpa-field">
+                            <label for="fpa-start">Da</label>
+                            <input id="fpa-start" type="date">
+                        </div>
+                        <div class="fpa-field">
+                            <label for="fpa-end">A</label>
+                            <input id="fpa-end" type="date">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="fpa-panel">
+                    <h3>Configurazione Vista</h3>
+                    <div class="fpa-field">
+                        <label for="fpa-line-group">Grafico lineare</label>
+                        <select id="fpa-line-group">
+                            <option value="total">Totale assenti</option>
+                            <option value="department">Linee per reparto</option>
+                            <option value="type">Linee per tipo assenza</option>
+                        </select>
+                    </div>
+                    <div class="fpa-field">
+                        <label for="fpa-granularity">Granularità linea</label>
+                        <select id="fpa-granularity">
+                            <option value="day" selected>Giornaliera</option>
+                            <option value="week">Settimanale</option>
+                            <option value="month">Mensile</option>
+                        </select>
+                    </div>
+                    <div class="fpa-field">
+                        <label for="fpa-top-n">Top dipendenti</label>
+                        <select id="fpa-top-n">
+                            <option value="10">Top 10</option>
+                            <option value="20">Top 20</option>
+                            <option value="30">Top 30</option>
+                            <option value="9999">Tutti</option>
+                        </select>
+                    </div>
+                </section>
+
+                <section class="fpa-panel">
+                    <h3>Tipologie Assenza</h3>
+                    <div class="fpa-check-grid">
+                        <label><input type="checkbox" id="fpa-type-ferie" checked> Ferie</label>
+                        <label><input type="checkbox" id="fpa-type-permesso" checked> Permessi</label>
+                        <label><input type="checkbox" id="fpa-type-straordinari"> Straordinari</label>
+                        <label><input type="checkbox" id="fpa-type-mutua" checked> Mutua</label>
+                        <label><input type="checkbox" id="fpa-type-infortunio"> Infortunio</label>
+                        <label><input type="checkbox" id="fpa-type-speciale"> Chiusura aziendale</label>
+                        <label><input type="checkbox" id="fpa-type-retribuito"> Permesso retribuito</label>
+                    </div>
+                </section>
+
+                <section class="fpa-panel">
+                    <div class="fpa-panel-header">
+                        <h3>Reparti</h3>
+                        <span id="fpa-dept-selected" class="fpa-badge">0 selezionati</span>
+                    </div>
+                    <div class="fpa-actions">
+                        <input type="search" id="fpa-dept-search" placeholder="Cerca reparto...">
+                        <button type="button" class="fpa-btn fpa-btn--tiny" id="fpa-dept-all">Tutti</button>
+                        <button type="button" class="fpa-btn fpa-btn--tiny" id="fpa-dept-none">Nessuno</button>
+                    </div>
+                    <div id="fpa-dept-list" class="fpa-dept-list"></div>
+                </section>
+
+                <section class="fpa-panel">
+                    <div class="fpa-actions fpa-actions--footer">
+                        <button type="button" class="fpa-btn" id="fpa-reset">Reset filtri</button>
+                        <button type="button" class="fpa-btn fpa-btn--primary" id="fpa-apply">Applica</button>
+                    </div>
+                    <div id="fpa-message" class="fpa-message is-hidden"></div>
+                </section>
+            </aside>
+
+            <section class="fpa-content">
+                <div class="fpa-kpis" id="fpa-kpis"></div>
+
+                <div class="fpa-grid-panels">
+                    <article class="fpa-panel fpa-panel--chart">
+                        <div class="fpa-panel-header">
+                            <h3>Assenti Giornalieri</h3>
+                        </div>
+                        <div class="fpa-chart-wrap" id="fpa-line-chart"></div>
+                        <div class="fpa-split-row">
+                            <div class="fpa-table-wrap" id="fpa-daily-table"></div>
+                            <div class="fpa-bars-wrap fpa-bars-wrap--half" id="fpa-bars-chart"></div>
+                        </div>
+                        <div class="fpa-table-wrap fpa-table-wrap--full" id="fpa-employee-table"></div>
+                    </article>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="../../scripts/utilities/ferie-permessi-analysis.js"></script>
+</body>
+
+</html>
