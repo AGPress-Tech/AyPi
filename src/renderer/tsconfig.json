@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.renderer.json",
+  "compilerOptions": {
+    "rootDir": "."
+  }
+}

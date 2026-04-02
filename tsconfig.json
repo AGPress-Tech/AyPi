@@ -10,6 +10,7 @@
     "resolveJsonModule": true,
     "allowJs": false,
     "checkJs": false,
+    "types": ["node"],
     "rootDir": "src/main",
     "outDir": "dist-ts"
   },
