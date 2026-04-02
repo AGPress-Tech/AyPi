@@ -5,7 +5,14 @@ import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 
-const fpBaseDir = path.join(__dirname, "..", "..", "scripts", "utilities", "ferie-permessi");
+const fpBaseDir = path.join(
+    __dirname,
+    "..",
+    "..",
+    "scripts",
+    "utilities",
+    "ferie-permessi",
+);
 const bootRequire = (modulePath) => {
     try {
         return require(modulePath);
@@ -27,7 +34,9 @@ const requireModule = (modulePath) => unwrapModule(bootRequire(modulePath));
 
 const rawPaths = requireModule(path.join(fpBaseDir, "config", "paths"));
 const pathsModule =
-    rawPaths && rawPaths.default && !rawPaths.BASE_DIR ? rawPaths.default : rawPaths;
+    rawPaths && rawPaths.default && !rawPaths.BASE_DIR
+        ? rawPaths.default
+        : rawPaths;
 const {
     BASE_DIR,
     CALENDAR_DIR,
@@ -39,7 +48,8 @@ const {
     LEGACY_ADMINS_PATH,
     CONFIG_PATH,
 } = pathsModule || {};
-const constantsModule = requireModule(path.join(fpBaseDir, "config", "constants")) || {};
+const constantsModule =
+    requireModule(path.join(fpBaseDir, "config", "constants")) || {};
 const {
     AUTO_REFRESH_MS,
     OTP_EXPIRY_MS,
@@ -72,7 +82,9 @@ const {
     isValidEmail,
     isValidPhone,
 } = bootRequire(path.join(fpBaseDir, "services", "admins"));
-const { loadAssigneeOptions, saveAssigneeOptions } = bootRequire(path.join(fpBaseDir, "services", "assignees"));
+const { loadAssigneeOptions, saveAssigneeOptions } = bootRequire(
+    path.join(fpBaseDir, "services", "assignees"),
+);
 const {
     normalizeBalances,
     applyMissingRequestDeductions,
@@ -84,20 +96,34 @@ const {
     savePayload,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
-const { ensureFolderFor } = bootRequire(path.join(fpBaseDir, "services", "storage"));
-const { isMailerAvailable, getMailerError, saveMailConfig, sendTestEmail, sendOtpEmail } = bootRequire(
-    path.join(fpBaseDir, "services", "otp-mail")
+const { ensureFolderFor } = bootRequire(
+    path.join(fpBaseDir, "services", "storage"),
 );
+const {
+    isMailerAvailable,
+    getMailerError,
+    saveMailConfig,
+    sendTestEmail,
+    sendOtpEmail,
+} = bootRequire(path.join(fpBaseDir, "services", "otp-mail"));
 
 window.addEventListener("error", (event) => {
-    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    const detail =
+        event?.error?.stack || event?.message || "Errore sconosciuto";
     showDialog("error", "Errore JS Ferie/Permessi.", detail);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
     const reason = event?.reason;
-    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
-    showDialog("error", "Errore promessa non gestita (Ferie/Permessi).", detail);
+    const detail =
+        reason?.stack ||
+        reason?.message ||
+        String(reason || "Errore sconosciuto");
+    showDialog(
+        "error",
+        "Errore promessa non gestita (Ferie/Permessi).",
+        detail,
+    );
 });
 
 const fpUiDir = path.join(fpBaseDir, "ui");
@@ -111,26 +137,46 @@ const {
 } = bootRequire(path.join(fpUiDir, "calendar"));
 const { createAdminModals } = bootRequire(path.join(fpUiDir, "admin-modals"));
 const { createOtpModals } = bootRequire(path.join(fpUiDir, "otp-modals"));
-const { createSettingsModal } = bootRequire(path.join(fpUiDir, "settings-modal"));
+const { createSettingsModal } = bootRequire(
+    path.join(fpUiDir, "settings-modal"),
+);
 const { createGuideModal } = bootRequire(path.join(fpUiDir, "guide-modal"));
-const { createApprovalModal } = bootRequire(path.join(fpUiDir, "approval-modal"));
+const { createApprovalModal } = bootRequire(
+    path.join(fpUiDir, "approval-modal"),
+);
 const { createEditModal } = bootRequire(path.join(fpUiDir, "edit-modal"));
 const { createRequestForm } = bootRequire(path.join(fpUiDir, "request-form"));
-const { createHolidaysModal } = bootRequire(path.join(fpUiDir, "holidays-modal"));
-const { createClosuresModal } = bootRequire(path.join(fpUiDir, "closures-modal"));
+const { createHolidaysModal } = bootRequire(
+    path.join(fpUiDir, "holidays-modal"),
+);
+const { createClosuresModal } = bootRequire(
+    path.join(fpUiDir, "closures-modal"),
+);
 const { createPendingPanel } = bootRequire(path.join(fpUiDir, "pending-panel"));
 const { createSummary } = bootRequire(path.join(fpUiDir, "summary"));
 const { createRenderer } = bootRequire(path.join(fpUiDir, "rendering"));
 const { createConfigModal } = bootRequire(path.join(fpUiDir, "config-modal"));
-const { createRefreshController } = bootRequire(path.join(fpBaseDir, "services", "refresh"));
-const { formatDate, formatDateTime, formatDateParts } = bootRequire(path.join(fpBaseDir, "utils", "date-format"));
-const { createRangeLine } = requireModule(path.join(fpUiDir, "range-line")) || {};
-const { initCustomSelects: initCustomSelectsUi } = bootRequire(path.join(fpUiDir, "custom-select"));
-const { getRequestDates } = bootRequire(path.join(fpBaseDir, "utils", "requests"));
-const { buildExportRows } = bootRequire(path.join(fpBaseDir, "utils", "export"));
+const { createRefreshController } = bootRequire(
+    path.join(fpBaseDir, "services", "refresh"),
+);
+const { formatDate, formatDateTime, formatDateParts } = bootRequire(
+    path.join(fpBaseDir, "utils", "date-format"),
+);
+const { createRangeLine } =
+    requireModule(path.join(fpUiDir, "range-line")) || {};
+const { initCustomSelects: initCustomSelectsUi } = bootRequire(
+    path.join(fpUiDir, "custom-select"),
+);
+const { getRequestDates } = bootRequire(
+    path.join(fpBaseDir, "utils", "requests"),
+);
+const { buildExportRows } = bootRequire(
+    path.join(fpBaseDir, "utils", "export"),
+);
 const { getTypeLabel } = bootRequire(path.join(fpBaseDir, "utils", "labels"));
-const { UI_TEXTS = { initErrorTitle: "Errore inizializzazione ferie/permessi." } } =
-    requireModule(path.join(fpBaseDir, "utils", "ui-texts")) || {};
+const {
+    UI_TEXTS = { initErrorTitle: "Errore inizializzazione ferie/permessi." },
+} = requireModule(path.join(fpBaseDir, "utils", "ui-texts")) || {};
 const {
     DEFAULT_ACCESS_CONFIG,
     normalizeAccessConfig,
@@ -213,7 +259,10 @@ function hasCalendarAccess(admin) {
     return !(admin && admin.accessCalendar === false);
 }
 
-async function verifyCalendarAdminPassword(password: string, targetName?: string | null) {
+async function verifyCalendarAdminPassword(
+    password: string,
+    targetName?: string | null,
+) {
     const result = await verifyAdminPassword(password, targetName);
     if (!result || !result.admin) return null;
     if (!hasCalendarAccess(result.admin)) return null;
@@ -238,8 +287,20 @@ function toBoolValue(value, fallback) {
     if (typeof value === "number") return value !== 0;
     if (typeof value === "string") {
         const trimmed = value.trim().toLowerCase();
-        if (trimmed === "true" || trimmed === "1" || trimmed === "on" || trimmed === "si") return true;
-        if (trimmed === "false" || trimmed === "0" || trimmed === "off" || trimmed === "no") return false;
+        if (
+            trimmed === "true" ||
+            trimmed === "1" ||
+            trimmed === "on" ||
+            trimmed === "si"
+        )
+            return true;
+        if (
+            trimmed === "false" ||
+            trimmed === "0" ||
+            trimmed === "off" ||
+            trimmed === "no"
+        )
+            return false;
     }
     return fallback;
 }
@@ -313,12 +374,30 @@ function applyFilterState(state) {
     const nextRetribuito = toBoolValue(state?.retribuito, defaults.retribuito);
 
     const allowAdminFilters = isAdminLoggedIn();
-    const finalOvertime = allowAdminFilters || !isAdminRequiredForFilter("overtime") ? nextOvertime : false;
-    const finalMutua = allowAdminFilters || !isAdminRequiredForFilter("mutua") ? nextMutua : false;
-    const finalSpeciale = allowAdminFilters || !isAdminRequiredForFilter("speciale") ? nextSpeciale : false;
-    const finalRetribuito = allowAdminFilters || !isAdminRequiredForFilter("retribuito") ? nextRetribuito : false;
-    const finalFerie = allowAdminFilters || !isAdminRequiredForFilter("ferie") ? nextFerie : false;
-    const finalPermesso = allowAdminFilters || !isAdminRequiredForFilter("permesso") ? nextPermesso : false;
+    const finalOvertime =
+        allowAdminFilters || !isAdminRequiredForFilter("overtime")
+            ? nextOvertime
+            : false;
+    const finalMutua =
+        allowAdminFilters || !isAdminRequiredForFilter("mutua")
+            ? nextMutua
+            : false;
+    const finalSpeciale =
+        allowAdminFilters || !isAdminRequiredForFilter("speciale")
+            ? nextSpeciale
+            : false;
+    const finalRetribuito =
+        allowAdminFilters || !isAdminRequiredForFilter("retribuito")
+            ? nextRetribuito
+            : false;
+    const finalFerie =
+        allowAdminFilters || !isAdminRequiredForFilter("ferie")
+            ? nextFerie
+            : false;
+    const finalPermesso =
+        allowAdminFilters || !isAdminRequiredForFilter("permesso")
+            ? nextPermesso
+            : false;
 
     if (ferieToggle) ferieToggle.checked = finalFerie;
     if (permessoToggle) permessoToggle.checked = finalPermesso;
@@ -432,7 +511,6 @@ const exportUi = createExportController({
     getAssigneeGroups: () => assigneeGroups,
 });
 
-
 function normalizeHexColor(value, fallback) {
     if (typeof value !== "string") return fallback;
     const cleaned = value.trim();
@@ -445,15 +523,28 @@ function loadColorSettings() {
         const raw = window.localStorage?.getItem(COLOR_STORAGE_KEY);
         if (!raw) return { ...DEFAULT_TYPE_COLORS };
         const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object") return { ...DEFAULT_TYPE_COLORS };
+        if (!parsed || typeof parsed !== "object")
+            return { ...DEFAULT_TYPE_COLORS };
         const legacyRetribuito = parsed.retribuito ?? parsed.giustificato;
         return {
             ferie: normalizeHexColor(parsed.ferie, DEFAULT_TYPE_COLORS.ferie),
-            permesso: normalizeHexColor(parsed.permesso, DEFAULT_TYPE_COLORS.permesso),
-            straordinari: normalizeHexColor(parsed.straordinari, DEFAULT_TYPE_COLORS.straordinari),
+            permesso: normalizeHexColor(
+                parsed.permesso,
+                DEFAULT_TYPE_COLORS.permesso,
+            ),
+            straordinari: normalizeHexColor(
+                parsed.straordinari,
+                DEFAULT_TYPE_COLORS.straordinari,
+            ),
             mutua: normalizeHexColor(parsed.mutua, DEFAULT_TYPE_COLORS.mutua),
-            speciale: normalizeHexColor(parsed.speciale, DEFAULT_TYPE_COLORS.speciale),
-            retribuito: normalizeHexColor(legacyRetribuito, DEFAULT_TYPE_COLORS.retribuito),
+            speciale: normalizeHexColor(
+                parsed.speciale,
+                DEFAULT_TYPE_COLORS.speciale,
+            ),
+            retribuito: normalizeHexColor(
+                legacyRetribuito,
+                DEFAULT_TYPE_COLORS.retribuito,
+            ),
         };
     } catch (err) {
         return { ...DEFAULT_TYPE_COLORS };
@@ -487,16 +578,20 @@ function setTypeColors(next) {
 function applyTypeColors() {
     const ferieDot = document.querySelector(".fp-legend__dot--ferie");
     const permessoDot = document.querySelector(".fp-legend__dot--permesso");
-    const straordinariDot = document.querySelector(".fp-legend__dot--straordinari");
+    const straordinariDot = document.querySelector(
+        ".fp-legend__dot--straordinari",
+    );
     const mutuaDot = document.querySelector(".fp-legend__dot--mutua");
     const specialeDot = document.querySelector(".fp-legend__dot--speciale");
     const retribuitoDot = document.querySelector(".fp-legend__dot--retribuito");
     if (ferieDot) ferieDot.style.background = getTypeColor("ferie");
     if (permessoDot) permessoDot.style.background = getTypeColor("permesso");
-    if (straordinariDot) straordinariDot.style.background = getTypeColor("straordinari");
+    if (straordinariDot)
+        straordinariDot.style.background = getTypeColor("straordinari");
     if (mutuaDot) mutuaDot.style.background = getTypeColor("mutua");
     if (specialeDot) specialeDot.style.background = getTypeColor("speciale");
-    if (retribuitoDot) retribuitoDot.style.background = getTypeColor("retribuito");
+    if (retribuitoDot)
+        retribuitoDot.style.background = getTypeColor("retribuito");
 }
 
 function openLegendEditor(type) {
@@ -534,7 +629,8 @@ function setSettingsInputsFromColors() {
     const mutuaInput = document.getElementById("fp-color-mutua");
     if (ferieInput) ferieInput.value = getTypeColor("ferie");
     if (permessoInput) permessoInput.value = getTypeColor("permesso");
-    if (straordinariInput) straordinariInput.value = getTypeColor("straordinari");
+    if (straordinariInput)
+        straordinariInput.value = getTypeColor("straordinari");
     if (mutuaInput) mutuaInput.value = getTypeColor("mutua");
 }
 
@@ -561,7 +657,8 @@ function saveThemeSetting(theme) {
 }
 
 function applyTheme(theme) {
-    const mode = theme === "dark" ? "dark" : theme === "aypi" ? "aypi" : "light";
+    const mode =
+        theme === "dark" ? "dark" : theme === "aypi" ? "aypi" : "light";
     document.body.classList.toggle("fp-dark", mode === "dark");
     document.body.classList.toggle("fp-aypi", mode === "aypi");
     applyCalendarButtonStyles(document);
@@ -583,7 +680,8 @@ function ensureDataFolder() {
 }
 
 function migrateRetribuitoTypes(payload) {
-    if (!payload || !Array.isArray(payload.requests)) return { payload, changed: false };
+    if (!payload || !Array.isArray(payload.requests))
+        return { payload, changed: false };
     let changed = false;
     payload.requests = payload.requests.map((request) => {
         if (request && request.type === "giustificato") {
@@ -601,7 +699,8 @@ function loadData() {
     const deductions = applyMissingRequestDeductions(normalized.payload);
     const migration = migrateRetribuitoTypes(deductions.payload);
     const payload = migration.payload;
-    const changed = normalized.changed || deductions.changed || migration.changed;
+    const changed =
+        normalized.changed || deductions.changed || migration.changed;
     if (changed) {
         saveData(payload);
     }
@@ -612,7 +711,11 @@ function saveData(payload) {
     ensureDataFolder();
     const ok = savePayload(payload);
     if (!ok) {
-        showDialog("warning", UI_TEXTS.dataSaveFailure, "Errore scrittura file.");
+        showDialog(
+            "warning",
+            UI_TEXTS.dataSaveFailure,
+            "Errore scrittura file.",
+        );
     }
 }
 
@@ -665,7 +768,11 @@ function copyDirectory(sourceDir, targetDir, options) {
     const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
     entries.forEach((entry) => {
         const name = entry.name;
-        if (options && typeof options.exclude === "function" && options.exclude(name, sourceDir)) {
+        if (
+            options &&
+            typeof options.exclude === "function" &&
+            options.exclude(name, sourceDir)
+        ) {
             return;
         }
         const srcPath = path.join(sourceDir, name);
@@ -721,8 +828,16 @@ function getLatestBackupInfo() {
     const folders = listBackupFolders();
     if (!folders.length) return null;
     folders.sort((a, b) => {
-        const dateA = a.date ? a.date.getTime() : (a.mtime ? a.mtime.getTime() : 0);
-        const dateB = b.date ? b.date.getTime() : (b.mtime ? b.mtime.getTime() : 0);
+        const dateA = a.date
+            ? a.date.getTime()
+            : a.mtime
+              ? a.mtime.getTime()
+              : 0;
+        const dateB = b.date
+            ? b.date.getTime()
+            : b.mtime
+              ? b.mtime.getTime()
+              : 0;
         return dateB - dateA;
     });
     return folders[0];
@@ -733,8 +848,16 @@ function pruneOldBackups(maxCount) {
     const folders = listBackupFolders();
     if (folders.length <= limit) return;
     folders.sort((a, b) => {
-        const dateA = a.date ? a.date.getTime() : (a.mtime ? a.mtime.getTime() : 0);
-        const dateB = b.date ? b.date.getTime() : (b.mtime ? b.mtime.getTime() : 0);
+        const dateA = a.date
+            ? a.date.getTime()
+            : a.mtime
+              ? a.mtime.getTime()
+              : 0;
+        const dateB = b.date
+            ? b.date.getTime()
+            : b.mtime
+              ? b.mtime.getTime()
+              : 0;
         return dateA - dateB;
     });
     const toDelete = folders.slice(0, Math.max(0, folders.length - limit));
@@ -763,7 +886,9 @@ function buildHoverText(request) {
             lines.push(startLabel);
         }
     } else {
-        lines.push(`${formatDateTime(request.start)} - ${formatDateTime(request.end)}`);
+        lines.push(
+            `${formatDateTime(request.start)} - ${formatDateTime(request.end)}`,
+        );
     }
     if (request.approvedBy) {
         if (request.type === "mutua" || request.type === "infortunio") {
@@ -797,7 +922,10 @@ let pendingAdminActionArmed = false;
 let loginFromPrompt = false;
 
 function showLoginRequired() {
-    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired, { showLogin: true, clearPendingAction: true });
+    showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginRequired, {
+        showLogin: true,
+        clearPendingAction: true,
+    });
 }
 
 function requireAdminAccess(action) {
@@ -987,7 +1115,10 @@ function handleMutuaCreate(admin, request) {
     const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.mutuaInserted, false);
-    if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+    if (
+        requestFormUi &&
+        typeof requestFormUi.resetNewRequestForm === "function"
+    ) {
         requestFormUi.resetNewRequestForm();
     }
     return updated;
@@ -997,7 +1128,10 @@ function handleInfortunioCreate(admin, request) {
     const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.infortunioInserted, false);
-    if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+    if (
+        requestFormUi &&
+        typeof requestFormUi.resetNewRequestForm === "function"
+    ) {
         requestFormUi.resetNewRequestForm();
     }
     return updated;
@@ -1007,7 +1141,10 @@ function handleRetribuitoCreate(admin, request) {
     const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.retribuitoInserted, false);
-    if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+    if (
+        requestFormUi &&
+        typeof requestFormUi.resetNewRequestForm === "function"
+    ) {
         requestFormUi.resetNewRequestForm();
     }
     return updated;
@@ -1017,7 +1154,10 @@ function handleSpecialeCreate(admin, request) {
     const updated = insertApprovedRequest(request, admin);
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.requestSent, false);
-    if (requestFormUi && typeof requestFormUi.resetNewRequestForm === "function") {
+    if (
+        requestFormUi &&
+        typeof requestFormUi.resetNewRequestForm === "function"
+    ) {
         requestFormUi.resetNewRequestForm();
     }
     return updated;
@@ -1033,13 +1173,27 @@ const approvalUi = createApprovalModal({
     isAdminRequiredForAction: (action) => {
         const type = action?.type || "";
         if (type === "mutua-create") return isAdminRequiredForCreate("mutua");
-        if (type === "infortunio-create") return isAdminRequiredForCreate("infortunio");
-        if (type === "retribuito-create" || type === "giustificato-create") return isAdminRequiredForCreate("retribuito");
-        if (type === "speciale-create") return isAdminRequiredForCreate("speciale");
-        if (type === "holiday-create" || type === "holiday-remove" || type === "holiday-update") return isAdminRequiredForDaysAccess();
-        if (type === "closure-create" || type === "closure-remove" || type === "closure-update") return isAdminRequiredForDaysAccess();
+        if (type === "infortunio-create")
+            return isAdminRequiredForCreate("infortunio");
+        if (type === "retribuito-create" || type === "giustificato-create")
+            return isAdminRequiredForCreate("retribuito");
+        if (type === "speciale-create")
+            return isAdminRequiredForCreate("speciale");
+        if (
+            type === "holiday-create" ||
+            type === "holiday-remove" ||
+            type === "holiday-update"
+        )
+            return isAdminRequiredForDaysAccess();
+        if (
+            type === "closure-create" ||
+            type === "closure-remove" ||
+            type === "closure-update"
+        )
+            return isAdminRequiredForDaysAccess();
         if (type === "export") return isAdminRequiredForExport();
-        if (type === "manage-access" || type === "assignees-access") return isAdminRequiredForManageAccess();
+        if (type === "manage-access" || type === "assignees-access")
+            return isAdminRequiredForManageAccess();
         if (type === "days-access") return isAdminRequiredForDaysAccess();
         return true;
     },
@@ -1118,7 +1272,8 @@ const approvalUi = createApprovalModal({
         if (filter === "overtime") {
             calendarFilters.overtime = true;
             filterUnlocked.overtime = true;
-            const overtimeToggle = document.getElementById("fp-filter-overtime");
+            const overtimeToggle =
+                document.getElementById("fp-filter-overtime");
             if (overtimeToggle) overtimeToggle.checked = true;
             persistFilterState();
             renderer.renderCalendar(cachedData);
@@ -1136,7 +1291,8 @@ const approvalUi = createApprovalModal({
         if (filter === "speciale") {
             calendarFilters.speciale = true;
             filterUnlocked.speciale = true;
-            const specialeToggle = document.getElementById("fp-filter-speciale");
+            const specialeToggle =
+                document.getElementById("fp-filter-speciale");
             if (specialeToggle) specialeToggle.checked = true;
             persistFilterState();
             renderer.renderCalendar(cachedData);
@@ -1145,7 +1301,9 @@ const approvalUi = createApprovalModal({
         if (filter === "retribuito") {
             calendarFilters.retribuito = true;
             filterUnlocked.retribuito = true;
-            const retribuitoToggle = document.getElementById("fp-filter-retribuito");
+            const retribuitoToggle = document.getElementById(
+                "fp-filter-retribuito",
+            );
             if (retribuitoToggle) retribuitoToggle.checked = true;
             persistFilterState();
             renderer.renderCalendar(cachedData);
@@ -1177,25 +1335,36 @@ const approvalUi = createApprovalModal({
         const handled = consumePendingAdminAction(loginFromPrompt);
         loginFromPrompt = false;
         if (!handled) {
-            showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLoginSuccess(admin?.name || ""), {
-                showLogin: false,
-            });
+            showInfoModal(
+                UI_TEXTS.adminLoginTitle,
+                UI_TEXTS.adminLoginSuccess(admin?.name || ""),
+                {
+                    showLogin: false,
+                },
+            );
         }
     },
     onMutuaCreate: (admin, request) => handleMutuaCreate(admin, request),
-    onInfortunioCreate: (admin, request) => handleInfortunioCreate(admin, request),
-    onRetribuitoCreate: (admin, request) => handleRetribuitoCreate(admin, request),
+    onInfortunioCreate: (admin, request) =>
+        handleInfortunioCreate(admin, request),
+    onRetribuitoCreate: (admin, request) =>
+        handleRetribuitoCreate(admin, request),
     onSpecialeCreate: (admin, request) => handleSpecialeCreate(admin, request),
     onHolidayCreate: (_admin, dates, name) => {
         if (!Array.isArray(dates) || !dates.length) return;
         const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.holidays) ? payload.holidays.slice() : [];
+            const existing = Array.isArray(payload.holidays)
+                ? payload.holidays.slice()
+                : [];
             const map = new Map();
             existing.forEach((item) => {
                 if (typeof item === "string") {
                     map.set(item, { date: item, name: "" });
                 } else if (item && typeof item.date === "string") {
-                    map.set(item.date, { date: item.date, name: item.name || "" });
+                    map.set(item.date, {
+                        date: item.date,
+                        name: item.name || "",
+                    });
                 }
             });
             let added = 0;
@@ -1205,7 +1374,9 @@ const approvalUi = createApprovalModal({
                     added += 1;
                 }
             });
-            payload.holidays = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+            payload.holidays = Array.from(map.values()).sort((a, b) =>
+                a.date.localeCompare(b.date),
+            );
             payload.holidaysAdded = added;
             return payload;
         });
@@ -1222,24 +1393,41 @@ const approvalUi = createApprovalModal({
     onHolidayRemove: (_admin, date) => {
         if (!date) return;
         const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.holidays) ? payload.holidays.slice() : [];
-            payload.holidays = existing.filter((item) => (typeof item === "string" ? item : item?.date) !== date);
+            const existing = Array.isArray(payload.holidays)
+                ? payload.holidays.slice()
+                : [];
+            payload.holidays = existing.filter(
+                (item) =>
+                    (typeof item === "string" ? item : item?.date) !== date,
+            );
             return payload;
         });
         holidaysUi.renderHolidayList(updated);
-        setMessage(document.getElementById("fp-holidays-message"), UI_TEXTS.holidayRemoved, false);
+        setMessage(
+            document.getElementById("fp-holidays-message"),
+            UI_TEXTS.holidayRemoved,
+            false,
+        );
         renderAll(updated);
     },
     onHolidayUpdate: (_admin, date, nextDate, nextName) => {
         if (!date || !nextDate) return;
         const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.holidays) ? payload.holidays.slice() : [];
-            const normalized = existing.map((item) => {
-                if (typeof item === "string") return { date: item, name: "" };
-                if (item && typeof item.date === "string") return { date: item.date, name: item.name || "" };
-                return null;
-            }).filter(Boolean);
-            const hasConflict = normalized.some((item) => item.date === nextDate && item.date !== date);
+            const existing = Array.isArray(payload.holidays)
+                ? payload.holidays.slice()
+                : [];
+            const normalized = existing
+                .map((item) => {
+                    if (typeof item === "string")
+                        return { date: item, name: "" };
+                    if (item && typeof item.date === "string")
+                        return { date: item.date, name: item.name || "" };
+                    return null;
+                })
+                .filter(Boolean);
+            const hasConflict = normalized.some(
+                (item) => item.date === nextDate && item.date !== date,
+            );
             if (hasConflict) {
                 payload.holidaysUpdated = false;
                 return payload;
@@ -1253,9 +1441,17 @@ const approvalUi = createApprovalModal({
         });
         holidaysUi.renderHolidayList(updated);
         if (updated.holidaysUpdated) {
-            setMessage(document.getElementById("fp-holidays-message"), UI_TEXTS.holidayUpdated, false);
+            setMessage(
+                document.getElementById("fp-holidays-message"),
+                UI_TEXTS.holidayUpdated,
+                false,
+            );
         } else {
-            setMessage(document.getElementById("fp-holidays-message"), UI_TEXTS.holidayAlreadyExists, true);
+            setMessage(
+                document.getElementById("fp-holidays-message"),
+                UI_TEXTS.holidayAlreadyExists,
+                true,
+            );
         }
         delete updated.holidaysUpdated;
         renderAll(updated);
@@ -1263,7 +1459,9 @@ const approvalUi = createApprovalModal({
     onClosureCreate: (_admin, entry) => {
         if (!entry || !entry.start) return;
         const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.closures) ? payload.closures.slice() : [];
+            const existing = Array.isArray(payload.closures)
+                ? payload.closures.slice()
+                : [];
             const key = `${entry.start}|${entry.end || entry.start}`;
             const map = new Map();
             existing.forEach((item) => {
@@ -1271,18 +1469,31 @@ const approvalUi = createApprovalModal({
                 const start = typeof item.start === "string" ? item.start : "";
                 const end = typeof item.end === "string" ? item.end : start;
                 if (!start) return;
-                map.set(`${start}|${end || start}`, { start, end: end || start, name: item.name || "" });
+                map.set(`${start}|${end || start}`, {
+                    start,
+                    end: end || start,
+                    name: item.name || "",
+                });
             });
             if (!map.has(key)) {
-                map.set(key, { start: entry.start, end: entry.end || entry.start, name: entry.name || "" });
+                map.set(key, {
+                    start: entry.start,
+                    end: entry.end || entry.start,
+                    name: entry.name || "",
+                });
                 payload.closureAdded = true;
             } else {
                 payload.closureAdded = false;
             }
-            payload.closures = Array.from(map.values()).sort((a, b) => a.start.localeCompare(b.start));
+            payload.closures = Array.from(map.values()).sort((a, b) =>
+                a.start.localeCompare(b.start),
+            );
             return payload;
         });
-        closuresUi.renderClosureList(updated, { containerId: "fp-closures-future-list", futureOnly: true });
+        closuresUi.renderClosureList(updated, {
+            containerId: "fp-closures-future-list",
+            futureOnly: true,
+        });
         const message = document.getElementById("fp-closures-message");
         if (updated.closureAdded) {
             setMessage(message, UI_TEXTS.closureAdded, false);
@@ -1296,7 +1507,9 @@ const approvalUi = createApprovalModal({
         if (!entry) return;
         const key = `${entry.start}|${entry.end || entry.start}`;
         const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.closures) ? payload.closures.slice() : [];
+            const existing = Array.isArray(payload.closures)
+                ? payload.closures.slice()
+                : [];
             payload.closures = existing.filter((item) => {
                 if (!item) return false;
                 const start = typeof item.start === "string" ? item.start : "";
@@ -1305,8 +1518,15 @@ const approvalUi = createApprovalModal({
             });
             return payload;
         });
-        closuresUi.renderClosureList(updated, { containerId: "fp-closures-future-list", futureOnly: true });
-        setMessage(document.getElementById("fp-closures-message"), UI_TEXTS.closureRemoved, false);
+        closuresUi.renderClosureList(updated, {
+            containerId: "fp-closures-future-list",
+            futureOnly: true,
+        });
+        setMessage(
+            document.getElementById("fp-closures-message"),
+            UI_TEXTS.closureRemoved,
+            false,
+        );
         renderAll(updated);
     },
     onClosureUpdate: (_admin, entry, next) => {
@@ -1314,31 +1534,55 @@ const approvalUi = createApprovalModal({
         const key = `${entry.start}|${entry.end || entry.start}`;
         const nextKey = `${next.start}|${next.end || next.start}`;
         const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.closures) ? payload.closures.slice() : [];
-            const normalized = existing.map((item) => {
-                if (!item) return null;
-                const start = typeof item.start === "string" ? item.start : "";
-                const end = typeof item.end === "string" ? item.end : start;
-                if (!start) return null;
-                return { start, end: end || start, name: item.name || "" };
-            }).filter(Boolean);
-            const hasConflict = normalized.some((item) => `${item.start}|${item.end}` === nextKey && `${item.start}|${item.end}` !== key);
+            const existing = Array.isArray(payload.closures)
+                ? payload.closures.slice()
+                : [];
+            const normalized = existing
+                .map((item) => {
+                    if (!item) return null;
+                    const start =
+                        typeof item.start === "string" ? item.start : "";
+                    const end = typeof item.end === "string" ? item.end : start;
+                    if (!start) return null;
+                    return { start, end: end || start, name: item.name || "" };
+                })
+                .filter(Boolean);
+            const hasConflict = normalized.some(
+                (item) =>
+                    `${item.start}|${item.end}` === nextKey &&
+                    `${item.start}|${item.end}` !== key,
+            );
             if (hasConflict) {
                 payload.closureUpdated = false;
                 return payload;
             }
             payload.closures = normalized.map((item) => {
                 if (`${item.start}|${item.end}` !== key) return item;
-                return { start: next.start, end: next.end || next.start, name: next.name || "" };
+                return {
+                    start: next.start,
+                    end: next.end || next.start,
+                    name: next.name || "",
+                };
             });
             payload.closureUpdated = true;
             return payload;
         });
-        closuresUi.renderClosureList(updated, { containerId: "fp-closures-future-list", futureOnly: true });
+        closuresUi.renderClosureList(updated, {
+            containerId: "fp-closures-future-list",
+            futureOnly: true,
+        });
         if (updated.closureUpdated) {
-            setMessage(document.getElementById("fp-closures-message"), UI_TEXTS.closureUpdated, false);
+            setMessage(
+                document.getElementById("fp-closures-message"),
+                UI_TEXTS.closureUpdated,
+                false,
+            );
         } else {
-            setMessage(document.getElementById("fp-closures-message"), UI_TEXTS.closureAlreadyExists, true);
+            setMessage(
+                document.getElementById("fp-closures-message"),
+                UI_TEXTS.closureAlreadyExists,
+                true,
+            );
         }
         delete updated.closureUpdated;
         renderAll(updated);
@@ -1354,7 +1598,8 @@ const holidaysUi = createHolidaysModal({
     renderAll,
     loadData,
     openPasswordModal: (action) => approvalUi.openPasswordModal(action),
-    requireDaysAccess: (action) => requireAccess(isAdminRequiredForDaysAccess(), action),
+    requireDaysAccess: (action) =>
+        requireAccess(isAdminRequiredForDaysAccess(), action),
     confirmAction: (message) => openConfirmModal(message),
 });
 
@@ -1367,7 +1612,8 @@ const closuresUi = createClosuresModal({
     renderAll,
     loadData,
     openPasswordModal: (action) => approvalUi.openPasswordModal(action),
-    requireDaysAccess: (action) => requireAccess(isAdminRequiredForDaysAccess(), action),
+    requireDaysAccess: (action) =>
+        requireAccess(isAdminRequiredForDaysAccess(), action),
     confirmAction: (message) => openConfirmModal(message),
 });
 
@@ -1398,8 +1644,10 @@ const editUi = createEditModal({
     },
     applyBalanceForUpdate,
     applyBalanceForDeletion,
-    requireEditAccess: (action) => requireAccess(isAdminRequiredForEditApproved(), action),
-    requireDeleteAccess: (action) => requireAccess(isAdminRequiredForDeleteApproved(), action),
+    requireEditAccess: (action) =>
+        requireAccess(isAdminRequiredForEditApproved(), action),
+    requireDeleteAccess: (action) =>
+        requireAccess(isAdminRequiredForDeleteApproved(), action),
 });
 openEditModalHandler = editUi.openEditModal;
 
@@ -1463,7 +1711,11 @@ openPasswordModalHandler = approvalUi.openPasswordModal;
 function openInitialSetupWizard() {
     const setupModal = document.getElementById("fp-setup-modal");
     if (!setupModal) {
-        showDialog("info", UI_TEXTS.setupAdminTitle, UI_TEXTS.setupAdminMessage);
+        showDialog(
+            "info",
+            UI_TEXTS.setupAdminTitle,
+            UI_TEXTS.setupAdminMessage,
+        );
         openAdminModalHandler?.();
         return;
     }
@@ -1480,7 +1732,9 @@ function openInitialSetupWizard() {
     const mailMessage = document.getElementById("fp-setup-mail-message");
     const continueBtn = document.getElementById("fp-setup-continue");
 
-    if (intro) intro.textContent = UI_TEXTS.setupWizardMessage || UI_TEXTS.setupAdminMessage;
+    if (intro)
+        intro.textContent =
+            UI_TEXTS.setupWizardMessage || UI_TEXTS.setupAdminMessage;
     if (pathLabel) {
         let baseLabel = BASE_DIR;
         if (!baseLabel) {
@@ -1516,7 +1770,8 @@ function openInitialSetupWizard() {
         from: document.getElementById("fp-mail-from")?.value || "",
     });
 
-    const getTestEmail = () => document.getElementById("fp-mail-test")?.value || "";
+    const getTestEmail = () =>
+        document.getElementById("fp-mail-test")?.value || "";
 
     const setMailMessage = (text, isError) => {
         if (!mailMessage) return;
@@ -1553,7 +1808,10 @@ function openInitialSetupWizard() {
                 await sendTestEmail(payload, testEmail);
                 setMailMessage(UI_TEXTS.mailTestSent, false);
             } catch (err) {
-                setMailMessage(UI_TEXTS.mailTestError(err.message || String(err)), true);
+                setMailMessage(
+                    UI_TEXTS.mailTestError(err.message || String(err)),
+                    true,
+                );
             }
         });
     }
@@ -1567,7 +1825,10 @@ function openInitialSetupWizard() {
                 setMailMessage(UI_TEXTS.mailConfigSaved, false);
                 proceedToAdmin();
             } catch (err) {
-                setMailMessage(UI_TEXTS.mailConfigError(err.message || String(err)), true);
+                setMailMessage(
+                    UI_TEXTS.mailConfigError(err.message || String(err)),
+                    true,
+                );
             }
         });
     }
@@ -1633,8 +1894,10 @@ const requestFormUi = createRequestForm({
     requireAdminAccess,
     isAdminRequiredForCreate,
     onDirectMutuaCreate: (request) => handleMutuaCreate(null, request),
-    onDirectInfortunioCreate: (request) => handleInfortunioCreate(null, request),
-    onDirectRetribuitoCreate: (request) => handleRetribuitoCreate(null, request),
+    onDirectInfortunioCreate: (request) =>
+        handleInfortunioCreate(null, request),
+    onDirectRetribuitoCreate: (request) =>
+        handleRetribuitoCreate(null, request),
     onDirectSpecialeCreate: (request) => handleSpecialeCreate(null, request),
     syncData,
     renderAll,
@@ -1657,10 +1920,16 @@ function isAdminFileMissingOrEmpty() {
         if (!raw) return false;
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-            return parsed.some((item) => item && item.name && (item.password || item.passwordHash));
+            return parsed.some(
+                (item) =>
+                    item && item.name && (item.password || item.passwordHash),
+            );
         }
         if (parsed && Array.isArray(parsed.admins)) {
-            return parsed.admins.some((item) => item && item.name && (item.password || item.passwordHash));
+            return parsed.admins.some(
+                (item) =>
+                    item && item.name && (item.password || item.passwordHash),
+            );
         }
         if (parsed && typeof parsed === "object") {
             return Object.keys(parsed).length > 0;
@@ -1668,7 +1937,9 @@ function isAdminFileMissingOrEmpty() {
         return false;
     };
     try {
-        return !hasValidAdmins(ADMINS_PATH) && !hasValidAdmins(LEGACY_ADMINS_PATH);
+        return (
+            !hasValidAdmins(ADMINS_PATH) && !hasValidAdmins(LEGACY_ADMINS_PATH)
+        );
     } catch (err) {
         console.error("Errore lettura file admin:", err);
         return true;
@@ -1691,7 +1962,11 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
     }
 
     const today = new Date();
-    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayMidnight = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+    );
     const maxYear = today.getFullYear() + 2;
     const parseStrictDate = (value) => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -1704,7 +1979,10 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
     if (!startParsed || !endParsed) {
         return { error: UI_TEXTS.requestInvalidDateFormat };
     }
-    if (startParsed.getFullYear() > maxYear || endParsed.getFullYear() > maxYear) {
+    if (
+        startParsed.getFullYear() > maxYear ||
+        endParsed.getFullYear() > maxYear
+    ) {
         return { error: `L'anno non puo superare ${maxYear}.` };
     }
     const allowPastDates =
@@ -1736,7 +2014,9 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
         }
         return {
             request: {
-                id: requestId || `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+                id:
+                    requestId ||
+                    `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
                 employee,
                 department,
                 type,
@@ -1746,13 +2026,15 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
                 note,
                 status: requestId ? "approved" : "pending",
                 createdAt: requestId ? null : new Date().toISOString(),
-            }
+            },
         };
     }
 
     return {
         request: {
-            id: requestId || `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            id:
+                requestId ||
+                `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
             employee,
             department,
             type,
@@ -1762,7 +2044,7 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
             note,
             status: requestId ? "approved" : "pending",
             createdAt: requestId ? null : new Date().toISOString(),
-        }
+        },
     };
 }
 
@@ -1976,7 +2258,9 @@ function toggleAllDayStateFor(prefix, isAllDay) {
 
 function ensureSelectOption(select, value) {
     if (!select || !value) return;
-    const exists = Array.from(select.options).some((opt) => opt.value === value);
+    const exists = Array.from(select.options).some(
+        (opt) => opt.value === value,
+    );
     if (!exists) {
         const opt = document.createElement("option");
         opt.value = value;
@@ -2032,7 +2316,10 @@ function fillFormFromRequest(prefix, request) {
 }
 
 function populateEmployees() {
-    const groups = assigneeGroups && Object.keys(assigneeGroups).length ? assigneeGroups : loadAssigneeOptions().groups;
+    const groups =
+        assigneeGroups && Object.keys(assigneeGroups).length
+            ? assigneeGroups
+            : loadAssigneeOptions().groups;
     assigneeGroups = groups;
     populateEmployeesFor("fp", groups);
     populateEmployeesFor("fp-edit", groups);
@@ -2067,7 +2354,9 @@ function populateEmployeesFor(prefix, groups) {
 
     const updateEmployees = () => {
         const selected = departmentSelect.value;
-        const employees = Array.isArray(groups[selected]) ? [...groups[selected]].sort((a, b) => a.localeCompare(b)) : [];
+        const employees = Array.isArray(groups[selected])
+            ? [...groups[selected]].sort((a, b) => a.localeCompare(b))
+            : [];
         employeeSelect.innerHTML = "";
         if (employees.length === 0) {
             const emptyOpt = document.createElement("option");
@@ -2092,19 +2381,23 @@ function renderDepartmentSelect() {
     const select = document.getElementById("fp-employee-department");
     if (!select) return;
     select.innerHTML = "";
-    Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b)).forEach((group) => {
-        const option = document.createElement("option");
-        option.value = group;
-        option.textContent = group;
-        select.appendChild(option);
-    });
+    Object.keys(assigneeGroups)
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((group) => {
+            const option = document.createElement("option");
+            option.value = group;
+            option.textContent = group;
+            select.appendChild(option);
+        });
 }
 
 function renderDepartmentList() {
     const list = document.getElementById("fp-departments-list");
     if (!list) return;
     list.innerHTML = "";
-    const groups = Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b));
+    const groups = Object.keys(assigneeGroups).sort((a, b) =>
+        a.localeCompare(b),
+    );
     if (!groups.length) {
         list.textContent = UI_TEXTS.emptyDepartment;
         return;
@@ -2155,7 +2448,10 @@ function renderDepartmentList() {
                     editingEmployee = { ...editingEmployee, group: trimmed };
                 }
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
+                saveAssigneeOptions({
+                    groups: assigneeGroups,
+                    emails: assigneeEmails,
+                });
                 syncBalancesAfterAssignees();
                 editingDepartment = null;
                 renderDepartmentList();
@@ -2194,8 +2490,11 @@ function renderDepartmentList() {
             remove.className = "fp-assignees-link fp-assignees-link--danger";
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", () => {
-                if (!window.confirm(`Rimuovere il reparto \"${group}\"?`)) return;
-                const list = Array.isArray(assigneeGroups[group]) ? [...assigneeGroups[group]] : [];
+                if (!window.confirm(`Rimuovere il reparto \"${group}\"?`))
+                    return;
+                const list = Array.isArray(assigneeGroups[group])
+                    ? [...assigneeGroups[group]]
+                    : [];
                 delete assigneeGroups[group];
                 const nextEmails = { ...assigneeEmails };
                 list.forEach((name) => {
@@ -2203,7 +2502,10 @@ function renderDepartmentList() {
                 });
                 assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
+                saveAssigneeOptions({
+                    groups: assigneeGroups,
+                    emails: assigneeEmails,
+                });
                 syncBalancesAfterAssignees();
                 renderDepartmentList();
                 renderDepartmentSelect();
@@ -2224,7 +2526,9 @@ function renderEmployeesList() {
     const list = document.getElementById("fp-employees-list");
     if (!list) return;
     list.innerHTML = "";
-    const groups = Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b));
+    const groups = Object.keys(assigneeGroups).sort((a, b) =>
+        a.localeCompare(b),
+    );
     const employees = [];
     groups.forEach((group) => {
         (assigneeGroups[group] || []).forEach((name) => {
@@ -2247,17 +2551,23 @@ function renderEmployeesList() {
         const actions = document.createElement("div");
         actions.className = "fp-assignees-row__actions";
 
-        if (editingEmployee && editingEmployee.name === employee.name && editingEmployee.group === employee.group) {
+        if (
+            editingEmployee &&
+            editingEmployee.name === employee.name &&
+            editingEmployee.group === employee.group
+        ) {
             row.classList.add("fp-assignees-row--employee-edit");
             const select = document.createElement("select");
             select.className = "fp-field__input";
-            Object.keys(assigneeGroups).sort((a, b) => a.localeCompare(b)).forEach((group) => {
-                const option = document.createElement("option");
-                option.value = group;
-                option.textContent = group;
-                if (group === employee.group) option.selected = true;
-                select.appendChild(option);
-            });
+            Object.keys(assigneeGroups)
+                .sort((a, b) => a.localeCompare(b))
+                .forEach((group) => {
+                    const option = document.createElement("option");
+                    option.value = group;
+                    option.textContent = group;
+                    if (group === employee.group) option.selected = true;
+                    select.appendChild(option);
+                });
 
             const input = document.createElement("input");
             input.className = "fp-field__input";
@@ -2283,19 +2593,29 @@ function renderEmployeesList() {
                 const trimmedGroup = select.value;
                 const trimmedEmail = emailInput.value.trim();
                 if (!trimmedName || !trimmedGroup) return;
-                assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
-                if (!assigneeGroups[trimmedGroup]) assigneeGroups[trimmedGroup] = [];
+                assigneeGroups[employee.group] = (
+                    assigneeGroups[employee.group] || []
+                ).filter((n) => n !== employee.name);
+                if (!assigneeGroups[trimmedGroup])
+                    assigneeGroups[trimmedGroup] = [];
                 assigneeGroups[trimmedGroup].push(trimmedName);
                 assigneeGroups[trimmedGroup].sort((a, b) => a.localeCompare(b));
-                if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                if (assigneeGroups[employee.group].length === 0)
+                    delete assigneeGroups[employee.group];
                 const nextEmails = { ...assigneeEmails };
-                delete nextEmails[getAssigneeEmailKey(employee.group, employee.name)];
+                delete nextEmails[
+                    getAssigneeEmailKey(employee.group, employee.name)
+                ];
                 if (trimmedEmail) {
-                    nextEmails[getAssigneeEmailKey(trimmedGroup, trimmedName)] = trimmedEmail;
+                    nextEmails[getAssigneeEmailKey(trimmedGroup, trimmedName)] =
+                        trimmedEmail;
                 }
                 assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
+                saveAssigneeOptions({
+                    groups: assigneeGroups,
+                    emails: assigneeEmails,
+                });
                 syncBalancesAfterAssignees();
                 editingEmployee = null;
                 renderEmployeesList();
@@ -2330,7 +2650,10 @@ function renderEmployeesList() {
             edit.className = "fp-assignees-link";
             edit.textContent = "Modifica";
             edit.addEventListener("click", () => {
-                editingEmployee = { name: employee.name, group: employee.group };
+                editingEmployee = {
+                    name: employee.name,
+                    group: employee.group,
+                };
                 renderEmployeesList();
             });
 
@@ -2340,13 +2663,21 @@ function renderEmployeesList() {
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", () => {
                 if (!window.confirm(`Rimuovere \"${employee.name}\"?`)) return;
-                assigneeGroups[employee.group] = (assigneeGroups[employee.group] || []).filter((n) => n !== employee.name);
-                if (assigneeGroups[employee.group].length === 0) delete assigneeGroups[employee.group];
+                assigneeGroups[employee.group] = (
+                    assigneeGroups[employee.group] || []
+                ).filter((n) => n !== employee.name);
+                if (assigneeGroups[employee.group].length === 0)
+                    delete assigneeGroups[employee.group];
                 const nextEmails = { ...assigneeEmails };
-                delete nextEmails[getAssigneeEmailKey(employee.group, employee.name)];
+                delete nextEmails[
+                    getAssigneeEmailKey(employee.group, employee.name)
+                ];
                 assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
+                saveAssigneeOptions({
+                    groups: assigneeGroups,
+                    emails: assigneeEmails,
+                });
                 syncBalancesAfterAssignees();
                 renderEmployeesList();
                 renderDepartmentList();
@@ -2443,7 +2774,8 @@ function init() {
         onEventSelect: (eventId) => {
             selectedEventId = eventId;
         },
-        getRequestById: (eventId) => (cachedData.requests || []).find((req) => req.id === eventId),
+        getRequestById: (eventId) =>
+            (cachedData.requests || []).find((req) => req.id === eventId),
         buildHoverText,
         openPasswordModal: (action) => approvalUi.openPasswordModal(action),
         openEditModal: (request) => {
@@ -2566,7 +2898,11 @@ function init() {
                 if (!applyStoredFilterStateForCurrentUser()) {
                     applyFilterDefaultsFromAccessConfig();
                 }
-                showInfoModal(UI_TEXTS.adminLoginTitle, UI_TEXTS.adminLogoffSuccess, { showLogin: false });
+                showInfoModal(
+                    UI_TEXTS.adminLoginTitle,
+                    UI_TEXTS.adminLogoffSuccess,
+                    { showLogin: false },
+                );
                 return;
             }
             clearPendingAdminAction();
@@ -2650,7 +2986,9 @@ function init() {
     const exportModal = document.getElementById("fp-export-modal");
     const exportSelectAll = document.getElementById("fp-export-select-all");
     const exportSelectNone = document.getElementById("fp-export-select-none");
-    const exportRangeRadios = document.querySelectorAll("input[name='fp-export-range']");
+    const exportRangeRadios = document.querySelectorAll(
+        "input[name='fp-export-range']",
+    );
     const backupOpen = document.getElementById("fp-backup-open");
     const backupClose = document.getElementById("fp-backup-close");
     const backupRun = document.getElementById("fp-backup-run");
@@ -2745,7 +3083,6 @@ function init() {
         });
     }
 
-
     runExport = async () => {
         const needsAdmin = isAdminRequiredForExport();
         if (needsAdmin && !isAdminLoggedIn()) {
@@ -2753,25 +3090,63 @@ function init() {
             return;
         }
         if (!XLSX) {
-            await showDialog("error", UI_TEXTS.exportModuleMissingTitle, UI_TEXTS.exportModuleMissingDetail);
+            await showDialog(
+                "error",
+                UI_TEXTS.exportModuleMissingTitle,
+                UI_TEXTS.exportModuleMissingDetail,
+            );
             return;
         }
-        const rangeMode = document.querySelector("input[name='fp-export-range']:checked")?.value || "all";
-        const startDate = exportUi.parseDateInput(document.getElementById("fp-export-start")?.value || "");
-        const endDate = exportUi.parseDateInput(document.getElementById("fp-export-end")?.value || "");
-        if (rangeMode === "custom" && (!startDate || !endDate || endDate < startDate)) {
-            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportInvalidRange, true);
+        const rangeMode =
+            document.querySelector("input[name='fp-export-range']:checked")
+                ?.value || "all";
+        const startDate = exportUi.parseDateInput(
+            document.getElementById("fp-export-start")?.value || "",
+        );
+        const endDate = exportUi.parseDateInput(
+            document.getElementById("fp-export-end")?.value || "",
+        );
+        if (
+            rangeMode === "custom" &&
+            (!startDate || !endDate || endDate < startDate)
+        ) {
+            setMessage(
+                document.getElementById("fp-export-message"),
+                UI_TEXTS.exportInvalidRange,
+                true,
+            );
             return;
         }
-        const includeFerie = !!document.getElementById("fp-export-ferie")?.checked;
-        const includePermessi = !!document.getElementById("fp-export-permessi")?.checked;
-        const includeStraordinari = !!document.getElementById("fp-export-straordinari")?.checked;
-        const includeMutua = !!document.getElementById("fp-export-mutua")?.checked;
-        const includeInfortunio = !!document.getElementById("fp-export-infortunio")?.checked;
-        const includeSpeciale = !!document.getElementById("fp-export-speciale")?.checked;
-        const includeRetribuito = !!document.getElementById("fp-export-retribuito")?.checked;
-        if (!includeFerie && !includePermessi && !includeStraordinari && !includeMutua && !includeSpeciale && !includeRetribuito) {
-            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSelectType, true);
+        const includeFerie =
+            !!document.getElementById("fp-export-ferie")?.checked;
+        const includePermessi =
+            !!document.getElementById("fp-export-permessi")?.checked;
+        const includeStraordinari = !!document.getElementById(
+            "fp-export-straordinari",
+        )?.checked;
+        const includeMutua =
+            !!document.getElementById("fp-export-mutua")?.checked;
+        const includeInfortunio = !!document.getElementById(
+            "fp-export-infortunio",
+        )?.checked;
+        const includeSpeciale =
+            !!document.getElementById("fp-export-speciale")?.checked;
+        const includeRetribuito = !!document.getElementById(
+            "fp-export-retribuito",
+        )?.checked;
+        if (
+            !includeFerie &&
+            !includePermessi &&
+            !includeStraordinari &&
+            !includeMutua &&
+            !includeSpeciale &&
+            !includeRetribuito
+        ) {
+            setMessage(
+                document.getElementById("fp-export-message"),
+                UI_TEXTS.exportSelectType,
+                true,
+            );
             return;
         }
         const departments = exportUi.getExportSelectedDepartments();
@@ -2787,12 +3162,18 @@ function init() {
         const filtered = exportable.filter((req) => {
             if (req.type === "ferie" && !includeFerie) return false;
             if (req.type === "permesso" && !includePermessi) return false;
-            if (req.type === "straordinari" && !includeStraordinari) return false;
+            if (req.type === "straordinari" && !includeStraordinari)
+                return false;
             if (req.type === "mutua" && !includeMutua) return false;
             if (req.type === "infortunio" && !includeInfortunio) return false;
             if (req.type === "speciale" && !includeSpeciale) return false;
             if (req.type === "retribuito" && !includeRetribuito) return false;
-            if (departments.length && req.department && !departments.includes(req.department)) return false;
+            if (
+                departments.length &&
+                req.department &&
+                !departments.includes(req.department)
+            )
+                return false;
             if (rangeMode === "custom") {
                 const { start, end } = getRequestDates(req);
                 if (!start || !end) return false;
@@ -2805,11 +3186,19 @@ function init() {
         });
 
         if (!filtered.length) {
-            setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportNoData, true);
+            setMessage(
+                document.getElementById("fp-export-message"),
+                UI_TEXTS.exportNoData,
+                true,
+            );
             return;
         }
 
-        const rows = buildExportRows(filtered, payload.holidays, payload.closures);
+        const rows = buildExportRows(
+            filtered,
+            payload.holidays,
+            payload.closures,
+        );
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(rows);
         const dateColumns = ["C", "D", "N", "P"];
@@ -2840,7 +3229,11 @@ function init() {
                 filters: [{ name: "File Excel", extensions: ["xlsx"] }],
             });
         } catch (err) {
-            await showDialog("error", "Errore selezione file di destinazione.", err.message || String(err));
+            await showDialog(
+                "error",
+                "Errore selezione file di destinazione.",
+                err.message || String(err),
+            );
             return;
         }
         if (!outputPath) return;
@@ -2851,7 +3244,11 @@ function init() {
         }
 
         XLSX.writeFile(wb, outputPath, { cellDates: true });
-        setMessage(document.getElementById("fp-export-message"), UI_TEXTS.exportSuccess, false);
+        setMessage(
+            document.getElementById("fp-export-message"),
+            UI_TEXTS.exportSuccess,
+            false,
+        );
     };
 
     const createBackup = async (options = {}) => {
@@ -2866,17 +3263,28 @@ function init() {
             let suffix = 1;
             while (fs.existsSync(targetDir)) {
                 suffix += 1;
-                targetDir = path.join(BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
+                targetDir = path.join(
+                    BACKUP_ROOT_DIR,
+                    `${dateLabel}-${suffix}`,
+                );
             }
             ensureDir(targetDir);
             copyDirectory(getBackupSourceDir(), targetDir);
             pruneOldBackups(10);
             if (!isSilent) {
-                setMessage(backupMessage, UI_TEXTS.backupCreateSuccess(targetDir), false);
+                setMessage(
+                    backupMessage,
+                    UI_TEXTS.backupCreateSuccess(targetDir),
+                    false,
+                );
             }
         } catch (err) {
             if (!options.silent) {
-                setMessage(backupMessage, UI_TEXTS.backupCreateError(err.message || String(err)), true);
+                setMessage(
+                    backupMessage,
+                    UI_TEXTS.backupCreateError(err.message || String(err)),
+                    true,
+                );
             }
         }
     };
@@ -2888,14 +3296,18 @@ function init() {
                 "warning",
                 "Ripristino backup",
                 UI_TEXTS.backupRestoreConfirm,
-                ["Annulla", "Ripristina"]
+                ["Annulla", "Ripristina"],
             );
             if (!confirm || confirm.response !== 1) return;
             let folder;
             try {
                 folder = await ipcRenderer.invoke("select-root-folder");
             } catch (err) {
-                setMessage(backupMessage, UI_TEXTS.backupRestoreError(err.message || String(err)), true);
+                setMessage(
+                    backupMessage,
+                    UI_TEXTS.backupRestoreError(err.message || String(err)),
+                    true,
+                );
                 return;
             }
             if (!folder) return;
@@ -2904,7 +3316,11 @@ function init() {
             pruneOldBackups(10);
             setMessage(backupMessage, UI_TEXTS.backupRestoreSuccess, false);
         } catch (err) {
-            setMessage(backupMessage, UI_TEXTS.backupRestoreError(err.message || String(err)), true);
+            setMessage(
+                backupMessage,
+                UI_TEXTS.backupRestoreError(err.message || String(err)),
+                true,
+            );
         }
     };
 
@@ -3008,8 +3424,13 @@ function init() {
             if (!cell) return;
             const date = cell.getAttribute("data-date");
             if (!date) return;
-            const holidays = Array.isArray(cachedData.holidays) ? cachedData.holidays : [];
-            const match = holidays.find((item) => (typeof item === "string" ? item : item?.date) === date);
+            const holidays = Array.isArray(cachedData.holidays)
+                ? cachedData.holidays
+                : [];
+            const match = holidays.find(
+                (item) =>
+                    (typeof item === "string" ? item : item?.date) === date,
+            );
             if (match) {
                 event.preventDefault();
                 requireAccess(isAdminRequiredForDaysAccess(), () => {
@@ -3017,7 +3438,9 @@ function init() {
                 });
                 return;
             }
-            const closures = Array.isArray(cachedData.closures) ? cachedData.closures : [];
+            const closures = Array.isArray(cachedData.closures)
+                ? cachedData.closures
+                : [];
             const hasClosure = closures.some((entry) => {
                 if (!entry) return false;
                 const start = entry.start || "";
@@ -3043,24 +3466,42 @@ function init() {
         }
         if (event.key !== "Delete") return;
         const target = event.target;
-        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        if (
+            target &&
+            (target.tagName === "INPUT" ||
+                target.tagName === "TEXTAREA" ||
+                target.isContentEditable)
+        ) {
             return;
         }
         if (!selectedEventId) return;
         requireAccess(isAdminRequiredForDeleteApproved(), () => {
             const targetId = selectedEventId;
-            const snapshot = (cachedData.requests || []).find((req) => req.id === targetId);
-            const typeLabel = snapshot ? getTypeLabel(snapshot.type) : "richiesta";
-            const employeeLabel = snapshot?.employee ? ` di <strong>${escapeHtml(snapshot.employee)}</strong>` : "";
+            const snapshot = (cachedData.requests || []).find(
+                (req) => req.id === targetId,
+            );
+            const typeLabel = snapshot
+                ? getTypeLabel(snapshot.type)
+                : "richiesta";
+            const employeeLabel = snapshot?.employee
+                ? ` di <strong>${escapeHtml(snapshot.employee)}</strong>`
+                : "";
             const message = `Confermi l'eliminazione della <strong>${escapeHtml(typeLabel)}</strong>${employeeLabel}?`;
             openConfirmModal(message).then((ok) => {
                 if (!ok) return;
                 const updated = syncData((payload) => {
-                    const target = (payload.requests || []).find((req) => req.id === targetId);
-                    if (target && typeof applyBalanceForDeletion === "function") {
+                    const target = (payload.requests || []).find(
+                        (req) => req.id === targetId,
+                    );
+                    if (
+                        target &&
+                        typeof applyBalanceForDeletion === "function"
+                    ) {
                         applyBalanceForDeletion(payload, target);
                     }
-                    payload.requests = (payload.requests || []).filter((req) => req.id !== targetId);
+                    payload.requests = (payload.requests || []).filter(
+                        (req) => req.id !== targetId,
+                    );
                     return payload;
                 });
                 renderAll(updated);
@@ -3074,7 +3515,7 @@ function init() {
         ensureRecentBackup();
     }, 30000);
 
-window.addEventListener("message", (event) => {
+    window.addEventListener("message", (event) => {
         if (!event || !event.data) return;
         if (event.data.type === "guide-close") {
             const modal = document.getElementById("fp-guide-modal");
@@ -3106,7 +3547,8 @@ window.addEventListener("message", (event) => {
     }
 
     document.addEventListener("click", (event) => {
-        if (!legendEditor || legendEditor.classList.contains("is-hidden")) return;
+        if (!legendEditor || legendEditor.classList.contains("is-hidden"))
+            return;
         if (event.target?.closest?.("#fp-legend-editor")) return;
         if (event.target?.closest?.(".fp-legend__item")) return;
         // no-op: keep editor open; close only via "Chiudi"
@@ -3115,7 +3557,10 @@ window.addEventListener("message", (event) => {
     if (legendColorInput) {
         legendColorInput.addEventListener("input", () => {
             if (!legendEditingType) return;
-            const next = normalizeHexColor(legendColorInput.value, getTypeColor(legendEditingType));
+            const next = normalizeHexColor(
+                legendColorInput.value,
+                getTypeColor(legendEditingType),
+            );
             setTypeColors({ ...getTypeColors(), [legendEditingType]: next });
             applyTypeColors();
             if (legendPreviewTimer) {
@@ -3131,7 +3576,9 @@ window.addEventListener("message", (event) => {
     if (legendDefault) {
         legendDefault.addEventListener("click", () => {
             if (!legendEditingType) return;
-            const next = DEFAULT_TYPE_COLORS[legendEditingType] || getTypeColor(legendEditingType);
+            const next =
+                DEFAULT_TYPE_COLORS[legendEditingType] ||
+                getTypeColor(legendEditingType);
             if (legendColorInput) legendColorInput.value = next;
             setTypeColors({ ...getTypeColors(), [legendEditingType]: next });
             applyTypeColors();
@@ -3151,7 +3598,6 @@ window.addEventListener("message", (event) => {
             closeLegendEditor(true);
         });
     }
-
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -3161,7 +3607,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const detail =
             err && typeof err === "object" && "stack" in err && err.stack
                 ? String(err.stack)
-                : (err && typeof err === "object" && "message" in err && err.message)
+                : err &&
+                    typeof err === "object" &&
+                    "message" in err &&
+                    err.message
                   ? String(err.message)
                   : String(err);
         showDialog("error", UI_TEXTS.initErrorTitle, detail);
@@ -3176,8 +3625,16 @@ ipcRenderer.on("pm-open-calendar-admins", () => {
     ipcRenderer.send("open-admin-manager-window");
 });
 
-const guideLocalPath = path.resolve(__dirname, "..", "..", "Guida", "index.html");
-const guideLocalUrl = fs.existsSync(guideLocalPath) ? `${pathToFileURL(guideLocalPath).toString()}?embed=1` : "";
+const guideLocalPath = path.resolve(
+    __dirname,
+    "..",
+    "..",
+    "Guida",
+    "index.html",
+);
+const guideLocalUrl = fs.existsSync(guideLocalPath)
+    ? `${pathToFileURL(guideLocalPath).toString()}?embed=1`
+    : "";
 
 const guideUi = createGuideModal({
     document,

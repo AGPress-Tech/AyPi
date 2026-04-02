@@ -1,10 +1,11 @@
 import { ipcRenderer, shell } from "electron";
 import path from "path";
 import fs from "fs";
-import axios from "axios";
+import http from "http";
+import https from "https";
 import { exec } from "child_process";
 
-const ADDIN_URL = "http://data.agpress-srl.it/AypiExcelAddin/MacroUtils.xlam";
+const ADDIN_URL = "https://data.agpress-srl.it/AypiExcelAddin/MacroUtils.xlam";
 const ADDIN_FOLDER = "C:\\AyPiAddin";
 const ADDIN_FILENAME = "MacroUtils.xlam";
 const ADDIN_PATH = path.join(ADDIN_FOLDER, ADDIN_FILENAME);
@@ -15,10 +16,86 @@ function ensureAddinFolder() {
     }
 }
 
-async function downloadAddin() {
-    const response = await axios.get(ADDIN_URL, { responseType: "arraybuffer" });
-    const buffer = Buffer.from(response.data);
-    fs.writeFileSync(ADDIN_PATH, buffer);
+const MAX_REDIRECTS = 5;
+
+function downloadAddin() {
+    return new Promise<void>((resolve, reject) => {
+        const startDownload = (urlStr: string, redirectsLeft: number) => {
+            let url: URL;
+            try {
+                url = new URL(urlStr);
+            } catch (err) {
+                reject(new Error(`URL non valida: ${urlStr}`));
+                return;
+            }
+
+            const client = url.protocol === "https:" ? https : http;
+            const request = client.get(
+                url,
+                {
+                    timeout: 15000,
+                    headers: {
+                        "User-Agent": "AyPi-Addin-Updater/1.0",
+                        Accept: "*/*",
+                    },
+                },
+                (res) => {
+                const status = res.statusCode || 0;
+                const isRedirect = [301, 302, 303, 307, 308].includes(status);
+
+                if (isRedirect && res.headers.location) {
+                    if (redirectsLeft <= 0) {
+                        res.resume();
+                        reject(new Error("Troppi redirect durante il download."));
+                        return;
+                    }
+                    const nextUrl = new URL(res.headers.location, url).toString();
+                    res.resume();
+                    startDownload(nextUrl, redirectsLeft - 1);
+                    return;
+                }
+
+                if (status !== 200) {
+                    res.resume();
+                    reject(new Error(`Risposta non valida dal server (HTTP ${status}).`));
+                    return;
+                }
+
+                const tmpPath = `${ADDIN_PATH}.tmp`;
+                const file = fs.createWriteStream(tmpPath);
+                res.pipe(file);
+
+                file.on("finish", () => {
+                    file.close(() => {
+                        try {
+                            if (fs.existsSync(ADDIN_PATH)) {
+                                fs.unlinkSync(ADDIN_PATH);
+                            }
+                            fs.renameSync(tmpPath, ADDIN_PATH);
+                            resolve();
+                        } catch (err) {
+                            reject(err);
+                        }
+                    });
+                });
+
+                file.on("error", (err) => {
+                    res.resume();
+                    reject(err);
+                });
+                }
+            );
+
+            request.on("timeout", () => {
+                request.destroy(new Error("Timeout durante il download."));
+            });
+            request.on("error", (err) => {
+                reject(err);
+            });
+        };
+
+        startDownload(ADDIN_URL, MAX_REDIRECTS);
+    });
 }
 
 function buildPowerShellInstallScript() {
