@@ -40,50 +40,63 @@ function downloadAddin() {
                     },
                 },
                 (res) => {
-                const status = res.statusCode || 0;
-                const isRedirect = [301, 302, 303, 307, 308].includes(status);
+                    const status = res.statusCode || 0;
+                    const isRedirect = [301, 302, 303, 307, 308].includes(
+                        status,
+                    );
 
-                if (isRedirect && res.headers.location) {
-                    if (redirectsLeft <= 0) {
+                    if (isRedirect && res.headers.location) {
+                        if (redirectsLeft <= 0) {
+                            res.resume();
+                            reject(
+                                new Error(
+                                    "Troppi redirect durante il download.",
+                                ),
+                            );
+                            return;
+                        }
+                        const nextUrl = new URL(
+                            res.headers.location,
+                            url,
+                        ).toString();
                         res.resume();
-                        reject(new Error("Troppi redirect durante il download."));
+                        startDownload(nextUrl, redirectsLeft - 1);
                         return;
                     }
-                    const nextUrl = new URL(res.headers.location, url).toString();
-                    res.resume();
-                    startDownload(nextUrl, redirectsLeft - 1);
-                    return;
-                }
 
-                if (status !== 200) {
-                    res.resume();
-                    reject(new Error(`Risposta non valida dal server (HTTP ${status}).`));
-                    return;
-                }
+                    if (status !== 200) {
+                        res.resume();
+                        reject(
+                            new Error(
+                                `Risposta non valida dal server (HTTP ${status}).`,
+                            ),
+                        );
+                        return;
+                    }
 
-                const tmpPath = `${ADDIN_PATH}.tmp`;
-                const file = fs.createWriteStream(tmpPath);
-                res.pipe(file);
+                    const tmpPath = `${ADDIN_PATH}.tmp`;
+                    const file = fs.createWriteStream(tmpPath);
+                    res.pipe(file);
 
-                file.on("finish", () => {
-                    file.close(() => {
-                        try {
-                            if (fs.existsSync(ADDIN_PATH)) {
-                                fs.unlinkSync(ADDIN_PATH);
+                    file.on("finish", () => {
+                        file.close(() => {
+                            try {
+                                if (fs.existsSync(ADDIN_PATH)) {
+                                    fs.unlinkSync(ADDIN_PATH);
+                                }
+                                fs.renameSync(tmpPath, ADDIN_PATH);
+                                resolve();
+                            } catch (err) {
+                                reject(err);
                             }
-                            fs.renameSync(tmpPath, ADDIN_PATH);
-                            resolve();
-                        } catch (err) {
-                            reject(err);
-                        }
+                        });
                     });
-                });
 
-                file.on("error", (err) => {
-                    res.resume();
-                    reject(err);
-                });
-                }
+                    file.on("error", (err) => {
+                        res.resume();
+                        reject(err);
+                    });
+                },
             );
 
             request.on("timeout", () => {
@@ -109,9 +122,9 @@ function buildPowerShellInstallScript() {
         "  $addin.Installed = $true",
         "  $excel.Quit()",
         "  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null",
-        "  Write-Output \"SUCCESS\"",
+        '  Write-Output "SUCCESS"',
         "} catch {",
-        "  Write-Output \"FAIL\"",
+        '  Write-Output "FAIL"',
         "}",
     ].join(" ");
 }
@@ -122,7 +135,9 @@ function tryEnableAddin() {
         if (stdout && stdout.includes("SUCCESS")) {
             alert("AyPi Excel Add-in installato correttamente!");
         } else {
-            alert("Add-in installato, ma non e' stato possibile attivarlo automaticamente. Attivalo manualmente da Excel.");
+            alert(
+                "Add-in installato, ma non e' stato possibile attivarlo automaticamente. Attivalo manualmente da Excel.",
+            );
         }
     });
 }
@@ -155,7 +170,9 @@ function fadeInBodyOnLoad() {
     };
 
     if (document.readyState === "loading") {
-        window.addEventListener("DOMContentLoaded", applyFadeIn, { once: true });
+        window.addEventListener("DOMContentLoaded", applyFadeIn, {
+            once: true,
+        });
     } else {
         applyFadeIn();
     }
@@ -182,7 +199,9 @@ function wireAppVersion() {
 
 function wireAdminHotkey() {
     const ensureAdminPrompt = () => {
-        let overlay = document.getElementById("aypi-admin-overlay") as HTMLDivElement | null;
+        let overlay = document.getElementById(
+            "aypi-admin-overlay",
+        ) as HTMLDivElement | null;
         if (!overlay) {
             overlay = document.createElement("div");
             overlay.id = "aypi-admin-overlay";
@@ -278,7 +297,8 @@ function wireAdminHotkey() {
             if (result && result.ok) {
                 ipcRenderer.invoke("show-message-box", {
                     type: "info",
-                    message: "Accesso admin attivo fino alla chiusura dell'app.",
+                    message:
+                        "Accesso admin attivo fino alla chiusura dell'app.",
                 });
             } else {
                 ipcRenderer.invoke("show-message-box", {
@@ -351,7 +371,8 @@ function wireSidebarActions() {
     if (!sidebarContainer) return;
 
     const applySidebarHtml = (html: string) => {
-        sidebarContainer.innerHTML = typeof html === "string" ? html : String(html || "");
+        sidebarContainer.innerHTML =
+            typeof html === "string" ? html : String(html || "");
 
         const sidebar = document.getElementById("mySidebar");
         const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
@@ -381,7 +402,8 @@ function wireSidebarActions() {
                 const now = new Date();
                 const hours = now.getHours().toString().padStart(2, "0");
                 const minutes = now.getMinutes().toString().padStart(2, "0");
-                clockElement.textContent = `${hours}:${minutes}`;
+                if (clockElement)
+                    clockElement.textContent = `${hours}:${minutes}`;
             }
             updateClock();
             setInterval(updateClock, 1000);

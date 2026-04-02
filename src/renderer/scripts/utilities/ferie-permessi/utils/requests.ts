@@ -8,7 +8,7 @@ type RequestLike = {
 };
 
 type HolidayLike = { date?: string } | string;
-type ClosureLike = { start?: string; end?: string };
+type ClosureLike = { start?: string; end?: string; name?: string } | string;
 
 function toDate(value: string | null | undefined) {
     if (!value) return null;
@@ -33,35 +33,49 @@ export function getRequestDates(request: RequestLike | null | undefined) {
     return { start, end };
 }
 
-function isWeekend(date) {
+function isWeekend(date: Date) {
     const day = date.getDay();
     return day === 0 || day === 6;
 }
 
-function formatDateKey(date) {
+function formatDateKey(date: Date) {
     const yyyy = date.getFullYear();
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     const dd = String(date.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
 }
 
-function buildDateSet(items: HolidayLike[] | null | undefined, dateKey = "date") {
-    if (!Array.isArray(items)) return new Set();
+function buildDateSet(
+    items: HolidayLike[] | null | undefined,
+    dateKey: "date" = "date",
+) {
+    if (!Array.isArray(items)) return new Set<string>();
     const dates = items.map((value) => {
         if (typeof value === "string") return value;
-        if (value && typeof value[dateKey] === "string") return value[dateKey];
+        if (value && typeof value.date === "string") return value.date;
         return null;
     });
     return new Set(
-        dates.filter((value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+        dates.filter(
+            (value): value is string =>
+                typeof value === "string" &&
+                /^\d{4}-\d{2}-\d{2}$/.test(value),
+        ),
     );
 }
 
 function buildClosureSet(closures: ClosureLike[] | null | undefined) {
-    if (!Array.isArray(closures)) return new Set();
-    const dates = new Set();
+    if (!Array.isArray(closures)) return new Set<string>();
+    const dates = new Set<string>();
     closures.forEach((item) => {
         if (!item) return;
+        if (typeof item === "string") {
+            const startDate = new Date(item);
+            if (Number.isNaN(startDate.getTime())) return;
+            const key = formatDateKey(startDate);
+            dates.add(key);
+            return;
+        }
         const start = typeof item.start === "string" ? item.start : "";
         const end = typeof item.end === "string" ? item.end : start;
         if (!start) return;
@@ -113,14 +127,20 @@ export function calculateHours(
 ) {
     if (!request) return 0;
     const isOvertimeLike = request.type === "straordinari" || request.type === "speciale";
-    const holidaySet = isOvertimeLike ? null : buildDateSet(holidays, "date");
-    const closureSet = isOvertimeLike ? null : buildClosureSet(closures);
+    const holidaySet: Set<string> | null = isOvertimeLike
+        ? null
+        : buildDateSet(holidays, "date");
+    const closureSet: Set<string> | null = isOvertimeLike
+        ? null
+        : buildClosureSet(closures);
     if (request.allDay) {
         const startDate = request.start ? new Date(`${request.start}T00:00:00`) : null;
         const endDate = request.end ? new Date(`${request.end}T00:00:00`) : startDate;
         if (!startDate || !endDate) return 0;
         const days = isOvertimeLike
-            ? Math.floor((endDate - startDate) / 86400000) + 1
+            ? Math.floor(
+                  (endDate.getTime() - startDate.getTime()) / 86400000,
+              ) + 1
             : countWeekdays(startDate, endDate, holidaySet, closureSet);
         return days * 8;
     }
@@ -138,12 +158,14 @@ export function calculateHours(
             return 0;
         }
     }
-    const diffHours = (end - start) / 3600000;
+    const diffHours = (end.getTime() - start.getTime()) / 3600000;
     const hours = Math.max(0, Math.round(diffHours * 100) / 100);
     const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
     const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
     const days = isOvertimeLike
-        ? Math.floor((endDay - startDay) / 86400000) + 1
+        ? Math.floor(
+              (endDay.getTime() - startDay.getTime()) / 86400000,
+          ) + 1
         : countWeekdays(startDay, endDay, holidaySet, closureSet);
     const maxHours = Math.max(1, days) * 8;
     return Math.min(hours, maxHours);

@@ -5,7 +5,11 @@ type ExportControllerOptions = {
     document: Document;
     showModal?: (el: HTMLElement | null) => void;
     hideModal?: (el: HTMLElement | null) => void;
-    setMessage?: (el: HTMLElement | null, message: string, isError?: boolean) => void;
+    setMessage?: (
+        el: HTMLElement | null,
+        message: string,
+        isError?: boolean,
+    ) => void;
     getAssigneeGroups?: () => Record<string, string[]>;
 };
 
@@ -18,7 +22,9 @@ function createExportController(options: ExportControllerOptions) {
     }
 
     function renderExportDepartments() {
-        const container = document.getElementById("fp-export-departments") as HTMLElement | null;
+        const container = document.getElementById(
+            "fp-export-departments",
+        ) as HTMLElement | null;
         if (!container) return;
         container.innerHTML = "";
         const groups = Object.keys(
@@ -45,10 +51,17 @@ function createExportController(options: ExportControllerOptions) {
 
     function updateExportDateState() {
         const rangeMode =
-            document.querySelector("input[name='fp-export-range']:checked")
-                ?.value || "all";
-        const startInput = document.getElementById("fp-export-start") as HTMLInputElement | null;
-        const endInput = document.getElementById("fp-export-end") as HTMLInputElement | null;
+            (
+                document.querySelector(
+                    "input[name='fp-export-range']:checked",
+                ) as HTMLInputElement | null
+            )?.value || "all";
+        const startInput = document.getElementById(
+            "fp-export-start",
+        ) as HTMLInputElement | null;
+        const endInput = document.getElementById(
+            "fp-export-end",
+        ) as HTMLInputElement | null;
         const isAll = rangeMode === "all";
         if (startInput) {
             startInput.disabled = isAll;
@@ -61,7 +74,9 @@ function createExportController(options: ExportControllerOptions) {
     }
 
     function openExportModal() {
-        const modal = document.getElementById("fp-export-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-export-modal",
+        ) as HTMLElement | null;
         const rangeAll = document.querySelector(
             "input[name='fp-export-range'][value='all']",
         );
@@ -74,13 +89,15 @@ function createExportController(options: ExportControllerOptions) {
             setMessage(document.getElementById("fp-export-message"), "");
         }
         if (rangeAll) {
-            rangeAll.checked = true;
+            (rangeAll as HTMLInputElement).checked = true;
         }
         updateExportDateState();
     }
 
     function closeExportModal() {
-        const modal = document.getElementById("fp-export-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-export-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         if (typeof hideModal === "function") {
             hideModal(modal);
@@ -91,7 +108,9 @@ function createExportController(options: ExportControllerOptions) {
     }
 
     function setExportDepartmentsChecked(value: boolean) {
-        const container = document.getElementById("fp-export-departments") as HTMLElement | null;
+        const container = document.getElementById(
+            "fp-export-departments",
+        ) as HTMLElement | null;
         if (!container) return;
         container
             .querySelectorAll("input[type='checkbox']")
@@ -101,7 +120,9 @@ function createExportController(options: ExportControllerOptions) {
     }
 
     function getExportSelectedDepartments() {
-        const container = document.getElementById("fp-export-departments") as HTMLElement | null;
+        const container = document.getElementById(
+            "fp-export-departments",
+        ) as HTMLElement | null;
         if (!container) return [];
         const checked = Array.from(
             container.querySelectorAll("input[type='checkbox']:checked"),
@@ -130,8 +151,15 @@ function createExportController(options: ExportControllerOptions) {
 export { createExportController };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createExportController };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createExportController };
 }
-
-

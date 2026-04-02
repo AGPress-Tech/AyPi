@@ -2,8 +2,8 @@ require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import fs from "fs";
 import path from "path";
-import QRCode from "qrcode";
-import bwipjs from "bwip-js";
+const QRCode = require("qrcode");
+const bwipjs = require("bwip-js");
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
 
 let lastPngBuffer: Buffer | null = null;

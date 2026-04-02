@@ -195,7 +195,7 @@ function createOtpModals(options: OtpModalsOptions) {
                     setMessage(otpMessage, UI_TEXTS.otpMissingCode, true);
                     return;
                 }
-                if (!otpState.secret || Date.now() > otpState.expiresAt) {
+            if (!otpState.secret || Date.now() > (otpState.expiresAt ?? 0)) {
                     setMessage(otpMessage, UI_TEXTS.otpExpired, true);
                     return;
                 }
@@ -250,7 +250,10 @@ function createOtpModals(options: OtpModalsOptions) {
                 const admin =
                     getAdminCache().find(
                         (item) => item.name === otpState.adminName,
-                    ) || findAdminByName(otpState.adminName, getAdminCache());
+                    ) ||
+                    (otpState.adminName
+                        ? findAdminByName(otpState.adminName, getAdminCache())
+                        : null);
                 if (!admin) {
                     setMessage(otpMessage, UI_TEXTS.adminNotFound, true);
                     return;

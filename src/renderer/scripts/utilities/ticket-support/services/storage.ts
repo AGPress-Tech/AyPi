@@ -140,7 +140,7 @@ function loadFromYearFiles() {
     const primaryFiles = listYearFiles(TICKET_YEARS_DIR);
     if (!primaryFiles.length) return [];
     const files = primaryFiles;
-    const tickets = [];
+    const tickets: Ticket[] = [];
     files.forEach((filePath) => {
         tickets.push(...readTicketsFromFile(filePath));
     });
@@ -172,8 +172,8 @@ function normalizeTicket(input: any): Ticket {
             : "",
         createdByKey: String(ticket.createdByKey || "").trim(),
         history: history
-            .filter((item) => item && typeof item === "object")
-            .map((item) => ({
+            .filter((item: any) => item && typeof item === "object")
+            .map((item: any) => ({
                 at: String(item.at || "").trim(),
                 event: String(item.event || "").trim(),
                 actor: String(item.actor || "").trim(),

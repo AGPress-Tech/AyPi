@@ -31,12 +31,15 @@ function createModalHelpers(options: ModalHelpersOptions) {
     }
 
     function forceUnlockUI() {
-        document.querySelectorAll(".fp-modal").forEach((item) => hideModal(item));
+        document
+            .querySelectorAll(".fp-modal")
+            .forEach((item) => hideModal(item as HTMLElement));
         if (typeof clearPendingAction === "function") {
             clearPendingAction();
         }
-        if (document.activeElement && typeof document.activeElement.blur === "function") {
-            document.activeElement.blur();
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl && typeof activeEl.blur === "function") {
+            activeEl.blur();
         }
     }
 

@@ -16,7 +16,7 @@ export const UI_TEXTS = {
     adminMinRequired: "Deve esserci almeno un admin.",
     adminNone: "Nessun admin configurato.",
     adminAccessDescription: "Inserisci la password admin per aprire la gestione.",
-    adminDeletePasswordDescription: (adminName) =>
+    adminDeletePasswordDescription: (adminName: string) =>
         `Inserisci la password di ${adminName} per confermare la rimozione.`,
     passwordInvalid: "Password attuale non valida.",
     defaultAdminLabel: "Admin",
@@ -37,13 +37,14 @@ export const UI_TEXTS = {
         "Se stai usando l'app installata, devi rigenerare l'installer per includere le nuove dipendenze.",
     otpMissingAdminName: "Inserisci il nome admin.",
     otpMissingAdminEmail: "Email admin mancante.",
-    otpResendWait: (seconds) => `Attendi ${seconds}s prima di reinviare l'OTP.`,
+    otpResendWait: (seconds: number) =>
+        `Attendi ${seconds}s prima di reinviare l'OTP.`,
     otpSent: "OTP inviato via email. Valido 5 minuti.",
-    otpSendError: (detail) => `Errore invio email: ${detail}`,
+    otpSendError: (detail: string) => `Errore invio email: ${detail}`,
     otpMissingCode: "Inserisci il codice OTP.",
     otpExpired: "OTP scaduto. Richiedi un nuovo codice.",
-    otpUnavailableDetail: (detail) => `Dettaglio otplib: ${detail}`,
-    otpUnavailableMessage: (detail) => `OTP non disponibile: ${detail}`,
+    otpUnavailableDetail: (detail: string) => `Dettaglio otplib: ${detail}`,
+    otpUnavailableMessage: (detail: string) => `OTP non disponibile: ${detail}`,
     otpInvalid: "OTP non valido.",
     otpVerified: "OTP verificato. Imposta una nuova password.",
     otpVerifyFirst: "Verifica l'OTP prima di proseguire.",
@@ -75,20 +76,21 @@ export const UI_TEXTS = {
     closurePasswordDescription: "Inserisci la password admin per confermare la chiusura.",
     closureNone: "Nessuna chiusura futura configurata.",
     requestUpdated: "Richiesta aggiornata.",
-    requestConfirm: (typeLabel, startLabel, endLabel) =>
+    requestConfirm: (typeLabel: string, startLabel: string, endLabel: string) =>
         `Confermi l'invio della richiesta di <strong>${typeLabel}</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
-    mutuaConfirm: (startLabel, endLabel) =>
+    mutuaConfirm: (startLabel: string, endLabel: string) =>
         `Confermi l'inserimento della <strong>Mutua</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
-    infortunioConfirm: (startLabel, endLabel) =>
+    infortunioConfirm: (startLabel: string, endLabel: string) =>
         `Confermi l'inserimento dell'<strong>Infortunio</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
-    retribuitoConfirm: (startLabel, endLabel) =>
+    retribuitoConfirm: (startLabel: string, endLabel: string) =>
         `Confermi l'inserimento del <strong>Permesso Retribuito</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
-    specialeConfirm: (startLabel, endLabel) =>
+    specialeConfirm: (startLabel: string, endLabel: string) =>
         `Confermi l'inserimento del <strong>Permesso Chiusura Aziendale</strong> dal <strong>${startLabel}</strong> al <strong>${endLabel}</strong>?`,
     emptyDepartment: "Nessun reparto.",
     emptyEmployee: "Nessun operatore.",
     emptyAssignee: "Nessun dipendente",
-    adminDeleteConfirm: (adminName) => `Confermi l'eliminazione dell'admin <strong>${adminName}</strong>?`,
+    adminDeleteConfirm: (adminName: string) =>
+        `Confermi l'eliminazione dell'admin <strong>${adminName}</strong>?`,
     exportInvalidRange: "Seleziona un intervallo valido.",
     exportSelectType: "Seleziona almeno un tipo.",
     exportNoData: "Nessun dato da esportare.",
@@ -99,23 +101,28 @@ export const UI_TEXTS = {
     backupPasswordDescription: "Inserisci la password admin per accedere al backup.",
     backupSelectFolderTitle: "Seleziona la cartella di backup.",
     backupSelectFolderDetail: "Scegli la cartella del backup da ripristinare.",
-    backupCreateSuccess: (folder) => `Backup creato in: ${folder}`,
+    backupCreateSuccess: (folder: string) => `Backup creato in: ${folder}`,
     backupRestoreSuccess: "Ripristino completato.",
     backupRestoreConfirm: "Ripristinare il backup? I file attuali verranno sovrascritti.",
-    backupCreateError: (detail) => `Errore durante il backup: ${detail}`,
-    backupRestoreError: (detail) => `Errore durante il ripristino: ${detail}`,
+    backupCreateError: (detail: string) =>
+        `Errore durante il backup: ${detail}`,
+    backupRestoreError: (detail: string) =>
+        `Errore durante il ripristino: ${detail}`,
     setupWizardTitle: "Configurazione iniziale",
     setupWizardMessage: "Completa la configurazione iniziale del calendario.",
     setupPathNote:
         "Nota: otp-mail.json non viene creato automaticamente. Se manca, il sistema usa il fallback locale.",
     mailConfigSaved: "Configurazione mailing salvata.",
-    mailConfigError: (detail) => `Errore configurazione mailing: ${detail}`,
+    mailConfigError: (detail: string) =>
+        `Errore configurazione mailing: ${detail}`,
     mailTestSent: "Email di prova inviata.",
-    mailTestError: (detail) => `Errore invio email di prova: ${detail}`,
+    mailTestError: (detail: string) =>
+        `Errore invio email di prova: ${detail}`,
     mailModuleMissing: "Modulo 'nodemailer' non disponibile.",
     adminLoginTitle: "Modalita admin",
     adminLoginDescription: "Inserisci la password admin per attivare la modalita admin.",
-    adminLoginSuccess: (name) => `Modalita admin attiva${name ? ` (${name})` : ""}.`,
+    adminLoginSuccess: (name: string) =>
+        `Modalita admin attiva${name ? ` (${name})` : ""}.`,
     adminLogoffSuccess: "Modalita admin disattivata.",
     adminLoginRequired: "Accedere per utilizzare la seguente funzione.",
     dataSaveFailure: "Impossibile salvare i dati sul server.",
@@ -125,7 +132,8 @@ export const UI_TEXTS = {
     colorsReset: "Colori ripristinati.",
     initErrorTitle: "Errore inizializzazione ferie/permessi.",
     filterAccessTitle: "Abilitazione filtro",
-    filterAccessDescription: (label) => `Inserisci la password admin per abilitare il filtro ${label}.`,
+    filterAccessDescription: (label: string) =>
+        `Inserisci la password admin per abilitare il filtro ${label}.`,
     setupAdminTitle: "Prima configurazione",
     setupAdminMessage: "Non esiste nessun admin. Inserisci il primo admin per iniziare.",
 };

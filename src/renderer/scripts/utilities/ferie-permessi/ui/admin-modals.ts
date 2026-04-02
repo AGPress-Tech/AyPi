@@ -101,7 +101,11 @@ function createAdminModals(options: AdminModalsOptions) {
                     ? admin.accessPurchasing
                     : true;
 
-            const makeScopeBtn = (label, active, onToggle) => {
+            const makeScopeBtn = (
+                label: string,
+                active: boolean,
+                onToggle: () => void,
+            ) => {
                 const btn = document.createElement("button");
                 btn.type = "button";
                 btn.className = "fp-admin-scope";

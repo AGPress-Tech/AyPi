@@ -1,7 +1,7 @@
 ﻿require("../../../shared/dev-guards");
 import { UI_TEXTS } from "../utils/ui-texts";
 
-type AdminLike = { name?: string };
+type AdminLike = { name?: string; passwordHash?: string };
 type RequestLike = {
     id?: string;
     status?: string;
@@ -17,30 +17,50 @@ type RequestLike = {
     employee?: string;
     department?: string;
 };
-type PendingAction =
-    | { type: "admin-login" }
-    | { type: "mutua-create"; request?: RequestLike; id?: string; title?: string; description?: string }
-    | { type: "infortunio-create"; request?: RequestLike; id?: string; title?: string; description?: string }
-    | { type: "retribuito-create"; request?: RequestLike; id?: string; title?: string; description?: string }
-    | { type: "giustificato-create"; request?: RequestLike; id?: string; title?: string; description?: string }
-    | { type: "speciale-create"; request?: RequestLike; id?: string; title?: string; description?: string }
-    | { type: "filter-access"; filter?: string }
-    | { type: "holiday-create"; dates?: string[]; name?: string }
-    | { type: "holiday-remove"; date?: string }
-    | { type: "holiday-update"; date?: string; nextDate?: string; nextName?: string }
-    | { type: "closure-create"; entry?: any }
-    | { type: "closure-remove"; entry?: any }
-    | { type: "closure-update"; entry?: any; next?: any }
-    | { type: "export" }
-    | { type: "backup-access" }
-    | { type: "config-access" }
-    | { type: "approve"; id?: string }
-    | { type: "reject"; id?: string }
-    | { type: "delete"; id?: string }
-    | { type: "edit"; id?: string }
-    | { type: "pending-access" }
-    | { type: "admin-access" }
-    | { type: "admin-delete"; adminName?: string; id?: string };
+type PendingActionBase = {
+    type:
+        | "admin-login"
+        | "mutua-create"
+        | "infortunio-create"
+        | "retribuito-create"
+        | "giustificato-create"
+        | "speciale-create"
+        | "filter-access"
+        | "holiday-create"
+        | "holiday-remove"
+        | "holiday-update"
+        | "closure-create"
+        | "closure-remove"
+        | "closure-update"
+        | "export"
+        | "backup-access"
+        | "config-access"
+        | "approve"
+        | "reject"
+        | "delete"
+        | "edit"
+        | "pending-access"
+        | "admin-access"
+        | "admin-delete"
+        | "hours-access"
+        | "manage-access"
+        | "days-access"
+        | "assignees-access";
+    title?: string;
+    description?: string;
+    id?: string;
+    adminName?: string;
+    request?: RequestLike;
+    filter?: string;
+    dates?: string[];
+    name?: string;
+    date?: string;
+    nextDate?: string;
+    nextName?: string;
+    entry?: any;
+    next?: any;
+};
+type PendingAction = PendingActionBase;
 
 type ApprovalModalOptions = {
     document: Document;
@@ -171,13 +191,16 @@ function createApprovalModal(options: ApprovalModalOptions) {
         "backup-access",
     ]);
 
-    async function handleAction(admin: AdminLike | null, pendingAction: PendingAction | null) {
+    async function handleAction(
+        admin: AdminLike | null,
+        pendingAction: PendingAction | null,
+    ) {
         if (!pendingAction) {
             closeApprovalModal();
             return;
         }
         const actionType = pendingAction.type;
-        const requestId = (pendingAction as any).id;
+        const requestId = pendingAction.id;
         if (actionType === "admin-login") {
             closeApprovalModal();
             if (typeof onAdminLogin === "function") {
@@ -294,9 +317,8 @@ function createApprovalModal(options: ApprovalModalOptions) {
         if (actionType === "approve") {
             if (typeof getBalanceImpact === "function") {
                 const current = loadData();
-                const target = (current.requests || []).find(
-                    (req) => req.id === requestId,
-                );
+                const requests = (current?.requests || []) as RequestLike[];
+                const target = requests.find((req) => req.id === requestId);
                 if (target) {
                     const impact = getBalanceImpact(current, target);
                     if (
@@ -313,9 +335,8 @@ function createApprovalModal(options: ApprovalModalOptions) {
             }
             closeApprovalModal();
             const updated = syncData((payload) => {
-                const target = (payload.requests || []).find(
-                    (req) => req.id === requestId,
-                );
+                const requests = (payload?.requests || []) as RequestLike[];
+                const target = requests.find((req) => req.id === requestId);
                 if (target) {
                     target.status = "approved";
                     target.approvedAt = new Date().toISOString();
@@ -361,9 +382,8 @@ function createApprovalModal(options: ApprovalModalOptions) {
         if (actionType === "reject") {
             closeApprovalModal();
             const updated = syncData((payload) => {
-                const target = (payload.requests || []).find(
-                    (req) => req.id === requestId,
-                );
+                const requests = (payload?.requests || []) as RequestLike[];
+                const target = requests.find((req) => req.id === requestId);
                 if (target) {
                     target.status = "rejected";
                     target.rejectedAt = new Date().toISOString();
@@ -378,9 +398,8 @@ function createApprovalModal(options: ApprovalModalOptions) {
         }
         if (actionType === "delete") {
             const updated = syncData((payload) => {
-                const target = (payload.requests || []).find(
-                    (req) => req.id === requestId,
-                );
+                const requests = (payload?.requests || []) as RequestLike[];
+                const target = requests.find((req) => req.id === requestId);
                 if (target && typeof applyBalanceForDeletion === "function") {
                     applyBalanceForDeletion(payload, target);
                 }
@@ -404,11 +423,10 @@ function createApprovalModal(options: ApprovalModalOptions) {
         if (actionType === "edit") {
             closeApprovalModal();
             const data = loadData();
-            const target = (data.requests || []).find(
-                (req) => req.id === requestId,
-            );
+            const requests = (data?.requests || []) as RequestLike[];
+            const target = requests.find((req) => req.id === requestId);
             if (target) {
-                setEditingRequestId(requestId);
+                setEditingRequestId(requestId ?? null);
                 setEditingAdminName(admin?.name || "");
                 openEditModal(target);
             }
@@ -447,7 +465,9 @@ function createApprovalModal(options: ApprovalModalOptions) {
                 );
                 return;
             }
-            adminCache = adminCache.filter((item) => item.name !== targetName);
+            adminCache = adminCache.filter(
+                (item) => item.name !== targetName,
+            );
             setAdminCache(adminCache);
             saveAdminCredentials(adminCache);
             renderAdminList();
@@ -456,7 +476,7 @@ function createApprovalModal(options: ApprovalModalOptions) {
         }
     }
 
-    function openPasswordModal(action) {
+    function openPasswordModal(action: PendingAction | null) {
         const loggedIn =
             typeof isAdminLoggedIn === "function" ? isAdminLoggedIn() : false;
         if (action && !ALWAYS_REQUIRE_PASSWORD.has(action.type)) {
@@ -494,18 +514,18 @@ function createApprovalModal(options: ApprovalModalOptions) {
             handleAction(admin, action);
             return;
         }
-        const modal = document.getElementById("fp-approve-modal");
-        const input = document.getElementById("fp-approve-password");
-        const error = document.getElementById("fp-approve-error");
-        const title = document.getElementById("fp-approve-title");
-        const desc = document.getElementById("fp-approve-desc");
+        const modal = document.getElementById("fp-approve-modal") as HTMLElement | null;
+        const input = document.getElementById("fp-approve-password") as HTMLInputElement | null;
+        const error = document.getElementById("fp-approve-error") as HTMLElement | null;
+        const title = document.getElementById("fp-approve-title") as HTMLElement | null;
+        const desc = document.getElementById("fp-approve-desc") as HTMLElement | null;
         if (!modal || !input) return;
         setPendingAction(action);
         if (title && action?.title) title.textContent = action.title;
         if (desc && action?.description) desc.textContent = action.description;
         document
             .querySelectorAll(".fp-modal")
-            .forEach((item) => hideModal(item));
+            .forEach((item) => hideModal(item as HTMLElement));
         showModal(modal);
         if (error) {
             error.classList.add("is-hidden");
@@ -525,28 +545,26 @@ function createApprovalModal(options: ApprovalModalOptions) {
     }
 
     function closeApprovalModal() {
-        const modal = document.getElementById("fp-approve-modal");
-        const input = document.getElementById("fp-approve-password");
-        const error = document.getElementById("fp-approve-error");
-        const recoverBtn = document.getElementById("fp-approve-recover");
+        const modal = document.getElementById("fp-approve-modal") as HTMLElement | null;
+        const input = document.getElementById("fp-approve-password") as HTMLInputElement | null;
+        const error = document.getElementById("fp-approve-error") as HTMLElement | null;
+        const recoverBtn = document.getElementById("fp-approve-recover") as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
         if (input) input.value = "";
         if (error) error.classList.add("is-hidden");
         if (recoverBtn) recoverBtn.classList.add("is-hidden");
         setPendingAction(null);
-        if (
-            document.activeElement &&
-            typeof document.activeElement.blur === "function"
-        ) {
-            document.activeElement.blur();
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl && typeof activeEl.blur === "function") {
+            activeEl.blur();
         }
     }
 
     async function confirmApproval() {
-        const input = document.getElementById("fp-approve-password");
-        const error = document.getElementById("fp-approve-error");
-        const recoverBtn = document.getElementById("fp-approve-recover");
+        const input = document.getElementById("fp-approve-password") as HTMLInputElement | null;
+        const error = document.getElementById("fp-approve-error") as HTMLElement | null;
+        const recoverBtn = document.getElementById("fp-approve-recover") as HTMLElement | null;
         const password = input ? input.value : "";
         if (!isHashingAvailable()) {
             const hasHashes = loadAdminCredentials().some(
@@ -578,10 +596,10 @@ function createApprovalModal(options: ApprovalModalOptions) {
     }
 
     function initApprovalModal() {
-        const approveCancel = document.getElementById("fp-approve-cancel");
-        const approveConfirm = document.getElementById("fp-approve-confirm");
-        const approveModal = document.getElementById("fp-approve-modal");
-        const approvePassword = document.getElementById("fp-approve-password");
+        const approveCancel = document.getElementById("fp-approve-cancel") as HTMLElement | null;
+        const approveConfirm = document.getElementById("fp-approve-confirm") as HTMLElement | null;
+        const approveModal = document.getElementById("fp-approve-modal") as HTMLElement | null;
+        const approvePassword = document.getElementById("fp-approve-password") as HTMLInputElement | null;
         if (approveCancel) {
             approveCancel.addEventListener("click", closeApprovalModal);
         }

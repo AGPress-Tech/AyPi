@@ -198,7 +198,11 @@ function getRequestBalanceHours(request: RequestLike, payload: Payload) {
         ) / 100,
     );
 }
-function normalizeClosures(closures: ClosureLike[] | null | undefined) {
+type NormalizedClosure = { start: string; end: string; name: string };
+
+function normalizeClosures(
+    closures: ClosureLike[] | null | undefined,
+): NormalizedClosure[] {
     if (!Array.isArray(closures)) return [];
     return closures
         .map((item) => {
@@ -210,7 +214,7 @@ function normalizeClosures(closures: ClosureLike[] | null | undefined) {
             const end = typeof item.end === "string" ? item.end : start;
             return { start, end: end || start, name: item.name || "" };
         })
-        .filter((item) => item && item.start);
+        .filter((item): item is NormalizedClosure => !!item && !!item.start);
 }
 
 function countClosureDaysForMonth(closures: ClosureLike[] | null | undefined, holidays: HolidayLike[] | null | undefined, monthKey: string, cutoffDate: Date | null) {
@@ -263,8 +267,17 @@ function getEmployeeKey(employee: RequestLike["employee"], department?: string |
     return `${dept}|${name}`;
 }
 
-function listEmployees(assigneeGroups: Record<string, Array<string | { name?: string }>> | null | undefined) {
-    const rows = [];
+function listEmployees(
+    assigneeGroups:
+        | Record<string, Array<string | { name?: string }>>
+        | null
+        | undefined,
+) {
+    const rows: Array<{
+        key: string;
+        employee: string;
+        department: string;
+    }> = [];
     const groups = assigneeGroups || {};
     Object.keys(groups).forEach((department) => {
         const employees = Array.isArray(groups[department])
@@ -467,6 +480,7 @@ function applyBalanceForApproval(payload: Payload, request: RequestLike) {
 
     const hours = getRequestBalanceHours(request, payload);
     const entry = ensureBalanceEntry(payload, key);
+    if (!entry) return payload;
     entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) - hours;
     request.balanceHours = hours;
     request.balanceAppliedAt = new Date().toISOString();
@@ -538,6 +552,7 @@ function applyBalanceForDeletion(payload: Payload, request: RequestLike) {
     if (!key) return payload;
     const hours = Number(request.balanceHours) || 0;
     const entry = ensureBalanceEntry(payload, key);
+    if (!entry) return payload;
     entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) + hours;
     return payload;
 }
@@ -563,6 +578,7 @@ function applyBalanceForUpdate(payload: Payload, existingRequest: RequestLike, n
     if (!isApproved) {
         if (wasApproved && oldHours !== 0 && oldKey) {
             const entry = ensureBalanceEntry(payload, oldKey);
+            if (!entry) return payload;
             entry.hoursAvailable =
                 (Number(entry.hoursAvailable) || 0) + oldHours;
         }
@@ -576,15 +592,18 @@ function applyBalanceForUpdate(payload: Payload, existingRequest: RequestLike, n
     if (oldKey !== newKey) {
         if (oldHours !== 0) {
             const entry = ensureBalanceEntry(payload, oldKey);
+            if (!entry) return payload;
             entry.hoursAvailable =
                 (Number(entry.hoursAvailable) || 0) + oldHours;
         }
         const entry = ensureBalanceEntry(payload, newKey);
+        if (!entry) return payload;
         entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) - newHours;
     } else {
         const delta = newHours - oldHours;
         if (delta !== 0) {
             const entry = ensureBalanceEntry(payload, newKey);
+            if (!entry) return payload;
             entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) - delta;
         }
     }
@@ -601,32 +620,54 @@ function readJsonFile(filePath: string) {
     return JSON.parse(raw);
 }
 
-function normalizeRequestsData(value: unknown) {
-    if (Array.isArray(value)) return value;
-    if (value && Array.isArray(value.requests)) return value.requests;
-    return [];
-}
-
-function normalizeHolidaysData(value: unknown) {
-    if (Array.isArray(value)) return value;
-    if (value && Array.isArray(value.holidays)) return value.holidays;
-    return [];
-}
-
-function normalizeClosuresData(value: unknown) {
-    if (Array.isArray(value)) return value;
-    if (value && Array.isArray(value.closures)) return value.closures;
-    return [];
-}
-
-function normalizeBalancesData(value: unknown) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-        if (value.balances && typeof value.balances === "object") {
-            return value.balances;
-        }
-        return value;
+function normalizeRequestsData(value: unknown): RequestLike[] {
+    if (Array.isArray(value)) return value as RequestLike[];
+    if (
+        value &&
+        typeof value === "object" &&
+        "requests" in value &&
+        Array.isArray((value as { requests?: unknown }).requests)
+    ) {
+        return (value as { requests: RequestLike[] }).requests;
     }
-    return {};
+    return [];
+}
+
+function normalizeHolidaysData(value: unknown): HolidayLike[] {
+    if (Array.isArray(value)) return value as HolidayLike[];
+    if (
+        value &&
+        typeof value === "object" &&
+        "holidays" in value &&
+        Array.isArray((value as { holidays?: unknown }).holidays)
+    ) {
+        return (value as { holidays: HolidayLike[] }).holidays;
+    }
+    return [];
+}
+
+function normalizeClosuresData(value: unknown): ClosureLike[] {
+    if (Array.isArray(value)) return value as ClosureLike[];
+    if (
+        value &&
+        typeof value === "object" &&
+        "closures" in value &&
+        Array.isArray((value as { closures?: unknown }).closures)
+    ) {
+        return (value as { closures: ClosureLike[] }).closures;
+    }
+    return [];
+}
+
+function normalizeBalancesData(value: unknown): Record<string, BalanceEntry> {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        const typed = value as { balances?: unknown };
+        if (typed.balances && typeof typed.balances === "object") {
+            return typed.balances as Record<string, BalanceEntry>;
+        }
+        return value as Record<string, BalanceEntry>;
+    }
+    return {} as Record<string, BalanceEntry>;
 }
 
 function readRequestsFromShardsIn(directory: string) {
@@ -637,7 +678,7 @@ function readRequestsFromShardsIn(directory: string) {
         .sort();
     if (!files.length) return null;
 
-    const requests = [];
+    const requests: RequestLike[] = [];
     files.forEach((name) => {
         const filePath = path.join(directory, name);
         const parsed = readJsonFile(filePath);
@@ -677,15 +718,15 @@ function toShardKey(request: RequestLike) {
 
 function writeRequestsData(requests: RequestLike[] | { requests?: RequestLike[] }) {
     const list = normalizeRequestsData(requests);
-    const buckets = new Map();
+    const buckets = new Map<string, RequestLike[]>();
     list.forEach((request) => {
         const key = toShardKey(request);
         if (!buckets.has(key)) buckets.set(key, []);
-        buckets.get(key).push(request);
+        buckets.get(key)?.push(request);
     });
 
     ensureFolderFor(path.join(REQUESTS_SHARDS_DIR, "index.json"));
-    const shardFiles = [];
+    const shardFiles: string[] = [];
     buckets.forEach((items, key) => {
         const fileName = `requests-${key}.json`;
         shardFiles.push(fileName);

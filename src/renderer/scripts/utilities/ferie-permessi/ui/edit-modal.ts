@@ -21,12 +21,25 @@ type EditModalOptions = {
     document: Document;
     showModal: (el: HTMLElement | null) => void;
     hideModal: (el: HTMLElement | null) => void;
-    setMessage: (el: HTMLElement | null, message: string, isError?: boolean) => void;
+    setMessage: (
+        el: HTMLElement | null,
+        message: string,
+        isError?: boolean,
+    ) => void;
     setInlineError: (id: string, message: string) => void;
     fillFormFromRequest: (prefix: string, request: RequestLike) => void;
     toggleAllDayStateFor: (prefix: string, checked: boolean) => void;
-    updateAllDayLock: (startDate: HTMLInputElement | null, endDate: HTMLInputElement | null, allDayToggle: HTMLInputElement | null, prefix: string) => void;
-    buildRequestFromForm: (prefix: string, requestId: string | null, isEdit: boolean) => { request: RequestLike; error?: string };
+    updateAllDayLock: (
+        startDate: HTMLInputElement | null,
+        endDate: HTMLInputElement | null,
+        allDayToggle: HTMLInputElement | null,
+        prefix: string,
+    ) => void;
+    buildRequestFromForm: (
+        prefix: string,
+        requestId: string | null,
+        isEdit: boolean,
+    ) => { request: RequestLike; error?: string };
     openConfirmModal: (message: string) => Promise<boolean>;
     escapeHtml: (value: string) => string;
     getTypeLabel: (value: string) => string;
@@ -38,7 +51,11 @@ type EditModalOptions = {
     setEditingRequestId: (value: string | null) => void;
     getEditingAdminName: () => string;
     setEditingAdminName: (value: string) => void;
-    applyBalanceForUpdate: (payload: any, existing: RequestLike, next: RequestLike) => void;
+    applyBalanceForUpdate: (
+        payload: any,
+        existing: RequestLike,
+        next: RequestLike,
+    ) => void;
     applyBalanceForDeletion: (payload: any, request: RequestLike) => void;
     requireEditAccess: (run: () => void) => void;
     requireDeleteAccess: (run: () => void) => void;
@@ -77,8 +94,12 @@ function createEditModal(options: EditModalOptions) {
     }
 
     function openEditModal(request: RequestLike) {
-        const modal = document.getElementById("fp-edit-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-edit-message") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-edit-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-edit-message",
+        ) as HTMLElement | null;
         if (!modal) return;
         if (request && request.id) {
             setEditingRequestId(request.id);
@@ -90,8 +111,12 @@ function createEditModal(options: EditModalOptions) {
     }
 
     function closeEditModal() {
-        const modal = document.getElementById("fp-edit-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-edit-message") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-edit-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-edit-message",
+        ) as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
         setMessage(message, "");
@@ -101,16 +126,36 @@ function createEditModal(options: EditModalOptions) {
     }
 
     function initEditModal() {
-        const editModal = document.getElementById("fp-edit-modal") as HTMLElement | null;
-        const editForm = document.getElementById("fp-edit-form") as HTMLFormElement | null;
-        const editCancel = document.getElementById("fp-edit-cancel") as HTMLButtonElement | null;
-        const editDelete = document.getElementById("fp-edit-delete") as HTMLButtonElement | null;
-        const editMessage = document.getElementById("fp-edit-message") as HTMLElement | null;
-        const editAllDay = document.getElementById("fp-edit-all-day") as HTMLInputElement | null;
-        const editStartTime = document.getElementById("fp-edit-start-time") as HTMLInputElement | null;
-        const editEndTime = document.getElementById("fp-edit-end-time") as HTMLInputElement | null;
-        const editStartDate = document.getElementById("fp-edit-start-date") as HTMLInputElement | null;
-        const editEndDate = document.getElementById("fp-edit-end-date") as HTMLInputElement | null;
+        const editModal = document.getElementById(
+            "fp-edit-modal",
+        ) as HTMLElement | null;
+        const editForm = document.getElementById(
+            "fp-edit-form",
+        ) as HTMLFormElement | null;
+        const editCancel = document.getElementById(
+            "fp-edit-cancel",
+        ) as HTMLButtonElement | null;
+        const editDelete = document.getElementById(
+            "fp-edit-delete",
+        ) as HTMLButtonElement | null;
+        const editMessage = document.getElementById(
+            "fp-edit-message",
+        ) as HTMLElement | null;
+        const editAllDay = document.getElementById(
+            "fp-edit-all-day",
+        ) as HTMLInputElement | null;
+        const editStartTime = document.getElementById(
+            "fp-edit-start-time",
+        ) as HTMLInputElement | null;
+        const editEndTime = document.getElementById(
+            "fp-edit-end-time",
+        ) as HTMLInputElement | null;
+        const editStartDate = document.getElementById(
+            "fp-edit-start-date",
+        ) as HTMLInputElement | null;
+        const editEndDate = document.getElementById(
+            "fp-edit-end-date",
+        ) as HTMLInputElement | null;
 
         if (editAllDay) {
             toggleAllDayStateFor("fp-edit", editAllDay.checked);
@@ -119,19 +164,29 @@ function createEditModal(options: EditModalOptions) {
             });
         }
         const handleEditTimeFocus = () => {
-            if (!editAllDay || !editAllDay.checked || editAllDay.disabled) return;
+            if (!editAllDay || !editAllDay.checked || editAllDay.disabled)
+                return;
             editAllDay.checked = false;
             toggleAllDayStateFor("fp-edit", false);
         };
-        if (editStartTime) editStartTime.addEventListener("focus", handleEditTimeFocus);
-        if (editEndTime) editEndTime.addEventListener("focus", handleEditTimeFocus);
+        if (editStartTime)
+            editStartTime.addEventListener("focus", handleEditTimeFocus);
+        if (editEndTime)
+            editEndTime.addEventListener("focus", handleEditTimeFocus);
 
         if (editStartDate && editEndDate) {
             const normalizeEditDates = () => {
                 if (!editStartDate.value || !editEndDate.value) return;
-                if (editStartDate.value.length !== 10 || editEndDate.value.length !== 10) return;
+                if (
+                    editStartDate.value.length !== 10 ||
+                    editEndDate.value.length !== 10
+                )
+                    return;
                 if (editEndDate.value < editStartDate.value) {
-                    setInlineError("fp-edit-end-date-error", "La data fine non puo essere precedente alla data inizio.");
+                    setInlineError(
+                        "fp-edit-end-date-error",
+                        "La data fine non puo essere precedente alla data inizio.",
+                    );
                 } else {
                     setInlineError("fp-edit-end-date-error", "");
                 }
@@ -139,7 +194,12 @@ function createEditModal(options: EditModalOptions) {
                     editAllDay.checked = true;
                     toggleAllDayStateFor("fp-edit", true);
                 }
-                updateAllDayLock(editStartDate, editEndDate, editAllDay, "fp-edit");
+                updateAllDayLock(
+                    editStartDate,
+                    editEndDate,
+                    editAllDay,
+                    "fp-edit",
+                );
             };
             editStartDate.addEventListener("change", normalizeEditDates);
             editEndDate.addEventListener("input", normalizeEditDates);
@@ -158,19 +218,27 @@ function createEditModal(options: EditModalOptions) {
                     const editingRequestId = getEditingRequestId();
                     if (!editingRequestId) return;
                     if (typeof openConfirmModal === "function") {
-                        const ok = await openConfirmModal("Confermi l'eliminazione della richiesta?");
+                        const ok = await openConfirmModal(
+                            "Confermi l'eliminazione della richiesta?",
+                        );
                         if (!ok) return;
                     }
                     const updated = syncData((payload) => {
-                        const target = (payload.requests || []).find((req) => req.id === editingRequestId);
-                        if (target && typeof applyBalanceForDeletion === "function") {
+                        const target = (payload.requests || []).find(
+                            (req: RequestLike) => req.id === editingRequestId,
+                        );
+                        if (
+                            target &&
+                            typeof applyBalanceForDeletion === "function"
+                        ) {
                             applyBalanceForDeletion(payload, target);
                         }
                         if (target) {
                             const editingAdminName = getEditingAdminName();
                             target.status = "deleted";
                             target.deletedAt = new Date().toISOString();
-                            target.deletedBy = editingAdminName || target.deletedBy || "";
+                            target.deletedBy =
+                                editingAdminName || target.deletedBy || "";
                             target.updatedAt = new Date().toISOString();
                         }
                         return payload;
@@ -199,7 +267,11 @@ function createEditModal(options: EditModalOptions) {
                     const editingRequestId = getEditingRequestId();
                     if (!editingRequestId) return;
                     setMessage(editMessage, "");
-                    const { request, error } = buildRequestFromForm("fp-edit", editingRequestId, true);
+                    const { request, error } = buildRequestFromForm(
+                        "fp-edit",
+                        editingRequestId,
+                        true,
+                    );
                     if (error) {
                         setMessage(editMessage, error, true);
                         if (error.includes("data fine")) {
@@ -210,15 +282,25 @@ function createEditModal(options: EditModalOptions) {
                         return;
                     }
                     if (typeof openConfirmModal === "function") {
-                        const typeLabel = escapeHtml && getTypeLabel ? escapeHtml(getTypeLabel(request.type || "")) : "richiesta";
-                        const startLabel = escapeHtml && formatDate && formatDateTime
-                            ? escapeHtml(request.allDay ? formatDate(request.start || "") : formatDateTime(request.start || ""))
+                        const typeLabel = escapeHtml(
+                            getTypeLabel(request.type || ""),
+                        );
+                        const startLabel = escapeHtml(
+                            request.allDay
+                                ? formatDate(request.start || "")
+                                : formatDateTime(request.start || ""),
+                        );
+                        const endLabel = escapeHtml(
+                            request.allDay
+                                ? formatDate(request.end || request.start || "")
+                                : formatDateTime(request.end || ""),
+                        );
+                        const rangeLabel = startLabel
+                            ? ` (${startLabel}${endLabel && endLabel !== startLabel ? ` - ${endLabel}` : ""})`
                             : "";
-                        const endLabel = escapeHtml && formatDate && formatDateTime
-                            ? escapeHtml(request.allDay ? formatDate(request.end || request.start || "") : formatDateTime(request.end || ""))
-                            : "";
-                        const rangeLabel = startLabel ? ` (${startLabel}${endLabel && endLabel !== startLabel ? ` - ${endLabel}` : ""})` : "";
-                        const ok = await openConfirmModal(`Confermi la modifica della <strong>${typeLabel}</strong>${rangeLabel}?`);
+                        const ok = await openConfirmModal(
+                            `Confermi la modifica della <strong>${typeLabel}</strong>${rangeLabel}?`,
+                        );
                         if (!ok) {
                             return;
                         }
@@ -226,20 +308,33 @@ function createEditModal(options: EditModalOptions) {
                     const editingAdminName = getEditingAdminName();
                     const updated = syncData((payload) => {
                         payload.requests = payload.requests || [];
-                        const idx = payload.requests.findIndex((req) => req.id === editingRequestId);
+                        const idx = payload.requests.findIndex(
+                            (req: RequestLike) => req.id === editingRequestId,
+                        );
                         if (idx >= 0) {
                             const existing = payload.requests[idx];
                             const nextRequest = {
                                 ...existing,
                                 ...request,
                                 status: "approved",
-                                approvedAt: existing.approvedAt || new Date().toISOString(),
-                                createdAt: existing.createdAt || new Date().toISOString(),
+                                approvedAt:
+                                    existing.approvedAt ||
+                                    new Date().toISOString(),
+                                createdAt:
+                                    existing.createdAt ||
+                                    new Date().toISOString(),
                                 modifiedAt: new Date().toISOString(),
-                                modifiedBy: editingAdminName || existing.modifiedBy || "",
+                                modifiedBy:
+                                    editingAdminName ||
+                                    existing.modifiedBy ||
+                                    "",
                             };
                             if (typeof applyBalanceForUpdate === "function") {
-                                applyBalanceForUpdate(payload, existing, nextRequest);
+                                applyBalanceForUpdate(
+                                    payload,
+                                    existing,
+                                    nextRequest,
+                                );
                             }
                             payload.requests[idx] = nextRequest;
                         }
@@ -264,8 +359,15 @@ function createEditModal(options: EditModalOptions) {
 export { createEditModal };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createEditModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createEditModal };
 }
-
-

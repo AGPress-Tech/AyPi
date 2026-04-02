@@ -44,7 +44,9 @@ function createRenderer(options: RendererOptions) {
 
     function addDaysToDateString(dateStr: string, days: number) {
         if (!dateStr) return dateStr;
-        const [year, month, day] = dateStr.split("-").map((v) => parseInt(v, 10));
+        const [year, month, day] = dateStr
+            .split("-")
+            .map((v) => parseInt(v, 10));
         if (!year || !month || !day) return dateStr;
         const next = new Date(year, month - 1, day);
         next.setDate(next.getDate() + days);
@@ -56,9 +58,9 @@ function createRenderer(options: RendererOptions) {
 
     function buildEventFromRequest(request: RequestLike) {
         const title = request.employee || "Dipendente";
-        const color = getTypeColor(request.type);
+        const color = getTypeColor(request.type || "");
         if (request.allDay) {
-            const endDate = request.end || request.start;
+            const endDate = request.end || request.start || "";
             return {
                 id: request.id,
                 title,
@@ -80,16 +82,25 @@ function createRenderer(options: RendererOptions) {
         };
     }
 
-    function renderCalendar(data: { requests?: RequestLike[]; holidays?: HolidayLike[]; closures?: ClosureLike[] }) {
+    function renderCalendar(data: {
+        requests?: RequestLike[];
+        holidays?: HolidayLike[];
+        closures?: ClosureLike[];
+    }) {
         const calendar = getCalendar();
         if (!calendar) return;
-        const approved = (data.requests || []).filter((req) => req.status === "approved");
+        const approved = (data.requests || []).filter(
+            (req) => req.status === "approved",
+        );
         const holidays = Array.isArray(data.holidays) ? data.holidays : [];
         const closures = Array.isArray(data.closures) ? data.closures : [];
         const renderBatch = () => {
             calendar.removeAllEvents();
             approved.forEach((request) => {
-                if (typeof shouldIncludeRequest === "function" && !shouldIncludeRequest(request)) {
+                if (
+                    typeof shouldIncludeRequest === "function" &&
+                    !shouldIncludeRequest(request)
+                ) {
                     return;
                 }
                 calendar.addEvent(buildEventFromRequest(request));
@@ -112,7 +123,8 @@ function createRenderer(options: RendererOptions) {
             });
             closures.forEach((entry, index) => {
                 if (!entry) return;
-                const start = typeof entry.start === "string" ? entry.start : "";
+                const start =
+                    typeof entry.start === "string" ? entry.start : "";
                 const end = typeof entry.end === "string" ? entry.end : start;
                 if (!start) return;
                 calendar.addEvent({
@@ -124,7 +136,10 @@ function createRenderer(options: RendererOptions) {
                     display: "background",
                     className: "fp-closure-bg",
                     interactive: false,
-                    extendedProps: { isClosure: true, closureName: entry.name || "" },
+                    extendedProps: {
+                        isClosure: true,
+                        closureName: entry.name || "",
+                    },
                 });
             });
         };
@@ -135,13 +150,18 @@ function createRenderer(options: RendererOptions) {
         }
     }
 
-    function renderAll(data: { requests?: RequestLike[]; holidays?: HolidayLike[]; closures?: ClosureLike[] }) {
+    function renderAll(data: {
+        requests?: RequestLike[];
+        holidays?: HolidayLike[];
+        closures?: ClosureLike[];
+    }) {
         const next = data || { requests: [] };
         if (typeof setCachedData === "function") {
             setCachedData(next);
         }
         const splash = document.getElementById("fp-calendar-splash");
-        const shouldShowSplash = new URLSearchParams(window.location.search).get("fpSplash") === "1";
+        const shouldShowSplash =
+            new URLSearchParams(window.location.search).get("fpSplash") === "1";
         const showModule = () => {
             document.body.classList.remove("fp-splash-active");
             document.body.classList.add("fp-calendar-ready");
@@ -209,14 +229,26 @@ function createRenderer(options: RendererOptions) {
         scheduleRender();
     }
 
-    return { renderAll, renderCalendar, buildEventFromRequest, addDaysToDateString };
+    return {
+        renderAll,
+        renderCalendar,
+        buildEventFromRequest,
+        addDaysToDateString,
+    };
 }
 
 export { createRenderer };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createRenderer };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createRenderer };
 }
-
-

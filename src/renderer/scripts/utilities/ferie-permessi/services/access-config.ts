@@ -86,12 +86,15 @@ function normalizeAccessConfig(raw: unknown): AccessConfig {
             ? (src.operations as AccessConfig["operations"])
             : ({} as AccessConfig["operations"]);
 
-    const create =
-        ops.create && typeof ops.create === "object" ? ops.create : {};
-    const pending =
-        ops.pending && typeof ops.pending === "object" ? ops.pending : {};
-    const filters =
-        ops.filters && typeof ops.filters === "object" ? ops.filters : {};
+    const create = (ops.create && typeof ops.create === "object"
+        ? ops.create
+        : {}) as AccessConfig["operations"]["create"];
+    const pending = (ops.pending && typeof ops.pending === "object"
+        ? ops.pending
+        : {}) as AccessConfig["operations"]["pending"];
+    const filters = (ops.filters && typeof ops.filters === "object"
+        ? ops.filters
+        : {}) as AccessConfig["operations"]["filters"];
 
     base.operations.create.ferie = toBool(
         create.ferie,

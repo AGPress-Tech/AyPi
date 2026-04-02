@@ -24,14 +24,26 @@ function applyCalendarButtonStyles(document: Document) {
             baseBackground: isDark ? "#15181d" : isAyPi ? "#2b2824" : "#ffffff",
             baseBorder: isDark ? "#2b2f36" : isAyPi ? "#4a433d" : "#dadce0",
             baseColor: isDark ? "#8ab4f8" : isAyPi ? "#f3e6d5" : "#1a73e8",
-            hoverBackground: isDark ? "#1a1e24" : isAyPi ? "#3a3932" : "#f6f8fe",
+            hoverBackground: isDark
+                ? "#1a1e24"
+                : isAyPi
+                  ? "#3a3932"
+                  : "#f6f8fe",
             hoverBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
-            activeBackground: isDark ? "#1f2937" : isAyPi ? "#3a3328" : "#e8f0fe",
+            activeBackground: isDark
+                ? "#1f2937"
+                : isAyPi
+                  ? "#3a3328"
+                  : "#e8f0fe",
             activeBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
-            baseShadow: isDark ? "none" : isAyPi ? "0 2px 6px rgba(0, 0, 0, 0.45)" : "0 1px 2px rgba(60, 64, 67, 0.15)",
+            baseShadow: isDark
+                ? "none"
+                : isAyPi
+                  ? "0 2px 6px rgba(0, 0, 0, 0.45)"
+                  : "0 1px 2px rgba(60, 64, 67, 0.15)",
         };
     };
-    const buttons = root.querySelectorAll(".fc .fc-button");
+    const buttons = root.querySelectorAll<HTMLButtonElement>(".fc .fc-button");
     buttons.forEach((btn) => {
         const palette = getPalette();
         btn.style.background = palette.baseBackground;
@@ -42,7 +54,8 @@ function applyCalendarButtonStyles(document: Document) {
         btn.style.fontSize = "13px";
         btn.style.fontWeight = "600";
         btn.style.boxShadow = palette.baseShadow;
-        btn.style.transition = "background 0.15s ease, border-color 0.15s ease, color 0.15s ease";
+        btn.style.transition =
+            "background 0.15s ease, border-color 0.15s ease, color 0.15s ease";
         btn.style.opacity = btn.disabled ? "0.5" : "1";
 
         const setBase = () => {
@@ -115,21 +128,25 @@ function applyCalendarListStyles(document: Document) {
     if (!isDark && !isAyPi) return;
     const dayBg = isAyPi ? "#f0dfbf" : "#f1f3f4";
     const dayText = "#202124";
-    const dayRows = root.querySelectorAll(".fc .fc-list-day");
+    const dayRows = root.querySelectorAll<HTMLElement>(".fc .fc-list-day");
     dayRows.forEach((row) => {
         row.style.background = dayBg;
         row.style.color = dayText;
-        const cells = row.querySelectorAll("th, td");
+        const cells = row.querySelectorAll<HTMLElement>("th, td");
         cells.forEach((cell) => {
             cell.style.background = dayBg;
             cell.style.color = dayText;
         });
-        const texts = row.querySelectorAll(".fc-list-day-text, .fc-list-day-side-text");
+        const texts = row.querySelectorAll<HTMLElement>(
+            ".fc-list-day-text, .fc-list-day-side-text",
+        );
         texts.forEach((text) => {
             text.style.color = dayText;
         });
     });
-    const cushions = root.querySelectorAll(".fc .fc-list-day-cushion");
+    const cushions = root.querySelectorAll<HTMLElement>(
+        ".fc .fc-list-day-cushion",
+    );
     cushions.forEach((item) => {
         item.style.background = dayBg;
         item.style.color = dayText;
@@ -142,16 +159,18 @@ function applyCalendarListHoverStyles(document: Document) {
     const isDark = document.body.classList.contains("fp-dark");
     const isAyPi = document.body.classList.contains("fp-aypi");
     const hoverBg = isAyPi ? "#3a3328" : isDark ? "#2a3037" : "#eef2ff";
-    const rows = root.querySelectorAll(".fc .fc-list-table tbody tr.fc-list-event");
+    const rows = root.querySelectorAll<HTMLElement>(
+        ".fc .fc-list-table tbody tr.fc-list-event",
+    );
     rows.forEach((row) => {
         if (row.dataset.fpHoverBound) return;
         row.addEventListener("mouseenter", () => {
-            row.querySelectorAll("td").forEach((cell) => {
+            row.querySelectorAll<HTMLElement>("td").forEach((cell) => {
                 cell.style.background = hoverBg;
             });
         });
         row.addEventListener("mouseleave", () => {
-            row.querySelectorAll("td").forEach((cell) => {
+            row.querySelectorAll<HTMLElement>("td").forEach((cell) => {
                 cell.style.background = "";
             });
         });
@@ -199,8 +218,16 @@ function initCalendar(options: CalendarOptions) {
             listWeek: "Lista",
         },
         businessHours: [
-            { daysOfWeek: [1, 2, 3, 4, 5], startTime: "08:00", endTime: "12:00" },
-            { daysOfWeek: [1, 2, 3, 4, 5], startTime: "13:30", endTime: "17:30" },
+            {
+                daysOfWeek: [1, 2, 3, 4, 5],
+                startTime: "08:00",
+                endTime: "12:00",
+            },
+            {
+                daysOfWeek: [1, 2, 3, 4, 5],
+                startTime: "13:30",
+                endTime: "17:30",
+            },
         ],
         eventTimeFormat: {
             hour: "2-digit",
@@ -210,7 +237,11 @@ function initCalendar(options: CalendarOptions) {
         dateClick: (info: any) => {
             const event = info?.jsEvent;
             const target = event?.target;
-            if (target && target.closest && !target.closest(".fc-daygrid-day-number")) {
+            if (
+                target &&
+                target.closest &&
+                !target.closest(".fc-daygrid-day-number")
+            ) {
                 return;
             }
             if (!event || event.detail !== 2) return;
@@ -222,7 +253,10 @@ function initCalendar(options: CalendarOptions) {
             }, 0);
         },
         eventClick: (info: any) => {
-            if (info?.event?.extendedProps?.isHoliday || info?.event?.extendedProps?.isClosure) {
+            if (
+                info?.event?.extendedProps?.isHoliday ||
+                info?.event?.extendedProps?.isClosure
+            ) {
                 return;
             }
             if (typeof onEventSelect === "function") {
@@ -231,8 +265,13 @@ function initCalendar(options: CalendarOptions) {
         },
         eventDidMount: (info: any) => {
             if (!info || !info.el) return;
-            if (info.event?.extendedProps?.isHoliday || info.event?.extendedProps?.isClosure) {
-                const name = info.event?.extendedProps?.holidayName || info.event?.extendedProps?.closureName;
+            if (
+                info.event?.extendedProps?.isHoliday ||
+                info.event?.extendedProps?.isClosure
+            ) {
+                const name =
+                    info.event?.extendedProps?.holidayName ||
+                    info.event?.extendedProps?.closureName;
                 if (name) {
                     info.el.title = name;
                 }
@@ -240,7 +279,7 @@ function initCalendar(options: CalendarOptions) {
             }
             if (typeof getRequestById === "function") {
                 const request = getRequestById(info.event?.id);
-                if (request) {
+                if (request && typeof buildHoverText === "function") {
                     info.el.title = buildHoverText(request);
                 }
             }
@@ -267,7 +306,10 @@ function initCalendar(options: CalendarOptions) {
                 applyCalendarListHoverStyles(document);
                 return;
             }
-            if (typeof getHandlingListRedirect === "function" && getHandlingListRedirect()) {
+            if (
+                typeof getHandlingListRedirect === "function" &&
+                getHandlingListRedirect()
+            ) {
                 if (typeof setHandlingListRedirect === "function") {
                     setHandlingListRedirect(false);
                 }
@@ -310,13 +352,20 @@ export {
 };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        applyCalendarButtonStyles,
-        applyCalendarListStyles,
-        applyCalendarListHoverStyles,
-        initCalendar,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            applyCalendarButtonStyles,
+            applyCalendarListStyles,
+            applyCalendarListHoverStyles,
+            initCalendar,
+        };
 }
-
-

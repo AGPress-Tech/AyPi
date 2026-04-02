@@ -43,7 +43,7 @@ function getExportDates(request: RequestLike) {
 export function buildExportRows(
     requests: RequestLike[],
     holidays: HolidayLike[] | null | undefined,
-    closures: ClosureLike[] | null | undefined
+    closures: ClosureLike[] | null | undefined,
 ) {
     return requests.map((request) => {
         const { startValue, endValue } = getExportDates(request);
@@ -68,22 +68,35 @@ export function buildExportRows(
             Ore: hours,
             "Ore Mutua": mutuaHours,
             "Ore Infortunio": infortunioHours,
-            Tipo: getTypeLabel(request.type),
+            Tipo: getTypeLabel(request.type || ""),
             Stato: status,
-            "Approvato da": isMutua || isInfortunio ? "" : request.approvedBy || "",
-            "Inserito da": isMutua || isInfortunio ? request.approvedBy || "" : "",
+            "Approvato da":
+                isMutua || isInfortunio ? "" : request.approvedBy || "",
+            "Inserito da":
+                isMutua || isInfortunio ? request.approvedBy || "" : "",
             "Modificato da": request.modifiedBy || "",
             "Rifiutato da": request.rejectedBy || "",
-            "Rifiutato il": request.rejectedAt ? new Date(request.rejectedAt) : "",
+            "Rifiutato il": request.rejectedAt
+                ? new Date(request.rejectedAt)
+                : "",
             "Eliminato da": request.deletedBy || "",
-            "Eliminato il": request.deletedAt ? new Date(request.deletedAt) : "",
+            "Eliminato il": request.deletedAt
+                ? new Date(request.deletedAt)
+                : "",
         };
     });
 }
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { buildExportRows };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { buildExportRows };
 }
-
-

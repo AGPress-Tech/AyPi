@@ -8,7 +8,11 @@ type HolidaysModalOptions = {
     document: Document;
     showModal: (el: HTMLElement | null) => void;
     hideModal: (el: HTMLElement | null) => void;
-    setMessage: (el: HTMLElement | null, message: string, isError?: boolean) => void;
+    setMessage: (
+        el: HTMLElement | null,
+        message: string,
+        isError?: boolean,
+    ) => void;
     syncData: (updater: (payload: any) => any) => any;
     renderAll: (data: any) => void;
     loadData: () => any;
@@ -86,7 +90,10 @@ function createHolidaysModal(options: HolidaysModalOptions) {
             .filter(Boolean) as HolidayEntry[];
     }
 
-    function renderHolidayList(payload: HolidaysPayload, options: { containerId?: string; futureOnly?: boolean } = {}) {
+    function renderHolidayList(
+        payload: HolidaysPayload,
+        options: { containerId?: string; futureOnly?: boolean } = {},
+    ) {
         const listId = options.containerId || "fp-holidays-future-list";
         const list = document.getElementById(listId);
         if (!list) return;
@@ -173,6 +180,8 @@ function createHolidaysModal(options: HolidaysModalOptions) {
                 run();
             });
 
+            let saveBtn: HTMLButtonElement | null = null;
+
             if (editingDate === date) {
                 const wrapper = document.createElement("div");
                 wrapper.className = "fp-holidays-row__edit";
@@ -180,10 +189,11 @@ function createHolidaysModal(options: HolidaysModalOptions) {
                 input.type = "date";
                 input.className = "fp-field__input";
                 input.value = date;
+                saveBtn = document.createElement("button");
                 input.addEventListener("keydown", (event) => {
                     if (event.key === "Enter") {
                         event.preventDefault();
-                        saveBtn.click();
+                        saveBtn?.click();
                     }
                 });
                 const nameInput = document.createElement("input");
@@ -202,14 +212,17 @@ function createHolidaysModal(options: HolidaysModalOptions) {
                 actions.dataset.editing = "true";
             }
 
-            if (editingDate === date) {
-                const saveBtn = document.createElement("button");
+            if (editingDate === date && saveBtn) {
                 saveBtn.type = "button";
                 saveBtn.className = "fp-btn fp-btn--primary";
                 saveBtn.textContent = "Salva";
                 saveBtn.addEventListener("click", async () => {
-                    const input = row.querySelector("input[type='date']") as HTMLInputElement | null;
-                    const nameInput = row.querySelector("input[type='text']") as HTMLInputElement | null;
+                    const input = row.querySelector(
+                        "input[type='date']",
+                    ) as HTMLInputElement | null;
+                    const nameInput = row.querySelector(
+                        "input[type='text']",
+                    ) as HTMLInputElement | null;
                     const nextValue = input ? input.value : "";
                     const nextName = nameInput ? nameInput.value.trim() : "";
                     if (!nextValue) {
@@ -270,11 +283,21 @@ function createHolidaysModal(options: HolidaysModalOptions) {
     }
 
     function openHolidaysModal(dateToHighlight?: string) {
-        const modal = document.getElementById("fp-holidays-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-holidays-message") as HTMLElement | null;
-        const startInput = document.getElementById("fp-holidays-start") as HTMLInputElement | null;
-        const endInput = document.getElementById("fp-holidays-end") as HTMLInputElement | null;
-        const nameInput = document.getElementById("fp-holidays-name") as HTMLInputElement | null;
+        const modal = document.getElementById(
+            "fp-holidays-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-holidays-message",
+        ) as HTMLElement | null;
+        const startInput = document.getElementById(
+            "fp-holidays-start",
+        ) as HTMLInputElement | null;
+        const endInput = document.getElementById(
+            "fp-holidays-end",
+        ) as HTMLInputElement | null;
+        const nameInput = document.getElementById(
+            "fp-holidays-name",
+        ) as HTMLInputElement | null;
         if (!modal) return;
         highlightDate = dateToHighlight || null;
         editingDate = null;
@@ -286,7 +309,9 @@ function createHolidaysModal(options: HolidaysModalOptions) {
     }
 
     function openHolidaysListModal(dateToHighlight?: string) {
-        const modal = document.getElementById("fp-holidays-list-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-holidays-list-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         highlightDate = dateToHighlight || null;
         editingDate = null;
@@ -298,7 +323,7 @@ function createHolidaysModal(options: HolidaysModalOptions) {
         if (highlightDate) {
             const target = document.querySelector(
                 ".fp-holidays-row.is-highlight",
-            );
+            ) as HTMLElement | null;
             if (target) {
                 target.scrollIntoView({ block: "nearest" });
             }
@@ -307,23 +332,47 @@ function createHolidaysModal(options: HolidaysModalOptions) {
     }
 
     function closeHolidaysModal() {
-        const modal = document.getElementById("fp-holidays-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-holidays-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
     }
 
     function initHolidaysModal() {
-        const openBtn = document.getElementById("fp-holidays-manage") as HTMLButtonElement | null;
-        const listOpenBtn = document.getElementById("fp-holidays-list-open") as HTMLButtonElement | null;
-        const listCloseBtn = document.getElementById("fp-holidays-list-close") as HTMLButtonElement | null;
-        const closeBtn = document.getElementById("fp-holidays-close") as HTMLButtonElement | null;
-        const addBtn = document.getElementById("fp-holidays-add") as HTMLButtonElement | null;
-        const startInput = document.getElementById("fp-holidays-start") as HTMLInputElement | null;
-        const endInput = document.getElementById("fp-holidays-end") as HTMLInputElement | null;
-        const nameInput = document.getElementById("fp-holidays-name") as HTMLInputElement | null;
-        const message = document.getElementById("fp-holidays-message") as HTMLElement | null;
-        const modal = document.getElementById("fp-holidays-modal") as HTMLElement | null;
-        const listModal = document.getElementById("fp-holidays-list-modal") as HTMLElement | null;
+        const openBtn = document.getElementById(
+            "fp-holidays-manage",
+        ) as HTMLButtonElement | null;
+        const listOpenBtn = document.getElementById(
+            "fp-holidays-list-open",
+        ) as HTMLButtonElement | null;
+        const listCloseBtn = document.getElementById(
+            "fp-holidays-list-close",
+        ) as HTMLButtonElement | null;
+        const closeBtn = document.getElementById(
+            "fp-holidays-close",
+        ) as HTMLButtonElement | null;
+        const addBtn = document.getElementById(
+            "fp-holidays-add",
+        ) as HTMLButtonElement | null;
+        const startInput = document.getElementById(
+            "fp-holidays-start",
+        ) as HTMLInputElement | null;
+        const endInput = document.getElementById(
+            "fp-holidays-end",
+        ) as HTMLInputElement | null;
+        const nameInput = document.getElementById(
+            "fp-holidays-name",
+        ) as HTMLInputElement | null;
+        const message = document.getElementById(
+            "fp-holidays-message",
+        ) as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-holidays-modal",
+        ) as HTMLElement | null;
+        const listModal = document.getElementById(
+            "fp-holidays-list-modal",
+        ) as HTMLElement | null;
 
         if (openBtn) {
             openBtn.addEventListener("click", () => {
@@ -422,8 +471,15 @@ function createHolidaysModal(options: HolidaysModalOptions) {
 export { createHolidaysModal };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createHolidaysModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createHolidaysModal };
 }
-
-

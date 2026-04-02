@@ -10,7 +10,9 @@ function getElements(selectEl: HTMLSelectElement) {
     if (!wrapper) return null;
     return {
         wrapper,
-        button: wrapper.querySelector<HTMLButtonElement>(".fp-custom-select__button"),
+        button: wrapper.querySelector<HTMLButtonElement>(
+            ".fp-custom-select__button",
+        ),
         list: wrapper.querySelector<HTMLDivElement>(".fp-custom-select__list"),
     };
 }
@@ -20,10 +22,16 @@ function closeSelect(wrapper: HTMLElement | null) {
     wrapper.classList.remove("is-open");
 }
 
-function updateButton(selectEl: HTMLSelectElement, button: HTMLButtonElement | null) {
+function updateButton(
+    selectEl: HTMLSelectElement,
+    button: HTMLButtonElement | null,
+) {
     if (!selectEl || !button) return;
     const selected = selectEl.selectedOptions?.[0];
-    const label = selected && selected.value ? selected.textContent : selected?.textContent || "";
+    const label =
+        selected && selected.value
+            ? selected.textContent
+            : selected?.textContent || "";
     button.textContent = label || "Seleziona";
     button.dataset.value = selected?.value || "";
     button.classList.toggle("is-placeholder", !selected || !selected.value);
@@ -51,8 +59,13 @@ function syncCustomSelect(selectEl: HTMLSelectElement) {
             selectEl.value = opt.value;
             selectEl.dispatchEvent(new Event("change", { bubbles: true }));
             updateButton(selectEl, button);
-            Array.from(list.querySelectorAll(".fp-custom-select__option")).forEach((btn) => {
-                btn.classList.toggle("is-selected", btn.dataset.value === opt.value);
+            Array.from(
+                list.querySelectorAll<HTMLElement>(".fp-custom-select__option"),
+            ).forEach((btn) => {
+                btn.classList.toggle(
+                    "is-selected",
+                    btn.dataset.value === opt.value,
+                );
             });
             closeSelect(elements.wrapper);
         });
@@ -112,8 +125,13 @@ function ensureCustomSelect(selectEl: HTMLSelectElement) {
 
     selectEl.addEventListener("change", () => {
         updateButton(selectEl, button);
-        Array.from(list.querySelectorAll(".fp-custom-select__option")).forEach((optionBtn) => {
-            optionBtn.classList.toggle("is-selected", optionBtn.dataset.value === selectEl.value);
+        Array.from(
+            list.querySelectorAll<HTMLElement>(".fp-custom-select__option"),
+        ).forEach((optionBtn) => {
+            optionBtn.classList.toggle(
+                "is-selected",
+                optionBtn.dataset.value === selectEl.value,
+            );
         });
     });
 
@@ -125,27 +143,39 @@ function ensureCustomSelect(selectEl: HTMLSelectElement) {
     syncCustomSelect(selectEl);
 }
 
-function initCustomSelects({ document, selector }: { document: Document; selector: string }) {
+function initCustomSelects({
+    document,
+    selector,
+}: {
+    document: Document;
+    selector: string;
+}) {
     if (!document || !selector) return;
-    document.querySelectorAll<HTMLSelectElement>(selector).forEach((selectEl) => {
-        if (selectEl.dataset && selectEl.dataset.fpCustomSelect === "1") return;
-        ensureCustomSelect(selectEl);
-    });
+    document
+        .querySelectorAll<HTMLSelectElement>(selector)
+        .forEach((selectEl) => {
+            if (selectEl.dataset && selectEl.dataset.fpCustomSelect === "1")
+                return;
+            ensureCustomSelect(selectEl);
+        });
 }
 
-export {
-    ensureCustomSelect,
-    syncCustomSelect,
-    initCustomSelects,
-};
+export { ensureCustomSelect, syncCustomSelect, initCustomSelects };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        ensureCustomSelect,
-        syncCustomSelect,
-        initCustomSelects,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            ensureCustomSelect,
+            syncCustomSelect,
+            initCustomSelects,
+        };
 }
-
-

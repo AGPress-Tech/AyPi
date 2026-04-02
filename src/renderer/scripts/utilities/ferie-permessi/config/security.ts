@@ -92,3 +92,12 @@ if (typeof module !== "undefined" && module.exports && !(globalThis as any).__ay
     verifyPasswordHash,
 };
 
+export {
+    getAuthenticator,
+    otpState,
+    resetOtpState,
+    isHashingAvailable,
+    hashPassword,
+    verifyPasswordHash,
+};
+

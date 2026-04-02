@@ -98,7 +98,7 @@ function createPendingPanel(options: PendingPanelOptions) {
             card.appendChild(title);
 
             const meta = document.createElement("p");
-            meta.textContent = getTypeLabel(request.type);
+            meta.textContent = getTypeLabel(request.type || "");
             card.appendChild(meta);
 
             card.appendChild(createRangeLine(document, request));
@@ -134,7 +134,7 @@ function createPendingPanel(options: PendingPanelOptions) {
                     }
                     const updated = syncData((payload) => {
                         const target = (payload.requests || []).find(
-                            (req) => req.id === request.id,
+                            (req: RequestLike) => req.id === request.id,
                         );
                         if (target) {
                             target.status = "approved";
@@ -180,7 +180,7 @@ function createPendingPanel(options: PendingPanelOptions) {
                 const run = () => {
                     const updated = syncData((payload) => {
                         const target = (payload.requests || []).find(
-                            (req) => req.id === request.id,
+                            (req: RequestLike) => req.id === request.id,
                         );
                         if (target) {
                             target.status = "rejected";

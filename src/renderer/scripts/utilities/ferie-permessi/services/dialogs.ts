@@ -2,7 +2,7 @@
 require("../../../shared/dev-guards");
 import { ipcRenderer } from "electron";
 
-export function showDialog(type, message, detail = "", buttons) {
+export function showDialog(type, message, detail = "", buttons?: string[]) {
     return ipcRenderer.invoke("show-message-box", {
         type,
         message,

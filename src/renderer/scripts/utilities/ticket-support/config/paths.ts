@@ -42,4 +42,12 @@ if (typeof module !== "undefined" && module.exports && !(globalThis as any).__ay
     CATEGORIES_PATH,
 };
 
+export {
+    BASE_DIR,
+    TICKET_DIR,
+    TICKET_YEARS_DIR,
+    DATA_PATH,
+    CATEGORIES_PATH,
+};
+
 

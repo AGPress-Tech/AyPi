@@ -7,7 +7,11 @@ type ConfigModalOptions = {
     document: Document;
     showModal: (el: HTMLElement | null) => void;
     hideModal: (el: HTMLElement | null) => void;
-    setMessage?: (el: HTMLElement | null, message: string, isError?: boolean) => void;
+    setMessage?: (
+        el: HTMLElement | null,
+        message: string,
+        isError?: boolean,
+    ) => void;
     loadAccessConfig?: () => AccessConfig;
     saveAccessConfig?: (config: AccessConfig) => void;
     normalizeAccessConfig?: (config: AccessConfig) => AccessConfig;
@@ -56,25 +60,31 @@ function createConfigModal(options: ConfigModalOptions) {
     function getConfigValue(config: AccessConfig, path: string[]) {
         if (!config || !config.operations) return false;
         if (path.length === 1) {
-            return !!config.operations[path[0]];
+            return !!(config.operations as Record<string, any>)[path[0]];
         }
-        const parent = config.operations[path[0]] || {};
+        const parent =
+            (config.operations as Record<string, any>)[path[0]] || {};
         return !!parent[path[1]];
     }
 
-    function setConfigValue(config: AccessConfig, path: string[], value: boolean) {
+    function setConfigValue(
+        config: AccessConfig,
+        path: string[],
+        value: boolean,
+    ) {
         if (!config || !config.operations) return;
         if (path.length === 1) {
-            config.operations[path[0]] = !!value;
+            (config.operations as Record<string, any>)[path[0]] = !!value;
             return;
         }
         if (
-            !config.operations[path[0]] ||
-            typeof config.operations[path[0]] !== "object"
+            !(config.operations as Record<string, any>)[path[0]] ||
+            typeof (config.operations as Record<string, any>)[path[0]] !==
+                "object"
         ) {
-            config.operations[path[0]] = {};
+            (config.operations as Record<string, any>)[path[0]] = {};
         }
-        config.operations[path[0]][path[1]] = !!value;
+        (config.operations as Record<string, any>)[path[0]][path[1]] = !!value;
     }
 
     function readConfigFromUI(config: AccessConfig) {
@@ -95,8 +105,12 @@ function createConfigModal(options: ConfigModalOptions) {
     }
 
     function openConfigModal() {
-        const modal = document.getElementById("fp-config-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-config-message") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-config-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-config-message",
+        ) as HTMLElement | null;
         if (!modal) return;
         const current =
             typeof loadAccessConfig === "function"
@@ -112,17 +126,29 @@ function createConfigModal(options: ConfigModalOptions) {
     }
 
     function closeConfigModal() {
-        const modal = document.getElementById("fp-config-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-config-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
     }
 
     function initConfigModal() {
-        const closeBtn = document.getElementById("fp-config-close") as HTMLButtonElement | null;
-        const saveBtn = document.getElementById("fp-config-save") as HTMLButtonElement | null;
-        const resetBtn = document.getElementById("fp-config-reset") as HTMLButtonElement | null;
-        const modal = document.getElementById("fp-config-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-config-message") as HTMLElement | null;
+        const closeBtn = document.getElementById(
+            "fp-config-close",
+        ) as HTMLButtonElement | null;
+        const saveBtn = document.getElementById(
+            "fp-config-save",
+        ) as HTMLButtonElement | null;
+        const resetBtn = document.getElementById(
+            "fp-config-reset",
+        ) as HTMLButtonElement | null;
+        const modal = document.getElementById(
+            "fp-config-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-config-message",
+        ) as HTMLElement | null;
 
         if (closeBtn) {
             closeBtn.addEventListener("click", () => {
@@ -178,8 +204,15 @@ function createConfigModal(options: ConfigModalOptions) {
 export { createConfigModal };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createConfigModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createConfigModal };
 }
-
-

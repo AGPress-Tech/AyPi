@@ -18,11 +18,24 @@ type BalanceImpact = {
 
 type RequestFormOptions = {
     document: Document;
-    setMessage: (el: HTMLElement | null, message: string, isError?: boolean) => void;
+    setMessage: (
+        el: HTMLElement | null,
+        message: string,
+        isError?: boolean,
+    ) => void;
     setInlineError: (id: string, message: string) => void;
     toggleAllDayState: (checked: boolean) => void;
-    updateAllDayLock: (startDate: HTMLInputElement | null, endDate: HTMLInputElement | null, allDayToggle: HTMLInputElement | null, formPrefix: string) => void;
-    buildRequestFromForm: (prefix: string, original: RequestLike | null, isEdit: boolean) => { request: RequestLike; error?: string };
+    updateAllDayLock: (
+        startDate: HTMLInputElement | null,
+        endDate: HTMLInputElement | null,
+        allDayToggle: HTMLInputElement | null,
+        formPrefix: string,
+    ) => void;
+    buildRequestFromForm: (
+        prefix: string,
+        original: RequestLike | null,
+        isEdit: boolean,
+    ) => { request: RequestLike; error?: string };
     escapeHtml: (value: string) => string;
     getTypeLabel: (value: string) => string;
     formatDate: (value: string) => string;
@@ -30,7 +43,13 @@ type RequestFormOptions = {
     openConfirmModal: (message: string) => Promise<boolean>;
     confirmNegativeBalance: (impact: BalanceImpact) => Promise<boolean>;
     getBalanceImpact: (request: RequestLike) => BalanceImpact;
-    openPasswordModal: (payload: { type: string; id?: string; title?: string; description?: string; request?: RequestLike }) => void;
+    openPasswordModal: (payload: {
+        type: string;
+        id?: string;
+        title?: string;
+        description?: string;
+        request?: RequestLike;
+    }) => void;
     requireAdminAccess: (run: () => void) => void;
     isAdminRequiredForCreate: (type: string) => boolean;
     onDirectMutuaCreate: (request: RequestLike) => void;
@@ -78,14 +97,30 @@ function createRequestForm(options: RequestFormOptions) {
     function resetNewRequestForm() {
         const now = new Date();
         const today = now.toISOString().slice(0, 10);
-        const startDate = document.getElementById("fp-start-date") as HTMLInputElement | null;
-        const endDate = document.getElementById("fp-end-date") as HTMLInputElement | null;
-        const startTime = document.getElementById("fp-start-time") as HTMLInputElement | null;
-        const endTime = document.getElementById("fp-end-time") as HTMLInputElement | null;
-        const allDayToggle = document.getElementById("fp-all-day") as HTMLInputElement | null;
-        const typeSelect = document.getElementById("fp-type") as HTMLSelectElement | null;
-        const departmentSelect = document.getElementById("fp-department") as HTMLSelectElement | null;
-        const employeeSelect = document.getElementById("fp-employee") as HTMLSelectElement | null;
+        const startDate = document.getElementById(
+            "fp-start-date",
+        ) as HTMLInputElement | null;
+        const endDate = document.getElementById(
+            "fp-end-date",
+        ) as HTMLInputElement | null;
+        const startTime = document.getElementById(
+            "fp-start-time",
+        ) as HTMLInputElement | null;
+        const endTime = document.getElementById(
+            "fp-end-time",
+        ) as HTMLInputElement | null;
+        const allDayToggle = document.getElementById(
+            "fp-all-day",
+        ) as HTMLInputElement | null;
+        const typeSelect = document.getElementById(
+            "fp-type",
+        ) as HTMLSelectElement | null;
+        const departmentSelect = document.getElementById(
+            "fp-department",
+        ) as HTMLSelectElement | null;
+        const employeeSelect = document.getElementById(
+            "fp-employee",
+        ) as HTMLSelectElement | null;
 
         if (startDate) startDate.value = today;
         if (endDate) endDate.value = today;
@@ -112,11 +147,21 @@ function createRequestForm(options: RequestFormOptions) {
     }
 
     function initRequestForm() {
-        const startDate = document.getElementById("fp-start-date") as HTMLInputElement | null;
-        const endDate = document.getElementById("fp-end-date") as HTMLInputElement | null;
-        const allDayToggle = document.getElementById("fp-all-day") as HTMLInputElement | null;
-        const startTimeInput = document.getElementById("fp-start-time") as HTMLInputElement | null;
-        const endTimeInput = document.getElementById("fp-end-time") as HTMLInputElement | null;
+        const startDate = document.getElementById(
+            "fp-start-date",
+        ) as HTMLInputElement | null;
+        const endDate = document.getElementById(
+            "fp-end-date",
+        ) as HTMLInputElement | null;
+        const allDayToggle = document.getElementById(
+            "fp-all-day",
+        ) as HTMLInputElement | null;
+        const startTimeInput = document.getElementById(
+            "fp-start-time",
+        ) as HTMLInputElement | null;
+        const endTimeInput = document.getElementById(
+            "fp-end-time",
+        ) as HTMLInputElement | null;
 
         if (allDayToggle) {
             toggleAllDayState(allDayToggle.checked);
@@ -162,8 +207,12 @@ function createRequestForm(options: RequestFormOptions) {
             endDate.addEventListener("change", normalizeDates);
         }
 
-        const form = document.getElementById("fp-request-form") as HTMLFormElement | null;
-        const message = document.getElementById("fp-form-message") as HTMLElement | null;
+        const form = document.getElementById(
+            "fp-request-form",
+        ) as HTMLFormElement | null;
+        const message = document.getElementById(
+            "fp-form-message",
+        ) as HTMLElement | null;
         const saveRequest = async () => {
             setMessage(message, "");
             setInlineError("fp-end-date-error", "");
@@ -192,15 +241,15 @@ function createRequestForm(options: RequestFormOptions) {
                         ? UI_TEXTS.mutuaConfirm(startLabel, endLabel)
                         : request.type === "infortunio"
                           ? UI_TEXTS.infortunioConfirm(startLabel, endLabel)
-                        : request.type === "retribuito"
-                          ? UI_TEXTS.retribuitoConfirm(startLabel, endLabel)
-                          : request.type === "speciale"
-                            ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
-                            : UI_TEXTS.requestConfirm(
-                                  typeLabel,
-                                  startLabel,
-                                  endLabel,
-                              );
+                          : request.type === "retribuito"
+                            ? UI_TEXTS.retribuitoConfirm(startLabel, endLabel)
+                            : request.type === "speciale"
+                              ? UI_TEXTS.specialeConfirm(startLabel, endLabel)
+                              : UI_TEXTS.requestConfirm(
+                                    typeLabel,
+                                    startLabel,
+                                    endLabel,
+                                );
                 const confirmed = await openConfirmModal(confirmMessage);
                 if (!confirmed) {
                     return;
@@ -307,7 +356,7 @@ function createRequestForm(options: RequestFormOptions) {
 
             const adminRequired =
                 typeof isAdminRequiredForCreate === "function"
-                    ? !!isAdminRequiredForCreate(request.type)
+                    ? !!isAdminRequiredForCreate(request.type || "")
                     : false;
             if (adminRequired && typeof requireAdminAccess === "function") {
                 requireAdminAccess(() => {
@@ -322,14 +371,18 @@ function createRequestForm(options: RequestFormOptions) {
                 event.preventDefault();
             });
         }
-        const saveBtn = document.getElementById("fp-request-save") as HTMLButtonElement | null;
+        const saveBtn = document.getElementById(
+            "fp-request-save",
+        ) as HTMLButtonElement | null;
         if (saveBtn) {
             saveBtn.addEventListener("click", () => {
                 saveRequest();
             });
         }
 
-        const refreshBtn = document.getElementById("fp-refresh") as HTMLButtonElement | null;
+        const refreshBtn = document.getElementById(
+            "fp-refresh",
+        ) as HTMLButtonElement | null;
         if (refreshBtn) {
             refreshBtn.addEventListener("click", () => {
                 refreshData();
@@ -343,8 +396,15 @@ function createRequestForm(options: RequestFormOptions) {
 export { createRequestForm };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createRequestForm };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createRequestForm };
 }
-
-

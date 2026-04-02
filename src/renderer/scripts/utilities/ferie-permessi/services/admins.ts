@@ -30,12 +30,12 @@ function loadAdminCredentials(): AdminEntry[] {
         if (Array.isArray(parsed)) {
             return parsed
                 .filter(
-                    (item) =>
+                    (item: any) =>
                         item &&
                         item.name &&
                         (item.password || item.passwordHash),
                 )
-                .map((item): AdminEntry => ({
+                .map((item: any): AdminEntry => ({
                     name: String(item.name),
                     password: item.password ? String(item.password) : undefined,
                     passwordHash: item.passwordHash
@@ -56,12 +56,12 @@ function loadAdminCredentials(): AdminEntry[] {
         if (parsed && Array.isArray(parsed.admins)) {
             return parsed.admins
                 .filter(
-                    (item) =>
+                    (item: any) =>
                         item &&
                         item.name &&
                         (item.password || item.passwordHash),
                 )
-                .map((item): AdminEntry => ({
+                .map((item: any): AdminEntry => ({
                     name: String(item.name),
                     password: item.password ? String(item.password) : undefined,
                     passwordHash: item.passwordHash
@@ -80,7 +80,7 @@ function loadAdminCredentials(): AdminEntry[] {
                 }));
         }
         if (parsed && typeof parsed === "object") {
-            return Object.entries(parsed)
+            return (Object.entries(parsed) as Array<[string, any]>)
                 .filter(([name, password]) => name && password)
                 .map(([name, password]) => {
                     const value = String(password);
