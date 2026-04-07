@@ -12,8 +12,18 @@ const {
     isValidEmail,
     isValidPhone,
 } = require("./ferie-permessi/services/admins");
-const { isMailerAvailable, getMailerError, sendOtpEmail } = require("./ferie-permessi/services/otp-mail");
-const { getAuthenticator, otpState, resetOtpState, isHashingAvailable, hashPassword } = require("./ferie-permessi/config/security");
+const {
+    isMailerAvailable,
+    getMailerError,
+    sendOtpEmail,
+} = require("./ferie-permessi/services/otp-mail");
+const {
+    getAuthenticator,
+    otpState,
+    resetOtpState,
+    isHashingAvailable,
+    hashPassword,
+} = require("./ferie-permessi/config/security");
 const sharedDialogs = require("../shared/dialogs");
 
 let adminCache = [];
@@ -111,11 +121,15 @@ async function confirmPassword() {
 
     const targetName = action?.adminName || action?.id || "";
     const checkAny = action.type === "admin-access";
-    const result = await verifyAdminPassword(password, checkAny ? undefined : (targetName || undefined));
+    const result = await verifyAdminPassword(
+        password,
+        checkAny ? undefined : targetName || undefined,
+    );
     if (!result || !result.admin) {
         if (error) error.classList.remove("is-hidden");
         passwordFailCount += 1;
-        if (recover && passwordFailCount >= 3) recover.classList.remove("is-hidden");
+        if (recover && passwordFailCount >= 3)
+            recover.classList.remove("is-hidden");
         return;
     }
 
@@ -133,7 +147,11 @@ async function confirmPassword() {
         const adminName = action.adminName || "";
         adminCache = adminCache.length ? adminCache : loadAdminCredentials();
         if (adminCache.length <= 1) {
-            setAdminMessage("fp-admin-message", UI_TEXTS.adminMinRequired, true);
+            setAdminMessage(
+                "fp-admin-message",
+                UI_TEXTS.adminMinRequired,
+                true,
+            );
             return;
         }
         adminCache = adminCache.filter((item) => item.name !== adminName);
@@ -148,7 +166,10 @@ function initPasswordModal() {
     const confirm = document.getElementById("fp-approve-confirm");
     const recover = document.getElementById("fp-approve-recover");
     const input = document.getElementById("fp-approve-password");
-    if (cancel) cancel.addEventListener("click", () => hideModal(document.getElementById("fp-approve-modal")));
+    if (cancel)
+        cancel.addEventListener("click", () =>
+            hideModal(document.getElementById("fp-approve-modal")),
+        );
     if (confirm) confirm.addEventListener("click", confirmPassword);
     if (recover) {
         recover.addEventListener("click", () => {
@@ -192,7 +213,8 @@ const adminUi = createAdminModals({
     showModal,
     hideModal,
     setAdminMessage,
-    openConfirmModal: async (message) => window.confirm(String(message || "Confermi?")),
+    openConfirmModal: async (message) =>
+        window.confirm(String(message || "Confermi?")),
     escapeHtml: (value) => String(value || ""),
     openPasswordModal,
     openOtpModal: () => otpUi.openOtpModal(),
@@ -224,14 +246,15 @@ function init() {
     observeModalSizing();
 
     document.getElementById("adm-refresh")?.addEventListener("click", () => {
-        adminCache = loadAdminCredentials().sort((a, b) => a.name.localeCompare(b.name));
+        adminCache = loadAdminCredentials().sort((a, b) =>
+            a.name.localeCompare(b.name),
+        );
         adminUi.renderAdminList();
         setAdminMessage("fp-admin-message", "Dati aggiornati.");
     });
-    document.getElementById("adm-close")?.addEventListener("click", () => window.close());
+    document
+        .getElementById("adm-close")
+        ?.addEventListener("click", () => window.close());
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-
-

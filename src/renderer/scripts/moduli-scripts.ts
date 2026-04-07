@@ -7,8 +7,14 @@ const { ADDRESS_BY_ID } = require("../../main/config/addresses");
 initCommonUI();
 
 const buttons = [
-    "openFornitori", "openDDT", "openManutenzioni", "openTarature",
-    "openModuloStampi", "openMorsetti", "openUtensili", "openTicket"
+    "openFornitori",
+    "openDDT",
+    "openManutenzioni",
+    "openTarature",
+    "openModuloStampi",
+    "openMorsetti",
+    "openUtensili",
+    "openTicket",
 ];
 
 buttons.forEach((id) => {
@@ -40,7 +46,3 @@ if (openTicketV2Btn) {
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
-
-
-
-

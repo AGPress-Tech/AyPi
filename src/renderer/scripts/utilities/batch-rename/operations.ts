@@ -318,10 +318,4 @@ async function handleUndoLast(showInfo, showWarning) {
     setStatus("Ultima operazione annullata (dove possibile).");
 }
 
-export {
-    handleApply,
-    handleOpenFolder,
-    handleUndoLast,
-};
-
-
+export { handleApply, handleOpenFolder, handleUndoLast };

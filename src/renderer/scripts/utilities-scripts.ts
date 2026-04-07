@@ -10,17 +10,30 @@ try {
 } catch (err) {
     console.error("Errore caricamento dialogs:", err);
     showInfo = (message, detail = "") =>
-        ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
+        ipcRenderer.invoke("show-message-box", {
+            type: "info",
+            message,
+            detail,
+        });
     showWarning = (message, detail = "") =>
-        ipcRenderer.invoke("show-message-box", { type: "warning", message, detail });
+        ipcRenderer.invoke("show-message-box", {
+            type: "warning",
+            message,
+            detail,
+        });
     showError = (message, detail = "") =>
-        ipcRenderer.invoke("show-message-box", { type: "error", message, detail });
+        ipcRenderer.invoke("show-message-box", {
+            type: "error",
+            message,
+            detail,
+        });
 }
 const fs = require("fs");
 const path = require("path");
 
 window.addEventListener("error", (event) => {
-    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    const detail =
+        event?.error?.stack || event?.message || "Errore sconosciuto";
     ipcRenderer.invoke("show-message-box", {
         type: "error",
         message: "Errore JS Utilities.",
@@ -30,7 +43,10 @@ window.addEventListener("error", (event) => {
 
 window.addEventListener("unhandledrejection", (event) => {
     const reason = event?.reason;
-    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    const detail =
+        reason?.stack ||
+        reason?.message ||
+        String(reason || "Errore sconosciuto");
     ipcRenderer.invoke("show-message-box", {
         type: "error",
         message: "Errore promessa non gestita (Utilities).",
@@ -55,7 +71,10 @@ function scanFolder(rootPath) {
         try {
             entries = fs.readdirSync(currentPath, { withFileTypes: true });
         } catch (err) {
-            console.error(`Impossibile leggere la cartella: ${currentPath}`, err);
+            console.error(
+                `Impossibile leggere la cartella: ${currentPath}`,
+                err,
+            );
             return;
         }
 
@@ -68,7 +87,7 @@ function scanFolder(rootPath) {
                 results.push({
                     "Nome file": entry.name,
                     "Percorso relativo": path.relative(rootPath, fullPath),
-                    "Percorso completo": path.resolve(fullPath)
+                    "Percorso completo": path.resolve(fullPath),
                 });
             }
         }
@@ -95,7 +114,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         if (!XLSX) {
             await showError(
                 "Modulo 'xlsx' non trovato.",
-                "Esegui 'npm install xlsx' nella cartella del progetto AyPi."
+                "Esegui 'npm install xlsx' nella cartella del progetto AyPi.",
             );
             return;
         }
@@ -107,7 +126,10 @@ window.addEventListener("DOMContentLoaded", async () => {
             try {
                 rootFolder = await ipcRenderer.invoke("select-root-folder");
             } catch (err) {
-                await showError("Errore selezione cartella.", err.message || String(err));
+                await showError(
+                    "Errore selezione cartella.",
+                    err.message || String(err),
+                );
                 return;
             }
             if (!rootFolder) {
@@ -120,10 +142,13 @@ window.addEventListener("DOMContentLoaded", async () => {
             let outputPath;
             try {
                 outputPath = await ipcRenderer.invoke("select-output-file", {
-                    defaultName: "lista_file.xlsx"
+                    defaultName: "lista_file.xlsx",
                 });
             } catch (err) {
-                await showError("Errore selezione file di destinazione.", err.message || String(err));
+                await showError(
+                    "Errore selezione file di destinazione.",
+                    err.message || String(err),
+                );
                 return;
             }
             if (!outputPath) {
@@ -136,7 +161,9 @@ window.addEventListener("DOMContentLoaded", async () => {
             const rows = scanFolder(rootFolder);
 
             if (rows.length === 0) {
-                await showWarning("Nessun file trovato nella cartella selezionata.");
+                await showWarning(
+                    "Nessun file trovato nella cartella selezionata.",
+                );
                 return;
             }
 
@@ -151,16 +178,15 @@ window.addEventListener("DOMContentLoaded", async () => {
 
             XLSX.writeFile(wb, outputPath);
 
-            await showInfo(
-                "File Excel creato con successo.",
-                outputPath
-            );
-
+            await showInfo("File Excel creato con successo.", outputPath);
         } catch (err) {
-            console.error("Errore durante la generazione della lista file:", err);
+            console.error(
+                "Errore durante la generazione della lista file:",
+                err,
+            );
             await showError(
                 "Errore inatteso durante la generazione della lista file.",
-                err.message || String(err)
+                err.message || String(err),
             );
         }
     });
@@ -286,6 +312,3 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
     });
 });
-
-
-

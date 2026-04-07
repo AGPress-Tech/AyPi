@@ -10,15 +10,18 @@ const showInfo = (message, detail = "") =>
 const showError = (message, detail = "") =>
     ipcRenderer.invoke("show-message-box", { type: "error", message, detail });
 
-
 window.addEventListener("error", (event) => {
-    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    const detail =
+        event?.error?.stack || event?.message || "Errore sconosciuto";
     showError("Errore JS Gerarchia cartelle.", detail);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
     const reason = event?.reason;
-    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    const detail =
+        reason?.stack ||
+        reason?.message ||
+        String(reason || "Errore sconosciuto");
     showError("Errore promessa non gestita (Gerarchia).", detail);
 });
 
@@ -26,7 +29,9 @@ let XLSX;
 try {
     XLSX = require("xlsx");
 } catch (err) {
-    console.error("Modulo 'xlsx' non disponibile. Esegui `npm install xlsx` se vuoi l'export.");
+    console.error(
+        "Modulo 'xlsx' non disponibile. Esegui `npm install xlsx` se vuoi l'export.",
+    );
 }
 
 let Chart = null;
@@ -35,7 +40,10 @@ let extChartInstance = null;
 try {
     Chart = require("chart.js/auto");
 } catch (err) {
-    console.warn("Modulo 'chart.js' non disponibile per la timeline:", err && err.message ? err.message : err);
+    console.warn(
+        "Modulo 'chart.js' non disponibile per la timeline:",
+        err && err.message ? err.message : err,
+    );
 }
 
 let selectedFolder = null;
@@ -82,13 +90,20 @@ async function handleSelectFolderHierarchy() {
         isBuildingTree = false;
 
         if (lblSelectedFolder) lblSelectedFolder.textContent = folder;
-        if (treeRootEl) treeRootEl.innerHTML = "<p>Premi 'Avvia scansione' per visualizzare la gerarchia...</p>";
-        if (detailsBox) detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
+        if (treeRootEl)
+            treeRootEl.innerHTML =
+                "<p>Premi 'Avvia scansione' per visualizzare la gerarchia...</p>";
+        if (detailsBox)
+            detailsBox.innerHTML =
+                "<p>Seleziona un nodo per vedere i dettagli.</p>";
 
         console.log("Cartella selezionata:", folder);
     } catch (err) {
         console.error("Errore selezione cartella:", err);
-        await showError("Errore selezione cartella.", err.message || String(err));
+        await showError(
+            "Errore selezione cartella.",
+            err.message || String(err),
+        );
     } finally {
         selectHierarchyInProgress = false;
     }
@@ -192,7 +207,7 @@ const FUN_MESSAGES = [
     "Trasposizione astratta delle strutture fisiche...",
     "Consolidamento delle ipotesi di coerenza globale...",
     "Calibrazione delle aspettative computazionali...",
-    "Finalizzazione del modello di realtà dei dati..."
+    "Finalizzazione del modello di realtà dei dati...",
 ];
 
 let lastFunMessageTime = 0;
@@ -253,7 +268,7 @@ function ensureFolderPath(parts) {
         currentFullPath = path.join(currentFullPath, segment);
 
         let child = node.children.find(
-            (c) => c.type === "folder" && c.name === segment
+            (c) => c.type === "folder" && c.name === segment,
         );
         if (!child) {
             child = {
@@ -291,7 +306,10 @@ function addEntryToTree(entry) {
         if (!parentFolder) return;
 
         const existing = parentFolder.children.find(
-            (c) => c.type === "file" && c.name === fileName && c.fullPath === entry.fullPath
+            (c) =>
+                c.type === "file" &&
+                c.name === fileName &&
+                c.fullPath === entry.fullPath,
         );
         if (existing) return;
 
@@ -345,7 +363,7 @@ function computeFolderStatsRecursiveAsync(node, onProgress, onDone) {
     function step() {
         const start = performance.now();
 
-        while (stack.length > 0 && (performance.now() - start) < CHUNK_TIME_MS) {
+        while (stack.length > 0 && performance.now() - start < CHUNK_TIME_MS) {
             const cur = stack.pop();
 
             if (cur.type === "folder") {
@@ -366,7 +384,9 @@ function computeFolderStatsRecursiveAsync(node, onProgress, onDone) {
         if (onProgress) {
             const remaining = stack.length;
             const progressRatio =
-                totalInitial > 0 ? Math.min(1, processed / (processed + remaining || 1)) : 0;
+                totalInitial > 0
+                    ? Math.min(1, processed / (processed + remaining || 1))
+                    : 0;
             onProgress({
                 folders,
                 files,
@@ -432,7 +452,8 @@ function collectReportData(maxTop = 50) {
 
         if (node.type === "file") {
             const size = typeof node.size === "number" ? node.size : 0;
-            const mtimeMs = typeof node.mtimeMs === "number" ? node.mtimeMs : null;
+            const mtimeMs =
+                typeof node.mtimeMs === "number" ? node.mtimeMs : null;
             totalFiles++;
             totalSizeBytes += size;
 
@@ -513,7 +534,7 @@ function collectReportData(maxTop = 50) {
                     totalSizeBytes: folderInfo.totalSizeBytes,
                 },
                 "totalSizeBytes",
-                maxTop
+                maxTop,
             );
 
             return folderInfo;
@@ -538,43 +559,43 @@ function collectReportData(maxTop = 50) {
         if (!extensionStatsMap[ext]) {
             extensionStatsMap[ext] = {
                 extension: ext,
-                  count: 0,
-                  totalSizeBytes: 0,
-              };
-          }
-          extensionStatsMap[ext].count += 1;
-          extensionStatsMap[ext].totalSizeBytes += f.sizeBytes || 0;
+                count: 0,
+                totalSizeBytes: 0,
+            };
+        }
+        extensionStatsMap[ext].count += 1;
+        extensionStatsMap[ext].totalSizeBytes += f.sizeBytes || 0;
 
-          if (typeof f.mtimeMs === "number") {
-              const d = new Date(f.mtimeMs);
-              const key =
-                  d.getFullYear() +
-                  "-" +
-                  String(d.getMonth() + 1).padStart(2, "0");
-              timeBucketsMap[key] = (timeBucketsMap[key] || 0) + 1;
-          }
-      }
+        if (typeof f.mtimeMs === "number") {
+            const d = new Date(f.mtimeMs);
+            const key =
+                d.getFullYear() +
+                "-" +
+                String(d.getMonth() + 1).padStart(2, "0");
+            timeBucketsMap[key] = (timeBucketsMap[key] || 0) + 1;
+        }
+    }
 
-      const extensionStats = Object.values(extensionStatsMap).sort(
-          (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0)
-      );
+    const extensionStats = Object.values(extensionStatsMap).sort(
+        (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0),
+    );
 
-      const timeBuckets = Object.entries(timeBucketsMap)
-          .map(([label, count]) => ({ label, count }))
-          .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+    const timeBuckets = Object.entries(timeBucketsMap)
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
 
-      const report = {
-          meta: {
-              reportVersion: "1.0.0",
-              generatedAt: new Date().toISOString(),
-              rootPath: rootTree.fullPath || "",
-          },
-          globalStats: {
-              totalFiles,
-              totalFolders,
-              totalSizeBytes,
-              maxDepth,
-              minMtimeMs,
+    const report = {
+        meta: {
+            reportVersion: "1.0.0",
+            generatedAt: new Date().toISOString(),
+            rootPath: rootTree.fullPath || "",
+        },
+        globalStats: {
+            totalFiles,
+            totalFolders,
+            totalSizeBytes,
+            maxDepth,
+            minMtimeMs,
             maxMtimeMs,
         },
         hierarchy: hierarchyOut,
@@ -585,7 +606,7 @@ function collectReportData(maxTop = 50) {
         timeBuckets,
     };
 
-  return report;
+    return report;
 }
 
 function computeReportDataForTop(limit) {
@@ -630,7 +651,8 @@ function computeStatsForSubtree(rootNode) {
             const size = typeof node.size === "number" ? node.size : 0;
             totalSizeBytes += size;
 
-            const mtimeMs = typeof node.mtimeMs === "number" ? node.mtimeMs : null;
+            const mtimeMs =
+                typeof node.mtimeMs === "number" ? node.mtimeMs : null;
             if (typeof mtimeMs === "number") {
                 mtimeList.push(mtimeMs);
                 if (minMtimeMs === null || mtimeMs < minMtimeMs) {
@@ -656,7 +678,7 @@ function computeStatsForSubtree(rootNode) {
     }
 
     const extensionStats = Object.values(extensionStatsMap).sort(
-        (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0)
+        (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0),
     );
 
     let timeBuckets = [];
@@ -687,7 +709,10 @@ function computeStatsForSubtree(rootNode) {
             const endYear = end.getFullYear();
             const endHalfIndex = end.getMonth() < 6 ? 1 : 2;
 
-            while (year < endYear || (year === endYear && halfIndex <= endHalfIndex)) {
+            while (
+                year < endYear ||
+                (year === endYear && halfIndex <= endHalfIndex)
+            ) {
                 const label = `${year}-H${halfIndex}`;
                 const count = bucketMap[label] || 0;
                 timeBuckets.push({ label, count });
@@ -737,7 +762,10 @@ function computeStatsForSubtree(rootNode) {
 function isTopTabActive() {
     if (!detailsTabButtons) return false;
     for (const btn of detailsTabButtons) {
-        if (btn.classList.contains("active") && btn.getAttribute("data-tab") === "details-top") {
+        if (
+            btn.classList.contains("active") &&
+            btn.getAttribute("data-tab") === "details-top"
+        ) {
             return true;
         }
     }
@@ -747,27 +775,34 @@ function isTopTabActive() {
 function isStatsTabActive() {
     if (!detailsTabButtons) return false;
     for (const btn of detailsTabButtons) {
-        if (btn.classList.contains("active") && btn.getAttribute("data-tab") === "details-stats") {
+        if (
+            btn.classList.contains("active") &&
+            btn.getAttribute("data-tab") === "details-stats"
+        ) {
             return true;
         }
     }
     return false;
 }
 
-  function renderTopElementsPanel() {
+function renderTopElementsPanel() {
     if (!topElementsTableEl) return;
     if (!rootTree) {
-        topElementsTableEl.innerHTML = "<tbody><tr><td>Nessuna gerarchia disponibile. Esegui una scansione.</td></tr></tbody>";
+        topElementsTableEl.innerHTML =
+            "<tbody><tr><td>Nessuna gerarchia disponibile. Esegui una scansione.</td></tr></tbody>";
         return;
     }
 
     const mode = topElementsModeSelect ? topElementsModeSelect.value : "files";
-    const rawLimit = topElementsLimitInput ? Number(topElementsLimitInput.value) : 20;
+    const rawLimit = topElementsLimitInput
+        ? Number(topElementsLimitInput.value)
+        : 20;
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20;
 
     const report = computeReportDataForTop(limit);
     if (!report) {
-        topElementsTableEl.innerHTML = "<tbody><tr><td>Impossibile calcolare i dati.</td></tr></tbody>";
+        topElementsTableEl.innerHTML =
+            "<tbody><tr><td>Impossibile calcolare i dati.</td></tr></tbody>";
         return;
     }
 
@@ -793,7 +828,9 @@ function isStatsTabActive() {
     } else if (mode === "old") {
         const srcOld = Array.isArray(report.topOldFiles)
             ? report.topOldFiles
-            : (report.topFiles || []).filter((f) => typeof f.mtimeMs === "number");
+            : (report.topFiles || []).filter(
+                  (f) => typeof f.mtimeMs === "number",
+              );
         rows = srcOld.slice(0, limit).map((r, idx) => ({
             index: idx + 1,
             name: r.name,
@@ -822,7 +859,8 @@ function isStatsTabActive() {
     }
 
     if (!rows.length) {
-        topElementsTableEl.innerHTML = "<tbody><tr><td>Nessun elemento da mostrare.</td></tr></tbody>";
+        topElementsTableEl.innerHTML =
+            "<tbody><tr><td>Nessun elemento da mostrare.</td></tr></tbody>";
         return;
     }
 
@@ -873,14 +911,16 @@ function renderStatsPanel() {
     const box = document.getElementById("detailsStatsBox");
     if (!box) return;
     if (!rootTree) {
-        box.innerHTML = "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
+        box.innerHTML =
+            "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
         return;
     }
 
     const baseNode = lastSelectedNodeData || rootTree;
     const stats = computeStatsForSubtree(baseNode);
     if (!stats) {
-        box.innerHTML = "<p class='muted'>Impossibile calcolare le statistiche.</p>";
+        box.innerHTML =
+            "<p class='muted'>Impossibile calcolare le statistiche.</p>";
         return;
     }
 
@@ -896,8 +936,12 @@ function renderStatsPanel() {
     html += `<p><b>Profondità massima:</b> ${stats.maxDepth || 0}</p>`;
 
     if (stats.minMtimeMs || stats.maxMtimeMs) {
-        const minStr = stats.minMtimeMs ? new Date(stats.minMtimeMs).toLocaleString() : "";
-        const maxStr = stats.maxMtimeMs ? new Date(stats.maxMtimeMs).toLocaleString() : "";
+        const minStr = stats.minMtimeMs
+            ? new Date(stats.minMtimeMs).toLocaleString()
+            : "";
+        const maxStr = stats.maxMtimeMs
+            ? new Date(stats.maxMtimeMs).toLocaleString()
+            : "";
         html += "<hr>";
         html += `<p><b>Periodo modifiche:</b><br>`;
         if (minStr) html += `<span>Dal: ${minStr}</span><br>`;
@@ -906,9 +950,9 @@ function renderStatsPanel() {
     }
 
     html += "<hr>";
-    html += "<div class=\"top-elements-controls\">";
-    html += "  <div class=\"top-elements-control\">";
-    html += "    <label for=\"extStatsMode\">Estensioni per:</label>";
+    html += '<div class="top-elements-controls">';
+    html += '  <div class="top-elements-control">';
+    html += '    <label for="extStatsMode">Estensioni per:</label>';
     html += `    <select id=\"extStatsMode\">`;
     html += `      <option value=\"size\"${extStatsMode === "size" ? " selected" : ""}>Dimensione</option>`;
     html += `      <option value=\"count\"${extStatsMode === "count" ? " selected" : ""}>Conteggio</option>`;
@@ -920,20 +964,25 @@ function renderStatsPanel() {
         const topExt = extStats.slice(0, 12);
         let maxMetric = 0;
         topExt.forEach((e) => {
-            const metric = extStatsMode === "count" ? e.count : e.totalSizeBytes || 0;
+            const metric =
+                extStatsMode === "count" ? e.count : e.totalSizeBytes || 0;
             if (metric > maxMetric) maxMetric = metric;
         });
 
         html += "<p><b>Estensioni principali:</b></p>";
-        html += "<div class=\"ext-chart\">";
+        html += '<div class="ext-chart">';
         topExt.forEach((e) => {
-            const metric = extStatsMode === "count" ? e.count : e.totalSizeBytes || 0;
-            const pct = maxMetric > 0 ? Math.max(4, Math.round((metric * 100) / maxMetric)) : 0;
+            const metric =
+                extStatsMode === "count" ? e.count : e.totalSizeBytes || 0;
+            const pct =
+                maxMetric > 0
+                    ? Math.max(4, Math.round((metric * 100) / maxMetric))
+                    : 0;
             const rightLabel =
                 extStatsMode === "count"
                     ? String(e.count || 0)
                     : formatBytes(e.totalSizeBytes || 0);
-            html += "<div class=\"ext-row\">";
+            html += '<div class="ext-row">';
             html += `<span class=\"ext-label\">${e.extension || "(n/d)"}<\/span>`;
             html += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:${pct}%\"><\/div><\/div>`;
             html += `<span class=\"ext-size\">${rightLabel}<\/span>`;
@@ -956,10 +1005,13 @@ function renderStatsPanel() {
 
         html += "<hr>";
         html += "<p><b>Timeline modifiche (file per periodo):</b></p>";
-        html += "<div class=\"ext-chart\">";
+        html += '<div class="ext-chart">';
         slice.forEach((b) => {
-            const pct = maxCount > 0 ? Math.max(4, Math.round((b.count * 100) / maxCount)) : 0;
-            html += "<div class=\"ext-row\">";
+            const pct =
+                maxCount > 0
+                    ? Math.max(4, Math.round((b.count * 100) / maxCount))
+                    : 0;
+            html += '<div class="ext-row">';
             html += `<span class=\"ext-label\">${b.label}<\/span>`;
             html += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:${pct}%\"><\/div><\/div>`;
             html += `<span class=\"ext-size\">${b.count}<\/span>`;
@@ -983,14 +1035,16 @@ function renderStatsPanelV2() {
     const box = document.getElementById("detailsStatsBox");
     if (!box) return;
     if (!rootTree) {
-        box.innerHTML = "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
+        box.innerHTML =
+            "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
         return;
     }
 
     const baseNode = lastSelectedNodeData || rootTree;
     const stats = computeStatsForSubtree(baseNode);
     if (!stats) {
-        box.innerHTML = "<p class='muted'>Impossibile calcolare le statistiche.</p>";
+        box.innerHTML =
+            "<p class='muted'>Impossibile calcolare le statistiche.</p>";
         return;
     }
 
@@ -999,9 +1053,13 @@ function renderStatsPanelV2() {
     const baseLabel = baseNode.fullPath || baseNode.name || "(sconosciuta)";
 
     const minYear =
-        stats.minMtimeMs != null ? new Date(stats.minMtimeMs).getFullYear() : null;
+        stats.minMtimeMs != null
+            ? new Date(stats.minMtimeMs).getFullYear()
+            : null;
     const maxYear =
-        stats.maxMtimeMs != null ? new Date(stats.maxMtimeMs).getFullYear() : null;
+        stats.maxMtimeMs != null
+            ? new Date(stats.maxMtimeMs).getFullYear()
+            : null;
 
     if (statsYearFrom == null || statsYearTo == null) {
         const currentYear = new Date().getFullYear();
@@ -1014,13 +1072,14 @@ function renderStatsPanelV2() {
         if (timelineYearTo == null) timelineYearTo = maxYear;
         if (timelineYearFrom < minYear) timelineYearFrom = minYear;
         if (timelineYearTo > maxYear) timelineYearTo = maxYear;
-        if (timelineYearFrom > timelineYearTo) timelineYearFrom = timelineYearTo;
+        if (timelineYearFrom > timelineYearTo)
+            timelineYearFrom = timelineYearTo;
     }
 
     let html = "";
     html += `<p><b>Base statistica:</b><br><span style="font-size:12px;">${baseLabel}<\/span></p>`;
     html += "<hr>";
-    html += "<div class=\"stats-summary\">";
+    html += '<div class="stats-summary">';
     html += `<div><b>File:</b> ${stats.totalFiles || 0}</div>`;
     html += `<div><b>Cartelle:</b> ${stats.totalFolders || 0}</div>`;
     html += `<div><b>Spazio totale:</b> ${formatBytes(stats.totalSizeBytes || 0)}</div>`;
@@ -1029,16 +1088,16 @@ function renderStatsPanelV2() {
 
     html += "<hr>";
     html += "<p><b>Estensioni principali:</b></p>";
-    html += "<div class=\"top-elements-controls\">";
-    html += "  <div class=\"top-elements-control\">";
-    html += "    <label for=\"extStatsMode\">Estensioni per:</label>";
+    html += '<div class="top-elements-controls">';
+    html += '  <div class="top-elements-control">';
+    html += '    <label for="extStatsMode">Estensioni per:</label>';
     html += `    <select id=\"extStatsMode\">`;
     html += `      <option value=\"size\"${extStatsMode === "size" ? " selected" : ""}>Dimensione</option>`;
     html += `      <option value=\"count\"${extStatsMode === "count" ? " selected" : ""}>Conteggio</option>`;
     html += "    </select>";
     html += "  </div>";
-    html += "  <div class=\"top-elements-control\">";
-    html += "    <label for=\"extStatsSort\">Ordine:</label>";
+    html += '  <div class="top-elements-control">';
+    html += '    <label for="extStatsSort">Ordine:</label>';
     html += `    <select id=\"extStatsSort\">`;
     html += `      <option value=\"desc\"${extStatsSortDir === "desc" ? " selected" : ""}>Decrescente</option>`;
     html += `      <option value=\"asc\"${extStatsSortDir === "asc" ? " selected" : ""}>Crescente</option>`;
@@ -1046,33 +1105,33 @@ function renderStatsPanelV2() {
     html += "  </div>";
     html += "</div>";
 
-    html += "<div class=\"stats-section\">";
+    html += '<div class="stats-section">';
     if (Chart && extStats.length) {
-        html += "  <canvas id=\"extStatsChart\"></canvas>";
+        html += '  <canvas id="extStatsChart"></canvas>';
     } else {
-        html += "  <div class=\"ext-chart\" id=\"extStatsChartContainer\"></div>";
+        html += '  <div class="ext-chart" id="extStatsChartContainer"></div>';
     }
     html += "</div>";
 
     html += "<hr>";
     html += "<p><b>Timeline modifiche (file per periodo):</b></p>";
     if (minYear != null && maxYear != null) {
-        html += "<div class=\"top-elements-controls stats-timeline-filters\">";
-        html += "  <div class=\"top-elements-control\">";
-        html += "    <label for=\"timelineYearFrom\">Anno da:</label>";
+        html += '<div class="top-elements-controls stats-timeline-filters">';
+        html += '  <div class="top-elements-control">';
+        html += '    <label for="timelineYearFrom">Anno da:</label>';
         html += `    <input type=\"number\" id=\"timelineYearFrom\" value=\"${statsYearFrom != null ? statsYearFrom : ""}\">`;
         html += "  </div>";
-        html += "  <div class=\"top-elements-control\">";
-        html += "    <label for=\"timelineYearTo\">Anno a:</label>";
+        html += '  <div class="top-elements-control">';
+        html += '    <label for="timelineYearTo">Anno a:</label>';
         html += `    <input type=\"number\" id=\"timelineYearTo\" value=\"${statsYearTo != null ? statsYearTo : ""}\">`;
         html += "  </div>";
         html += "</div>";
     }
-    html += "<div class=\"stats-section\">";
+    html += '<div class="stats-section">';
     if (Chart) {
-        html += "  <canvas id=\"timelineChart\"></canvas>";
+        html += '  <canvas id="timelineChart"></canvas>';
     } else {
-        html += "  <div class=\"ext-chart\" id=\"timelineFallback\"></div>";
+        html += '  <div class="ext-chart" id="timelineFallback"></div>';
     }
     html += "</div>";
 
@@ -1083,7 +1142,8 @@ function renderStatsPanelV2() {
         if (canvasExt && canvasExt.getContext) {
             const ctxExt = canvasExt.getContext("2d");
 
-            const modeKey = extStatsMode === "count" ? "count" : "totalSizeBytes";
+            const modeKey =
+                extStatsMode === "count" ? "count" : "totalSizeBytes";
             const sorted = extStats.slice().sort((a, b) => {
                 const av = a[modeKey] || 0;
                 const bv = b[modeKey] || 0;
@@ -1093,7 +1153,7 @@ function renderStatsPanelV2() {
             const topExt = sorted.slice(0, 12);
             const labelsExt = topExt.map((e) => e.extension || "(n/d)");
             const dataExt = topExt.map((e) =>
-                extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0
+                extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0,
             );
 
             if (extChartInstance) {
@@ -1106,7 +1166,10 @@ function renderStatsPanelV2() {
                     labels: labelsExt,
                     datasets: [
                         {
-                            label: extStatsMode === "count" ? "File" : "Dimensione (byte)",
+                            label:
+                                extStatsMode === "count"
+                                    ? "File"
+                                    : "Dimensione (byte)",
                             data: dataExt,
                             backgroundColor: "#cc930e",
                         },
@@ -1170,7 +1233,8 @@ function renderStatsPanelV2() {
                 extContainer.innerHTML =
                     "<p class='muted'>Nessun dato disponibile per le estensioni.</p>";
             } else {
-                const modeKey = extStatsMode === "count" ? "count" : "totalSizeBytes";
+                const modeKey =
+                    extStatsMode === "count" ? "count" : "totalSizeBytes";
                 const sorted = extStats.slice().sort((a, b) => {
                     const av = a[modeKey] || 0;
                     const bv = b[modeKey] || 0;
@@ -1181,12 +1245,14 @@ function renderStatsPanelV2() {
                 let extHtml = "";
                 topExt.forEach((e) => {
                     const metric =
-                        extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0;
+                        extStatsMode === "count"
+                            ? e.count || 0
+                            : e.totalSizeBytes || 0;
                     const rightLabel =
                         extStatsMode === "count"
                             ? String(e.count || 0)
                             : formatBytes(e.totalSizeBytes || 0);
-                    extHtml += "<div class=\"ext-row\">";
+                    extHtml += '<div class="ext-row">';
                     extHtml += `<span class=\"ext-label\">${e.extension || "(n/d)"}<\/span>`;
                     extHtml += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:100%\"><\/div><\/div>`;
                     extHtml += `<span class=\"ext-size\">${rightLabel}<\/span>`;
@@ -1229,7 +1295,10 @@ function renderStatsPanelV2() {
             }
         }
 
-        if (timeBuckets.length && (statsYearFrom != null || statsYearTo != null)) {
+        if (
+            timeBuckets.length &&
+            (statsYearFrom != null || statsYearTo != null)
+        ) {
             filteredBuckets = timeBuckets.filter((b) => {
                 const year = parseInt(String(b.label).slice(0, 4), 10);
                 if (Number.isNaN(year)) return true;
@@ -1396,7 +1465,7 @@ function renderStatsPanelV2() {
                     maxCount > 0
                         ? Math.max(4, Math.round((b.count * 100) / maxCount))
                         : 0;
-                timelineHtml += "<div class=\"ext-row\">";
+                timelineHtml += '<div class="ext-row">';
                 timelineHtml += `<span class=\"ext-label\">${b.label}<\/span>`;
                 timelineHtml += `<div class=\"ext-bar-wrapper\"><div class=\"ext-bar\" style=\"width:${pct}%\"><\/div><\/div>`;
                 timelineHtml += `<span class=\"ext-size\">${b.count}<\/span>`;
@@ -1444,7 +1513,9 @@ async function scanFolderRecursively(rootFolder, onProgress) {
     async function walk(currentPath) {
         let dirEntries;
         try {
-            dirEntries = await fs.promises.readdir(currentPath, { withFileTypes: true });
+            dirEntries = await fs.promises.readdir(currentPath, {
+                withFileTypes: true,
+            });
         } catch (err) {
             console.error("Errore lettura cartella:", currentPath, err);
             return;
@@ -1510,10 +1581,15 @@ function normalizeScanOptions(options) {
             .replace(/^\./, "")
             .trim();
 
-    const normalizeName = (s) => String(s || "").toLowerCase().trim();
+    const normalizeName = (s) =>
+        String(s || "")
+            .toLowerCase()
+            .trim();
 
     const excludeExtensions = Array.isArray(options.excludeExtensions)
-        ? options.excludeExtensions.map(normalizeExt).filter((e) => e.length > 0)
+        ? options.excludeExtensions
+              .map(normalizeExt)
+              .filter((e) => e.length > 0)
         : [];
     const excludeFolders = Array.isArray(options.excludeFolders)
         ? options.excludeFolders.map(normalizeName).filter((f) => f.length > 0)
@@ -1540,7 +1616,10 @@ function buildFilteredTreeFromOptions(sourceRoot, options) {
     const folderSet = new Set(excludeFolders);
     const fileSet = new Set(excludeFiles);
 
-    const normalizeName = (s) => String(s || "").toLowerCase().trim();
+    const normalizeName = (s) =>
+        String(s || "")
+            .toLowerCase()
+            .trim();
 
     function isExcludedFolder(name, depth) {
         if (depth === 0) return false;
@@ -1600,7 +1679,10 @@ function buildFilteredTreeFromOptions(sourceRoot, options) {
                 }
             }
 
-            if (depth > 0 && (!cloned.children || cloned.children.length === 0)) {
+            if (
+                depth > 0 &&
+                (!cloned.children || cloned.children.length === 0)
+            ) {
                 return null;
             }
 
@@ -1734,7 +1816,7 @@ function buildTreeFromPendingAsync(onDone) {
     function step() {
         const start = performance.now();
 
-        while (index < total && (performance.now() - start) < CHUNK_TIME_MS) {
+        while (index < total && performance.now() - start < CHUNK_TIME_MS) {
             const entry = pendingEntries[index];
             addEntryToTree(entry);
             index++;
@@ -1750,7 +1832,8 @@ function buildTreeFromPendingAsync(onDone) {
         const buildFunStatus = document.getElementById("buildFunStatus");
         if (buildFunStatus) {
             const now = performance.now();
-            if (now - lastFunMessageTime > 5000) { // 5 secondi
+            if (now - lastFunMessageTime > 5000) {
+                // 5 secondi
                 buildFunStatus.textContent = getRandomFunMessage();
                 lastFunMessageTime = now;
             }
@@ -1784,10 +1867,10 @@ function selectNode(domNode, data) {
     }
 }
 
-  function updateDetails(data) {
-      if (!detailsBox) return;
-      const box = detailsBox;
-      box.innerHTML = "";
+function updateDetails(data) {
+    if (!detailsBox) return;
+    const box = detailsBox;
+    box.innerHTML = "";
 
     box.innerHTML += `<p><b>Nome:</b> ${data.name}</p>`;
     box.innerHTML += `<p><b>Tipo:</b> ${data.type}</p>`;
@@ -1799,7 +1882,7 @@ function selectNode(domNode, data) {
     if (data.type === "file") {
         if (typeof data.size === "number") {
             box.innerHTML += `<p><b>Dimensione:</b> ${data.size} byte (${formatBytes(
-                data.size
+                data.size,
             )})</p>`;
         }
         if (typeof data.mtimeMs === "number") {
@@ -1820,7 +1903,8 @@ function selectNode(domNode, data) {
         if (btnFind && resultsDiv) {
             btnFind.addEventListener("click", () => {
                 if (!rootTree) {
-                    resultsDiv.innerHTML = "<p class='muted'>Gerarchia non disponibile.</p>";
+                    resultsDiv.innerHTML =
+                        "<p class='muted'>Gerarchia non disponibile.</p>";
                     return;
                 }
 
@@ -1828,13 +1912,16 @@ function selectNode(domNode, data) {
                 const matches = findFilesWithName(rootTree, fileName);
 
                 if (!matches || matches.length === 0) {
-                    resultsDiv.innerHTML = "<p class='muted'>Nessun altro file con questo nome.</p>";
+                    resultsDiv.innerHTML =
+                        "<p class='muted'>Nessun altro file con questo nome.</p>";
                     return;
                 }
 
                 let html = `<p><b>Trovati ${matches.length} file con nome '${fileName}':</b></p><ul>`;
                 for (const m of matches) {
-                    const safePath = (m.fullPath || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+                    const safePath = (m.fullPath || "")
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;");
                     html += `<li class="sameNameLink" data-path="${m.fullPath}">${safePath}</li>`;
                 }
                 html += "</ul>";
@@ -1842,7 +1929,7 @@ function selectNode(domNode, data) {
 
                 resultsDiv.innerHTML = html;
 
-                document.querySelectorAll(".sameNameLink").forEach(el => {
+                document.querySelectorAll(".sameNameLink").forEach((el) => {
                     el.addEventListener("click", () => {
                         const p = el.getAttribute("data-path");
                         focusNodeInTreeSmart(p);
@@ -1905,16 +1992,15 @@ function selectNode(domNode, data) {
                 if (!targetNode || targetNode.type !== "folder") return;
 
                 progressEl.style.display = "block";
-                recursiveInfo.innerHTML =
-                    `<b>Elementi (incluse sottocartelle):</b> <span class="muted">calcolo in corso...</span>`;
-                recursiveSizeInfo.innerHTML =
-                    `<b>Peso complessivo (incluse sottocartelle):</b> <span class="muted">calcolo in corso...</span>`;
+                recursiveInfo.innerHTML = `<b>Elementi (incluse sottocartelle):</b> <span class="muted">calcolo in corso...</span>`;
+                recursiveSizeInfo.innerHTML = `<b>Peso complessivo (incluse sottocartelle):</b> <span class="muted">calcolo in corso...</span>`;
                 btnCalc.disabled = true;
 
                 if (funStatus) {
                     funMessageIndex = pickRandomFunMessageIndex();
                     lastFunMessageTime = performance.now();
-                    funStatus.textContent = "Avvio calcolo quantistico preliminare...";
+                    funStatus.textContent =
+                        "Avvio calcolo quantistico preliminare...";
                 }
 
                 computeFolderStatsRecursiveAsync(
@@ -1932,15 +2018,14 @@ function selectNode(domNode, data) {
                         progressEl.style.display = "none";
                         btnCalc.disabled = false;
 
-                        recursiveInfo.innerHTML =
-                            `<b>Elementi (incluse sottocartelle):</b> ${totals.folders} cartelle, ${totals.files} file`;
-                        recursiveSizeInfo.innerHTML =
-                            `<b>Peso complessivo (incluse sottocartelle):</b> ${formatBytes(totals.totalSize)}`;
+                        recursiveInfo.innerHTML = `<b>Elementi (incluse sottocartelle):</b> ${totals.folders} cartelle, ${totals.files} file`;
+                        recursiveSizeInfo.innerHTML = `<b>Peso complessivo (incluse sottocartelle):</b> ${formatBytes(totals.totalSize)}`;
 
                         if (funStatus) {
-                            funStatus.textContent = "Calcolo completato. Gli elettroni possono riposare.";
+                            funStatus.textContent =
+                                "Calcolo completato. Gli elettroni possono riposare.";
                         }
-                    }
+                    },
                 );
             });
         }
@@ -1950,14 +2035,16 @@ function selectNode(domNode, data) {
                 if (!XLSX) {
                     await showError(
                         "Modulo 'xlsx' non disponibile.",
-                        "Esegui 'npm install xlsx' nella cartella del progetto AyPi per abilitare l'esportazione."
+                        "Esegui 'npm install xlsx' nella cartella del progetto AyPi per abilitare l'esportazione.",
                     );
                     return;
                 }
 
                 const targetNode = lastSelectedNodeData || data;
                 if (!targetNode || targetNode.type !== "folder") {
-                    await showError("Nessuna cartella valida selezionata per l'esportazione.");
+                    await showError(
+                        "Nessuna cartella valida selezionata per l'esportazione.",
+                    );
                     return;
                 }
 
@@ -1965,16 +2052,22 @@ function selectNode(domNode, data) {
                 const rows = collectSubtreeRows(targetNode, basePath);
 
                 if (!rows || rows.length === 0) {
-                    await showInfo("Nessun file da esportare.", "La cartella selezionata non contiene file.");
+                    await showInfo(
+                        "Nessun file da esportare.",
+                        "La cartella selezionata non contiene file.",
+                    );
                     return;
                 }
 
                 const defaultNameSafe =
                     (targetNode.name || "cartella") + "_gerarchia.xlsx";
 
-                const outputPath = await ipcRenderer.invoke("select-output-file", {
-                    defaultName: defaultNameSafe,
-                });
+                const outputPath = await ipcRenderer.invoke(
+                    "select-output-file",
+                    {
+                        defaultName: defaultNameSafe,
+                    },
+                );
 
                 if (!outputPath) {
                     return;
@@ -1991,7 +2084,7 @@ function selectNode(domNode, data) {
                 } catch (err) {
                     await showError(
                         "Errore durante l'esportazione Excel.",
-                        err.message || String(err)
+                        err.message || String(err),
                     );
                 }
             });
@@ -2024,7 +2117,7 @@ function exportSameNameList(list) {
     if (!XLSX) {
         showError(
             "Modulo 'xlsx' non disponibile.",
-            "Esegui 'npm install xlsx' nella cartella del progetto AyPi per abilitare l'esportazione."
+            "Esegui 'npm install xlsx' nella cartella del progetto AyPi per abilitare l'esportazione.",
         );
         return;
     }
@@ -2034,33 +2127,37 @@ function exportSameNameList(list) {
         return;
     }
 
-    const rows = list.map(n => ({
+    const rows = list.map((n) => ({
         Nome: n.name,
         "Percorso completo": n.fullPath || "",
         Dimensione: n.size ?? "",
         "Dimensione formattata": n.size ? formatBytes(n.size) : "",
-        "Ultima modifica": n.mtimeMs ? new Date(n.mtimeMs).toLocaleString() : ""
+        "Ultima modifica": n.mtimeMs
+            ? new Date(n.mtimeMs).toLocaleString()
+            : "",
     }));
 
-    ipcRenderer.invoke("select-output-file", {
-        defaultName: (list[0].name || "file") + "_occurrenze.xlsx"
-    }).then(outputPath => {
-        if (!outputPath) return;
+    ipcRenderer
+        .invoke("select-output-file", {
+            defaultName: (list[0].name || "file") + "_occurrenze.xlsx",
+        })
+        .then((outputPath) => {
+            if (!outputPath) return;
 
-        try {
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(rows);
-            XLSX.utils.book_append_sheet(wb, ws, "Occorrenze");
+            try {
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(rows);
+                XLSX.utils.book_append_sheet(wb, ws, "Occorrenze");
 
-            XLSX.writeFile(wb, outputPath);
-            showInfo("Esportazione completata.", outputPath);
-        } catch (err) {
-            showError(
-                "Errore durante l'esportazione.",
-                err.message || String(err)
-            );
-        }
-    });
+                XLSX.writeFile(wb, outputPath);
+                showInfo("Esportazione completata.", outputPath);
+            } catch (err) {
+                showError(
+                    "Errore durante l'esportazione.",
+                    err.message || String(err),
+                );
+            }
+        });
 }
 
 function searchTreeAsync(query, onProgress, onDone) {
@@ -2087,7 +2184,7 @@ function searchTreeAsync(query, onProgress, onDone) {
 
         const start = performance.now();
 
-        while (stack.length > 0 && (performance.now() - start) < CHUNK_TIME_MS) {
+        while (stack.length > 0 && performance.now() - start < CHUNK_TIME_MS) {
             const node = stack.pop();
 
             const name = (node.name || "").toLowerCase();
@@ -2193,7 +2290,7 @@ function initContextMenu() {
         () => {
             hideTreeContextMenu();
         },
-        true
+        true,
     );
 
     if (treeRootEl) {
@@ -2243,7 +2340,11 @@ function focusNodeInTreeSmart(fullPath) {
     if (!rootTree || !treeRootEl) return;
     let targetDom = null;
     treeRootEl.querySelectorAll(".tree-node").forEach((el) => {
-        if (!targetDom && el.__nodeData && el.__nodeData.fullPath === fullPath) {
+        if (
+            !targetDom &&
+            el.__nodeData &&
+            el.__nodeData.fullPath === fullPath
+        ) {
             targetDom = el;
         }
     });
@@ -2261,14 +2362,22 @@ function focusNodeInTreeSmart(fullPath) {
     });
 
     let current = targetDom;
-    while (current && current.classList && current.classList.contains("tree-node")) {
-        const childrenContainer = current.querySelector(":scope > .tree-children");
+    while (
+        current &&
+        current.classList &&
+        current.classList.contains("tree-node")
+    ) {
+        const childrenContainer = current.querySelector(
+            ":scope > .tree-children",
+        );
         if (childrenContainer) {
             childrenContainer.classList.add("open");
             const icon = current.querySelector(":scope > .node-icon");
             if (icon) icon.textContent = FOLDER_OPEN_ICON;
         }
-        current = current.parentElement ? current.parentElement.closest(".tree-node") : null;
+        current = current.parentElement
+            ? current.parentElement.closest(".tree-node")
+            : null;
     }
 
     targetDom.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2282,7 +2391,9 @@ function normalizeTreeIcons() {
         const icon = nodeEl.querySelector(":scope > .node-icon");
         if (!icon) return;
 
-        const childrenContainer = nodeEl.querySelector(":scope > .tree-children");
+        const childrenContainer = nodeEl.querySelector(
+            ":scope > .tree-children",
+        );
         if (childrenContainer) {
             const isOpen = childrenContainer.classList.contains("open");
             icon.textContent = isOpen ? "\u25BC" : "\u25B6";
@@ -2304,19 +2415,21 @@ function initHierarchy() {
     const btnClose = document.getElementById("btnClose");
     const btnSelectFolder = document.getElementById("btnSelectFolder");
     const btnStartScan = document.getElementById("btnStartScan");
-    const btnExportNavigableReport = document.getElementById("btnExportNavigableReport");
+    const btnExportNavigableReport = document.getElementById(
+        "btnExportNavigableReport",
+    );
 
     if (!treeRootEl || !lblSelectedFolder || !detailsBox) {
         showError(
             "UI Gerarchia incompleta.",
-            "Elementi mancanti: treeRoot/selectedFolder/detailsBox."
+            "Elementi mancanti: treeRoot/selectedFolder/detailsBox.",
         );
         return;
     }
     if (!btnSelectFolder) {
         showError(
             "UI Gerarchia incompleta.",
-            "Pulsante selezione cartella non trovato (btnSelectFolder)."
+            "Pulsante selezione cartella non trovato (btnSelectFolder).",
         );
         return;
     }
@@ -2367,7 +2480,8 @@ function initHierarchy() {
     const scanOptionsToggleEl = document.getElementById("scanOptionsToggle");
     const scanOptionsArrowEl = document.getElementById("scanOptionsArrow");
     const scanDepthInputEl = document.getElementById("scanDepth");
-    const excludeExtensionsInputEl = document.getElementById("excludeExtensions");
+    const excludeExtensionsInputEl =
+        document.getElementById("excludeExtensions");
     const excludeFoldersInputEl = document.getElementById("excludeFolders");
     const excludeFilesInputEl = document.getElementById("excludeFiles");
     const btnApplyScanFilter = document.getElementById("btnApplyScanFilter");
@@ -2380,7 +2494,8 @@ function initHierarchy() {
 
     if (scanOptionsPanelEl && scanOptionsToggleEl && scanOptionsArrowEl) {
         const updateArrow = () => {
-            const collapsed = scanOptionsPanelEl.classList.contains("collapsed");
+            const collapsed =
+                scanOptionsPanelEl.classList.contains("collapsed");
             scanOptionsArrowEl.textContent = collapsed ? "▶" : "▼";
         };
 
@@ -2410,13 +2525,13 @@ function initHierarchy() {
         }
 
         const excludeExtensions = parseList(
-            excludeExtensionsInputEl ? excludeExtensionsInputEl.value : ""
+            excludeExtensionsInputEl ? excludeExtensionsInputEl.value : "",
         );
         const excludeFolders = parseList(
-            excludeFoldersInputEl ? excludeFoldersInputEl.value : ""
+            excludeFoldersInputEl ? excludeFoldersInputEl.value : "",
         );
         const excludeFiles = parseList(
-            excludeFilesInputEl ? excludeFilesInputEl.value : ""
+            excludeFilesInputEl ? excludeFilesInputEl.value : "",
         );
 
         return {
@@ -2441,7 +2556,8 @@ function initHierarchy() {
         const options = collectScanOptionsFromInputs();
         const hasFilters =
             options.maxDepth !== null ||
-            (options.excludeExtensions && options.excludeExtensions.length > 0) ||
+            (options.excludeExtensions &&
+                options.excludeExtensions.length > 0) ||
             (options.excludeFolders && options.excludeFolders.length > 0) ||
             (options.excludeFiles && options.excludeFiles.length > 0);
 
@@ -2460,7 +2576,8 @@ function initHierarchy() {
         });
     }
 
-    treeRootEl.innerHTML = "<p>Seleziona una cartella e premi 'Avvia scansione'.</p>";
+    treeRootEl.innerHTML =
+        "<p>Seleziona una cartella e premi 'Avvia scansione'.</p>";
     detailsBox.innerHTML = "<p>Seleziona un nodo per vedere i dettagli.</p>";
 
     if (btnClose) {
@@ -2513,15 +2630,17 @@ function initHierarchy() {
                         `;
                         }
 
-                        const scanFunStatusEl = document.getElementById("scanFunStatus");
+                        const scanFunStatusEl =
+                            document.getElementById("scanFunStatus");
                         if (scanFunStatusEl) {
                             const now = performance.now();
                             if (now - lastFunMessageTime > 5000) {
-                                scanFunStatusEl.textContent = getRandomFunMessage();
+                                scanFunStatusEl.textContent =
+                                    getRandomFunMessage();
                                 lastFunMessageTime = now;
                             }
                         }
-                    }
+                    },
                 );
 
                 rootTree = createRootTree(selectedFolder);
@@ -2533,7 +2652,8 @@ function initHierarchy() {
             `;
                 funMessageIndex = pickRandomFunMessageIndex();
                 lastFunMessageTime = performance.now();
-                const buildFunStatus = document.getElementById("buildFunStatus");
+                const buildFunStatus =
+                    document.getElementById("buildFunStatus");
                 if (buildFunStatus) {
                     buildFunStatus.textContent = FUN_MESSAGES[funMessageIndex];
                 }
@@ -2556,7 +2676,6 @@ function initHierarchy() {
     }
 
     if (btnSearch && searchInput && searchResultsEl) {
-
         const runSearch = () => {
             const q = searchInput.value.trim();
             if (searchResultsEl.clientHeight < 100) {
@@ -2564,11 +2683,13 @@ function initHierarchy() {
             }
 
             if (!q) {
-                searchResultsEl.innerHTML = "<span class='muted'>Inserisci un testo da cercare.</span>";
+                searchResultsEl.innerHTML =
+                    "<span class='muted'>Inserisci un testo da cercare.</span>";
                 return;
             }
             if (!rootTree) {
-                searchResultsEl.innerHTML = "<span class='muted'>Nessuna gerarchia caricata. Esegui una scansione prima.</span>";
+                searchResultsEl.innerHTML =
+                    "<span class='muted'>Nessuna gerarchia caricata. Esegui una scansione prima.</span>";
                 return;
             }
 
@@ -2602,14 +2723,16 @@ function initHierarchy() {
 
                     searchResultsEl.innerHTML = html;
 
-                    searchResultsEl.querySelectorAll(".searchResultLink").forEach(el => {
-                        el.addEventListener("click", () => {
-                            const p = el.getAttribute("data-path");
-                            focusNodeInTreeSmart(p);
-                            normalizeTreeIcons();
+                    searchResultsEl
+                        .querySelectorAll(".searchResultLink")
+                        .forEach((el) => {
+                            el.addEventListener("click", () => {
+                                const p = el.getAttribute("data-path");
+                                focusNodeInTreeSmart(p);
+                                normalizeTreeIcons();
+                            });
                         });
-                    });
-                }
+                },
             );
         };
 
@@ -2640,7 +2763,10 @@ if (document.readyState === "loading") {
             initHierarchy();
         } catch (err) {
             console.error("Errore inizializzazione Gerarchia:", err);
-            showError("Errore inizializzazione Gerarchia.", err.message || String(err));
+            showError(
+                "Errore inizializzazione Gerarchia.",
+                err.message || String(err),
+            );
         }
     });
 } else {
@@ -2648,13 +2774,19 @@ if (document.readyState === "loading") {
         initHierarchy();
     } catch (err) {
         console.error("Errore inizializzazione Gerarchia:", err);
-        showError("Errore inizializzazione Gerarchia.", err.message || String(err));
+        showError(
+            "Errore inizializzazione Gerarchia.",
+            err.message || String(err),
+        );
     }
 }
 
 async function exportNavigableReport() {
     if (!rootTree) {
-        await showError("Nessuna gerarchia disponibile.", "Esegui prima una scansione.");
+        await showError(
+            "Nessuna gerarchia disponibile.",
+            "Esegui prima una scansione.",
+        );
         return;
     }
 
@@ -2665,29 +2797,32 @@ async function exportNavigableReport() {
     }
 
     try {
-        const result = await ipcRenderer.invoke("hierarchy-export-navigable-report", {
-            rootPath: reportData.meta.rootPath,
-            data: reportData,
-        });
+        const result = await ipcRenderer.invoke(
+            "hierarchy-export-navigable-report",
+            {
+                rootPath: reportData.meta.rootPath,
+                data: reportData,
+            },
+        );
 
         if (result && result.error) {
-            await showError("Errore durante l'esportazione del report navigabile.", result.error);
+            await showError(
+                "Errore durante l'esportazione del report navigabile.",
+                result.error,
+            );
         } else if (!result || result.canceled) {
         } else {
             await showInfo(
                 "Report navigabile esportato.",
                 `File HTML: ${result.htmlPath}
-Dati JSON: ${result.jsonPath}`
+Dati JSON: ${result.jsonPath}`,
             );
         }
     } catch (err) {
         console.error("Errore export navigable report:", err);
         await showError(
             "Errore durante l'esportazione del report navigabile.",
-            err.message || String(err)
+            err.message || String(err),
         );
     }
 }
-
-
-

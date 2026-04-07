@@ -75,5 +75,3 @@ function collectTargets(rootPath, options) {
 }
 
 export { collectTargets };
-
-

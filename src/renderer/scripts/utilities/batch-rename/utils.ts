@@ -40,11 +40,4 @@ function buildWildcardRegexes(maskString) {
         });
 }
 
-export {
-    splitNameExt,
-    parseExtensions,
-    parseInteger,
-    buildWildcardRegexes,
-};
-
-
+export { splitNameExt, parseExtensions, parseInteger, buildWildcardRegexes };

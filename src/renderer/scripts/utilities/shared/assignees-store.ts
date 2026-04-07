@@ -230,12 +230,17 @@ export function createAssigneesStore(options?: AssigneesStoreOptions) {
 }
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        createAssigneesStore,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            createAssigneesStore,
+        };
 }
-
-
-
-

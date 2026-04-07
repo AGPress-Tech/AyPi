@@ -13,7 +13,7 @@ initCommonUI();
     "openTranceria",
     "openTorneria",
     "openMagazzino",
-    "openConsegne"
+    "openConsegne",
 ].forEach((id) => {
     const btn = document.getElementById(id);
     const entry = ADDRESS_BY_ID[id];
@@ -36,7 +36,3 @@ initCommonUI();
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
-
-
-
-

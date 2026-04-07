@@ -19,21 +19,49 @@ const bootRequire = (modulePath) => {
     }
 };
 
-const fpBaseDir = path.join(__dirname, "..", "..", "scripts", "utilities", "ferie-permessi");
-const { loadAssigneeOptions } = bootRequire(path.join(fpBaseDir, "services", "assignees"));
-const { loadPayload, normalizeBalances, applyMissingRequestDeductions } = bootRequire(
-    path.join(fpBaseDir, "services", "balances")
+const fpBaseDir = path.join(
+    __dirname,
+    "..",
+    "..",
+    "scripts",
+    "utilities",
+    "ferie-permessi",
 );
-const { getRequestDates } = bootRequire(path.join(fpBaseDir, "utils", "requests"));
+const { loadAssigneeOptions } = bootRequire(
+    path.join(fpBaseDir, "services", "assignees"),
+);
+const { loadPayload, normalizeBalances, applyMissingRequestDeductions } =
+    bootRequire(path.join(fpBaseDir, "services", "balances"));
+const { getRequestDates } = bootRequire(
+    path.join(fpBaseDir, "utils", "requests"),
+);
 const { getTypeLabel } = bootRequire(path.join(fpBaseDir, "utils", "labels"));
-const { formatDate } = bootRequire(path.join(fpBaseDir, "utils", "date-format"));
-const { THEME_STORAGE_KEY, COLOR_STORAGE_KEY, DEFAULT_TYPE_COLORS } = bootRequire(
-    path.join(fpBaseDir, "config", "constants")
+const { formatDate } = bootRequire(
+    path.join(fpBaseDir, "utils", "date-format"),
 );
+const { THEME_STORAGE_KEY, COLOR_STORAGE_KEY, DEFAULT_TYPE_COLORS } =
+    bootRequire(path.join(fpBaseDir, "config", "constants"));
 
-const TYPE_KEYS = ["ferie", "permesso", "straordinari", "mutua", "infortunio", "speciale", "retribuito"];
+const TYPE_KEYS = [
+    "ferie",
+    "permesso",
+    "straordinari",
+    "mutua",
+    "infortunio",
+    "speciale",
+    "retribuito",
+];
 const DEPT_FALLBACK = "Senza reparto";
-const LINE_COLORS = ["#1d4ed8", "#0f766e", "#b45309", "#6d28d9", "#be123c", "#0369a1", "#047857", "#7c2d12"];
+const LINE_COLORS = [
+    "#1d4ed8",
+    "#0f766e",
+    "#b45309",
+    "#6d28d9",
+    "#be123c",
+    "#0369a1",
+    "#047857",
+    "#7c2d12",
+];
 
 const state = {
     assigneeGroups: {},
@@ -129,10 +157,14 @@ function loadTypeColors() {
         return {
             ferie: parsed.ferie || DEFAULT_TYPE_COLORS.ferie,
             permesso: parsed.permesso || DEFAULT_TYPE_COLORS.permesso,
-            straordinari: parsed.straordinari || DEFAULT_TYPE_COLORS.straordinari,
+            straordinari:
+                parsed.straordinari || DEFAULT_TYPE_COLORS.straordinari,
             mutua: parsed.mutua || DEFAULT_TYPE_COLORS.mutua,
             speciale: parsed.speciale || DEFAULT_TYPE_COLORS.speciale,
-            retribuito: parsed.retribuito || parsed.giustificato || DEFAULT_TYPE_COLORS.retribuito,
+            retribuito:
+                parsed.retribuito ||
+                parsed.giustificato ||
+                DEFAULT_TYPE_COLORS.retribuito,
         };
     } catch (_err) {
         return { ...DEFAULT_TYPE_COLORS };
@@ -182,7 +214,10 @@ function buildDateRange(start, end) {
 }
 
 function getRangeMode() {
-    return document.querySelector("input[name='fpa-range']:checked")?.value || "month";
+    return (
+        document.querySelector("input[name='fpa-range']:checked")?.value ||
+        "month"
+    );
 }
 
 function resolveRange() {
@@ -237,7 +272,9 @@ function loadDataset() {
 function getDepartmentMeta(payload) {
     const fromGroups = Object.keys(state.assigneeGroups || {}).map((name) => ({
         name,
-        employees: Array.isArray(state.assigneeGroups[name]) ? state.assigneeGroups[name].length : 0,
+        employees: Array.isArray(state.assigneeGroups[name])
+            ? state.assigneeGroups[name].length
+            : 0,
     }));
     const groupSet = new Set(fromGroups.map((it) => it.name));
     const fromRequests = (payload.requests || [])
@@ -260,10 +297,14 @@ function renderDepartments(payload) {
     }
 
     const q = state.departmentSearch.trim().toLowerCase();
-    const rows = meta.filter((entry) => !q || entry.name.toLowerCase().includes(q));
+    const rows = meta.filter(
+        (entry) => !q || entry.name.toLowerCase().includes(q),
+    );
     list.innerHTML = rows
         .map((entry) => {
-            const checked = state.selectedDepartments.has(entry.name) ? "checked" : "";
+            const checked = state.selectedDepartments.has(entry.name)
+                ? "checked"
+                : "";
             return `
                 <div class="fpa-dept-item" data-name="${entry.name}">
                     <label>
@@ -299,12 +340,19 @@ function buildAnalysis(payload) {
     const range = resolveRange();
     if (!range) return { error: "Periodo non valido." };
     const selectedTypes = getSelectedTypes();
-    if (!selectedTypes.length) return { error: "Seleziona almeno un tipo assenza." };
-    if (!state.selectedDepartments.size) return { error: "Seleziona almeno un reparto." };
+    if (!selectedTypes.length)
+        return { error: "Seleziona almeno un tipo assenza." };
+    if (!state.selectedDepartments.size)
+        return { error: "Seleziona almeno un reparto." };
     const lineGroup = byId("fpa-line-group")?.value || "total";
     const granularity = byId("fpa-granularity")?.value || "day";
     const dateKeys = buildDateRange(range.start, range.end);
-    const dayMap = new Map(dateKeys.map((key) => [key, { people: new Set(), byDept: new Map(), byType: new Map() }]));
+    const dayMap = new Map(
+        dateKeys.map((key) => [
+            key,
+            { people: new Set(), byDept: new Map(), byType: new Map() },
+        ]),
+    );
 
     const employeeMap = new Map();
     let approvedCount = 0;
@@ -347,7 +395,8 @@ function buildAnalysis(payload) {
                     personDays += 1;
                     peopleSet.add(employeeKey);
                 }
-                if (!row.byDept.has(department)) row.byDept.set(department, new Set());
+                if (!row.byDept.has(department))
+                    row.byDept.set(department, new Set());
                 row.byDept.get(department).add(employeeKey);
                 if (!row.byType.has(type)) row.byType.set(type, new Set());
                 row.byType.get(type).add(employeeKey);
@@ -357,10 +406,16 @@ function buildAnalysis(payload) {
                 if (req.allDay) {
                     hoursForDay = 8;
                 } else {
-                    const overlapStart = new Date(Math.max(dates.start.getTime(), dayStart.getTime()));
-                    const overlapEnd = new Date(Math.min(dates.end.getTime(), dayEnd.getTime()));
+                    const overlapStart = new Date(
+                        Math.max(dates.start.getTime(), dayStart.getTime()),
+                    );
+                    const overlapEnd = new Date(
+                        Math.min(dates.end.getTime(), dayEnd.getTime()),
+                    );
                     if (overlapEnd > overlapStart) {
-                        hoursForDay = (overlapEnd.getTime() - overlapStart.getTime()) / 3600000;
+                        hoursForDay =
+                            (overlapEnd.getTime() - overlapStart.getTime()) /
+                            3600000;
                     }
                 }
                 hoursForDay = roundHours(hoursForDay);
@@ -378,8 +433,12 @@ function buildAnalysis(payload) {
                     const emp = employeeMap.get(employeeKey);
                     emp.byType[type] = (emp.byType[type] || 0) + 1;
                     emp.total += 1;
-                    emp.byTypeHours[type] = roundHours((emp.byTypeHours[type] || 0) + hoursForDay);
-                    emp.totalHours = roundHours((emp.totalHours || 0) + hoursForDay);
+                    emp.byTypeHours[type] = roundHours(
+                        (emp.byTypeHours[type] || 0) + hoursForDay,
+                    );
+                    emp.totalHours = roundHours(
+                        (emp.totalHours || 0) + hoursForDay,
+                    );
                 }
             }
             current = addDays(current, 1);
@@ -401,7 +460,7 @@ function buildAnalysis(payload) {
             dailyRows.reduce((acc, row) => {
                 Object.keys(row.departments).forEach((dept) => acc.add(dept));
                 return acc;
-            }, new Set())
+            }, new Set()),
         ).sort((a, b) => a.localeCompare(b, "it"));
         lineSeries = names.map((name, idx) => ({
             label: name,
@@ -415,7 +474,13 @@ function buildAnalysis(payload) {
             values: dailyRows.map((row) => row.types[type] || 0),
         }));
     } else {
-        lineSeries = [{ label: "Totale", color: "#1d4ed8", values: dailyRows.map((row) => row.total || 0) }];
+        lineSeries = [
+            {
+                label: "Totale",
+                color: "#1d4ed8",
+                values: dailyRows.map((row) => row.total || 0),
+            },
+        ];
     }
 
     return {
@@ -424,7 +489,9 @@ function buildAnalysis(payload) {
         granularity,
         dailyRows,
         lineSeries,
-        employeeRows: Array.from(employeeMap.values()).sort((a, b) => b.total - a.total),
+        employeeRows: Array.from(employeeMap.values()).sort(
+            (a, b) => b.total - a.total,
+        ),
         kpis: {
             approvedCount,
             people: peopleSet.size,
@@ -443,7 +510,11 @@ function getWeekKey(dateKey) {
     const first = new Date(year, 0, 1);
     const firstIsoDay = first.getDay() === 0 ? 7 : first.getDay();
     const firstMonday = addDays(first, 1 - firstIsoDay);
-    const week = Math.floor((toDay(monday).getTime() - toDay(firstMonday).getTime()) / (7 * 86400000)) + 1;
+    const week =
+        Math.floor(
+            (toDay(monday).getTime() - toDay(firstMonday).getTime()) /
+                (7 * 86400000),
+        ) + 1;
     return `${year}-W${String(Math.max(1, week)).padStart(2, "0")}`;
 }
 
@@ -476,29 +547,43 @@ function aggregateAnalysisRows(data) {
 
     const bucketMap = new Map();
     data.dailyRows.forEach((row) => {
-        const key = granularity === "week" ? getWeekKey(row.date) : getMonthKey(row.date);
+        const key =
+            granularity === "week"
+                ? getWeekKey(row.date)
+                : getMonthKey(row.date);
         if (!bucketMap.has(key)) {
-            bucketMap.set(key, { key, total: 0, departments: {}, types: {}, days: 0 });
+            bucketMap.set(key, {
+                key,
+                total: 0,
+                departments: {},
+                types: {},
+                days: 0,
+            });
         }
         const bucket = bucketMap.get(key);
         bucket.total += row.total || 0;
         bucket.days += 1;
         Object.entries(row.departments || {}).forEach(([dept, count]) => {
-            bucket.departments[dept] = (bucket.departments[dept] || 0) + (count || 0);
+            bucket.departments[dept] =
+                (bucket.departments[dept] || 0) + (count || 0);
         });
         Object.entries(row.types || {}).forEach(([type, count]) => {
             bucket.types[type] = (bucket.types[type] || 0) + (count || 0);
         });
     });
 
-    const rows = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+    const rows = Array.from(bucketMap.values()).sort((a, b) =>
+        a.key.localeCompare(b.key),
+    );
     const lineSeries = data.lineSeries.map((series) => {
         const values = rows.map((row) => {
             if (data.lineGroup === "department") {
                 return row.departments[series.label] || 0;
             }
             if (data.lineGroup === "type") {
-                const matchType = data.selectedTypes.find((type) => getTypeLabel(type) === series.label);
+                const matchType = data.selectedTypes.find(
+                    (type) => getTypeLabel(type) === series.label,
+                );
                 return (matchType && row.types[matchType]) || 0;
             }
             return row.total || 0;
@@ -582,7 +667,10 @@ function renderLineChart(data) {
         state.charts.line = null;
     }
     if (!state.tooltipPositionerReady && Chart?.Tooltip?.positioners) {
-        Chart.Tooltip.positioners.cursorOffset = function (_items, eventPosition) {
+        Chart.Tooltip.positioners.cursorOffset = function (
+            _items,
+            eventPosition,
+        ) {
             return {
                 x: eventPosition.x + 18,
                 y: eventPosition.y - 18,
@@ -697,7 +785,12 @@ function renderDailyTable(data) {
     if (!host) return;
     const view = aggregateAnalysisRows(data);
     const granularity = data.granularity || "day";
-    const firstHeader = granularity === "day" ? "Data" : granularity === "week" ? "Settimana" : "Mese";
+    const firstHeader =
+        granularity === "day"
+            ? "Data"
+            : granularity === "week"
+              ? "Settimana"
+              : "Mese";
     const rows = view.rows
         .map((row) => {
             const label =
@@ -846,7 +939,12 @@ function renderEmployeeTable(data) {
             if (key === "total") {
                 return compareNumber(a.totalHours, b.totalHours) * sign;
             }
-            return compareNumber(a.byTypeHours?.[key] || 0, b.byTypeHours?.[key] || 0) * sign;
+            return (
+                compareNumber(
+                    a.byTypeHours?.[key] || 0,
+                    b.byTypeHours?.[key] || 0,
+                ) * sign
+            );
         });
     host.innerHTML = `
         <table class="fpa-table">
@@ -855,7 +953,10 @@ function renderEmployeeTable(data) {
                     <th class="fpa-sortable" data-sort-key="employee">Dipendente${getSortIndicator(state.sortEmployee, "employee")}</th>
                     <th class="fpa-sortable" data-sort-key="department">Reparto${getSortIndicator(state.sortEmployee, "department")}</th>
                     ${data.selectedTypes
-                        .map((type) => `<th class="fpa-sortable" data-sort-key="${type}">${getTypeLabel(type)} (h)${getSortIndicator(state.sortEmployee, type)}</th>`)
+                        .map(
+                            (type) =>
+                                `<th class="fpa-sortable" data-sort-key="${type}">${getTypeLabel(type)} (h)${getSortIndicator(state.sortEmployee, type)}</th>`,
+                        )
                         .join("")}
                     <th class="fpa-sortable" data-sort-key="total">Totale (h)${getSortIndicator(state.sortEmployee, "total")}</th>
                 </tr>
@@ -868,7 +969,7 @@ function renderEmployeeTable(data) {
                             <td>${row.department}</td>
                             ${data.selectedTypes.map((type) => `<td>${formatHours(row.byTypeHours?.[type] || 0)}</td>`).join("")}
                             <td><b>${formatHours(row.totalHours || 0)}</b></td>
-                        </tr>`
+                        </tr>`,
                     )
                     .join("")}
             </tbody>
@@ -878,7 +979,11 @@ function renderEmployeeTable(data) {
     host.querySelectorAll("th.fpa-sortable").forEach((th) => {
         th.addEventListener("click", () => {
             const key = th.getAttribute("data-sort-key") || "total";
-            toggleSort("sortEmployee", key, key === "employee" || key === "department" ? "asc" : "desc");
+            toggleSort(
+                "sortEmployee",
+                key,
+                key === "employee" || key === "department" ? "asc" : "desc",
+            );
             renderDashboard();
         });
     });
@@ -912,7 +1017,9 @@ function renderDashboard() {
 }
 
 function resetFilters() {
-    const month = document.querySelector("input[name='fpa-range'][value='month']");
+    const month = document.querySelector(
+        "input[name='fpa-range'][value='month']",
+    );
     if (month) month.checked = true;
     const typeDefaults = {
         ferie: true,
@@ -963,7 +1070,9 @@ function init() {
     });
 
     byId("fpa-dept-all")?.addEventListener("click", () => {
-        getDepartmentMeta(loadDataset()).forEach((entry) => state.selectedDepartments.add(entry.name));
+        getDepartmentMeta(loadDataset()).forEach((entry) =>
+            state.selectedDepartments.add(entry.name),
+        );
         renderDepartments(loadDataset());
         renderDashboard();
     });
@@ -1007,4 +1116,3 @@ function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
-

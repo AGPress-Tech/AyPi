@@ -8,7 +8,9 @@ function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function pickFolder({ cooldownMs = 300 }: { cooldownMs?: number } = {}) {
+export async function pickFolder({
+    cooldownMs = 300,
+}: { cooldownMs?: number } = {}) {
     if (inFlight) return null;
     inFlight = true;
     try {
@@ -58,4 +60,3 @@ export async function withButtonLock<T>(
         button.disabled = false;
     }
 }
-

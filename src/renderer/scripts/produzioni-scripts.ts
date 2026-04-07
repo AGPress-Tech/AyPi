@@ -28,7 +28,3 @@ initCommonUI();
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
-
-
-
-

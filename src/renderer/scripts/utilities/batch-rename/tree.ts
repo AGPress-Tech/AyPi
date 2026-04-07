@@ -93,9 +93,4 @@ function refreshFolderTree() {
     });
 }
 
-export {
-    buildFolderTreeData,
-    refreshFolderTree,
-};
-
-
+export { buildFolderTreeData, refreshFolderTree };

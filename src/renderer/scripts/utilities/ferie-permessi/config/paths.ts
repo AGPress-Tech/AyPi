@@ -138,5 +138,3 @@ export {
     LEGACY_OTP_MAIL_SERVER_PATH,
     OTP_MAIL_LOCAL_PATH,
 };
-
-

@@ -18,16 +18,20 @@ export function showError(message: string, detail = "") {
 }
 
 // Keep CommonJS compatibility for legacy JS files (renderer)
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        showDialog,
-        showInfo,
-        showWarning,
-        showError,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            showDialog,
+            showInfo,
+            showWarning,
+            showError,
+        };
 }
-
-
-
-
-

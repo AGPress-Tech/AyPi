@@ -319,10 +319,4 @@ function renderPreviewTable() {
     }
 }
 
-export {
-    buildPreviewWithCopyMove,
-    buildPreview,
-    renderPreviewTable,
-};
-
-
+export { buildPreviewWithCopyMove, buildPreview, renderPreviewTable };

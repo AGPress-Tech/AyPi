@@ -8,10 +8,21 @@ import { getFilterConfigFromUI } from "./batch-rename/filters";
 import { collectTargets } from "./batch-rename/collector";
 import { refreshFolderTree } from "./batch-rename/tree";
 import { setStatus, updateSelectedFolderLabel } from "./batch-rename/ui/status";
-import { buildPreviewWithCopyMove, renderPreviewTable } from "./batch-rename/preview";
+import {
+    buildPreviewWithCopyMove,
+    renderPreviewTable,
+} from "./batch-rename/preview";
 import { getTransformsConfigFromUI } from "./batch-rename/transforms";
-import { buildPresetFromUI, applyPresetToUI, loadPresetsIntoUI } from "./batch-rename/presets";
-import { handleApply, handleOpenFolder, handleUndoLast } from "./batch-rename/operations";
+import {
+    buildPresetFromUI,
+    applyPresetToUI,
+    loadPresetsIntoUI,
+} from "./batch-rename/presets";
+import {
+    handleApply,
+    handleOpenFolder,
+    handleUndoLast,
+} from "./batch-rename/operations";
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 
 async function selectRootFolderSafe() {
@@ -19,7 +30,8 @@ async function selectRootFolderSafe() {
 }
 
 window.addEventListener("error", (event) => {
-    const detail = event?.error?.stack || event?.message || "Errore sconosciuto";
+    const detail =
+        event?.error?.stack || event?.message || "Errore sconosciuto";
     ipcRenderer.invoke("show-message-box", {
         type: "error",
         message: "Errore JS Batch Rename.",
@@ -29,7 +41,10 @@ window.addEventListener("error", (event) => {
 
 window.addEventListener("unhandledrejection", (event) => {
     const reason = event?.reason;
-    const detail = reason?.stack || reason?.message || String(reason || "Errore sconosciuto");
+    const detail =
+        reason?.stack ||
+        reason?.message ||
+        String(reason || "Errore sconosciuto");
     showError("Errore promessa non gestita (Batch Rename).", detail);
 });
 
@@ -40,10 +55,14 @@ async function handlePreview() {
     }
 
     const extFilterStr = document.getElementById("extFilter").value.trim();
-    const includeSubfolders = document.getElementById("chkIncludeSubfolders").checked;
+    const includeSubfolders = document.getElementById(
+        "chkIncludeSubfolders",
+    ).checked;
     const extList = parseExtensions(extFilterStr);
 
-    const scopeInput = document.querySelector('input[name="renameScope"]:checked');
+    const scopeInput = document.querySelector(
+        'input[name="renameScope"]:checked',
+    );
     const scope = scopeInput ? scopeInput.value : "files";
 
     const filterConfig = getFilterConfigFromUI({ showWarning });
@@ -79,16 +98,37 @@ async function handlePreview() {
 
         switch (sortOrder) {
             case "nameDesc": {
-                const cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" });
+                const cmp = nameA.localeCompare(nameB, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                });
                 return -cmp;
             }
             case "extAsc": {
-                const cmp = extA.localeCompare(extB, undefined, { numeric: true, sensitivity: "base" });
-                return cmp || nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" });
+                const cmp = extA.localeCompare(extB, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                });
+                return (
+                    cmp ||
+                    nameA.localeCompare(nameB, undefined, {
+                        numeric: true,
+                        sensitivity: "base",
+                    })
+                );
             }
             case "extDesc": {
-                const cmp = extA.localeCompare(extB, undefined, { numeric: true, sensitivity: "base" });
-                return -cmp || nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" });
+                const cmp = extA.localeCompare(extB, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                });
+                return (
+                    -cmp ||
+                    nameA.localeCompare(nameB, undefined, {
+                        numeric: true,
+                        sensitivity: "base",
+                    })
+                );
             }
             case "sizeAsc":
                 return sizeA - sizeB;
@@ -100,7 +140,10 @@ async function handlePreview() {
                 return timeB - timeA;
             case "nameAsc":
             default: {
-                const cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" });
+                const cmp = nameA.localeCompare(nameB, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                });
                 return cmp;
             }
         }
@@ -111,14 +154,17 @@ async function handlePreview() {
         renderPreviewTable();
         await showWarning("Nessun file trovato con i criteri specificati.");
         document.getElementById("btnApply").disabled = true;
-        const lblFilteredIncluded = document.getElementById("lblFilteredIncluded");
+        const lblFilteredIncluded = document.getElementById(
+            "lblFilteredIncluded",
+        );
         if (lblFilteredIncluded) lblFilteredIncluded.textContent = "0";
         setStatus("Nessun elemento incluso dai filtri.");
         return;
     }
 
     const lblFilteredIncluded = document.getElementById("lblFilteredIncluded");
-    if (lblFilteredIncluded) lblFilteredIncluded.textContent = String(itemsFiltered.length);
+    if (lblFilteredIncluded)
+        lblFilteredIncluded.textContent = String(itemsFiltered.length);
 
     const transformsConfig = getTransformsConfigFromUI();
 
@@ -127,7 +173,7 @@ async function handlePreview() {
         if (!dest.trim()) {
             await showWarning(
                 "Blocco Copia/Sposta attivo ma percorso vuoto.",
-                "Specifica un percorso di destinazione oppure disattiva il blocco Copia / Sposta in cartella."
+                "Specifica un percorso di destinazione oppure disattiva il blocco Copia / Sposta in cartella.",
             );
         }
     }
@@ -135,12 +181,17 @@ async function handlePreview() {
     buildPreviewWithCopyMove(itemsFiltered, transformsConfig, state.rootFolder);
     renderPreviewTable();
 
-    const toRename = state.previewData.filter((x) => x.status === "rename").length;
-    const conflicts = state.previewData.filter((x) => x.status === "conflict" || x.status === "error").length;
+    const toRename = state.previewData.filter(
+        (x) => x.status === "rename",
+    ).length;
+    const conflicts = state.previewData.filter(
+        (x) => x.status === "conflict" || x.status === "error",
+    ).length;
 
     const hasConflicts = conflicts > 0;
 
-    document.getElementById("btnApply").disabled = toRename === 0 || hasConflicts;
+    document.getElementById("btnApply").disabled =
+        toRename === 0 || hasConflicts;
 
     const btnUndoLast = document.getElementById("btnUndoLast");
     if (btnUndoLast) {
@@ -149,11 +200,13 @@ async function handlePreview() {
 
     await showInfo(
         "Anteprima generata.",
-        `File totali: ${state.previewData.length}\nDa rinominare: ${toRename}\nConflitti/Errori: ${conflicts}`
+        `File totali: ${state.previewData.length}\nDa rinominare: ${toRename}\nConflitti/Errori: ${conflicts}`,
     );
 
     if (conflicts > 0) {
-        setStatus("Sono presenti conflitti o errori: risolvi prima di procedere.");
+        setStatus(
+            "Sono presenti conflitti o errori: risolvi prima di procedere.",
+        );
     } else {
         setStatus("Anteprima pronta. Nessun conflitto rilevato.");
     }
@@ -179,25 +232,36 @@ window.addEventListener("DOMContentLoaded", () => {
 
     btnSelectFolder.addEventListener("click", async () => {
         try {
-            const folder = await withButtonLock(btnSelectFolder, () => selectRootFolderSafe());
+            const folder = await withButtonLock(btnSelectFolder, () =>
+                selectRootFolderSafe(),
+            );
             if (!folder) return;
             state.rootFolder = folder;
             updateSelectedFolderLabel();
             refreshFolderTree();
         } catch (err) {
             console.error("Errore selezione cartella:", err);
-            await showError("Errore selezione cartella.", err.message || String(err));
+            await showError(
+                "Errore selezione cartella.",
+                err.message || String(err),
+            );
         }
     });
 
     btnPreview.addEventListener("click", handlePreview);
-    btnApply.addEventListener("click", () => handleApply(showInfo, showWarning));
+    btnApply.addEventListener("click", () =>
+        handleApply(showInfo, showWarning),
+    );
     btnClose.addEventListener("click", () => {
         window.close();
     });
-    btnOpenFolder.addEventListener("click", () => handleOpenFolder(showWarning, showError));
+    btnOpenFolder.addEventListener("click", () =>
+        handleOpenFolder(showWarning, showError),
+    );
     if (btnUndoLast) {
-        btnUndoLast.addEventListener("click", () => handleUndoLast(showInfo, showWarning));
+        btnUndoLast.addEventListener("click", () =>
+            handleUndoLast(showInfo, showWarning),
+        );
         btnUndoLast.disabled = true;
     }
     if (btnPresetSave && presetSelect) {
@@ -221,7 +285,10 @@ window.addEventListener("DOMContentLoaded", () => {
                 setStatus(`Preset "${name}" salvato.`);
             } catch (err) {
                 console.error("Errore salvando il preset:", err);
-                await showError("Errore durante il salvataggio del preset.", err.message || String(err));
+                await showError(
+                    "Errore durante il salvataggio del preset.",
+                    err.message || String(err),
+                );
             }
         });
     }
@@ -229,15 +296,22 @@ window.addEventListener("DOMContentLoaded", () => {
         btnPresetDelete.addEventListener("click", async () => {
             const name = presetSelect.value;
             if (!name) return;
-            const conferma = window.confirm(`Vuoi eliminare il preset "${name}"?`);
+            const conferma = window.confirm(
+                `Vuoi eliminare il preset "${name}"?`,
+            );
             if (!conferma) return;
             try {
-                await ipcRenderer.invoke("batch-rename-delete-preset", { name });
+                await ipcRenderer.invoke("batch-rename-delete-preset", {
+                    name,
+                });
                 await loadPresetsIntoUI("");
                 setStatus(`Preset "${name}" eliminato.`);
             } catch (err) {
                 console.error("Errore eliminando il preset:", err);
-                await showError("Errore durante l'eliminazione del preset.", err.message || String(err));
+                await showError(
+                    "Errore durante l'eliminazione del preset.",
+                    err.message || String(err),
+                );
             }
         });
     }
@@ -248,12 +322,18 @@ window.addEventListener("DOMContentLoaded", () => {
             if (!name) return;
 
             try {
-                const presets = await ipcRenderer.invoke("batch-rename-load-presets");
-                const presetObj = (presets || []).find((p) => p && p.name === name);
+                const presets = await ipcRenderer.invoke(
+                    "batch-rename-load-presets",
+                );
+                const presetObj = (presets || []).find(
+                    (p) => p && p.name === name,
+                );
                 if (presetObj && presetObj.data) {
                     applyPresetToUI(presetObj.data);
                     if (presetNameInput) presetNameInput.value = name;
-                    setStatus(`Preset "${name}" caricato. Genera una nuova anteprima per vedere l'effetto.`);
+                    setStatus(
+                        `Preset "${name}" caricato. Genera una nuova anteprima per vedere l'effetto.`,
+                    );
                 }
             } catch (err) {
                 console.error("Errore caricando il preset selezionato:", err);
@@ -298,6 +378,3 @@ window.addEventListener("DOMContentLoaded", () => {
         loadPresetsIntoUI("");
     }
 });
-
-
-

@@ -6,6 +6,3 @@ export const state = {
     selectedIndex: null,
     lastRenameOperations: null,
 };
-
-
-

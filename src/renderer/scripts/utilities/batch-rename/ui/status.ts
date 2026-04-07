@@ -18,9 +18,4 @@ function updateSelectedFolderLabel() {
     }
 }
 
-export {
-    setStatus,
-    updateSelectedFolderLabel,
-};
-
-
+export { setStatus, updateSelectedFolderLabel };

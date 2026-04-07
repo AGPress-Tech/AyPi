@@ -26,7 +26,12 @@ function calcola() {
     const risultato = document.getElementById("risultato");
     if (!risultato) return;
 
-    if (Number.isNaN(D) || Number.isNaN(z) || Number.isNaN(Vc) || Number.isNaN(f)) {
+    if (
+        Number.isNaN(D) ||
+        Number.isNaN(z) ||
+        Number.isNaN(Vc) ||
+        Number.isNaN(f)
+    ) {
         risultato.innerHTML = "Inserisci tutti i valori!";
         return;
     }
@@ -56,8 +61,3 @@ declare global {
 window.calcola = calcola;
 
 export {};
-
-
-
-
-

@@ -6,7 +6,12 @@ const { ADDRESS_BY_ID } = require("../../main/config/addresses");
 
 initCommonUI();
 
-["openTavole", "openCicli", "openMontaggioStampi", "openDifettiProduzione"].forEach((id) => {
+[
+    "openTavole",
+    "openCicli",
+    "openMontaggioStampi",
+    "openDifettiProduzione",
+].forEach((id) => {
     const btn = document.getElementById(id);
     const entry = ADDRESS_BY_ID[id];
     const key = entry ? entry.key : null;
@@ -28,7 +33,3 @@ initCommonUI();
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
-
-
-
-

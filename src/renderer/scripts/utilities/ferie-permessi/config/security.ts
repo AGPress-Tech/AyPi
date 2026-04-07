@@ -83,14 +83,19 @@ async function verifyPasswordHash(hash, password) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    getAuthenticator,
-    otpState,
-    resetOtpState,
-    isHashingAvailable,
-    hashPassword,
-    verifyPasswordHash,
-};
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        getAuthenticator,
+        otpState,
+        resetOtpState,
+        isHashingAvailable,
+        hashPassword,
+        verifyPasswordHash,
+    };
 
 export {
     getAuthenticator,
@@ -100,4 +105,3 @@ export {
     hashPassword,
     verifyPasswordHash,
 };
-

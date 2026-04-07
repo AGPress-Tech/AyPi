@@ -1,10 +1,8 @@
 require("./shared/dev-guards");
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
-        window.location.href = 'moduli.html';
+        window.location.href = "moduli.html";
     }, 3000);
 });
 
 export {};
-
-
