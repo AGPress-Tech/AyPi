@@ -99,7 +99,10 @@ function normalizeMailConfig(payload: unknown): MailConfig {
     };
 }
 
-function saveMailConfig(payload: unknown, destinationPath = OTP_MAIL_SERVER_PATH) {
+function saveMailConfig(
+    payload: unknown,
+    destinationPath = OTP_MAIL_SERVER_PATH,
+) {
     const config = normalizeMailConfig(payload);
     const targets = [destinationPath];
     if (
@@ -179,15 +182,22 @@ export {
 };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        isMailerAvailable,
-        getMailerError,
-        loadMailConfig,
-        saveMailConfig,
-        sendTestEmail,
-        sendOtpEmail,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            isMailerAvailable,
+            getMailerError,
+            loadMailConfig,
+            saveMailConfig,
+            sendTestEmail,
+            sendOtpEmail,
+        };
 }
-
-

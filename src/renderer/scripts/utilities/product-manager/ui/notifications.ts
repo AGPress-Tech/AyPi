@@ -41,15 +41,22 @@ function requireAdminAccess(ctx, action) {
         if (typeof action === "function") action();
         return;
     }
-    showWarning("Accesso admin richiesto.", "Effettua il login come admin per continuare.");
+    showWarning(
+        "Accesso admin richiesto.",
+        "Effettua il login come admin per continuare.",
+    );
     openLoginModal();
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    showInfo,
-    showWarning,
-    showError,
-    requireLogin,
-    requireAdminAccess,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        showInfo,
+        showWarning,
+        showError,
+        requireLogin,
+        requireAdminAccess,
+    };

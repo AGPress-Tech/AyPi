@@ -11,7 +11,10 @@ type AssigneesModalOptions = {
     renderEmployeesList: () => void;
     renderDepartmentSelect: () => void;
     populateEmployees: () => void;
-    saveAssigneeOptions: (payload: { groups: AssigneeGroups; emails: AssigneeEmails }) => void;
+    saveAssigneeOptions: (payload: {
+        groups: AssigneeGroups;
+        emails: AssigneeEmails;
+    }) => void;
     syncBalancesAfterAssignees: () => void;
     getAssigneeGroups: () => AssigneeGroups;
     setAssigneeGroups: (groups: AssigneeGroups) => void;
@@ -49,10 +52,18 @@ function createAssigneesModal(options: AssigneesModalOptions) {
     }
 
     function closeAssigneesModal() {
-        const assigneesModal = document.getElementById("fp-assignees-modal") as HTMLElement | null;
-        const departmentInput = document.getElementById("fp-department-name") as HTMLInputElement | null;
-        const employeeNameInput = document.getElementById("fp-employee-name") as HTMLInputElement | null;
-        const employeeEmailInput = document.getElementById("fp-employee-email") as HTMLInputElement | null;
+        const assigneesModal = document.getElementById(
+            "fp-assignees-modal",
+        ) as HTMLElement | null;
+        const departmentInput = document.getElementById(
+            "fp-department-name",
+        ) as HTMLInputElement | null;
+        const employeeNameInput = document.getElementById(
+            "fp-employee-name",
+        ) as HTMLInputElement | null;
+        const employeeEmailInput = document.getElementById(
+            "fp-employee-email",
+        ) as HTMLInputElement | null;
         if (!assigneesModal) return;
         hideModal(assigneesModal);
         if (departmentInput) departmentInput.value = "";
@@ -66,8 +77,12 @@ function createAssigneesModal(options: AssigneesModalOptions) {
     }
 
     function openAssigneesModal() {
-        const assigneesModal = document.getElementById("fp-assignees-modal") as HTMLElement | null;
-        const departmentInput = document.getElementById("fp-department-name") as HTMLInputElement | null;
+        const assigneesModal = document.getElementById(
+            "fp-assignees-modal",
+        ) as HTMLElement | null;
+        const departmentInput = document.getElementById(
+            "fp-department-name",
+        ) as HTMLInputElement | null;
         if (!assigneesModal) return;
         showModal(assigneesModal);
         renderDepartmentList();
@@ -77,14 +92,30 @@ function createAssigneesModal(options: AssigneesModalOptions) {
     }
 
     function initAssigneesModal() {
-        const assigneesManage = document.getElementById("fp-assignees-manage") as HTMLButtonElement | null;
-        const assigneesModal = document.getElementById("fp-assignees-modal") as HTMLElement | null;
-        const assigneesClose = document.getElementById("fp-assignees-close") as HTMLButtonElement | null;
-        const departmentInput = document.getElementById("fp-department-name") as HTMLInputElement | null;
-        const departmentAdd = document.getElementById("fp-department-add") as HTMLButtonElement | null;
-        const employeeNameInput = document.getElementById("fp-employee-name") as HTMLInputElement | null;
-        const employeeEmailInput = document.getElementById("fp-employee-email") as HTMLInputElement | null;
-        const employeeAdd = document.getElementById("fp-employee-add") as HTMLButtonElement | null;
+        const assigneesManage = document.getElementById(
+            "fp-assignees-manage",
+        ) as HTMLButtonElement | null;
+        const assigneesModal = document.getElementById(
+            "fp-assignees-modal",
+        ) as HTMLElement | null;
+        const assigneesClose = document.getElementById(
+            "fp-assignees-close",
+        ) as HTMLButtonElement | null;
+        const departmentInput = document.getElementById(
+            "fp-department-name",
+        ) as HTMLInputElement | null;
+        const departmentAdd = document.getElementById(
+            "fp-department-add",
+        ) as HTMLButtonElement | null;
+        const employeeNameInput = document.getElementById(
+            "fp-employee-name",
+        ) as HTMLInputElement | null;
+        const employeeEmailInput = document.getElementById(
+            "fp-employee-email",
+        ) as HTMLInputElement | null;
+        const employeeAdd = document.getElementById(
+            "fp-employee-add",
+        ) as HTMLButtonElement | null;
 
         if (assigneesManage && assigneesModal) {
             assigneesManage.addEventListener("click", () => {
@@ -110,7 +141,9 @@ function createAssigneesModal(options: AssigneesModalOptions) {
 
         if (departmentAdd) {
             departmentAdd.addEventListener("click", () => {
-                const name = departmentInput ? departmentInput.value.trim() : "";
+                const name = departmentInput
+                    ? departmentInput.value.trim()
+                    : "";
                 const assigneeGroups = getAssigneeGroups();
                 if (!name || assigneeGroups[name]) return;
                 assigneeGroups[name] = [];
@@ -118,7 +151,10 @@ function createAssigneesModal(options: AssigneesModalOptions) {
                 setAssigneeOptions(Object.values(assigneeGroups).flat());
                 saveAssigneeOptions({
                     groups: assigneeGroups,
-                    emails: typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {},
+                    emails:
+                        typeof getAssigneeEmails === "function"
+                            ? getAssigneeEmails()
+                            : {},
                 });
                 if (typeof syncBalancesAfterAssignees === "function") {
                     syncBalancesAfterAssignees();
@@ -132,18 +168,30 @@ function createAssigneesModal(options: AssigneesModalOptions) {
 
         if (employeeAdd) {
             employeeAdd.addEventListener("click", () => {
-                const select = document.getElementById("fp-employee-department") as HTMLSelectElement | null;
+                const select = document.getElementById(
+                    "fp-employee-department",
+                ) as HTMLSelectElement | null;
                 const department = select ? select.value : "";
-                const name = employeeNameInput ? employeeNameInput.value.trim() : "";
-                const email = employeeEmailInput ? employeeEmailInput.value.trim() : "";
+                const name = employeeNameInput
+                    ? employeeNameInput.value.trim()
+                    : "";
+                const email = employeeEmailInput
+                    ? employeeEmailInput.value.trim()
+                    : "";
                 if (!department || !name) return;
                 const assigneeGroups = getAssigneeGroups();
-                if (!assigneeGroups[department]) assigneeGroups[department] = [];
+                if (!assigneeGroups[department])
+                    assigneeGroups[department] = [];
                 if (!assigneeGroups[department].includes(name)) {
                     assigneeGroups[department].push(name);
-                    assigneeGroups[department].sort((a, b) => a.localeCompare(b));
+                    assigneeGroups[department].sort((a, b) =>
+                        a.localeCompare(b),
+                    );
                 }
-                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                const emails =
+                    typeof getAssigneeEmails === "function"
+                        ? getAssigneeEmails()
+                        : {};
                 if (typeof setAssigneeEmails === "function") {
                     const key = `${department}|${name}`;
                     if (email) emails[key] = email;
@@ -154,7 +202,10 @@ function createAssigneesModal(options: AssigneesModalOptions) {
                 setAssigneeOptions(Object.values(assigneeGroups).flat());
                 saveAssigneeOptions({
                     groups: assigneeGroups,
-                    emails: typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {},
+                    emails:
+                        typeof getAssigneeEmails === "function"
+                            ? getAssigneeEmails()
+                            : {},
                 });
                 if (typeof syncBalancesAfterAssignees === "function") {
                     syncBalancesAfterAssignees();
@@ -173,8 +224,15 @@ function createAssigneesModal(options: AssigneesModalOptions) {
 export { createAssigneesModal };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createAssigneesModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createAssigneesModal };
 }
-
-

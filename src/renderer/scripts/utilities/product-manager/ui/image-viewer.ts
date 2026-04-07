@@ -28,5 +28,9 @@ function closeImageModal(ctx) {
     modal.setAttribute("aria-hidden", "true");
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { openImageModal, closeImageModal };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { openImageModal, closeImageModal };

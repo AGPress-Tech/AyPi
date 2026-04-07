@@ -22,7 +22,8 @@ function initConfirmModal({ document, closeConfirmModal }) {
     const cancelBtn = document.getElementById("pm-confirm-cancel");
     const okBtn = document.getElementById("pm-confirm-ok");
     const modal = document.getElementById("pm-confirm-modal");
-    if (cancelBtn) cancelBtn.addEventListener("click", () => closeConfirmModal(false));
+    if (cancelBtn)
+        cancelBtn.addEventListener("click", () => closeConfirmModal(false));
     if (okBtn) okBtn.addEventListener("click", () => closeConfirmModal(true));
     if (modal) {
         modal.addEventListener("click", (event) => {
@@ -42,7 +43,8 @@ function initReasonModal({ document, closeReasonModal }) {
     const okBtn = document.getElementById("pm-reason-ok");
     const modal = document.getElementById("pm-reason-modal");
     const input = document.getElementById("pm-reason-input");
-    if (cancelBtn) cancelBtn.addEventListener("click", () => closeReasonModal(null));
+    if (cancelBtn)
+        cancelBtn.addEventListener("click", () => closeReasonModal(null));
     if (okBtn) {
         okBtn.addEventListener("click", () => {
             closeReasonModal(input ? input.value || "" : "");
@@ -93,11 +95,15 @@ function initImageModal({ document, closeImageModal }) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    initAddModal,
-    initConfirmModal,
-    initReasonModal,
-    initAlertModal,
-    initImageModal,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        initAddModal,
+        initConfirmModal,
+        initReasonModal,
+        initAlertModal,
+        initImageModal,
+    };

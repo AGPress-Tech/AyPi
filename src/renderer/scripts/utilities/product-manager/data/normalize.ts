@@ -198,18 +198,22 @@ function tryAutoCleanJson(
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    normalizePriceCad,
-    formatPriceCadDisplay,
-    normalizeString,
-    formatAjvErrors,
-    normalizeRequestLine,
-    normalizeRequestsData,
-    normalizeCatalogData,
-    normalizeCategoriesData,
-    normalizeInterventionTypesData,
-    showAjvReport,
-    validateWithAjv,
-    tryAutoCleanJson,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        normalizePriceCad,
+        formatPriceCadDisplay,
+        normalizeString,
+        formatAjvErrors,
+        normalizeRequestLine,
+        normalizeRequestsData,
+        normalizeCatalogData,
+        normalizeCategoriesData,
+        normalizeInterventionTypesData,
+        showAjvReport,
+        validateWithAjv,
+        tryAutoCleanJson,
+    };

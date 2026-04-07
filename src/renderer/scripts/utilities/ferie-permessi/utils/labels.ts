@@ -13,7 +13,8 @@ export type RequestType =
 
 export function getTypeLabel(value: RequestType) {
     if (value === "permesso") return "Permesso";
-    if (value === "retribuito" || value === "giustificato") return "Permesso Retribuito";
+    if (value === "retribuito" || value === "giustificato")
+        return "Permesso Retribuito";
     if (value === "straordinari") return "Straordinari";
     if (value === "mutua") return "Mutua";
     if (value === "infortunio") return "Infortunio";
@@ -22,9 +23,15 @@ export function getTypeLabel(value: RequestType) {
 }
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { getTypeLabel };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { getTypeLabel };
 }
-
-
-

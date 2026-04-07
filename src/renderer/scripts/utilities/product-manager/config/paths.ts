@@ -6,7 +6,8 @@ import { NETWORK_PATHS } from "../../../../../main/config/paths";
 let ipcRenderer = null;
 try {
     const electron = require("electron");
-    ipcRenderer = electron && electron.ipcRenderer ? electron.ipcRenderer : null;
+    ipcRenderer =
+        electron && electron.ipcRenderer ? electron.ipcRenderer : null;
 } catch (err) {
     ipcRenderer = null;
 }
@@ -47,21 +48,24 @@ const PRODUCTS_DIR = path.join(PURCHASING_DIR, "products");
 const REQUESTS_SHARDS_DIR = path.join(PURCHASING_DIR, "requests");
 const INTERVENTIONS_SHARDS_DIR = path.join(PURCHASING_DIR, "interventions");
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    ROOT_DIR,
-    BASE_DIR,
-    PURCHASING_DIR,
-    REQUESTS_PATH,
-    INTERVENTIONS_PATH,
-    CATALOG_PATH,
-    CATEGORIES_PATH,
-    INTERVENTION_TYPES_PATH,
-    UNITS_PATH,
-    SETTINGS_PATH,
-    SESSION_PATH,
-    PRODUCTS_DIR,
-    REQUESTS_SHARDS_DIR,
-    INTERVENTIONS_SHARDS_DIR,
-};
-
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        ROOT_DIR,
+        BASE_DIR,
+        PURCHASING_DIR,
+        REQUESTS_PATH,
+        INTERVENTIONS_PATH,
+        CATALOG_PATH,
+        CATEGORIES_PATH,
+        INTERVENTION_TYPES_PATH,
+        UNITS_PATH,
+        SETTINGS_PATH,
+        SESSION_PATH,
+        PRODUCTS_DIR,
+        REQUESTS_SHARDS_DIR,
+        INTERVENTIONS_SHARDS_DIR,
+    };

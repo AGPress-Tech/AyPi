@@ -42,7 +42,9 @@ function openCatalogModal(ctx, item = null) {
             image.value = item.imageFile ? "Immagine presente" : "";
             image.dataset.path = "";
         }
-        if (removeBtn) removeBtn.style.display = item.imageFile || item.imageUrl ? "inline-flex" : "none";
+        if (removeBtn)
+            removeBtn.style.display =
+                item.imageFile || item.imageUrl ? "inline-flex" : "none";
     } else {
         if (title) title.textContent = "Nuovo prodotto catalogo";
         if (saveBtn) saveBtn.textContent = "Salva prodotto";
@@ -102,19 +104,23 @@ function saveCatalogItem(ctx) {
         return;
     }
     const idInput = document.getElementById("pm-catalog-id");
-    const name = document.getElementById("pm-catalog-name")?.value?.trim() || "";
+    const name =
+        document.getElementById("pm-catalog-name")?.value?.trim() || "";
     if (!name) {
         showWarning("Inserisci il nome prodotto.");
         return;
     }
     const categoryContainer = document.getElementById("pm-catalog-category");
     const category =
-        categoryContainer && categoryContainer.querySelector(".pm-multiselect__button")
-            ? categoryContainer.querySelector(".pm-multiselect__button").textContent
+        categoryContainer &&
+        categoryContainer.querySelector(".pm-multiselect__button")
+            ? categoryContainer.querySelector(".pm-multiselect__button")
+                  .textContent
             : "";
     const imageInput = document.getElementById("pm-catalog-image");
     const imageUrlInput = document.getElementById("pm-catalog-image-url");
-    const imageSource = imageInput && imageInput.dataset ? imageInput.dataset.path || "" : "";
+    const imageSource =
+        imageInput && imageInput.dataset ? imageInput.dataset.path || "" : "";
     const existingId = idInput?.value?.trim() || "";
     const targetId = existingId || `CAT-${Date.now()}`;
     let imageFileName = "";
@@ -124,7 +130,9 @@ function saveCatalogItem(ctx) {
     const item = {
         id: targetId,
         name,
-        description: document.getElementById("pm-catalog-description")?.value?.trim() || "",
+        description:
+            document.getElementById("pm-catalog-description")?.value?.trim() ||
+            "",
         category,
         unit: document.getElementById("pm-catalog-unit")?.value?.trim() || "",
         url: document.getElementById("pm-catalog-url")?.value?.trim() || "",
@@ -141,9 +149,11 @@ function saveCatalogItem(ctx) {
                     ...entry,
                     ...item,
                     imageUrl: item.imageUrl || entry.imageUrl || "",
-                    imageFile: uiState.catalogRemoveImage ? "" : imageFileName || entry.imageFile || "",
+                    imageFile: uiState.catalogRemoveImage
+                        ? ""
+                        : imageFileName || entry.imageFile || "",
                 };
-            })
+            }),
         );
     } else {
         setCatalogItems([...currentItems, item]);
@@ -157,7 +167,15 @@ function saveCatalogItem(ctx) {
 }
 
 function initCatalogModal(ctx) {
-    const { document, ipcRenderer, showError, uiState, openCatalogModal, closeCatalogModal, saveCatalogItem } = ctx;
+    const {
+        document,
+        ipcRenderer,
+        showError,
+        uiState,
+        openCatalogModal,
+        closeCatalogModal,
+        saveCatalogItem,
+    } = ctx;
     const modal = document.getElementById("pm-catalog-modal");
     const openBtn = document.getElementById("pm-catalog-add");
     const closeBtn = document.getElementById("pm-catalog-close");
@@ -169,7 +187,8 @@ function initCatalogModal(ctx) {
     const removeBtn = document.getElementById("pm-catalog-remove-image");
     if (openBtn) openBtn.addEventListener("click", () => openCatalogModal());
     if (closeBtn) closeBtn.addEventListener("click", () => closeCatalogModal());
-    if (cancelBtn) cancelBtn.addEventListener("click", () => closeCatalogModal());
+    if (cancelBtn)
+        cancelBtn.addEventListener("click", () => closeCatalogModal());
     if (saveBtn) saveBtn.addEventListener("click", () => saveCatalogItem());
     if (modal) {
         const fields = modal.querySelectorAll("input, select");
@@ -194,7 +213,7 @@ function initCatalogModal(ctx) {
             } catch (err) {
                 showError(
                     "Selezione immagine non disponibile.",
-                    "Riavvia AyPi per attivare il selettore immagini."
+                    "Riavvia AyPi per attivare il selettore immagini.",
                 );
             }
         });
@@ -202,7 +221,7 @@ function initCatalogModal(ctx) {
     if (removeBtn) {
         removeBtn.addEventListener("click", async () => {
             const confirmed = await ctx.openConfirmModal(
-                "Vuoi rimuovere l'immagine da questo prodotto?"
+                "Vuoi rimuovere l'immagine da questo prodotto?",
             );
             if (!confirmed) return;
             if (imageInput) {
@@ -217,11 +236,15 @@ function initCatalogModal(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    openCatalogModal,
-    closeCatalogModal,
-    clearCatalogForm,
-    saveCatalogItem,
-    initCatalogModal,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        openCatalogModal,
+        closeCatalogModal,
+        clearCatalogForm,
+        saveCatalogItem,
+        initCatalogModal,
+    };

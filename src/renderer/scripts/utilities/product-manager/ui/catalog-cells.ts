@@ -47,5 +47,9 @@ function buildUrlCell(ctx, url) {
     return wrapper;
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { buildProductCell, buildUrlCell };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { buildProductCell, buildUrlCell };

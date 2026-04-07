@@ -22,8 +22,15 @@ const { loadAssigneeOptions, saveAssigneeOptions } = store;
 export { loadAssigneeOptions, saveAssigneeOptions };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { loadAssigneeOptions, saveAssigneeOptions };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { loadAssigneeOptions, saveAssigneeOptions };
 }
-
-

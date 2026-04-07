@@ -20,12 +20,14 @@ function toDate(value: string | null | undefined) {
 export function getRequestDates(request: RequestLike | null | undefined) {
     if (!request) return { start: null, end: null };
     if (request.allDay) {
-        const start = request.start ? new Date(`${request.start}T00:00:00`) : null;
+        const start = request.start
+            ? new Date(`${request.start}T00:00:00`)
+            : null;
         const end = request.end
             ? new Date(`${request.end}T23:59:59`)
             : request.start
-                ? new Date(`${request.start}T23:59:59`)
-                : null;
+              ? new Date(`${request.start}T23:59:59`)
+              : null;
         return { start, end };
     }
     const start = toDate(request.start);
@@ -58,8 +60,7 @@ function buildDateSet(
     return new Set(
         dates.filter(
             (value): value is string =>
-                typeof value === "string" &&
-                /^\d{4}-\d{2}-\d{2}$/.test(value),
+                typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value),
         ),
     );
 }
@@ -81,7 +82,11 @@ function buildClosureSet(closures: ClosureLike[] | null | undefined) {
         if (!start) return;
         const startDate = new Date(start);
         const endDate = new Date(end || start);
-        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+        if (
+            Number.isNaN(startDate.getTime()) ||
+            Number.isNaN(endDate.getTime())
+        )
+            return;
         const rangeStart = startDate <= endDate ? startDate : endDate;
         const rangeEnd = startDate <= endDate ? endDate : startDate;
         const current = new Date(rangeStart);
@@ -98,11 +103,19 @@ function countWeekdays(
     startDate: Date | null,
     endDate: Date | null,
     holidaySet: Set<string> | null,
-    closureSet: Set<string> | null
+    closureSet: Set<string> | null,
 ) {
     if (!startDate || !endDate) return 0;
-    const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    const start = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate(),
+    );
+    const end = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate(),
+    );
     if (end < start) return 0;
     let count = 0;
     const current = new Date(start);
@@ -123,10 +136,11 @@ function countWeekdays(
 export function calculateHours(
     request: RequestLike | null | undefined,
     holidays: HolidayLike[] | null | undefined,
-    closures: ClosureLike[] | null | undefined
+    closures: ClosureLike[] | null | undefined,
 ) {
     if (!request) return 0;
-    const isOvertimeLike = request.type === "straordinari" || request.type === "speciale";
+    const isOvertimeLike =
+        request.type === "straordinari" || request.type === "speciale";
     const holidaySet: Set<string> | null = isOvertimeLike
         ? null
         : buildDateSet(holidays, "date");
@@ -134,13 +148,16 @@ export function calculateHours(
         ? null
         : buildClosureSet(closures);
     if (request.allDay) {
-        const startDate = request.start ? new Date(`${request.start}T00:00:00`) : null;
-        const endDate = request.end ? new Date(`${request.end}T00:00:00`) : startDate;
+        const startDate = request.start
+            ? new Date(`${request.start}T00:00:00`)
+            : null;
+        const endDate = request.end
+            ? new Date(`${request.end}T00:00:00`)
+            : startDate;
         if (!startDate || !endDate) return 0;
         const days = isOvertimeLike
-            ? Math.floor(
-                  (endDate.getTime() - startDate.getTime()) / 86400000,
-              ) + 1
+            ? Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) +
+              1
             : countWeekdays(startDate, endDate, holidaySet, closureSet);
         return days * 8;
     }
@@ -160,20 +177,29 @@ export function calculateHours(
     }
     const diffHours = (end.getTime() - start.getTime()) / 3600000;
     const hours = Math.max(0, Math.round(diffHours * 100) / 100);
-    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const startDay = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate(),
+    );
     const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
     const days = isOvertimeLike
-        ? Math.floor(
-              (endDay.getTime() - startDay.getTime()) / 86400000,
-          ) + 1
+        ? Math.floor((endDay.getTime() - startDay.getTime()) / 86400000) + 1
         : countWeekdays(startDay, endDay, holidaySet, closureSet);
     const maxHours = Math.max(1, days) * 8;
     return Math.min(hours, maxHours);
 }
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { getRequestDates, calculateHours };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { getRequestDates, calculateHours };
 }
-
-

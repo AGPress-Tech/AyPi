@@ -13,5 +13,9 @@ const uiState = {
     interventionTypesEditingName: null,
 };
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { uiState };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { uiState };

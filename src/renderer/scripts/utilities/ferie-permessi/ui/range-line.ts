@@ -37,5 +37,9 @@ function createRangeLine(document, request) {
     return line;
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createRangeLine };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { createRangeLine };

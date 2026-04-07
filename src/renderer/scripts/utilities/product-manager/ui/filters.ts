@@ -29,7 +29,9 @@ function renderCategoryOptions({ document, catalogCategories, selected = [] }) {
                 selectedSet.delete(cat);
             }
             const values = Array.from(selectedSet.values());
-            button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
+            button.textContent = values.length
+                ? values.join(", ")
+                : "Seleziona tipologie";
         });
         option.append(checkbox, span);
         menu.appendChild(option);
@@ -43,8 +45,14 @@ function renderCategoryOptions({ document, catalogCategories, selected = [] }) {
             menu.classList.add("is-hidden");
         }
     });
-    button.textContent = selectedSet.size ? Array.from(selectedSet.values()).join(", ") : "Seleziona tipologie";
-    if (container.dataset && container.dataset.value && selectedSet.size === 0) {
+    button.textContent = selectedSet.size
+        ? Array.from(selectedSet.values()).join(", ")
+        : "Seleziona tipologie";
+    if (
+        container.dataset &&
+        container.dataset.value &&
+        selectedSet.size === 0
+    ) {
         button.textContent = container.dataset.value;
     }
     wrap.append(button, menu);
@@ -71,7 +79,9 @@ function buildFilterMultiselect({
     const doc = select.ownerDocument || document;
     const parent = select.parentElement;
     if (!parent) return;
-    const existing = parent.querySelector(`.pm-multiselect--filter[data-for="${select.id}"]`);
+    const existing = parent.querySelector(
+        `.pm-multiselect--filter[data-for="${select.id}"]`,
+    );
     if (existing) existing.remove();
 
     select.dataset.pmMultiselect = "1";
@@ -88,19 +98,28 @@ function buildFilterMultiselect({
     button.className = "pm-multiselect__button";
     const menu = doc.createElement("div");
     menu.className = "pm-multiselect__menu is-hidden";
-    const selectedSet = new Set(selected.filter((value) => options.includes(value)));
+    const selectedSet = new Set(
+        selected.filter((value) => options.includes(value)),
+    );
 
     const updateLabel = () => {
-        button.textContent = formatMultiLabel(Array.from(selectedSet.values()), placeholder);
+        button.textContent = formatMultiLabel(
+            Array.from(selectedSet.values()),
+            placeholder,
+        );
     };
 
     const closeOtherMenus = () => {
-        doc.querySelectorAll(".pm-multiselect__menu--floating").forEach((menuEl) => {
-            if (menuEl === menu) return;
-            const hostId = menuEl.dataset.pmHostId || "";
-            const host = hostId ? doc.querySelector(`[data-pm-host-id="${hostId}"]`) : null;
-            closeMultiselectMenu(menuEl, host || null);
-        });
+        doc.querySelectorAll(".pm-multiselect__menu--floating").forEach(
+            (menuEl) => {
+                if (menuEl === menu) return;
+                const hostId = menuEl.dataset.pmHostId || "";
+                const host = hostId
+                    ? doc.querySelector(`[data-pm-host-id="${hostId}"]`)
+                    : null;
+                closeMultiselectMenu(menuEl, host || null);
+            },
+        );
         doc.querySelectorAll(".pm-custom-select.is-open").forEach((custom) => {
             custom.classList.remove("is-open");
         });
@@ -207,8 +226,8 @@ function renderCatalogFilterOptions({
     const selected = Array.isArray(catalogFilterTag)
         ? catalogFilterTag
         : catalogFilterTag
-        ? [catalogFilterTag]
-        : [];
+          ? [catalogFilterTag]
+          : [];
     buildFilterMultiselect({
         select,
         options: [...catalogCategories],
@@ -260,7 +279,9 @@ function renderInterventionTypeOptions({
                 selectedSet.delete(type);
             }
             const values = Array.from(selectedSet.values());
-            button.textContent = values.length ? values.join(", ") : "Seleziona tipologie";
+            button.textContent = values.length
+                ? values.join(", ")
+                : "Seleziona tipologie";
             if (typeof onChange === "function") {
                 onChange(values, selectedSet, button);
             }
@@ -281,7 +302,9 @@ function renderInterventionTypeOptions({
             closeMultiselectMenu(menu, wrap);
         }
     });
-    button.textContent = selectedSet.size ? Array.from(selectedSet.values()).join(", ") : "Seleziona tipologie";
+    button.textContent = selectedSet.size
+        ? Array.from(selectedSet.values()).join(", ")
+        : "Seleziona tipologie";
     wrap.append(button, menu);
     return { wrap, selectedSet, button };
 }
@@ -323,7 +346,11 @@ function renderCartTagFilterOptions({
     } else {
         catalogCategories.forEach((cat) => options.push(cat));
     }
-    const selected = Array.isArray(cartState.tag) ? cartState.tag : cartState.tag ? [cartState.tag] : [];
+    const selected = Array.isArray(cartState.tag)
+        ? cartState.tag
+        : cartState.tag
+          ? [cartState.tag]
+          : [];
     buildFilterMultiselect({
         select,
         options,
@@ -349,8 +376,8 @@ function renderCartUrgencyFilterOptions({
     const selected = Array.isArray(cartState.urgency)
         ? cartState.urgency
         : cartState.urgency
-        ? [cartState.urgency]
-        : [];
+          ? [cartState.urgency]
+          : [];
     buildFilterMultiselect({
         select,
         options,
@@ -376,8 +403,8 @@ function renderCartStatusFilterOptions({
     const selected = Array.isArray(cartState.status)
         ? cartState.status
         : cartState.status
-        ? [cartState.status]
-        : [];
+          ? [cartState.status]
+          : [];
     buildFilterMultiselect({
         select,
         options,
@@ -390,13 +417,16 @@ function renderCartStatusFilterOptions({
     });
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    renderCategoryOptions,
-    renderCatalogFilterOptions,
-    renderInterventionTypeOptions,
-    renderCartTagFilterOptions,
-    renderCartUrgencyFilterOptions,
-    renderCartStatusFilterOptions,
-};
-
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        renderCategoryOptions,
+        renderCatalogFilterOptions,
+        renderInterventionTypeOptions,
+        renderCartTagFilterOptions,
+        renderCartUrgencyFilterOptions,
+        renderCartStatusFilterOptions,
+    };

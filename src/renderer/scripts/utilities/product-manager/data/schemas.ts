@@ -105,18 +105,22 @@ if (ajv) {
     validateInterventionTypesSchema = ajv.compile(CATEGORIES_SCHEMA);
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    REQUEST_LINE_SCHEMA,
-    REQUEST_SCHEMA,
-    REQUESTS_SCHEMA,
-    CATALOG_ITEM_SCHEMA,
-    CATALOG_SCHEMA,
-    CATEGORIES_SCHEMA,
-    validators: {
-        validateRequestsSchema,
-        validateCatalogSchema,
-        validateCategoriesSchema,
-        validateInterventionTypesSchema,
-    },
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        REQUEST_LINE_SCHEMA,
+        REQUEST_SCHEMA,
+        REQUESTS_SCHEMA,
+        CATALOG_ITEM_SCHEMA,
+        CATALOG_SCHEMA,
+        CATEGORIES_SCHEMA,
+        validators: {
+            validateRequestsSchema,
+            validateCatalogSchema,
+            validateCategoriesSchema,
+            validateInterventionTypesSchema,
+        },
+    };

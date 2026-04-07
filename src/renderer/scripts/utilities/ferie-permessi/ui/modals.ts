@@ -6,7 +6,8 @@ type ModalHelpersOptions = {
 };
 
 function createModalHelpers(options: ModalHelpersOptions) {
-    const { document, clearPendingAction } = options || ({} as ModalHelpersOptions);
+    const { document, clearPendingAction } =
+        options || ({} as ModalHelpersOptions);
 
     if (!document) {
         throw new Error("document richiesto.");
@@ -49,8 +50,15 @@ function createModalHelpers(options: ModalHelpersOptions) {
 export { createModalHelpers };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createModalHelpers };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createModalHelpers };
 }
-
-

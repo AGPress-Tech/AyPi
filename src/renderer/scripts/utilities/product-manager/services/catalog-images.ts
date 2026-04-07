@@ -13,7 +13,10 @@ type CatalogItem = {
     imageUrl?: string;
 };
 
-function getCatalogImagePath(ctx: CatalogImageContext, item?: CatalogItem | null) {
+function getCatalogImagePath(
+    ctx: CatalogImageContext,
+    item?: CatalogItem | null,
+) {
     const { path, fs, PRODUCTS_DIR } = ctx;
     if (!item || !item.imageFile) return "";
     const primary = path.join(PRODUCTS_DIR, item.imageFile);
@@ -21,7 +24,10 @@ function getCatalogImagePath(ctx: CatalogImageContext, item?: CatalogItem | null
     return primary;
 }
 
-function getCatalogImageSrc(ctx: CatalogImageContext, item?: CatalogItem | null) {
+function getCatalogImageSrc(
+    ctx: CatalogImageContext,
+    item?: CatalogItem | null,
+) {
     const { pathToFileURL } = ctx;
     if (item && item.imageUrl) return item.imageUrl;
     const filePath = getCatalogImagePath(ctx, item);
@@ -44,7 +50,11 @@ function ensureProductsDir(ctx: CatalogImageContext) {
     }
 }
 
-function copyCatalogImage(ctx: CatalogImageContext, filePath: string, catalogId: string) {
+function copyCatalogImage(
+    ctx: CatalogImageContext,
+    filePath: string,
+    catalogId: string,
+) {
     const { fs, path, PRODUCTS_DIR, showError } = ctx;
     if (!filePath) return "";
     ensureProductsDir(ctx);
@@ -55,7 +65,10 @@ function copyCatalogImage(ctx: CatalogImageContext, filePath: string, catalogId:
         fs.copyFileSync(filePath, target);
         return filename;
     } catch (err) {
-        showError("Errore copia immagine.", err instanceof Error ? err.message : String(err));
+        showError(
+            "Errore copia immagine.",
+            err instanceof Error ? err.message : String(err),
+        );
         return "";
     }
 }
@@ -68,13 +81,20 @@ export {
 };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        getCatalogImagePath,
-        getCatalogImageSrc,
-        ensureProductsDir,
-        copyCatalogImage,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            getCatalogImagePath,
+            getCatalogImageSrc,
+            ensureProductsDir,
+            copyCatalogImage,
+        };
 }
-
-

@@ -35,23 +35,27 @@ function loadAdminCredentials(): AdminEntry[] {
                         item.name &&
                         (item.password || item.passwordHash),
                 )
-                .map((item: any): AdminEntry => ({
-                    name: String(item.name),
-                    password: item.password ? String(item.password) : undefined,
-                    passwordHash: item.passwordHash
-                        ? String(item.passwordHash)
-                        : undefined,
-                    email: item.email ? String(item.email) : "",
-                    phone: item.phone ? String(item.phone) : "",
-                    accessCalendar:
-                        typeof item.accessCalendar === "boolean"
-                            ? item.accessCalendar
-                            : true,
-                    accessPurchasing:
-                        typeof item.accessPurchasing === "boolean"
-                            ? item.accessPurchasing
-                            : true,
-                }));
+                .map(
+                    (item: any): AdminEntry => ({
+                        name: String(item.name),
+                        password: item.password
+                            ? String(item.password)
+                            : undefined,
+                        passwordHash: item.passwordHash
+                            ? String(item.passwordHash)
+                            : undefined,
+                        email: item.email ? String(item.email) : "",
+                        phone: item.phone ? String(item.phone) : "",
+                        accessCalendar:
+                            typeof item.accessCalendar === "boolean"
+                                ? item.accessCalendar
+                                : true,
+                        accessPurchasing:
+                            typeof item.accessPurchasing === "boolean"
+                                ? item.accessPurchasing
+                                : true,
+                    }),
+                );
         }
         if (parsed && Array.isArray(parsed.admins)) {
             return parsed.admins
@@ -61,23 +65,27 @@ function loadAdminCredentials(): AdminEntry[] {
                         item.name &&
                         (item.password || item.passwordHash),
                 )
-                .map((item: any): AdminEntry => ({
-                    name: String(item.name),
-                    password: item.password ? String(item.password) : undefined,
-                    passwordHash: item.passwordHash
-                        ? String(item.passwordHash)
-                        : undefined,
-                    email: item.email ? String(item.email) : "",
-                    phone: item.phone ? String(item.phone) : "",
-                    accessCalendar:
-                        typeof item.accessCalendar === "boolean"
-                            ? item.accessCalendar
-                            : true,
-                    accessPurchasing:
-                        typeof item.accessPurchasing === "boolean"
-                            ? item.accessPurchasing
-                            : true,
-                }));
+                .map(
+                    (item: any): AdminEntry => ({
+                        name: String(item.name),
+                        password: item.password
+                            ? String(item.password)
+                            : undefined,
+                        passwordHash: item.passwordHash
+                            ? String(item.passwordHash)
+                            : undefined,
+                        email: item.email ? String(item.email) : "",
+                        phone: item.phone ? String(item.phone) : "",
+                        accessCalendar:
+                            typeof item.accessCalendar === "boolean"
+                                ? item.accessCalendar
+                                : true,
+                        accessPurchasing:
+                            typeof item.accessPurchasing === "boolean"
+                                ? item.accessPurchasing
+                                : true,
+                    }),
+                );
         }
         if (parsed && typeof parsed === "object") {
             return (Object.entries(parsed) as Array<[string, any]>)
@@ -164,7 +172,10 @@ function saveAdminCredentials(admins: AdminEntry[]) {
     }
 }
 
-async function verifyAdminPassword(password: string, targetName?: string | null): Promise<VerifyResult | null> {
+async function verifyAdminPassword(
+    password: string,
+    targetName?: string | null,
+): Promise<VerifyResult | null> {
     if (!password) return null;
     const admins = loadAdminCredentials();
     for (const admin of admins) {
@@ -243,15 +254,22 @@ export {
 };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        loadAdminCredentials,
-        saveAdminCredentials,
-        verifyAdminPassword,
-        findAdminByName,
-        isValidEmail,
-        isValidPhone,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            loadAdminCredentials,
+            saveAdminCredentials,
+            verifyAdminPassword,
+            findAdminByName,
+            isValidEmail,
+            isValidPhone,
+        };
 }
-
-

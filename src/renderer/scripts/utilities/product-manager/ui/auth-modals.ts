@@ -40,10 +40,14 @@ function closeLogoutModal(ctx) {
     modal.setAttribute("aria-hidden", "true");
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    openLoginModal,
-    closeLoginModal,
-    openLogoutModal,
-    closeLogoutModal,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        openLoginModal,
+        closeLoginModal,
+        openLogoutModal,
+        closeLogoutModal,
+    };

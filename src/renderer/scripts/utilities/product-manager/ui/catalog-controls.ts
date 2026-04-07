@@ -1,6 +1,11 @@
 ﻿// @ts-nocheck
 require("../../../shared/dev-guards");
-function syncCatalogControls({ document, isInterventionMode, catalogSearch, catalogSort }) {
+function syncCatalogControls({
+    document,
+    isInterventionMode,
+    catalogSearch,
+    catalogSort,
+}) {
     if (isInterventionMode()) return;
     const search = document.getElementById("pm-catalog-search");
     const sort = document.getElementById("pm-catalog-sort");
@@ -49,5 +54,9 @@ function initCatalogFilters({
     if (filter) filter.value = getCatalogFilterTag() || "";
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { syncCatalogControls, initCatalogFilters };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { syncCatalogControls, initCatalogFilters };

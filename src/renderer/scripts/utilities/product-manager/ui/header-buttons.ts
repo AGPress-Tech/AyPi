@@ -80,8 +80,8 @@ function setupHeaderButtons(ctx) {
                 .catch((err) =>
                     showError(
                         "Impossibile aprire la lista interventi.",
-                        err && err.message ? err.message : String(err)
-                    )
+                        err && err.message ? err.message : String(err),
+                    ),
                 );
         });
     }
@@ -128,5 +128,9 @@ function setupHeaderButtons(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { setupHeaderButtons };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { setupHeaderButtons };

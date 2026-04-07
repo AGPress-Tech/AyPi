@@ -442,4 +442,3 @@ if (typeof module !== "undefined" && module.exports && !(globalThis as any).__ay
     renderCategoriesList,
     renderInterventionTypesList,
 };
-

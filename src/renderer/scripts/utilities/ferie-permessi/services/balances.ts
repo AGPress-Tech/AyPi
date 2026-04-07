@@ -10,7 +10,6 @@ import {
 import { ensureFolderFor } from "./storage";
 import { calculateHours } from "../utils/requests";
 
-
 type HolidayLike = { date?: string } | string;
 type ClosureLike = { start?: string; end?: string; name?: string } | string;
 type RequestLike = {
@@ -120,7 +119,10 @@ function buildHolidaySet(holidays: HolidayLike[] | null | undefined) {
     return new Set(dates);
 }
 
-function buildClosureEligibleSet(closures: ClosureLike[] | null | undefined, holidays: HolidayLike[] | null | undefined) {
+function buildClosureEligibleSet(
+    closures: ClosureLike[] | null | undefined,
+    holidays: HolidayLike[] | null | undefined,
+) {
     const holidaySet = buildHolidaySet(holidays);
     const dates = new Set();
     normalizeClosures(closures).forEach((closure) => {
@@ -145,7 +147,11 @@ function buildClosureEligibleSet(closures: ClosureLike[] | null | undefined, hol
     return dates;
 }
 
-function calculateSpecialeBonusHours(request: RequestLike, holidays: HolidayLike[] | null | undefined, closures: ClosureLike[] | null | undefined) {
+function calculateSpecialeBonusHours(
+    request: RequestLike,
+    holidays: HolidayLike[] | null | undefined,
+    closures: ClosureLike[] | null | undefined,
+) {
     if (!isSpeciale(request)) return 0;
     const closureSet = buildClosureEligibleSet(closures, holidays);
     if (!closureSet.size) return 0;
@@ -217,7 +223,12 @@ function normalizeClosures(
         .filter((item): item is NormalizedClosure => !!item && !!item.start);
 }
 
-function countClosureDaysForMonth(closures: ClosureLike[] | null | undefined, holidays: HolidayLike[] | null | undefined, monthKey: string, cutoffDate: Date | null) {
+function countClosureDaysForMonth(
+    closures: ClosureLike[] | null | undefined,
+    holidays: HolidayLike[] | null | undefined,
+    monthKey: string,
+    cutoffDate: Date | null,
+) {
     if (!monthKey) return 0;
     const monthInfo = parseMonthKey(monthKey);
     if (!monthInfo) return 0;
@@ -255,7 +266,10 @@ function countClosureDaysForMonth(closures: ClosureLike[] | null | undefined, ho
     return dates.size;
 }
 
-function getEmployeeKey(employee: RequestLike["employee"], department?: string | null) {
+function getEmployeeKey(
+    employee: RequestLike["employee"],
+    department?: string | null,
+) {
     const name =
         typeof employee === "string"
             ? employee.trim()
@@ -301,7 +315,7 @@ function getApprovedHoursForEmployee(
     employee: string,
     department: string,
     holidays: HolidayLike[] | null | undefined,
-    closures: ClosureLike[] | null | undefined
+    closures: ClosureLike[] | null | undefined,
 ) {
     if (!Array.isArray(requests)) return 0;
     const key = getEmployeeKey(employee, department);
@@ -329,7 +343,14 @@ function getApprovedHoursForEmployee(
     }, 0);
 }
 
-function normalizeBalances(payload: Payload, assigneeGroups: Record<string, Array<string | { name?: string }>> | null | undefined, options: { initialHours?: number; monthlyAccrual?: number } = {}) {
+function normalizeBalances(
+    payload: Payload,
+    assigneeGroups:
+        | Record<string, Array<string | { name?: string }>>
+        | null
+        | undefined,
+    options: { initialHours?: number; monthlyAccrual?: number } = {},
+) {
     const initialHours = options.initialHours ?? DEFAULT_INITIAL_HOURS;
     const monthlyAccrual = options.monthlyAccrual ?? MONTHLY_ACCRUAL_HOURS;
     const currentMonth = getMonthKey();
@@ -557,7 +578,11 @@ function applyBalanceForDeletion(payload: Payload, request: RequestLike) {
     return payload;
 }
 
-function applyBalanceForUpdate(payload: Payload, existingRequest: RequestLike, nextRequest: RequestLike) {
+function applyBalanceForUpdate(
+    payload: Payload,
+    existingRequest: RequestLike,
+    nextRequest: RequestLike,
+) {
     if (!payload || !existingRequest || !nextRequest) return payload;
 
     const wasApproved = existingRequest.status === "approved";
@@ -692,7 +717,6 @@ function readRequestsFromShards() {
     return readRequestsFromShardsIn(REQUESTS_SHARDS_DIR);
 }
 
-
 function toShardKey(request: RequestLike) {
     if (!request || typeof request !== "object") return "undated";
     const candidates = [
@@ -716,7 +740,9 @@ function toShardKey(request: RequestLike) {
     return "undated";
 }
 
-function writeRequestsData(requests: RequestLike[] | { requests?: RequestLike[] }) {
+function writeRequestsData(
+    requests: RequestLike[] | { requests?: RequestLike[] },
+) {
     const list = normalizeRequestsData(requests);
     const buckets = new Map<string, RequestLike[]>();
     list.forEach((request) => {
@@ -809,25 +835,33 @@ export {
     applyBalanceForDeletion,
     applyBalanceForUpdate,
     loadPayload,
-    savePayload
+    savePayload,
 };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        DEFAULT_INITIAL_HOURS,
-    MONTHLY_ACCRUAL_HOURS,
-    getMonthKey,
-    getEmployeeKey,
-    listEmployees,
-    normalizeBalances,
-    applyMissingRequestDeductions,
-    getBalanceImpact,
-    applyBalanceForApproval,
-    applyBalanceForDeletion,
-    applyBalanceForUpdate,
-    loadPayload,
-    savePayload
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            DEFAULT_INITIAL_HOURS,
+            MONTHLY_ACCRUAL_HOURS,
+            getMonthKey,
+            getEmployeeKey,
+            listEmployees,
+            normalizeBalances,
+            applyMissingRequestDeductions,
+            getBalanceImpact,
+            applyBalanceForApproval,
+            applyBalanceForDeletion,
+            applyBalanceForUpdate,
+            loadPayload,
+            savePayload,
+        };
 }
-

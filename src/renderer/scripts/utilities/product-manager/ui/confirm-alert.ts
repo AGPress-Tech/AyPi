@@ -35,7 +35,9 @@ function openReasonModal(ctx, { title, message, placeholder } = {}) {
     const input = document.getElementById("pm-reason-input");
     if (!modal || !input) return Promise.resolve(null);
     if (titleEl) titleEl.textContent = title || "Motivazione richiesta";
-    if (messageEl) messageEl.textContent = message || "Inserisci una motivazione per il rifiuto.";
+    if (messageEl)
+        messageEl.textContent =
+            message || "Inserisci una motivazione per il rifiuto.";
     if (placeholder) input.placeholder = placeholder;
     input.value = "";
     modal.classList.remove("is-hidden");
@@ -88,7 +90,8 @@ function openAlertModal(ctx, title, message, detail = "") {
 }
 
 function closeAlertModal(ctx) {
-    const { document, pendingAlertResolveGetter, pendingAlertResolveSetter } = ctx;
+    const { document, pendingAlertResolveGetter, pendingAlertResolveSetter } =
+        ctx;
     const modal = document.getElementById("pm-alert-modal");
     if (modal) {
         modal.classList.add("is-hidden");
@@ -101,12 +104,16 @@ function closeAlertModal(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    openConfirmModal,
-    closeConfirmModal,
-    openReasonModal,
-    closeReasonModal,
-    openAlertModal,
-    closeAlertModal,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        openConfirmModal,
+        closeConfirmModal,
+        openReasonModal,
+        closeReasonModal,
+        openAlertModal,
+        closeAlertModal,
+    };

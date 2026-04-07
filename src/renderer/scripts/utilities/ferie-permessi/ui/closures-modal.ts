@@ -8,7 +8,11 @@ type ClosuresModalOptions = {
     document: Document;
     showModal: (el: HTMLElement | null) => void;
     hideModal: (el: HTMLElement | null) => void;
-    setMessage: (el: HTMLElement | null, message: string, isError?: boolean) => void;
+    setMessage: (
+        el: HTMLElement | null,
+        message: string,
+        isError?: boolean,
+    ) => void;
     syncData: (updater: (payload: any) => any) => any;
     renderAll: (data: any) => void;
     loadData: () => any;
@@ -74,7 +78,10 @@ function createClosuresModal(options: ClosuresModalOptions) {
         return `${start}|${end}`;
     }
 
-    function renderClosureList(payload: ClosuresPayload, options: { containerId?: string; futureOnly?: boolean } = {}) {
+    function renderClosureList(
+        payload: ClosuresPayload,
+        options: { containerId?: string; futureOnly?: boolean } = {},
+    ) {
         const listId = options.containerId || "fp-closures-future-list";
         const list = document.getElementById(listId);
         if (!list) return;
@@ -195,7 +202,9 @@ function createClosuresModal(options: ClosuresModalOptions) {
                 saveBtn.addEventListener("click", async () => {
                     const inputs = row.querySelectorAll("input");
                     const nameInput = inputs[0] as HTMLInputElement | undefined;
-                    const startInput = inputs[1] as HTMLInputElement | undefined;
+                    const startInput = inputs[1] as
+                        | HTMLInputElement
+                        | undefined;
                     const endInput = inputs[2] as HTMLInputElement | undefined;
                     const startValue = startInput ? startInput.value : "";
                     const endValue = endInput ? endInput.value : "";
@@ -269,11 +278,21 @@ function createClosuresModal(options: ClosuresModalOptions) {
     }
 
     function openClosuresModal() {
-        const modal = document.getElementById("fp-closures-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-closures-message") as HTMLElement | null;
-        const nameInput = document.getElementById("fp-closures-name") as HTMLInputElement | null;
-        const startInput = document.getElementById("fp-closures-start") as HTMLInputElement | null;
-        const endInput = document.getElementById("fp-closures-end") as HTMLInputElement | null;
+        const modal = document.getElementById(
+            "fp-closures-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-closures-message",
+        ) as HTMLElement | null;
+        const nameInput = document.getElementById(
+            "fp-closures-name",
+        ) as HTMLInputElement | null;
+        const startInput = document.getElementById(
+            "fp-closures-start",
+        ) as HTMLInputElement | null;
+        const endInput = document.getElementById(
+            "fp-closures-end",
+        ) as HTMLInputElement | null;
         if (!modal) return;
         editingKey = null;
         if (nameInput) nameInput.value = "";
@@ -284,7 +303,9 @@ function createClosuresModal(options: ClosuresModalOptions) {
     }
 
     function openClosuresListModal(dateToHighlight?: string) {
-        const modal = document.getElementById("fp-closures-list-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-closures-list-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         editingKey = null;
         highlightDate = dateToHighlight || null;
@@ -305,22 +326,44 @@ function createClosuresModal(options: ClosuresModalOptions) {
     }
 
     function closeClosuresModal() {
-        const modal = document.getElementById("fp-closures-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-closures-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
     }
 
     function initClosuresModal() {
-        const openBtn = document.getElementById("fp-closures-manage") as HTMLButtonElement | null;
-        const listOpenBtn = document.getElementById("fp-closures-list-open") as HTMLButtonElement | null;
-        const listCloseBtn = document.getElementById("fp-closures-list-close") as HTMLButtonElement | null;
-        const closeBtn = document.getElementById("fp-closures-close") as HTMLButtonElement | null;
-        const addBtn = document.getElementById("fp-closures-add") as HTMLButtonElement | null;
-        const nameInput = document.getElementById("fp-closures-name") as HTMLInputElement | null;
-        const startInput = document.getElementById("fp-closures-start") as HTMLInputElement | null;
-        const endInput = document.getElementById("fp-closures-end") as HTMLInputElement | null;
-        const message = document.getElementById("fp-closures-message") as HTMLElement | null;
-        const modal = document.getElementById("fp-closures-modal") as HTMLElement | null;
+        const openBtn = document.getElementById(
+            "fp-closures-manage",
+        ) as HTMLButtonElement | null;
+        const listOpenBtn = document.getElementById(
+            "fp-closures-list-open",
+        ) as HTMLButtonElement | null;
+        const listCloseBtn = document.getElementById(
+            "fp-closures-list-close",
+        ) as HTMLButtonElement | null;
+        const closeBtn = document.getElementById(
+            "fp-closures-close",
+        ) as HTMLButtonElement | null;
+        const addBtn = document.getElementById(
+            "fp-closures-add",
+        ) as HTMLButtonElement | null;
+        const nameInput = document.getElementById(
+            "fp-closures-name",
+        ) as HTMLInputElement | null;
+        const startInput = document.getElementById(
+            "fp-closures-start",
+        ) as HTMLInputElement | null;
+        const endInput = document.getElementById(
+            "fp-closures-end",
+        ) as HTMLInputElement | null;
+        const message = document.getElementById(
+            "fp-closures-message",
+        ) as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-closures-modal",
+        ) as HTMLElement | null;
 
         if (openBtn) {
             openBtn.addEventListener("click", () => {
@@ -395,8 +438,15 @@ function createClosuresModal(options: ClosuresModalOptions) {
 export { createClosuresModal };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createClosuresModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createClosuresModal };
 }
-
-

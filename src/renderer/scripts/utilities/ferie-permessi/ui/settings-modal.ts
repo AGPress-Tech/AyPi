@@ -4,7 +4,11 @@ type SettingsModalOptions = {
     document: Document;
     showModal: (el: HTMLElement | null) => void;
     hideModal: (el: HTMLElement | null) => void;
-    setMessage: (el: HTMLElement | null, message: string, isError?: boolean) => void;
+    setMessage: (
+        el: HTMLElement | null,
+        message: string,
+        isError?: boolean,
+    ) => void;
     loadThemeSetting: () => string;
     saveThemeSetting: (value: string) => void;
     saveColorSettings: (colors: Record<string, string>) => void;
@@ -48,26 +52,38 @@ function createSettingsModal(options: SettingsModalOptions) {
     let themeSnapshot: string | null = null;
 
     function openSettingsModal() {
-        const modal = document.getElementById("fp-settings-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-settings-message") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-settings-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-settings-message",
+        ) as HTMLElement | null;
         if (!modal) return;
         setMessage(message, "");
         showModal(modal);
     }
 
     function closeSettingsModal() {
-        const modal = document.getElementById("fp-settings-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-settings-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
     }
 
     function openThemeModal() {
-        const modal = document.getElementById("fp-settings-theme-modal") as HTMLElement | null;
-        const message = document.getElementById("fp-settings-theme-message") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-settings-theme-modal",
+        ) as HTMLElement | null;
+        const message = document.getElementById(
+            "fp-settings-theme-message",
+        ) as HTMLElement | null;
         if (!modal) return;
         const themeValue = loadThemeSetting();
         themeSnapshot = themeValue;
-        const themeInputs = document.querySelectorAll<HTMLInputElement>("input[name='fp-theme']");
+        const themeInputs = document.querySelectorAll<HTMLInputElement>(
+            "input[name='fp-theme']",
+        );
         themeInputs.forEach((input) => {
             input.checked = input.value === themeValue;
         });
@@ -76,7 +92,9 @@ function createSettingsModal(options: SettingsModalOptions) {
     }
 
     function closeThemeModal() {
-        const modal = document.getElementById("fp-settings-theme-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-settings-theme-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         if (themeSnapshot) {
             applyTheme(themeSnapshot);
@@ -85,17 +103,39 @@ function createSettingsModal(options: SettingsModalOptions) {
     }
 
     function initSettingsModal() {
-        const settingsBtn = document.getElementById("fp-settings") as HTMLButtonElement | null;
-        const settingsClose = document.getElementById("fp-settings-close") as HTMLButtonElement | null;
-        const settingsModal = document.getElementById("fp-settings-modal") as HTMLElement | null;
-        const themeOpen = document.getElementById("fp-settings-theme-open") as HTMLButtonElement | null;
-        const themeClose = document.getElementById("fp-settings-theme-close") as HTMLButtonElement | null;
-        const themeSave = document.getElementById("fp-settings-theme-save") as HTMLButtonElement | null;
-        const themeReset = document.getElementById("fp-settings-theme-reset") as HTMLButtonElement | null;
-        const themeModal = document.getElementById("fp-settings-theme-modal") as HTMLElement | null;
-        const themeMessage = document.getElementById("fp-settings-theme-message") as HTMLElement | null;
-        const themeInputs = document.querySelectorAll<HTMLInputElement>("input[name='fp-theme']");
-        const configOpen = document.getElementById("fp-settings-config-open") as HTMLButtonElement | null;
+        const settingsBtn = document.getElementById(
+            "fp-settings",
+        ) as HTMLButtonElement | null;
+        const settingsClose = document.getElementById(
+            "fp-settings-close",
+        ) as HTMLButtonElement | null;
+        const settingsModal = document.getElementById(
+            "fp-settings-modal",
+        ) as HTMLElement | null;
+        const themeOpen = document.getElementById(
+            "fp-settings-theme-open",
+        ) as HTMLButtonElement | null;
+        const themeClose = document.getElementById(
+            "fp-settings-theme-close",
+        ) as HTMLButtonElement | null;
+        const themeSave = document.getElementById(
+            "fp-settings-theme-save",
+        ) as HTMLButtonElement | null;
+        const themeReset = document.getElementById(
+            "fp-settings-theme-reset",
+        ) as HTMLButtonElement | null;
+        const themeModal = document.getElementById(
+            "fp-settings-theme-modal",
+        ) as HTMLElement | null;
+        const themeMessage = document.getElementById(
+            "fp-settings-theme-message",
+        ) as HTMLElement | null;
+        const themeInputs = document.querySelectorAll<HTMLInputElement>(
+            "input[name='fp-theme']",
+        );
+        const configOpen = document.getElementById(
+            "fp-settings-config-open",
+        ) as HTMLButtonElement | null;
 
         if (settingsBtn) {
             settingsBtn.addEventListener("click", () => {
@@ -134,7 +174,9 @@ function createSettingsModal(options: SettingsModalOptions) {
         }
         if (themeSave) {
             themeSave.addEventListener("click", () => {
-                const selectedTheme = Array.from(themeInputs).find((input) => input.checked)?.value || "light";
+                const selectedTheme =
+                    Array.from(themeInputs).find((input) => input.checked)
+                        ?.value || "light";
                 saveThemeSetting(selectedTheme);
                 applyTheme(selectedTheme);
                 renderAll(loadData());
@@ -168,7 +210,8 @@ function createSettingsModal(options: SettingsModalOptions) {
                         type: "config-access",
                         id: "config-access",
                         title: "Configurazione",
-                        description: "Inserisci la password per accedere alla configurazione.",
+                        description:
+                            "Inserisci la password per accedere alla configurazione.",
                     });
                 }
             });
@@ -181,8 +224,15 @@ function createSettingsModal(options: SettingsModalOptions) {
 export { createSettingsModal };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createSettingsModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createSettingsModal };
 }
-
-

@@ -239,8 +239,12 @@ function createPendingPanel(options: PendingPanelOptions) {
     }
 
     function initPendingPanel() {
-        const pendingToggle = document.getElementById("fp-pending-toggle") as HTMLButtonElement | null;
-        const pendingClose = document.getElementById("fp-pending-close") as HTMLButtonElement | null;
+        const pendingToggle = document.getElementById(
+            "fp-pending-toggle",
+        ) as HTMLButtonElement | null;
+        const pendingClose = document.getElementById(
+            "fp-pending-close",
+        ) as HTMLButtonElement | null;
         if (pendingToggle) {
             pendingToggle.addEventListener("click", () => {
                 const needsAdmin =
@@ -288,8 +292,15 @@ function createPendingPanel(options: PendingPanelOptions) {
 export { createPendingPanel };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createPendingPanel };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createPendingPanel };
 }
-
-

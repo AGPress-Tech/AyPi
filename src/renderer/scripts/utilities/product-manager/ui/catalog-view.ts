@@ -30,14 +30,15 @@ function renderCatalog({
     if (!grid) return;
     grid.innerHTML = "";
     if (!catalogItems.length) {
-        grid.innerHTML = "<div class=\"pm-message\">Nessun prodotto a catalogo.</div>";
+        grid.innerHTML =
+            '<div class="pm-message">Nessun prodotto a catalogo.</div>';
         return;
     }
     const activeTags = Array.isArray(catalogFilterTag)
         ? catalogFilterTag.filter(Boolean)
         : catalogFilterTag
-        ? [catalogFilterTag]
-        : [];
+          ? [catalogFilterTag]
+          : [];
     let visibleItems = activeTags.length
         ? catalogItems.filter((item) => {
               const tags = toTags(item.category || "");
@@ -47,18 +48,23 @@ function renderCatalog({
     if (catalogSearch) {
         const needle = catalogSearch.toLowerCase();
         visibleItems = visibleItems.filter((item) => {
-            const haystack = `${item.name || ""} ${item.description || ""} ${item.category || ""} ${item.supplier || ""}`.toLowerCase();
+            const haystack =
+                `${item.name || ""} ${item.description || ""} ${item.category || ""} ${item.supplier || ""}`.toLowerCase();
             return haystack.includes(needle);
         });
     }
     visibleItems = [...visibleItems].sort((a, b) => {
-        if (catalogSort === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
-        if (catalogSort === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
-        if (catalogSort === "name_desc") return String(b.name || "").localeCompare(String(a.name || ""));
+        if (catalogSort === "created_desc")
+            return String(b.createdAt).localeCompare(String(a.createdAt));
+        if (catalogSort === "created_asc")
+            return String(a.createdAt).localeCompare(String(b.createdAt));
+        if (catalogSort === "name_desc")
+            return String(b.name || "").localeCompare(String(a.name || ""));
         return String(a.name || "").localeCompare(String(b.name || ""));
     });
     if (!visibleItems.length) {
-        grid.innerHTML = "<div class=\"pm-message\">Nessun prodotto per questa categoria.</div>";
+        grid.innerHTML =
+            '<div class="pm-message">Nessun prodotto per questa categoria.</div>';
         return;
     }
     visibleItems.forEach((item) => {
@@ -73,7 +79,11 @@ function renderCatalog({
         img.alt = item.name || "Prodotto";
         img.src = imageSrc || PLACEHOLDER_IMAGE;
         img.addEventListener("click", () =>
-            openImageModal(imageSrc || PLACEHOLDER_IMAGE, "", item.name || "Prodotto")
+            openImageModal(
+                imageSrc || PLACEHOLDER_IMAGE,
+                "",
+                item.name || "Prodotto",
+            ),
         );
         const title = document.createElement("div");
         title.className = "pm-catalog-title";
@@ -83,7 +93,9 @@ function renderCatalog({
         desc.textContent = item.description || "";
         const supplier = document.createElement("div");
         supplier.className = "pm-catalog-desc";
-        supplier.textContent = item.supplier ? `Fornitore: ${item.supplier}` : "";
+        supplier.textContent = item.supplier
+            ? `Fornitore: ${item.supplier}`
+            : "";
         const linkRow = document.createElement("a");
         linkRow.className = "pm-link";
         linkRow.textContent = item.url ? "Apri link" : "";
@@ -138,7 +150,8 @@ function renderCatalog({
         qtyPlusIcon.textContent = "add";
         qtyPlus.appendChild(qtyPlusIcon);
         const clampQty = (value) => {
-            if (value === "" || value === null || value === undefined) return "";
+            if (value === "" || value === null || value === undefined)
+                return "";
             const num = Number.parseInt(String(value || "").trim(), 10);
             if (Number.isNaN(num) || num < 1) return 1;
             return num;
@@ -170,7 +183,9 @@ function renderCatalog({
             const maxDelay = 320;
             const accelWindow = 3000;
             const progress = Math.min(1, elapsed / accelWindow);
-            const delay = Math.round(maxDelay - (maxDelay - minDelay) * progress);
+            const delay = Math.round(
+                maxDelay - (maxDelay - minDelay) * progress,
+            );
             holdTimer = setTimeout(() => {
                 stepOnce(direction);
                 scheduleHold(direction);
@@ -233,9 +248,13 @@ function renderCatalog({
             trashIcon.textContent = "delete";
             trashBtn.appendChild(trashIcon);
             trashBtn.addEventListener("click", async () => {
-                const ok = await openConfirmModal("Vuoi eliminare questo prodotto dal catalogo?");
+                const ok = await openConfirmModal(
+                    "Vuoi eliminare questo prodotto dal catalogo?",
+                );
                 if (!ok) return;
-                const nextItems = catalogItems.filter((entry) => entry.id !== item.id);
+                const nextItems = catalogItems.filter(
+                    (entry) => entry.id !== item.id,
+                );
                 setCatalogItems(nextItems);
                 if (saveCatalog(nextItems)) rerenderCatalog();
             });
@@ -251,5 +270,9 @@ function renderCatalog({
     });
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { renderCatalog };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { renderCatalog };

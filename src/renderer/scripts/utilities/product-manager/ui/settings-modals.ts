@@ -47,7 +47,8 @@ function initSettingsModals(ctx) {
     const themeLight = document.getElementById("pm-theme-light");
     const themeDark = document.getElementById("pm-theme-dark");
     const themeAyPi = document.getElementById("pm-theme-aypi");
-    if (themeLight) themeLight.addEventListener("click", () => setTheme("light"));
+    if (themeLight)
+        themeLight.addEventListener("click", () => setTheme("light"));
     if (themeDark) themeDark.addEventListener("click", () => setTheme("dark"));
     if (themeAyPi) themeAyPi.addEventListener("click", () => setTheme("aypi"));
     try {
@@ -99,5 +100,9 @@ function initSettingsModals(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { initSettingsModals };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { initSettingsModals };

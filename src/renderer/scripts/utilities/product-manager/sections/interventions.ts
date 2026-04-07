@@ -24,21 +24,27 @@ function loadInterventionTypes(ctx) {
         showError,
     } = ctx;
     try {
-        if (!INTERVENTION_TYPES_PATH || !fs.existsSync(INTERVENTION_TYPES_PATH)) return [];
+        if (!INTERVENTION_TYPES_PATH || !fs.existsSync(INTERVENTION_TYPES_PATH))
+            return [];
         const raw = fs.readFileSync(INTERVENTION_TYPES_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeInterventionTypesData(parsed);
-        validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi", {
-            showWarning,
-            showError,
-        });
+        validateWithAjv(
+            validateInterventionTypesSchema,
+            normalized,
+            "tipologie interventi",
+            {
+                showWarning,
+                showError,
+            },
+        );
         tryAutoCleanJson(
             INTERVENTION_TYPES_PATH,
             parsed,
             normalized,
             validateInterventionTypesSchema,
             "tipologie interventi",
-            { showWarning, showError }
+            { showWarning, showError },
         );
         return normalized;
     } catch (err) {
@@ -60,22 +66,40 @@ function saveInterventionTypes(ctx, list) {
     try {
         const normalized = normalizeInterventionTypesData(list);
         if (
-            !validateWithAjv(validateInterventionTypesSchema, normalized, "tipologie interventi", {
-                showWarning,
-                showError,
-            }).ok
+            !validateWithAjv(
+                validateInterventionTypesSchema,
+                normalized,
+                "tipologie interventi",
+                {
+                    showWarning,
+                    showError,
+                },
+            ).ok
         )
             return false;
-        fs.writeFileSync(INTERVENTION_TYPES_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        fs.writeFileSync(
+            INTERVENTION_TYPES_PATH,
+            JSON.stringify(normalized, null, 2),
+            "utf8",
+        );
         return true;
     } catch (err) {
-        showError("Errore salvataggio tipologie interventi.", err.message || String(err));
+        showError(
+            "Errore salvataggio tipologie interventi.",
+            err.message || String(err),
+        );
         return false;
     }
 }
 
 function openInterventionTypesModal(ctx) {
-    const { document, isAdmin, showWarning, renderInterventionTypesList, renderCategoriesList } = ctx;
+    const {
+        document,
+        isAdmin,
+        showWarning,
+        renderInterventionTypesList,
+        renderCategoriesList,
+    } = ctx;
     if (!isAdmin()) {
         showWarning("Solo gli admin possono gestire le tipologie.");
         return;
@@ -142,13 +166,17 @@ function addInterventionType(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    getInterventionType,
-    getInterventionDescription,
-    loadInterventionTypes,
-    saveInterventionTypes,
-    openInterventionTypesModal,
-    closeInterventionTypesModal,
-    addInterventionType,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        getInterventionType,
+        getInterventionDescription,
+        loadInterventionTypes,
+        saveInterventionTypes,
+        openInterventionTypesModal,
+        closeInterventionTypesModal,
+        addInterventionType,
+    };

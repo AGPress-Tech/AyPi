@@ -2,7 +2,8 @@
 require("../../../shared/dev-guards");
 function normalizeHexColor(ctx, value, fallback) {
     const { DEFAULT_CATEGORY_COLORS } = ctx;
-    if (!value || typeof value !== "string") return fallback || DEFAULT_CATEGORY_COLORS[0];
+    if (!value || typeof value !== "string")
+        return fallback || DEFAULT_CATEGORY_COLORS[0];
     let next = value.trim().toLowerCase();
     if (!next.startsWith("#")) next = `#${next}`;
     if (/^#([0-9a-f]{3}){1,2}$/i.test(next)) {
@@ -37,7 +38,10 @@ function saveCategoryColors(ctx, next) {
     const { window, CATEGORY_COLOR_STORAGE_KEY } = ctx;
     try {
         if (!window.localStorage) return;
-        window.localStorage.setItem(CATEGORY_COLOR_STORAGE_KEY, JSON.stringify(next));
+        window.localStorage.setItem(
+            CATEGORY_COLOR_STORAGE_KEY,
+            JSON.stringify(next),
+        );
     } catch (err) {
         console.error("Errore salvataggio colori categorie:", err);
     }
@@ -48,9 +52,12 @@ function hashCategoryToColor(ctx, value) {
     if (!value) return DEFAULT_CATEGORY_COLORS[0];
     let hash = 0;
     for (let i = 0; i < value.length; i += 1) {
-        hash = (hash * 31 + value.charCodeAt(i)) % DEFAULT_CATEGORY_COLORS.length;
+        hash =
+            (hash * 31 + value.charCodeAt(i)) % DEFAULT_CATEGORY_COLORS.length;
     }
-    return DEFAULT_CATEGORY_COLORS[Math.abs(hash) % DEFAULT_CATEGORY_COLORS.length];
+    return DEFAULT_CATEGORY_COLORS[
+        Math.abs(hash) % DEFAULT_CATEGORY_COLORS.length
+    ];
 }
 
 function getCategoryColor(ctx, value) {
@@ -101,7 +108,11 @@ function openCategoryEditor(ctx, category, anchorEl) {
         const rect = anchorEl.getBoundingClientRect();
         const modal = document.getElementById("pm-categories-modal");
         const panel = document.getElementById("pm-categories-panel");
-        const parentRect = (panel || modal || document.body).getBoundingClientRect();
+        const parentRect = (
+            panel ||
+            modal ||
+            document.body
+        ).getBoundingClientRect();
         editor.style.left = `${Math.max(8, rect.right - parentRect.left + 8)}px`;
         editor.style.top = `${Math.max(8, rect.top - parentRect.top - 6)}px`;
         editor.style.right = "auto";
@@ -111,7 +122,16 @@ function openCategoryEditor(ctx, category, anchorEl) {
 }
 
 function closeCategoryEditor(ctx, revert) {
-    const { document, uiState, setCategoryColors, getCategoryColors, saveCategoryColors, renderCatalog, renderCartTable, renderCategoriesList } = ctx;
+    const {
+        document,
+        uiState,
+        setCategoryColors,
+        getCategoryColors,
+        saveCategoryColors,
+        renderCatalog,
+        renderCartTable,
+        renderCategoriesList,
+    } = ctx;
     const editor = document.getElementById("pm-category-editor");
     if (!editor) return;
     editor.classList.add("is-hidden");
@@ -142,11 +162,21 @@ function loadCatalog(ctx) {
         const raw = fs.readFileSync(CATALOG_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeCatalogData(parsed);
-        validateWithAjv(validateCatalogSchema, normalized, "catalogo", { showWarning, showError });
-        tryAutoCleanJson(CATALOG_PATH, parsed, normalized, validateCatalogSchema, "catalogo", {
+        validateWithAjv(validateCatalogSchema, normalized, "catalogo", {
             showWarning,
             showError,
         });
+        tryAutoCleanJson(
+            CATALOG_PATH,
+            parsed,
+            normalized,
+            validateCatalogSchema,
+            "catalogo",
+            {
+                showWarning,
+                showError,
+            },
+        );
         return normalized;
     } catch (err) {
         console.error("Errore lettura catalogo:", err);
@@ -173,7 +203,11 @@ function saveCatalog(ctx, list) {
             }).ok
         )
             return false;
-        fs.writeFileSync(CATALOG_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        fs.writeFileSync(
+            CATALOG_PATH,
+            JSON.stringify(normalized, null, 2),
+            "utf8",
+        );
         return true;
     } catch (err) {
         showError("Errore salvataggio catalogo.", err.message || String(err));
@@ -197,11 +231,21 @@ function loadCategories(ctx) {
         const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
         const parsed = JSON.parse(raw);
         const normalized = normalizeCategoriesData(parsed);
-        validateWithAjv(validateCategoriesSchema, normalized, "categorie", { showWarning, showError });
-        tryAutoCleanJson(CATEGORIES_PATH, parsed, normalized, validateCategoriesSchema, "categorie", {
+        validateWithAjv(validateCategoriesSchema, normalized, "categorie", {
             showWarning,
             showError,
         });
+        tryAutoCleanJson(
+            CATEGORIES_PATH,
+            parsed,
+            normalized,
+            validateCategoriesSchema,
+            "categorie",
+            {
+                showWarning,
+                showError,
+            },
+        );
         return normalized;
     } catch (err) {
         console.error("Errore lettura categorie:", err);
@@ -222,13 +266,22 @@ function saveCategories(ctx, list) {
     try {
         const normalized = normalizeCategoriesData(list);
         if (
-            !validateWithAjv(validateCategoriesSchema, normalized, "categorie", {
-                showWarning,
-                showError,
-            }).ok
+            !validateWithAjv(
+                validateCategoriesSchema,
+                normalized,
+                "categorie",
+                {
+                    showWarning,
+                    showError,
+                },
+            ).ok
         )
             return false;
-        fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(normalized, null, 2), "utf8");
+        fs.writeFileSync(
+            CATEGORIES_PATH,
+            JSON.stringify(normalized, null, 2),
+            "utf8",
+        );
         return true;
     } catch (err) {
         showError("Errore salvataggio categorie.", err.message || String(err));
@@ -284,7 +337,14 @@ function renderCatalog(ctx) {
 }
 
 function openCatalogModal(ctx, item = null) {
-    const { document, isAdmin, showWarning, uiState, toTags, renderCategoryOptions } = ctx;
+    const {
+        document,
+        isAdmin,
+        showWarning,
+        uiState,
+        toTags,
+        renderCategoryOptions,
+    } = ctx;
     if (!isAdmin()) {
         showWarning("Solo gli admin possono aggiungere prodotti.");
         return;
@@ -320,7 +380,9 @@ function openCatalogModal(ctx, item = null) {
             image.value = item.imageFile ? "Immagine presente" : "";
             image.dataset.path = "";
         }
-        if (removeBtn) removeBtn.style.display = item.imageFile || item.imageUrl ? "inline-flex" : "none";
+        if (removeBtn)
+            removeBtn.style.display =
+                item.imageFile || item.imageUrl ? "inline-flex" : "none";
     } else {
         if (title) title.textContent = "Nuovo prodotto catalogo";
         if (saveBtn) saveBtn.textContent = "Salva prodotto";
@@ -385,19 +447,23 @@ function saveCatalogItem(ctx) {
         return;
     }
     const idInput = document.getElementById("pm-catalog-id");
-    const name = document.getElementById("pm-catalog-name")?.value?.trim() || "";
+    const name =
+        document.getElementById("pm-catalog-name")?.value?.trim() || "";
     if (!name) {
         showWarning("Inserisci il nome prodotto.");
         return;
     }
     const categoryContainer = document.getElementById("pm-catalog-category");
     const category =
-        categoryContainer && categoryContainer.querySelector(".pm-multiselect__button")
-            ? categoryContainer.querySelector(".pm-multiselect__button").textContent
+        categoryContainer &&
+        categoryContainer.querySelector(".pm-multiselect__button")
+            ? categoryContainer.querySelector(".pm-multiselect__button")
+                  .textContent
             : "";
     const imageInput = document.getElementById("pm-catalog-image");
     const imageUrlInput = document.getElementById("pm-catalog-image-url");
-    const imageSource = imageInput && imageInput.dataset ? imageInput.dataset.path || "" : "";
+    const imageSource =
+        imageInput && imageInput.dataset ? imageInput.dataset.path || "" : "";
     const existingId = idInput?.value?.trim() || "";
     const targetId = existingId || `CAT-${Date.now()}`;
     let imageFileName = "";
@@ -407,10 +473,13 @@ function saveCatalogItem(ctx) {
     const item = {
         id: targetId,
         name,
-        description: document.getElementById("pm-catalog-description")?.value?.trim() || "",
+        description:
+            document.getElementById("pm-catalog-description")?.value?.trim() ||
+            "",
         category,
         unit: document.getElementById("pm-catalog-unit")?.value?.trim() || "",
-        supplier: document.getElementById("pm-catalog-supplier")?.value?.trim() || "",
+        supplier:
+            document.getElementById("pm-catalog-supplier")?.value?.trim() || "",
         url: document.getElementById("pm-catalog-url")?.value?.trim() || "",
         imageUrl: imageUrlInput?.value?.trim() || "",
         imageFile: imageFileName,
@@ -425,7 +494,9 @@ function saveCatalogItem(ctx) {
                 ...entry,
                 ...item,
                 imageUrl: item.imageUrl || entry.imageUrl || "",
-                imageFile: uiState.catalogRemoveImage ? "" : imageFileName || entry.imageFile || "",
+                imageFile: uiState.catalogRemoveImage
+                    ? ""
+                    : imageFileName || entry.imageFile || "",
             };
         });
     } else {
@@ -440,7 +511,13 @@ function saveCatalogItem(ctx) {
 }
 
 function openCategoriesModal(ctx) {
-    const { document, isAdmin, showWarning, renderCategoriesList, renderInterventionTypesList } = ctx;
+    const {
+        document,
+        isAdmin,
+        showWarning,
+        renderCategoriesList,
+        renderInterventionTypesList,
+    } = ctx;
     if (!isAdmin()) {
         showWarning("Solo gli admin possono gestire le categorie.");
         return;
@@ -469,7 +546,16 @@ function closeCategoriesModal(ctx) {
 }
 
 function addCategory(ctx) {
-    const { document, isAdmin, showWarning, getCatalogCategories, setCatalogCategories, saveCategories, renderCategoriesList, renderCategoryOptions } = ctx;
+    const {
+        document,
+        isAdmin,
+        showWarning,
+        getCatalogCategories,
+        setCatalogCategories,
+        saveCategories,
+        renderCategoriesList,
+        renderCategoryOptions,
+    } = ctx;
     if (!isAdmin()) {
         showWarning("Solo gli admin possono gestire le categorie.");
         return;
@@ -491,28 +577,32 @@ function addCategory(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    normalizeHexColor,
-    loadCategoryColors,
-    saveCategoryColors,
-    hashCategoryToColor,
-    getCategoryColor,
-    getContrastText,
-    applyCategoryColor,
-    updateCategoryChipPreview,
-    openCategoryEditor,
-    closeCategoryEditor,
-    loadCatalog,
-    saveCatalog,
-    loadCategories,
-    saveCategories,
-    renderCatalog,
-    openCatalogModal,
-    closeCatalogModal,
-    clearCatalogForm,
-    saveCatalogItem,
-    openCategoriesModal,
-    closeCategoriesModal,
-    addCategory,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        normalizeHexColor,
+        loadCategoryColors,
+        saveCategoryColors,
+        hashCategoryToColor,
+        getCategoryColor,
+        getContrastText,
+        applyCategoryColor,
+        updateCategoryChipPreview,
+        openCategoryEditor,
+        closeCategoryEditor,
+        loadCatalog,
+        saveCatalog,
+        loadCategories,
+        saveCategories,
+        renderCatalog,
+        openCatalogModal,
+        closeCatalogModal,
+        clearCatalogForm,
+        saveCatalogItem,
+        openCategoriesModal,
+        closeCategoriesModal,
+        addCategory,
+    };

@@ -32,7 +32,9 @@ function renderDepartmentList(ctx) {
     const list = document.getElementById("fp-departments-list");
     if (!list) return;
     list.innerHTML = "";
-    const groups = Object.keys(getAssigneeGroups()).sort((a, b) => a.localeCompare(b));
+    const groups = Object.keys(getAssigneeGroups()).sort((a, b) =>
+        a.localeCompare(b),
+    );
     if (!groups.length) {
         list.textContent = UI_TEXTS.emptyDepartment;
         return;
@@ -61,7 +63,10 @@ function renderDepartmentList(ctx) {
                 const employees = copy[group] || [];
                 delete copy[group];
                 copy[next] = employees;
-                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                const emails =
+                    typeof getAssigneeEmails === "function"
+                        ? getAssigneeEmails()
+                        : {};
                 const migrated = { ...emails };
                 employees.forEach((name) => {
                     const oldKey = `${group}|${name}`;
@@ -72,7 +77,8 @@ function renderDepartmentList(ctx) {
                     }
                 });
                 setAssigneeGroups(copy);
-                if (typeof setAssigneeEmails === "function") setAssigneeEmails(migrated);
+                if (typeof setAssigneeEmails === "function")
+                    setAssigneeEmails(migrated);
                 setEditingDepartment(null);
                 saveAssignees();
                 renderDepartmentList(ctx);
@@ -111,15 +117,21 @@ function renderDepartmentList(ctx) {
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", () => {
                 const copy = { ...getAssigneeGroups() };
-                const employees = Array.isArray(copy[group]) ? [...copy[group]] : [];
+                const employees = Array.isArray(copy[group])
+                    ? [...copy[group]]
+                    : [];
                 delete copy[group];
-                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                const emails =
+                    typeof getAssigneeEmails === "function"
+                        ? getAssigneeEmails()
+                        : {};
                 const cleaned = { ...emails };
                 employees.forEach((name) => {
                     delete cleaned[`${group}|${name}`];
                 });
                 setAssigneeGroups(copy);
-                if (typeof setAssigneeEmails === "function") setAssigneeEmails(cleaned);
+                if (typeof setAssigneeEmails === "function")
+                    setAssigneeEmails(cleaned);
                 saveAssignees();
                 renderDepartmentList(ctx);
                 renderEmployeesList(ctx);
@@ -154,7 +166,9 @@ function renderEmployeesList(ctx) {
     if (!list) return;
     list.innerHTML = "";
     const employees = Object.entries(getAssigneeGroups())
-        .flatMap(([dept, names]) => (names || []).map((name) => ({ name, dept })))
+        .flatMap(([dept, names]) =>
+            (names || []).map((name) => ({ name, dept })),
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
 
     if (!employees.length) {
@@ -168,11 +182,16 @@ function renderEmployeesList(ctx) {
         const actions = document.createElement("div");
         actions.className = "fp-assignees-row__actions";
         const emailKey = `${employee.dept}|${employee.name}`;
-        const allEmails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+        const allEmails =
+            typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
         const currentEmail = String(allEmails[emailKey] || "");
 
         const currentEditing = editingEmployee();
-        if (currentEditing && currentEditing.name === employee.name && currentEditing.dept === employee.dept) {
+        if (
+            currentEditing &&
+            currentEditing.name === employee.name &&
+            currentEditing.dept === employee.dept
+        ) {
             row.classList.add("fp-assignees-row--employee-edit");
             const input = document.createElement("input");
             input.className = "fp-field__input";
@@ -185,13 +204,15 @@ function renderEmployeesList(ctx) {
 
             const deptSelect = document.createElement("select");
             deptSelect.className = "fp-field__input";
-            Object.keys(getAssigneeGroups()).sort().forEach((group) => {
-                const option = document.createElement("option");
-                option.value = group;
-                option.textContent = group;
-                if (group === employee.dept) option.selected = true;
-                deptSelect.appendChild(option);
-            });
+            Object.keys(getAssigneeGroups())
+                .sort()
+                .forEach((group) => {
+                    const option = document.createElement("option");
+                    option.value = group;
+                    option.textContent = group;
+                    if (group === employee.dept) option.selected = true;
+                    deptSelect.appendChild(option);
+                });
 
             const save = document.createElement("button");
             save.type = "button";
@@ -204,16 +225,27 @@ function renderEmployeesList(ctx) {
                 if (!nextName) return;
                 const currentGroups = getAssigneeGroups();
                 const currentList = currentGroups[employee.dept] || [];
-                const filtered = currentList.filter((name) => name !== employee.name);
-                const nextGroups = { ...currentGroups, [employee.dept]: filtered };
-                const nextList = nextGroups[nextDept] ? [...nextGroups[nextDept]] : [];
+                const filtered = currentList.filter(
+                    (name) => name !== employee.name,
+                );
+                const nextGroups = {
+                    ...currentGroups,
+                    [employee.dept]: filtered,
+                };
+                const nextList = nextGroups[nextDept]
+                    ? [...nextGroups[nextDept]]
+                    : [];
                 nextList.push(nextName);
                 nextGroups[nextDept] = nextList;
-                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                const emails =
+                    typeof getAssigneeEmails === "function"
+                        ? getAssigneeEmails()
+                        : {};
                 delete emails[`${employee.dept}|${employee.name}`];
                 if (nextEmail) emails[`${nextDept}|${nextName}`] = nextEmail;
                 setAssigneeGroups(nextGroups);
-                if (typeof setAssigneeEmails === "function") setAssigneeEmails(emails);
+                if (typeof setAssigneeEmails === "function")
+                    setAssigneeEmails(emails);
                 setEditingEmployee(null);
                 saveAssignees();
                 renderEmployeesList(ctx);
@@ -240,7 +272,9 @@ function renderEmployeesList(ctx) {
             info.className = "fp-assignees-employee-info";
             const name = document.createElement("div");
             name.className = "fp-assignees-employee-name";
-            name.textContent = currentEmail ? `${employee.name} (${currentEmail})` : employee.name;
+            name.textContent = currentEmail
+                ? `${employee.name} (${currentEmail})`
+                : employee.name;
 
             const dept = document.createElement("div");
             dept.className = "fp-assignees-employee-dept";
@@ -263,11 +297,17 @@ function renderEmployeesList(ctx) {
                 const currentGroups = getAssigneeGroups();
                 const list = currentGroups[employee.dept] || [];
                 const nextGroups = { ...currentGroups };
-                nextGroups[employee.dept] = list.filter((name) => name !== employee.name);
-                const emails = typeof getAssigneeEmails === "function" ? getAssigneeEmails() : {};
+                nextGroups[employee.dept] = list.filter(
+                    (name) => name !== employee.name,
+                );
+                const emails =
+                    typeof getAssigneeEmails === "function"
+                        ? getAssigneeEmails()
+                        : {};
                 delete emails[`${employee.dept}|${employee.name}`];
                 setAssigneeGroups(nextGroups);
-                if (typeof setAssigneeEmails === "function") setAssigneeEmails(emails);
+                if (typeof setAssigneeEmails === "function")
+                    setAssigneeEmails(emails);
                 saveAssignees();
                 renderEmployeesList(ctx);
                 renderDepartmentSelect(ctx);
@@ -286,9 +326,13 @@ function renderEmployeesList(ctx) {
     });
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    renderDepartmentSelect,
-    renderDepartmentList,
-    renderEmployeesList,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        renderDepartmentSelect,
+        renderDepartmentList,
+        renderEmployeesList,
+    };

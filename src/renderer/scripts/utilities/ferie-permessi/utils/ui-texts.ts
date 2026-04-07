@@ -15,22 +15,33 @@ export const UI_TEXTS = {
     adminRemoved: "Admin rimosso.",
     adminMinRequired: "Deve esserci almeno un admin.",
     adminNone: "Nessun admin configurato.",
-    adminAccessDescription: "Inserisci la password admin per aprire la gestione.",
+    adminAccessDescription:
+        "Inserisci la password admin per aprire la gestione.",
     adminDeletePasswordDescription: (adminName: string) =>
         `Inserisci la password di ${adminName} per confermare la rimozione.`,
     passwordInvalid: "Password attuale non valida.",
     defaultAdminLabel: "Admin",
-    requestEditPasswordDescription: "Inserisci la password per modificare la richiesta.",
-    requestDeletePasswordDescription: "Inserisci la password per eliminare definitivamente la richiesta.",
-    pendingApprovePasswordDescription: "Inserisci la password per approvare la richiesta.",
-    pendingRejectPasswordDescription: "Inserisci la password per rifiutare la richiesta.",
-    pendingAccessPasswordDescription: "Inserisci la password per visualizzare le richieste in attesa.",
-    mutuaPasswordDescription: "Inserisci la password admin per confermare la mutua.",
-    infortunioPasswordDescription: "Inserisci la password admin per confermare l'infortunio.",
-    retribuitoPasswordDescription: "Inserisci la password admin per confermare il permesso retribuito.",
-    specialePasswordDescription: "Inserisci la password admin per confermare il permesso chiusura aziendale.",
+    requestEditPasswordDescription:
+        "Inserisci la password per modificare la richiesta.",
+    requestDeletePasswordDescription:
+        "Inserisci la password per eliminare definitivamente la richiesta.",
+    pendingApprovePasswordDescription:
+        "Inserisci la password per approvare la richiesta.",
+    pendingRejectPasswordDescription:
+        "Inserisci la password per rifiutare la richiesta.",
+    pendingAccessPasswordDescription:
+        "Inserisci la password per visualizzare le richieste in attesa.",
+    mutuaPasswordDescription:
+        "Inserisci la password admin per confermare la mutua.",
+    infortunioPasswordDescription:
+        "Inserisci la password admin per confermare l'infortunio.",
+    retribuitoPasswordDescription:
+        "Inserisci la password admin per confermare il permesso retribuito.",
+    specialePasswordDescription:
+        "Inserisci la password admin per confermare il permesso chiusura aziendale.",
     hashingUnavailableTitle: "Modulo hashing non disponibile.",
-    hashingUnavailableDetail: "Esegui 'npm install hash-wasm' nella cartella del progetto.",
+    hashingUnavailableDetail:
+        "Esegui 'npm install hash-wasm' nella cartella del progetto.",
     otpUnavailableTitle: "Modulo OTP non disponibile.",
     otpMailerMissingModule: "Modulo mancante: nodemailer.",
     otpMailerInstallerNote:
@@ -52,9 +63,12 @@ export const UI_TEXTS = {
     requestMissingFields: "Compila dipendente e periodo richiesto.",
     requestInvalidDateFormat: "Formato data non valido.",
     requestNoPastDates: "Non puoi inserire date precedenti a oggi.",
-    requestEndBeforeStart: "La data fine non puo essere precedente alla data inizio.",
-    requestEndTimeBeforeStart: "L'orario di fine non puo essere precedente all'inizio.",
-    requestMultiDayAllDayOnly: "Per periodi di piu giorni serve giornata intera.",
+    requestEndBeforeStart:
+        "La data fine non puo essere precedente alla data inizio.",
+    requestEndTimeBeforeStart:
+        "L'orario di fine non puo essere precedente all'inizio.",
+    requestMultiDayAllDayOnly:
+        "Per periodi di piu giorni serve giornata intera.",
     requestMissingTimes: "Inserisci orari di inizio e fine.",
     requestSent: "Richiesta inviata.",
     mutuaInserted: "Mutua registrata.",
@@ -66,14 +80,16 @@ export const UI_TEXTS = {
     holidayAdded: "Festivita aggiunta.",
     holidayRemoved: "Festivita rimossa.",
     holidayUpdated: "Festivita aggiornata.",
-    holidayPasswordDescription: "Inserisci la password admin per confermare la festivita.",
+    holidayPasswordDescription:
+        "Inserisci la password admin per confermare la festivita.",
     closureInvalidDate: "Seleziona una data valida.",
     closureRangeInvalid: "Seleziona un intervallo valido.",
     closureAlreadyExists: "Chiusura gia presente.",
     closureAdded: "Chiusura aggiunta.",
     closureRemoved: "Chiusura rimossa.",
     closureUpdated: "Chiusura aggiornata.",
-    closurePasswordDescription: "Inserisci la password admin per confermare la chiusura.",
+    closurePasswordDescription:
+        "Inserisci la password admin per confermare la chiusura.",
     closureNone: "Nessuna chiusura futura configurata.",
     requestUpdated: "Richiesta aggiornata.",
     requestConfirm: (typeLabel: string, startLabel: string, endLabel: string) =>
@@ -95,15 +111,19 @@ export const UI_TEXTS = {
     exportSelectType: "Seleziona almeno un tipo.",
     exportNoData: "Nessun dato da esportare.",
     exportSuccess: "File Excel creato con successo.",
-    exportPasswordDescription: "Inserisci la password admin per esportare il calendario.",
+    exportPasswordDescription:
+        "Inserisci la password admin per esportare il calendario.",
     exportModuleMissingTitle: "Modulo 'xlsx' non trovato.",
-    exportModuleMissingDetail: "Esegui 'npm install xlsx' nella cartella del progetto AyPi.",
-    backupPasswordDescription: "Inserisci la password admin per accedere al backup.",
+    exportModuleMissingDetail:
+        "Esegui 'npm install xlsx' nella cartella del progetto AyPi.",
+    backupPasswordDescription:
+        "Inserisci la password admin per accedere al backup.",
     backupSelectFolderTitle: "Seleziona la cartella di backup.",
     backupSelectFolderDetail: "Scegli la cartella del backup da ripristinare.",
     backupCreateSuccess: (folder: string) => `Backup creato in: ${folder}`,
     backupRestoreSuccess: "Ripristino completato.",
-    backupRestoreConfirm: "Ripristinare il backup? I file attuali verranno sovrascritti.",
+    backupRestoreConfirm:
+        "Ripristinare il backup? I file attuali verranno sovrascritti.",
     backupCreateError: (detail: string) =>
         `Errore durante il backup: ${detail}`,
     backupRestoreError: (detail: string) =>
@@ -116,11 +136,11 @@ export const UI_TEXTS = {
     mailConfigError: (detail: string) =>
         `Errore configurazione mailing: ${detail}`,
     mailTestSent: "Email di prova inviata.",
-    mailTestError: (detail: string) =>
-        `Errore invio email di prova: ${detail}`,
+    mailTestError: (detail: string) => `Errore invio email di prova: ${detail}`,
     mailModuleMissing: "Modulo 'nodemailer' non disponibile.",
     adminLoginTitle: "Modalita admin",
-    adminLoginDescription: "Inserisci la password admin per attivare la modalita admin.",
+    adminLoginDescription:
+        "Inserisci la password admin per attivare la modalita admin.",
     adminLoginSuccess: (name: string) =>
         `Modalita admin attiva${name ? ` (${name})` : ""}.`,
     adminLogoffSuccess: "Modalita admin disattivata.",
@@ -135,13 +155,20 @@ export const UI_TEXTS = {
     filterAccessDescription: (label: string) =>
         `Inserisci la password admin per abilitare il filtro ${label}.`,
     setupAdminTitle: "Prima configurazione",
-    setupAdminMessage: "Non esiste nessun admin. Inserisci il primo admin per iniziare.",
+    setupAdminMessage:
+        "Non esiste nessun admin. Inserisci il primo admin per iniziare.",
 };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { UI_TEXTS };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { UI_TEXTS };
 }
-
-
-

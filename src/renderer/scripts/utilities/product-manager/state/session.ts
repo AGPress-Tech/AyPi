@@ -97,16 +97,20 @@ function isLoggedIn() {
     return isAdmin() || isEmployee();
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    SESSION_KEY,
-    session,
-    setSession,
-    saveSession,
-    loadSession,
-    clearSession,
-    applySharedSessionData,
-    isAdmin,
-    isEmployee,
-    isLoggedIn,
-};
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        SESSION_KEY,
+        session,
+        setSession,
+        saveSession,
+        loadSession,
+        clearSession,
+        applySharedSessionData,
+        isAdmin,
+        isEmployee,
+        isLoggedIn,
+    };

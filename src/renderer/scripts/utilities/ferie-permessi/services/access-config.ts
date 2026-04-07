@@ -78,7 +78,9 @@ function toBool(value: unknown, fallback: boolean) {
 }
 
 function normalizeAccessConfig(raw: unknown): AccessConfig {
-    const base: AccessConfig = JSON.parse(JSON.stringify(DEFAULT_ACCESS_CONFIG));
+    const base: AccessConfig = JSON.parse(
+        JSON.stringify(DEFAULT_ACCESS_CONFIG),
+    );
     const src =
         raw && typeof raw === "object" ? (raw as Partial<AccessConfig>) : {};
     const ops =
@@ -86,15 +88,15 @@ function normalizeAccessConfig(raw: unknown): AccessConfig {
             ? (src.operations as AccessConfig["operations"])
             : ({} as AccessConfig["operations"]);
 
-    const create = (ops.create && typeof ops.create === "object"
-        ? ops.create
-        : {}) as AccessConfig["operations"]["create"];
-    const pending = (ops.pending && typeof ops.pending === "object"
-        ? ops.pending
-        : {}) as AccessConfig["operations"]["pending"];
-    const filters = (ops.filters && typeof ops.filters === "object"
-        ? ops.filters
-        : {}) as AccessConfig["operations"]["filters"];
+    const create = (
+        ops.create && typeof ops.create === "object" ? ops.create : {}
+    ) as AccessConfig["operations"]["create"];
+    const pending = (
+        ops.pending && typeof ops.pending === "object" ? ops.pending : {}
+    ) as AccessConfig["operations"]["pending"];
+    const filters = (
+        ops.filters && typeof ops.filters === "object" ? ops.filters : {}
+    ) as AccessConfig["operations"]["filters"];
 
     base.operations.create.ferie = toBool(
         create.ferie,
@@ -229,13 +231,20 @@ export {
 };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-        DEFAULT_ACCESS_CONFIG,
-        normalizeAccessConfig,
-        loadAccessConfig,
-        saveAccessConfig,
-    };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = {
+            DEFAULT_ACCESS_CONFIG,
+            normalizeAccessConfig,
+            loadAccessConfig,
+            saveAccessConfig,
+        };
 }
-
-

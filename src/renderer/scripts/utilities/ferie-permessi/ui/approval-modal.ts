@@ -66,10 +66,16 @@ type ApprovalModalOptions = {
     document: Document;
     showModal: (el: HTMLElement | null) => void;
     hideModal: (el: HTMLElement | null) => void;
-    showDialog: (type: string, message: string, detail?: string) => Promise<any>;
+    showDialog: (
+        type: string,
+        message: string,
+        detail?: string,
+    ) => Promise<any>;
     isHashingAvailable: () => boolean;
     loadAdminCredentials: () => AdminLike[];
-    verifyAdminPassword: (password: string) => Promise<{ admin: AdminLike } | null>;
+    verifyAdminPassword: (
+        password: string,
+    ) => Promise<{ admin: AdminLike } | null>;
     loadData: () => any;
     syncData: (updater: (payload: any) => any) => any;
     renderAll: (data: any) => void;
@@ -92,19 +98,37 @@ type ApprovalModalOptions = {
     forceUnlockUI: () => void;
     applyBalanceForApproval: (payload: any, request: RequestLike) => void;
     applyBalanceForDeletion: (payload: any, request: RequestLike) => void;
-    getBalanceImpact: (payload: any, request: RequestLike) => { negative?: boolean };
+    getBalanceImpact: (
+        payload: any,
+        request: RequestLike,
+    ) => { negative?: boolean };
     confirmNegativeBalance: (impact: any) => Promise<boolean>;
     onHoursAccess: (admin?: AdminLike | null) => void;
     onAssigneesAccess: (admin?: AdminLike | null) => void;
     onManageAccess: (admin?: AdminLike | null) => void;
     onDaysAccess: (admin?: AdminLike | null) => void;
     onMutuaCreate: (admin: AdminLike | null, request?: RequestLike) => void;
-    onInfortunioCreate: (admin: AdminLike | null, request?: RequestLike) => void;
-    onRetribuitoCreate: (admin: AdminLike | null, request?: RequestLike) => void;
+    onInfortunioCreate: (
+        admin: AdminLike | null,
+        request?: RequestLike,
+    ) => void;
+    onRetribuitoCreate: (
+        admin: AdminLike | null,
+        request?: RequestLike,
+    ) => void;
     onSpecialeCreate: (admin: AdminLike | null, request?: RequestLike) => void;
-    onHolidayCreate: (admin: AdminLike | null, dates?: string[], name?: string) => void;
+    onHolidayCreate: (
+        admin: AdminLike | null,
+        dates?: string[],
+        name?: string,
+    ) => void;
     onHolidayRemove: (admin: AdminLike | null, date?: string) => void;
-    onHolidayUpdate: (admin: AdminLike | null, date?: string, nextDate?: string, nextName?: string) => void;
+    onHolidayUpdate: (
+        admin: AdminLike | null,
+        date?: string,
+        nextDate?: string,
+        nextName?: string,
+    ) => void;
     onClosureCreate: (admin: AdminLike | null, entry?: any) => void;
     onClosureRemove: (admin: AdminLike | null, entry?: any) => void;
     onClosureUpdate: (admin: AdminLike | null, entry?: any, next?: any) => void;
@@ -465,9 +489,7 @@ function createApprovalModal(options: ApprovalModalOptions) {
                 );
                 return;
             }
-            adminCache = adminCache.filter(
-                (item) => item.name !== targetName,
-            );
+            adminCache = adminCache.filter((item) => item.name !== targetName);
             setAdminCache(adminCache);
             saveAdminCredentials(adminCache);
             renderAdminList();
@@ -514,11 +536,21 @@ function createApprovalModal(options: ApprovalModalOptions) {
             handleAction(admin, action);
             return;
         }
-        const modal = document.getElementById("fp-approve-modal") as HTMLElement | null;
-        const input = document.getElementById("fp-approve-password") as HTMLInputElement | null;
-        const error = document.getElementById("fp-approve-error") as HTMLElement | null;
-        const title = document.getElementById("fp-approve-title") as HTMLElement | null;
-        const desc = document.getElementById("fp-approve-desc") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-approve-modal",
+        ) as HTMLElement | null;
+        const input = document.getElementById(
+            "fp-approve-password",
+        ) as HTMLInputElement | null;
+        const error = document.getElementById(
+            "fp-approve-error",
+        ) as HTMLElement | null;
+        const title = document.getElementById(
+            "fp-approve-title",
+        ) as HTMLElement | null;
+        const desc = document.getElementById(
+            "fp-approve-desc",
+        ) as HTMLElement | null;
         if (!modal || !input) return;
         setPendingAction(action);
         if (title && action?.title) title.textContent = action.title;
@@ -545,10 +577,18 @@ function createApprovalModal(options: ApprovalModalOptions) {
     }
 
     function closeApprovalModal() {
-        const modal = document.getElementById("fp-approve-modal") as HTMLElement | null;
-        const input = document.getElementById("fp-approve-password") as HTMLInputElement | null;
-        const error = document.getElementById("fp-approve-error") as HTMLElement | null;
-        const recoverBtn = document.getElementById("fp-approve-recover") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-approve-modal",
+        ) as HTMLElement | null;
+        const input = document.getElementById(
+            "fp-approve-password",
+        ) as HTMLInputElement | null;
+        const error = document.getElementById(
+            "fp-approve-error",
+        ) as HTMLElement | null;
+        const recoverBtn = document.getElementById(
+            "fp-approve-recover",
+        ) as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
         if (input) input.value = "";
@@ -562,9 +602,15 @@ function createApprovalModal(options: ApprovalModalOptions) {
     }
 
     async function confirmApproval() {
-        const input = document.getElementById("fp-approve-password") as HTMLInputElement | null;
-        const error = document.getElementById("fp-approve-error") as HTMLElement | null;
-        const recoverBtn = document.getElementById("fp-approve-recover") as HTMLElement | null;
+        const input = document.getElementById(
+            "fp-approve-password",
+        ) as HTMLInputElement | null;
+        const error = document.getElementById(
+            "fp-approve-error",
+        ) as HTMLElement | null;
+        const recoverBtn = document.getElementById(
+            "fp-approve-recover",
+        ) as HTMLElement | null;
         const password = input ? input.value : "";
         if (!isHashingAvailable()) {
             const hasHashes = loadAdminCredentials().some(
@@ -596,10 +642,18 @@ function createApprovalModal(options: ApprovalModalOptions) {
     }
 
     function initApprovalModal() {
-        const approveCancel = document.getElementById("fp-approve-cancel") as HTMLElement | null;
-        const approveConfirm = document.getElementById("fp-approve-confirm") as HTMLElement | null;
-        const approveModal = document.getElementById("fp-approve-modal") as HTMLElement | null;
-        const approvePassword = document.getElementById("fp-approve-password") as HTMLInputElement | null;
+        const approveCancel = document.getElementById(
+            "fp-approve-cancel",
+        ) as HTMLElement | null;
+        const approveConfirm = document.getElementById(
+            "fp-approve-confirm",
+        ) as HTMLElement | null;
+        const approveModal = document.getElementById(
+            "fp-approve-modal",
+        ) as HTMLElement | null;
+        const approvePassword = document.getElementById(
+            "fp-approve-password",
+        ) as HTMLInputElement | null;
         if (approveCancel) {
             approveCancel.addEventListener("click", closeApprovalModal);
         }
@@ -635,8 +689,15 @@ function createApprovalModal(options: ApprovalModalOptions) {
 export { createApprovalModal };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createApprovalModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createApprovalModal };
 }
-
-

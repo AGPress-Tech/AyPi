@@ -33,7 +33,8 @@ function initCategoriesModal(ctx) {
             openCategoriesModal();
         });
     }
-    if (closeBtn) closeBtn.addEventListener("click", () => closeCategoriesModal());
+    if (closeBtn)
+        closeBtn.addEventListener("click", () => closeCategoriesModal());
     if (addBtn) addBtn.addEventListener("click", () => addCategory());
     if (nameInput) {
         nameInput.addEventListener("keydown", (event) => {
@@ -52,12 +53,16 @@ function initCategoriesModal(ctx) {
             if (!uiState.categoryEditingName) return;
             const next = normalizeHexColor(
                 colorInput.value,
-                getCategoryColor(uiState.categoryEditingName)
+                getCategoryColor(uiState.categoryEditingName),
             );
-            const nextColors = { ...ctx.categoryColors(), [uiState.categoryEditingName]: next };
+            const nextColors = {
+                ...ctx.categoryColors(),
+                [uiState.categoryEditingName]: next,
+            };
             ctx.setCategoryColors(nextColors);
             updateCategoryChipPreview(uiState.categoryEditingName, next);
-            if (uiState.categoryPreviewTimer) clearTimeout(uiState.categoryPreviewTimer);
+            if (uiState.categoryPreviewTimer)
+                clearTimeout(uiState.categoryPreviewTimer);
             uiState.categoryPreviewTimer = setTimeout(() => {
                 renderCatalog();
                 renderCartTable();
@@ -70,7 +75,10 @@ function initCategoriesModal(ctx) {
             if (!uiState.categoryEditingName) return;
             const next = hashCategoryToColor(uiState.categoryEditingName);
             if (colorInput) colorInput.value = next;
-            const nextColors = { ...ctx.categoryColors(), [uiState.categoryEditingName]: next };
+            const nextColors = {
+                ...ctx.categoryColors(),
+                [uiState.categoryEditingName]: next,
+            };
             ctx.setCategoryColors(nextColors);
             updateCategoryChipPreview(uiState.categoryEditingName, next);
             renderCatalog();
@@ -90,11 +98,17 @@ function initCategoriesModal(ctx) {
 }
 
 function initInterventionTypesModal(ctx) {
-    const { document, openInterventionTypesModal, closeInterventionTypesModal, addInterventionType } = ctx;
+    const {
+        document,
+        openInterventionTypesModal,
+        closeInterventionTypesModal,
+        addInterventionType,
+    } = ctx;
     const closeBtn = document.getElementById("pm-categories-close");
     const addBtn = document.getElementById("pm-intervention-type-add");
     const nameInput = document.getElementById("pm-intervention-type-name");
-    if (closeBtn) closeBtn.addEventListener("click", () => closeInterventionTypesModal());
+    if (closeBtn)
+        closeBtn.addEventListener("click", () => closeInterventionTypesModal());
     if (addBtn) addBtn.addEventListener("click", () => addInterventionType());
     if (nameInput) {
         nameInput.addEventListener("keydown", (event) => {
@@ -105,5 +119,9 @@ function initInterventionTypesModal(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { initCategoriesModal, initInterventionTypesModal };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { initCategoriesModal, initInterventionTypesModal };

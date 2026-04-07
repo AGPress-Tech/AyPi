@@ -1,10 +1,16 @@
 ﻿// @ts-nocheck
 require("../../../shared/dev-guards");
-function initLogoutModal({ document, clearSession, syncSessionUI, closeLogoutModal }) {
+function initLogoutModal({
+    document,
+    clearSession,
+    syncSessionUI,
+    closeLogoutModal,
+}) {
     const logoutCancel = document.getElementById("pm-logout-cancel");
     const logoutConfirm = document.getElementById("pm-logout-confirm");
     const logoutModal = document.getElementById("pm-logout-modal");
-    if (logoutCancel) logoutCancel.addEventListener("click", () => closeLogoutModal());
+    if (logoutCancel)
+        logoutCancel.addEventListener("click", () => closeLogoutModal());
     if (logoutConfirm) {
         logoutConfirm.addEventListener("click", () => {
             clearSession();
@@ -52,5 +58,9 @@ function initGuideModal({ document, guideUi }) {
     });
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { initLogoutModal, initGuideModal };
-
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { initLogoutModal, initGuideModal };

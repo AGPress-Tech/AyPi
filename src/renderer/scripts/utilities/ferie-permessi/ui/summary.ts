@@ -34,8 +34,12 @@ function createSummary(options: SummaryOptions) {
         const summaryEl = document.getElementById("fp-summary");
         if (!summaryEl) return;
         const requests = data.requests || [];
-        const pending = requests.filter((req) => req.status === "pending").length;
-        const approved = requests.filter((req) => req.status === "approved").length;
+        const pending = requests.filter(
+            (req) => req.status === "pending",
+        ).length;
+        const approved = requests.filter(
+            (req) => req.status === "approved",
+        ).length;
         summaryEl.textContent = `In attesa: ${pending} | Approvate: ${approved}`;
         updatePendingBadge(pending);
     }
@@ -46,8 +50,15 @@ function createSummary(options: SummaryOptions) {
 export { createSummary };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createSummary };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createSummary };
 }
-
-
