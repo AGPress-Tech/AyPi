@@ -192,13 +192,16 @@ const SAFE_CALENDAR_DIR =
     typeof CALENDAR_DIR === "string" && CALENDAR_DIR.trim()
         ? CALENDAR_DIR
         : path.join(SAFE_BASE_DIR, "AyPi Calendar");
-const BACKUP_ROOT_DIR = path.join(SAFE_BASE_DIR, "Backup AyPi Calendar");
+const BACKUP_ROOT_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AyPi Backups";
+if (!fs.existsSync(BACKUP_ROOT_DIR)) {
+    fs.mkdirSync(BACKUP_ROOT_DIR, { recursive: true });
+}
 
 function getBackupSourceDir() {
-    if (SAFE_CALENDAR_DIR && !fs.existsSync(SAFE_CALENDAR_DIR)) {
-        fs.mkdirSync(SAFE_CALENDAR_DIR, { recursive: true });
+    if (SAFE_BASE_DIR && !fs.existsSync(SAFE_BASE_DIR)) {
+        fs.mkdirSync(SAFE_BASE_DIR, { recursive: true });
     }
-    return SAFE_CALENDAR_DIR;
+    return SAFE_BASE_DIR;
 }
 
 let calendar = null;
@@ -3269,8 +3272,12 @@ function init() {
                 );
             }
             ensureDir(targetDir);
-            copyDirectory(getBackupSourceDir(), targetDir);
-            pruneOldBackups(10);
+            copyDirectory(getBackupSourceDir(), targetDir, {
+                exclude: (name) =>
+                    name.includes("Backup AyPi Calendar") ||
+                    name.includes("Backup AyPi Purchasing"),
+            });
+            pruneOldBackups(30);
             if (!isSilent) {
                 setMessage(
                     backupMessage,
@@ -3292,13 +3299,16 @@ function init() {
     const restoreBackup = async () => {
         try {
             setMessage(backupMessage, "");
+
             const confirm = await showDialog(
                 "warning",
                 "Ripristino backup",
-                UI_TEXTS.backupRestoreConfirm,
-                ["Annulla", "Ripristina"],
+                "Cosa vuoi ripristinare?",
+                ["Annulla", "Solo Calendar", "Tutta AGPRESS"],
             );
-            if (!confirm || confirm.response !== 1) return;
+
+            if (!confirm || confirm.response === 0) return;
+
             let folder;
             try {
                 folder = await ipcRenderer.invoke("select-root-folder");
@@ -3310,10 +3320,36 @@ function init() {
                 );
                 return;
             }
+
             if (!folder) return;
-            copyDirectory(folder, getBackupSourceDir());
+
+            // UNDO: crea un backup automatico prima di ripristinare
+            await createBackup({ silent: true });
+
+            const restoreMode = confirm.response === 2 ? "full" : "calendar";
+
+            if (restoreMode === "full") {
+                copyDirectory(folder, SAFE_BASE_DIR, {
+                    exclude: (name) => name === "AyPi Backups",
+                });
+            } else {
+                const calendarBackupDir = path.join(folder, "AyPi Calendar");
+                const calendarTargetDir = path.join(
+                    SAFE_BASE_DIR,
+                    "AyPi Calendar",
+                );
+
+                if (!fs.existsSync(calendarBackupDir)) {
+                    throw new Error(
+                        "Nel backup selezionato non esiste la cartella 'AyPi Calendar'.",
+                    );
+                }
+
+                copyDirectory(calendarBackupDir, calendarTargetDir);
+            }
+
             renderAll(loadData());
-            pruneOldBackups(10);
+            pruneOldBackups(30);
             setMessage(backupMessage, UI_TEXTS.backupRestoreSuccess, false);
         } catch (err) {
             setMessage(
@@ -3370,10 +3406,10 @@ function init() {
             const now = new Date();
             const diffMs = now.getTime() - latestDate.getTime();
             const diffDays = diffMs / (24 * 60 * 60 * 1000);
-            if (diffDays > 7) {
+            if (diffDays > 1) {
                 createBackup({ silent: true });
             }
-            pruneOldBackups(10);
+            pruneOldBackups(30);
         } catch (err) {
             console.error("Errore controllo backup:", err);
         }
