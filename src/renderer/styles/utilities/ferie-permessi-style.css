@@ -2075,6 +2075,63 @@ body.fp-dark #fp-calendar .fc .fc-button-primary:not(:disabled):active {
     color: #8ab4f8 !important;
 }
 
+body.fp-dark #fp-calendar .fc .fc-daygrid-more-link {
+    color: #8ab4f8;
+}
+
+body.fp-dark #fp-calendar .fc .fc-popover {
+    background: #1f232a;
+    border: 1px solid #2b2f36;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+body.fp-dark #fp-calendar .fc .fc-popover-header {
+    background: #15181d;
+    border-bottom: 1px solid #2b2f36;
+    color: #e8eaed;
+}
+
+body.fp-dark #fp-calendar .fc .fc-popover-title,
+body.fp-dark #fp-calendar .fc .fc-popover-close {
+    color: #e8eaed;
+}
+
+body.fp-dark #fp-calendar .fc .fc-popover-body {
+    background: #1f232a;
+}
+
+body.fp-dark #fp-calendar .fc .fc-more-popover .fc-daygrid-event-harness {
+    border-bottom: 1px solid rgba(232, 234, 237, 0.08);
+}
+
+body.fp-dark #fp-calendar .fc .fc-more-popover .fc-daygrid-event-harness:last-child {
+    border-bottom: none;
+}
+
+body.fp-dark #fp-calendar .fc .fc-more-popover .fc-daygrid-event {
+    border-radius: 4px;
+}
+
+body.fp-dark .fc-popover {
+    background: #1f232a !important;
+    border: 1px solid #2b2f36 !important;
+}
+
+body.fp-dark .fc-popover .fc-popover-header {
+    background: #15181d !important;
+    border-bottom: 1px solid #2b2f36 !important;
+    color: #e8eaed !important;
+}
+
+body.fp-dark .fc-popover .fc-popover-body {
+    background: #1f232a !important;
+}
+
+body.fp-dark .fc-popover .fc-popover-title,
+body.fp-dark .fc-popover .fc-popover-close {
+    color: #e8eaed !important;
+}
+
 body.fp-aypi {
     background: #332f2b;
     color: #f3e6d5;
@@ -2389,6 +2446,59 @@ body.fp-aypi #fp-calendar .fc .fc-list-event-title,
 body.fp-aypi #fp-calendar .fc .fc-list-event-time,
 body.fp-aypi #fp-calendar .fc .fc-list-empty {
     color: #f3e6d5;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-daygrid-more-link {
+    color: #e4ab32;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-popover {
+    background: #2b2824;
+    border: 1px solid #4a433d;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+body.fp-aypi #fp-calendar .fc .fc-popover-header {
+    background: #1f1c19;
+    border-bottom: 1px solid #4a433d;
+    color: #f3e6d5;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-popover-title,
+body.fp-aypi #fp-calendar .fc .fc-popover-close {
+    color: #f3e6d5;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-popover-body {
+    background: #2b2824;
+}
+
+body.fp-aypi #fp-calendar .fc .fc-more-popover .fc-daygrid-event-harness {
+    border-bottom: 1px solid rgba(243, 230, 213, 0.12);
+}
+
+body.fp-aypi #fp-calendar .fc .fc-more-popover .fc-daygrid-event-harness:last-child {
+    border-bottom: none;
+}
+
+body.fp-aypi .fc-popover {
+    background: #2b2824 !important;
+    border: 1px solid #4a433d !important;
+}
+
+body.fp-aypi .fc-popover .fc-popover-header {
+    background: #1f1c19 !important;
+    border-bottom: 1px solid #4a433d !important;
+    color: #f3e6d5 !important;
+}
+
+body.fp-aypi .fc-popover .fc-popover-body {
+    background: #2b2824 !important;
+}
+
+body.fp-aypi .fc-popover .fc-popover-title,
+body.fp-aypi .fc-popover .fc-popover-close {
+    color: #f3e6d5 !important;
 }
 
 

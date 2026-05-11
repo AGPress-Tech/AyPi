@@ -178,6 +178,58 @@ function applyCalendarListHoverStyles(document: Document) {
     });
 }
 
+function applyCalendarMorePopoverStyles(document: Document) {
+    const isDark = document.body.classList.contains("fp-dark");
+    const isAyPi = document.body.classList.contains("fp-aypi");
+    if (!isDark && !isAyPi) return;
+
+    const palette = isAyPi
+        ? {
+              bg: "#2b2824",
+              headerBg: "#1f1c19",
+              border: "#4a433d",
+              text: "#f3e6d5",
+              separator: "rgba(243, 230, 213, 0.12)",
+          }
+        : {
+              bg: "#1f232a",
+              headerBg: "#15181d",
+              border: "#2b2f36",
+              text: "#e8eaed",
+              separator: "rgba(232, 234, 237, 0.08)",
+          };
+
+    const popovers = document.querySelectorAll<HTMLElement>(".fc-popover");
+    popovers.forEach((popover) => {
+        popover.style.background = palette.bg;
+        popover.style.border = `1px solid ${palette.border}`;
+        popover.style.boxShadow = "0 10px 24px rgba(0, 0, 0, 0.45)";
+
+        const header = popover.querySelector<HTMLElement>(".fc-popover-header");
+        if (header) {
+            header.style.background = palette.headerBg;
+            header.style.borderBottom = `1px solid ${palette.border}`;
+            header.style.color = palette.text;
+        }
+
+        popover
+            .querySelectorAll<HTMLElement>(".fc-popover-title, .fc-popover-close")
+            .forEach((el) => {
+                el.style.color = palette.text;
+            });
+
+        const body = popover.querySelector<HTMLElement>(".fc-popover-body");
+        if (body) body.style.background = palette.bg;
+
+        popover
+            .querySelectorAll<HTMLElement>(".fc-more-popover .fc-daygrid-event-harness")
+            .forEach((row, idx, list) => {
+                row.style.borderBottom =
+                    idx === list.length - 1 ? "none" : `1px solid ${palette.separator}`;
+            });
+    });
+}
+
 function initCalendar(options: CalendarOptions) {
     const {
         document,
@@ -304,6 +356,7 @@ function initCalendar(options: CalendarOptions) {
                 applyCalendarButtonStyles(document);
                 applyCalendarListStyles(document);
                 applyCalendarListHoverStyles(document);
+                applyCalendarMorePopoverStyles(document);
                 return;
             }
             if (
@@ -316,6 +369,7 @@ function initCalendar(options: CalendarOptions) {
                 applyCalendarButtonStyles(document);
                 applyCalendarListStyles(document);
                 applyCalendarListHoverStyles(document);
+                applyCalendarMorePopoverStyles(document);
                 return;
             }
             if (
@@ -330,10 +384,12 @@ function initCalendar(options: CalendarOptions) {
                 applyCalendarButtonStyles(document);
                 applyCalendarListStyles(document);
                 applyCalendarListHoverStyles(document);
+                applyCalendarMorePopoverStyles(document);
             }
             setTimeout(() => {
                 applyCalendarListStyles(document);
                 applyCalendarListHoverStyles(document);
+                applyCalendarMorePopoverStyles(document);
             }, 0);
         },
     });
@@ -341,6 +397,17 @@ function initCalendar(options: CalendarOptions) {
     applyCalendarButtonStyles(document);
     applyCalendarListStyles(document);
     applyCalendarListHoverStyles(document);
+    applyCalendarMorePopoverStyles(document);
+    if (!document.body.dataset.fpMorePopoverBound) {
+        document.addEventListener("click", (event) => {
+            const target = event.target as HTMLElement | null;
+            if (!target) return;
+            if (target.closest(".fc-daygrid-more-link")) {
+                setTimeout(() => applyCalendarMorePopoverStyles(document), 0);
+            }
+        });
+        document.body.dataset.fpMorePopoverBound = "1";
+    }
     return calendar;
 }
 
@@ -348,6 +415,7 @@ export {
     applyCalendarButtonStyles,
     applyCalendarListStyles,
     applyCalendarListHoverStyles,
+    applyCalendarMorePopoverStyles,
     initCalendar,
 };
 
@@ -366,6 +434,7 @@ if (
             applyCalendarButtonStyles,
             applyCalendarListStyles,
             applyCalendarListHoverStyles,
+            applyCalendarMorePopoverStyles,
             initCalendar,
         };
 }
