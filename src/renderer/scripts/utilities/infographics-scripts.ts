@@ -115,6 +115,7 @@ async function reloadStats(force: boolean) {
         repo: "AyPi",
         persistPath:
             "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
+        maxCacheMinutes: 10,
         force,
     });
     if (!payload || !payload.ok || !payload.data || !payload.data.length) {
@@ -165,6 +166,12 @@ async function reloadStats(force: boolean) {
         } else if (payload.warning === "commit-activity-fallback") {
             fetchError.textContent =
                 "Nota: commit calcolati via lista commit (fallback)";
+        } else if (payload.warning === "code-frequency-local") {
+            fetchError.textContent =
+                "Nota: linee variate calcolate da repository locale";
+        } else if (payload.warning === "code-frequency-cache") {
+            fetchError.textContent =
+                "Nota: linee variate recuperate da cache";
         } else if (payload.warning === "commit-week-partial") {
             fetchError.textContent =
                 "Nota: inclusa settimana corrente (parziale)";
@@ -452,6 +459,7 @@ async function openGitflowModal(force: boolean) {
         repo,
         force,
         maxCommits: 5000,
+        maxCacheMinutes: 20,
         persistPath:
             "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
     });

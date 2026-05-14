@@ -837,6 +837,12 @@ function isSameDay(a: Date, b: Date) {
     );
 }
 
+function isYoungerThanMinutes(date: Date, minutes: number) {
+    if (!Number.isFinite(minutes) || minutes <= 0) return false;
+    const ageMs = Date.now() - date.getTime();
+    return ageMs >= 0 && ageMs <= minutes * 60 * 1000;
+}
+
 function startOfWeekMonday(date: Date) {
     const day = date.getDay();
     const diff = (day + 6) % 7;
@@ -1040,7 +1046,7 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
                     : toDateKey(startOfWeekMonday(rowDate));
                 row.commits = commitCounts.get(key) || 0;
             });
-            warning = "commit-activity-fallback";
+            warning = warning || "commit-activity-fallback";
         } catch {
             warning = "commit-activity-empty";
         }
@@ -1089,6 +1095,8 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
             nowWeekStart.getTime() > lastWeekStart.getTime()
         ) {
             let weekCommits = 0;
+            let weekAdditions = 0;
+            let weekDeletions = 0;
             try {
                 const sinceDate = nowWeekStart;
                 const recentCommits = await fetchGithubCommits(
@@ -1102,6 +1110,25 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
                     const time = new Date(entry.date).getTime();
                     return !Number.isNaN(time) && time >= sinceDate.getTime();
                 }).length;
+                const currentWeekCommits = recentCommits.filter((entry) => {
+                    const time = new Date(entry.date).getTime();
+                    return !Number.isNaN(time) && time >= sinceDate.getTime();
+                });
+                // Prefer local git diff totals when available (faster and more accurate in dev/runtime with repo).
+                const localTotals = getLocalWeekDiffTotals(nowWeekStart);
+                if (localTotals.additions > 0 || localTotals.deletions > 0) {
+                    weekAdditions = localTotals.additions;
+                    weekDeletions = localTotals.deletions;
+                } else if (currentWeekCommits.length) {
+                    const remoteTotals = await fetchGithubDiffTotalsForCommits(
+                        owner,
+                        repo,
+                        currentWeekCommits,
+                        token,
+                    );
+                    weekAdditions = remoteTotals.additions;
+                    weekDeletions = remoteTotals.deletions;
+                }
             } catch (err) {
                 log.warn("[github-stats] current week commits fetch failed", {
                     owner,
@@ -1111,11 +1138,70 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
             }
             data.push({
                 date: toDateKey(nowWeekStart),
-                additions: 0,
-                deletions: 0,
+                additions: weekAdditions,
+                deletions: weekDeletions,
                 commits: weekCommits,
             });
             warning = warning || "commit-week-partial";
+        } else {
+            // Week already present from GitHub stats: enrich current week diffs when GitHub returns stale/zero code_frequency.
+            const lastRow = data[data.length - 1];
+            if (lastRow && (Number(lastRow.commits || 0) > 0)) {
+                const hasDiff =
+                    Number(lastRow.additions || 0) > 0 ||
+                    Number(lastRow.deletions || 0) > 0;
+                if (!hasDiff) {
+                    const localTotals = getLocalWeekDiffTotals(nowWeekStart);
+                    if (
+                        localTotals.additions > 0 ||
+                        localTotals.deletions > 0
+                    ) {
+                        lastRow.additions = localTotals.additions;
+                        lastRow.deletions = localTotals.deletions;
+                        warning = warning || "code-frequency-local";
+                    } else {
+                        try {
+                            const sinceDate = nowWeekStart;
+                            const recentCommits = await fetchGithubCommits(
+                                owner,
+                                repo,
+                                token,
+                                800,
+                                sinceDate,
+                            );
+                            const currentWeekCommits = recentCommits.filter(
+                                (entry) => {
+                                    const time = new Date(entry.date).getTime();
+                                    return (
+                                        !Number.isNaN(time) &&
+                                        time >= sinceDate.getTime()
+                                    );
+                                },
+                            );
+                            if (currentWeekCommits.length) {
+                                const remoteTotals =
+                                    await fetchGithubDiffTotalsForCommits(
+                                        owner,
+                                        repo,
+                                        currentWeekCommits,
+                                        token,
+                                    );
+                                lastRow.additions = remoteTotals.additions;
+                                lastRow.deletions = remoteTotals.deletions;
+                            }
+                        } catch (err) {
+                            log.warn(
+                                "[github-stats] current week diff enrichment failed",
+                                {
+                                    owner,
+                                    repo,
+                                    error: err?.message || String(err),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1172,6 +1258,59 @@ async function fetchGithubCommits(
         page += 1;
     }
     return commits.slice(0, maxCommits);
+}
+
+async function fetchGithubDiffTotalsForCommits(
+    owner: string,
+    repo: string,
+    commits: Array<{ sha: string; date: string }>,
+    token?: string,
+    maxCommitDetails = 120,
+) {
+    const base = `https://api.github.com/repos/${owner}/${repo}`;
+    let additions = 0;
+    let deletions = 0;
+    const list = Array.isArray(commits)
+        ? commits.slice(0, maxCommitDetails)
+        : [];
+    for (const entry of list) {
+        if (!entry?.sha) continue;
+        try {
+            const details = await fetchJson(`${base}/commits/${entry.sha}`, token);
+            const stats = details?.stats;
+            additions += Number(stats?.additions || 0);
+            deletions += Number(stats?.deletions || 0);
+        } catch (err) {
+            log.warn("[github-stats] commit details fetch failed", {
+                owner,
+                repo,
+                sha: entry.sha,
+                error: err?.message || String(err),
+            });
+        }
+    }
+    return { additions, deletions };
+}
+
+function getLocalWeekDiffTotals(weekStart: Date) {
+    const repoRoot = resolveGitRepoRoot();
+    if (!repoRoot) return { additions: 0, deletions: 0 };
+    const local = getGitDailyStats(repoRoot);
+    if (!local?.ok || !Array.isArray(local.data)) {
+        return { additions: 0, deletions: 0 };
+    }
+    const weekKey = toDateKey(startOfWeekMonday(weekStart));
+    let additions = 0;
+    let deletions = 0;
+    local.data.forEach((row) => {
+        const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
+        if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+        const rowWeek = toDateKey(startOfWeekMonday(rowDate));
+        if (rowWeek !== weekKey) return;
+        additions += Number(row.additions || 0);
+        deletions += Number(row.deletions || 0);
+    });
+    return { additions, deletions };
 }
 
 async function fetchGithubTags(owner: string, repo: string, token?: string) {
@@ -2788,13 +2927,17 @@ function setupFileManager(mainWindow) {
                 ? String(options.persistPath)
                 : undefined;
         const force = !!(options && options.force);
+        const maxCacheMinutes =
+            options && Number.isFinite(Number(options.maxCacheMinutes))
+                ? Number(options.maxCacheMinutes)
+                : 15;
         const cached = readGitStatsSnapshot(targetPath);
         if (!force && cached && cached.fetchedAt) {
             try {
                 const last = new Date(cached.fetchedAt);
                 if (
                     !Number.isNaN(last.getTime()) &&
-                    isSameDay(last, new Date())
+                    isYoungerThanMinutes(last, maxCacheMinutes)
                 ) {
                     return cached;
                 }
@@ -2805,6 +2948,46 @@ function setupFileManager(mainWindow) {
         try {
             const payload = await fetchGithubStats(owner, repo, token);
             const payloadWithToken = { ...payload, tokenPresent };
+            if (Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+                // Enrich rows with commits>0 but zero code frequency using local git stats.
+                // This fixes cases where GitHub stats stay stale on recent weeks.
+                const repoRoot = resolveGitRepoRoot();
+                if (repoRoot) {
+                    const local = getGitDailyStats(repoRoot);
+                    if (local?.ok && Array.isArray(local.data)) {
+                        const localMap = new Map<string, { additions: number; deletions: number }>();
+                        local.data.forEach((row) => {
+                            const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
+                            if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+                            const key = toDateKey(startOfWeekMonday(rowDate));
+                            const prev = localMap.get(key) || { additions: 0, deletions: 0 };
+                            prev.additions += Number(row.additions || 0);
+                            prev.deletions += Number(row.deletions || 0);
+                            localMap.set(key, prev);
+                        });
+                        let enrichedRows = 0;
+                        payloadWithToken.data.forEach((row) => {
+                            const commits = Number(row?.commits || 0);
+                            const hasDiff =
+                                Number(row?.additions || 0) !== 0 ||
+                                Number(row?.deletions || 0) !== 0;
+                            if (commits <= 0 || hasDiff) return;
+                            const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
+                            if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+                            const key = toDateKey(startOfWeekMonday(rowDate));
+                            const localRow = localMap.get(key);
+                            if (!localRow) return;
+                            if (Number(localRow.additions || 0) === 0 && Number(localRow.deletions || 0) === 0) return;
+                            row.additions = localRow.additions;
+                            row.deletions = localRow.deletions;
+                            enrichedRows += 1;
+                        });
+                        if (enrichedRows > 0) {
+                            payloadWithToken.warning = payloadWithToken.warning || "code-frequency-local";
+                        }
+                    }
+                }
+            }
             const hasCodeFrequency =
                 Array.isArray(payloadWithToken.data) &&
                 payloadWithToken.data.some(
@@ -2991,7 +3174,8 @@ function setupFileManager(mainWindow) {
                             : toDateKey(startOfWeekMonday(rowDate));
                         row.commits = commitCounts.get(week) || 0;
                     });
-                    payloadWithToken.warning = "commit-activity-fallback";
+                    payloadWithToken.warning =
+                        payloadWithToken.warning || "commit-activity-fallback";
                 } catch {
                     if (
                         cached &&
@@ -3069,6 +3253,10 @@ function setupFileManager(mainWindow) {
                 ? String(options.persistPath)
                 : undefined;
         const force = !!(options && options.force);
+        const maxCacheMinutes =
+            options && Number.isFinite(Number(options.maxCacheMinutes))
+                ? Number(options.maxCacheMinutes)
+                : 30;
         const tokenPresent = !!token;
         try {
             const cached = readGitflowSnapshot(targetPath);
@@ -3077,7 +3265,7 @@ function setupFileManager(mainWindow) {
                     const last = new Date(cached.fetchedAt);
                     if (
                         !Number.isNaN(last.getTime()) &&
-                        isSameDay(last, new Date())
+                        isYoungerThanMinutes(last, maxCacheMinutes)
                     ) {
                         return cached;
                     }
