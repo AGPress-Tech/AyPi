@@ -35,6 +35,7 @@ type OtpModalsOptions = {
     sendOtpEmail: (admin: AdminEntry, code: string) => Promise<void>;
     findAdminByName: (name: string, admins: AdminEntry[]) => AdminEntry | null;
     getAdminCache: () => AdminEntry[];
+    loadAdminCredentials: () => AdminEntry[];
     saveAdminCredentials: (admins: AdminEntry[]) => void;
     getAuthenticator: () => Promise<{
         generateSecret: () => string;
@@ -61,6 +62,7 @@ function createOtpModals(options: OtpModalsOptions) {
         sendOtpEmail,
         findAdminByName,
         getAdminCache,
+        loadAdminCredentials,
         saveAdminCredentials,
         getAuthenticator,
         otpState,
@@ -119,6 +121,13 @@ function createOtpModals(options: OtpModalsOptions) {
     }
 
     function initOtpModals() {
+        const getAdminsSource = () => {
+            const cache = getAdminCache();
+            if (Array.isArray(cache) && cache.length) return cache;
+            const loaded = loadAdminCredentials();
+            return Array.isArray(loaded) ? loaded : [];
+        };
+
         const otpModal = document.getElementById(
             "fp-otp-modal",
         ) as HTMLElement | null;
@@ -192,7 +201,8 @@ function createOtpModals(options: OtpModalsOptions) {
                 setMessage(otpMessage, UI_TEXTS.otpMissingAdminName, true);
                 return;
             }
-            const admin = findAdminByName(name, getAdminCache());
+            const admins = getAdminsSource();
+            const admin = findAdminByName(name, admins);
             if (!admin) {
                 setMessage(otpMessage, UI_TEXTS.adminNotFound, true);
                 return;
@@ -312,12 +322,11 @@ function createOtpModals(options: OtpModalsOptions) {
                     );
                     return;
                 }
+                const admins = getAdminsSource();
                 const admin =
-                    getAdminCache().find(
-                        (item) => item.name === otpState.adminName,
-                    ) ||
+                    admins.find((item) => item.name === otpState.adminName) ||
                     (otpState.adminName
-                        ? findAdminByName(otpState.adminName, getAdminCache())
+                        ? findAdminByName(otpState.adminName, admins)
                         : null);
                 if (!admin) {
                     setMessage(otpMessage, UI_TEXTS.adminNotFound, true);
@@ -325,8 +334,7 @@ function createOtpModals(options: OtpModalsOptions) {
                 }
                 admin.passwordHash = await hashPassword(next);
                 delete admin.password;
-                const adminCache = getAdminCache();
-                saveAdminCredentials(adminCache.length ? adminCache : [admin]);
+                saveAdminCredentials(admins);
                 setMessage(otpMessage, UI_TEXTS.passwordUpdated, false);
                 closeOtpModal();
             });

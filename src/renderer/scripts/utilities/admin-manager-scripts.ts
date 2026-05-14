@@ -198,6 +198,7 @@ const otpUi = createOtpModals({
     sendOtpEmail,
     findAdminByName,
     getAdminCache: () => adminCache,
+    loadAdminCredentials,
     saveAdminCredentials,
     getAuthenticator,
     otpState,

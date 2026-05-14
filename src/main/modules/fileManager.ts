@@ -1,7 +1,7 @@
 // Gestione finestre e IPC lato main per AyPi
 
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
-import type { OpenDialogOptions, OpenDialogSyncOptions } from "electron";
+import type { OpenDialogOptions } from "electron";
 import path from "path";
 import { exec, execSync, execFileSync } from "child_process";
 import https from "https";
@@ -19,7 +19,10 @@ const APP_ICON_PATH = path.join(__dirname, "..", "assets", "app-icon.png");
 let fpBaseConfigPath: string | null = null;
 function getFpBaseConfigPath() {
     if (!fpBaseConfigPath) {
-        fpBaseConfigPath = path.join(app.getPath("userData"), "ferie-permessi-base.json");
+        fpBaseConfigPath = path.join(
+            app.getPath("userData"),
+            "ferie-permessi-base.json",
+        );
     }
     return fpBaseConfigPath;
 }
@@ -47,7 +50,11 @@ function ensureAddressBookDir() {
             fs.mkdirSync(ADDRESS_BOOK_DIR, { recursive: true });
         }
     } catch (err) {
-        log.warn("[addresses] impossibile creare cartella:", ADDRESS_BOOK_DIR, err);
+        log.warn(
+            "[addresses] impossibile creare cartella:",
+            ADDRESS_BOOK_DIR,
+            err,
+        );
     }
 }
 
@@ -68,7 +75,11 @@ function loadAddressBook() {
     if (!fs.existsSync(ADDRESS_BOOK_PATH)) {
         addressBookCache = defaults;
         try {
-            fs.writeFileSync(ADDRESS_BOOK_PATH, JSON.stringify(addressBookCache, null, 2), "utf8");
+            fs.writeFileSync(
+                ADDRESS_BOOK_PATH,
+                JSON.stringify(addressBookCache, null, 2),
+                "utf8",
+            );
         } catch (err) {
             log.warn("[addresses] impossibile salvare file iniziale:", err);
         }
@@ -78,7 +89,8 @@ function loadAddressBook() {
     try {
         const raw = fs.readFileSync(ADDRESS_BOOK_PATH, "utf8");
         const parsed = JSON.parse(raw);
-        const items = parsed && typeof parsed === "object" ? parsed.items || {} : {};
+        const items =
+            parsed && typeof parsed === "object" ? parsed.items || {} : {};
         const merged = buildDefaultAddressBook();
 
         Object.keys(items || {}).forEach((key) => {
@@ -95,7 +107,10 @@ function loadAddressBook() {
 
         addressBookCache = {
             version: parsed && parsed.version ? parsed.version : 1,
-            updatedAt: parsed && parsed.updatedAt ? parsed.updatedAt : merged.updatedAt,
+            updatedAt:
+                parsed && parsed.updatedAt
+                    ? parsed.updatedAt
+                    : merged.updatedAt,
             items: merged.items,
         };
     } catch (err) {
@@ -104,7 +119,11 @@ function loadAddressBook() {
     }
 
     try {
-        fs.writeFileSync(ADDRESS_BOOK_PATH, JSON.stringify(addressBookCache, null, 2), "utf8");
+        fs.writeFileSync(
+            ADDRESS_BOOK_PATH,
+            JSON.stringify(addressBookCache, null, 2),
+            "utf8",
+        );
     } catch (err) {
         log.warn("[addresses] impossibile salvare file dopo merge:", err);
     }
@@ -116,7 +135,11 @@ function saveAddressBook(book) {
     addressBookCache = book;
     ensureAddressBookDir();
     try {
-        fs.writeFileSync(ADDRESS_BOOK_PATH, JSON.stringify(book, null, 2), "utf8");
+        fs.writeFileSync(
+            ADDRESS_BOOK_PATH,
+            JSON.stringify(book, null, 2),
+            "utf8",
+        );
         return true;
     } catch (err) {
         log.warn("[addresses] errore salvataggio:", err);
@@ -155,7 +178,8 @@ function openFilePath(mainWindow: BrowserWindow, filePath: string) {
                 type: "warning",
                 buttons: ["Ok"],
                 title: "Server Non Raggiungibile",
-                message: "Il server DL360 non \u00e8 disponibile. Verificare la connessione.",
+                message:
+                    "Il server DL360 non \u00e8 disponibile. Verificare la connessione.",
             });
             return;
         }
@@ -166,7 +190,8 @@ function openFilePath(mainWindow: BrowserWindow, filePath: string) {
                     type: "warning",
                     buttons: ["Ok"],
                     title: "Percorso Non Trovato",
-                    message: "Il file o la cartella non \u00e8 disponibile. Controllare e riprovare.",
+                    message:
+                        "Il file o la cartella non \u00e8 disponibile. Controllare e riprovare.",
                 });
                 return;
             }
@@ -176,17 +201,26 @@ function openFilePath(mainWindow: BrowserWindow, filePath: string) {
             } else {
                 exec(`start "" "${filePath}"`, (error) => {
                     if (error) {
-                        if (error.message.includes("utilizzato da un altro processo")) {
-                            dialog.showMessageBox(mainWindow, {
-                                type: "warning",
-                                buttons: ["Apri in sola lettura", "Annulla"],
-                                title: "File in Uso",
-                                message: "Vuoi aprirlo in sola lettura?",
-                            }).then(result => {
-                                if (result.response === 0) {
-                                    shell.openPath(filePath);
-                                }
-                            });
+                        if (
+                            error.message.includes(
+                                "utilizzato da un altro processo",
+                            )
+                        ) {
+                            dialog
+                                .showMessageBox(mainWindow, {
+                                    type: "warning",
+                                    buttons: [
+                                        "Apri in sola lettura",
+                                        "Annulla",
+                                    ],
+                                    title: "File in Uso",
+                                    message: "Vuoi aprirlo in sola lettura?",
+                                })
+                                .then((result) => {
+                                    if (result.response === 0) {
+                                        shell.openPath(filePath);
+                                    }
+                                });
                         } else {
                             dialog.showMessageBox(mainWindow, {
                                 type: "error",
@@ -200,6 +234,71 @@ function openFilePath(mainWindow: BrowserWindow, filePath: string) {
             }
         });
     });
+}
+
+let lastServerReachabilityCheckAt = 0;
+let lastServerReachable = true;
+let inFlightServerCheck: Promise<boolean> | null = null;
+
+async function isDl360ServerReachableQuick(timeoutMs = 5000) {
+    const now = Date.now();
+    if (now - lastServerReachabilityCheckAt < 3000) {
+        return lastServerReachable;
+    }
+
+    if (inFlightServerCheck) return inFlightServerCheck;
+
+    inFlightServerCheck = (async () => {
+        const accessPromise = fs.promises
+            .access(NETWORK_PATHS.dl360ServerCheck, fs.constants.F_OK)
+            .then(() => true)
+            .catch(() => false);
+        const timeoutPromise = new Promise<boolean>((resolve) => {
+            setTimeout(() => resolve(false), timeoutMs);
+        });
+        const reachable = await Promise.race([accessPromise, timeoutPromise]);
+        lastServerReachabilityCheckAt = Date.now();
+        lastServerReachable = reachable;
+        return reachable;
+    })();
+
+    try {
+        return await inFlightServerCheck;
+    } finally {
+        inFlightServerCheck = null;
+    }
+}
+
+function handleServerUnavailableForModule(
+    mainWindow: BrowserWindow,
+    moduleWindow?: BrowserWindow | null,
+) {
+    dialog.showMessageBoxSync(mainWindow, {
+        type: "warning",
+        buttons: ["Ok"],
+        title: "Server Non Raggiungibile",
+        message:
+            "Il server DL360 non è disponibile. Verificare la connessione.",
+    });
+    if (isWindowAlive(moduleWindow)) {
+        suppressTicketWindowChaining = true;
+        moduleWindow.close();
+        suppressTicketWindowChaining = false;
+    }
+    showMainWindow(mainWindow);
+}
+
+async function guardServerAndOpenModule(
+    mainWindow: BrowserWindow,
+    moduleWindow: BrowserWindow | null,
+    openFn: () => void,
+) {
+    const reachable = await isDl360ServerReachableQuick();
+    if (!reachable) {
+        handleServerUnavailableForModule(mainWindow, moduleWindow);
+        return;
+    }
+    openFn();
 }
 
 function getDefaultFpBaseDir(): string {
@@ -216,7 +315,11 @@ function loadFpBaseDir(): string | null {
         if (!fs.existsSync(configPath)) return null;
         const raw = fs.readFileSync(configPath, "utf8");
         const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed.baseDir === "string" && parsed.baseDir.trim()) {
+        if (
+            parsed &&
+            typeof parsed.baseDir === "string" &&
+            parsed.baseDir.trim()
+        ) {
             return parsed.baseDir.trim();
         }
         return null;
@@ -259,9 +362,14 @@ function ensureFpFiles(baseDir: string) {
         ticketDir,
     ].forEach((dirPath) => {
         try {
-            if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+            if (!fs.existsSync(dirPath))
+                fs.mkdirSync(dirPath, { recursive: true });
         } catch (err) {
-            log.warn("[ferie-permessi] impossibile creare cartella:", dirPath, err);
+            log.warn(
+                "[ferie-permessi] impossibile creare cartella:",
+                dirPath,
+                err,
+            );
         }
     });
 
@@ -272,7 +380,8 @@ function ensureFpFiles(baseDir: string) {
             if (!raw || !raw.trim()) return true;
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) return parsed.length === 0;
-            if (parsed && typeof parsed === "object") return Object.keys(parsed).length === 0;
+            if (parsed && typeof parsed === "object")
+                return Object.keys(parsed).length === 0;
             return false;
         } catch (err) {
             return false;
@@ -285,10 +394,17 @@ function ensureFpFiles(baseDir: string) {
             if (!fs.existsSync(sourcePath)) return;
             if (!isJsonEmpty(targetPath)) return;
             const targetDir = path.dirname(targetPath);
-            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+            if (!fs.existsSync(targetDir))
+                fs.mkdirSync(targetDir, { recursive: true });
             fs.copyFileSync(sourcePath, targetPath);
         } catch (err) {
-            log.warn("[ferie-permessi] impossibile migrare file:", sourcePath, "->", targetPath, err);
+            log.warn(
+                "[ferie-permessi] impossibile migrare file:",
+                sourcePath,
+                "->",
+                targetPath,
+                err,
+            );
         }
     };
 
@@ -296,7 +412,8 @@ function ensureFpFiles(baseDir: string) {
         try {
             if (!sourceDir || !targetDir) return;
             if (!fs.existsSync(sourceDir)) return;
-            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+            if (!fs.existsSync(targetDir))
+                fs.mkdirSync(targetDir, { recursive: true });
             const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
             entries.forEach((entry) => {
                 const src = path.join(sourceDir, entry.name);
@@ -310,27 +427,64 @@ function ensureFpFiles(baseDir: string) {
                 }
             });
         } catch (err) {
-            log.warn("[ferie-permessi] impossibile migrare cartella:", sourceDir, "->", targetDir, err);
+            log.warn(
+                "[ferie-permessi] impossibile migrare cartella:",
+                sourceDir,
+                "->",
+                targetDir,
+                err,
+            );
         }
     };
 
     // Migrazione iniziale legacy -> nuova struttura (senza sovrascrivere dati gia' presenti)
-    copyFileIfNeeded(path.join(baseDir, "config-calendar.json"), path.join(calendarDir, "config-calendar.json"));
-    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-holidays.json"), path.join(calendarDir, "ferie-permessi-holidays.json"));
-    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-balances.json"), path.join(calendarDir, "ferie-permessi-balances.json"));
-    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-closures.json"), path.join(calendarDir, "ferie-permessi-closures.json"));
-    copyFileIfNeeded(path.join(baseDir, "otp-mail.json"), path.join(generalDir, "otp-mail.json"));
-    copyFileIfNeeded(path.join(baseDir, "amministrazione-assignees.json"), path.join(generalDir, "amministrazione-assignees.json"));
-    copyFileIfNeeded(path.join(baseDir, "ferie-permessi-admins.json"), path.join(generalDir, "ferie-permessi-admins.json"));
-    copyFileIfNeeded(path.join(baseDir, "amministrazione-obiettivi.json"), path.join(ganttDir, "amministrazione-obiettivi.json"));
-    copyDirectoryContent(path.join(baseDir, "Calendar Years"), calendarYearsDir);
+    copyFileIfNeeded(
+        path.join(baseDir, "config-calendar.json"),
+        path.join(calendarDir, "config-calendar.json"),
+    );
+    copyFileIfNeeded(
+        path.join(baseDir, "ferie-permessi-holidays.json"),
+        path.join(calendarDir, "ferie-permessi-holidays.json"),
+    );
+    copyFileIfNeeded(
+        path.join(baseDir, "ferie-permessi-balances.json"),
+        path.join(calendarDir, "ferie-permessi-balances.json"),
+    );
+    copyFileIfNeeded(
+        path.join(baseDir, "ferie-permessi-closures.json"),
+        path.join(calendarDir, "ferie-permessi-closures.json"),
+    );
+    copyFileIfNeeded(
+        path.join(baseDir, "otp-mail.json"),
+        path.join(generalDir, "otp-mail.json"),
+    );
+    copyFileIfNeeded(
+        path.join(baseDir, "amministrazione-assignees.json"),
+        path.join(generalDir, "amministrazione-assignees.json"),
+    );
+    copyFileIfNeeded(
+        path.join(baseDir, "ferie-permessi-admins.json"),
+        path.join(generalDir, "ferie-permessi-admins.json"),
+    );
+    copyFileIfNeeded(
+        path.join(baseDir, "amministrazione-obiettivi.json"),
+        path.join(ganttDir, "amministrazione-obiettivi.json"),
+    );
+    copyDirectoryContent(
+        path.join(baseDir, "Calendar Years"),
+        calendarYearsDir,
+    );
     // Rimuove i file legacy di Purchasing (Product Manager).
     const productManagerDir = path.join(baseDir, "Product Manager");
     if (fs.existsSync(productManagerDir)) {
         try {
             fs.rmSync(productManagerDir, { recursive: true, force: true });
         } catch (err) {
-            log.warn("[ferie-permessi] impossibile rimuovere legacy Product Manager:", productManagerDir, err);
+            log.warn(
+                "[ferie-permessi] impossibile rimuovere legacy Product Manager:",
+                productManagerDir,
+                err,
+            );
         }
     }
 }
@@ -358,13 +512,19 @@ function normalizeRequestsPayload(payload: any) {
 }
 
 function getCalendarRequestYearKey(request: any) {
-    const candidates = [request?.start, request?.end, request?.createdAt, request?.updatedAt];
+    const candidates = [
+        request?.start,
+        request?.end,
+        request?.createdAt,
+        request?.updatedAt,
+    ];
     for (const value of candidates) {
         if (typeof value !== "string" || !value.trim()) continue;
         const direct = /^(\d{4})/.exec(value.trim());
         if (direct) return direct[1];
         const parsed = new Date(value);
-        if (!Number.isNaN(parsed.getTime())) return String(parsed.getFullYear());
+        if (!Number.isNaN(parsed.getTime()))
+            return String(parsed.getFullYear());
     }
     return "undated";
 }
@@ -384,7 +544,7 @@ function writeShardFiles(
     prefix: string,
     items: any[],
     getYearKey: (row: any) => string,
-    regex: RegExp
+    regex: RegExp,
 ) {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     const buckets = new Map<string, any[]>();
@@ -397,7 +557,11 @@ function writeShardFiles(
     buckets.forEach((rows, key) => {
         const fileName = `${prefix}-${key}.json`;
         expected.add(fileName.toLowerCase());
-        fs.writeFileSync(path.join(dirPath, fileName), JSON.stringify(rows, null, 2), "utf8");
+        fs.writeFileSync(
+            path.join(dirPath, fileName),
+            JSON.stringify(rows, null, 2),
+            "utf8",
+        );
     });
     const existing = fs.existsSync(dirPath) ? fs.readdirSync(dirPath) : [];
     existing.forEach((name) => {
@@ -408,12 +572,8 @@ function writeShardFiles(
     return { shards: expected.size, items: items.length };
 }
 
-
 function resolveGitRepoRoot() {
-    const candidates = [
-        process.cwd(),
-        app.getAppPath(),
-    ];
+    const candidates = [process.cwd(), app.getAppPath()];
 
     for (const start of candidates) {
         let current = start;
@@ -440,11 +600,26 @@ function getGitDailyStats(repoRoot: string) {
     try {
         const raw = execFileSync(
             "git",
-            ["-C", repoRoot, "log", "--numstat", "--date=iso", "--pretty=format:@@@%H|%ad"],
-            { encoding: "utf8" }
+            [
+                "-C",
+                repoRoot,
+                "log",
+                "--numstat",
+                "--date=iso",
+                "--pretty=format:@@@%H|%ad",
+            ],
+            { encoding: "utf8" },
         );
 
-        const map = new Map<string, { date: string; additions: number; deletions: number; commits: number }>();
+        const map = new Map<
+            string,
+            {
+                date: string;
+                additions: number;
+                deletions: number;
+                commits: number;
+            }
+        >();
         let currentDate = "";
 
         raw.split(/\r?\n/).forEach((line) => {
@@ -460,7 +635,12 @@ function getGitDailyStats(repoRoot: string) {
                 const key = date.toISOString().slice(0, 10);
                 currentDate = key;
                 if (!map.has(key)) {
-                    map.set(key, { date: key, additions: 0, deletions: 0, commits: 0 });
+                    map.set(key, {
+                        date: key,
+                        additions: 0,
+                        deletions: 0,
+                        commits: 0,
+                    });
                 }
                 map.get(key)!.commits += 1;
                 return;
@@ -479,14 +659,23 @@ function getGitDailyStats(repoRoot: string) {
             entry.deletions += safeDel;
         });
 
-        const data = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+        const data = Array.from(map.values()).sort((a, b) =>
+            a.date.localeCompare(b.date),
+        );
 
         let tags: { name: string; date: string }[] = [];
         try {
             const rawTags = execFileSync(
                 "git",
-                ["-C", repoRoot, "for-each-ref", "refs/tags", "--sort=creatordate", "--format=%(refname:short)|%(creatordate:iso)"],
-                { encoding: "utf8" }
+                [
+                    "-C",
+                    repoRoot,
+                    "for-each-ref",
+                    "refs/tags",
+                    "--sort=creatordate",
+                    "--format=%(refname:short)|%(creatordate:iso)",
+                ],
+                { encoding: "utf8" },
             );
             tags = rawTags
                 .split(/\r?\n/)
@@ -510,7 +699,12 @@ function getGitDailyStats(repoRoot: string) {
 function getCachedGitStats() {
     try {
         const appPath = app.getAppPath();
-        const cachedPath = path.join(appPath, "pages", "utilities", "git-stats.json");
+        const cachedPath = path.join(
+            appPath,
+            "pages",
+            "utilities",
+            "git-stats.json",
+        );
         if (!fs.existsSync(cachedPath)) return null;
         const raw = fs.readFileSync(cachedPath, "utf8");
         const parsed = JSON.parse(raw);
@@ -522,8 +716,12 @@ function getCachedGitStats() {
 }
 
 function writeGitStatsSnapshot(payload, targetPath?: string) {
-    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
-    const outputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    const fallbackPath =
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
+    const outputPath =
+        targetPath && typeof targetPath === "string"
+            ? targetPath
+            : fallbackPath;
     try {
         if (payload && typeof payload === "object" && !payload.fetchedAt) {
             payload.fetchedAt = new Date().toISOString();
@@ -536,13 +734,21 @@ function writeGitStatsSnapshot(payload, targetPath?: string) {
         return { ok: true, path: outputPath };
     } catch (err) {
         log.warn("[git-stats] write snapshot failed:", err);
-        return { ok: false, path: outputPath, error: err?.message || String(err) };
+        return {
+            ok: false,
+            path: outputPath,
+            error: err?.message || String(err),
+        };
     }
 }
 
 function readGitStatsSnapshot(targetPath?: string) {
-    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
-    const inputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    const fallbackPath =
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
+    const inputPath =
+        targetPath && typeof targetPath === "string"
+            ? targetPath
+            : fallbackPath;
     try {
         if (!fs.existsSync(inputPath)) return null;
         const raw = fs.readFileSync(inputPath, "utf8");
@@ -567,8 +773,12 @@ function readGitStatsSnapshot(targetPath?: string) {
 }
 
 function writeGitflowSnapshot(payload, targetPath?: string) {
-    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
-    const outputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    const fallbackPath =
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
+    const outputPath =
+        targetPath && typeof targetPath === "string"
+            ? targetPath
+            : fallbackPath;
     try {
         if (payload && typeof payload === "object" && !payload.fetchedAt) {
             payload.fetchedAt = new Date().toISOString();
@@ -581,13 +791,21 @@ function writeGitflowSnapshot(payload, targetPath?: string) {
         return { ok: true, path: outputPath };
     } catch (err) {
         log.warn("[gitflow] write snapshot failed:", err);
-        return { ok: false, path: outputPath, error: err?.message || String(err) };
+        return {
+            ok: false,
+            path: outputPath,
+            error: err?.message || String(err),
+        };
     }
 }
 
 function readGitflowSnapshot(targetPath?: string) {
-    const fallbackPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
-    const inputPath = targetPath && typeof targetPath === "string" ? targetPath : fallbackPath;
+    const fallbackPath =
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
+    const inputPath =
+        targetPath && typeof targetPath === "string"
+            ? targetPath
+            : fallbackPath;
     try {
         if (!fs.existsSync(inputPath)) return null;
         const raw = fs.readFileSync(inputPath, "utf8");
@@ -612,9 +830,11 @@ function readGitflowSnapshot(targetPath?: string) {
 }
 
 function isSameDay(a: Date, b: Date) {
-    return a.getFullYear() === b.getFullYear()
-        && a.getMonth() === b.getMonth()
-        && a.getDate() === b.getDate();
+    return (
+        a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate()
+    );
 }
 
 function startOfWeekMonday(date: Date) {
@@ -652,7 +872,11 @@ function fetchJson(url: string, token?: string): Promise<any> {
                     try {
                         resolve(JSON.parse(raw));
                     } catch (err) {
-                        log.warn("[github] JSON parse failed", { url, status, error: err?.message || String(err) });
+                        log.warn("[github] JSON parse failed", {
+                            url,
+                            status,
+                            error: err?.message || String(err),
+                        });
                         reject(err);
                     }
                 } else if (status === 202) {
@@ -666,7 +890,10 @@ function fetchJson(url: string, token?: string): Promise<any> {
             });
         });
         req.on("error", (err) => {
-            log.warn("[github] request error", { url, error: err?.message || String(err) });
+            log.warn("[github] request error", {
+                url,
+                error: err?.message || String(err),
+            });
             reject(err);
         });
         req.end();
@@ -729,13 +956,20 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
             const res = await fetchJson(url, token);
             if (res && res.__pending) {
                 const delay = Math.min(1200 + i * 600, 5000);
-                log.warn("[github-stats] pending (202), retrying", { url, attempt: i + 1, delayMs: delay });
+                log.warn("[github-stats] pending (202), retrying", {
+                    url,
+                    attempt: i + 1,
+                    delayMs: delay,
+                });
                 await new Promise((resolve) => setTimeout(resolve, delay));
                 continue;
             }
             return res;
         }
-        log.warn("[github-stats] pending (202) after retries, giving up", { url, attempts });
+        log.warn("[github-stats] pending (202) after retries, giving up", {
+            url,
+            attempts,
+        });
         return [];
     };
 
@@ -746,7 +980,9 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
     ]);
 
     const commitsByWeek = new Map<number, number>();
-    const commitActivityList = Array.isArray(commitActivity) ? commitActivity : [];
+    const commitActivityList = Array.isArray(commitActivity)
+        ? commitActivity
+        : [];
     const codeFrequencyList = Array.isArray(codeFrequency) ? codeFrequency : [];
     if (!codeFrequencyList.length) {
         log.warn("[github-stats] code_frequency empty", { owner, repo });
@@ -776,9 +1012,20 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
     let warning: string | undefined;
     if (!commitActivityList.length && data.length) {
         try {
-            const minWeek = data[0]?.date ? new Date(`${data[0].date}T00:00:00Z`) : null;
-            const minDate = minWeek && !Number.isNaN(minWeek.getTime()) ? minWeek : undefined;
-            const commitList = await fetchGithubCommits(owner, repo, token, 5000, minDate);
+            const minWeek = data[0]?.date
+                ? new Date(`${data[0].date}T00:00:00Z`)
+                : null;
+            const minDate =
+                minWeek && !Number.isNaN(minWeek.getTime())
+                    ? minWeek
+                    : undefined;
+            const commitList = await fetchGithubCommits(
+                owner,
+                repo,
+                token,
+                5000,
+                minDate,
+            );
             const commitCounts = new Map<string, number>();
             commitList.forEach((entry) => {
                 const date = new Date(entry.date);
@@ -800,7 +1047,12 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
     }
     if (!data.length) {
         try {
-            const commitList = await fetchGithubCommits(owner, repo, token, 5000);
+            const commitList = await fetchGithubCommits(
+                owner,
+                repo,
+                token,
+                5000,
+            );
             const commitCounts = new Map<string, number>();
             commitList.forEach((entry) => {
                 const date = new Date(entry.date);
@@ -815,7 +1067,11 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
                 deletions: 0,
                 commits: commitCounts.get(week) || 0,
             }));
-            warning = warning || (data.length ? "commit-activity-fallback" : "commit-activity-empty");
+            warning =
+                warning ||
+                (data.length
+                    ? "commit-activity-fallback"
+                    : "commit-activity-empty");
         } catch {
             warning = warning || "commit-activity-empty";
         }
@@ -828,11 +1084,20 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
             ? null
             : startOfWeekMonday(lastDate);
         const nowWeekStart = startOfWeekMonday(new Date());
-        if (!lastWeekStart || nowWeekStart.getTime() > lastWeekStart.getTime()) {
+        if (
+            !lastWeekStart ||
+            nowWeekStart.getTime() > lastWeekStart.getTime()
+        ) {
             let weekCommits = 0;
             try {
                 const sinceDate = nowWeekStart;
-                const recentCommits = await fetchGithubCommits(owner, repo, token, 800, sinceDate);
+                const recentCommits = await fetchGithubCommits(
+                    owner,
+                    repo,
+                    token,
+                    800,
+                    sinceDate,
+                );
                 weekCommits = recentCommits.filter((entry) => {
                     const time = new Date(entry.date).getTime();
                     return !Number.isNaN(time) && time >= sinceDate.getTime();
@@ -887,7 +1152,10 @@ async function fetchGithubCommits(
     let page = 1;
     const minTime = minDate ? new Date(minDate).getTime() : null;
     while (commits.length < maxCommits) {
-        const res = await fetchJson(`${base}/commits?per_page=100&page=${page}`, token);
+        const res = await fetchJson(
+            `${base}/commits?per_page=100&page=${page}`,
+            token,
+        );
         if (!Array.isArray(res) || res.length === 0) break;
         res.forEach((entry) => {
             const sha = entry?.sha;
@@ -916,12 +1184,13 @@ async function fetchGithubTags(owner: string, repo: string, token?: string) {
             const sha = tag?.commit?.sha;
             if (!sha) return null;
             const resolved = await resolveGithubTagCommit(base, sha, token);
-            return resolved ? { name: tag.name, date: resolved.date, sha: resolved.sha } : null;
+            return resolved
+                ? { name: tag.name, date: resolved.date, sha: resolved.sha }
+                : null;
         }),
     );
     return tagDetails.filter(Boolean);
 }
-
 
 function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
     let baseDir = loadFpBaseDir() || getDefaultFpBaseDir();
@@ -932,38 +1201,47 @@ function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
         return baseDir;
     }
 
-    const dialogOptions: OpenDialogSyncOptions = {
-        title: "Seleziona la cartella dati AyPi Calendar",
-        properties: ["openDirectory", "createDirectory"],
-    };
-    const result = senderWin
-        ? dialog.showOpenDialogSync(senderWin, dialogOptions)
-        : dialog.showOpenDialogSync(dialogOptions);
-
-    if (result && result.length) {
-        baseDir = result[0];
-        ensureFpFiles(baseDir);
-        saveFpBaseDir(baseDir);
-        const infoOptions = {
-            type: "info" as const,
-            buttons: ["OK"],
-            title: "AyPi Calendar",
-            message: "Percorso dati configurato.",
-            detail: `Percorso selezionato:\n${baseDir}\n\nNota: otp-mail.json non viene creato automaticamente. Se manca, il sistema usa il fallback locale.`,
-        };
-        if (senderWin && !senderWin.isDestroyed()) {
-            dialog.showMessageBoxSync(senderWin, infoOptions);
-        } else {
-            dialog.showMessageBoxSync(infoOptions);
-        }
-        return baseDir;
-    }
+    // Riconfigurazione manuale DISABILITATA su percorso dati non disponibile:
+    // in caso di disconnessione temporanea dal server non vogliamo proporre
+    // all'utente la scelta di una nuova cartella, per evitare ambienti paralleli.
+    //
+    // const dialogOptions: OpenDialogSyncOptions = {
+    //     title: "Seleziona la cartella dati AyPi Calendar",
+    //     properties: ["openDirectory", "createDirectory"],
+    // };
+    // const result = senderWin
+    //     ? dialog.showOpenDialogSync(senderWin, dialogOptions)
+    //     : dialog.showOpenDialogSync(dialogOptions);
+    //
+    // if (result && result.length) {
+    //     baseDir = result[0];
+    //     ensureFpFiles(baseDir);
+    //     saveFpBaseDir(baseDir);
+    //     const infoOptions = {
+    //         type: "info" as const,
+    //         buttons: ["OK"],
+    //         title: "AyPi Calendar",
+    //         message: "Percorso dati configurato.",
+    //         detail: `Percorso selezionato:\n${baseDir}\n\nNota: otp-mail.json non viene creato automaticamente. Se manca, il sistema usa il fallback locale.`,
+    //     };
+    //     if (senderWin && !senderWin.isDestroyed()) {
+    //         dialog.showMessageBoxSync(senderWin, infoOptions);
+    //     } else {
+    //         dialog.showMessageBoxSync(infoOptions);
+    //     }
+    //     return baseDir;
+    // }
 
     // fallback to default (even if missing) to avoid blocking startup
     return getDefaultFpBaseDir();
 }
 
-function animateResize(mainWindow: BrowserWindow, targetWidth: number, targetHeight: number, duration = 100) {
+function animateResize(
+    mainWindow: BrowserWindow,
+    targetWidth: number,
+    targetHeight: number,
+    duration = 100,
+) {
     if (!mainWindow) return;
 
     const [startWidth, startHeight] = mainWindow.getSize();
@@ -975,8 +1253,12 @@ function animateResize(mainWindow: BrowserWindow, targetWidth: number, targetHei
         currentStep++;
         const progress = currentStep / steps;
 
-        const newWidth = Math.round(startWidth + (targetWidth - startWidth) * progress);
-        const newHeight = Math.round(startHeight + (targetHeight - startHeight) * progress);
+        const newWidth = Math.round(
+            startWidth + (targetWidth - startWidth) * progress,
+        );
+        const newHeight = Math.round(
+            startHeight + (targetHeight - startHeight) * progress,
+        );
 
         mainWindow.setSize(newWidth, newHeight);
 
@@ -988,7 +1270,9 @@ function animateResize(mainWindow: BrowserWindow, targetWidth: number, targetHei
     }, stepDuration);
 }
 
-function isWindowAlive(win: BrowserWindow | null | undefined): win is BrowserWindow {
+function isWindowAlive(
+    win: BrowserWindow | null | undefined,
+): win is BrowserWindow {
     return !!win && !win.isDestroyed();
 }
 
@@ -1029,56 +1313,59 @@ function broadcastProductManagerSession(payload) {
 }
 
 function buildHierarchyReportHtml() {
-    return "<!DOCTYPE html>\n" +
-        "<html lang=\"it\">\n" +
+    return (
+        "<!DOCTYPE html>\n" +
+        '<html lang="it">\n' +
         "<head>\n" +
-        "  <meta charset=\"UTF-8\">\n" +
+        '  <meta charset="UTF-8">\n' +
         "  <title>Report gerarchia file</title>\n" +
-        "  <link rel=\"stylesheet\" href=\"./report.css\">\n" +
+        '  <link rel="stylesheet" href="./report.css">\n' +
         "</head>\n" +
         "<body>\n" +
         "  <header>\n" +
         "    <h1>Report gerarchia file</h1>\n" +
-        "    <div id=\"metaInfo\" class=\"meta-info\"></div>\n" +
+        '    <div id="metaInfo" class="meta-info"></div>\n' +
         "  </header>\n" +
-        "  <main class=\"layout\">\n" +
-        "    <aside class=\"sidebar\">\n" +
+        '  <main class="layout">\n' +
+        '    <aside class="sidebar">\n' +
         "      <h2>Gerarchia</h2>\n" +
-        "      <input id=\"treeFilter\" placeholder=\"Filtra per nome/percorso...\">\n" +
-        "      <div id=\"treeContainer\" class=\"tree-container\"></div>\n" +
+        '      <input id="treeFilter" placeholder="Filtra per nome/percorso...">\n' +
+        '      <div id="treeContainer" class="tree-container"></div>\n' +
         "    </aside>\n" +
-        "    <section class=\"content\">\n" +
+        '    <section class="content">\n' +
         "      <section>\n" +
         "        <h2>Statistiche generali</h2>\n" +
-        "        <div id=\"globalStats\"></div>\n" +
+        '        <div id="globalStats"></div>\n' +
         "      </section>\n" +
-        "      <section class=\"top-row\">\n" +
-        "        <div class=\"top-col\">\n" +
+        '      <section class="top-row">\n' +
+        '        <div class="top-col">\n' +
         "          <h2>Top cartelle piÇû pesanti</h2>\n" +
-        "          <div class=\"table-wrapper\">\n" +
-        "            <table id=\"topFoldersTable\" class=\"data-table\"></table>\n" +
+        '          <div class="table-wrapper">\n' +
+        '            <table id="topFoldersTable" class="data-table"></table>\n' +
         "          </div>\n" +
         "        </div>\n" +
-        "        <div class=\"top-col\">\n" +
+        '        <div class="top-col">\n' +
         "          <h2>Top file piÇû grandi</h2>\n" +
-        "          <div class=\"table-wrapper\">\n" +
-        "            <table id=\"topFilesTable\" class=\"data-table\"></table>\n" +
+        '          <div class="table-wrapper">\n' +
+        '            <table id="topFilesTable" class="data-table"></table>\n' +
         "          </div>\n" +
         "        </div>\n" +
         "      </section>\n" +
-        "      <section id=\"detailsPanel\">\n" +
+        '      <section id="detailsPanel">\n' +
         "        <h2>Dettagli elemento</h2>\n" +
-        "        <div id=\"detailsContent\" class=\"details-content\">Seleziona un elemento dall'albero o dalle tabelle.</div>\n" +
+        '        <div id="detailsContent" class="details-content">Seleziona un elemento dall\'albero o dalle tabelle.</div>\n' +
         "      </section>\n" +
         "    </section>\n" +
         "  </main>\n" +
-        "  <script src=\"./report.js\"></script>\n" +
+        '  <script src="./report.js"></script>\n' +
         "</body>\n" +
-        "</html>\n";
+        "</html>\n"
+    );
 }
 
 function buildHierarchyReportCss() {
-    return "html, body {\n" +
+    return (
+        "html, body {\n" +
         "  margin: 0;\n" +
         "  height: 100%;\n" +
         "  overflow: hidden;\n" +
@@ -1200,52 +1487,56 @@ function buildHierarchyReportCss() {
         "  border: 1px solid #555;\n" +
         "  background-color: #2b2824;\n" +
         "  font-size: 13px;\n" +
-        "}\n";
+        "}\n"
+    );
 }
 
 function buildHierarchyReportJs(data) {
     const serialized = JSON.stringify(data, null, 2);
-    return '"use strict";\n\n' +
-        "const REPORT_DATA = " + serialized + ";\n\n" +
+    return (
+        '"use strict";\n\n' +
+        "const REPORT_DATA = " +
+        serialized +
+        ";\n\n" +
         "function formatBytes(bytes) {\n" +
-        "  if (!bytes || !isFinite(bytes) || bytes <= 0) return \"0 B\";\n" +
-        "  var units = [\"B\", \"KB\", \"MB\", \"GB\", \"TB\"];\n" +
+        '  if (!bytes || !isFinite(bytes) || bytes <= 0) return "0 B";\n' +
+        '  var units = ["B", "KB", "MB", "GB", "TB"];\n' +
         "  var idx = 0;\n" +
         "  var val = bytes;\n" +
         "  while (val >= 1024 && idx < units.length - 1) {\n" +
         "    val /= 1024;\n" +
         "    idx++;\n" +
         "  }\n" +
-        "  return val.toFixed(1) + \" \" + units[idx];\n" +
+        '  return val.toFixed(1) + " " + units[idx];\n' +
         "}\n\n" +
         "function buildTree(node, container) {\n" +
         "  if (!node) return;\n" +
-        "  var wrapper = document.createElement(\"div\");\n" +
-        "  wrapper.className = \"tree-node \" + node.type;\n" +
-        "  var icon = document.createElement(\"span\");\n" +
-        "  icon.className = \"node-icon\";\n" +
-        "  icon.textContent = node.type === \"folder\" ? \"\\u25B6\" : \"\\u2022\";\n" +
+        '  var wrapper = document.createElement("div");\n' +
+        '  wrapper.className = "tree-node " + node.type;\n' +
+        '  var icon = document.createElement("span");\n' +
+        '  icon.className = "node-icon";\n' +
+        '  icon.textContent = node.type === "folder" ? "\\u25B6" : "\\u2022";\n' +
         "  wrapper.appendChild(icon);\n" +
-        "  var label = document.createElement(\"span\");\n" +
-        "  label.className = \"label\";\n" +
-        "  label.textContent = node.name || \"(senza nome)\";\n" +
+        '  var label = document.createElement("span");\n' +
+        '  label.className = "label";\n' +
+        '  label.textContent = node.name || "(senza nome)";\n' +
         "  wrapper.appendChild(label);\n" +
-        "  wrapper.addEventListener(\"click\", function (e) {\n" +
+        '  wrapper.addEventListener("click", function (e) {\n' +
         "    e.stopPropagation();\n" +
-        "    document.querySelectorAll(\".tree-node.selected\").forEach(function (n) {\n" +
-        "      n.classList.remove(\"selected\");\n" +
+        '    document.querySelectorAll(".tree-node.selected").forEach(function (n) {\n' +
+        '      n.classList.remove("selected");\n' +
         "    });\n" +
-        "    wrapper.classList.add(\"selected\");\n" +
+        '    wrapper.classList.add("selected");\n' +
         "    showDetails(node);\n" +
-        "    if (node.type === \"folder\") {\n" +
-        "      var isOpen = wrapper.classList.toggle(\"open\");\n" +
-        "      icon.textContent = isOpen ? \"\\u25BC\" : \"\\u25B6\";\n" +
+        '    if (node.type === "folder") {\n' +
+        '      var isOpen = wrapper.classList.toggle("open");\n' +
+        '      icon.textContent = isOpen ? "\\u25BC" : "\\u25B6";\n' +
         "    }\n" +
         "  });\n" +
         "  container.appendChild(wrapper);\n" +
         "  if (node.children && node.children.length > 0) {\n" +
-        "    var childrenEl = document.createElement(\"div\");\n" +
-        "    childrenEl.className = \"tree-children\";\n" +
+        '    var childrenEl = document.createElement("div");\n' +
+        '    childrenEl.className = "tree-children";\n' +
         "    node.children.forEach(function (child) {\n" +
         "      buildTree(child, childrenEl);\n" +
         "    });\n" +
@@ -1253,42 +1544,42 @@ function buildHierarchyReportJs(data) {
         "  }\n" +
         "}\n\n" +
         "function renderGlobalStats(data) {\n" +
-        "  var el = document.getElementById(\"globalStats\");\n" +
+        '  var el = document.getElementById("globalStats");\n' +
         "  if (!el || !data.globalStats) return;\n" +
         "  var gs = data.globalStats;\n" +
-        "  var html = \"\";\n" +
-        "  html += \"<p><b>Cartelle:</b> \" + (gs.totalFolders || 0) + \"</p>\";\n" +
-        "  html += \"<p><b>File:</b> \" + (gs.totalFiles || 0) + \"</p>\";\n" +
-        "  html += \"<p><b>Spazio totale:</b> \" + formatBytes(gs.totalSizeBytes || 0) + \"</p>\";\n" +
-        "  html += \"<p><b>ProfonditÇÿ massima:</b> \" + (gs.maxDepth || 0) + \"</p>\";\n" +
+        '  var html = "";\n' +
+        '  html += "<p><b>Cartelle:</b> " + (gs.totalFolders || 0) + "</p>";\n' +
+        '  html += "<p><b>File:</b> " + (gs.totalFiles || 0) + "</p>";\n' +
+        '  html += "<p><b>Spazio totale:</b> " + formatBytes(gs.totalSizeBytes || 0) + "</p>";\n' +
+        '  html += "<p><b>ProfonditÇÿ massima:</b> " + (gs.maxDepth || 0) + "</p>";\n' +
         "  el.innerHTML = html;\n" +
         "}\n\n" +
         "function renderTopTable(tableId, rows, columns) {\n" +
         "  var table = document.getElementById(tableId);\n" +
         "  if (!table) return;\n" +
-        "  table.innerHTML = \"\";\n" +
-        "  var thead = document.createElement(\"thead\");\n" +
-        "  var trHead = document.createElement(\"tr\");\n" +
+        '  table.innerHTML = "";\n' +
+        '  var thead = document.createElement("thead");\n' +
+        '  var trHead = document.createElement("tr");\n' +
         "  columns.forEach(function (col) {\n" +
-        "    var th = document.createElement(\"th\");\n" +
+        '    var th = document.createElement("th");\n' +
         "    th.textContent = col.label;\n" +
         "    trHead.appendChild(th);\n" +
         "  });\n" +
         "  thead.appendChild(trHead);\n" +
         "  table.appendChild(thead);\n" +
-        "  var tbody = document.createElement(\"tbody\");\n" +
+        '  var tbody = document.createElement("tbody");\n' +
         "  (rows || []).forEach(function (row) {\n" +
-        "    var tr = document.createElement(\"tr\");\n" +
-        "    tr.addEventListener(\"click\", function () {\n" +
+        '    var tr = document.createElement("tr");\n' +
+        '    tr.addEventListener("click", function () {\n' +
         "      showDetails({ name: row.name, fullPath: row.fullPath, sizeBytes: row.sizeBytes || row.totalSizeBytes });\n" +
         "    });\n" +
         "    columns.forEach(function (col) {\n" +
-        "      var td = document.createElement(\"td\");\n" +
+        '      var td = document.createElement("td");\n' +
         "      var v = row[col.field];\n" +
-        "      if (col.field.indexOf(\"Bytes\") !== -1) {\n" +
+        '      if (col.field.indexOf("Bytes") !== -1) {\n' +
         "        v = formatBytes(v || 0);\n" +
         "      }\n" +
-        "      td.textContent = v != null ? v : \"\";\n" +
+        '      td.textContent = v != null ? v : "";\n' +
         "      tr.appendChild(td);\n" +
         "    });\n" +
         "    tbody.appendChild(tr);\n" +
@@ -1296,70 +1587,71 @@ function buildHierarchyReportJs(data) {
         "  table.appendChild(tbody);\n" +
         "}\n\n" +
         "function showDetails(node) {\n" +
-        "  var el = document.getElementById(\"detailsContent\");\n" +
+        '  var el = document.getElementById("detailsContent");\n' +
         "  if (!el) return;\n" +
-        "  var html = \"\";\n" +
-        "  html += \"<p><b>Nome:</b> \" + (node.name || \"(senza nome)\") + \"</p>\";\n" +
+        '  var html = "";\n' +
+        '  html += "<p><b>Nome:</b> " + (node.name || "(senza nome)") + "</p>";\n' +
         "  if (node.fullPath) {\n" +
-        "    html += \"<p><b>Percorso completo:</b><br><span style='font-size:12px;'>\" + node.fullPath + \"</span></p>\";\n" +
+        '    html += "<p><b>Percorso completo:</b><br><span style=\'font-size:12px;\'>" + node.fullPath + "</span></p>";\n' +
         "  }\n" +
-        "  if (typeof node.sizeBytes === \"number\") {\n" +
-        "    html += \"<p><b>Dimensione:</b> \" + formatBytes(node.sizeBytes) + \"</p>\";\n" +
+        '  if (typeof node.sizeBytes === "number") {\n' +
+        '    html += "<p><b>Dimensione:</b> " + formatBytes(node.sizeBytes) + "</p>";\n' +
         "  }\n" +
         "  el.innerHTML = html;\n" +
         "}\n\n" +
         "function applyTreeFilter(query) {\n" +
-        "  var q = (query || \"\").toLowerCase();\n" +
-        "  var nodes = document.querySelectorAll(\".tree-node\");\n" +
+        '  var q = (query || "").toLowerCase();\n' +
+        '  var nodes = document.querySelectorAll(".tree-node");\n' +
         "  nodes.forEach(function (nodeEl) {\n" +
-        "    var labelEl = nodeEl.querySelector(\".label\");\n" +
-        "    var text = labelEl ? labelEl.textContent.toLowerCase() : \"\";\n" +
+        '    var labelEl = nodeEl.querySelector(".label");\n' +
+        '    var text = labelEl ? labelEl.textContent.toLowerCase() : "";\n' +
         "    var match = !q || text.indexOf(q) !== -1;\n" +
-        "    nodeEl.style.display = match ? \"\" : \"none\";\n" +
+        '    nodeEl.style.display = match ? "" : "none";\n' +
         "  });\n" +
         "}\n\n" +
         "function initReport() {\n" +
         "  var data = REPORT_DATA || {};\n" +
         "  var meta = data.meta || {};\n" +
-        "  var metaEl = document.getElementById(\"metaInfo\");\n" +
+        '  var metaEl = document.getElementById("metaInfo");\n' +
         "  if (metaEl) {\n" +
-        "    var when = meta.generatedAt ? new Date(meta.generatedAt).toLocaleString() : \"\";\n" +
-        "    var root = meta.rootPath || \"(percorso sconosciuto)\";\n" +
-        "    metaEl.textContent = root + \" - generato il \" + when;\n" +
+        '    var when = meta.generatedAt ? new Date(meta.generatedAt).toLocaleString() : "";\n' +
+        '    var root = meta.rootPath || "(percorso sconosciuto)";\n' +
+        '    metaEl.textContent = root + " - generato il " + when;\n' +
         "  }\n" +
-        "  var treeContainer = document.getElementById(\"treeContainer\");\n" +
+        '  var treeContainer = document.getElementById("treeContainer");\n' +
         "  if (treeContainer && data.hierarchy) {\n" +
         "    buildTree(data.hierarchy, treeContainer);\n" +
         "  }\n" +
         "  renderGlobalStats(data);\n" +
         "  if (Array.isArray(data.topFolders)) {\n" +
-        "    renderTopTable(\"topFoldersTable\", data.topFolders, [\n" +
-        "      { field: \"name\", label: \"Cartella\" },\n" +
-        "      { field: \"totalSizeBytes\", label: \"Dimensione\" },\n" +
-        "      { field: \"filesCount\", label: \"File\" },\n" +
-        "      { field: \"foldersCount\", label: \"Cartelle\" }\n" +
+        '    renderTopTable("topFoldersTable", data.topFolders, [\n' +
+        '      { field: "name", label: "Cartella" },\n' +
+        '      { field: "totalSizeBytes", label: "Dimensione" },\n' +
+        '      { field: "filesCount", label: "File" },\n' +
+        '      { field: "foldersCount", label: "Cartelle" }\n' +
         "    ]);\n" +
         "  }\n" +
         "  if (Array.isArray(data.topFiles)) {\n" +
-        "    renderTopTable(\"topFilesTable\", data.topFiles, [\n" +
-        "      { field: \"name\", label: \"File\" },\n" +
-        "      { field: \"sizeBytes\", label: \"Dimensione\" }\n" +
+        '    renderTopTable("topFilesTable", data.topFiles, [\n' +
+        '      { field: "name", label: "File" },\n' +
+        '      { field: "sizeBytes", label: "Dimensione" }\n' +
         "    ]);\n" +
         "  }\n" +
-        "  var filterEl = document.getElementById(\"treeFilter\");\n" +
+        '  var filterEl = document.getElementById("treeFilter");\n' +
         "  if (filterEl) {\n" +
-        "    filterEl.addEventListener(\"input\", function () {\n" +
+        '    filterEl.addEventListener("input", function () {\n' +
         "      applyTreeFilter(filterEl.value);\n" +
         "    });\n" +
-        "    filterEl.addEventListener(\"keydown\", function (e) {\n" +
-        "      if (e.key === \"Enter\") {\n" +
+        '    filterEl.addEventListener("keydown", function (e) {\n' +
+        '      if (e.key === "Enter") {\n' +
         "        e.preventDefault();\n" +
         "        applyTreeFilter(filterEl.value);\n" +
         "      }\n" +
         "    });\n" +
         "  }\n" +
         "}\n\n" +
-        "document.addEventListener(\"DOMContentLoaded\", initReport);\n";
+        'document.addEventListener("DOMContentLoaded", initReport);\n'
+    );
 }
 
 let batchRenameWindow: BrowserWindow | null = null;
@@ -1382,6 +1674,7 @@ let assigneesManagerWindow: BrowserWindow | null = null;
 let adminManagerWindow: BrowserWindow | null = null;
 let productManagerSession: Record<string, unknown> | null = null;
 let productManagerForceLogout = false;
+let suppressTicketWindowChaining = false;
 let feriePermessiSplashShown = false;
 let productManagerSplashShown = false;
 let isAppQuitting = false;
@@ -1403,7 +1696,9 @@ function openBatchRenameWindow(mainWindow) {
         icon: APP_ICON_PATH,
     });
 
-    batchRenameWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"));
+    batchRenameWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
+    );
     batchRenameWindow.setMenu(null);
 
     // Apertura in modalità "fullscreen windowed" (massimizzata)
@@ -1434,7 +1729,9 @@ function openQrGeneratorWindow(mainWindow) {
         icon: APP_ICON_PATH,
     });
 
-    qrGeneratorWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"));
+    qrGeneratorWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
+    );
     qrGeneratorWindow.setMenu(null);
     qrGeneratorWindow.center();
 
@@ -1459,7 +1756,9 @@ function openHierarchyWindow(mainWindow) {
         icon: APP_ICON_PATH,
     });
 
-    hierarchyWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"));
+    hierarchyWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
+    );
     hierarchyWindow.setMenu(null);
     hierarchyWindow.center();
 
@@ -1486,7 +1785,9 @@ function openInfographicsWindow(mainWindow) {
         show: false,
     });
 
-    infographicsWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "infographics.html"));
+    infographicsWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "infographics.html"),
+    );
     infographicsWindow.setMenu(null);
     infographicsWindow.maximize();
 
@@ -1510,7 +1811,10 @@ function openGitflowWindow(mainWindow, options?: { force?: boolean }) {
 
     const workArea = screen.getPrimaryDisplay().workAreaSize;
     const targetWidth = Math.max(1000, Math.min(1800, workArea.width - 120));
-    const targetHeight = Math.max(520, Math.min(820, Math.round(workArea.height * 0.75)));
+    const targetHeight = Math.max(
+        520,
+        Math.min(820, Math.round(workArea.height * 0.75)),
+    );
 
     gitflowWindow = new BrowserWindow({
         width: targetWidth,
@@ -1523,9 +1827,12 @@ function openGitflowWindow(mainWindow, options?: { force?: boolean }) {
     });
 
     const force = options && options.force ? "1" : "0";
-    gitflowWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "gitflow.html"), {
-        query: { force },
-    });
+    gitflowWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "gitflow.html"),
+        {
+            query: { force },
+        },
+    );
     gitflowWindow.setMenu(null);
     gitflowWindow.center();
 
@@ -1550,7 +1857,9 @@ function openTimerWindow(mainWindow) {
         icon: APP_ICON_PATH,
     });
 
-    timerWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "timers.html"));
+    timerWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "timers.html"),
+    );
     timerWindow.setMenu(null);
     timerWindow.center();
 
@@ -1580,7 +1889,15 @@ function openAmministrazioneWindow(mainWindow) {
         icon: APP_ICON_PATH,
     });
 
-    amministrazioneWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "amministrazione.html"));
+    amministrazioneWindow.loadFile(
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "amministrazione.html",
+        ),
+    );
     amministrazioneWindow.setMenu(null);
 
     amministrazioneWindow.once("ready-to-show", () => {
@@ -1617,7 +1934,7 @@ function openFeriePermessiWindow(mainWindow) {
     feriePermessiWindow.maximize();
     feriePermessiWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"),
-        { query: { fpSplash: shouldShowSplash ? "1" : "0" } }
+        { query: { fpSplash: shouldShowSplash ? "1" : "0" } },
     );
     feriePermessiWindow.setMenu(null);
 
@@ -1657,8 +1974,14 @@ function openProductManagerWindow(mainWindow) {
     const shouldShowSplash = !productManagerSplashShown;
     productManagerSplashShown = true;
     productManagerWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "product-manager.html"),
-        { query: { pmSplash: shouldShowSplash ? "1" : "0" } }
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "product-manager.html",
+        ),
+        { query: { pmSplash: shouldShowSplash ? "1" : "0" } },
     );
     productManagerWindow.setMenu(null);
 
@@ -1669,7 +1992,10 @@ function openProductManagerWindow(mainWindow) {
     });
     productManagerWindow.webContents.once("did-finish-load", () => {
         if (!productManagerWindow.isDestroyed()) {
-            productManagerWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            productManagerWindow.webContents.send(
+                "pm-force-logout",
+                productManagerForceLogout,
+            );
             productManagerForceLogout = false;
         }
     });
@@ -1705,7 +2031,13 @@ function openProductManagerCartWindow(mainWindow) {
 
     productManagerCartWindow.maximize();
     productManagerCartWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "product-manager-cart.html")
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "product-manager-cart.html",
+        ),
     );
     productManagerCartWindow.setMenu(null);
 
@@ -1717,7 +2049,10 @@ function openProductManagerCartWindow(mainWindow) {
 
     productManagerCartWindow.webContents.once("did-finish-load", () => {
         if (!productManagerCartWindow.isDestroyed()) {
-            productManagerCartWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            productManagerCartWindow.webContents.send(
+                "pm-force-logout",
+                productManagerForceLogout,
+            );
             productManagerForceLogout = false;
         }
     });
@@ -1729,7 +2064,6 @@ function openProductManagerCartWindow(mainWindow) {
             productManagerForceLogout = true;
         }
     });
-
 }
 
 function openProductManagerInterventionsWindow(mainWindow) {
@@ -1754,7 +2088,13 @@ function openProductManagerInterventionsWindow(mainWindow) {
 
     productManagerInterventionsWindow.maximize();
     productManagerInterventionsWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "product-manager-interventions.html")
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "product-manager-interventions.html",
+        ),
     );
     productManagerInterventionsWindow.setMenu(null);
 
@@ -1764,12 +2104,18 @@ function openProductManagerInterventionsWindow(mainWindow) {
         }
     });
 
-    productManagerInterventionsWindow.webContents.once("did-finish-load", () => {
-        if (!productManagerInterventionsWindow.isDestroyed()) {
-            productManagerInterventionsWindow.webContents.send("pm-force-logout", productManagerForceLogout);
-            productManagerForceLogout = false;
-        }
-    });
+    productManagerInterventionsWindow.webContents.once(
+        "did-finish-load",
+        () => {
+            if (!productManagerInterventionsWindow.isDestroyed()) {
+                productManagerInterventionsWindow.webContents.send(
+                    "pm-force-logout",
+                    productManagerForceLogout,
+                );
+                productManagerForceLogout = false;
+            }
+        },
+    );
 
     productManagerInterventionsWindow.on("closed", () => {
         productManagerInterventionsWindow = null;
@@ -1796,7 +2142,13 @@ function openFeriePermessiHoursWindow(mainWindow) {
     });
 
     feriePermessiHoursWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "ferie-permessi-hours.html")
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "ferie-permessi-hours.html",
+        ),
     );
     feriePermessiHoursWindow.setMenu(null);
 
@@ -1830,7 +2182,13 @@ function openFeriePermessiAnalysisWindow(mainWindow) {
     });
 
     feriePermessiAnalysisWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "ferie-permessi-analysis.html")
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "ferie-permessi-analysis.html",
+        ),
     );
     feriePermessiAnalysisWindow.setMenu(null);
 
@@ -1869,7 +2227,7 @@ function openTicketSupportWindow(mainWindow) {
 
     ticketSupportWindow.maximize();
     ticketSupportWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "ticket-support.html")
+        path.join(__dirname, "..", "pages", "utilities", "ticket-support.html"),
     );
     ticketSupportWindow.setMenu(null);
 
@@ -1881,7 +2239,10 @@ function openTicketSupportWindow(mainWindow) {
 
     ticketSupportWindow.webContents.once("did-finish-load", () => {
         if (!ticketSupportWindow.isDestroyed()) {
-            ticketSupportWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            ticketSupportWindow.webContents.send(
+                "pm-force-logout",
+                productManagerForceLogout,
+            );
             productManagerForceLogout = false;
         }
     });
@@ -1892,6 +2253,7 @@ function openTicketSupportWindow(mainWindow) {
             productManagerSession = null;
             productManagerForceLogout = true;
         }
+        if (suppressTicketWindowChaining) return;
         if (isWindowAlive(ticketSupportAdminWindow)) {
             showWindow(ticketSupportAdminWindow);
         }
@@ -1921,8 +2283,14 @@ function openTicketSupportAdminWindow(mainWindow) {
 
     ticketSupportAdminWindow.maximize();
     ticketSupportAdminWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "ticket-support-admin.html"),
-        { query: { tsView: "admin" } }
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "ticket-support-admin.html",
+        ),
+        { query: { tsView: "admin" } },
     );
     ticketSupportAdminWindow.setMenu(null);
 
@@ -1934,7 +2302,10 @@ function openTicketSupportAdminWindow(mainWindow) {
 
     ticketSupportAdminWindow.webContents.once("did-finish-load", () => {
         if (!ticketSupportAdminWindow.isDestroyed()) {
-            ticketSupportAdminWindow.webContents.send("pm-force-logout", productManagerForceLogout);
+            ticketSupportAdminWindow.webContents.send(
+                "pm-force-logout",
+                productManagerForceLogout,
+            );
             productManagerForceLogout = false;
         }
     });
@@ -1945,6 +2316,7 @@ function openTicketSupportAdminWindow(mainWindow) {
             productManagerSession = null;
             productManagerForceLogout = true;
         }
+        if (suppressTicketWindowChaining) return;
         if (isWindowAlive(ticketSupportWindow)) {
             showWindow(ticketSupportWindow);
         } else {
@@ -1970,7 +2342,13 @@ function openAssigneesManagerWindow(mainWindow) {
 
     assigneesManagerWindow.maximize();
     assigneesManagerWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "assignees-manager.html")
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "assignees-manager.html",
+        ),
     );
     assigneesManagerWindow.setMenu(null);
 
@@ -2001,7 +2379,7 @@ function openAdminManagerWindow(mainWindow) {
     });
 
     adminManagerWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "admin-manager.html")
+        path.join(__dirname, "..", "pages", "utilities", "admin-manager.html"),
     );
     adminManagerWindow.setMenu(null);
 
@@ -2025,7 +2403,15 @@ function openCompareFoldersWindow(slot, folder) {
             icon: APP_ICON_PATH,
         });
 
-        compareFoldersWindow.loadFile(path.join(__dirname, "..", "pages", "utilities", "compare-folders.html"));
+        compareFoldersWindow.loadFile(
+            path.join(
+                __dirname,
+                "..",
+                "pages",
+                "utilities",
+                "compare-folders.html",
+            ),
+        );
         compareFoldersWindow.setMenu(null);
         compareFoldersWindow.center();
 
@@ -2036,9 +2422,15 @@ function openCompareFoldersWindow(slot, folder) {
         compareFoldersWindow.webContents.once("did-finish-load", () => {
             if (folder) {
                 if (slot === "A") {
-                    compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
+                    compareFoldersWindow.webContents.send(
+                        "compare-folders-set-A",
+                        folder,
+                    );
                 } else if (slot === "B") {
-                    compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
+                    compareFoldersWindow.webContents.send(
+                        "compare-folders-set-B",
+                        folder,
+                    );
                 }
             }
         });
@@ -2050,9 +2442,15 @@ function openCompareFoldersWindow(slot, folder) {
         showWindow(compareFoldersWindow);
         if (folder) {
             if (slot === "A") {
-                compareFoldersWindow.webContents.send("compare-folders-set-A", folder);
+                compareFoldersWindow.webContents.send(
+                    "compare-folders-set-A",
+                    folder,
+                );
             } else if (slot === "B") {
-                compareFoldersWindow.webContents.send("compare-folders-set-B", folder);
+                compareFoldersWindow.webContents.send(
+                    "compare-folders-set-B",
+                    folder,
+                );
             }
         }
     }
@@ -2109,7 +2507,10 @@ function setupFileManager(mainWindow) {
 
         const dialogOptions: OpenDialogOptions = {
             title: "Seleziona il percorso da associare",
-            properties: [kind === "directory" ? "openDirectory" : "openFile", "dontAddToRecent"],
+            properties: [
+                kind === "directory" ? "openDirectory" : "openFile",
+                "dontAddToRecent",
+            ],
         };
         const result = await dialog.showOpenDialog(win, dialogOptions);
 
@@ -2132,12 +2533,19 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("admin-auth", async (_event, payload) => {
-        const password = typeof payload === "string" ? payload : (payload && payload.password) ? String(payload.password) : "";
+        const password =
+            typeof payload === "string"
+                ? payload
+                : payload && payload.password
+                  ? String(payload.password)
+                  : "";
         if (password === "AGPress") {
             adminEnabled = true;
             BrowserWindow.getAllWindows().forEach((win) => {
                 try {
-                    win.webContents.send("admin-state-changed", { enabled: true });
+                    win.webContents.send("admin-state-changed", {
+                        enabled: true,
+                    });
                 } catch {}
             });
             return { ok: true };
@@ -2167,7 +2575,7 @@ function setupFileManager(mainWindow) {
 
         const now = Date.now();
         if (now - lastFolderDialogClosedAt < 300) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise((resolve) => setTimeout(resolve, 300));
         }
 
         const getSafeLocalPath = () => {
@@ -2194,7 +2602,9 @@ function setupFileManager(mainWindow) {
 
         const dialogOptions: OpenDialogOptions = {
             title: "Seleziona la cartella",
-            defaultPath: (app.isPackaged ? getSafeLocalPath() : lastFolderDialogPath) || undefined,
+            defaultPath:
+                (app.isPackaged ? getSafeLocalPath() : lastFolderDialogPath) ||
+                undefined,
             properties: ["openDirectory", "dontAddToRecent"],
         };
 
@@ -2206,7 +2616,10 @@ function setupFileManager(mainWindow) {
             try {
                 app.clearRecentDocuments();
             } catch (err) {
-                log.warn("[select-root-folder] clearRecentDocuments failed:", err);
+                log.warn(
+                    "[select-root-folder] clearRecentDocuments failed:",
+                    err,
+                );
             }
         }
         log.info("[select-root-folder] open dialog", {
@@ -2214,9 +2627,10 @@ function setupFileManager(mainWindow) {
             hasParent: !!(win && useParentWindow),
             defaultPath: dialogOptions.defaultPath,
         });
-        const result = useParentWindow && win
-            ? await dialog.showOpenDialog(win, dialogOptions)
-            : await dialog.showOpenDialog(dialogOptions);
+        const result =
+            useParentWindow && win
+                ? await dialog.showOpenDialog(win, dialogOptions)
+                : await dialog.showOpenDialog(dialogOptions);
 
         lastFolderDialogClosedAt = Date.now();
         log.info("[select-root-folder] dialog closed", {
@@ -2225,7 +2639,11 @@ function setupFileManager(mainWindow) {
             ms: Date.now() - t0,
         });
 
-        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        if (
+            result.canceled ||
+            !result.filePaths ||
+            result.filePaths.length === 0
+        ) {
             if (!lastFolderDialogPath) {
                 lastFolderDialogPath = getSafeLocalPath();
             }
@@ -2254,7 +2672,9 @@ function setupFileManager(mainWindow) {
         const result = await dialog.showSaveDialog(win, {
             title: "Seleziona il file di destinazione",
             defaultPath: options?.defaultName || "output.xlsx",
-            filters: options?.filters || [{ name: "File Excel", extensions: ["xlsx"] }],
+            filters: options?.filters || [
+                { name: "File Excel", extensions: ["xlsx"] },
+            ],
         });
 
         if (result.canceled || !result.filePath) {
@@ -2274,7 +2694,8 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("pm-session-set", async (_event, payload) => {
-        productManagerSession = payload && typeof payload === "object" ? payload : null;
+        productManagerSession =
+            payload && typeof payload === "object" ? payload : null;
         broadcastProductManagerSession(productManagerSession);
         return true;
     });
@@ -2290,7 +2711,12 @@ function setupFileManager(mainWindow) {
         const dialogOptions: OpenDialogOptions = {
             title: "Seleziona immagine prodotto",
             properties: ["openFile"],
-            filters: [{ name: "Immagini", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] }],
+            filters: [
+                {
+                    name: "Immagini",
+                    extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"],
+                },
+            ],
         };
         const result = await dialog.showOpenDialog(win, dialogOptions);
         if (result.canceled || !result.filePaths.length) return "";
@@ -2302,7 +2728,10 @@ function setupFileManager(mainWindow) {
 
         return dialog.showMessageBox(win, {
             type: options.type || "none",
-            buttons: Array.isArray(options.buttons) && options.buttons.length ? options.buttons : ["OK"],
+            buttons:
+                Array.isArray(options.buttons) && options.buttons.length
+                    ? options.buttons
+                    : ["OK"],
             title: "AyPi",
             message: options.message || "",
             detail: options.detail || "",
@@ -2315,7 +2744,10 @@ function setupFileManager(mainWindow) {
 
     ipcMain.handle("git-stats-get", async (_event, options) => {
         const fresh = !!(options && options.fresh);
-        const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
+        const targetPath =
+            options && options.persistPath
+                ? String(options.persistPath)
+                : undefined;
 
         if (!fresh) {
             const cached = getCachedGitStats();
@@ -2326,7 +2758,12 @@ function setupFileManager(mainWindow) {
 
         const repoRoot = resolveGitRepoRoot();
         if (!repoRoot) {
-            const payload = { ok: false, reason: "repo-not-found", data: [], tags: [] };
+            const payload = {
+                ok: false,
+                reason: "repo-not-found",
+                data: [],
+                tags: [],
+            };
             writeGitStatsSnapshot(payload, targetPath);
             return payload;
         }
@@ -2336,19 +2773,29 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("github-stats-get", async (_event, options) => {
-        const owner = (options && options.owner) ? String(options.owner) : "AGPress-Tech";
-        const repo = (options && options.repo) ? String(options.repo) : "AyPi";
-        const token = options && options.token
-            ? String(options.token)
-            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || readSharedEnvToken());
+        const owner =
+            options && options.owner ? String(options.owner) : "AGPress-Tech";
+        const repo = options && options.repo ? String(options.repo) : "AyPi";
+        const token =
+            options && options.token
+                ? String(options.token)
+                : process.env.GITHUB_TOKEN ||
+                  process.env.GH_TOKEN ||
+                  readSharedEnvToken();
         const tokenPresent = !!token;
-        const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
+        const targetPath =
+            options && options.persistPath
+                ? String(options.persistPath)
+                : undefined;
         const force = !!(options && options.force);
         const cached = readGitStatsSnapshot(targetPath);
         if (!force && cached && cached.fetchedAt) {
             try {
                 const last = new Date(cached.fetchedAt);
-                if (!Number.isNaN(last.getTime()) && isSameDay(last, new Date())) {
+                if (
+                    !Number.isNaN(last.getTime()) &&
+                    isSameDay(last, new Date())
+                ) {
                     return cached;
                 }
             } catch (_err) {
@@ -2358,14 +2805,27 @@ function setupFileManager(mainWindow) {
         try {
             const payload = await fetchGithubStats(owner, repo, token);
             const payloadWithToken = { ...payload, tokenPresent };
-            const hasCodeFrequency = Array.isArray(payloadWithToken.data)
-                && payloadWithToken.data.some(
-                    (row) => (row?.additions || 0) !== 0 || (row?.deletions || 0) !== 0,
+            const hasCodeFrequency =
+                Array.isArray(payloadWithToken.data) &&
+                payloadWithToken.data.some(
+                    (row) =>
+                        (row?.additions || 0) !== 0 ||
+                        (row?.deletions || 0) !== 0,
                 );
-            if (!hasCodeFrequency && cached && Array.isArray(cached.data) && cached.data.length) {
-                const cachedMap = new Map<string, { additions: number; deletions: number }>();
+            if (
+                !hasCodeFrequency &&
+                cached &&
+                Array.isArray(cached.data) &&
+                cached.data.length
+            ) {
+                const cachedMap = new Map<
+                    string,
+                    { additions: number; deletions: number }
+                >();
                 cached.data.forEach((row) => {
-                    const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
+                    const rowDate = row?.date
+                        ? new Date(`${row.date}T00:00:00Z`)
+                        : null;
                     if (!rowDate || Number.isNaN(rowDate.getTime())) return;
                     const key = toDateKey(startOfWeekMonday(rowDate));
                     cachedMap.set(key, {
@@ -2383,18 +2843,28 @@ function setupFileManager(mainWindow) {
                         row.deletions = cachedRow.deletions;
                     }
                 });
-                payloadWithToken.warning = payloadWithToken.warning || "code-frequency-cache";
+                payloadWithToken.warning =
+                    payloadWithToken.warning || "code-frequency-cache";
             } else if (!hasCodeFrequency) {
                 const repoRoot = resolveGitRepoRoot();
                 if (repoRoot) {
                     const local = getGitDailyStats(repoRoot);
                     if (local && local.ok && Array.isArray(local.data)) {
-                        const localMap = new Map<string, { additions: number; deletions: number }>();
+                        const localMap = new Map<
+                            string,
+                            { additions: number; deletions: number }
+                        >();
                         local.data.forEach((row) => {
-                            const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
-                            if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+                            const rowDate = row?.date
+                                ? new Date(`${row.date}T00:00:00Z`)
+                                : null;
+                            if (!rowDate || Number.isNaN(rowDate.getTime()))
+                                return;
                             const key = toDateKey(startOfWeekMonday(rowDate));
-                            const prev = localMap.get(key) || { additions: 0, deletions: 0 };
+                            const prev = localMap.get(key) || {
+                                additions: 0,
+                                deletions: 0,
+                            };
                             prev.additions += Number(row.additions || 0);
                             prev.deletions += Number(row.deletions || 0);
                             localMap.set(key, prev);
@@ -2409,19 +2879,26 @@ function setupFileManager(mainWindow) {
                                 row.deletions = localRow.deletions;
                             }
                         });
-                        payloadWithToken.warning = payloadWithToken.warning || "code-frequency-local";
+                        payloadWithToken.warning =
+                            payloadWithToken.warning || "code-frequency-local";
                     }
                 }
             }
             const totalCommits = Array.isArray(payloadWithToken.data)
                 ? payloadWithToken.data.reduce(
                       (sum, entry) =>
-                          sum + (entry && typeof entry.commits === "number" ? entry.commits : 0),
+                          sum +
+                          (entry && typeof entry.commits === "number"
+                              ? entry.commits
+                              : 0),
                       0,
                   )
                 : 0;
             // Prefer Gitflow cache commits if it yields a higher (more complete) total
-            if (Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+            if (
+                Array.isArray(payloadWithToken.data) &&
+                payloadWithToken.data.length
+            ) {
                 const gitflowCached = readGitflowSnapshot(
                     "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
                 );
@@ -2443,14 +2920,22 @@ function setupFileManager(mainWindow) {
                             commits: commitCounts.get(week) || 0,
                         };
                     });
-                    const rebuiltTotal = rebuilt.reduce((sum, row) => sum + (row.commits || 0), 0);
+                    const rebuiltTotal = rebuilt.reduce(
+                        (sum, row) => sum + (row.commits || 0),
+                        0,
+                    );
                     if (rebuiltTotal > totalCommits) {
                         payloadWithToken.data = rebuilt;
-                        payloadWithToken.warning = "commit-activity-gitflow-cache";
+                        payloadWithToken.warning =
+                            "commit-activity-gitflow-cache";
                     }
                 }
             }
-            if (totalCommits === 0 && Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+            if (
+                totalCommits === 0 &&
+                Array.isArray(payloadWithToken.data) &&
+                payloadWithToken.data.length
+            ) {
                 const gitflowCached = readGitflowSnapshot(
                     "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
                 );
@@ -2472,13 +2957,26 @@ function setupFileManager(mainWindow) {
                     payloadWithToken.warning = "commit-activity-gitflow-cache";
                 }
             }
-            if (totalCommits === 0 && Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+            if (
+                totalCommits === 0 &&
+                Array.isArray(payloadWithToken.data) &&
+                payloadWithToken.data.length
+            ) {
                 try {
                     const firstDate = payloadWithToken.data[0]?.date
                         ? new Date(`${payloadWithToken.data[0].date}T00:00:00Z`)
                         : null;
-                    const minDate = firstDate && !Number.isNaN(firstDate.getTime()) ? firstDate : undefined;
-                    const commitList = await fetchGithubCommits(owner, repo, token, 5000, minDate);
+                    const minDate =
+                        firstDate && !Number.isNaN(firstDate.getTime())
+                            ? firstDate
+                            : undefined;
+                    const commitList = await fetchGithubCommits(
+                        owner,
+                        repo,
+                        token,
+                        5000,
+                        minDate,
+                    );
                     const commitCounts = new Map<string, number>();
                     commitList.forEach((entry) => {
                         const date = new Date(entry.date);
@@ -2495,7 +2993,12 @@ function setupFileManager(mainWindow) {
                     });
                     payloadWithToken.warning = "commit-activity-fallback";
                 } catch {
-                    if (cached && cached.ok && cached.data && cached.data.length) {
+                    if (
+                        cached &&
+                        cached.ok &&
+                        cached.data &&
+                        cached.data.length
+                    ) {
                         return {
                             ...cached,
                             warning: "github-commits-zero",
@@ -2506,11 +3009,20 @@ function setupFileManager(mainWindow) {
             const refreshedCommits = Array.isArray(payloadWithToken.data)
                 ? payloadWithToken.data.reduce(
                       (sum, entry) =>
-                          sum + (entry && typeof entry.commits === "number" ? entry.commits : 0),
+                          sum +
+                          (entry && typeof entry.commits === "number"
+                              ? entry.commits
+                              : 0),
                       0,
                   )
                 : 0;
-            if (cached && cached.ok && cached.data && cached.data.length && refreshedCommits === 0) {
+            if (
+                cached &&
+                cached.ok &&
+                cached.data &&
+                cached.data.length &&
+                refreshedCommits === 0
+            ) {
                 return {
                     ...cached,
                     warning: "github-commits-zero",
@@ -2523,7 +3035,8 @@ function setupFileManager(mainWindow) {
                 return {
                     ...cached,
                     warning: "github-fetch-failed",
-                    error: err && err.message ? String(err.message) : String(err),
+                    error:
+                        err && err.message ? String(err.message) : String(err),
                 };
             }
             const payload = {
@@ -2540,13 +3053,21 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("github-gitflow-get", async (_event, options) => {
-        const owner = (options && options.owner) ? String(options.owner) : "AGPress-Tech";
-        const repo = (options && options.repo) ? String(options.repo) : "AyPi";
-        const token = options && options.token
-            ? String(options.token)
-            : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || readSharedEnvToken());
-        const maxCommits = options && options.maxCommits ? Number(options.maxCommits) : 400;
-        const targetPath = options && options.persistPath ? String(options.persistPath) : undefined;
+        const owner =
+            options && options.owner ? String(options.owner) : "AGPress-Tech";
+        const repo = options && options.repo ? String(options.repo) : "AyPi";
+        const token =
+            options && options.token
+                ? String(options.token)
+                : process.env.GITHUB_TOKEN ||
+                  process.env.GH_TOKEN ||
+                  readSharedEnvToken();
+        const maxCommits =
+            options && options.maxCommits ? Number(options.maxCommits) : 400;
+        const targetPath =
+            options && options.persistPath
+                ? String(options.persistPath)
+                : undefined;
         const force = !!(options && options.force);
         const tokenPresent = !!token;
         try {
@@ -2554,7 +3075,10 @@ function setupFileManager(mainWindow) {
             if (!force && cached && cached.fetchedAt) {
                 try {
                     const last = new Date(cached.fetchedAt);
-                    if (!Number.isNaN(last.getTime()) && isSameDay(last, new Date())) {
+                    if (
+                        !Number.isNaN(last.getTime()) &&
+                        isSameDay(last, new Date())
+                    ) {
                         return cached;
                     }
                 } catch (_err) {
@@ -2589,7 +3113,8 @@ function setupFileManager(mainWindow) {
                 return {
                     ...cached,
                     warning: "github-fetch-failed",
-                    error: err && err.message ? String(err.message) : String(err),
+                    error:
+                        err && err.message ? String(err.message) : String(err),
                 };
             }
             const payload = {
@@ -2605,7 +3130,10 @@ function setupFileManager(mainWindow) {
         }
     });
 
-    const presetsPath = path.join(app.getPath("userData"), "batch-rename-presets.json");
+    const presetsPath = path.join(
+        app.getPath("userData"),
+        "batch-rename-presets.json",
+    );
 
     function loadBatchRenamePresets() {
         try {
@@ -2622,7 +3150,11 @@ function setupFileManager(mainWindow) {
 
     function saveBatchRenamePresets(list) {
         try {
-            fs.writeFileSync(presetsPath, JSON.stringify(list, null, 2), "utf8");
+            fs.writeFileSync(
+                presetsPath,
+                JSON.stringify(list, null, 2),
+                "utf8",
+            );
         } catch (err) {
             log.error("[batch-rename] impossibile salvare i preset:", err);
         }
@@ -2633,14 +3165,18 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("batch-rename-save-preset", async (event, payload) => {
-        const name = (payload && payload.name ? String(payload.name) : "").trim();
+        const name = (
+            payload && payload.name ? String(payload.name) : ""
+        ).trim();
         const data = payload && payload.data ? payload.data : null;
         if (!name || !data) {
             return loadBatchRenamePresets();
         }
 
         const list = loadBatchRenamePresets();
-        const existingIndex = list.findIndex(p => p && typeof p.name === "string" && p.name === name);
+        const existingIndex = list.findIndex(
+            (p) => p && typeof p.name === "string" && p.name === name,
+        );
         const entry = { name, data, updatedAt: new Date().toISOString() };
         if (existingIndex >= 0) {
             list[existingIndex] = entry;
@@ -2652,11 +3188,15 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.handle("batch-rename-delete-preset", async (event, payload) => {
-        const name = (payload && payload.name ? String(payload.name) : "").trim();
+        const name = (
+            payload && payload.name ? String(payload.name) : ""
+        ).trim();
         if (!name) {
             return loadBatchRenamePresets();
         }
-        const list = loadBatchRenamePresets().filter(p => !(p && p.name === name));
+        const list = loadBatchRenamePresets().filter(
+            (p) => !(p && p.name === name),
+        );
         saveBatchRenamePresets(list);
         return list;
     });
@@ -2668,14 +3208,21 @@ function setupFileManager(mainWindow) {
             return { ok: false, error: "Percorso non valido" };
         }
         if (process.platform !== "win32") {
-            return { ok: false, error: "Attributo nascosto supportato solo su Windows" };
+            return {
+                ok: false,
+                error: "Attributo nascosto supportato solo su Windows",
+            };
         }
 
-        return new Promise(resolve => {
+        return new Promise((resolve) => {
             const flag = hidden ? "+H" : "-H";
             exec(`attrib ${flag} "${targetPath}"`, (err) => {
                 if (err) {
-                    log.error("[batch-rename] errore impostando attributo hidden:", targetPath, err);
+                    log.error(
+                        "[batch-rename] errore impostando attributo hidden:",
+                        targetPath,
+                        err,
+                    );
                     resolve({ ok: false, error: err.message || String(err) });
                 } else {
                     resolve({ ok: true });
@@ -2713,61 +3260,83 @@ function setupFileManager(mainWindow) {
         openTimerWindow(mainWindow);
     });
 
-      ipcMain.on("open-amministrazione-window", () => {
-          openAmministrazioneWindow(mainWindow);
-      });
+    ipcMain.on("open-amministrazione-window", () => {
+        openAmministrazioneWindow(mainWindow);
+    });
 
-      ipcMain.on("open-ferie-permessi-window", () => {
-          openFeriePermessiWindow(mainWindow);
-      });
+    ipcMain.on("open-ferie-permessi-window", async () => {
+        await guardServerAndOpenModule(mainWindow, feriePermessiWindow, () =>
+            openFeriePermessiWindow(mainWindow),
+        );
+    });
 
-      ipcMain.on("open-product-manager-window", () => {
-          openProductManagerWindow(mainWindow);
-      });
+    ipcMain.on("open-product-manager-window", async () => {
+        await guardServerAndOpenModule(mainWindow, productManagerWindow, () =>
+            openProductManagerWindow(mainWindow),
+        );
+    });
 
-      ipcMain.on("open-product-manager-cart-window", () => {
-          openProductManagerCartWindow(mainWindow);
-      });
+    ipcMain.on("open-product-manager-cart-window", async () => {
+        await guardServerAndOpenModule(
+            mainWindow,
+            productManagerCartWindow,
+            () => openProductManagerCartWindow(mainWindow),
+        );
+    });
 
-      ipcMain.on("open-product-manager-interventions-window", () => {
-          openProductManagerInterventionsWindow(mainWindow);
-      });
-      ipcMain.handle("open-product-manager-interventions-window", () => {
-          openProductManagerInterventionsWindow(mainWindow);
-          return { ok: true };
-      });
+    ipcMain.on("open-product-manager-interventions-window", async () => {
+        await guardServerAndOpenModule(
+            mainWindow,
+            productManagerInterventionsWindow,
+            () => openProductManagerInterventionsWindow(mainWindow),
+        );
+    });
+    ipcMain.handle("open-product-manager-interventions-window", async () => {
+        await guardServerAndOpenModule(
+            mainWindow,
+            productManagerInterventionsWindow,
+            () => openProductManagerInterventionsWindow(mainWindow),
+        );
+        return { ok: true };
+    });
 
-      ipcMain.on("open-ticket-support-window", () => {
-          openTicketSupportWindow(mainWindow);
-      });
+    ipcMain.on("open-ticket-support-window", async () => {
+        await guardServerAndOpenModule(mainWindow, ticketSupportWindow, () =>
+            openTicketSupportWindow(mainWindow),
+        );
+    });
 
-      ipcMain.on("open-ticket-support-admin-window", () => {
-          openTicketSupportAdminWindow(mainWindow);
-      });
+    ipcMain.on("open-ticket-support-admin-window", async () => {
+        await guardServerAndOpenModule(
+            mainWindow,
+            ticketSupportAdminWindow,
+            () => openTicketSupportAdminWindow(mainWindow),
+        );
+    });
 
-      ipcMain.on("open-assignees-manager-window", () => {
-          openAssigneesManagerWindow(mainWindow);
-      });
+    ipcMain.on("open-assignees-manager-window", () => {
+        openAssigneesManagerWindow(mainWindow);
+    });
 
-      ipcMain.on("pm-open-calendar-assignees", () => {
-          openAssigneesManagerWindow(mainWindow);
-      });
+    ipcMain.on("pm-open-calendar-assignees", () => {
+        openAssigneesManagerWindow(mainWindow);
+    });
 
-      ipcMain.on("pm-open-calendar-admins", () => {
-          openAdminManagerWindow(mainWindow);
-      });
+    ipcMain.on("pm-open-calendar-admins", () => {
+        openAdminManagerWindow(mainWindow);
+    });
 
-      ipcMain.on("open-admin-manager-window", () => {
-          openAdminManagerWindow(mainWindow);
-      });
+    ipcMain.on("open-admin-manager-window", () => {
+        openAdminManagerWindow(mainWindow);
+    });
 
-      ipcMain.on("open-ferie-permessi-hours-window", () => {
-          openFeriePermessiHoursWindow(mainWindow);
-      });
+    ipcMain.on("open-ferie-permessi-hours-window", () => {
+        openFeriePermessiHoursWindow(mainWindow);
+    });
 
-      ipcMain.on("open-ferie-permessi-analysis-window", () => {
-          openFeriePermessiAnalysisWindow(mainWindow);
-      });
+    ipcMain.on("open-ferie-permessi-analysis-window", () => {
+        openFeriePermessiAnalysisWindow(mainWindow);
+    });
 
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {
         const folder = payload?.folder;
@@ -2775,7 +3344,10 @@ function setupFileManager(mainWindow) {
 
         if (batchRenameWindow && !batchRenameWindow.isDestroyed() && folder) {
             batchRenameWindow.webContents.once("did-finish-load", () => {
-                batchRenameWindow.webContents.send("batch-rename-set-root", folder);
+                batchRenameWindow.webContents.send(
+                    "batch-rename-set-root",
+                    folder,
+                );
             });
             batchRenameWindow.webContents.send("batch-rename-set-root", folder);
         }
@@ -2789,100 +3361,131 @@ function setupFileManager(mainWindow) {
         openCompareFoldersWindow("B", payload?.folder);
     });
 
-    ipcMain.handle("hierarchy-export-navigable-report", async (event, payload) => {
-        try {
-            const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    ipcMain.handle(
+        "hierarchy-export-navigable-report",
+        async (event, payload) => {
+            try {
+                const win =
+                    BrowserWindow.fromWebContents(event.sender) || mainWindow;
 
-            if (!payload || !payload.data) {
-                throw new Error("Dati report non validi.");
+                if (!payload || !payload.data) {
+                    throw new Error("Dati report non validi.");
+                }
+
+                const data = payload.data;
+                const rootPath = data.meta?.rootPath || "";
+                const rootNameRaw = rootPath
+                    ? path.basename(rootPath.replace(/[\\/]+$/, ""))
+                    : "root";
+                const rootName = rootNameRaw || "root";
+
+                const result = await dialog.showSaveDialog(win, {
+                    title: "Salva report navigabile",
+                    defaultPath: `Report ${rootName}.html`,
+                    filters: [{ name: "File HTML", extensions: ["html"] }],
+                });
+
+                if (result.canceled || !result.filePath) {
+                    return { canceled: true };
+                }
+
+                const chosenDir = path.dirname(result.filePath);
+                const reportDirName = `Report ${rootName}`;
+                const reportDir = path.join(chosenDir, reportDirName);
+                fs.mkdirSync(reportDir, { recursive: true });
+
+                const htmlPath = path.join(reportDir, "report-gerarchia.html");
+                const jsonPath = path.join(reportDir, "report-data.json");
+                const jsPath = path.join(reportDir, "report.js");
+                const cssPath = path.join(reportDir, "report.css");
+                const chartPath = path.join(reportDir, "chart.umd.js");
+
+                fs.writeFileSync(
+                    jsonPath,
+                    JSON.stringify(data, null, 2),
+                    "utf8",
+                );
+
+                try {
+                    const templateDir = path.join(__dirname, "..", "templates");
+                    const htmlTemplatePath = path.join(
+                        templateDir,
+                        "hierarchy-report.html",
+                    );
+                    const cssTemplatePath = path.join(
+                        templateDir,
+                        "hierarchy-report.css",
+                    );
+                    const jsTemplatePath = path.join(
+                        templateDir,
+                        "hierarchy-report.js",
+                    );
+
+                    const htmlTemplate = fs.readFileSync(
+                        htmlTemplatePath,
+                        "utf8",
+                    );
+                    const cssContent = fs.readFileSync(cssTemplatePath, "utf8");
+                    const jsTemplate = fs.readFileSync(jsTemplatePath, "utf8");
+
+                    const jsContent =
+                        "const REPORT_DATA = " +
+                        JSON.stringify(data, null, 2) +
+                        ";\n\n" +
+                        jsTemplate;
+
+                    fs.writeFileSync(htmlPath, htmlTemplate, "utf8");
+                    fs.writeFileSync(cssPath, cssContent, "utf8");
+                    fs.writeFileSync(jsPath, jsContent, "utf8");
+
+                    try {
+                        const chartMainPath = require.resolve("chart.js");
+                        const chartSrcPath = path.join(
+                            path.dirname(chartMainPath),
+                            "chart.umd.js",
+                        );
+                        fs.copyFileSync(chartSrcPath, chartPath);
+                    } catch (chartErr) {
+                        log.warn(
+                            "[hierarchy] impossibile copiare chart.js per il report navigabile:",
+                            chartErr,
+                        );
+                    }
+
+                    return {
+                        canceled: false,
+                        htmlPath,
+                        jsonPath,
+                    };
+                } catch (templateErr) {
+                    log.error(
+                        "[hierarchy] errore durante la generazione del report navigabile da template:",
+                        templateErr,
+                    );
+                }
+
+                const htmlContent = buildHierarchyReportHtml();
+                const cssContent = buildHierarchyReportCss();
+                const jsContent = buildHierarchyReportJs(data);
+
+                fs.writeFileSync(htmlPath, htmlContent, "utf8");
+                fs.writeFileSync(cssPath, cssContent, "utf8");
+                fs.writeFileSync(jsPath, jsContent, "utf8");
+
+                return {
+                    canceled: false,
+                    htmlPath,
+                    jsonPath,
+                };
+            } catch (err) {
+                log.error("[hierarchy] export-navigable-report error", err);
+                return {
+                    canceled: false,
+                    error: err.message || String(err),
+                };
             }
-
-            const data = payload.data;
-            const rootPath = data.meta?.rootPath || "";
-            const rootNameRaw = rootPath ? path.basename(rootPath.replace(/[\\/]+$/, "")) : "root";
-            const rootName = rootNameRaw || "root";
-
-            const result = await dialog.showSaveDialog(win, {
-                title: "Salva report navigabile",
-                defaultPath: `Report ${rootName}.html`,
-                filters: [{ name: "File HTML", extensions: ["html"] }],
-            });
-
-            if (result.canceled || !result.filePath) {
-                return { canceled: true };
-            }
-
-            const chosenDir = path.dirname(result.filePath);
-            const reportDirName = `Report ${rootName}`;
-            const reportDir = path.join(chosenDir, reportDirName);
-            fs.mkdirSync(reportDir, { recursive: true });
-
-              const htmlPath = path.join(reportDir, "report-gerarchia.html");
-              const jsonPath = path.join(reportDir, "report-data.json");
-              const jsPath = path.join(reportDir, "report.js");
-              const cssPath = path.join(reportDir, "report.css");
-              const chartPath = path.join(reportDir, "chart.umd.js");
-
-              fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), "utf8");
-
-              try {
-                  const templateDir = path.join(__dirname, "..", "templates");
-                  const htmlTemplatePath = path.join(templateDir, "hierarchy-report.html");
-                  const cssTemplatePath = path.join(templateDir, "hierarchy-report.css");
-                  const jsTemplatePath = path.join(templateDir, "hierarchy-report.js");
-
-                  const htmlTemplate = fs.readFileSync(htmlTemplatePath, "utf8");
-                  const cssContent = fs.readFileSync(cssTemplatePath, "utf8");
-                  const jsTemplate = fs.readFileSync(jsTemplatePath, "utf8");
-
-                  const jsContent =
-                      "const REPORT_DATA = " +
-                      JSON.stringify(data, null, 2) +
-                      ";\n\n" +
-                      jsTemplate;
-
-                  fs.writeFileSync(htmlPath, htmlTemplate, "utf8");
-                  fs.writeFileSync(cssPath, cssContent, "utf8");
-                  fs.writeFileSync(jsPath, jsContent, "utf8");
-
-                  try {
-                      const chartMainPath = require.resolve("chart.js");
-                      const chartSrcPath = path.join(path.dirname(chartMainPath), "chart.umd.js");
-                      fs.copyFileSync(chartSrcPath, chartPath);
-                  } catch (chartErr) {
-                      log.warn("[hierarchy] impossibile copiare chart.js per il report navigabile:", chartErr);
-                  }
-
-                  return {
-                      canceled: false,
-                      htmlPath,
-                      jsonPath,
-                  };
-              } catch (templateErr) {
-                  log.error("[hierarchy] errore durante la generazione del report navigabile da template:", templateErr);
-              }
-
-              const htmlContent = buildHierarchyReportHtml();
-              const cssContent = buildHierarchyReportCss();
-              const jsContent = buildHierarchyReportJs(data);
-
-              fs.writeFileSync(htmlPath, htmlContent, "utf8");
-              fs.writeFileSync(cssPath, cssContent, "utf8");
-              fs.writeFileSync(jsPath, jsContent, "utf8");
-
-            return {
-                canceled: false,
-                htmlPath,
-                jsonPath,
-            };
-        } catch (err) {
-            log.error("[hierarchy] export-navigable-report error", err);
-            return {
-                canceled: false,
-                error: err.message || String(err),
-            };
-        }
-    });
+        },
+    );
 }
 
 export { setupFileManager, openTimerWindow };
