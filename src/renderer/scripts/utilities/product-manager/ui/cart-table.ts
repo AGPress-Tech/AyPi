@@ -1,5 +1,30 @@
 ﻿// @ts-nocheck
 require("../../../shared/dev-guards");
+async function copyTextToClipboard(text) {
+    const value = String(text || "").trim();
+    if (!value) return false;
+    try {
+        if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+    } catch (_) {}
+    try {
+        const area = document.createElement("textarea");
+        area.value = value;
+        area.setAttribute("readonly", "true");
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(area);
+        return Boolean(copied);
+    } catch (_) {
+        return false;
+    }
+}
+
 function renderCartTable({
     document,
     isAdmin,
@@ -267,7 +292,31 @@ function renderCartTable({
 
         const productCell = document.createElement("div");
         productCell.className = "pm-table__cell";
-        productCell.appendChild(buildProductCell(row.product, row.tags));
+        const productNode = buildProductCell(row.product, row.tags);
+        if (isAdmin()) {
+            const titleEl = productNode.querySelector(".pm-product-title");
+            if (titleEl) {
+                titleEl.classList.add("pm-copyable-product");
+                titleEl.title = "Click per copiare il testo prodotto";
+                titleEl.addEventListener("click", async (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const ok = await copyTextToClipboard(row.product);
+                    const oldIndicator = productNode.querySelector(".pm-copy-indicator");
+                    if (oldIndicator) oldIndicator.remove();
+                    const indicator = document.createElement("span");
+                    indicator.className = `pm-copy-indicator ${ok ? "is-ok" : "is-error"}`;
+                    indicator.textContent = ok ? "Copiato" : "Errore";
+                    titleEl.appendChild(indicator);
+                    titleEl.title = ok ? "Copiato negli appunti" : "Copia non riuscita";
+                    setTimeout(() => {
+                        indicator.remove();
+                        titleEl.title = "Click per copiare il testo prodotto";
+                    }, 1200);
+                });
+            }
+        }
+        productCell.appendChild(productNode);
 
         const quantityCell = document.createElement("div");
         quantityCell.className = "pm-table__cell";
