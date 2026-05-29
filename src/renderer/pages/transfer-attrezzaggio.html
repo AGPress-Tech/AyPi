@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schede Attrezzaggio Transfer</title>
+    <link rel="stylesheet" href="../styles/transfer-attrezzaggio-style.css">
+</head>
+<body>
+    <main class="container">
+        <section id="homeView" class="view">
+            <article class="home-card">
+                <h1>Schede Attrezzaggio Transfer</h1>
+                <p class="home-subtitle">Gestione, modifica e stampa delle schede di attrezzaggio.</p>
+                <div class="home-actions">
+                    <button id="showListBtn">Lista Schede Attrezzaggio</button>
+                    <button id="showCreateBtn">Crea Scheda Attrezzaggio</button>
+                    <button id="closeWindowBtn">Chiudi</button>
+                </div>
+            </article>
+        </section>
+
+        <section id="listView" class="view hidden">
+            <div class="toolbar">
+                <button id="backFromListBtn">Indietro</button>
+                <button id="refreshListBtn">Aggiorna Lista</button>
+            </div>
+            <h2>Lista Schede</h2>
+            <ul id="cardsList" class="cards-list"></ul>
+        </section>
+
+        <section id="formView" class="view hidden">
+            <div class="toolbar">
+                <button id="backFromFormBtn">Indietro</button>
+                <button id="newFormBtn">Nuova</button>
+                <button id="saveFormBtn">Salva Scheda</button>
+                <button id="printFormBtn">Stampa</button>
+            </div>
+
+            <article class="sheet">
+                <header class="sheet-head">
+                    <div class="sheet-title">METODO DI ATTREZZAGGIO TRANSFER</div>
+                    <div id="methodIdLabel" class="sheet-code">Codice: (nuova scheda)</div>
+                </header>
+
+                <section class="sheet-meta">
+                    <div class="meta-row meta-row-primary">
+                        <label>Codice Articolo<input id="codiceArticolo" type="text"></label>
+                        <label>Fase<input id="fase" type="text"></label>
+                        <label>Codice Macchina<input id="codiceMacchina" type="text"></label>
+                    </div>
+                    <div class="meta-row meta-row-secondary">
+                        <label>Tempo Ciclo (s)<input id="cicloLavorazione" type="text"></label>
+                        <label>Lavorazione<input id="lavorazione" type="text"></label>
+                        <label>Metodo/Variante<input id="metodo" type="text" placeholder="Es. 01, A, B"></label>
+                    </div>
+                    <div class="meta-row meta-row-notes">
+                        <label>Note<textarea id="note" rows="2"></textarea></label>
+                    </div>
+                </section>
+
+                <div class="utensili-topbar">
+                    <h3>Lista Utensili</h3>
+                    <button id="addRowBtn" type="button">Aggiungi Riga</button>
+                </div>
+
+                <div class="table-wrap">
+                    <table id="utensiliTable">
+                        <thead>
+                            <tr>
+                                <th>Nr Unita*</th>
+                                <th>ISO*</th>
+                                <th class="desc-col">Descrizione Utensile*</th>
+                                <th><img data-col-icon="1" alt="1"></th>
+                                <th><img data-col-icon="2" alt="2"></th>
+                                <th><img data-col-icon="3" alt="3"></th>
+                                <th><img data-col-icon="4" alt="4"></th>
+                                <th><img data-col-icon="5" alt="5"></th>
+                                <th><img data-col-icon="6" alt="6"></th>
+                                <th><img data-col-icon="7" alt="7"></th>
+                                <th><img data-col-icon="8" alt="8"></th>
+                                <th><img data-col-icon="10" alt="10"></th>
+                                <th><img data-col-icon="12" alt="12"></th>
+                                <th><img data-col-icon="13" alt="13"></th>
+                                <th><img data-col-icon="14" alt="14"></th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="utensiliBody"></tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    </main>
+
+    <script src="../scripts/transfer-attrezzaggio-scripts.js"></script>
+</body>
+</html>

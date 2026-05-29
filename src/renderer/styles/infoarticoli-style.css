@@ -17,7 +17,9 @@ h6,
 p,
 span,
 label,
-a {
+a,
+.sidebar,
+.sidebar * {
     user-select: none;
     -webkit-user-select: none;
     -ms-user-select: none;
@@ -27,11 +29,10 @@ input,
 textarea,
 select,
 [contenteditable="true"] {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -ms-user-select: text !important;
+    user-select: text;
+    -webkit-user-select: text;
+    -ms-user-select: text;
 }
-
 
 @keyframes fadeInBody {
     from { opacity: 0; }
@@ -64,7 +65,7 @@ h4::after {
 
 
 button {
-    width: 95%;
+    width: 45%;
     padding: 12px;
     margin: 15px 10px;
     font-size: 18px;
@@ -139,9 +140,9 @@ button:focus {
 .sidebar .closebtn {
     position: absolute;
     top: 0;
-    right: 25px;
+    right: 10px;
     font-size: 36px;
-    margin-left: 50px;
+    margin-left: 0;
 }
 
 @media screen and (max-height: 450px) {
@@ -163,7 +164,7 @@ span {
 }
 
 #main {
-    transition: margin-left .5s;
+    transition: margin-left 0.5s;
     padding: 8px;
 }
 
@@ -173,6 +174,7 @@ span {
     left: 39%;
     font-size: 18px;
 }
+
 .clock-span {
     position: static;
     font-size: 18px;
@@ -219,7 +221,6 @@ span {
 
 
 
-
 /* Global non-selectable text */
 body,
 body * {
@@ -236,3 +237,6 @@ select,
     -webkit-user-select: text !important;
     -ms-user-select: text !important;
 }
+
+.infoarticoli-actions { display: contents; }
+.infoarticoli-actions button:last-child { width: 93%; }

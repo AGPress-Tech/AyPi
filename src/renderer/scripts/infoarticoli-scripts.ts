@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 require("./shared/dev-guards");
 const { ipcRenderer } = require("electron");
 const { initCommonUI } = require("../modules/utils");
@@ -29,6 +29,12 @@ initCommonUI();
         });
     }
 });
+
+document
+    .getElementById("openSchedeAttrezzaggioTransfer")
+    ?.addEventListener("click", () => {
+        ipcRenderer.send("open-transfer-attrezzaggio-window");
+    });
 
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");

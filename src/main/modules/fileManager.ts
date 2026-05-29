@@ -28,6 +28,7 @@ function getFpBaseConfigPath() {
 }
 const ADDRESS_BOOK_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\addresses";
 const ADDRESS_BOOK_PATH = path.join(ADDRESS_BOOK_DIR, "aypi-addresses.json");
+const TRANSFER_ATTREZZAGGIO_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\Schede Attrezzaggio\\Transfer";
 
 type AddressEntry = {
     path: string;
@@ -1811,6 +1812,7 @@ let ticketSupportWindow: BrowserWindow | null = null;
 let ticketSupportAdminWindow: BrowserWindow | null = null;
 let assigneesManagerWindow: BrowserWindow | null = null;
 let adminManagerWindow: BrowserWindow | null = null;
+let transferAttrezzaggioWindow: BrowserWindow | null = null;
 let productManagerSession: Record<string, unknown> | null = null;
 let productManagerForceLogout = false;
 let suppressTicketWindowChaining = false;
@@ -2533,6 +2535,38 @@ function openAdminManagerWindow(mainWindow) {
     });
 }
 
+function openTransferAttrezzaggioWindow(mainWindow) {
+    if (isWindowAlive(transferAttrezzaggioWindow)) {
+        showWindow(transferAttrezzaggioWindow);
+        return;
+    }
+
+    transferAttrezzaggioWindow = new BrowserWindow({
+        width: 1280,
+        height: 860,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+    });
+
+    transferAttrezzaggioWindow.loadFile(
+        path.join(__dirname, "..", "pages", "transfer-attrezzaggio.html"),
+    );
+    transferAttrezzaggioWindow.setMenu(null);
+    transferAttrezzaggioWindow.once("ready-to-show", () => {
+        if (!transferAttrezzaggioWindow?.isDestroyed()) {
+            transferAttrezzaggioWindow.maximize();
+            showWindow(transferAttrezzaggioWindow);
+        }
+    });
+
+    transferAttrezzaggioWindow.on("closed", () => {
+        transferAttrezzaggioWindow = null;
+        showMainWindow(mainWindow);
+    });
+}
+
 function openCompareFoldersWindow(slot, folder) {
     const createWindow = () => {
         compareFoldersWindow = new BrowserWindow({
@@ -2593,6 +2627,32 @@ function openCompareFoldersWindow(slot, folder) {
             }
         }
     }
+}
+
+function ensureTransferAttrezzaggioDir() {
+    if (!fs.existsSync(TRANSFER_ATTREZZAGGIO_DIR)) {
+        fs.mkdirSync(TRANSFER_ATTREZZAGGIO_DIR, { recursive: true });
+    }
+}
+
+function transferSafeName(input: string) {
+    return String(input || "")
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function transferCodeFromPayload(payload: any) {
+    const articolo = transferSafeName(payload?.codiceArticolo || "");
+    const fase = transferSafeName(payload?.fase || "");
+    const macchina = transferSafeName(payload?.codiceMacchina || "");
+    const metodo = transferSafeName(payload?.metodo || "");
+    return `${articolo}/${fase}/${macchina}/${metodo}`;
+}
+
+function transferJsonPathFromCode(code: string) {
+    const fileName = transferSafeName(String(code || "").replace(/\//g, "_"));
+    return path.join(TRANSFER_ATTREZZAGGIO_DIR, `${fileName}.json`);
 }
 
 function setupFileManager(mainWindow) {
@@ -3421,6 +3481,99 @@ function setupFileManager(mainWindow) {
 
     ipcMain.on("open-batch-rename-window", () => {
         openBatchRenameWindow(mainWindow);
+    });
+    ipcMain.on("open-transfer-attrezzaggio-window", () => {
+        openTransferAttrezzaggioWindow(mainWindow);
+    });
+
+    ipcMain.handle("transfer-attrezzaggio-list", async () => {
+        try {
+            ensureTransferAttrezzaggioDir();
+            const files = fs
+                .readdirSync(TRANSFER_ATTREZZAGGIO_DIR)
+                .filter((name) => name.toLowerCase().endsWith(".json"));
+            const items = files
+                .map((name) => {
+                    const fullPath = path.join(TRANSFER_ATTREZZAGGIO_DIR, name);
+                    try {
+                        const raw = fs.readFileSync(fullPath, "utf8");
+                        const parsed = JSON.parse(raw);
+                        const stat = fs.statSync(fullPath);
+                        return {
+                            code: parsed?.code || name.replace(/\.json$/i, ""),
+                            fileName: name,
+                            updatedAt: stat.mtimeMs || 0,
+                        };
+                    } catch {
+                        return null;
+                    }
+                })
+                .filter(Boolean)
+                .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            return { ok: true, items };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
+    });
+
+    ipcMain.handle("transfer-attrezzaggio-load", async (_event, payload) => {
+        try {
+            ensureTransferAttrezzaggioDir();
+            const code = String(payload?.code || "");
+            if (!code) return { ok: false, error: "Codice mancante." };
+            const fullPath = transferJsonPathFromCode(code);
+            if (!fs.existsSync(fullPath)) {
+                return { ok: false, error: "Scheda non trovata." };
+            }
+            const raw = fs.readFileSync(fullPath, "utf8");
+            const item = JSON.parse(raw);
+            return { ok: true, item };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
+    });
+
+    ipcMain.handle("transfer-attrezzaggio-save", async (_event, payload) => {
+        try {
+            ensureTransferAttrezzaggioDir();
+            const code = transferCodeFromPayload(payload);
+            if (!code || code === "///") {
+                return { ok: false, error: "Codice scheda non valido." };
+            }
+            const item = {
+                code,
+                codiceArticolo: String(payload?.codiceArticolo || ""),
+                fase: String(payload?.fase || ""),
+                codiceMacchina: String(payload?.codiceMacchina || ""),
+                metodo: String(payload?.metodo || ""),
+                lavorazione: String(payload?.lavorazione || ""),
+                cicloLavorazione: String(payload?.cicloLavorazione || ""),
+                note: String(payload?.note || ""),
+                utensili: Array.isArray(payload?.utensili) ? payload.utensili : [],
+                updatedAt: new Date().toISOString(),
+            };
+            const fullPath = transferJsonPathFromCode(code);
+            fs.writeFileSync(fullPath, JSON.stringify(item, null, 2), "utf8");
+            return { ok: true, code };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
+    });
+
+    ipcMain.handle("transfer-attrezzaggio-delete", async (_event, payload) => {
+        try {
+            ensureTransferAttrezzaggioDir();
+            const code = String(payload?.code || "");
+            if (!code) return { ok: false, error: "Codice mancante." };
+            const fullPath = transferJsonPathFromCode(code);
+            if (!fs.existsSync(fullPath)) {
+                return { ok: false, error: "Scheda non trovata." };
+            }
+            fs.unlinkSync(fullPath);
+            return { ok: true };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
     });
 
     ipcMain.on("open-qr-generator-window", () => {
