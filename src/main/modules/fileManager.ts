@@ -3528,6 +3528,9 @@ function setupFileManager(mainWindow) {
                         const utensiliDescrizioni = utensili
                             .map((u) => String(u?.descrizione || "").trim())
                             .filter(Boolean);
+                        const utensiliCol1 = utensili
+                            .map((u) => String(u?.col1 || "").trim())
+                            .filter(Boolean);
                         return {
                             code,
                             fileName: name,
@@ -3541,6 +3544,7 @@ function setupFileManager(mainWindow) {
                             note: record?.note || "",
                             utensiliCount: utensili.length,
                             utensiliDescrizioni,
+                            utensiliCol1,
                         };
                     } catch {
                         return null;

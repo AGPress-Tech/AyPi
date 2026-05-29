@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schede Attrezzaggio Transfer</title>
     <link rel="stylesheet" href="../styles/transfer-attrezzaggio-style.css">
 </head>
+
 <body>
     <main class="container">
         <section id="homeView" class="view">
@@ -28,16 +30,20 @@
             <h2>Lista Schede</h2>
             <div class="list-filters">
                 <label>Codice Articolo
-                    <input id="filterCodiceArticolo" type="text" placeholder="Es. 1/21A400">
+                    <input id="filterCodiceArticolo" type="text" placeholder="Es. 1164A, 1401B">
                 </label>
                 <label>Codice Macchina
-                    <input id="filterCodiceMacchina" type="text" placeholder="Es. M10">
+                    <input id="filterCodiceMacchina" type="text" placeholder="Es. 21A400">
                 </label>
-                <label>Ricerca (Lavorazione / Note)
-                    <input id="filterText" type="text" placeholder="Parola chiave">
+                <label>Ricerca (Note)
+                    <input id="filterText" type="text">
+                </label>
+                <label>Descrizione Lavorazione
+                    <input id="filterDescrizioneLavorazione" type="text"
+                        placeholder="Es. Filetto, Attacco, Sgrossatura">
                 </label>
                 <label>Utensile (Descrizione)
-                    <input id="filterUtensile" type="text" placeholder="Es. Punta, Alesatore...">
+                    <input id="filterUtensile" type="text" placeholder="Es. 22T065, FresaØ10, Maschio M10">
                 </label>
                 <button id="clearFiltersBtn" type="button">Reset Filtri</button>
             </div>
@@ -68,7 +74,7 @@
                     <div class="meta-row meta-row-secondary">
                         <label>Tempo Ciclo (s)<input id="cicloLavorazione" type="text"></label>
                         <label>Lavorazione<input id="lavorazione" type="text"></label>
-                        <label>Metodo/Variante<input id="metodo" type="text" placeholder="Es. 01, A, B"></label>
+                        <label>Metodo/Variante<input id="metodo" type="text" placeholder="Es. A, B"></label>
                     </div>
                     <div class="meta-row meta-row-notes">
                         <label>Note<textarea id="note" rows="2"></textarea></label>
@@ -86,7 +92,7 @@
                             <tr>
                                 <th>Nr Unita*</th>
                                 <th>ISO*</th>
-                                <th class="desc-col">Descrizione Utensile*</th>
+                                <th class="desc-col">Descrizione Lavorazione*</th>
                                 <th><img data-col-icon="1" alt="1"></th>
                                 <th><img data-col-icon="2" alt="2"></th>
                                 <th><img data-col-icon="3" alt="3"></th>
@@ -111,4 +117,5 @@
 
     <script src="../scripts/transfer-attrezzaggio-scripts.js"></script>
 </body>
+
 </html>

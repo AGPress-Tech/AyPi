@@ -28,6 +28,8 @@ const PRINT_LOGO_PATH = path.join(__dirname, "..", "assets", "agpress-logo-gener
 let currentCode = null;
 const iconDataByCol = {};
 let printLogoData = "";
+let formOrigin = "home";
+let formReadOnly = false;
 
 const homeView = document.getElementById("homeView");
 const listView = document.getElementById("listView");
@@ -39,6 +41,7 @@ const listCount = document.getElementById("listCount");
 const filterCodiceArticolo = document.getElementById("filterCodiceArticolo");
 const filterCodiceMacchina = document.getElementById("filterCodiceMacchina");
 const filterText = document.getElementById("filterText");
+const filterDescrizioneLavorazione = document.getElementById("filterDescrizioneLavorazione");
 const filterUtensile = document.getElementById("filterUtensile");
 
 let allListItems = [];
@@ -48,6 +51,38 @@ function showView(name) {
     listView.classList.toggle("hidden", name !== "list");
     formView.classList.toggle("hidden", name !== "form");
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}
+
+function setFormReadOnly(isReadOnly) {
+    formReadOnly = !!isReadOnly;
+    formView.classList.toggle("readonly-mode", formReadOnly);
+
+    const editorSelectors = [
+        "#codiceArticolo",
+        "#fase",
+        "#codiceMacchina",
+        "#metodo",
+        "#lavorazione",
+        "#cicloLavorazione",
+        "#note",
+        "#utensiliBody input",
+        "#utensiliBody textarea",
+    ];
+    editorSelectors.forEach((selector) => {
+        formView.querySelectorAll(selector).forEach((el) => {
+            (el as HTMLInputElement | HTMLTextAreaElement).readOnly = formReadOnly;
+        });
+    });
+
+    const actionIds = ["addRowBtn", "saveFormBtn", "newFormBtn"];
+    actionIds.forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) btn.style.display = formReadOnly ? "none" : "";
+    });
+
+    formView.querySelectorAll("#utensiliBody td:last-child button").forEach((btn) => {
+        (btn as HTMLButtonElement).style.display = formReadOnly ? "none" : "";
+    });
 }
 
 function getVal(id) {
@@ -100,7 +135,6 @@ function addRow(row = {}) {
             input.className = "cell-textarea";
             input.addEventListener("input", () => autoGrowTextarea(input));
             td.appendChild(input);
-            autoGrowTextarea(input);
         } else {
             const input = document.createElement("input");
             input.type = "text";
@@ -118,7 +152,6 @@ function addRow(row = {}) {
         input.value = row[`col${i}`] || "";
         input.className = "cell-textarea";
         input.addEventListener("input", () => autoGrowTextarea(input));
-        autoGrowTextarea(input);
         td.appendChild(input);
         tr.appendChild(td);
     });
@@ -127,14 +160,28 @@ function addRow(row = {}) {
     del.textContent = "Rimuovi";
     del.type = "button";
     del.addEventListener("click", () => tr.remove());
+    if (formReadOnly) del.style.display = "none";
     tdAction.appendChild(del);
     tr.appendChild(tdAction);
     utensiliBody.appendChild(tr);
+    requestAnimationFrame(() => {
+        tr.querySelectorAll("textarea.cell-textarea").forEach((el) => {
+            autoGrowTextarea(el as HTMLTextAreaElement);
+        });
+    });
 }
 
 function autoGrowTextarea(el) {
     el.style.height = "auto";
     el.style.height = `${Math.max(28, el.scrollHeight)}px`;
+}
+
+function refreshTableAutoGrow() {
+    requestAnimationFrame(() => {
+        utensiliBody.querySelectorAll("textarea.cell-textarea").forEach((el) => {
+            autoGrowTextarea(el as HTMLTextAreaElement);
+        });
+    });
 }
 
 function readRows() {
@@ -156,6 +203,7 @@ function resetForm() {
     utensiliBody.innerHTML = "";
     addRow();
     updateCodeLabel();
+    setFormReadOnly(false);
 }
 
 function applyHeaderIcons() {
@@ -202,6 +250,8 @@ function printCard(card) {
         <style>
             @page { size: A3 landscape; margin: 10mm; }
             body { font-family: Segoe UI, Tahoma, sans-serif; font-size: 12px; }
+            .preview-toolbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #ccc; padding: 8px; margin: -8px -8px 10px -8px; }
+            .preview-toolbar button { padding: 6px 10px; border: 1px solid #888; background: #fff; cursor: pointer; }
             .head { display:flex; align-items:flex-start; gap:12px; margin-bottom:8px; }
             .head img { width: 220px; max-height: 60px; object-fit: contain; object-position: left top; }
             .head h3 { margin: 0; font-size: 24px; line-height: 1.1; }
@@ -214,7 +264,11 @@ function printCard(card) {
             th { background:#ffffff; }
             td:nth-child(3), th:nth-child(3) { text-align:left; }
             .desc { width:18%; }
+            @media print { .preview-toolbar { display:none; } }
         </style></head><body>
+        <div class="preview-toolbar">
+          <button onclick="window.print()">Stampa</button>
+        </div>
         <div class="head">
           ${printLogoData ? `<img src="${printLogoData}" alt="A.G.PRESS">` : ""}
           <div>
@@ -232,16 +286,15 @@ function printCard(card) {
           <div><strong>Note</strong><br>${card.note || ""}</div>
         </div>
         <table>
-            <thead><tr><th>Nr Unita</th><th>ISO</th><th class="desc">Descrizione</th>${headerIcons.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+            <thead><tr><th>Nr Unita</th><th>ISO</th><th class="desc">Descrizione Lavorazione</th>${headerIcons.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
             <tbody>${rows}</tbody>
         </table>
-        <script>window.onload=()=>window.print();</script>
         </body></html>
     `);
     win.document.close();
 }
 
-async function loadCardAndOpenForm(code) {
+async function loadCardAndOpenForm(code, options = { readOnly: false }) {
     const loaded = await ipcRenderer.invoke("transfer-attrezzaggio-load", { code });
     if (!loaded?.ok) {
         window.alert(loaded?.error || "Errore caricamento scheda");
@@ -259,7 +312,10 @@ async function loadCardAndOpenForm(code) {
     utensiliBody.innerHTML = "";
     (card.utensili || []).forEach(addRow);
     if (!(card.utensili || []).length) addRow();
+    refreshTableAutoGrow();
     updateCodeLabel();
+    formOrigin = "list";
+    setFormReadOnly(!!options?.readOnly);
     showView("form");
 }
 
@@ -289,19 +345,24 @@ function matchesFilters(item) {
     const fArt = normalize(filterCodiceArticolo?.value);
     const fMac = normalize(filterCodiceMacchina?.value);
     const fText = normalize(filterText?.value);
+    const fDescLav = normalize(filterDescrizioneLavorazione?.value);
     const fUte = normalize(filterUtensile?.value);
 
     const codiceArticolo = normalize(item?.codiceArticolo);
     const codiceMacchina = normalize(item?.codiceMacchina);
     const lavorazione = normalize(item?.lavorazione);
     const note = normalize(item?.note);
-    const utensili = Array.isArray(item?.utensiliDescrizioni)
+    const descrLavorazioni = Array.isArray(item?.utensiliDescrizioni)
         ? item.utensiliDescrizioni.map(normalize).join(" | ")
+        : "";
+    const utensili = Array.isArray(item?.utensiliCol1)
+        ? item.utensiliCol1.map(normalize).join(" | ")
         : "";
 
     if (fArt && !codiceArticolo.includes(fArt)) return false;
     if (fMac && !codiceMacchina.includes(fMac)) return false;
     if (fText && !(lavorazione.includes(fText) || note.includes(fText))) return false;
+    if (fDescLav && !descrLavorazioni.includes(fDescLav)) return false;
     if (fUte && !utensili.includes(fUte)) return false;
     return true;
 }
@@ -318,14 +379,31 @@ function renderListFiltered() {
         const code = document.createElement("span");
         code.className = "code";
         code.innerHTML = buildCodeHtml(item);
+        code.addEventListener("click", () => loadCardAndOpenForm(item.code, { readOnly: true }));
+        code.title = "Apri scheda in sola visualizzazione";
         const meta = document.createElement("span");
         meta.className = "code-meta";
         meta.textContent = `Articolo: ${item.codiceArticolo || "-"} | Fase: ${item.fase || "-"} | Macchina: ${item.codiceMacchina || "-"} | Metodo: ${item.metodo || "-"} | Lavorazione: ${item.lavorazione || "-"} | Ciclo(s): ${item.cicloLavorazione || "-"} | Utensili: ${item.utensiliCount || 0} | Agg.: ${formatDateTs(item.updatedAt)}`;
+        const tools = document.createElement("span");
+        tools.className = "tools-meta";
+        const descList = Array.isArray(item.utensiliDescrizioni) ? item.utensiliDescrizioni.filter(Boolean) : [];
+        const toolList = Array.isArray(item.utensiliCol1) ? item.utensiliCol1.filter(Boolean) : [];
+        const maxLen = Math.max(descList.length, toolList.length);
+        const pairs = [];
+        for (let i = 0; i < maxLen; i += 1) {
+            const desc = descList[i] || "-";
+            const tool = toolList[i] || "-";
+            pairs.push(`${desc} - ${tool}`);
+        }
+        tools.textContent = pairs.length
+            ? `Descrizione lavorazione - Utensile: ${pairs.join(" | ")}`
+            : "Descrizione lavorazione - Utensile: -";
         details.appendChild(code);
         details.appendChild(meta);
+        details.appendChild(tools);
         const edit = document.createElement("button");
         edit.textContent = "Modifica";
-        edit.addEventListener("click", () => loadCardAndOpenForm(item.code));
+        edit.addEventListener("click", () => loadCardAndOpenForm(item.code, { readOnly: false }));
         const print = document.createElement("button");
         print.textContent = "Stampa";
         print.addEventListener("click", async () => {
@@ -397,17 +475,30 @@ async function saveForm() {
 }
 
 document.getElementById("showListBtn")?.addEventListener("click", async () => { showView("list"); await loadList(); });
-document.getElementById("showCreateBtn")?.addEventListener("click", () => { resetForm(); showView("form"); });
+document.getElementById("showCreateBtn")?.addEventListener("click", () => {
+    resetForm();
+    formOrigin = "home";
+    setFormReadOnly(false);
+    showView("form");
+});
 document.getElementById("closeWindowBtn")?.addEventListener("click", () => window.close());
 document.getElementById("backFromListBtn")?.addEventListener("click", () => showView("home"));
 document.getElementById("refreshListBtn")?.addEventListener("click", loadList);
 document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
-    [filterCodiceArticolo, filterCodiceMacchina, filterText, filterUtensile].forEach((el) => {
+    [filterCodiceArticolo, filterCodiceMacchina, filterText, filterDescrizioneLavorazione, filterUtensile].forEach((el) => {
         if (el) el.value = "";
     });
     renderListFiltered();
 });
-document.getElementById("backFromFormBtn")?.addEventListener("click", () => showView("home"));
+document.getElementById("backFromFormBtn")?.addEventListener("click", async () => {
+    if (formOrigin === "list") {
+        showView("list");
+        if (!allListItems.length) await loadList();
+        else renderListFiltered();
+        return;
+    }
+    showView("home");
+});
 document.getElementById("newFormBtn")?.addEventListener("click", resetForm);
 document.getElementById("saveFormBtn")?.addEventListener("click", saveForm);
 document.getElementById("printFormBtn")?.addEventListener("click", () => {
@@ -428,7 +519,7 @@ document.getElementById("addRowBtn")?.addEventListener("click", () => addRow());
 ["codiceArticolo", "fase", "codiceMacchina", "metodo"].forEach((id) => {
     document.getElementById(id)?.addEventListener("input", updateCodeLabel);
 });
-[filterCodiceArticolo, filterCodiceMacchina, filterText, filterUtensile].forEach((el) => {
+[filterCodiceArticolo, filterCodiceMacchina, filterText, filterDescrizioneLavorazione, filterUtensile].forEach((el) => {
     el?.addEventListener("input", renderListFiltered);
 });
 

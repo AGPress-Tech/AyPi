@@ -245,6 +245,12 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     margin-bottom: 8px;
 }
 .cards-list .code { flex: 1; }
+.cards-list .code {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
 .card-details {
     flex: 1;
     display: flex;
@@ -255,10 +261,17 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     color: var(--text-soft);
     font-size: 12px;
 }
+.tools-meta {
+    color: #6a7788;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
 .list-filters {
     display: grid;
-    grid-template-columns: repeat(5, minmax(160px, 1fr));
+    grid-template-columns: repeat(6, minmax(150px, 1fr));
     gap: 8px;
     margin-bottom: 8px;
     align-items: end;
@@ -276,10 +289,24 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     padding: 6px;
     font-size: 13px;
 }
+#clearFiltersBtn {
+    margin: 0;
+    align-self: end;
+    min-height: 35px;
+}
 .list-count {
     margin: 4px 0 10px 0;
     color: var(--text-soft);
     font-size: 12px;
+}
+
+#formView.readonly-mode .sheet-head {
+    background: #eef3fb;
+}
+
+#formView.readonly-mode #utensiliTable th:last-child,
+#formView.readonly-mode #utensiliTable td:last-child {
+    display: none;
 }
 
 @media print {
