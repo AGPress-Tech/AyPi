@@ -26,6 +26,22 @@
                 <button id="refreshListBtn">Aggiorna Lista</button>
             </div>
             <h2>Lista Schede</h2>
+            <div class="list-filters">
+                <label>Codice Articolo
+                    <input id="filterCodiceArticolo" type="text" placeholder="Es. 1/21A400">
+                </label>
+                <label>Codice Macchina
+                    <input id="filterCodiceMacchina" type="text" placeholder="Es. M10">
+                </label>
+                <label>Ricerca (Lavorazione / Note)
+                    <input id="filterText" type="text" placeholder="Parola chiave">
+                </label>
+                <label>Utensile (Descrizione)
+                    <input id="filterUtensile" type="text" placeholder="Es. Punta, Alesatore...">
+                </label>
+                <button id="clearFiltersBtn" type="button">Reset Filtri</button>
+            </div>
+            <p id="listCount" class="list-count"></p>
             <ul id="cardsList" class="cards-list"></ul>
         </section>
 

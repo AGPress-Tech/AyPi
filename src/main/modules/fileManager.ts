@@ -2647,7 +2647,7 @@ function transferCodeFromPayload(payload: any) {
     const fase = transferSafeName(payload?.fase || "");
     const macchina = transferSafeName(payload?.codiceMacchina || "");
     const metodo = transferSafeName(payload?.metodo || "");
-    return `${articolo}/${fase}/${macchina}/${metodo}`;
+    return `${articolo} - Fase: ${fase} - ${macchina} - ${metodo}`;
 }
 
 function transferJsonPathFromCode(code: string) {
@@ -3498,11 +3498,49 @@ function setupFileManager(mainWindow) {
                     try {
                         const raw = fs.readFileSync(fullPath, "utf8");
                         const parsed = JSON.parse(raw);
+                        const record = parsed?.item || parsed?.data || parsed || {};
                         const stat = fs.statSync(fullPath);
+                        const code = String(record?.code || name.replace(/\.json$/i, ""));
+                        let codeArt = "";
+                        let codeFase = "";
+                        let codeMacchina = "";
+                        let codeMetodo = "";
+                        if (code.includes("/")) {
+                            const oldParts = code.split("/");
+                            codeArt = oldParts[0] || "";
+                            codeFase = oldParts[1] || "";
+                            codeMacchina = oldParts[2] || "";
+                            codeMetodo = oldParts[3] || "";
+                        } else {
+                            const m = code.match(/^(.*?)\s*-\s*Fase:\s*(.*?)\s*-\s*(.*?)\s*-\s*(.*)$/i);
+                            if (m) {
+                                codeArt = m[1] || "";
+                                codeFase = m[2] || "";
+                                codeMacchina = m[3] || "";
+                                codeMetodo = m[4] || "";
+                            }
+                        }
+                        const utensili = Array.isArray(record?.utensili)
+                            ? record.utensili
+                            : Array.isArray(record?.tools)
+                              ? record.tools
+                            : [];
+                        const utensiliDescrizioni = utensili
+                            .map((u) => String(u?.descrizione || "").trim())
+                            .filter(Boolean);
                         return {
-                            code: parsed?.code || name.replace(/\.json$/i, ""),
+                            code,
                             fileName: name,
                             updatedAt: stat.mtimeMs || 0,
+                            codiceArticolo: record?.codiceArticolo || codeArt || "",
+                            fase: record?.fase || codeFase || "",
+                            codiceMacchina: record?.codiceMacchina || codeMacchina || "",
+                            metodo: record?.metodo || codeMetodo || "",
+                            lavorazione: record?.lavorazione || "",
+                            cicloLavorazione: record?.cicloLavorazione || "",
+                            note: record?.note || "",
+                            utensiliCount: utensili.length,
+                            utensiliDescrizioni,
                         };
                     } catch {
                         return null;
