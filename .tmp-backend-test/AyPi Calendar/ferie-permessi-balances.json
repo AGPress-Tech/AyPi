@@ -1,0 +1,11 @@
+{
+  "Ufficio|Mario Rossi": {
+    "hoursAvailable": 92,
+    "lastAccrualMonth": "2026-06",
+    "monthlyAccrualHours": 16,
+    "employee": "Mario Rossi",
+    "department": "Ufficio",
+    "closureAppliedMonth": "2026-06",
+    "closureAppliedHours": 0
+  }
+}

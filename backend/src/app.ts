@@ -1,0 +1,149 @@
+import http from "http";
+import { backendConfig } from "./config";
+import { registerRoutes } from "./routes";
+import { logger } from "./shared/logging/logger";
+import { Router } from "./shared/http/router";
+import { sendJson } from "./shared/http/response";
+import {
+    getRequestClient,
+    getRequestId,
+    getRequestUser,
+    setRequestId,
+} from "./shared/http/context";
+
+export type BackendServerHandle = {
+    host: string;
+    port: number;
+    url: string;
+    server: http.Server;
+    stop: () => Promise<void>;
+};
+
+function buildRequestIdFactory() {
+    let requestCounter = 0;
+    return () => {
+        requestCounter += 1;
+        return `req_${Date.now()}_${requestCounter}`;
+    };
+}
+
+export function buildBackendUrl() {
+    return `http://${backendConfig.advertisedHost}:${backendConfig.port}`;
+}
+
+export function createBackendServer() {
+    const router = new Router();
+    registerRoutes(router);
+    const nextRequestId = buildRequestIdFactory();
+
+    return http.createServer(async (request, response) => {
+        const startedAt = Date.now();
+        const method = (request.method || "GET").toUpperCase();
+        const requestUrl = request.url || "/";
+        const remoteAddress = request.socket?.remoteAddress || "";
+        const requestId = nextRequestId();
+        setRequestId(request, requestId);
+        response.setHeader("x-aypi-request-id", requestId);
+
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader(
+            "Access-Control-Allow-Methods",
+            "GET,POST,PUT,DELETE,OPTIONS",
+        );
+        response.setHeader(
+            "Access-Control-Allow-Headers",
+            "Content-Type,x-aypi-user,x-aypi-client",
+        );
+
+        if (method === "OPTIONS") {
+            response.writeHead(204);
+            response.end();
+            return;
+        }
+
+        try {
+            logger.info("HTTP request started", {
+                requestId,
+                method,
+                url: requestUrl,
+                user: getRequestUser(request),
+                client: getRequestClient(request),
+                remoteAddress,
+            });
+            await router.handle(request, response);
+            logger.info("HTTP request completed", {
+                requestId,
+                method,
+                url: requestUrl,
+                user: getRequestUser(request),
+                client: getRequestClient(request),
+                remoteAddress,
+                statusCode: response.statusCode,
+                durationMs: Date.now() - startedAt,
+            });
+        } catch (error) {
+            logger.error("HTTP request failed", {
+                requestId: getRequestId(request),
+                method,
+                url: requestUrl,
+                user: getRequestUser(request),
+                client: getRequestClient(request),
+                remoteAddress,
+                durationMs: Date.now() - startedAt,
+                detail: error instanceof Error ? error.message : String(error),
+            });
+            sendJson(response, 500, {
+                error: "Internal Server Error",
+                detail: error instanceof Error ? error.message : String(error),
+            });
+        }
+    });
+}
+
+export function startBackendServer(): Promise<BackendServerHandle> {
+    return new Promise((resolve, reject) => {
+        const server = createBackendServer();
+        const host = backendConfig.host;
+        const port = backendConfig.port;
+        const url = buildBackendUrl();
+
+        const onError = (error: Error) => {
+            server.off("listening", onListening);
+            reject(error);
+        };
+
+        const onListening = () => {
+            server.off("error", onError);
+            logger.info("AyPi backend listening", {
+                host,
+                port,
+                url,
+                profile: backendConfig.profile,
+                calendarDir: backendConfig.modules.feriePermessi.calendarDir,
+                generalDir: backendConfig.modules.feriePermessi.generalDir,
+                logDir: backendConfig.logging.dir,
+            });
+            resolve({
+                host,
+                port,
+                url,
+                server,
+                stop: () =>
+                    new Promise<void>((stopResolve, stopReject) => {
+                        server.close((closeErr) => {
+                            if (closeErr) {
+                                stopReject(closeErr);
+                                return;
+                            }
+                            logger.info("AyPi backend stopped", { host, port });
+                            stopResolve();
+                        });
+                    }),
+            });
+        };
+
+        server.once("error", onError);
+        server.once("listening", onListening);
+        server.listen(port, host);
+    });
+}

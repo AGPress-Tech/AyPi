@@ -43,6 +43,8 @@ type PendingPanelOptions = {
     isAdminRequiredForPendingAccess: () => boolean;
     isAdminRequiredForPendingApprove: () => boolean;
     isAdminRequiredForPendingReject: () => boolean;
+    approveRequest: (requestId: string, actor?: string) => Promise<any>;
+    rejectRequest: (requestId: string, actor?: string) => Promise<any>;
 };
 
 function createPendingPanel(options: PendingPanelOptions) {
@@ -66,6 +68,8 @@ function createPendingPanel(options: PendingPanelOptions) {
         isAdminRequiredForPendingAccess,
         isAdminRequiredForPendingApprove,
         isAdminRequiredForPendingReject,
+        approveRequest,
+        rejectRequest,
     } = options || ({} as PendingPanelOptions);
 
     if (!document) {
@@ -132,24 +136,12 @@ function createPendingPanel(options: PendingPanelOptions) {
                             return;
                         }
                     }
-                    const updated = syncData((payload) => {
-                        const target = (payload.requests || []).find(
-                            (req: RequestLike) => req.id === request.id,
-                        );
-                        if (target) {
-                            target.status = "approved";
-                            target.approvedAt = new Date().toISOString();
-                            target.approvedBy =
-                                getLoggedAdminName?.() ||
-                                getPendingUnlockedBy?.() ||
-                                target.approvedBy ||
-                                "";
-                            if (typeof applyBalanceForApproval === "function") {
-                                applyBalanceForApproval(payload, target);
-                            }
-                        }
-                        return payload;
-                    });
+                    const updated = await approveRequest(
+                        request.id || "",
+                        getLoggedAdminName?.() ||
+                            getPendingUnlockedBy?.() ||
+                            "",
+                    );
                     renderAll(updated);
                 };
                 if (needsAdmin && typeof requireAccess === "function") {
@@ -177,22 +169,13 @@ function createPendingPanel(options: PendingPanelOptions) {
                     typeof isAdminRequiredForPendingReject === "function"
                         ? !!isAdminRequiredForPendingReject()
                         : true;
-                const run = () => {
-                    const updated = syncData((payload) => {
-                        const target = (payload.requests || []).find(
-                            (req: RequestLike) => req.id === request.id,
-                        );
-                        if (target) {
-                            target.status = "rejected";
-                            target.rejectedAt = new Date().toISOString();
-                            target.rejectedBy =
-                                getLoggedAdminName?.() ||
-                                getPendingUnlockedBy?.() ||
-                                UI_TEXTS.defaultAdminLabel;
-                            target.updatedAt = new Date().toISOString();
-                        }
-                        return payload;
-                    });
+                const run = async () => {
+                    const updated = await rejectRequest(
+                        request.id || "",
+                        getLoggedAdminName?.() ||
+                            getPendingUnlockedBy?.() ||
+                            UI_TEXTS.defaultAdminLabel,
+                    );
                     renderAll(updated);
                 };
                 if (needsAdmin && typeof requireAccess === "function") {

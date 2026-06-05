@@ -1,0 +1,34 @@
+{
+  "appId": "com.Agpress.AyPiBackend",
+  "productName": "AyPi Backend",
+  "directories": {
+    "output": "dist-backend"
+  },
+  "files": [
+    "dist-backend-app/**/*",
+    "backend-dist/**/*",
+    "assets/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "backend/resources",
+      "to": "backend-resources"
+    },
+    {
+      "from": "backend/scripts",
+      "to": "backend-scripts"
+    }
+  ],
+  "extraMetadata": {
+    "main": "dist-backend-app/main.js"
+  },
+  "asar": true,
+  "npmRebuild": false,
+  "win": {
+    "icon": "assets/app-icon.ico",
+    "target": "nsis",
+    "sign": false
+  },
+  "publish": null
+}

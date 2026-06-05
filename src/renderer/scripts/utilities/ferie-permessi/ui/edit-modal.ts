@@ -51,6 +51,8 @@ type EditModalOptions = {
     setEditingRequestId: (value: string | null) => void;
     getEditingAdminName: () => string;
     setEditingAdminName: (value: string) => void;
+    updateRequest: (requestId: string, request: RequestLike) => Promise<any>;
+    deleteRequest: (requestId: string, actor?: string) => Promise<any>;
     applyBalanceForUpdate: (
         payload: any,
         existing: RequestLike,
@@ -83,6 +85,8 @@ function createEditModal(options: EditModalOptions) {
         setEditingRequestId,
         getEditingAdminName,
         setEditingAdminName,
+        updateRequest,
+        deleteRequest,
         applyBalanceForUpdate,
         applyBalanceForDeletion,
         requireEditAccess,
@@ -223,26 +227,10 @@ function createEditModal(options: EditModalOptions) {
                         );
                         if (!ok) return;
                     }
-                    const updated = syncData((payload) => {
-                        const target = (payload.requests || []).find(
-                            (req: RequestLike) => req.id === editingRequestId,
-                        );
-                        if (
-                            target &&
-                            typeof applyBalanceForDeletion === "function"
-                        ) {
-                            applyBalanceForDeletion(payload, target);
-                        }
-                        if (target) {
-                            const editingAdminName = getEditingAdminName();
-                            target.status = "deleted";
-                            target.deletedAt = new Date().toISOString();
-                            target.deletedBy =
-                                editingAdminName || target.deletedBy || "";
-                            target.updatedAt = new Date().toISOString();
-                        }
-                        return payload;
-                    });
+                    const updated = await deleteRequest(
+                        editingRequestId,
+                        getEditingAdminName() || "",
+                    );
                     closeEditModal();
                     renderAll(updated);
                 };
@@ -306,39 +294,11 @@ function createEditModal(options: EditModalOptions) {
                         }
                     }
                     const editingAdminName = getEditingAdminName();
-                    const updated = syncData((payload) => {
-                        payload.requests = payload.requests || [];
-                        const idx = payload.requests.findIndex(
-                            (req: RequestLike) => req.id === editingRequestId,
-                        );
-                        if (idx >= 0) {
-                            const existing = payload.requests[idx];
-                            const nextRequest = {
-                                ...existing,
-                                ...request,
-                                status: "approved",
-                                approvedAt:
-                                    existing.approvedAt ||
-                                    new Date().toISOString(),
-                                createdAt:
-                                    existing.createdAt ||
-                                    new Date().toISOString(),
-                                modifiedAt: new Date().toISOString(),
-                                modifiedBy:
-                                    editingAdminName ||
-                                    existing.modifiedBy ||
-                                    "",
-                            };
-                            if (typeof applyBalanceForUpdate === "function") {
-                                applyBalanceForUpdate(
-                                    payload,
-                                    existing,
-                                    nextRequest,
-                                );
-                            }
-                            payload.requests[idx] = nextRequest;
-                        }
-                        return payload;
+                    const updated = await updateRequest(editingRequestId, {
+                        ...request,
+                        status: "approved",
+                        modifiedAt: new Date().toISOString(),
+                        modifiedBy: editingAdminName || "",
                     });
                     setMessage(editMessage, UI_TEXTS.requestUpdated, false);
                     closeEditModal();

@@ -1,7 +1,7 @@
 ﻿require("../../../shared/dev-guards");
 
 type RefreshOptions<T> = {
-    loadData: () => T;
+    loadData: () => T | Promise<T>;
     renderAll: (data: T) => void;
     autoRefreshMs?: number;
 };
@@ -10,8 +10,8 @@ function createRefreshController<T>(options: RefreshOptions<T>) {
     const { loadData, renderAll, autoRefreshMs } = options || ({} as RefreshOptions<T>);
     let refreshTimer: NodeJS.Timeout | null = null;
 
-    function refreshData() {
-        const data = loadData();
+    async function refreshData() {
+        const data = await loadData();
         renderAll(data);
     }
 

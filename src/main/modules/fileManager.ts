@@ -16,6 +16,11 @@ const WINDOW_WEB_PREFERENCES = {
 };
 
 const APP_ICON_PATH = path.join(__dirname, "..", "assets", "app-icon.png");
+const FP_DESKTOP_BASE_DIR = "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS";
+const FP_SERVER_BASE_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
+const FP_DEV_BACKEND_BASE_URL = "http://127.0.0.1:3000/api/ferie-permessi";
+const FP_SERVER_BACKEND_BASE_URL =
+    "http://192.168.1.240:3000/api/ferie-permessi";
 let fpBaseConfigPath: string | null = null;
 function getFpBaseConfigPath() {
     if (!fpBaseConfigPath) {
@@ -303,31 +308,23 @@ async function guardServerAndOpenModule(
 }
 
 function getDefaultFpBaseDir(): string {
-    try {
-        return path.dirname(NETWORK_PATHS.feriePermessiData);
-    } catch (err) {
-        return "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
-    }
+    const fallback = process.env.AYPI_DEV === "1"
+        ? FP_DESKTOP_BASE_DIR
+        : FP_SERVER_BASE_DIR;
+    log.info(
+        "[ferie-permessi] base dir di default:",
+        fallback,
+    );
+    return fallback;
 }
 
 function loadFpBaseDir(): string | null {
-    try {
-        const configPath = getFpBaseConfigPath();
-        if (!fs.existsSync(configPath)) return null;
-        const raw = fs.readFileSync(configPath, "utf8");
-        const parsed = JSON.parse(raw);
-        if (
-            parsed &&
-            typeof parsed.baseDir === "string" &&
-            parsed.baseDir.trim()
-        ) {
-            return parsed.baseDir.trim();
-        }
-        return null;
-    } catch (err) {
-        log.warn("[ferie-permessi] impossibile leggere base dir:", err);
-        return null;
-    }
+    const fallback = getDefaultFpBaseDir();
+    log.info(
+        "[ferie-permessi] config base dir risolta:",
+        fallback,
+    );
+    return fallback;
 }
 
 function saveFpBaseDir(baseDir: string) {
@@ -335,6 +332,7 @@ function saveFpBaseDir(baseDir: string) {
         const payload = { baseDir };
         const configPath = getFpBaseConfigPath();
         fs.writeFileSync(configPath, JSON.stringify(payload, null, 2), "utf8");
+        log.info("[ferie-permessi] base dir salvata:", baseDir);
     } catch (err) {
         log.warn("[ferie-permessi] impossibile salvare base dir:", err);
     }
@@ -1338,6 +1336,7 @@ function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
 
     if (baseExists) {
         ensureFpFiles(baseDir);
+        log.info("[ferie-permessi] base dir risolta:", baseDir);
         return baseDir;
     }
 
@@ -1372,8 +1371,22 @@ function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
     //     return baseDir;
     // }
 
-    // fallback to default (even if missing) to avoid blocking startup
+    ensureFpFiles(getDefaultFpBaseDir());
+    log.info(
+        "[ferie-permessi] base dir fallback creata/verificata:",
+        getDefaultFpBaseDir(),
+    );
     return getDefaultFpBaseDir();
+}
+
+function resolveFpBackendBaseUrlSync() {
+    const backendUrl =
+        process.env.AYPI_FP_BACKEND_URL ||
+        (process.env.AYPI_DEV === "1"
+            ? FP_DEV_BACKEND_BASE_URL
+            : FP_SERVER_BACKEND_BASE_URL);
+    log.info("[ferie-permessi] backend base url:", backendUrl);
+    return backendUrl;
 }
 
 function animateResize(
@@ -2885,7 +2898,21 @@ function setupFileManager(mainWindow) {
     ipcMain.on("fp-get-base-dir", (event) => {
         const senderWin = BrowserWindow.fromWebContents(event.sender);
         const baseDir = resolveFpBaseDirSync(senderWin);
+        log.info("[ferie-permessi] renderer richiede base dir:", baseDir);
         event.returnValue = baseDir;
+    });
+
+    ipcMain.on("fp-get-backend-base-url", (event) => {
+        const backendUrl = resolveFpBackendBaseUrlSync();
+        event.returnValue = backendUrl;
+    });
+
+    ipcMain.on("fp-debug-log", (_event, payload) => {
+        try {
+            console.log("[ferie-permessi][renderer]", payload);
+        } catch (err) {
+            log.warn("[ferie-permessi] debug log fallito:", err);
+        }
     });
 
     ipcMain.handle("pm-session-get", async () => {

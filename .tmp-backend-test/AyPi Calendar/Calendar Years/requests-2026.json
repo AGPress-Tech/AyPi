@@ -1,0 +1,18 @@
+[
+  {
+    "employee": "Mario Rossi",
+    "department": "Ufficio",
+    "type": "ferie",
+    "start": "2026-06-10",
+    "end": "2026-06-10",
+    "allDay": true,
+    "id": "fp_1780575536166_ktsrci",
+    "createdAt": "2026-06-04T12:18:56.166Z",
+    "updatedAt": "2026-06-04T12:18:56.184Z",
+    "status": "approved",
+    "approvedAt": "2026-06-04T12:18:56.183Z",
+    "approvedBy": "Admin Test",
+    "balanceHours": 8,
+    "balanceAppliedAt": "2026-06-04T12:18:56.184Z"
+  }
+]

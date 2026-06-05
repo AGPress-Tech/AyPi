@@ -1,0 +1,8 @@
+{
+  "host": "192.168.1.240",
+  "advertisedHost": "192.168.1.240",
+  "port": 3000,
+  "calendarDir": "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\AyPi Calendar",
+  "generalDir": "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General",
+  "logDir": "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\AyPi Calendar\\log"
+}

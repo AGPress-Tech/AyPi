@@ -56,6 +56,7 @@ type RequestFormOptions = {
     onDirectInfortunioCreate: (request: RequestLike) => void;
     onDirectRetribuitoCreate: (request: RequestLike) => void;
     onDirectSpecialeCreate: (request: RequestLike) => void;
+    createRequest: (request: RequestLike) => Promise<any>;
     syncData: (updater: (payload: any) => any) => any;
     renderAll: (data: any) => void;
     refreshData: () => void;
@@ -84,6 +85,7 @@ function createRequestForm(options: RequestFormOptions) {
         onDirectInfortunioCreate,
         onDirectRetribuitoCreate,
         onDirectSpecialeCreate,
+        createRequest,
         syncData,
         renderAll,
         refreshData,
@@ -344,11 +346,7 @@ function createRequestForm(options: RequestFormOptions) {
                         return;
                     }
                 }
-                const updated = syncData((payload) => {
-                    payload.requests = payload.requests || [];
-                    payload.requests.push(request);
-                    return payload;
-                });
+                const updated = await createRequest(request);
                 setMessage(message, UI_TEXTS.requestSent, false);
                 resetNewRequestForm();
                 renderAll(updated);

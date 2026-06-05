@@ -79,6 +79,9 @@ type ApprovalModalOptions = {
     loadData: () => any;
     syncData: (updater: (payload: any) => any) => any;
     renderAll: (data: any) => void;
+    approveRequest: (requestId: string, actor?: string) => Promise<any>;
+    rejectRequest: (requestId: string, actor?: string) => Promise<any>;
+    deleteRequest: (requestId: string, actor?: string) => Promise<any>;
     openEditModal: (request: RequestLike) => void;
     openPendingPanel: () => void;
     setPendingUnlocked: (value: boolean) => void;
@@ -121,17 +124,17 @@ type ApprovalModalOptions = {
         admin: AdminLike | null,
         dates?: string[],
         name?: string,
-    ) => void;
-    onHolidayRemove: (admin: AdminLike | null, date?: string) => void;
+    ) => Promise<any> | void;
+    onHolidayRemove: (admin: AdminLike | null, date?: string) => Promise<any> | void;
     onHolidayUpdate: (
         admin: AdminLike | null,
         date?: string,
         nextDate?: string,
         nextName?: string,
-    ) => void;
-    onClosureCreate: (admin: AdminLike | null, entry?: any) => void;
-    onClosureRemove: (admin: AdminLike | null, entry?: any) => void;
-    onClosureUpdate: (admin: AdminLike | null, entry?: any, next?: any) => void;
+    ) => Promise<any> | void;
+    onClosureCreate: (admin: AdminLike | null, entry?: any) => Promise<any> | void;
+    onClosureRemove: (admin: AdminLike | null, entry?: any) => Promise<any> | void;
+    onClosureUpdate: (admin: AdminLike | null, entry?: any, next?: any) => Promise<any> | void;
     onFilterAccess: (admin: AdminLike | null, filter?: string) => void;
     onExport: (admin: AdminLike | null, action?: PendingAction) => void;
     onBackupAccess: (admin: AdminLike | null) => void;
@@ -156,6 +159,9 @@ function createApprovalModal(options: ApprovalModalOptions) {
         loadData,
         syncData,
         renderAll,
+        approveRequest,
+        rejectRequest,
+        deleteRequest,
         openEditModal,
         openPendingPanel,
         setPendingUnlocked,
@@ -273,21 +279,25 @@ function createApprovalModal(options: ApprovalModalOptions) {
         if (actionType === "holiday-create") {
             closeApprovalModal();
             if (typeof onHolidayCreate === "function") {
-                onHolidayCreate(admin, pendingAction.dates, pendingAction.name);
+                await onHolidayCreate(
+                    admin,
+                    pendingAction.dates,
+                    pendingAction.name,
+                );
             }
             return;
         }
         if (actionType === "holiday-remove") {
             closeApprovalModal();
             if (typeof onHolidayRemove === "function") {
-                onHolidayRemove(admin, pendingAction.date);
+                await onHolidayRemove(admin, pendingAction.date);
             }
             return;
         }
         if (actionType === "holiday-update") {
             closeApprovalModal();
             if (typeof onHolidayUpdate === "function") {
-                onHolidayUpdate(
+                await onHolidayUpdate(
                     admin,
                     pendingAction.date,
                     pendingAction.nextDate,
@@ -299,21 +309,25 @@ function createApprovalModal(options: ApprovalModalOptions) {
         if (actionType === "closure-create") {
             closeApprovalModal();
             if (typeof onClosureCreate === "function") {
-                onClosureCreate(admin, pendingAction.entry);
+                await onClosureCreate(admin, pendingAction.entry);
             }
             return;
         }
         if (actionType === "closure-remove") {
             closeApprovalModal();
             if (typeof onClosureRemove === "function") {
-                onClosureRemove(admin, pendingAction.entry);
+                await onClosureRemove(admin, pendingAction.entry);
             }
             return;
         }
         if (actionType === "closure-update") {
             closeApprovalModal();
             if (typeof onClosureUpdate === "function") {
-                onClosureUpdate(admin, pendingAction.entry, pendingAction.next);
+                await onClosureUpdate(
+                    admin,
+                    pendingAction.entry,
+                    pendingAction.next,
+                );
             }
             return;
         }
@@ -358,20 +372,10 @@ function createApprovalModal(options: ApprovalModalOptions) {
                 }
             }
             closeApprovalModal();
-            const updated = syncData((payload) => {
-                const requests = (payload?.requests || []) as RequestLike[];
-                const target = requests.find((req) => req.id === requestId);
-                if (target) {
-                    target.status = "approved";
-                    target.approvedAt = new Date().toISOString();
-                    target.approvedBy =
-                        admin?.name || UI_TEXTS.defaultAdminLabel;
-                    if (typeof applyBalanceForApproval === "function") {
-                        applyBalanceForApproval(payload, target);
-                    }
-                }
-                return payload;
-            });
+            const updated = await approveRequest(
+                requestId || "",
+                admin?.name || UI_TEXTS.defaultAdminLabel,
+            );
             renderAll(updated);
             return;
         }
@@ -405,37 +409,18 @@ function createApprovalModal(options: ApprovalModalOptions) {
         }
         if (actionType === "reject") {
             closeApprovalModal();
-            const updated = syncData((payload) => {
-                const requests = (payload?.requests || []) as RequestLike[];
-                const target = requests.find((req) => req.id === requestId);
-                if (target) {
-                    target.status = "rejected";
-                    target.rejectedAt = new Date().toISOString();
-                    target.rejectedBy =
-                        admin?.name || UI_TEXTS.defaultAdminLabel;
-                    target.updatedAt = new Date().toISOString();
-                }
-                return payload;
-            });
+            const updated = await rejectRequest(
+                requestId || "",
+                admin?.name || UI_TEXTS.defaultAdminLabel,
+            );
             renderAll(updated);
             return;
         }
         if (actionType === "delete") {
-            const updated = syncData((payload) => {
-                const requests = (payload?.requests || []) as RequestLike[];
-                const target = requests.find((req) => req.id === requestId);
-                if (target && typeof applyBalanceForDeletion === "function") {
-                    applyBalanceForDeletion(payload, target);
-                }
-                if (target) {
-                    target.status = "deleted";
-                    target.deletedAt = new Date().toISOString();
-                    target.deletedBy =
-                        admin?.name || UI_TEXTS.defaultAdminLabel;
-                    target.updatedAt = new Date().toISOString();
-                }
-                return payload;
-            });
+            const updated = await deleteRequest(
+                requestId || "",
+                admin?.name || UI_TEXTS.defaultAdminLabel,
+            );
             if (typeof forceUnlockUI === "function") {
                 forceUnlockUI();
             } else {

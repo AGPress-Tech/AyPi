@@ -2,6 +2,8 @@
 require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import fs from "fs";
+import http from "http";
+import https from "https";
 import path from "path";
 import { pathToFileURL } from "url";
 
@@ -246,6 +248,26 @@ let editingDepartment = null;
 let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
+const FP_USE_BACKEND = true;
+function resolveFpBackendBaseUrl() {
+    if (process.env.AYPI_FP_BACKEND_URL) {
+        return process.env.AYPI_FP_BACKEND_URL;
+    }
+    if (ipcRenderer && typeof ipcRenderer.sendSync === "function") {
+        try {
+            const value = ipcRenderer.sendSync("fp-get-backend-base-url");
+            if (typeof value === "string" && value.trim()) {
+                return value.trim();
+            }
+        } catch (err) {
+            // fallback below
+        }
+    }
+    return "http://192.168.1.240:3000/api/ferie-permessi";
+}
+const FP_BACKEND_BASE_URL = resolveFpBackendBaseUrl();
+let fpSaveSequence = 0;
+let fpBackendUnavailableNotified = false;
 let calendarFilters = {
     ferie: true,
     permesso: true,
@@ -682,6 +704,309 @@ function ensureDataFolder() {
     ensureFolderFor(CLOSURES_PATH);
 }
 
+function logFpDebug(action, payload = {}) {
+    const entry = {
+        action,
+        at: new Date().toISOString(),
+        ...payload,
+    };
+    try {
+        ipcRenderer.send("fp-debug-log", entry);
+    } catch (err) {
+        // ignore debug bridge failures
+    }
+}
+
+function clonePayload(payload) {
+    return JSON.parse(JSON.stringify(payload || { requests: [] }));
+}
+
+async function fetchFpBackend(endpoint = "", options = {}) {
+    const url = `${FP_BACKEND_BASE_URL}${endpoint}`;
+    const headers = {
+        "x-aypi-user": getLoggedAdminName?.() || "guest",
+        "x-aypi-client": "AyPi-Electron",
+        ...(options.headers || {}),
+    };
+    logFpDebug("backend.request", {
+        url,
+        method: options.method || "GET",
+        user: headers["x-aypi-user"],
+    });
+    return new Promise((resolve, reject) => {
+        try {
+            const target = new URL(url);
+            const client = target.protocol === "https:" ? https : http;
+            const request = client.request(
+                {
+                    protocol: target.protocol,
+                    hostname: target.hostname,
+                    port: target.port,
+                    path: `${target.pathname}${target.search}`,
+                    method: options.method || "GET",
+                    headers,
+                },
+                (response) => {
+                    let raw = "";
+                    response.setEncoding("utf8");
+                    response.on("data", (chunk) => {
+                        raw += chunk;
+                    });
+                    response.on("end", () => {
+                        const statusCode = response.statusCode || 500;
+                        if (statusCode < 200 || statusCode >= 300) {
+                            reject(new Error(`HTTP ${statusCode}: ${raw}`));
+                            return;
+                        }
+                        try {
+                            resolve(raw ? JSON.parse(raw) : null);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    });
+                },
+            );
+            request.on("error", reject);
+            if (options.body) {
+                request.write(options.body);
+            }
+            request.end();
+        } catch (err) {
+            reject(err);
+        }
+    });
+}
+
+function getBackendUnavailableMessage(err) {
+    const detail = err?.message || String(err || "");
+    return `Backend ferie-permessi non raggiungibile su ${FP_BACKEND_BASE_URL}.\nAvvia prima 'npm run start:backend'.\n\nDettaglio: ${detail}`;
+}
+
+async function loadDataFromBackend() {
+    try {
+        const payload = await fetchFpBackend("/payload");
+        cachedData = payload || { requests: [] };
+        fpBackendUnavailableNotified = false;
+        logFpDebug("backend.response.load", {
+            requests: Array.isArray(cachedData?.requests)
+                ? cachedData.requests.length
+                : 0,
+        });
+        return cachedData;
+    } catch (err) {
+        logFpDebug("backend.error.load", {
+            detail: err?.message || String(err),
+        });
+        if (!fpBackendUnavailableNotified) {
+            fpBackendUnavailableNotified = true;
+            showDialog(
+                "warning",
+                "Backend ferie/permessi non disponibile.",
+                getBackendUnavailableMessage(err),
+            );
+        }
+        return cachedData;
+    }
+}
+
+async function saveDataToBackend(payload) {
+    const nextSequence = ++fpSaveSequence;
+    const saved = await fetchFpBackend("/payload", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload || {}),
+    });
+    if (nextSequence === fpSaveSequence && saved) {
+        cachedData = saved;
+    }
+    logFpDebug("backend.response.save", {
+        sequence: nextSequence,
+        requests: Array.isArray(saved?.requests) ? saved.requests.length : 0,
+    });
+    return saved;
+}
+
+async function refreshDataFromBackendAndRender() {
+    const data = await loadDataFromBackend();
+    renderAll(data);
+    return data;
+}
+
+async function createRequestAtomic(request) {
+    const created = await fetchFpBackend("/requests", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request || {}),
+    });
+    logFpDebug("backend.response.create", {
+        id: created?.id || "",
+        status: created?.status || "",
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function updateRequestAtomic(requestId, request) {
+    const updated = await fetchFpBackend(`/requests/${requestId}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request || {}),
+    });
+    logFpDebug("backend.response.update", {
+        id: updated?.id || requestId || "",
+        status: updated?.status || "",
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function approveRequestAtomic(requestId, actor) {
+    const updated = await fetchFpBackend(`/requests/${requestId}/approve`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ actor: actor || getLoggedAdminName() || "guest" }),
+    });
+    logFpDebug("backend.response.approve", {
+        id: updated?.request?.id || requestId || "",
+        status: updated?.request?.status || "",
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function rejectRequestAtomic(requestId, actor) {
+    const updated = await fetchFpBackend(`/requests/${requestId}/reject`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ actor: actor || getLoggedAdminName() || "guest" }),
+    });
+    logFpDebug("backend.response.reject", {
+        id: updated?.id || requestId || "",
+        status: updated?.status || "",
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function deleteRequestAtomic(requestId, actor) {
+    const updated = await fetchFpBackend(`/requests/${requestId}`, {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ actor: actor || getLoggedAdminName() || "guest" }),
+    });
+    logFpDebug("backend.response.delete", {
+        id: updated?.id || requestId || "",
+        status: updated?.status || "",
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function createHolidaysAtomic(dates, name) {
+    const result = await fetchFpBackend("/holidays", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ dates: dates || [], name: name || "" }),
+    });
+    logFpDebug("backend.response.holidays.create", {
+        added: result?.added || 0,
+        dates: Array.isArray(dates) ? dates.length : 0,
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function deleteHolidayAtomic(date) {
+    const result = await fetchFpBackend(`/holidays/${date}`, {
+        method: "DELETE",
+    });
+    logFpDebug("backend.response.holidays.delete", {
+        date,
+        removed: !!result?.removed,
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function updateHolidayAtomic(date, nextDate, nextName) {
+    const result = await fetchFpBackend(`/holidays/${date}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ nextDate, nextName }),
+    });
+    logFpDebug("backend.response.holidays.update", {
+        date,
+        nextDate,
+        hasConflict: !!result?.hasConflict,
+        updated: !!result?.updated,
+    });
+    const data = await refreshDataFromBackendAndRender();
+    data.holidaysUpdated = !result?.hasConflict && !!result?.updated;
+    return data;
+}
+
+async function createClosureAtomic(entry) {
+    const result = await fetchFpBackend("/closures", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(entry || {}),
+    });
+    logFpDebug("backend.response.closure.create", {
+        added: !!result?.added,
+        start: entry?.start || "",
+        end: entry?.end || "",
+    });
+    const data = await refreshDataFromBackendAndRender();
+    data.closureAdded = !!result?.added;
+    return data;
+}
+
+async function deleteClosureAtomic(entry) {
+    const result = await fetchFpBackend("/closures", {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(entry || {}),
+    });
+    logFpDebug("backend.response.closure.delete", {
+        removed: !!result?.removed,
+        start: entry?.start || "",
+        end: entry?.end || "",
+    });
+    return refreshDataFromBackendAndRender();
+}
+
+async function updateClosureAtomic(entry, next) {
+    const result = await fetchFpBackend("/closures", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ entry, next }),
+    });
+    logFpDebug("backend.response.closure.update", {
+        current: `${entry?.start || ""}|${entry?.end || ""}`,
+        next: `${next?.start || ""}|${next?.end || ""}`,
+        hasConflict: !!result?.hasConflict,
+        updated: !!result?.updated,
+    });
+    const data = await refreshDataFromBackendAndRender();
+    data.closureUpdated = !result?.hasConflict && !!result?.updated;
+    return data;
+}
+
 function migrateRetribuitoTypes(payload) {
     if (!payload || !Array.isArray(payload.requests))
         return { payload, changed: false };
@@ -697,6 +1022,12 @@ function migrateRetribuitoTypes(payload) {
 }
 
 function loadData() {
+    if (FP_USE_BACKEND) {
+        return cachedData;
+    }
+    logFpDebug("read.loadData", {
+        baseDir: SAFE_BASE_DIR,
+    });
     const parsed = loadPayload();
     const normalized = normalizeBalances(parsed, assigneeGroups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
@@ -711,7 +1042,33 @@ function loadData() {
 }
 
 function saveData(payload) {
+    if (FP_USE_BACKEND) {
+        cachedData = clonePayload(payload);
+        logFpDebug("backend.save.optimistic", {
+            requests: Array.isArray(cachedData?.requests)
+                ? cachedData.requests.length
+                : 0,
+        });
+        saveDataToBackend(cachedData).catch((err) => {
+            logFpDebug("backend.error.save", {
+                detail: err?.message || String(err),
+            });
+            showDialog(
+                "warning",
+                "Salvataggio backend non riuscito.",
+                getBackendUnavailableMessage(err),
+            );
+        });
+        return;
+    }
     ensureDataFolder();
+    logFpDebug("write.saveData", {
+        baseDir: SAFE_BASE_DIR,
+        requests: Array.isArray(payload?.requests) ? payload.requests.length : 0,
+        holidays: Array.isArray(payload?.holidays) ? payload.holidays.length : 0,
+        closures: Array.isArray(payload?.closures) ? payload.closures.length : 0,
+        balances: payload?.balances ? Object.keys(payload.balances).length : 0,
+    });
     const ok = savePayload(payload);
     if (!ok) {
         showDialog(
@@ -723,11 +1080,12 @@ function saveData(payload) {
 }
 
 function syncData(updateFn) {
-    const data = loadData();
+    const data = clonePayload(loadData());
     const next = updateFn ? updateFn(data) || data : data;
     const normalized = normalizeBalances(next, assigneeGroups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
     const migration = migrateRetribuitoTypes(deductions.payload);
+    cachedData = clonePayload(migration.payload);
     saveData(migration.payload);
     return migration.payload;
 }
@@ -1046,6 +1404,8 @@ const pendingUi = createPendingPanel({
     isAdminRequiredForPendingAccess,
     isAdminRequiredForPendingApprove,
     isAdminRequiredForPendingReject,
+    approveRequest: (requestId, actor) => approveRequestAtomic(requestId, actor),
+    rejectRequest: (requestId, actor) => rejectRequestAtomic(requestId, actor),
 });
 
 renderer = createRenderer({
@@ -1087,35 +1447,31 @@ renderer = createRenderer({
 });
 
 const refreshUi = createRefreshController({
-    loadData,
+    loadData: () => (FP_USE_BACKEND ? loadDataFromBackend() : loadData()),
     renderAll,
     autoRefreshMs: AUTO_REFRESH_MS,
 });
 
-function insertApprovedRequest(request, admin, options = {}) {
+async function insertApprovedRequest(request, admin, options = {}) {
     if (!request) return;
     const { balanceHours = null } = options;
-    const updated = syncData((payload) => {
-        payload.requests = payload.requests || [];
-        const next = {
-            ...request,
-            status: "approved",
-            approvedAt: new Date().toISOString(),
-            approvedBy: getApproverName(admin),
-        };
-        if (typeof balanceHours === "number") {
-            next.balanceHours = balanceHours;
-            next.balanceAppliedAt = new Date().toISOString();
-        }
-        payload.requests.push(next);
-        return payload;
-    });
-    renderAll(updated);
-    return updated;
+    const next = {
+        ...request,
+        status: "approved",
+        approvedAt: new Date().toISOString(),
+        approvedBy: getApproverName(admin),
+    };
+    if (typeof balanceHours === "number") {
+        next.balanceHours = balanceHours;
+        next.balanceAppliedAt = new Date().toISOString();
+    }
+    return createRequestAtomic(next);
 }
 
-function handleMutuaCreate(admin, request) {
-    const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
+async function handleMutuaCreate(admin, request) {
+    const updated = await insertApprovedRequest(request, admin, {
+        balanceHours: 0,
+    });
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.mutuaInserted, false);
     if (
@@ -1127,8 +1483,10 @@ function handleMutuaCreate(admin, request) {
     return updated;
 }
 
-function handleInfortunioCreate(admin, request) {
-    const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
+async function handleInfortunioCreate(admin, request) {
+    const updated = await insertApprovedRequest(request, admin, {
+        balanceHours: 0,
+    });
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.infortunioInserted, false);
     if (
@@ -1140,8 +1498,10 @@ function handleInfortunioCreate(admin, request) {
     return updated;
 }
 
-function handleRetribuitoCreate(admin, request) {
-    const updated = insertApprovedRequest(request, admin, { balanceHours: 0 });
+async function handleRetribuitoCreate(admin, request) {
+    const updated = await insertApprovedRequest(request, admin, {
+        balanceHours: 0,
+    });
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.retribuitoInserted, false);
     if (
@@ -1153,8 +1513,8 @@ function handleRetribuitoCreate(admin, request) {
     return updated;
 }
 
-function handleSpecialeCreate(admin, request) {
-    const updated = insertApprovedRequest(request, admin);
+async function handleSpecialeCreate(admin, request) {
+    const updated = await insertApprovedRequest(request, admin);
     const message = document.getElementById("fp-form-message");
     setMessage(message, UI_TEXTS.requestSent, false);
     if (
@@ -1206,6 +1566,9 @@ const approvalUi = createApprovalModal({
     loadData,
     syncData,
     renderAll,
+    approveRequest: (requestId, actor) => approveRequestAtomic(requestId, actor),
+    rejectRequest: (requestId, actor) => rejectRequestAtomic(requestId, actor),
+    deleteRequest: (requestId, actor) => deleteRequestAtomic(requestId, actor),
     openEditModal: (request) => {
         if (openEditModalHandler) openEditModalHandler(request);
     },
@@ -1353,36 +1716,9 @@ const approvalUi = createApprovalModal({
     onRetribuitoCreate: (admin, request) =>
         handleRetribuitoCreate(admin, request),
     onSpecialeCreate: (admin, request) => handleSpecialeCreate(admin, request),
-    onHolidayCreate: (_admin, dates, name) => {
+    onHolidayCreate: async (_admin, dates, name) => {
         if (!Array.isArray(dates) || !dates.length) return;
-        const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.holidays)
-                ? payload.holidays.slice()
-                : [];
-            const map = new Map();
-            existing.forEach((item) => {
-                if (typeof item === "string") {
-                    map.set(item, { date: item, name: "" });
-                } else if (item && typeof item.date === "string") {
-                    map.set(item.date, {
-                        date: item.date,
-                        name: item.name || "",
-                    });
-                }
-            });
-            let added = 0;
-            dates.forEach((date) => {
-                if (!map.has(date)) {
-                    map.set(date, { date, name: name || "" });
-                    added += 1;
-                }
-            });
-            payload.holidays = Array.from(map.values()).sort((a, b) =>
-                a.date.localeCompare(b.date),
-            );
-            payload.holidaysAdded = added;
-            return payload;
-        });
+        const updated = await createHolidaysAtomic(dates, name);
         holidaysUi.renderHolidayList(updated);
         const message = document.getElementById("fp-holidays-message");
         if (updated.holidaysAdded && updated.holidaysAdded > 0) {
@@ -1393,18 +1729,9 @@ const approvalUi = createApprovalModal({
         delete updated.holidaysAdded;
         renderAll(updated);
     },
-    onHolidayRemove: (_admin, date) => {
+    onHolidayRemove: async (_admin, date) => {
         if (!date) return;
-        const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.holidays)
-                ? payload.holidays.slice()
-                : [];
-            payload.holidays = existing.filter(
-                (item) =>
-                    (typeof item === "string" ? item : item?.date) !== date,
-            );
-            return payload;
-        });
+        const updated = await deleteHolidayAtomic(date);
         holidaysUi.renderHolidayList(updated);
         setMessage(
             document.getElementById("fp-holidays-message"),
@@ -1413,35 +1740,9 @@ const approvalUi = createApprovalModal({
         );
         renderAll(updated);
     },
-    onHolidayUpdate: (_admin, date, nextDate, nextName) => {
+    onHolidayUpdate: async (_admin, date, nextDate, nextName) => {
         if (!date || !nextDate) return;
-        const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.holidays)
-                ? payload.holidays.slice()
-                : [];
-            const normalized = existing
-                .map((item) => {
-                    if (typeof item === "string")
-                        return { date: item, name: "" };
-                    if (item && typeof item.date === "string")
-                        return { date: item.date, name: item.name || "" };
-                    return null;
-                })
-                .filter(Boolean);
-            const hasConflict = normalized.some(
-                (item) => item.date === nextDate && item.date !== date,
-            );
-            if (hasConflict) {
-                payload.holidaysUpdated = false;
-                return payload;
-            }
-            payload.holidays = normalized.map((item) => {
-                if (item.date !== date) return item;
-                return { date: nextDate, name: nextName || "" };
-            });
-            payload.holidaysUpdated = true;
-            return payload;
-        });
+        const updated = await updateHolidayAtomic(date, nextDate, nextName);
         holidaysUi.renderHolidayList(updated);
         if (updated.holidaysUpdated) {
             setMessage(
@@ -1459,40 +1760,9 @@ const approvalUi = createApprovalModal({
         delete updated.holidaysUpdated;
         renderAll(updated);
     },
-    onClosureCreate: (_admin, entry) => {
+    onClosureCreate: async (_admin, entry) => {
         if (!entry || !entry.start) return;
-        const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.closures)
-                ? payload.closures.slice()
-                : [];
-            const key = `${entry.start}|${entry.end || entry.start}`;
-            const map = new Map();
-            existing.forEach((item) => {
-                if (!item) return;
-                const start = typeof item.start === "string" ? item.start : "";
-                const end = typeof item.end === "string" ? item.end : start;
-                if (!start) return;
-                map.set(`${start}|${end || start}`, {
-                    start,
-                    end: end || start,
-                    name: item.name || "",
-                });
-            });
-            if (!map.has(key)) {
-                map.set(key, {
-                    start: entry.start,
-                    end: entry.end || entry.start,
-                    name: entry.name || "",
-                });
-                payload.closureAdded = true;
-            } else {
-                payload.closureAdded = false;
-            }
-            payload.closures = Array.from(map.values()).sort((a, b) =>
-                a.start.localeCompare(b.start),
-            );
-            return payload;
-        });
+        const updated = await createClosureAtomic(entry);
         closuresUi.renderClosureList(updated, {
             containerId: "fp-closures-future-list",
             futureOnly: true,
@@ -1506,21 +1776,9 @@ const approvalUi = createApprovalModal({
         delete updated.closureAdded;
         renderAll(updated);
     },
-    onClosureRemove: (_admin, entry) => {
+    onClosureRemove: async (_admin, entry) => {
         if (!entry) return;
-        const key = `${entry.start}|${entry.end || entry.start}`;
-        const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.closures)
-                ? payload.closures.slice()
-                : [];
-            payload.closures = existing.filter((item) => {
-                if (!item) return false;
-                const start = typeof item.start === "string" ? item.start : "";
-                const end = typeof item.end === "string" ? item.end : start;
-                return `${start}|${end || start}` !== key;
-            });
-            return payload;
-        });
+        const updated = await deleteClosureAtomic(entry);
         closuresUi.renderClosureList(updated, {
             containerId: "fp-closures-future-list",
             futureOnly: true,
@@ -1532,44 +1790,9 @@ const approvalUi = createApprovalModal({
         );
         renderAll(updated);
     },
-    onClosureUpdate: (_admin, entry, next) => {
+    onClosureUpdate: async (_admin, entry, next) => {
         if (!entry || !entry.start || !next || !next.start) return;
-        const key = `${entry.start}|${entry.end || entry.start}`;
-        const nextKey = `${next.start}|${next.end || next.start}`;
-        const updated = syncData((payload) => {
-            const existing = Array.isArray(payload.closures)
-                ? payload.closures.slice()
-                : [];
-            const normalized = existing
-                .map((item) => {
-                    if (!item) return null;
-                    const start =
-                        typeof item.start === "string" ? item.start : "";
-                    const end = typeof item.end === "string" ? item.end : start;
-                    if (!start) return null;
-                    return { start, end: end || start, name: item.name || "" };
-                })
-                .filter(Boolean);
-            const hasConflict = normalized.some(
-                (item) =>
-                    `${item.start}|${item.end}` === nextKey &&
-                    `${item.start}|${item.end}` !== key,
-            );
-            if (hasConflict) {
-                payload.closureUpdated = false;
-                return payload;
-            }
-            payload.closures = normalized.map((item) => {
-                if (`${item.start}|${item.end}` !== key) return item;
-                return {
-                    start: next.start,
-                    end: next.end || next.start,
-                    name: next.name || "",
-                };
-            });
-            payload.closureUpdated = true;
-            return payload;
-        });
+        const updated = await updateClosureAtomic(entry, next);
         closuresUi.renderClosureList(updated, {
             containerId: "fp-closures-future-list",
             futureOnly: true,
@@ -1637,6 +1860,10 @@ const editUi = createEditModal({
     formatDateTime,
     syncData,
     renderAll,
+    updateRequest: (requestId, request) =>
+        updateRequestAtomic(requestId, request),
+    deleteRequest: (requestId, actor) =>
+        deleteRequestAtomic(requestId, actor),
     getEditingRequestId: () => editingRequestId,
     setEditingRequestId: (next) => {
         editingRequestId = next;
@@ -1903,6 +2130,7 @@ const requestFormUi = createRequestForm({
     onDirectRetribuitoCreate: (request) =>
         handleRetribuitoCreate(null, request),
     onDirectSpecialeCreate: (request) => handleSpecialeCreate(null, request),
+    createRequest: (request) => createRequestAtomic(request),
     syncData,
     renderAll,
     refreshData: () => refreshUi.refreshData(),
@@ -2875,11 +3103,8 @@ function init() {
     }
 
     adminUi.initAdminModals();
-    if (isAdminFileMissingOrEmpty()) {
-        initialSetupActive = true;
-        document.body.classList.add("fp-initial-setup");
-        openInitialSetupWizard();
-    }
+    initialSetupActive = false;
+    document.body.classList.remove("fp-initial-setup");
 
     const approveRecover = document.getElementById("fp-approve-recover");
     approvalUi.initApprovalModal();
