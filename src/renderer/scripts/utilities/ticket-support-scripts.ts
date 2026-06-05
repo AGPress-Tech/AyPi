@@ -2,12 +2,10 @@
 require("../shared/dev-guards");
 import fs from "fs";
 import path from "path";
-import { loadStore, saveStore, DATA_PATH } from "./ticket-support/services/storage";
+import { loadStore, saveStore, DATA_PATH, hydrateStore } from "./ticket-support/services/storage";
 import { BASE_DIR, TICKET_DIR, CATEGORIES_PATH } from "./ticket-support/config/paths";
 import { isMailerAvailable, getMailerError, sendMail } from "./ticket-support/services/mailer";
 import { ipcRenderer } from "electron";
-import { loadAssigneeOptions } from "./ferie-permessi/services/assignees";
-import { loadAdminCredentials, saveAdminCredentials, verifyAdminPassword, findAdminByName, isValidEmail } from "./ferie-permessi/services/admins";
 import { createOtpModals } from "./ferie-permessi/ui/otp-modals";
 import { isHashingAvailable, hashPassword, getAuthenticator, otpState, resetOtpState } from "./ferie-permessi/config/security";
 import { isMailerAvailable as isOtpMailerAvailable, getMailerError as getOtpMailerError, sendOtpEmail } from "./ferie-permessi/services/otp-mail";
@@ -15,6 +13,7 @@ import { OTP_EXPIRY_MS, OTP_RESEND_MS } from "./ferie-permessi/config/constants"
 import { showDialog } from "./ferie-permessi/services/dialogs";
 import { session, setSession, saveSession, loadSession, clearSession, applySharedSessionData, isAdmin, isEmployee, isLoggedIn } from "./product-manager/state/session";
 import { renderLoginSelectors, renderAdminSelect } from "./product-manager/ui/login-selectors";
+import { requestBackend } from "../shared/backend-client";
 
 const ADMIN_EMAIL = "tech@agpress-srl.it";
 const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
@@ -27,6 +26,7 @@ const currentView = (params.get("tsView") || "form").toLowerCase() === "admin" ?
 
 let store = loadStore();
 let assigneeGroups = {};
+let assigneeEmails = {};
 let adminCache = [];
 let statusEditingTicketId = "";
 let editTicketId = "";
@@ -38,6 +38,92 @@ const TS_THEME_KEY = "ts-theme";
 const TICKET_BACKUP_ROOT_DIR = path.join(BASE_DIR, "Backup Ticket");
 let ticketCategories = { issueTypes: [...DEFAULT_ISSUE_TYPES], areas: [...DEFAULT_AREAS] };
 const categoriesUiState = { issueTypesEditingName: null, areasEditingName: null };
+
+function isValidEmail(value) {
+    if (!value) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
+}
+
+function normalizeAdminEntry(item) {
+    return {
+        name: String(item?.name || "").trim(),
+        password: item?.password ? String(item.password) : undefined,
+        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
+        email: item?.email ? String(item.email) : "",
+        phone: item?.phone ? String(item.phone) : "",
+        accessCalendar:
+            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
+        accessPurchasing:
+            typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
+    };
+}
+
+function loadAdminCredentials() {
+    return Array.isArray(adminCache) ? adminCache.map(normalizeAdminEntry) : [];
+}
+
+async function hydrateAdminCache() {
+    const payload = await requestBackend("/api/shared/admins");
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : [];
+    return loadAdminCredentials();
+}
+
+async function saveAdminCredentials(admins) {
+    const payload = await requestBackend("/api/shared/admins", {
+        method: "PUT",
+        body: { admins: Array.isArray(admins) ? admins : [] },
+    });
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : [];
+    return loadAdminCredentials();
+}
+
+async function verifyAdminPassword(password, targetName) {
+    const payload = await requestBackend("/api/shared/admins/verify", {
+        method: "POST",
+        body: {
+            password,
+            targetName: targetName || null,
+        },
+    });
+    if (!payload?.ok || !payload?.admin) return null;
+    const admin = normalizeAdminEntry(payload.admin);
+    const current = loadAdminCredentials();
+    if (!current.find((item) => item.name === admin.name)) {
+        adminCache = [...current, admin];
+    }
+    return {
+        admin,
+        admins: loadAdminCredentials(),
+    };
+}
+
+function findAdminByName(name) {
+    const lower = String(name || "").trim().toLowerCase();
+    return loadAdminCredentials().find(
+        (item) => item.name.trim().toLowerCase() === lower,
+    ) || null;
+}
+
+function loadAssigneeOptions() {
+    return {
+        groups: assigneeGroups || {},
+        emails: assigneeEmails || {},
+        options: Object.values(assigneeGroups || {}).flat(),
+    };
+}
+
+async function hydrateAssignees() {
+    const payload = await requestBackend("/api/shared/assignees");
+    assigneeGroups =
+        payload?.groups && typeof payload.groups === "object" ? payload.groups : {};
+    assigneeEmails =
+        payload?.emails && typeof payload.emails === "object" ? payload.emails : {};
+    return loadAssigneeOptions();
+}
 
 function nowIso() {
     return new Date().toISOString();
@@ -151,22 +237,13 @@ function closeBackupModal() {
 }
 
 function createTicketBackup() {
-    try {
-        setBackupMessage("");
-        ensureDir(TICKET_DIR);
-        ensureDir(TICKET_BACKUP_ROOT_DIR);
-        const dateLabel = formatBackupDate(new Date());
-        let targetDir = path.join(TICKET_BACKUP_ROOT_DIR, dateLabel);
-        let suffix = 1;
-        while (fs.existsSync(targetDir)) {
-            suffix += 1;
-            targetDir = path.join(TICKET_BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
-        }
-        copyDirectory(TICKET_DIR, targetDir);
-        setBackupMessage(`Backup creato: ${targetDir}`);
-    } catch (err) {
-        setBackupMessage(`Errore creazione backup: ${err.message || String(err)}`, true);
-    }
+    requestBackend("/api/ticket-support/backups", { method: "POST" })
+        .then((payload) => {
+            setBackupMessage(`Backup creato: ${payload?.path || payload?.name || ""}`);
+        })
+        .catch((err) => {
+            setBackupMessage(`Errore creazione backup: ${err.message || String(err)}`, true);
+        });
 }
 
 async function restoreTicketBackup() {
@@ -174,10 +251,24 @@ async function restoreTicketBackup() {
         setBackupMessage("");
         const ok = window.confirm("Ripristinare un backup Ticket? I file correnti verranno sovrascritti.");
         if (!ok) return;
-        const selected = await ipcRenderer.invoke("select-root-folder");
-        if (!selected) return;
-        ensureDir(TICKET_DIR);
-        copyDirectory(selected, TICKET_DIR);
+        const list = await requestBackend("/api/ticket-support/backups");
+        const items = Array.isArray(list?.items) ? list.items : [];
+        if (!items.length) {
+            setBackupMessage("Nessun backup disponibile.", true);
+            return;
+        }
+        const names = items.map((item) => item.name).filter(Boolean);
+        const selectedName = window.prompt(
+            `Inserisci il nome del backup da ripristinare:\n${names.join("\n")}`,
+            names[0] || "",
+        );
+        if (!selectedName) return;
+        await requestBackend(
+            `/api/ticket-support/backups/${encodeURIComponent(selectedName)}/restore`,
+            { method: "POST" },
+        );
+        await hydrateStore();
+        await hydrateTicketCategories();
         store = loadStore();
         renderAll();
         setBackupMessage("Ripristino completato.");
@@ -248,27 +339,31 @@ function normalizeCategories(input) {
 }
 
 function loadTicketCategories() {
+    return normalizeCategories(ticketCategories);
+}
+
+async function hydrateTicketCategories() {
     try {
-        ensureDir(TICKET_DIR);
-        if (!fs.existsSync(CATEGORIES_PATH)) {
-            const fallback = normalizeCategories({});
-            fs.writeFileSync(CATEGORIES_PATH, JSON.stringify({ version: 1, ...fallback }, null, 2), "utf8");
-            return fallback;
-        }
-        const raw = fs.readFileSync(CATEGORIES_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        return normalizeCategories(parsed);
+        const payload = await requestBackend("/api/ticket-support/categories");
+        ticketCategories = normalizeCategories(payload);
     } catch (err) {
-        console.error("[ticket-support] errore lettura categorie:", err);
-        return normalizeCategories({});
+        console.error("[ticket-support] errore lettura categorie backend:", err);
+        ticketCategories = normalizeCategories({});
     }
+    return loadTicketCategories();
 }
 
 function saveTicketCategories(next) {
     try {
-        ensureDir(TICKET_DIR);
         const payload = { version: 1, ...normalizeCategories(next) };
-        fs.writeFileSync(CATEGORIES_PATH, JSON.stringify(payload, null, 2), "utf8");
+        ticketCategories = normalizeCategories(payload);
+        requestBackend("/api/ticket-support/categories", {
+            method: "PUT",
+            body: payload,
+        }).catch((err) => {
+            console.error("[ticket-support] errore salvataggio categorie backend:", err);
+            showWarning("Errore salvataggio categorie.");
+        });
         return true;
     } catch (err) {
         console.error("[ticket-support] errore salvataggio categorie:", err);
@@ -1709,7 +1804,14 @@ function bindLoginEvents() {
                 }
                 return;
             }
-            const verified = await verifyAdminPassword(password, adminName);
+            let verified = null;
+            try {
+                verified = await verifyAdminPassword(password, adminName);
+            } catch (err) {
+                console.error("[ticket-support] errore verifica admin backend:", err);
+                showWarning("Verifica admin non riuscita.");
+                return;
+            }
             if (!verified || !verified.admin) {
                 if (adminError) adminError.classList.remove("is-hidden");
                 adminLoginFailCount += 1;
@@ -1822,7 +1924,9 @@ function bindOperatorListEvents() {
 function bindMainEvents() {
     document.getElementById("ts-ticket-form")?.addEventListener("submit", handleCreateTicket);
     bindOperatorListEvents();
-    document.getElementById("ts-refresh")?.addEventListener("click", () => {
+    document.getElementById("ts-refresh")?.addEventListener("click", async () => {
+        await hydrateStore();
+        await hydrateTicketCategories();
         store = loadStore();
         ticketCategories = loadTicketCategories();
         renderAll();
@@ -1933,8 +2037,10 @@ async function init() {
     document.body.classList.toggle("ts-view-form", currentView === "form");
     document.body.classList.toggle("ts-view-admin", currentView === "admin");
 
-    assigneeGroups = (loadAssigneeOptions().groups || {});
-    refreshAdminCache();
+    await hydrateStore();
+    store = loadStore();
+    await hydrateAssignees();
+    await hydrateAdminCache();
     updateLoginSelectors();
     bindLoginEvents();
     bindLogoutEvents();
@@ -1947,6 +2053,7 @@ async function init() {
     bindCategoriesEvents();
     otpUi.initOtpModals();
 
+    await hydrateTicketCategories();
     ticketCategories = loadTicketCategories();
     await loadSession();
     renderAll();

@@ -6,6 +6,11 @@ type CatalogImageContext = {
     pathToFileURL: (filePath: string) => URL;
     PRODUCTS_DIR: string;
     showError: (message: string, detail?: string) => void;
+    getBackendCatalogImageUrl?: (fileName: string) => string;
+    uploadCatalogImage?: (
+        filePath: string,
+        catalogId: string,
+    ) => string;
 };
 
 type CatalogItem = {
@@ -28,8 +33,11 @@ function getCatalogImageSrc(
     ctx: CatalogImageContext,
     item?: CatalogItem | null,
 ) {
-    const { pathToFileURL } = ctx;
+    const { pathToFileURL, getBackendCatalogImageUrl } = ctx;
     if (item && item.imageUrl) return item.imageUrl;
+    if (item?.imageFile && typeof getBackendCatalogImageUrl === "function") {
+        return getBackendCatalogImageUrl(item.imageFile);
+    }
     const filePath = getCatalogImagePath(ctx, item);
     if (!filePath) return "";
     try {
@@ -55,8 +63,11 @@ function copyCatalogImage(
     filePath: string,
     catalogId: string,
 ) {
-    const { fs, path, PRODUCTS_DIR, showError } = ctx;
+    const { fs, path, PRODUCTS_DIR, showError, uploadCatalogImage } = ctx;
     if (!filePath) return "";
+    if (typeof uploadCatalogImage === "function") {
+        return uploadCatalogImage(filePath, catalogId);
+    }
     ensureProductsDir(ctx);
     const ext = path.extname(filePath) || ".png";
     const filename = `${catalogId}${ext}`;

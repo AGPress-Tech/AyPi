@@ -5,14 +5,6 @@ const { createAdminModals } = require("./ferie-permessi/ui/admin-modals");
 const { createOtpModals } = require("./ferie-permessi/ui/otp-modals");
 const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const {
-    loadAdminCredentials,
-    saveAdminCredentials,
-    verifyAdminPassword,
-    findAdminByName,
-    isValidEmail,
-    isValidPhone,
-} = require("./ferie-permessi/services/admins");
-const {
     isMailerAvailable,
     getMailerError,
     sendOtpEmail,
@@ -25,6 +17,7 @@ const {
     hashPassword,
 } = require("./ferie-permessi/config/security");
 const sharedDialogs = require("../shared/dialogs");
+const { requestBackend } = require("../shared/backend-client");
 
 let adminCache = [];
 let adminEditingIndex = -1;
@@ -88,6 +81,77 @@ function setMessage(el, text, isError = false) {
 
 function setAdminMessage(id, text, isError = false) {
     setMessage(document.getElementById(id), text, isError);
+}
+
+function isValidEmail(value) {
+    if (!value) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
+}
+
+function isValidPhone(value) {
+    if (!value) return false;
+    const trimmed = String(value || "").trim();
+    if (!trimmed.startsWith("+39")) return false;
+    const digits = trimmed.replace(/\D/g, "");
+    return digits.length >= 11 && digits.length <= 13;
+}
+
+function normalizeAdminEntry(item) {
+    return {
+        name: String(item?.name || "").trim(),
+        password: item?.password ? String(item.password) : undefined,
+        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
+        email: item?.email ? String(item.email) : "",
+        phone: item?.phone ? String(item.phone) : "",
+        accessCalendar:
+            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
+        accessPurchasing:
+            typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
+    };
+}
+
+function loadAdminCredentials() {
+    return Array.isArray(adminCache) ? adminCache.map(normalizeAdminEntry) : [];
+}
+
+async function hydrateAdmins() {
+    const payload = await requestBackend("/api/shared/admins");
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : [];
+    return loadAdminCredentials();
+}
+
+async function saveAdminCredentials(admins) {
+    const payload = await requestBackend("/api/shared/admins", {
+        method: "PUT",
+        body: { admins: Array.isArray(admins) ? admins : [] },
+    });
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : [];
+    return loadAdminCredentials();
+}
+
+async function verifyAdminPassword(password, targetName) {
+    const payload = await requestBackend("/api/shared/admins/verify", {
+        method: "POST",
+        body: { password, targetName: targetName || null },
+    }).catch(() => null);
+    if (!payload?.ok || !payload?.admin) return null;
+    return {
+        admin: normalizeAdminEntry(payload.admin),
+        admins: loadAdminCredentials(),
+    };
+}
+
+function findAdminByName(name) {
+    const lower = String(name || "").trim().toLowerCase();
+    return (
+        loadAdminCredentials().find(
+            (item) => item.name.trim().toLowerCase() === lower,
+        ) || null
+    );
 }
 
 function openPasswordModal(action) {
@@ -243,13 +307,14 @@ function init() {
     initPasswordModal();
     otpUi.initOtpModals();
     adminUi.initAdminModals();
-    adminUi.openAdminModal();
     observeModalSizing();
 
-    document.getElementById("adm-refresh")?.addEventListener("click", () => {
-        adminCache = loadAdminCredentials().sort((a, b) =>
-            a.name.localeCompare(b.name),
-        );
+    hydrateAdmins().then(() => {
+        adminUi.openAdminModal();
+    });
+
+    document.getElementById("adm-refresh")?.addEventListener("click", async () => {
+        await hydrateAdmins();
         adminUi.renderAdminList();
         setAdminMessage("fp-admin-message", "Dati aggiornati.");
     });

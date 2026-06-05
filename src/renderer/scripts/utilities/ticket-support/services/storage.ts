@@ -1,7 +1,5 @@
-﻿require("../../../shared/dev-guards");
-import fs from "fs";
-import path from "path";
-import { TICKET_DIR, DATA_PATH, TICKET_YEARS_DIR } from "../config/paths";
+require("../../../shared/dev-guards");
+import { requestBackend } from "../../../shared/backend-client";
 
 type TicketHistoryEntry = {
     at: string;
@@ -44,108 +42,7 @@ const EMPTY_STORE: TicketStore = {
     tickets: [],
 };
 
-function ensureFolderFor(filePath: string) {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-}
-
-function ensureTickerDir() {
-    try {
-        // Rimuove vecchie cartelle e file legacy.
-        ["Ticket", "ticket"].forEach((legacyName) => {
-            try {
-                const legacyPath = path.join(path.dirname(TICKET_DIR), legacyName);
-                if (fs.existsSync(legacyPath)) {
-                    fs.rmSync(legacyPath, { recursive: true, force: true });
-                }
-            } catch (err) {
-                console.warn(
-                    "[ticket-support] rimozione cartella legacy ticket non riuscita:",
-                    legacyName,
-                    err,
-                );
-            }
-        });
-        try {
-            const legacyFile = path.join(path.dirname(TICKET_DIR), "ticket-support.json");
-            if (fs.existsSync(legacyFile)) {
-                fs.rmSync(legacyFile, { force: true });
-            }
-        } catch (err) {
-            console.warn(
-                "[ticket-support] rimozione file legacy ticket non riuscita:",
-                err,
-            );
-        }
-        if (!fs.existsSync(TICKET_DIR)) {
-            fs.mkdirSync(TICKET_DIR, { recursive: true });
-        }
-        if (!fs.existsSync(TICKET_YEARS_DIR)) {
-            fs.mkdirSync(TICKET_YEARS_DIR, { recursive: true });
-        }
-        return true;
-    } catch (err) {
-        console.error(
-            "[ticket-support] impossibile creare cartella ticket:",
-            TICKET_DIR,
-            err,
-        );
-        return false;
-    }
-}
-
-function getYearFromTicket(ticket: Partial<Ticket>) {
-    const createdAt = String(ticket?.createdAt || "").trim();
-    const parsed = createdAt ? new Date(createdAt) : null;
-    if (parsed && Number.isFinite(parsed.getTime())) {
-        return String(parsed.getFullYear());
-    }
-    return String(new Date().getFullYear());
-}
-
-function getYearFilePath(year: string | number) {
-    const safeYear = String(year || "").trim();
-    return path.join(TICKET_YEARS_DIR, `ticket-${safeYear}.json`);
-}
-
-function readTicketsFromFile(filePath: string): Ticket[] {
-    try {
-        if (!fs.existsSync(filePath)) return [];
-        const raw = fs.readFileSync(filePath, "utf8");
-        const parsed = JSON.parse(raw);
-        const list = Array.isArray(parsed?.tickets) ? parsed.tickets : [];
-        return list.map(normalizeTicket);
-    } catch (err) {
-        console.error("[ticket-support] errore lettura file:", filePath, err);
-        return [];
-    }
-}
-
-function listYearFiles(directory = TICKET_YEARS_DIR) {
-    if (!directory || !fs.existsSync(directory)) return [];
-    try {
-        return fs
-            .readdirSync(directory)
-            .filter((name) => /^ticket-\d{4}\.json$/i.test(name))
-            .map((name) => path.join(directory, name));
-    } catch (err) {
-        console.error("[ticket-support] errore lettura cartella ticket:", err);
-        return [];
-    }
-}
-
-function loadFromYearFiles() {
-    const primaryFiles = listYearFiles(TICKET_YEARS_DIR);
-    if (!primaryFiles.length) return [];
-    const files = primaryFiles;
-    const tickets: Ticket[] = [];
-    files.forEach((filePath) => {
-        tickets.push(...readTicketsFromFile(filePath));
-    });
-    return tickets;
-}
+let storeCache: TicketStore = { ...EMPTY_STORE, tickets: [] };
 
 function normalizeTicket(input: any): Ticket {
     const ticket = input && typeof input === "object" ? input : {};
@@ -184,87 +81,48 @@ function normalizeTicket(input: any): Ticket {
     };
 }
 
-function loadStore(): TicketStore {
-    try {
-        const tickerDirReady = ensureTickerDir();
-
-        const yearTickets = tickerDirReady ? loadFromYearFiles() : [];
-        if (yearTickets.length) {
-            return {
-                version: 1,
-                tickets: yearTickets,
-            };
-        }
-
-        return { ...EMPTY_STORE, tickets: [] };
-    } catch (err) {
-        console.error("[ticket-support] errore lettura store:", err);
-        return { ...EMPTY_STORE, tickets: [] };
-    }
-}
-
-function saveStore(store: TicketStore): TicketStore {
-    const normalizedTickets = Array.isArray(store?.tickets)
-        ? store.tickets.map(normalizeTicket)
-        : [];
-    const tickerDirReady = ensureTickerDir();
-
-    if (!tickerDirReady) {
-        return { version: 1, tickets: normalizedTickets };
-    }
-
-    const byYear = normalizedTickets.reduce((acc: Record<string, Ticket[]>, ticket) => {
-        const year = getYearFromTicket(ticket);
-        if (!acc[year]) acc[year] = [];
-        acc[year].push(ticket);
-        return acc;
-    }, {});
-
-    Object.keys(byYear).forEach((year) => {
-        const payload = {
-            version: 1,
-            year: Number(year),
-            tickets: byYear[year],
-        };
-        const filePath = getYearFilePath(year);
-        ensureFolderFor(filePath);
-        fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf8");
-    });
-
-    // Rimuove eventuali file annuali non più presenti nel payload corrente.
-    const expectedNames = new Set(
-        Object.keys(byYear).map((year) => `ticket-${year}.json`.toLowerCase()),
-    );
-    listYearFiles(TICKET_YEARS_DIR).forEach((filePath) => {
-        const name = path.basename(filePath).toLowerCase();
-        if (!expectedNames.has(name)) {
-            try {
-                fs.unlinkSync(filePath);
-            } catch (err) {
-                console.error(
-                    "[ticket-support] impossibile rimuovere file annuale obsoleto:",
-                    filePath,
-                    err,
-                );
-            }
-        }
-    });
-
+function normalizeStore(raw: any): TicketStore {
+    const tickets = Array.isArray(raw?.tickets) ? raw.tickets.map(normalizeTicket) : [];
     return {
         version: 1,
-        tickets: normalizedTickets,
+        tickets,
     };
 }
 
-export { DATA_PATH, loadStore, saveStore };
+function loadStore() {
+    return normalizeStore(storeCache);
+}
 
-// Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
+async function hydrateStore() {
+    const payload = await requestBackend("/api/ticket-support/store");
+    storeCache = normalizeStore(payload);
+    return loadStore();
+}
+
+function saveStore(store: TicketStore) {
+    storeCache = normalizeStore(store);
+    requestBackend("/api/ticket-support/store", {
+        method: "PUT",
+        body: storeCache,
+    }).catch((err) => {
+        console.error("[ticket-support] errore salvataggio store backend:", err);
+    });
+    return loadStore();
+}
+
+const DATA_PATH = "backend://ticket-support/store";
+
+export { DATA_PATH, loadStore, saveStore, hydrateStore };
+
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    module.exports = {
         DATA_PATH,
         loadStore,
         saveStore,
+        hydrateStore,
     };
 }
-
-

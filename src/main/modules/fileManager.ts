@@ -4,6 +4,7 @@ import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
 import type { OpenDialogOptions } from "electron";
 import path from "path";
 import { exec, execSync, execFileSync } from "child_process";
+import http from "http";
 import https from "https";
 import fs from "fs";
 import log from "electron-log";
@@ -1387,6 +1388,78 @@ function resolveFpBackendBaseUrlSync() {
             : FP_SERVER_BACKEND_BASE_URL);
     log.info("[ferie-permessi] backend base url:", backendUrl);
     return backendUrl;
+}
+
+function resolveAypiBackendBaseUrlSync() {
+    const ferieBaseUrl = resolveFpBackendBaseUrlSync();
+    return ferieBaseUrl.replace(/\/api\/ferie-permessi\/?$/i, "");
+}
+
+async function requestAypiBackend(
+    pathname: string,
+    options?: {
+        method?: string;
+        body?: unknown;
+        headers?: Record<string, string>;
+    },
+) {
+    const baseUrl = resolveAypiBackendBaseUrlSync();
+    const url = new URL(pathname, `${baseUrl}/`);
+    const transport = url.protocol === "https:" ? https : http;
+    const method = String(options?.method || "GET").toUpperCase();
+    const headers = {
+        "Content-Type": "application/json",
+        ...(options?.headers || {}),
+    };
+    const body =
+        options && Object.prototype.hasOwnProperty.call(options, "body")
+            ? JSON.stringify(options.body ?? {})
+            : null;
+
+    return new Promise<any>((resolve, reject) => {
+        const req = transport.request(
+            url,
+            {
+                method,
+                headers: body
+                    ? {
+                          ...headers,
+                          "Content-Length": Buffer.byteLength(body).toString(),
+                      }
+                    : headers,
+            },
+            (res) => {
+                const chunks: Buffer[] = [];
+                res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+                res.on("end", () => {
+                    const raw = Buffer.concat(chunks).toString("utf8");
+                    const statusCode = res.statusCode || 0;
+                    let parsed: any = null;
+                    if (raw) {
+                        try {
+                            parsed = JSON.parse(raw);
+                        } catch {
+                            parsed = raw;
+                        }
+                    }
+                    if (statusCode >= 200 && statusCode < 300) {
+                        resolve(parsed);
+                        return;
+                    }
+                    reject(
+                        new Error(
+                            `Backend ${method} ${url.pathname} failed (${statusCode}): ${
+                                parsed?.error || raw || "Errore sconosciuto"
+                            }`,
+                        ),
+                    );
+                });
+            },
+        );
+        req.on("error", reject);
+        if (body) req.write(body);
+        req.end();
+    });
 }
 
 function animateResize(
@@ -3515,71 +3588,10 @@ function setupFileManager(mainWindow) {
 
     ipcMain.handle("transfer-attrezzaggio-list", async () => {
         try {
-            ensureTransferAttrezzaggioDir();
-            const files = fs
-                .readdirSync(TRANSFER_ATTREZZAGGIO_DIR)
-                .filter((name) => name.toLowerCase().endsWith(".json"));
-            const items = files
-                .map((name) => {
-                    const fullPath = path.join(TRANSFER_ATTREZZAGGIO_DIR, name);
-                    try {
-                        const raw = fs.readFileSync(fullPath, "utf8");
-                        const parsed = JSON.parse(raw);
-                        const record = parsed?.item || parsed?.data || parsed || {};
-                        const stat = fs.statSync(fullPath);
-                        const code = String(record?.code || name.replace(/\.json$/i, ""));
-                        let codeArt = "";
-                        let codeFase = "";
-                        let codeMacchina = "";
-                        let codeMetodo = "";
-                        if (code.includes("/")) {
-                            const oldParts = code.split("/");
-                            codeArt = oldParts[0] || "";
-                            codeFase = oldParts[1] || "";
-                            codeMacchina = oldParts[2] || "";
-                            codeMetodo = oldParts[3] || "";
-                        } else {
-                            const m = code.match(/^(.*?)\s*-\s*Fase:\s*(.*?)\s*-\s*(.*?)\s*-\s*(.*)$/i);
-                            if (m) {
-                                codeArt = m[1] || "";
-                                codeFase = m[2] || "";
-                                codeMacchina = m[3] || "";
-                                codeMetodo = m[4] || "";
-                            }
-                        }
-                        const utensili = Array.isArray(record?.utensili)
-                            ? record.utensili
-                            : Array.isArray(record?.tools)
-                              ? record.tools
-                            : [];
-                        const utensiliDescrizioni = utensili
-                            .map((u) => String(u?.descrizione || "").trim())
-                            .filter(Boolean);
-                        const utensiliCol1 = utensili
-                            .map((u) => String(u?.col1 || "").trim())
-                            .filter(Boolean);
-                        return {
-                            code,
-                            fileName: name,
-                            updatedAt: stat.mtimeMs || 0,
-                            codiceArticolo: record?.codiceArticolo || codeArt || "",
-                            fase: record?.fase || codeFase || "",
-                            codiceMacchina: record?.codiceMacchina || codeMacchina || "",
-                            metodo: record?.metodo || codeMetodo || "",
-                            lavorazione: record?.lavorazione || "",
-                            cicloLavorazione: record?.cicloLavorazione || "",
-                            note: record?.note || "",
-                            utensiliCount: utensili.length,
-                            utensiliDescrizioni,
-                            utensiliCol1,
-                        };
-                    } catch {
-                        return null;
-                    }
-                })
-                .filter(Boolean)
-                .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-            return { ok: true, items };
+            const payload = await requestAypiBackend(
+                "/api/transfer-attrezzaggio/items",
+            );
+            return { ok: true, items: Array.isArray(payload?.items) ? payload.items : [] };
         } catch (err) {
             return { ok: false, error: err?.message || String(err) };
         }
@@ -3587,16 +3599,12 @@ function setupFileManager(mainWindow) {
 
     ipcMain.handle("transfer-attrezzaggio-load", async (_event, payload) => {
         try {
-            ensureTransferAttrezzaggioDir();
             const code = String(payload?.code || "");
             if (!code) return { ok: false, error: "Codice mancante." };
-            const fullPath = transferJsonPathFromCode(code);
-            if (!fs.existsSync(fullPath)) {
-                return { ok: false, error: "Scheda non trovata." };
-            }
-            const raw = fs.readFileSync(fullPath, "utf8");
-            const item = JSON.parse(raw);
-            return { ok: true, item };
+            const item = await requestAypiBackend(
+                `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
+            );
+            return { ok: true, item: item?.item || null };
         } catch (err) {
             return { ok: false, error: err?.message || String(err) };
         }
@@ -3604,25 +3612,20 @@ function setupFileManager(mainWindow) {
 
     ipcMain.handle("transfer-attrezzaggio-save", async (_event, payload) => {
         try {
-            ensureTransferAttrezzaggioDir();
             const code = transferCodeFromPayload(payload);
             if (!code || code === "///") {
                 return { ok: false, error: "Codice scheda non valido." };
             }
-            const item = {
-                code,
-                codiceArticolo: String(payload?.codiceArticolo || ""),
-                fase: String(payload?.fase || ""),
-                codiceMacchina: String(payload?.codiceMacchina || ""),
-                metodo: String(payload?.metodo || ""),
-                lavorazione: String(payload?.lavorazione || ""),
-                cicloLavorazione: String(payload?.cicloLavorazione || ""),
-                note: String(payload?.note || ""),
-                utensili: Array.isArray(payload?.utensili) ? payload.utensili : [],
-                updatedAt: new Date().toISOString(),
-            };
-            const fullPath = transferJsonPathFromCode(code);
-            fs.writeFileSync(fullPath, JSON.stringify(item, null, 2), "utf8");
+            await requestAypiBackend(
+                `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
+                {
+                    method: "PUT",
+                    body: {
+                        ...payload,
+                        code,
+                    },
+                },
+            );
             return { ok: true, code };
         } catch (err) {
             return { ok: false, error: err?.message || String(err) };
@@ -3631,14 +3634,12 @@ function setupFileManager(mainWindow) {
 
     ipcMain.handle("transfer-attrezzaggio-delete", async (_event, payload) => {
         try {
-            ensureTransferAttrezzaggioDir();
             const code = String(payload?.code || "");
             if (!code) return { ok: false, error: "Codice mancante." };
-            const fullPath = transferJsonPathFromCode(code);
-            if (!fs.existsSync(fullPath)) {
-                return { ok: false, error: "Scheda non trovata." };
-            }
-            fs.unlinkSync(fullPath);
+            await requestAypiBackend(
+                `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
+                { method: "DELETE" },
+            );
             return { ok: true };
         } catch (err) {
             return { ok: false, error: err?.message || String(err) };

@@ -1,12 +1,12 @@
 // @ts-nocheck
 require("../shared/dev-guards");
-const { loadAssigneeOptions, saveAssigneeOptions } = require("./ferie-permessi/services/assignees");
 const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const {
     renderDepartmentSelect,
     renderDepartmentList,
     renderEmployeesList,
 } = require("./product-manager/ui/assignees-admin-ui");
+const { requestBackend } = require("../shared/backend-client");
 
 let assigneeGroups = {};
 let assigneeEmails = {};
@@ -28,7 +28,12 @@ function setMessage(text, isError = false) {
 }
 
 function saveAll() {
-    saveAssigneeOptions({ groups: assigneeGroups, emails: assigneeEmails });
+    requestBackend("/api/shared/assignees", {
+        method: "PUT",
+        body: { groups: assigneeGroups, emails: assigneeEmails },
+    }).catch((err) => {
+        setMessage(`Errore salvataggio: ${err?.message || String(err)}`, true);
+    });
 }
 
 function getCtx() {
@@ -69,9 +74,15 @@ function redraw() {
 }
 
 function loadAll() {
-    const payload = loadAssigneeOptions();
-    assigneeGroups = payload.groups || {};
-    assigneeEmails = payload.emails || {};
+    return requestBackend("/api/shared/assignees")
+        .then((payload) => {
+            assigneeGroups = payload?.groups || {};
+            assigneeEmails = payload?.emails || {};
+        })
+        .catch(() => {
+            assigneeGroups = {};
+            assigneeEmails = {};
+        });
 }
 
 function addDepartment() {
@@ -108,11 +119,10 @@ function addEmployee() {
 }
 
 function init() {
-    loadAll();
-    redraw();
+    loadAll().then(redraw);
 
-    document.getElementById("am-refresh")?.addEventListener("click", () => {
-        loadAll();
+    document.getElementById("am-refresh")?.addEventListener("click", async () => {
+        await loadAll();
         redraw();
         setMessage("Dati aggiornati.");
     });

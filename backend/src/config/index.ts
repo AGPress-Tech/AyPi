@@ -31,6 +31,18 @@ const feriePermessiGeneralDir = getEnvString(
     defaultGeneralDir,
 );
 const feriePermessiBaseDir = path.dirname(feriePermessiCalendarDir);
+const purchasingDir = getEnvString(
+    "AYPI_PM_DIR",
+    path.join(feriePermessiBaseDir, "AyPi Purchasing"),
+);
+const ticketDir = getEnvString(
+    "AYPI_TS_DIR",
+    path.join(feriePermessiBaseDir, "AyPi Ticket"),
+);
+const transferAttrezzaggioDir = getEnvString(
+    "AYPI_TRANSFER_DIR",
+    path.join(feriePermessiBaseDir, "Schede Attrezzaggio", "Transfer"),
+);
 const backendLogDir = getEnvString(
     "AYPI_LOG_DIR",
     path.join(feriePermessiCalendarDir, "log"),
@@ -52,6 +64,15 @@ export const backendConfig = {
             baseDir: feriePermessiBaseDir,
             calendarDir: feriePermessiCalendarDir,
             generalDir: feriePermessiGeneralDir,
+        },
+        productManager: {
+            dir: purchasingDir,
+        },
+        ticketSupport: {
+            dir: ticketDir,
+        },
+        transferAttrezzaggio: {
+            dir: transferAttrezzaggioDir,
         },
     },
 };

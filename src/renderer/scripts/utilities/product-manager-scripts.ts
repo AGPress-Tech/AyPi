@@ -202,6 +202,7 @@ import {
     isLoggedIn,
 } from "./product-manager/state/session";
 import { uiState } from "./product-manager/state/ui";
+import { requestBackend, resolveBackendRootUrl } from "../shared/backend-client";
 
 const {
     validateRequestsSchema,
@@ -240,6 +241,8 @@ let assigneeEmails = {};
 let editingDepartment = null;
 let editingEmployee = null;
 let adminCache = [];
+let purchasingRequestsCache = [];
+let interventionsCache = [];
 let adminEditingIndex = -1;
 let editTagsSelect = null;
 let pendingPasswordAction = null;
@@ -267,6 +270,167 @@ let cartState = {
 
 const RETENTION_SETTINGS_KEY = "pm-retention-settings";
 const DEFAULT_RETENTION_SETTINGS = { confirmedDays: 7, deletedDays: 7 };
+
+function normalizeAdminEntry(item) {
+    return {
+        name: String(item?.name || "").trim(),
+        password: item?.password ? String(item.password) : undefined,
+        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
+        email: item?.email ? String(item.email) : "",
+        phone: item?.phone ? String(item.phone) : "",
+        accessCalendar:
+            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
+        accessPurchasing:
+            typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
+    };
+}
+
+function loadAdminCredentialsRemote() {
+    return Array.isArray(adminCache) ? adminCache.map(normalizeAdminEntry) : [];
+}
+
+async function hydrateAdminCacheRemote() {
+    const payload = await requestBackend("/api/shared/admins");
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : [];
+    return loadAdminCredentialsRemote();
+}
+
+async function saveAdminCredentialsRemote(admins) {
+    const payload = await requestBackend("/api/shared/admins", {
+        method: "PUT",
+        body: { admins: Array.isArray(admins) ? admins : [] },
+    });
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : [];
+    return loadAdminCredentialsRemote();
+}
+
+async function verifyAdminPasswordRemote(password, targetName) {
+    const payload = await requestBackend("/api/shared/admins/verify", {
+        method: "POST",
+        body: {
+            password,
+            targetName: targetName || null,
+        },
+    });
+    if (!payload?.ok || !payload?.admin) return null;
+    const admin = normalizeAdminEntry(payload.admin);
+    if (!adminCache.find((item) => item.name === admin.name)) {
+        adminCache = [...adminCache, admin];
+    }
+    return {
+        admin,
+        admins: loadAdminCredentialsRemote(),
+    };
+}
+
+function findAdminByNameRemote(name) {
+    const lower = String(name || "").trim().toLowerCase();
+    return (
+        loadAdminCredentialsRemote().find(
+            (admin) => admin.name.trim().toLowerCase() === lower,
+        ) || null
+    );
+}
+
+async function hydrateAssigneesRemote() {
+    const payload = await requestBackend("/api/shared/assignees");
+    assigneeGroups =
+        payload?.groups && typeof payload.groups === "object" ? payload.groups : {};
+    assigneeEmails =
+        payload?.emails && typeof payload.emails === "object" ? payload.emails : {};
+    assigneeOptions = Array.isArray(payload?.options) ? payload.options : Object.values(assigneeGroups).flat();
+    return {
+        groups: assigneeGroups,
+        emails: assigneeEmails,
+        options: assigneeOptions,
+    };
+}
+
+async function saveAssigneesRemote() {
+    const payload = await requestBackend("/api/shared/assignees", {
+        method: "PUT",
+        body: {
+            groups: assigneeGroups,
+            emails: assigneeEmails || {},
+        },
+    });
+    assigneeGroups =
+        payload?.data?.groups && typeof payload.data.groups === "object"
+            ? payload.data.groups
+            : assigneeGroups;
+    assigneeEmails =
+        payload?.data?.emails && typeof payload.data.emails === "object"
+            ? payload.data.emails
+            : assigneeEmails;
+    assigneeOptions = Array.isArray(payload?.data?.options)
+        ? payload.data.options
+        : Object.values(assigneeGroups).flat();
+}
+
+async function hydrateProductManagerData() {
+    const payload = await requestBackend("/api/product-manager/bootstrap");
+    purchasingRequestsCache = Array.isArray(payload?.requests) ? payload.requests : [];
+    interventionsCache = Array.isArray(payload?.interventions)
+        ? payload.interventions
+        : [];
+    catalogItems = Array.isArray(payload?.catalog) ? payload.catalog : [];
+    catalogCategories = Array.isArray(payload?.categories) ? payload.categories : [];
+    interventionTypes = Array.isArray(payload?.interventionTypes)
+        ? payload.interventionTypes
+        : [];
+    if (payload?.assignees) {
+        assigneeGroups =
+            payload.assignees.groups && typeof payload.assignees.groups === "object"
+                ? payload.assignees.groups
+                : assigneeGroups;
+        assigneeEmails =
+            payload.assignees.emails && typeof payload.assignees.emails === "object"
+                ? payload.assignees.emails
+                : assigneeEmails;
+        assigneeOptions = Array.isArray(payload.assignees.options)
+            ? payload.assignees.options
+            : Object.values(assigneeGroups).flat();
+    }
+}
+
+function getBackendCatalogImageUrl(fileName) {
+    return `${resolveBackendRootUrl()}/api/product-manager/catalog-image/${encodeURIComponent(
+        String(fileName || ""),
+    )}`;
+}
+
+function uploadCatalogImageToBackend(filePath, catalogId) {
+    if (!filePath || !catalogId) return "";
+    const ext = path.extname(filePath) || ".png";
+    const fileName = `${catalogId}${ext}`;
+    try {
+        const buffer = fs.readFileSync(filePath);
+        requestBackend("/api/product-manager/catalog-image", {
+            method: "POST",
+            body: {
+                catalogId,
+                fileName: path.basename(filePath),
+                dataBase64: buffer.toString("base64"),
+            },
+        }).catch((err) => {
+            showError(
+                "Errore upload immagine catalogo.",
+                err?.message || String(err),
+            );
+        });
+        return fileName;
+    } catch (err) {
+        showError(
+            "Errore lettura immagine catalogo.",
+            err?.message || String(err),
+        );
+        return "";
+    }
+}
 
 const { showModal, hideModal } = createModalHelpers({ document });
 
@@ -348,6 +512,8 @@ function getCatalogSectionCtx() {
         openCategoriesModal,
         closeCategoriesModal,
         addCategory,
+        getBackendCatalogImageUrl,
+        uploadCatalogImage: uploadCatalogImageToBackend,
     };
 }
 
@@ -682,32 +848,22 @@ function initPurchasingBackupModal() {
 
     if (runBtn) {
         runBtn.addEventListener("click", () => {
-            try {
-                setBackupMessage("", "");
-                ensureDir(PURCHASING_DIR);
-                ensureDir(PURCHASING_BACKUP_ROOT_DIR);
-                const dateLabel = formatBackupDate(new Date());
-                let targetDir = path.join(
-                    PURCHASING_BACKUP_ROOT_DIR,
-                    dateLabel,
-                );
-                let suffix = 1;
-                while (fs.existsSync(targetDir)) {
-                    suffix += 1;
-                    targetDir = path.join(
-                        PURCHASING_BACKUP_ROOT_DIR,
-                        `${dateLabel}-${suffix}`,
+            setBackupMessage("", "");
+            requestBackend("/api/product-manager/backups", {
+                method: "POST",
+            })
+                .then((payload) => {
+                    setBackupMessage(
+                        `Backup creato: ${payload?.path || payload?.name || ""}`,
+                        "success",
                     );
-                }
-                copyDirectory(PURCHASING_DIR, targetDir);
-                prunePurchasingBackups(10);
-                setBackupMessage(`Backup creato: ${targetDir}`, "success");
-            } catch (err) {
-                setBackupMessage(
-                    `Errore creazione backup: ${err.message || String(err)}`,
-                    "error",
-                );
-            }
+                })
+                .catch((err) => {
+                    setBackupMessage(
+                        `Errore creazione backup: ${err.message || String(err)}`,
+                        "error",
+                    );
+                });
         });
     }
 
@@ -719,11 +875,28 @@ function initPurchasingBackupModal() {
                     "Ripristinare un backup Purchasing? I file correnti verranno sovrascritti.",
                 );
                 if (!ok) return;
-                const selected = await ipcRenderer.invoke("select-root-folder");
-                if (!selected) return;
-                ensureDir(PURCHASING_DIR);
-                copyDirectory(selected, PURCHASING_DIR);
+                const list = await requestBackend("/api/product-manager/backups");
+                const items = Array.isArray(list?.items) ? list.items : [];
+                if (!items.length) {
+                    setBackupMessage("Nessun backup disponibile.", "error");
+                    return;
+                }
+                const names = items.map((item) => item.name).filter(Boolean);
+                const selectedName = window.prompt(
+                    `Inserisci il nome del backup da ripristinare:\n${names.join("\n")}`,
+                    names[0] || "",
+                );
+                if (!selectedName) return;
+                await requestBackend(
+                    `/api/product-manager/backups/${encodeURIComponent(selectedName)}/restore`,
+                    { method: "POST" },
+                );
+                await hydrateProductManagerData();
                 renderCartTable();
+                renderCatalog();
+                renderCategoryOptions();
+                renderCatalogFilterOptions();
+                renderCartTagFilterOptions();
                 setBackupMessage("Ripristino completato.", "success");
             } catch (err) {
                 setBackupMessage(
@@ -1434,22 +1607,20 @@ function writeInterventionsShards(payload) {
 function readRequestsFile(mode = getActiveMode()) {
     try {
         if (mode === REQUEST_MODES.INTERVENTION) {
-            const shardData = readInterventionsFromShards();
-            if (!Array.isArray(shardData) || shardData.length === 0) return [];
-            validateWithAjv(validateRequestsSchema, shardData, "richieste", {
+            const data = normalizeRequestsData(interventionsCache);
+            validateWithAjv(validateRequestsSchema, data, "richieste", {
                 showWarning,
                 showError,
             });
-            return shardData;
+            return data;
         }
 
-        const shardData = readRequestsFromShards();
-        if (!Array.isArray(shardData) || shardData.length === 0) return [];
-        validateWithAjv(validateRequestsSchema, shardData, "richieste", {
+        const data = normalizeRequestsData(purchasingRequestsCache);
+        validateWithAjv(validateRequestsSchema, data, "richieste", {
             showWarning,
             showError,
         });
-        return shardData;
+        return data;
     } catch (err) {
         showError("Errore lettura richieste.", err.message || String(err));
         return [];
@@ -1467,9 +1638,27 @@ function saveRequestsFile(payload, mode = getActiveMode()) {
         )
             return false;
         if (mode === REQUEST_MODES.INTERVENTION) {
-            writeInterventionsShards(normalized);
+            interventionsCache = normalized;
+            requestBackend("/api/product-manager/interventions", {
+                method: "PUT",
+                body: normalized,
+            }).catch((err) => {
+                showError(
+                    "Errore salvataggio interventi backend.",
+                    err?.message || String(err),
+                );
+            });
         } else {
-            writeRequestsShards(normalized);
+            purchasingRequestsCache = normalized;
+            requestBackend("/api/product-manager/requests", {
+                method: "PUT",
+                body: normalized,
+            }).catch((err) => {
+                showError(
+                    "Errore salvataggio richieste backend.",
+                    err?.message || String(err),
+                );
+            });
         }
         return true;
     } catch (err) {
@@ -2253,39 +2442,17 @@ function normalizeAssigneesPayload(parsed) {
 }
 
 function loadAssignees() {
-    const pathHint =
-        ASSIGNEES_PATHS.find((item) => item && fs.existsSync(item)) ||
-        ASSIGNEES_PATHS[0];
-    try {
-        if (!fs.existsSync(pathHint)) return { groups: {}, options: [] };
-        const raw = fs.readFileSync(pathHint, "utf8");
-        const parsed = JSON.parse(raw);
-        return normalizeAssigneesPayload(parsed);
-    } catch (err) {
-        console.error("Errore lettura assignees:", err);
-        return { groups: {}, options: [] };
-    }
+    return {
+        groups: assigneeGroups || {},
+        options: assigneeOptions || [],
+        emails: assigneeEmails || {},
+    };
 }
 
 function saveAssignees() {
-    try {
-        const payload = JSON.stringify(
-            {
-                groups: assigneeGroups,
-                emails: assigneeEmails || {},
-            },
-            null,
-            2,
-        );
-        ASSIGNEES_PATHS.forEach((pathHint) => {
-            if (!pathHint) return;
-            const dir = path.dirname(pathHint);
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(pathHint, payload, "utf8");
-        });
-    } catch (err) {
+    saveAssigneesRemote().catch((err) => {
         showError("Errore salvataggio dipendenti.", err.message || String(err));
-    }
+    });
 }
 
 function syncAssignees() {
@@ -2302,27 +2469,104 @@ function syncAssignees() {
 }
 
 function loadCatalog() {
-    return loadCatalogSection(getCatalogSectionCtx());
+    return normalizeCatalogData(catalogItems);
 }
 
 function saveCatalog(list) {
-    return saveCatalogSection(getCatalogSectionCtx(), list);
+    try {
+        const normalized = normalizeCatalogData(list);
+        if (
+            !validateWithAjv(validateCatalogSchema, normalized, "catalogo", {
+                showWarning,
+                showError,
+            }).ok
+        )
+            return false;
+        catalogItems = normalized;
+        requestBackend("/api/product-manager/catalog", {
+            method: "PUT",
+            body: normalized,
+        }).catch((err) => {
+            showError(
+                "Errore salvataggio catalogo backend.",
+                err?.message || String(err),
+            );
+        });
+        return true;
+    } catch (err) {
+        showError("Errore salvataggio catalogo.", err.message || String(err));
+        return false;
+    }
 }
 
 function loadCategories() {
-    return loadCategoriesSection(getCatalogSectionCtx());
+    return normalizeCategoriesData(catalogCategories);
 }
 
 function saveCategories(list) {
-    return saveCategoriesSection(getCatalogSectionCtx(), list);
+    try {
+        const normalized = normalizeCategoriesData(list);
+        if (
+            !validateWithAjv(validateCategoriesSchema, normalized, "categorie", {
+                showWarning,
+                showError,
+            }).ok
+        )
+            return false;
+        catalogCategories = normalized;
+        requestBackend("/api/product-manager/categories", {
+            method: "PUT",
+            body: normalized,
+        }).catch((err) => {
+            showError(
+                "Errore salvataggio categorie backend.",
+                err?.message || String(err),
+            );
+        });
+        return true;
+    } catch (err) {
+        showError("Errore salvataggio categorie.", err.message || String(err));
+        return false;
+    }
 }
 
 function loadInterventionTypes() {
-    return loadInterventionTypesSection(getInterventionsSectionCtx());
+    return normalizeInterventionTypesData(interventionTypes);
 }
 
 function saveInterventionTypes(list) {
-    return saveInterventionTypesSection(getInterventionsSectionCtx(), list);
+    try {
+        const normalized = normalizeInterventionTypesData(list);
+        if (
+            !validateWithAjv(
+                validateInterventionTypesSchema,
+                normalized,
+                "tipologie interventi",
+                {
+                    showWarning,
+                    showError,
+                },
+            ).ok
+        )
+            return false;
+        interventionTypes = normalized;
+        requestBackend("/api/product-manager/intervention-types", {
+            method: "PUT",
+            body: normalized,
+        }).catch((err) => {
+            showError(
+                "Errore salvataggio tipologie backend.",
+                err?.message || String(err),
+            );
+        });
+        return true;
+    } catch (err) {
+        showError(
+            "Errore salvataggio tipologie interventi.",
+            err.message || String(err),
+        );
+        return false;
+    }
 }
 
 function renderCategoryOptions(selected = []) {
@@ -2612,7 +2856,7 @@ function renderLoginSelectors() {
 function renderAdminSelect() {
     renderAdminSelectUi({
         document,
-        loadAdminCredentials,
+        loadAdminCredentials: loadAdminCredentialsRemote,
     });
 }
 
@@ -2795,10 +3039,10 @@ async function confirmPassword() {
     }
     const targetName = action?.adminName || action?.id || "";
     const shouldCheckAny = action.type === "admin-access";
-    const result = await verifyAdminPassword(
+    const result = await verifyAdminPasswordRemote(
         password,
         shouldCheckAny ? undefined : targetName || undefined,
-    );
+    ).catch(() => null);
     if (!result || !result.admin) {
         if (error) error.classList.remove("is-hidden");
         passwordFailCount += 1;
@@ -2818,7 +3062,8 @@ async function confirmPassword() {
     }
     if (action.type === "admin-delete") {
         const adminName = action.adminName || "";
-        adminCache = adminCache.length ? adminCache : loadAdminCredentials();
+        adminCache =
+            adminCache.length ? adminCache : loadAdminCredentialsRemote();
         if (adminCache.length <= 1) {
             setAdminMessage(
                 "fp-admin-message",
@@ -2829,7 +3074,7 @@ async function confirmPassword() {
         }
         adminCache = adminCache.filter((item) => item.name !== adminName);
         setAdminCache(adminCache);
-        saveAdminCredentials(adminCache);
+        saveAdminCredentialsRemote(adminCache);
         adminUi.renderAdminList();
         setAdminMessage("fp-admin-message", UI_TEXTS.adminRemoved, false);
     }
@@ -2959,10 +3204,10 @@ const otpUi = createOtpModals({
     isMailerAvailable,
     getMailerError,
     sendOtpEmail,
-    findAdminByName,
+    findAdminByName: findAdminByNameRemote,
     getAdminCache,
-    loadAdminCredentials,
-    saveAdminCredentials,
+    loadAdminCredentials: loadAdminCredentialsRemote,
+    saveAdminCredentials: saveAdminCredentialsRemote,
     getAuthenticator,
     otpState,
     resetOtpState,
@@ -2985,9 +3230,9 @@ const adminUi = createAdminModals({
     escapeHtml,
     openPasswordModal,
     openOtpModal,
-    loadAdminCredentials,
-    saveAdminCredentials,
-    verifyAdminPassword,
+    loadAdminCredentials: loadAdminCredentialsRemote,
+    saveAdminCredentials: saveAdminCredentialsRemote,
+    verifyAdminPassword: verifyAdminPasswordRemote,
     hashPassword,
     isHashingAvailable,
     isValidEmail,
@@ -3117,7 +3362,10 @@ function setupLogin() {
                 }
                 return;
             }
-            const verified = await verifyAdminPassword(password, adminName);
+            const verified = await verifyAdminPasswordRemote(
+                password,
+                adminName,
+            ).catch(() => null);
             if (!verified || !verified.admin) {
                 if (adminError) adminError.textContent = defaultErrorText;
                 if (adminError) adminError.classList.remove("is-hidden");
@@ -3525,6 +3773,8 @@ async function init() {
     const retentionSettings = loadRetentionSettings();
     cartState.retentionConfirmedDays = retentionSettings.confirmedDays;
     cartState.retentionDeletedDays = retentionSettings.deletedDays;
+    await hydrateAdminCacheRemote();
+    await hydrateProductManagerData();
     syncAssignees();
     renderLoginSelectors();
     renderAdminSelect();
