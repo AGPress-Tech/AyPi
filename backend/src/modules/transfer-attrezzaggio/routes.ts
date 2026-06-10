@@ -1,43 +1,70 @@
 import type { Router } from "../../shared/http/router";
 import { readJsonBody } from "../../shared/http/request";
+import { notFound } from "../../shared/http/errors";
 import { sendJson } from "../../shared/http/response";
+import { createSchemaValidator } from "../../shared/http/validation";
 import {
-    deleteTransferItem,
-    listTransferItems,
-    loadTransferItem,
-    saveTransferItem,
-} from "./repository";
+    getTransferItem,
+    getTransferItems,
+    removeTransfer,
+    saveTransfer,
+} from "./service";
+
+const validateTransferPayload = createSchemaValidator<any>({
+    type: "object",
+    additionalProperties: true,
+    properties: {
+        code: { type: "string", nullable: true },
+        codiceArticolo: { type: "string", nullable: true },
+        fase: { type: "string", nullable: true },
+        codiceMacchina: { type: "string", nullable: true },
+        metodoVariante: { type: "string", nullable: true },
+        lavorazione: { type: "string", nullable: true },
+        cicloLavorazione: { type: "string", nullable: true },
+        note: { type: "string", nullable: true },
+        utensili: {
+            type: "array",
+            nullable: true,
+            items: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
+    },
+});
 
 export function registerTransferAttrezzaggioRoutes(router: Router) {
     router.register("GET", "/api/transfer-attrezzaggio/items", async (_req, res) => {
-        sendJson(res, 200, { items: listTransferItems() });
+        sendJson(res, 200, { items: getTransferItems() });
     });
 
     router.register("GET", "/api/transfer-attrezzaggio/items/:code", async (_req, res, params) => {
-        const item = loadTransferItem(params.code);
+        const item = getTransferItem(params.code);
         if (!item) {
-            sendJson(res, 404, { error: "Not found" });
-            return;
+            throw notFound("Transfer item not found");
         }
         sendJson(res, 200, { item });
     });
 
     router.register("PUT", "/api/transfer-attrezzaggio/items/:code", async (req, res, params) => {
-        const payload = (await readJsonBody<any>(req)) || {};
+        const payload = validateTransferPayload(
+            await readJsonBody(req),
+            "Invalid transfer item payload",
+        );
         sendJson(
             res,
             200,
             {
-                item: saveTransferItem({
-                    ...payload,
-                    code: params.code,
-                }),
+                item: await saveTransfer(params.code, payload),
             },
         );
     });
 
     router.register("DELETE", "/api/transfer-attrezzaggio/items/:code", async (_req, res, params) => {
-        const ok = deleteTransferItem(params.code);
-        sendJson(res, ok ? 200 : 404, { ok });
+        const ok = await removeTransfer(params.code);
+        if (!ok) {
+            throw notFound("Transfer item not found");
+        }
+        sendJson(res, 200, { ok: true });
     });
 }

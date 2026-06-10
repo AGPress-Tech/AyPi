@@ -3,7 +3,7 @@ import { backendConfig } from "./config";
 import { registerRoutes } from "./routes";
 import { logger } from "./shared/logging/logger";
 import { Router } from "./shared/http/router";
-import { sendJson } from "./shared/http/response";
+import { sendError } from "./shared/http/response";
 import {
     getRequestClient,
     getRequestId,
@@ -92,10 +92,7 @@ export function createBackendServer() {
                 durationMs: Date.now() - startedAt,
                 detail: error instanceof Error ? error.message : String(error),
             });
-            sendJson(response, 500, {
-                error: "Internal Server Error",
-                detail: error instanceof Error ? error.message : String(error),
-            });
+            sendError(response, error);
         }
     });
 }

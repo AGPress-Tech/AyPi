@@ -1,48 +1,113 @@
 import type { Router } from "../../shared/http/router";
 import { readJsonBody } from "../../shared/http/request";
+import { badRequest } from "../../shared/http/errors";
 import { sendJson } from "../../shared/http/response";
+import { createSchemaValidator } from "../../shared/http/validation";
 import {
-    createTicketBackup,
-    loadTicketCategories,
-    loadTicketStore,
-    listTicketBackups,
-    restoreTicketBackup,
-    saveTicketCategories,
-    saveTicketStore,
-} from "./repository";
+    getTicketBackups,
+    getTicketCategories,
+    getTicketStore,
+    runTicketBackup,
+    runTicketRestore,
+    saveCategories,
+    saveStore,
+} from "./service";
+
+const validateTicketStorePayload = createSchemaValidator<any>({
+    type: "object",
+    required: ["version", "tickets"],
+    additionalProperties: true,
+    properties: {
+        version: { type: "number" },
+        tickets: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: true,
+                properties: {
+                    id: { type: "string", nullable: true },
+                    issueType: { type: "string", nullable: true },
+                    area: { type: "string", nullable: true },
+                    priority: { type: "string", nullable: true },
+                    description: { type: "string", nullable: true },
+                    status: { type: "string", nullable: true },
+                    createdAt: { type: "string", nullable: true },
+                    updatedAt: { type: "string", nullable: true },
+                    resolvedAt: { type: "string", nullable: true },
+                    closedAt: { type: "string", nullable: true },
+                    lastStatusChangeAt: { type: "string", nullable: true },
+                    createdByKey: { type: "string", nullable: true },
+                    requester: {
+                        type: "object",
+                        nullable: true,
+                        additionalProperties: true,
+                    },
+                    history: {
+                        type: "array",
+                        nullable: true,
+                        items: {
+                            type: "object",
+                            additionalProperties: true,
+                        },
+                    },
+                },
+            },
+        },
+    },
+});
+
+const validateTicketCategoriesPayload = createSchemaValidator<any>({
+    type: "object",
+    required: ["version", "issueTypes", "areas"],
+    additionalProperties: false,
+    properties: {
+        version: { type: "number" },
+        issueTypes: { type: "array", items: { type: "string" } },
+        areas: { type: "array", items: { type: "string" } },
+    },
+});
 
 export function registerTicketSupportRoutes(router: Router) {
     router.register("GET", "/api/ticket-support/store", async (_req, res) => {
-        sendJson(res, 200, loadTicketStore());
+        sendJson(res, 200, getTicketStore());
     });
 
     router.register("GET", "/api/ticket-support/backups", async (_req, res) => {
-        sendJson(res, 200, { items: listTicketBackups() });
+        sendJson(res, 200, { items: getTicketBackups() });
     });
 
     router.register("POST", "/api/ticket-support/backups", async (_req, res) => {
-        sendJson(res, 201, createTicketBackup());
+        sendJson(res, 201, await runTicketBackup());
     });
 
     router.register(
         "POST",
         "/api/ticket-support/backups/:name/restore",
         async (_req, res, params) => {
-            sendJson(res, 200, restoreTicketBackup(params.name));
+            if (!String(params.name || "").trim()) {
+                throw badRequest("Backup name missing");
+            }
+            sendJson(res, 200, await runTicketRestore(params.name));
         },
     );
 
     router.register("PUT", "/api/ticket-support/store", async (req, res) => {
-        const payload = await readJsonBody<any>(req);
-        sendJson(res, 200, saveTicketStore(payload || { version: 1, tickets: [] }));
+        const payload = validateTicketStorePayload(
+            await readJsonBody(req),
+            "Invalid ticket store payload",
+        );
+        sendJson(res, 200, await saveStore(payload));
     });
 
     router.register("GET", "/api/ticket-support/categories", async (_req, res) => {
-        sendJson(res, 200, loadTicketCategories());
+        sendJson(res, 200, getTicketCategories());
     });
 
     router.register("PUT", "/api/ticket-support/categories", async (req, res) => {
-        const payload = await readJsonBody<any>(req);
-        sendJson(res, 200, saveTicketCategories(payload || { version: 1, issueTypes: [], areas: [] }));
+        const payload = validateTicketCategoriesPayload(
+            await readJsonBody(req),
+            "Invalid ticket categories payload",
+        );
+        sendJson(res, 200, await saveCategories(payload));
     });
 }

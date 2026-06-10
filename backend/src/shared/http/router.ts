@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { sendJson } from "./response";
+import { notFound } from "./errors";
+import { sendError } from "./response";
 
 type RouteHandler = (
     request: IncomingMessage,
@@ -59,11 +60,13 @@ export class Router {
             return true;
         }
 
-        sendJson(response, 404, {
-            error: "Not Found",
-            method,
-            pathname,
-        });
+        sendError(
+            response,
+            notFound("Route not found", {
+                method,
+                pathname,
+            }),
+        );
         return false;
     }
 }
