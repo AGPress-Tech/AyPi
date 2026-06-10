@@ -109,7 +109,12 @@ function writeRequestsData(requests: RequestLike[]) {
         if (!REQUESTS_SHARD_REGEX.test(name)) continue;
         if (expected.has(name)) continue;
         const fullPath = path.join(requestsShardsDir, name);
-        logger.info("File delete", { filePath: fullPath });
+        logger.info("File delete", {
+            event: "file_delete",
+            category: "storage",
+            module: "calendar",
+            filePath: fullPath,
+        });
         fs.unlinkSync(fullPath);
     }
 }

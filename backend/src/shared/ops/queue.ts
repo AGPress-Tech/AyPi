@@ -12,6 +12,8 @@ export function createOperationQueue(scope: string) {
         );
         return task.finally(() => {
             logger.info("Queue operation completed", {
+                event: "queue_operation_completed",
+                category: "queue",
                 scope,
                 operationName,
                 durationMs: Date.now() - startedAt,

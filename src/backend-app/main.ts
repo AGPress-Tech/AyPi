@@ -1,7 +1,8 @@
-import { app, BrowserWindow, Menu, Tray, dialog, shell } from "electron";
+import { app, BrowserWindow, Menu, Tray, dialog, shell, ipcMain } from "electron";
 import path from "path";
 import fs from "fs";
 import { ensureBackendRuntimeConfigFile, getMachineSummary, loadBackendRuntimeConfig } from "./config";
+import { buildLogViewerHtml, loadLogViewerData, type LogViewerFilters } from "./log-viewer";
 
 type BackendState = {
     running: boolean;
@@ -18,6 +19,7 @@ type BackendHandle = {
 let tray: Tray | null = null;
 let backendHandle: BackendHandle | null = null;
 let keepAliveWindow: BrowserWindow | null = null;
+let logViewerWindow: BrowserWindow | null = null;
 let backendState: BackendState = {
     running: false,
     error: "",
@@ -142,6 +144,12 @@ function updateTrayMenu() {
         },
         { type: "separator" },
         {
+            label: "Apri logger backend",
+            click: () => {
+                openLogViewerWindow();
+            },
+        },
+        {
             label: "Apri cartella log",
             click: () => {
                 fs.mkdirSync(loaded.config.logDir, { recursive: true });
@@ -197,12 +205,62 @@ function handleBackendError(error: unknown) {
     }
 }
 
+function registerLogViewerIpc() {
+    ipcMain.removeHandler("backend-log-viewer:list");
+    ipcMain.handle(
+        "backend-log-viewer:list",
+        async (_event, filters: LogViewerFilters = {}) => {
+            const loaded = loadBackendRuntimeConfig();
+            fs.mkdirSync(loaded.config.logDir, { recursive: true });
+            return loadLogViewerData(loaded.config.logDir, debugLogPath, filters);
+        },
+    );
+}
+
+function openLogViewerWindow() {
+    if (logViewerWindow && !logViewerWindow.isDestroyed()) {
+        if (logViewerWindow.isMinimized()) logViewerWindow.restore();
+        logViewerWindow.maximize();
+        logViewerWindow.show();
+        logViewerWindow.focus();
+        return;
+    }
+    logViewerWindow = new BrowserWindow({
+        width: 1520,
+        height: 920,
+        minWidth: 1180,
+        minHeight: 760,
+        autoHideMenuBar: true,
+        title: "AyPi Backend Logger",
+        backgroundColor: "#eef2f7",
+        icon: getTrayIconPath(),
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+    });
+    logViewerWindow.maximize();
+    logViewerWindow.on("closed", () => {
+        logViewerWindow = null;
+    });
+    logViewerWindow
+        .loadURL(
+            `data:text/html;charset=UTF-8,${encodeURIComponent(
+                buildLogViewerHtml(),
+            )}`,
+        )
+        .catch((error) => {
+            handleBackendError(error);
+        });
+}
+
 async function bootstrap() {
     debugLog("bootstrap.begin", { argv: process.argv, headless: isHeadless });
     app.setName("AyPi Backend");
     app.setAppUserModelId("com.Agpress.AyPiBackend");
     const loaded = applyRuntimeConfig();
     debugLog("bootstrap.config", loaded.config);
+    registerLogViewerIpc();
     if (isHeadless) {
         keepAliveWindow = new BrowserWindow({
             show: false,
@@ -218,7 +276,7 @@ async function bootstrap() {
         tray = new Tray(getTrayIconPath());
         updateTrayMenu();
         tray.on("double-click", () => {
-            void shell.openPath(loaded.config.logDir);
+            openLogViewerWindow();
         });
     }
     try {

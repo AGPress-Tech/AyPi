@@ -1,6 +1,6 @@
 {
   "name": "aypi",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Software AyPi per gestione applicativi AGPress",
   "main": "dist-ts/main.js",
   "scripts": {
@@ -50,6 +50,25 @@
   "build": {
     "appId": "com.Agpress.AyPi",
     "productName": "AyPi",
+    "files": [
+      "dist-ts/**/*",
+      "package.json",
+      "!**/*.ts",
+      "!**/*.map",
+      "!dist-backend/**/*",
+      "!dist-backend-app/**/*",
+      "!backend/**/*",
+      "!backend-dist/**/*",
+      "!src/**/*",
+      "!docs/**/*",
+      "!tools/**/*",
+      "!.tmp-backend-test/**/*",
+      "!cards_ts/**/*",
+      "!types/**/*",
+      "!*.log",
+      "!tsconfig*.json",
+      "!electron-builder.backend.json"
+    ],
     "publish": [
       {
         "provider": "github",

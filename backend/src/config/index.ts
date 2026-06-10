@@ -45,7 +45,7 @@ const transferAttrezzaggioDir = getEnvString(
 );
 const backendLogDir = getEnvString(
     "AYPI_LOG_DIR",
-    path.join(feriePermessiCalendarDir, "log"),
+    path.join(feriePermessiGeneralDir, "log"),
 );
 
 export const backendConfig = {

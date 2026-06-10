@@ -31,6 +31,16 @@ export function buildBackendUrl() {
     return `http://${backendConfig.advertisedHost}:${backendConfig.port}`;
 }
 
+function inferRequestModule(requestUrl: string) {
+    const normalizedUrl = String(requestUrl || "").toLowerCase();
+    if (normalizedUrl.includes("/api/ferie-permessi/")) return "calendar";
+    if (normalizedUrl.includes("/api/product-manager/")) return "purchasing";
+    if (normalizedUrl.includes("/api/ticket-support/")) return "ticket";
+    if (normalizedUrl.includes("/api/transfer-attrezzaggio/")) return "transfer";
+    if (normalizedUrl.includes("/api/shared/")) return "shared";
+    return "core";
+}
+
 export function createBackendServer() {
     const router = new Router();
     registerRoutes(router);
@@ -41,6 +51,7 @@ export function createBackendServer() {
         const method = (request.method || "GET").toUpperCase();
         const requestUrl = request.url || "/";
         const remoteAddress = request.socket?.remoteAddress || "";
+        const module = inferRequestModule(requestUrl);
         const requestId = nextRequestId();
         setRequestId(request, requestId);
         response.setHeader("x-aypi-request-id", requestId);
@@ -63,6 +74,9 @@ export function createBackendServer() {
 
         try {
             logger.info("HTTP request started", {
+                event: "http_request_started",
+                category: "http",
+                module,
                 requestId,
                 method,
                 url: requestUrl,
@@ -72,6 +86,10 @@ export function createBackendServer() {
             });
             await router.handle(request, response);
             logger.info("HTTP request completed", {
+                event: "http_request_completed",
+                category: "http",
+                module,
+                outcome: response.statusCode >= 400 ? "warning" : "success",
                 requestId,
                 method,
                 url: requestUrl,
@@ -83,6 +101,10 @@ export function createBackendServer() {
             });
         } catch (error) {
             logger.error("HTTP request failed", {
+                event: "http_request_failed",
+                category: "error",
+                module,
+                outcome: "error",
                 requestId: getRequestId(request),
                 method,
                 url: requestUrl,
@@ -112,6 +134,9 @@ export function startBackendServer(): Promise<BackendServerHandle> {
         const onListening = () => {
             server.off("error", onError);
             logger.info("AyPi backend listening", {
+                event: "backend_listening",
+                category: "lifecycle",
+                module: "core",
                 host,
                 port,
                 url,
@@ -132,7 +157,13 @@ export function startBackendServer(): Promise<BackendServerHandle> {
                                 stopReject(closeErr);
                                 return;
                             }
-                            logger.info("AyPi backend stopped", { host, port });
+                            logger.info("AyPi backend stopped", {
+                                event: "backend_stopped",
+                                category: "lifecycle",
+                                module: "core",
+                                host,
+                                port,
+                            });
                             stopResolve();
                         });
                     }),

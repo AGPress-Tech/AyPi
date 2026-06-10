@@ -20,7 +20,11 @@ export function readJsonFile<T>(filePath: string, fallback: T): T {
 export function writeJsonFileAtomic(filePath: string, value: unknown) {
     ensureFolderFor(filePath);
     const tempPath = `${filePath}.tmp`;
-    logger.info("File write", { filePath });
+    logger.info("File write", {
+        event: "file_write",
+        category: "storage",
+        filePath,
+    });
     fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), "utf8");
     fs.renameSync(tempPath, filePath);
 }
