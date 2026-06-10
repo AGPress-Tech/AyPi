@@ -2,6 +2,12 @@ import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
 import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
+import {
+    createDailyDirectoryBackup,
+    createDirectoryBackup,
+    listBackups,
+    replaceDirectoryContents,
+} from "../../shared/storage/backups";
 
 type TicketHistoryEntry = {
     at: string;
@@ -53,6 +59,22 @@ const TICKET_BACKUP_ROOT_DIR = path.join(path.dirname(TICKET_DIR), "Backup Ticke
 function ensureTicketDir() {
     fs.mkdirSync(TICKET_DIR, { recursive: true });
     fs.mkdirSync(TICKET_YEARS_DIR, { recursive: true });
+}
+
+function ensureTicketBackup(prefix = "auto", limit = 30) {
+    return prefix === "auto"
+        ? createDailyDirectoryBackup({
+              sourceDir: TICKET_DIR,
+              backupRootDir: TICKET_BACKUP_ROOT_DIR,
+              prefix,
+              limit,
+          })
+        : createDirectoryBackup({
+              sourceDir: TICKET_DIR,
+              backupRootDir: TICKET_BACKUP_ROOT_DIR,
+              prefix,
+              limit,
+          });
 }
 
 function getYearFromTicket(ticket: Partial<Ticket>) {
@@ -129,6 +151,7 @@ export function loadTicketStore(): TicketStore {
 
 export function saveTicketStore(store: TicketStore) {
     ensureTicketDir();
+    ensureTicketBackup();
     const normalizedTickets = Array.isArray(store?.tickets)
         ? store.tickets.map(normalizeTicket)
         : [];
@@ -173,6 +196,7 @@ export function loadTicketCategories(): TicketCategories {
 }
 
 export function saveTicketCategories(payload: TicketCategories) {
+    ensureTicketBackup();
     const normalized = {
         version: 1,
         issueTypes: Array.isArray(payload?.issueTypes) ? payload.issueTypes : [],
@@ -182,77 +206,12 @@ export function saveTicketCategories(payload: TicketCategories) {
     return normalized;
 }
 
-function ensureDir(dirPath: string) {
-    fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function copyDirectory(sourceDir: string, targetDir: string) {
-    ensureDir(targetDir);
-    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
-    entries.forEach((entry) => {
-        const src = path.join(sourceDir, entry.name);
-        const dst = path.join(targetDir, entry.name);
-        if (entry.isDirectory()) {
-            copyDirectory(src, dst);
-            return;
-        }
-        if (entry.isFile()) {
-            ensureDir(path.dirname(dst));
-            fs.copyFileSync(src, dst);
-        }
-    });
-}
-
-function formatBackupDate(date: Date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
 export function listTicketBackups() {
-    if (!fs.existsSync(TICKET_BACKUP_ROOT_DIR)) return [];
-    return fs
-        .readdirSync(TICKET_BACKUP_ROOT_DIR, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => {
-            const fullPath = path.join(TICKET_BACKUP_ROOT_DIR, entry.name);
-            let mtimeMs = 0;
-            try {
-                mtimeMs = fs.statSync(fullPath).mtimeMs || 0;
-            } catch {
-                mtimeMs = 0;
-            }
-            return {
-                name: entry.name,
-                mtimeMs,
-            };
-        })
-        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return listBackups(TICKET_BACKUP_ROOT_DIR);
 }
 
 export function createTicketBackup(limit = 10) {
-    ensureDir(TICKET_DIR);
-    ensureDir(TICKET_BACKUP_ROOT_DIR);
-    const dateLabel = formatBackupDate(new Date());
-    let targetDir = path.join(TICKET_BACKUP_ROOT_DIR, dateLabel);
-    let suffix = 1;
-    while (fs.existsSync(targetDir)) {
-        suffix += 1;
-        targetDir = path.join(TICKET_BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
-    }
-    copyDirectory(TICKET_DIR, targetDir);
-    const backups = listTicketBackups();
-    backups.slice(limit).forEach((entry) => {
-        const fullPath = path.join(TICKET_BACKUP_ROOT_DIR, entry.name);
-        if (fs.existsSync(fullPath)) {
-            fs.rmSync(fullPath, { recursive: true, force: true });
-        }
-    });
-    return {
-        name: path.basename(targetDir),
-        path: targetDir,
-    };
+    return ensureTicketBackup("manual", limit);
 }
 
 export function restoreTicketBackup(name: string) {
@@ -264,13 +223,7 @@ export function restoreTicketBackup(name: string) {
     if (!fs.existsSync(sourceDir)) {
         throw new Error("Backup not found");
     }
-    ensureDir(TICKET_DIR);
-    const entries = fs.readdirSync(TICKET_DIR, { withFileTypes: true });
-    entries.forEach((entry) => {
-        const targetPath = path.join(TICKET_DIR, entry.name);
-        fs.rmSync(targetPath, { recursive: true, force: true });
-    });
-    copyDirectory(sourceDir, TICKET_DIR);
+    replaceDirectoryContents(sourceDir, TICKET_DIR);
     return {
         ok: true,
         restored: safeName,

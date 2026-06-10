@@ -2,6 +2,12 @@ import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
 import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
+import {
+    createDailyDirectoryBackup,
+    createDirectoryBackup,
+    listBackups,
+    replaceDirectoryContents,
+} from "../../shared/storage/backups";
 import { loadAssigneeOptions } from "../shared/repository";
 
 const PURCHASING_DIR = backendConfig.modules.productManager.dir;
@@ -21,6 +27,22 @@ function ensureProductManagerDir() {
     fs.mkdirSync(PRODUCTS_DIR, { recursive: true });
     fs.mkdirSync(REQUESTS_SHARDS_DIR, { recursive: true });
     fs.mkdirSync(INTERVENTIONS_SHARDS_DIR, { recursive: true });
+}
+
+function ensureProductManagerBackup(prefix = "auto", limit = 30) {
+    return prefix === "auto"
+        ? createDailyDirectoryBackup({
+              sourceDir: PURCHASING_DIR,
+              backupRootDir: PURCHASING_BACKUP_ROOT_DIR,
+              prefix,
+              limit,
+          })
+        : createDirectoryBackup({
+              sourceDir: PURCHASING_DIR,
+              backupRootDir: PURCHASING_BACKUP_ROOT_DIR,
+              prefix,
+              limit,
+          });
 }
 
 const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
@@ -98,6 +120,7 @@ export function loadProductManagerBootstrap() {
 }
 
 export function saveProductManagerRequests(payload: any[]) {
+    ensureProductManagerBackup();
     writeShardCollection(
         REQUESTS_SHARDS_DIR,
         "requests",
@@ -108,6 +131,7 @@ export function saveProductManagerRequests(payload: any[]) {
 }
 
 export function saveProductManagerInterventions(payload: any[]) {
+    ensureProductManagerBackup();
     writeShardCollection(
         INTERVENTIONS_SHARDS_DIR,
         "interventions",
@@ -121,16 +145,19 @@ export function saveProductManagerInterventions(payload: any[]) {
 }
 
 export function saveProductManagerCatalog(payload: any[]) {
+    ensureProductManagerBackup();
     writeJsonFileAtomic(CATALOG_PATH, Array.isArray(payload) ? payload : []);
     return readJsonFile(CATALOG_PATH, [] as any[]);
 }
 
 export function saveProductManagerCategories(payload: any[]) {
+    ensureProductManagerBackup();
     writeJsonFileAtomic(CATEGORIES_PATH, Array.isArray(payload) ? payload : []);
     return readJsonFile(CATEGORIES_PATH, [] as any[]);
 }
 
 export function saveProductManagerInterventionTypes(payload: any[]) {
+    ensureProductManagerBackup();
     writeJsonFileAtomic(
         INTERVENTION_TYPES_PATH,
         Array.isArray(payload) ? payload : [],
@@ -151,6 +178,7 @@ export function saveCatalogImage(payload: {
     dataBase64?: string;
 }) {
     ensureProductManagerDir();
+    ensureProductManagerBackup();
     const catalogId = sanitizeImageName(payload?.catalogId || "");
     const originalName = sanitizeImageName(payload?.fileName || "");
     if (!catalogId || !payload?.dataBase64) {
@@ -171,77 +199,12 @@ export function resolveCatalogImagePath(fileName: string) {
     return path.join(PRODUCTS_DIR, sanitizeImageName(fileName));
 }
 
-function ensureDir(dirPath: string) {
-    fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function copyDirectory(sourceDir: string, targetDir: string) {
-    ensureDir(targetDir);
-    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
-    entries.forEach((entry) => {
-        const srcPath = path.join(sourceDir, entry.name);
-        const dstPath = path.join(targetDir, entry.name);
-        if (entry.isDirectory()) {
-            copyDirectory(srcPath, dstPath);
-            return;
-        }
-        if (entry.isFile()) {
-            ensureDir(path.dirname(dstPath));
-            fs.copyFileSync(srcPath, dstPath);
-        }
-    });
-}
-
-function formatBackupDate(date: Date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
 export function listProductManagerBackups() {
-    if (!fs.existsSync(PURCHASING_BACKUP_ROOT_DIR)) return [];
-    return fs
-        .readdirSync(PURCHASING_BACKUP_ROOT_DIR, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => {
-            const fullPath = path.join(PURCHASING_BACKUP_ROOT_DIR, entry.name);
-            let mtimeMs = 0;
-            try {
-                mtimeMs = fs.statSync(fullPath).mtimeMs || 0;
-            } catch {
-                mtimeMs = 0;
-            }
-            return {
-                name: entry.name,
-                mtimeMs,
-            };
-        })
-        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return listBackups(PURCHASING_BACKUP_ROOT_DIR);
 }
 
 export function createProductManagerBackup(limit = 10) {
-    ensureDir(PURCHASING_DIR);
-    ensureDir(PURCHASING_BACKUP_ROOT_DIR);
-    const dateLabel = formatBackupDate(new Date());
-    let targetDir = path.join(PURCHASING_BACKUP_ROOT_DIR, dateLabel);
-    let suffix = 1;
-    while (fs.existsSync(targetDir)) {
-        suffix += 1;
-        targetDir = path.join(PURCHASING_BACKUP_ROOT_DIR, `${dateLabel}-${suffix}`);
-    }
-    copyDirectory(PURCHASING_DIR, targetDir);
-    const backups = listProductManagerBackups();
-    backups.slice(limit).forEach((entry) => {
-        const fullPath = path.join(PURCHASING_BACKUP_ROOT_DIR, entry.name);
-        if (fs.existsSync(fullPath)) {
-            fs.rmSync(fullPath, { recursive: true, force: true });
-        }
-    });
-    return {
-        name: path.basename(targetDir),
-        path: targetDir,
-    };
+    return ensureProductManagerBackup("manual", limit);
 }
 
 export function restoreProductManagerBackup(name: string) {
@@ -253,13 +216,7 @@ export function restoreProductManagerBackup(name: string) {
     if (!fs.existsSync(sourceDir)) {
         throw new Error("Backup not found");
     }
-    ensureDir(PURCHASING_DIR);
-    const entries = fs.readdirSync(PURCHASING_DIR, { withFileTypes: true });
-    entries.forEach((entry) => {
-        const targetPath = path.join(PURCHASING_DIR, entry.name);
-        fs.rmSync(targetPath, { recursive: true, force: true });
-    });
-    copyDirectory(sourceDir, PURCHASING_DIR);
+    replaceDirectoryContents(sourceDir, PURCHASING_DIR);
     return {
         ok: true,
         restored: safeName,

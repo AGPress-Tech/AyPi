@@ -4,6 +4,7 @@ import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
 import {
     approveRequest,
+    createFeriePermessiBackup,
     createClosure,
     createHolidays,
     createRequest,
@@ -11,8 +12,10 @@ import {
     deleteHoliday,
     deleteRequest,
     getPayload,
+    listFeriePermessiBackups,
     rejectRequest,
     replacePayload,
+    restoreFeriePermessiBackup,
     updateClosure,
     updateHoliday,
     updateRequest,
@@ -20,6 +23,37 @@ import {
 import type { ClosureEntry, FpPayload, RequestLike } from "./types";
 
 export function registerFeriePermessiRoutes(router: Router) {
+    router.register("GET", "/api/ferie-permessi/backups", async (_req, res) => {
+        sendJson(res, 200, { items: listFeriePermessiBackups() });
+    });
+
+    router.register("POST", "/api/ferie-permessi/backups", async (req, res) => {
+        const payload =
+            (await readJsonBody<{ mode?: "calendar" | "full" }>(req)) || {};
+        sendJson(
+            res,
+            201,
+            createFeriePermessiBackup(payload.mode === "calendar" ? "calendar" : "full"),
+        );
+    });
+
+    router.register(
+        "POST",
+        "/api/ferie-permessi/backups/:name/restore",
+        async (req, res, params) => {
+            const payload =
+                (await readJsonBody<{ mode?: "calendar" | "full" }>(req)) || {};
+            sendJson(
+                res,
+                200,
+                restoreFeriePermessiBackup(
+                    params.name,
+                    payload.mode === "full" ? "full" : "calendar",
+                ),
+            );
+        },
+    );
+
     router.register("GET", "/api/ferie-permessi/payload", async (req, res) => {
         sendJson(
             res,

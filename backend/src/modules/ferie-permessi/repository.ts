@@ -6,10 +6,21 @@ import {
     writeJsonFileAtomic,
 } from "../../shared/storage/json-files";
 import { logger } from "../../shared/logging/logger";
+import {
+    createDailyDirectoryBackup,
+    createDirectoryBackup,
+    listBackups,
+    replaceDirectoryContents,
+    resolveBackupDir,
+} from "../../shared/storage/backups";
 import type { FpPayload, RequestLike } from "./types";
 import type { AssigneesPayload } from "./types";
 
 const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
+const FERIE_BACKUP_ROOT_DIR = path.join(
+    path.dirname(backendConfig.modules.feriePermessi.baseDir),
+    "AyPi Backups",
+);
 
 function getPaths() {
     const { calendarDir } = backendConfig.modules.feriePermessi;
@@ -118,6 +129,12 @@ export function loadFpPayload(): FpPayload {
 }
 
 export function saveFpPayload(payload: FpPayload) {
+    createDailyDirectoryBackup({
+        sourceDir: backendConfig.modules.feriePermessi.calendarDir,
+        backupRootDir: FERIE_BACKUP_ROOT_DIR,
+        prefix: "auto-calendar",
+        limit: 30,
+    });
     const paths = getPaths();
     writeRequestsData(payload.requests || []);
     writeJsonFileAtomic(paths.holidaysPath, payload.holidays || []);
@@ -169,4 +186,58 @@ function normalizeAssigneesPayload(parsed: unknown): AssigneesPayload {
 export function loadAssignees(): AssigneesPayload {
     const paths = getPaths();
     return normalizeAssigneesPayload(readJsonFile(paths.assigneesPath, {}));
+}
+
+function shouldExcludeFerieBackupEntry(name: string) {
+    return /^backup /i.test(name) || /^aypi backups$/i.test(name);
+}
+
+export function listFeriePermessiBackups() {
+    return listBackups(FERIE_BACKUP_ROOT_DIR);
+}
+
+export function createFeriePermessiBackup(mode: "calendar" | "full" = "full") {
+    const isFull = mode === "full";
+    return createDirectoryBackup({
+        sourceDir: isFull
+            ? backendConfig.modules.feriePermessi.baseDir
+            : backendConfig.modules.feriePermessi.calendarDir,
+        backupRootDir: FERIE_BACKUP_ROOT_DIR,
+        prefix: isFull ? "manual-full" : "manual-calendar",
+        limit: 30,
+        exclude: isFull
+            ? (name) => shouldExcludeFerieBackupEntry(name)
+            : undefined,
+    });
+}
+
+export function restoreFeriePermessiBackup(
+    name: string,
+    mode: "calendar" | "full" = "calendar",
+) {
+    const sourceDir = resolveBackupDir(FERIE_BACKUP_ROOT_DIR, name);
+    if (!fs.existsSync(sourceDir)) {
+        throw new Error("Backup not found");
+    }
+    if (mode === "full") {
+        if (!fs.existsSync(path.join(sourceDir, "AyPi Calendar"))) {
+            throw new Error("Il backup selezionato non contiene un AGPRESS completo");
+        }
+        replaceDirectoryContents(
+            sourceDir,
+            backendConfig.modules.feriePermessi.baseDir,
+        );
+        return { ok: true, restored: name, mode };
+    }
+    const calendarBackupDir = fs.existsSync(path.join(sourceDir, "AyPi Calendar"))
+        ? path.join(sourceDir, "AyPi Calendar")
+        : sourceDir;
+    if (!fs.existsSync(calendarBackupDir)) {
+        throw new Error("Nel backup selezionato non esiste la cartella 'AyPi Calendar'");
+    }
+    replaceDirectoryContents(
+        calendarBackupDir,
+        backendConfig.modules.feriePermessi.calendarDir,
+    );
+    return { ok: true, restored: name, mode };
 }

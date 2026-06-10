@@ -6,7 +6,14 @@ import {
     getBalanceImpact,
     normalizeBalances,
 } from "./balances";
-import { loadAssignees, loadFpPayload, saveFpPayload } from "./repository";
+import {
+    createFeriePermessiBackup,
+    listFeriePermessiBackups,
+    loadAssignees,
+    loadFpPayload,
+    restoreFeriePermessiBackup,
+    saveFpPayload,
+} from "./repository";
 import { logger } from "../../shared/logging/logger";
 import type {
     ClosureEntry,
@@ -20,6 +27,12 @@ import type {
 type ActionContext = {
     actor?: string;
     requestId?: string;
+};
+
+export {
+    createFeriePermessiBackup,
+    listFeriePermessiBackups,
+    restoreFeriePermessiBackup,
 };
 
 let fpQueue: Promise<unknown> = Promise.resolve();

@@ -2,8 +2,22 @@ import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
 import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
+import { createDailyDirectoryBackup } from "../../shared/storage/backups";
 
 const TRANSFER_DIR = backendConfig.modules.transferAttrezzaggio.dir;
+const TRANSFER_BACKUP_ROOT_DIR = path.join(
+    path.dirname(TRANSFER_DIR),
+    "Backup Schede Attrezzaggio Transfer",
+);
+
+function ensureTransferBackup() {
+    return createDailyDirectoryBackup({
+        sourceDir: TRANSFER_DIR,
+        backupRootDir: TRANSFER_BACKUP_ROOT_DIR,
+        prefix: "auto",
+        limit: 30,
+    });
+}
 
 function sanitizeFileName(value: string) {
     return String(value || "")
@@ -148,6 +162,7 @@ export function saveTransferItem(payload: any) {
     };
     const filePath = resolveTransferFilePath(next.code);
     ensureFolderFor(filePath);
+    ensureTransferBackup();
     writeJsonFileAtomic(filePath, next);
     return next;
 }
@@ -155,6 +170,7 @@ export function saveTransferItem(payload: any) {
 export function deleteTransferItem(code: string) {
     const filePath = resolveTransferFilePath(code);
     if (!fs.existsSync(filePath)) return false;
+    ensureTransferBackup();
     fs.unlinkSync(filePath);
     return true;
 }

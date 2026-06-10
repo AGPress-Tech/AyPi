@@ -4,6 +4,7 @@ import path from "path";
 import { argon2id, argon2Verify } from "hash-wasm";
 import { backendConfig } from "../../config";
 import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
+import { createDailyDirectoryBackup } from "../../shared/storage/backups";
 
 export type SharedAdminEntry = {
     name: string;
@@ -38,6 +39,19 @@ const LEGACY_ASSIGNEES_PATH = path.join(
     backendConfig.modules.feriePermessi.baseDir,
     "amministrazione-assignees.json",
 );
+const GENERAL_BACKUP_ROOT_DIR = path.join(
+    path.dirname(backendConfig.modules.feriePermessi.generalDir),
+    "Backup General",
+);
+
+function ensureGeneralBackup() {
+    return createDailyDirectoryBackup({
+        sourceDir: backendConfig.modules.feriePermessi.generalDir,
+        backupRootDir: GENERAL_BACKUP_ROOT_DIR,
+        prefix: "auto",
+        limit: 30,
+    });
+}
 
 function parseAdminsFromPath(targetPath: string): SharedAdminEntry[] {
     const raw = fs.readFileSync(targetPath, "utf8");
@@ -170,6 +184,7 @@ export async function verifyAdminPassword(
 }
 
 export async function saveAdminCredentials(admins: SharedAdminEntry[]) {
+    ensureGeneralBackup();
     const payload = {
         admins: admins.map((admin) => ({
             name: admin.name,
@@ -256,6 +271,7 @@ export async function saveAssigneeOptions(payload: {
     groups?: Record<string, string[]>;
     emails?: Record<string, string>;
 }) {
+    ensureGeneralBackup();
     const normalized = {
         groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
         emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
