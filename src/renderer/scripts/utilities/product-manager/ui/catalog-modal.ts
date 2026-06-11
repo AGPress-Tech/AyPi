@@ -220,18 +220,25 @@ function initCatalogModal(ctx) {
     }
     if (removeBtn) {
         removeBtn.addEventListener("click", async () => {
-            const confirmed = await ctx.openConfirmModal(
-                "Vuoi rimuovere l'immagine da questo prodotto?",
-            );
-            if (!confirmed) return;
-            if (imageInput) {
-                imageInput.value = "";
-                imageInput.dataset.path = "";
+            try {
+                const confirmed = await ctx.openConfirmModal(
+                    "Vuoi rimuovere l'immagine da questo prodotto?",
+                );
+                if (!confirmed) return;
+                if (imageInput) {
+                    imageInput.value = "";
+                    imageInput.dataset.path = "";
+                }
+                if (imageUrlInput) {
+                    imageUrlInput.value = "";
+                }
+                uiState.catalogRemoveImage = true;
+            } catch (err) {
+                showError(
+                    "Rimozione immagine non riuscita.",
+                    err?.message || String(err),
+                );
             }
-            if (imageUrlInput) {
-                imageUrlInput.value = "";
-            }
-            uiState.catalogRemoveImage = true;
         });
     }
 }

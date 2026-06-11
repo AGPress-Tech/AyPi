@@ -101,28 +101,35 @@ function setupHeaderButtons(ctx) {
 
     if (saveBtn) {
         saveBtn.addEventListener("click", async (event) => {
-            if (!requireLogin()) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            const payload = collectRequestPayload();
-            const validationError = validateRequestPayload(payload);
-            if (validationError) {
-                showFormMessage(validationError, "error");
-                return;
-            }
-            const ok = await openConfirmModal("Vuoi inviare la richiesta?");
-            if (!ok) return;
-            const requests = readRequestsFile();
-            const record = buildRequestRecord(payload);
-            requests.push(record);
-            if (saveRequestsFile(requests)) {
-                const successMessage = isInterventionMode()
-                    ? "Intervento inviato correttamente."
-                    : "Richiesta inviata correttamente.";
-                showFormMessage(successMessage, "success");
-                clearForm();
+            try {
+                if (!requireLogin()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+                const payload = collectRequestPayload();
+                const validationError = validateRequestPayload(payload);
+                if (validationError) {
+                    showFormMessage(validationError, "error");
+                    return;
+                }
+                const ok = await openConfirmModal("Vuoi inviare la richiesta?");
+                if (!ok) return;
+                const requests = readRequestsFile();
+                const record = buildRequestRecord(payload);
+                requests.push(record);
+                if (saveRequestsFile(requests)) {
+                    const successMessage = isInterventionMode()
+                        ? "Intervento inviato correttamente."
+                        : "Richiesta inviata correttamente.";
+                    showFormMessage(successMessage, "success");
+                    clearForm();
+                }
+            } catch (err) {
+                showError(
+                    "Salvataggio richiesta non riuscito.",
+                    err?.message || String(err),
+                );
             }
         });
     }

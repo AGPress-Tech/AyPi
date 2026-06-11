@@ -248,15 +248,21 @@ function renderCatalog({
             trashIcon.textContent = "delete";
             trashBtn.appendChild(trashIcon);
             trashBtn.addEventListener("click", async () => {
-                const ok = await openConfirmModal(
-                    "Vuoi eliminare questo prodotto dal catalogo?",
-                );
-                if (!ok) return;
-                const nextItems = catalogItems.filter(
-                    (entry) => entry.id !== item.id,
-                );
-                setCatalogItems(nextItems);
-                if (saveCatalog(nextItems)) rerenderCatalog();
+                try {
+                    const ok = await openConfirmModal(
+                        "Vuoi eliminare questo prodotto dal catalogo?",
+                    );
+                    if (!ok) return;
+                    const nextItems = catalogItems.filter(
+                        (entry) => entry.id !== item.id,
+                    );
+                    setCatalogItems(nextItems);
+                    if (saveCatalog(nextItems)) rerenderCatalog();
+                } catch (err) {
+                    showWarning(
+                        err?.message || "Eliminazione prodotto non riuscita.",
+                    );
+                }
             });
             card.appendChild(trashBtn);
         }

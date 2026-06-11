@@ -3717,41 +3717,45 @@ function init() {
                 ? ` di <strong>${escapeHtml(snapshot.employee)}</strong>`
                 : "";
             const message = `Confermi l'eliminazione della <strong>${escapeHtml(typeLabel)}</strong>${employeeLabel}?`;
-            openConfirmModal(message).then(async (ok) => {
-                if (!ok) return;
-                if (FP_USE_BACKEND) {
-                    try {
+            openConfirmModal(message)
+                .then(async (ok) => {
+                    if (!ok) return;
+                    if (FP_USE_BACKEND) {
                         const updated = await deleteRequestAtomic(
                             targetId,
                             getLoggedAdminName() || "guest",
                         );
                         renderAll(updated);
-                    } catch (err) {
-                        logFpDebug("backend.error.delete.shortcut", {
-                            requestId: targetId || "",
-                            detail: err?.message || String(err),
-                        });
-                        throw err;
+                        return;
                     }
-                    return;
-                }
-                const updated = syncData((payload) => {
-                    const target = (payload.requests || []).find(
-                        (req) => req.id === targetId,
+                    const updated = syncData((payload) => {
+                        const target = (payload.requests || []).find(
+                            (req) => req.id === targetId,
+                        );
+                        if (
+                            target &&
+                            typeof applyBalanceForDeletion === "function"
+                        ) {
+                            applyBalanceForDeletion(payload, target);
+                        }
+                        payload.requests = (payload.requests || []).filter(
+                            (req) => req.id !== targetId,
+                        );
+                        return payload;
+                    });
+                    renderAll(updated);
+                })
+                .catch((err) => {
+                    logFpDebug("backend.error.delete.shortcut", {
+                        requestId: targetId || "",
+                        detail: err?.message || String(err),
+                    });
+                    showDialog(
+                        "error",
+                        "Eliminazione richiesta non riuscita.",
+                        err?.message || String(err),
                     );
-                    if (
-                        target &&
-                        typeof applyBalanceForDeletion === "function"
-                    ) {
-                        applyBalanceForDeletion(payload, target);
-                    }
-                    payload.requests = (payload.requests || []).filter(
-                        (req) => req.id !== targetId,
-                    );
-                    return payload;
                 });
-                renderAll(updated);
-            });
         });
     });
 

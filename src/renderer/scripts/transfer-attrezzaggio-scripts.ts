@@ -3,6 +3,7 @@ require("./shared/dev-guards");
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { createAsyncGuard } = require("./shared/async-guard");
 
 const REQUIRED_TOOL_FIELDS = ["nrUnita", "iso", "descrizione"];
 const TOOL_ICON_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 14];
@@ -52,6 +53,16 @@ const filterDescrizioneLavorazione = document.getElementById(
 const filterUtensile = document.getElementById("filterUtensile");
 
 let allListItems = [];
+
+const asyncGuard = createAsyncGuard({
+    errorTitle: "Errore Schede Attrezzaggio Transfer.",
+    promiseTitle: "Errore promessa non gestita (Schede Attrezzaggio Transfer).",
+    report: (_message, detail) => {
+        window.alert(detail || "Errore sconosciuto");
+    },
+});
+
+asyncGuard.installGlobalHandlers();
 
 function showView(name) {
     homeView.classList.toggle("hidden", name !== "home");
@@ -448,17 +459,22 @@ function renderListFiltered() {
         );
         const print = document.createElement("button");
         print.textContent = "Stampa";
-        print.addEventListener("click", async () => {
+        print.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
             const loaded = await ipcRenderer.invoke(
                 "transfer-attrezzaggio-load",
                 { code: item.code },
             );
             if (!loaded?.ok) return;
             printCard(loaded.item);
-        });
+            }),
+        );
         const del = document.createElement("button");
         del.textContent = "Elimina";
-        del.addEventListener("click", async () => {
+        del.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
             const ok = window.confirm(`Eliminare la scheda ${item.code}?`);
             if (!ok) return;
             let resDel;
@@ -478,7 +494,8 @@ function renderListFiltered() {
                 return;
             }
             await loadList();
-        });
+            }),
+        );
         li.appendChild(details);
         li.appendChild(edit);
         li.appendChild(print);
@@ -535,10 +552,15 @@ async function saveForm() {
     window.alert(`Scheda salvata: ${res.code}`);
 }
 
-document.getElementById("showListBtn")?.addEventListener("click", async () => {
-    showView("list");
-    await loadList();
-});
+document
+    .getElementById("showListBtn")
+    ?.addEventListener(
+        "click",
+        asyncGuard.wrap(async () => {
+            showView("list");
+            await loadList();
+        }),
+    );
 document.getElementById("showCreateBtn")?.addEventListener("click", () => {
     resetForm();
     formOrigin = "home";
@@ -566,17 +588,22 @@ document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
 });
 document
     .getElementById("backFromFormBtn")
-    ?.addEventListener("click", async () => {
-        if (formOrigin === "list") {
-            showView("list");
-            if (!allListItems.length) await loadList();
-            else renderListFiltered();
-            return;
-        }
-        showView("home");
-    });
+    ?.addEventListener(
+        "click",
+        asyncGuard.wrap(async () => {
+            if (formOrigin === "list") {
+                showView("list");
+                if (!allListItems.length) await loadList();
+                else renderListFiltered();
+                return;
+            }
+            showView("home");
+        }),
+    );
 document.getElementById("newFormBtn")?.addEventListener("click", resetForm);
-document.getElementById("saveFormBtn")?.addEventListener("click", saveForm);
+document
+    .getElementById("saveFormBtn")
+    ?.addEventListener("click", asyncGuard.wrap(saveForm));
 document.getElementById("printFormBtn")?.addEventListener("click", () => {
     const card = {
         code:

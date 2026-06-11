@@ -18,11 +18,22 @@ const {
 } = require("./ferie-permessi/config/security");
 const sharedDialogs = require("../shared/dialogs");
 const { requestBackend } = require("../shared/backend-client");
+const { createAsyncGuard } = require("../shared/async-guard");
 
 let adminCache = [];
 let adminEditingIndex = -1;
 let pendingPasswordAction = null;
 let passwordFailCount = 0;
+
+const asyncGuard = createAsyncGuard({
+    errorTitle: "Errore Admin Manager.",
+    promiseTitle: "Errore promessa non gestita (Admin Manager).",
+    report: (message, detail) => {
+        sharedDialogs.showError(message, detail);
+    },
+});
+
+asyncGuard.installGlobalHandlers();
 
 const { showModal, hideModal } = createModalHelpers({ document });
 
@@ -234,7 +245,8 @@ function initPasswordModal() {
         cancel.addEventListener("click", () =>
             hideModal(document.getElementById("fp-approve-modal")),
         );
-    if (confirm) confirm.addEventListener("click", confirmPassword);
+    if (confirm)
+        confirm.addEventListener("click", asyncGuard.wrap(confirmPassword));
     if (recover) {
         recover.addEventListener("click", () => {
             hideModal(document.getElementById("fp-approve-modal"));
@@ -245,7 +257,7 @@ function initPasswordModal() {
         input.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
                 event.preventDefault();
-                confirmPassword();
+                void asyncGuard.wrap(confirmPassword)();
             }
         });
     }
@@ -309,18 +321,25 @@ function init() {
     adminUi.initAdminModals();
     observeModalSizing();
 
-    hydrateAdmins().then(() => {
-        adminUi.openAdminModal();
-    });
+    void hydrateAdmins()
+        .then(() => {
+            adminUi.openAdminModal();
+        })
+        .catch((err) => asyncGuard.handle(err));
 
-    document.getElementById("adm-refresh")?.addEventListener("click", async () => {
-        await hydrateAdmins();
-        adminUi.renderAdminList();
-        setAdminMessage("fp-admin-message", "Dati aggiornati.");
-    });
+    document
+        .getElementById("adm-refresh")
+        ?.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
+                await hydrateAdmins();
+                adminUi.renderAdminList();
+                setAdminMessage("fp-admin-message", "Dati aggiornati.");
+            }),
+        );
     document
         .getElementById("adm-close")
         ?.addEventListener("click", () => window.close());
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", asyncGuard.wrap(init));

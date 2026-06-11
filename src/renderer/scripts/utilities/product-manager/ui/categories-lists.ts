@@ -204,38 +204,42 @@ function renderCategoriesList(ctx) {
             removeBtn.className = "fp-assignees-link fp-assignees-link--danger";
             removeBtn.textContent = "Rimuovi";
             removeBtn.addEventListener("click", async () => {
-                closeCategoriesModal();
-                const ok = await openConfirmModal(`Vuoi eliminare la categoria \"${cat}\"?`);
-                if (!ok) return;
-                const nextCategories = items.filter((entry) => entry !== cat);
-                setCatalogCategories(nextCategories);
-                const colors = getCategoryColors();
-                if (colors[cat]) {
-                    const nextColors = { ...colors };
-                    delete nextColors[cat];
-                    setCategoryColors(nextColors);
-                    saveCategoryColors(nextColors);
-                }
-                const catalogItems = getCatalogItems();
-                const nextCatalog = catalogItems.map((item) => {
-                    const tags = toTags(item.category || "").filter((t) => t !== cat);
-                    return { ...item, category: tags.join(", ") };
-                });
-                setCatalogItems(nextCatalog);
-                const requests = readRequestsFile();
-                requests.forEach((req) => {
-                    (req.lines || []).forEach((line) => {
-                        const tags = toTags(line.category || "").filter((t) => t !== cat);
-                        line.category = tags.join(", ");
+                try {
+                    closeCategoriesModal();
+                    const ok = await openConfirmModal(`Vuoi eliminare la categoria \"${cat}\"?`);
+                    if (!ok) return;
+                    const nextCategories = items.filter((entry) => entry !== cat);
+                    setCatalogCategories(nextCategories);
+                    const colors = getCategoryColors();
+                    if (colors[cat]) {
+                        const nextColors = { ...colors };
+                        delete nextColors[cat];
+                        setCategoryColors(nextColors);
+                        saveCategoryColors(nextColors);
+                    }
+                    const catalogItems = getCatalogItems();
+                    const nextCatalog = catalogItems.map((item) => {
+                        const tags = toTags(item.category || "").filter((t) => t !== cat);
+                        return { ...item, category: tags.join(", ") };
                     });
-                });
-                if (saveCategories(nextCategories) && saveCatalog(nextCatalog) && saveRequestsFile(requests)) {
-                    renderCategoriesList(ctx);
-                    renderCategoryOptions();
-                    renderCatalogFilterOptions();
-                    renderCartTagFilterOptions();
-                    renderCatalog();
-                    renderCartTable();
+                    setCatalogItems(nextCatalog);
+                    const requests = readRequestsFile();
+                    requests.forEach((req) => {
+                        (req.lines || []).forEach((line) => {
+                            const tags = toTags(line.category || "").filter((t) => t !== cat);
+                            line.category = tags.join(", ");
+                        });
+                    });
+                    if (saveCategories(nextCategories) && saveCatalog(nextCatalog) && saveRequestsFile(requests)) {
+                        renderCategoriesList(ctx);
+                        renderCategoryOptions();
+                        renderCatalogFilterOptions();
+                        renderCartTagFilterOptions();
+                        renderCatalog();
+                        renderCartTable();
+                    }
+                } catch (err) {
+                    showWarning(err?.message || "Rimozione categoria non riuscita.");
                 }
             });
             actions.append(editBtn, removeBtn);
@@ -409,23 +413,27 @@ function renderInterventionTypesList(ctx) {
             removeBtn.className = "fp-assignees-link fp-assignees-link--danger";
             removeBtn.textContent = "Rimuovi";
             removeBtn.addEventListener("click", async () => {
-                closeInterventionTypesModal();
-                const ok = await openConfirmModal(`Vuoi eliminare la tipologia \"${type}\"?`);
-                if (!ok) return;
-                const nextTypes = types.filter((entry) => entry !== type);
-                setInterventionTypes(nextTypes);
-                const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-                requests.forEach((req) => {
-                    (req.lines || []).forEach((line) => {
-                        const tags = toTags(getInterventionType(line)).filter((t) => t !== type);
-                        line.interventionType = tags.join(", ");
+                try {
+                    closeInterventionTypesModal();
+                    const ok = await openConfirmModal(`Vuoi eliminare la tipologia \"${type}\"?`);
+                    if (!ok) return;
+                    const nextTypes = types.filter((entry) => entry !== type);
+                    setInterventionTypes(nextTypes);
+                    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+                    requests.forEach((req) => {
+                        (req.lines || []).forEach((line) => {
+                            const tags = toTags(getInterventionType(line)).filter((t) => t !== type);
+                            line.interventionType = tags.join(", ");
+                        });
                     });
-                });
-                if (saveInterventionTypes(nextTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
-                    renderInterventionTypesList(ctx);
-                    renderCartTagFilterOptions();
-                    renderLines();
-                    renderCartTable();
+                    if (saveInterventionTypes(nextTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+                        renderInterventionTypesList(ctx);
+                        renderCartTagFilterOptions();
+                        renderLines();
+                        renderCartTable();
+                    }
+                } catch (err) {
+                    showWarning(err?.message || "Rimozione tipologia non riuscita.");
                 }
             });
             actions.append(editBtn, removeBtn);

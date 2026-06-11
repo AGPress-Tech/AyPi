@@ -203,6 +203,7 @@ import {
 } from "./product-manager/state/session";
 import { uiState } from "./product-manager/state/ui";
 import { requestBackend, resolveBackendRootUrl } from "../shared/backend-client";
+import { createAsyncGuard } from "../shared/async-guard";
 
 const {
     validateRequestsSchema,
@@ -219,6 +220,16 @@ try {
 }
 
 window.pmLoaded = true;
+
+const asyncGuard = createAsyncGuard({
+    errorTitle: "Errore Product Manager.",
+    promiseTitle: "Errore Product Manager (Promise).",
+    report: (message, detail) => {
+        showErrorUi(message, detail);
+    },
+});
+
+asyncGuard.installGlobalHandlers();
 
 const ASSIGNEES_FALLBACK =
     "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
@@ -868,7 +879,7 @@ function initPurchasingBackupModal() {
     }
 
     if (restoreBtn) {
-        restoreBtn.addEventListener("click", async () => {
+        restoreBtn.addEventListener("click", asyncGuard.wrap(async () => {
             try {
                 setBackupMessage("", "");
                 const ok = await openConfirmModal(
@@ -904,7 +915,7 @@ function initPurchasingBackupModal() {
                     "error",
                 );
             }
-        });
+        }));
     }
 }
 
@@ -3345,7 +3356,7 @@ function setupLogin() {
     });
 
     if (adminConfirm) {
-        adminConfirm.addEventListener("click", async () => {
+        adminConfirm.addEventListener("click", asyncGuard.wrap(async () => {
             const adminName =
                 document.getElementById("pm-login-admin-name")?.value || "";
             const password =
@@ -3395,7 +3406,7 @@ function setupLogin() {
             saveSession();
             syncSessionUI();
             closeLoginModal();
-        });
+        }));
     }
     [adminNameInput, adminPasswordInput].forEach((field) => {
         if (!field || !adminConfirm) return;
@@ -3486,7 +3497,7 @@ function initCatalogModal() {
         });
     }
     if (browseBtn) {
-        browseBtn.addEventListener("click", async () => {
+        browseBtn.addEventListener("click", asyncGuard.wrap(async () => {
             try {
                 const selected = await ipcRenderer.invoke("pm-select-image");
                 if (selected && imageInput) {
@@ -3500,10 +3511,10 @@ function initCatalogModal() {
                     "Riavvia AyPi per attivare il selettore immagini.",
                 );
             }
-        });
+        }));
     }
     if (removeBtn) {
-        removeBtn.addEventListener("click", async () => {
+        removeBtn.addEventListener("click", asyncGuard.wrap(async () => {
             const confirmed = await openConfirmModal(
                 "Vuoi rimuovere l'immagine da questo prodotto?",
             );
@@ -3516,7 +3527,7 @@ function initCatalogModal() {
                 imageUrlInput.value = "";
             }
             uiState.catalogRemoveImage = true;
-        });
+        }));
     }
 }
 
@@ -3829,29 +3840,12 @@ async function init() {
     }
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-    init().catch((err) => {
-        showError(
-            "Errore inizializzazione Product Manager.",
-            err.message || String(err),
-        );
-    });
-});
-
-window.addEventListener("error", (event) => {
-    const detail =
-        event?.error?.stack || event?.message || "Errore sconosciuto";
-    showError("Errore Product Manager.", detail);
-});
-
-window.addEventListener("unhandledrejection", (event) => {
-    const reason = event?.reason;
-    const detail =
-        reason?.stack ||
-        reason?.message ||
-        String(reason || "Errore sconosciuto");
-    showError("Errore Product Manager (Promise).", detail);
-});
+window.addEventListener(
+    "DOMContentLoaded",
+    asyncGuard.wrap(async () => {
+        await init();
+    }, "Errore inizializzazione Product Manager."),
+);
 
 async function refreshSessionFromMain() {
     try {
@@ -3863,12 +3857,12 @@ async function refreshSessionFromMain() {
 }
 
 window.addEventListener("focus", () => {
-    refreshSessionFromMain();
+    void asyncGuard.wrap(refreshSessionFromMain)();
 });
 
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-        refreshSessionFromMain();
+        void asyncGuard.wrap(refreshSessionFromMain)();
     }
 });
 

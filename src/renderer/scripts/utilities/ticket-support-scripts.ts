@@ -14,6 +14,7 @@ import { showDialog } from "./ferie-permessi/services/dialogs";
 import { session, setSession, saveSession, loadSession, clearSession, applySharedSessionData, isAdmin, isEmployee, isLoggedIn } from "./product-manager/state/session";
 import { renderLoginSelectors, renderAdminSelect } from "./product-manager/ui/login-selectors";
 import { requestBackend } from "../shared/backend-client";
+import { createAsyncGuard } from "../shared/async-guard";
 
 const ADMIN_EMAIL = "tech@agpress-srl.it";
 const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
@@ -38,6 +39,16 @@ const TS_THEME_KEY = "ts-theme";
 const TICKET_BACKUP_ROOT_DIR = path.join(BASE_DIR, "Backup Ticket");
 let ticketCategories = { issueTypes: [...DEFAULT_ISSUE_TYPES], areas: [...DEFAULT_AREAS] };
 const categoriesUiState = { issueTypesEditingName: null, areasEditingName: null };
+
+const asyncGuard = createAsyncGuard({
+    errorTitle: "Errore Ticket Support.",
+    promiseTitle: "Errore promessa non gestita (Ticket Support).",
+    report: (message, detail) => {
+        showDialog("error", message, detail);
+    },
+});
+
+asyncGuard.installGlobalHandlers();
 
 function isValidEmail(value) {
     if (!value) return true;
@@ -1791,7 +1802,7 @@ function bindLoginEvents() {
     });
 
     if (adminConfirm) {
-        adminConfirm.addEventListener("click", async () => {
+        adminConfirm.addEventListener("click", asyncGuard.wrap(async () => {
             const adminName = document.getElementById("pm-login-admin-name")?.value || "";
             const password = document.getElementById("pm-login-admin-password")?.value || "";
             if (adminError) adminError.classList.add("is-hidden");
@@ -1826,7 +1837,7 @@ function bindLoginEvents() {
             saveSession();
             closeLoginModal();
             renderAll();
-        });
+        }));
     }
     [adminNameInput, adminPasswordInput].forEach((field) => {
         if (!field || !adminConfirm) return;
@@ -1859,15 +1870,17 @@ function bindLogoutEvents() {
 function bindStatusModalEvents() {
     document.getElementById("ts-status-close")?.addEventListener("click", closeStatusModal);
     document.getElementById("ts-status-cancel")?.addEventListener("click", closeStatusModal);
-    document.getElementById("ts-status-save")?.addEventListener("click", () => {
-        saveStatusChange();
-    });
+    document
+        .getElementById("ts-status-save")
+        ?.addEventListener("click", asyncGuard.wrap(saveStatusChange));
 }
 
 function bindEditModalEvents() {
     document.getElementById("ts-edit-close")?.addEventListener("click", closeEditModal);
     document.getElementById("ts-edit-cancel")?.addEventListener("click", closeEditModal);
-    document.getElementById("ts-edit-save")?.addEventListener("click", saveTicketEdit);
+    document
+        .getElementById("ts-edit-save")
+        ?.addEventListener("click", asyncGuard.wrap(saveTicketEdit));
 }
 
 function bindHistoryEvents() {
@@ -1922,15 +1935,22 @@ function bindOperatorListEvents() {
 }
 
 function bindMainEvents() {
-    document.getElementById("ts-ticket-form")?.addEventListener("submit", handleCreateTicket);
+    document
+        .getElementById("ts-ticket-form")
+        ?.addEventListener("submit", asyncGuard.wrap(handleCreateTicket));
     bindOperatorListEvents();
-    document.getElementById("ts-refresh")?.addEventListener("click", async () => {
-        await hydrateStore();
-        await hydrateTicketCategories();
-        store = loadStore();
-        ticketCategories = loadTicketCategories();
-        renderAll();
-    });
+    document
+        .getElementById("ts-refresh")
+        ?.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
+                await hydrateStore();
+                await hydrateTicketCategories();
+                store = loadStore();
+                ticketCategories = loadTicketCategories();
+                renderAll();
+            }),
+        );
 }
 
 function bindSettingsEvents() {
@@ -2077,15 +2097,15 @@ async function init() {
     }
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", asyncGuard.wrap(init));
 
 window.addEventListener("focus", () => {
-    refreshSessionFromMain();
+    void asyncGuard.wrap(refreshSessionFromMain)();
 });
 
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-        refreshSessionFromMain();
+        void asyncGuard.wrap(refreshSessionFromMain)();
     }
 });
 

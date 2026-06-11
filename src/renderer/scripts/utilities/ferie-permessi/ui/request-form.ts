@@ -96,6 +96,16 @@ function createRequestForm(options: RequestFormOptions) {
         throw new Error("document richiesto.");
     }
 
+    function handleAsyncError(error: unknown) {
+        const detail =
+            error instanceof Error ? error.message : String(error || "");
+        setMessage(
+            document.getElementById("fp-form-message") as HTMLElement | null,
+            detail || "Operazione non riuscita.",
+            true,
+        );
+    }
+
     function resetNewRequestForm() {
         const now = new Date();
         const today = now.toISOString().slice(0, 10);
@@ -358,11 +368,11 @@ function createRequestForm(options: RequestFormOptions) {
                     : false;
             if (adminRequired && typeof requireAdminAccess === "function") {
                 requireAdminAccess(() => {
-                    run();
+                    void run().catch(handleAsyncError);
                 });
                 return;
             }
-            run();
+            return run();
         };
         if (form) {
             form.addEventListener("submit", (event) => {
@@ -374,7 +384,7 @@ function createRequestForm(options: RequestFormOptions) {
         ) as HTMLButtonElement | null;
         if (saveBtn) {
             saveBtn.addEventListener("click", () => {
-                saveRequest();
+                void saveRequest().catch(handleAsyncError);
             });
         }
 
@@ -383,7 +393,7 @@ function createRequestForm(options: RequestFormOptions) {
         ) as HTMLButtonElement | null;
         if (refreshBtn) {
             refreshBtn.addEventListener("click", () => {
-                refreshData();
+                Promise.resolve(refreshData()).catch(handleAsyncError);
             });
         }
     }

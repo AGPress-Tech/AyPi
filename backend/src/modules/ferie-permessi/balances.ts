@@ -11,6 +11,13 @@ import type {
 export const DEFAULT_INITIAL_HOURS = 100;
 export const MONTHLY_ACCRUAL_HOURS = 16;
 
+function normalizeIdentityValue(value: unknown) {
+    return String(value || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleLowerCase("it-IT");
+}
+
 function isBalanceNeutral(request: RequestLike | null | undefined) {
     return (
         request &&
@@ -230,6 +237,86 @@ export function getEmployeeKey(
     return `${dept}|${name}`;
 }
 
+function extractEmployeeNameFromKey(key: string | null | undefined) {
+    if (!key || typeof key !== "string") return "";
+    const separatorIndex = key.indexOf("|");
+    if (separatorIndex < 0) return key.trim();
+    return key.slice(separatorIndex + 1).trim();
+}
+
+function listBalanceEntries(
+    balances: Record<string, BalanceEntry> | null | undefined,
+) {
+    return Object.entries(balances || {}).map(([key, entry]) => ({ key, entry }));
+}
+
+function buildAssigneeEmailMap(assignees: AssigneesPayload | null | undefined) {
+    const emails = assignees?.emails || {};
+    const map = new Map<string, string>();
+    Object.keys(emails).forEach((key) => {
+        const email = String(emails[key] || "").trim().toLocaleLowerCase("it-IT");
+        if (!email) return;
+        map.set(key, email);
+    });
+    return map;
+}
+
+function findBalanceKeyByAlias(
+    balances: Record<string, BalanceEntry> | null | undefined,
+    key: string | null,
+) {
+    if (!key) return null;
+    const entries = listBalanceEntries(balances);
+    for (const { key: balanceKey, entry } of entries) {
+        if (!Array.isArray(entry?.previousKeys)) continue;
+        if (entry.previousKeys.includes(key)) return balanceKey;
+    }
+    return null;
+}
+
+function findBalanceKeyByEmployeeName(
+    balances: Record<string, BalanceEntry> | null | undefined,
+    employeeName: string,
+    ignoredKeys?: Set<string>,
+) {
+    const target = normalizeIdentityValue(employeeName);
+    if (!target) return null;
+    const entries = listBalanceEntries(balances).filter(({ key }) => !ignoredKeys?.has(key));
+    const matches = entries.filter(({ key, entry }) => {
+        const candidateName = entry?.employee || extractEmployeeNameFromKey(key);
+        return normalizeIdentityValue(candidateName) === target;
+    });
+    if (matches.length !== 1) return null;
+    return matches[0].key;
+}
+
+function findBalanceKeyByEmail(
+    balances: Record<string, BalanceEntry> | null | undefined,
+    email: string,
+    ignoredKeys?: Set<string>,
+) {
+    const target = normalizeIdentityValue(email);
+    if (!target) return null;
+    const entries = listBalanceEntries(balances).filter(({ key }) => !ignoredKeys?.has(key));
+    const matches = entries.filter(({ entry }) => {
+        return normalizeIdentityValue(entry?.employeeEmail) === target;
+    });
+    if (matches.length !== 1) return null;
+    return matches[0].key;
+}
+
+function resolveBalanceKey(
+    balances: Record<string, BalanceEntry> | null | undefined,
+    key: string | null,
+) {
+    if (!key) return null;
+    if (balances && balances[key]) return key;
+    const aliasKey = findBalanceKeyByAlias(balances, key);
+    if (aliasKey) return aliasKey;
+    const employeeName = extractEmployeeNameFromKey(key);
+    return findBalanceKeyByEmployeeName(balances, employeeName);
+}
+
 function listEmployees(assignees: AssigneesPayload | null | undefined) {
     const rows: Array<{ key: string; employee: string; department: string }> = [];
     const groups = assignees?.groups || {};
@@ -298,13 +385,44 @@ export function normalizeBalances(
     };
     const employees = listEmployees(assignees);
     const activeKeys = new Set(employees.map((row) => row.key));
-
-    Object.keys(nextBalances).forEach((key) => {
-        if (!activeKeys.has(key)) delete nextBalances[key];
-    });
+    const claimedKeys = new Set<string>();
+    const assigneeEmails = buildAssigneeEmailMap(assignees);
 
     employees.forEach((row) => {
-        const existing = nextBalances[row.key];
+        const rowEmail = assigneeEmails.get(row.key) || "";
+        let resolvedKey = nextBalances[row.key] ? row.key : null;
+        if (!resolvedKey && rowEmail) {
+            resolvedKey = findBalanceKeyByEmail(nextBalances, rowEmail, claimedKeys);
+        }
+        if (!resolvedKey) {
+            resolvedKey = findBalanceKeyByEmployeeName(
+                nextBalances,
+                row.employee,
+                claimedKeys,
+            );
+        }
+
+        if (resolvedKey && resolvedKey !== row.key && nextBalances[resolvedKey]) {
+            const movedEntry = nextBalances[resolvedKey];
+            const previousKeys = new Set<string>([
+                ...(Array.isArray(movedEntry.previousKeys) ? movedEntry.previousKeys : []),
+                resolvedKey,
+            ]);
+            nextBalances[row.key] = {
+                ...movedEntry,
+                employee: row.employee,
+                department: row.department,
+                employeeEmail: rowEmail || movedEntry.employeeEmail || "",
+                inactive: false,
+                previousKeys: Array.from(previousKeys).filter(
+                    (value) => value && value !== row.key,
+                ),
+            };
+            delete nextBalances[resolvedKey];
+            resolvedKey = row.key;
+        }
+
+        const existing = resolvedKey ? nextBalances[resolvedKey] : null;
         if (!existing) {
             const approvedHours = getApprovedHoursForEmployee(
                 payload.requests,
@@ -320,8 +438,11 @@ export function normalizeBalances(
                 monthlyAccrualHours: MONTHLY_ACCRUAL_HOURS,
                 employee: row.employee,
                 department: row.department,
+                employeeEmail: rowEmail,
                 closureAppliedMonth: currentMonth,
                 closureAppliedHours: closureHours,
+                inactive: false,
+                previousKeys: [],
             };
             if (closureHours > 0) {
                 nextBalances[row.key].hoursAvailable =
@@ -329,6 +450,7 @@ export function normalizeBalances(
                         (nextBalances[row.key].hoursAvailable - closureHours) * 100,
                     ) / 100;
             }
+            claimedKeys.add(row.key);
             return;
         }
         if (existing.monthlyAccrualHours == null) {
@@ -343,6 +465,17 @@ export function normalizeBalances(
         }
         existing.employee = row.employee;
         existing.department = row.department;
+        existing.employeeEmail = rowEmail || existing.employeeEmail || "";
+        existing.inactive = false;
+        existing.previousKeys = Array.isArray(existing.previousKeys)
+            ? Array.from(
+                  new Set(
+                      existing.previousKeys.filter(
+                          (value) => value && value !== resolvedKey,
+                      ),
+                  ),
+              )
+            : [];
         if (existing.closureAppliedMonth !== currentMonth) {
             existing.closureAppliedMonth = currentMonth;
             existing.closureAppliedHours = 0;
@@ -357,6 +490,12 @@ export function normalizeBalances(
                 ) / 100;
             existing.closureAppliedHours = closureHours;
         }
+        if (resolvedKey) claimedKeys.add(resolvedKey);
+    });
+
+    Object.keys(nextBalances).forEach((key) => {
+        if (activeKeys.has(key)) return;
+        nextBalances[key].inactive = true;
     });
 
     payload.balances = nextBalances;
@@ -366,19 +505,23 @@ export function normalizeBalances(
 function ensureBalanceEntry(payload: FpPayload, key: string | null) {
     if (!key) return null;
     if (!payload.balances) payload.balances = {};
-    if (!payload.balances[key]) {
-        payload.balances[key] = {
+    const resolvedKey = resolveBalanceKey(payload.balances, key) || key;
+    if (!payload.balances[resolvedKey]) {
+        payload.balances[resolvedKey] = {
             hoursAvailable: DEFAULT_INITIAL_HOURS,
             lastAccrualMonth: getMonthKey(),
             monthlyAccrualHours: MONTHLY_ACCRUAL_HOURS,
+            inactive: false,
+            previousKeys: [],
         };
     }
-    return payload.balances[key];
+    return payload.balances[resolvedKey];
 }
 
 export function getBalanceImpact(payload: FpPayload, request: RequestLike) {
     const key = getEmployeeKey(request.employee, request.department);
-    const entry = key && payload.balances ? payload.balances[key] : null;
+    const resolvedKey = key ? resolveBalanceKey(payload.balances, key) : null;
+    const entry = resolvedKey && payload.balances ? payload.balances[resolvedKey] : null;
     const hoursBefore = entry
         ? Number(entry.hoursAvailable) || 0
         : DEFAULT_INITIAL_HOURS;

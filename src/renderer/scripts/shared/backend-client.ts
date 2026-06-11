@@ -81,12 +81,21 @@ function requestBackend(pathname: string, options?: {
                         resolve(parsed);
                         return;
                     }
+                    const detailsText =
+                        parsed?.details && typeof parsed.details === "object"
+                            ? JSON.stringify(parsed.details, null, 2)
+                            : parsed?.details
+                              ? String(parsed.details)
+                              : "";
+                    const errorMessage = [
+                        `Backend ${method} ${url.pathname} failed (${statusCode})`,
+                        parsed?.error || rawText || "Errore sconosciuto",
+                        detailsText,
+                    ]
+                        .filter(Boolean)
+                        .join(": ");
                     reject(
-                        new Error(
-                            `Backend ${method} ${url.pathname} failed (${statusCode}): ${
-                                parsed?.error || rawText || "Errore sconosciuto"
-                            }`,
-                        ),
+                        new Error(errorMessage),
                     );
                 });
             },

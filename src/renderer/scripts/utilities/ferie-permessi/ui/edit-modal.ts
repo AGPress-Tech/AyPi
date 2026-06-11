@@ -97,6 +97,16 @@ function createEditModal(options: EditModalOptions) {
         throw new Error("document richiesto.");
     }
 
+    function handleAsyncError(error: unknown) {
+        const detail =
+            error instanceof Error ? error.message : String(error || "");
+        setMessage(
+            document.getElementById("fp-edit-message") as HTMLElement | null,
+            detail || "Operazione non riuscita.",
+            true,
+        );
+    }
+
     function openEditModal(request: RequestLike) {
         const modal = document.getElementById(
             "fp-edit-modal",
@@ -217,7 +227,7 @@ function createEditModal(options: EditModalOptions) {
         }
 
         if (editDelete) {
-            editDelete.addEventListener("click", async () => {
+            editDelete.addEventListener("click", () => {
                 const run = async () => {
                     const editingRequestId = getEditingRequestId();
                     if (!editingRequestId) return;
@@ -238,7 +248,7 @@ function createEditModal(options: EditModalOptions) {
                     requireDeleteAccess(run);
                     return;
                 }
-                run();
+                void run().catch(handleAsyncError);
             });
         }
 
@@ -249,7 +259,7 @@ function createEditModal(options: EditModalOptions) {
         }
 
         if (editForm) {
-            editForm.addEventListener("submit", async (event) => {
+            editForm.addEventListener("submit", (event) => {
                 event.preventDefault();
                 const run = async () => {
                     const editingRequestId = getEditingRequestId();
@@ -308,7 +318,7 @@ function createEditModal(options: EditModalOptions) {
                     requireEditAccess(run);
                     return;
                 }
-                run();
+                void run().catch(handleAsyncError);
             });
         }
     }

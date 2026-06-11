@@ -299,20 +299,22 @@ function renderCartTable({
                 titleEl.classList.add("pm-copyable-product");
                 titleEl.title = "Click per copiare il testo prodotto";
                 titleEl.addEventListener("click", async (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const ok = await copyTextToClipboard(row.product);
-                    const oldIndicator = productNode.querySelector(".pm-copy-indicator");
-                    if (oldIndicator) oldIndicator.remove();
-                    const indicator = document.createElement("span");
-                    indicator.className = `pm-copy-indicator ${ok ? "is-ok" : "is-error"}`;
-                    indicator.textContent = ok ? "Copiato" : "Errore";
-                    titleEl.appendChild(indicator);
-                    titleEl.title = ok ? "Copiato negli appunti" : "Copia non riuscita";
-                    setTimeout(() => {
-                        indicator.remove();
-                        titleEl.title = "Click per copiare il testo prodotto";
-                    }, 1200);
+                    try {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const ok = await copyTextToClipboard(row.product);
+                        const oldIndicator = productNode.querySelector(".pm-copy-indicator");
+                        if (oldIndicator) oldIndicator.remove();
+                        const indicator = document.createElement("span");
+                        indicator.className = `pm-copy-indicator ${ok ? "is-ok" : "is-error"}`;
+                        indicator.textContent = ok ? "Copiato" : "Errore";
+                        titleEl.appendChild(indicator);
+                        titleEl.title = ok ? "Copiato negli appunti" : "Copia non riuscita";
+                        setTimeout(() => {
+                            indicator.remove();
+                            titleEl.title = "Click per copiare il testo prodotto";
+                        }, 1200);
+                    } catch (_) {}
                 });
             }
         }
@@ -400,22 +402,26 @@ function renderCartTable({
             addCatalogIcon.textContent = "inventory_2";
             addCatalogBtn.appendChild(addCatalogIcon);
             addCatalogBtn.addEventListener("click", async () => {
-                const ok = await openConfirmModal("Vuoi aggiungere questo prodotto al catalogo?");
-                if (!ok) return;
-                const item = {
-                    id: `CAT-${Date.now()}`,
-                    name: row.product || "",
-                    description: "",
-                    category: row.category || row.tags.join(", "),
-                    unit: row.unit || "",
-                    url: row.url || "",
-                    supplier: row.supplier || "",
-                    imageFile: "",
-                    createdAt: new Date().toISOString(),
-                };
-                catalogItems.push(item);
-                if (saveCatalog(catalogItems)) {
-                    renderCatalog();
+                try {
+                    const ok = await openConfirmModal("Vuoi aggiungere questo prodotto al catalogo?");
+                    if (!ok) return;
+                    const item = {
+                        id: `CAT-${Date.now()}`,
+                        name: row.product || "",
+                        description: "",
+                        category: row.category || row.tags.join(", "),
+                        unit: row.unit || "",
+                        url: row.url || "",
+                        supplier: row.supplier || "",
+                        imageFile: "",
+                        createdAt: new Date().toISOString(),
+                    };
+                    catalogItems.push(item);
+                    if (saveCatalog(catalogItems)) {
+                        renderCatalog();
+                    }
+                } catch (err) {
+                    console.error("[product-manager] aggiunta catalogo da carrello fallita:", err);
                 }
             });
             if (!isAdmin() || row.deletedAt) addCatalogBtn.disabled = true;

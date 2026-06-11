@@ -213,6 +213,18 @@ function createApprovalModal(options: ApprovalModalOptions) {
         throw new Error("document richiesto.");
     }
 
+    function reportAsyncError(error: unknown) {
+        const detail =
+            error instanceof Error
+                ? error.stack || error.message
+                : String(error || "Errore sconosciuto");
+        showDialog(
+            "error",
+            "Operazione ferie/permessi non riuscita.",
+            detail,
+        );
+    }
+
     const ALWAYS_REQUIRE_PASSWORD = new Set([
         "admin-access",
         "admin-delete",
@@ -518,7 +530,9 @@ function createApprovalModal(options: ApprovalModalOptions) {
             }
             const admin =
                 typeof getLoggedAdmin === "function" ? getLoggedAdmin() : null;
-            handleAction(admin, action);
+            void Promise.resolve(handleAction(admin, action)).catch(
+                reportAsyncError,
+            );
             return;
         }
         const modal = document.getElementById(
@@ -643,7 +657,9 @@ function createApprovalModal(options: ApprovalModalOptions) {
             approveCancel.addEventListener("click", closeApprovalModal);
         }
         if (approveConfirm) {
-            approveConfirm.addEventListener("click", confirmApproval);
+            approveConfirm.addEventListener("click", () => {
+                void Promise.resolve(confirmApproval()).catch(reportAsyncError);
+            });
         }
         if (approveModal) {
             approveModal.addEventListener("click", (event) => {
@@ -654,7 +670,9 @@ function createApprovalModal(options: ApprovalModalOptions) {
             approvePassword.addEventListener("keydown", (event) => {
                 if (event.key === "Enter") {
                     event.preventDefault();
-                    confirmApproval();
+                    void Promise.resolve(confirmApproval()).catch(
+                        reportAsyncError,
+                    );
                 } else if (event.key === "Escape") {
                     event.preventDefault();
                     closeApprovalModal();

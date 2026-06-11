@@ -7,11 +7,23 @@ const {
     renderEmployeesList,
 } = require("./product-manager/ui/assignees-admin-ui");
 const { requestBackend } = require("../shared/backend-client");
+const sharedDialogs = require("../shared/dialogs");
+const { createAsyncGuard } = require("../shared/async-guard");
 
 let assigneeGroups = {};
 let assigneeEmails = {};
 let editingDepartment = null;
 let editingEmployee = null;
+
+const asyncGuard = createAsyncGuard({
+    errorTitle: "Errore Assignees Manager.",
+    promiseTitle: "Errore promessa non gestita (Assignees Manager).",
+    report: (message, detail) => {
+        sharedDialogs.showError(message, detail);
+    },
+});
+
+asyncGuard.installGlobalHandlers();
 
 function setMessage(text, isError = false) {
     const el = document.getElementById("am-message");
@@ -119,13 +131,18 @@ function addEmployee() {
 }
 
 function init() {
-    loadAll().then(redraw);
+    void loadAll().then(redraw).catch((err) => asyncGuard.handle(err));
 
-    document.getElementById("am-refresh")?.addEventListener("click", async () => {
-        await loadAll();
-        redraw();
-        setMessage("Dati aggiornati.");
-    });
+    document
+        .getElementById("am-refresh")
+        ?.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
+                await loadAll();
+                redraw();
+                setMessage("Dati aggiornati.");
+            }),
+        );
     document.getElementById("am-close")?.addEventListener("click", () => window.close());
     document.getElementById("fp-department-add")?.addEventListener("click", addDepartment);
     document.getElementById("fp-employee-add")?.addEventListener("click", addEmployee);
@@ -143,4 +160,4 @@ function init() {
     document.getElementById("fp-employee-email")?.addEventListener("keydown", triggerEmployee);
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", asyncGuard.wrap(init));

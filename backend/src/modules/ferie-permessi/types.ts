@@ -28,8 +28,11 @@ export type BalanceEntry = {
     monthlyAccrualHours?: number;
     employee?: string;
     department?: string;
+    employeeEmail?: string;
     closureAppliedMonth?: string;
     closureAppliedHours?: number;
+    inactive?: boolean;
+    previousKeys?: string[];
 };
 
 export type HolidayLike = { date?: string; name?: string } | string;
