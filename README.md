@@ -27,6 +27,7 @@ Al momento supporta in 7 pagine di navigazione, **Moduli**, **Programmi**, **Art
 <li><b>Calendario Aziendale - AyPi Calendar</b></li>
 <li><b>Modulo Acquisti e Interventi - AyPi Purchasing</b></li>
 <li><b>AyPi - Ticket Support</b></li>
+<li><b>Schede Attrezzaggio Transfer</b></li>
 </ul>
 <br/>
 L'applicazione si aggiorna automaticamente all'avvio, verificando la connessione a Internet e alla rete interna. È inoltre in grado di notificare all'utente eventuali modifiche ai moduli, come rimozioni, spostamenti o utilizzi da parte di altri operatori. Tramite l'orologio digitale presente nella sidebar, è possibile impostare timer (anche preconfigurati) e cronometri.
