@@ -41,6 +41,15 @@ function inferRequestModule(requestUrl: string) {
     return "core";
 }
 
+function shouldSkipHttpAccessLog(method: string, requestUrl: string) {
+    const normalizedMethod = String(method || "").toUpperCase();
+    const normalizedUrl = String(requestUrl || "").toLowerCase();
+    return (
+        normalizedMethod === "GET" &&
+        normalizedUrl === "/api/ferie-permessi/payload"
+    );
+}
+
 export function createBackendServer() {
     const router = new Router();
     registerRoutes(router);
@@ -52,6 +61,7 @@ export function createBackendServer() {
         const requestUrl = request.url || "/";
         const remoteAddress = request.socket?.remoteAddress || "";
         const module = inferRequestModule(requestUrl);
+        const skipHttpAccessLog = shouldSkipHttpAccessLog(method, requestUrl);
         const requestId = nextRequestId();
         setRequestId(request, requestId);
         response.setHeader("x-aypi-request-id", requestId);
@@ -73,32 +83,36 @@ export function createBackendServer() {
         }
 
         try {
-            logger.info("HTTP request started", {
-                event: "http_request_started",
-                category: "http",
-                module,
-                requestId,
-                method,
-                url: requestUrl,
-                user: getRequestUser(request),
-                client: getRequestClient(request),
-                remoteAddress,
-            });
+            if (!skipHttpAccessLog) {
+                logger.info("HTTP request started", {
+                    event: "http_request_started",
+                    category: "http",
+                    module,
+                    requestId,
+                    method,
+                    url: requestUrl,
+                    user: getRequestUser(request),
+                    client: getRequestClient(request),
+                    remoteAddress,
+                });
+            }
             await router.handle(request, response);
-            logger.info("HTTP request completed", {
-                event: "http_request_completed",
-                category: "http",
-                module,
-                outcome: response.statusCode >= 400 ? "warning" : "success",
-                requestId,
-                method,
-                url: requestUrl,
-                user: getRequestUser(request),
-                client: getRequestClient(request),
-                remoteAddress,
-                statusCode: response.statusCode,
-                durationMs: Date.now() - startedAt,
-            });
+            if (!skipHttpAccessLog) {
+                logger.info("HTTP request completed", {
+                    event: "http_request_completed",
+                    category: "http",
+                    module,
+                    outcome: response.statusCode >= 400 ? "warning" : "success",
+                    requestId,
+                    method,
+                    url: requestUrl,
+                    user: getRequestUser(request),
+                    client: getRequestClient(request),
+                    remoteAddress,
+                    statusCode: response.statusCode,
+                    durationMs: Date.now() - startedAt,
+                });
+            }
         } catch (error) {
             const httpErrorDetails =
                 error &&
