@@ -838,6 +838,11 @@ async function createRequestAtomic(request) {
 }
 
 async function updateRequestAtomic(requestId, request) {
+    logFpDebug("backend.request.update", {
+        requestId: requestId || "",
+        keys: request && typeof request === "object" ? Object.keys(request) : [],
+        request,
+    });
     const updated = await fetchFpBackend(`/requests/${requestId}`, {
         method: "PUT",
         headers: {
@@ -883,18 +888,37 @@ async function rejectRequestAtomic(requestId, actor) {
 }
 
 async function deleteRequestAtomic(requestId, actor) {
-    const updated = await fetchFpBackend(`/requests/${requestId}`, {
-        method: "DELETE",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ actor: actor || getLoggedAdminName() || "guest" }),
-    });
-    logFpDebug("backend.response.delete", {
-        id: updated?.id || requestId || "",
-        status: updated?.status || "",
-    });
-    return refreshDataFromBackendAndRender();
+    try {
+        const updated = await fetchFpBackend(`/requests/${requestId}`, {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                actor: actor || getLoggedAdminName() || "guest",
+            }),
+        });
+        logFpDebug("backend.response.delete", {
+            id: updated?.id || requestId || "",
+            status: updated?.status || "",
+        });
+        return refreshDataFromBackendAndRender();
+    } catch (err) {
+        logFpDebug("backend.error.delete", {
+            requestId: requestId || "",
+            detail: err?.message || String(err),
+        });
+        const data = await refreshDataFromBackendAndRender();
+        const target = (data?.requests || []).find((req) => req?.id === requestId);
+        if (!target || target.status === "deleted") {
+            logFpDebug("backend.delete.reconciled", {
+                requestId: requestId || "",
+                status: target?.status || "missing",
+            });
+            return data;
+        }
+        throw err;
+    }
 }
 
 async function createHolidaysAtomic(dates, name) {
@@ -2245,7 +2269,7 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
                 end: endValue,
                 note,
                 status: requestId ? "approved" : "pending",
-                createdAt: requestId ? null : new Date().toISOString(),
+                ...(requestId ? {} : { createdAt: new Date().toISOString() }),
             },
         };
     }
@@ -2263,7 +2287,7 @@ function buildRequestFromForm(prefix, requestId, allowPast = false) {
             end: endDate,
             note,
             status: requestId ? "approved" : "pending",
-            createdAt: requestId ? null : new Date().toISOString(),
+            ...(requestId ? {} : { createdAt: new Date().toISOString() }),
         },
     };
 }
@@ -3693,8 +3717,24 @@ function init() {
                 ? ` di <strong>${escapeHtml(snapshot.employee)}</strong>`
                 : "";
             const message = `Confermi l'eliminazione della <strong>${escapeHtml(typeLabel)}</strong>${employeeLabel}?`;
-            openConfirmModal(message).then((ok) => {
+            openConfirmModal(message).then(async (ok) => {
                 if (!ok) return;
+                if (FP_USE_BACKEND) {
+                    try {
+                        const updated = await deleteRequestAtomic(
+                            targetId,
+                            getLoggedAdminName() || "guest",
+                        );
+                        renderAll(updated);
+                    } catch (err) {
+                        logFpDebug("backend.error.delete.shortcut", {
+                            requestId: targetId || "",
+                            detail: err?.message || String(err),
+                        });
+                        throw err;
+                    }
+                    return;
+                }
                 const updated = syncData((payload) => {
                     const target = (payload.requests || []).find(
                         (req) => req.id === targetId,

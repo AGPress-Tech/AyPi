@@ -100,6 +100,12 @@ export function createBackendServer() {
                 durationMs: Date.now() - startedAt,
             });
         } catch (error) {
+            const httpErrorDetails =
+                error &&
+                typeof error === "object" &&
+                "details" in error
+                    ? (error as { details?: unknown }).details
+                    : undefined;
             logger.error("HTTP request failed", {
                 event: "http_request_failed",
                 category: "error",
@@ -113,6 +119,7 @@ export function createBackendServer() {
                 remoteAddress,
                 durationMs: Date.now() - startedAt,
                 detail: error instanceof Error ? error.message : String(error),
+                issues: httpErrorDetails,
             });
             sendError(response, error);
         }

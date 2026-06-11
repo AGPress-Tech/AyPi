@@ -23,7 +23,12 @@ const TOOL_ICON_TOOLTIPS = {
     14: "Posizione Angolare Unita",
 };
 const ICON_DIR = path.join(__dirname, "..", "assets", "transfer-icons");
-const PRINT_LOGO_PATH = path.join(__dirname, "..", "assets", "agpress-logo-generico.png");
+const PRINT_LOGO_PATH = path.join(
+    __dirname,
+    "..",
+    "assets",
+    "agpress-logo-generico.png",
+);
 
 let currentCode = null;
 const iconDataByCol = {};
@@ -41,7 +46,9 @@ const listCount = document.getElementById("listCount");
 const filterCodiceArticolo = document.getElementById("filterCodiceArticolo");
 const filterCodiceMacchina = document.getElementById("filterCodiceMacchina");
 const filterText = document.getElementById("filterText");
-const filterDescrizioneLavorazione = document.getElementById("filterDescrizioneLavorazione");
+const filterDescrizioneLavorazione = document.getElementById(
+    "filterDescrizioneLavorazione",
+);
 const filterUtensile = document.getElementById("filterUtensile");
 
 let allListItems = [];
@@ -70,7 +77,8 @@ function setFormReadOnly(isReadOnly) {
     ];
     editorSelectors.forEach((selector) => {
         formView.querySelectorAll(selector).forEach((el) => {
-            (el as HTMLInputElement | HTMLTextAreaElement).readOnly = formReadOnly;
+            (el as HTMLInputElement | HTMLTextAreaElement).readOnly =
+                formReadOnly;
         });
     });
 
@@ -80,9 +88,13 @@ function setFormReadOnly(isReadOnly) {
         if (btn) btn.style.display = formReadOnly ? "none" : "";
     });
 
-    formView.querySelectorAll("#utensiliBody td:last-child button").forEach((btn) => {
-        (btn as HTMLButtonElement).style.display = formReadOnly ? "none" : "";
-    });
+    formView
+        .querySelectorAll("#utensiliBody td:last-child button")
+        .forEach((btn) => {
+            (btn as HTMLButtonElement).style.display = formReadOnly
+                ? "none"
+                : "";
+        });
 }
 
 function getVal(id) {
@@ -178,9 +190,11 @@ function autoGrowTextarea(el) {
 
 function refreshTableAutoGrow() {
     requestAnimationFrame(() => {
-        utensiliBody.querySelectorAll("textarea.cell-textarea").forEach((el) => {
-            autoGrowTextarea(el as HTMLTextAreaElement);
-        });
+        utensiliBody
+            .querySelectorAll("textarea.cell-textarea")
+            .forEach((el) => {
+                autoGrowTextarea(el as HTMLTextAreaElement);
+            });
     });
 }
 
@@ -199,7 +213,15 @@ function readRows() {
 
 function resetForm() {
     currentCode = null;
-    ["codiceArticolo", "fase", "codiceMacchina", "metodo", "lavorazione", "cicloLavorazione", "note"].forEach((id) => setVal(id, ""));
+    [
+        "codiceArticolo",
+        "fase",
+        "codiceMacchina",
+        "metodo",
+        "lavorazione",
+        "cicloLavorazione",
+        "note",
+    ].forEach((id) => setVal(id, ""));
     utensiliBody.innerHTML = "";
     addRow();
     updateCodeLabel();
@@ -236,12 +258,18 @@ function loadPrintLogo() {
 
 function printCard(card) {
     const cols = TOOL_ICON_COLUMNS.slice();
-    const headerIcons = cols.map((idx) => iconDataByCol[idx] ? `<img src=\"${iconDataByCol[idx]}\" style=\"width:34px;height:34px;object-fit:contain;\">` : `${idx}`);
-    const rows = (card.utensili || []).map((r) => {
-        const base = [r.nrUnita || "", r.iso || "", r.descrizione || ""];
-        const opz = cols.map((c) => r[`col${c}`] || "");
-        return `<tr>${[...base, ...opz].map((v) => `<td>${String(v || "")}</td>`).join("")}</tr>`;
-    }).join("");
+    const headerIcons = cols.map((idx) =>
+        iconDataByCol[idx]
+            ? `<img src=\"${iconDataByCol[idx]}\" style=\"width:34px;height:34px;object-fit:contain;\">`
+            : `${idx}`,
+    );
+    const rows = (card.utensili || [])
+        .map((r) => {
+            const base = [r.nrUnita || "", r.iso || "", r.descrizione || ""];
+            const opz = cols.map((c) => r[`col${c}`] || "");
+            return `<tr>${[...base, ...opz].map((v) => `<td>${String(v || "")}</td>`).join("")}</tr>`;
+        })
+        .join("");
 
     const win = window.open("", "_blank");
     if (!win) return;
@@ -295,7 +323,9 @@ function printCard(card) {
 }
 
 async function loadCardAndOpenForm(code, options = { readOnly: false }) {
-    const loaded = await ipcRenderer.invoke("transfer-attrezzaggio-load", { code });
+    const loaded = await ipcRenderer.invoke("transfer-attrezzaggio-load", {
+        code,
+    });
     if (!loaded?.ok) {
         window.alert(loaded?.error || "Errore caricamento scheda");
         return;
@@ -330,7 +360,9 @@ async function loadList() {
 }
 
 function normalize(v) {
-    return String(v || "").toLowerCase().trim();
+    return String(v || "")
+        .toLowerCase()
+        .trim();
 }
 
 function formatDateTs(ms) {
@@ -361,7 +393,8 @@ function matchesFilters(item) {
 
     if (fArt && !codiceArticolo.includes(fArt)) return false;
     if (fMac && !codiceMacchina.includes(fMac)) return false;
-    if (fText && !(lavorazione.includes(fText) || note.includes(fText))) return false;
+    if (fText && !(lavorazione.includes(fText) || note.includes(fText)))
+        return false;
     if (fDescLav && !descrLavorazioni.includes(fDescLav)) return false;
     if (fUte && !utensili.includes(fUte)) return false;
     return true;
@@ -370,7 +403,8 @@ function matchesFilters(item) {
 function renderListFiltered() {
     cardsList.innerHTML = "";
     const filtered = allListItems.filter(matchesFilters);
-    if (listCount) listCount.textContent = `${filtered.length} schede trovate su ${allListItems.length}`;
+    if (listCount)
+        listCount.textContent = `${filtered.length} schede trovate su ${allListItems.length}`;
 
     filtered.forEach((item) => {
         const li = document.createElement("li");
@@ -379,15 +413,21 @@ function renderListFiltered() {
         const code = document.createElement("span");
         code.className = "code";
         code.innerHTML = buildCodeHtml(item);
-        code.addEventListener("click", () => loadCardAndOpenForm(item.code, { readOnly: true }));
+        code.addEventListener("click", () =>
+            loadCardAndOpenForm(item.code, { readOnly: true }),
+        );
         code.title = "Apri scheda in sola visualizzazione";
         const meta = document.createElement("span");
         meta.className = "code-meta";
         meta.textContent = `Articolo: ${item.codiceArticolo || "-"} | Fase: ${item.fase || "-"} | Macchina: ${item.codiceMacchina || "-"} | Metodo: ${item.metodo || "-"} | Lavorazione: ${item.lavorazione || "-"} | Ciclo(s): ${item.cicloLavorazione || "-"} | Utensili: ${item.utensiliCount || 0} | Agg.: ${formatDateTs(item.updatedAt)}`;
         const tools = document.createElement("span");
         tools.className = "tools-meta";
-        const descList = Array.isArray(item.utensiliDescrizioni) ? item.utensiliDescrizioni.filter(Boolean) : [];
-        const toolList = Array.isArray(item.utensiliCol1) ? item.utensiliCol1.filter(Boolean) : [];
+        const descList = Array.isArray(item.utensiliDescrizioni)
+            ? item.utensiliDescrizioni.filter(Boolean)
+            : [];
+        const toolList = Array.isArray(item.utensiliCol1)
+            ? item.utensiliCol1.filter(Boolean)
+            : [];
         const maxLen = Math.max(descList.length, toolList.length);
         const pairs = [];
         for (let i = 0; i < maxLen; i += 1) {
@@ -403,11 +443,16 @@ function renderListFiltered() {
         details.appendChild(tools);
         const edit = document.createElement("button");
         edit.textContent = "Modifica";
-        edit.addEventListener("click", () => loadCardAndOpenForm(item.code, { readOnly: false }));
+        edit.addEventListener("click", () =>
+            loadCardAndOpenForm(item.code, { readOnly: false }),
+        );
         const print = document.createElement("button");
         print.textContent = "Stampa";
         print.addEventListener("click", async () => {
-            const loaded = await ipcRenderer.invoke("transfer-attrezzaggio-load", { code: item.code });
+            const loaded = await ipcRenderer.invoke(
+                "transfer-attrezzaggio-load",
+                { code: item.code },
+            );
             if (!loaded?.ok) return;
             printCard(loaded.item);
         });
@@ -418,9 +463,14 @@ function renderListFiltered() {
             if (!ok) return;
             let resDel;
             try {
-                resDel = await ipcRenderer.invoke("transfer-attrezzaggio-delete", { code: item.code });
+                resDel = await ipcRenderer.invoke(
+                    "transfer-attrezzaggio-delete",
+                    { code: item.code },
+                );
             } catch (err) {
-                window.alert("Funzione elimina non disponibile nella sessione corrente. Riavvia AyPi e riprova.");
+                window.alert(
+                    "Funzione elimina non disponibile nella sessione corrente. Riavvia AyPi e riprova.",
+                );
                 return;
             }
             if (!resDel?.ok) {
@@ -450,17 +500,28 @@ async function saveForm() {
         utensili: readRows(),
     };
 
-    if (!payload.codiceArticolo || !payload.fase || !payload.codiceMacchina || !payload.metodo) {
-        window.alert("Compila Codice Articolo, Fase, Codice Macchina e Metodo.");
+    if (
+        !payload.codiceArticolo ||
+        !payload.fase ||
+        !payload.codiceMacchina ||
+        !payload.metodo
+    ) {
+        window.alert(
+            "Compila Codice Articolo, Fase, Codice Macchina e Metodo.",
+        );
         return;
     }
     if (!payload.utensili.length) {
         window.alert("Inserisci almeno una riga utensile.");
         return;
     }
-    const invalid = payload.utensili.find((r) => REQUIRED_TOOL_FIELDS.some((f) => !r[f]));
+    const invalid = payload.utensili.find((r) =>
+        REQUIRED_TOOL_FIELDS.some((f) => !r[f]),
+    );
     if (invalid) {
-        window.alert("Ogni riga utensile deve avere Nr Unita, ISO e Descrizione.");
+        window.alert(
+            "Ogni riga utensile deve avere Nr Unita, ISO e Descrizione.",
+        );
         return;
     }
 
@@ -474,36 +535,53 @@ async function saveForm() {
     window.alert(`Scheda salvata: ${res.code}`);
 }
 
-document.getElementById("showListBtn")?.addEventListener("click", async () => { showView("list"); await loadList(); });
+document.getElementById("showListBtn")?.addEventListener("click", async () => {
+    showView("list");
+    await loadList();
+});
 document.getElementById("showCreateBtn")?.addEventListener("click", () => {
     resetForm();
     formOrigin = "home";
     setFormReadOnly(false);
     showView("form");
 });
-document.getElementById("closeWindowBtn")?.addEventListener("click", () => window.close());
-document.getElementById("backFromListBtn")?.addEventListener("click", () => showView("home"));
+document
+    .getElementById("closeWindowBtn")
+    ?.addEventListener("click", () => window.close());
+document
+    .getElementById("backFromListBtn")
+    ?.addEventListener("click", () => showView("home"));
 document.getElementById("refreshListBtn")?.addEventListener("click", loadList);
 document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
-    [filterCodiceArticolo, filterCodiceMacchina, filterText, filterDescrizioneLavorazione, filterUtensile].forEach((el) => {
+    [
+        filterCodiceArticolo,
+        filterCodiceMacchina,
+        filterText,
+        filterDescrizioneLavorazione,
+        filterUtensile,
+    ].forEach((el) => {
         if (el) el.value = "";
     });
     renderListFiltered();
 });
-document.getElementById("backFromFormBtn")?.addEventListener("click", async () => {
-    if (formOrigin === "list") {
-        showView("list");
-        if (!allListItems.length) await loadList();
-        else renderListFiltered();
-        return;
-    }
-    showView("home");
-});
+document
+    .getElementById("backFromFormBtn")
+    ?.addEventListener("click", async () => {
+        if (formOrigin === "list") {
+            showView("list");
+            if (!allListItems.length) await loadList();
+            else renderListFiltered();
+            return;
+        }
+        showView("home");
+    });
 document.getElementById("newFormBtn")?.addEventListener("click", resetForm);
 document.getElementById("saveFormBtn")?.addEventListener("click", saveForm);
 document.getElementById("printFormBtn")?.addEventListener("click", () => {
     const card = {
-        code: currentCode || `${getVal("codiceArticolo")} - Fase: ${getVal("fase")} - ${getVal("codiceMacchina")} - ${getVal("metodo")}`,
+        code:
+            currentCode ||
+            `${getVal("codiceArticolo")} - Fase: ${getVal("fase")} - ${getVal("codiceMacchina")} - ${getVal("metodo")}`,
         codiceArticolo: getVal("codiceArticolo"),
         fase: getVal("fase"),
         codiceMacchina: getVal("codiceMacchina"),
@@ -519,7 +597,13 @@ document.getElementById("addRowBtn")?.addEventListener("click", () => addRow());
 ["codiceArticolo", "fase", "codiceMacchina", "metodo"].forEach((id) => {
     document.getElementById(id)?.addEventListener("input", updateCodeLabel);
 });
-[filterCodiceArticolo, filterCodiceMacchina, filterText, filterDescrizioneLavorazione, filterUtensile].forEach((el) => {
+[
+    filterCodiceArticolo,
+    filterCodiceMacchina,
+    filterText,
+    filterDescrizioneLavorazione,
+    filterUtensile,
+].forEach((el) => {
     el?.addEventListener("input", renderListFiltered);
 });
 
