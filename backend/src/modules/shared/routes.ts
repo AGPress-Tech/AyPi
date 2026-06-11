@@ -1,4 +1,5 @@
 import type { Router } from "../../shared/http/router";
+import { getRequestId, getRequestUser } from "../../shared/http/context";
 import { sendJson } from "../../shared/http/response";
 import { readJsonBody } from "../../shared/http/request";
 import { unauthorized } from "../../shared/http/errors";
@@ -83,7 +84,10 @@ export function registerSharedRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid admins payload",
         );
-        await saveAdmins(payload.admins);
+        await saveAdmins(payload.admins, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
         sendJson(res, 200, { ok: true, admins: getAdmins() });
     });
 
@@ -96,7 +100,10 @@ export function registerSharedRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid admin verify payload",
         );
-        const admin = await verifyAdmin(payload.password, payload.targetName || null);
+        const admin = await verifyAdmin(payload.password, payload.targetName || null, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
         if (!admin) {
             throw unauthorized("Invalid admin credentials");
         }
@@ -127,7 +134,10 @@ export function registerSharedRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid assignees payload",
         );
-        await saveAssignees(payload);
+        await saveAssignees(payload, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
         sendJson(res, 200, {
             ok: true,
             data: getAssignees(),

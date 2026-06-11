@@ -47,6 +47,12 @@ type ViewerField = {
     tone?: "neutral" | "accent" | "warn" | "error";
 };
 
+type ViewerChange = {
+    label: string;
+    before: string;
+    after: string;
+};
+
 type ViewerCategory = {
     key: string;
     label: string;
@@ -259,6 +265,21 @@ function pushField(
     fields.push({ label, value: normalized, tone });
 }
 
+function normalizeViewerChanges(value: unknown) {
+    if (!Array.isArray(value)) return [] as ViewerChange[];
+    return value
+        .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const row = item as Record<string, unknown>;
+            const label = toDisplayValue(row.label).trim();
+            const before = toDisplayValue(row.before).trim();
+            const after = toDisplayValue(row.after).trim();
+            if (!label || (!before && !after)) return null;
+            return { label, before: before || "-", after: after || "-" };
+        })
+        .filter((item): item is ViewerChange => !!item);
+}
+
 function buildHttpOperationLabel(method: string, url: string) {
     const normalizedMethod = String(method || "").toUpperCase();
     const normalizedUrl = String(url || "").toLowerCase();
@@ -432,6 +453,7 @@ function interpretDetails(message: string, details: unknown) {
         return {
             summary: message,
             fields,
+            changes: [] as ViewerChange[],
         };
     }
 
@@ -462,12 +484,31 @@ function interpretDetails(message: string, details: unknown) {
     pushField(fields, "Ripristinato", data.restored, "warn");
     pushField(fields, "Esito", data.outcome, "warn");
     pushField(fields, "Righe", data.recordCount);
+    const changes = normalizeViewerChanges(data.changes);
+    const balanceChange =
+        data.balanceChange && typeof data.balanceChange === "object"
+            ? (data.balanceChange as Record<string, unknown>)
+            : null;
+    if (balanceChange) {
+        const employee = toDisplayValue(balanceChange.employee).trim() || "dipendente";
+        changes.push({
+            label: `Saldo ore ${employee}`,
+            before: toDisplayValue(balanceChange.beforeHours).trim() || "-",
+            after: toDisplayValue(balanceChange.afterHours).trim() || "-",
+        });
+        pushField(fields, "Delta ore", balanceChange.deltaHours, "warn");
+    }
 
     let summary = buildStructuredOperationSummary(message, data);
+    const changeSummary = toDisplayValue(data.changeSummary).trim();
     if (summary !== message) {
+        if (changeSummary) {
+            summary = `${summary}: ${changeSummary}`;
+        }
         return {
             summary,
             fields,
+            changes,
         };
     }
     if (message === "HTTP request started" && data.method && data.url) {
@@ -489,10 +530,14 @@ function interpretDetails(message: string, details: unknown) {
     } else if (message === "startBackend.started" && data.url) {
         summary = `Tray ha avviato il backend su ${data.url}`;
     }
+    if (changeSummary) {
+        summary = `${summary}: ${changeSummary}`;
+    }
 
     return {
         summary,
         fields,
+        changes,
     };
 }
 
@@ -1260,6 +1305,16 @@ export function buildLogViewerHtml() {
       };
     }
 
+    function renderChangesBlock(changes) {
+      if (!Array.isArray(changes) || !changes.length) return '';
+      return '<div class="field-grid" style="margin-top:10px;">' + changes.map((change) => \`
+        <div class="field-chip is-warn" style="grid-column: span 2;">
+          <div class="field-label">\${escapeHtml(change.label || 'Modifica')}</div>
+          <div class="field-value">\${escapeHtml(change.before || '-')} → \${escapeHtml(change.after || '-')}</div>
+        </div>
+      \`).join('') + '</div>';
+    }
+
     function renderTimeline(groups) {
       if (!Array.isArray(groups) || !groups.length) {
         timelineBodyEl.innerHTML = '<div class="empty">Nessuna richiesta raggruppabile con i filtri correnti.</div>';
@@ -1281,6 +1336,7 @@ export function buildLogViewerHtml() {
                   <div class="field-value">\${escapeHtml(field.value)}</div>
                 </div>\`).join('') + '</div>'
             : '';
+          const changesBlock = renderChangesBlock(entry.interpreted?.changes);
           return \`
             <div class="timeline-entry">
               <div class="timeline-row">
@@ -1294,6 +1350,7 @@ export function buildLogViewerHtml() {
               <div class="message-main">\${escapeHtml(entry.interpreted?.summary || entry.message || '')}</div>
               <div class="muted" style="margin-bottom:8px;">\${escapeHtml(entry.message || '')} • \${escapeHtml(entry.fileName || '')}</div>
               \${fields}
+              \${changesBlock}
             </div>\`;
         }).join('');
         return \`
@@ -1355,6 +1412,7 @@ export function buildLogViewerHtml() {
               </div>
             \`).join('') + '</div>'
           : '<span class="muted">Nessun campo strutturato</span>';
+        const changesBlock = renderChangesBlock(interpreted.changes);
         const rawBlock = entry.detailsText
           ? \`<details style="margin-top:8px;"><summary class="muted" style="cursor:pointer;">Mostra JSON raw</summary><div class="mono">\${escapeHtml(entry.details || entry.detailsText)}</div></details>\`
           : '';
@@ -1374,7 +1432,7 @@ export function buildLogViewerHtml() {
               <div class="message-main">\${escapeHtml(interpreted.summary || entry.message)}</div>
               <div class="muted">\${escapeHtml(entry.message)}\${entry.remoteAddress ? ' • IP ' + escapeHtml(entry.remoteAddress) : ''}</div>
             </td>
-            <td>\${fieldsBlock}\${rawBlock}</td>
+            <td>\${fieldsBlock}\${changesBlock}\${rawBlock}</td>
           </tr>
         \`;
       }).join("");

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type { Router } from "../../shared/http/router";
+import { getRequestId, getRequestUser } from "../../shared/http/context";
 import { readJsonBody } from "../../shared/http/request";
 import { badRequest, notFound } from "../../shared/http/errors";
 import { sendJson } from "../../shared/http/response";
@@ -56,18 +57,24 @@ export function registerProductManagerRoutes(router: Router) {
         sendJson(res, 200, { items: getProductManagerBackups() });
     });
 
-    router.register("POST", "/api/product-manager/backups", async (_req, res) => {
-        sendJson(res, 201, await runProductManagerBackup());
+    router.register("POST", "/api/product-manager/backups", async (req, res) => {
+        sendJson(res, 201, await runProductManagerBackup({
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        }));
     });
 
     router.register(
         "POST",
         "/api/product-manager/backups/:name/restore",
-        async (_req, res, params) => {
+        async (req, res, params) => {
             if (!String(params.name || "").trim()) {
                 throw badRequest("Backup name missing");
             }
-            sendJson(res, 200, await runProductManagerRestore(params.name));
+            sendJson(res, 200, await runProductManagerRestore(params.name, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }));
         },
     );
 
@@ -77,7 +84,10 @@ export function registerProductManagerRoutes(router: Router) {
             "Invalid purchasing requests payload",
         );
         sendJson(res, 200, {
-            items: await saveRequests(payload),
+            items: await saveRequests(payload, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }),
         });
     });
 
@@ -87,7 +97,10 @@ export function registerProductManagerRoutes(router: Router) {
             "Invalid purchasing interventions payload",
         );
         sendJson(res, 200, {
-            items: await saveInterventions(payload),
+            items: await saveInterventions(payload, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }),
         });
     });
 
@@ -97,7 +110,10 @@ export function registerProductManagerRoutes(router: Router) {
             "Invalid catalog payload",
         );
         sendJson(res, 200, {
-            items: await saveCatalog(payload),
+            items: await saveCatalog(payload, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }),
         });
     });
 
@@ -107,7 +123,10 @@ export function registerProductManagerRoutes(router: Router) {
             "Invalid categories payload",
         );
         sendJson(res, 200, {
-            items: await saveCategories(payload),
+            items: await saveCategories(payload, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }),
         });
     });
 
@@ -120,7 +139,10 @@ export function registerProductManagerRoutes(router: Router) {
                 "Invalid intervention types payload",
             );
             sendJson(res, 200, {
-                items: await saveInterventionTypes(payload),
+                items: await saveInterventionTypes(payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
             });
         },
     );
@@ -130,7 +152,10 @@ export function registerProductManagerRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid catalog image payload",
         );
-        sendJson(res, 200, await saveCatalogImageEntry(payload));
+        sendJson(res, 200, await saveCatalogImageEntry(payload, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        }));
     });
 
     router.register(

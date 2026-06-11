@@ -1,4 +1,5 @@
 import type { Router } from "../../shared/http/router";
+import { getRequestId, getRequestUser } from "../../shared/http/context";
 import { readJsonBody } from "../../shared/http/request";
 import { badRequest } from "../../shared/http/errors";
 import { sendJson } from "../../shared/http/response";
@@ -76,18 +77,24 @@ export function registerTicketSupportRoutes(router: Router) {
         sendJson(res, 200, { items: getTicketBackups() });
     });
 
-    router.register("POST", "/api/ticket-support/backups", async (_req, res) => {
-        sendJson(res, 201, await runTicketBackup());
+    router.register("POST", "/api/ticket-support/backups", async (req, res) => {
+        sendJson(res, 201, await runTicketBackup({
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        }));
     });
 
     router.register(
         "POST",
         "/api/ticket-support/backups/:name/restore",
-        async (_req, res, params) => {
+        async (req, res, params) => {
             if (!String(params.name || "").trim()) {
                 throw badRequest("Backup name missing");
             }
-            sendJson(res, 200, await runTicketRestore(params.name));
+            sendJson(res, 200, await runTicketRestore(params.name, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }));
         },
     );
 
@@ -96,7 +103,10 @@ export function registerTicketSupportRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid ticket store payload",
         );
-        sendJson(res, 200, await saveStore(payload));
+        sendJson(res, 200, await saveStore(payload, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        }));
     });
 
     router.register("GET", "/api/ticket-support/categories", async (_req, res) => {
@@ -108,6 +118,9 @@ export function registerTicketSupportRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid ticket categories payload",
         );
-        sendJson(res, 200, await saveCategories(payload));
+        sendJson(res, 200, await saveCategories(payload, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        }));
     });
 }

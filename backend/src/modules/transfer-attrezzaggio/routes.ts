@@ -1,4 +1,5 @@
 import type { Router } from "../../shared/http/router";
+import { getRequestId, getRequestUser } from "../../shared/http/context";
 import { readJsonBody } from "../../shared/http/request";
 import { notFound } from "../../shared/http/errors";
 import { sendJson } from "../../shared/http/response";
@@ -55,13 +56,19 @@ export function registerTransferAttrezzaggioRoutes(router: Router) {
             res,
             200,
             {
-                item: await saveTransfer(params.code, payload),
+                item: await saveTransfer(params.code, payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
             },
         );
     });
 
-    router.register("DELETE", "/api/transfer-attrezzaggio/items/:code", async (_req, res, params) => {
-        const ok = await removeTransfer(params.code);
+    router.register("DELETE", "/api/transfer-attrezzaggio/items/:code", async (req, res, params) => {
+        const ok = await removeTransfer(params.code, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
         if (!ok) {
             throw notFound("Transfer item not found");
         }
