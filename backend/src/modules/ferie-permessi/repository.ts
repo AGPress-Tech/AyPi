@@ -7,20 +7,21 @@ import {
 } from "../../shared/storage/json-files";
 import { logger } from "../../shared/logging/logger";
 import {
-    createDailyDirectoryBackup,
     createDirectoryBackup,
-    listBackups,
     replaceDirectoryContents,
-    resolveBackupDir,
 } from "../../shared/storage/backups";
+import {
+    createAgpressBackup,
+    ensureAgpressDailyBackup,
+    getAgpressBackupRootDir,
+    listAgpressBackups,
+    resolveAgpressBackupDir,
+} from "../../shared/storage/agpress-backups";
 import type { FpPayload, RequestLike } from "./types";
 import type { AssigneesPayload } from "./types";
 
 const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
-const FERIE_BACKUP_ROOT_DIR = path.join(
-    path.dirname(backendConfig.modules.feriePermessi.baseDir),
-    "AyPi Backups",
-);
+const FERIE_BACKUP_ROOT_DIR = getAgpressBackupRootDir();
 
 function getPaths() {
     const { calendarDir } = backendConfig.modules.feriePermessi;
@@ -134,12 +135,7 @@ export function loadFpPayload(): FpPayload {
 }
 
 export function saveFpPayload(payload: FpPayload) {
-    createDailyDirectoryBackup({
-        sourceDir: backendConfig.modules.feriePermessi.calendarDir,
-        backupRootDir: FERIE_BACKUP_ROOT_DIR,
-        prefix: "auto-calendar",
-        limit: 30,
-    });
+    ensureAgpressDailyBackup("auto", 30);
     const paths = getPaths();
     writeRequestsData(payload.requests || []);
     writeJsonFileAtomic(paths.holidaysPath, payload.holidays || []);
@@ -193,26 +189,20 @@ export function loadAssignees(): AssigneesPayload {
     return normalizeAssigneesPayload(readJsonFile(paths.assigneesPath, {}));
 }
 
-function shouldExcludeFerieBackupEntry(name: string) {
-    return /^backup /i.test(name) || /^aypi backups$/i.test(name);
-}
-
 export function listFeriePermessiBackups() {
-    return listBackups(FERIE_BACKUP_ROOT_DIR);
+    return listAgpressBackups();
 }
 
 export function createFeriePermessiBackup(mode: "calendar" | "full" = "full") {
     const isFull = mode === "full";
+    if (isFull) {
+        return createAgpressBackup("manual-full", 30);
+    }
     return createDirectoryBackup({
-        sourceDir: isFull
-            ? backendConfig.modules.feriePermessi.baseDir
-            : backendConfig.modules.feriePermessi.calendarDir,
+        sourceDir: backendConfig.modules.feriePermessi.calendarDir,
         backupRootDir: FERIE_BACKUP_ROOT_DIR,
-        prefix: isFull ? "manual-full" : "manual-calendar",
+        prefix: "manual-calendar",
         limit: 30,
-        exclude: isFull
-            ? (name) => shouldExcludeFerieBackupEntry(name)
-            : undefined,
     });
 }
 
@@ -220,7 +210,7 @@ export function restoreFeriePermessiBackup(
     name: string,
     mode: "calendar" | "full" = "calendar",
 ) {
-    const sourceDir = resolveBackupDir(FERIE_BACKUP_ROOT_DIR, name);
+    const sourceDir = resolveAgpressBackupDir(name);
     if (!fs.existsSync(sourceDir)) {
         throw new Error("Backup not found");
     }

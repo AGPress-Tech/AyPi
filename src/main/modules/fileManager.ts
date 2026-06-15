@@ -3616,7 +3616,7 @@ function setupFileManager(mainWindow) {
             if (!code || code === "///") {
                 return { ok: false, error: "Codice scheda non valido." };
             }
-            await requestAypiBackend(
+            const response = await requestAypiBackend(
                 `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
                 {
                     method: "PUT",
@@ -3626,7 +3626,7 @@ function setupFileManager(mainWindow) {
                     },
                 },
             );
-            return { ok: true, code };
+            return { ok: true, code, item: response?.item || null };
         } catch (err) {
             return { ok: false, error: err?.message || String(err) };
         }

@@ -3,11 +3,15 @@ import path from "path";
 import { backendConfig } from "../../config";
 import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
 import {
-    createDailyDirectoryBackup,
-    createDirectoryBackup,
-    listBackups,
     replaceDirectoryContents,
 } from "../../shared/storage/backups";
+import {
+    backupContains,
+    createAgpressBackup,
+    ensureAgpressDailyBackup,
+    listAgpressBackups,
+    resolveAgpressBackupDir,
+} from "../../shared/storage/agpress-backups";
 
 type TicketHistoryEntry = {
     at: string;
@@ -54,8 +58,6 @@ type TicketCategories = {
 const TICKET_DIR = backendConfig.modules.ticketSupport.dir;
 const TICKET_YEARS_DIR = path.join(TICKET_DIR, "Ticket Years");
 const CATEGORIES_PATH = path.join(TICKET_DIR, "ticket-categories.json");
-const TICKET_BACKUP_ROOT_DIR = path.join(path.dirname(TICKET_DIR), "Backup Ticket");
-
 function ensureTicketDir() {
     fs.mkdirSync(TICKET_DIR, { recursive: true });
     fs.mkdirSync(TICKET_YEARS_DIR, { recursive: true });
@@ -63,18 +65,8 @@ function ensureTicketDir() {
 
 function ensureTicketBackup(prefix = "auto", limit = 30) {
     return prefix === "auto"
-        ? createDailyDirectoryBackup({
-              sourceDir: TICKET_DIR,
-              backupRootDir: TICKET_BACKUP_ROOT_DIR,
-              prefix,
-              limit,
-          })
-        : createDirectoryBackup({
-              sourceDir: TICKET_DIR,
-              backupRootDir: TICKET_BACKUP_ROOT_DIR,
-              prefix,
-              limit,
-          });
+        ? ensureAgpressDailyBackup(prefix, limit)
+        : createAgpressBackup(prefix, limit);
 }
 
 function getYearFromTicket(ticket: Partial<Ticket>) {
@@ -207,11 +199,13 @@ export function saveTicketCategories(payload: TicketCategories) {
 }
 
 export function listTicketBackups() {
-    return listBackups(TICKET_BACKUP_ROOT_DIR);
+    return listAgpressBackups().filter((entry) =>
+        backupContains("AyPi Ticket", entry.name),
+    );
 }
 
 export function createTicketBackup(limit = 10) {
-    return ensureTicketBackup("manual", limit);
+    return ensureTicketBackup("manual-ticket", limit);
 }
 
 export function restoreTicketBackup(name: string) {
@@ -219,7 +213,14 @@ export function restoreTicketBackup(name: string) {
     if (!safeName) {
         throw new Error("Backup name missing");
     }
-    const sourceDir = path.join(TICKET_BACKUP_ROOT_DIR, safeName);
+    const backupDir = resolveAgpressBackupDir(safeName);
+    const agpressDir = path.join(backupDir, "AyPi Ticket");
+    const legacyDir =
+        fs.existsSync(path.join(backupDir, "Ticket Years")) ||
+        fs.existsSync(path.join(backupDir, "ticket-categories.json"))
+            ? backupDir
+            : "";
+    const sourceDir = fs.existsSync(agpressDir) ? agpressDir : legacyDir;
     if (!fs.existsSync(sourceDir)) {
         throw new Error("Backup not found");
     }

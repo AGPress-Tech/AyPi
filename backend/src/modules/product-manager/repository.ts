@@ -3,11 +3,15 @@ import path from "path";
 import { backendConfig } from "../../config";
 import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
 import {
-    createDailyDirectoryBackup,
-    createDirectoryBackup,
-    listBackups,
     replaceDirectoryContents,
 } from "../../shared/storage/backups";
+import {
+    backupContains,
+    createAgpressBackup,
+    ensureAgpressDailyBackup,
+    listAgpressBackups,
+    resolveAgpressBackupDir,
+} from "../../shared/storage/agpress-backups";
 import { loadAssigneeOptions } from "../shared/repository";
 
 const PURCHASING_DIR = backendConfig.modules.productManager.dir;
@@ -17,11 +21,6 @@ const INTERVENTION_TYPES_PATH = path.join(PURCHASING_DIR, "intervention-types.js
 const PRODUCTS_DIR = path.join(PURCHASING_DIR, "products");
 const REQUESTS_SHARDS_DIR = path.join(PURCHASING_DIR, "requests");
 const INTERVENTIONS_SHARDS_DIR = path.join(PURCHASING_DIR, "interventions");
-const PURCHASING_BACKUP_ROOT_DIR = path.join(
-    path.dirname(PURCHASING_DIR),
-    "Backup AyPi Purchasing",
-);
-
 function ensureProductManagerDir() {
     fs.mkdirSync(PURCHASING_DIR, { recursive: true });
     fs.mkdirSync(PRODUCTS_DIR, { recursive: true });
@@ -31,18 +30,8 @@ function ensureProductManagerDir() {
 
 function ensureProductManagerBackup(prefix = "auto", limit = 30) {
     return prefix === "auto"
-        ? createDailyDirectoryBackup({
-              sourceDir: PURCHASING_DIR,
-              backupRootDir: PURCHASING_BACKUP_ROOT_DIR,
-              prefix,
-              limit,
-          })
-        : createDirectoryBackup({
-              sourceDir: PURCHASING_DIR,
-              backupRootDir: PURCHASING_BACKUP_ROOT_DIR,
-              prefix,
-              limit,
-          });
+        ? ensureAgpressDailyBackup(prefix, limit)
+        : createAgpressBackup(prefix, limit);
 }
 
 const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
@@ -200,11 +189,13 @@ export function resolveCatalogImagePath(fileName: string) {
 }
 
 export function listProductManagerBackups() {
-    return listBackups(PURCHASING_BACKUP_ROOT_DIR);
+    return listAgpressBackups().filter((entry) =>
+        backupContains("AyPi Purchasing", entry.name),
+    );
 }
 
 export function createProductManagerBackup(limit = 10) {
-    return ensureProductManagerBackup("manual", limit);
+    return ensureProductManagerBackup("manual-purchasing", limit);
 }
 
 export function restoreProductManagerBackup(name: string) {
@@ -212,7 +203,14 @@ export function restoreProductManagerBackup(name: string) {
     if (!safeName) {
         throw new Error("Backup name missing");
     }
-    const sourceDir = path.join(PURCHASING_BACKUP_ROOT_DIR, safeName);
+    const backupDir = resolveAgpressBackupDir(safeName);
+    const agpressDir = path.join(backupDir, "AyPi Purchasing");
+    const legacyDir =
+        fs.existsSync(path.join(backupDir, "catalog.json")) ||
+        fs.existsSync(path.join(backupDir, "products"))
+            ? backupDir
+            : "";
+    const sourceDir = fs.existsSync(agpressDir) ? agpressDir : legacyDir;
     if (!fs.existsSync(sourceDir)) {
         throw new Error("Backup not found");
     }

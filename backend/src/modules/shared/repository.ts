@@ -4,7 +4,7 @@ import path from "path";
 import { argon2id, argon2Verify } from "hash-wasm";
 import { backendConfig } from "../../config";
 import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
-import { createDailyDirectoryBackup } from "../../shared/storage/backups";
+import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 
 export type SharedAdminEntry = {
     name: string;
@@ -39,18 +39,8 @@ const LEGACY_ASSIGNEES_PATH = path.join(
     backendConfig.modules.feriePermessi.baseDir,
     "amministrazione-assignees.json",
 );
-const GENERAL_BACKUP_ROOT_DIR = path.join(
-    path.dirname(backendConfig.modules.feriePermessi.generalDir),
-    "Backup General",
-);
-
 function ensureGeneralBackup() {
-    return createDailyDirectoryBackup({
-        sourceDir: backendConfig.modules.feriePermessi.generalDir,
-        backupRootDir: GENERAL_BACKUP_ROOT_DIR,
-        prefix: "auto",
-        limit: 30,
-    });
+    return ensureAgpressDailyBackup("auto", 30);
 }
 
 function parseAdminsFromPath(targetPath: string): SharedAdminEntry[] {

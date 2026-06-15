@@ -70,15 +70,32 @@
                         <label>Codice Articolo<input id="codiceArticolo" type="text"></label>
                         <label>Fase<input id="fase" type="text"></label>
                         <label>Codice Macchina<input id="codiceMacchina" type="text"></label>
-                    </div>
-                    <div class="meta-row meta-row-secondary">
                         <label>Tempo Ciclo (s)<input id="cicloLavorazione" type="text"></label>
-                        <label>Lavorazione<input id="lavorazione" type="text"></label>
+                        <label>Programma Robot<input id="programmaRobot" type="text"></label>
                         <label>Metodo/Variante<input id="metodo" type="text" placeholder="Es. A, B"></label>
+                    </div>
+                    <div class="meta-row meta-row-detail meta-row-detail-top">
+                        <label>Spessori<input id="spessori" type="text"></label>
+                        <label>Viti/Rondelle<input id="vitiRondelle" type="text"></label>
+                        <label>Spine<input id="spine" type="text"></label>
+                    </div>
+                    <div class="meta-row meta-row-detail meta-row-detail-bottom">
+                        <label>Mani<input id="mani" type="text"></label>
+                        <label>Morsetti<input id="morsetti" type="text"></label>
+                        <label>Lavorazione<input id="lavorazione" type="text"></label>
                     </div>
                     <div class="meta-row meta-row-notes">
                         <label>Note<textarea id="note" rows="2"></textarea></label>
                     </div>
+                </section>
+
+                <section class="attachments-section">
+                    <div class="attachments-topbar">
+                        <h3>Allegati Immagine</h3>
+                        <button id="addAttachmentBtn" type="button">Aggiungi Immagini</button>
+                        <input id="attachmentInput" type="file" accept="image/*" multiple hidden>
+                    </div>
+                    <div id="attachmentsList" class="attachments-list"></div>
                 </section>
 
                 <div class="utensili-topbar">
@@ -114,6 +131,11 @@
             </article>
         </section>
     </main>
+
+    <div id="imagePreviewOverlay" class="image-preview-overlay hidden">
+        <button id="closeImagePreviewBtn" class="image-preview-close" type="button">Chiudi</button>
+        <img id="imagePreviewFull" alt="Anteprima allegato">
+    </div>
 
     <script src="../scripts/transfer-attrezzaggio-scripts.js"></script>
 </body>

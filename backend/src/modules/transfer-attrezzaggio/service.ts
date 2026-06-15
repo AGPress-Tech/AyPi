@@ -11,6 +11,7 @@ import {
     deleteTransferItem,
     listTransferItems,
     loadTransferItem,
+    resolveTransferAttachmentPath,
     saveTransferItem,
 } from "./repository";
 
@@ -33,7 +34,14 @@ function summarizeTransferHeader(item: any) {
         metodoVariante: String(item?.metodoVariante || "").trim(),
         lavorazione: String(item?.lavorazione || "").trim(),
         cicloLavorazione: String(item?.cicloLavorazione || "").trim(),
+        spessori: String(item?.spessori || "").trim(),
+        vitiRondelle: String(item?.vitiRondelle || "").trim(),
+        spine: String(item?.spine || "").trim(),
+        programmaRobot: String(item?.programmaRobot || "").trim(),
+        mani: String(item?.mani || "").trim(),
+        morsetti: String(item?.morsetti || "").trim(),
         note: String(item?.note || "").trim(),
+        attachmentsCount: Array.isArray(item?.attachments) ? item.attachments.length : 0,
     };
 }
 
@@ -76,9 +84,16 @@ export function saveTransfer(code: string, payload: any, context?: ActionContext
                 fase: "Fase",
                 codiceMacchina: "Codice macchina",
                 metodoVariante: "Metodo/Variante",
+                spessori: "Spessori",
+                vitiRondelle: "Viti/Rondelle",
+                spine: "Spine",
+                programmaRobot: "Programma Robot",
+                mani: "Mani",
+                morsetti: "Morsetti",
                 lavorazione: "Lavorazione",
                 cicloLavorazione: "Tempo ciclo",
                 note: "Note",
+                attachmentsCount: "Numero allegati",
             },
         );
         const utensiliDiff = diffCollections({
@@ -122,6 +137,10 @@ export function saveTransfer(code: string, payload: any, context?: ActionContext
         });
         return saved;
     });
+}
+
+export function getTransferAttachmentPath(storedName: string) {
+    return resolveTransferAttachmentPath(storedName);
 }
 
 export function removeTransfer(code: string, context?: ActionContext) {
