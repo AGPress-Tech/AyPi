@@ -110,7 +110,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     gap: 8px;
 }
 .meta-row-primary {
-    grid-template-columns: minmax(160px, 1.1fr) minmax(100px, 0.6fr) minmax(160px, 1fr) minmax(120px, 0.75fr) minmax(160px, 1fr) minmax(130px, 0.8fr);
+    grid-template-columns: minmax(180px, 1.2fr) minmax(100px, 0.6fr) minmax(170px, 1.1fr) minmax(120px, 0.8fr) minmax(130px, 0.8fr);
 }
 .meta-row-secondary {
     grid-template-columns: 1fr;
@@ -119,7 +119,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .meta-row-detail-top {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .meta-row-detail-bottom {
     grid-template-columns: repeat(3, minmax(0, 1fr));

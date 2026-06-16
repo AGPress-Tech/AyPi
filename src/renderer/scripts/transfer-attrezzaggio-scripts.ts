@@ -467,7 +467,7 @@ function printCard(card) {
             .head h3 { margin: 0; font-size: 24px; line-height: 1.1; }
             .head .code-line { font-size: 18px; line-height: 1.15; }
             .meta { display:grid; gap:6px; margin-bottom:8px; }
-            .meta.meta-primary { grid-template-columns: repeat(6,1fr); }
+            .meta.meta-primary { grid-template-columns: repeat(5,1fr); }
             .meta.meta-detail-top { grid-template-columns: repeat(3,1fr); }
             .meta.meta-detail-bottom { grid-template-columns: repeat(3,1fr); }
             .meta.meta-single { grid-template-columns: 1fr; }
@@ -503,17 +503,17 @@ function printCard(card) {
           <div><strong>Fase</strong><br>${card.fase || ""}</div>
           <div><strong>Codice Macchina</strong><br>${card.codiceMacchina || ""}</div>
           <div><strong>Ciclo (s)</strong><br>${card.cicloLavorazione || ""}</div>
-          <div><strong>Programma Robot</strong><br>${card.programmaRobot || ""}</div>
           <div><strong>Metodo</strong><br>${metodo}</div>
         </div>
         <div class="meta meta-detail-top">
+          <div><strong>Morsetti</strong><br>${card.morsetti || ""}</div>
           <div><strong>Spessori</strong><br>${card.spessori || ""}</div>
           <div><strong>Viti/Rondelle</strong><br>${card.vitiRondelle || ""}</div>
           <div><strong>Spine</strong><br>${card.spine || ""}</div>
         </div>
         <div class="meta meta-detail-bottom">
+          <div><strong>Programma Robot</strong><br>${card.programmaRobot || ""}</div>
           <div><strong>Mani</strong><br>${card.mani || ""}</div>
-          <div><strong>Morsetti</strong><br>${card.morsetti || ""}</div>
           <div><strong>Lavorazione</strong><br>${card.lavorazione || ""}</div>
         </div>
         <div class="meta meta-single">
