@@ -13,7 +13,9 @@ type CreateDirectoryBackupOptions = {
     exclude?: (name: string, fullPath: string) => boolean;
 };
 
-type CreateDailyDirectoryBackupOptions = CreateDirectoryBackupOptions;
+type CreateDailyDirectoryBackupOptions = CreateDirectoryBackupOptions & {
+    earliestHour?: number;
+};
 
 type CreateFileBackupOptions = {
     sourceFile: string;
@@ -141,7 +143,17 @@ export function createDirectoryBackup(options: CreateDirectoryBackupOptions) {
 export function createDailyDirectoryBackup(
     options: CreateDailyDirectoryBackupOptions,
 ) {
-    const dayToken = formatBackupDay(new Date());
+    const now = new Date();
+    const earliestHour = Number.isFinite(options.earliestHour)
+        ? Number(options.earliestHour)
+        : 0;
+    if (now.getHours() < earliestHour) {
+        return {
+            skipped: true,
+            reason: "before-earliest-hour",
+        };
+    }
+    const dayToken = formatBackupDay(now);
     const backupPrefix = `${options.prefix}-${dayToken}_`;
     const existing = listBackups(options.backupRootDir).find((entry) =>
         String(entry.name || "").startsWith(backupPrefix),

@@ -54,6 +54,24 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     justify-content: center;
 }
 
+#transferHomeView:not(.hidden) {
+    min-height: calc(100vh - 90px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#haasHomeView:not(.hidden) {
+    min-height: calc(100vh - 90px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#haasFormView:not(.hidden) {
+    display: block;
+}
+
 .home-card {
     width: min(880px, 92vw);
     background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
@@ -440,10 +458,371 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     }
 }
 
+.haas-sheet {
+    width: min(960px, 100%);
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #222;
+    padding: 18px 18px 10px;
+    box-sizing: border-box;
+}
+
+.haas-sheet,
+.haas-sheet input,
+.haas-sheet textarea,
+.haas-sheet button,
+#haasTable th,
+#haasTable td {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+.haas-sheet-header {
+    display: grid;
+    grid-template-columns: 1.1fr 2.1fr 1.1fr;
+    border: 1px solid #222;
+    border-bottom: 0;
+}
+
+.haas-brand,
+.haas-main-title,
+.haas-sheet-code {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-weight: 700;
+    border-right: 1px solid #222;
+}
+
+.haas-sheet-header > :last-child {
+    border-right: 0;
+}
+
+.haas-brand {
+    padding: 4px 8px;
+    box-sizing: border-box;
+}
+
+.haas-brand img {
+    max-width: 150px;
+    max-height: 34px;
+    width: 100%;
+    object-fit: contain;
+}
+
+.haas-main-title {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 14px;
+}
+
+.haas-sheet-code {
+    border-right: 0;
+    font-size: 12px;
+    color: var(--text-soft);
+    padding: 0 8px;
+}
+
+.haas-sheet-method {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: stretch;
+    justify-content: center;
+    text-align: left;
+    padding: 6px 8px;
+    box-sizing: border-box;
+}
+
+.haas-sheet-method span {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+}
+
+.haas-sheet-method input {
+    width: 100%;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: 5px 6px;
+    box-sizing: border-box;
+    text-align: center;
+    font-size: 13px;
+}
+
+.haas-meta-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1.4fr 1.1fr 2fr;
+    border: 1px solid #222;
+    border-bottom: 0;
+}
+
+.haas-meta-grid > div {
+    min-height: 34px;
+    border-right: 1px solid #222;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: stretch;
+    box-sizing: border-box;
+}
+
+.haas-meta-grid > div:nth-child(4n) {
+    border-right: 0;
+}
+
+.haas-meta-grid input {
+    width: 100%;
+    border: 0;
+    padding: 6px 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+    height: 100%;
+    line-height: 1.2;
+}
+
+.haas-meta-label {
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #fafafa;
+}
+
+.haas-meta-span-3 {
+    grid-column: span 1;
+}
+
+.haas-meta-span-5 {
+    grid-column: span 3;
+    border-right: 0 !important;
+}
+
+.haas-table-topbar {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.haas-table-topbar h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.haas-table-wrap {
+    margin-top: 8px;
+    overflow-x: auto;
+}
+
+#haasTable {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    background: #fff;
+    border: 0;
+    box-shadow: none;
+}
+
+#haasTable th,
+#haasTable td {
+    border: 1px solid #222;
+    padding: 3px 4px;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 11px;
+    line-height: 1.15;
+}
+
+#haasTable th:last-child,
+#haasTable td:last-child {
+    border-right: 1px solid #222 !important;
+}
+
+#haasTable th {
+    font-weight: 700;
+}
+
+.haas-th-top-label,
+.haas-th-main-label {
+    display: block;
+}
+
+.haas-th-top-label {
+    font-size: 7px;
+    line-height: 1;
+    margin-bottom: 3px;
+    letter-spacing: 0.2px;
+}
+
+.haas-th-main-label {
+    font-size: 18px;
+    line-height: 1.1;
+}
+
+#haasTable td input,
+#haasTable td textarea {
+    width: 100%;
+    border: 0;
+    outline: none;
+    box-sizing: border-box;
+    background: #fff;
+    min-height: 18px;
+    padding: 1px 3px;
+    font-size: 12px;
+    line-height: 1.15;
+    text-align: center;
+    vertical-align: middle;
+}
+
+#haasTable td textarea {
+    resize: none;
+    overflow: hidden;
+    padding-top: 1px;
+    padding-bottom: 1px;
+}
+
+#haasTable td.haas-merged-cell {
+    vertical-align: middle !important;
+    padding: 0;
+}
+
+.haas-cell-input-wrap,
+.haas-merged-input-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    box-sizing: border-box;
+}
+
+#haasTable td .haas-cell-input-wrap {
+    min-height: 23px;
+    height: 23px;
+}
+
+.haas-merged-input-wrap {
+    min-height: 46px;
+    height: 46px;
+}
+
+#haasTable td .haas-cell-input-wrap input,
+#haasTable td .haas-cell-input-wrap textarea,
+#haasTable td.haas-merged-cell input,
+#haasTable td.haas-merged-cell textarea {
+    min-height: 18px;
+    height: auto;
+    padding-top: 1px;
+    padding-bottom: 1px;
+    margin: 0;
+}
+
+#haasTable td .haas-cell-input-wrap textarea,
+#haasTable td.haas-merged-cell textarea {
+    line-height: 1.15;
+}
+
+#haasTable tr.haas-data-row-top > td,
+#haasTable tr.haas-data-row-bottom > td {
+    height: 23px;
+}
+
+.haas-col-t {
+    width: 4%;
+}
+
+.haas-col-ciclo {
+    width: 28%;
+}
+
+.haas-col-mandrino {
+    width: 16%;
+}
+
+.haas-col-mandrino-subtitle,
+.haas-col-codice-subtitle {
+    font-weight: 700;
+}
+
+.haas-col-riduz,
+.haas-col-lung {
+    width: 8%;
+}
+
+.haas-col-codice {
+    width: 28%;
+}
+
+.haas-col-comp {
+    width: 21%;
+}
+
+.haas-col-actions {
+    width: 5%;
+}
+
+.haas-col-codice-sub {
+    width: 28%;
+}
+
+.haas-col-comp-sub {
+    width: 13%;
+}
+
+.haas-col-gambo-sub {
+    width: 8%;
+}
+
+.haas-delete-btn {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0;
+    margin: 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.haas-inline-action {
+    text-align: center;
+    vertical-align: middle !important;
+}
+
+.haas-notes-section {
+    margin-top: 16px;
+    border: 1px solid #222;
+}
+
+.haas-notes-title {
+    padding: 4px 8px;
+    border-bottom: 1px solid #222;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.haas-notes-section textarea {
+    width: 100%;
+    border: 0;
+    min-height: 120px;
+    padding: 8px;
+    resize: vertical;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.haas-list-filters {
+    grid-template-columns: repeat(5, minmax(150px, 1fr));
+}
+
 @media print {
-    .toolbar, .utensili-topbar button, .attachments-topbar button, .image-preview-overlay { display: none !important; }
+    .toolbar, .utensili-topbar button, .attachments-topbar button, .image-preview-overlay, .haas-table-topbar button, .haas-col-actions, #haasTable th:last-child, #haasTable td:last-child { display: none !important; }
     body { background: #fff; }
     .container { padding: 0; max-width: none; }
     .sheet { border: 0; padding: 0; }
+    .haas-sheet { border: 0; padding: 0; width: 100%; }
     #utensiliTable { min-width: 0; }
 }

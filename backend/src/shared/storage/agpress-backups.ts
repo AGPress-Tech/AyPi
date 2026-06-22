@@ -28,6 +28,7 @@ export function ensureAgpressDailyBackup(prefix = "auto", limit = 30) {
         backupRootDir: AGPRESS_BACKUP_ROOT_DIR,
         prefix,
         limit,
+        earliestHour: 6,
     });
 }
 

@@ -37,6 +37,7 @@ function inferRequestModule(requestUrl: string) {
     if (normalizedUrl.includes("/api/product-manager/")) return "purchasing";
     if (normalizedUrl.includes("/api/ticket-support/")) return "ticket";
     if (normalizedUrl.includes("/api/transfer-attrezzaggio/")) return "transfer";
+    if (normalizedUrl.includes("/api/haas-attrezzaggio/")) return "attrezzaggio";
     if (normalizedUrl.includes("/api/shared/")) return "shared";
     return "core";
 }

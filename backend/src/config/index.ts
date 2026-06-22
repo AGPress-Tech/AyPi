@@ -43,6 +43,10 @@ const transferAttrezzaggioDir = getEnvString(
     "AYPI_TRANSFER_DIR",
     path.join(feriePermessiBaseDir, "Schede Attrezzaggio", "Transfer"),
 );
+const haasAttrezzaggioDir = getEnvString(
+    "AYPI_HAAS_DIR",
+    path.join(feriePermessiBaseDir, "Schede Attrezzaggio", "HAAS"),
+);
 const backendLogDir = getEnvString(
     "AYPI_LOG_DIR",
     path.join(feriePermessiGeneralDir, "log"),
@@ -73,6 +77,9 @@ export const backendConfig = {
         },
         transferAttrezzaggio: {
             dir: transferAttrezzaggioDir,
+        },
+        haasAttrezzaggio: {
+            dir: haasAttrezzaggioDir,
         },
     },
 };

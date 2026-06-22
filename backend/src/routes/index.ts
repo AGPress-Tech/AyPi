@@ -4,6 +4,7 @@ import { registerSharedRoutes } from "../modules/shared/routes";
 import { registerProductManagerRoutes } from "../modules/product-manager/routes";
 import { registerTicketSupportRoutes } from "../modules/ticket-support/routes";
 import { registerTransferAttrezzaggioRoutes } from "../modules/transfer-attrezzaggio/routes";
+import { registerHaasAttrezzaggioRoutes } from "../modules/haas-attrezzaggio/routes";
 import { sendJson } from "../shared/http/response";
 import { backendConfig } from "../config";
 
@@ -18,6 +19,7 @@ export function registerRoutes(router: Router) {
                 "product-manager",
                 "ticket-support",
                 "transfer-attrezzaggio",
+                "haas-attrezzaggio",
             ],
             host: backendConfig.advertisedHost,
             port: backendConfig.port,
@@ -30,4 +32,5 @@ export function registerRoutes(router: Router) {
     registerProductManagerRoutes(router);
     registerTicketSupportRoutes(router);
     registerTransferAttrezzaggioRoutes(router);
+    registerHaasAttrezzaggioRoutes(router);
 }

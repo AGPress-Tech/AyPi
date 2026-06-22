@@ -33,7 +33,7 @@ initCommonUI();
 document
     .getElementById("openSchedeAttrezzaggioTransfer")
     ?.addEventListener("click", () => {
-        ipcRenderer.send("open-transfer-attrezzaggio-window");
+        ipcRenderer.send("open-attrezzaggio-window");
     });
 
 window.addEventListener("DOMContentLoaded", () => {

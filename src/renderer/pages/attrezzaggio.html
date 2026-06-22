@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schede Attrezzaggio</title>
+    <link rel="stylesheet" href="../styles/attrezzaggio-style.css">
+</head>
+
+<body>
+    <main class="container">
+        <section id="homeView" class="view">
+            <article class="home-card">
+                <h1>Schede Attrezzaggio</h1>
+                <p class="home-subtitle">Seleziona la tipologia di scheda da gestire.</p>
+                <div class="home-actions">
+                    <button id="openTransferTypeBtn">Schede Attrezzaggio Transfer</button>
+                    <button id="openHaasTypeBtn">Schede Attrezzaggio HAAS</button>
+                    <button id="closeWindowBtn">Chiudi</button>
+                </div>
+            </article>
+        </section>
+
+        <section id="transferHomeView" class="view hidden">
+            <article class="home-card">
+                <h1>Schede Attrezzaggio Transfer</h1>
+                <p class="home-subtitle">Gestione, modifica e stampa delle schede di attrezzaggio transfer.</p>
+                <div class="home-actions">
+                    <button id="showListBtn">Lista Schede Attrezzaggio</button>
+                    <button id="showCreateBtn">Crea Scheda Attrezzaggio</button>
+                    <button id="backToTypesBtn">Indietro</button>
+                </div>
+            </article>
+        </section>
+
+        <section id="listView" class="view hidden">
+            <div class="toolbar">
+                <button id="backFromListBtn">Indietro</button>
+                <button id="refreshListBtn">Aggiorna Lista</button>
+            </div>
+            <h2>Lista Schede</h2>
+            <div class="list-filters">
+                <label>Codice Articolo
+                    <input id="filterCodiceArticolo" type="text" placeholder="Es. 1164A, 1401B">
+                </label>
+                <label>Codice Macchina
+                    <input id="filterCodiceMacchina" type="text" placeholder="Es. 21A400">
+                </label>
+                <label>Ricerca (Note)
+                    <input id="filterText" type="text">
+                </label>
+                <label>Descrizione Lavorazione
+                    <input id="filterDescrizioneLavorazione" type="text"
+                        placeholder="Es. Filetto, Attacco, Sgrossatura">
+                </label>
+                <label>Utensile (Descrizione)
+                    <input id="filterUtensile" type="text" placeholder="Es. 22T065, FresaØ10, Maschio M10">
+                </label>
+                <button id="clearFiltersBtn" type="button">Reset Filtri</button>
+            </div>
+            <p id="listCount" class="list-count"></p>
+            <ul id="cardsList" class="cards-list"></ul>
+        </section>
+
+        <section id="formView" class="view hidden">
+            <div class="toolbar">
+                <button id="backFromFormBtn">Indietro</button>
+                <button id="newFormBtn">Nuova</button>
+                <button id="saveFormBtn">Salva Scheda</button>
+                <button id="printFormBtn">Stampa</button>
+            </div>
+
+            <article class="sheet">
+                <header class="sheet-head">
+                    <div class="sheet-title">METODO DI ATTREZZAGGIO TRANSFER</div>
+                    <div id="methodIdLabel" class="sheet-code">Codice: (nuova scheda)</div>
+                </header>
+
+                <section class="sheet-meta">
+                    <div class="meta-row meta-row-primary">
+                        <label>Codice Articolo<input id="codiceArticolo" type="text"></label>
+                        <label>Fase<input id="fase" type="text"></label>
+                        <label>Codice Macchina<input id="codiceMacchina" type="text"></label>
+                        <label>Tempo Ciclo (s)<input id="cicloLavorazione" type="text"></label>
+                        <label>Metodo/Variante<input id="metodo" type="text" placeholder="Es. A, B"></label>
+                    </div>
+                    <div class="meta-row meta-row-detail meta-row-detail-top">
+                        <label>Morsetti<input id="morsetti" type="text"></label>
+                        <label>Spessori<input id="spessori" type="text"></label>
+                        <label>Viti/Rondelle<input id="vitiRondelle" type="text"></label>
+                        <label>Spine<input id="spine" type="text"></label>
+                    </div>
+                    <div class="meta-row meta-row-detail meta-row-detail-bottom">
+                        <label>Programma Robot<input id="programmaRobot" type="text"></label>
+                        <label>Mani<input id="mani" type="text"></label>
+                        <label>Lavorazione<input id="lavorazione" type="text"></label>
+                    </div>
+                    <div class="meta-row meta-row-notes">
+                        <label>Note<textarea id="note" rows="2"></textarea></label>
+                    </div>
+                </section>
+
+                <section class="attachments-section">
+                    <div class="attachments-topbar">
+                        <h3>Allegati Immagine</h3>
+                        <button id="addAttachmentBtn" type="button">Aggiungi Immagini</button>
+                        <input id="attachmentInput" type="file" accept="image/*" multiple hidden>
+                    </div>
+                    <div id="attachmentsList" class="attachments-list"></div>
+                </section>
+
+                <div class="utensili-topbar">
+                    <h3>Lista Utensili</h3>
+                    <button id="addRowBtn" type="button">Aggiungi Riga</button>
+                </div>
+
+                <div class="table-wrap">
+                    <table id="utensiliTable">
+                        <thead>
+                            <tr>
+                                <th>Nr Unita*</th>
+                                <th>ISO*</th>
+                                <th class="desc-col">Descrizione Lavorazione*</th>
+                                <th><img data-col-icon="1" alt="1"></th>
+                                <th><img data-col-icon="2" alt="2"></th>
+                                <th><img data-col-icon="3" alt="3"></th>
+                                <th><img data-col-icon="4" alt="4"></th>
+                                <th><img data-col-icon="5" alt="5"></th>
+                                <th><img data-col-icon="6" alt="6"></th>
+                                <th><img data-col-icon="7" alt="7"></th>
+                                <th><img data-col-icon="8" alt="8"></th>
+                                <th><img data-col-icon="10" alt="10"></th>
+                                <th><img data-col-icon="12" alt="12"></th>
+                                <th><img data-col-icon="13" alt="13"></th>
+                                <th><img data-col-icon="14" alt="14"></th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="utensiliBody"></tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+
+        <section id="haasHomeView" class="view hidden">
+            <article class="home-card">
+                <h1>Schede Attrezzaggio HAAS</h1>
+                <p class="home-subtitle">Gestione, modifica e stampa delle schede attrezzaggio HAAS.</p>
+                <div class="home-actions">
+                    <button id="showHaasListBtn">Lista Schede Attrezzaggio</button>
+                    <button id="showCreateHaasBtn">Crea Scheda Attrezzaggio</button>
+                    <button id="backFromHaasHomeBtn">Indietro</button>
+                </div>
+            </article>
+        </section>
+
+        <section id="haasListView" class="view hidden">
+            <div class="toolbar">
+                <button id="backFromHaasListBtn">Indietro</button>
+                <button id="refreshHaasListBtn">Aggiorna Lista</button>
+            </div>
+            <h2>Lista Schede HAAS</h2>
+            <div class="list-filters haas-list-filters">
+                <label>Codice Articolo
+                    <input id="haasFilterCodiceArticolo" type="text">
+                </label>
+                <label>Macchina
+                    <input id="haasFilterMacchina" type="text">
+                </label>
+                <label>N° Programma
+                    <input id="haasFilterNumeroProgramma" type="text">
+                </label>
+                <label>Ricerca
+                    <input id="haasFilterText" type="text" placeholder="Ciclo, utensile, note">
+                </label>
+                <button id="clearHaasFiltersBtn" type="button">Reset Filtri</button>
+            </div>
+            <p id="haasListCount" class="list-count"></p>
+            <ul id="haasCardsList" class="cards-list"></ul>
+        </section>
+
+        <section id="haasFormView" class="view hidden">
+            <div class="toolbar">
+                <button id="backFromHaasBtn">Indietro</button>
+                <button id="newHaasFormBtn">Nuova</button>
+                <button id="saveHaasFormBtn">Salva Scheda</button>
+                <button id="printHaasFormBtn">Stampa</button>
+            </div>
+
+            <article class="haas-sheet">
+                <header class="haas-sheet-header">
+                    <div class="haas-brand">
+                        <img id="haasPrintLogo" alt="A.G.PRESS">
+                    </div>
+                    <div class="haas-main-title">
+                        <div>METODO DI ATTREZZAGGIO</div>
+                        <div>CENTRI DI LAVORO</div>
+                    </div>
+                    <label class="haas-sheet-code haas-sheet-method">
+                        <span>Metodo</span>
+                        <input id="haasMetodo" type="text" placeholder="Es. A, B">
+                    </label>
+                </header>
+
+                <section class="haas-meta-grid">
+                    <div class="haas-meta-label">CODICE ART.</div>
+                    <div><input id="haasCodiceArticolo" type="text"></div>
+                    <div class="haas-meta-label">DENOMINAZIONE ART.</div>
+                    <div><input id="haasDenominazioneArticolo" type="text"></div>
+                    <div class="haas-meta-label">N° PROGRAMMA</div>
+                    <div><input id="haasNumeroProgramma" type="text"></div>
+                    <div class="haas-meta-label">MACCHINA</div>
+                    <div><input id="haasMacchina" type="text"></div>
+                    <div class="haas-meta-label haas-meta-span-3">CICLO DI LAVORO</div>
+                    <div class="haas-meta-span-5"><input id="haasCicloLavoro" type="text"></div>
+                </section>
+
+                <div class="haas-table-topbar">
+                    <h3>Utensili e lavorazioni</h3>
+                    <button id="addHaasRowBtn" type="button">Aggiungi Riga</button>
+                </div>
+
+                <div class="haas-table-wrap">
+                    <table id="haasTable">
+                        <thead>
+                            <tr>
+                                <th rowspan="2" class="haas-col-t">
+                                    <span class="haas-th-top-label">UTENSILE</span>
+                                    <span class="haas-th-main-label">T</span>
+                                </th>
+                                <th rowspan="2" class="haas-col-ciclo">CICLO DI LAVORAZIONE</th>
+                                <th colspan="2" class="haas-col-mandrino">TIPO MANDRINO<br>(CODICE)</th>
+                                <th class="haas-col-codice">CODICE UTENSILE</th>
+                                <th rowspan="2" class="haas-col-comp-sub">SPORGENZA UTENSILE</th>
+                                <th rowspan="2" class="haas-col-gambo-sub">Ø GAMBO</th>
+                                <th rowspan="2" class="haas-col-actions">Azioni</th>
+                            </tr>
+                            <tr>
+                                <th class="haas-col-riduz">ER WELDON</th>
+                                <th class="haas-col-lung">LUN.</th>
+                                <th class="haas-col-codice-subtitle">LOCAZIONE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="haasBody"></tbody>
+                    </table>
+                </div>
+
+                <section class="attachments-section">
+                    <div class="attachments-topbar">
+                        <h3>Allegati Immagine</h3>
+                        <button id="addHaasAttachmentBtn" type="button">Aggiungi Immagini</button>
+                        <input id="haasAttachmentInput" type="file" accept="image/*" multiple hidden>
+                    </div>
+                    <div id="haasAttachmentsList" class="attachments-list"></div>
+                </section>
+
+                <section class="haas-notes-section">
+                    <div class="haas-notes-title">NOTE ATTREZZAGGIO</div>
+                    <textarea id="haasNote" rows="6"></textarea>
+                </section>
+
+            </article>
+        </section>
+    </main>
+
+    <div id="imagePreviewOverlay" class="image-preview-overlay hidden">
+        <button id="closeImagePreviewBtn" class="image-preview-close" type="button">Chiudi</button>
+        <img id="imagePreviewFull" alt="Anteprima allegato">
+    </div>
+
+    <script src="../scripts/attrezzaggio-scripts.js"></script>
+</body>
+
+</html>

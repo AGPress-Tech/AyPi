@@ -2637,7 +2637,7 @@ function openTransferAttrezzaggioWindow(mainWindow) {
     });
 
     transferAttrezzaggioWindow.loadFile(
-        path.join(__dirname, "..", "pages", "transfer-attrezzaggio.html"),
+        path.join(__dirname, "..", "pages", "attrezzaggio.html"),
     );
     transferAttrezzaggioWindow.setMenu(null);
     transferAttrezzaggioWindow.once("ready-to-show", () => {
@@ -2734,6 +2734,14 @@ function transferCodeFromPayload(payload: any) {
     const macchina = transferSafeName(payload?.codiceMacchina || "");
     const metodo = transferSafeName(payload?.metodo || "");
     return `${articolo} - Fase: ${fase} - ${macchina} - ${metodo}`;
+}
+
+function haasCodeFromPayload(payload: any) {
+    const articolo = transferSafeName(payload?.codiceArticolo || "");
+    const macchina = transferSafeName(payload?.macchina || "");
+    const programma = transferSafeName(payload?.numeroProgramma || "");
+    const metodo = transferSafeName(payload?.metodo || "");
+    return [articolo, macchina, programma, metodo].filter(Boolean).join(" - ");
 }
 
 function transferJsonPathFromCode(code: string) {
@@ -3582,7 +3590,7 @@ function setupFileManager(mainWindow) {
     ipcMain.on("open-batch-rename-window", () => {
         openBatchRenameWindow(mainWindow);
     });
-    ipcMain.on("open-transfer-attrezzaggio-window", () => {
+    ipcMain.on("open-attrezzaggio-window", () => {
         openTransferAttrezzaggioWindow(mainWindow);
     });
 
@@ -3638,6 +3646,67 @@ function setupFileManager(mainWindow) {
             if (!code) return { ok: false, error: "Codice mancante." };
             await requestAypiBackend(
                 `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
+                { method: "DELETE" },
+            );
+            return { ok: true };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
+    });
+
+    ipcMain.handle("haas-attrezzaggio-list", async () => {
+        try {
+            const payload = await requestAypiBackend("/api/haas-attrezzaggio/items");
+            return {
+                ok: true,
+                items: Array.isArray(payload?.items) ? payload.items : [],
+            };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
+    });
+
+    ipcMain.handle("haas-attrezzaggio-load", async (_event, payload) => {
+        try {
+            const code = String(payload?.code || "");
+            if (!code) return { ok: false, error: "Codice mancante." };
+            const item = await requestAypiBackend(
+                `/api/haas-attrezzaggio/items/${encodeURIComponent(code)}`,
+            );
+            return { ok: true, item: item?.item || null };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
+    });
+
+    ipcMain.handle("haas-attrezzaggio-save", async (_event, payload) => {
+        try {
+            const code = haasCodeFromPayload(payload);
+            if (!code) {
+                return { ok: false, error: "Codice scheda HAAS non valido." };
+            }
+            const response = await requestAypiBackend(
+                `/api/haas-attrezzaggio/items/${encodeURIComponent(code)}`,
+                {
+                    method: "PUT",
+                    body: {
+                        ...payload,
+                        code,
+                    },
+                },
+            );
+            return { ok: true, code, item: response?.item || null };
+        } catch (err) {
+            return { ok: false, error: err?.message || String(err) };
+        }
+    });
+
+    ipcMain.handle("haas-attrezzaggio-delete", async (_event, payload) => {
+        try {
+            const code = String(payload?.code || "");
+            if (!code) return { ok: false, error: "Codice mancante." };
+            await requestAypiBackend(
+                `/api/haas-attrezzaggio/items/${encodeURIComponent(code)}`,
                 { method: "DELETE" },
             );
             return { ok: true };
