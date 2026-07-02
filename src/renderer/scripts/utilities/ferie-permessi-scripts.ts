@@ -6,6 +6,7 @@ import http from "http";
 import https from "https";
 import path from "path";
 import { pathToFileURL } from "url";
+import { requestBackend } from "../shared/backend-client";
 
 const fpBaseDir = path.join(
     __dirname,
@@ -77,10 +78,7 @@ const {
     hashPassword,
 } = bootRequire(path.join(fpBaseDir, "config", "security"));
 const {
-    loadAdminCredentials,
-    saveAdminCredentials,
-    verifyAdminPassword,
-    findAdminByName,
+    loadAdminCredentials: loadAdminCredentialsLocal,
     isValidEmail,
     isValidPhone,
 } = bootRequire(path.join(fpBaseDir, "services", "admins"));
@@ -268,6 +266,93 @@ let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
 
+function normalizeAdminEntry(item) {
+    return {
+        name: String(item?.name || "").trim(),
+        password: item?.password ? String(item.password) : undefined,
+        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
+        email: item?.email ? String(item.email) : "",
+        phone: item?.phone ? String(item.phone) : "",
+        accessCalendar:
+            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
+        accessPurchasing:
+            typeof item?.accessPurchasing === "boolean"
+                ? item.accessPurchasing
+                : true,
+    };
+}
+
+function loadAdminCredentials() {
+    return Array.isArray(adminCache) ? adminCache.map(normalizeAdminEntry) : [];
+}
+
+async function saveAdminCredentials(admins) {
+    const payload = await requestBackend("/api/shared/admins", {
+        method: "PUT",
+        body: { admins: Array.isArray(admins) ? admins : [] },
+    });
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : Array.isArray(admins)
+          ? admins.map(normalizeAdminEntry)
+          : [];
+    return loadAdminCredentials();
+}
+
+function findAdminByName(name, adminSource) {
+    const source =
+        Array.isArray(adminSource) && adminSource.length
+            ? adminSource
+            : loadAdminCredentials();
+    const lower = String(name || "").trim().toLowerCase();
+    return (
+        source.find(
+            (admin) => String(admin?.name || "").trim().toLowerCase() === lower,
+        ) || null
+    );
+}
+
+async function hydrateAdminCacheRemote() {
+    const payload = await requestBackend("/api/shared/admins");
+    adminCache = Array.isArray(payload?.admins)
+        ? payload.admins.map(normalizeAdminEntry)
+        : [];
+    return adminCache;
+}
+
+async function verifyAdminPasswordRemote(password, targetName) {
+    const payload = await requestBackend("/api/shared/admins/verify", {
+        method: "POST",
+        body: {
+            password,
+            targetName: targetName || null,
+        },
+    });
+    if (!payload?.ok || !payload?.admin) return null;
+    const admin = normalizeAdminEntry(payload.admin);
+    const names = new Set(
+        loadAdminCredentials()
+            .map((item) => String(item?.name || "").trim().toLowerCase())
+            .filter(Boolean),
+    );
+    const nextCache = loadAdminCredentials();
+    if (!names.has(admin.name.trim().toLowerCase())) {
+        nextCache.push(admin);
+    } else {
+        const index = nextCache.findIndex(
+            (item) =>
+                String(item?.name || "").trim().toLowerCase() ===
+                admin.name.trim().toLowerCase(),
+        );
+        if (index >= 0) nextCache[index] = admin;
+    }
+    adminCache = nextCache.map(normalizeAdminEntry);
+    return {
+        admin,
+        admins: adminCache,
+    };
+}
+
 function hasCalendarAccess(admin) {
     return !(admin && admin.accessCalendar === false);
 }
@@ -276,7 +361,7 @@ async function verifyCalendarAdminPassword(
     password: string,
     targetName?: string | null,
 ) {
-    const result = await verifyAdminPassword(password, targetName);
+    const result = await verifyAdminPasswordRemote(password, targetName);
     if (!result || !result.admin) return null;
     if (!hasCalendarAccess(result.admin)) return null;
     return result;
@@ -1926,7 +2011,7 @@ const adminUi = createAdminModals({
     openOtpModal: () => otpUi.openOtpModal(),
     loadAdminCredentials,
     saveAdminCredentials,
-    verifyAdminPassword,
+    verifyAdminPassword: verifyCalendarAdminPassword,
     hashPassword,
     isHashingAvailable,
     isValidEmail,
@@ -2996,6 +3081,9 @@ function initDaysPicker(holidaysUi, closuresUi) {
 
 function init() {
     ipcRenderer.send("resize-normale");
+    void hydrateAdminCacheRemote().catch(() => {
+        adminCache = [];
+    });
     accessConfig = normalizeAccessConfig(loadAccessConfig());
     ensureAccessConfigFile();
     typeColors = loadColorSettings();

@@ -1694,6 +1694,26 @@ export function buildLogViewerHtml() {
       observer.observe(sentinel);
     }
 
+    function isNearBottom() {
+      if (currentView === "table") {
+        const distance = tableWrapEl.scrollHeight - tableWrapEl.scrollTop - tableWrapEl.clientHeight;
+        return distance <= 220;
+      }
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      const viewportBottom = scrollTop + window.innerHeight;
+      const fullHeight = Math.max(
+        document.body.scrollHeight,
+        document.documentElement.scrollHeight,
+      );
+      return fullHeight - viewportBottom <= 220;
+    }
+
+    function handleInfiniteScroll() {
+      if (!state.hasMore || state.loading) return;
+      if (!isNearBottom()) return;
+      loadMoreLogs().catch(console.error);
+    }
+
     let timer = null;
     function scheduleRefresh() {
       if (timer) clearInterval(timer);
@@ -1711,6 +1731,8 @@ export function buildLogViewerHtml() {
       node.addEventListener("input", () => loadLogs({ append: false }).catch(console.error));
       node.addEventListener("change", () => loadLogs({ append: false }).catch(console.error));
     });
+    tableWrapEl.addEventListener("scroll", handleInfiniteScroll, { passive: true });
+    window.addEventListener("scroll", handleInfiniteScroll, { passive: true });
     refreshBtn.addEventListener("click", () => loadLogs({ append: false }).catch(console.error));
     tableViewBtn.addEventListener("click", () => setView("table"));
     timelineViewBtn.addEventListener("click", () => setView("timeline"));
