@@ -2,7 +2,12 @@ import { app, BrowserWindow, Menu, Tray, dialog, shell, ipcMain } from "electron
 import path from "path";
 import fs from "fs";
 import { ensureBackendRuntimeConfigFile, getMachineSummary, loadBackendRuntimeConfig } from "./config";
-import { buildLogViewerHtml, loadLogViewerData, type LogViewerFilters } from "./log-viewer";
+import {
+    buildLogViewerHtml,
+    loadLogViewerData,
+    type LogViewerCursor,
+    type LogViewerFilters,
+} from "./log-viewer";
 
 type BackendState = {
     running: boolean;
@@ -209,10 +214,19 @@ function registerLogViewerIpc() {
     ipcMain.removeHandler("backend-log-viewer:list");
     ipcMain.handle(
         "backend-log-viewer:list",
-        async (_event, filters: LogViewerFilters = {}) => {
+        async (
+            _event,
+            filters: LogViewerFilters = {},
+            cursor?: LogViewerCursor | null,
+        ) => {
             const loaded = loadBackendRuntimeConfig();
             fs.mkdirSync(loaded.config.logDir, { recursive: true });
-            return loadLogViewerData(loaded.config.logDir, debugLogPath, filters);
+            return loadLogViewerData(
+                loaded.config.logDir,
+                debugLogPath,
+                filters,
+                cursor,
+            );
         },
     );
 }

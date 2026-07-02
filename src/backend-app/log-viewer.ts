@@ -13,6 +13,11 @@ export type LogViewerFilters = {
     limit?: number;
 };
 
+export type LogViewerCursor = {
+    fileIndex: number;
+    offsets: Record<string, number>;
+};
+
 function pad(value: number) {
     return String(value).padStart(2, "0");
 }
@@ -58,6 +63,14 @@ type ViewerCategory = {
     label: string;
     icon: string;
     tone: "accent" | "warn" | "error" | "neutral";
+};
+
+type LogSource = "backend" | "tray";
+
+type LogFileDescriptor = {
+    fileName: string;
+    filePath: string;
+    source: LogSource;
 };
 
 function tryParseJson(raw: string) {
@@ -195,7 +208,7 @@ function parseLogLine(
     line: string,
     fileName: string,
     filePath: string,
-    source: "backend" | "tray",
+    source: LogSource,
 ): ParsedLogEntry | null {
     const match = /^\[([^\]]+)\]\s+\[([A-Z]+)\]\s+(.*)$/.exec(line.trim());
     if (!match) return null;
@@ -223,19 +236,6 @@ function parseLogLine(
     };
 }
 
-function readLogEntriesFromFile(
-    filePath: string,
-    source: "backend" | "tray",
-) {
-    if (!fs.existsSync(filePath)) return [];
-    const fileName = path.basename(filePath);
-    const raw = fs.readFileSync(filePath, "utf8");
-    return raw
-        .split(/\r?\n/)
-        .map((line) => parseLogLine(line, fileName, filePath, source))
-        .filter((entry): entry is ParsedLogEntry => !!entry);
-}
-
 function readBackendLogFiles(logDir: string) {
     if (!fs.existsSync(logDir)) return [];
     return fs
@@ -243,6 +243,154 @@ function readBackendLogFiles(logDir: string) {
         .filter((name) => name.toLowerCase().endsWith(".log"))
         .sort()
         .map((name) => path.join(logDir, name));
+}
+
+function buildLogFileDescriptors(logDir: string, trayDebugLogPath: string) {
+    const backendFiles = readBackendLogFiles(logDir)
+        .sort((a, b) => path.basename(b).localeCompare(path.basename(a)))
+        .map(
+            (filePath): LogFileDescriptor => ({
+                fileName: path.basename(filePath),
+                filePath,
+                source: "backend",
+            }),
+        );
+    const trayFiles = fs.existsSync(trayDebugLogPath)
+        ? ([
+              {
+                  fileName: path.basename(trayDebugLogPath),
+                  filePath: trayDebugLogPath,
+                  source: "tray",
+              },
+          ] as LogFileDescriptor[])
+        : [];
+    return [...trayFiles, ...backendFiles];
+}
+
+function normalizeFilters(filters: LogViewerFilters = {}) {
+    return {
+        level: String(filters.level || "").trim().toUpperCase(),
+        search: String(filters.search || "").trim().toLowerCase(),
+        file: String(filters.file || "").trim(),
+        source: String(filters.source || "").trim().toLowerCase(),
+        remoteAddress: String(filters.remoteAddress || "").trim().toLowerCase(),
+        module: String(filters.module || "").trim().toLowerCase(),
+        requestId: String(filters.requestId || "").trim().toLowerCase(),
+        user: String(filters.user || "").trim().toLowerCase(),
+        limit: Math.max(50, Math.min(Number(filters.limit) || 250, 1000)),
+    };
+}
+
+function matchesFilters(
+    entry: ParsedLogEntry,
+    filters: ReturnType<typeof normalizeFilters>,
+) {
+    if (filters.level && entry.level !== filters.level) return false;
+    if (filters.file && entry.fileName !== filters.file) return false;
+    if (filters.source && entry.source !== filters.source) return false;
+    if (
+        filters.remoteAddress &&
+        !entry.remoteAddress.toLowerCase().includes(filters.remoteAddress)
+    ) {
+        return false;
+    }
+    if (filters.module && entry.module !== filters.module) return false;
+    if (
+        filters.requestId &&
+        !entry.requestId.toLowerCase().includes(filters.requestId)
+    ) {
+        return false;
+    }
+    if (filters.user && !entry.user.toLowerCase().includes(filters.user)) {
+        return false;
+    }
+    if (!filters.search) return true;
+    const haystack = [
+        entry.timestamp,
+        entry.level,
+        entry.message,
+        entry.detailsText,
+        entry.fileName,
+        entry.source,
+        entry.remoteAddress,
+        entry.module,
+        entry.requestId,
+        entry.user,
+        entry.category,
+    ]
+        .join(" ")
+        .toLowerCase();
+    return haystack.includes(filters.search);
+}
+
+function readLogEntriesBatchFromFile(
+    descriptor: LogFileDescriptor,
+    filters: ReturnType<typeof normalizeFilters>,
+    startOffset: number | undefined,
+    limit: number,
+) {
+    if (!fs.existsSync(descriptor.filePath) || limit <= 0) {
+        return { entries: [] as ParsedLogEntry[], nextOffset: 0, done: true };
+    }
+
+    const stat = fs.statSync(descriptor.filePath);
+    const fileSize = stat.size;
+    let offset =
+        typeof startOffset === "number" && Number.isFinite(startOffset)
+            ? Math.max(0, Math.min(startOffset, fileSize))
+            : fileSize;
+    if (offset <= 0) {
+        return { entries: [] as ParsedLogEntry[], nextOffset: 0, done: true };
+    }
+
+    const fileDescriptor = fs.openSync(descriptor.filePath, "r");
+    const entries: ParsedLogEntry[] = [];
+    const chunkSize = 64 * 1024;
+    let remainder = "";
+
+    try {
+        while (offset > 0 && entries.length < limit) {
+            const readSize = Math.min(chunkSize, offset);
+            offset -= readSize;
+            const buffer = Buffer.alloc(readSize);
+            fs.readSync(fileDescriptor, buffer, 0, readSize, offset);
+            const text = buffer.toString("utf8") + remainder;
+            const lines = text.split(/\r?\n/);
+            remainder = lines.shift() || "";
+
+            for (let index = lines.length - 1; index >= 0; index -= 1) {
+                const entry = parseLogLine(
+                    lines[index],
+                    descriptor.fileName,
+                    descriptor.filePath,
+                    descriptor.source,
+                );
+                if (!entry || !matchesFilters(entry, filters)) continue;
+                entries.push(entry);
+                if (entries.length >= limit) break;
+            }
+        }
+
+        if (offset === 0 && remainder.trim() && entries.length < limit) {
+            const entry = parseLogLine(
+                remainder,
+                descriptor.fileName,
+                descriptor.filePath,
+                descriptor.source,
+            );
+            if (entry && matchesFilters(entry, filters)) {
+                entries.push(entry);
+            }
+        }
+    } finally {
+        fs.closeSync(fileDescriptor);
+    }
+
+    return {
+        entries,
+        nextOffset: offset,
+        done: offset <= 0,
+    };
 }
 
 function toDisplayValue(value: unknown) {
@@ -588,126 +736,118 @@ export function loadLogViewerData(
     logDir: string,
     trayDebugLogPath: string,
     filters: LogViewerFilters = {},
+    cursor?: LogViewerCursor | null,
 ) {
-    const backendFiles = readBackendLogFiles(logDir);
-    const trayFiles = fs.existsSync(trayDebugLogPath) ? [trayDebugLogPath] : [];
-    const allEntries = [
-        ...backendFiles.flatMap((filePath) =>
-            readLogEntriesFromFile(filePath, "backend"),
-        ),
-        ...trayFiles.flatMap((filePath) => readLogEntriesFromFile(filePath, "tray")),
-    ].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+    const normalizedFilters = normalizeFilters(filters);
+    const allDescriptors = buildLogFileDescriptors(logDir, trayDebugLogPath);
+    const descriptors = allDescriptors.filter(
+        (descriptor) => {
+            if (
+                normalizedFilters.file &&
+                descriptor.fileName !== normalizedFilters.file
+            ) {
+                return false;
+            }
+            if (
+                normalizedFilters.source &&
+                descriptor.source !== normalizedFilters.source
+            ) {
+                return false;
+            }
+            return true;
+        },
+    );
+    const effectiveCursor: LogViewerCursor = cursor
+        ? {
+              fileIndex: Math.max(0, Number(cursor.fileIndex) || 0),
+              offsets: cursor.offsets || {},
+          }
+        : {
+              fileIndex: 0,
+              offsets: {},
+          };
+    const entries: ParsedLogEntry[] = [];
+    let fileIndex = effectiveCursor.fileIndex;
+    const offsets = { ...effectiveCursor.offsets };
 
-    const normalizedLevel = String(filters.level || "").trim().toUpperCase();
-    const normalizedSearch = String(filters.search || "").trim().toLowerCase();
-    const normalizedFile = String(filters.file || "").trim();
-    const normalizedSource = String(filters.source || "").trim().toLowerCase();
-    const normalizedRemoteAddress = String(filters.remoteAddress || "")
-        .trim()
-        .toLowerCase();
-    const normalizedModule = String(filters.module || "").trim().toLowerCase();
-    const normalizedRequestId = String(filters.requestId || "").trim().toLowerCase();
-    const normalizedUser = String(filters.user || "").trim().toLowerCase();
-    const limit = Math.max(50, Math.min(Number(filters.limit) || 1000, 5000));
+    while (fileIndex < descriptors.length && entries.length < normalizedFilters.limit) {
+        const descriptor = descriptors[fileIndex];
+        const batch = readLogEntriesBatchFromFile(
+            descriptor,
+            normalizedFilters,
+            offsets[descriptor.filePath],
+            normalizedFilters.limit - entries.length,
+        );
+        entries.push(...batch.entries);
+        offsets[descriptor.filePath] = batch.nextOffset;
+        if (batch.done) {
+            fileIndex += 1;
+            continue;
+        }
+        break;
+    }
 
-    const entries = allEntries
-        .filter((entry) =>
-            normalizedLevel ? entry.level === normalizedLevel : true,
-        )
-        .filter((entry) =>
-            normalizedFile ? entry.fileName === normalizedFile : true,
-        )
-        .filter((entry) =>
-            normalizedSource ? entry.source === normalizedSource : true,
-        )
-        .filter((entry) =>
-            normalizedRemoteAddress
-                ? entry.remoteAddress.toLowerCase().includes(normalizedRemoteAddress)
-                : true,
-        )
-        .filter((entry) =>
-            normalizedModule ? entry.module === normalizedModule : true,
-        )
-        .filter((entry) =>
-            normalizedRequestId
-                ? entry.requestId.toLowerCase().includes(normalizedRequestId)
-                : true,
-        )
-        .filter((entry) =>
-            normalizedUser ? entry.user.toLowerCase().includes(normalizedUser) : true,
-        )
-        .filter((entry) => {
-            if (!normalizedSearch) return true;
-            const haystack = [
-                entry.timestamp,
-                entry.level,
-                entry.message,
-                entry.detailsText,
-                entry.fileName,
-                entry.source,
-                entry.remoteAddress,
-                entry.module,
-                entry.requestId,
-                entry.user,
-                entry.category,
-            ]
-                .join(" ")
-                .toLowerCase();
-            return haystack.includes(normalizedSearch);
-        })
-        .slice(0, limit);
-
-    const availableFiles = Array.from(
-        new Set(allEntries.map((entry) => entry.fileName)),
-    ).sort((a, b) => b.localeCompare(a));
-    const availableModules = Array.from(
-        new Set(allEntries.map((entry) => entry.module).filter(Boolean)),
-    ).sort((a, b) => a.localeCompare(b));
-    const availableRemoteAddresses = Array.from(
-        new Set(allEntries.map((entry) => entry.remoteAddress).filter(Boolean)),
-    ).sort((a, b) => a.localeCompare(b));
-    const availableUsers = Array.from(
-        new Set(allEntries.map((entry) => entry.user).filter(Boolean)),
-    ).sort((a, b) => a.localeCompare(b));
     const todayFile = getTodayLogFileName();
+    const availableFiles = allDescriptors
+        .map((descriptor) => descriptor.fileName)
+        .filter((value, index, items) => items.indexOf(value) === index);
     const defaultFile = availableFiles.includes(todayFile)
         ? todayFile
         : availableFiles.find((file) => file !== path.basename(trayDebugLogPath)) || "";
-
     const stats = {
         total: entries.length,
         info: entries.filter((entry) => entry.level === "INFO").length,
         warn: entries.filter((entry) => entry.level === "WARN").length,
         error: entries.filter((entry) => entry.level === "ERROR").length,
     };
+    const nextCursor =
+        fileIndex < descriptors.length
+            ? {
+                  fileIndex,
+                  offsets,
+              }
+            : null;
+
+    const normalizedEntries = entries.map((entry) => ({
+        timestamp: entry.timestamp,
+        level: entry.level,
+        message: entry.message,
+        detailsText: entry.detailsText,
+        details:
+            entry.details && typeof entry.details === "object"
+                ? JSON.stringify(entry.details, null, 2)
+                : "",
+        interpreted: interpretDetails(entry.message, entry.details),
+        fileName: entry.fileName,
+        source: entry.source,
+        remoteAddress: entry.remoteAddress,
+        module: entry.module,
+        requestId: entry.requestId,
+        user: entry.user,
+        category: getCategoryMeta(entry.category),
+    }));
 
     return {
         files: availableFiles,
         todayFile,
         defaultFile,
         stats,
-        entries: entries.map((entry) => ({
-            timestamp: entry.timestamp,
-            level: entry.level,
-            message: entry.message,
-            detailsText: entry.detailsText,
-            details:
-                entry.details && typeof entry.details === "object"
-                    ? JSON.stringify(entry.details, null, 2)
-                    : "",
-            interpreted: interpretDetails(entry.message, entry.details),
-            fileName: entry.fileName,
-            source: entry.source,
-            remoteAddress: entry.remoteAddress,
-            module: entry.module,
-            requestId: entry.requestId,
-            user: entry.user,
-            category: getCategoryMeta(entry.category),
-        })),
-        modules: availableModules,
-        remoteAddresses: availableRemoteAddresses,
-        users: availableUsers,
+        entries: normalizedEntries,
+        modules: [
+            "attrezzaggio",
+            "calendar",
+            "core",
+            "purchasing",
+            "shared",
+            "ticket",
+            "transfer",
+            "tray",
+        ],
+        remoteAddresses: [],
+        users: [],
         groups: normalizeTimelineItems(entries),
+        hasMore: !!nextCursor,
+        nextCursor,
         logDir,
         trayDebugLogPath,
     };
@@ -1260,6 +1400,7 @@ export function buildLogViewerHtml() {
     const timelineBodyEl = document.getElementById("timelineBody");
     const tablePanelEl = document.getElementById("tablePanel");
     const timelinePanelEl = document.getElementById("timelinePanel");
+    const tableWrapEl = tablePanelEl.querySelector(".table-wrap");
     const summaryEl = document.getElementById("resultSummary");
     const backendLogPathEl = document.getElementById("backendLogPath");
     const trayLogPathEl = document.getElementById("trayLogPath");
@@ -1273,6 +1414,15 @@ export function buildLogViewerHtml() {
     const timelineViewBtn = document.getElementById("timelineViewBtn");
     let currentView = "timeline";
     let defaultsApplied = false;
+    let observer = null;
+    const state = {
+      entries: [],
+      groups: [],
+      cursor: null,
+      hasMore: false,
+      loading: false,
+      firstLoadComplete: false,
+    };
 
     function setView(nextView) {
       currentView = nextView === "timeline" ? "timeline" : "table";
@@ -1280,6 +1430,7 @@ export function buildLogViewerHtml() {
       timelinePanelEl.classList.toggle("hidden", currentView !== "timeline");
       tableViewBtn.classList.toggle("active", currentView === "table");
       timelineViewBtn.classList.toggle("active", currentView === "timeline");
+      attachInfiniteObserver();
     }
 
     function escapeHtml(value) {
@@ -1301,158 +1452,266 @@ export function buildLogViewerHtml() {
         requestId: requestIdEl.value || "",
         user: userEl.value || "",
         file: fileEl.value || "",
-        limit: 1200,
+        limit: 250,
       };
     }
 
     function renderChangesBlock(changes) {
-      if (!Array.isArray(changes) || !changes.length) return '';
+      if (!Array.isArray(changes) || !changes.length) return "";
       return '<div class="field-grid" style="margin-top:10px;">' + changes.map((change) => \`
         <div class="field-chip is-warn" style="grid-column: span 2;">
-          <div class="field-label">\${escapeHtml(change.label || 'Modifica')}</div>
-          <div class="field-value">\${escapeHtml(change.before || '-')} → \${escapeHtml(change.after || '-')}</div>
+          <div class="field-label">\${escapeHtml(change.label || "Modifica")}</div>
+          <div class="field-value">\${escapeHtml(change.before || "-")} → \${escapeHtml(change.after || "-")}</div>
         </div>
-      \`).join('') + '</div>';
+      \`).join("") + "</div>";
     }
 
-    function renderTimeline(groups) {
-      if (!Array.isArray(groups) || !groups.length) {
+    function entryRowMarkup(entry) {
+      const interpreted = entry.interpreted || { summary: entry.message || "", fields: [] };
+      const fieldsBlock = Array.isArray(interpreted.fields) && interpreted.fields.length
+        ? '<div class="field-grid">' + interpreted.fields.map((field) => \`
+            <div class="field-chip \${field.tone ? "is-" + escapeHtml(field.tone) : ""}">
+              <div class="field-label">\${escapeHtml(field.label)}</div>
+              <div class="field-value">\${escapeHtml(field.value)}</div>
+            </div>
+          \`).join("") + "</div>"
+        : '<span class="muted">Nessun campo strutturato</span>';
+      const changesBlock = renderChangesBlock(interpreted.changes);
+      const rawBlock = entry.detailsText
+        ? \`<details style="margin-top:8px;"><summary class="muted" style="cursor:pointer;">Mostra JSON raw</summary><div class="mono">\${escapeHtml(entry.details || entry.detailsText)}</div></details>\`
+        : "";
+      return \`
+        <tr>
+          <td class="mono">\${escapeHtml(entry.timestamp)}</td>
+          <td><span class="level-badge level-\${escapeHtml(entry.level)}">\${escapeHtml(entry.level)}</span></td>
+          <td>\${escapeHtml(entry.source)}</td>
+          <td>\${escapeHtml(entry.module || "-")}</td>
+          <td>\${escapeHtml(entry.fileName)}</td>
+          <td>
+            <div class="timeline-row" style="margin-bottom:6px;">
+              <span class="category-badge is-\${escapeHtml(entry.category?.tone || "neutral")}">\${escapeHtml(entry.category?.icon || "•")} \${escapeHtml(entry.category?.label || entry.category?.key || "")}</span>
+              \${entry.requestId ? '<span class="meta-chip">Req: ' + escapeHtml(entry.requestId) + "</span>" : ""}
+              \${entry.user ? '<span class="meta-chip">Utente: ' + escapeHtml(entry.user) + "</span>" : ""}
+            </div>
+            <div class="message-main">\${escapeHtml(interpreted.summary || entry.message)}</div>
+            <div class="muted">\${escapeHtml(entry.message)}\${entry.remoteAddress ? " • IP " + escapeHtml(entry.remoteAddress) : ""}</div>
+          </td>
+          <td>\${fieldsBlock}\${changesBlock}\${rawBlock}</td>
+        </tr>
+      \`;
+    }
+
+    function groupCardMarkup(group) {
+      const meta = [
+        group.user ? '<span class="meta-chip">Utente: ' + escapeHtml(group.user) + "</span>" : "",
+        group.startedAt ? '<span class="meta-chip">Inizio: ' + escapeHtml(group.startedAt) + "</span>" : "",
+        group.finishedAt ? '<span class="meta-chip">Fine: ' + escapeHtml(group.finishedAt) + "</span>" : "",
+        group.count ? '<span class="meta-chip">Eventi: ' + escapeHtml(group.count) + "</span>" : "",
+        Array.isArray(group.modules) && group.modules.length ? '<span class="meta-chip">Moduli: ' + escapeHtml(group.modules.join(", ")) + "</span>" : "",
+      ].filter(Boolean).join("");
+      const rows = (group.entries || []).map((entry) => {
+        const fields = Array.isArray(entry.interpreted?.fields) && entry.interpreted.fields.length
+          ? '<div class="field-grid">' + entry.interpreted.fields.slice(0, 8).map((field) => \`
+              <div class="field-chip \${field.tone ? "is-" + escapeHtml(field.tone) : ""}">
+                <div class="field-label">\${escapeHtml(field.label)}</div>
+                <div class="field-value">\${escapeHtml(field.value)}</div>
+              </div>\`).join("") + "</div>"
+          : "";
+        const changesBlock = renderChangesBlock(entry.interpreted?.changes);
+        return \`
+          <div class="timeline-entry">
+            <div class="timeline-row">
+              <span class="category-badge is-\${escapeHtml(entry.category?.tone || "neutral")}">\${escapeHtml(entry.category?.icon || "•")} \${escapeHtml(entry.category?.label || entry.category?.key || "")}</span>
+              <span class="level-badge level-\${escapeHtml(entry.level)}">\${escapeHtml(entry.level)}</span>
+              <span class="meta-chip">\${escapeHtml(entry.timestamp)}</span>
+              <span class="meta-chip">\${escapeHtml(entry.module || "-")}</span>
+              <span class="meta-chip">\${escapeHtml(entry.source || "-")}</span>
+              \${entry.remoteAddress ? '<span class="meta-chip">IP ' + escapeHtml(entry.remoteAddress) + "</span>" : ""}
+            </div>
+            <div class="message-main">\${escapeHtml(entry.interpreted?.summary || entry.message || "")}</div>
+            <div class="muted" style="margin-bottom:8px;">\${escapeHtml(entry.message || "")} • \${escapeHtml(entry.fileName || "")}</div>
+            \${fields}
+            \${changesBlock}
+          </div>\`;
+      }).join("");
+      return \`
+        <article class="timeline-card">
+          <div class="timeline-head">
+            <div>
+              <div class="timeline-title">Request ID: \${escapeHtml(group.requestId)}</div>
+              <div class="timeline-meta">\${meta}</div>
+            </div>
+          </div>
+          <div class="timeline-list">\${rows}</div>
+        </article>\`;
+    }
+
+    function renderLoadMarker() {
+      const status = state.hasMore
+        ? "Scorri verso il fondo per caricare altre righe..."
+        : state.firstLoadComplete
+          ? "Fine log raggiunta."
+          : "Caricamento...";
+      return '<div id="loadMoreSentinel" class="empty" style="padding:18px;">' + escapeHtml(status) + "</div>";
+    }
+
+    function renderTable() {
+      if (!state.entries.length) {
+        bodyEl.innerHTML = '<tr><td colspan="7" class="empty">Nessuna riga compatibile con i filtri.</td></tr>';
+        return;
+      }
+      bodyEl.innerHTML = state.entries.map(entryRowMarkup).join("") + '<tr><td colspan="7" style="padding:0;border-bottom:none;">' + renderLoadMarker() + "</td></tr>";
+    }
+
+    function renderTimeline() {
+      if (!Array.isArray(state.groups) || !state.groups.length) {
         timelineBodyEl.innerHTML = '<div class="empty">Nessuna richiesta raggruppabile con i filtri correnti.</div>';
         return;
       }
-      timelineBodyEl.innerHTML = groups.map((group) => {
-        const meta = [
-          group.user ? '<span class="meta-chip">Utente: ' + escapeHtml(group.user) + '</span>' : '',
-          group.startedAt ? '<span class="meta-chip">Inizio: ' + escapeHtml(group.startedAt) + '</span>' : '',
-          group.finishedAt ? '<span class="meta-chip">Fine: ' + escapeHtml(group.finishedAt) + '</span>' : '',
-          group.count ? '<span class="meta-chip">Eventi: ' + escapeHtml(group.count) + '</span>' : '',
-          Array.isArray(group.modules) && group.modules.length ? '<span class="meta-chip">Moduli: ' + escapeHtml(group.modules.join(', ')) + '</span>' : ''
-        ].filter(Boolean).join('');
-        const rows = (group.entries || []).map((entry) => {
-          const fields = Array.isArray(entry.interpreted?.fields) && entry.interpreted.fields.length
-            ? '<div class="field-grid">' + entry.interpreted.fields.slice(0, 8).map((field) => \`
-                <div class="field-chip \${field.tone ? 'is-' + escapeHtml(field.tone) : ''}">
-                  <div class="field-label">\${escapeHtml(field.label)}</div>
-                  <div class="field-value">\${escapeHtml(field.value)}</div>
-                </div>\`).join('') + '</div>'
-            : '';
-          const changesBlock = renderChangesBlock(entry.interpreted?.changes);
-          return \`
-            <div class="timeline-entry">
-              <div class="timeline-row">
-                <span class="category-badge is-\${escapeHtml(entry.category?.tone || 'neutral')}">\${escapeHtml(entry.category?.icon || '•')} \${escapeHtml(entry.category?.label || entry.category?.key || '')}</span>
-                <span class="level-badge level-\${escapeHtml(entry.level)}">\${escapeHtml(entry.level)}</span>
-                <span class="meta-chip">\${escapeHtml(entry.timestamp)}</span>
-                <span class="meta-chip">\${escapeHtml(entry.module || '-')}</span>
-                <span class="meta-chip">\${escapeHtml(entry.source || '-')}</span>
-                \${entry.remoteAddress ? '<span class="meta-chip">IP ' + escapeHtml(entry.remoteAddress) + '</span>' : ''}
-              </div>
-              <div class="message-main">\${escapeHtml(entry.interpreted?.summary || entry.message || '')}</div>
-              <div class="muted" style="margin-bottom:8px;">\${escapeHtml(entry.message || '')} • \${escapeHtml(entry.fileName || '')}</div>
-              \${fields}
-              \${changesBlock}
-            </div>\`;
-        }).join('');
-        return \`
-          <article class="timeline-card">
-            <div class="timeline-head">
-              <div>
-                <div class="timeline-title">Request ID: \${escapeHtml(group.requestId)}</div>
-                <div class="timeline-meta">\${meta}</div>
-              </div>
-            </div>
-            <div class="timeline-list">\${rows}</div>
-          </article>\`;
-      }).join('');
+      timelineBodyEl.innerHTML = state.groups.map(groupCardMarkup).join("") + renderLoadMarker();
     }
 
-    async function loadLogs() {
-      const payload = await ipcRenderer.invoke("backend-log-viewer:list", currentFilters());
+    function renderSummary() {
+      summaryEl.textContent = state.hasMore
+        ? \`\${state.entries.length} righe caricate, altre disponibili\`
+        : \`\${state.entries.length} righe caricate\`;
+    }
+
+    function renderAll() {
+      renderSummary();
+      renderTable();
+      renderTimeline();
+      attachInfiniteObserver();
+    }
+
+    function mergeGroups(nextGroups) {
+      const map = new Map((state.groups || []).map((group) => [group.requestId, group]));
+      (nextGroups || []).forEach((group) => {
+        const current = map.get(group.requestId);
+        if (!current) {
+          map.set(group.requestId, group);
+          return;
+        }
+        const mergedEntries = [...(current.entries || []), ...(group.entries || [])]
+          .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+        const modules = Array.from(new Set([...(current.modules || []), ...(group.modules || [])]));
+        map.set(group.requestId, {
+          ...current,
+          ...group,
+          startedAt: current.startedAt && group.startedAt ? [current.startedAt, group.startedAt].sort()[0] : (current.startedAt || group.startedAt || ""),
+          finishedAt: current.finishedAt && group.finishedAt ? [current.finishedAt, group.finishedAt].sort().reverse()[0] : (current.finishedAt || group.finishedAt || ""),
+          count: mergedEntries.length,
+          modules,
+          entries: mergedEntries,
+        });
+      });
+      state.groups = Array.from(map.values()).sort((a, b) => String(b.finishedAt).localeCompare(String(a.finishedAt)));
+    }
+
+    function applyPayload(payload, { append = false } = {}) {
       backendLogPathEl.textContent = payload.logDir || "-";
       trayLogPathEl.textContent = payload.trayDebugLogPath || "-";
-      statTotalEl.textContent = String(payload.stats?.total || 0);
-      statInfoEl.textContent = String(payload.stats?.info || 0);
-      statWarnEl.textContent = String(payload.stats?.warn || 0);
-      statErrorEl.textContent = String(payload.stats?.error || 0);
-      summaryEl.textContent = \`\${payload.entries.length} righe mostrate\`;
 
-      const currentFile = fileEl.value;
-      const currentModule = moduleEl.value;
-      fileEl.innerHTML = '<option value="">Tutti</option>' + (payload.files || [])
-        .map((file) => \`<option value="\${escapeHtml(file)}">\${escapeHtml(file)}</option>\`)
-        .join("");
-      if ((payload.files || []).includes(currentFile)) {
-        fileEl.value = currentFile;
-      }
-      moduleEl.innerHTML = '<option value="">Tutti</option>' + (payload.modules || [])
-        .map((item) => \`<option value="\${escapeHtml(item)}">\${escapeHtml(item)}</option>\`)
-        .join("");
-      if ((payload.modules || []).includes(currentModule)) {
-        moduleEl.value = currentModule;
-      }
-      if (!defaultsApplied && !fileEl.value && payload.defaultFile && (payload.files || []).includes(payload.defaultFile)) {
-        fileEl.value = payload.defaultFile;
-        defaultsApplied = true;
-        return loadLogs();
-      }
-      renderTimeline(payload.groups || []);
-
-      if (!payload.entries.length) {
-        bodyEl.innerHTML = '<tr><td colspan="6" class="empty">Nessuna riga compatibile con i filtri.</td></tr>';
-        return;
+      if (!append) {
+        const currentFile = fileEl.value;
+        const currentModule = moduleEl.value;
+        fileEl.innerHTML = '<option value="">Tutti</option>' + (payload.files || [])
+          .map((file) => \`<option value="\${escapeHtml(file)}">\${escapeHtml(file)}</option>\`)
+          .join("");
+        if ((payload.files || []).includes(currentFile)) {
+          fileEl.value = currentFile;
+        }
+        moduleEl.innerHTML = '<option value="">Tutti</option>' + (payload.modules || [])
+          .map((item) => \`<option value="\${escapeHtml(item)}">\${escapeHtml(item)}</option>\`)
+          .join("");
+        if ((payload.modules || []).includes(currentModule)) {
+          moduleEl.value = currentModule;
+        }
+        if (!defaultsApplied && !fileEl.value && payload.defaultFile && (payload.files || []).includes(payload.defaultFile)) {
+          fileEl.value = payload.defaultFile;
+          defaultsApplied = true;
+          return false;
+        }
+        state.entries = payload.entries || [];
+        state.groups = payload.groups || [];
+      } else {
+        state.entries = [...state.entries, ...(payload.entries || [])];
+        mergeGroups(payload.groups || []);
       }
 
-      bodyEl.innerHTML = payload.entries.map((entry) => {
-        const interpreted = entry.interpreted || { summary: entry.message || "", fields: [] };
-        const fieldsBlock = Array.isArray(interpreted.fields) && interpreted.fields.length
-          ? '<div class="field-grid">' + interpreted.fields.map((field) => \`
-              <div class="field-chip \${field.tone ? 'is-' + escapeHtml(field.tone) : ''}">
-                <div class="field-label">\${escapeHtml(field.label)}</div>
-                <div class="field-value">\${escapeHtml(field.value)}</div>
-              </div>
-            \`).join('') + '</div>'
-          : '<span class="muted">Nessun campo strutturato</span>';
-        const changesBlock = renderChangesBlock(interpreted.changes);
-        const rawBlock = entry.detailsText
-          ? \`<details style="margin-top:8px;"><summary class="muted" style="cursor:pointer;">Mostra JSON raw</summary><div class="mono">\${escapeHtml(entry.details || entry.detailsText)}</div></details>\`
-          : '';
-        return \`
-          <tr>
-            <td class="mono">\${escapeHtml(entry.timestamp)}</td>
-            <td><span class="level-badge level-\${escapeHtml(entry.level)}">\${escapeHtml(entry.level)}</span></td>
-            <td>\${escapeHtml(entry.source)}</td>
-            <td>\${escapeHtml(entry.module || '-')}</td>
-            <td>\${escapeHtml(entry.fileName)}</td>
-            <td>
-              <div class="timeline-row" style="margin-bottom:6px;">
-                <span class="category-badge is-\${escapeHtml(entry.category?.tone || 'neutral')}">\${escapeHtml(entry.category?.icon || '•')} \${escapeHtml(entry.category?.label || entry.category?.key || '')}</span>
-                \${entry.requestId ? '<span class="meta-chip">Req: ' + escapeHtml(entry.requestId) + '</span>' : ''}
-                \${entry.user ? '<span class="meta-chip">Utente: ' + escapeHtml(entry.user) + '</span>' : ''}
-              </div>
-              <div class="message-main">\${escapeHtml(interpreted.summary || entry.message)}</div>
-              <div class="muted">\${escapeHtml(entry.message)}\${entry.remoteAddress ? ' • IP ' + escapeHtml(entry.remoteAddress) : ''}</div>
-            </td>
-            <td>\${fieldsBlock}\${changesBlock}\${rawBlock}</td>
-          </tr>
-        \`;
-      }).join("");
+      state.cursor = payload.nextCursor || null;
+      state.hasMore = !!payload.hasMore;
+      state.firstLoadComplete = true;
+      statTotalEl.textContent = String(state.entries.length);
+      statInfoEl.textContent = String(state.entries.filter((entry) => entry.level === "INFO").length);
+      statWarnEl.textContent = String(state.entries.filter((entry) => entry.level === "WARN").length);
+      statErrorEl.textContent = String(state.entries.filter((entry) => entry.level === "ERROR").length);
+      renderAll();
+      return true;
+    }
+
+    async function loadLogs({ append = false } = {}) {
+      if (state.loading) return;
+      state.loading = true;
+      try {
+        const payload = await ipcRenderer.invoke(
+          "backend-log-viewer:list",
+          currentFilters(),
+          append ? state.cursor : null,
+        );
+        const applied = applyPayload(payload, { append });
+        if (applied === false) {
+          state.loading = false;
+          return loadLogs({ append: false });
+        }
+      } finally {
+        state.loading = false;
+      }
+    }
+
+    async function loadMoreLogs() {
+      if (!state.hasMore || !state.cursor || state.loading) return;
+      return loadLogs({ append: true });
+    }
+
+    function attachInfiniteObserver() {
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+      const sentinel = document.getElementById("loadMoreSentinel");
+      if (!sentinel || !state.hasMore) return;
+      const root = currentView === "table" ? tableWrapEl : null;
+      observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMoreLogs().catch(console.error);
+        }
+      }, {
+        root,
+        rootMargin: "0px 0px 240px 0px",
+        threshold: 0,
+      });
+      observer.observe(sentinel);
     }
 
     let timer = null;
     function scheduleRefresh() {
       if (timer) clearInterval(timer);
       timer = setInterval(() => {
-        loadLogs().catch((error) => {
+        const activeScroller = currentView === "table" ? tableWrapEl : document.documentElement;
+        const scrollTop = currentView === "table" ? activeScroller.scrollTop : window.scrollY;
+        if (scrollTop > 120 || state.loading) return;
+        loadLogs({ append: false }).catch((error) => {
           console.error("Log refresh failed", error);
         });
-      }, 5000);
+      }, 15000);
     }
 
     [searchEl, levelEl, sourceEl, moduleEl, remoteAddressEl, requestIdEl, userEl, fileEl].forEach((node) => {
-      node.addEventListener("input", () => loadLogs().catch(console.error));
-      node.addEventListener("change", () => loadLogs().catch(console.error));
+      node.addEventListener("input", () => loadLogs({ append: false }).catch(console.error));
+      node.addEventListener("change", () => loadLogs({ append: false }).catch(console.error));
     });
-    refreshBtn.addEventListener("click", () => loadLogs().catch(console.error));
+    refreshBtn.addEventListener("click", () => loadLogs({ append: false }).catch(console.error));
     tableViewBtn.addEventListener("click", () => setView("table"));
     timelineViewBtn.addEventListener("click", () => setView("timeline"));
     resetBtn.addEventListener("click", () => {
@@ -1465,12 +1724,17 @@ export function buildLogViewerHtml() {
       userEl.value = "";
       fileEl.value = "";
       defaultsApplied = false;
-      loadLogs().catch(console.error);
+      state.entries = [];
+      state.groups = [];
+      state.cursor = null;
+      state.hasMore = false;
+      state.firstLoadComplete = false;
+      loadLogs({ append: false }).catch(console.error);
     });
 
     setView("timeline");
-    loadLogs().catch((error) => {
-      bodyEl.innerHTML = '<tr><td colspan="6" class="empty">Errore caricamento log.</td></tr>';
+    loadLogs({ append: false }).catch((error) => {
+      bodyEl.innerHTML = '<tr><td colspan="7" class="empty">Errore caricamento log.</td></tr>';
       timelineBodyEl.innerHTML = '<div class="empty">Errore caricamento timeline.</div>';
       console.error(error);
     });
