@@ -270,11 +270,15 @@ function normalizeAdminEntry(item) {
     return {
         name: String(item?.name || "").trim(),
         password: item?.password ? String(item.password) : undefined,
-        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
+        passwordHash: item?.passwordHash
+            ? String(item.passwordHash)
+            : undefined,
         email: item?.email ? String(item.email) : "",
         phone: item?.phone ? String(item.phone) : "",
         accessCalendar:
-            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
+            typeof item?.accessCalendar === "boolean"
+                ? item.accessCalendar
+                : true,
         accessPurchasing:
             typeof item?.accessPurchasing === "boolean"
                 ? item.accessPurchasing
@@ -304,10 +308,15 @@ function findAdminByName(name, adminSource) {
         Array.isArray(adminSource) && adminSource.length
             ? adminSource
             : loadAdminCredentials();
-    const lower = String(name || "").trim().toLowerCase();
+    const lower = String(name || "")
+        .trim()
+        .toLowerCase();
     return (
         source.find(
-            (admin) => String(admin?.name || "").trim().toLowerCase() === lower,
+            (admin) =>
+                String(admin?.name || "")
+                    .trim()
+                    .toLowerCase() === lower,
         ) || null
     );
 }
@@ -332,7 +341,11 @@ async function verifyAdminPasswordRemote(password, targetName) {
     const admin = normalizeAdminEntry(payload.admin);
     const names = new Set(
         loadAdminCredentials()
-            .map((item) => String(item?.name || "").trim().toLowerCase())
+            .map((item) =>
+                String(item?.name || "")
+                    .trim()
+                    .toLowerCase(),
+            )
             .filter(Boolean),
     );
     const nextCache = loadAdminCredentials();
@@ -341,8 +354,9 @@ async function verifyAdminPasswordRemote(password, targetName) {
     } else {
         const index = nextCache.findIndex(
             (item) =>
-                String(item?.name || "").trim().toLowerCase() ===
-                admin.name.trim().toLowerCase(),
+                String(item?.name || "")
+                    .trim()
+                    .toLowerCase() === admin.name.trim().toLowerCase(),
         );
         if (index >= 0) nextCache[index] = admin;
     }
@@ -925,7 +939,8 @@ async function createRequestAtomic(request) {
 async function updateRequestAtomic(requestId, request) {
     logFpDebug("backend.request.update", {
         requestId: requestId || "",
-        keys: request && typeof request === "object" ? Object.keys(request) : [],
+        keys:
+            request && typeof request === "object" ? Object.keys(request) : [],
         request,
     });
     const updated = await fetchFpBackend(`/requests/${requestId}`, {
@@ -948,7 +963,9 @@ async function approveRequestAtomic(requestId, actor) {
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ actor: actor || getLoggedAdminName() || "guest" }),
+        body: JSON.stringify({
+            actor: actor || getLoggedAdminName() || "guest",
+        }),
     });
     logFpDebug("backend.response.approve", {
         id: updated?.request?.id || requestId || "",
@@ -963,7 +980,9 @@ async function rejectRequestAtomic(requestId, actor) {
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ actor: actor || getLoggedAdminName() || "guest" }),
+        body: JSON.stringify({
+            actor: actor || getLoggedAdminName() || "guest",
+        }),
     });
     logFpDebug("backend.response.reject", {
         id: updated?.id || requestId || "",
@@ -994,7 +1013,9 @@ async function deleteRequestAtomic(requestId, actor) {
             detail: err?.message || String(err),
         });
         const data = await refreshDataFromBackendAndRender();
-        const target = (data?.requests || []).find((req) => req?.id === requestId);
+        const target = (data?.requests || []).find(
+            (req) => req?.id === requestId,
+        );
         if (!target || target.status === "deleted") {
             logFpDebug("backend.delete.reconciled", {
                 requestId: requestId || "",
@@ -1161,9 +1182,15 @@ function saveData(payload) {
     ensureDataFolder();
     logFpDebug("write.saveData", {
         baseDir: SAFE_BASE_DIR,
-        requests: Array.isArray(payload?.requests) ? payload.requests.length : 0,
-        holidays: Array.isArray(payload?.holidays) ? payload.holidays.length : 0,
-        closures: Array.isArray(payload?.closures) ? payload.closures.length : 0,
+        requests: Array.isArray(payload?.requests)
+            ? payload.requests.length
+            : 0,
+        holidays: Array.isArray(payload?.holidays)
+            ? payload.holidays.length
+            : 0,
+        closures: Array.isArray(payload?.closures)
+            ? payload.closures.length
+            : 0,
         balances: payload?.balances ? Object.keys(payload.balances).length : 0,
     });
     const ok = savePayload(payload);
@@ -1501,7 +1528,8 @@ const pendingUi = createPendingPanel({
     isAdminRequiredForPendingAccess,
     isAdminRequiredForPendingApprove,
     isAdminRequiredForPendingReject,
-    approveRequest: (requestId, actor) => approveRequestAtomic(requestId, actor),
+    approveRequest: (requestId, actor) =>
+        approveRequestAtomic(requestId, actor),
     rejectRequest: (requestId, actor) => rejectRequestAtomic(requestId, actor),
 });
 
@@ -1663,7 +1691,8 @@ const approvalUi = createApprovalModal({
     loadData,
     syncData,
     renderAll,
-    approveRequest: (requestId, actor) => approveRequestAtomic(requestId, actor),
+    approveRequest: (requestId, actor) =>
+        approveRequestAtomic(requestId, actor),
     rejectRequest: (requestId, actor) => rejectRequestAtomic(requestId, actor),
     deleteRequest: (requestId, actor) => deleteRequestAtomic(requestId, actor),
     openEditModal: (request) => {
@@ -1959,8 +1988,7 @@ const editUi = createEditModal({
     renderAll,
     updateRequest: (requestId, request) =>
         updateRequestAtomic(requestId, request),
-    deleteRequest: (requestId, actor) =>
-        deleteRequestAtomic(requestId, actor),
+    deleteRequest: (requestId, actor) => deleteRequestAtomic(requestId, actor),
     getEditingRequestId: () => editingRequestId,
     setEditingRequestId: (next) => {
         editingRequestId = next;
