@@ -23,7 +23,8 @@ async function init() {
     const payload = await ipcRenderer.invoke("github-stats-get", {
         owner: "AGPress-Tech",
         repo: "AyPi",
-        persistPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
+        persistPath:
+            "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\git-stats.json",
         force,
     });
     if (!payload || !payload.ok || !payload.data || !payload.data.length) {

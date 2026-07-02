@@ -6,7 +6,7 @@ export const NETWORK_PATHS = {
     feriePermessiBalances: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-balances.json",
     feriePermessiClosures: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-closures.json",
     feriePermessiAdmins: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\ferie-permessi-admins.json",
-    otpMailServer: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\otp-mail.json",
+    otpMailServer: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\otp-mail.json",
     amministrazioneAssignees: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json",
     amministrazioneObiettivi: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-obiettivi.json",
 };

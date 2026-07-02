@@ -76,7 +76,7 @@ const CLOSURES_PATH = path.join(CALENDAR_DIR, "ferie-permessi-closures.json");
 const ASSIGNEES_PATH = path.join(GENERAL_DIR, "amministrazione-assignees.json");
 const ADMINS_PATH = path.join(GENERAL_DIR, "ferie-permessi-admins.json");
 const CONFIG_PATH = path.join(CALENDAR_DIR, "config-calendar.json");
-const OTP_MAIL_SERVER_PATH = path.join(GENERAL_DIR, "otp-mail.json");
+const OTP_MAIL_SERVER_PATH = path.join(GENERAL_DIR, "data", "otp-mail.json");
 const OTP_MAIL_LOCAL_PATH = path.join(
     __dirname,
     "..",

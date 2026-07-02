@@ -32,6 +32,7 @@ function resolveBaseDir() {
 const ROOT_DIR = resolveBaseDir();
 const BASE_DIR = ROOT_DIR;
 const PURCHASING_DIR = path.join(BASE_DIR, "AyPi Purchasing");
+const GENERAL_DATA_DIR = path.join(BASE_DIR, "General", "data");
 
 const REQUESTS_PATH = path.join(PURCHASING_DIR, "requests.json");
 const INTERVENTIONS_PATH = path.join(PURCHASING_DIR, "interventions.json");
@@ -43,7 +44,7 @@ const INTERVENTION_TYPES_PATH = path.join(
 );
 const UNITS_PATH = path.join(PURCHASING_DIR, "units.json");
 const SETTINGS_PATH = path.join(PURCHASING_DIR, "settings.json");
-const SESSION_PATH = path.join(PURCHASING_DIR, "session.json");
+const SESSION_PATH = path.join(GENERAL_DATA_DIR, "session.json");
 const PRODUCTS_DIR = path.join(PURCHASING_DIR, "products");
 const REQUESTS_SHARDS_DIR = path.join(PURCHASING_DIR, "requests");
 const INTERVENTIONS_SHARDS_DIR = path.join(PURCHASING_DIR, "interventions");
@@ -57,6 +58,7 @@ if (
         ROOT_DIR,
         BASE_DIR,
         PURCHASING_DIR,
+        GENERAL_DATA_DIR,
         REQUESTS_PATH,
         INTERVENTIONS_PATH,
         CATALOG_PATH,

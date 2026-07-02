@@ -28,7 +28,12 @@ try {
 }
 
 const ROOT_DIR = path.dirname(NETWORK_PATHS.feriePermessiData);
-const OTP_MAIL_SERVER_PATH = path.join(ROOT_DIR, "General", "otp-mail.json");
+const OTP_MAIL_SERVER_PATH = path.join(
+    ROOT_DIR,
+    "General",
+    "data",
+    "otp-mail.json",
+);
 const OTP_MAIL_LEGACY_PATH = NETWORK_PATHS.otpMailServer;
 const OTP_MAIL_LOCAL_PATH = path.join(
     __dirname,

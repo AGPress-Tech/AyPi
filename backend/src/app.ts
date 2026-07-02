@@ -4,6 +4,14 @@ import { registerRoutes } from "./routes";
 import { logger } from "./shared/logging/logger";
 import { Router } from "./shared/http/router";
 import { sendError } from "./shared/http/response";
+import { initializeSqliteDatabase, closeSqliteDatabase } from "./shared/db/sqlite";
+import { initializeFeriePermessiSqliteStore } from "./modules/ferie-permessi/repository";
+import { initializeSharedSqliteStore } from "./modules/shared/repository";
+import { initializeProductManagerSqliteStore } from "./modules/product-manager/repository";
+import { initializeTicketSupportSqliteStore } from "./modules/ticket-support/repository";
+import { initializeTransferSqliteStore } from "./modules/transfer-attrezzaggio/repository";
+import { initializeHaasSqliteStore } from "./modules/haas-attrezzaggio/repository";
+import { normalizeAgpressLayout } from "./shared/storage/agpress-layout";
 import {
     getRequestClient,
     getRequestId,
@@ -141,7 +149,16 @@ export function createBackendServer() {
     });
 }
 
-export function startBackendServer(): Promise<BackendServerHandle> {
+export async function startBackendServer(): Promise<BackendServerHandle> {
+    normalizeAgpressLayout();
+    await initializeSqliteDatabase();
+    initializeSharedSqliteStore();
+    initializeFeriePermessiSqliteStore();
+    initializeProductManagerSqliteStore();
+    initializeTicketSupportSqliteStore();
+    initializeTransferSqliteStore();
+    initializeHaasSqliteStore();
+
     return new Promise((resolve, reject) => {
         const server = createBackendServer();
         const host = backendConfig.host;
@@ -166,6 +183,7 @@ export function startBackendServer(): Promise<BackendServerHandle> {
                 calendarDir: backendConfig.modules.feriePermessi.calendarDir,
                 generalDir: backendConfig.modules.feriePermessi.generalDir,
                 logDir: backendConfig.logging.dir,
+                dbPath: backendConfig.database.path,
             });
             resolve({
                 host,
@@ -186,6 +204,11 @@ export function startBackendServer(): Promise<BackendServerHandle> {
                                 host,
                                 port,
                             });
+                            try {
+                                closeSqliteDatabase();
+                            } catch {
+                                // ignore sqlite shutdown issues
+                            }
                             stopResolve();
                         });
                     }),

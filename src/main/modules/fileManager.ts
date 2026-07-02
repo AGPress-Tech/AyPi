@@ -345,21 +345,31 @@ function ensureFpFiles(baseDir: string) {
         fs.mkdirSync(baseDir, { recursive: true });
     }
     const calendarDir = path.join(baseDir, "AyPi Calendar");
-    const calendarYearsDir = path.join(calendarDir, "Calendar Years");
     const purchasingDir = path.join(baseDir, "AyPi Purchasing");
     const generalDir = path.join(baseDir, "General");
-    const ganttDir = path.join(baseDir, "AyPi Gantt");
-    const ticketDir = path.join(baseDir, "AyPi Ticket");
+    const generalDataDir = path.join(generalDir, "data");
+    const transferAttachmentsDir = path.join(
+        baseDir,
+        "Schede Attrezzaggio",
+        "Transfer",
+        "_attachments",
+    );
+    const haasAttachmentsDir = path.join(
+        baseDir,
+        "Schede Attrezzaggio",
+        "HAAS",
+        "_attachments",
+    );
 
     [
         calendarDir,
-        calendarYearsDir,
         purchasingDir,
         path.join(purchasingDir, "products"),
-        path.join(purchasingDir, "requests"),
         generalDir,
-        ganttDir,
-        ticketDir,
+        generalDataDir,
+        path.join(generalDir, "log"),
+        transferAttachmentsDir,
+        haasAttachmentsDir,
     ].forEach((dirPath) => {
         try {
             if (!fs.existsSync(dirPath))
@@ -388,15 +398,18 @@ function ensureFpFiles(baseDir: string) {
         }
     };
 
-    const copyFileIfNeeded = (sourcePath, targetPath) => {
+    const moveFileIfNeeded = (sourcePath, targetPath) => {
         try {
             if (!sourcePath || !targetPath) return;
             if (!fs.existsSync(sourcePath)) return;
-            if (!isJsonEmpty(targetPath)) return;
             const targetDir = path.dirname(targetPath);
             if (!fs.existsSync(targetDir))
                 fs.mkdirSync(targetDir, { recursive: true });
-            fs.copyFileSync(sourcePath, targetPath);
+            if (!isJsonEmpty(targetPath)) {
+                fs.rmSync(sourcePath, { force: true });
+                return;
+            }
+            fs.renameSync(sourcePath, targetPath);
         } catch (err) {
             log.warn(
                 "[ferie-permessi] impossibile migrare file:",
@@ -408,85 +421,42 @@ function ensureFpFiles(baseDir: string) {
         }
     };
 
-    const copyDirectoryContent = (sourceDir, targetDir) => {
-        try {
-            if (!sourceDir || !targetDir) return;
-            if (!fs.existsSync(sourceDir)) return;
-            if (!fs.existsSync(targetDir))
-                fs.mkdirSync(targetDir, { recursive: true });
-            const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
-            entries.forEach((entry) => {
-                const src = path.join(sourceDir, entry.name);
-                const dst = path.join(targetDir, entry.name);
-                if (entry.isDirectory()) {
-                    copyDirectoryContent(src, dst);
-                    return;
-                }
-                if (entry.isFile() && !fs.existsSync(dst)) {
-                    fs.copyFileSync(src, dst);
-                }
-            });
-        } catch (err) {
-            log.warn(
-                "[ferie-permessi] impossibile migrare cartella:",
-                sourceDir,
-                "->",
-                targetDir,
-                err,
-            );
-        }
-    };
-
-    // Migrazione iniziale legacy -> nuova struttura (senza sovrascrivere dati gia' presenti)
-    copyFileIfNeeded(
-        path.join(baseDir, "config-calendar.json"),
-        path.join(calendarDir, "config-calendar.json"),
-    );
-    copyFileIfNeeded(
-        path.join(baseDir, "ferie-permessi-holidays.json"),
-        path.join(calendarDir, "ferie-permessi-holidays.json"),
-    );
-    copyFileIfNeeded(
-        path.join(baseDir, "ferie-permessi-balances.json"),
-        path.join(calendarDir, "ferie-permessi-balances.json"),
-    );
-    copyFileIfNeeded(
-        path.join(baseDir, "ferie-permessi-closures.json"),
-        path.join(calendarDir, "ferie-permessi-closures.json"),
-    );
-    copyFileIfNeeded(
+    moveFileIfNeeded(
         path.join(baseDir, "otp-mail.json"),
+        path.join(generalDataDir, "otp-mail.json"),
+    );
+    moveFileIfNeeded(
         path.join(generalDir, "otp-mail.json"),
+        path.join(generalDataDir, "otp-mail.json"),
     );
-    copyFileIfNeeded(
-        path.join(baseDir, "amministrazione-assignees.json"),
-        path.join(generalDir, "amministrazione-assignees.json"),
+    moveFileIfNeeded(
+        path.join(generalDir, "gitflow.json"),
+        path.join(generalDataDir, "gitflow.json"),
     );
-    copyFileIfNeeded(
-        path.join(baseDir, "ferie-permessi-admins.json"),
-        path.join(generalDir, "ferie-permessi-admins.json"),
+    moveFileIfNeeded(
+        path.join(purchasingDir, "session.json"),
+        path.join(generalDataDir, "session.json"),
     );
-    copyFileIfNeeded(
-        path.join(baseDir, "amministrazione-obiettivi.json"),
-        path.join(ganttDir, "amministrazione-obiettivi.json"),
-    );
-    copyDirectoryContent(
-        path.join(baseDir, "Calendar Years"),
-        calendarYearsDir,
-    );
-    // Rimuove i file legacy di Purchasing (Product Manager).
-    const productManagerDir = path.join(baseDir, "Product Manager");
-    if (fs.existsSync(productManagerDir)) {
+
+    [
+        path.join(baseDir, "AyPi Forms"),
+        path.join(baseDir, "AyPi Gantt"),
+        path.join(baseDir, "AyPi HR"),
+        path.join(baseDir, "Product Manager"),
+        path.join(generalDir, "git-stats.json"),
+    ].forEach((targetPath) => {
         try {
-            fs.rmSync(productManagerDir, { recursive: true, force: true });
+            if (fs.existsSync(targetPath)) {
+                fs.rmSync(targetPath, { recursive: true, force: true });
+            }
         } catch (err) {
             log.warn(
-                "[ferie-permessi] impossibile rimuovere legacy Product Manager:",
-                productManagerDir,
+                "[ferie-permessi] impossibile ripulire percorso legacy:",
+                targetPath,
                 err,
             );
         }
-    }
+    });
 }
 
 function readJsonSafe(filePath: string) {
@@ -717,7 +687,7 @@ function getCachedGitStats() {
 
 function writeGitStatsSnapshot(payload, targetPath?: string) {
     const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\git-stats.json";
     const outputPath =
         targetPath && typeof targetPath === "string"
             ? targetPath
@@ -744,7 +714,7 @@ function writeGitStatsSnapshot(payload, targetPath?: string) {
 
 function readGitStatsSnapshot(targetPath?: string) {
     const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json";
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\git-stats.json";
     const inputPath =
         targetPath && typeof targetPath === "string"
             ? targetPath
@@ -774,7 +744,7 @@ function readGitStatsSnapshot(targetPath?: string) {
 
 function writeGitflowSnapshot(payload, targetPath?: string) {
     const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\gitflow.json";
     const outputPath =
         targetPath && typeof targetPath === "string"
             ? targetPath
@@ -801,7 +771,7 @@ function writeGitflowSnapshot(payload, targetPath?: string) {
 
 function readGitflowSnapshot(targetPath?: string) {
     const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json";
+        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\gitflow.json";
     const inputPath =
         targetPath && typeof targetPath === "string"
             ? targetPath
@@ -2881,6 +2851,7 @@ function setupFileManager(mainWindow) {
         isAppQuitting = true;
     });
 
+    ensureFpFiles(getDefaultFpBaseDir());
     loadAddressBook();
     ipcMain.on("resize-calcolatore", () => {
         animateResize(mainWindow, 750, 750, 100);
@@ -3384,7 +3355,7 @@ function setupFileManager(mainWindow) {
                 payloadWithToken.data.length
             ) {
                 const gitflowCached = readGitflowSnapshot(
-                    "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
+                    "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\gitflow.json",
                 );
                 if (gitflowCached && Array.isArray(gitflowCached.commits)) {
                     const commitCounts = new Map<string, number>();
@@ -3421,7 +3392,7 @@ function setupFileManager(mainWindow) {
                 payloadWithToken.data.length
             ) {
                 const gitflowCached = readGitflowSnapshot(
-                    "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
+                    "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\gitflow.json",
                 );
                 if (gitflowCached && Array.isArray(gitflowCached.commits)) {
                     const commitCounts = new Map<string, number>();

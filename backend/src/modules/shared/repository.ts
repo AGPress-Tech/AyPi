@@ -3,8 +3,9 @@ import crypto from "crypto";
 import path from "path";
 import { argon2id, argon2Verify } from "hash-wasm";
 import { backendConfig } from "../../config";
-import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
+import { readJsonFile } from "../../shared/storage/json-files";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
+import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
 
 export type SharedAdminEntry = {
     name: string;
@@ -39,8 +40,57 @@ const LEGACY_ASSIGNEES_PATH = path.join(
     backendConfig.modules.feriePermessi.baseDir,
     "amministrazione-assignees.json",
 );
+const SHARED_ADMINS_TABLE = "shared_admins";
+const SHARED_ASSIGNEES_TABLE = "shared_assignees";
 function ensureGeneralBackup() {
     return ensureAgpressDailyBackup("auto", 30);
+}
+
+function cleanupLegacySharedFiles() {
+    [ADMINS_PATH, LEGACY_ADMINS_PATH, ASSIGNEES_PATH, LEGACY_ASSIGNEES_PATH].forEach(
+        (targetPath) => {
+            if (!targetPath || !fs.existsSync(targetPath)) return;
+            try {
+                fs.unlinkSync(targetPath);
+            } catch {
+                // ignore cleanup failures
+            }
+        },
+    );
+}
+
+function serializeJson(value: unknown) {
+    return JSON.stringify(value ?? null);
+}
+
+function parseJson<T>(raw: unknown, fallback: T): T {
+    if (typeof raw !== "string" || !raw.trim()) return fallback;
+    try {
+        return JSON.parse(raw) as T;
+    } catch {
+        return fallback;
+    }
+}
+
+function execScalarNumber(sql: string, params: unknown[] = []) {
+    const database = getSqliteDatabase();
+    const result = database.exec(sql, params);
+    if (!Array.isArray(result) || !result.length) return 0;
+    return Number(result[0]?.values?.[0]?.[0]) || 0;
+}
+
+function ensureSharedSqliteSchema() {
+    const database = getSqliteDatabase();
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS ${SHARED_ADMINS_TABLE} (
+            name TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ${SHARED_ASSIGNEES_TABLE} (
+            store_key TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL
+        );
+    `);
 }
 
 function parseAdminsFromPath(targetPath: string): SharedAdminEntry[] {
@@ -89,7 +139,7 @@ function normalizeAdminEntry(item: any): SharedAdminEntry {
     };
 }
 
-export function loadAdminCredentials(): SharedAdminEntry[] {
+function loadLegacyAdminCredentials(): SharedAdminEntry[] {
     try {
         const candidates = [ADMINS_PATH, LEGACY_ADMINS_PATH].filter(
             (item) => item && fs.existsSync(item),
@@ -105,6 +155,49 @@ export function loadAdminCredentials(): SharedAdminEntry[] {
         // ignore and fallback
     }
     return [{ name: "Admin", password: APPROVAL_PASSWORD }];
+}
+
+function saveAdminCredentialsToSqlite(admins: SharedAdminEntry[]) {
+    runSqliteTransaction((database) => {
+        database.run(`DELETE FROM ${SHARED_ADMINS_TABLE}`);
+        const statement = database.prepare(`
+            INSERT INTO ${SHARED_ADMINS_TABLE} (name, payload_json)
+            VALUES (?, ?)
+        `);
+        admins.forEach((admin) => {
+            const normalized = normalizeAdminEntry(admin);
+            if (!normalized.name) return;
+            statement.run([normalized.name, serializeJson(normalized)]);
+        });
+        statement.free();
+    });
+}
+
+function loadAdminCredentialsFromSqlite(): SharedAdminEntry[] {
+    const database = getSqliteDatabase();
+    const rows = database.exec(`
+        SELECT payload_json
+        FROM ${SHARED_ADMINS_TABLE}
+        ORDER BY name ASC
+    `);
+    const admins = (rows?.[0]?.values || [])
+        .map((row: unknown[]) => normalizeAdminEntry(parseJson(row?.[0], {})))
+        .filter((entry: SharedAdminEntry) => !!entry.name);
+    return admins.length ? admins : [{ name: "Admin", password: APPROVAL_PASSWORD }];
+}
+
+function hasSharedAdminsSqliteData() {
+    return execScalarNumber(`SELECT COUNT(*) FROM ${SHARED_ADMINS_TABLE}`) > 0;
+}
+
+export function loadAdminCredentials(): SharedAdminEntry[] {
+    ensureSharedSqliteSchema();
+    if (!hasSharedAdminsSqliteData()) {
+        const legacyAdmins = loadLegacyAdminCredentials();
+        saveAdminCredentialsToSqlite(legacyAdmins);
+        return legacyAdmins;
+    }
+    return loadAdminCredentialsFromSqlite();
 }
 
 export function listAdminNames() {
@@ -175,8 +268,7 @@ export async function verifyAdminPassword(
 
 export async function saveAdminCredentials(admins: SharedAdminEntry[]) {
     ensureGeneralBackup();
-    const payload = {
-        admins: admins.map((admin) => ({
+    const normalizedAdmins = admins.map((admin) => ({
             name: admin.name,
             passwordHash: admin.passwordHash,
             password: admin.passwordHash ? undefined : admin.password,
@@ -190,16 +282,9 @@ export async function saveAdminCredentials(admins: SharedAdminEntry[]) {
                 typeof admin.accessPurchasing === "boolean"
                     ? admin.accessPurchasing
                     : true,
-        })),
-    };
-    const targets = [ADMINS_PATH];
-    if (LEGACY_ADMINS_PATH && fs.existsSync(LEGACY_ADMINS_PATH)) {
-        targets.push(LEGACY_ADMINS_PATH);
-    }
-    targets.forEach((targetPath) => {
-        ensureFolderFor(targetPath);
-        writeJsonFileAtomic(targetPath, payload);
-    });
+    }));
+    saveAdminCredentialsToSqlite(normalizedAdmins);
+    cleanupLegacySharedFiles();
 }
 
 function normalizeAssigneesPayload(parsed: any): SharedAssigneesPayload {
@@ -244,7 +329,7 @@ function normalizeAssigneesPayload(parsed: any): SharedAssigneesPayload {
     };
 }
 
-export function loadAssigneeOptions(): SharedAssigneesPayload {
+function loadLegacyAssigneeOptions(): SharedAssigneesPayload {
     const candidates = [ASSIGNEES_PATH, LEGACY_ASSIGNEES_PATH].filter(Boolean);
     for (const candidate of candidates) {
         if (!fs.existsSync(candidate)) continue;
@@ -257,6 +342,48 @@ export function loadAssigneeOptions(): SharedAssigneesPayload {
     return { groups: {}, emails: {}, options: [] };
 }
 
+function saveAssigneeOptionsToSqlite(payload: {
+    groups?: Record<string, string[]>;
+    emails?: Record<string, string>;
+}) {
+    const normalized = normalizeAssigneesPayload({
+        groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
+        emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+    });
+    runSqliteTransaction((database) => {
+        database.run(`DELETE FROM ${SHARED_ASSIGNEES_TABLE}`);
+        database.run(
+            `INSERT INTO ${SHARED_ASSIGNEES_TABLE} (store_key, payload_json) VALUES (?, ?)`,
+            ["assignees", serializeJson(normalized)],
+        );
+    });
+}
+
+function loadAssigneeOptionsFromSqlite(): SharedAssigneesPayload {
+    const database = getSqliteDatabase();
+    const rows = database.exec(`
+        SELECT payload_json
+        FROM ${SHARED_ASSIGNEES_TABLE}
+        WHERE store_key = 'assignees'
+    `);
+    const raw = rows?.[0]?.values?.[0]?.[0];
+    return normalizeAssigneesPayload(parseJson(raw, {}));
+}
+
+function hasSharedAssigneesSqliteData() {
+    return execScalarNumber(`SELECT COUNT(*) FROM ${SHARED_ASSIGNEES_TABLE}`) > 0;
+}
+
+export function loadAssigneeOptions(): SharedAssigneesPayload {
+    ensureSharedSqliteSchema();
+    if (!hasSharedAssigneesSqliteData()) {
+        const legacyAssignees = loadLegacyAssigneeOptions();
+        saveAssigneeOptionsToSqlite(legacyAssignees);
+        return legacyAssignees;
+    }
+    return loadAssigneeOptionsFromSqlite();
+}
+
 export async function saveAssigneeOptions(payload: {
     groups?: Record<string, string[]>;
     emails?: Record<string, string>;
@@ -266,12 +393,17 @@ export async function saveAssigneeOptions(payload: {
         groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
         emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
     };
-    const targets = [ASSIGNEES_PATH];
-    if (LEGACY_ASSIGNEES_PATH && fs.existsSync(LEGACY_ASSIGNEES_PATH)) {
-        targets.push(LEGACY_ASSIGNEES_PATH);
+    saveAssigneeOptionsToSqlite(normalized);
+    cleanupLegacySharedFiles();
+}
+
+export function initializeSharedSqliteStore() {
+    ensureSharedSqliteSchema();
+    if (!hasSharedAdminsSqliteData()) {
+        saveAdminCredentialsToSqlite(loadLegacyAdminCredentials());
     }
-    targets.forEach((targetPath) => {
-        ensureFolderFor(targetPath);
-        writeJsonFileAtomic(targetPath, normalized);
-    });
+    if (!hasSharedAssigneesSqliteData()) {
+        saveAssigneeOptionsToSqlite(loadLegacyAssigneeOptions());
+    }
+    cleanupLegacySharedFiles();
 }

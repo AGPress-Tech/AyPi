@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
-import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
+import { ensureFolderFor, readJsonFile } from "../../shared/storage/json-files";
 import {
+    ensureDir,
     replaceDirectoryContents,
 } from "../../shared/storage/backups";
 import {
@@ -12,6 +13,10 @@ import {
     listAgpressBackups,
     resolveAgpressBackupDir,
 } from "../../shared/storage/agpress-backups";
+import {
+    getSqliteDatabase,
+    runSqliteTransaction,
+} from "../../shared/db/sqlite";
 
 type TicketHistoryEntry = {
     at: string;
@@ -58,15 +63,59 @@ type TicketCategories = {
 const TICKET_DIR = backendConfig.modules.ticketSupport.dir;
 const TICKET_YEARS_DIR = path.join(TICKET_DIR, "Ticket Years");
 const CATEGORIES_PATH = path.join(TICKET_DIR, "ticket-categories.json");
+const TS_TICKETS_TABLE = "ts_tickets";
+const TS_CATEGORIES_TABLE = "ts_categories";
+const DB_RELATIVE_PATH = path.join("General", "data", "aypi.db");
 function ensureTicketDir() {
-    fs.mkdirSync(TICKET_DIR, { recursive: true });
-    fs.mkdirSync(TICKET_YEARS_DIR, { recursive: true });
+    if (fs.existsSync(TICKET_DIR)) {
+        fs.mkdirSync(TICKET_DIR, { recursive: true });
+    }
 }
 
 function ensureTicketBackup(prefix = "auto", limit = 30) {
     return prefix === "auto"
         ? ensureAgpressDailyBackup(prefix, limit)
         : createAgpressBackup(prefix, limit);
+}
+
+function serializeJson(value: unknown) {
+    return JSON.stringify(value ?? null);
+}
+
+function parseJson<T>(raw: unknown, fallback: T): T {
+    if (typeof raw !== "string" || !raw.trim()) return fallback;
+    try {
+        return JSON.parse(raw) as T;
+    } catch {
+        return fallback;
+    }
+}
+
+function execScalarNumber(sql: string, params: unknown[] = []) {
+    const database = getSqliteDatabase();
+    const result = database.exec(sql, params);
+    if (!Array.isArray(result) || !result.length) return 0;
+    return Number(result[0]?.values?.[0]?.[0]) || 0;
+}
+
+function ensureTicketSupportSqliteSchema() {
+    const database = getSqliteDatabase();
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS ${TS_TICKETS_TABLE} (
+            id TEXT PRIMARY KEY,
+            year_key TEXT NOT NULL,
+            created_at TEXT,
+            updated_at TEXT,
+            payload_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_${TS_TICKETS_TABLE}_year
+            ON ${TS_TICKETS_TABLE}(year_key);
+
+        CREATE TABLE IF NOT EXISTS ${TS_CATEGORIES_TABLE} (
+            store_key TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL
+        );
+    `);
 }
 
 function getYearFromTicket(ticket: Partial<Ticket>) {
@@ -127,7 +176,28 @@ function listYearFiles() {
         .map((name) => path.join(TICKET_YEARS_DIR, name));
 }
 
-export function loadTicketStore(): TicketStore {
+function cleanupLegacyTicketFiles() {
+    if (CATEGORIES_PATH && fs.existsSync(CATEGORIES_PATH)) {
+        try {
+            fs.unlinkSync(CATEGORIES_PATH);
+        } catch {
+            // ignore cleanup failures
+        }
+    }
+    if (fs.existsSync(TICKET_YEARS_DIR)) {
+        fs.readdirSync(TICKET_YEARS_DIR)
+            .filter((name) => /^ticket-\d{4}\.json$/i.test(name))
+            .forEach((name) => {
+                try {
+                    fs.unlinkSync(path.join(TICKET_YEARS_DIR, name));
+                } catch {
+                    // ignore cleanup failures
+                }
+            });
+    }
+}
+
+function loadLegacyTicketStore(): TicketStore {
     ensureTicketDir();
     const tickets: Ticket[] = [];
     listYearFiles().forEach((filePath) => {
@@ -141,43 +211,7 @@ export function loadTicketStore(): TicketStore {
     };
 }
 
-export function saveTicketStore(store: TicketStore) {
-    ensureTicketDir();
-    ensureTicketBackup();
-    const normalizedTickets = Array.isArray(store?.tickets)
-        ? store.tickets.map(normalizeTicket)
-        : [];
-    const byYear = normalizedTickets.reduce<Record<string, Ticket[]>>((acc, ticket) => {
-        const year = getYearFromTicket(ticket);
-        if (!acc[year]) acc[year] = [];
-        acc[year].push(ticket);
-        return acc;
-    }, {});
-
-    Object.keys(byYear).forEach((year) => {
-        writeJsonFileAtomic(getYearFilePath(year), {
-            version: 1,
-            year: Number(year),
-            tickets: byYear[year],
-        });
-    });
-
-    const expected = new Set(
-        Object.keys(byYear).map((year) => `ticket-${year}.json`.toLowerCase()),
-    );
-    listYearFiles().forEach((filePath) => {
-        const name = path.basename(filePath).toLowerCase();
-        if (expected.has(name)) return;
-        fs.unlinkSync(filePath);
-    });
-
-    return {
-        version: 1,
-        tickets: normalizedTickets,
-    };
-}
-
-export function loadTicketCategories(): TicketCategories {
+function loadLegacyTicketCategories(): TicketCategories {
     ensureFolderFor(CATEGORIES_PATH);
     const fallback = {
         version: 1,
@@ -187,20 +221,140 @@ export function loadTicketCategories(): TicketCategories {
     return readJsonFile(CATEGORIES_PATH, fallback);
 }
 
-export function saveTicketCategories(payload: TicketCategories) {
-    ensureTicketBackup();
+function hasTicketSupportSqliteData() {
+    return (
+        execScalarNumber(`SELECT COUNT(*) FROM ${TS_TICKETS_TABLE}`) > 0 ||
+        execScalarNumber(`SELECT COUNT(*) FROM ${TS_CATEGORIES_TABLE}`) > 0
+    );
+}
+
+function saveTicketStoreToSqlite(store: TicketStore) {
+    const normalizedTickets = Array.isArray(store?.tickets)
+        ? store.tickets.map(normalizeTicket)
+        : [];
+    runSqliteTransaction((database) => {
+        database.run(`DELETE FROM ${TS_TICKETS_TABLE}`);
+        const statement = database.prepare(`
+            INSERT INTO ${TS_TICKETS_TABLE} (
+                id,
+                year_key,
+                created_at,
+                updated_at,
+                payload_json
+            ) VALUES (?, ?, ?, ?, ?)
+        `);
+        normalizedTickets.forEach((ticket, index) => {
+            const id = String(ticket.id || "").trim() || `ticket_${index}`;
+            statement.run([
+                id,
+                getYearFromTicket(ticket),
+                ticket.createdAt || null,
+                ticket.updatedAt || null,
+                serializeJson({ ...ticket, id }),
+            ]);
+        });
+        statement.free();
+    });
+}
+
+function loadTicketStoreFromSqlite(): TicketStore {
+    const database = getSqliteDatabase();
+    const rows = database.exec(`
+        SELECT payload_json
+        FROM ${TS_TICKETS_TABLE}
+        ORDER BY year_key ASC, COALESCE(created_at, updated_at, id) ASC, id ASC
+    `);
+    const tickets = (rows?.[0]?.values || [])
+        .map((row: unknown[]) => normalizeTicket(parseJson(row?.[0], {})))
+        .filter((ticket: Ticket) => !!ticket.id);
+    return {
+        version: 1,
+        tickets,
+    };
+}
+
+function saveTicketCategoriesToSqlite(payload: TicketCategories) {
     const normalized = {
         version: 1,
         issueTypes: Array.isArray(payload?.issueTypes) ? payload.issueTypes : [],
         areas: Array.isArray(payload?.areas) ? payload.areas : [],
     };
-    writeJsonFileAtomic(CATEGORIES_PATH, normalized);
+    runSqliteTransaction((database) => {
+        database.run(`DELETE FROM ${TS_CATEGORIES_TABLE}`);
+        database.run(
+            `INSERT INTO ${TS_CATEGORIES_TABLE} (store_key, payload_json) VALUES (?, ?)`,
+            ["categories", serializeJson(normalized)],
+        );
+    });
+    return normalized;
+}
+
+function loadTicketCategoriesFromSqlite(): TicketCategories {
+    const database = getSqliteDatabase();
+    const rows = database.exec(`
+        SELECT payload_json
+        FROM ${TS_CATEGORIES_TABLE}
+        WHERE store_key = 'categories'
+    `);
+    const fallback = {
+        version: 1,
+        issueTypes: ["Software", "Hardware", "Accessi", "Altro"],
+        areas: ["Produzione", "Uffici", "Magazzino", "IT"],
+    };
+    return parseJson(rows?.[0]?.values?.[0]?.[0], fallback);
+}
+
+export function initializeTicketSupportSqliteStore() {
+    ensureTicketSupportSqliteSchema();
+    if (!hasTicketSupportSqliteData()) {
+        saveTicketStoreToSqlite(loadLegacyTicketStore());
+        saveTicketCategoriesToSqlite(loadLegacyTicketCategories());
+    }
+    cleanupLegacyTicketFiles();
+}
+
+export function loadTicketStore(): TicketStore {
+    ensureTicketSupportSqliteSchema();
+    if (!hasTicketSupportSqliteData()) {
+        const legacy = loadLegacyTicketStore();
+        saveTicketStoreToSqlite(legacy);
+        saveTicketCategoriesToSqlite(loadLegacyTicketCategories());
+        cleanupLegacyTicketFiles();
+        return legacy;
+    }
+    return loadTicketStoreFromSqlite();
+}
+
+export function saveTicketStore(store: TicketStore) {
+    ensureTicketBackup();
+    ensureTicketSupportSqliteSchema();
+    saveTicketStoreToSqlite(store);
+    cleanupLegacyTicketFiles();
+    return loadTicketStoreFromSqlite();
+}
+
+export function loadTicketCategories(): TicketCategories {
+    ensureTicketSupportSqliteSchema();
+    if (!hasTicketSupportSqliteData()) {
+        const legacy = loadLegacyTicketCategories();
+        saveTicketCategoriesToSqlite(legacy);
+        cleanupLegacyTicketFiles();
+        return legacy;
+    }
+    return loadTicketCategoriesFromSqlite();
+}
+
+export function saveTicketCategories(payload: TicketCategories) {
+    ensureTicketBackup();
+    ensureTicketSupportSqliteSchema();
+    const normalized = saveTicketCategoriesToSqlite(payload);
+    cleanupLegacyTicketFiles();
     return normalized;
 }
 
 export function listTicketBackups() {
     return listAgpressBackups().filter((entry) =>
-        backupContains("AyPi Ticket", entry.name),
+        backupContains(DB_RELATIVE_PATH, entry.name),
     );
 }
 
@@ -214,17 +368,12 @@ export function restoreTicketBackup(name: string) {
         throw new Error("Backup name missing");
     }
     const backupDir = resolveAgpressBackupDir(safeName);
-    const agpressDir = path.join(backupDir, "AyPi Ticket");
-    const legacyDir =
-        fs.existsSync(path.join(backupDir, "Ticket Years")) ||
-        fs.existsSync(path.join(backupDir, "ticket-categories.json"))
-            ? backupDir
-            : "";
-    const sourceDir = fs.existsSync(agpressDir) ? agpressDir : legacyDir;
-    if (!fs.existsSync(sourceDir)) {
+    const dbInBackup = path.join(backupDir, DB_RELATIVE_PATH);
+    if (!fs.existsSync(dbInBackup)) {
         throw new Error("Backup not found");
     }
-    replaceDirectoryContents(sourceDir, TICKET_DIR);
+    ensureDir(path.dirname(backendConfig.database.path));
+    fs.copyFileSync(dbInBackup, backendConfig.database.path);
     return {
         ok: true,
         restored: safeName,

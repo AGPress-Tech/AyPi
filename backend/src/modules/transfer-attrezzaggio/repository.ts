@@ -2,14 +2,58 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { backendConfig } from "../../config";
-import { ensureFolderFor, readJsonFile, writeJsonFileAtomic } from "../../shared/storage/json-files";
+import { readJsonFile } from "../../shared/storage/json-files";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
+import {
+    getSqliteDatabase,
+    runSqliteTransaction,
+} from "../../shared/db/sqlite";
 
 const TRANSFER_DIR = backendConfig.modules.transferAttrezzaggio.dir;
 const TRANSFER_ATTACHMENTS_DIR = path.join(TRANSFER_DIR, "_attachments");
+const TRANSFER_ITEMS_TABLE = "transfer_items";
 
 function ensureTransferBackup() {
     return ensureAgpressDailyBackup("auto", 30);
+}
+
+function serializeJson(value: unknown) {
+    return JSON.stringify(value ?? null);
+}
+
+function parseJson<T>(raw: unknown, fallback: T): T {
+    if (typeof raw !== "string" || !raw.trim()) return fallback;
+    try {
+        return JSON.parse(raw) as T;
+    } catch {
+        return fallback;
+    }
+}
+
+function execScalarNumber(sql: string, params: unknown[] = []) {
+    const database = getSqliteDatabase();
+    const result = database.exec(sql, params);
+    if (!Array.isArray(result) || !result.length) return 0;
+    return Number(result[0]?.values?.[0]?.[0]) || 0;
+}
+
+function ensureTransferSqliteSchema() {
+    const database = getSqliteDatabase();
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS ${TRANSFER_ITEMS_TABLE} (
+            code TEXT PRIMARY KEY,
+            codice_articolo TEXT,
+            fase TEXT,
+            codice_macchina TEXT,
+            metodo_variante TEXT,
+            updated_at TEXT,
+            payload_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_codice_articolo
+            ON ${TRANSFER_ITEMS_TABLE}(codice_articolo);
+        CREATE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_updated_at
+            ON ${TRANSFER_ITEMS_TABLE}(updated_at);
+    `);
 }
 
 function sanitizeFileName(value: string) {
@@ -23,6 +67,19 @@ function sanitizeFileName(value: string) {
 function resolveTransferFilePath(code: string) {
     const safeName = sanitizeFileName(code);
     return path.join(TRANSFER_DIR, `${safeName}.json`);
+}
+
+function cleanupLegacyTransferJsonFiles() {
+    if (!fs.existsSync(TRANSFER_DIR)) return;
+    fs.readdirSync(TRANSFER_DIR)
+        .filter((name) => name.toLowerCase().endsWith(".json"))
+        .forEach((name) => {
+            try {
+                fs.unlinkSync(path.join(TRANSFER_DIR, name));
+            } catch {
+                // ignore cleanup failures
+            }
+        });
 }
 
 function normalizeAttachmentMeta(items: any[]) {
@@ -171,7 +228,7 @@ export function normalizeTransferItem(raw: any) {
     };
 }
 
-export function listTransferItems() {
+function loadLegacyTransferItems() {
     if (!fs.existsSync(TRANSFER_DIR)) {
         fs.mkdirSync(TRANSFER_DIR, { recursive: true });
         return [];
@@ -211,13 +268,125 @@ export function listTransferItems() {
         .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
 }
 
-export function loadTransferItem(code: string) {
+function loadLegacyTransferItem(code: string) {
     const filePath = resolveTransferFilePath(code);
     if (!fs.existsSync(filePath)) return null;
     return normalizeTransferItem(readJsonFile(filePath, {}));
 }
 
+function hasTransferSqliteData() {
+    return execScalarNumber(`SELECT COUNT(*) FROM ${TRANSFER_ITEMS_TABLE}`) > 0;
+}
+
+function saveTransferItemsToSqlite(items: any[]) {
+    runSqliteTransaction((database) => {
+        database.run(`DELETE FROM ${TRANSFER_ITEMS_TABLE}`);
+        const statement = database.prepare(`
+            INSERT INTO ${TRANSFER_ITEMS_TABLE} (
+                code,
+                codice_articolo,
+                fase,
+                codice_macchina,
+                metodo_variante,
+                updated_at,
+                payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        (Array.isArray(items) ? items : []).forEach((item) => {
+            const normalized = normalizeTransferItem(item);
+            if (!normalized.code) return;
+            statement.run([
+                normalized.code,
+                normalized.codiceArticolo || null,
+                normalized.fase || null,
+                normalized.codiceMacchina || null,
+                normalized.metodoVariante || null,
+                normalized.updatedAt || null,
+                serializeJson(normalized),
+            ]);
+        });
+        statement.free();
+    });
+}
+
+function loadTransferItemsFromSqlite() {
+    const database = getSqliteDatabase();
+    const rows = database.exec(`
+        SELECT payload_json
+        FROM ${TRANSFER_ITEMS_TABLE}
+        ORDER BY COALESCE(updated_at, code) DESC, code ASC
+    `);
+    return (rows?.[0]?.values || []).map((row: unknown[]) => {
+        const item = normalizeTransferItem(parseJson(row?.[0], {}));
+        const parts = parseCode(item.code);
+        return {
+            ...item,
+            codiceArticolo: item.codiceArticolo || parts.codiceArticolo,
+            fase: item.fase || parts.fase,
+            codiceMacchina: item.codiceMacchina || parts.codiceMacchina,
+            metodo: item.metodoVariante || parts.metodo,
+            utensiliCount: Array.isArray(item.utensili) ? item.utensili.length : 0,
+            attachmentsCount: Array.isArray(item.attachments) ? item.attachments.length : 0,
+            utensiliDescrizioni: Array.isArray(item.utensili)
+                ? item.utensili
+                      .map((row: any) => String(row.descrizione || "").trim())
+                      .filter(Boolean)
+                : [],
+            utensiliCol1: Array.isArray(item.utensili)
+                ? item.utensili
+                      .map((row: any) => String(row.col1 || "").trim())
+                      .filter(Boolean)
+                : [],
+        };
+    });
+}
+
+function loadTransferItemFromSqlite(code: string) {
+    const database = getSqliteDatabase();
+    const rows = database.exec(
+        `SELECT payload_json FROM ${TRANSFER_ITEMS_TABLE} WHERE code = ?`,
+        [String(code || "").trim()],
+    );
+    const raw = rows?.[0]?.values?.[0]?.[0];
+    if (!raw) return null;
+    return normalizeTransferItem(parseJson(raw, {}));
+}
+
+export function initializeTransferSqliteStore() {
+    ensureTransferSqliteSchema();
+    if (!hasTransferSqliteData()) {
+        saveTransferItemsToSqlite(loadLegacyTransferItems());
+    }
+    cleanupLegacyTransferJsonFiles();
+}
+
+export function listTransferItems() {
+    ensureTransferSqliteSchema();
+    if (!hasTransferSqliteData()) {
+        const legacy = loadLegacyTransferItems();
+        saveTransferItemsToSqlite(legacy);
+        cleanupLegacyTransferJsonFiles();
+        return legacy;
+    }
+    return loadTransferItemsFromSqlite();
+}
+
+export function loadTransferItem(code: string) {
+    ensureTransferSqliteSchema();
+    if (!hasTransferSqliteData()) {
+        const legacy = loadLegacyTransferItem(code);
+        if (legacy) {
+            saveTransferItemsToSqlite(loadLegacyTransferItems());
+            cleanupLegacyTransferJsonFiles();
+        }
+        return legacy;
+    }
+    return loadTransferItemFromSqlite(code);
+}
+
 export function saveTransferItem(payload: any) {
+    ensureTransferSqliteSchema();
+    ensureTransferBackup();
     const normalized = normalizeTransferItem(payload);
     const previousCode = String(payload?.previousCode || "").trim();
     const current = normalized.code ? loadTransferItem(normalized.code) : null;
@@ -233,30 +402,34 @@ export function saveTransferItem(payload: any) {
         ...normalized,
         attachments: [...retainedAttachments, ...addedAttachments],
         newAttachments: [],
-        createdAt: normalized.createdAt || now,
+        createdAt: normalized.createdAt || current?.createdAt || now,
         updatedAt: now,
     };
-    const filePath = resolveTransferFilePath(next.code);
-    ensureFolderFor(filePath);
-    ensureTransferBackup();
-    writeJsonFileAtomic(filePath, next);
-    if (previousCode && previousCode !== next.code) {
-        const previousPath = resolveTransferFilePath(previousCode);
-        if (fs.existsSync(previousPath)) {
-            fs.unlinkSync(previousPath);
-        }
-    }
-    deleteAttachmentFiles(removedAttachments);
+
+    const items = hasTransferSqliteData()
+        ? loadTransferItemsFromSqlite().map((item) => normalizeTransferItem(item))
+        : loadLegacyTransferItems().map((item) => normalizeTransferItem(item));
+    const filtered = items.filter(
+        (item) => item.code !== next.code && (!previousCode || item.code !== previousCode),
+    );
+    filtered.push(next);
+    saveTransferItemsToSqlite(filtered);
+    cleanupLegacyTransferJsonFiles();
     return next;
 }
 
 export function deleteTransferItem(code: string) {
-    const filePath = resolveTransferFilePath(code);
-    if (!fs.existsSync(filePath)) return false;
+    ensureTransferSqliteSchema();
     const current = loadTransferItem(code);
-    ensureTransferBackup();
-    fs.unlinkSync(filePath);
+    if (!current) return false;
+    if (hasTransferSqliteData()) {
+        const items = loadTransferItemsFromSqlite()
+            .map((item) => normalizeTransferItem(item))
+            .filter((item) => item.code !== code);
+        saveTransferItemsToSqlite(items);
+    }
     deleteAttachmentFiles(current?.attachments);
+    cleanupLegacyTransferJsonFiles();
     return true;
 }
 

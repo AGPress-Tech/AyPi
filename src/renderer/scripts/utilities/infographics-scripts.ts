@@ -114,7 +114,7 @@ async function reloadStats(force: boolean) {
         owner: "AGPress-Tech",
         repo: "AyPi",
         persistPath:
-            "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\git-stats.json",
+            "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\git-stats.json",
         maxCacheMinutes: 10,
         force,
     });
@@ -461,7 +461,7 @@ async function openGitflowModal(force: boolean) {
         maxCommits: 5000,
         maxCacheMinutes: 20,
         persistPath:
-            "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\gitflow.json",
+            "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\gitflow.json",
     });
     if (
         !payload ||

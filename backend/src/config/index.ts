@@ -51,6 +51,10 @@ const backendLogDir = getEnvString(
     "AYPI_LOG_DIR",
     path.join(feriePermessiGeneralDir, "log"),
 );
+const databasePath = getEnvString(
+    "AYPI_DB_PATH",
+    path.join(feriePermessiGeneralDir, "data", "aypi.db"),
+);
 
 export const backendConfig = {
     profile: isDevProfile ? "dev" : "server",
@@ -62,6 +66,9 @@ export const backendConfig = {
     ),
     logging: {
         dir: backendLogDir,
+    },
+    database: {
+        path: databasePath,
     },
     modules: {
         feriePermessi: {
