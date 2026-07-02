@@ -3,7 +3,6 @@
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
 import type { OpenDialogOptions } from "electron";
 import path from "path";
-import { pathToFileURL } from "url";
 import { exec, execSync, execFileSync } from "child_process";
 import http from "http";
 import https from "https";
@@ -1900,7 +1899,6 @@ let ticketSupportAdminWindow: BrowserWindow | null = null;
 let assigneesManagerWindow: BrowserWindow | null = null;
 let adminManagerWindow: BrowserWindow | null = null;
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
-let attrezzaggioPdfPreviewWindow: BrowserWindow | null = null;
 let attrezzaggioPdfPreviewPath: string | null = null;
 let productManagerSession: Record<string, unknown> | null = null;
 let productManagerForceLogout = false;
@@ -1932,6 +1930,27 @@ function sanitizePreviewFileName(name: string) {
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 80) || "scheda-attrezzaggio";
+}
+
+function cleanupOldAttrezzaggioPdfPreviewFiles(maxAgeMs = 24 * 60 * 60 * 1000) {
+    const tempDir = getAttrezzaggioPdfPreviewDir();
+    if (!fs.existsSync(tempDir)) return;
+    const now = Date.now();
+    for (const entry of fs.readdirSync(tempDir, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        const filePath = path.join(tempDir, entry.name);
+        if (attrezzaggioPdfPreviewPath && filePath === attrezzaggioPdfPreviewPath) {
+            continue;
+        }
+        try {
+            const stats = fs.statSync(filePath);
+            if (now - stats.mtimeMs > maxAgeMs) {
+                fs.unlinkSync(filePath);
+            }
+        } catch (err) {
+            log.warn("[attrezzaggio-pdf] impossibile pulire file temp:", filePath, err);
+        }
+    }
 }
 
 async function waitForAttrezzaggioPreviewAssets(win: BrowserWindow) {
@@ -1972,6 +1991,7 @@ async function createAttrezzaggioPreviewPdf(payload: {
 }) {
     const tempDir = getAttrezzaggioPdfPreviewDir();
     fs.mkdirSync(tempDir, { recursive: true });
+    cleanupOldAttrezzaggioPdfPreviewFiles();
 
     const renderWindow = new BrowserWindow({
         show: false,
@@ -2003,49 +2023,15 @@ async function createAttrezzaggioPreviewPdf(payload: {
     }
 }
 
-async function openAttrezzaggioPdfPreviewWindow(
-    pdfPath: string,
-    parentWindow?: BrowserWindow | null,
-) {
-    const pdfUrl = pathToFileURL(pdfPath).toString();
+async function openAttrezzaggioPdfPreviewWindow(pdfPath: string) {
     const previousPath = attrezzaggioPdfPreviewPath;
     attrezzaggioPdfPreviewPath = pdfPath;
-
-    if (isWindowAlive(attrezzaggioPdfPreviewWindow)) {
-        await attrezzaggioPdfPreviewWindow.loadURL(pdfUrl);
-        showWindow(attrezzaggioPdfPreviewWindow);
-        if (previousPath && previousPath !== pdfPath) {
-            cleanupAttrezzaggioPdfPreviewFile(previousPath);
-        }
-        return;
-    }
-
-    attrezzaggioPdfPreviewWindow = new BrowserWindow({
-        width: 1200,
-        height: 900,
-        parent: isWindowAlive(parentWindow) ? parentWindow : undefined,
-        modal: false,
-        autoHideMenuBar: true,
-        webPreferences: WINDOW_WEB_PREFERENCES,
-        icon: APP_ICON_PATH,
-    });
-
-    attrezzaggioPdfPreviewWindow.once("ready-to-show", () => {
-        if (isWindowAlive(attrezzaggioPdfPreviewWindow)) {
-            showWindow(attrezzaggioPdfPreviewWindow);
-        }
-    });
-
-    attrezzaggioPdfPreviewWindow.on("closed", () => {
-        const filePath = attrezzaggioPdfPreviewPath;
-        attrezzaggioPdfPreviewWindow = null;
-        attrezzaggioPdfPreviewPath = null;
-        cleanupAttrezzaggioPdfPreviewFile(filePath);
-    });
-
-    await attrezzaggioPdfPreviewWindow.loadURL(pdfUrl);
     if (previousPath && previousPath !== pdfPath) {
         cleanupAttrezzaggioPdfPreviewFile(previousPath);
+    }
+    const openResult = await shell.openPath(pdfPath);
+    if (openResult) {
+        throw new Error(openResult);
     }
 }
 
@@ -3753,10 +3739,7 @@ function setupFileManager(mainWindow) {
                 pageSize: payload?.pageSize === "A3" ? "A3" : "A4",
                 landscape: !!payload?.landscape,
             });
-            await openAttrezzaggioPdfPreviewWindow(
-                pdfPath,
-                BrowserWindow.fromWebContents(event.sender),
-            );
+            await openAttrezzaggioPdfPreviewWindow(pdfPath);
             return { ok: true };
         } catch (err) {
             log.error("[attrezzaggio-pdf] errore anteprima:", err);
