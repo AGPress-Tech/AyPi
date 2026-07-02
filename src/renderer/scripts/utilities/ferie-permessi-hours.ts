@@ -3,6 +3,7 @@ require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import path from "path";
 import fs from "fs";
+import { requestBackend } from "../shared/backend-client";
 
 const bootRequire = (modulePath) => {
     try {
@@ -38,6 +39,40 @@ try {
     XLSX = require("xlsx");
 } catch (err) {
     console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
+}
+
+async function loadAssigneesData() {
+    try {
+        const payload = await requestBackend("/api/shared/assignees");
+        return {
+            groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
+            emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+        };
+    } catch (err) {
+        return loadAssigneeOptions();
+    }
+}
+
+async function loadHoursPayload(groups) {
+    try {
+        const payload = await requestBackend("/api/ferie-permessi/payload");
+        return normalizeBalances(payload || { requests: [] }, groups || {}).payload;
+    } catch (err) {
+        const raw = loadPayload();
+        return normalizeBalances(raw, groups || {}).payload;
+    }
+}
+
+async function saveHoursPayload(payload) {
+    try {
+        await requestBackend("/api/ferie-permessi/payload", {
+            method: "PUT",
+            body: payload,
+        });
+        return true;
+    } catch (err) {
+        return savePayload(payload);
+    }
 }
 
 function loadThemeSetting() {
@@ -142,23 +177,23 @@ function renderTable(payload, assigneeGroups) {
     });
 }
 
-function loadAndRender() {
-    const assigneesData = loadAssigneeOptions();
+async function loadAndRender() {
+    const assigneesData = await loadAssigneesData();
     const groups = assigneesData.groups || {};
-    const raw = loadPayload();
+    const raw = await loadHoursPayload(groups);
     const normalized = normalizeBalances(raw, groups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
     if (normalized.changed || deductions.changed) {
-        savePayload(deductions.payload);
+        await saveHoursPayload(deductions.payload);
     }
     renderTable(deductions.payload, groups);
     setStatus("Dati aggiornati.");
 }
 
-function saveChanges() {
-    const assigneesData = loadAssigneeOptions();
+async function saveChanges() {
+    const assigneesData = await loadAssigneesData();
     const groups = assigneesData.groups || {};
-    const raw = loadPayload();
+    const raw = await loadHoursPayload(groups);
     const normalized = normalizeBalances(raw, groups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
     const payload = deductions.payload;
@@ -187,7 +222,7 @@ function saveChanges() {
         }
     });
 
-    if (!savePayload(payload)) {
+    if (!(await saveHoursPayload(payload))) {
         ipcRenderer.invoke("show-message-box", {
             type: "error",
             message: "Impossibile salvare le ore.",
@@ -209,13 +244,13 @@ async function exportExcel() {
         });
         return;
     }
-    const assigneesData = loadAssigneeOptions();
+    const assigneesData = await loadAssigneesData();
     const groups = assigneesData.groups || {};
-    const raw = loadPayload();
+    const raw = await loadHoursPayload(groups);
     const normalized = normalizeBalances(raw, groups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
     if (normalized.changed || deductions.changed) {
-        savePayload(deductions.payload);
+        await saveHoursPayload(deductions.payload);
     }
 
     const balances = deductions.payload.balances || {};
@@ -278,10 +313,10 @@ window.addEventListener("DOMContentLoaded", () => {
     const saveBtn = document.getElementById("fp-hours-save");
     const closeBtn = document.getElementById("fp-hours-close");
 
-    if (refreshBtn) refreshBtn.addEventListener("click", loadAndRender);
-    if (exportBtn) exportBtn.addEventListener("click", exportExcel);
-    if (saveBtn) saveBtn.addEventListener("click", saveChanges);
+    if (refreshBtn) refreshBtn.addEventListener("click", () => void loadAndRender());
+    if (exportBtn) exportBtn.addEventListener("click", () => void exportExcel());
+    if (saveBtn) saveBtn.addEventListener("click", () => void saveChanges());
     if (closeBtn) closeBtn.addEventListener("click", () => window.close());
 
-    loadAndRender();
+    void loadAndRender();
 });
