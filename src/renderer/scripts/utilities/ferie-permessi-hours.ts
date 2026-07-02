@@ -20,15 +20,10 @@ const bootRequire = (modulePath) => {
 
 const scriptsDir = path.join(__dirname, "..", "..", "scripts");
 const fpBaseDir = path.join(scriptsDir, "utilities", "ferie-permessi");
-const { loadAssigneeOptions } = bootRequire(
-    path.join(fpBaseDir, "services", "assignees"),
-);
 const {
     normalizeBalances,
     applyMissingRequestDeductions,
     listEmployees,
-    loadPayload,
-    savePayload,
     getMonthKey,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { THEME_STORAGE_KEY } = bootRequire(
@@ -42,37 +37,24 @@ try {
 }
 
 async function loadAssigneesData() {
-    try {
-        const payload = await requestBackend("/api/shared/assignees");
-        return {
-            groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
-            emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
-        };
-    } catch (err) {
-        return loadAssigneeOptions();
-    }
+    const payload = await requestBackend("/api/shared/assignees");
+    return {
+        groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
+        emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+    };
 }
 
 async function loadHoursPayload(groups) {
-    try {
-        const payload = await requestBackend("/api/ferie-permessi/payload");
-        return normalizeBalances(payload || { requests: [] }, groups || {}).payload;
-    } catch (err) {
-        const raw = loadPayload();
-        return normalizeBalances(raw, groups || {}).payload;
-    }
+    const payload = await requestBackend("/api/ferie-permessi/payload");
+    return normalizeBalances(payload || { requests: [] }, groups || {}).payload;
 }
 
 async function saveHoursPayload(payload) {
-    try {
-        await requestBackend("/api/ferie-permessi/payload", {
-            method: "PUT",
-            body: payload,
-        });
-        return true;
-    } catch (err) {
-        return savePayload(payload);
-    }
+    await requestBackend("/api/ferie-permessi/payload", {
+        method: "PUT",
+        body: payload,
+    });
+    return true;
 }
 
 function loadThemeSetting() {

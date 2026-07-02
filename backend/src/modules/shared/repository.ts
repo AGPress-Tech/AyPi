@@ -40,23 +40,109 @@ const LEGACY_ASSIGNEES_PATH = path.join(
     backendConfig.modules.feriePermessi.baseDir,
     "amministrazione-assignees.json",
 );
+const CALENDAR_ACCESS_CONFIG_PATH = path.join(
+    backendConfig.modules.feriePermessi.calendarDir,
+    "config-calendar.json",
+);
+const LEGACY_CALENDAR_ACCESS_CONFIG_PATH = path.join(
+    backendConfig.modules.feriePermessi.baseDir,
+    "config-calendar.json",
+);
+const OTP_MAIL_PATH = path.join(
+    backendConfig.modules.feriePermessi.generalDir,
+    "data",
+    "otp-mail.json",
+);
+const LEGACY_OTP_MAIL_PATHS = [
+    path.join(backendConfig.modules.feriePermessi.baseDir, "otp-mail.json"),
+    path.join(backendConfig.modules.feriePermessi.generalDir, "otp-mail.json"),
+];
 const SHARED_ADMINS_TABLE = "shared_admins";
 const SHARED_ASSIGNEES_TABLE = "shared_assignees";
+const SHARED_SETTINGS_TABLE = "shared_settings";
+const SHARED_SETTING_ACCESS_CONFIG = "calendar_access_config";
+const SHARED_SETTING_OTP_MAIL = "otp_mail";
+
+export type SharedAccessConfig = {
+    version: number;
+    operations: {
+        create: Record<string, boolean>;
+        pending: {
+            access: boolean;
+            approve: boolean;
+            reject: boolean;
+        };
+        editApproved: boolean;
+        deleteApproved: boolean;
+        filters: Record<string, boolean>;
+        manageAccess: boolean;
+        daysAccess: boolean;
+        export: boolean;
+    };
+};
+
+export type SharedOtpMailConfig = {
+    host: string;
+    user: string;
+    pass: string;
+    port?: number;
+    secure?: boolean;
+    from?: string;
+};
+
+const DEFAULT_ACCESS_CONFIG: SharedAccessConfig = {
+    version: 1,
+    operations: {
+        create: {
+            ferie: false,
+            permesso: false,
+            straordinari: false,
+            mutua: true,
+            speciale: true,
+            retribuito: true,
+        },
+        pending: {
+            access: true,
+            approve: true,
+            reject: true,
+        },
+        editApproved: true,
+        deleteApproved: true,
+        filters: {
+            ferie: false,
+            permesso: false,
+            straordinari: true,
+            mutua: true,
+            speciale: true,
+            retribuito: true,
+        },
+        manageAccess: true,
+        daysAccess: true,
+        export: true,
+    },
+};
 function ensureGeneralBackup() {
     return ensureAgpressDailyBackup("auto", 30);
 }
 
 function cleanupLegacySharedFiles() {
-    [ADMINS_PATH, LEGACY_ADMINS_PATH, ASSIGNEES_PATH, LEGACY_ASSIGNEES_PATH].forEach(
-        (targetPath) => {
-            if (!targetPath || !fs.existsSync(targetPath)) return;
-            try {
-                fs.unlinkSync(targetPath);
-            } catch {
-                // ignore cleanup failures
-            }
-        },
-    );
+    [
+        ADMINS_PATH,
+        LEGACY_ADMINS_PATH,
+        ASSIGNEES_PATH,
+        LEGACY_ASSIGNEES_PATH,
+        CALENDAR_ACCESS_CONFIG_PATH,
+        LEGACY_CALENDAR_ACCESS_CONFIG_PATH,
+        OTP_MAIL_PATH,
+        ...LEGACY_OTP_MAIL_PATHS,
+    ].forEach((targetPath) => {
+        if (!targetPath || !fs.existsSync(targetPath)) return;
+        try {
+            fs.unlinkSync(targetPath);
+        } catch {
+            // ignore cleanup failures
+        }
+    });
 }
 
 function serializeJson(value: unknown) {
@@ -90,7 +176,169 @@ function ensureSharedSqliteSchema() {
             store_key TEXT PRIMARY KEY,
             payload_json TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS ${SHARED_SETTINGS_TABLE} (
+            store_key TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL
+        );
     `);
+}
+
+function toBool(value: unknown, fallback: boolean) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") {
+        const trimmed = value.trim().toLowerCase();
+        if (
+            trimmed === "true" ||
+            trimmed === "1" ||
+            trimmed === "on" ||
+            trimmed === "si"
+        ) {
+            return true;
+        }
+        if (
+            trimmed === "false" ||
+            trimmed === "0" ||
+            trimmed === "off" ||
+            trimmed === "no"
+        ) {
+            return false;
+        }
+    }
+    return fallback;
+}
+
+export function normalizeAccessConfig(raw: unknown): SharedAccessConfig {
+    const base: SharedAccessConfig = JSON.parse(
+        JSON.stringify(DEFAULT_ACCESS_CONFIG),
+    );
+    const src =
+        raw && typeof raw === "object" ? (raw as Partial<SharedAccessConfig>) : {};
+    const ops =
+        src.operations && typeof src.operations === "object"
+            ? (src.operations as SharedAccessConfig["operations"])
+            : ({} as SharedAccessConfig["operations"]);
+    const create = (
+        ops.create && typeof ops.create === "object" ? ops.create : {}
+    ) as SharedAccessConfig["operations"]["create"];
+    const pending = (
+        ops.pending && typeof ops.pending === "object" ? ops.pending : {}
+    ) as SharedAccessConfig["operations"]["pending"];
+    const filters = (
+        ops.filters && typeof ops.filters === "object" ? ops.filters : {}
+    ) as SharedAccessConfig["operations"]["filters"];
+
+    base.operations.create.ferie = toBool(
+        create.ferie,
+        base.operations.create.ferie,
+    );
+    base.operations.create.permesso = toBool(
+        create.permesso,
+        base.operations.create.permesso,
+    );
+    base.operations.create.straordinari = toBool(
+        create.straordinari,
+        base.operations.create.straordinari,
+    );
+    base.operations.create.mutua = toBool(
+        create.mutua,
+        base.operations.create.mutua,
+    );
+    base.operations.create.speciale = toBool(
+        create.speciale,
+        base.operations.create.speciale,
+    );
+    base.operations.create.retribuito = toBool(
+        create.retribuito,
+        base.operations.create.retribuito,
+    );
+    base.operations.pending.access = toBool(
+        pending.access,
+        base.operations.pending.access,
+    );
+    base.operations.pending.approve = toBool(
+        pending.approve,
+        base.operations.pending.approve,
+    );
+    base.operations.pending.reject = toBool(
+        pending.reject,
+        base.operations.pending.reject,
+    );
+    base.operations.editApproved = toBool(
+        ops.editApproved,
+        base.operations.editApproved,
+    );
+    base.operations.deleteApproved = toBool(
+        ops.deleteApproved,
+        base.operations.deleteApproved,
+    );
+    base.operations.filters.ferie = toBool(
+        filters.ferie,
+        base.operations.filters.ferie,
+    );
+    base.operations.filters.permesso = toBool(
+        filters.permesso,
+        base.operations.filters.permesso,
+    );
+    base.operations.filters.straordinari = toBool(
+        filters.straordinari,
+        base.operations.filters.straordinari,
+    );
+    base.operations.filters.mutua = toBool(
+        filters.mutua,
+        base.operations.filters.mutua,
+    );
+    base.operations.filters.speciale = toBool(
+        filters.speciale,
+        base.operations.filters.speciale,
+    );
+    base.operations.filters.retribuito = toBool(
+        filters.retribuito,
+        base.operations.filters.retribuito,
+    );
+    base.operations.manageAccess = toBool(
+        ops.manageAccess,
+        base.operations.manageAccess,
+    );
+    base.operations.daysAccess = toBool(
+        ops.daysAccess,
+        base.operations.daysAccess,
+    );
+    base.operations.export = toBool(ops.export, base.operations.export);
+    return base;
+}
+
+export function normalizeOtpMailConfig(payload: unknown): SharedOtpMailConfig {
+    if (!payload || typeof payload !== "object") {
+        throw new Error("Config mail non valida.");
+    }
+    const obj = payload as Record<string, unknown>;
+    const host = String(obj.host || "").trim();
+    const user = String(obj.user || "").trim();
+    const pass = String(obj.pass || "").trim();
+    const from = String(obj.from || "").trim();
+    const portRaw = obj.port;
+    const port =
+        portRaw !== undefined &&
+        portRaw !== null &&
+        String(portRaw).trim() !== ""
+            ? Number(portRaw)
+            : undefined;
+    const secure = !!obj.secure;
+    if (!host || !user || !pass) {
+        throw new Error("Compila host, user e password del servizio email.");
+    }
+    if (port !== undefined && (!Number.isFinite(port) || port <= 0)) {
+        throw new Error("Porta non valida.");
+    }
+    return {
+        host,
+        user,
+        pass,
+        port: port !== undefined ? port : undefined,
+        secure,
+        from: from || undefined,
+    };
 }
 
 function parseAdminsFromPath(targetPath: string): SharedAdminEntry[] {
@@ -374,6 +622,70 @@ function hasSharedAssigneesSqliteData() {
     return execScalarNumber(`SELECT COUNT(*) FROM ${SHARED_ASSIGNEES_TABLE}`) > 0;
 }
 
+function loadSharedSettingFromSqlite<T>(storeKey: string, fallback: T): T {
+    const database = getSqliteDatabase();
+    const rows = database.exec(
+        `
+        SELECT payload_json
+        FROM ${SHARED_SETTINGS_TABLE}
+        WHERE store_key = ?
+    `,
+        [storeKey],
+    );
+    return parseJson(rows?.[0]?.values?.[0]?.[0], fallback);
+}
+
+function saveSharedSettingToSqlite(storeKey: string, payload: unknown) {
+    runSqliteTransaction((database) => {
+        database.run(
+            `
+            INSERT INTO ${SHARED_SETTINGS_TABLE} (store_key, payload_json)
+            VALUES (?, ?)
+            ON CONFLICT(store_key) DO UPDATE SET payload_json = excluded.payload_json
+        `,
+            [storeKey, serializeJson(payload)],
+        );
+    });
+}
+
+function hasSharedSettingSqliteData(storeKey: string) {
+    return (
+        execScalarNumber(
+            `SELECT COUNT(*) FROM ${SHARED_SETTINGS_TABLE} WHERE store_key = ?`,
+            [storeKey],
+        ) > 0
+    );
+}
+
+function loadLegacyCalendarAccessConfig(): SharedAccessConfig {
+    const candidates = [
+        CALENDAR_ACCESS_CONFIG_PATH,
+        LEGACY_CALENDAR_ACCESS_CONFIG_PATH,
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+        if (!fs.existsSync(candidate)) continue;
+        try {
+            return normalizeAccessConfig(readJsonFile(candidate, null));
+        } catch {
+            // continue
+        }
+    }
+    return normalizeAccessConfig(null);
+}
+
+function loadLegacyOtpMailConfig(): SharedOtpMailConfig | null {
+    const candidates = [OTP_MAIL_PATH, ...LEGACY_OTP_MAIL_PATHS].filter(Boolean);
+    for (const candidate of candidates) {
+        if (!fs.existsSync(candidate)) continue;
+        try {
+            return normalizeOtpMailConfig(readJsonFile(candidate, null));
+        } catch {
+            // continue
+        }
+    }
+    return null;
+}
+
 export function loadAssigneeOptions(): SharedAssigneesPayload {
     ensureSharedSqliteSchema();
     if (!hasSharedAssigneesSqliteData()) {
@@ -397,6 +709,54 @@ export async function saveAssigneeOptions(payload: {
     cleanupLegacySharedFiles();
 }
 
+export function loadCalendarAccessConfig(): SharedAccessConfig {
+    ensureSharedSqliteSchema();
+    if (!hasSharedSettingSqliteData(SHARED_SETTING_ACCESS_CONFIG)) {
+        const legacy = loadLegacyCalendarAccessConfig();
+        saveSharedSettingToSqlite(SHARED_SETTING_ACCESS_CONFIG, legacy);
+        return legacy;
+    }
+    return normalizeAccessConfig(
+        loadSharedSettingFromSqlite(
+            SHARED_SETTING_ACCESS_CONFIG,
+            DEFAULT_ACCESS_CONFIG,
+        ),
+    );
+}
+
+export async function saveCalendarAccessConfig(config: unknown) {
+    ensureGeneralBackup();
+    const normalized = normalizeAccessConfig(config);
+    saveSharedSettingToSqlite(SHARED_SETTING_ACCESS_CONFIG, normalized);
+    cleanupLegacySharedFiles();
+    return normalized;
+}
+
+export function loadOtpMailConfig(): SharedOtpMailConfig | null {
+    ensureSharedSqliteSchema();
+    if (!hasSharedSettingSqliteData(SHARED_SETTING_OTP_MAIL)) {
+        const legacy = loadLegacyOtpMailConfig();
+        if (legacy) {
+            saveSharedSettingToSqlite(SHARED_SETTING_OTP_MAIL, legacy);
+            return legacy;
+        }
+        return null;
+    }
+    const payload = loadSharedSettingFromSqlite<SharedOtpMailConfig | null>(
+        SHARED_SETTING_OTP_MAIL,
+        null,
+    );
+    return payload ? normalizeOtpMailConfig(payload) : null;
+}
+
+export async function saveOtpMailConfig(config: unknown) {
+    ensureGeneralBackup();
+    const normalized = normalizeOtpMailConfig(config);
+    saveSharedSettingToSqlite(SHARED_SETTING_OTP_MAIL, normalized);
+    cleanupLegacySharedFiles();
+    return normalized;
+}
+
 export function initializeSharedSqliteStore() {
     ensureSharedSqliteSchema();
     if (!hasSharedAdminsSqliteData()) {
@@ -404,6 +764,18 @@ export function initializeSharedSqliteStore() {
     }
     if (!hasSharedAssigneesSqliteData()) {
         saveAssigneeOptionsToSqlite(loadLegacyAssigneeOptions());
+    }
+    if (!hasSharedSettingSqliteData(SHARED_SETTING_ACCESS_CONFIG)) {
+        saveSharedSettingToSqlite(
+            SHARED_SETTING_ACCESS_CONFIG,
+            loadLegacyCalendarAccessConfig(),
+        );
+    }
+    if (!hasSharedSettingSqliteData(SHARED_SETTING_OTP_MAIL)) {
+        const otpMail = loadLegacyOtpMailConfig();
+        if (otpMail) {
+            saveSharedSettingToSqlite(SHARED_SETTING_OTP_MAIL, otpMail);
+        }
     }
     cleanupLegacySharedFiles();
 }

@@ -78,22 +78,12 @@ const {
     hashPassword,
 } = bootRequire(path.join(fpBaseDir, "config", "security"));
 const {
-    loadAdminCredentials: loadAdminCredentialsLocal,
-    isValidEmail,
-    isValidPhone,
-} = bootRequire(path.join(fpBaseDir, "services", "admins"));
-const { loadAssigneeOptions, saveAssigneeOptions } = bootRequire(
-    path.join(fpBaseDir, "services", "assignees"),
-);
-const {
     normalizeBalances,
     applyMissingRequestDeductions,
     getBalanceImpact,
     applyBalanceForApproval,
     applyBalanceForDeletion,
     applyBalanceForUpdate,
-    loadPayload,
-    savePayload,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
 const { ensureFolderFor } = bootRequire(
@@ -180,8 +170,6 @@ const {
 const {
     DEFAULT_ACCESS_CONFIG,
     normalizeAccessConfig,
-    loadAccessConfig,
-    saveAccessConfig,
 } = requireModule(path.join(fpBaseDir, "services", "access-config")) || {};
 
 const SAFE_BASE_DIR =
@@ -234,7 +222,6 @@ let editingDepartment = null;
 let editingEmployee = null;
 let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
-const FP_USE_BACKEND = true;
 function resolveFpBackendBaseUrl() {
     if (process.env.AYPI_FP_BACKEND_URL) {
         return process.env.AYPI_FP_BACKEND_URL;
@@ -265,6 +252,19 @@ let calendarFilters = {
 let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
+
+function isValidEmail(value) {
+    if (!value) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
+}
+
+function isValidPhone(value) {
+    if (!value) return false;
+    const trimmed = String(value || "").trim();
+    if (!trimmed.startsWith("+39")) return false;
+    const digits = trimmed.replace(/\D/g, "");
+    return digits.length >= 11 && digits.length <= 13;
+}
 
 function normalizeAdminEntry(item) {
     return {
@@ -371,6 +371,34 @@ function hasCalendarAccess(admin) {
     return !(admin && admin.accessCalendar === false);
 }
 
+async function loadAssigneeOptionsRemote() {
+    const payload = await requestBackend("/api/shared/assignees");
+    return {
+        options: Object.values(payload?.groups || {}).flat(),
+        groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
+        emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+    };
+}
+
+async function saveAssigneeOptionsRemote(data) {
+    const payload = await requestBackend("/api/shared/assignees", {
+        method: "PUT",
+        body: {
+            groups: data?.groups || {},
+            emails: data?.emails || {},
+        },
+    });
+    const next = payload?.data || {};
+    assigneeGroups = next?.groups && typeof next.groups === "object" ? next.groups : {};
+    assigneeEmails = next?.emails && typeof next.emails === "object" ? next.emails : {};
+    assigneeOptions = Object.values(assigneeGroups).flat();
+    return {
+        options: assigneeOptions,
+        groups: assigneeGroups,
+        emails: assigneeEmails,
+    };
+}
+
 async function verifyCalendarAdminPassword(
     password: string,
     targetName?: string | null,
@@ -385,7 +413,7 @@ let legendEditingType = null;
 let legendColorSnapshot = null;
 let legendPreviewTimer = null;
 let runExport = null;
-let accessConfig = normalizeAccessConfig(loadAccessConfig());
+let accessConfig = normalizeAccessConfig(DEFAULT_ACCESS_CONFIG);
 const FILTER_STORAGE_KEY_GUEST = "fp-calendar-filters-guest";
 const FILTER_STORAGE_KEY_ADMIN_PREFIX = "fp-calendar-filters-admin:";
 
@@ -541,13 +569,17 @@ function applyStoredFilterStateForCurrentUser() {
     return false;
 }
 
-function ensureAccessConfigFile() {
-    // Nessuna creazione automatica file: la configurazione viene salvata
-    // solo dopo un'azione esplicita dell'utente.
+async function loadAccessConfigRemote() {
+    const payload = await requestBackend("/api/shared/calendar-access-config");
+    return normalizeAccessConfig(payload);
 }
 
-function persistAccessConfig(next) {
-    const saved = saveAccessConfig(next);
+async function persistAccessConfigRemote(next) {
+    const payload = await requestBackend("/api/shared/calendar-access-config", {
+        method: "PUT",
+        body: normalizeAccessConfig(next),
+    });
+    const saved = normalizeAccessConfig(payload?.data || next);
     setAccessConfig(saved);
     return saved;
 }
@@ -1140,48 +1172,12 @@ function migrateRetribuitoTypes(payload) {
 }
 
 function loadData() {
-    if (FP_USE_BACKEND) {
-        return cachedData;
-    }
-    logFpDebug("read.loadData", {
-        baseDir: SAFE_BASE_DIR,
-    });
-    const parsed = loadPayload();
-    const normalized = normalizeBalances(parsed, assigneeGroups);
-    const deductions = applyMissingRequestDeductions(normalized.payload);
-    const migration = migrateRetribuitoTypes(deductions.payload);
-    const payload = migration.payload;
-    const changed =
-        normalized.changed || deductions.changed || migration.changed;
-    if (changed) {
-        saveData(payload);
-    }
-    return payload;
+    return cachedData;
 }
 
 function saveData(payload) {
-    if (FP_USE_BACKEND) {
-        cachedData = clonePayload(payload);
-        logFpDebug("backend.save.optimistic", {
-            requests: Array.isArray(cachedData?.requests)
-                ? cachedData.requests.length
-                : 0,
-        });
-        saveDataToBackend(cachedData).catch((err) => {
-            logFpDebug("backend.error.save", {
-                detail: err?.message || String(err),
-            });
-            showDialog(
-                "warning",
-                "Salvataggio backend non riuscito.",
-                getBackendUnavailableMessage(err),
-            );
-        });
-        return;
-    }
-    ensureDataFolder();
-    logFpDebug("write.saveData", {
-        baseDir: SAFE_BASE_DIR,
+    cachedData = clonePayload(payload);
+    logFpDebug("backend.save.optimistic", {
         requests: Array.isArray(payload?.requests)
             ? payload.requests.length
             : 0,
@@ -1193,18 +1189,20 @@ function saveData(payload) {
             : 0,
         balances: payload?.balances ? Object.keys(payload.balances).length : 0,
     });
-    const ok = savePayload(payload);
-    if (!ok) {
+    saveDataToBackend(cachedData).catch((err) => {
+        logFpDebug("backend.error.save", {
+            detail: err?.message || String(err),
+        });
         showDialog(
             "warning",
-            UI_TEXTS.dataSaveFailure,
-            "Errore scrittura file.",
+            "Salvataggio backend non riuscito.",
+            getBackendUnavailableMessage(err),
         );
-    }
+    });
 }
 
 function syncData(updateFn) {
-    const data = clonePayload(loadData());
+    const data = clonePayload(cachedData);
     const next = updateFn ? updateFn(data) || data : data;
     const normalized = normalizeBalances(next, assigneeGroups);
     const deductions = applyMissingRequestDeductions(normalized.payload);
@@ -1572,7 +1570,7 @@ renderer = createRenderer({
 });
 
 const refreshUi = createRefreshController({
-    loadData: () => (FP_USE_BACKEND ? loadDataFromBackend() : loadData()),
+    loadData: () => loadDataFromBackend(),
     renderAll,
     autoRefreshMs: AUTO_REFRESH_MS,
 });
@@ -2173,11 +2171,11 @@ function openInitialSetupWizard() {
     }
 
     if (mailSave) {
-        mailSave.addEventListener("click", () => {
+        mailSave.addEventListener("click", async () => {
             const payload = getMailFormData();
             try {
                 setMailMessage("", false);
-                saveMailConfig(payload);
+                await saveMailConfig(payload);
                 setMailMessage(UI_TEXTS.mailConfigSaved, false);
                 proceedToAdmin();
             } catch (err) {
@@ -2223,8 +2221,17 @@ const configUi = createConfigModal({
     showModal,
     hideModal,
     setMessage,
-    loadAccessConfig: () => loadAccessConfig(),
-    saveAccessConfig: (config) => persistAccessConfig(config),
+    loadAccessConfig: () => accessConfig,
+    saveAccessConfig: (config) => {
+        setAccessConfig(config);
+        void persistAccessConfigRemote(config).catch((err) => {
+            showDialog(
+                "warning",
+                "Salvataggio configurazione non riuscito.",
+                err?.message || String(err),
+            );
+        });
+    },
     normalizeAccessConfig,
     onConfigUpdated: (config) => {
         setAccessConfig(config);
@@ -2673,10 +2680,7 @@ function fillFormFromRequest(prefix, request) {
 }
 
 function populateEmployees() {
-    const groups =
-        assigneeGroups && Object.keys(assigneeGroups).length
-            ? assigneeGroups
-            : loadAssigneeOptions().groups;
+    const groups = assigneeGroups && typeof assigneeGroups === "object" ? assigneeGroups : {};
     assigneeGroups = groups;
     populateEmployeesFor("fp", groups);
     populateEmployeesFor("fp-edit", groups);
@@ -2805,7 +2809,7 @@ function renderDepartmentList() {
                     editingEmployee = { ...editingEmployee, group: trimmed };
                 }
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({
+                void saveAssigneeOptionsRemote({
                     groups: assigneeGroups,
                     emails: assigneeEmails,
                 });
@@ -2859,7 +2863,7 @@ function renderDepartmentList() {
                 });
                 assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({
+                void saveAssigneeOptionsRemote({
                     groups: assigneeGroups,
                     emails: assigneeEmails,
                 });
@@ -2969,7 +2973,7 @@ function renderEmployeesList() {
                 }
                 assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({
+                void saveAssigneeOptionsRemote({
                     groups: assigneeGroups,
                     emails: assigneeEmails,
                 });
@@ -3031,7 +3035,7 @@ function renderEmployeesList() {
                 ];
                 assigneeEmails = nextEmails;
                 assigneeOptions = Object.values(assigneeGroups).flat();
-                saveAssigneeOptions({
+                void saveAssigneeOptionsRemote({
                     groups: assigneeGroups,
                     emails: assigneeEmails,
                 });
@@ -3107,17 +3111,20 @@ function initDaysPicker(holidaysUi, closuresUi) {
     }
 }
 
-function init() {
+async function init() {
     ipcRenderer.send("resize-normale");
     void hydrateAdminCacheRemote().catch(() => {
         adminCache = [];
     });
-    accessConfig = normalizeAccessConfig(loadAccessConfig());
-    ensureAccessConfigFile();
+    try {
+        accessConfig = await loadAccessConfigRemote();
+    } catch (err) {
+        accessConfig = normalizeAccessConfig(DEFAULT_ACCESS_CONFIG);
+    }
     typeColors = loadColorSettings();
     applyTypeColors();
     applyTheme(loadThemeSetting());
-    const assigneesData = loadAssigneeOptions();
+    const assigneesData = await loadAssigneeOptionsRemote();
     assigneeOptions = assigneesData.options;
     assigneeGroups = assigneesData.groups;
     assigneeEmails = assigneesData.emails || {};
@@ -3836,29 +3843,10 @@ function init() {
             openConfirmModal(message)
                 .then(async (ok) => {
                     if (!ok) return;
-                    if (FP_USE_BACKEND) {
-                        const updated = await deleteRequestAtomic(
-                            targetId,
-                            getLoggedAdminName() || "guest",
-                        );
-                        renderAll(updated);
-                        return;
-                    }
-                    const updated = syncData((payload) => {
-                        const target = (payload.requests || []).find(
-                            (req) => req.id === targetId,
-                        );
-                        if (
-                            target &&
-                            typeof applyBalanceForDeletion === "function"
-                        ) {
-                            applyBalanceForDeletion(payload, target);
-                        }
-                        payload.requests = (payload.requests || []).filter(
-                            (req) => req.id !== targetId,
-                        );
-                        return payload;
-                    });
+                    const updated = await deleteRequestAtomic(
+                        targetId,
+                        getLoggedAdminName() || "guest",
+                    );
                     renderAll(updated);
                 })
                 .catch((err) => {

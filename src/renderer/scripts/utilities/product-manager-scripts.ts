@@ -84,10 +84,6 @@ import {
     updateCategoryChipPreview as updateCategoryChipPreviewSection,
     openCategoryEditor as openCategoryEditorSection,
     closeCategoryEditor as closeCategoryEditorSection,
-    loadCatalog as loadCatalogSection,
-    saveCatalog as saveCatalogSection,
-    loadCategories as loadCategoriesSection,
-    saveCategories as saveCategoriesSection,
     renderCatalog as renderCatalogSection,
     openCatalogModal as openCatalogModalSection,
     closeCatalogModal as closeCatalogModalSection,
@@ -100,8 +96,6 @@ import {
 import {
     getInterventionType as getInterventionTypeSection,
     getInterventionDescription as getInterventionDescriptionSection,
-    loadInterventionTypes as loadInterventionTypesSection,
-    saveInterventionTypes as saveInterventionTypesSection,
     openInterventionTypesModal as openInterventionTypesModalSection,
     closeInterventionTypesModal as closeInterventionTypesModalSection,
     addInterventionType as addInterventionTypeSection,
@@ -166,25 +160,8 @@ import {
     tryAutoCleanJson,
 } from "./product-manager/data/normalize";
 import {
-    ROOT_DIR,
-    PURCHASING_DIR,
-    REQUESTS_PATH,
-    INTERVENTIONS_PATH,
-    CATALOG_PATH,
-    CATEGORIES_PATH,
-    INTERVENTION_TYPES_PATH,
     PRODUCTS_DIR,
-    REQUESTS_SHARDS_DIR,
-    INTERVENTIONS_SHARDS_DIR,
 } from "./product-manager/config/paths";
-import {
-    loadAdminCredentials,
-    saveAdminCredentials,
-    verifyAdminPassword,
-    findAdminByName,
-    isValidEmail,
-    isValidPhone,
-} from "./ferie-permessi/services/admins";
 import {
     isMailerAvailable,
     getMailerError,
@@ -217,6 +194,19 @@ try {
     XLSX = require("xlsx");
 } catch (err) {
     console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
+}
+
+function isValidEmail(value) {
+    if (!value) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
+}
+
+function isValidPhone(value) {
+    if (!value) return false;
+    const trimmed = String(value || "").trim();
+    if (!trimmed.startsWith("+39")) return false;
+    const digits = trimmed.replace(/\D/g, "");
+    return digits.length >= 11 && digits.length <= 13;
 }
 
 window.pmLoaded = true;
@@ -456,8 +446,6 @@ function getCatalogSectionCtx() {
         pathToFileURL,
         CATEGORY_COLOR_STORAGE_KEY,
         DEFAULT_CATEGORY_COLORS,
-        CATALOG_PATH,
-        CATEGORIES_PATH,
         normalizeCatalogData,
         normalizeCategoriesData,
         validateWithAjv,
@@ -531,8 +519,6 @@ function getCatalogSectionCtx() {
 function getInterventionsSectionCtx() {
     return {
         document,
-        fs,
-        INTERVENTION_TYPES_PATH,
         normalizeInterventionTypesData,
         validateWithAjv,
         validateInterventionTypesSchema,
@@ -617,10 +603,6 @@ function validateModuleBindings() {
         "sections.catalog.closeCategoryEditor",
         closeCategoryEditorSection,
     );
-    assertFn("sections.catalog.loadCatalog", loadCatalogSection);
-    assertFn("sections.catalog.saveCatalog", saveCatalogSection);
-    assertFn("sections.catalog.loadCategories", loadCategoriesSection);
-    assertFn("sections.catalog.saveCategories", saveCategoriesSection);
     assertFn("sections.catalog.renderCatalog", renderCatalogSection);
     assertFn("sections.catalog.openCatalogModal", openCatalogModalSection);
     assertFn("sections.catalog.closeCatalogModal", closeCatalogModalSection);
@@ -642,14 +624,6 @@ function validateModuleBindings() {
     assertFn(
         "sections.interventions.getInterventionDescription",
         getInterventionDescriptionSection,
-    );
-    assertFn(
-        "sections.interventions.loadInterventionTypes",
-        loadInterventionTypesSection,
-    );
-    assertFn(
-        "sections.interventions.saveInterventionTypes",
-        saveInterventionTypesSection,
     );
     assertFn(
         "sections.interventions.openInterventionTypesModal",
@@ -1390,229 +1364,6 @@ function removeLine(index) {
         requestLines.splice(index, 1);
     }
     renderLines();
-}
-
-function getRequestsPath(mode) {
-    return mode === REQUEST_MODES.INTERVENTION
-        ? INTERVENTIONS_PATH
-        : REQUESTS_PATH;
-}
-
-const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
-const INTERVENTIONS_SHARD_REGEX = /^interventions-(\d{4}|undated)\.json$/i;
-
-function getRequestYearKey(request) {
-    const value = String(request?.createdAt || request?.updatedAt || "").trim();
-    if (!value) return "undated";
-    const direct = /^(\d{4})/.exec(value);
-    if (direct) return direct[1];
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return String(date.getFullYear());
-    return "undated";
-}
-
-function getInterventionYearKey(request) {
-    const value = String(request?.createdAt || request?.updatedAt || "").trim();
-    if (!value) return "undated";
-    const direct = /^(\d{4})/.exec(value);
-    if (direct) return direct[1];
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return String(date.getFullYear());
-    return "undated";
-}
-
-function getShardLatestMtimeMs() {
-    try {
-        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return 0;
-        const files = fs
-            .readdirSync(REQUESTS_SHARDS_DIR)
-            .filter((name) => REQUESTS_SHARD_REGEX.test(name));
-        let latest = 0;
-        files.forEach((name) => {
-            try {
-                const ms =
-                    Number(
-                        fs.statSync(path.join(REQUESTS_SHARDS_DIR, name))
-                            .mtimeMs,
-                    ) || 0;
-                if (ms > latest) latest = ms;
-            } catch {}
-        });
-        return latest;
-    } catch {
-        return 0;
-    }
-}
-
-function getInterventionShardLatestMtimeMs() {
-    try {
-        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) return 0;
-        const files = fs
-            .readdirSync(INTERVENTIONS_SHARDS_DIR)
-            .filter((name) => INTERVENTIONS_SHARD_REGEX.test(name));
-        let latest = 0;
-        files.forEach((name) => {
-            try {
-                const ms =
-                    Number(
-                        fs.statSync(path.join(INTERVENTIONS_SHARDS_DIR, name))
-                            .mtimeMs,
-                    ) || 0;
-                if (ms > latest) latest = ms;
-            } catch {}
-        });
-        return latest;
-    } catch {
-        return 0;
-    }
-}
-
-function hasPurchasingShards() {
-    try {
-        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return false;
-        return fs
-            .readdirSync(REQUESTS_SHARDS_DIR)
-            .some((name) => REQUESTS_SHARD_REGEX.test(name));
-    } catch {
-        return false;
-    }
-}
-
-function hasInterventionShards() {
-    try {
-        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) return false;
-        return fs
-            .readdirSync(INTERVENTIONS_SHARDS_DIR)
-            .some((name) => INTERVENTIONS_SHARD_REGEX.test(name));
-    } catch {
-        return false;
-    }
-}
-
-function readRequestsFromShards() {
-    try {
-        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) return null;
-        const files = fs
-            .readdirSync(REQUESTS_SHARDS_DIR)
-            .filter((name) => REQUESTS_SHARD_REGEX.test(name))
-            .sort();
-        if (!files.length) return null;
-        const out = [];
-        files.forEach((name) => {
-            const raw = fs.readFileSync(
-                path.join(REQUESTS_SHARDS_DIR, name),
-                "utf8",
-            );
-            const parsed = JSON.parse(raw);
-            normalizeRequestsData(parsed).forEach((row) => out.push(row));
-        });
-        return out;
-    } catch (err) {
-        showError(
-            "Errore lettura shard richieste.",
-            err.message || String(err),
-        );
-        return null;
-    }
-}
-
-function readInterventionsFromShards() {
-    try {
-        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) return null;
-        const files = fs
-            .readdirSync(INTERVENTIONS_SHARDS_DIR)
-            .filter((name) => INTERVENTIONS_SHARD_REGEX.test(name))
-            .sort();
-        if (!files.length) return null;
-        const out = [];
-        files.forEach((name) => {
-            const raw = fs.readFileSync(
-                path.join(INTERVENTIONS_SHARDS_DIR, name),
-                "utf8",
-            );
-            const parsed = JSON.parse(raw);
-            normalizeRequestsData(parsed).forEach((row) => out.push(row));
-        });
-        return out;
-    } catch (err) {
-        showError(
-            "Errore lettura shard interventi.",
-            err.message || String(err),
-        );
-        return null;
-    }
-}
-
-function writeRequestsShards(payload) {
-    const normalized = normalizeRequestsData(payload);
-    try {
-        if (!fs.existsSync(REQUESTS_SHARDS_DIR)) {
-            fs.mkdirSync(REQUESTS_SHARDS_DIR, { recursive: true });
-        }
-        const buckets = {};
-        normalized.forEach((item) => {
-            const year = getRequestYearKey(item);
-            if (!buckets[year]) buckets[year] = [];
-            buckets[year].push(item);
-        });
-        const expected = new Set();
-        Object.keys(buckets).forEach((year) => {
-            const fileName = `requests-${year}.json`;
-            expected.add(fileName.toLowerCase());
-            fs.writeFileSync(
-                path.join(REQUESTS_SHARDS_DIR, fileName),
-                JSON.stringify(buckets[year], null, 2),
-                "utf8",
-            );
-        });
-        const existing = fs.readdirSync(REQUESTS_SHARDS_DIR);
-        existing.forEach((name) => {
-            if (!REQUESTS_SHARD_REGEX.test(name)) return;
-            if (expected.has(name.toLowerCase())) return;
-            fs.unlinkSync(path.join(REQUESTS_SHARDS_DIR, name));
-        });
-    } catch (err) {
-        showError(
-            "Errore salvataggio shard richieste.",
-            err.message || String(err),
-        );
-    }
-}
-
-function writeInterventionsShards(payload) {
-    const normalized = normalizeRequestsData(payload);
-    try {
-        if (!fs.existsSync(INTERVENTIONS_SHARDS_DIR)) {
-            fs.mkdirSync(INTERVENTIONS_SHARDS_DIR, { recursive: true });
-        }
-        const buckets = {};
-        normalized.forEach((item) => {
-            const year = getInterventionYearKey(item);
-            if (!buckets[year]) buckets[year] = [];
-            buckets[year].push(item);
-        });
-        const expected = new Set();
-        Object.keys(buckets).forEach((year) => {
-            const fileName = `interventions-${year}.json`;
-            expected.add(fileName.toLowerCase());
-            fs.writeFileSync(
-                path.join(INTERVENTIONS_SHARDS_DIR, fileName),
-                JSON.stringify(buckets[year], null, 2),
-                "utf8",
-            );
-        });
-        const existing = fs.readdirSync(INTERVENTIONS_SHARDS_DIR);
-        existing.forEach((name) => {
-            if (!INTERVENTIONS_SHARD_REGEX.test(name)) return;
-            if (expected.has(name.toLowerCase())) return;
-            fs.unlinkSync(path.join(INTERVENTIONS_SHARDS_DIR, name));
-        });
-    } catch (err) {
-        showError(
-            "Errore salvataggio shard interventi.",
-            err.message || String(err),
-        );
-    }
 }
 
 function readRequestsFile(mode = getActiveMode()) {

@@ -3,6 +3,7 @@ require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import path from "path";
 import ChartJSImport from "chart.js/auto";
+import { requestBackend } from "../shared/backend-client";
 
 const Chart = ChartJSImport?.Chart || ChartJSImport?.default || ChartJSImport;
 
@@ -27,11 +28,6 @@ const fpBaseDir = path.join(
     "utilities",
     "ferie-permessi",
 );
-const { loadAssigneeOptions } = bootRequire(
-    path.join(fpBaseDir, "services", "assignees"),
-);
-const { loadPayload, normalizeBalances, applyMissingRequestDeductions } =
-    bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { getRequestDates } = bootRequire(
     path.join(fpBaseDir, "utils", "requests"),
 );
@@ -74,6 +70,7 @@ const state = {
         bars: null,
     },
     tooltipPositionerReady: false,
+    payload: { requests: [], balances: {}, holidays: [], closures: [] },
 };
 
 function byId(id) {
@@ -261,12 +258,18 @@ function getSelectedTypes() {
     return TYPE_KEYS.filter((type) => byId(`fpa-type-${type}`)?.checked);
 }
 
-function loadDataset() {
-    const assigneesData = loadAssigneeOptions();
+async function hydrateDataset() {
+    const [assigneesData, payload] = await Promise.all([
+        requestBackend("/api/shared/assignees"),
+        requestBackend("/api/ferie-permessi/payload"),
+    ]);
     state.assigneeGroups = assigneesData?.groups || {};
-    const normalized = normalizeBalances(loadPayload(), state.assigneeGroups);
-    const fixed = applyMissingRequestDeductions(normalized.payload);
-    return fixed.payload || {};
+    state.payload = payload || { requests: [], balances: {}, holidays: [], closures: [] };
+    return state.payload;
+}
+
+function loadDataset() {
+    return state.payload || { requests: [], balances: {}, holidays: [], closures: [] };
 }
 
 function getDepartmentMeta(payload) {
@@ -1046,16 +1049,28 @@ function resetFilters() {
     state.selectedDepartments.clear();
 }
 
-function init() {
+async function refreshAnalysisData() {
+    try {
+        const payload = await hydrateDataset();
+        renderDepartments(payload);
+        renderDashboard();
+        requestAnimationFrame(() => renderDashboard());
+        setMessage("");
+    } catch (err) {
+        setMessage(
+            `Errore caricamento dati: ${(err as Error)?.message || String(err)}`,
+            true,
+        );
+    }
+}
+
+async function init() {
     applyTheme();
     resetFilters();
-    const payload = loadDataset();
-    renderDepartments(payload);
-    renderDashboard();
-    requestAnimationFrame(() => renderDashboard());
+    await refreshAnalysisData();
 
     byId("fpa-refresh")?.addEventListener("click", () => {
-        renderDashboard();
+        void refreshAnalysisData();
     });
     byId("fpa-close")?.addEventListener("click", () => {
         window.close();
@@ -1115,4 +1130,6 @@ function init() {
     });
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+    void init();
+});

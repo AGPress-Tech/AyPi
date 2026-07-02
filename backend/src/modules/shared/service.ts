@@ -1,20 +1,27 @@
 import { logger } from "../../shared/logging/logger";
 import {
-    buildChangeSummary,
     buildContext,
     diffCollections,
     type ActionContext,
 } from "../../shared/logging/audit";
 import { createOperationQueue } from "../../shared/ops/queue";
 import {
+    loadCalendarAccessConfig,
     listAdminNames,
     loadAdminCredentials,
     loadAssigneeOptions,
+    loadOtpMailConfig,
+    normalizeOtpMailConfig,
     saveAdminCredentials,
     saveAssigneeOptions,
+    saveCalendarAccessConfig,
+    saveOtpMailConfig,
     verifyAdminPassword,
     type SharedAdminEntry,
+    type SharedAccessConfig,
+    type SharedOtpMailConfig,
 } from "./repository";
+const nodemailer = require("nodemailer");
 
 const enqueue = createOperationQueue("shared");
 
@@ -28,6 +35,14 @@ export function getAdminNames() {
 
 export function getAssignees() {
     return loadAssigneeOptions();
+}
+
+export function getCalendarAccessConfig() {
+    return loadCalendarAccessConfig();
+}
+
+export function getOtpMailConfig() {
+    return loadOtpMailConfig();
 }
 
 function summarizeAdmin(admin: SharedAdminEntry | null | undefined) {
@@ -147,6 +162,50 @@ export function saveAssignees(
     });
 }
 
+export function saveCalendarConfig(
+    config: SharedAccessConfig,
+    context?: ActionContext,
+) {
+    const meta = buildContext(context);
+    return enqueue("saveCalendarConfig", async () => {
+        const before = loadCalendarAccessConfig();
+        const after = await saveCalendarAccessConfig(config);
+        logger.info("Shared save calendar access config", {
+            ...meta,
+            event: "shared_save_calendar_access_config",
+            module: "shared",
+            category: "config",
+            before,
+            after,
+        });
+        return after;
+    });
+}
+
+export function saveSharedOtpMailConfig(
+    config: SharedOtpMailConfig,
+    context?: ActionContext,
+) {
+    const meta = buildContext(context);
+    return enqueue("saveOtpMailConfig", async () => {
+        const before = loadOtpMailConfig();
+        const after = await saveOtpMailConfig(config);
+        logger.info("Shared save otp mail config", {
+            ...meta,
+            event: "shared_save_otp_mail_config",
+            module: "shared",
+            category: "config",
+            beforeConfigured: !!before,
+            afterConfigured: !!after,
+            host: after.host,
+            port: after.port || 587,
+            secure: !!after.secure,
+            from: after.from || "",
+        });
+        return after;
+    });
+}
+
 export function verifyAdmin(
     password: string,
     targetName?: string | null,
@@ -164,5 +223,80 @@ export function verifyAdmin(
             outcome: admin ? "success" : "failure",
         });
         return admin;
+    });
+}
+
+function createMailerTransport(config: SharedOtpMailConfig) {
+    return nodemailer.createTransport({
+        host: config.host,
+        port: config.port || 587,
+        secure: !!config.secure,
+        auth: {
+            user: config.user,
+            pass: config.pass,
+        },
+    });
+}
+
+export async function sendOtpTestMail(
+    payload: unknown,
+    recipient: string,
+    context?: ActionContext,
+) {
+    const meta = buildContext(context);
+    const config = normalizeOtpMailConfig(payload);
+    const to = String(recipient || "").trim();
+    if (!to) {
+        throw new Error("Inserisci l'email di prova.");
+    }
+    const transporter = createMailerTransport(config);
+    const from = config.from || config.user;
+    await transporter.sendMail({
+        from,
+        to,
+        subject: "Test configurazione mailing AyPi Calendar",
+        text: "Test invio email completato con successo.",
+    });
+    logger.info("Shared send otp test mail", {
+        ...meta,
+        event: "shared_send_otp_test_mail",
+        module: "shared",
+        category: "mail",
+        to,
+        host: config.host,
+    });
+}
+
+export async function sendAdminOtpMail(
+    email: string,
+    code: string,
+    context?: ActionContext,
+) {
+    const meta = buildContext(context);
+    const config = loadOtpMailConfig();
+    const recipient = String(email || "").trim();
+    if (!config) {
+        throw new Error("Config mail non trovata.");
+    }
+    if (!recipient) {
+        throw new Error("Email admin mancante.");
+    }
+    if (!String(code || "").trim()) {
+        throw new Error("Codice OTP mancante.");
+    }
+    const transporter = createMailerTransport(config);
+    const from = config.from || config.user;
+    await transporter.sendMail({
+        from,
+        to: recipient,
+        subject: "OTP recupero password",
+        text: `Il tuo codice OTP e': ${code}\nValido per 5 minuti.`,
+    });
+    logger.info("Shared send admin otp mail", {
+        ...meta,
+        event: "shared_send_admin_otp_mail",
+        module: "shared",
+        category: "mail",
+        to: recipient,
     });
 }

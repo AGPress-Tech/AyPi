@@ -5,11 +5,17 @@ import { readJsonBody } from "../../shared/http/request";
 import { unauthorized } from "../../shared/http/errors";
 import { createSchemaValidator } from "../../shared/http/validation";
 import {
+    getCalendarAccessConfig,
     getAdminNames,
     getAdmins,
     getAssignees,
+    getOtpMailConfig,
     saveAdmins,
     saveAssignees,
+    saveCalendarConfig,
+    saveSharedOtpMailConfig,
+    sendAdminOtpMail,
+    sendOtpTestMail,
     verifyAdmin,
 } from "./service";
 
@@ -71,6 +77,56 @@ const validateAssigneesPayload = createSchemaValidator<{
             nullable: true,
             additionalProperties: { type: "string" },
         },
+    },
+});
+
+const validateCalendarAccessConfigPayload = createSchemaValidator<any>({
+    type: "object",
+    required: ["version", "operations"],
+    additionalProperties: true,
+    properties: {
+        version: { type: "number" },
+        operations: { type: "object" },
+    },
+});
+
+const validateOtpMailPayload = createSchemaValidator<any>({
+    type: "object",
+    required: ["host", "user", "pass"],
+    additionalProperties: true,
+    properties: {
+        host: { type: "string", minLength: 1 },
+        user: { type: "string", minLength: 1 },
+        pass: { type: "string", minLength: 1 },
+        port: { type: "number", nullable: true },
+        secure: { type: "boolean", nullable: true },
+        from: { type: "string", nullable: true },
+    },
+});
+
+const validateOtpMailTestPayload = createSchemaValidator<{
+    config: any;
+    to: string;
+}>({
+    type: "object",
+    required: ["config", "to"],
+    additionalProperties: false,
+    properties: {
+        config: { type: "object" },
+        to: { type: "string", minLength: 1 },
+    },
+});
+
+const validateOtpSendPayload = createSchemaValidator<{
+    email: string;
+    code: string;
+}>({
+    type: "object",
+    required: ["email", "code"],
+    additionalProperties: false,
+    properties: {
+        email: { type: "string", minLength: 1 },
+        code: { type: "string", minLength: 1 },
     },
 });
 
@@ -142,5 +198,76 @@ export function registerSharedRoutes(router: Router) {
             ok: true,
             data: getAssignees(),
         });
+    });
+
+    router.register(
+        "GET",
+        "/api/shared/calendar-access-config",
+        async (_req, res) => {
+            sendJson(res, 200, getCalendarAccessConfig());
+        },
+    );
+
+    router.register(
+        "PUT",
+        "/api/shared/calendar-access-config",
+        async (req, res) => {
+            const payload = validateCalendarAccessConfigPayload(
+                await readJsonBody(req),
+                "Invalid calendar access config payload",
+            );
+            const data = await saveCalendarConfig(payload, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            });
+            sendJson(res, 200, { ok: true, data });
+        },
+    );
+
+    router.register("GET", "/api/shared/otp-mail-config", async (_req, res) => {
+        sendJson(res, 200, {
+            configured: !!getOtpMailConfig(),
+            config: getOtpMailConfig(),
+        });
+    });
+
+    router.register("PUT", "/api/shared/otp-mail-config", async (req, res) => {
+        const payload = validateOtpMailPayload(
+            await readJsonBody(req),
+            "Invalid otp mail config payload",
+        );
+        const data = await saveSharedOtpMailConfig(payload, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
+        sendJson(res, 200, { ok: true, data });
+    });
+
+    router.register(
+        "POST",
+        "/api/shared/otp-mail-config/test",
+        async (req, res) => {
+            const payload = validateOtpMailTestPayload(
+                await readJsonBody(req),
+                "Invalid otp mail test payload",
+            );
+            await sendOtpTestMail(payload.config, payload.to, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            });
+            sendJson(res, 200, { ok: true });
+        },
+    );
+
+    router.register("POST", "/api/shared/otp/send", async (req, res) => {
+        const payload = validateOtpSendPayload(
+            await readJsonBody(req),
+            "Invalid otp send payload",
+        );
+        await sendAdminOtpMail(payload.email, payload.code, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
+        sendJson(res, 200, { ok: true });
     });
 }

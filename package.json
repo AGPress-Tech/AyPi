@@ -12,14 +12,8 @@
     "start:backend:tray": "set AYPI_BACKEND_PROFILE=dev&& npm run build:backend && npm run build:backend:tray && electron dist-backend-app\\main.js",
     "dist:backend": "npm run build:backend && npm run build:backend:tray && electron-builder --config electron-builder.backend.json",
     "build:dir": "npm run build:ts && electron-builder --dir",
-    "start:packaged": "npm run build:dir && dist\\win-unpacked\\AyPi.exe --remote-debugging-port=9222",
     "build": "npm run build:ts && electron-builder",
-    "release": "npm run build:ts && electron-builder --publish always",
-    "postversion": "npm run build:ts && electron-builder --publish always",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "scriptsComments": {
-    "postversion": "npm version [major/minor/patch] per creare la nuova release in automatico"
+    "release": "npm run build:ts && electron-builder --publish always"
   },
   "author": "Ayrton Pizzi",
   "license": "ISC",

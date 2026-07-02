@@ -1,8 +1,4 @@
-﻿require("../../../shared/dev-guards");
-import fs from "fs";
-
-import { CONFIG_PATH, LEGACY_CONFIG_PATH } from "../config/paths";
-import { ensureFolderFor } from "./storage";
+require("../../../shared/dev-guards");
 
 type AccessConfig = {
     version: number;
@@ -64,15 +60,17 @@ function toBool(value: unknown, fallback: boolean) {
             trimmed === "1" ||
             trimmed === "on" ||
             trimmed === "si"
-        )
+        ) {
             return true;
+        }
         if (
             trimmed === "false" ||
             trimmed === "0" ||
             trimmed === "off" ||
             trimmed === "no"
-        )
+        ) {
             return false;
+        }
     }
     return fallback;
 }
@@ -183,68 +181,15 @@ function normalizeAccessConfig(raw: unknown): AccessConfig {
     return base;
 }
 
-function loadAccessConfig() {
-    try {
-        const targetPath = [CONFIG_PATH, LEGACY_CONFIG_PATH].find(
-            (item) => item && fs.existsSync(item),
-        );
-        if (!targetPath) {
-            return normalizeAccessConfig(null);
-        }
-        const raw = fs.readFileSync(targetPath, "utf8");
-        if (!raw) return normalizeAccessConfig(null);
-        const parsed = JSON.parse(raw);
-        return normalizeAccessConfig(parsed);
-    } catch (err) {
-        console.error("Errore caricamento config calendario:", err);
-        return normalizeAccessConfig(null);
-    }
-}
+export { DEFAULT_ACCESS_CONFIG, normalizeAccessConfig };
 
-function saveAccessConfig(config: AccessConfig) {
-    try {
-        const normalized = normalizeAccessConfig(config);
-        const targets = [CONFIG_PATH];
-        if (LEGACY_CONFIG_PATH && fs.existsSync(LEGACY_CONFIG_PATH)) {
-            targets.push(LEGACY_CONFIG_PATH);
-        }
-        targets.filter(Boolean).forEach((targetPath) => {
-            ensureFolderFor(targetPath);
-            fs.writeFileSync(
-                targetPath,
-                JSON.stringify(normalized, null, 2),
-                "utf8",
-            );
-        });
-        return normalized;
-    } catch (err) {
-        console.error("Errore salvataggio config calendario:", err);
-        return normalizeAccessConfig(config);
-    }
-}
-
-export {
-    DEFAULT_ACCESS_CONFIG,
-    normalizeAccessConfig,
-    loadAccessConfig,
-    saveAccessConfig,
-};
-
-// Keep CommonJS compatibility for legacy JS callers
 if (
     typeof module !== "undefined" &&
     module.exports &&
     !(globalThis as any).__aypiBundled
 ) {
-    if (
-        typeof module !== "undefined" &&
-        module.exports &&
-        !(globalThis as any).__aypiBundled
-    )
-        module.exports = {
-            DEFAULT_ACCESS_CONFIG,
-            normalizeAccessConfig,
-            loadAccessConfig,
-            saveAccessConfig,
-        };
+    module.exports = {
+        DEFAULT_ACCESS_CONFIG,
+        normalizeAccessConfig,
+    };
 }
