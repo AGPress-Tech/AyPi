@@ -7,6 +7,12 @@ const { createAsyncGuard } = require("./shared/async-guard");
 const {
     resolveBackendRootUrl,
 } = require("./shared/backend-client");
+const {
+    showInfo,
+    showWarning,
+    showError,
+    confirmDialog,
+} = require("./shared/dialogs");
 
 const REQUIRED_TOOL_FIELDS = ["nrUnita", "iso", "descrizione"];
 const TOOL_ICON_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 14];
@@ -93,14 +99,22 @@ const HAAS_ROW_FIELDS = [
 ];
 
 const asyncGuard = createAsyncGuard({
-    errorTitle: "Errore Schede Attrezzaggio Transfer.",
-    promiseTitle: "Errore promessa non gestita (Schede Attrezzaggio Transfer).",
-    report: (_message, detail) => {
-        window.alert(detail || "Errore sconosciuto");
+    errorTitle: "Errore Schede Attrezzaggio.",
+    promiseTitle: "Errore promessa non gestita (Schede Attrezzaggio).",
+    report: async (_message, detail) => {
+        await showError(detail || "Errore sconosciuto");
     },
 });
 
 asyncGuard.installGlobalHandlers();
+
+async function openPdfPreview(payload) {
+    const res = await ipcRenderer.invoke("attrezzaggio-preview-pdf", payload);
+    if (!res?.ok) {
+        await showError(res?.error || "Errore generazione anteprima PDF");
+    }
+    return !!res?.ok;
+}
 
 function showView(name) {
     homeView.classList.toggle("hidden", name !== "home");
@@ -754,7 +768,7 @@ async function loadHaasCardAndOpenForm(code) {
         code,
     });
     if (!loaded?.ok) {
-        window.alert(loaded?.error || "Errore caricamento scheda HAAS");
+        await showError(loaded?.error || "Errore caricamento scheda HAAS");
         return false;
     }
     loadHaasItemIntoForm(loaded.item || {});
@@ -764,7 +778,7 @@ async function loadHaasCardAndOpenForm(code) {
 async function loadHaasList() {
     const res = await ipcRenderer.invoke("haas-attrezzaggio-list");
     if (!res?.ok) {
-        window.alert(res?.error || "Errore caricamento lista HAAS");
+        await showError(res?.error || "Errore caricamento lista HAAS");
         return;
     }
     haasListItems = Array.isArray(res.items) ? res.items : [];
@@ -872,19 +886,23 @@ function renderHaasListFiltered() {
         print.addEventListener("click", asyncGuard.wrap(async () => {
             const ok = await loadHaasCardAndOpenForm(item.code);
             if (!ok) return;
-            printHaasForm();
+            await printHaasForm();
         }));
 
         const del = document.createElement("button");
         del.textContent = "Elimina";
         del.addEventListener("click", asyncGuard.wrap(async () => {
-            const ok = window.confirm(`Eliminare la scheda ${item.code || buildHaasCode(item)}?`);
+            const ok = await confirmDialog(
+                `Eliminare la scheda ${item.code || buildHaasCode(item)}?`,
+            );
             if (!ok) return;
             const res = await ipcRenderer.invoke("haas-attrezzaggio-delete", {
                 code: item.code,
             });
             if (!res?.ok) {
-                window.alert(res?.error || "Errore eliminazione scheda HAAS");
+                await showError(
+                    res?.error || "Errore eliminazione scheda HAAS",
+                );
                 return;
             }
             await loadHaasList();
@@ -905,16 +923,18 @@ async function saveHaasForm() {
         !payload.numeroProgramma ||
         !payload.macchina
     ) {
-        window.alert("Compila Codice Articolo, N° Programma e Macchina.");
+        await showWarning(
+            "Compila Codice Articolo, N° Programma e Macchina.",
+        );
         return;
     }
     if (!payload.utensili.length) {
-        window.alert("Inserisci almeno una riga utensile.");
+        await showWarning("Inserisci almeno una riga utensile.");
         return;
     }
     const nextCode = payload.code || buildHaasCode(payload);
     if (!nextCode) {
-        window.alert("Impossibile generare il codice scheda.");
+        await showError("Impossibile generare il codice scheda.");
         return;
     }
 
@@ -923,7 +943,7 @@ async function saveHaasForm() {
         previousCode: currentHaasCode,
     });
     if (!res?.ok) {
-        window.alert(res?.error || "Errore salvataggio scheda HAAS");
+        await showError(res?.error || "Errore salvataggio scheda HAAS");
         return;
     }
     currentHaasCode = res.code || nextCode;
@@ -936,10 +956,10 @@ async function saveHaasForm() {
         : [];
     renderHaasAttachments();
     await loadHaasList();
-    window.alert(`Scheda HAAS salvata: ${currentHaasCode}`);
+    await showInfo(`Scheda HAAS salvata: ${currentHaasCode}`);
 }
 
-function printHaasForm() {
+async function printHaasForm() {
     const card = collectHaasFormData();
     const attachmentPages = buildHaasAttachmentPrintPages(card);
     const filledRows = readHaasRows()
@@ -963,9 +983,11 @@ function printHaasForm() {
         .join("");
     const rows = filledRows;
 
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`
+    await openPdfPreview({
+        title: `Scheda Attrezzaggio HAAS - ${getHaasVal("haasCodiceArticolo") || "scheda"}`,
+        pageSize: "A4",
+        landscape: false,
+        html: `
         <html>
         <head>
             <title>Scheda Attrezzaggio HAAS</title>
@@ -989,7 +1011,7 @@ function printHaasForm() {
                 .meta > div:nth-child(4n) { border-right:0; }
                 .meta > div:nth-last-child(-n + 2) { border-bottom: 0; }
                 .label { padding: 4px 6px; font-weight:700; background:#fafafa; }
-                .value { padding: 4px 6px; }
+                .value { padding: 4px 6px; font-size: 12px; line-height: 1.15; }
                 .span-3 { grid-column: span 1; }
                 .span-5 { grid-column: span 3; border-right:0 !important; }
                 .table-frame { border:1px solid #222; overflow:hidden; }
@@ -1001,10 +1023,11 @@ function printHaasForm() {
                 table tr th:last-child, table tr td:last-child { border-right:0; }
                 th { font-weight: 700; }
                 thead th { font-weight: 700; }
+                tbody td { font-size: 12px; line-height: 1.12; }
                 tbody tr { height: 5.2mm; }
                 .notes { margin-top: 14px; border:1px solid #222; }
                 .notes-title { border-bottom:1px solid #222; text-align:center; font-weight:700; padding:4px 8px; }
-                .notes-body { min-height: 32mm; padding:8px; white-space:pre-wrap; }
+                .notes-body { min-height: 32mm; padding:8px; white-space:pre-wrap; font-size: 12px; line-height: 1.2; }
                 .haas-attachment-print-page { page-break-before: always; width: 190mm; min-height: 277mm; margin: 0 auto; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 0; box-sizing: border-box; display:flex; align-items:center; justify-content:center; }
                 .haas-attachment-print-frame { width: 100%; height: 277mm; border: 1px solid #222; display:flex; flex-direction:column; background:#fff; box-sizing: border-box; }
                 .haas-attachment-print-frame img { width: 100%; height: calc(100% - 14mm); object-fit: contain; object-position: center; display:block; background:#fff; }
@@ -1071,8 +1094,8 @@ function printHaasForm() {
             </div>
         </body>
         </html>
-    `);
-    win.document.close();
+    `,
+    });
 }
 
 function readRows() {
@@ -1149,7 +1172,7 @@ function loadPrintLogo() {
     }
 }
 
-function printCard(card) {
+async function printCard(card) {
     const metodo = card.metodo || card.metodoVariante || "";
     const attachmentPages = buildAttachmentPrintPages(card);
     const cols = TOOL_ICON_COLUMNS.slice();
@@ -1166,9 +1189,11 @@ function printCard(card) {
         })
         .join("");
 
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`
+    await openPdfPreview({
+        title: card.code || "Scheda Attrezzaggio Transfer",
+        pageSize: "A3",
+        landscape: true,
+        html: `
         <html><head><title>${card.code}</title>
         <style>
             @page { size: A3 landscape; margin: 10mm; }
@@ -1238,8 +1263,8 @@ function printCard(card) {
         </table>
         ${attachmentPages}
         </body></html>
-    `);
-    win.document.close();
+    `,
+    });
 }
 
 async function loadCardAndOpenForm(code, options = { readOnly: false }) {
@@ -1247,7 +1272,7 @@ async function loadCardAndOpenForm(code, options = { readOnly: false }) {
         code,
     });
     if (!loaded?.ok) {
-        window.alert(loaded?.error || "Errore caricamento scheda");
+        await showError(loaded?.error || "Errore caricamento scheda");
         return;
     }
     const card = loaded.item;
@@ -1281,7 +1306,7 @@ async function loadCardAndOpenForm(code, options = { readOnly: false }) {
 async function loadList() {
     const res = await ipcRenderer.invoke("transfer-attrezzaggio-list");
     if (!res?.ok) {
-        window.alert(res?.error || "Errore caricamento lista");
+        await showError(res?.error || "Errore caricamento lista");
         return;
     }
     allListItems = Array.isArray(res.items) ? res.items : [];
@@ -1385,7 +1410,7 @@ function renderListFiltered() {
                 { code: item.code },
             );
             if (!loaded?.ok) return;
-            printCard(loaded.item);
+            await printCard(loaded.item);
             }),
         );
         const del = document.createElement("button");
@@ -1393,7 +1418,9 @@ function renderListFiltered() {
         del.addEventListener(
             "click",
             asyncGuard.wrap(async () => {
-            const ok = window.confirm(`Eliminare la scheda ${item.code}?`);
+            const ok = await confirmDialog(
+                `Eliminare la scheda ${item.code}?`,
+            );
             if (!ok) return;
             let resDel;
             try {
@@ -1402,13 +1429,15 @@ function renderListFiltered() {
                     { code: item.code },
                 );
             } catch (err) {
-                window.alert(
+                await showError(
                     "Funzione elimina non disponibile nella sessione corrente. Riavvia AyPi e riprova.",
                 );
                 return;
             }
             if (!resDel?.ok) {
-                window.alert(resDel?.error || "Errore eliminazione scheda");
+                await showError(
+                    resDel?.error || "Errore eliminazione scheda",
+                );
                 return;
             }
             await loadList();
@@ -1456,20 +1485,20 @@ async function saveForm() {
         !payload.codiceMacchina ||
         !payload.metodo
     ) {
-        window.alert(
+        await showWarning(
             "Compila Codice Articolo, Fase, Codice Macchina e Metodo/Variante.",
         );
         return;
     }
     if (!payload.utensili.length) {
-        window.alert("Inserisci almeno una riga utensile.");
+        await showWarning("Inserisci almeno una riga utensile.");
         return;
     }
     const invalid = payload.utensili.find((r) =>
         REQUIRED_TOOL_FIELDS.some((f) => !r[f]),
     );
     if (invalid) {
-        window.alert(
+        await showWarning(
             "Ogni riga utensile deve avere Nr Unita, ISO e Descrizione.",
         );
         return;
@@ -1477,7 +1506,7 @@ async function saveForm() {
 
     const res = await ipcRenderer.invoke("transfer-attrezzaggio-save", payload);
     if (!res?.ok) {
-        window.alert(res?.error || "Errore salvataggio");
+        await showError(res?.error || "Errore salvataggio");
         return;
     }
     currentCode = res.code;
@@ -1490,7 +1519,7 @@ async function saveForm() {
     }
     renderAttachments();
     updateCodeLabel();
-    window.alert(`Scheda salvata: ${res.code}`);
+    await showInfo(`Scheda salvata: ${res.code}`);
 }
 
 document
@@ -1566,7 +1595,7 @@ document
     ?.addEventListener("click", () => addHaasRow());
 document
     .getElementById("printHaasFormBtn")
-    ?.addEventListener("click", printHaasForm);
+    ?.addEventListener("click", asyncGuard.wrap(printHaasForm));
 document
     .getElementById("refreshHaasListBtn")
     ?.addEventListener("click", asyncGuard.wrap(loadHaasList));
@@ -1669,7 +1698,7 @@ haasAttachmentInput?.addEventListener(
         renderHaasAttachments();
     }),
 );
-document.getElementById("printFormBtn")?.addEventListener("click", () => {
+document.getElementById("printFormBtn")?.addEventListener("click", asyncGuard.wrap(async () => {
     const card = {
         code:
             currentCode ||
@@ -1701,8 +1730,8 @@ document.getElementById("printFormBtn")?.addEventListener("click", () => {
         ],
         utensili: readRows(),
     };
-    printCard(card);
-});
+    await printCard(card);
+}));
 document
     .getElementById("closeImagePreviewBtn")
     ?.addEventListener("click", closeImagePreview);

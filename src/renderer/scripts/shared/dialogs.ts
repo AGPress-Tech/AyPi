@@ -17,6 +17,19 @@ export function showError(message: string, detail = "") {
     return showDialog("error", message, detail);
 }
 
+export async function confirmDialog(message: string, detail = "") {
+    const result = await ipcRenderer.invoke("show-message-box", {
+        type: "question",
+        buttons: ["Conferma", "Annulla"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+        message,
+        detail,
+    });
+    return Number(result?.response) === 0;
+}
+
 // Keep CommonJS compatibility for legacy JS files (renderer)
 if (
     typeof module !== "undefined" &&
@@ -33,5 +46,6 @@ if (
             showInfo,
             showWarning,
             showError,
+            confirmDialog,
         };
 }

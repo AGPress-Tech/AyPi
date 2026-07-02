@@ -3,6 +3,7 @@
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
 import type { OpenDialogOptions } from "electron";
 import path from "path";
+import { pathToFileURL } from "url";
 import { exec, execSync, execFileSync } from "child_process";
 import http from "http";
 import https from "https";
@@ -1899,6 +1900,8 @@ let ticketSupportAdminWindow: BrowserWindow | null = null;
 let assigneesManagerWindow: BrowserWindow | null = null;
 let adminManagerWindow: BrowserWindow | null = null;
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
+let attrezzaggioPdfPreviewWindow: BrowserWindow | null = null;
+let attrezzaggioPdfPreviewPath: string | null = null;
 let productManagerSession: Record<string, unknown> | null = null;
 let productManagerForceLogout = false;
 let suppressTicketWindowChaining = false;
@@ -1907,6 +1910,144 @@ let productManagerSplashShown = false;
 let isAppQuitting = false;
 let lastFolderDialogPath: string | null = null;
 let lastFolderDialogClosedAt = 0;
+
+function getAttrezzaggioPdfPreviewDir() {
+    return path.join(app.getPath("temp"), "aypi-attrezzaggio-preview");
+}
+
+function cleanupAttrezzaggioPdfPreviewFile(filePath?: string | null) {
+    if (!filePath) return;
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (err) {
+        log.warn("[attrezzaggio-pdf] impossibile rimuovere file temp:", filePath, err);
+    }
+}
+
+function sanitizePreviewFileName(name: string) {
+    return String(name || "scheda-attrezzaggio")
+        .replace(/[<>:"/\\|?*\u0000-\u001F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80) || "scheda-attrezzaggio";
+}
+
+async function waitForAttrezzaggioPreviewAssets(win: BrowserWindow) {
+    await win.webContents.executeJavaScript(
+        `
+        new Promise((resolve) => {
+            const settle = () => setTimeout(resolve, 200);
+            const images = Array.from(document.images || []);
+            const waits = images.map((img) => {
+                if (img.complete) return Promise.resolve();
+                return new Promise((done) => {
+                    const finish = () => done();
+                    img.addEventListener("load", finish, { once: true });
+                    img.addEventListener("error", finish, { once: true });
+                    setTimeout(finish, 5000);
+                });
+            });
+            Promise.all(waits)
+                .catch(() => undefined)
+                .then(() => {
+                    if (document.fonts && document.fonts.ready) {
+                        document.fonts.ready.then(settle).catch(settle);
+                    } else {
+                        settle();
+                    }
+                });
+        });
+        `,
+        true,
+    );
+}
+
+async function createAttrezzaggioPreviewPdf(payload: {
+    html: string;
+    title?: string;
+    pageSize?: "A3" | "A4";
+    landscape?: boolean;
+}) {
+    const tempDir = getAttrezzaggioPdfPreviewDir();
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    const renderWindow = new BrowserWindow({
+        show: false,
+        width: 1400,
+        height: 1000,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+    });
+
+    try {
+        await renderWindow.loadURL(
+            `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`,
+        );
+        await waitForAttrezzaggioPreviewAssets(renderWindow);
+        const pdfBuffer = await renderWindow.webContents.printToPDF({
+            printBackground: true,
+            landscape: !!payload.landscape,
+            pageSize: payload.pageSize || "A4",
+            preferCSSPageSize: true,
+        });
+        const fileName = `${Date.now()}-${sanitizePreviewFileName(payload.title || "scheda-attrezzaggio")}.pdf`;
+        const filePath = path.join(tempDir, fileName);
+        fs.writeFileSync(filePath, pdfBuffer);
+        return filePath;
+    } finally {
+        if (!renderWindow.isDestroyed()) {
+            renderWindow.destroy();
+        }
+    }
+}
+
+async function openAttrezzaggioPdfPreviewWindow(
+    pdfPath: string,
+    parentWindow?: BrowserWindow | null,
+) {
+    const pdfUrl = pathToFileURL(pdfPath).toString();
+    const previousPath = attrezzaggioPdfPreviewPath;
+    attrezzaggioPdfPreviewPath = pdfPath;
+
+    if (isWindowAlive(attrezzaggioPdfPreviewWindow)) {
+        await attrezzaggioPdfPreviewWindow.loadURL(pdfUrl);
+        showWindow(attrezzaggioPdfPreviewWindow);
+        if (previousPath && previousPath !== pdfPath) {
+            cleanupAttrezzaggioPdfPreviewFile(previousPath);
+        }
+        return;
+    }
+
+    attrezzaggioPdfPreviewWindow = new BrowserWindow({
+        width: 1200,
+        height: 900,
+        parent: isWindowAlive(parentWindow) ? parentWindow : undefined,
+        modal: false,
+        autoHideMenuBar: true,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+    });
+
+    attrezzaggioPdfPreviewWindow.once("ready-to-show", () => {
+        if (isWindowAlive(attrezzaggioPdfPreviewWindow)) {
+            showWindow(attrezzaggioPdfPreviewWindow);
+        }
+    });
+
+    attrezzaggioPdfPreviewWindow.on("closed", () => {
+        const filePath = attrezzaggioPdfPreviewPath;
+        attrezzaggioPdfPreviewWindow = null;
+        attrezzaggioPdfPreviewPath = null;
+        cleanupAttrezzaggioPdfPreviewFile(filePath);
+    });
+
+    await attrezzaggioPdfPreviewWindow.loadURL(pdfUrl);
+    if (previousPath && previousPath !== pdfPath) {
+        cleanupAttrezzaggioPdfPreviewFile(previousPath);
+    }
+}
 
 function openBatchRenameWindow(mainWindow) {
     if (isWindowAlive(batchRenameWindow)) {
@@ -3042,6 +3183,12 @@ function setupFileManager(mainWindow) {
             title: "AyPi",
             message: options.message || "",
             detail: options.detail || "",
+            defaultId:
+                typeof options.defaultId === "number" ? options.defaultId : 0,
+            cancelId:
+                typeof options.cancelId === "number" ? options.cancelId : 0,
+            noLink: options.noLink !== false,
+            normalizeAccessKeys: true,
         });
     });
 
@@ -3592,6 +3739,29 @@ function setupFileManager(mainWindow) {
     });
     ipcMain.on("open-attrezzaggio-window", () => {
         openTransferAttrezzaggioWindow(mainWindow);
+    });
+
+    ipcMain.handle("attrezzaggio-preview-pdf", async (event, payload) => {
+        try {
+            const html = String(payload?.html || "");
+            if (!html.trim()) {
+                return { ok: false, error: "Contenuto PDF mancante." };
+            }
+            const pdfPath = await createAttrezzaggioPreviewPdf({
+                html,
+                title: String(payload?.title || "scheda-attrezzaggio"),
+                pageSize: payload?.pageSize === "A3" ? "A3" : "A4",
+                landscape: !!payload?.landscape,
+            });
+            await openAttrezzaggioPdfPreviewWindow(
+                pdfPath,
+                BrowserWindow.fromWebContents(event.sender),
+            );
+            return { ok: true };
+        } catch (err) {
+            log.error("[attrezzaggio-pdf] errore anteprima:", err);
+            return { ok: false, error: err?.message || String(err) };
+        }
     });
 
     ipcMain.handle("transfer-attrezzaggio-list", async () => {
