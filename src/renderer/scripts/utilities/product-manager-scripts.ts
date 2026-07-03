@@ -161,6 +161,7 @@ import {
 } from "./product-manager/data/normalize";
 import {
     PRODUCTS_DIR,
+    ROOT_DIR,
 } from "./product-manager/config/paths";
 import {
     isMailerAvailable,
