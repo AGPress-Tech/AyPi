@@ -178,8 +178,16 @@ async function verifyAdminPassword(
 ): Promise<VerifyResult | null> {
     if (!password) return null;
     const admins = loadAdminCredentials();
+    const normalizedTargetName = String(targetName || "")
+        .trim()
+        .toLowerCase();
     for (const admin of admins) {
-        if (targetName && admin.name !== targetName) continue;
+        if (
+            normalizedTargetName &&
+            String(admin.name || "").trim().toLowerCase() !== normalizedTargetName
+        ) {
+            continue;
+        }
         if (admin.passwordHash) {
             try {
                 const ok = await verifyPasswordHash(

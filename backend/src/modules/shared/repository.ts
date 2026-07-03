@@ -482,8 +482,16 @@ export async function verifyAdminPassword(
 ) {
     if (!password) return null;
     const admins = loadAdminCredentials();
+    const normalizedTargetName = String(targetName || "")
+        .trim()
+        .toLowerCase();
     for (const admin of admins) {
-        if (targetName && admin.name !== targetName) continue;
+        if (
+            normalizedTargetName &&
+            String(admin.name || "").trim().toLowerCase() !== normalizedTargetName
+        ) {
+            continue;
+        }
         if (admin.passwordHash) {
             const ok = await verifyPasswordHash(admin.passwordHash, password);
             if (ok) {

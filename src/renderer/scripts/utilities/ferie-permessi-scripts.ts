@@ -336,7 +336,7 @@ async function verifyAdminPasswordRemote(password, targetName) {
             password,
             targetName: targetName || null,
         },
-    });
+    }).catch(() => null);
     if (!payload?.ok || !payload?.admin) return null;
     const admin = normalizeAdminEntry(payload.admin);
     const names = new Set(
