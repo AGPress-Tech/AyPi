@@ -1197,6 +1197,7 @@ async function printCard(card) {
         <html><head><title>${card.code}</title>
         <style>
             @page { size: A3 landscape; margin: 10mm; }
+            html, body { margin: 0; padding: 0; background: #fff; }
             body { font-family: Segoe UI, Tahoma, sans-serif; font-size: 12px; }
             .preview-toolbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #ccc; padding: 8px; margin: -8px -8px 10px -8px; }
             .preview-toolbar button { padding: 6px 10px; border: 1px solid #888; background: #fff; cursor: pointer; }
