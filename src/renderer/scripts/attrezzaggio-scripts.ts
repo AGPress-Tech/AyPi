@@ -841,6 +841,8 @@ function renderHaasListFiltered() {
         const li = document.createElement("li");
         const details = document.createElement("div");
         details.className = "card-details";
+        const actions = document.createElement("div");
+        actions.className = "card-actions";
 
         const code = document.createElement("span");
         code.className = "code";
@@ -909,9 +911,10 @@ function renderHaasListFiltered() {
         }));
 
         li.appendChild(details);
-        li.appendChild(edit);
-        li.appendChild(print);
-        li.appendChild(del);
+        actions.appendChild(edit);
+        actions.appendChild(print);
+        actions.appendChild(del);
+        li.appendChild(actions);
         haasCardsList.appendChild(li);
     });
 }
@@ -1365,6 +1368,8 @@ function renderListFiltered() {
         const li = document.createElement("li");
         const details = document.createElement("div");
         details.className = "card-details";
+        const actions = document.createElement("div");
+        actions.className = "card-actions";
         const code = document.createElement("span");
         code.className = "code";
         code.innerHTML = buildCodeHtml(item);
@@ -1445,9 +1450,10 @@ function renderListFiltered() {
             }),
         );
         li.appendChild(details);
-        li.appendChild(edit);
-        li.appendChild(print);
-        li.appendChild(del);
+        actions.appendChild(edit);
+        actions.appendChild(print);
+        actions.appendChild(del);
+        li.appendChild(actions);
         cardsList.appendChild(li);
     });
 }
