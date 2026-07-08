@@ -1019,7 +1019,7 @@ async function printHaasForm() {
                 .span-5 { grid-column: span 3; border-right:0 !important; }
                 .table-frame { border:1px solid #222; overflow:hidden; }
                 table { width:100%; border-collapse:collapse; table-layout:fixed; border:0; }
-                th, td { border:1px solid #222; padding:2px 3px; text-align:center; vertical-align:middle; font-size:10px; line-height:1.08; }
+                th, td { border:1px solid #222; padding:2px 3px; text-align:center; vertical-align:middle; font-size:10px; line-height:1.08; white-space: normal; overflow-wrap: break-word; word-break: normal; }
                 thead tr:first-child th { border-top:0; }
                 tbody tr:last-child td { border-bottom:0; }
                 table tr th:first-child, table tr td:first-child { border-left:0; }
@@ -1216,7 +1216,7 @@ async function printCard(card) {
             .meta div { border:1px solid #333; padding:6px; min-height:30px; font-size: 16px; line-height: 1.25; }
             .meta div strong { font-size: 18px; }
             table { width:100%; border-collapse:collapse; table-layout:fixed; }
-            th,td { border:1px solid #333; padding:4px; text-align:center; vertical-align:middle; font-size: 14px; }
+            th,td { border:1px solid #333; padding:4px; text-align:center; vertical-align:middle; font-size: 14px; white-space: normal; overflow-wrap: break-word; word-break: normal; }
             th { background:#ffffff; }
             td:nth-child(3), th:nth-child(3) { text-align:left; }
             .desc { width:18%; }

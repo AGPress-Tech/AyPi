@@ -111,13 +111,19 @@ function normalizeAdminEntry(item) {
     return {
         name: String(item?.name || "").trim(),
         password: item?.password ? String(item.password) : undefined,
-        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
+        passwordHash: item?.passwordHash
+            ? String(item.passwordHash)
+            : undefined,
         email: item?.email ? String(item.email) : "",
         phone: item?.phone ? String(item.phone) : "",
         accessCalendar:
-            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
+            typeof item?.accessCalendar === "boolean"
+                ? item.accessCalendar
+                : true,
         accessPurchasing:
-            typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
+            typeof item?.accessPurchasing === "boolean"
+                ? item.accessPurchasing
+                : true,
     };
 }
 
@@ -157,7 +163,9 @@ async function verifyAdminPassword(password, targetName) {
 }
 
 function findAdminByName(name) {
-    const lower = String(name || "").trim().toLowerCase();
+    const lower = String(name || "")
+        .trim()
+        .toLowerCase();
     return (
         loadAdminCredentials().find(
             (item) => item.name.trim().toLowerCase() === lower,
@@ -262,7 +270,6 @@ function initPasswordModal() {
         });
     }
 }
-
 const otpUi = createOtpModals({
     document,
     showModal,
@@ -327,16 +334,14 @@ function init() {
         })
         .catch((err) => asyncGuard.handle(err));
 
-    document
-        .getElementById("adm-refresh")
-        ?.addEventListener(
-            "click",
-            asyncGuard.wrap(async () => {
-                await hydrateAdmins();
-                adminUi.renderAdminList();
-                setAdminMessage("fp-admin-message", "Dati aggiornati.");
-            }),
-        );
+    document.getElementById("adm-refresh")?.addEventListener(
+        "click",
+        asyncGuard.wrap(async () => {
+            await hydrateAdmins();
+            adminUi.renderAdminList();
+            setAdminMessage("fp-admin-message", "Dati aggiornati.");
+        }),
+    );
     document
         .getElementById("adm-close")
         ?.addEventListener("click", () => window.close());
