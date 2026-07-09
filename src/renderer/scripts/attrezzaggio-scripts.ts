@@ -127,6 +127,80 @@ function showView(name) {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
+function isViewVisible(view) {
+    return !!view && !view.classList.contains("hidden");
+}
+
+function getActiveEditableFormView() {
+    if (isViewVisible(formView) && !formReadOnly) return formView;
+    if (isViewVisible(haasFormView)) return haasFormView;
+    return null;
+}
+
+function isEditableTextField(el) {
+    if (
+        !el ||
+        !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
+    ) {
+        return false;
+    }
+    if (el.disabled || el.readOnly) return false;
+    if (el instanceof HTMLInputElement) {
+        const type = String(el.type || "text").toLowerCase();
+        if (
+            [
+                "hidden",
+                "button",
+                "submit",
+                "reset",
+                "checkbox",
+                "radio",
+                "file",
+            ].includes(type)
+        ) {
+            return false;
+        }
+    }
+    return el.getClientRects().length > 0;
+}
+
+function getFormTextFields(view) {
+    if (!view) return [];
+    return Array.from(view.querySelectorAll("input, textarea")).filter(
+        isEditableTextField,
+    );
+}
+
+function focusAdjacentFormField(direction) {
+    const view = getActiveEditableFormView();
+    if (!view) return false;
+    const active = document.activeElement;
+    if (!active || !view.contains(active)) return false;
+    const fields = getFormTextFields(view);
+    if (!fields.length) return false;
+    const index = fields.indexOf(active);
+    const nextIndex =
+        index >= 0
+            ? (index + direction + fields.length) % fields.length
+            : direction > 0
+              ? 0
+              : fields.length - 1;
+    fields[nextIndex]?.focus();
+    return true;
+}
+
+async function saveActiveFormFromKeyboard() {
+    if (isViewVisible(formView) && !formReadOnly) {
+        await saveForm();
+        return true;
+    }
+    if (isViewVisible(haasFormView)) {
+        await saveHaasForm();
+        return true;
+    }
+    return false;
+}
+
 function setFormReadOnly(isReadOnly) {
     formReadOnly = !!isReadOnly;
     formView.classList.toggle("readonly-mode", formReadOnly);
@@ -1746,6 +1820,33 @@ imagePreviewOverlay?.addEventListener("click", (event) => {
     if (event.target === imagePreviewOverlay) closeImagePreview();
 });
 document.getElementById("addRowBtn")?.addEventListener("click", () => addRow());
+
+document.addEventListener(
+    "keydown",
+    asyncGuard.wrap(async (event) => {
+        if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            const moved = focusAdjacentFormField(event.shiftKey ? -1 : 1);
+            if (moved) {
+                event.preventDefault();
+            }
+            return;
+        }
+
+        if (
+            event.key === "F1" &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey
+        ) {
+            const view = getActiveEditableFormView();
+            if (!view) return;
+            const active = document.activeElement;
+            if (active && active !== document.body && !view.contains(active)) return;
+            event.preventDefault();
+            await saveActiveFormFromKeyboard();
+        }
+    }),
+);
 ["codiceArticolo", "fase", "codiceMacchina", "metodo"].forEach((id) => {
     document.getElementById(id)?.addEventListener("input", updateCodeLabel);
 });
