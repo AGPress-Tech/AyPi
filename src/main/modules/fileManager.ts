@@ -1869,6 +1869,8 @@ let ticketSupportAdminWindow: BrowserWindow | null = null;
 let assigneesManagerWindow: BrowserWindow | null = null;
 let adminManagerWindow: BrowserWindow | null = null;
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
+let allowTransferAttrezzaggioWindowClose = false;
+let transferAttrezzaggioClosePromptPending = false;
 let attrezzaggioPdfPreviewPath: string | null = null;
 let productManagerSession: Record<string, unknown> | null = null;
 let productManagerForceLogout = false;
@@ -2724,6 +2726,8 @@ function openTransferAttrezzaggioWindow(mainWindow) {
         return;
     }
 
+    allowTransferAttrezzaggioWindowClose = false;
+    transferAttrezzaggioClosePromptPending = false;
     transferAttrezzaggioWindow = new BrowserWindow({
         width: 1280,
         height: 860,
@@ -2744,8 +2748,20 @@ function openTransferAttrezzaggioWindow(mainWindow) {
         }
     });
 
+    transferAttrezzaggioWindow.on("close", (event) => {
+        if (isAppQuitting || allowTransferAttrezzaggioWindowClose) return;
+        event.preventDefault();
+        if (transferAttrezzaggioClosePromptPending) return;
+        transferAttrezzaggioClosePromptPending = true;
+        transferAttrezzaggioWindow?.webContents.send(
+            "attrezzaggio-confirm-window-close",
+        );
+    });
+
     transferAttrezzaggioWindow.on("closed", () => {
         transferAttrezzaggioWindow = null;
+        allowTransferAttrezzaggioWindowClose = false;
+        transferAttrezzaggioClosePromptPending = false;
         showMainWindow(mainWindow);
     });
 }
@@ -3696,6 +3712,18 @@ function setupFileManager(mainWindow) {
     });
     ipcMain.on("open-attrezzaggio-window", () => {
         openTransferAttrezzaggioWindow(mainWindow);
+    });
+    ipcMain.on("attrezzaggio-window-close-response", (event, payload) => {
+        if (
+            !isWindowAlive(transferAttrezzaggioWindow) ||
+            transferAttrezzaggioWindow?.webContents !== event.sender
+        ) {
+            return;
+        }
+        transferAttrezzaggioClosePromptPending = false;
+        if (!payload?.confirmed) return;
+        allowTransferAttrezzaggioWindowClose = true;
+        transferAttrezzaggioWindow?.close();
     });
 
     ipcMain.handle("attrezzaggio-preview-pdf", async (event, payload) => {

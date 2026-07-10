@@ -86,6 +86,8 @@ let pendingHaasAttachments = [];
 let currentHaasCode = null;
 let haasFormOrigin = "home";
 let haasListItems = [];
+let transferSavedSnapshot = "";
+let haasSavedSnapshot = "";
 const HAAS_ROW_FIELDS = [
     "t",
     "ciclo",
@@ -236,7 +238,7 @@ function setFormReadOnly(isReadOnly) {
     });
 
     formView
-        .querySelectorAll("#utensiliBody td:last-child button")
+        .querySelectorAll("#utensiliBody .row-drag-handle, #utensiliBody td:last-child button")
         .forEach((btn) => {
             (btn as HTMLButtonElement).style.display = formReadOnly
                 ? "none"
@@ -530,6 +532,127 @@ function buildCodeHtml(item) {
     return escapeHtml(item?.code || "");
 }
 
+function createRowDragHandle(label = "riga") {
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "row-drag-handle";
+    handle.textContent = "☰";
+    handle.draggable = true;
+    handle.title = `Trascina per riordinare la ${label} (oppure usa le frecce su/giù)`;
+    handle.setAttribute("aria-label", `Riordina ${label}`);
+    return handle;
+}
+
+function moveTransferRow(tr, offset) {
+    const rows = Array.from(utensiliBody.querySelectorAll("tr"));
+    const currentIndex = rows.indexOf(tr);
+    const nextIndex = Math.max(0, Math.min(rows.length - 1, currentIndex + offset));
+    if (currentIndex < 0 || nextIndex === currentIndex) return;
+    const reference = offset > 0 ? rows[nextIndex].nextSibling : rows[nextIndex];
+    utensiliBody.insertBefore(tr, reference);
+    tr.querySelector(".row-drag-handle")?.focus();
+}
+
+function enableTransferRowReordering(tr, handle) {
+    handle.addEventListener("dragstart", (event) => {
+        if (formReadOnly) {
+            event.preventDefault();
+            return;
+        }
+        tr.classList.add("row-reorder-dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", "transfer-row");
+    });
+    handle.addEventListener("dragend", () => {
+        tr.classList.remove("row-reorder-dragging");
+    });
+    handle.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        event.preventDefault();
+        moveTransferRow(tr, event.key === "ArrowUp" ? -1 : 1);
+    });
+}
+
+function getHaasRowGroups() {
+    return Array.from(haasBody.querySelectorAll("tr.haas-data-row-top")).map(
+        (top) => ({ top, bottom: top.nextElementSibling }),
+    );
+}
+
+function renderHaasRowGroups(groups) {
+    groups.forEach(({ top, bottom }) => {
+        haasBody.appendChild(top);
+        if (bottom) haasBody.appendChild(bottom);
+    });
+}
+
+function moveHaasRowPair(trTop, offset) {
+    const groups = getHaasRowGroups();
+    const currentIndex = groups.findIndex(({ top }) => top === trTop);
+    const nextIndex = Math.max(0, Math.min(groups.length - 1, currentIndex + offset));
+    if (currentIndex < 0 || nextIndex === currentIndex) return;
+    const [moving] = groups.splice(currentIndex, 1);
+    groups.splice(nextIndex, 0, moving);
+    renderHaasRowGroups(groups);
+    trTop.querySelector(".row-drag-handle")?.focus();
+}
+
+function enableHaasRowReordering(trTop, trBottom, handle) {
+    handle.addEventListener("dragstart", (event) => {
+        trTop.classList.add("row-reorder-dragging");
+        trBottom.classList.add("row-reorder-dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", "haas-row");
+    });
+    handle.addEventListener("dragend", () => {
+        trTop.classList.remove("row-reorder-dragging");
+        trBottom.classList.remove("row-reorder-dragging");
+    });
+    handle.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        event.preventDefault();
+        moveHaasRowPair(trTop, event.key === "ArrowUp" ? -1 : 1);
+    });
+}
+
+utensiliBody.addEventListener("dragover", (event) => {
+    const dragging = utensiliBody.querySelector("tr.row-reorder-dragging");
+    const target = (event.target as HTMLElement)?.closest("tr");
+    if (!dragging || !target || target === dragging) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const targetRect = target.getBoundingClientRect();
+    const insertBefore = event.clientY < targetRect.top + targetRect.height / 2;
+    utensiliBody.insertBefore(dragging, insertBefore ? target : target.nextSibling);
+});
+utensiliBody.addEventListener("drop", (event) => event.preventDefault());
+
+haasBody.addEventListener("dragover", (event) => {
+    const draggingTop = haasBody.querySelector("tr.haas-data-row-top.row-reorder-dragging");
+    const hovered = (event.target as HTMLElement)?.closest("tr.haas-data-row");
+    if (!draggingTop || !hovered) return;
+    const targetTop = hovered.classList.contains("haas-data-row-top")
+        ? hovered
+        : hovered.previousElementSibling;
+    if (!targetTop || targetTop === draggingTop) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+
+    const targetBottom = targetTop.nextElementSibling;
+    const topRect = targetTop.getBoundingClientRect();
+    const bottomRect = targetBottom?.getBoundingClientRect() || topRect;
+    const insertBefore = event.clientY < (topRect.top + bottomRect.bottom) / 2;
+    const groups = getHaasRowGroups();
+    const sourceIndex = groups.findIndex(({ top }) => top === draggingTop);
+    const targetIndex = groups.findIndex(({ top }) => top === targetTop);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moving] = groups.splice(sourceIndex, 1);
+    const adjustedTargetIndex = groups.findIndex(({ top }) => top === targetTop);
+    groups.splice(adjustedTargetIndex + (insertBefore ? 0 : 1), 0, moving);
+    renderHaasRowGroups(groups);
+});
+haasBody.addEventListener("drop", (event) => event.preventDefault());
+
 function addRow(row = {}) {
     const tr = document.createElement("tr");
     ["nrUnita", "iso", "descrizione"].forEach((key) => {
@@ -551,6 +674,9 @@ function addRow(row = {}) {
         }
         tr.appendChild(td);
     });
+    const dragHandle = createRowDragHandle("riga utensile");
+    enableTransferRowReordering(tr, dragHandle);
+    tr.firstElementChild?.appendChild(dragHandle);
     TOOL_ICON_COLUMNS.forEach((i) => {
         const td = document.createElement("td");
         const input = document.createElement("textarea");
@@ -563,12 +689,18 @@ function addRow(row = {}) {
         tr.appendChild(td);
     });
     const tdAction = document.createElement("td");
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
     const del = document.createElement("button");
     del.textContent = "Rimuovi";
     del.type = "button";
     del.addEventListener("click", () => tr.remove());
-    if (formReadOnly) del.style.display = "none";
-    tdAction.appendChild(del);
+    if (formReadOnly) {
+        del.style.display = "none";
+        dragHandle.style.display = "none";
+    }
+    actions.appendChild(del);
+    tdAction.appendChild(actions);
     tr.appendChild(tdAction);
     utensiliBody.appendChild(tr);
     requestAnimationFrame(() => {
@@ -627,6 +759,10 @@ function addHaasRow(row = {}) {
         trTop.appendChild(td);
     });
 
+    const dragHandle = createRowDragHandle("riga utensile HAAS");
+    enableHaasRowReordering(trTop, trBottom, dragHandle);
+    trTop.firstElementChild?.appendChild(dragHandle);
+
     const mandrinoTopCell = document.createElement("td");
     mandrinoTopCell.colSpan = 2;
     const mandrinoTopWrap = document.createElement("div");
@@ -675,6 +811,8 @@ function addHaasRow(row = {}) {
     const tdAction = document.createElement("td");
     tdAction.className = "haas-inline-action";
     tdAction.rowSpan = 2;
+    const actions = document.createElement("div");
+    actions.className = "row-actions haas-row-actions";
     const del = document.createElement("button");
     del.type = "button";
     del.className = "haas-delete-btn";
@@ -685,7 +823,8 @@ function addHaasRow(row = {}) {
         trTop.remove();
         trBottom.remove();
     });
-    tdAction.appendChild(del);
+    actions.appendChild(del);
+    tdAction.appendChild(actions);
     trTop.appendChild(tdAction);
 
     [
@@ -752,6 +891,7 @@ function resetHaasForm() {
     }
     addHaasRow();
     renderHaasAttachments();
+    markHaasFormAsSaved();
 }
 
 function getHaasVal(id) {
@@ -835,6 +975,7 @@ function loadHaasItemIntoForm(item) {
         addHaasRow();
     }
     renderHaasAttachments();
+    markHaasFormAsSaved();
 }
 
 async function loadHaasCardAndOpenForm(code) {
@@ -1032,6 +1173,7 @@ async function saveHaasForm() {
         ? res.item.attachments
         : [];
     renderHaasAttachments();
+    markHaasFormAsSaved();
     await loadHaasList();
     await showInfo(`Scheda HAAS salvata: ${currentHaasCode}`);
 }
@@ -1188,6 +1330,90 @@ function readRows() {
         .filter((r) => Object.values(r).some(Boolean));
 }
 
+function attachmentSnapshot(items) {
+    return (items || []).map((item) => ({
+        id: item.id || item.tempId || "",
+        storedName: item.storedName || "",
+        originalName: item.originalName || "",
+        mimeType: item.mimeType || "",
+        size: Number(item.size || 0),
+    }));
+}
+
+function getTransferFormSnapshot() {
+    return JSON.stringify({
+        fields: [
+            "codiceArticolo",
+            "fase",
+            "codiceMacchina",
+            "metodo",
+            "lavorazione",
+            "cicloLavorazione",
+            "spessori",
+            "vitiRondelle",
+            "spine",
+            "programmaRobot",
+            "mani",
+            "morsetti",
+            "note",
+        ].map((id) => getVal(id)),
+        utensili: readRows(),
+        attachments: attachmentSnapshot(currentAttachments),
+        pendingAttachments: attachmentSnapshot(pendingAttachments),
+    });
+}
+
+function getHaasFormSnapshot() {
+    return JSON.stringify({
+        fields: [
+            "haasCodiceArticolo",
+            "haasDenominazioneArticolo",
+            "haasNumeroProgramma",
+            "haasMacchina",
+            "haasMetodo",
+            "haasCicloLavoro",
+            "haasNote",
+        ].map((id) => getHaasVal(id)),
+        utensili: readHaasRows(),
+        attachments: attachmentSnapshot(currentHaasAttachments),
+        pendingAttachments: attachmentSnapshot(pendingHaasAttachments),
+    });
+}
+
+function markTransferFormAsSaved() {
+    transferSavedSnapshot = getTransferFormSnapshot();
+}
+
+function markHaasFormAsSaved() {
+    haasSavedSnapshot = getHaasFormSnapshot();
+}
+
+function hasUnsavedTransferChanges() {
+    return !formReadOnly && getTransferFormSnapshot() !== transferSavedSnapshot;
+}
+
+function hasUnsavedHaasChanges() {
+    return getHaasFormSnapshot() !== haasSavedSnapshot;
+}
+
+async function confirmExitWithUnsavedChanges(kind) {
+    const hasChanges = kind === "haas"
+        ? hasUnsavedHaasChanges()
+        : hasUnsavedTransferChanges();
+    if (!hasChanges) return true;
+
+    const result = await ipcRenderer.invoke("show-message-box", {
+        type: "question",
+        buttons: ["Sì", "No"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+        message: "Uscire senza salvare?",
+        detail: "La scheda contiene modifiche non ancora salvate. Con Sì le modifiche verranno perse; con No rimani nella scheda.",
+    });
+    return Number(result?.response) === 0;
+}
+
 function resetForm() {
     currentCode = null;
     currentAttachments = [];
@@ -1215,6 +1441,7 @@ function resetForm() {
     renderAttachments();
     updateCodeLabel();
     setFormReadOnly(false);
+    markTransferFormAsSaved();
 }
 
 function applyHeaderIcons() {
@@ -1378,6 +1605,7 @@ async function loadCardAndOpenForm(code, options = { readOnly: false }) {
     updateCodeLabel();
     formOrigin = "list";
     setFormReadOnly(!!options?.readOnly);
+    markTransferFormAsSaved();
     showView("form");
 }
 
@@ -1600,6 +1828,7 @@ async function saveForm() {
     }
     renderAttachments();
     updateCodeLabel();
+    markTransferFormAsSaved();
     await showInfo(`Scheda salvata: ${res.code}`);
 }
 
@@ -1649,6 +1878,7 @@ document
 document
     .getElementById("backFromHaasBtn")
     ?.addEventListener("click", asyncGuard.wrap(async () => {
+        if (!(await confirmExitWithUnsavedChanges("haas"))) return;
         if (haasFormOrigin === "list") {
             showView("haas-list");
             await loadHaasList();
@@ -1664,7 +1894,10 @@ document
     ?.addEventListener("click", () => showView("haas-home"));
 document
     .getElementById("newHaasFormBtn")
-    ?.addEventListener("click", resetHaasForm);
+    ?.addEventListener("click", asyncGuard.wrap(async () => {
+        if (!(await confirmExitWithUnsavedChanges("haas"))) return;
+        resetHaasForm();
+    }));
 document
     .getElementById("saveHaasFormBtn")
     ?.addEventListener("click", asyncGuard.wrap(saveHaasForm));
@@ -1709,6 +1942,7 @@ document
     ?.addEventListener(
         "click",
         asyncGuard.wrap(async () => {
+            if (!(await confirmExitWithUnsavedChanges("transfer"))) return;
             if (formOrigin === "list") {
                 showView("list");
                 if (!allListItems.length) await loadList();
@@ -1718,7 +1952,10 @@ document
             showView("transfer-home");
         }),
     );
-document.getElementById("newFormBtn")?.addEventListener("click", resetForm);
+document.getElementById("newFormBtn")?.addEventListener("click", asyncGuard.wrap(async () => {
+    if (!(await confirmExitWithUnsavedChanges("transfer"))) return;
+    resetForm();
+}));
 document
     .getElementById("saveFormBtn")
     ?.addEventListener("click", asyncGuard.wrap(saveForm));
@@ -1819,6 +2056,18 @@ document
 imagePreviewOverlay?.addEventListener("click", (event) => {
     if (event.target === imagePreviewOverlay) closeImagePreview();
 });
+ipcRenderer.on(
+    "attrezzaggio-confirm-window-close",
+    asyncGuard.wrap(async () => {
+        let confirmed = true;
+        if (isViewVisible(formView)) {
+            confirmed = await confirmExitWithUnsavedChanges("transfer");
+        } else if (isViewVisible(haasFormView)) {
+            confirmed = await confirmExitWithUnsavedChanges("haas");
+        }
+        ipcRenderer.send("attrezzaggio-window-close-response", { confirmed });
+    }),
+);
 document.getElementById("addRowBtn")?.addEventListener("click", () => addRow());
 
 document.addEventListener(

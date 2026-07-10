@@ -265,7 +265,14 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     margin: 0;
 }
 
-.table-wrap { margin-top: 8px; overflow-y: auto; overflow-x: hidden; max-height: 58vh; }
+.table-wrap {
+    margin-top: 8px;
+    padding-left: 18px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 58vh;
+    box-sizing: border-box;
+}
 #utensiliTable {
     width: 100%;
     border-collapse: collapse;
@@ -354,8 +361,60 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 }
 
 #utensiliTable td:last-child button {
-    margin: 0 auto;
-    display: inline-block;
+    margin: 0;
+}
+
+.row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.row-drag-handle {
+    position: absolute;
+    top: 50%;
+    left: -17px;
+    z-index: 2;
+    width: 14px;
+    min-width: 14px;
+    height: 18px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #52606d;
+    background: transparent;
+    border: 0;
+    border-radius: 2px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: grab;
+    user-select: none;
+    opacity: 0.38;
+    transform: translateY(-50%);
+}
+
+.row-drag-handle:hover,
+.row-drag-handle:focus-visible {
+    color: #111820;
+    background: rgba(229, 234, 240, 0.75);
+    opacity: 0.9;
+}
+
+.row-drag-handle:active {
+    cursor: grabbing;
+    opacity: 1;
+}
+
+#utensiliTable tbody td:first-child,
+#haasTable tbody td:first-child {
+    position: relative;
+}
+
+tr.row-reorder-dragging > td {
+    opacity: 0.45;
+    background: #dce9f7;
 }
 
 .cards-list { list-style: none; margin: 0; padding: 0; }
@@ -638,7 +697,9 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 
 .haas-table-wrap {
     margin-top: 8px;
+    padding-left: 18px;
     overflow-x: auto;
+    box-sizing: border-box;
 }
 
 #haasTable {
@@ -815,6 +876,16 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .haas-inline-action {
     text-align: center;
     vertical-align: middle !important;
+}
+
+.haas-row-actions {
+    gap: 0;
+}
+
+.haas-row-actions .haas-delete-btn {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
 }
 
 .haas-notes-section {
