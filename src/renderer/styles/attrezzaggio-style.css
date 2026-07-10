@@ -40,6 +40,67 @@ button {
 }
 button:hover { border-color: var(--accent); color: var(--accent); }
 
+.debug-export-dialog {
+    width: min(520px, calc(100vw - 40px));
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    color: var(--text);
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(18, 29, 43, 0.28);
+}
+
+.debug-export-dialog::backdrop {
+    background: rgba(20, 29, 39, 0.48);
+}
+
+.debug-stage {
+    padding: 24px;
+}
+
+.debug-stage.hidden {
+    display: none;
+}
+
+.debug-stage h2 {
+    margin: 0 0 10px;
+    font-size: 20px;
+}
+
+.debug-stage p {
+    color: var(--text-soft);
+    line-height: 1.45;
+}
+
+.debug-stage label {
+    display: block;
+    margin: 18px 0 6px;
+    font-weight: 600;
+}
+
+.debug-stage input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    box-sizing: border-box;
+    font: inherit;
+}
+
+.debug-password-error {
+    min-height: 20px;
+    margin: 7px 0 0;
+    color: #b42318 !important;
+    font-size: 13px;
+}
+
+.debug-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+
 .view.hidden { display: none; }
 .toolbar { margin-bottom: 8px; }
 

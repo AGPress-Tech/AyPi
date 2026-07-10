@@ -258,12 +258,23 @@ app.on("browser-window-created", (_event, win) => {
         win.webContents.insertCSS(SCROLLBAR_CSS).catch(() => {});
     });
     win.webContents.on("before-input-event", (event, input) => {
-        if (input && input.key === "F2" && input.type === "keyDown") {
-            event.preventDefault();
-            if (win && win.webContents) {
-                win.webContents.send("admin-hotkey");
-            }
-        }
+        if (
+            !input ||
+            input.key !== "F2" ||
+            input.type !== "keyDown" ||
+            input.isAutoRepeat
+        ) return;
+        event.preventDefault();
+        if (!win || win.isDestroyed() || !win.webContents) return;
+        const isAttrezzaggioWindow = win.webContents
+            .getURL()
+            .toLowerCase()
+            .includes("attrezzaggio.html");
+        win.webContents.send(
+            isAttrezzaggioWindow
+                ? "attrezzaggio-add-row-shortcut"
+                : "admin-hotkey",
+        );
     });
 
     if (IS_DEV) {

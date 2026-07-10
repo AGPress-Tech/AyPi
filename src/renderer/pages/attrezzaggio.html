@@ -269,6 +269,29 @@
         <img id="imagePreviewFull" alt="Anteprima allegato">
     </div>
 
+    <dialog id="attrezzaggioDebugDialog" class="debug-export-dialog">
+        <form id="debugPasswordForm" class="debug-stage" autocomplete="off">
+            <h2>Accesso esportazione debug</h2>
+            <p>Inserisci la password per accedere agli strumenti di esportazione.</p>
+            <label for="debugPasswordInput">Password</label>
+            <input id="debugPasswordInput" type="password" autocomplete="current-password" required>
+            <p id="debugPasswordError" class="debug-password-error" role="alert"></p>
+            <div class="debug-dialog-actions">
+                <button id="cancelDebugPasswordBtn" type="button">Annulla</button>
+                <button type="submit">Accedi</button>
+            </div>
+        </form>
+
+        <section id="debugExportMenu" class="debug-stage hidden">
+            <h2>Esportazione schede attrezzaggio</h2>
+            <p>Il file Excel conterrà due fogli, Transfer e HAAS, con le sole colonne PK, data di creazione e data di modifica.</p>
+            <div class="debug-dialog-actions">
+                <button id="closeDebugMenuBtn" type="button">Chiudi</button>
+                <button id="exportAttrezzaggioPkBtn" type="button">Esporta Excel</button>
+            </div>
+        </section>
+    </dialog>
+
     <script src="../scripts/attrezzaggio-scripts.js"></script>
 </body>
 

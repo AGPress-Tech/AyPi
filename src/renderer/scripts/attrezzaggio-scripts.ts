@@ -3,6 +3,7 @@ require("./shared/dev-guards");
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const XLSX = require("xlsx");
 const { createAsyncGuard } = require("./shared/async-guard");
 const {
     resolveBackendRootUrl,
@@ -77,6 +78,11 @@ const haasAttachmentsList = document.getElementById("haasAttachmentsList");
 const haasAttachmentInput = document.getElementById("haasAttachmentInput");
 const imagePreviewOverlay = document.getElementById("imagePreviewOverlay");
 const imagePreviewFull = document.getElementById("imagePreviewFull");
+const attrezzaggioDebugDialog = document.getElementById("attrezzaggioDebugDialog");
+const debugPasswordForm = document.getElementById("debugPasswordForm");
+const debugPasswordInput = document.getElementById("debugPasswordInput");
+const debugPasswordError = document.getElementById("debugPasswordError");
+const debugExportMenu = document.getElementById("debugExportMenu");
 
 let allListItems = [];
 let currentAttachments = [];
@@ -198,6 +204,28 @@ async function saveActiveFormFromKeyboard() {
     }
     if (isViewVisible(haasFormView)) {
         await saveHaasForm();
+        return true;
+    }
+    return false;
+}
+
+function addActiveToolRowFromKeyboard() {
+    if (attrezzaggioDebugDialog?.open) return false;
+    if (isViewVisible(formView) && !formReadOnly) {
+        const addButton = document.getElementById("addRowBtn") as HTMLButtonElement;
+        if (!addButton || addButton.disabled) return false;
+        addButton.click();
+        const row = utensiliBody.lastElementChild;
+        row?.querySelector("input, textarea")?.focus();
+        return true;
+    }
+    if (isViewVisible(haasFormView)) {
+        const addButton = document.getElementById("addHaasRowBtn") as HTMLButtonElement;
+        if (!addButton || addButton.disabled) return false;
+        addButton.click();
+        const rows = haasBody.querySelectorAll("tr.haas-data-row-top");
+        const row = rows[rows.length - 1];
+        row?.querySelector("input, textarea")?.focus();
         return true;
     }
     return false;
@@ -1414,6 +1442,85 @@ async function confirmExitWithUnsavedChanges(kind) {
     return Number(result?.response) === 0;
 }
 
+function openAttrezzaggioDebugAccess() {
+    if (!attrezzaggioDebugDialog) return;
+    debugPasswordForm?.classList.remove("hidden");
+    debugExportMenu?.classList.add("hidden");
+    if (debugPasswordInput) debugPasswordInput.value = "";
+    if (debugPasswordError) debugPasswordError.textContent = "";
+    if (!attrezzaggioDebugDialog.open) {
+        attrezzaggioDebugDialog.showModal();
+    }
+    requestAnimationFrame(() => debugPasswordInput?.focus());
+}
+
+function closeAttrezzaggioDebugDialog() {
+    if (attrezzaggioDebugDialog?.open) attrezzaggioDebugDialog.close();
+}
+
+function toExcelDate(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date;
+}
+
+function buildAttrezzaggioExportRows(items) {
+    return (Array.isArray(items) ? items : [])
+        .map((item) => ({
+            PK: String(item?.code || "").trim(),
+            "Data creazione": toExcelDate(item?.createdAt),
+            "Data modifica": toExcelDate(item?.updatedAt),
+        }))
+        .filter((item) => item.PK)
+        .sort((a, b) => a.PK.localeCompare(b.PK, "it", { numeric: true }));
+}
+
+function createAttrezzaggioExportSheet(items) {
+    const columns = ["PK", "Data creazione", "Data modifica"];
+    const rows = buildAttrezzaggioExportRows(items);
+    const sheet = XLSX.utils.json_to_sheet(rows, {
+        header: columns,
+    });
+    sheet["!cols"] = [{ wch: 48 }, { wch: 22 }, { wch: 22 }];
+    sheet["!autofilter"] = { ref: `A1:C${Math.max(1, rows.length + 1)}` };
+    return sheet;
+}
+
+async function exportAttrezzaggioPrimaryKeys() {
+    const [transferResult, haasResult] = await Promise.all([
+        ipcRenderer.invoke("transfer-attrezzaggio-list"),
+        ipcRenderer.invoke("haas-attrezzaggio-list"),
+    ]);
+    if (!transferResult?.ok || !haasResult?.ok) {
+        await showError(
+            "Impossibile leggere tutte le schede attrezzaggio.",
+            transferResult?.error || haasResult?.error || "Errore sconosciuto",
+        );
+        return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const outputPath = await ipcRenderer.invoke("select-output-file", {
+        defaultName: `schede_attrezzaggio_pk_${today}.xlsx`,
+        filters: [{ name: "File Excel", extensions: ["xlsx"] }],
+    });
+    if (!outputPath) return;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+        workbook,
+        createAttrezzaggioExportSheet(transferResult.items),
+        "Transfer",
+    );
+    XLSX.utils.book_append_sheet(
+        workbook,
+        createAttrezzaggioExportSheet(haasResult.items),
+        "HAAS",
+    );
+    XLSX.writeFile(workbook, outputPath, { cellDates: true });
+    await showInfo("Esportazione Excel completata.", outputPath);
+}
+
 function resetForm() {
     currentCode = null;
     currentAttachments = [];
@@ -2056,6 +2163,38 @@ document
 imagePreviewOverlay?.addEventListener("click", (event) => {
     if (event.target === imagePreviewOverlay) closeImagePreview();
 });
+debugPasswordForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (debugPasswordInput?.value !== "AGPress") {
+        if (debugPasswordError) debugPasswordError.textContent = "Password non corretta.";
+        debugPasswordInput?.select();
+        return;
+    }
+    debugPasswordInput.value = "";
+    debugPasswordForm.classList.add("hidden");
+    debugExportMenu?.classList.remove("hidden");
+    document.getElementById("exportAttrezzaggioPkBtn")?.focus();
+});
+document
+    .getElementById("cancelDebugPasswordBtn")
+    ?.addEventListener("click", closeAttrezzaggioDebugDialog);
+document
+    .getElementById("closeDebugMenuBtn")
+    ?.addEventListener("click", closeAttrezzaggioDebugDialog);
+document
+    .getElementById("exportAttrezzaggioPkBtn")
+    ?.addEventListener(
+        "click",
+        asyncGuard.wrap(async (event) => {
+            const button = event.currentTarget as HTMLButtonElement;
+            button.disabled = true;
+            try {
+                await exportAttrezzaggioPrimaryKeys();
+            } finally {
+                button.disabled = false;
+            }
+        }),
+    );
 ipcRenderer.on(
     "attrezzaggio-confirm-window-close",
     asyncGuard.wrap(async () => {
@@ -2068,11 +2207,40 @@ ipcRenderer.on(
         ipcRenderer.send("attrezzaggio-window-close-response", { confirmed });
     }),
 );
+ipcRenderer.on("attrezzaggio-add-row-shortcut", () => {
+    addActiveToolRowFromKeyboard();
+});
 document.getElementById("addRowBtn")?.addEventListener("click", () => addRow());
 
 document.addEventListener(
     "keydown",
+    (event) => {
+        const isF2 = event.key === "F2" || event.code === "F2" || event.keyCode === 113;
+        if (
+            !isF2 ||
+            event.repeat ||
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey
+        ) {
+            return;
+        }
+        if (!addActiveToolRowFromKeyboard()) return;
+        event.preventDefault();
+        event.stopPropagation();
+    },
+    true,
+);
+
+document.addEventListener(
+    "keydown",
     asyncGuard.wrap(async (event) => {
+        if (event.key === "F5" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            event.preventDefault();
+            if (!event.repeat) openAttrezzaggioDebugAccess();
+            return;
+        }
+
         if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
             const moved = focusAdjacentFormField(event.shiftKey ? -1 : 1);
             if (moved) {
