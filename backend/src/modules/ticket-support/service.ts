@@ -15,6 +15,7 @@ import {
     saveTicketStore,
     type TicketStore,
 } from "./repository";
+import { sendConfiguredMail } from "../shared/service";
 
 const enqueue = createOperationQueue("ticket-support");
 
@@ -135,5 +136,20 @@ export function saveCategories(
                 issueTypeDiff.changeSummary || areaDiff.changeSummary || "",
         });
         return after;
+    });
+}
+
+export async function sendTicketMail(
+    payload: { to: string; subject: string; text: string },
+    context?: ActionContext,
+) {
+    await sendConfiguredMail(payload, context);
+    logger.info("Ticket mail sent", {
+        ...buildContext(context),
+        event: "ticket_mail_sent",
+        module: "ticket",
+        category: "mail",
+        to: String(payload?.to || "").trim(),
+        subject: String(payload?.subject || "").trim(),
     });
 }

@@ -1,9 +1,5 @@
-import fs from "fs";
 import crypto from "crypto";
-import path from "path";
 import { argon2id, argon2Verify } from "hash-wasm";
-import { backendConfig } from "../../config";
-import { readJsonFile } from "../../shared/storage/json-files";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
 
@@ -24,39 +20,6 @@ export type SharedAssigneesPayload = {
 };
 
 const APPROVAL_PASSWORD = "AGPress";
-const ADMINS_PATH = path.join(
-    backendConfig.modules.feriePermessi.generalDir,
-    "ferie-permessi-admins.json",
-);
-const LEGACY_ADMINS_PATH = path.join(
-    backendConfig.modules.feriePermessi.baseDir,
-    "ferie-permessi-admins.json",
-);
-const ASSIGNEES_PATH = path.join(
-    backendConfig.modules.feriePermessi.generalDir,
-    "amministrazione-assignees.json",
-);
-const LEGACY_ASSIGNEES_PATH = path.join(
-    backendConfig.modules.feriePermessi.baseDir,
-    "amministrazione-assignees.json",
-);
-const CALENDAR_ACCESS_CONFIG_PATH = path.join(
-    backendConfig.modules.feriePermessi.calendarDir,
-    "config-calendar.json",
-);
-const LEGACY_CALENDAR_ACCESS_CONFIG_PATH = path.join(
-    backendConfig.modules.feriePermessi.baseDir,
-    "config-calendar.json",
-);
-const OTP_MAIL_PATH = path.join(
-    backendConfig.modules.feriePermessi.generalDir,
-    "data",
-    "otp-mail.json",
-);
-const LEGACY_OTP_MAIL_PATHS = [
-    path.join(backendConfig.modules.feriePermessi.baseDir, "otp-mail.json"),
-    path.join(backendConfig.modules.feriePermessi.generalDir, "otp-mail.json"),
-];
 const SHARED_ADMINS_TABLE = "shared_admins";
 const SHARED_ASSIGNEES_TABLE = "shared_assignees";
 const SHARED_SETTINGS_TABLE = "shared_settings";
@@ -123,26 +86,6 @@ const DEFAULT_ACCESS_CONFIG: SharedAccessConfig = {
 };
 function ensureGeneralBackup() {
     return ensureAgpressDailyBackup("auto", 30);
-}
-
-function cleanupLegacySharedFiles() {
-    [
-        ADMINS_PATH,
-        LEGACY_ADMINS_PATH,
-        ASSIGNEES_PATH,
-        LEGACY_ASSIGNEES_PATH,
-        CALENDAR_ACCESS_CONFIG_PATH,
-        LEGACY_CALENDAR_ACCESS_CONFIG_PATH,
-        OTP_MAIL_PATH,
-        ...LEGACY_OTP_MAIL_PATHS,
-    ].forEach((targetPath) => {
-        if (!targetPath || !fs.existsSync(targetPath)) return;
-        try {
-            fs.unlinkSync(targetPath);
-        } catch {
-            // ignore cleanup failures
-        }
-    });
 }
 
 function serializeJson(value: unknown) {
@@ -341,38 +284,6 @@ export function normalizeOtpMailConfig(payload: unknown): SharedOtpMailConfig {
     };
 }
 
-function parseAdminsFromPath(targetPath: string): SharedAdminEntry[] {
-    const raw = fs.readFileSync(targetPath, "utf8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-        return parsed
-            .filter((item) => item && item.name && (item.password || item.passwordHash))
-            .map(normalizeAdminEntry);
-    }
-    if (parsed && Array.isArray(parsed.admins)) {
-        return parsed.admins
-            .filter((item) => item && item.name && (item.password || item.passwordHash))
-            .map(normalizeAdminEntry);
-    }
-    if (parsed && typeof parsed === "object") {
-        return Object.entries(parsed)
-            .filter(([name, password]) => name && password)
-            .map(([name, password]) => {
-                const value = String(password || "");
-                return value.startsWith("$argon2")
-                    ? normalizeAdminEntry({
-                          name,
-                          passwordHash: value,
-                      })
-                    : normalizeAdminEntry({
-                          name,
-                          password: value,
-                      });
-            });
-    }
-    return [];
-}
-
 function normalizeAdminEntry(item: any): SharedAdminEntry {
     return {
         name: String(item?.name || "").trim(),
@@ -385,24 +296,6 @@ function normalizeAdminEntry(item: any): SharedAdminEntry {
         accessPurchasing:
             typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
     };
-}
-
-function loadLegacyAdminCredentials(): SharedAdminEntry[] {
-    try {
-        const candidates = [ADMINS_PATH, LEGACY_ADMINS_PATH].filter(
-            (item) => item && fs.existsSync(item),
-        );
-        if (!candidates.length) {
-            return [{ name: "Admin", password: APPROVAL_PASSWORD }];
-        }
-        for (const filePath of candidates) {
-            const admins = parseAdminsFromPath(filePath);
-            if (admins.length) return admins;
-        }
-    } catch {
-        // ignore and fallback
-    }
-    return [{ name: "Admin", password: APPROVAL_PASSWORD }];
 }
 
 function saveAdminCredentialsToSqlite(admins: SharedAdminEntry[]) {
@@ -440,11 +333,6 @@ function hasSharedAdminsSqliteData() {
 
 export function loadAdminCredentials(): SharedAdminEntry[] {
     ensureSharedSqliteSchema();
-    if (!hasSharedAdminsSqliteData()) {
-        const legacyAdmins = loadLegacyAdminCredentials();
-        saveAdminCredentialsToSqlite(legacyAdmins);
-        return legacyAdmins;
-    }
     return loadAdminCredentialsFromSqlite();
 }
 
@@ -540,7 +428,6 @@ export async function saveAdminCredentials(admins: SharedAdminEntry[]) {
                     : true,
     }));
     saveAdminCredentialsToSqlite(normalizedAdmins);
-    cleanupLegacySharedFiles();
 }
 
 function normalizeAssigneesPayload(parsed: any): SharedAssigneesPayload {
@@ -583,19 +470,6 @@ function normalizeAssigneesPayload(parsed: any): SharedAssigneesPayload {
         emails,
         options: Object.values(groups).flat(),
     };
-}
-
-function loadLegacyAssigneeOptions(): SharedAssigneesPayload {
-    const candidates = [ASSIGNEES_PATH, LEGACY_ASSIGNEES_PATH].filter(Boolean);
-    for (const candidate of candidates) {
-        if (!fs.existsSync(candidate)) continue;
-        try {
-            return normalizeAssigneesPayload(readJsonFile(candidate, {}));
-        } catch {
-            // continue
-        }
-    }
-    return { groups: {}, emails: {}, options: [] };
 }
 
 function saveAssigneeOptionsToSqlite(payload: {
@@ -665,42 +539,8 @@ function hasSharedSettingSqliteData(storeKey: string) {
     );
 }
 
-function loadLegacyCalendarAccessConfig(): SharedAccessConfig {
-    const candidates = [
-        CALENDAR_ACCESS_CONFIG_PATH,
-        LEGACY_CALENDAR_ACCESS_CONFIG_PATH,
-    ].filter(Boolean);
-    for (const candidate of candidates) {
-        if (!fs.existsSync(candidate)) continue;
-        try {
-            return normalizeAccessConfig(readJsonFile(candidate, null));
-        } catch {
-            // continue
-        }
-    }
-    return normalizeAccessConfig(null);
-}
-
-function loadLegacyOtpMailConfig(): SharedOtpMailConfig | null {
-    const candidates = [OTP_MAIL_PATH, ...LEGACY_OTP_MAIL_PATHS].filter(Boolean);
-    for (const candidate of candidates) {
-        if (!fs.existsSync(candidate)) continue;
-        try {
-            return normalizeOtpMailConfig(readJsonFile(candidate, null));
-        } catch {
-            // continue
-        }
-    }
-    return null;
-}
-
 export function loadAssigneeOptions(): SharedAssigneesPayload {
     ensureSharedSqliteSchema();
-    if (!hasSharedAssigneesSqliteData()) {
-        const legacyAssignees = loadLegacyAssigneeOptions();
-        saveAssigneeOptionsToSqlite(legacyAssignees);
-        return legacyAssignees;
-    }
     return loadAssigneeOptionsFromSqlite();
 }
 
@@ -714,16 +554,10 @@ export async function saveAssigneeOptions(payload: {
         emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
     };
     saveAssigneeOptionsToSqlite(normalized);
-    cleanupLegacySharedFiles();
 }
 
 export function loadCalendarAccessConfig(): SharedAccessConfig {
     ensureSharedSqliteSchema();
-    if (!hasSharedSettingSqliteData(SHARED_SETTING_ACCESS_CONFIG)) {
-        const legacy = loadLegacyCalendarAccessConfig();
-        saveSharedSettingToSqlite(SHARED_SETTING_ACCESS_CONFIG, legacy);
-        return legacy;
-    }
     return normalizeAccessConfig(
         loadSharedSettingFromSqlite(
             SHARED_SETTING_ACCESS_CONFIG,
@@ -736,20 +570,12 @@ export async function saveCalendarAccessConfig(config: unknown) {
     ensureGeneralBackup();
     const normalized = normalizeAccessConfig(config);
     saveSharedSettingToSqlite(SHARED_SETTING_ACCESS_CONFIG, normalized);
-    cleanupLegacySharedFiles();
     return normalized;
 }
 
 export function loadOtpMailConfig(): SharedOtpMailConfig | null {
     ensureSharedSqliteSchema();
-    if (!hasSharedSettingSqliteData(SHARED_SETTING_OTP_MAIL)) {
-        const legacy = loadLegacyOtpMailConfig();
-        if (legacy) {
-            saveSharedSettingToSqlite(SHARED_SETTING_OTP_MAIL, legacy);
-            return legacy;
-        }
-        return null;
-    }
+    if (!hasSharedSettingSqliteData(SHARED_SETTING_OTP_MAIL)) return null;
     const payload = loadSharedSettingFromSqlite<SharedOtpMailConfig | null>(
         SHARED_SETTING_OTP_MAIL,
         null,
@@ -761,29 +587,23 @@ export async function saveOtpMailConfig(config: unknown) {
     ensureGeneralBackup();
     const normalized = normalizeOtpMailConfig(config);
     saveSharedSettingToSqlite(SHARED_SETTING_OTP_MAIL, normalized);
-    cleanupLegacySharedFiles();
     return normalized;
 }
 
 export function initializeSharedSqliteStore() {
     ensureSharedSqliteSchema();
     if (!hasSharedAdminsSqliteData()) {
-        saveAdminCredentialsToSqlite(loadLegacyAdminCredentials());
+        saveAdminCredentialsToSqlite([
+            { name: "Admin", password: APPROVAL_PASSWORD },
+        ]);
     }
     if (!hasSharedAssigneesSqliteData()) {
-        saveAssigneeOptionsToSqlite(loadLegacyAssigneeOptions());
+        saveAssigneeOptionsToSqlite({ groups: {}, emails: {} });
     }
     if (!hasSharedSettingSqliteData(SHARED_SETTING_ACCESS_CONFIG)) {
         saveSharedSettingToSqlite(
             SHARED_SETTING_ACCESS_CONFIG,
-            loadLegacyCalendarAccessConfig(),
+            normalizeAccessConfig(null),
         );
     }
-    if (!hasSharedSettingSqliteData(SHARED_SETTING_OTP_MAIL)) {
-        const otpMail = loadLegacyOtpMailConfig();
-        if (otpMail) {
-            saveSharedSettingToSqlite(SHARED_SETTING_OTP_MAIL, otpMail);
-        }
-    }
-    cleanupLegacySharedFiles();
 }

@@ -123,7 +123,7 @@ export const UI_TEXTS = {
     backupCreateSuccess: (folder: string) => `Backup creato in: ${folder}`,
     backupRestoreSuccess: "Ripristino completato.",
     backupRestoreConfirm:
-        "Ripristinare il backup? I file attuali verranno sovrascritti.",
+        "Ripristinare il backup? Il database corrente verrà sostituito.",
     backupCreateError: (detail: string) =>
         `Errore durante il backup: ${detail}`,
     backupRestoreError: (detail: string) =>
@@ -131,7 +131,7 @@ export const UI_TEXTS = {
     setupWizardTitle: "Configurazione iniziale",
     setupWizardMessage: "Completa la configurazione iniziale del calendario.",
     setupPathNote:
-        "Nota: otp-mail.json non viene creato automaticamente. Se manca, il sistema usa il fallback locale.",
+        "La configurazione email viene salvata nel database del backend.",
     mailConfigSaved: "Configurazione mailing salvata.",
     mailConfigError: (detail: string) =>
         `Errore configurazione mailing: ${detail}`,

@@ -1,9 +1,6 @@
 // @ts-nocheck
 require("../shared/dev-guards");
-import fs from "fs";
-import path from "path";
-import { loadStore, saveStore, DATA_PATH, hydrateStore } from "./ticket-support/services/storage";
-import { BASE_DIR, TICKET_DIR, CATEGORIES_PATH } from "./ticket-support/config/paths";
+import { loadStore, saveStore, hydrateStore } from "./ticket-support/services/storage";
 import { isMailerAvailable, getMailerError, sendMail } from "./ticket-support/services/mailer";
 import { ipcRenderer } from "electron";
 import { createOtpModals } from "./ferie-permessi/ui/otp-modals";
@@ -36,7 +33,6 @@ let adminLoginFailCount = 0;
 const adminFilters = { search: "", status: "", area: "", priority: "" };
 const operatorFilters = { search: "", status: "", area: "", priority: "" };
 const TS_THEME_KEY = "ts-theme";
-const TICKET_BACKUP_ROOT_DIR = path.join(BASE_DIR, "Backup Ticket");
 let ticketCategories = { issueTypes: [...DEFAULT_ISSUE_TYPES], areas: [...DEFAULT_AREAS] };
 const categoriesUiState = { issueTypesEditingName: null, areasEditingName: null };
 
@@ -179,36 +175,6 @@ function initTheme() {
     }
 }
 
-function ensureDir(targetDir) {
-    if (!targetDir) return;
-    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-}
-
-function copyDirectory(sourceDir, targetDir) {
-    if (!sourceDir || !targetDir) return;
-    ensureDir(targetDir);
-    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
-    entries.forEach((entry) => {
-        const src = path.join(sourceDir, entry.name);
-        const dst = path.join(targetDir, entry.name);
-        if (entry.isDirectory()) {
-            copyDirectory(src, dst);
-            return;
-        }
-        if (entry.isFile()) {
-            ensureDir(path.dirname(dst));
-            fs.copyFileSync(src, dst);
-        }
-    });
-}
-
-function formatBackupDate(date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
 function openSettingsModal() {
     if (!isLoggedIn()) {
         showWarning("Accesso richiesto.");
@@ -260,7 +226,7 @@ function createTicketBackup() {
 async function restoreTicketBackup() {
     try {
         setBackupMessage("");
-        const ok = window.confirm("Ripristinare un backup Ticket? I file correnti verranno sovrascritti.");
+                const ok = window.confirm("Ripristinare un backup Ticket? Il database corrente verrà sostituito.");
         if (!ok) return;
         const list = await requestBackend("/api/ticket-support/backups");
         const items = Array.isArray(list?.items) ? list.items : [];

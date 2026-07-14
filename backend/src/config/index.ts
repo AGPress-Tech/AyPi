@@ -1,7 +1,6 @@
 import path from "path";
 
 const DEV_BASE_DIR = "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS";
-const SERVER_CALENDAR_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\AyPi Calendar";
 const SERVER_GENERAL_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General";
 
 function getEnvNumber(name: string, fallback: number) {
@@ -16,21 +15,14 @@ function getEnvString(name: string, fallback: string) {
 
 const isDevProfile = (process.env.AYPI_BACKEND_PROFILE || "").trim() === "dev";
 const defaultHost = isDevProfile ? "127.0.0.1" : "192.168.1.240";
-const defaultCalendarDir = isDevProfile
-    ? path.join(DEV_BASE_DIR, "AyPi Calendar")
-    : SERVER_CALENDAR_DIR;
 const defaultGeneralDir = isDevProfile
     ? path.join(DEV_BASE_DIR, "General")
     : SERVER_GENERAL_DIR;
-const feriePermessiCalendarDir = getEnvString(
-    "AYPI_FP_CALENDAR_DIR",
-    defaultCalendarDir,
-);
 const feriePermessiGeneralDir = getEnvString(
     "AYPI_FP_GENERAL_DIR",
     defaultGeneralDir,
 );
-const feriePermessiBaseDir = path.dirname(feriePermessiCalendarDir);
+const feriePermessiBaseDir = path.dirname(feriePermessiGeneralDir);
 const purchasingDir = getEnvString(
     "AYPI_PM_DIR",
     path.join(feriePermessiBaseDir, "AyPi Purchasing"),
@@ -73,7 +65,6 @@ export const backendConfig = {
     modules: {
         feriePermessi: {
             baseDir: feriePermessiBaseDir,
-            calendarDir: feriePermessiCalendarDir,
             generalDir: feriePermessiGeneralDir,
         },
         productManager: {

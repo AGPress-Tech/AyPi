@@ -12,86 +12,6 @@ function getInterventionDescription(ctx, line) {
     return normalizeString(line.description || line.details);
 }
 
-function loadInterventionTypes(ctx) {
-    const {
-        fs,
-        INTERVENTION_TYPES_PATH,
-        normalizeInterventionTypesData,
-        validateWithAjv,
-        validateInterventionTypesSchema,
-        tryAutoCleanJson,
-        showWarning,
-        showError,
-    } = ctx;
-    try {
-        if (!INTERVENTION_TYPES_PATH || !fs.existsSync(INTERVENTION_TYPES_PATH))
-            return [];
-        const raw = fs.readFileSync(INTERVENTION_TYPES_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const normalized = normalizeInterventionTypesData(parsed);
-        validateWithAjv(
-            validateInterventionTypesSchema,
-            normalized,
-            "tipologie interventi",
-            {
-                showWarning,
-                showError,
-            },
-        );
-        tryAutoCleanJson(
-            INTERVENTION_TYPES_PATH,
-            parsed,
-            normalized,
-            validateInterventionTypesSchema,
-            "tipologie interventi",
-            { showWarning, showError },
-        );
-        return normalized;
-    } catch (err) {
-        console.error("Errore lettura tipologie interventi:", err);
-        return [];
-    }
-}
-
-function saveInterventionTypes(ctx, list) {
-    const {
-        fs,
-        INTERVENTION_TYPES_PATH,
-        normalizeInterventionTypesData,
-        validateWithAjv,
-        validateInterventionTypesSchema,
-        showWarning,
-        showError,
-    } = ctx;
-    try {
-        const normalized = normalizeInterventionTypesData(list);
-        if (
-            !validateWithAjv(
-                validateInterventionTypesSchema,
-                normalized,
-                "tipologie interventi",
-                {
-                    showWarning,
-                    showError,
-                },
-            ).ok
-        )
-            return false;
-        fs.writeFileSync(
-            INTERVENTION_TYPES_PATH,
-            JSON.stringify(normalized, null, 2),
-            "utf8",
-        );
-        return true;
-    } catch (err) {
-        showError(
-            "Errore salvataggio tipologie interventi.",
-            err.message || String(err),
-        );
-        return false;
-    }
-}
-
 function openInterventionTypesModal(ctx) {
     const {
         document,
@@ -174,8 +94,6 @@ if (
     module.exports = {
         getInterventionType,
         getInterventionDescription,
-        loadInterventionTypes,
-        saveInterventionTypes,
         openInterventionTypesModal,
         closeInterventionTypesModal,
         addInterventionType,

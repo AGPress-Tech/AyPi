@@ -35,22 +35,6 @@ const unwrapModule = (mod) => {
 };
 const requireModule = (modulePath) => unwrapModule(bootRequire(modulePath));
 
-const rawPaths = requireModule(path.join(fpBaseDir, "config", "paths"));
-const pathsModule =
-    rawPaths && rawPaths.default && !rawPaths.BASE_DIR
-        ? rawPaths.default
-        : rawPaths;
-const {
-    BASE_DIR,
-    CALENDAR_DIR,
-    REQUESTS_PATH,
-    HOLIDAYS_PATH,
-    BALANCES_PATH,
-    CLOSURES_PATH,
-    ADMINS_PATH,
-    LEGACY_ADMINS_PATH,
-    CONFIG_PATH,
-} = pathsModule || {};
 const constantsModule =
     requireModule(path.join(fpBaseDir, "config", "constants")) || {};
 const {
@@ -86,14 +70,9 @@ const {
     applyBalanceForUpdate,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
-const { ensureFolderFor } = bootRequire(
-    path.join(fpBaseDir, "services", "storage"),
-);
 const {
     isMailerAvailable,
     getMailerError,
-    saveMailConfig,
-    sendTestEmail,
     sendOtpEmail,
 } = bootRequire(path.join(fpBaseDir, "services", "otp-mail"));
 
@@ -172,14 +151,6 @@ const {
     normalizeAccessConfig,
 } = requireModule(path.join(fpBaseDir, "services", "access-config")) || {};
 
-const SAFE_BASE_DIR =
-    typeof BASE_DIR === "string" && BASE_DIR.trim()
-        ? BASE_DIR
-        : "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
-const SAFE_CALENDAR_DIR =
-    typeof CALENDAR_DIR === "string" && CALENDAR_DIR.trim()
-        ? CALENDAR_DIR
-        : path.join(SAFE_BASE_DIR, "AyPi Calendar");
 let calendar = null;
 let XLSX;
 try {
@@ -816,13 +787,6 @@ function setAdminMessage(id, text, isError = false) {
     setMessage(el, text, isError);
 }
 
-function ensureDataFolder() {
-    ensureFolderFor(REQUESTS_PATH);
-    ensureFolderFor(HOLIDAYS_PATH);
-    ensureFolderFor(BALANCES_PATH);
-    ensureFolderFor(CLOSURES_PATH);
-}
-
 function logFpDebug(action, payload = {}) {
     const entry = {
         action,
@@ -1231,126 +1195,6 @@ function setMessage(el, text, isError = false) {
     } else {
         el.classList.remove("fp-message--error");
     }
-}
-
-function formatBackupDate(date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
-function ensureDir(dirPath) {
-    if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-    }
-}
-
-function copyDirectory(sourceDir, targetDir, options) {
-    ensureDir(targetDir);
-    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
-    entries.forEach((entry) => {
-        const name = entry.name;
-        if (
-            options &&
-            typeof options.exclude === "function" &&
-            options.exclude(name, sourceDir)
-        ) {
-            return;
-        }
-        const srcPath = path.join(sourceDir, name);
-        const dstPath = path.join(targetDir, name);
-        if (entry.isDirectory()) {
-            copyDirectory(srcPath, dstPath, options);
-            return;
-        }
-        if (entry.isFile()) {
-            fs.copyFileSync(srcPath, dstPath);
-        }
-    });
-}
-
-function parseBackupFolderDate(name) {
-    if (!name) return null;
-    const match = String(name).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!match) return null;
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-    if (!year || !month || !day) return null;
-    const date = new Date(year, month - 1, day);
-    if (Number.isNaN(date.getTime())) return null;
-    return date;
-}
-
-function listBackupFolders() {
-    if (!fs.existsSync(BACKUP_ROOT_DIR)) return [];
-    return fs
-        .readdirSync(BACKUP_ROOT_DIR, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => {
-            const fullPath = path.join(BACKUP_ROOT_DIR, entry.name);
-            const parsedDate = parseBackupFolderDate(entry.name);
-            let mtime = null;
-            try {
-                const stat = fs.statSync(fullPath);
-                mtime = stat.mtime;
-            } catch (err) {
-                mtime = null;
-            }
-            return {
-                name: entry.name,
-                fullPath,
-                date: parsedDate,
-                mtime,
-            };
-        });
-}
-
-function getLatestBackupInfo() {
-    const folders = listBackupFolders();
-    if (!folders.length) return null;
-    folders.sort((a, b) => {
-        const dateA = a.date
-            ? a.date.getTime()
-            : a.mtime
-              ? a.mtime.getTime()
-              : 0;
-        const dateB = b.date
-            ? b.date.getTime()
-            : b.mtime
-              ? b.mtime.getTime()
-              : 0;
-        return dateB - dateA;
-    });
-    return folders[0];
-}
-
-function pruneOldBackups(maxCount) {
-    const limit = Number.isFinite(maxCount) ? maxCount : 10;
-    const folders = listBackupFolders();
-    if (folders.length <= limit) return;
-    folders.sort((a, b) => {
-        const dateA = a.date
-            ? a.date.getTime()
-            : a.mtime
-              ? a.mtime.getTime()
-              : 0;
-        const dateB = b.date
-            ? b.date.getTime()
-            : b.mtime
-              ? b.mtime.getTime()
-              : 0;
-        return dateA - dateB;
-    });
-    const toDelete = folders.slice(0, Math.max(0, folders.length - limit));
-    toDelete.forEach((entry) => {
-        try {
-            fs.rmSync(entry.fullPath, { recursive: true, force: true });
-        } catch (err) {
-            console.error("Errore rimozione backup:", entry.fullPath, err);
-        }
-    });
 }
 
 function buildHoverText(request) {
@@ -2062,139 +1906,6 @@ openAdminModalHandler = () => {
 };
 openPasswordModalHandler = approvalUi.openPasswordModal;
 
-function openInitialSetupWizard() {
-    const setupModal = document.getElementById("fp-setup-modal");
-    if (!setupModal) {
-        showDialog(
-            "info",
-            UI_TEXTS.setupAdminTitle,
-            UI_TEXTS.setupAdminMessage,
-        );
-        openAdminModalHandler?.();
-        return;
-    }
-    const alreadyInit = setupModal.dataset.fpSetupInit === "1";
-
-    const intro = document.getElementById("fp-setup-intro");
-    const pathLabel = document.getElementById("fp-setup-path");
-    const noteLabel = document.getElementById("fp-setup-note");
-    const mailOpen = document.getElementById("fp-setup-mail-open");
-    const mailSkip = document.getElementById("fp-setup-mail-skip");
-    const mailSection = document.getElementById("fp-setup-mail-section");
-    const mailSave = document.getElementById("fp-mail-save");
-    const mailTest = document.getElementById("fp-mail-test-send");
-    const mailMessage = document.getElementById("fp-setup-mail-message");
-    const continueBtn = document.getElementById("fp-setup-continue");
-
-    if (intro)
-        intro.textContent =
-            UI_TEXTS.setupWizardMessage || UI_TEXTS.setupAdminMessage;
-    if (pathLabel) {
-        let baseLabel = BASE_DIR;
-        if (!baseLabel) {
-            try {
-                if (typeof REQUESTS_PATH === "string" && REQUESTS_PATH) {
-                    baseLabel = path.dirname(REQUESTS_PATH);
-                }
-            } catch (err) {
-                baseLabel = "";
-            }
-        }
-        if (!baseLabel) baseLabel = SAFE_BASE_DIR;
-        pathLabel.textContent = baseLabel;
-    }
-    if (noteLabel) noteLabel.textContent = UI_TEXTS.setupPathNote || "";
-
-    if (alreadyInit) {
-        showModal(setupModal);
-        return;
-    }
-
-    const toggleMailSection = (show) => {
-        if (!mailSection) return;
-        mailSection.classList.toggle("is-hidden", !show);
-    };
-
-    const getMailFormData = () => ({
-        host: document.getElementById("fp-mail-host")?.value || "",
-        port: document.getElementById("fp-mail-port")?.value || "",
-        secure: !!document.getElementById("fp-mail-secure")?.checked,
-        user: document.getElementById("fp-mail-user")?.value || "",
-        pass: document.getElementById("fp-mail-pass")?.value || "",
-        from: document.getElementById("fp-mail-from")?.value || "",
-    });
-
-    const getTestEmail = () =>
-        document.getElementById("fp-mail-test")?.value || "";
-
-    const setMailMessage = (text, isError) => {
-        if (!mailMessage) return;
-        setMessage(mailMessage, text, isError);
-    };
-
-    const proceedToAdmin = () => {
-        hideModal(setupModal);
-        openAdminModalHandler?.();
-    };
-
-    if (mailOpen) {
-        mailOpen.addEventListener("click", () => {
-            toggleMailSection(true);
-        });
-    }
-
-    if (mailSkip) {
-        mailSkip.addEventListener("click", () => {
-            toggleMailSection(false);
-        });
-    }
-
-    if (mailTest) {
-        mailTest.addEventListener("click", async () => {
-            const payload = getMailFormData();
-            const testEmail = getTestEmail();
-            if (!isMailerAvailable()) {
-                setMailMessage(UI_TEXTS.mailModuleMissing, true);
-                return;
-            }
-            try {
-                setMailMessage("", false);
-                await sendTestEmail(payload, testEmail);
-                setMailMessage(UI_TEXTS.mailTestSent, false);
-            } catch (err) {
-                setMailMessage(
-                    UI_TEXTS.mailTestError(err.message || String(err)),
-                    true,
-                );
-            }
-        });
-    }
-
-    if (mailSave) {
-        mailSave.addEventListener("click", async () => {
-            const payload = getMailFormData();
-            try {
-                setMailMessage("", false);
-                await saveMailConfig(payload);
-                setMailMessage(UI_TEXTS.mailConfigSaved, false);
-                proceedToAdmin();
-            } catch (err) {
-                setMailMessage(
-                    UI_TEXTS.mailConfigError(err.message || String(err)),
-                    true,
-                );
-            }
-        });
-    }
-
-    if (continueBtn) {
-        continueBtn.addEventListener("click", proceedToAdmin);
-    }
-
-    setupModal.dataset.fpSetupInit = "1";
-    showModal(setupModal);
-}
-
 const settingsUi = createSettingsModal({
     document,
     showModal,
@@ -2275,39 +1986,6 @@ function getFieldValue(id) {
 
 function isChecked(id) {
     return !!document.getElementById(id)?.checked;
-}
-
-function isAdminFileMissingOrEmpty() {
-    const hasValidAdmins = (targetPath) => {
-        if (!targetPath || !fs.existsSync(targetPath)) return false;
-        const raw = fs.readFileSync(targetPath, "utf8");
-        if (!raw) return false;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-            return parsed.some(
-                (item) =>
-                    item && item.name && (item.password || item.passwordHash),
-            );
-        }
-        if (parsed && Array.isArray(parsed.admins)) {
-            return parsed.admins.some(
-                (item) =>
-                    item && item.name && (item.password || item.passwordHash),
-            );
-        }
-        if (parsed && typeof parsed === "object") {
-            return Object.keys(parsed).length > 0;
-        }
-        return false;
-    };
-    try {
-        return (
-            !hasValidAdmins(ADMINS_PATH) && !hasValidAdmins(LEGACY_ADMINS_PATH)
-        );
-    } catch (err) {
-        console.error("Errore lettura file admin:", err);
-        return true;
-    }
 }
 
 function buildRequestFromForm(prefix, requestId, allowPast = false) {

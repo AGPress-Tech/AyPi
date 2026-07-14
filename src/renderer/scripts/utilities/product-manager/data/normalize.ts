@@ -1,6 +1,5 @@
 ﻿// @ts-nocheck
 require("../../../shared/dev-guards");
-import fs from "fs";
 
 function normalizePriceCad(value) {
     if (value === null || value === undefined) return "";
@@ -178,26 +177,6 @@ function validateWithAjv(
     return { ok: true, errors: "" };
 }
 
-function tryAutoCleanJson(
-    filePath,
-    original,
-    normalized,
-    validator,
-    label,
-    callbacks = {},
-) {
-    try {
-        const originalStr = JSON.stringify(original);
-        const normalizedStr = JSON.stringify(normalized);
-        if (originalStr === normalizedStr) return;
-        const result = validateWithAjv(validator, normalized, label, callbacks);
-        if (!result.ok) return;
-        fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
-    } catch (err) {
-        console.error("Errore ripulitura JSON:", err);
-    }
-}
-
 if (
     typeof module !== "undefined" &&
     module.exports &&
@@ -215,5 +194,4 @@ if (
         normalizeInterventionTypesData,
         showAjvReport,
         validateWithAjv,
-        tryAutoCleanJson,
     };

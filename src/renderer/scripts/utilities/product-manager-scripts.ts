@@ -6,7 +6,6 @@ import path from "path";
 import { pathToFileURL } from "url";
 
 import * as sharedDialogs from "../shared/dialogs";
-import { NETWORK_PATHS } from "../../../main/config/paths";
 import { createModalHelpers } from "./ferie-permessi/ui/modals";
 import { createAdminModals } from "./ferie-permessi/ui/admin-modals";
 import { UI_TEXTS } from "./ferie-permessi/utils/ui-texts";
@@ -142,9 +141,7 @@ import {
 } from "./product-manager/ui/basic-modals";
 import { validators } from "./product-manager/data/schemas";
 import {
-    getCatalogImagePath as getCatalogImagePathSvc,
     getCatalogImageSrc as getCatalogImageSrcSvc,
-    ensureProductsDir as ensureProductsDirSvc,
     copyCatalogImage as copyCatalogImageSvc,
 } from "./product-manager/services/catalog-images";
 import {
@@ -157,12 +154,7 @@ import {
     normalizeCategoriesData,
     normalizeInterventionTypesData,
     validateWithAjv,
-    tryAutoCleanJson,
 } from "./product-manager/data/normalize";
-import {
-    PRODUCTS_DIR,
-    ROOT_DIR,
-} from "./product-manager/config/paths";
 import {
     isMailerAvailable,
     getMailerError,
@@ -222,20 +214,6 @@ const asyncGuard = createAsyncGuard({
 
 asyncGuard.installGlobalHandlers();
 
-const ASSIGNEES_FALLBACK =
-    "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-assignees.json";
-const ROOT_SHARED_DIR = path.dirname(
-    NETWORK_PATHS?.feriePermessiData || ASSIGNEES_FALLBACK,
-);
-const GENERAL_ASSIGNEES_PATH = path.join(
-    ROOT_SHARED_DIR,
-    "General",
-    "amministrazione-assignees.json",
-);
-const ASSIGNEES_PATHS = [
-    GENERAL_ASSIGNEES_PATH,
-    NETWORK_PATHS?.amministrazioneAssignees || ASSIGNEES_FALLBACK,
-];
 // session handled by state/session
 let assigneeGroups = {};
 let assigneeOptions = [];
@@ -452,7 +430,6 @@ function getCatalogSectionCtx() {
         validateWithAjv,
         validateCatalogSchema,
         validateCategoriesSchema,
-        tryAutoCleanJson,
         renderCatalogUi,
         showWarning,
         showError,
@@ -523,7 +500,6 @@ function getInterventionsSectionCtx() {
         normalizeInterventionTypesData,
         validateWithAjv,
         validateInterventionTypesSchema,
-        tryAutoCleanJson,
         showWarning,
         showError,
         isAdmin,
@@ -644,14 +620,9 @@ function validateModuleBindings() {
     assertFn("ui.sessionUi.syncSessionUI", syncSessionUi);
     assertFn("ui.sessionUi.applySharedSession", applySharedSessionUi);
     assertFn(
-        "services.catalogImages.getCatalogImagePath",
-        getCatalogImagePathSvc,
-    );
-    assertFn(
         "services.catalogImages.getCatalogImageSrc",
         getCatalogImageSrcSvc,
     );
-    assertFn("services.catalogImages.ensureProductsDir", ensureProductsDirSvc);
     assertFn("services.catalogImages.copyCatalogImage", copyCatalogImageSvc);
     assertFn("ui.filters.renderCategoryOptions", renderCategoryOptionsUi);
     assertFn(
@@ -739,79 +710,9 @@ const REQUEST_MODES = {
 const REQUEST_MODE_STORAGE_KEY = "pm-request-mode";
 const DEFAULT_REQUEST_MODE = REQUEST_MODES.PURCHASE;
 let currentRequestMode = DEFAULT_REQUEST_MODE;
-const PURCHASING_BACKUP_ROOT_DIR = path.join(
-    ROOT_DIR,
-    "Backup AyPi Purchasing",
-);
 
 function isFormPage() {
     return Boolean(document.getElementById("pm-request-form"));
-}
-
-function ensureDir(targetDir) {
-    if (!targetDir) return;
-    if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-    }
-}
-
-function copyDirectory(sourceDir, targetDir) {
-    if (!sourceDir || !targetDir) return;
-    ensureDir(targetDir);
-    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
-    entries.forEach((entry) => {
-        const srcPath = path.join(sourceDir, entry.name);
-        const dstPath = path.join(targetDir, entry.name);
-        if (entry.isDirectory()) {
-            copyDirectory(srcPath, dstPath);
-            return;
-        }
-        if (entry.isFile()) {
-            ensureDir(path.dirname(dstPath));
-            fs.copyFileSync(srcPath, dstPath);
-        }
-    });
-}
-
-function formatBackupDate(date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
-function getPurchasingBackups() {
-    if (!fs.existsSync(PURCHASING_BACKUP_ROOT_DIR)) return [];
-    return fs
-        .readdirSync(PURCHASING_BACKUP_ROOT_DIR, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => {
-            const fullPath = path.join(PURCHASING_BACKUP_ROOT_DIR, entry.name);
-            let mtime = 0;
-            try {
-                mtime = fs.statSync(fullPath).mtimeMs || 0;
-            } catch (err) {
-                mtime = 0;
-            }
-            return { name: entry.name, fullPath, mtime };
-        })
-        .sort((a, b) => b.mtime - a.mtime);
-}
-
-function prunePurchasingBackups(limit = 10) {
-    const backups = getPurchasingBackups();
-    if (backups.length <= limit) return;
-    backups.slice(limit).forEach((entry) => {
-        try {
-            fs.rmSync(entry.fullPath, { recursive: true, force: true });
-        } catch (err) {
-            console.error(
-                "Errore rimozione backup Purchasing:",
-                entry.fullPath,
-                err,
-            );
-        }
-    });
 }
 
 function initPurchasingBackupModal() {
@@ -858,7 +759,7 @@ function initPurchasingBackupModal() {
             try {
                 setBackupMessage("", "");
                 const ok = await openConfirmModal(
-                    "Ripristinare un backup Purchasing? I file correnti verranno sovrascritti.",
+                    "Ripristinare un backup Purchasing? Il database corrente verrà sostituito.",
                 );
                 if (!ok) return;
                 const list = await requestBackend("/api/product-manager/backups");
@@ -2226,7 +2127,7 @@ function syncAssignees() {
     if (!Object.keys(assigneeGroups).length) {
         showWarning(
             "Elenco dipendenti non disponibile.",
-            "Impossibile leggere amministrazione-assignees.json dal server.",
+            "Impossibile caricare l'elenco dipendenti dal backend.",
         );
     }
 }
@@ -2423,40 +2324,23 @@ function renderCartStatusFilterOptions() {
     });
 }
 
-function ensureProductsDir() {
-    ensureProductsDirSvc({
-        fs,
-        PRODUCTS_DIR,
-    });
-}
-
 function copyCatalogImage(filePath, catalogId) {
     return copyCatalogImageSvc(
         {
-            fs,
-            path,
-            PRODUCTS_DIR,
-            showError,
+            getBackendCatalogImageUrl,
+            uploadCatalogImage: uploadCatalogImageToBackend,
         },
         filePath,
         catalogId,
     );
 }
 
-function getCatalogImagePath(item) {
-    return getCatalogImagePathSvc(
-        {
-            fs,
-            path,
-            PRODUCTS_DIR,
-        },
-        item,
-    );
-}
-
 function getCatalogImageSrc(item) {
     return getCatalogImageSrcSvc(
-        { fs, pathToFileURL, path, PRODUCTS_DIR },
+        {
+            getBackendCatalogImageUrl,
+            uploadCatalogImage: uploadCatalogImageToBackend,
+        },
         item,
     );
 }

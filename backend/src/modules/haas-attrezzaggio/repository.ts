@@ -2,9 +2,6 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { backendConfig } from "../../config";
-import {
-    readJsonFile,
-} from "../../shared/storage/json-files";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import {
     getSqliteDatabase,
@@ -32,13 +29,6 @@ function parseJson<T>(raw: unknown, fallback: T): T {
     }
 }
 
-function execScalarNumber(sql: string, params: unknown[] = []) {
-    const database = getSqliteDatabase();
-    const result = database.exec(sql, params);
-    if (!Array.isArray(result) || !result.length) return 0;
-    return Number(result[0]?.values?.[0]?.[0]) || 0;
-}
-
 function ensureHaasSqliteSchema() {
     const database = getSqliteDatabase();
     database.exec(`
@@ -64,24 +54,6 @@ function sanitizeFileName(value: string) {
         .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
         .replace(/\s+/g, " ")
         .trim();
-}
-
-function resolveHaasFilePath(code: string) {
-    const safeName = sanitizeFileName(code);
-    return path.join(HAAS_DIR, `${safeName}.json`);
-}
-
-function cleanupLegacyHaasJsonFiles() {
-    if (!fs.existsSync(HAAS_DIR)) return;
-    fs.readdirSync(HAAS_DIR)
-        .filter((name) => name.toLowerCase().endsWith(".json"))
-        .forEach((name) => {
-            try {
-                fs.unlinkSync(path.join(HAAS_DIR, name));
-            } catch {
-                // ignore cleanup failures
-            }
-        });
 }
 
 function normalizeAttachmentMeta(items: any[]) {
@@ -190,45 +162,6 @@ export function normalizeHaasItem(raw: any) {
     };
 }
 
-function loadLegacyHaasItems() {
-    if (!fs.existsSync(HAAS_DIR)) {
-        fs.mkdirSync(HAAS_DIR, { recursive: true });
-        return [];
-    }
-    return fs
-        .readdirSync(HAAS_DIR)
-        .filter((name) => name.toLowerCase().endsWith(".json"))
-        .map((name) => {
-            const filePath = path.join(HAAS_DIR, name);
-            const stat = fs.statSync(filePath);
-            const parsed = readJsonFile(filePath, {});
-            const item = normalizeHaasItem(parsed);
-            const code = item.code || path.basename(name, ".json");
-            return {
-                ...item,
-                code,
-                utensiliCount: Array.isArray(item.utensili) ? item.utensili.length : 0,
-                attachmentsCount: Array.isArray(item.attachments)
-                    ? item.attachments.length
-                    : 0,
-                updatedAt: item.updatedAt || stat.mtime.toISOString(),
-            };
-        })
-        .sort((a, b) =>
-            String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
-        );
-}
-
-function loadLegacyHaasItem(code: string) {
-    const filePath = resolveHaasFilePath(code);
-    if (!fs.existsSync(filePath)) return null;
-    return normalizeHaasItem(readJsonFile(filePath, {}));
-}
-
-function hasHaasSqliteData() {
-    return execScalarNumber(`SELECT COUNT(*) FROM ${HAAS_ITEMS_TABLE}`) > 0;
-}
-
 function saveHaasItemsToSqlite(items: any[]) {
     runSqliteTransaction((database) => {
         database.run(`DELETE FROM ${HAAS_ITEMS_TABLE}`);
@@ -292,33 +225,15 @@ function loadHaasItemFromSqlite(code: string) {
 
 export function initializeHaasSqliteStore() {
     ensureHaasSqliteSchema();
-    if (!hasHaasSqliteData()) {
-        saveHaasItemsToSqlite(loadLegacyHaasItems());
-    }
-    cleanupLegacyHaasJsonFiles();
 }
 
 export function listHaasItems() {
     ensureHaasSqliteSchema();
-    if (!hasHaasSqliteData()) {
-        const legacy = loadLegacyHaasItems();
-        saveHaasItemsToSqlite(legacy);
-        cleanupLegacyHaasJsonFiles();
-        return legacy;
-    }
     return loadHaasItemsFromSqlite();
 }
 
 export function loadHaasItem(code: string) {
     ensureHaasSqliteSchema();
-    if (!hasHaasSqliteData()) {
-        const legacy = loadLegacyHaasItem(code);
-        if (legacy) {
-            saveHaasItemsToSqlite(loadLegacyHaasItems());
-            cleanupLegacyHaasJsonFiles();
-        }
-        return legacy;
-    }
     return loadHaasItemFromSqlite(code);
 }
 
@@ -348,15 +263,12 @@ export function saveHaasItem(payload: any) {
         updatedAt: now,
     };
 
-    const items = hasHaasSqliteData()
-        ? loadHaasItemsFromSqlite().map((item) => normalizeHaasItem(item))
-        : loadLegacyHaasItems().map((item) => normalizeHaasItem(item));
+    const items = loadHaasItemsFromSqlite().map((item) => normalizeHaasItem(item));
     const filtered = items.filter(
         (item) => item.code !== next.code && (!previousCode || item.code !== previousCode),
     );
     filtered.push(next);
     saveHaasItemsToSqlite(filtered);
-    cleanupLegacyHaasJsonFiles();
     return next;
 }
 
@@ -364,14 +276,11 @@ export function deleteHaasItem(code: string) {
     ensureHaasSqliteSchema();
     const current = loadHaasItem(code);
     if (!current) return false;
-    if (hasHaasSqliteData()) {
-        const items = loadHaasItemsFromSqlite()
-            .map((item) => normalizeHaasItem(item))
-            .filter((item) => item.code !== code);
-        saveHaasItemsToSqlite(items);
-    }
+    const items = loadHaasItemsFromSqlite()
+        .map((item) => normalizeHaasItem(item))
+        .filter((item) => item.code !== code);
+    saveHaasItemsToSqlite(items);
     deleteAttachmentFiles(current?.attachments);
-    cleanupLegacyHaasJsonFiles();
     return true;
 }
 

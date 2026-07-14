@@ -12,6 +12,7 @@ import {
     runTicketRestore,
     saveCategories,
     saveStore,
+    sendTicketMail,
 } from "./service";
 
 const validateTicketStorePayload = createSchemaValidator<any>({
@@ -68,7 +69,34 @@ const validateTicketCategoriesPayload = createSchemaValidator<any>({
     },
 });
 
+const validateTicketMailPayload = createSchemaValidator<{
+    to: string;
+    subject: string;
+    text: string;
+}>({
+    type: "object",
+    required: ["to", "subject", "text"],
+    additionalProperties: false,
+    properties: {
+        to: { type: "string", minLength: 1 },
+        subject: { type: "string", minLength: 1 },
+        text: { type: "string", minLength: 1 },
+    },
+});
+
 export function registerTicketSupportRoutes(router: Router) {
+    router.register("POST", "/api/ticket-support/mail", async (req, res) => {
+        const payload = validateTicketMailPayload(
+            await readJsonBody(req),
+            "Invalid ticket mail payload",
+        );
+        await sendTicketMail(payload, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
+        sendJson(res, 200, { ok: true });
+    });
+
     router.register("GET", "/api/ticket-support/store", async (_req, res) => {
         sendJson(res, 200, getTicketStore());
     });

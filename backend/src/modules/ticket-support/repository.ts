@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
-import { ensureFolderFor, readJsonFile } from "../../shared/storage/json-files";
 import {
     ensureDir,
     replaceDirectoryContents,
@@ -60,18 +59,9 @@ type TicketCategories = {
     areas: string[];
 };
 
-const TICKET_DIR = backendConfig.modules.ticketSupport.dir;
-const TICKET_YEARS_DIR = path.join(TICKET_DIR, "Ticket Years");
-const CATEGORIES_PATH = path.join(TICKET_DIR, "ticket-categories.json");
 const TS_TICKETS_TABLE = "ts_tickets";
 const TS_CATEGORIES_TABLE = "ts_categories";
 const DB_RELATIVE_PATH = path.join("General", "data", "aypi.db");
-function ensureTicketDir() {
-    if (fs.existsSync(TICKET_DIR)) {
-        fs.mkdirSync(TICKET_DIR, { recursive: true });
-    }
-}
-
 function ensureTicketBackup(prefix = "auto", limit = 30) {
     return prefix === "auto"
         ? ensureAgpressDailyBackup(prefix, limit)
@@ -89,13 +79,6 @@ function parseJson<T>(raw: unknown, fallback: T): T {
     } catch {
         return fallback;
     }
-}
-
-function execScalarNumber(sql: string, params: unknown[] = []) {
-    const database = getSqliteDatabase();
-    const result = database.exec(sql, params);
-    if (!Array.isArray(result) || !result.length) return 0;
-    return Number(result[0]?.values?.[0]?.[0]) || 0;
 }
 
 function ensureTicketSupportSqliteSchema() {
@@ -116,6 +99,18 @@ function ensureTicketSupportSqliteSchema() {
             payload_json TEXT NOT NULL
         );
     `);
+    database.run(
+        `INSERT OR IGNORE INTO ${TS_CATEGORIES_TABLE} (store_key, payload_json)
+         VALUES (?, ?)`,
+        [
+            "categories",
+            serializeJson({
+                version: 1,
+                issueTypes: ["Software", "Hardware", "Accessi", "Altro"],
+                areas: ["Produzione", "Uffici", "Magazzino", "IT"],
+            }),
+        ],
+    );
 }
 
 function getYearFromTicket(ticket: Partial<Ticket>) {
@@ -125,10 +120,6 @@ function getYearFromTicket(ticket: Partial<Ticket>) {
         return String(parsed.getFullYear());
     }
     return String(new Date().getFullYear());
-}
-
-function getYearFilePath(year: string | number) {
-    return path.join(TICKET_YEARS_DIR, `ticket-${String(year || "").trim()}.json`);
 }
 
 function normalizeTicket(input: any): Ticket {
@@ -166,66 +157,6 @@ function normalizeTicket(input: any): Ticket {
                 note: String(item.note || "").trim(),
             })),
     };
-}
-
-function listYearFiles() {
-    if (!fs.existsSync(TICKET_YEARS_DIR)) return [];
-    return fs
-        .readdirSync(TICKET_YEARS_DIR)
-        .filter((name) => /^ticket-\d{4}\.json$/i.test(name))
-        .map((name) => path.join(TICKET_YEARS_DIR, name));
-}
-
-function cleanupLegacyTicketFiles() {
-    if (CATEGORIES_PATH && fs.existsSync(CATEGORIES_PATH)) {
-        try {
-            fs.unlinkSync(CATEGORIES_PATH);
-        } catch {
-            // ignore cleanup failures
-        }
-    }
-    if (fs.existsSync(TICKET_YEARS_DIR)) {
-        fs.readdirSync(TICKET_YEARS_DIR)
-            .filter((name) => /^ticket-\d{4}\.json$/i.test(name))
-            .forEach((name) => {
-                try {
-                    fs.unlinkSync(path.join(TICKET_YEARS_DIR, name));
-                } catch {
-                    // ignore cleanup failures
-                }
-            });
-    }
-}
-
-function loadLegacyTicketStore(): TicketStore {
-    ensureTicketDir();
-    const tickets: Ticket[] = [];
-    listYearFiles().forEach((filePath) => {
-        const parsed = readJsonFile<{ tickets?: any[] }>(filePath, { tickets: [] });
-        const list = Array.isArray(parsed?.tickets) ? parsed.tickets : [];
-        list.forEach((item) => tickets.push(normalizeTicket(item)));
-    });
-    return {
-        version: 1,
-        tickets,
-    };
-}
-
-function loadLegacyTicketCategories(): TicketCategories {
-    ensureFolderFor(CATEGORIES_PATH);
-    const fallback = {
-        version: 1,
-        issueTypes: ["Software", "Hardware", "Accessi", "Altro"],
-        areas: ["Produzione", "Uffici", "Magazzino", "IT"],
-    };
-    return readJsonFile(CATEGORIES_PATH, fallback);
-}
-
-function hasTicketSupportSqliteData() {
-    return (
-        execScalarNumber(`SELECT COUNT(*) FROM ${TS_TICKETS_TABLE}`) > 0 ||
-        execScalarNumber(`SELECT COUNT(*) FROM ${TS_CATEGORIES_TABLE}`) > 0
-    );
 }
 
 function saveTicketStoreToSqlite(store: TicketStore) {
@@ -306,22 +237,10 @@ function loadTicketCategoriesFromSqlite(): TicketCategories {
 
 export function initializeTicketSupportSqliteStore() {
     ensureTicketSupportSqliteSchema();
-    if (!hasTicketSupportSqliteData()) {
-        saveTicketStoreToSqlite(loadLegacyTicketStore());
-        saveTicketCategoriesToSqlite(loadLegacyTicketCategories());
-    }
-    cleanupLegacyTicketFiles();
 }
 
 export function loadTicketStore(): TicketStore {
     ensureTicketSupportSqliteSchema();
-    if (!hasTicketSupportSqliteData()) {
-        const legacy = loadLegacyTicketStore();
-        saveTicketStoreToSqlite(legacy);
-        saveTicketCategoriesToSqlite(loadLegacyTicketCategories());
-        cleanupLegacyTicketFiles();
-        return legacy;
-    }
     return loadTicketStoreFromSqlite();
 }
 
@@ -329,18 +248,11 @@ export function saveTicketStore(store: TicketStore) {
     ensureTicketBackup();
     ensureTicketSupportSqliteSchema();
     saveTicketStoreToSqlite(store);
-    cleanupLegacyTicketFiles();
     return loadTicketStoreFromSqlite();
 }
 
 export function loadTicketCategories(): TicketCategories {
     ensureTicketSupportSqliteSchema();
-    if (!hasTicketSupportSqliteData()) {
-        const legacy = loadLegacyTicketCategories();
-        saveTicketCategoriesToSqlite(legacy);
-        cleanupLegacyTicketFiles();
-        return legacy;
-    }
     return loadTicketCategoriesFromSqlite();
 }
 
@@ -348,7 +260,6 @@ export function saveTicketCategories(payload: TicketCategories) {
     ensureTicketBackup();
     ensureTicketSupportSqliteSchema();
     const normalized = saveTicketCategoriesToSqlite(payload);
-    cleanupLegacyTicketFiles();
     return normalized;
 }
 

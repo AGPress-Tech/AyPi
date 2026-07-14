@@ -180,7 +180,6 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 port,
                 url,
                 profile: backendConfig.profile,
-                calendarDir: backendConfig.modules.feriePermessi.calendarDir,
                 generalDir: backendConfig.modules.feriePermessi.generalDir,
                 logDir: backendConfig.logging.dir,
                 dbPath: backendConfig.database.path,

@@ -22,19 +22,8 @@ const FP_SERVER_BASE_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
 const FP_DEV_BACKEND_BASE_URL = "http://127.0.0.1:3000/api/ferie-permessi";
 const FP_SERVER_BACKEND_BASE_URL =
     "http://192.168.1.240:3000/api/ferie-permessi";
-let fpBaseConfigPath: string | null = null;
-function getFpBaseConfigPath() {
-    if (!fpBaseConfigPath) {
-        fpBaseConfigPath = path.join(
-            app.getPath("userData"),
-            "ferie-permessi-base.json",
-        );
-    }
-    return fpBaseConfigPath;
-}
 const ADDRESS_BOOK_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\addresses";
 const ADDRESS_BOOK_PATH = path.join(ADDRESS_BOOK_DIR, "aypi-addresses.json");
-const TRANSFER_ATTREZZAGGIO_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\Schede Attrezzaggio\\Transfer";
 
 type AddressEntry = {
     path: string;
@@ -326,220 +315,6 @@ function loadFpBaseDir(): string | null {
         fallback,
     );
     return fallback;
-}
-
-function saveFpBaseDir(baseDir: string) {
-    try {
-        const payload = { baseDir };
-        const configPath = getFpBaseConfigPath();
-        fs.writeFileSync(configPath, JSON.stringify(payload, null, 2), "utf8");
-        log.info("[ferie-permessi] base dir salvata:", baseDir);
-    } catch (err) {
-        log.warn("[ferie-permessi] impossibile salvare base dir:", err);
-    }
-}
-
-function ensureFpFiles(baseDir: string) {
-    if (!baseDir) return;
-    if (!fs.existsSync(baseDir)) {
-        fs.mkdirSync(baseDir, { recursive: true });
-    }
-    const calendarDir = path.join(baseDir, "AyPi Calendar");
-    const purchasingDir = path.join(baseDir, "AyPi Purchasing");
-    const generalDir = path.join(baseDir, "General");
-    const generalDataDir = path.join(generalDir, "data");
-    const transferAttachmentsDir = path.join(
-        baseDir,
-        "Schede Attrezzaggio",
-        "Transfer",
-        "_attachments",
-    );
-    const haasAttachmentsDir = path.join(
-        baseDir,
-        "Schede Attrezzaggio",
-        "HAAS",
-        "_attachments",
-    );
-
-    [
-        calendarDir,
-        purchasingDir,
-        path.join(purchasingDir, "products"),
-        generalDir,
-        generalDataDir,
-        path.join(generalDir, "log"),
-        transferAttachmentsDir,
-        haasAttachmentsDir,
-    ].forEach((dirPath) => {
-        try {
-            if (!fs.existsSync(dirPath))
-                fs.mkdirSync(dirPath, { recursive: true });
-        } catch (err) {
-            log.warn(
-                "[ferie-permessi] impossibile creare cartella:",
-                dirPath,
-                err,
-            );
-        }
-    });
-
-    const isJsonEmpty = (filePath) => {
-        try {
-            if (!fs.existsSync(filePath)) return true;
-            const raw = fs.readFileSync(filePath, "utf8");
-            if (!raw || !raw.trim()) return true;
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) return parsed.length === 0;
-            if (parsed && typeof parsed === "object")
-                return Object.keys(parsed).length === 0;
-            return false;
-        } catch (err) {
-            return false;
-        }
-    };
-
-    const moveFileIfNeeded = (sourcePath, targetPath) => {
-        try {
-            if (!sourcePath || !targetPath) return;
-            if (!fs.existsSync(sourcePath)) return;
-            const targetDir = path.dirname(targetPath);
-            if (!fs.existsSync(targetDir))
-                fs.mkdirSync(targetDir, { recursive: true });
-            if (!isJsonEmpty(targetPath)) {
-                fs.rmSync(sourcePath, { force: true });
-                return;
-            }
-            fs.renameSync(sourcePath, targetPath);
-        } catch (err) {
-            log.warn(
-                "[ferie-permessi] impossibile migrare file:",
-                sourcePath,
-                "->",
-                targetPath,
-                err,
-            );
-        }
-    };
-
-    moveFileIfNeeded(
-        path.join(baseDir, "otp-mail.json"),
-        path.join(generalDataDir, "otp-mail.json"),
-    );
-    moveFileIfNeeded(
-        path.join(generalDir, "otp-mail.json"),
-        path.join(generalDataDir, "otp-mail.json"),
-    );
-    moveFileIfNeeded(
-        path.join(generalDir, "gitflow.json"),
-        path.join(generalDataDir, "gitflow.json"),
-    );
-    moveFileIfNeeded(
-        path.join(purchasingDir, "session.json"),
-        path.join(generalDataDir, "session.json"),
-    );
-
-    [
-        path.join(baseDir, "AyPi Forms"),
-        path.join(baseDir, "AyPi Gantt"),
-        path.join(baseDir, "AyPi HR"),
-        path.join(baseDir, "Product Manager"),
-        path.join(generalDir, "git-stats.json"),
-    ].forEach((targetPath) => {
-        try {
-            if (fs.existsSync(targetPath)) {
-                fs.rmSync(targetPath, { recursive: true, force: true });
-            }
-        } catch (err) {
-            log.warn(
-                "[ferie-permessi] impossibile ripulire percorso legacy:",
-                targetPath,
-                err,
-            );
-        }
-    });
-}
-
-function readJsonSafe(filePath: string) {
-    try {
-        if (!filePath || !fs.existsSync(filePath)) return null;
-        const raw = fs.readFileSync(filePath, "utf8");
-        if (!raw) return null;
-        return JSON.parse(raw);
-    } catch {
-        return null;
-    }
-}
-
-function normalizeRequestsPayload(payload: any) {
-    if (Array.isArray(payload)) return payload;
-    if (payload && typeof payload === "object") {
-        const candidates = ["requests", "items", "data", "rows", "entries"];
-        for (const key of candidates) {
-            if (Array.isArray(payload[key])) return payload[key];
-        }
-    }
-    return [];
-}
-
-function getCalendarRequestYearKey(request: any) {
-    const candidates = [
-        request?.start,
-        request?.end,
-        request?.createdAt,
-        request?.updatedAt,
-    ];
-    for (const value of candidates) {
-        if (typeof value !== "string" || !value.trim()) continue;
-        const direct = /^(\d{4})/.exec(value.trim());
-        if (direct) return direct[1];
-        const parsed = new Date(value);
-        if (!Number.isNaN(parsed.getTime()))
-            return String(parsed.getFullYear());
-    }
-    return "undated";
-}
-
-function getPurchasingYearKey(request: any) {
-    const value = String(request?.createdAt || request?.updatedAt || "").trim();
-    if (!value) return "undated";
-    const direct = /^(\d{4})/.exec(value);
-    if (direct) return direct[1];
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) return String(parsed.getFullYear());
-    return "undated";
-}
-
-function writeShardFiles(
-    dirPath: string,
-    prefix: string,
-    items: any[],
-    getYearKey: (row: any) => string,
-    regex: RegExp,
-) {
-    if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-    const buckets = new Map<string, any[]>();
-    items.forEach((row) => {
-        const key = getYearKey(row);
-        if (!buckets.has(key)) buckets.set(key, []);
-        buckets.get(key)!.push(row);
-    });
-    const expected = new Set<string>();
-    buckets.forEach((rows, key) => {
-        const fileName = `${prefix}-${key}.json`;
-        expected.add(fileName.toLowerCase());
-        fs.writeFileSync(
-            path.join(dirPath, fileName),
-            JSON.stringify(rows, null, 2),
-            "utf8",
-        );
-    });
-    const existing = fs.existsSync(dirPath) ? fs.readdirSync(dirPath) : [];
-    existing.forEach((name) => {
-        if (!regex.test(name)) return;
-        if (expected.has(name.toLowerCase())) return;
-        fs.unlinkSync(path.join(dirPath, name));
-    });
-    return { shards: expected.size, items: items.length };
 }
 
 function resolveGitRepoRoot() {
@@ -1306,47 +1081,10 @@ function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
     const baseExists = baseDir && fs.existsSync(baseDir);
 
     if (baseExists) {
-        ensureFpFiles(baseDir);
         log.info("[ferie-permessi] base dir risolta:", baseDir);
         return baseDir;
     }
-
-    // Riconfigurazione manuale DISABILITATA su percorso dati non disponibile:
-    // in caso di disconnessione temporanea dal server non vogliamo proporre
-    // all'utente la scelta di una nuova cartella, per evitare ambienti paralleli.
-    //
-    // const dialogOptions: OpenDialogSyncOptions = {
-    //     title: "Seleziona la cartella dati AyPi Calendar",
-    //     properties: ["openDirectory", "createDirectory"],
-    // };
-    // const result = senderWin
-    //     ? dialog.showOpenDialogSync(senderWin, dialogOptions)
-    //     : dialog.showOpenDialogSync(dialogOptions);
-    //
-    // if (result && result.length) {
-    //     baseDir = result[0];
-    //     ensureFpFiles(baseDir);
-    //     saveFpBaseDir(baseDir);
-    //     const infoOptions = {
-    //         type: "info" as const,
-    //         buttons: ["OK"],
-    //         title: "AyPi Calendar",
-    //         message: "Percorso dati configurato.",
-    //         detail: `Percorso selezionato:\n${baseDir}\n\nNota: otp-mail.json non viene creato automaticamente. Se manca, il sistema usa il fallback locale.`,
-    //     };
-    //     if (senderWin && !senderWin.isDestroyed()) {
-    //         dialog.showMessageBoxSync(senderWin, infoOptions);
-    //     } else {
-    //         dialog.showMessageBoxSync(infoOptions);
-    //     }
-    //     return baseDir;
-    // }
-
-    ensureFpFiles(getDefaultFpBaseDir());
-    log.info(
-        "[ferie-permessi] base dir fallback creata/verificata:",
-        getDefaultFpBaseDir(),
-    );
+    log.warn("[ferie-permessi] base dir non disponibile, uso il default");
     return getDefaultFpBaseDir();
 }
 
@@ -2828,12 +2566,6 @@ function openCompareFoldersWindow(slot, folder) {
     }
 }
 
-function ensureTransferAttrezzaggioDir() {
-    if (!fs.existsSync(TRANSFER_ATTREZZAGGIO_DIR)) {
-        fs.mkdirSync(TRANSFER_ATTREZZAGGIO_DIR, { recursive: true });
-    }
-}
-
 function transferSafeName(input: string) {
     return String(input || "")
         .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
@@ -2857,17 +2589,11 @@ function haasCodeFromPayload(payload: any) {
     return [articolo, macchina, programma, metodo].filter(Boolean).join(" - ");
 }
 
-function transferJsonPathFromCode(code: string) {
-    const fileName = transferSafeName(String(code || "").replace(/\//g, "_"));
-    return path.join(TRANSFER_ATTREZZAGGIO_DIR, `${fileName}.json`);
-}
-
 function setupFileManager(mainWindow) {
     app.on("before-quit", () => {
         isAppQuitting = true;
     });
 
-    ensureFpFiles(getDefaultFpBaseDir());
     loadAddressBook();
     ipcMain.on("resize-calcolatore", () => {
         animateResize(mainWindow, 750, 750, 100);

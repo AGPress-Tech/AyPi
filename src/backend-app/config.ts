@@ -6,7 +6,6 @@ export type BackendRuntimeConfig = {
     host: string;
     advertisedHost: string;
     port: number;
-    calendarDir: string;
     generalDir: string;
     logDir: string;
 };
@@ -17,7 +16,6 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           host: "127.0.0.1",
           advertisedHost: "127.0.0.1",
           port: 3000,
-          calendarDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\AyPi Calendar",
           generalDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General",
           logDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\log",
       }
@@ -25,19 +23,9 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           host: "192.168.1.240",
           advertisedHost: "192.168.1.240",
           port: 3000,
-          calendarDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\AyPi Calendar",
           generalDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General",
           logDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\log",
       };
-
-function normalizeLegacyLogDir(logDir: string, generalDir: string, calendarDir: string) {
-    const normalizedLogDir = String(logDir || "").trim().toLowerCase();
-    const legacyCalendarLogDir = path.join(calendarDir, "log").trim().toLowerCase();
-    if (normalizedLogDir === legacyCalendarLogDir) {
-        return path.join(generalDir, "log");
-    }
-    return logDir;
-}
 
 function getConfigCandidates() {
     const execDir = path.dirname(process.execPath);
@@ -91,10 +79,6 @@ function getNumber(value: unknown, fallback: number) {
 export function loadBackendRuntimeConfig() {
     const loaded = loadConfigFile();
     const payload = loaded.payload || {};
-    const calendarDir = getString(
-        process.env.AYPI_FP_CALENDAR_DIR,
-        getString(payload.calendarDir, DEFAULT_CONFIG.calendarDir),
-    );
     const generalDir = getString(
         process.env.AYPI_FP_GENERAL_DIR,
         getString(payload.generalDir, DEFAULT_CONFIG.generalDir),
@@ -110,13 +94,8 @@ export function loadBackendRuntimeConfig() {
             getString(payload.advertisedHost, DEFAULT_CONFIG.advertisedHost),
         ),
         port: getNumber(process.env.AYPI_BACKEND_PORT, getNumber(payload.port, DEFAULT_CONFIG.port)),
-        calendarDir,
         generalDir,
-        logDir: normalizeLegacyLogDir(
-            rawLogDir,
-            generalDir,
-            calendarDir,
-        ),
+        logDir: rawLogDir,
     };
 
     return {
@@ -132,28 +111,6 @@ export function ensureBackendRuntimeConfigFile(configPath: string) {
             fs.writeFileSync(configPath, JSON.stringify(DEFAULT_CONFIG, null, 2), "utf8");
             return;
         }
-        const parsed = parseConfigFile(configPath);
-        if (!parsed) return;
-        const calendarDir = getString(parsed.calendarDir, DEFAULT_CONFIG.calendarDir);
-        const generalDir = getString(parsed.generalDir, DEFAULT_CONFIG.generalDir);
-        const nextLogDir = normalizeLegacyLogDir(
-            getString(parsed.logDir, DEFAULT_CONFIG.logDir),
-            generalDir,
-            calendarDir,
-        );
-        if (nextLogDir === parsed.logDir) return;
-        fs.writeFileSync(
-            configPath,
-            JSON.stringify(
-                {
-                    ...parsed,
-                    logDir: nextLogDir,
-                },
-                null,
-                2,
-            ),
-            "utf8",
-        );
     } catch {
         // ignore bootstrap config write failures
     }

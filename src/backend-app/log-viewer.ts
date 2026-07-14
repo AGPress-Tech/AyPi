@@ -621,7 +621,6 @@ function interpretDetails(message: string, details: unknown) {
     pushField(fields, "File", data.filePath);
     pushField(fields, "Host", data.host);
     pushField(fields, "Porta", data.port);
-    pushField(fields, "Directory calendar", data.calendarDir);
     pushField(fields, "Directory general", data.generalDir);
     pushField(fields, "Directory log", data.logDir);
     pushField(fields, "Richieste", data.requests);

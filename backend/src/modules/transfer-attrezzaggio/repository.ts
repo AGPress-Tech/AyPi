@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { backendConfig } from "../../config";
-import { readJsonFile } from "../../shared/storage/json-files";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import {
     getSqliteDatabase,
@@ -30,13 +29,6 @@ function parseJson<T>(raw: unknown, fallback: T): T {
     }
 }
 
-function execScalarNumber(sql: string, params: unknown[] = []) {
-    const database = getSqliteDatabase();
-    const result = database.exec(sql, params);
-    if (!Array.isArray(result) || !result.length) return 0;
-    return Number(result[0]?.values?.[0]?.[0]) || 0;
-}
-
 function ensureTransferSqliteSchema() {
     const database = getSqliteDatabase();
     database.exec(`
@@ -62,24 +54,6 @@ function sanitizeFileName(value: string) {
         .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
         .replace(/\s+/g, " ")
         .trim();
-}
-
-function resolveTransferFilePath(code: string) {
-    const safeName = sanitizeFileName(code);
-    return path.join(TRANSFER_DIR, `${safeName}.json`);
-}
-
-function cleanupLegacyTransferJsonFiles() {
-    if (!fs.existsSync(TRANSFER_DIR)) return;
-    fs.readdirSync(TRANSFER_DIR)
-        .filter((name) => name.toLowerCase().endsWith(".json"))
-        .forEach((name) => {
-            try {
-                fs.unlinkSync(path.join(TRANSFER_DIR, name));
-            } catch {
-                // ignore cleanup failures
-            }
-        });
 }
 
 function normalizeAttachmentMeta(items: any[]) {
@@ -228,56 +202,6 @@ export function normalizeTransferItem(raw: any) {
     };
 }
 
-function loadLegacyTransferItems() {
-    if (!fs.existsSync(TRANSFER_DIR)) {
-        fs.mkdirSync(TRANSFER_DIR, { recursive: true });
-        return [];
-    }
-    return fs
-        .readdirSync(TRANSFER_DIR)
-        .filter((name) => name.toLowerCase().endsWith(".json"))
-        .map((name) => {
-            const filePath = path.join(TRANSFER_DIR, name);
-            const stat = fs.statSync(filePath);
-            const parsed = readJsonFile(filePath, {});
-            const item = normalizeTransferItem(parsed);
-            const code = item.code || path.basename(name, ".json");
-            const parts = parseCode(code);
-            return {
-                ...item,
-                code,
-                codiceArticolo: item.codiceArticolo || parts.codiceArticolo,
-                fase: item.fase || parts.fase,
-                codiceMacchina: item.codiceMacchina || parts.codiceMacchina,
-                metodo: item.metodoVariante || parts.metodo,
-                utensiliCount: Array.isArray(item.utensili) ? item.utensili.length : 0,
-                attachmentsCount: Array.isArray(item.attachments) ? item.attachments.length : 0,
-                utensiliDescrizioni: Array.isArray(item.utensili)
-                    ? item.utensili
-                          .map((row) => String(row.descrizione || "").trim())
-                          .filter(Boolean)
-                    : [],
-                utensiliCol1: Array.isArray(item.utensili)
-                    ? item.utensili
-                          .map((row) => String(row.col1 || "").trim())
-                          .filter(Boolean)
-                    : [],
-                updatedAt: item.updatedAt || stat.mtime.toISOString(),
-            };
-        })
-        .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
-}
-
-function loadLegacyTransferItem(code: string) {
-    const filePath = resolveTransferFilePath(code);
-    if (!fs.existsSync(filePath)) return null;
-    return normalizeTransferItem(readJsonFile(filePath, {}));
-}
-
-function hasTransferSqliteData() {
-    return execScalarNumber(`SELECT COUNT(*) FROM ${TRANSFER_ITEMS_TABLE}`) > 0;
-}
-
 function saveTransferItemsToSqlite(items: any[]) {
     runSqliteTransaction((database) => {
         database.run(`DELETE FROM ${TRANSFER_ITEMS_TABLE}`);
@@ -354,33 +278,15 @@ function loadTransferItemFromSqlite(code: string) {
 
 export function initializeTransferSqliteStore() {
     ensureTransferSqliteSchema();
-    if (!hasTransferSqliteData()) {
-        saveTransferItemsToSqlite(loadLegacyTransferItems());
-    }
-    cleanupLegacyTransferJsonFiles();
 }
 
 export function listTransferItems() {
     ensureTransferSqliteSchema();
-    if (!hasTransferSqliteData()) {
-        const legacy = loadLegacyTransferItems();
-        saveTransferItemsToSqlite(legacy);
-        cleanupLegacyTransferJsonFiles();
-        return legacy;
-    }
     return loadTransferItemsFromSqlite();
 }
 
 export function loadTransferItem(code: string) {
     ensureTransferSqliteSchema();
-    if (!hasTransferSqliteData()) {
-        const legacy = loadLegacyTransferItem(code);
-        if (legacy) {
-            saveTransferItemsToSqlite(loadLegacyTransferItems());
-            cleanupLegacyTransferJsonFiles();
-        }
-        return legacy;
-    }
     return loadTransferItemFromSqlite(code);
 }
 
@@ -406,15 +312,14 @@ export function saveTransferItem(payload: any) {
         updatedAt: now,
     };
 
-    const items = hasTransferSqliteData()
-        ? loadTransferItemsFromSqlite().map((item) => normalizeTransferItem(item))
-        : loadLegacyTransferItems().map((item) => normalizeTransferItem(item));
+    const items = loadTransferItemsFromSqlite().map((item) =>
+        normalizeTransferItem(item),
+    );
     const filtered = items.filter(
         (item) => item.code !== next.code && (!previousCode || item.code !== previousCode),
     );
     filtered.push(next);
     saveTransferItemsToSqlite(filtered);
-    cleanupLegacyTransferJsonFiles();
     return next;
 }
 
@@ -422,14 +327,11 @@ export function deleteTransferItem(code: string) {
     ensureTransferSqliteSchema();
     const current = loadTransferItem(code);
     if (!current) return false;
-    if (hasTransferSqliteData()) {
-        const items = loadTransferItemsFromSqlite()
-            .map((item) => normalizeTransferItem(item))
-            .filter((item) => item.code !== code);
-        saveTransferItemsToSqlite(items);
-    }
+    const items = loadTransferItemsFromSqlite()
+        .map((item) => normalizeTransferItem(item))
+        .filter((item) => item.code !== code);
+    saveTransferItemsToSqlite(items);
     deleteAttachmentFiles(current?.attachments);
-    cleanupLegacyTransferJsonFiles();
     return true;
 }
 

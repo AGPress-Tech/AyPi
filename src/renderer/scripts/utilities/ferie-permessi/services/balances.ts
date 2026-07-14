@@ -1,13 +1,4 @@
 ﻿require("../../../shared/dev-guards");
-import fs from "fs";
-import path from "path";
-import {
-    REQUESTS_PATH,
-    HOLIDAYS_PATH,
-    BALANCES_PATH,
-    CLOSURES_PATH,
-} from "../config/paths";
-import { ensureFolderFor } from "./storage";
 import { calculateHours } from "../utils/requests";
 
 type HolidayLike = { date?: string } | string;
@@ -49,11 +40,6 @@ type Payload = {
 
 const DEFAULT_INITIAL_HOURS = 100;
 const MONTHLY_ACCRUAL_HOURS = 16;
-const REQUESTS_SHARDS_DIR = path.join(
-    path.dirname(REQUESTS_PATH),
-    "Calendar Years",
-);
-const REQUESTS_SHARD_REGEX = /^requests-(\d{4}|undated)\.json$/i;
 
 function isBalanceNeutral(request: RequestLike | null | undefined) {
     return (
@@ -638,190 +624,6 @@ function applyBalanceForUpdate(
     return payload;
 }
 
-function readJsonFile(filePath: string) {
-    if (!filePath || !fs.existsSync(filePath)) return null;
-    const raw = fs.readFileSync(filePath, "utf8");
-    if (!raw) return null;
-    return JSON.parse(raw);
-}
-
-function normalizeRequestsData(value: unknown): RequestLike[] {
-    if (Array.isArray(value)) return value as RequestLike[];
-    if (
-        value &&
-        typeof value === "object" &&
-        "requests" in value &&
-        Array.isArray((value as { requests?: unknown }).requests)
-    ) {
-        return (value as { requests: RequestLike[] }).requests;
-    }
-    return [];
-}
-
-function normalizeHolidaysData(value: unknown): HolidayLike[] {
-    if (Array.isArray(value)) return value as HolidayLike[];
-    if (
-        value &&
-        typeof value === "object" &&
-        "holidays" in value &&
-        Array.isArray((value as { holidays?: unknown }).holidays)
-    ) {
-        return (value as { holidays: HolidayLike[] }).holidays;
-    }
-    return [];
-}
-
-function normalizeClosuresData(value: unknown): ClosureLike[] {
-    if (Array.isArray(value)) return value as ClosureLike[];
-    if (
-        value &&
-        typeof value === "object" &&
-        "closures" in value &&
-        Array.isArray((value as { closures?: unknown }).closures)
-    ) {
-        return (value as { closures: ClosureLike[] }).closures;
-    }
-    return [];
-}
-
-function normalizeBalancesData(value: unknown): Record<string, BalanceEntry> {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-        const typed = value as { balances?: unknown };
-        if (typed.balances && typeof typed.balances === "object") {
-            return typed.balances as Record<string, BalanceEntry>;
-        }
-        return value as Record<string, BalanceEntry>;
-    }
-    return {} as Record<string, BalanceEntry>;
-}
-
-function readRequestsFromShardsIn(directory: string) {
-    if (!directory || !fs.existsSync(directory)) return null;
-    const files = fs
-        .readdirSync(directory)
-        .filter((name) => REQUESTS_SHARD_REGEX.test(name))
-        .sort();
-    if (!files.length) return null;
-
-    const requests: RequestLike[] = [];
-    files.forEach((name) => {
-        const filePath = path.join(directory, name);
-        const parsed = readJsonFile(filePath);
-        const rows = normalizeRequestsData(parsed);
-        rows.forEach((row) => requests.push(row));
-    });
-    return requests;
-}
-
-function readRequestsFromShards() {
-    return readRequestsFromShardsIn(REQUESTS_SHARDS_DIR);
-}
-
-function toShardKey(request: RequestLike) {
-    if (!request || typeof request !== "object") return "undated";
-    const candidates = [
-        request.start,
-        request.end,
-        request.createdAt,
-        request.updatedAt,
-    ];
-    for (let i = 0; i < candidates.length; i += 1) {
-        const value = candidates[i];
-        if (typeof value !== "string" || !value.trim()) continue;
-        const trimmed = value.trim();
-        const direct = /^(\d{4})/.exec(trimmed);
-        if (direct) return direct[1];
-        const parsed = new Date(trimmed);
-        if (!Number.isNaN(parsed.getTime())) {
-            const year = parsed.getFullYear();
-            if (year >= 1900 && year <= 2500) return String(year);
-        }
-    }
-    return "undated";
-}
-
-function writeRequestsData(
-    requests: RequestLike[] | { requests?: RequestLike[] },
-) {
-    const list = normalizeRequestsData(requests);
-    const buckets = new Map<string, RequestLike[]>();
-    list.forEach((request) => {
-        const key = toShardKey(request);
-        if (!buckets.has(key)) buckets.set(key, []);
-        buckets.get(key)?.push(request);
-    });
-
-    ensureFolderFor(path.join(REQUESTS_SHARDS_DIR, "index.json"));
-    const shardFiles: string[] = [];
-    buckets.forEach((items, key) => {
-        const fileName = `requests-${key}.json`;
-        shardFiles.push(fileName);
-        writeJsonFile(path.join(REQUESTS_SHARDS_DIR, fileName), items);
-    });
-
-    const expected = new Set(shardFiles);
-    const existing = fs.existsSync(REQUESTS_SHARDS_DIR)
-        ? fs.readdirSync(REQUESTS_SHARDS_DIR)
-        : [];
-    existing.forEach((name) => {
-        if (!REQUESTS_SHARD_REGEX.test(name)) return;
-        if (expected.has(name)) return;
-        fs.unlinkSync(path.join(REQUESTS_SHARDS_DIR, name));
-    });
-
-    // Shards are the source of truth; avoid writing legacy flat files.
-}
-
-function writeJsonFile(filePath: string, value: unknown) {
-    if (!filePath) return;
-    ensureFolderFor(filePath);
-    fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
-}
-
-function loadPayload(): Payload {
-    try {
-        const parsedHolidays = readJsonFile(HOLIDAYS_PATH);
-        const parsedBalances = readJsonFile(BALANCES_PATH);
-        const parsedClosures = readJsonFile(CLOSURES_PATH);
-        const requests = readRequestsFromShards() || [];
-
-        const holidays =
-            parsedHolidays == null ? [] : normalizeHolidaysData(parsedHolidays);
-        const balances =
-            parsedBalances == null ? {} : normalizeBalancesData(parsedBalances);
-        const closures =
-            parsedClosures == null ? [] : normalizeClosuresData(parsedClosures);
-
-        return {
-            requests,
-            balances,
-            holidays,
-            closures,
-        };
-    } catch (err) {
-        console.error("Errore caricamento dati ferie:", err);
-        return { requests: [], balances: {}, holidays: [], closures: [] };
-    }
-}
-
-function savePayload(payload: Payload) {
-    try {
-        const requests = normalizeRequestsData(payload);
-        const holidays = normalizeHolidaysData(payload);
-        const closures = normalizeClosuresData(payload);
-        const balances = normalizeBalancesData(payload?.balances ?? payload);
-        writeRequestsData(requests);
-        writeJsonFile(HOLIDAYS_PATH, holidays);
-        writeJsonFile(BALANCES_PATH, balances);
-        writeJsonFile(CLOSURES_PATH, closures);
-        // Avoid writing legacy aggregate file; shards + per-section files are enough.
-        return true;
-    } catch (err) {
-        console.error("Errore salvataggio ferie:", err);
-        return false;
-    }
-}
-
 export {
     DEFAULT_INITIAL_HOURS,
     MONTHLY_ACCRUAL_HOURS,
@@ -834,8 +636,6 @@ export {
     applyBalanceForApproval,
     applyBalanceForDeletion,
     applyBalanceForUpdate,
-    loadPayload,
-    savePayload,
 };
 
 // Keep CommonJS compatibility for legacy JS callers
@@ -861,7 +661,5 @@ if (
             applyBalanceForApproval,
             applyBalanceForDeletion,
             applyBalanceForUpdate,
-            loadPayload,
-            savePayload,
         };
 }

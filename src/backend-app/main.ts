@@ -65,7 +65,6 @@ function applyRuntimeConfig() {
     process.env.AYPI_BACKEND_HOST = loaded.config.host;
     process.env.AYPI_BACKEND_ADVERTISED_HOST = loaded.config.advertisedHost;
     process.env.AYPI_BACKEND_PORT = String(loaded.config.port);
-    process.env.AYPI_FP_CALENDAR_DIR = loaded.config.calendarDir;
     process.env.AYPI_FP_GENERAL_DIR = loaded.config.generalDir;
     process.env.AYPI_LOG_DIR = loaded.config.logDir;
     return loaded;
@@ -123,7 +122,6 @@ function updateTrayMenu() {
     const template: Electron.MenuItemConstructorOptions[] = [
         { label: statusLabel, enabled: false },
         { label: `Host: ${loaded.config.host}:${loaded.config.port}`, enabled: false },
-        { label: `Calendar: ${loaded.config.calendarDir}`, enabled: false },
         { label: `General: ${loaded.config.generalDir}`, enabled: false },
         { label: `PID: ${machine.pid} • ${machine.hostName}`, enabled: false },
         { type: "separator" },

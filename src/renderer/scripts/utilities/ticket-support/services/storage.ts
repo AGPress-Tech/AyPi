@@ -110,9 +110,7 @@ function saveStore(store: TicketStore) {
     return loadStore();
 }
 
-const DATA_PATH = "backend://ticket-support/store";
-
-export { DATA_PATH, loadStore, saveStore, hydrateStore };
+export { loadStore, saveStore, hydrateStore };
 
 if (
     typeof module !== "undefined" &&
@@ -120,7 +118,6 @@ if (
     !(globalThis as any).__aypiBundled
 ) {
     module.exports = {
-        DATA_PATH,
         loadStore,
         saveStore,
         hydrateStore,

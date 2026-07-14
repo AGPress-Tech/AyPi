@@ -238,6 +238,36 @@ function createMailerTransport(config: SharedOtpMailConfig) {
     });
 }
 
+export async function sendConfiguredMail(
+    payload: { to: string; subject: string; text: string },
+    context?: ActionContext,
+) {
+    const meta = buildContext(context);
+    const config = loadOtpMailConfig();
+    const to = String(payload?.to || "").trim();
+    const subject = String(payload?.subject || "").trim();
+    const text = String(payload?.text || "").trim();
+    if (!config) throw new Error("Config mail non trovata.");
+    if (!to || !subject || !text) {
+        throw new Error("Destinatario, oggetto e testo sono obbligatori.");
+    }
+    const transporter = createMailerTransport(config);
+    await transporter.sendMail({
+        from: config.from || config.user,
+        to,
+        subject,
+        text,
+    });
+    logger.info("Shared configured mail sent", {
+        ...meta,
+        event: "shared_configured_mail_sent",
+        module: "shared",
+        category: "mail",
+        to,
+        subject,
+    });
+}
+
 export async function sendOtpTestMail(
     payload: unknown,
     recipient: string,
