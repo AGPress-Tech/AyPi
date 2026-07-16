@@ -1685,7 +1685,7 @@ async function loadCardAndOpenForm(code, options = { readOnly: false }) {
     });
     if (!loaded?.ok) {
         await showError(loaded?.error || "Errore caricamento scheda");
-        return;
+        return false;
     }
     const card = loaded.item;
     currentCode = card.code;
@@ -1714,6 +1714,19 @@ async function loadCardAndOpenForm(code, options = { readOnly: false }) {
     setFormReadOnly(!!options?.readOnly);
     markTransferFormAsSaved();
     showView("form");
+    return true;
+}
+
+async function copyCardAndOpenForm(code) {
+    const loaded = await loadCardAndOpenForm(code, { readOnly: false });
+    if (!loaded) return;
+
+    currentCode = null;
+    ["codiceArticolo", "fase", "codiceMacchina", "metodo"].forEach((id) =>
+        setVal(id, ""),
+    );
+    updateCodeLabel();
+    document.getElementById("codiceArticolo")?.focus();
 }
 
 async function loadList() {
@@ -1815,6 +1828,13 @@ function renderListFiltered() {
         edit.addEventListener("click", () =>
             loadCardAndOpenForm(item.code, { readOnly: false }),
         );
+        const copy = document.createElement("button");
+        copy.textContent = "Copia";
+        copy.title = "Crea una nuova scheda partendo da questa";
+        copy.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => copyCardAndOpenForm(item.code)),
+        );
         const print = document.createElement("button");
         print.textContent = "Stampa";
         print.addEventListener(
@@ -1860,6 +1880,7 @@ function renderListFiltered() {
         );
         li.appendChild(details);
         actions.appendChild(edit);
+        actions.appendChild(copy);
         actions.appendChild(print);
         actions.appendChild(del);
         li.appendChild(actions);

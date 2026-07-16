@@ -110,6 +110,28 @@ function saveNewAttachments(items: any[]) {
         .filter(Boolean);
 }
 
+function copyAttachments(items: any[]) {
+    const attachments = normalizeAttachmentMeta(items);
+    if (!attachments.length) return [];
+    fs.mkdirSync(TRANSFER_ATTACHMENTS_DIR, { recursive: true });
+    return attachments
+        .map((item) => {
+            const sourcePath = resolveAttachmentPath(item.storedName);
+            if (!fs.existsSync(sourcePath)) return null;
+            const id = crypto.randomUUID();
+            const extension = path.extname(item.storedName);
+            const storedName = `${id}${extension}`;
+            fs.copyFileSync(sourcePath, resolveAttachmentPath(storedName));
+            return {
+                ...item,
+                id,
+                storedName,
+                createdAt: new Date().toISOString(),
+            };
+        })
+        .filter(Boolean);
+}
+
 function deleteAttachmentFiles(items: any[]) {
     normalizeAttachmentMeta(items).forEach((item) => {
         const filePath = resolveAttachmentPath(item.storedName);
@@ -296,7 +318,10 @@ export function saveTransferItem(payload: any) {
     const normalized = normalizeTransferItem(payload);
     const previousCode = String(payload?.previousCode || "").trim();
     const current = normalized.code ? loadTransferItem(normalized.code) : null;
-    const retainedAttachments = normalizeAttachmentMeta(normalized.attachments);
+    const retainedAttachments =
+        !current && !previousCode
+            ? copyAttachments(normalized.attachments)
+            : normalizeAttachmentMeta(normalized.attachments);
     const retainedIds = new Set(retainedAttachments.map((item) => item.id));
     const previousAttachments = normalizeAttachmentMeta(current?.attachments);
     const removedAttachments = previousAttachments.filter(

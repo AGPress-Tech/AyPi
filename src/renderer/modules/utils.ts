@@ -19,17 +19,23 @@ function ensureAddinFolder() {
 const MAX_REDIRECTS = 5;
 
 function downloadAddin() {
+    // Uso new Promise<voi> per evitare il callback hell
     return new Promise<void>((resolve, reject) => {
+        // Funzione per effettuare il download
         const startDownload = (urlStr: string, redirectsLeft: number) => {
+            // Controlla se l'URL è valida
             let url: URL;
             try {
+                // se la stringa non è un URL, provo a creare un oggetto URL
                 url = new URL(urlStr);
             } catch (err) {
                 reject(new Error(`URL non valida: ${urlStr}`));
                 return;
             }
 
+            // Effettua il download
             const client = url.protocol === "https:" ? https : http;
+            // const request fa una richiesta HTTP al server e riceve una risposta
             const request = client.get(
                 url,
                 {
@@ -45,9 +51,13 @@ function downloadAddin() {
                         status,
                     );
 
+                    // se la risposta è un redirect e ci sono ancora redirects da effettuare
                     if (isRedirect && res.headers.location) {
+                        // se non ci sono più redirects da effettuare
                         if (redirectsLeft <= 0) {
+                            // se la risposta è un redirect e non ci sono più redirects da effettuare chiudo la richiesta
                             res.resume();
+                            // altrimenti ritorno un errore
                             reject(
                                 new Error(
                                     "Troppi redirect durante il download.",
@@ -55,7 +65,9 @@ function downloadAddin() {
                             );
                             return;
                         }
+                        // se la risposta è un redirect e ci sono ancora redirects da effettuare
                         const nextUrl = new URL(
+                            // converto l'URL del redirect in un oggetto URL
                             res.headers.location,
                             url,
                         ).toString();
@@ -64,6 +76,7 @@ function downloadAddin() {
                         return;
                     }
 
+                    // se la risposta non è un redirect e il codice di stato non è 200 (OK)
                     if (status !== 200) {
                         res.resume();
                         reject(
@@ -75,9 +88,11 @@ function downloadAddin() {
                     }
 
                     const tmpPath = `${ADDIN_PATH}.tmp`;
+                    // creo un file temporaneo per il download
                     const file = fs.createWriteStream(tmpPath);
                     res.pipe(file);
 
+                    // quando il download è completato chiudo il file e rinomino il file temporaneo in ADDIN_PATH
                     file.on("finish", () => {
                         file.close(() => {
                             try {
@@ -99,6 +114,7 @@ function downloadAddin() {
                 },
             );
 
+            // se il download fallisce o viene interrotto, chiudo la richiesta
             request.on("timeout", () => {
                 request.destroy(new Error("Timeout durante il download."));
             });
@@ -111,6 +127,7 @@ function downloadAddin() {
     });
 }
 
+// Funzione per creare lo script PowerShell per installare l'add-in
 function buildPowerShellInstallScript() {
     const escapedPath = ADDIN_PATH.replace(/\\/g, "\\\\");
     return [
@@ -129,6 +146,7 @@ function buildPowerShellInstallScript() {
     ].join(" ");
 }
 
+// Funzione per attivare l'add-in
 function tryEnableAddin() {
     const script = buildPowerShellInstallScript();
     exec(`powershell -NoProfile -Command "${script}"`, (_error, stdout) => {
@@ -142,7 +160,9 @@ function tryEnableAddin() {
     });
 }
 
+// Funzione per installare l'add-in
 async function installAddinFunction() {
+    // controlla se l'add-in è già installato
     try {
         ensureAddinFolder();
         const alreadyExists = fs.existsSync(ADDIN_PATH);
@@ -178,6 +198,7 @@ function fadeInBodyOnLoad() {
     }
 }
 
+// Funzione per collegare l'icona GitHub a un link esterno
 function wireGithubIcon() {
     const githubIcon = document.getElementById("githubIcon");
     if (!githubIcon) return;
@@ -186,6 +207,7 @@ function wireGithubIcon() {
     });
 }
 
+// Funzione per collegare la versione dell'applicazione
 function wireAppVersion() {
     const appVersionElement = document.getElementById("appVersion");
     if (!appVersionElement) return;
@@ -198,17 +220,21 @@ function wireAppVersion() {
 }
 
 function wireAdminHotkey() {
+    // Funzione per mostrare la finestra di accesso admin
     const ensureAdminPrompt = () => {
         let overlay = document.getElementById(
             "aypi-admin-overlay",
         ) as HTMLDivElement | null;
+        // se la finestra non esiste, la creo
         if (!overlay) {
             overlay = document.createElement("div");
             overlay.id = "aypi-admin-overlay";
         }
+        // se la finestra non è stata aggiunta al DOM, la aggiungo
         if (overlay.parentElement !== document.body) {
             document.body.appendChild(overlay);
         }
+        // se la finestra è stata aggiunta al DOM ma non è stata inizializzata, la inizializzo
         if (overlay.dataset.aypiAdminInit === "1") {
             return;
         }
@@ -290,9 +316,12 @@ function wireAdminHotkey() {
             if (event.target === overlay) close();
         });
 
+        // Funzione per confermare l'accesso admin
         const submit = async () => {
+            // se l'input è vuoto, chiudo la finestra
             const password = input.value;
             if (!password) return;
+            // se la password è corretta, attivo l'accesso admin
             const result = await ipcRenderer.invoke("admin-auth", password);
             if (result && result.ok) {
                 ipcRenderer.invoke("show-message-box", {
@@ -301,6 +330,7 @@ function wireAdminHotkey() {
                         "Accesso admin attivo fino alla chiusura dell'app.",
                 });
             } else {
+                // se la password non è corretta, mostro un messaggio di errore
                 ipcRenderer.invoke("show-message-box", {
                     type: "warning",
                     message: "Password non valida.",
@@ -321,34 +351,46 @@ function wireAdminHotkey() {
         });
     };
 
+    //  runPrompt serve a attivare l'accesso admin
     const runPrompt = async () => {
+        // se il documento è nascosto, esco
         if (document.hidden) return;
+        // se l'accesso admin è attivo, lo disattivo
         const isAdmin = await ipcRenderer.invoke("admin-is-enabled");
         if (isAdmin) {
+            // disattivo l'accesso admin
             await ipcRenderer.invoke("admin-disable");
             ipcRenderer.invoke("show-message-box", {
                 type: "info",
-                message: "ModalitÃ  ADMIN terminata",
+                message: "Modalità ADMIN terminata",
             });
             return;
         }
 
+        // attivo l'accesso admin
         ensureAdminPrompt();
+        // overlay per l'accesso admin
         const overlay = document.getElementById("aypi-admin-overlay");
+        // se l'overlay non esiste, esco
         const input = overlay ? overlay.querySelector("input") : null;
+        // se l'input non esiste, esco
         if (!overlay || !input) return;
         overlay.style.display = "flex";
         input.focus();
         (input as HTMLInputElement).select();
     };
 
+    // onHotkey serve a attivare l'accesso admin con il tasto F2
     const onHotkey = (event: KeyboardEvent) => {
+        // se il tasto non è F2, esco
         if (event.key !== "F2") return;
         event.preventDefault();
+        // se il documento è nascosto, esco
         if (document.hidden) return;
         runPrompt();
     };
 
+    // aggiungo l'event listener
     window.addEventListener("keydown", onHotkey, true);
     document.addEventListener("keydown", onHotkey, true);
 
@@ -366,10 +408,13 @@ function wireAdminHotkey() {
     });
 }
 
+// wireSidebarActions serve a attivare il menu laterale e la ricerca nella sidebar
 function wireSidebarActions() {
+    // ottengo il container della sidebar
     const sidebarContainer = document.getElementById("sidebar-container");
     if (!sidebarContainer) return;
 
+    // funzione per aggiornare il contenuto della sidebar
     const applySidebarHtml = (html: string) => {
         sidebarContainer.innerHTML =
             typeof html === "string" ? html : String(html || "");
@@ -378,26 +423,37 @@ function wireSidebarActions() {
         const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
         const menuBtn = document.getElementById("menuBtn");
 
+        // funzioni per aprire e chiudere la sidebar
         function openNav() {
+            // se la sidebar ha già un larghezza, la lascio invariata altrimenti la setto a 30%
             if (sidebar) (sidebar as HTMLElement).style.width = "30%";
             const main = document.getElementById("main");
+            // se il main ha già un margin-left, lo lascio invariato altrimenti lo setto a 30%
             if (main) (main as HTMLElement).style.marginLeft = "30%";
         }
+        // funzione per chiudere la sidebar
         function closeNav() {
+            // se la sidebar ha già un larghezza, la lascio invariata altrimenti la setto a 0
             if (sidebar) (sidebar as HTMLElement).style.width = "0";
             const main = document.getElementById("main");
+            // se il main ha già un margin-left, lo lascio invariato altrimenti lo setto a 0
             if (main) (main as HTMLElement).style.marginLeft = "0";
         }
 
+        // se il menuBtn esiste, aggiungo l'event listener per aprire la sidebar
         if (menuBtn) {
             menuBtn.addEventListener("mouseenter", openNav);
             menuBtn.addEventListener("click", openNav);
         }
+        // se la sidebar esiste, aggiungo l'event listener per chiudere la sidebar
         if (sidebar) sidebar.addEventListener("mouseleave", closeNav);
         if (closeBtn) closeBtn.addEventListener("click", closeNav);
 
+        // clockElement serve per aggiornare l'orario e per aprire la finestra del timer al click
         const clockElement = document.getElementById("clock");
+        // se il clockElement esiste,
         if (clockElement) {
+            // funzione per aggiornare l'orario
             function updateClock() {
                 const now = new Date();
                 const hours = now.getHours().toString().padStart(2, "0");
@@ -405,6 +461,7 @@ function wireSidebarActions() {
                 if (clockElement)
                     clockElement.textContent = `${hours}:${minutes}`;
             }
+            // aggiorno l'orario
             updateClock();
             setInterval(updateClock, 1000);
 
@@ -413,11 +470,13 @@ function wireSidebarActions() {
             });
         }
 
+        // funzione per installare l'addon excel
         const installBtn = document.getElementById("install-addin");
         if (installBtn) {
             installBtn.addEventListener("click", installAddinFunction);
         }
 
+        // se la sidebar o il menuBtn non esistono, mostro un messaggio di errore
         if (!sidebar || !menuBtn) {
             ipcRenderer.invoke("show-message-box", {
                 type: "warning",
@@ -450,6 +509,7 @@ function wireSidebarActions() {
         });
 }
 
+// funzione per inizializzare l'interfaccia
 function initCommonUI() {
     const run = () => {
         fadeInBodyOnLoad();
