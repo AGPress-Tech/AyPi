@@ -64,10 +64,12 @@ const haasListCount = document.getElementById("haasListCount");
 const filterCodiceArticolo = document.getElementById("filterCodiceArticolo");
 const filterCodiceMacchina = document.getElementById("filterCodiceMacchina");
 const filterText = document.getElementById("filterText");
+const filterLavorazione = document.getElementById("filterLavorazione");
 const filterDescrizioneLavorazione = document.getElementById(
     "filterDescrizioneLavorazione",
 );
 const filterUtensile = document.getElementById("filterUtensile");
+const filterGenerale = document.getElementById("filterGenerale");
 const haasFilterCodiceArticolo = document.getElementById("haasFilterCodiceArticolo");
 const haasFilterMacchina = document.getElementById("haasFilterMacchina");
 const haasFilterNumeroProgramma = document.getElementById("haasFilterNumeroProgramma");
@@ -1753,12 +1755,22 @@ function formatDateTs(ms) {
     return d.toLocaleString("it-IT");
 }
 
+function collectSearchValues(value) {
+    if (Array.isArray(value)) return value.flatMap(collectSearchValues);
+    if (value && typeof value === "object") {
+        return Object.values(value).flatMap(collectSearchValues);
+    }
+    return value === null || value === undefined ? [] : [String(value)];
+}
+
 function matchesFilters(item) {
     const fArt = normalize(filterCodiceArticolo?.value);
     const fMac = normalize(filterCodiceMacchina?.value);
-    const fText = normalize(filterText?.value);
+    const fNote = normalize(filterText?.value);
+    const fLav = normalize(filterLavorazione?.value);
     const fDescLav = normalize(filterDescrizioneLavorazione?.value);
     const fUte = normalize(filterUtensile?.value);
+    const fGenerale = normalize(filterGenerale?.value);
 
     const codiceArticolo = normalize(item?.codiceArticolo);
     const codiceMacchina = normalize(item?.codiceMacchina);
@@ -1770,13 +1782,22 @@ function matchesFilters(item) {
     const utensili = Array.isArray(item?.utensiliCol1)
         ? item.utensiliCol1.map(normalize).join(" | ")
         : "";
+    const searchableText = fGenerale
+        ? normalize(
+              [
+                  ...collectSearchValues(item),
+                  formatDateTs(item?.updatedAt),
+              ].join(" | "),
+          )
+        : "";
 
     if (fArt && !codiceArticolo.includes(fArt)) return false;
     if (fMac && !codiceMacchina.includes(fMac)) return false;
-    if (fText && !(lavorazione.includes(fText) || note.includes(fText)))
-        return false;
+    if (fNote && !note.includes(fNote)) return false;
+    if (fLav && !lavorazione.includes(fLav)) return false;
     if (fDescLav && !descrLavorazioni.includes(fDescLav)) return false;
     if (fUte && !utensili.includes(fUte)) return false;
+    if (fGenerale && !searchableText.includes(fGenerale)) return false;
     return true;
 }
 
@@ -2058,8 +2079,10 @@ document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
         filterCodiceArticolo,
         filterCodiceMacchina,
         filterText,
+        filterLavorazione,
         filterDescrizioneLavorazione,
         filterUtensile,
+        filterGenerale,
     ].forEach((el) => {
         if (el) el.value = "";
     });
@@ -2292,8 +2315,10 @@ document.addEventListener(
     filterCodiceArticolo,
     filterCodiceMacchina,
     filterText,
+    filterLavorazione,
     filterDescrizioneLavorazione,
     filterUtensile,
+    filterGenerale,
 ].forEach((el) => {
     el?.addEventListener("input", renderListFiltered);
 });
