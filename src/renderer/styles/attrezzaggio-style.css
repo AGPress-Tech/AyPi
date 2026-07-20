@@ -550,10 +550,14 @@ tr.row-reorder-dragging > td {
     padding: 6px;
     font-size: 13px;
 }
+.list-filters .filter-notes {
+    grid-column: span 3;
+}
 #clearFiltersBtn {
     margin: 0;
     align-self: end;
     min-height: 35px;
+    grid-column: 6;
 }
 .list-count {
     margin: 4px 0 10px 0;
@@ -601,6 +605,11 @@ tr.row-reorder-dragging > td {
         width: 100%;
         justify-content: flex-end;
         flex-wrap: wrap;
+    }
+
+    .list-filters .filter-notes,
+    #clearFiltersBtn {
+        grid-column: auto;
     }
 }
 
