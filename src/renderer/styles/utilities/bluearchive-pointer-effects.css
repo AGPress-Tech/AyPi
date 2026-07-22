@@ -1,0 +1,56 @@
+.fp-ba-pointer-layer {
+    position: fixed;
+    z-index: 1900;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.fp-ba-pointer-trail {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.fp-ba-click-particle {
+    position: absolute;
+    z-index: 2;
+    width: 7px;
+    height: 7px;
+    margin: -3px 0 0 -3px;
+    border: 2px solid var(--fp-ba-particle-color);
+    transform: rotate(45deg);
+    animation: fp-ba-particle-pop 0.65s cubic-bezier(0.1, 0.7, 0.1, 1) forwards;
+}
+
+.fp-ba-click-ring {
+    position: absolute;
+    z-index: 1;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border: 2px solid rgba(38, 191, 243, 0.9);
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7), 0 0 15px rgba(38, 191, 243, 0.55);
+    animation: fp-ba-click-ring-pop 0.48s ease-out forwards;
+}
+
+@keyframes fp-ba-particle-pop {
+    from {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0) scale(0.3);
+    }
+    to {
+        opacity: 0;
+        transform: translate(var(--fp-ba-particle-x), var(--fp-ba-particle-y)) rotate(180deg) scale(1);
+    }
+}
+
+@keyframes fp-ba-click-ring-pop {
+    from { opacity: 1; transform: scale(0.35); }
+    to { opacity: 0; transform: scale(2.7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fp-ba-pointer-layer { display: none; }
+}

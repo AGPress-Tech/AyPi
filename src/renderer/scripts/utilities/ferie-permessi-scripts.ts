@@ -7,6 +7,12 @@ import https from "https";
 import path from "path";
 import { pathToFileURL } from "url";
 import { requestBackend } from "../shared/backend-client";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+
+const IS_BLUE_ARCHIVE_CALENDAR =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_CALENDAR);
 
 const fpBaseDir = path.join(
     __dirname,
@@ -750,6 +756,7 @@ function setSettingsInputsFromColors() {
 }
 
 function loadThemeSetting() {
+    if (IS_BLUE_ARCHIVE_CALENDAR) return "bluearchive";
     try {
         const value = window.localStorage?.getItem(THEME_STORAGE_KEY);
         if (value === "dark" || value === "aypi") {
@@ -762,6 +769,7 @@ function loadThemeSetting() {
 }
 
 function saveThemeSetting(theme) {
+    if (IS_BLUE_ARCHIVE_CALENDAR) return;
     try {
         if (!window.localStorage) return;
         const next = theme === "dark" || theme === "aypi" ? theme : "light";
@@ -773,9 +781,16 @@ function saveThemeSetting(theme) {
 
 function applyTheme(theme) {
     const mode =
-        theme === "dark" ? "dark" : theme === "aypi" ? "aypi" : "light";
+        IS_BLUE_ARCHIVE_CALENDAR || theme === "bluearchive"
+            ? "bluearchive"
+            : theme === "dark"
+              ? "dark"
+              : theme === "aypi"
+                ? "aypi"
+                : "light";
     document.body.classList.toggle("fp-dark", mode === "dark");
     document.body.classList.toggle("fp-aypi", mode === "aypi");
+    document.body.classList.toggle("fp-bluearchive", mode === "bluearchive");
     applyCalendarButtonStyles(document);
     applyCalendarListStyles(document);
     applyCalendarListHoverStyles(document);
@@ -2790,6 +2805,14 @@ function initDaysPicker(holidaysUi, closuresUi) {
 }
 
 async function init() {
+    if (IS_BLUE_ARCHIVE_CALENDAR) {
+        document.body.classList.add("fp-bluearchive");
+        document
+            .getElementById("fp-settings-theme-open")
+            ?.closest(".fp-export-section")
+            ?.remove();
+        document.getElementById("fp-settings-theme-modal")?.remove();
+    }
     ipcRenderer.send("resize-normale");
     void hydrateAdminCacheRemote().catch(() => {
         adminCache = [];

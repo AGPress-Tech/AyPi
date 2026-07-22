@@ -4,6 +4,14 @@ import { ipcRenderer } from "electron";
 import path from "path";
 import ChartJSImport from "chart.js/auto";
 import { requestBackend } from "../shared/backend-client";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+
+const IS_BLUE_ARCHIVE_ANALYSIS =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+if (IS_BLUE_ARCHIVE_ANALYSIS) {
+    document.body.classList.add("fp-bluearchive");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_ANALYSIS);
 
 const Chart = ChartJSImport?.Chart || ChartJSImport?.default || ChartJSImport;
 

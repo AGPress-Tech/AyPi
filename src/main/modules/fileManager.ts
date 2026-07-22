@@ -16,7 +16,69 @@ const WINDOW_WEB_PREFERENCES = {
     contextIsolation: false,
 };
 
-const APP_ICON_PATH = path.join(__dirname, "..", "assets", "app-icon.png");
+const STANDARD_APP_ICON_PATH = path.join(
+    __dirname,
+    "..",
+    "assets",
+    "app-icon.png",
+);
+const STANDARD_APP_TRAY_ICON_PATH = path.join(
+    __dirname,
+    "..",
+    "assets",
+    "app-icon.ico",
+);
+const BLUE_ARCHIVE_APP_ICON_PATH = path.join(
+    __dirname,
+    "..",
+    "assets",
+    "app-icon-bluearchive.png",
+);
+const BLUE_ARCHIVE_APP_TRAY_ICON_PATH = path.join(
+    __dirname,
+    "..",
+    "assets",
+    "app-icon-bluearchive.ico",
+);
+let APP_ICON_PATH = STANDARD_APP_ICON_PATH;
+let interfaceIconTheme: "standard" | "bluearchive" = "standard";
+
+function getInterfaceIconPath(forTray = false) {
+    if (interfaceIconTheme === "bluearchive") {
+        const blueArchivePath =
+            process.platform === "win32"
+                ? BLUE_ARCHIVE_APP_TRAY_ICON_PATH
+                : BLUE_ARCHIVE_APP_ICON_PATH;
+        if (fs.existsSync(blueArchivePath)) return blueArchivePath;
+    }
+    return process.platform === "win32"
+        ? STANDARD_APP_TRAY_ICON_PATH
+        : STANDARD_APP_ICON_PATH;
+}
+
+function applyInterfaceIconToWindow(win: BrowserWindow) {
+    if (!win || win.isDestroyed()) return;
+    const iconPath = getInterfaceIconPath(false);
+    try {
+        if (process.platform === "win32") {
+            win.setAppDetails({
+                appId:
+                    interfaceIconTheme === "bluearchive"
+                        ? "com.Agpress.AyPi.BlueArchive"
+                        : "com.Agpress.AyPi",
+            });
+        }
+        win.setIcon(iconPath);
+    } catch (err) {
+        log.warn("[interface-icon] impossibile aggiornare finestra:", err);
+    }
+}
+
+function setInterfaceIconTheme(theme: "standard" | "bluearchive") {
+    interfaceIconTheme = theme === "bluearchive" ? "bluearchive" : "standard";
+    APP_ICON_PATH = getInterfaceIconPath(false);
+    BrowserWindow.getAllWindows().forEach(applyInterfaceIconToWindow);
+}
 const FP_DESKTOP_BASE_DIR = "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS";
 const FP_SERVER_BASE_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
 const FP_DEV_BACKEND_BASE_URL = "http://127.0.0.1:3000/api/ferie-permessi";
@@ -1210,8 +1272,24 @@ function isWindowAlive(
     return !!win && !win.isDestroyed();
 }
 
+function mainWindowUsesBlueArchiveLayout(mainWindow: BrowserWindow) {
+    if (!isWindowAlive(mainWindow) || mainWindow.webContents.isDestroyed()) {
+        return false;
+    }
+    try {
+        return decodeURIComponent(mainWindow.webContents.getURL())
+            .toLowerCase()
+            .includes("bluearchive-preview.html");
+    } catch {
+        return false;
+    }
+}
+
 function showMainWindow(mainWindow: BrowserWindow) {
     if (!isWindowAlive(mainWindow)) return;
+    if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+    }
     mainWindow.show();
     mainWindow.focus();
 }
@@ -1598,15 +1676,20 @@ let infographicsWindow: BrowserWindow | null = null;
 let gitflowWindow: BrowserWindow | null = null;
 let amministrazioneWindow: BrowserWindow | null = null;
 let feriePermessiWindow: BrowserWindow | null = null;
+let feriePermessiWindowTheme: "standard" | "bluearchive" = "standard";
 let feriePermessiHoursWindow: BrowserWindow | null = null;
+let feriePermessiHoursWindowTheme: "standard" | "bluearchive" = "standard";
 let feriePermessiAnalysisWindow: BrowserWindow | null = null;
+let feriePermessiAnalysisWindowTheme: "standard" | "bluearchive" = "standard";
 let productManagerWindow: BrowserWindow | null = null;
 let productManagerCartWindow: BrowserWindow | null = null;
 let productManagerInterventionsWindow: BrowserWindow | null = null;
 let ticketSupportWindow: BrowserWindow | null = null;
 let ticketSupportAdminWindow: BrowserWindow | null = null;
 let assigneesManagerWindow: BrowserWindow | null = null;
+let assigneesManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let adminManagerWindow: BrowserWindow | null = null;
+let adminManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
 let allowTransferAttrezzaggioWindowClose = false;
 let transferAttrezzaggioClosePromptPending = false;
@@ -1995,13 +2078,37 @@ function openAmministrazioneWindow(mainWindow) {
     });
 }
 
-function openFeriePermessiWindow(mainWindow) {
+function openFeriePermessiWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const nextTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(feriePermessiWindow)) {
+        if (feriePermessiWindowTheme !== nextTheme) {
+            feriePermessiWindowTheme = nextTheme;
+            feriePermessiWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"),
+                {
+                    query: {
+                        fpSplash:
+                            feriePermessiWindowTheme === "bluearchive"
+                                ? "1"
+                                : "0",
+                        theme: feriePermessiWindowTheme,
+                    },
+                },
+            );
+        }
         showWindow(feriePermessiWindow);
         return;
     }
 
-    const shouldShowSplash = !feriePermessiSplashShown;
+    feriePermessiWindowTheme = nextTheme;
+
+    const shouldShowSplash =
+        feriePermessiWindowTheme === "bluearchive" ||
+        !feriePermessiSplashShown;
     feriePermessiSplashShown = true;
 
     feriePermessiWindow = new BrowserWindow({
@@ -2017,7 +2124,12 @@ function openFeriePermessiWindow(mainWindow) {
     feriePermessiWindow.maximize();
     feriePermessiWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"),
-        { query: { fpSplash: shouldShowSplash ? "1" : "0" } },
+        {
+            query: {
+                fpSplash: shouldShowSplash ? "1" : "0",
+                theme: feriePermessiWindowTheme,
+            },
+        },
     );
     feriePermessiWindow.setMenu(null);
 
@@ -2029,6 +2141,7 @@ function openFeriePermessiWindow(mainWindow) {
 
     feriePermessiWindow.on("closed", () => {
         feriePermessiWindow = null;
+        feriePermessiWindowTheme = "standard";
         showMainWindow(mainWindow);
     });
 }
@@ -2211,9 +2324,18 @@ function openProductManagerInterventionsWindow(mainWindow) {
 
 function openFeriePermessiHoursWindow(mainWindow) {
     if (isWindowAlive(feriePermessiHoursWindow)) {
+        if (feriePermessiHoursWindowTheme !== feriePermessiWindowTheme) {
+            feriePermessiHoursWindowTheme = feriePermessiWindowTheme;
+            feriePermessiHoursWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "ferie-permessi-hours.html"),
+                { query: { theme: feriePermessiHoursWindowTheme } },
+            );
+        }
         showWindow(feriePermessiHoursWindow);
         return;
     }
+
+    feriePermessiHoursWindowTheme = feriePermessiWindowTheme;
 
     feriePermessiHoursWindow = new BrowserWindow({
         width: 1000,
@@ -2232,6 +2354,7 @@ function openFeriePermessiHoursWindow(mainWindow) {
             "utilities",
             "ferie-permessi-hours.html",
         ),
+        { query: { theme: feriePermessiHoursWindowTheme } },
     );
     feriePermessiHoursWindow.setMenu(null);
 
@@ -2243,16 +2366,27 @@ function openFeriePermessiHoursWindow(mainWindow) {
 
     feriePermessiHoursWindow.on("closed", () => {
         feriePermessiHoursWindow = null;
+        feriePermessiHoursWindowTheme = "standard";
         showMainWindow(mainWindow);
     });
 }
 
 function openFeriePermessiAnalysisWindow(mainWindow) {
     if (isWindowAlive(feriePermessiAnalysisWindow)) {
-        feriePermessiAnalysisWindow.reload();
+        if (feriePermessiAnalysisWindowTheme !== feriePermessiWindowTheme) {
+            feriePermessiAnalysisWindowTheme = feriePermessiWindowTheme;
+            feriePermessiAnalysisWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "ferie-permessi-analysis.html"),
+                { query: { theme: feriePermessiAnalysisWindowTheme } },
+            );
+        } else {
+            feriePermessiAnalysisWindow.reload();
+        }
         showWindow(feriePermessiAnalysisWindow);
         return;
     }
+
+    feriePermessiAnalysisWindowTheme = feriePermessiWindowTheme;
 
     feriePermessiAnalysisWindow = new BrowserWindow({
         width: 1360,
@@ -2272,6 +2406,7 @@ function openFeriePermessiAnalysisWindow(mainWindow) {
             "utilities",
             "ferie-permessi-analysis.html",
         ),
+        { query: { theme: feriePermessiAnalysisWindowTheme } },
     );
     feriePermessiAnalysisWindow.setMenu(null);
 
@@ -2284,6 +2419,7 @@ function openFeriePermessiAnalysisWindow(mainWindow) {
 
     feriePermessiAnalysisWindow.on("closed", () => {
         feriePermessiAnalysisWindow = null;
+        feriePermessiAnalysisWindowTheme = "standard";
     });
 }
 
@@ -2410,9 +2546,18 @@ function openTicketSupportAdminWindow(mainWindow) {
 
 function openAssigneesManagerWindow(mainWindow) {
     if (isWindowAlive(assigneesManagerWindow)) {
+        if (assigneesManagerWindowTheme !== feriePermessiWindowTheme) {
+            assigneesManagerWindowTheme = feriePermessiWindowTheme;
+            assigneesManagerWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "assignees-manager.html"),
+                { query: { theme: assigneesManagerWindowTheme } },
+            );
+        }
         showWindow(assigneesManagerWindow);
         return;
     }
+
+    assigneesManagerWindowTheme = feriePermessiWindowTheme;
 
     assigneesManagerWindow = new BrowserWindow({
         width: 1040,
@@ -2432,6 +2577,7 @@ function openAssigneesManagerWindow(mainWindow) {
             "utilities",
             "assignees-manager.html",
         ),
+        { query: { theme: assigneesManagerWindowTheme } },
     );
     assigneesManagerWindow.setMenu(null);
 
@@ -2443,14 +2589,24 @@ function openAssigneesManagerWindow(mainWindow) {
 
     assigneesManagerWindow.on("closed", () => {
         assigneesManagerWindow = null;
+        assigneesManagerWindowTheme = "standard";
     });
 }
 
 function openAdminManagerWindow(mainWindow) {
     if (isWindowAlive(adminManagerWindow)) {
+        if (adminManagerWindowTheme !== feriePermessiWindowTheme) {
+            adminManagerWindowTheme = feriePermessiWindowTheme;
+            adminManagerWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "admin-manager.html"),
+                { query: { theme: adminManagerWindowTheme } },
+            );
+        }
         showWindow(adminManagerWindow);
         return;
     }
+
+    adminManagerWindowTheme = feriePermessiWindowTheme;
 
     adminManagerWindow = new BrowserWindow({
         width: 980,
@@ -2463,6 +2619,7 @@ function openAdminManagerWindow(mainWindow) {
 
     adminManagerWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "admin-manager.html"),
+        { query: { theme: adminManagerWindowTheme } },
     );
     adminManagerWindow.setMenu(null);
 
@@ -2474,6 +2631,7 @@ function openAdminManagerWindow(mainWindow) {
 
     adminManagerWindow.on("closed", () => {
         adminManagerWindow = null;
+        adminManagerWindowTheme = "standard";
     });
 }
 
@@ -2619,6 +2777,9 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.on("resize-normale", () => {
+        // I moduli legacy usano questo evento per riportare il vecchio menu a
+        // 750x550. Il menu Blue Archive conserva invece sempre bounds e stato.
+        if (mainWindowUsesBlueArchiveLayout(mainWindow)) return;
         animateResize(mainWindow, 750, 550, 100);
     });
 
@@ -3643,9 +3804,13 @@ function setupFileManager(mainWindow) {
         openAmministrazioneWindow(mainWindow);
     });
 
-    ipcMain.on("open-ferie-permessi-window", async () => {
+    ipcMain.on("open-ferie-permessi-window", async (_event, payload) => {
+        const theme =
+            payload && payload.theme === "bluearchive"
+                ? "bluearchive"
+                : "standard";
         await guardServerAndOpenModule(mainWindow, feriePermessiWindow, () =>
-            openFeriePermessiWindow(mainWindow),
+            openFeriePermessiWindow(mainWindow, { theme }),
         );
     });
 
@@ -3867,4 +4032,10 @@ function setupFileManager(mainWindow) {
     );
 }
 
-export { setupFileManager, openTimerWindow };
+export {
+    setupFileManager,
+    openTimerWindow,
+    applyInterfaceIconToWindow,
+    getInterfaceIconPath,
+    setInterfaceIconTheme,
+};

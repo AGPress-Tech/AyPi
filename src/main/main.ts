@@ -1,7 +1,13 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut } from "electron";
 import path from "path";
 import fs from "fs";
-import { setupFileManager, openTimerWindow } from "./modules/fileManager";
+import {
+    setupFileManager,
+    openTimerWindow,
+    applyInterfaceIconToWindow,
+    getInterfaceIconPath,
+    setInterfaceIconTheme,
+} from "./modules/fileManager";
 import { setupRobotManager } from "./modules/robotManager";
 
 let mainWindow: BrowserWindow | null;
@@ -150,9 +156,7 @@ if (IS_DEV) {
 }
 
 function getTrayIconPath() {
-    const icoPath = path.join(__dirname, "assets", "app-icon.ico");
-    const pngPath = path.join(__dirname, "assets", "app-icon.png");
-    return process.platform === "win32" ? icoPath : pngPath;
+    return getInterfaceIconPath(true);
 }
 
 function isWindowAlive(win: BrowserWindow | null | undefined): win is BrowserWindow {
@@ -250,6 +254,7 @@ function requestTrayUpdate() {
 app.whenReady().then(() => {
     isBlueArchiveTheme = loadBlueArchivePreference();
     const useBlueArchiveUi = usesBlueArchiveUi();
+    setInterfaceIconTheme(useBlueArchiveUi ? "bluearchive" : "standard");
     mainWindow = new BrowserWindow({
         width: useBlueArchiveUi ? 1360 : 750,
         height: useBlueArchiveUi ? 820 : 550,
@@ -260,7 +265,7 @@ app.whenReady().then(() => {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, "assets", "app-icon.png"),
+        icon: getInterfaceIconPath(),
     });
 
     mainWindow.loadFile(
@@ -318,6 +323,7 @@ app.whenReady().then(() => {
 
 app.on("browser-window-created", (_event, win) => {
     if (!win || !win.webContents) return;
+    applyInterfaceIconToWindow(win);
     const notifyAdminPromptClose = () => {
         if (!win || win.isDestroyed() || !win.webContents) return;
         win.webContents.send("admin-hotkey-close");
@@ -408,6 +414,10 @@ ipcMain.handle("theme-auth", async (event, password) => {
     saveThemePreference(nextTheme);
     isBlueArchiveTheme = nextTheme === "bluearchive";
     const targetUsesBlueArchive = isBlueArchiveTheme;
+    setInterfaceIconTheme(nextTheme);
+    if (tray) {
+        tray.setImage(getTrayIconPath());
+    }
     setTimeout(() => {
         if (!mainWindow || mainWindow.isDestroyed()) return;
         loadMainInterface(mainWindow, targetUsesBlueArchive).catch((error) => {

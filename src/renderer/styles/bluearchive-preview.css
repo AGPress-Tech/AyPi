@@ -300,8 +300,11 @@ button { color: inherit; }
 .icon-button i { height: 2px; background: white; transition: transform .2s; }
 .icon-button:hover i:nth-child(2) { transform: translateX(-4px); }
 
-.quick-menu { position: absolute; z-index: 15; top: 79px; right: 46px; width: 210px; padding: 18px; background: rgba(21,34,57,.96); color: white; border-radius: 2px 2px 15px 2px; box-shadow: var(--shadow); transform: translateY(-12px) scale(.97); opacity: 0; pointer-events: none; transition: .22s ease; }
-.quick-menu.open { transform: none; opacity: 1; pointer-events: auto; }
+.quick-menu { position: absolute; z-index: 15; top: 79px; right: 46px; width: 210px; padding: 18px; background: rgba(21,34,57,.96); color: white; border-radius: 2px 2px 15px 2px; box-shadow: var(--shadow); transform-origin: top right; transform: translateY(-9px) scale(.975); opacity: 0; visibility: hidden; pointer-events: none; transition: transform .16s cubic-bezier(.2,.8,.2,1), opacity .13s ease, visibility 0s linear .16s; }
+.quick-menu.open { transform: translateY(0) scale(1); opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.icon-button.menu-open i:first-child { transform: translateY(6px) rotate(45deg); }
+.icon-button.menu-open i:nth-child(2) { transform: scaleX(0); opacity: 0; }
+.icon-button.menu-open i:last-child { transform: translateY(-6px) rotate(-45deg); }
 .quick-menu-title { padding-bottom: 10px; margin-bottom: 7px; color: #65d2ff; font-size: 11px; font-weight: 900; letter-spacing: 1.6px; border-bottom: 1px solid rgba(255,255,255,.12); }
 .quick-menu button { width: 100%; min-height: 48px; padding: 7px 4px; display: flex; align-items: center; gap: 11px; text-align: left; color: white; border: 0; background: none; cursor: pointer; }
 .quick-menu button img, .menu-symbol { width: 28px; height: 28px; flex: 0 0 28px; object-fit: contain; display: grid; place-items: center; color: #65d2ff; border: 1px solid rgba(101,210,255,.3); border-radius: 7px 2px 7px 2px; font-size: 20px; }

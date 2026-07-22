@@ -4,6 +4,14 @@ import { ipcRenderer } from "electron";
 import path from "path";
 import fs from "fs";
 import { requestBackend } from "../shared/backend-client";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+
+const IS_BLUE_ARCHIVE_HOURS =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+if (IS_BLUE_ARCHIVE_HOURS) {
+    document.body.classList.add("fp-bluearchive");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_HOURS);
 
 const bootRequire = (modulePath) => {
     try {

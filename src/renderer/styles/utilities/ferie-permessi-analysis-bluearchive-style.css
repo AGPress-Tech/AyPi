@@ -1,0 +1,116 @@
+body.fp-bluearchive {
+    color: #172b45;
+    background:
+        linear-gradient(135deg, transparent 0 76%, rgba(43,190,239,.08) 76% 77%, transparent 77%),
+        linear-gradient(90deg, rgba(30,159,224,.04) 1px, transparent 1px),
+        linear-gradient(rgba(30,159,224,.04) 1px, transparent 1px),
+        #edf8fd;
+    background-size: 100% 100%, 42px 42px, 42px 42px, auto;
+}
+body.fp-bluearchive .fpa-header {
+    background: linear-gradient(110deg, rgba(255,255,255,.98), rgba(227,247,255,.96));
+    border-color: rgba(43,185,235,.48);
+    box-shadow: 0 7px 20px rgba(36,99,151,.11);
+}
+body.fp-bluearchive .fpa-header h1::after {
+    content: "  // SCHALE";
+    color: #168eea;
+    font-size: .42em;
+    letter-spacing: .16em;
+}
+body.fp-bluearchive .fpa-header p { color: #62758e; }
+body.fp-bluearchive .fpa-panel,
+body.fp-bluearchive .fpa-kpi,
+body.fp-bluearchive .fpa-table-wrap {
+    background: rgba(255,255,255,.94);
+    border-color: rgba(30,150,220,.25);
+    border-radius: 7px 16px 7px 16px;
+    box-shadow: 0 8px 22px rgba(41,101,148,.11), inset 3px 0 #31c8f3;
+}
+body.fp-bluearchive .fpa-chart-wrap,
+body.fp-bluearchive .fpa-bars-wrap {
+    background: rgba(244, 251, 255, .72);
+    border-color: rgba(30, 150, 220, .2);
+}
+body.fp-bluearchive .fpa-bar-track { background: #deeff7; }
+body.fp-bluearchive .fpa-bar-segment { box-shadow: inset 0 -2px rgba(16, 101, 158, .12); }
+body.fp-bluearchive .fpa-btn {
+    color: #24506e;
+    background: linear-gradient(#fff, #eefaff);
+    border-color: rgba(40,165,225,.38);
+    border-radius: 5px 11px 5px 11px;
+}
+body.fp-bluearchive .fpa-btn--primary {
+    color: #fff;
+    background: linear-gradient(115deg, #147eda, #30c8f2);
+    border-color: transparent;
+}
+body.fp-bluearchive input,
+body.fp-bluearchive select {
+    color: #172b45;
+    background: #fafdff;
+    border-color: rgba(34,151,215,.3);
+    border-radius: 5px 10px 5px 10px;
+    accent-color: #168eea;
+}
+body.fp-bluearchive input:focus,
+body.fp-bluearchive select:focus {
+    outline: none;
+    border-color: #31c8f3;
+    box-shadow: 0 0 0 3px rgba(49,200,243,.16);
+}
+body.fp-bluearchive table th { color: #35627e; background: #eaf7fc; }
+body.fp-bluearchive table td { border-color: rgba(40,145,202,.16); }
+body.fp-bluearchive tbody tr:hover { background: #e9f8ff; }
+body.fp-bluearchive ::-webkit-scrollbar { width: 9px; height: 9px; }
+body.fp-bluearchive ::-webkit-scrollbar-thumb { background: linear-gradient(#31c8f3,#168eea); border-radius: 99px; }
+
+body.fp-bluearchive .fpa-header {
+    min-height: 76px;
+    padding: 15px 24px;
+    border-bottom-width: 2px;
+}
+body.fp-bluearchive .fpa-header > div:first-child { padding-left: 14px; border-left: 5px solid #31c8f3; }
+body.fp-bluearchive .fpa-header h1 { font-size: 22px; letter-spacing: -.025em; }
+body.fp-bluearchive .fpa-header h1::after { display: block; margin-top: 4px; }
+body.fp-bluearchive .fpa-main {
+    grid-template-columns: 292px minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px 18px 18px;
+}
+body.fp-bluearchive .fpa-sidebar,
+body.fp-bluearchive .fpa-content { gap: 12px; }
+body.fp-bluearchive .fpa-panel,
+body.fp-bluearchive .fpa-kpi,
+body.fp-bluearchive .fpa-table-wrap {
+    position: relative;
+    border-radius: 3px 3px 18px 3px;
+}
+body.fp-bluearchive .fpa-panel { padding: 14px; }
+body.fp-bluearchive .fpa-panel h3 {
+    padding-bottom: 9px;
+    color: #173b5b;
+    border-bottom: 1px solid rgba(31,145,204,.15);
+    font-size: 14px;
+}
+body.fp-bluearchive .fpa-field > label,
+body.fp-bluearchive .fpa-panel > h3 {
+    letter-spacing: .035em;
+}
+body.fp-bluearchive .fpa-kpis { gap: 10px; }
+body.fp-bluearchive .fpa-kpi { padding: 14px 16px; }
+body.fp-bluearchive .fpa-kpi small {
+    color: #5a7489;
+    font: 800 9px/1.2 Consolas, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+body.fp-bluearchive .fpa-kpi strong { color: #168eea; font-size: 25px; }
+body.fp-bluearchive .fpa-grid-panels { gap: 12px; }
+body.fp-bluearchive .fpa-table-wrap { overflow: hidden; }
+body.fp-bluearchive .fpa-table th {
+    padding-block: 11px;
+    font: 800 10px/1.2 Consolas, monospace;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}

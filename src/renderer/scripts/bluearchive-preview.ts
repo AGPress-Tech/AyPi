@@ -252,6 +252,7 @@ const pages: Record<string, PageDefinition> = {
                 label: "Calendario Dipendenti",
                 description: "Ferie, permessi, mutue e straordinari",
                 channel: "open-ferie-permessi-window",
+                channelArgs: [{ theme: "bluearchive" }],
             },
             {
                 label: "Gestione Acquisti",
@@ -428,6 +429,7 @@ let spineBones: null | {
 let assistantBlinkTimer: ReturnType<typeof setTimeout> | null = null;
 let assistantSpeaking = false;
 let assistantReactionTimer: ReturnType<typeof setTimeout> | null = null;
+let assistantIdleReactionTimer: ReturnType<typeof setTimeout> | null = null;
 let isPattingAssistant = false;
 let patEndTimer: ReturnType<typeof setTimeout> | null = null;
 let animationLabUnlocked = false;
@@ -792,7 +794,7 @@ function initializeAssistant(character: "arona" | "plana") {
 }
 
 function playAssistantReaction() {
-    if (assistantSpeaking || !spineAnimationState) return;
+    if (assistantSpeaking || !spineAnimationState) return false;
     const config = assistantConfigs[currentAssistant];
     const reaction =
         config.reactions[Math.floor(Math.random() * config.reactions.length)];
@@ -828,7 +830,68 @@ function playAssistantReaction() {
         assistantReactionTimer = null;
     };
     assistantReactionTimer = setTimeout(finish, visibleDuration + 120);
+    return true;
 }
+
+const ASSISTANT_IDLE_REACTION_DELAY = 60_000;
+const ASSISTANT_IDLE_RETRY_DELAY = 1_000;
+let lastAssistantInteractionAt = performance.now();
+
+function clearAssistantIdleReactionTimer() {
+    if (assistantIdleReactionTimer === null) return;
+    clearTimeout(assistantIdleReactionTimer);
+    assistantIdleReactionTimer = null;
+}
+
+function canRunAssistantIdleReaction() {
+    return document.visibilityState === "visible" && document.hasFocus();
+}
+
+function scheduleAssistantIdleReaction(delay = ASSISTANT_IDLE_REACTION_DELAY) {
+    clearAssistantIdleReactionTimer();
+    if (!canRunAssistantIdleReaction()) return;
+    assistantIdleReactionTimer = setTimeout(() => {
+        assistantIdleReactionTimer = null;
+        if (!canRunAssistantIdleReaction()) return;
+
+        const inactiveFor = performance.now() - lastAssistantInteractionAt;
+        if (inactiveFor < ASSISTANT_IDLE_REACTION_DELAY) {
+            scheduleAssistantIdleReaction(
+                ASSISTANT_IDLE_REACTION_DELAY - inactiveFor,
+            );
+            return;
+        }
+
+        if (playAssistantReaction()) {
+            lastAssistantInteractionAt = performance.now();
+            scheduleAssistantIdleReaction();
+            return;
+        }
+
+        // Non interrompe pat-pat, dialoghi o altre animazioni già in corso.
+        scheduleAssistantIdleReaction(ASSISTANT_IDLE_RETRY_DELAY);
+    }, Math.max(0, delay));
+}
+
+function registerAssistantInteraction() {
+    lastAssistantInteractionAt = performance.now();
+    scheduleAssistantIdleReaction();
+}
+
+["pointerdown", "wheel", "keydown"].forEach((eventName) => {
+    document.addEventListener(eventName, registerAssistantInteraction, {
+        passive: true,
+    });
+});
+window.addEventListener("focus", registerAssistantInteraction);
+window.addEventListener("blur", clearAssistantIdleReactionTimer);
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        registerAssistantInteraction();
+    } else {
+        clearAssistantIdleReactionTimer();
+    }
+});
 
 function burst(x: number, y: number) {
     if (!clickLayer) return;
@@ -1242,9 +1305,46 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach((item) => {
     );
 });
 
-menuToggle?.addEventListener("click", () => {
-    const isOpen = menu?.classList.toggle("open") ?? false;
+let quickMenuCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelQuickMenuClose() {
+    if (quickMenuCloseTimer === null) return;
+    clearTimeout(quickMenuCloseTimer);
+    quickMenuCloseTimer = null;
+}
+
+function setQuickMenuOpen(isOpen: boolean) {
+    cancelQuickMenuClose();
+    menu?.classList.toggle("open", isOpen);
     menu?.setAttribute("aria-hidden", String(!isOpen));
+    menuToggle?.classList.toggle("menu-open", isOpen);
+    menuToggle?.setAttribute("aria-expanded", String(isOpen));
+}
+
+function scheduleQuickMenuClose() {
+    cancelQuickMenuClose();
+    quickMenuCloseTimer = setTimeout(() => {
+        setQuickMenuOpen(false);
+    }, 120);
+}
+
+menuToggle?.setAttribute("aria-haspopup", "menu");
+menuToggle?.setAttribute("aria-expanded", "false");
+menuToggle?.addEventListener("mouseenter", () => setQuickMenuOpen(true));
+menuToggle?.addEventListener("mouseleave", scheduleQuickMenuClose);
+menuToggle?.addEventListener("focus", () => setQuickMenuOpen(true));
+menuToggle?.addEventListener("click", () => setQuickMenuOpen(true));
+
+menu?.addEventListener("mouseenter", cancelQuickMenuClose);
+menu?.addEventListener("mouseleave", scheduleQuickMenuClose);
+menu?.addEventListener("focusin", cancelQuickMenuClose);
+menu?.addEventListener("focusout", (event) => {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && menu.contains(nextTarget)) return;
+    scheduleQuickMenuClose();
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setQuickMenuOpen(false);
 });
 
 document.getElementById("brandLink")?.addEventListener("click", (event) => {
@@ -1262,14 +1362,12 @@ footerClock?.addEventListener("click", () => {
 });
 
 document.getElementById("menuExcel")?.addEventListener("click", async () => {
-    menu?.classList.remove("open");
-    menu?.setAttribute("aria-hidden", "true");
+    setQuickMenuOpen(false);
     await installAddinFunction();
 });
 
 document.getElementById("menuWebsite")?.addEventListener("click", () => {
-    menu?.classList.remove("open");
-    menu?.setAttribute("aria-hidden", "true");
+    setQuickMenuOpen(false);
     const url = "https://data.agpress-srl.it/";
     try {
         require("electron").shell.openExternal(url);
@@ -1745,6 +1843,7 @@ window.addEventListener("DOMContentLoaded", () => {
     );
     setTimeout(finishStartup, 2600);
     setTimeout(() => showBubble(phrases[0], 3200), 3000);
+    registerAssistantInteraction();
 });
 
 export {};

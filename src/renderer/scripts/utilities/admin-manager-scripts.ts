@@ -1,5 +1,12 @@
 // @ts-nocheck
 require("../shared/dev-guards");
+const { initBlueArchivePointerEffects } = require("../shared/bluearchive-pointer-effects");
+const IS_BLUE_ARCHIVE_ADMINS =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+if (IS_BLUE_ARCHIVE_ADMINS) {
+    document.body.classList.add("fp-bluearchive");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_ADMINS);
 const { createModalHelpers } = require("./ferie-permessi/ui/modals");
 const { createAdminModals } = require("./ferie-permessi/ui/admin-modals");
 const { createOtpModals } = require("./ferie-permessi/ui/otp-modals");

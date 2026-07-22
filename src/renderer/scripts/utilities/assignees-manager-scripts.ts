@@ -1,5 +1,12 @@
 // @ts-nocheck
 require("../shared/dev-guards");
+const { initBlueArchivePointerEffects } = require("../shared/bluearchive-pointer-effects");
+const IS_BLUE_ARCHIVE_ASSIGNEES =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+if (IS_BLUE_ARCHIVE_ASSIGNEES) {
+    document.body.classList.add("fp-bluearchive");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_ASSIGNEES);
 const { UI_TEXTS } = require("./ferie-permessi/utils/ui-texts");
 const {
     renderDepartmentSelect,

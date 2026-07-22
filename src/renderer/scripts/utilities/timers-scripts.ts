@@ -1,10 +1,16 @@
 require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import { initCommonUI } from "../../modules/utils";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 
-if (new URLSearchParams(window.location.search).get("theme") === "bluearchive") {
+const IS_BLUE_ARCHIVE_TIMERS =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+
+if (IS_BLUE_ARCHIVE_TIMERS) {
     document.body.classList.add("bluearchive-timers");
 }
+
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_TIMERS);
 
 initCommonUI();
 
