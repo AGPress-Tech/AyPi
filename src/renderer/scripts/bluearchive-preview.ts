@@ -236,11 +236,13 @@ const pages: Record<string, PageDefinition> = {
                 label: "Generatore QR",
                 description: "Crea codici QR personalizzati",
                 channel: "open-qr-generator-window",
+                channelArgs: [{ theme: "bluearchive" }],
             },
             {
                 label: "Confronta Cartelle",
                 description: "Confronto contenuti directory",
                 channel: "open-compare-folders-window",
+                channelArgs: [{ theme: "bluearchive" }],
             },
             {
                 label: "Gerarchia",

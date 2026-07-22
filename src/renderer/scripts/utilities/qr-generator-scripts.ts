@@ -2,15 +2,33 @@ require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import fs from "fs";
 import path from "path";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 const QRCode = require("qrcode");
 const bwipjs = require("bwip-js");
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
 
 let lastPngBuffer: Buffer | null = null;
+const IS_BLUE_ARCHIVE_QR =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+
+if (IS_BLUE_ARCHIVE_QR) {
+    document.body.classList.add("bluearchive-qr");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_QR);
+
+function runBlueArchiveQrSplash() {
+    if (!IS_BLUE_ARCHIVE_QR) return;
+    const splash = document.getElementById("baQrSplash");
+    if (!splash) return;
+    splash.setAttribute("aria-hidden", "false");
+    window.setTimeout(() => splash.classList.add("is-leaving"), 1850);
+    window.setTimeout(() => splash.remove(), 2250);
+}
 
 const getEl = (id: string) => document.getElementById(id);
 
 window.addEventListener("DOMContentLoaded", () => {
+    runBlueArchiveQrSplash();
     const contentInput = getEl("contentInput") as HTMLInputElement | null;
     const typeSelect = getEl("typeSelect") as HTMLSelectElement | null;
     const sizeInput = getEl("sizeInput") as HTMLInputElement | null;

@@ -1668,7 +1668,9 @@ function buildHierarchyReportJs(data) {
 
 let batchRenameWindow: BrowserWindow | null = null;
 let qrGeneratorWindow: BrowserWindow | null = null;
+let qrGeneratorWindowTheme: "standard" | "bluearchive" = "standard";
 let compareFoldersWindow: BrowserWindow | null = null;
+let compareFoldersWindowTheme: "standard" | "bluearchive" = "standard";
 let hierarchyWindow: BrowserWindow | null = null;
 let timerWindow: BrowserWindow | null = null;
 let timerWindowTheme: "standard" | "bluearchive" = "standard";
@@ -1862,12 +1864,25 @@ function openBatchRenameWindow(mainWindow) {
     });
 }
 
-function openQrGeneratorWindow(mainWindow) {
+function openQrGeneratorWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(qrGeneratorWindow)) {
+        if (qrGeneratorWindowTheme !== requestedTheme) {
+            qrGeneratorWindowTheme = requestedTheme;
+            qrGeneratorWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
+                { query: { theme: qrGeneratorWindowTheme } },
+            );
+        }
         showWindow(qrGeneratorWindow);
         return;
     }
 
+    qrGeneratorWindowTheme = requestedTheme;
     qrGeneratorWindow = new BrowserWindow({
         width: 900,
         height: 800,
@@ -1879,12 +1894,14 @@ function openQrGeneratorWindow(mainWindow) {
 
     qrGeneratorWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
+        { query: { theme: qrGeneratorWindowTheme } },
     );
     qrGeneratorWindow.setMenu(null);
     qrGeneratorWindow.center();
 
     qrGeneratorWindow.on("closed", () => {
         qrGeneratorWindow = null;
+        qrGeneratorWindowTheme = "standard";
         showMainWindow(mainWindow);
     });
 }
@@ -2681,15 +2698,23 @@ function openTransferAttrezzaggioWindow(mainWindow) {
     });
 }
 
-function openCompareFoldersWindow(slot, folder) {
-    const createWindow = () => {
-        compareFoldersWindow = new BrowserWindow({
-            width: 900,
-            height: 800,
-            webPreferences: WINDOW_WEB_PREFERENCES,
-            icon: APP_ICON_PATH,
-        });
-
+function openCompareFoldersWindow(
+    slot,
+    folder,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
+    const sendPendingFolder = () => {
+        if (!folder || !isWindowAlive(compareFoldersWindow)) return;
+        compareFoldersWindow.webContents.send(
+            slot === "B" ? "compare-folders-set-B" : "compare-folders-set-A",
+            folder,
+        );
+    };
+    const loadCompareInterface = () => {
+        if (!isWindowAlive(compareFoldersWindow)) return;
+        compareFoldersWindow.webContents.once("did-finish-load", sendPendingFolder);
         compareFoldersWindow.loadFile(
             path.join(
                 __dirname,
@@ -2698,48 +2723,38 @@ function openCompareFoldersWindow(slot, folder) {
                 "utilities",
                 "compare-folders.html",
             ),
+            { query: { theme: compareFoldersWindowTheme } },
         );
+    };
+    const createWindow = () => {
+        compareFoldersWindowTheme = requestedTheme;
+        compareFoldersWindow = new BrowserWindow({
+            width: 900,
+            height: 800,
+            webPreferences: WINDOW_WEB_PREFERENCES,
+            icon: APP_ICON_PATH,
+        });
+
+        loadCompareInterface();
         compareFoldersWindow.setMenu(null);
         compareFoldersWindow.center();
 
         compareFoldersWindow.on("closed", () => {
             compareFoldersWindow = null;
-        });
-
-        compareFoldersWindow.webContents.once("did-finish-load", () => {
-            if (folder) {
-                if (slot === "A") {
-                    compareFoldersWindow.webContents.send(
-                        "compare-folders-set-A",
-                        folder,
-                    );
-                } else if (slot === "B") {
-                    compareFoldersWindow.webContents.send(
-                        "compare-folders-set-B",
-                        folder,
-                    );
-                }
-            }
+            compareFoldersWindowTheme = "standard";
         });
     };
 
     if (!compareFoldersWindow || compareFoldersWindow.isDestroyed()) {
         createWindow();
     } else {
-        showWindow(compareFoldersWindow);
-        if (folder) {
-            if (slot === "A") {
-                compareFoldersWindow.webContents.send(
-                    "compare-folders-set-A",
-                    folder,
-                );
-            } else if (slot === "B") {
-                compareFoldersWindow.webContents.send(
-                    "compare-folders-set-B",
-                    folder,
-                );
-            }
+        if (compareFoldersWindowTheme !== requestedTheme) {
+            compareFoldersWindowTheme = requestedTheme;
+            loadCompareInterface();
+        } else {
+            sendPendingFolder();
         }
+        showWindow(compareFoldersWindow);
     }
 }
 
@@ -3773,12 +3788,22 @@ function setupFileManager(mainWindow) {
         }
     });
 
-    ipcMain.on("open-qr-generator-window", () => {
-        openQrGeneratorWindow(mainWindow);
+    ipcMain.on("open-qr-generator-window", (_event, payload) => {
+        openQrGeneratorWindow(mainWindow, {
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
     });
 
-    ipcMain.on("open-compare-folders-window", () => {
-        openCompareFoldersWindow(null, null);
+    ipcMain.on("open-compare-folders-window", (_event, payload) => {
+        openCompareFoldersWindow(null, null, {
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
     });
 
     ipcMain.on("open-hierarchy-window", () => {
@@ -3898,11 +3923,15 @@ function setupFileManager(mainWindow) {
     });
 
     ipcMain.on("hierarchy-compare-folder-A", (event, payload) => {
-        openCompareFoldersWindow("A", payload?.folder);
+        openCompareFoldersWindow("A", payload?.folder, {
+            theme: interfaceIconTheme,
+        });
     });
 
     ipcMain.on("hierarchy-compare-folder-B", (event, payload) => {
-        openCompareFoldersWindow("B", payload?.folder);
+        openCompareFoldersWindow("B", payload?.folder, {
+            theme: interfaceIconTheme,
+        });
     });
 
     ipcMain.handle(
