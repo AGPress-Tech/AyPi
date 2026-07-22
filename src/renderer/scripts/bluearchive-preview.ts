@@ -269,6 +269,9 @@ const assistant = document.getElementById("assistant") as HTMLElement | null;
 const assistantPlayer = document.getElementById(
     "spineAssistantPlayer",
 ) as HTMLElement | null;
+const assistantHeadHitbox = document.getElementById(
+    "assistantHeadHitbox",
+) as HTMLElement | null;
 const assistantSwitch = document.getElementById(
     "assistantSwitch",
 ) as HTMLButtonElement | null;
@@ -339,11 +342,50 @@ const adminPassword = document.getElementById(
     "adminPassword",
 ) as HTMLInputElement | null;
 const adminError = document.getElementById("adminError") as HTMLElement | null;
-const nameBackdrop = document.getElementById("nameBackdrop") as HTMLElement | null;
-const personalNameInput = document.getElementById("personalName") as HTMLInputElement | null;
+const nameBackdrop = document.getElementById(
+    "nameBackdrop",
+) as HTMLElement | null;
+const personalNameInput = document.getElementById(
+    "personalName",
+) as HTMLInputElement | null;
 const nameError = document.getElementById("nameError") as HTMLElement | null;
-const startupUserName = document.getElementById("startupUserName") as HTMLElement | null;
-const nameAssistantLabel = document.getElementById("nameAssistantLabel") as HTMLElement | null;
+const startupUserName = document.getElementById(
+    "startupUserName",
+) as HTMLElement | null;
+const nameAssistantLabel = document.getElementById(
+    "nameAssistantLabel",
+) as HTMLElement | null;
+const themeBackdrop = document.getElementById(
+    "themeBackdrop",
+) as HTMLElement | null;
+const themePassword = document.getElementById(
+    "themePassword",
+) as HTMLInputElement | null;
+const themeError = document.getElementById("themeError") as HTMLElement | null;
+const animationLabBackdrop = document.getElementById(
+    "animationLabBackdrop",
+) as HTMLElement | null;
+const animationLabAuth = document.getElementById(
+    "animationLabAuth",
+) as HTMLElement | null;
+const animationLabContent = document.getElementById(
+    "animationLabContent",
+) as HTMLElement | null;
+const animationLabPassword = document.getElementById(
+    "animationLabPassword",
+) as HTMLInputElement | null;
+const animationLabError = document.getElementById(
+    "animationLabError",
+) as HTMLElement | null;
+const animationLabStatus = document.getElementById(
+    "animationLabStatus",
+) as HTMLElement | null;
+const animationGrid = document.getElementById(
+    "animationGrid",
+) as HTMLElement | null;
+const animationLoop = document.getElementById(
+    "animationLoop",
+) as HTMLInputElement | null;
 const phrases = [
     "Bentornato, Sensei!",
     "I moduli sono tutti al loro posto.",
@@ -385,6 +427,12 @@ let spineBones: null | {
 } = null;
 let assistantBlinkTimer: ReturnType<typeof setTimeout> | null = null;
 let assistantSpeaking = false;
+let assistantReactionTimer: ReturnType<typeof setTimeout> | null = null;
+let isPattingAssistant = false;
+let patEndTimer: ReturnType<typeof setTimeout> | null = null;
+let animationLabUnlocked = false;
+let availableAnimations: Array<{ name: string; duration: number }> = [];
+let animationPlaybackTimer: ReturnType<typeof setTimeout> | null = null;
 const PERSONAL_NAME_STORAGE_KEY = "aypi-bluearchive-personal-name-v1";
 let personalName =
     (window.localStorage.getItem(PERSONAL_NAME_STORAGE_KEY) || "").trim() ||
@@ -448,6 +496,18 @@ const assistantConfigs = {
                 animation: "11",
                 text: "Le Utilities AyPi sono pronte per il lavoro di oggi.",
             },
+            {
+                animation: "12",
+                text: "Calendario Dipendenti e Modulo Acquisti sono disponibili nell'area Utilities. Ricordati le richieste Sensei!",
+            },
+            {
+                animation: "21",
+                text: "Se necessario, puoi trovare l'addon Excel AyPi nel menu in alto a destra.",
+            },
+            {
+                animation: "25",
+                text: "Per segnalare problemi informatici o per richiedere assistenza, usare Ticket Support nell'area Moduli.",
+            },
         ],
     },
     plana: {
@@ -478,6 +538,18 @@ const assistantConfigs = {
                 text: "Produzioni, robot e programmi di reparto sono disponibili.",
             },
             { animation: "17", text: "Calcolatore parametri pronto all'uso." },
+            {
+                animation: "99",
+                text: "Calendario Dipendenti e Modulo Acquisti sono disponibili nell'area Utilities.",
+            },
+            {
+                animation: "15",
+                text: "L'addon Excel AyPi è diponibile nel menu in alto a destra.",
+            },
+            {
+                animation: "13",
+                text: "Utilizza Ticket Support nell'area Moduli per segnalare problemi informatici.",
+            },
         ],
     },
 };
@@ -584,8 +656,44 @@ function updateAssistantGaze(event: MouseEvent) {
     spineBones.skeleton.updateWorldTransform();
 }
 
+function startPattingAssistant() {
+    if (isPattingAssistant || !spineAnimationState) return;
+    if (assistantReactionTimer) clearTimeout(assistantReactionTimer);
+    assistantReactionTimer = null;
+    if (animationPlaybackTimer) clearTimeout(animationPlaybackTimer);
+    if (patEndTimer) clearTimeout(patEndTimer);
+    isPattingAssistant = true;
+    assistantSpeaking = true;
+    assistant?.classList.add("patting");
+    resetAssistantBones();
+    spineAnimationState.setAnimation(2, "Dev_Pat_01_M", true);
+}
+
+function stopPattingAssistant(playEndAnimation = true) {
+    if (!isPattingAssistant) return;
+    isPattingAssistant = false;
+    assistant?.classList.remove("patting");
+
+    if (!playEndAnimation || !spineAnimationState) {
+        assistantSpeaking = false;
+        return;
+    }
+    spineAnimationState.setAnimation(2, "Dev_PatEnd_01_M", false);
+    const endDuration =
+        availableAnimations.find((animation) => animation.name === "Dev_PatEnd_01_M")
+            ?.duration || 1.25;
+    patEndTimer = setTimeout(() => {
+        spineAnimationState?.setEmptyAnimation(2, 0.2);
+        assistantSpeaking = false;
+        patEndTimer = null;
+    }, endDuration * 1000 + 160);
+}
+
 function initializeAssistant(character: "arona" | "plana") {
     if (!assistantPlayer || !assistant) return;
+    stopPattingAssistant(false);
+    if (assistantReactionTimer) clearTimeout(assistantReactionTimer);
+    assistantReactionTimer = null;
     currentAssistant = character;
     window.localStorage.setItem("aypi-bluearchive-assistant-v1", character);
     const config = assistantConfigs[character];
@@ -602,6 +710,11 @@ function initializeAssistant(character: "arona" | "plana") {
         assistantLabel.textContent = `${character.toUpperCase()} // LOADING`;
     if (assistantBlinkTimer) clearTimeout(assistantBlinkTimer);
     assistantSpeaking = false;
+    availableAnimations = [];
+    if (animationLabUnlocked && animationLabStatus) {
+        animationLabStatus.textContent = `CARICAMENTO ${character.toUpperCase()}...`;
+    }
+    if (animationLabUnlocked && animationGrid) animationGrid.innerHTML = "";
     spineBones = null;
     spineAnimationState = null;
     try {
@@ -631,6 +744,18 @@ function initializeAssistant(character: "arona" | "plana") {
             player.setAnimation(config.idle, true);
             spineAnimationState = player.animationState;
             const skeleton = player.skeleton;
+            availableAnimations = (skeleton?.data?.animations || [])
+                .map((animation: any) => ({
+                    name: String(animation?.name || ""),
+                    duration: Number(animation?.duration || 0),
+                }))
+                .filter((animation: { name: string }) => animation.name)
+                .sort((left: { name: string }, right: { name: string }) =>
+                    left.name.localeCompare(right.name, undefined, {
+                        numeric: true,
+                        sensitivity: "base",
+                    }),
+                );
             const rightEye = skeleton.findBone(config.rightEye);
             const leftEye = skeleton.findBone(config.leftEye);
             const frontHead = skeleton.findBone(config.frontHead);
@@ -653,6 +778,7 @@ function initializeAssistant(character: "arona" | "plana") {
             assistant.classList.add("ready");
             if (assistantLabel)
                 assistantLabel.textContent = `${character.toUpperCase()} // ONLINE`;
+            if (animationLabUnlocked) renderAnimationButtons();
             scheduleAssistantBlink();
         },
         error: (_player: any, reason: unknown) => {
@@ -670,17 +796,38 @@ function playAssistantReaction() {
     const config = assistantConfigs[currentAssistant];
     const reaction =
         config.reactions[Math.floor(Math.random() * config.reactions.length)];
+    const animationDuration =
+        availableAnimations.find((animation) => animation.name === reaction.animation)
+            ?.duration || 0;
+    const minimumVisibleDuration = 3600;
+    const animationDurationMs = animationDuration * 1000;
+    const repetitions =
+        animationDurationMs > 0 && animationDurationMs < minimumVisibleDuration
+            ? Math.ceil(minimumVisibleDuration / animationDurationMs)
+            : 1;
+    const naturalPlaybackDuration =
+        animationDurationMs > 0
+            ? animationDurationMs * repetitions
+            : minimumVisibleDuration;
+    const visibleDuration = Math.max(
+        minimumVisibleDuration,
+        naturalPlaybackDuration,
+    );
     assistantSpeaking = true;
     resetAssistantBones();
-    showBubble(reaction.text, 3600);
+    showBubble(reaction.text, visibleDuration);
     spineAnimationState.setAnimation(2, reaction.animation, false);
+    for (let repetition = 1; repetition < repetitions; repetition += 1) {
+        spineAnimationState.addAnimation(2, reaction.animation, false, 0);
+    }
 
     const finish = () => {
         assistantSpeaking = false;
-        spineAnimationState?.setEmptyAnimation(2, 0.15);
+        spineAnimationState?.setEmptyAnimation(2, 0.28);
         bubble?.classList.remove("visible");
+        assistantReactionTimer = null;
     };
-    setTimeout(finish, 3600);
+    assistantReactionTimer = setTimeout(finish, visibleDuration + 120);
 }
 
 function burst(x: number, y: number) {
@@ -712,13 +859,15 @@ function addCursorTrail(x: number, y: number) {
     if (previous && Math.hypot(x - previous.x, y - previous.y) < 2.5) return;
     trailPoints.push({ x, y, time: now });
     if (trailPoints.length > 42) trailPoints.splice(0, trailPoints.length - 42);
-    if (!trailAnimationFrame) trailAnimationFrame = requestAnimationFrame(drawCursorTrail);
+    if (!trailAnimationFrame)
+        trailAnimationFrame = requestAnimationFrame(drawCursorTrail);
 }
 
 function drawCursorTrail(now: number) {
     if (!trailContext) return;
     const lifetime = 230;
-    while (trailPoints.length && now - trailPoints[0].time > lifetime) trailPoints.shift();
+    while (trailPoints.length && now - trailPoints[0].time > lifetime)
+        trailPoints.shift();
     trailContext.clearRect(0, 0, window.innerWidth, window.innerHeight);
     trailContext.lineCap = "round";
     trailContext.lineJoin = "round";
@@ -728,13 +877,13 @@ function drawCursorTrail(now: number) {
         const point = trailPoints[index];
         const age = Math.min(1, (now - point.time) / lifetime);
         const position = index / Math.max(1, trailPoints.length - 1);
-        const opacity = (1 - age) * (.12 + position * .78);
+        const opacity = (1 - age) * (0.12 + position * 0.78);
         trailContext.beginPath();
         trailContext.moveTo(previous.x, previous.y);
         trailContext.lineTo(point.x, point.y);
         trailContext.lineWidth = 1.2 + position * 3.4;
         trailContext.strokeStyle = `rgba(${Math.round(105 + position * 145)}, ${Math.round(205 + position * 45)}, 255, ${opacity})`;
-        trailContext.shadowColor = `rgba(48, 183, 242, ${opacity * .75})`;
+        trailContext.shadowColor = `rgba(48, 183, 242, ${opacity * 0.75})`;
         trailContext.shadowBlur = 7;
         trailContext.stroke();
     }
@@ -1144,12 +1293,105 @@ function closeNamePanel() {
     if (nameError) nameError.textContent = "";
 }
 
+function closeThemePanel() {
+    themeBackdrop?.setAttribute("aria-hidden", "true");
+    if (themePassword) themePassword.value = "";
+    if (themeError) themeError.textContent = "";
+}
+
+function openThemePanel() {
+    if (themeError) themeError.textContent = "";
+    themeBackdrop?.setAttribute("aria-hidden", "false");
+    setTimeout(() => themePassword?.focus(), 40);
+}
+
+function renderAnimationButtons() {
+    if (!animationGrid || !animationLabStatus) return;
+    assistantSpeaking = true;
+    document
+        .querySelectorAll<HTMLButtonElement>("[data-animation-character]")
+        .forEach((button) =>
+            button.classList.toggle(
+                "active",
+                button.dataset.animationCharacter === currentAssistant,
+            ),
+        );
+    animationLabStatus.textContent = `${currentAssistant.toUpperCase()} // ${availableAnimations.length} ANIMAZIONI DISPONIBILI`;
+    animationGrid.innerHTML = "";
+    availableAnimations.forEach((animation) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "animation-button";
+        const title = document.createElement("b");
+        title.textContent = animation.name;
+        const duration = document.createElement("small");
+        duration.textContent = `${animation.duration.toFixed(2)} s`;
+        button.append(title, duration);
+        button.addEventListener("click", () => {
+            if (!spineAnimationState) return;
+            if (animationPlaybackTimer) clearTimeout(animationPlaybackTimer);
+            resetAssistantBones();
+            assistantSpeaking = true;
+            const shouldLoop = !!animationLoop?.checked;
+            spineAnimationState.setAnimation(2, animation.name, shouldLoop);
+            animationGrid
+                .querySelectorAll(".animation-button")
+                .forEach((item) =>
+                    item.classList.toggle("active", item === button),
+                );
+            animationLabStatus.textContent = `${currentAssistant.toUpperCase()} // PLAYING: ${animation.name}${shouldLoop ? " // LOOP" : ""}`;
+            if (!shouldLoop) {
+                animationPlaybackTimer = setTimeout(
+                    () => {
+                        spineAnimationState?.setEmptyAnimation(2, 0.2);
+                        assistantSpeaking = animationLabUnlocked;
+                        button.classList.remove("active");
+                        if (animationLabStatus) {
+                            animationLabStatus.textContent = `${currentAssistant.toUpperCase()} // ${availableAnimations.length} ANIMAZIONI DISPONIBILI`;
+                        }
+                    },
+                    Math.max(250, animation.duration * 1000 + 180),
+                );
+            }
+        });
+        animationGrid.appendChild(button);
+    });
+}
+
+function closeAnimationLab() {
+    animationLabBackdrop?.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("animation-lab-open");
+    animationLabUnlocked = false;
+    assistantSpeaking = false;
+    if (animationPlaybackTimer) clearTimeout(animationPlaybackTimer);
+    animationPlaybackTimer = null;
+    spineAnimationState?.setEmptyAnimation(2, 0.15);
+    if (animationLabPassword) animationLabPassword.value = "";
+    if (animationLabError) animationLabError.textContent = "";
+    if (animationLabAuth) animationLabAuth.hidden = false;
+    if (animationLabContent) animationLabContent.hidden = true;
+}
+
+function openAnimationLab() {
+    closeAdminPanel();
+    closeNamePanel();
+    closeThemePanel();
+    animationLabUnlocked = false;
+    if (animationLabAuth) animationLabAuth.hidden = false;
+    if (animationLabContent) animationLabContent.hidden = true;
+    if (animationLabError) animationLabError.textContent = "";
+    animationLabBackdrop?.setAttribute("aria-hidden", "false");
+    document.body.classList.add("animation-lab-open");
+    setTimeout(() => animationLabPassword?.focus(), 40);
+}
+
 function openNamePanel() {
     if (personalNameInput) {
         personalNameInput.value = personalName === "Sensei" ? "" : personalName;
     }
     if (nameAssistantLabel) {
-        nameAssistantLabel.textContent = currentAssistant === "arona" ? "Arona" : "Plana";
+        nameAssistantLabel.textContent =
+            currentAssistant === "arona" ? "Arona" : "Plana";
     }
     if (nameError) nameError.textContent = "";
     nameBackdrop?.setAttribute("aria-hidden", "false");
@@ -1181,6 +1423,10 @@ async function toggleAdminPanel() {
 
 require("electron").ipcRenderer.on("admin-hotkey", toggleAdminPanel);
 require("electron").ipcRenderer.on("admin-hotkey-close", closeAdminPanel);
+require("electron").ipcRenderer.on("theme-hotkey", openThemePanel);
+require("electron").ipcRenderer.on("theme-hotkey-close", closeThemePanel);
+require("electron").ipcRenderer.on("animation-lab-hotkey", openAnimationLab);
+require("electron").ipcRenderer.on("animation-lab-close", closeAnimationLab);
 document
     .getElementById("adminClose")
     ?.addEventListener("click", closeAdminPanel);
@@ -1215,7 +1461,9 @@ assistantPlayer?.addEventListener("contextmenu", (event) => {
     openNamePanel();
 });
 document.getElementById("nameClose")?.addEventListener("click", closeNamePanel);
-document.getElementById("nameCancel")?.addEventListener("click", closeNamePanel);
+document
+    .getElementById("nameCancel")
+    ?.addEventListener("click", closeNamePanel);
 document.getElementById("nameReset")?.addEventListener("click", () => {
     personalName = "Sensei";
     window.localStorage.removeItem(PERSONAL_NAME_STORAGE_KEY);
@@ -1233,6 +1481,76 @@ document.getElementById("nameForm")?.addEventListener("submit", (event) => {
         personalNameInput?.focus();
     }
 });
+document
+    .getElementById("themeClose")
+    ?.addEventListener("click", closeThemePanel);
+document
+    .getElementById("themeCancel")
+    ?.addEventListener("click", closeThemePanel);
+themeBackdrop?.addEventListener("click", (event) => {
+    if (event.target === themeBackdrop) closeThemePanel();
+});
+document
+    .getElementById("themeForm")
+    ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!themePassword?.value) return;
+        const result = await require("electron").ipcRenderer.invoke(
+            "theme-auth",
+            themePassword.value,
+        );
+        if (!result?.ok) {
+            if (themeError) themeError.textContent = "Password non valida.";
+            themePassword.select();
+            return;
+        }
+        closeThemePanel();
+    });
+document
+    .getElementById("animationLabClose")
+    ?.addEventListener("click", closeAnimationLab);
+document
+    .getElementById("animationLabCancel")
+    ?.addEventListener("click", closeAnimationLab);
+animationLabBackdrop?.addEventListener("click", (event) => {
+    if (event.target === animationLabBackdrop) closeAnimationLab();
+});
+document
+    .getElementById("animationLabAuthForm")
+    ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!animationLabPassword?.value) return;
+        const isValid = await require("electron").ipcRenderer.invoke(
+            "animation-lab-auth",
+            animationLabPassword.value,
+        );
+        if (!isValid) {
+            if (animationLabError)
+                animationLabError.textContent = "Password non valida.";
+            animationLabPassword.select();
+            return;
+        }
+        animationLabUnlocked = true;
+        if (animationLabAuth) animationLabAuth.hidden = true;
+        if (animationLabContent) animationLabContent.hidden = false;
+        animationLabPassword.value = "";
+        renderAnimationButtons();
+    });
+document
+    .querySelectorAll<HTMLButtonElement>("[data-animation-character]")
+    .forEach((button) => {
+        button.addEventListener("click", () => {
+            const character =
+                button.dataset.animationCharacter === "plana"
+                    ? "plana"
+                    : "arona";
+            if (character === currentAssistant && availableAnimations.length) {
+                renderAnimationButtons();
+                return;
+            }
+            initializeAssistant(character);
+        });
+    });
 timerClose?.addEventListener("click", closeTimerPanel);
 timerBackdrop?.addEventListener("click", (event) => {
     if (event.target === timerBackdrop) closeTimerPanel();
@@ -1331,6 +1649,45 @@ assistantPlayer?.addEventListener("keydown", (event) => {
     }
 });
 
+assistantHeadHitbox?.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+        assistantHeadHitbox.setPointerCapture(event.pointerId);
+    } catch {
+        // Il puntatore può essere già stato rilasciato dal sistema.
+    }
+    startPattingAssistant();
+});
+assistantHeadHitbox?.addEventListener("pointerup", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    stopPattingAssistant(true);
+});
+assistantHeadHitbox?.addEventListener("pointercancel", () =>
+    stopPattingAssistant(true),
+);
+assistantHeadHitbox?.addEventListener("lostpointercapture", () =>
+    stopPattingAssistant(true),
+);
+assistantHeadHitbox?.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    openNamePanel();
+});
+assistantHeadHitbox?.addEventListener("keydown", (event) => {
+    if ((event.key === "Enter" || event.key === " ") && !event.repeat) {
+        event.preventDefault();
+        startPattingAssistant();
+    }
+});
+assistantHeadHitbox?.addEventListener("keyup", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        stopPattingAssistant(true);
+    }
+});
+
 assistantSwitch?.addEventListener("click", (event) => {
     event.stopPropagation();
     initializeAssistant(currentAssistant === "arona" ? "plana" : "arona");
@@ -1356,6 +1713,18 @@ document.addEventListener("keydown", (event) => {
         nameBackdrop?.getAttribute("aria-hidden") === "false"
     ) {
         closeNamePanel();
+    }
+    if (
+        event.key === "Escape" &&
+        themeBackdrop?.getAttribute("aria-hidden") === "false"
+    ) {
+        closeThemePanel();
+    }
+    if (
+        event.key === "Escape" &&
+        animationLabBackdrop?.getAttribute("aria-hidden") === "false"
+    ) {
+        closeAnimationLab();
     }
 });
 

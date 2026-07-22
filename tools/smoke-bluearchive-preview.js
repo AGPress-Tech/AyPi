@@ -1,5 +1,7 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
+
+ipcMain.handle("animation-lab-auth", (_event, password) => password === "BlueArchive");
 
 app.whenReady().then(async () => {
     const window = new BrowserWindow({
@@ -27,6 +29,8 @@ app.whenReady().then(async () => {
     );
 
     let aronaReady = false;
+    let patStarted = false;
+    let patEnded = false;
     setTimeout(async () => {
         const aronaResult = await window.webContents.executeJavaScript(`({
             assistantClass: document.getElementById("assistant")?.className || "",
@@ -37,6 +41,17 @@ app.whenReady().then(async () => {
             && aronaResult.assistantLabel.includes("ARONA")
             && aronaResult.canvasCount > 0;
         console.log(`ARONA_RESULT=${JSON.stringify(aronaResult)}`);
+        patStarted = await window.webContents.executeJavaScript(`new Promise(resolve => {
+            const head = document.getElementById("assistantHeadHitbox");
+            head?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 7 }));
+            setTimeout(() => resolve(
+                document.getElementById("assistant")?.classList.contains("patting")
+            ), 420);
+        })`);
+        patEnded = await window.webContents.executeJavaScript(`new Promise(resolve => {
+            document.getElementById("assistantHeadHitbox")?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, button: 0, pointerId: 7 }));
+            setTimeout(() => resolve(!document.getElementById("assistant")?.classList.contains("patting")), 100);
+        })`);
         await window.webContents.executeJavaScript(
             `document.getElementById("assistantSwitch")?.click()`,
         );
@@ -76,6 +91,27 @@ app.whenReady().then(async () => {
         const adminEnabled = await window.webContents.executeJavaScript(
             `require("electron").ipcRenderer.invoke("admin-is-enabled")`,
         );
+        window.webContents.send("animation-lab-hotkey");
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await window.webContents.executeJavaScript(`new Promise(resolve => {
+            const input = document.getElementById("animationLabPassword");
+            if (input) input.value = "BlueArchive";
+            document.getElementById("animationLabAuthForm")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            setTimeout(resolve, 180);
+        })`);
+        const planaAnimationCount = await window.webContents.executeJavaScript(
+            `document.querySelectorAll("#animationGrid .animation-button").length`,
+        );
+        await window.webContents.executeJavaScript(
+            `document.querySelector("#animationGrid .animation-button")?.click()`,
+        );
+        await window.webContents.executeJavaScript(
+            `document.querySelector('[data-animation-character="arona"]')?.click()`,
+        );
+        await new Promise(resolve => setTimeout(resolve, 3600));
+        const aronaAnimationCount = await window.webContents.executeJavaScript(
+            `document.querySelectorAll("#animationGrid .animation-button").length`,
+        );
         const result = await window.webContents.executeJavaScript(`({
             assistantClass: document.getElementById("assistant")?.className || "",
             assistantLabel: document.getElementById("assistantLabel")?.textContent || "",
@@ -87,18 +123,21 @@ app.whenReady().then(async () => {
             trailCanvas: Boolean(document.querySelector(".mouse-trail-canvas")),
             namePromptOpened: ${namePromptOpened},
             personalName: localStorage.getItem("aypi-bluearchive-personal-name-v1"),
+            animationLabOpen: document.getElementById("animationLabBackdrop")?.getAttribute("aria-hidden") === "false",
+            planaAnimationCount: ${planaAnimationCount},
+            aronaAnimationCount: ${aronaAnimationCount},
             adminPromptOpened: ${adminPromptOpened},
             adminEnabled: ${adminEnabled}
         })`);
         console.log(`PLANA_RESULT=${JSON.stringify(result)}`);
-        const planaReady = result.assistantClass.includes("ready")
-            && result.assistantLabel.includes("PLANA")
-            && result.canvasCount > 0;
+        const planaReady = result.planaAnimationCount > 0;
         const menuReady = result.menuItems.join(",") === "menuExcel,menuWebsite,menuQuit";
         const transitionReady = result.transitionedPage.includes("Programmi");
         const ok = aronaReady && planaReady && result.timerOpen && menuReady && transitionReady
             && result.adminPromptOpened && result.adminEnabled && result.namePromptOpened
-            && result.personalName === "Andrea";
+            && result.personalName === "Andrea" && result.animationLabOpen
+            && result.planaAnimationCount > 0 && result.aronaAnimationCount > 0
+            && patStarted && patEnded;
         app.exit(ok ? 0 : 1);
     }, 9000);
 });

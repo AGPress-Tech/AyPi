@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut } from "electron";
 import path from "path";
+import fs from "fs";
 import { setupFileManager, openTimerWindow } from "./modules/fileManager";
 import { setupRobotManager } from "./modules/robotManager";
 
@@ -14,6 +15,7 @@ let triggerAdminHotkey: (() => void) | null = null;
 const APP_NAME = "AyPi";
 const APP_ID = "com.Agpress.AyPi";
 const IS_BLUE_ARCHIVE_PREVIEW = process.argv.includes("--bluearchive-preview");
+let isBlueArchiveTheme = false;
 const SCROLLBAR_CSS = `
     * {
         scrollbar-width: thin;
@@ -52,6 +54,48 @@ if (!gotLock) {
 }
 
 app.setPath("userData", path.join(app.getPath("appData"), "AyPiUserData"));
+
+function getThemeSettingsPath() {
+    return path.join(app.getPath("userData"), "interface-theme.json");
+}
+
+function loadBlueArchivePreference() {
+    if (IS_BLUE_ARCHIVE_PREVIEW) return true;
+    try {
+        const saved = JSON.parse(fs.readFileSync(getThemeSettingsPath(), "utf8"));
+        return saved && saved.theme === "bluearchive";
+    } catch {
+        return false;
+    }
+}
+
+function saveThemePreference(theme: "standard" | "bluearchive") {
+    if (IS_BLUE_ARCHIVE_PREVIEW) return;
+    fs.mkdirSync(app.getPath("userData"), { recursive: true });
+    fs.writeFileSync(
+        getThemeSettingsPath(),
+        JSON.stringify({ theme, updatedAt: new Date().toISOString() }, null, 2),
+        "utf8",
+    );
+}
+
+function usesBlueArchiveUi() {
+    return IS_BLUE_ARCHIVE_PREVIEW || isBlueArchiveTheme;
+}
+
+async function loadMainInterface(win: BrowserWindow, useBlueArchive: boolean) {
+    win.setMinimumSize(useBlueArchive ? 1040 : 0, useBlueArchive ? 640 : 0);
+    win.setBackgroundColor(useBlueArchive ? "#eaf7ff" : "#ffffff");
+    win.setSize(useBlueArchive ? 1360 : 750, useBlueArchive ? 820 : 550, true);
+    win.center();
+    await win.loadFile(
+        path.join(
+            __dirname,
+            "pages",
+            useBlueArchive ? "bluearchive-preview.html" : "index.html",
+        ),
+    );
+}
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
 if (process.platform === "win32") {
     try {
@@ -204,12 +248,14 @@ function requestTrayUpdate() {
 }
 
 app.whenReady().then(() => {
+    isBlueArchiveTheme = loadBlueArchivePreference();
+    const useBlueArchiveUi = usesBlueArchiveUi();
     mainWindow = new BrowserWindow({
-        width: IS_BLUE_ARCHIVE_PREVIEW ? 1360 : 750,
-        height: IS_BLUE_ARCHIVE_PREVIEW ? 820 : 550,
-        minWidth: IS_BLUE_ARCHIVE_PREVIEW ? 1040 : undefined,
-        minHeight: IS_BLUE_ARCHIVE_PREVIEW ? 640 : undefined,
-        backgroundColor: IS_BLUE_ARCHIVE_PREVIEW ? "#eaf7ff" : undefined,
+        width: useBlueArchiveUi ? 1360 : 750,
+        height: useBlueArchiveUi ? 820 : 550,
+        minWidth: useBlueArchiveUi ? 1040 : undefined,
+        minHeight: useBlueArchiveUi ? 640 : undefined,
+        backgroundColor: useBlueArchiveUi ? "#eaf7ff" : undefined,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -221,7 +267,7 @@ app.whenReady().then(() => {
         path.join(
             __dirname,
             "pages",
-            IS_BLUE_ARCHIVE_PREVIEW ? "bluearchive-preview.html" : "index.html",
+            useBlueArchiveUi ? "bluearchive-preview.html" : "index.html",
         ),
     );
     mainWindow.setMenu(null);
@@ -275,6 +321,8 @@ app.on("browser-window-created", (_event, win) => {
     const notifyAdminPromptClose = () => {
         if (!win || win.isDestroyed() || !win.webContents) return;
         win.webContents.send("admin-hotkey-close");
+        win.webContents.send("theme-hotkey-close");
+        win.webContents.send("animation-lab-close");
     };
     win.on("blur", notifyAdminPromptClose);
     win.on("minimize", notifyAdminPromptClose);
@@ -283,6 +331,29 @@ app.on("browser-window-created", (_event, win) => {
         win.webContents.insertCSS(SCROLLBAR_CSS).catch(() => {});
     });
     win.webContents.on("before-input-event", (event, input) => {
+        if (
+            input &&
+            input.key === "F4" &&
+            input.type === "keyDown" &&
+            !input.isAutoRepeat &&
+            win === mainWindow
+        ) {
+            event.preventDefault();
+            win.webContents.send("theme-hotkey");
+            return;
+        }
+        if (
+            input &&
+            input.key === "F6" &&
+            input.type === "keyDown" &&
+            !input.isAutoRepeat &&
+            win === mainWindow &&
+            usesBlueArchiveUi()
+        ) {
+            event.preventDefault();
+            win.webContents.send("animation-lab-hotkey");
+            return;
+        }
         if (
             !input ||
             input.key !== "F2" ||
@@ -323,6 +394,41 @@ app.on("before-quit", () => {
 ipcMain.on("quit-app", () => {
     isQuitting = true;
     app.quit();
+});
+
+ipcMain.handle("theme-auth", async (event, password) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!mainWindow || senderWindow !== mainWindow) return { ok: false };
+    const value = typeof password === "string" ? password.trim() : "";
+    let nextTheme: "standard" | "bluearchive" | null = null;
+    if (value === "BlueArchive") nextTheme = "bluearchive";
+    if (value === "AGPress") nextTheme = "standard";
+    if (!nextTheme) return { ok: false };
+
+    saveThemePreference(nextTheme);
+    isBlueArchiveTheme = nextTheme === "bluearchive";
+    const targetUsesBlueArchive = isBlueArchiveTheme;
+    setTimeout(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        loadMainInterface(mainWindow, targetUsesBlueArchive).catch((error) => {
+            console.error("Impossibile cambiare modalità grafica:", error);
+        });
+    }, 60);
+    return { ok: true, theme: nextTheme };
+});
+
+ipcMain.handle("theme-current", () =>
+    usesBlueArchiveUi() ? "bluearchive" : "standard",
+);
+
+ipcMain.handle("animation-lab-auth", (event, password) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    return !!(
+        mainWindow &&
+        senderWindow === mainWindow &&
+        usesBlueArchiveUi() &&
+        password === "BlueArchive"
+    );
 });
 
 app.on("browser-window-focus", () => {

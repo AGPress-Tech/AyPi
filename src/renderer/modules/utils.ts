@@ -219,6 +219,97 @@ function wireAppVersion() {
     });
 }
 
+function wireThemeHotkey() {
+    let overlay = document.getElementById("aypi-theme-overlay") as HTMLDivElement | null;
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "aypi-theme-overlay";
+        overlay.innerHTML = `
+            <form data-theme-form>
+                <div data-theme-kicker>AYPI INTERFACE</div>
+                <strong>Modalità grafica</strong>
+                <p>Inserisci il codice della modalità che desideri attivare.</p>
+                <input data-theme-password type="password" autocomplete="off" placeholder="Password">
+                <small data-theme-error></small>
+                <div data-theme-actions>
+                    <button data-theme-cancel type="button">Annulla</button>
+                    <button data-theme-confirm type="submit">Conferma</button>
+                </div>
+            </form>`;
+        Object.assign(overlay.style, {
+            position: "fixed",
+            inset: "0",
+            zIndex: "10000",
+            display: "none",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(15, 18, 22, .68)",
+            backdropFilter: "blur(5px)",
+        });
+        document.body.appendChild(overlay);
+
+        const form = overlay.querySelector("form") as HTMLFormElement;
+        const input = overlay.querySelector("input") as HTMLInputElement;
+        const error = overlay.querySelector("[data-theme-error]") as HTMLElement;
+        const cancel = overlay.querySelector("[data-theme-cancel]") as HTMLButtonElement;
+        Object.assign(form.style, {
+            width: "min(360px, 88vw)",
+            padding: "24px",
+            color: "#f4efe7",
+            background: "linear-gradient(145deg, #302d29, #211f1c)",
+            border: "1px solid #756a5c",
+            borderRadius: "12px",
+            boxShadow: "0 24px 70px rgba(0,0,0,.55)",
+            fontFamily: "Segoe UI, sans-serif",
+        });
+        const kicker = overlay.querySelector("[data-theme-kicker]") as HTMLElement;
+        Object.assign(kicker.style, { color: "#e4ab32", fontSize: "10px", fontWeight: "800", letterSpacing: "1.7px", marginBottom: "9px" });
+        const title = overlay.querySelector("strong") as HTMLElement;
+        Object.assign(title.style, { display: "block", fontSize: "22px", marginBottom: "6px" });
+        const description = overlay.querySelector("p") as HTMLElement;
+        Object.assign(description.style, { margin: "0 0 16px", color: "#bbb1a5", fontSize: "12px" });
+        Object.assign(input.style, { width: "100%", boxSizing: "border-box", padding: "10px 11px", color: "white", background: "#171614", border: "1px solid #777066", borderRadius: "7px", outline: "none" });
+        Object.assign(error.style, { display: "block", minHeight: "18px", paddingTop: "5px", color: "#ff8d9b", fontSize: "10px" });
+        const actions = overlay.querySelector("[data-theme-actions]") as HTMLElement;
+        Object.assign(actions.style, { display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "6px" });
+        actions.querySelectorAll("button").forEach((button) => Object.assign((button as HTMLButtonElement).style, { padding: "8px 14px", border: "0", borderRadius: "6px", cursor: "pointer", fontWeight: "700" }));
+        Object.assign(cancel.style, { color: "#eee5da", background: "#4a4540" });
+        const confirm = overlay.querySelector("[data-theme-confirm]") as HTMLButtonElement;
+        Object.assign(confirm.style, { color: "#30270f", background: "#e4ab32" });
+
+        const close = () => {
+            overlay!.style.display = "none";
+            input.value = "";
+            error.textContent = "";
+        };
+        const open = () => {
+            if (document.hidden) return;
+            overlay!.style.display = "flex";
+            setTimeout(() => input.focus(), 30);
+        };
+        cancel.addEventListener("click", close);
+        overlay.addEventListener("click", (event) => {
+            if (event.target === overlay) close();
+        });
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if (!input.value) return;
+            const result = await ipcRenderer.invoke("theme-auth", input.value);
+            if (!result?.ok) {
+                error.textContent = "Password non valida.";
+                input.select();
+                return;
+            }
+            close();
+        });
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") close();
+        });
+        ipcRenderer.on("theme-hotkey", open);
+        ipcRenderer.on("theme-hotkey-close", close);
+    }
+}
+
 function wireAdminHotkey() {
     // Funzione per mostrare la finestra di accesso admin
     const ensureAdminPrompt = () => {
@@ -516,6 +607,7 @@ function initCommonUI() {
         wireGithubIcon();
         wireAppVersion();
         wireAdminHotkey();
+        wireThemeHotkey();
         wireSidebarActions();
     };
     if (document.readyState === "loading") {

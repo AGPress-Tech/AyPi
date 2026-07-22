@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
         content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
-    <title>AyPi — Blue Archive Preview</title>
+    <title>AyPi — Blue Archive Mode</title>
     <link rel="stylesheet" href="../assets/vendor/spine-player/spine-player.css">
     <link rel="stylesheet" href="../styles/bluearchive-preview.css">
 </head>
@@ -108,6 +108,8 @@
             <div class="speech-bubble" id="speechBubble">Bentornato, Sensei!</div>
             <div class="assistant-player" id="spineAssistantPlayer" role="button" tabindex="0"
                 aria-label="Parla con Arona"></div>
+            <div class="assistant-head-hitbox" id="assistantHeadHitbox" role="button" tabindex="0"
+                aria-label="Fai pat-pat sulla testa"></div>
             <div class="assistant-loading" id="assistantLoading">
                 <i></i><span>ARONA SYSTEM</span>
             </div>
@@ -160,7 +162,7 @@
                 </div>
 
                 <footer class="timer-panel-footer">
-                    <span><i></i> TIMER LOCALI ATTIVI DURANTE LA PREVIEW</span>
+                    <span><i></i> AYPI TIME SYSTEM // OPERATIVO</span>
                     <span id="timerPanelClock">--:--:--</span>
                 </footer>
             </section>
@@ -202,6 +204,62 @@
                         <button class="time-primary" type="submit">Salva</button>
                     </div>
                 </form>
+            </section>
+        </div>
+
+        <div class="admin-backdrop theme-backdrop" id="themeBackdrop" aria-hidden="true">
+            <section class="admin-panel theme-panel" role="dialog" aria-modal="true" aria-labelledby="themePanelTitle">
+                <button class="admin-close" id="themeClose" type="button" aria-label="Chiudi">×</button>
+                <div class="admin-halo" aria-hidden="true"></div>
+                <div class="eyebrow"><span>F4</span> AYPI INTERFACE SELECTOR</div>
+                <h2 id="themePanelTitle">Modalità grafica</h2>
+                <p>Inserisci il codice della modalità che desideri attivare.</p>
+                <form id="themeForm">
+                    <label for="themePassword">Password</label>
+                    <input id="themePassword" type="password" autocomplete="off" placeholder="Inserisci la password">
+                    <div class="admin-error" id="themeError" aria-live="polite"></div>
+                    <div class="admin-actions">
+                        <button class="time-secondary" id="themeCancel" type="button">Annulla</button>
+                        <button class="time-primary" type="submit">Conferma</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <div class="animation-lab-backdrop" id="animationLabBackdrop" aria-hidden="true">
+            <section class="animation-lab-panel" role="dialog" aria-modal="true" aria-labelledby="animationLabTitle">
+                <button class="admin-close" id="animationLabClose" type="button" aria-label="Chiudi">×</button>
+                <div class="animation-lab-auth" id="animationLabAuth">
+                    <div class="eyebrow"><span>F6</span> SPINE ANIMATION LAB</div>
+                    <h2 id="animationLabTitle">Archivio animazioni</h2>
+                    <p>Inserisci la password per accedere alle animazioni di Arona e Plana.</p>
+                    <form id="animationLabAuthForm">
+                        <label for="animationLabPassword">Password</label>
+                        <input id="animationLabPassword" type="password" autocomplete="off" placeholder="Inserisci la password">
+                        <div class="admin-error" id="animationLabError" aria-live="polite"></div>
+                        <div class="admin-actions">
+                            <button class="time-secondary" id="animationLabCancel" type="button">Annulla</button>
+                            <button class="time-primary" type="submit">Accedi</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="animation-lab-content" id="animationLabContent" hidden>
+                    <header class="animation-lab-header">
+                        <div>
+                            <div class="eyebrow"><span>F6</span> SPINE ANIMATION LAB</div>
+                            <h2>Test animazioni</h2>
+                            <p>Clicca un'animazione per riprodurla direttamente sul personaggio.</p>
+                        </div>
+                        <label class="animation-loop"><input id="animationLoop" type="checkbox"> Ripeti</label>
+                    </header>
+                    <div class="animation-character-tabs" role="tablist">
+                        <button type="button" data-animation-character="arona">Arona</button>
+                        <button type="button" data-animation-character="plana">Plana</button>
+                    </div>
+                    <div class="animation-lab-status" id="animationLabStatus">Caricamento modello...</div>
+                    <div class="animation-grid" id="animationGrid"></div>
+                </div>
             </section>
         </div>
 

@@ -368,6 +368,11 @@ main { height: calc(100vh - 124px); overflow: hidden auto; scrollbar-width: thin
 .assistant-player { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: auto; cursor: pointer; outline: none; transition: transform .2s ease, filter .2s ease; }
 .assistant-player:hover { transform: translateY(-3px); filter: brightness(1.03); }
 .assistant-player:focus-visible { filter: drop-shadow(0 0 8px rgba(38,191,243,.65)); }
+.assistant-head-hitbox { position: absolute; z-index: 5; left: 43px; top: 19px; width: 106px; height: 94px; border-radius: 48% 48% 42% 42%; pointer-events: auto; cursor: grab; outline: none; touch-action: none; }
+.assistant-head-hitbox:active, .assistant.patting .assistant-head-hitbox { cursor: grabbing; }
+.assistant-head-hitbox:focus-visible { box-shadow: 0 0 0 2px rgba(38,191,243,.5), 0 0 18px rgba(38,191,243,.32); }
+.assistant.patting { filter: drop-shadow(0 17px 16px rgba(28,91,130,.22)); }
+.assistant.patting .assistant-player { transform: translateY(2px) scale(.995); }
 .assistant-player .spine-player { background: transparent !important; }
 .assistant-player canvas { width: 100% !important; height: 100% !important; }
 .assistant-loading { position: absolute; z-index: 1; left: 50%; top: 50%; display: flex; flex-direction: column; align-items: center; gap: 10px; color: #68859a; transform: translate(-50%, -50%); font: 800 7px/1 monospace; letter-spacing: 1.2px; transition: opacity .25s; }
@@ -467,6 +472,39 @@ footer { position: fixed; z-index: 10; left: 0; right: 0; bottom: 0; height: 30p
 .name-panel::after { content: "A / P"; position: absolute; right: 27px; bottom: 21px; color: rgba(33,154,215,.08); font: italic 900 58px/1 "Arial Black", sans-serif; pointer-events: none; }
 .name-actions { position: relative; z-index: 2; flex-wrap: wrap; }
 .name-actions #nameReset { margin-right: auto; color: #5685a0; }
+.theme-backdrop { z-index: 240; }
+.theme-panel { width: min(420px, 92vw); }
+.theme-panel::before { content: "04"; position: absolute; right: 24px; bottom: 10px; color: rgba(29,148,211,.07); font: italic 900 86px/1 "Arial Black", sans-serif; pointer-events: none; }
+
+.animation-lab-backdrop { position: fixed; z-index: 250; inset: 0; display: flex; align-items: center; justify-content: flex-start; padding: 34px 230px 34px 38px; background: rgba(20,42,66,.42); backdrop-filter: blur(7px); opacity: 1; transition: opacity .22s; }
+.animation-lab-backdrop[aria-hidden="true"] { opacity: 0; pointer-events: none; }
+.animation-lab-panel { position: relative; width: min(820px, calc(100vw - 268px)); max-height: calc(100vh - 68px); overflow: hidden; padding: 27px 30px 25px; color: var(--ink); background: linear-gradient(145deg, rgba(255,255,255,.99), rgba(229,246,255,.98)); border: 1px solid rgba(43,169,224,.46); border-radius: 3px 20px 3px 20px; box-shadow: 0 26px 80px rgba(21,71,105,.34), inset 5px 0 0 var(--cyan); transform: translateX(0); transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+.animation-lab-backdrop[aria-hidden="true"] .animation-lab-panel { transform: translateX(-22px); }
+.animation-lab-panel h2 { margin: 12px 0 6px; font-size: 29px; letter-spacing: -1px; }
+.animation-lab-panel p { margin: 0 0 18px; color: var(--muted); font-size: 12px; }
+.animation-lab-auth { max-width: 430px; padding: 8px 4px 4px; }
+.animation-lab-auth label { display: block; margin-bottom: 7px; color: #55758c; font: 800 9px/1 monospace; letter-spacing: 1.2px; text-transform: uppercase; }
+.animation-lab-auth input { width: 100%; height: 43px; padding: 0 13px; color: var(--ink); background: white; border: 1px solid #a9d9ec; border-radius: 2px 9px 2px 2px; outline: none; }
+.animation-lab-content { min-height: 360px; }
+.animation-lab-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.animation-loop { flex: 0 0 auto; margin: 12px 32px 0 0; padding: 8px 12px; color: #52758d; background: rgba(255,255,255,.72); border: 1px solid rgba(48,166,219,.25); border-radius: 2px 9px 2px 2px; font-size: 10px; font-weight: 800; cursor: pointer; }
+.animation-loop input { accent-color: var(--blue); vertical-align: middle; }
+.animation-character-tabs { display: flex; gap: 8px; margin: 2px 0 13px; border-bottom: 1px solid rgba(45,143,194,.18); }
+.animation-character-tabs button { min-width: 105px; padding: 9px 14px 10px; color: #71899b; background: transparent; border: 0; border-bottom: 3px solid transparent; cursor: pointer; font-weight: 900; }
+.animation-character-tabs button.active { color: var(--blue); border-bottom-color: var(--cyan); }
+.animation-lab-status { margin-bottom: 10px; color: #66859a; font: 800 9px/1 monospace; letter-spacing: .8px; }
+.animation-grid { max-height: calc(100vh - 315px); overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; padding: 3px 8px 8px 2px; scrollbar-width: thin; }
+.animation-button { min-height: 48px; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 8px 10px; text-align: left; color: #39576c; background: rgba(255,255,255,.82); border: 1px solid rgba(54,162,213,.24); border-radius: 2px 10px 2px 2px; box-shadow: 2px 3px 0 rgba(38,191,243,.07); cursor: pointer; transition: .16s ease; }
+.animation-button:hover { color: var(--blue); border-color: rgba(38,191,243,.65); transform: translateY(-2px); }
+.animation-button.active { color: white; background: linear-gradient(135deg, var(--blue), #32bfe8); border-color: var(--blue); box-shadow: 4px 5px 0 rgba(38,191,243,.18); }
+.animation-button b { overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+.animation-button small { opacity: .65; font: 700 8px/1 monospace; }
+body.animation-lab-open .assistant { z-index: 260; }
+
+@media (max-width: 1050px) {
+    .animation-lab-backdrop { padding-right: 190px; padding-left: 20px; }
+    .animation-lab-panel { width: calc(100vw - 210px); }
+}
 
 @keyframes particlePop { from { opacity: 1; transform: translate(0,0) rotate(0) scale(.3); } to { opacity: 0; transform: translate(var(--x),var(--y)) rotate(180deg) scale(1); } }
 @keyframes pageLeave { to { opacity: 0; transform: translateX(-16px) skewX(-1.5deg); filter: blur(2px); } }
