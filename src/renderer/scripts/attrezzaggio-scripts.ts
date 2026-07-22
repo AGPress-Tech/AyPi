@@ -70,10 +70,12 @@ const filterDescrizioneLavorazione = document.getElementById(
 );
 const filterUtensile = document.getElementById("filterUtensile");
 const filterGenerale = document.getElementById("filterGenerale");
+const listSortOrder = document.getElementById("listSortOrder");
 const haasFilterCodiceArticolo = document.getElementById("haasFilterCodiceArticolo");
 const haasFilterMacchina = document.getElementById("haasFilterMacchina");
 const haasFilterNumeroProgramma = document.getElementById("haasFilterNumeroProgramma");
 const haasFilterText = document.getElementById("haasFilterText");
+const haasListSortOrder = document.getElementById("haasListSortOrder");
 const attachmentsList = document.getElementById("attachmentsList");
 const attachmentInput = document.getElementById("attachmentInput");
 const haasAttachmentsList = document.getElementById("haasAttachmentsList");
@@ -1077,7 +1079,11 @@ function matchesHaasFilters(item) {
 function renderHaasListFiltered() {
     if (!haasCardsList) return;
     haasCardsList.innerHTML = "";
-    const filtered = haasListItems.filter(matchesHaasFilters);
+    const filtered = sortAttrezzaggioListItems(
+        haasListItems.filter(matchesHaasFilters),
+        haasListSortOrder?.value,
+        "macchina",
+    );
     if (haasListCount) {
         haasListCount.textContent = `${filtered.length} schede trovate su ${haasListItems.length}`;
     }
@@ -1747,6 +1753,37 @@ function normalize(v) {
         .trim();
 }
 
+function compareListValues(left, right) {
+    return String(left || "").localeCompare(String(right || ""), "it", {
+        numeric: true,
+        sensitivity: "base",
+    });
+}
+
+function sortAttrezzaggioListItems(items, sortOrder, machineField) {
+    const [field = "article", direction = "asc"] = String(
+        sortOrder || "article-asc",
+    ).split("-");
+    const primaryField = field === "machine" ? machineField : "codiceArticolo";
+    const secondaryField = field === "machine" ? "codiceArticolo" : machineField;
+    const multiplier = direction === "desc" ? -1 : 1;
+
+    return [...items].sort((left, right) => {
+        const primaryComparison = compareListValues(
+            left?.[primaryField],
+            right?.[primaryField],
+        );
+        if (primaryComparison) return primaryComparison * multiplier;
+
+        const secondaryComparison = compareListValues(
+            left?.[secondaryField],
+            right?.[secondaryField],
+        );
+        if (secondaryComparison) return secondaryComparison;
+        return compareListValues(left?.code, right?.code);
+    });
+}
+
 function formatDateTs(ms) {
     const n = Number(ms || 0);
     if (!n) return "-";
@@ -1803,7 +1840,11 @@ function matchesFilters(item) {
 
 function renderListFiltered() {
     cardsList.innerHTML = "";
-    const filtered = allListItems.filter(matchesFilters);
+    const filtered = sortAttrezzaggioListItems(
+        allListItems.filter(matchesFilters),
+        listSortOrder?.value,
+        "codiceMacchina",
+    );
     if (listCount)
         listCount.textContent = `${filtered.length} schede trovate su ${allListItems.length}`;
 
@@ -2322,6 +2363,7 @@ document.addEventListener(
 ].forEach((el) => {
     el?.addEventListener("input", renderListFiltered);
 });
+listSortOrder?.addEventListener("change", renderListFiltered);
 [
     haasFilterCodiceArticolo,
     haasFilterMacchina,
@@ -2330,6 +2372,7 @@ document.addEventListener(
 ].forEach((el) => {
     el?.addEventListener("input", renderHaasListFiltered);
 });
+haasListSortOrder?.addEventListener("change", renderHaasListFiltered);
 
 loadHeaderIcons();
 loadPrintLogo();
