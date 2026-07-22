@@ -5,6 +5,7 @@
   "main": "dist-ts/main.js",
   "scripts": {
     "start": "npm run build:ts && electron .",
+    "start:bluearchive": "npm run build:ts && electron . --bluearchive-preview",
     "build:ts": "node tools\\build-ts.js",
     "build:backend": "npx tsc -p backend\\tsconfig.json",
     "start:backend": "set AYPI_BACKEND_PROFILE=dev&& npm run build:backend && node backend-dist\\server.js",

@@ -1593,6 +1593,7 @@ let qrGeneratorWindow: BrowserWindow | null = null;
 let compareFoldersWindow: BrowserWindow | null = null;
 let hierarchyWindow: BrowserWindow | null = null;
 let timerWindow: BrowserWindow | null = null;
+let timerWindowTheme: "standard" | "bluearchive" = "standard";
 let infographicsWindow: BrowserWindow | null = null;
 let gitflowWindow: BrowserWindow | null = null;
 let amministrazioneWindow: BrowserWindow | null = null;
@@ -1906,15 +1907,31 @@ function openGitflowWindow(mainWindow, options?: { force?: boolean }) {
     });
 }
 
-function openTimerWindow(mainWindow) {
+function openTimerWindow(mainWindow, options: { theme?: string } = {}) {
+    const requestedTheme = options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(timerWindow)) {
+        if (timerWindowTheme !== requestedTheme) {
+            timerWindowTheme = requestedTheme;
+            timerWindow.setSize(
+                requestedTheme === "bluearchive" ? 740 : 520,
+                requestedTheme === "bluearchive" ? 700 : 520,
+            );
+            timerWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "timers.html"),
+                { query: { theme: requestedTheme } },
+            );
+            timerWindow.center();
+        }
         showWindow(timerWindow);
         return;
     }
 
+    timerWindowTheme = requestedTheme;
     timerWindow = new BrowserWindow({
-        width: 520,
-        height: 520,
+        width: requestedTheme === "bluearchive" ? 740 : 520,
+        height: requestedTheme === "bluearchive" ? 700 : 520,
+        minWidth: requestedTheme === "bluearchive" ? 620 : undefined,
+        minHeight: requestedTheme === "bluearchive" ? 560 : undefined,
         parent: mainWindow,
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
@@ -1923,6 +1940,7 @@ function openTimerWindow(mainWindow) {
 
     timerWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "timers.html"),
+        { query: { theme: requestedTheme } },
     );
     timerWindow.setMenu(null);
     timerWindow.center();
@@ -1934,6 +1952,7 @@ function openTimerWindow(mainWindow) {
             showMainWindow(mainWindow);
         } else {
             timerWindow = null;
+            timerWindowTheme = "standard";
         }
     });
 }
@@ -3614,8 +3633,10 @@ function setupFileManager(mainWindow) {
         openGitflowWindow(mainWindow, { force });
     });
 
-    ipcMain.on("open-timer-window", () => {
-        openTimerWindow(mainWindow);
+    ipcMain.on("open-timer-window", (_event, payload) => {
+        openTimerWindow(mainWindow, {
+            theme: payload && payload.theme === "bluearchive" ? "bluearchive" : "standard",
+        });
     });
 
     ipcMain.on("open-amministrazione-window", () => {

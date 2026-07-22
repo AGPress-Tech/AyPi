@@ -525,4 +525,4 @@ function initCommonUI() {
     }
 }
 
-export { initCommonUI };
+export { initCommonUI, installAddinFunction };

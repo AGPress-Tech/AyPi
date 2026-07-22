@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
+    <title>AyPi — Blue Archive Preview</title>
+    <link rel="stylesheet" href="../assets/vendor/spine-player/spine-player.css">
+    <link rel="stylesheet" href="../styles/bluearchive-preview.css">
+</head>
+<body>
+    <div class="startup-sequence" id="startupSequence" role="status" aria-label="Avvio AyPi">
+        <div class="startup-grid" aria-hidden="true"></div>
+        <div class="startup-sweep" aria-hidden="true"></div>
+        <div class="startup-corner startup-corner-left" aria-hidden="true">AGP // SYSTEM 01</div>
+        <div class="startup-corner startup-corner-right" aria-hidden="true">AYPI INTERFACE</div>
+
+        <div class="startup-center">
+            <div class="startup-emblem" aria-hidden="true">
+                <span class="startup-halo"></span>
+                <span class="startup-letter-ay">Ay</span><span class="startup-letter-pi">Pi</span>
+                <span class="startup-logo-slash"></span>
+            </div>
+            <div class="startup-rule" aria-hidden="true"><i></i></div>
+            <div class="startup-kicker">PORTALE OPERATIVO AGPRESS</div>
+            <h1>Buongiorno, <strong>Sensei.</strong></h1>
+            <p>Preparazione dell'interfaccia AyPi</p>
+            <div class="startup-progress" aria-hidden="true"><i></i></div>
+        </div>
+
+        <div class="startup-skip">CLICK PER CONTINUARE</div>
+    </div>
+
+    <div class="sky-grid" aria-hidden="true"></div>
+    <div class="cursor-aura" id="cursorAura" aria-hidden="true"></div>
+    <div class="click-layer" id="clickLayer" aria-hidden="true"></div>
+
+    <div class="preview-shell">
+        <header class="topbar">
+            <a class="brand" id="brandLink" href="https://github.com/AGPress-Tech/AyPi"
+                aria-label="Apri AyPi su GitHub" title="Apri AyPi su GitHub">
+                <span class="brand-halo" aria-hidden="true"></span>
+                <span class="brand-ay">Ay</span><span class="brand-pi">Pi</span>
+                <span class="brand-slash" aria-hidden="true"></span>
+            </a>
+
+            <nav class="main-nav" aria-label="Navigazione principale">
+                <button class="nav-item active" data-page="moduli">Moduli</button>
+                <button class="nav-item" data-page="programmi">Programmi</button>
+                <button class="nav-item" data-page="articoli">Articoli</button>
+                <button class="nav-item" data-page="produzioni">Produzioni</button>
+                <button class="nav-item" data-page="robot">Robot</button>
+                <button class="nav-item" data-page="calcolatore">Calcolatore</button>
+                <button class="nav-item" data-page="utilities">Utilities</button>
+            </nav>
+
+            <div class="top-actions">
+                <div class="system-pill"><span></span> AYPI SYSTEM</div>
+                <button class="icon-button" id="menuToggle" aria-label="Apri menu">
+                    <i></i><i></i><i></i>
+                </button>
+            </div>
+        </header>
+
+        <aside class="quick-menu" id="quickMenu" aria-hidden="true">
+            <div class="quick-menu-title">AyPi</div>
+            <button id="menuExcel"><img src="../assets/AyPi-icon.png" alt=""> <span>AyPi Excel<small>Installa o aggiorna l'add-in</small></span></button>
+            <button id="menuWebsite"><span class="menu-symbol">↗</span> <span>AyPi Website<small>Apri il portale AGPress</small></span></button>
+            <button class="menu-quit" id="menuQuit"><span class="menu-symbol">×</span> <span>Termina<small>Chiudi completamente AyPi</small></span></button>
+        </aside>
+
+        <main>
+            <section class="hero">
+                <div class="hero-copy">
+                    <div class="eyebrow"><span>01</span> PORTALE OPERATIVO</div>
+                    <h1>Esplora,<br><strong id="heroTitle">Moduli.</strong></h1>
+                    <p id="heroDescription">Accedi agli strumenti e ai moduli aziendali di AyPi.</p>
+                    <div class="hero-status">
+                        <span class="status-line"></span>
+                        <span>Tutti i sistemi sono operativi</span>
+                    </div>
+                </div>
+
+                <div class="hero-art" aria-hidden="true">
+                    <div class="hero-ring ring-one"></div>
+                    <div class="hero-ring ring-two"></div>
+                    <div class="hero-cross"></div>
+                    <div class="hero-number" id="heroNumber">M</div>
+                    <div class="hero-caption">AGPRESS // AYPI</div>
+                </div>
+            </section>
+
+            <section class="modules-section" id="apps">
+                <div class="section-heading">
+                    <div>
+                        <div class="eyebrow"><span>02</span> ACCESSO RAPIDO</div>
+                        <h2 id="sectionTitle">Seleziona un modulo</h2>
+                    </div>
+                    <div class="page-index"><b id="pageNumber">01</b><span>/ 07</span></div>
+                </div>
+
+                <div class="module-grid" id="pageContent"></div>
+            </section>
+        </main>
+
+        <div class="assistant" id="assistant" aria-label="Assistente Arona">
+            <div class="speech-bubble" id="speechBubble">Bentornato, Sensei!</div>
+            <div class="assistant-player" id="spineAssistantPlayer" role="button" tabindex="0"
+                aria-label="Parla con Arona"></div>
+            <div class="assistant-loading" id="assistantLoading">
+                <i></i><span>ARONA SYSTEM</span>
+            </div>
+            <button class="assistant-switch" id="assistantSwitch" type="button"
+                title="Passa ad Arona o Plana" aria-label="Cambia assistente">A / P</button>
+            <span class="assistant-label" id="assistantLabel">ARONA // ONLINE</span>
+        </div>
+
+        <div class="timer-backdrop" id="timerBackdrop" aria-hidden="true">
+            <section class="timer-panel" role="dialog" aria-modal="true" aria-labelledby="timerPanelTitle">
+                <header class="timer-panel-header">
+                    <div>
+                        <div class="eyebrow"><span>TM</span> AYPI TIME SYSTEM</div>
+                        <h2 id="timerPanelTitle">Timer &amp; Cronometri</h2>
+                    </div>
+                    <button class="timer-close" id="timerClose" type="button" aria-label="Chiudi pannello">×</button>
+                </header>
+
+                <div class="timer-tabs" role="tablist">
+                    <button class="timer-tab active" type="button" data-time-view="stopwatch" role="tab">Cronometro</button>
+                    <button class="timer-tab" type="button" data-time-view="countdown" role="tab">Timer</button>
+                </div>
+
+                <div class="time-view active" id="stopwatchView" data-view="stopwatch">
+                    <div class="time-status"><i></i><span id="stopwatchStatus">PRONTO</span></div>
+                    <div class="time-display" id="stopwatchDisplay">00:00.0</div>
+                    <div class="time-controls">
+                        <button class="time-primary" id="stopwatchToggle" type="button">Avvia</button>
+                        <button class="time-secondary" id="stopwatchLap" type="button">Giro</button>
+                        <button class="time-secondary" id="stopwatchReset" type="button">Azzera</button>
+                    </div>
+                    <div class="laps-list" id="lapsList">
+                        <span class="laps-empty">Nessun giro registrato</span>
+                    </div>
+                </div>
+
+                <div class="time-view" id="countdownView" data-view="countdown">
+                    <div class="time-status"><i></i><span id="countdownStatus">PRONTO</span></div>
+                    <div class="time-display" id="countdownDisplay">05:00</div>
+                    <div class="timer-presets" aria-label="Durate rapide">
+                        <button type="button" data-timer-minutes="1">1 min</button>
+                        <button type="button" data-timer-minutes="5" class="active">5 min</button>
+                        <button type="button" data-timer-minutes="10">10 min</button>
+                        <button type="button" data-timer-minutes="25">25 min</button>
+                    </div>
+                    <div class="time-controls">
+                        <button class="time-primary" id="countdownToggle" type="button">Avvia</button>
+                        <button class="time-secondary" id="countdownReset" type="button">Ripristina</button>
+                    </div>
+                </div>
+
+                <footer class="timer-panel-footer">
+                    <span><i></i> TIMER LOCALI ATTIVI DURANTE LA PREVIEW</span>
+                    <span id="timerPanelClock">--:--:--</span>
+                </footer>
+            </section>
+        </div>
+
+        <footer>
+            <span>AYPI v1.2.4</span>
+            <button class="footer-clock" id="footerClock" type="button" aria-label="Apri Timer e Cronometri"
+                aria-expanded="false" title="Apri Timer e Cronometri">--:--:--</button>
+            <span>© AGPRESS</span>
+        </footer>
+    </div>
+
+    <script src="../assets/vendor/spine-player/spine-player.js"></script>
+    <script src="../scripts/bluearchive-preview.js"></script>
+</body>
+</html>

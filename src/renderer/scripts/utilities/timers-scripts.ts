@@ -2,6 +2,10 @@ require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import { initCommonUI } from "../../modules/utils";
 
+if (new URLSearchParams(window.location.search).get("theme") === "bluearchive") {
+    document.body.classList.add("bluearchive-timers");
+}
+
 initCommonUI();
 
 const getEl = (id: string) => document.getElementById(id);

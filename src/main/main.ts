@@ -13,6 +13,7 @@ let triggerAdminHotkey: (() => void) | null = null;
 
 const APP_NAME = "AyPi";
 const APP_ID = "com.Agpress.AyPi";
+const IS_BLUE_ARCHIVE_PREVIEW = process.argv.includes("--bluearchive-preview");
 const SCROLLBAR_CSS = `
     * {
         scrollbar-width: thin;
@@ -204,8 +205,11 @@ function requestTrayUpdate() {
 
 app.whenReady().then(() => {
     mainWindow = new BrowserWindow({
-        width: 750,
-        height: 550,
+        width: IS_BLUE_ARCHIVE_PREVIEW ? 1360 : 750,
+        height: IS_BLUE_ARCHIVE_PREVIEW ? 820 : 550,
+        minWidth: IS_BLUE_ARCHIVE_PREVIEW ? 1040 : undefined,
+        minHeight: IS_BLUE_ARCHIVE_PREVIEW ? 640 : undefined,
+        backgroundColor: IS_BLUE_ARCHIVE_PREVIEW ? "#eaf7ff" : undefined,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -213,15 +217,29 @@ app.whenReady().then(() => {
         icon: path.join(__dirname, "assets", "app-icon.png"),
     });
 
-    mainWindow.loadFile(path.join(__dirname, "pages", "index.html"));
+    mainWindow.loadFile(
+        path.join(
+            __dirname,
+            "pages",
+            IS_BLUE_ARCHIVE_PREVIEW ? "bluearchive-preview.html" : "index.html",
+        ),
+    );
     mainWindow.setMenu(null);
 
     mainWindow.on("close", (event) => {
+        if (IS_BLUE_ARCHIVE_PREVIEW) {
+            isQuitting = true;
+            return;
+        }
         if (!isQuitting) {
             event.preventDefault();
             mainWindow.hide();
         }
     });
+
+    if (IS_BLUE_ARCHIVE_PREVIEW) {
+        return;
+    }
 
     createTray();
 
@@ -293,6 +311,11 @@ app.on("browser-window-created", (_event, win) => {
 app.on("before-quit", () => {
     isQuitting = true;
     globalShortcut.unregister("F2");
+});
+
+ipcMain.on("quit-app", () => {
+    isQuitting = true;
+    app.quit();
 });
 
 app.on("browser-window-focus", () => {
