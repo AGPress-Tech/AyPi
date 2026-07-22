@@ -24,7 +24,7 @@
             </div>
             <div class="startup-rule" aria-hidden="true"><i></i></div>
             <div class="startup-kicker">PORTALE OPERATIVO AGPRESS</div>
-            <h1>Buongiorno, <strong>Sensei.</strong></h1>
+            <h1>Buongiorno, <strong><span id="startupUserName">Sensei</span>.</strong></h1>
             <p>Preparazione dell'interfaccia AyPi</p>
             <div class="startup-progress" aria-hidden="true"><i></i></div>
         </div>
@@ -133,7 +133,7 @@
 
                 <div class="time-view active" id="stopwatchView" data-view="stopwatch">
                     <div class="time-status"><i></i><span id="stopwatchStatus">PRONTO</span></div>
-                    <div class="time-display" id="stopwatchDisplay">00:00.0</div>
+                    <div class="time-display" id="stopwatchDisplay">00:00.00</div>
                     <div class="time-controls">
                         <button class="time-primary" id="stopwatchToggle" type="button">Avvia</button>
                         <button class="time-secondary" id="stopwatchLap" type="button">Giro</button>
@@ -163,6 +163,45 @@
                     <span><i></i> TIMER LOCALI ATTIVI DURANTE LA PREVIEW</span>
                     <span id="timerPanelClock">--:--:--</span>
                 </footer>
+            </section>
+        </div>
+
+        <div class="admin-backdrop" id="adminBackdrop" aria-hidden="true">
+            <section class="admin-panel" role="dialog" aria-modal="true" aria-labelledby="adminPanelTitle">
+                <button class="admin-close" id="adminClose" type="button" aria-label="Chiudi">×</button>
+                <div class="admin-halo" aria-hidden="true"></div>
+                <div class="eyebrow"><span>F2</span> CONFIGURAZIONE AYPI</div>
+                <h2 id="adminPanelTitle">Accesso amministratore</h2>
+                <p>Abilita la modifica dei percorsi. Dopo l'accesso usa il tasto destro su una scheda configurabile.</p>
+                <form id="adminForm">
+                    <label for="adminPassword">Password</label>
+                    <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Inserisci la password">
+                    <div class="admin-error" id="adminError" aria-live="polite"></div>
+                    <div class="admin-actions">
+                        <button class="time-secondary" id="adminCancel" type="button">Annulla</button>
+                        <button class="time-primary" type="submit">Accedi</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <div class="admin-backdrop name-backdrop" id="nameBackdrop" aria-hidden="true">
+            <section class="admin-panel name-panel" role="dialog" aria-modal="true" aria-labelledby="namePanelTitle">
+                <button class="admin-close" id="nameClose" type="button" aria-label="Chiudi">×</button>
+                <div class="admin-halo" aria-hidden="true"></div>
+                <div class="eyebrow"><span>ID</span> PERSONALIZZAZIONE ASSISTENTE</div>
+                <h2 id="namePanelTitle">Come desideri essere chiamato?</h2>
+                <p><span id="nameAssistantLabel">Arona</span> userà questo nome nei saluti e in tutti i suoi messaggi.</p>
+                <form id="nameForm">
+                    <label for="personalName">Il tuo nome</label>
+                    <input id="personalName" type="text" maxlength="32" autocomplete="name" placeholder="es. Alessandro">
+                    <div class="admin-error" id="nameError" aria-live="polite"></div>
+                    <div class="admin-actions name-actions">
+                        <button class="time-secondary" id="nameReset" type="button">Usa Sensei</button>
+                        <button class="time-secondary" id="nameCancel" type="button">Annulla</button>
+                        <button class="time-primary" type="submit">Salva</button>
+                    </div>
+                </form>
             </section>
         </div>
 

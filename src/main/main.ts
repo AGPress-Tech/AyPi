@@ -238,6 +238,13 @@ app.whenReady().then(() => {
     });
 
     if (IS_BLUE_ARCHIVE_PREVIEW) {
+        setupFileManager(mainWindow);
+        setupRobotManager();
+        triggerAdminHotkey = () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("admin-hotkey");
+            }
+        };
         return;
     }
 
