@@ -228,7 +228,7 @@ function renderCartTable({
     const header = document.createElement("div");
     header.className = "pm-table__row pm-table__row--header";
     [
-        "",
+        "Stato",
         "Prodotto",
         "Quantità",
         "UM",
@@ -589,7 +589,7 @@ function renderInterventionTable({
 
     const header = document.createElement("div");
     header.className = "pm-table__row pm-table__row--header";
-    ["", "Tipologia", "Descrizione", "Priorità", "Richiesto da", "Data", "Azioni"].forEach((title) => {
+    ["Stato", "Tipologia", "Descrizione", "Priorità", "Richiesto da", "Data", "Azioni"].forEach((title) => {
         const cell = document.createElement("div");
         cell.className = "pm-table__cell";
         cell.textContent = title;

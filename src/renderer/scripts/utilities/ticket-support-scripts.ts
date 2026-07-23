@@ -12,6 +12,7 @@ import { session, setSession, saveSession, loadSession, clearSession, applyShare
 import { renderLoginSelectors, renderAdminSelect } from "./product-manager/ui/login-selectors";
 import { requestBackend } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 
 const ADMIN_EMAIL = "tech@agpress-srl.it";
 const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
@@ -21,6 +22,38 @@ const DEFAULT_ISSUE_TYPES = ["Assistenza", "Bug", "Richiesta nuova funzione", "A
 const DEFAULT_AREAS = ["Mail", "MES", "Gestionale", "Hardware", "Rete", "Altro"];
 const params = new URLSearchParams(window.location.search || "");
 const currentView = (params.get("tsView") || "form").toLowerCase() === "admin" ? "admin" : "form";
+const IS_BLUE_ARCHIVE_TICKET_SUPPORT =
+    params.get("theme") === "bluearchive";
+
+if (IS_BLUE_ARCHIVE_TICKET_SUPPORT) {
+    document.body.classList.add(
+        "fp-bluearchive",
+        "bluearchive-purchasing",
+        "bluearchive-ticket-support",
+    );
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_TICKET_SUPPORT);
+
+function runBlueArchiveTicketSupportSplash() {
+    if (
+        !IS_BLUE_ARCHIVE_TICKET_SUPPORT ||
+        currentView !== "form" ||
+        params.get("tsSplash") !== "1"
+    ) {
+        document.getElementById("tsBlueArchiveSplash")?.remove();
+        return;
+    }
+    const splash = document.getElementById("tsBlueArchiveSplash");
+    if (!splash) return;
+    splash.setAttribute("aria-hidden", "false");
+    const statusSteps = splash.querySelectorAll(".fp-ba-boot-status span");
+    window.setTimeout(() => statusSteps[1]?.classList.add("is-complete"), 1900);
+    window.setTimeout(() => statusSteps[2]?.classList.add("is-complete"), 3650);
+    window.setTimeout(() => splash.classList.add("is-fading"), 4550);
+    window.setTimeout(() => splash.remove(), 5550);
+}
+
+runBlueArchiveTicketSupportSplash();
 
 let store = loadStore();
 let assigneeGroups = {};
@@ -933,9 +966,11 @@ function renderOperatorList() {
     const container = document.getElementById("ts-operator-list");
     if (!container) return;
     const title = document.getElementById("ts-list-title");
+    const feedCount = document.getElementById("ts-feed-count");
     if (title) title.textContent = "I miei ticket";
 
     if (!isLoggedIn()) {
+        if (feedCount) feedCount.textContent = "00";
         container.innerHTML = `<div class="ts-ticket-card"><div class="ts-ticket-card__desc">Accedi per vedere le tue richieste.</div></div>`;
         return;
     }
@@ -949,14 +984,19 @@ function renderOperatorList() {
     }));
 
     if (!mine.length) {
+        if (feedCount) feedCount.textContent = "00";
         container.innerHTML = `<div class="ts-ticket-card"><div class="ts-ticket-card__desc">Nessun ticket creato.</div></div>`;
         return;
+    }
+    if (feedCount) {
+        feedCount.textContent = String(Math.min(mine.length, 99)).padStart(2, "0");
     }
 
     container.innerHTML = mine.map((ticket) => {
         const history = (ticket.history || [])
             .slice()
             .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+            .slice(-3)
             .map((item) => {
                 const rawEvent = String(item?.event || "");
                 const isCreated = rawEvent.trim().toLowerCase() === "ticket creato";
@@ -989,10 +1029,10 @@ function renderOperatorList() {
                     <div><strong>Risolto/Chiuso:</strong> ${escapeHtml(formatDateTime(ticket.resolvedAt))} / ${escapeHtml(formatDateTime(ticket.closedAt))}</div>
                 </div>
                 <div class="ts-ticket-card__desc">${escapeHtml(ticket.description || "-")}</div>
-                <div class="ts-ticket-card__meta">
-                    <div><strong>Storico:</strong></div>
+                <div class="ts-ticket-card__meta ts-ticket-card__updates-label">
+                    <div><strong>Ultimi aggiornamenti</strong></div>
                 </div>
-                <div class="ts-ticket-card__desc">${escapeHtml(history || "-")}</div>
+                <div class="ts-ticket-card__desc ts-ticket-card__updates">${escapeHtml(history || "-")}</div>
                 <div class="ts-ticket-card__actions">
                     <button type="button" class="pm-btn pm-btn--ghost ts-icon-btn ts-op-edit" data-ticket-id="${escapeHtml(ticket.id)}" title="Modifica ticket" aria-label="Modifica ticket">
                         <span class="material-icons">edit</span>
@@ -1341,7 +1381,11 @@ function openAdminListModal() {
         renderAdminTable();
         return;
     }
-    ipcRenderer.send("open-ticket-support-admin-window");
+    ipcRenderer.send("open-ticket-support-admin-window", {
+        theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
+            ? "bluearchive"
+            : "standard",
+    });
 }
 
 function closeAdminListModal() {
@@ -1938,12 +1982,20 @@ function bindSettingsEvents() {
     document.getElementById("ts-settings-admin-open")?.addEventListener("click", () => {
         closeSettingsModal();
         if (!isAdmin()) return;
-        ipcRenderer.send("open-admin-manager-window");
+        ipcRenderer.send("pm-open-calendar-admins", {
+            theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
+                ? "bluearchive"
+                : "standard",
+        });
     });
     document.getElementById("ts-settings-assignees-open")?.addEventListener("click", () => {
         closeSettingsModal();
         if (!isAdmin()) return;
-        ipcRenderer.send("open-assignees-manager-window");
+        ipcRenderer.send("pm-open-calendar-assignees", {
+            theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
+                ? "bluearchive"
+                : "standard",
+        });
     });
     document.getElementById("ts-settings-backup-open")?.addEventListener("click", () => {
         closeSettingsModal();

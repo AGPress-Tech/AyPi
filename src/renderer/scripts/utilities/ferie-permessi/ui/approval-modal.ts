@@ -75,6 +75,7 @@ type ApprovalModalOptions = {
     loadAdminCredentials: () => AdminLike[];
     verifyAdminPassword: (
         password: string,
+        targetName?: string | null,
     ) => Promise<{ admin: AdminLike } | null>;
     loadData: () => any;
     syncData: (updater: (payload: any) => any) => any;
@@ -550,8 +551,37 @@ function createApprovalModal(options: ApprovalModalOptions) {
         const desc = document.getElementById(
             "fp-approve-desc",
         ) as HTMLElement | null;
+        const adminField = document.getElementById(
+            "fp-login-admin-field",
+        ) as HTMLElement | null;
+        const adminSelect = document.getElementById(
+            "fp-login-admin-name",
+        ) as HTMLSelectElement | null;
         if (!modal || !input) return;
+        const useIdentityGate =
+            action?.type === "admin-login" &&
+            document.body.classList.contains("fp-bluearchive");
         setPendingAction(action);
+        modal.classList.toggle("fp-identity-gate", useIdentityGate);
+        adminField?.classList.toggle("is-hidden", !useIdentityGate);
+        if (adminSelect) {
+            adminSelect.innerHTML = "";
+            const admins = loadAdminCredentials()
+                .map((item) => String(item?.name || "").trim())
+                .filter(Boolean);
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "Seleziona amministratore";
+            placeholder.disabled = true;
+            placeholder.selected = true;
+            adminSelect.appendChild(placeholder);
+            admins.forEach((name) => {
+                const option = document.createElement("option");
+                option.value = name;
+                option.textContent = name;
+                adminSelect.appendChild(option);
+            });
+        }
         if (title && action?.title) title.textContent = action.title;
         if (desc && action?.description) desc.textContent = action.description;
         document
@@ -593,6 +623,10 @@ function createApprovalModal(options: ApprovalModalOptions) {
         if (input) input.value = "";
         if (error) error.classList.add("is-hidden");
         if (recoverBtn) recoverBtn.classList.add("is-hidden");
+        modal.classList.remove("fp-identity-gate");
+        document
+            .getElementById("fp-login-admin-field")
+            ?.classList.add("is-hidden");
         setPendingAction(null);
         const activeEl = document.activeElement as HTMLElement | null;
         if (activeEl && typeof activeEl.blur === "function") {
@@ -610,6 +644,12 @@ function createApprovalModal(options: ApprovalModalOptions) {
         const recoverBtn = document.getElementById(
             "fp-approve-recover",
         ) as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-approve-modal",
+        ) as HTMLElement | null;
+        const adminSelect = document.getElementById(
+            "fp-login-admin-name",
+        ) as HTMLSelectElement | null;
         const password = input ? input.value : "";
         if (!isHashingAvailable()) {
             const hasHashes = loadAdminCredentials().some(
@@ -624,10 +664,24 @@ function createApprovalModal(options: ApprovalModalOptions) {
                 return;
             }
         }
-        const result = await verifyAdminPassword(password);
+        const targetName = modal?.classList.contains("fp-identity-gate")
+            ? adminSelect?.value || null
+            : null;
+        if (modal?.classList.contains("fp-identity-gate") && !targetName) {
+            if (error) {
+                error.textContent = "Seleziona un amministratore.";
+                error.classList.remove("is-hidden");
+            }
+            adminSelect?.focus();
+            return;
+        }
+        const result = await verifyAdminPassword(password, targetName);
         const admin = result ? result.admin : null;
         if (!admin) {
-            if (error) error.classList.remove("is-hidden");
+            if (error) {
+                error.textContent = "Password errata.";
+                error.classList.remove("is-hidden");
+            }
             setPasswordFailCount(getPasswordFailCount() + 1);
             if (recoverBtn && getPasswordFailCount() >= 3) {
                 recoverBtn.classList.remove("is-hidden");

@@ -9,10 +9,40 @@
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
     <link rel="stylesheet" href="../../styles/utilities/ticket-support-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-bluearchive-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/product-manager-bluearchive-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/ticket-support-bluearchive-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body class="pm-ready" data-pm-list-mode="intervention">
+<body class="pm-ready">
+    <div class="ts-ba-splash fp-calendar-splash fp-calendar-splash--bluearchive"
+        id="tsBlueArchiveSplash" aria-hidden="true">
+        <div class="fp-ba-calendar-boot">
+            <div class="fp-ba-boot-grid"></div>
+            <div class="fp-ba-boot-sweep"></div>
+            <div class="fp-ba-boot-corner fp-ba-boot-corner--left">AGP // SYSTEM ROUTE 04</div>
+            <div class="fp-ba-boot-corner fp-ba-boot-corner--right">AYPI TICKET SUPPORT</div>
+            <div class="fp-ba-boot-center">
+                <div class="fp-ba-boot-emblem">
+                    <span class="fp-ba-boot-halo"></span>
+                    <span class="fp-ba-boot-ay">Ay</span><span class="fp-ba-boot-pi">Pi</span>
+                    <span class="fp-ba-boot-slash"></span>
+                </div>
+                <div class="fp-ba-boot-route"><i></i><span>TICKET SUPPORT MODULE</span><i></i></div>
+                <h1>Accesso al modulo <strong>Ticket Support.</strong></h1>
+                <p>Sincronizzazione utenti, categorie e segnalazioni</p>
+                <div class="fp-ba-boot-progress"><i></i></div>
+                <div class="fp-ba-boot-status">
+                    <span class="is-complete">01&nbsp; UTENTI</span>
+                    <span>02&nbsp; CATEGORIE</span>
+                    <span>03&nbsp; TICKET</span>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="pm-page">
         <header class="pm-header">
             <div class="pm-header__title">
@@ -80,7 +110,18 @@
 
             <section class="pm-list" id="ts-list-section">
                 <div class="pm-card">
-                    <h2 id="ts-list-title">I miei ticket</h2>
+                    <div class="ts-feed-header">
+                        <div>
+                            <span class="ts-feed-kicker">MOMOTALK // SUPPORT STREAM</span>
+                            <h2 id="ts-list-title">I miei ticket</h2>
+                            <p>Stato richieste e aggiornamenti dell’assistenza in tempo reale.</p>
+                        </div>
+                        <div class="ts-feed-signal" aria-label="Feed sincronizzato">
+                            <i></i>
+                            <span>LIVE</span>
+                            <strong id="ts-feed-count">00</strong>
+                        </div>
+                    </div>
                     <div class="pm-cart-toolbar ts-list-toolbar">
                         <div class="pm-field">
                             <label for="ts-op-filter-search">Ricerca</label>

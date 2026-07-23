@@ -9,10 +9,40 @@
     <title>AyPi - Product Manager</title>
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-bluearchive-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/product-manager-bluearchive-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
 <body data-pm-form="1">
+    <div class="ba-purchasing-splash fp-calendar-splash fp-calendar-splash--bluearchive"
+        id="baPurchasingSplash" aria-hidden="true">
+        <div class="fp-ba-calendar-boot">
+            <div class="fp-ba-boot-grid"></div>
+            <div class="fp-ba-boot-sweep"></div>
+            <div class="fp-ba-boot-corner fp-ba-boot-corner--left">AGP // SYSTEM ROUTE 03</div>
+            <div class="fp-ba-boot-corner fp-ba-boot-corner--right">AYPI PURCHASING</div>
+            <div class="fp-ba-boot-center">
+                <div class="fp-ba-boot-emblem">
+                    <span class="fp-ba-boot-halo"></span>
+                    <span class="fp-ba-boot-ay">Ay</span><span class="fp-ba-boot-pi">Pi</span>
+                    <span class="fp-ba-boot-slash"></span>
+                </div>
+                <div class="fp-ba-boot-route"><i></i><span>PURCHASING MODULE</span><i></i></div>
+                <h1>Accesso al modulo <strong>Purchasing.</strong></h1>
+                <p>Sincronizzazione utenti, moduli, acquisti e interventi</p>
+                <div class="fp-ba-boot-progress"><i></i></div>
+                <div class="fp-ba-boot-status">
+                    <span class="is-complete">01&nbsp; UTENTI</span>
+                    <span>02&nbsp; MODULI</span>
+                    <span>03&nbsp; PURCHASES</span>
+                    <span>04&nbsp; INTERVENTIONS</span>
+                </div>
+            </div>
+        </div>
+    </div>
     <div id="pm-splash" class="pm-splash">
         <img src="../../assets/AyPi Purchasing.png" alt="AyPi Purchasing">
     </div>
@@ -99,12 +129,18 @@
             <section class="pm-panel">
                 <form id="pm-request-form" class="pm-card">
                     <div class="pm-request-sticky pm-request-sticky--top">
-                        <div class="pm-request-toggle">
-                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-toggle-request">Richiedi
-                                Intervento</button>
+                        <div class="pm-request-heading">
+                            <div class="pm-request-heading__copy">
+                                <span class="pm-request-kicker">REQUEST DESK // 01</span>
+                                <h2 id="pm-form-title">Nuova richiesta</h2>
+                                <p id="pm-form-intro">Inserisci gli articoli necessari oppure passa alla richiesta di intervento.</p>
+                            </div>
+                            <div class="pm-request-toggle">
+                                <button type="button" class="pm-btn pm-btn--ghost" id="pm-toggle-request">Richiedi
+                                    Intervento</button>
+                            </div>
                         </div>
-                        <h2 id="pm-form-title">Nuova richiesta</h2>
-                        <div class="pm-field">
+                        <div class="pm-field pm-request-notes">
                             <label for="pm-notes" id="pm-notes-label">Note generali</label>
                             <textarea id="pm-notes" rows="2" placeholder="Note generali per la richiesta"></textarea>
                         </div>
@@ -113,12 +149,16 @@
                     <datalist id="pm-category-options"></datalist>
                     <div class="pm-request-sticky pm-request-sticky--bottom">
                         <div class="pm-line-actions">
-                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-line">+ Aggiungi
-                                prodotto</button>
+                            <button type="button" class="pm-btn pm-btn--ghost" id="pm-add-line">
+                                <span class="material-icons" aria-hidden="true">add</span>
+                                Aggiungi prodotto
+                            </button>
                         </div>
                         <div class="pm-actions">
-                            <button type="button" class="pm-btn pm-btn--primary" id="pm-request-save">Invia
-                                richiesta</button>
+                            <button type="button" class="pm-btn pm-btn--primary" id="pm-request-save">
+                                <span class="material-icons" aria-hidden="true">send</span>
+                                Invia richiesta
+                            </button>
                         </div>
                     </div>
                     <div id="pm-form-message" class="pm-message is-hidden"></div>

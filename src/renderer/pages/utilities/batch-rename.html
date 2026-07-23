@@ -2,15 +2,16 @@
 <html lang="it">
 
 <head>
-            <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Rinomina File in Batch</title>
     <link rel="stylesheet" href="../../styles/utilities/batch-rename-style.css">
     <link rel="stylesheet" href="../../styles/utilities/batch-rename-bluearchive-style.css">
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
-    <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/jstree@3.3.15/dist/themes/default/style.min.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jstree@3.3.15/dist/themes/default/style.min.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jstree@3.3.15/dist/jstree.min.js"></script>
 </head>
@@ -31,7 +32,8 @@
             <div>
                 <span class="ba-only utility-kicker">UTILITY 04 // BATCH OPERATIONS</span>
                 <h2>Rinomina File in Batch</h2>
-                <p class="ba-only utility-subtitle">Controlla, trasforma e applica rinomine multiple con anteprima preventiva.</p>
+                <p class="ba-only utility-subtitle">Controlla, trasforma e applica rinomine multiple con anteprima
+                    preventiva.</p>
             </div>
             <div class="ba-only utility-badge"><i></i> SAFE PREVIEW MODE</div>
         </header>
@@ -414,7 +416,7 @@
                                 <input type="text" id="partsDelimiterCustom" placeholder="Delimitatore custom">
                             </div>
 
-                            <label>Sposta parte nome (indice da â†’ a)</label>
+                            <label>Sposta parte nome (indice da - a)</label>
                             <div class="two-input-row">
                                 <input type="number" id="partsMoveFrom" min="1" placeholder="da">
                                 <input type="number" id="partsMoveTo" min="1" placeholder="a">
@@ -469,7 +471,7 @@
                             </div>
 
                             <p style="font-size: 11px; opacity: 0.8;">
-                                La destinazione verrÃ  usata al posto della cartella originale per le operazioni di
+                                La destinazione verrà usata al posto della cartella originale per le operazioni di
                                 rinomina/spostamento.
                             </p>
                         </div>
@@ -529,6 +531,3 @@
 </body>
 
 </html>
-
-
-

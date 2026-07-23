@@ -1473,6 +1473,25 @@ body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
     justify-content: flex-end;
 }
 
+/* Struttura neutra dell'Identity Gate: il tema standard conserva il popup storico. */
+.fp-login-identity-panel {
+    display: none;
+}
+
+.fp-login-identity-content,
+.fp-login-identity-heading,
+.fp-login-password-field {
+    display: contents;
+}
+
+.fp-login-password-field > span {
+    display: none;
+}
+
+.fp-login-admin-field {
+    display: none;
+}
+
 #fp-employees-list .fp-assignees-row--employee {
     grid-template-columns: minmax(240px, 1.6fr) minmax(150px, 1fr) auto;
 }

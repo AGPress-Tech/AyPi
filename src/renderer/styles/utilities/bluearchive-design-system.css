@@ -1,0 +1,316 @@
+/*
+ * AyPi Blue Archive UI — componenti condivisi.
+ * Questo file viene caricato per ultimo dai moduli migrati: le differenze
+ * locali non devono più cambiare forma, font o comportamento dei controlli.
+ */
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support,
+    body.bluearchive-qr,
+    body.bluearchive-compare,
+    body.bluearchive-file-list,
+    body.bluearchive-batch-rename,
+    body.bluearchive-hierarchy,
+    body.bluearchive-timers
+) {
+    --ba-ui-control-height: 36px;
+    --ba-ui-control-radius: 6px 12px 6px 12px;
+    --ba-ui-control-border: rgba(35, 166, 226, 0.58);
+    --ba-ui-control-bg: rgba(250, 254, 255, 0.94);
+    --ba-ui-control-bg-hover: #e8f8ff;
+    --ba-ui-control-ink: #17658e;
+    --ba-ui-control-ink-hover: #0d73a8;
+    --ba-ui-primary-start: #168eea;
+    --ba-ui-primary-end: #31c8f3;
+    --ba-ui-danger: #e9576f;
+    --ba-ui-control-shadow: 0 4px 11px rgba(22, 112, 164, 0.12);
+    --ba-ui-font: "Segoe UI", "Yu Gothic UI", sans-serif;
+}
+
+/* Barre azioni: identiche in Calendar, Purchasing, Ticket e sottomoduli. */
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-header__actions,
+    .pm-header__actions,
+    .fp-hours-actions,
+    .fpa-header-actions,
+    .adm-actions,
+    .am-actions
+) {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-header__actions,
+    .pm-header__actions,
+    .fp-hours-actions,
+    .fpa-header-actions,
+    .adm-actions,
+    .am-actions
+) > button:is(.fp-btn, .pm-btn, .fp-hours-btn, .fpa-btn, [type="button"]) {
+    box-sizing: border-box;
+    min-width: 0;
+    height: var(--ba-ui-control-height);
+    min-height: var(--ba-ui-control-height);
+    padding: 0 14px;
+    border: 1px solid var(--ba-ui-control-border);
+    border-radius: var(--ba-ui-control-radius);
+    color: var(--ba-ui-control-ink);
+    background: var(--ba-ui-control-bg);
+    box-shadow: var(--ba-ui-control-shadow);
+    font: 700 12px/1 var(--ba-ui-font);
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+        color 140ms ease,
+        background-color 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        transform 140ms ease;
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-header__actions,
+    .pm-header__actions,
+    .fp-hours-actions,
+    .fpa-header-actions,
+    .adm-actions,
+    .am-actions
+) > button:is(.fp-btn, .pm-btn, .fp-hours-btn, .fpa-btn, [type="button"]):hover:not(:disabled) {
+    color: var(--ba-ui-control-ink-hover);
+    border-color: #29b7ee;
+    background: var(--ba-ui-control-bg-hover);
+    box-shadow: 0 6px 14px rgba(22, 112, 164, 0.17);
+    transform: translateY(-1px);
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-header__actions,
+    .pm-header__actions,
+    .fp-hours-actions,
+    .fpa-header-actions,
+    .adm-actions,
+    .am-actions
+) > button:is(.fp-btn, .pm-btn, .fp-hours-btn, .fpa-btn, [type="button"]):active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 7px rgba(22, 112, 164, 0.14);
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-header__actions,
+    .pm-header__actions,
+    .fp-hours-actions,
+    .fpa-header-actions,
+    .adm-actions,
+    .am-actions
+) > button:is(.fp-btn, .pm-btn, .fp-hours-btn, .fpa-btn, [type="button"]):disabled {
+    opacity: 0.48;
+    cursor: default;
+    box-shadow: none;
+}
+
+/* Le icone della barra occupano lo stesso quadrato in ogni modulo. */
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-header__actions,
+    .pm-header__actions,
+    .fp-hours-actions,
+    .fpa-header-actions,
+    .adm-actions,
+    .am-actions
+) > :is(.fp-btn--icon, .pm-btn--icon, [aria-label]:has(.material-icons)) {
+    flex: 0 0 var(--ba-ui-control-height);
+    width: var(--ba-ui-control-height);
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-header__actions,
+    .pm-header__actions,
+    .fp-hours-actions,
+    .fpa-header-actions,
+    .adm-actions,
+    .am-actions
+) .material-icons {
+    font-size: 17px;
+    line-height: 1;
+}
+
+/* Pulsanti operativi normali: stessa grammatica, senza alterare tile e tab. */
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(
+    .fp-actions,
+    .pm-actions,
+    .fpa-actions,
+    .fp-assignees-header,
+    .pm-modal__header
+) > :is(.fp-btn, .pm-btn, .fpa-btn):not(.fp-btn--pending) {
+    min-height: var(--ba-ui-control-height);
+    padding: 0 14px;
+    border: 1px solid var(--ba-ui-control-border);
+    border-radius: var(--ba-ui-control-radius);
+    color: var(--ba-ui-control-ink);
+    background: var(--ba-ui-control-bg);
+    box-shadow: var(--ba-ui-control-shadow);
+    font: 700 12px/1 var(--ba-ui-font);
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(.fp-btn--primary, .pm-btn--primary, .fpa-btn--primary, .fp-hours-btn--primary) {
+    border-color: transparent;
+    color: #fff;
+    background: linear-gradient(115deg, var(--ba-ui-primary-start), var(--ba-ui-primary-end));
+    box-shadow: 0 5px 13px rgba(20, 126, 194, 0.2);
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(.fp-btn--primary, .pm-btn--primary, .fpa-btn--primary, .fp-hours-btn--primary):hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(115deg, #117bd0, #27bde9);
+}
+
+:is(
+    body.fp-bluearchive,
+    body.bluearchive-purchasing,
+    body.bluearchive-ticket-support
+) :is(.fp-btn--danger, .pm-btn--danger) {
+    border-color: rgba(233, 87, 111, 0.54);
+    color: #c83d58;
+    background: #fff8fa;
+}
+
+/* Utility già migrate: stessi controlli base, indipendentemente dal vecchio CSS. */
+:is(
+    body.bluearchive-qr,
+    body.bluearchive-compare,
+    body.bluearchive-file-list,
+    body.bluearchive-batch-rename,
+    body.bluearchive-hierarchy
+) button:not(.utility-splash *):not(.scan-options-toggle):not(.tree-node *) {
+    box-sizing: border-box;
+    min-height: var(--ba-ui-control-height);
+    padding: 0 14px;
+    border: 1px solid var(--ba-ui-control-border);
+    border-radius: var(--ba-ui-control-radius);
+    color: var(--ba-ui-control-ink);
+    background: var(--ba-ui-control-bg);
+    box-shadow: var(--ba-ui-control-shadow);
+    font: 700 12px/1 var(--ba-ui-font);
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: pointer;
+    transition:
+        color 140ms ease,
+        background-color 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        transform 140ms ease;
+}
+
+:is(
+    body.bluearchive-qr,
+    body.bluearchive-compare,
+    body.bluearchive-file-list,
+    body.bluearchive-batch-rename,
+    body.bluearchive-hierarchy
+) button:not(.utility-splash *):not(.scan-options-toggle):not(.tree-node *):hover:not(:disabled) {
+    color: var(--ba-ui-control-ink-hover);
+    border-color: #29b7ee;
+    background: var(--ba-ui-control-bg-hover);
+    box-shadow: 0 6px 14px rgba(22, 112, 164, 0.17);
+    transform: translateY(-1px);
+}
+
+:is(
+    body.bluearchive-qr,
+    body.bluearchive-compare,
+    body.bluearchive-file-list,
+    body.bluearchive-batch-rename,
+    body.bluearchive-hierarchy
+) button:disabled {
+    opacity: 0.48;
+    cursor: default;
+    box-shadow: none;
+}
+
+/* Timer: i due comandi superiori condividono misure e feedback degli altri moduli. */
+body.bluearchive-timers .timers-header .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+body.bluearchive-timers .timers-header .header-actions > button {
+    width: var(--ba-ui-control-height);
+    height: var(--ba-ui-control-height);
+    min-height: var(--ba-ui-control-height);
+    padding: 0;
+    border: 1px solid var(--ba-ui-control-border);
+    border-radius: var(--ba-ui-control-radius);
+    color: var(--ba-ui-control-ink);
+    background: var(--ba-ui-control-bg);
+    box-shadow: var(--ba-ui-control-shadow);
+    font: 700 17px/1 var(--ba-ui-font);
+}
+
+@media (max-width: 900px) {
+    :is(
+        body.fp-bluearchive,
+        body.bluearchive-purchasing,
+        body.bluearchive-ticket-support
+    ) :is(
+        .fp-header__actions,
+        .pm-header__actions,
+        .fp-hours-actions,
+        .fpa-header-actions,
+        .adm-actions,
+        .am-actions
+    ) {
+        flex-wrap: wrap;
+    }
+}

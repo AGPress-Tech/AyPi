@@ -1690,8 +1690,14 @@ let feriePermessiAnalysisWindowTheme: "standard" | "bluearchive" = "standard";
 let productManagerWindow: BrowserWindow | null = null;
 let productManagerCartWindow: BrowserWindow | null = null;
 let productManagerInterventionsWindow: BrowserWindow | null = null;
+let productManagerWindowTheme: "standard" | "bluearchive" = "standard";
+let productManagerCartWindowTheme: "standard" | "bluearchive" = "standard";
+let productManagerInterventionsWindowTheme: "standard" | "bluearchive" =
+    "standard";
 let ticketSupportWindow: BrowserWindow | null = null;
 let ticketSupportAdminWindow: BrowserWindow | null = null;
+let ticketSupportWindowTheme: "standard" | "bluearchive" = "standard";
+let ticketSupportAdminWindowTheme: "standard" | "bluearchive" = "standard";
 let assigneesManagerWindow: BrowserWindow | null = null;
 let assigneesManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let adminManagerWindow: BrowserWindow | null = null;
@@ -2250,9 +2256,29 @@ function openFeriePermessiWindow(
     });
 }
 
-function openProductManagerWindow(mainWindow) {
+function openProductManagerWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(productManagerWindow)) {
-        productManagerWindow.reload();
+        productManagerWindowTheme = requestedTheme;
+        productManagerWindow.loadFile(
+            path.join(
+                __dirname,
+                "..",
+                "pages",
+                "utilities",
+                "product-manager.html",
+            ),
+            {
+                query: {
+                    pmSplash: "0",
+                    theme: productManagerWindowTheme,
+                },
+            },
+        );
         showWindow(productManagerWindow);
         return;
     }
@@ -2261,18 +2287,26 @@ function openProductManagerWindow(mainWindow) {
         productManagerForceLogout = true;
     }
 
+    productManagerWindowTheme = requestedTheme;
     productManagerWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: "#f4f2ef",
+        backgroundColor:
+            productManagerWindowTheme === "bluearchive"
+                ? "#edf9ff"
+                : "#f4f2ef",
     });
 
     productManagerWindow.maximize();
-    const shouldShowSplash = !productManagerSplashShown;
-    productManagerSplashShown = true;
+    const shouldShowSplash =
+        productManagerWindowTheme === "standard" &&
+        !productManagerSplashShown;
+    if (productManagerWindowTheme === "standard") {
+        productManagerSplashShown = true;
+    }
     productManagerWindow.loadFile(
         path.join(
             __dirname,
@@ -2281,7 +2315,12 @@ function openProductManagerWindow(mainWindow) {
             "utilities",
             "product-manager.html",
         ),
-        { query: { pmSplash: shouldShowSplash ? "1" : "0" } },
+        {
+            query: {
+                pmSplash: shouldShowSplash ? "1" : "0",
+                theme: productManagerWindowTheme,
+            },
+        },
     );
     productManagerWindow.setMenu(null);
 
@@ -2302,6 +2341,7 @@ function openProductManagerWindow(mainWindow) {
 
     productManagerWindow.on("closed", () => {
         productManagerWindow = null;
+        productManagerWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
@@ -2309,9 +2349,24 @@ function openProductManagerWindow(mainWindow) {
     });
 }
 
-function openProductManagerCartWindow(mainWindow) {
+function openProductManagerCartWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(productManagerCartWindow)) {
-        productManagerCartWindow.reload();
+        productManagerCartWindowTheme = requestedTheme;
+        productManagerCartWindow.loadFile(
+            path.join(
+                __dirname,
+                "..",
+                "pages",
+                "utilities",
+                "product-manager-cart.html",
+            ),
+            { query: { theme: productManagerCartWindowTheme } },
+        );
         showWindow(productManagerCartWindow);
         return;
     }
@@ -2320,13 +2375,17 @@ function openProductManagerCartWindow(mainWindow) {
         productManagerForceLogout = true;
     }
 
+    productManagerCartWindowTheme = requestedTheme;
     productManagerCartWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: "#f4f2ef",
+        backgroundColor:
+            productManagerCartWindowTheme === "bluearchive"
+                ? "#edf9ff"
+                : "#f4f2ef",
     });
 
     productManagerCartWindow.maximize();
@@ -2338,6 +2397,7 @@ function openProductManagerCartWindow(mainWindow) {
             "utilities",
             "product-manager-cart.html",
         ),
+        { query: { theme: productManagerCartWindowTheme } },
     );
     productManagerCartWindow.setMenu(null);
 
@@ -2359,6 +2419,7 @@ function openProductManagerCartWindow(mainWindow) {
 
     productManagerCartWindow.on("closed", () => {
         productManagerCartWindow = null;
+        productManagerCartWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
@@ -2366,9 +2427,24 @@ function openProductManagerCartWindow(mainWindow) {
     });
 }
 
-function openProductManagerInterventionsWindow(mainWindow) {
+function openProductManagerInterventionsWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(productManagerInterventionsWindow)) {
-        productManagerInterventionsWindow.reload();
+        productManagerInterventionsWindowTheme = requestedTheme;
+        productManagerInterventionsWindow.loadFile(
+            path.join(
+                __dirname,
+                "..",
+                "pages",
+                "utilities",
+                "product-manager-interventions.html",
+            ),
+            { query: { theme: productManagerInterventionsWindowTheme } },
+        );
         showWindow(productManagerInterventionsWindow);
         return;
     }
@@ -2377,13 +2453,17 @@ function openProductManagerInterventionsWindow(mainWindow) {
         productManagerForceLogout = true;
     }
 
+    productManagerInterventionsWindowTheme = requestedTheme;
     productManagerInterventionsWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: "#f4f2ef",
+        backgroundColor:
+            productManagerInterventionsWindowTheme === "bluearchive"
+                ? "#edf9ff"
+                : "#f4f2ef",
     });
 
     productManagerInterventionsWindow.maximize();
@@ -2395,6 +2475,7 @@ function openProductManagerInterventionsWindow(mainWindow) {
             "utilities",
             "product-manager-interventions.html",
         ),
+        { query: { theme: productManagerInterventionsWindowTheme } },
     );
     productManagerInterventionsWindow.setMenu(null);
 
@@ -2419,6 +2500,7 @@ function openProductManagerInterventionsWindow(mainWindow) {
 
     productManagerInterventionsWindow.on("closed", () => {
         productManagerInterventionsWindow = null;
+        productManagerInterventionsWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
@@ -2527,9 +2609,37 @@ function openFeriePermessiAnalysisWindow(mainWindow) {
     });
 }
 
-function openTicketSupportWindow(mainWindow) {
+function openTicketSupportWindow(
+    mainWindow,
+    options: {
+        theme?: "standard" | "bluearchive";
+        showSplash?: boolean;
+    } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
+    const showSplash = options.showSplash !== false;
     if (isWindowAlive(ticketSupportWindow)) {
-        ticketSupportWindow.reload();
+        ticketSupportWindowTheme = requestedTheme;
+        ticketSupportWindow.loadFile(
+            path.join(
+                __dirname,
+                "..",
+                "pages",
+                "utilities",
+                "ticket-support.html",
+            ),
+            {
+                query: {
+                    theme: ticketSupportWindowTheme,
+                    tsSplash:
+                        ticketSupportWindowTheme === "bluearchive" &&
+                        showSplash
+                            ? "1"
+                            : "0",
+                },
+            },
+        );
         showWindow(ticketSupportWindow);
         return;
     }
@@ -2539,18 +2649,31 @@ function openTicketSupportWindow(mainWindow) {
         productManagerForceLogout = true;
     }
 
+    ticketSupportWindowTheme = requestedTheme;
     ticketSupportWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: "#f4f7fb",
+        backgroundColor:
+            ticketSupportWindowTheme === "bluearchive"
+                ? "#edf8fd"
+                : "#f4f7fb",
     });
 
     ticketSupportWindow.maximize();
     ticketSupportWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "ticket-support.html"),
+        {
+            query: {
+                theme: ticketSupportWindowTheme,
+                tsSplash:
+                    ticketSupportWindowTheme === "bluearchive" && showSplash
+                        ? "1"
+                        : "0",
+            },
+        },
     );
     ticketSupportWindow.setMenu(null);
 
@@ -2572,6 +2695,7 @@ function openTicketSupportWindow(mainWindow) {
 
     ticketSupportWindow.on("closed", () => {
         ticketSupportWindow = null;
+        ticketSupportWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
@@ -2583,9 +2707,29 @@ function openTicketSupportWindow(mainWindow) {
     });
 }
 
-function openTicketSupportAdminWindow(mainWindow) {
+function openTicketSupportAdminWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(ticketSupportAdminWindow)) {
-        ticketSupportAdminWindow.reload();
+        ticketSupportAdminWindowTheme = requestedTheme;
+        ticketSupportAdminWindow.loadFile(
+            path.join(
+                __dirname,
+                "..",
+                "pages",
+                "utilities",
+                "ticket-support-admin.html",
+            ),
+            {
+                query: {
+                    tsView: "admin",
+                    theme: ticketSupportAdminWindowTheme,
+                },
+            },
+        );
         showWindow(ticketSupportAdminWindow);
         return;
     }
@@ -2595,13 +2739,17 @@ function openTicketSupportAdminWindow(mainWindow) {
         productManagerForceLogout = true;
     }
 
+    ticketSupportAdminWindowTheme = requestedTheme;
     ticketSupportAdminWindow = new BrowserWindow({
         width: 1280,
         height: 840,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: "#f6f8fc",
+        backgroundColor:
+            ticketSupportAdminWindowTheme === "bluearchive"
+                ? "#edf8fd"
+                : "#f6f8fc",
     });
 
     ticketSupportAdminWindow.maximize();
@@ -2613,7 +2761,12 @@ function openTicketSupportAdminWindow(mainWindow) {
             "utilities",
             "ticket-support-admin.html",
         ),
-        { query: { tsView: "admin" } },
+        {
+            query: {
+                tsView: "admin",
+                theme: ticketSupportAdminWindowTheme,
+            },
+        },
     );
     ticketSupportAdminWindow.setMenu(null);
 
@@ -2635,6 +2788,8 @@ function openTicketSupportAdminWindow(mainWindow) {
 
     ticketSupportAdminWindow.on("closed", () => {
         ticketSupportAdminWindow = null;
+        const closingTheme = ticketSupportAdminWindowTheme;
+        ticketSupportAdminWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
             productManagerSession = null;
             productManagerForceLogout = true;
@@ -2643,15 +2798,27 @@ function openTicketSupportAdminWindow(mainWindow) {
         if (isWindowAlive(ticketSupportWindow)) {
             showWindow(ticketSupportWindow);
         } else {
-            openTicketSupportWindow(mainWindow);
+            openTicketSupportWindow(mainWindow, {
+                theme: closingTheme,
+                showSplash: false,
+            });
         }
     });
 }
 
-function openAssigneesManagerWindow(mainWindow) {
+function openAssigneesManagerWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive"
+            ? "bluearchive"
+            : options.theme === "standard"
+              ? "standard"
+              : feriePermessiWindowTheme;
     if (isWindowAlive(assigneesManagerWindow)) {
-        if (assigneesManagerWindowTheme !== feriePermessiWindowTheme) {
-            assigneesManagerWindowTheme = feriePermessiWindowTheme;
+        if (assigneesManagerWindowTheme !== requestedTheme) {
+            assigneesManagerWindowTheme = requestedTheme;
             assigneesManagerWindow.loadFile(
                 path.join(__dirname, "..", "pages", "utilities", "assignees-manager.html"),
                 { query: { theme: assigneesManagerWindowTheme } },
@@ -2661,7 +2828,7 @@ function openAssigneesManagerWindow(mainWindow) {
         return;
     }
 
-    assigneesManagerWindowTheme = feriePermessiWindowTheme;
+    assigneesManagerWindowTheme = requestedTheme;
 
     assigneesManagerWindow = new BrowserWindow({
         width: 1040,
@@ -2697,10 +2864,19 @@ function openAssigneesManagerWindow(mainWindow) {
     });
 }
 
-function openAdminManagerWindow(mainWindow) {
+function openAdminManagerWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive"
+            ? "bluearchive"
+            : options.theme === "standard"
+              ? "standard"
+              : feriePermessiWindowTheme;
     if (isWindowAlive(adminManagerWindow)) {
-        if (adminManagerWindowTheme !== feriePermessiWindowTheme) {
-            adminManagerWindowTheme = feriePermessiWindowTheme;
+        if (adminManagerWindowTheme !== requestedTheme) {
+            adminManagerWindowTheme = requestedTheme;
             adminManagerWindow.loadFile(
                 path.join(__dirname, "..", "pages", "utilities", "admin-manager.html"),
                 { query: { theme: adminManagerWindowTheme } },
@@ -2710,7 +2886,7 @@ function openAdminManagerWindow(mainWindow) {
         return;
     }
 
-    adminManagerWindowTheme = feriePermessiWindowTheme;
+    adminManagerWindowTheme = requestedTheme;
 
     adminManagerWindow = new BrowserWindow({
         width: 980,
@@ -3944,60 +4120,105 @@ function setupFileManager(mainWindow) {
         );
     });
 
-    ipcMain.on("open-product-manager-window", async () => {
+    ipcMain.on("open-product-manager-window", async (_event, payload) => {
+        const theme =
+            payload && payload.theme === "bluearchive"
+                ? "bluearchive"
+                : interfaceIconTheme;
         await guardServerAndOpenModule(mainWindow, productManagerWindow, () =>
-            openProductManagerWindow(mainWindow),
+            openProductManagerWindow(mainWindow, { theme }),
         );
     });
 
-    ipcMain.on("open-product-manager-cart-window", async () => {
+    ipcMain.on("open-product-manager-cart-window", async (_event, payload) => {
+        const theme =
+            payload && payload.theme === "bluearchive"
+                ? "bluearchive"
+                : interfaceIconTheme;
         await guardServerAndOpenModule(
             mainWindow,
             productManagerCartWindow,
-            () => openProductManagerCartWindow(mainWindow),
+            () => openProductManagerCartWindow(mainWindow, { theme }),
         );
     });
 
-    ipcMain.on("open-product-manager-interventions-window", async () => {
-        await guardServerAndOpenModule(
-            mainWindow,
-            productManagerInterventionsWindow,
-            () => openProductManagerInterventionsWindow(mainWindow),
-        );
-    });
+    ipcMain.on(
+        "open-product-manager-interventions-window",
+        async (_event, payload) => {
+            const theme =
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : interfaceIconTheme;
+            await guardServerAndOpenModule(
+                mainWindow,
+                productManagerInterventionsWindow,
+                () =>
+                    openProductManagerInterventionsWindow(mainWindow, {
+                        theme,
+                    }),
+            );
+        },
+    );
     ipcMain.handle("open-product-manager-interventions-window", async () => {
         await guardServerAndOpenModule(
             mainWindow,
             productManagerInterventionsWindow,
-            () => openProductManagerInterventionsWindow(mainWindow),
+            () =>
+                openProductManagerInterventionsWindow(mainWindow, {
+                    theme: interfaceIconTheme,
+                }),
         );
         return { ok: true };
     });
 
-    ipcMain.on("open-ticket-support-window", async () => {
+    ipcMain.on("open-ticket-support-window", async (_event, payload) => {
+        const theme =
+            payload && payload.theme === "bluearchive"
+                ? "bluearchive"
+                : interfaceIconTheme;
         await guardServerAndOpenModule(mainWindow, ticketSupportWindow, () =>
-            openTicketSupportWindow(mainWindow),
+            openTicketSupportWindow(mainWindow, {
+                theme,
+                showSplash: true,
+            }),
         );
     });
 
-    ipcMain.on("open-ticket-support-admin-window", async () => {
-        await guardServerAndOpenModule(
-            mainWindow,
-            ticketSupportAdminWindow,
-            () => openTicketSupportAdminWindow(mainWindow),
-        );
-    });
+    ipcMain.on(
+        "open-ticket-support-admin-window",
+        async (_event, payload) => {
+            const theme =
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : interfaceIconTheme;
+            await guardServerAndOpenModule(
+                mainWindow,
+                ticketSupportAdminWindow,
+                () => openTicketSupportAdminWindow(mainWindow, { theme }),
+            );
+        },
+    );
 
     ipcMain.on("open-assignees-manager-window", () => {
         openAssigneesManagerWindow(mainWindow);
     });
 
-    ipcMain.on("pm-open-calendar-assignees", () => {
-        openAssigneesManagerWindow(mainWindow);
+    ipcMain.on("pm-open-calendar-assignees", (_event, payload) => {
+        openAssigneesManagerWindow(mainWindow, {
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
     });
 
-    ipcMain.on("pm-open-calendar-admins", () => {
-        openAdminManagerWindow(mainWindow);
+    ipcMain.on("pm-open-calendar-admins", (_event, payload) => {
+        openAdminManagerWindow(mainWindow, {
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
     });
 
     ipcMain.on("open-admin-manager-window", () => {

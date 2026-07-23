@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-bluearchive-style.css">
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
@@ -575,14 +576,31 @@
 
     <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
         <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
-            <h3 id="fp-approve-title">Approva richiesta</h3>
-            <p id="fp-approve-desc">Inserisci la password per confermare.</p>
-            <input type="password" id="fp-approve-password" placeholder="Password">
-            <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">Password errata.</div>
-            <button type="button" class="fp-link-btn is-hidden" id="fp-approve-recover">Recupero password?</button>
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
+            <div class="fp-login-identity-panel" aria-hidden="true">
+                <span class="fp-login-identity-kicker">AYPI // SECURE ACCESS</span>
+                <strong>IDENTITY GATE</strong>
+                <span>Autenticazione amministratore</span>
+                <small>Schale authorization network</small>
+            </div>
+            <div class="fp-login-identity-content">
+                <div class="fp-login-identity-heading">
+                    <h3 id="fp-approve-title">Approva richiesta</h3>
+                    <p id="fp-approve-desc">Inserisci la password per confermare.</p>
+                </div>
+                <label class="fp-login-admin-field is-hidden" id="fp-login-admin-field" for="fp-login-admin-name">
+                    <span>Amministratore</span>
+                    <select id="fp-login-admin-name" class="fp-field__input" autocomplete="username"></select>
+                </label>
+                <label class="fp-login-password-field" for="fp-approve-password">
+                    <span>Password</span>
+                    <input type="password" id="fp-approve-password" placeholder="Password" autocomplete="current-password">
+                </label>
+                <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">Password errata.</div>
+                <button type="button" class="fp-link-btn is-hidden" id="fp-approve-recover">Recupero password?</button>
+                <div class="fp-actions fp-actions--modal">
+                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
+                    <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
+                </div>
             </div>
         </div>
     </div>

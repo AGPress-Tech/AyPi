@@ -172,8 +172,31 @@ import {
     isLoggedIn,
 } from "./product-manager/state/session";
 import { uiState } from "./product-manager/state/ui";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { requestBackend, resolveBackendRootUrl } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
+
+const IS_BLUE_ARCHIVE_PURCHASING =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+
+if (IS_BLUE_ARCHIVE_PURCHASING) {
+    document.body.classList.add("bluearchive-purchasing", "fp-bluearchive");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_PURCHASING);
+
+function runBlueArchivePurchasingSplash() {
+    if (!IS_BLUE_ARCHIVE_PURCHASING) return;
+    if (!document.body.hasAttribute("data-pm-form")) return;
+    const splash = document.getElementById("baPurchasingSplash");
+    if (!splash) return;
+    splash.setAttribute("aria-hidden", "false");
+    const statusSteps = splash.querySelectorAll(".fp-ba-boot-status span");
+    window.setTimeout(() => statusSteps[1]?.classList.add("is-complete"), 1900);
+    window.setTimeout(() => statusSteps[2]?.classList.add("is-complete"), 2800);
+    window.setTimeout(() => statusSteps[3]?.classList.add("is-complete"), 3650);
+    window.setTimeout(() => splash.classList.add("is-fading"), 4550);
+    window.setTimeout(() => splash.remove(), 5550);
+}
 
 const {
     validateRequestsSchema,
@@ -822,10 +845,20 @@ function storeRequestMode(mode) {
 function applyRequestModeUI() {
     if (!isFormPage()) return;
     const isIntervention = isInterventionMode(currentRequestMode);
+    const setActionButtonContent = (button, iconName, label) => {
+        if (!button) return;
+        const icon = document.createElement("span");
+        icon.className = "material-icons";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = iconName;
+        button.replaceChildren(icon, document.createTextNode(label));
+    };
     document.body.classList.toggle("pm-mode-intervention", isIntervention);
     const formTitle = document.getElementById("pm-form-title");
     const toggleBtn = document.getElementById("pm-toggle-request");
     const notesLabel = document.getElementById("pm-notes-label");
+    const notesInput = document.getElementById("pm-notes");
+    const formIntro = document.getElementById("pm-form-intro");
     const addLineBtn = document.getElementById("pm-add-line");
     const saveBtn = document.getElementById("pm-request-save");
     const subtitle = document.getElementById("pm-header-subtitle");
@@ -841,14 +874,24 @@ function applyRequestModeUI() {
         notesLabel.textContent = isIntervention
             ? "Note generali intervento"
             : "Note generali";
-    if (addLineBtn)
-        addLineBtn.textContent = isIntervention
-            ? "+ Aggiungi intervento"
-            : "+ Aggiungi prodotto";
-    if (saveBtn)
-        saveBtn.textContent = isIntervention
-            ? "Invia intervento"
-            : "Invia richiesta";
+    if (notesInput)
+        notesInput.placeholder = isIntervention
+            ? "Note generali per l'intervento"
+            : "Note generali per la richiesta";
+    if (formIntro)
+        formIntro.textContent = isIntervention
+            ? "Descrivi gli interventi necessari oppure torna alla richiesta di acquisto."
+            : "Inserisci gli articoli necessari oppure passa alla richiesta di intervento.";
+    setActionButtonContent(
+        addLineBtn,
+        "add",
+        isIntervention ? "Aggiungi intervento" : "Aggiungi prodotto",
+    );
+    setActionButtonContent(
+        saveBtn,
+        "send",
+        isIntervention ? "Invia intervento" : "Invia richiesta",
+    );
     if (subtitle) {
         subtitle.textContent = isIntervention
             ? "Quale intervento vuoi richiedere?"
@@ -1509,12 +1552,17 @@ function getDeleteDenyReason(request, line) {
 function showFormMessage(text, type = "info") {
     const message = document.getElementById("pm-form-message");
     if (!message) return;
-    message.textContent = text;
+    const normalizedText = String(text || "").trim();
+    message.textContent = normalizedText;
     message.classList.remove(
-        "is-hidden",
         "pm-message--error",
         "pm-message--success",
     );
+    if (!normalizedText) {
+        message.classList.add("is-hidden");
+        return;
+    }
+    message.classList.remove("is-hidden");
     if (type === "error") message.classList.add("pm-message--error");
     if (type === "success") message.classList.add("pm-message--success");
 }
@@ -3352,7 +3400,11 @@ function initSettingsModals() {
         openPurchasingBackup,
         openCalendarAssignees: () => {
             try {
-                ipcRenderer.send("pm-open-calendar-assignees");
+                ipcRenderer.send("pm-open-calendar-assignees", {
+                    theme: IS_BLUE_ARCHIVE_PURCHASING
+                        ? "bluearchive"
+                        : "standard",
+                });
             } catch (err) {
                 showError(
                     "Apertura gestione dipendenti non disponibile.",
@@ -3362,7 +3414,11 @@ function initSettingsModals() {
         },
         openCalendarAdmins: () => {
             try {
-                ipcRenderer.send("open-admin-manager-window");
+                ipcRenderer.send("pm-open-calendar-admins", {
+                    theme: IS_BLUE_ARCHIVE_PURCHASING
+                        ? "bluearchive"
+                        : "standard",
+                });
             } catch (err) {
                 showError(
                     "Apertura gestione admin non disponibile.",
@@ -3407,6 +3463,7 @@ function initGuideModal() {
 }
 
 async function init() {
+    runBlueArchivePurchasingSplash();
     try {
         validateModuleBindings();
     } catch (err) {
