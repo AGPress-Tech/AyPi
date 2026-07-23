@@ -36,7 +36,7 @@ const debugLogPath = path.join(process.env.TEMP || process.cwd(), "aypi-backend-
 const isHeadless =
     process.argv.includes("--headless") ||
     process.env.AYPI_BACKEND_HEADLESS === "1";
-const gotLock = isHeadless ? true : app.requestSingleInstanceLock();
+const gotLock = app.requestSingleInstanceLock();
 
 if (!gotLock) {
     app.quit();
@@ -298,22 +298,24 @@ async function bootstrap() {
     }
 }
 
-app.whenReady().then(bootstrap);
-app.on("window-all-closed", () => {});
-app.on("before-quit", async () => {
-    debugLog("before-quit");
-    await stopBackend().catch(() => {});
-    if (keepAliveWindow && !keepAliveWindow.isDestroyed()) {
-        keepAliveWindow.destroy();
-        keepAliveWindow = null;
-    }
-});
+if (gotLock) {
+    app.whenReady().then(bootstrap);
+    app.on("window-all-closed", () => {});
+    app.on("before-quit", async () => {
+        debugLog("before-quit");
+        await stopBackend().catch(() => {});
+        if (keepAliveWindow && !keepAliveWindow.isDestroyed()) {
+            keepAliveWindow.destroy();
+            keepAliveWindow = null;
+        }
+    });
 
-process.on("SIGINT", async () => {
-    await stopBackend().catch(() => {});
-    process.exit(0);
-});
-process.on("SIGTERM", async () => {
-    await stopBackend().catch(() => {});
-    process.exit(0);
-});
+    process.on("SIGINT", async () => {
+        await stopBackend().catch(() => {});
+        process.exit(0);
+    });
+    process.on("SIGTERM", async () => {
+        await stopBackend().catch(() => {});
+        process.exit(0);
+    });
+}

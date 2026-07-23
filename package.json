@@ -11,6 +11,7 @@
     "start:backend": "set AYPI_BACKEND_PROFILE=dev&& npm run build:backend && node backend-dist\\server.js",
     "build:backend:tray": "npx tsc -p tsconfig.backend-app.json",
     "start:backend:tray": "set AYPI_BACKEND_PROFILE=dev&& npm run build:backend && npm run build:backend:tray && electron dist-backend-app\\main.js",
+    "smoke:backend:port-lock": "npm run build:backend && node tools\\smoke-backend-port-lock.js",
     "dist:backend": "npm run build:backend && npm run build:backend:tray && electron-builder --config electron-builder.backend.json",
     "build:dir": "npm run build:ts && electron-builder --dir",
     "build": "npm run build:ts && electron-builder",

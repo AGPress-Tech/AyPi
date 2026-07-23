@@ -59,7 +59,9 @@ function shouldSkipHttpAccessLog(method: string, requestUrl: string) {
     );
 }
 
-export function createBackendServer() {
+export function createBackendServer(
+    ready: Promise<void> = Promise.resolve(),
+) {
     const router = new Router();
     registerRoutes(router);
     const nextRequestId = buildRequestIdFactory();
@@ -85,13 +87,13 @@ export function createBackendServer() {
             "Content-Type,x-aypi-user,x-aypi-client",
         );
 
-        if (method === "OPTIONS") {
-            response.writeHead(204);
-            response.end();
-            return;
-        }
-
         try {
+            await ready;
+            if (method === "OPTIONS") {
+                response.writeHead(204);
+                response.end();
+                return;
+            }
             if (!skipHttpAccessLog) {
                 logger.info("HTTP request started", {
                     event: "http_request_started",
@@ -150,68 +152,93 @@ export function createBackendServer() {
 }
 
 export async function startBackendServer(): Promise<BackendServerHandle> {
-    normalizeAgpressLayout();
-    await initializeSqliteDatabase();
-    initializeSharedSqliteStore();
-    initializeFeriePermessiSqliteStore();
-    initializeProductManagerSqliteStore();
-    initializeTicketSupportSqliteStore();
-    initializeTransferSqliteStore();
-    initializeHaasSqliteStore();
+    let resolveReady!: () => void;
+    let rejectReady!: (reason: unknown) => void;
+    const ready = new Promise<void>((resolve, reject) => {
+        resolveReady = resolve;
+        rejectReady = reject;
+    });
+    // Requests waiting during startup must observe initialization failures, while
+    // this catch prevents an unhandled rejection when no request has arrived yet.
+    void ready.catch(() => {});
 
     return new Promise((resolve, reject) => {
-        const server = createBackendServer();
+        const server = createBackendServer(ready);
         const host = backendConfig.host;
         const port = backendConfig.port;
         const url = buildBackendUrl();
 
         const onError = (error: Error) => {
             server.off("listening", onListening);
+            rejectReady(error);
             reject(error);
         };
 
-        const onListening = () => {
+        const onListening = async () => {
             server.off("error", onError);
-            logger.info("AyPi backend listening", {
-                event: "backend_listening",
-                category: "lifecycle",
-                module: "core",
-                host,
-                port,
-                url,
-                profile: backendConfig.profile,
-                generalDir: backendConfig.modules.feriePermessi.generalDir,
-                logDir: backendConfig.logging.dir,
-                dbPath: backendConfig.database.path,
-            });
-            resolve({
-                host,
-                port,
-                url,
-                server,
-                stop: () =>
-                    new Promise<void>((stopResolve, stopReject) => {
-                        server.close((closeErr) => {
-                            if (closeErr) {
-                                stopReject(closeErr);
-                                return;
-                            }
-                            logger.info("AyPi backend stopped", {
-                                event: "backend_stopped",
-                                category: "lifecycle",
-                                module: "core",
-                                host,
-                                port,
+            try {
+                // The TCP port is the cross-user/process lock. Do not touch the
+                // shared database until this process has acquired it.
+                normalizeAgpressLayout();
+                await initializeSqliteDatabase();
+                initializeSharedSqliteStore();
+                initializeFeriePermessiSqliteStore();
+                initializeProductManagerSqliteStore();
+                initializeTicketSupportSqliteStore();
+                initializeTransferSqliteStore();
+                initializeHaasSqliteStore();
+                resolveReady();
+
+                logger.info("AyPi backend listening", {
+                    event: "backend_listening",
+                    category: "lifecycle",
+                    module: "core",
+                    host,
+                    port,
+                    url,
+                    profile: backendConfig.profile,
+                    generalDir: backendConfig.modules.feriePermessi.generalDir,
+                    logDir: backendConfig.logging.dir,
+                    dbPath: backendConfig.database.path,
+                });
+                resolve({
+                    host,
+                    port,
+                    url,
+                    server,
+                    stop: () =>
+                        new Promise<void>((stopResolve, stopReject) => {
+                            server.close((closeErr) => {
+                                if (closeErr) {
+                                    stopReject(closeErr);
+                                    return;
+                                }
+                                logger.info("AyPi backend stopped", {
+                                    event: "backend_stopped",
+                                    category: "lifecycle",
+                                    module: "core",
+                                    host,
+                                    port,
+                                });
+                                try {
+                                    closeSqliteDatabase();
+                                } catch {
+                                    // ignore sqlite shutdown issues
+                                }
+                                stopResolve();
                             });
-                            try {
-                                closeSqliteDatabase();
-                            } catch {
-                                // ignore sqlite shutdown issues
-                            }
-                            stopResolve();
-                        });
-                    }),
-            });
+                        }),
+                });
+            } catch (error) {
+                rejectReady(error);
+                server.close(() => {});
+                try {
+                    closeSqliteDatabase();
+                } catch {
+                    // ignore sqlite cleanup issues after failed startup
+                }
+                reject(error);
+            }
         };
 
         server.once("error", onError);
