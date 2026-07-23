@@ -315,10 +315,14 @@ body.bluearchive-purchasing .pm-catalog-header {
 
 body.bluearchive-purchasing .pm-catalog-grid {
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
     gap: 14px;
 }
 
 body.bluearchive-purchasing .pm-catalog-card {
+    height: auto;
+    min-height: max-content;
     overflow: hidden;
     border: 1px solid #b4ddec;
     border-radius: 5px 16px 5px 16px;
@@ -351,6 +355,92 @@ body.bluearchive-purchasing .pm-catalog-placeholder {
     font-size: 14px;
 }
 
+body.bluearchive-purchasing .pm-catalog-card > .pm-catalog-desc {
+    display: block;
+    min-width: 0;
+    margin: 0;
+    color: #607d90;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    opacity: 1;
+    visibility: visible;
+}
+
+body.bluearchive-purchasing .pm-catalog-card > .pm-link:not(.is-hidden) {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    color: #087ed0;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    opacity: 1;
+    visibility: visible;
+}
+
+body.bluearchive-purchasing .pm-catalog-card > .pm-link:not(.is-hidden):hover {
+    color: #045f9f;
+    text-decoration: underline;
+}
+
+body.bluearchive-purchasing .pm-catalog-card > .pm-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 22px;
+    opacity: 1;
+    visibility: visible;
+}
+
+body.bluearchive-purchasing .pm-catalog-card > .pm-tag-list .pm-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+body.bluearchive-purchasing .pm-catalog-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    margin-top: auto;
+}
+
+body.bluearchive-purchasing .pm-catalog-actions .pm-qty-spinner {
+    display: grid;
+    grid-template-columns: 34px minmax(44px, 1fr) 34px;
+    flex: 1 1 122px;
+    width: min(132px, 100%);
+    min-width: 112px;
+    height: 36px;
+}
+
+body.bluearchive-purchasing .pm-catalog-actions .pm-qty-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 36px;
+    padding: 0;
+}
+
+body.bluearchive-purchasing .pm-catalog-actions .pm-qty-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    height: 36px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 0;
+    text-align: center;
+}
+
 body.bluearchive-purchasing .pm-cart-btn,
 body.bluearchive-purchasing .pm-catalog-trash,
 body.bluearchive-purchasing .pm-tag-icon-btn {
@@ -358,6 +448,12 @@ body.bluearchive-purchasing .pm-tag-icon-btn {
     border-radius: 4px 10px 4px 10px;
     background: rgba(255,255,255,.96);
     color: #1298df;
+}
+
+body.bluearchive-purchasing .pm-catalog-actions .pm-cart-btn {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
 }
 
 body.bluearchive-purchasing .pm-qty-spinner {

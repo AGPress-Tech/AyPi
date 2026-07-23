@@ -381,7 +381,7 @@ main { height: calc(100vh - 124px); overflow: hidden auto; scrollbar-width: thin
 .assistant-head-hitbox:active, .assistant.patting .assistant-head-hitbox { cursor: grabbing; }
 .assistant-head-hitbox:focus-visible { box-shadow: 0 0 0 2px rgba(38,191,243,.5), 0 0 18px rgba(38,191,243,.32); }
 .assistant.patting { filter: drop-shadow(0 17px 16px rgba(28,91,130,.22)); }
-.assistant.patting .assistant-player { transform: translateY(2px) scale(.995); }
+.assistant.patting .assistant-player { transform: scale(.995); }
 .assistant-player .spine-player { background: transparent !important; }
 .assistant-player canvas { width: 100% !important; height: 100% !important; }
 .assistant-loading { position: absolute; z-index: 1; left: 50%; top: 50%; display: flex; flex-direction: column; align-items: center; gap: 10px; color: #68859a; transform: translate(-50%, -50%); font: 800 7px/1 monospace; letter-spacing: 1.2px; transition: opacity .25s; }
