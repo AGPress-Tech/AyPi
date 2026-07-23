@@ -23,6 +23,12 @@ body {
     user-select: none;
 }
 
+body input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body textarea,
+body [contenteditable="true"] {
+    cursor: url("../assets/cursors/bluearchive-text-cursor.svg") 6 10, text;
+}
+
 button, a { font: inherit; }
 button { color: inherit; }
 

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Elenca File</title>
+    <link rel="stylesheet" href="../../styles/utilities/file-list-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/file-list-bluearchive-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
+</head>
+
+<body>
+    <div class="ba-utility-splash" id="baFileListSplash" aria-hidden="true">
+        <div class="ba-splash-grid"></div>
+        <div class="ba-splash-core">
+            <div class="ba-file-mark"><i></i><i></i><i></i></div>
+            <small>AYPI // FILE INDEX SYSTEM</small>
+            <h1>FILE LIST</h1>
+            <p>Preparazione motore di indicizzazione</p>
+            <div class="ba-splash-progress"><i></i></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header class="utility-header">
+            <div>
+                <span class="ba-only utility-kicker">UTILITY 01 // FILE INDEX</span>
+                <h2>Elenca File</h2>
+                <p class="ba-only utility-subtitle">Analizza una directory e genera un indice Excel completo dei file.</p>
+            </div>
+            <div class="ba-only utility-badge"><i></i> INDEXER READY</div>
+        </header>
+
+        <section class="source-panel">
+            <div class="source-heading">
+                <span class="ba-only panel-code">SOURCE // 01</span>
+                <strong>Cartella da analizzare</strong>
+            </div>
+            <div class="source-row">
+                <button id="btnSelectFolder">Seleziona cartella...</button>
+                <div class="folder-path">
+                    <small>PERCORSO SELEZIONATO</small>
+                    <span id="selectedFolder">Nessuna cartella selezionata</span>
+                </div>
+            </div>
+            <div class="source-options">
+                <label>
+                    <input type="checkbox" id="includeSubfolders" checked>
+                    Includi sottocartelle
+                </label>
+                <button id="btnScan" disabled>Analizza file</button>
+                <button id="btnExport" disabled>Esporta Excel...</button>
+                <button id="btnClose" class="secondary">Chiudi</button>
+            </div>
+        </section>
+
+        <section class="stats-panel">
+            <div><small>FILE TROVATI</small><strong id="statFiles">0</strong></div>
+            <div><small>CARTELLE LETTE</small><strong id="statFolders">0</strong></div>
+            <div><small>DIMENSIONE TOTALE</small><strong id="statSize">0 B</strong></div>
+            <div><small>ACCESSI NON RIUSCITI</small><strong id="statErrors">0</strong></div>
+        </section>
+
+        <section class="results-panel">
+            <div id="emptyState" class="empty-state">
+                <span class="empty-icon"></span>
+                <strong>Nessun indice generato</strong>
+                <small>Seleziona una cartella per iniziare l'analisi.</small>
+            </div>
+            <table id="fileListTable" hidden>
+                <thead>
+                    <tr>
+                        <th>Nome file</th>
+                        <th>Percorso relativo</th>
+                        <th>Dimensione</th>
+                        <th>Ultima modifica</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+
+        <footer class="utility-footer">
+            <span id="statusLine"><i></i>Pronto</span>
+            <span class="ba-only">AYPI // AGPRESS FILE SERVICES</span>
+        </footer>
+    </div>
+
+    <script src="../../scripts/utilities/file-list-scripts.js"></script>
+</body>
+
+</html>

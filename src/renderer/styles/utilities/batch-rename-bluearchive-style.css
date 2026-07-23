@@ -1,0 +1,292 @@
+.ba-only,
+.ba-utility-splash { display: none; }
+
+body.bluearchive-batch-rename {
+    --ba-ink: #17243d;
+    --ba-blue: #168eea;
+    --ba-cyan: #2fc7f3;
+    --ba-line: rgba(38, 148, 207, .2);
+    min-width: 1050px;
+    color: var(--ba-ink);
+    font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+    background:
+        radial-gradient(circle at 91% 5%, rgba(47,199,243,.18), transparent 24%),
+        linear-gradient(125deg, #fbfeff 0 78%, #e8f7ff 78% 100%);
+}
+.bluearchive-batch-rename::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    opacity: .4;
+    background-image: linear-gradient(rgba(43,153,208,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(43,153,208,.07) 1px,transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(130deg, transparent 2%, #000 48%, transparent);
+}
+.bluearchive-batch-rename .ba-only { display: initial; }
+.bluearchive-batch-rename .container {
+    gap: 12px;
+    padding: 22px 26px 20px;
+    animation: baBatchInterfaceIn .44s 2.1s ease-out both;
+}
+.bluearchive-batch-rename .utility-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 69px;
+    padding: 0 4px 14px 17px;
+    border-bottom: 1px solid var(--ba-line);
+}
+.bluearchive-batch-rename .utility-header::before { content:""; position:absolute; left:0; top:4px; bottom:17px; width:5px; background:linear-gradient(var(--ba-cyan),var(--ba-blue)); clip-path:polygon(0 0,100% 0,100% 82%,0 100%); }
+.bluearchive-batch-rename .utility-header::after { content:""; position:absolute; left:0; bottom:-2px; width:24%; height:3px; background:var(--ba-cyan); }
+.bluearchive-batch-rename .utility-kicker { display:block; margin-bottom:4px; color:#638097; font:800 8px/1 monospace; letter-spacing:1.7px; }
+.bluearchive-batch-rename h2 { margin:0; color:var(--ba-ink); text-align:left; font-size:29px; letter-spacing:-1.2px; }
+.bluearchive-batch-rename .utility-subtitle { display:block; margin:3px 0 0; color:#6c8195; font-size:11px; }
+.bluearchive-batch-rename .utility-badge { display:flex; align-items:center; gap:8px; padding:9px 13px; color:#39708e; background:rgba(255,255,255,.74); border:1px solid rgba(46,163,218,.2); border-radius:3px 11px 3px 3px; font:800 8px/1 monospace; letter-spacing:1px; }
+.bluearchive-batch-rename .utility-badge i { width:7px; height:7px; border-radius:50%; background:#42d296; box-shadow:0 0 0 5px rgba(66,210,150,.13); animation:baBatchStatus 1.8s infinite; }
+
+.bluearchive-batch-rename .top-layout {
+    grid-template-columns: minmax(390px, .86fr) minmax(520px, 1.14fr);
+    gap: 14px;
+}
+.bluearchive-batch-rename .top-controls { gap: 10px; }
+.bluearchive-batch-rename .section,
+.bluearchive-batch-rename .bottom-panel {
+    box-sizing: border-box;
+    margin-top: 0;
+    padding: 12px 14px;
+    background: rgba(255,255,255,.8);
+    border: 1px solid var(--ba-line);
+    border-radius: 3px 13px 3px 3px;
+    box-shadow: 5px 5px 0 rgba(43,174,229,.05);
+}
+.bluearchive-batch-rename .top-bar {
+    gap: 8px 12px;
+    border-top: 1px solid var(--ba-line);
+}
+.bluearchive-batch-rename .section-field > label:not(.inline),
+.bluearchive-batch-rename .preset-section > label,
+.bluearchive-batch-rename .folder-tree-section > label,
+.bluearchive-batch-rename .transform-body > label {
+    display: block;
+    margin: 4px 0 3px;
+    color: #5b778c;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .45px;
+    text-transform: uppercase;
+}
+.bluearchive-batch-rename .label-row { gap:4px; margin-top:6px; font-size:10px; }
+.bluearchive-batch-rename .label-row .label { color:#7890a2; font:800 7px/1 monospace; letter-spacing:1px; }
+.bluearchive-batch-rename .label-row .value { padding:8px 9px; color:#315870; background:#f5fbfe; border:1px solid rgba(40,139,197,.16); border-radius:2px 8px 2px 2px; font-size:9px; }
+.bluearchive-batch-rename .inline { color:#58758b; font-size:9px; font-weight:800; }
+.bluearchive-batch-rename .scope-row { gap:5px; }
+.bluearchive-batch-rename .scope-row .inline { padding:5px 7px; background:rgba(232,247,254,.7); border:1px solid rgba(37,145,205,.12); border-radius:2px 7px 2px 2px; }
+.bluearchive-batch-rename input[type="checkbox"],
+.bluearchive-batch-rename input[type="radio"] { accent-color:var(--ba-blue); }
+.bluearchive-batch-rename button,
+.bluearchive-batch-rename input[type="text"],
+.bluearchive-batch-rename input[type="number"],
+.bluearchive-batch-rename select,
+.bluearchive-batch-rename textarea { font-family:inherit; font-size:10px; }
+.bluearchive-batch-rename input[type="text"],
+.bluearchive-batch-rename input[type="number"],
+.bluearchive-batch-rename select,
+.bluearchive-batch-rename textarea {
+    margin: 3px 0 6px;
+    padding: 8px 9px;
+    color: var(--ba-ink);
+    background: #f8fdff;
+    border: 1px solid rgba(40,139,197,.22);
+    border-radius: 2px 8px 2px 2px;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.bluearchive-batch-rename textarea { resize:vertical; }
+.bluearchive-batch-rename input:focus,
+.bluearchive-batch-rename select:focus,
+.bluearchive-batch-rename textarea:focus { background:white; border-color:var(--ba-cyan); box-shadow:0 0 0 3px rgba(47,199,243,.11); }
+.bluearchive-batch-rename button {
+    position: relative;
+    overflow: hidden;
+    margin: 2px 0;
+    padding: 9px 12px;
+    color: white;
+    background: var(--ba-blue);
+    border: 1px solid transparent;
+    border-radius: 2px 9px 2px 2px;
+    box-shadow: 3px 3px 0 rgba(26,134,202,.14);
+    font-weight: 900;
+    letter-spacing: .25px;
+    transition: transform .14s, background .14s, box-shadow .14s;
+}
+.bluearchive-batch-rename button::after { content:""; position:absolute; inset:0; background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.3),transparent 72%); transform:translateX(-130%); transition:transform .35s; }
+.bluearchive-batch-rename button:hover:not(:disabled) { background:#27b9eb; transform:translateY(-2px); box-shadow:4px 6px 0 rgba(26,134,202,.12); }
+.bluearchive-batch-rename button:hover:not(:disabled)::after { transform:translateX(130%); }
+.bluearchive-batch-rename button:disabled { opacity:.36; }
+
+.bluearchive-batch-rename .commands { padding:9px 11px; border-top:0; background:rgba(226,245,254,.78); }
+.bluearchive-batch-rename #btnApply { background:#23a9df; }
+.bluearchive-batch-rename #btnUndoLast,
+.bluearchive-batch-rename #btnOpenFolder,
+.bluearchive-batch-rename #btnPresetSave,
+.bluearchive-batch-rename #btnPresetDelete {
+    color:#17638b;
+    background:#e5f7ff;
+    border-color:#9fdcf2;
+}
+.bluearchive-batch-rename .preset-section { padding:10px 12px; }
+.bluearchive-batch-rename .preset-row { gap:7px; }
+.bluearchive-batch-rename .preset-hint { margin:3px 0 0; color:#7890a2; font-size:8px; }
+
+.bluearchive-batch-rename .folder-tree-section { max-height:230px; padding:10px 12px; }
+.bluearchive-batch-rename .folder-tree {
+    color:#31566d;
+    background:#f4fbfe;
+    border:1px solid rgba(37,145,205,.14);
+    border-radius:2px 8px 2px 2px;
+    font-size:10px;
+}
+.bluearchive-batch-rename .jstree-default .jstree-anchor { color:#31566d; }
+.bluearchive-batch-rename .jstree-default .jstree-clicked { color:#0b70b1; background:#d9f2ff; box-shadow:inset 3px 0 var(--ba-cyan); border-radius:2px; }
+.bluearchive-batch-rename .jstree-default .jstree-hovered { background:#eaf8ff; border-radius:2px; box-shadow:none; }
+
+.bluearchive-batch-rename .preview-section {
+    min-height: 510px;
+    max-height: 620px;
+    padding: 0 8px 8px;
+    background: rgba(249,253,255,.92);
+    border-color: rgba(39,169,224,.3);
+}
+.bluearchive-batch-rename table { table-layout:fixed; color:#36566c; font-size:9px; }
+.bluearchive-batch-rename th,
+.bluearchive-batch-rename td { box-sizing:border-box; padding:7px 8px; overflow-wrap:anywhere; border-bottom:1px solid rgba(43,128,175,.11); vertical-align:top; }
+.bluearchive-batch-rename th { z-index:4; height:32px; color:#54758b; background:#e5f5fd; border-bottom:2px solid rgba(46,178,230,.24); box-shadow:0 5px 10px rgba(32,105,146,.055); font:900 8px/1.1 monospace; letter-spacing:.7px; text-transform:uppercase; }
+.bluearchive-batch-rename th:first-child,
+.bluearchive-batch-rename th:nth-child(2) { width:32%; }
+.bluearchive-batch-rename th:nth-child(3) { width:13%; }
+.bluearchive-batch-rename th:nth-child(4) { width:23%; }
+.bluearchive-batch-rename tbody tr { transition:background .13s; }
+.bluearchive-batch-rename tbody tr:hover { background:#eefaff; }
+.bluearchive-batch-rename tr.row-selected { background:#dff4ff!important; box-shadow:inset 4px 0 var(--ba-cyan); }
+.bluearchive-batch-rename tr.status-unchanged td { color:#8496a3; }
+.bluearchive-batch-rename tr.status-rename td { color:#2478aa; }
+.bluearchive-batch-rename tr.status-conflict td,
+.bluearchive-batch-rename tr.status-error td { color:#dc4f65; }
+
+.bluearchive-batch-rename .bottom-panels {
+    gap: 12px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+.bluearchive-batch-rename .bottom-panel { padding:13px 14px; }
+.bluearchive-batch-rename .bottom-panel h3 {
+    position:relative;
+    margin:0 0 11px;
+    padding:0 0 8px 13px;
+    color:var(--ba-ink);
+    border-bottom:1px solid var(--ba-line);
+    font-size:15px;
+    letter-spacing:-.3px;
+}
+.bluearchive-batch-rename .bottom-panel h3::before { content:""; position:absolute; left:0; top:1px; width:4px; height:17px; background:var(--ba-cyan); }
+.bluearchive-batch-rename .filters-grid { gap:14px; }
+.bluearchive-batch-rename .filters-summary { padding:11px 12px; background:#edf9fe; border:1px solid rgba(37,145,205,.13); border-left:4px solid var(--ba-cyan); border-radius:2px 10px 2px 2px; }
+.bluearchive-batch-rename .filters-summary-line { color:#5c788d; font-size:9px; }
+.bluearchive-batch-rename .filters-summary-line .value { color:var(--ba-blue); font-weight:900; }
+.bluearchive-batch-rename .transforms-grid { grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:10px; }
+.bluearchive-batch-rename .transform-block {
+    padding: 0;
+    overflow: hidden;
+    background: rgba(247,252,255,.88);
+    border: 1px solid rgba(39,149,207,.17);
+    border-radius: 3px 11px 3px 3px;
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.bluearchive-batch-rename .transform-block:focus-within { transform:translateY(-2px); border-color:rgba(47,191,237,.45); box-shadow:5px 6px 0 rgba(43,174,229,.06); }
+.bluearchive-batch-rename .transform-header { margin:0; padding:9px 10px; color:#365f79; background:#eaf7fd; border-bottom:1px solid rgba(39,149,207,.14); }
+.bluearchive-batch-rename .transform-header .inline { margin:0; color:#365f79; font-size:9px; }
+.bluearchive-batch-rename .transform-body { padding:8px 10px 10px; }
+.bluearchive-batch-rename .multi-checkbox-row { gap:5px 8px; }
+.bluearchive-batch-rename .multi-checkbox-row .inline { padding:4px 6px; background:rgba(232,247,254,.66); border-radius:2px 6px 2px 2px; }
+
+.bluearchive-batch-rename .footer {
+    position: relative;
+    padding: 9px 11px;
+    background: rgba(226,245,254,.82);
+    border-top: 1px solid rgba(39,149,207,.16);
+}
+.bluearchive-batch-rename .status-line { display:flex; align-items:center; gap:8px; color:#58768a; font:800 9px/1 monospace; letter-spacing:.3px; }
+.bluearchive-batch-rename .status-line::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--ba-cyan); box-shadow:0 0 0 4px rgba(47,199,243,.1); }
+.bluearchive-batch-rename #btnClose { color:#5b6d7c; background:transparent; border-color:rgba(65,118,147,.22); box-shadow:none; }
+.bluearchive-batch-rename ::-webkit-scrollbar { width:8px; height:8px; }
+.bluearchive-batch-rename ::-webkit-scrollbar-track { background:transparent; }
+.bluearchive-batch-rename ::-webkit-scrollbar-thumb { background:linear-gradient(var(--ba-cyan),var(--ba-blue)); border:2px solid #edf8fd; border-radius:99px; }
+
+.bluearchive-batch-rename .ba-utility-splash {
+    position:fixed;
+    z-index:3000;
+    inset:0;
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+    color:var(--ba-ink);
+    background:#f6fcff;
+    opacity:1;
+    transition:opacity .43s ease,visibility .43s;
+}
+.bluearchive-batch-rename .ba-utility-splash.is-leaving { opacity:0; visibility:hidden; }
+.bluearchive-batch-rename .ba-splash-grid { position:absolute; inset:0; opacity:.55; background-image:linear-gradient(rgba(37,154,213,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(37,154,213,.1) 1px,transparent 1px); background-size:45px 45px; animation:baBatchGrid 2.4s linear both; }
+.bluearchive-batch-rename .ba-splash-core { position:relative; width:min(480px,74vw); text-align:center; animation:baBatchCore .45s ease-out both; }
+.bluearchive-batch-rename .ba-splash-core small { color:#5d7e96; font:800 9px/1 monospace; letter-spacing:2.1px; }
+.bluearchive-batch-rename .ba-splash-core h1 { margin:10px 0 5px; color:var(--ba-ink); font-size:38px; letter-spacing:-2px; }
+.bluearchive-batch-rename .ba-splash-core p { margin:0; color:#7690a5; font-size:11px; }
+.bluearchive-batch-rename .ba-rename-mark { display:flex; align-items:center; justify-content:center; gap:14px; margin:0 auto 20px; }
+.bluearchive-batch-rename .ba-rename-mark span { display:grid; place-items:center; width:52px; height:52px; color:white; background:var(--ba-blue); border-radius:3px 14px 3px 3px; box-shadow:6px 6px 0 rgba(47,199,243,.15); font:900 23px/1 monospace; }
+.bluearchive-batch-rename .ba-rename-mark span:last-child { color:var(--ba-blue); background:white; border:2px solid var(--ba-cyan); }
+.bluearchive-batch-rename .ba-rename-mark i { position:relative; width:54px; height:3px; background:var(--ba-cyan); }
+.bluearchive-batch-rename .ba-rename-mark i::after { content:""; position:absolute; right:0; top:-5px; width:10px; height:10px; border-top:3px solid var(--ba-cyan); border-right:3px solid var(--ba-cyan); transform:rotate(45deg); }
+.bluearchive-batch-rename .ba-splash-progress { height:3px; margin-top:24px; overflow:hidden; background:#dceef6; }
+.bluearchive-batch-rename .ba-splash-progress i { display:block; height:100%; background:linear-gradient(90deg,var(--ba-blue),var(--ba-cyan)); animation:baBatchLoad 2s cubic-bezier(.15,.75,.2,1) both; }
+@keyframes baBatchLoad { from{width:0} to{width:100%} }
+@keyframes baBatchCore { from{opacity:0;transform:translateY(14px) scale(.97)} to{opacity:1;transform:none} }
+@keyframes baBatchGrid { from{transform:scale(1.08);opacity:0} to{transform:scale(1);opacity:.55} }
+@keyframes baBatchInterfaceIn { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:none} }
+@keyframes baBatchStatus { 50%{box-shadow:0 0 0 9px rgba(66,210,150,0)} }
+@media (max-width:1250px) {
+    .bluearchive-batch-rename .top-layout { grid-template-columns:minmax(360px,.9fr) minmax(470px,1.1fr); }
+    .bluearchive-batch-rename .utility-subtitle { display:none; }
+}
+@media (prefers-reduced-motion:reduce) {
+    .bluearchive-batch-rename *,.bluearchive-batch-rename *::before,.bluearchive-batch-rename *::after { animation-duration:.01ms!important; }
+}
+
+/* Tipografia operativa +2 px, mantenendo la densità della console. */
+.bluearchive-batch-rename .utility-kicker,
+.bluearchive-batch-rename .utility-badge { font-size:10px; }
+.bluearchive-batch-rename .utility-subtitle { font-size:13px; }
+.bluearchive-batch-rename .section-field > label:not(.inline),
+.bluearchive-batch-rename .preset-section > label,
+.bluearchive-batch-rename .folder-tree-section > label,
+.bluearchive-batch-rename .transform-body > label { font-size:10px; }
+.bluearchive-batch-rename .label-row { font-size:12px; }
+.bluearchive-batch-rename .label-row .label { font-size:9px; }
+.bluearchive-batch-rename .label-row .value,
+.bluearchive-batch-rename .inline { font-size:11px; }
+.bluearchive-batch-rename button,
+.bluearchive-batch-rename input[type="text"],
+.bluearchive-batch-rename input[type="number"],
+.bluearchive-batch-rename select,
+.bluearchive-batch-rename textarea { font-size:12px; }
+.bluearchive-batch-rename .preset-hint { font-size:10px; }
+.bluearchive-batch-rename .folder-tree { font-size:12px; }
+.bluearchive-batch-rename table { font-size:11px; }
+.bluearchive-batch-rename th { font-size:10px; }
+.bluearchive-batch-rename .filters-summary-line,
+.bluearchive-batch-rename .transform-header .inline,
+.bluearchive-batch-rename .status-line { font-size:11px; }
+.bluearchive-batch-rename .ba-splash-core small { font-size:11px; }
+.bluearchive-batch-rename .ba-splash-core p { font-size:13px; }

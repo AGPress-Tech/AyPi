@@ -208,3 +208,19 @@ body.bluearchive-compare {
 @media (prefers-reduced-motion: reduce) {
     .bluearchive-compare *, .bluearchive-compare *::before, .bluearchive-compare *::after { animation-duration: .01ms !important; }
 }
+
+/* Tipografia operativa +2 px. */
+.bluearchive-compare .utility-kicker,
+.bluearchive-compare .utility-badge,
+.bluearchive-compare .label-col .label { font-size: 10px; }
+.bluearchive-compare .utility-subtitle { font-size: 13px; }
+.bluearchive-compare .label-col,
+.bluearchive-compare select { font-size: 12px; }
+.bluearchive-compare .options > label[for="compareMode"],
+.bluearchive-compare .filters > span,
+.bluearchive-compare .inline,
+.bluearchive-compare button { font-size: 11px; }
+.bluearchive-compare table { font-size: 12px; }
+.bluearchive-compare th { font-size: 10px; }
+.bluearchive-compare .ba-splash-core small { font-size: 11px; }
+.bluearchive-compare .ba-splash-core p { font-size: 13px; }

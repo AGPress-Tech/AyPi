@@ -1,0 +1,81 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    color: #fff;
+    background: #332f2b;
+    font-family: Arial, sans-serif;
+}
+
+.ba-only,
+.ba-utility-splash { display: none; }
+
+.container {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: auto auto auto minmax(220px, 1fr) auto;
+    gap: 12px;
+    height: 100vh;
+    padding: 18px;
+}
+
+.utility-header h2 {
+    margin: 0;
+    color: #cc930e;
+    text-align: center;
+}
+
+.source-panel,
+.stats-panel,
+.results-panel {
+    padding: 12px;
+    background: #2b2824;
+    border: 1px solid #555;
+    border-radius: 6px;
+}
+
+.source-heading { margin-bottom: 9px; }
+.source-row,
+.source-options {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.source-options { margin-top: 10px; }
+.source-options label { margin-right: auto; }
+.folder-path { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.folder-path small { color: #aaa; }
+.folder-path span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+button {
+    padding: 8px 12px;
+    color: #332f2b;
+    background: #cc930e;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+}
+button:disabled { opacity: .45; cursor: default; }
+button.secondary { color: #eee; background: #555; }
+
+.stats-panel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.stats-panel div { display: flex; flex-direction: column; gap: 4px; }
+.stats-panel small { color: #aaa; font-size: 10px; }
+.stats-panel strong { color: #cc930e; font-size: 20px; }
+
+.results-panel { min-height: 0; overflow: auto; }
+.empty-state { height: 100%; display: grid; place-content: center; gap: 7px; text-align: center; color: #aaa; }
+.empty-state small { font-size: 11px; }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+th, td { padding: 7px 8px; border-bottom: 1px solid #444; text-align: left; overflow-wrap: anywhere; }
+th { position: sticky; top: 0; z-index: 2; color: #cc930e; background: #1f1c19; }
+th:first-child { width: 24%; }
+th:nth-child(2) { width: 43%; }
+th:nth-child(3) { width: 13%; }
+th:nth-child(4) { width: 20%; }
+
+.utility-footer { display: flex; justify-content: space-between; color: #bbb; font-size: 11px; }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: #2b2824; }
+::-webkit-scrollbar-thumb { background: #cc930e; border: 2px solid #2b2824; border-radius: 99px; }

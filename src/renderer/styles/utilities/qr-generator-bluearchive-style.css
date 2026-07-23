@@ -323,3 +323,18 @@ body.bluearchive-qr::before {
 @media (prefers-reduced-motion: reduce) {
     .bluearchive-qr *, .bluearchive-qr *::before, .bluearchive-qr *::after { animation-duration: .01ms !important; }
 }
+
+/* Tipografia operativa +2 px. */
+.bluearchive-qr .utility-kicker,
+.bluearchive-qr .utility-badge,
+.bluearchive-qr .preview-label { font-size: 10px; }
+.bluearchive-qr .utility-subtitle { font-size: 13px; }
+.bluearchive-qr label,
+.bluearchive-qr .inline { font-size: 12px; }
+.bluearchive-qr textarea,
+.bluearchive-qr input[type="number"],
+.bluearchive-qr select { font-size: 14px; }
+.bluearchive-qr button { font-size: 12px; }
+.bluearchive-qr #previewPlaceholder { font-size: 12px; }
+.bluearchive-qr .ba-splash-core small { font-size: 11px; }
+.bluearchive-qr .ba-splash-core p { font-size: 13px; }

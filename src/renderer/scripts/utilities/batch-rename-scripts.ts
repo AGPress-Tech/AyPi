@@ -3,6 +3,7 @@ import "../shared/dev-guards";
 import { ipcRenderer } from "electron";
 import { showInfo, showWarning, showError } from "../shared/dialogs";
 import { state } from "./batch-rename/state";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { parseExtensions } from "./batch-rename/utils";
 import { getFilterConfigFromUI } from "./batch-rename/filters";
 import { collectTargets } from "./batch-rename/collector";
@@ -23,6 +24,23 @@ import {
     handleOpenFolder,
     handleUndoLast,
 } from "./batch-rename/operations";
+
+const IS_BLUE_ARCHIVE_BATCH_RENAME =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+
+if (IS_BLUE_ARCHIVE_BATCH_RENAME) {
+    document.body.classList.add("bluearchive-batch-rename");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_BATCH_RENAME);
+
+function runBlueArchiveBatchSplash() {
+    if (!IS_BLUE_ARCHIVE_BATCH_RENAME) return;
+    const splash = document.getElementById("baBatchRenameSplash");
+    if (!splash) return;
+    splash.setAttribute("aria-hidden", "false");
+    window.setTimeout(() => splash.classList.add("is-leaving"), 2100);
+    window.setTimeout(() => splash.remove(), 2550);
+}
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 
 async function selectRootFolderSafe() {
@@ -213,6 +231,7 @@ async function handlePreview() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+    runBlueArchiveBatchSplash();
     console.log("batch-rename-scripts.js caricato");
 
     const btnSelectFolder = document.getElementById("btnSelectFolder");

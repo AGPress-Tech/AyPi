@@ -226,11 +226,17 @@ const pages: Record<string, PageDefinition> = {
             "Una raccolta di strumenti rapidi per il lavoro quotidiano.",
         code: "UTL",
         actions: [
-            { label: "Elenca File", description: "Trascrizione nomi dei file" },
+            {
+                label: "Elenca File",
+                description: "Trascrizione nomi dei file",
+                channel: "open-file-list-window",
+                channelArgs: [{ theme: "bluearchive" }],
+            },
             {
                 label: "Batch Rinomina",
                 description: "Rinomina multipla controllata",
                 channel: "open-batch-rename-window",
+                channelArgs: [{ theme: "bluearchive" }],
             },
             {
                 label: "Generatore QR",
@@ -248,6 +254,7 @@ const pages: Record<string, PageDefinition> = {
                 label: "Gerarchia",
                 description: "Visualizzatore Directory Server Aziendale",
                 channel: "open-hierarchy-window",
+                channelArgs: [{ theme: "bluearchive" }],
             },
             { label: "Gantt Tasks", description: "Pianificazione attività" },
             {

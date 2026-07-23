@@ -1667,11 +1667,15 @@ function buildHierarchyReportJs(data) {
 }
 
 let batchRenameWindow: BrowserWindow | null = null;
+let batchRenameWindowTheme: "standard" | "bluearchive" = "standard";
+let fileListWindow: BrowserWindow | null = null;
+let fileListWindowTheme: "standard" | "bluearchive" = "standard";
 let qrGeneratorWindow: BrowserWindow | null = null;
 let qrGeneratorWindowTheme: "standard" | "bluearchive" = "standard";
 let compareFoldersWindow: BrowserWindow | null = null;
 let compareFoldersWindowTheme: "standard" | "bluearchive" = "standard";
 let hierarchyWindow: BrowserWindow | null = null;
+let hierarchyWindowTheme: "standard" | "bluearchive" = "standard";
 let timerWindow: BrowserWindow | null = null;
 let timerWindowTheme: "standard" | "bluearchive" = "standard";
 let infographicsWindow: BrowserWindow | null = null;
@@ -1831,12 +1835,67 @@ async function openAttrezzaggioPdfPreviewWindow(pdfPath: string) {
     }
 }
 
-function openBatchRenameWindow(mainWindow) {
+function openFileListWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
+    if (isWindowAlive(fileListWindow)) {
+        if (fileListWindowTheme !== requestedTheme) {
+            fileListWindowTheme = requestedTheme;
+            fileListWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
+                { query: { theme: fileListWindowTheme } },
+            );
+        }
+        showWindow(fileListWindow);
+        return;
+    }
+
+    fileListWindowTheme = requestedTheme;
+    fileListWindow = new BrowserWindow({
+        width: 1000,
+        height: 760,
+        minWidth: requestedTheme === "bluearchive" ? 780 : 680,
+        minHeight: requestedTheme === "bluearchive" ? 620 : 520,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+    });
+    fileListWindow.loadFile(
+        path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
+        { query: { theme: fileListWindowTheme } },
+    );
+    fileListWindow.setMenu(null);
+    fileListWindow.center();
+    fileListWindow.on("closed", () => {
+        fileListWindow = null;
+        fileListWindowTheme = "standard";
+        showMainWindow(mainWindow);
+    });
+}
+
+function openBatchRenameWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(batchRenameWindow)) {
+        if (batchRenameWindowTheme !== requestedTheme) {
+            batchRenameWindowTheme = requestedTheme;
+            batchRenameWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
+                { query: { theme: batchRenameWindowTheme } },
+            );
+        }
         showWindow(batchRenameWindow);
         return;
     }
 
+    batchRenameWindowTheme = requestedTheme;
     batchRenameWindow = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -1848,6 +1907,7 @@ function openBatchRenameWindow(mainWindow) {
 
     batchRenameWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
+        { query: { theme: batchRenameWindowTheme } },
     );
     batchRenameWindow.setMenu(null);
 
@@ -1860,6 +1920,7 @@ function openBatchRenameWindow(mainWindow) {
 
     batchRenameWindow.on("closed", () => {
         batchRenameWindow = null;
+        batchRenameWindowTheme = "standard";
         showMainWindow(mainWindow);
     });
 }
@@ -1906,15 +1967,39 @@ function openQrGeneratorWindow(
     });
 }
 
-function openHierarchyWindow(mainWindow) {
+function openHierarchyWindow(
+    mainWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(hierarchyWindow)) {
+        if (hierarchyWindowTheme !== requestedTheme) {
+            hierarchyWindowTheme = requestedTheme;
+            hierarchyWindow.setMinimumSize(
+                requestedTheme === "bluearchive" ? 980 : 0,
+                requestedTheme === "bluearchive" ? 680 : 0,
+            );
+            hierarchyWindow.setSize(
+                requestedTheme === "bluearchive" ? 1320 : 1100,
+                requestedTheme === "bluearchive" ? 850 : 800,
+            );
+            hierarchyWindow.loadFile(
+                path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
+                { query: { theme: hierarchyWindowTheme } },
+            );
+            hierarchyWindow.center();
+        }
         showWindow(hierarchyWindow);
         return;
     }
 
+    hierarchyWindowTheme = requestedTheme;
     hierarchyWindow = new BrowserWindow({
-        width: 1100,
-        height: 800,
+        width: requestedTheme === "bluearchive" ? 1320 : 1100,
+        height: requestedTheme === "bluearchive" ? 850 : 800,
+        minWidth: requestedTheme === "bluearchive" ? 980 : undefined,
+        minHeight: requestedTheme === "bluearchive" ? 680 : undefined,
         parent: mainWindow,
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
@@ -1923,12 +2008,14 @@ function openHierarchyWindow(mainWindow) {
 
     hierarchyWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
+        { query: { theme: hierarchyWindowTheme } },
     );
     hierarchyWindow.setMenu(null);
     hierarchyWindow.center();
 
     hierarchyWindow.on("closed", () => {
         hierarchyWindow = null;
+        hierarchyWindowTheme = "standard";
         showMainWindow(mainWindow);
     });
 }
@@ -3628,8 +3715,21 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    ipcMain.on("open-batch-rename-window", () => {
-        openBatchRenameWindow(mainWindow);
+    ipcMain.on("open-file-list-window", (_event, payload) => {
+        openFileListWindow(mainWindow, {
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
+    });
+    ipcMain.on("open-batch-rename-window", (_event, payload) => {
+        openBatchRenameWindow(mainWindow, {
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
     });
     ipcMain.on("open-attrezzaggio-window", () => {
         openTransferAttrezzaggioWindow(mainWindow);
@@ -3806,8 +3906,13 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    ipcMain.on("open-hierarchy-window", () => {
-        openHierarchyWindow(mainWindow);
+    ipcMain.on("open-hierarchy-window", (_event, payload) => {
+        openHierarchyWindow(mainWindow, {
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
     });
 
     ipcMain.on("open-infographics-window", () => {
@@ -3909,7 +4014,7 @@ function setupFileManager(mainWindow) {
 
     ipcMain.on("hierarchy-open-batch-rename", (event, payload) => {
         const folder = payload?.folder;
-        openBatchRenameWindow(mainWindow);
+        openBatchRenameWindow(mainWindow, { theme: interfaceIconTheme });
 
         if (batchRenameWindow && !batchRenameWindow.isDestroyed() && folder) {
             batchRenameWindow.webContents.once("did-finish-load", () => {

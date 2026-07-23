@@ -4,6 +4,24 @@ import { ipcRenderer } from "electron";
 import path from "path";
 import fs from "fs";
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
+import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+
+const IS_BLUE_ARCHIVE_HIERARCHY =
+    new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+
+if (IS_BLUE_ARCHIVE_HIERARCHY) {
+    document.body.classList.add("bluearchive-hierarchy");
+}
+initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_HIERARCHY);
+
+function runBlueArchiveHierarchySplash() {
+    if (!IS_BLUE_ARCHIVE_HIERARCHY) return;
+    const splash = document.getElementById("baHierarchySplash");
+    if (!splash) return;
+    splash.setAttribute("aria-hidden", "false");
+    window.setTimeout(() => splash.classList.add("is-leaving"), 2050);
+    window.setTimeout(() => splash.remove(), 2475);
+}
 
 const showInfo = (message, detail = "") =>
     ipcRenderer.invoke("show-message-box", { type: "info", message, detail });
@@ -2402,6 +2420,7 @@ function normalizeTreeIcons() {
 }
 
 function initHierarchy() {
+    runBlueArchiveHierarchySplash();
     treeRootEl = document.getElementById("treeRoot");
     lblSelectedFolder = document.getElementById("selectedFolder");
     detailsBox = document.getElementById("detailsBox");

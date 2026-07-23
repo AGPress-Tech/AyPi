@@ -328,6 +328,25 @@ body.bluearchive-timers::before {
 .bluearchive-timers .time-inputs span { color: #1689ed; }
 .bluearchive-timers .hint { color: #8095a6; }
 
+/* Leggibilità aumentata senza modificare geometrie e titoli principali. */
+.bluearchive-timers .timers-header::after { font-size: 10px; }
+.bluearchive-timers .subtitle { font-size: 13px; }
+.bluearchive-timers .timers-empty,
+.bluearchive-timers .laps,
+.bluearchive-timers .lap-item { font-size: 14px; }
+.bluearchive-timers .timer-name { font-size: 17px; }
+.bluearchive-timers .timer-badge { font-size: 11px; }
+.bluearchive-timers .timer-controls button,
+.bluearchive-timers .dialog-actions button,
+.bluearchive-timers .preset-use-btn,
+.bluearchive-timers .preset-delete-btn { font-size: 13px; }
+.bluearchive-timers .dialog-row label { font-size: 13px; }
+.bluearchive-timers .dialog-row input,
+.bluearchive-timers .dialog-row select,
+.bluearchive-timers .time-preset,
+.bluearchive-timers .hint,
+.bluearchive-timers .presets-card { font-size: 14px; }
+
 .bluearchive-timers .time-presets .time-preset {
     color: #537189;
     background: #eff9fe;

@@ -6,6 +6,31 @@
     pointer-events: none;
 }
 
+/* I-beam scuro con bordo chiaro: leggibile sia sui campi bianchi sia scuri. */
+body.bluearchive-timers input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body.bluearchive-timers textarea,
+body.bluearchive-timers [contenteditable="true"],
+body.bluearchive-qr input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body.bluearchive-qr textarea,
+body.bluearchive-qr [contenteditable="true"],
+body.bluearchive-compare input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body.bluearchive-compare textarea,
+body.bluearchive-compare [contenteditable="true"],
+body.bluearchive-file-list input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body.bluearchive-file-list textarea,
+body.bluearchive-file-list [contenteditable="true"],
+body.bluearchive-batch-rename input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body.bluearchive-batch-rename textarea,
+body.bluearchive-batch-rename [contenteditable="true"],
+body.bluearchive-hierarchy input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body.bluearchive-hierarchy textarea,
+body.bluearchive-hierarchy [contenteditable="true"],
+body.fp-bluearchive input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+body.fp-bluearchive textarea,
+body.fp-bluearchive [contenteditable="true"] {
+    cursor: url("../../assets/cursors/bluearchive-text-cursor.svg") 6 10, text;
+}
+
 .fp-ba-pointer-trail {
     position: absolute;
     inset: 0;
