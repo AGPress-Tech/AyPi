@@ -1981,3 +1981,124 @@ body.fp-bluearchive .fp-calendar-splash--bluearchive .fp-ba-calendar-boot {
         animation-delay: 0ms !important;
     }
 }
+
+/* Popup Gestione: action card coerenti con Home e Settings. */
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-days-picker {
+    counter-reset: fp-manage-route;
+    gap: 10px;
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-days-picker .fp-btn {
+    counter-increment: fp-manage-route;
+    --fp-manage-accent: #288ff0;
+    position: relative;
+    width: 100%;
+    min-height: 58px;
+    justify-content: flex-start;
+    gap: 11px;
+    padding: 9px 92px 9px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #17243d;
+    text-align: left;
+    text-shadow: none;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(31, 114, 168, 0.16);
+    border-radius: 4px 13px 4px 13px;
+    box-shadow:
+        inset 3px 0 var(--fp-manage-accent),
+        0 12px 25px rgba(50, 112, 151, 0.1);
+    font-size: 12px;
+    transition:
+        color 160ms ease,
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) :is(#fp-manage-hours, #fp-days-picker-closure) {
+    --fp-manage-accent: #17243d;
+    color: #fff;
+    background: linear-gradient(135deg, #223652, #14223a);
+    border-color: rgba(40, 143, 240, 0.22);
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-days-picker .fp-btn::before {
+    content: "";
+    position: absolute;
+    right: -34px;
+    bottom: -48px;
+    width: 92px;
+    height: 92px;
+    pointer-events: none;
+    border: 14px solid color-mix(in srgb, var(--fp-manage-accent) 9%, transparent);
+    border-radius: 50%;
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-days-picker .fp-btn::after {
+    content: "ROUTE 0" counter(fp-manage-route);
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    color: #91a0b1;
+    font: 800 8px/1 Consolas, monospace;
+    letter-spacing: 0.1em;
+    transform: translateY(-50%);
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-days-picker .fp-btn:hover {
+    color: #17243d;
+    background: #fff;
+    border-color: rgba(31, 145, 211, 0.4);
+    box-shadow:
+        inset 4px 0 var(--fp-manage-accent),
+        0 19px 35px rgba(40, 119, 171, 0.19);
+    transform: translateY(-2px);
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) :is(#fp-manage-hours, #fp-days-picker-closure):hover {
+    color: #fff;
+    background: linear-gradient(135deg, #29415f, #182a46);
+    border-color: rgba(45, 200, 238, 0.42);
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-days-picker .fp-btn:hover::after {
+    color: var(--fp-manage-accent);
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) :is(#fp-manage-hours, #fp-days-picker-closure)::after,
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) :is(#fp-manage-hours, #fp-days-picker-closure):hover::after {
+    color: #a8bbcf;
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-btn__label {
+    margin-left: 0;
+    text-align: left;
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-btn__icon {
+    display: grid;
+    flex: 0 0 29px;
+    place-items: center;
+    width: 29px;
+    height: 29px;
+    box-sizing: border-box;
+    color: var(--fp-manage-accent);
+    background: color-mix(in srgb, var(--fp-manage-accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--fp-manage-accent) 48%, transparent);
+    border-radius: 3px;
+    box-shadow: none;
+    transform: rotate(45deg);
+    transition: background 160ms ease, transform 160ms ease;
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-days-picker .fp-btn:hover .fp-btn__icon {
+    background: color-mix(in srgb, var(--fp-manage-accent) 15%, transparent);
+    transform: rotate(45deg) scale(1.05);
+}
+
+body.fp-bluearchive :is(#fp-manage-modal, #fp-days-picker-modal) .fp-btn__icon .fp-icon-mi {
+    font-size: 16px;
+    transform: rotate(-45deg);
+}

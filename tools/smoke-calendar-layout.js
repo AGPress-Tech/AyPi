@@ -141,6 +141,80 @@ app.whenReady().then(async () => {
             "fp-export-open",
         ].map(id => document.getElementById(id));
         const pendingBadge = document.getElementById("fp-pending-badge");
+        const manageModal = document.getElementById("fp-manage-modal");
+        manageModal.classList.remove("is-hidden");
+        manageModal.setAttribute("aria-hidden", "false");
+        const manageButtons = [
+            document.getElementById("fp-manage-assignees"),
+            document.getElementById("fp-manage-hours"),
+        ];
+        const manageMenu = {
+            widths: manageButtons.map(button =>
+                Math.round(button.getBoundingClientRect().width)
+            ),
+            heights: manageButtons.map(button =>
+                Math.round(button.getBoundingClientRect().height)
+            ),
+            colors: manageButtons.map(button => getComputedStyle(button).color),
+            backgrounds: manageButtons.map(
+                button => getComputedStyle(button).backgroundImage
+            ),
+            accents: manageButtons.map(button =>
+                getComputedStyle(button)
+                    .getPropertyValue("--fp-manage-accent")
+                    .trim()
+            ),
+            routeLabels: manageButtons.map(
+                button => getComputedStyle(button, "::after").content
+            ),
+            iconTransforms: manageButtons.map(
+                button =>
+                    getComputedStyle(
+                        button.querySelector(".fp-btn__icon")
+                    ).transform
+            ),
+        };
+        manageModal.classList.add("is-hidden");
+        manageModal.setAttribute("aria-hidden", "true");
+        const daysPickerModal = document.getElementById(
+            "fp-days-picker-modal"
+        );
+        daysPickerModal.classList.remove("is-hidden");
+        daysPickerModal.setAttribute("aria-hidden", "false");
+        const daysPickerButtons = [
+            document.getElementById("fp-days-picker-holiday"),
+            document.getElementById("fp-days-picker-closure"),
+        ];
+        const daysPickerMenu = {
+            widths: daysPickerButtons.map(button =>
+                Math.round(button.getBoundingClientRect().width)
+            ),
+            heights: daysPickerButtons.map(button =>
+                Math.round(button.getBoundingClientRect().height)
+            ),
+            colors: daysPickerButtons.map(
+                button => getComputedStyle(button).color
+            ),
+            backgrounds: daysPickerButtons.map(
+                button => getComputedStyle(button).backgroundImage
+            ),
+            accents: daysPickerButtons.map(button =>
+                getComputedStyle(button)
+                    .getPropertyValue("--fp-manage-accent")
+                    .trim()
+            ),
+            routeLabels: daysPickerButtons.map(
+                button => getComputedStyle(button, "::after").content
+            ),
+            iconTransforms: daysPickerButtons.map(
+                button =>
+                    getComputedStyle(
+                        button.querySelector(".fp-btn__icon")
+                    ).transform
+            ),
+        };
+        daysPickerModal.classList.add("is-hidden");
+        daysPickerModal.setAttribute("aria-hidden", "true");
         document.getElementById("fp-settings").click();
         const settingsModal = document.getElementById("fp-settings-modal");
         const settingsCard = settingsModal.querySelector(".fp-export-card");
@@ -253,6 +327,8 @@ app.whenReady().then(async () => {
                     right: getComputedStyle(pendingBadge).right,
                 },
             },
+            manageMenu,
+            daysPickerMenu,
             settingsMenu: {
                 visible:
                     !settingsModal.classList.contains("is-hidden") &&
@@ -387,6 +463,30 @@ app.whenReady().then(async () => {
         calendar.quickCommands.badgeColor === "rgb(255, 255, 255)" &&
         calendar.quickCommands.badgePosition.top === "-3px" &&
         calendar.quickCommands.badgePosition.right === "-3px" &&
+        new Set(calendar.manageMenu.widths).size === 1 &&
+        calendar.manageMenu.heights.every(height => height >= 57) &&
+        calendar.manageMenu.accents.join(",") === "#288ff0,#17243d" &&
+        calendar.manageMenu.colors[0] === "rgb(23, 36, 61)" &&
+        calendar.manageMenu.colors[1] === "rgb(255, 255, 255)" &&
+        calendar.manageMenu.backgrounds[1].includes("rgb(34, 54, 82)") &&
+        calendar.manageMenu.routeLabels.every(label =>
+            label.includes("ROUTE 0")
+        ) &&
+        calendar.manageMenu.iconTransforms.every(
+            transform => transform !== "none"
+        ) &&
+        new Set(calendar.daysPickerMenu.widths).size === 1 &&
+        calendar.daysPickerMenu.heights.every(height => height >= 57) &&
+        calendar.daysPickerMenu.accents.join(",") === "#288ff0,#17243d" &&
+        calendar.daysPickerMenu.colors[0] === "rgb(23, 36, 61)" &&
+        calendar.daysPickerMenu.colors[1] === "rgb(255, 255, 255)" &&
+        calendar.daysPickerMenu.backgrounds[1].includes("rgb(34, 54, 82)") &&
+        calendar.daysPickerMenu.routeLabels.every(label =>
+            label.includes("ROUTE 0")
+        ) &&
+        calendar.daysPickerMenu.iconTransforms.every(
+            transform => transform !== "none"
+        ) &&
         calendar.settingsMenu.visible &&
         calendar.settingsMenu.actionCount === 6 &&
         calendar.settingsMenu.columns === 2 &&

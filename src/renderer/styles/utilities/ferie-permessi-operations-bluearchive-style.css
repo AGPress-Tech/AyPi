@@ -1,0 +1,942 @@
+/*
+ * Calendar Operations UI
+ * Superfici operative condivise: dipendenti, admin, ore, giorni speciali,
+ * richieste e configurazione. Caricato dopo il design system comune.
+ */
+
+body.fp-bluearchive {
+    --fp-ops-ink: #17243d;
+    --fp-ops-copy: #38546d;
+    --fp-ops-muted: #71869a;
+    --fp-ops-blue: #168eea;
+    --fp-ops-cyan: #31c8f3;
+    --fp-ops-pale: #edf9ff;
+    --fp-ops-line: rgba(35, 139, 195, 0.2);
+    --fp-ops-panel: rgba(255, 255, 255, 0.94);
+    --fp-ops-shadow: 0 18px 42px rgba(31, 91, 132, 0.14);
+    --fp-ops-cut: 4px 4px 24px 4px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shell condivisa per le finestre operative                                  */
+/* -------------------------------------------------------------------------- */
+
+body.fp-bluearchive :is(.am-page, .adm-page, .fp-hours-page) {
+    position: relative;
+    isolation: isolate;
+    color: var(--fp-ops-ink);
+    background:
+        linear-gradient(rgba(22, 142, 234, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 142, 234, 0.045) 1px, transparent 1px),
+        linear-gradient(132deg, #f8fdff 0 62%, #e6f6fd 62% 100%);
+    background-size: 34px 34px, 34px 34px, auto;
+}
+
+body.fp-bluearchive :is(.am-page, .adm-page, .fp-hours-page)::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    inset: 98px 0 0;
+    pointer-events: none;
+    background:
+        linear-gradient(132deg, transparent 0 72%, rgba(49, 200, 243, 0.08) 72% 74%, transparent 74%),
+        radial-gradient(circle at 13% 16%, rgba(49, 200, 243, 0.1), transparent 24%);
+    animation: fp-ops-ambient 16s ease-in-out infinite alternate;
+}
+
+body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header) {
+    position: relative;
+    z-index: 3;
+    min-height: 86px;
+    padding: 14px 22px 14px 30px;
+    box-sizing: border-box;
+    border: 0;
+    border-bottom: 2px solid rgba(49, 200, 243, 0.72);
+    background:
+        linear-gradient(112deg, rgba(255, 255, 255, 0.98) 0 68%, rgba(225, 246, 255, 0.96) 68%),
+        #fff;
+    box-shadow: 0 9px 26px rgba(31, 91, 132, 0.12);
+}
+
+body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header)::before {
+    content: "SCHALE // OPERATIONS TERMINAL";
+    position: absolute;
+    left: 30px;
+    top: 10px;
+    color: var(--fp-ops-blue);
+    font: 800 8px/1 Consolas, monospace;
+    letter-spacing: 0.16em;
+}
+
+body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header) > div:first-child {
+    padding: 14px 0 0 15px;
+    border-left: 4px solid var(--fp-ops-cyan);
+}
+
+body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header) h1 {
+    margin: 0;
+    color: var(--fp-ops-ink);
+    font: 850 23px/1.05 "Segoe UI", sans-serif;
+    letter-spacing: -0.035em;
+}
+
+body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header) h1::after {
+    content: none;
+}
+
+body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header) p {
+    margin: 5px 0 0;
+    color: var(--fp-ops-muted);
+    font-size: 11px;
+}
+
+body.fp-bluearchive :is(.am-actions, .adm-actions, .fp-hours-actions) {
+    align-self: center;
+    padding-top: 8px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gestione dipendenti                                                        */
+/* -------------------------------------------------------------------------- */
+
+body.fp-bluearchive .am-main {
+    height: calc(100vh - 88px);
+    padding: 18px 24px 22px;
+    place-items: stretch center;
+}
+
+body.fp-bluearchive .am-card {
+    position: relative;
+    width: min(1480px, calc(100vw - 48px));
+    height: 100%;
+    max-height: none;
+    grid-template-columns: minmax(300px, 0.72fr) minmax(600px, 1.45fr);
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid rgba(35, 139, 195, 0.22);
+    border-left: 4px solid var(--fp-ops-cyan);
+    border-radius: var(--fp-ops-cut);
+    background:
+        linear-gradient(rgba(22, 142, 234, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 142, 234, 0.035) 1px, transparent 1px),
+        rgba(241, 250, 255, 0.88);
+    background-size: 22px 22px, 22px 22px, auto;
+    box-shadow: var(--fp-ops-shadow);
+}
+
+body.fp-bluearchive .am-card::before {
+    content: "PERSONNEL DATABASE // LIVE DIRECTORY";
+    position: absolute;
+    top: 7px;
+    right: 20px;
+    color: #83a6ba;
+    font: 800 8px/1 Consolas, monospace;
+    letter-spacing: 0.13em;
+}
+
+body.fp-bluearchive .am-card > .fp-assignees-section {
+    position: relative;
+    grid-template-rows: 42px minmax(0, 1fr) auto;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(37, 144, 202, 0.2);
+    border-radius: 4px 4px 20px 4px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 24px rgba(43, 105, 145, 0.09);
+}
+
+body.fp-bluearchive .am-card > .fp-assignees-section:first-child {
+    padding-right: 0;
+    border-right: 1px solid rgba(37, 144, 202, 0.2);
+}
+
+body.fp-bluearchive .am-card > .fp-assignees-section:last-child {
+    padding-left: 0;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-subtitle {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0 16px 0 20px;
+    color: #315d78;
+    border-bottom: 1px solid var(--fp-ops-line);
+    background: linear-gradient(100deg, #f8fdff 0 72%, #e9f8ff 72%);
+    font: 800 10px/1 Consolas, monospace;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-subtitle::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-right: 9px;
+    border: 2px solid var(--fp-ops-cyan);
+    transform: rotate(45deg);
+}
+
+body.fp-bluearchive .am-card .fp-assignees-grid {
+    padding: 8px 10px 12px;
+    scrollbar-gutter: stable;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-row {
+    min-height: 42px;
+    margin-bottom: 5px;
+    padding: 7px 9px 7px 12px;
+    box-sizing: border-box;
+    border: 1px solid rgba(35, 139, 195, 0.13);
+    border-left: 3px solid rgba(49, 200, 243, 0.54);
+    border-radius: 3px 10px 3px 10px;
+    background: #fbfeff;
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-row:hover {
+    border-color: rgba(35, 139, 195, 0.32);
+    background: #edf9ff;
+    box-shadow: 0 6px 14px rgba(41, 111, 153, 0.1);
+    transform: translateX(2px);
+}
+
+body.fp-bluearchive .am-card .fp-assignees-employee-name {
+    color: var(--fp-ops-ink);
+    font-weight: 750;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-employee-dept {
+    color: var(--fp-ops-muted);
+    font: 700 9px/1.25 Consolas, monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-link {
+    min-height: 25px;
+    padding: 0 8px;
+    border: 1px solid rgba(22, 142, 234, 0.2);
+    border-radius: 3px 8px 3px 8px;
+    color: #1579c1;
+    background: #f2faff;
+    font: 750 10px/1 "Segoe UI", sans-serif;
+    text-decoration: none;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-link:hover {
+    border-color: rgba(22, 142, 234, 0.42);
+    background: #e4f6ff;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-link--danger {
+    color: #c54861;
+    border-color: rgba(222, 76, 105, 0.2);
+    background: #fff6f8;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-form {
+    gap: 7px;
+    margin: 0;
+    padding: 11px 10px;
+    border-top: 1px solid var(--fp-ops-line);
+    background:
+        linear-gradient(100deg, rgba(248, 253, 255, 0.98), rgba(232, 248, 255, 0.98));
+}
+
+body.fp-bluearchive .am-card .fp-field__input {
+    height: 36px;
+    min-height: 36px;
+    border-color: rgba(35, 139, 195, 0.24);
+    background: rgba(255, 255, 255, 0.94);
+}
+
+body.fp-bluearchive .am-card .fp-assignees-form .fp-btn--primary {
+    width: 38px;
+    min-width: 38px;
+    height: 36px;
+    padding: 0;
+    border-radius: 4px 11px 4px 11px;
+    font-size: 0;
+}
+
+body.fp-bluearchive .am-card .fp-assignees-form .fp-btn--primary::before {
+    content: "+";
+    font: 800 18px/1 "Segoe UI", sans-serif;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gestione admin                                                             */
+/* -------------------------------------------------------------------------- */
+
+body.fp-bluearchive .adm-page {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+}
+
+body.fp-bluearchive #fp-admin-modal {
+    inset: 104px 24px 22px;
+    padding: 0;
+    background: transparent;
+}
+
+body.fp-bluearchive #fp-admin-modal > .fp-modal__card {
+    width: min(1480px, 100%);
+    height: 100%;
+    padding: 14px;
+    border: 1px solid rgba(35, 139, 195, 0.22);
+    border-left: 4px solid var(--fp-ops-cyan);
+    border-radius: var(--fp-ops-cut);
+    background:
+        linear-gradient(rgba(22, 142, 234, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 142, 234, 0.035) 1px, transparent 1px),
+        rgba(244, 251, 255, 0.96);
+    background-size: 22px 22px, 22px 22px, auto;
+    box-shadow: var(--fp-ops-shadow);
+}
+
+body.fp-bluearchive #fp-admin-modal .fp-admin-card {
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+}
+
+body.fp-bluearchive #fp-admin-modal .fp-assignees-subtitle {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    color: #315d78;
+    border: 1px solid var(--fp-ops-line);
+    border-left: 3px solid var(--fp-ops-cyan);
+    border-radius: 3px 10px 3px 10px;
+    background: linear-gradient(90deg, #fff, #eaf8ff);
+    font: 800 10px/1 Consolas, monospace;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+}
+
+body.fp-bluearchive #fp-admin-modal .fp-admin-list {
+    display: grid;
+    align-content: start;
+    gap: 7px;
+    padding: 4px;
+    overflow-y: auto;
+}
+
+body.fp-bluearchive #fp-admin-modal .fp-admin-row {
+    min-height: 50px;
+    padding: 8px 12px;
+    border: 1px solid rgba(35, 139, 195, 0.14);
+    border-left: 3px solid rgba(49, 200, 243, 0.58);
+    border-radius: 3px 11px 3px 11px;
+    background: rgba(255, 255, 255, 0.92);
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+body.fp-bluearchive #fp-admin-modal .fp-admin-row:hover {
+    border-color: rgba(35, 139, 195, 0.34);
+    background: #edf9ff;
+    transform: translateX(2px);
+}
+
+body.fp-bluearchive #fp-admin-modal .fp-admin-scope {
+    min-height: 25px;
+    padding: 0 9px;
+    border-color: rgba(22, 142, 234, 0.22);
+    border-radius: 3px 8px 3px 8px;
+    color: #456980;
+    background: #f4fbff;
+    font: 700 9px/1 Consolas, monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+body.fp-bluearchive #fp-admin-modal .fp-admin-scope.is-active {
+    color: #fff;
+    border-color: transparent;
+    background: linear-gradient(115deg, #168eea, #31c8f3);
+    box-shadow: 0 4px 10px rgba(22, 142, 234, 0.2);
+}
+
+body.fp-bluearchive #fp-admin-modal #fp-admin-add-open {
+    min-width: 190px;
+    min-height: 42px;
+    margin: 0 0 0 auto;
+    color: #fff;
+    border: 0;
+    background: linear-gradient(115deg, #168eea, #31c8f3);
+    box-shadow: 0 8px 18px rgba(22, 142, 234, 0.22);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gestione ore                                                               */
+/* -------------------------------------------------------------------------- */
+
+body.fp-bluearchive .fp-hours-page {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+body.fp-bluearchive .fp-hours-body {
+    min-height: 0;
+    padding: 18px 24px;
+}
+
+body.fp-bluearchive .fp-hours-card {
+    position: relative;
+    height: 100%;
+    padding: 12px;
+    overflow: auto;
+    border: 1px solid rgba(35, 139, 195, 0.22);
+    border-left: 4px solid var(--fp-ops-cyan);
+    border-radius: var(--fp-ops-cut);
+    background:
+        linear-gradient(rgba(22, 142, 234, 0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 142, 234, 0.028) 1px, transparent 1px),
+        rgba(255, 255, 255, 0.95);
+    background-size: 22px 22px, 22px 22px, auto;
+    box-shadow: var(--fp-ops-shadow);
+}
+
+body.fp-bluearchive .fp-hours-table {
+    overflow: hidden;
+    border: 1px solid rgba(35, 139, 195, 0.18);
+    border-radius: 4px 14px 4px 14px;
+}
+
+body.fp-bluearchive .fp-hours-table thead {
+    position: sticky;
+    z-index: 2;
+    top: -12px;
+}
+
+body.fp-bluearchive .fp-hours-table th {
+    height: 44px;
+    padding: 8px 12px;
+    color: #3b6682;
+    border-bottom: 2px solid rgba(49, 200, 243, 0.58);
+    background: linear-gradient(180deg, #f8fdff, #e6f6fd);
+    font: 800 9px/1.25 Consolas, monospace;
+    letter-spacing: 0.08em;
+}
+
+body.fp-bluearchive .fp-hours-table td {
+    height: 52px;
+    padding: 8px 12px;
+    color: var(--fp-ops-copy);
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(35, 139, 195, 0.12);
+}
+
+body.fp-bluearchive .fp-hours-table tbody tr:nth-child(even) td {
+    background: rgba(238, 249, 255, 0.78);
+}
+
+body.fp-bluearchive .fp-hours-table tbody tr:hover td {
+    background: #e3f6ff;
+}
+
+body.fp-bluearchive .fp-hours-input {
+    height: 34px;
+    border-radius: 3px 9px 3px 9px;
+    background: #fff;
+}
+
+body.fp-bluearchive .fp-hours-footer {
+    min-height: 50px;
+    padding: 7px 24px;
+    border-top: 1px solid rgba(35, 139, 195, 0.2);
+    background: rgba(248, 253, 255, 0.96);
+}
+
+body.fp-bluearchive .fp-hours-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border: 1px solid rgba(35, 139, 195, 0.16);
+    border-radius: 3px 9px 3px 9px;
+    background: #eff9ff;
+    font: 750 9px/1 Consolas, monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Modali operativi                                                           */
+/* -------------------------------------------------------------------------- */
+
+body.fp-bluearchive .fp-modal:not(#fp-settings-modal, #fp-manage-modal, #fp-days-picker-modal, .fp-identity-gate) {
+    padding: 22px;
+    background: rgba(14, 35, 55, 0.54);
+    backdrop-filter: blur(9px) saturate(0.8);
+}
+
+body.fp-bluearchive .fp-modal:not(#fp-settings-modal, #fp-manage-modal, #fp-days-picker-modal, .fp-identity-gate) > .fp-modal__card {
+    position: relative;
+    padding: 20px;
+    overflow: hidden;
+    color: var(--fp-ops-ink);
+    border: 1px solid rgba(35, 139, 195, 0.42);
+    border-left: 4px solid var(--fp-ops-cyan);
+    border-radius: var(--fp-ops-cut);
+    background:
+        linear-gradient(rgba(22, 142, 234, 0.038) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 142, 234, 0.038) 1px, transparent 1px),
+        linear-gradient(124deg, rgba(255, 255, 255, 0.99) 0 82%, rgba(225, 246, 255, 0.98) 82%);
+    background-size: 20px 20px, 20px 20px, auto;
+    box-shadow:
+        0 30px 82px rgba(7, 30, 49, 0.38),
+        8px 8px 0 rgba(49, 200, 243, 0.11),
+        inset 0 1px rgba(255, 255, 255, 0.96);
+    opacity: 1;
+    transform: none;
+    animation: none;
+}
+
+body.fp-bluearchive .fp-modal:not(#fp-settings-modal, #fp-manage-modal, #fp-days-picker-modal, .fp-identity-gate) > .fp-modal__card::before {
+    content: "SCHALE // OPERATIONS PANEL";
+    display: block;
+    min-height: 13px;
+    margin: -5px 0 8px;
+    padding-bottom: 8px;
+    color: var(--fp-ops-blue);
+    border-bottom: 1px solid rgba(35, 139, 195, 0.2);
+    font: 800 8px/1 Consolas, monospace;
+    letter-spacing: 0.15em;
+}
+
+/* La schermata di login conserva il layout Identity Gate originale:
+   pannello blu a sinistra e form di accesso a destra. */
+body.fp-bluearchive #fp-approve-modal.fp-identity-gate > .fp-modal__card {
+    opacity: 1;
+    transform: none;
+    animation: none;
+}
+
+body.fp-bluearchive .fp-modal .fp-assignees-header {
+    min-height: 46px;
+    margin: 0 0 14px;
+    padding: 0 0 12px 12px;
+    border-bottom: 1px solid rgba(35, 139, 195, 0.2);
+}
+
+body.fp-bluearchive .fp-modal .fp-assignees-header h3,
+body.fp-bluearchive .fp-modal > .fp-modal__card > h3 {
+    margin: 0;
+    color: var(--fp-ops-ink);
+    font-size: 20px;
+    font-weight: 850;
+    letter-spacing: -0.025em;
+}
+
+body.fp-bluearchive .fp-modal > .fp-modal__card > h3 {
+    padding: 4px 0 13px 12px;
+    border-bottom: 1px solid rgba(35, 139, 195, 0.2);
+}
+
+body.fp-bluearchive .fp-modal :is(input, select, textarea, .fp-field__input) {
+    border: 1px solid rgba(35, 139, 195, 0.26);
+    border-radius: 4px 10px 4px 10px;
+    color: var(--fp-ops-ink);
+    background: rgba(250, 254, 255, 0.96);
+    box-shadow: inset 0 1px 2px rgba(41, 100, 138, 0.04);
+}
+
+body.fp-bluearchive .fp-modal :is(input, select, textarea, .fp-field__input):focus {
+    outline: 0;
+    border-color: var(--fp-ops-cyan);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(49, 200, 243, 0.14);
+}
+
+body.fp-bluearchive .fp-modal label {
+    color: #537289;
+    font: 800 9px/1.2 Consolas, monospace;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+body.fp-bluearchive .fp-modal .fp-actions--modal {
+    margin-top: 15px;
+    padding-top: 13px;
+    border-top: 1px solid rgba(35, 139, 195, 0.18);
+}
+
+/* Festività e chiusure */
+body.fp-bluearchive :is(#fp-holidays-modal, #fp-closures-modal) > .fp-modal__card {
+    width: min(680px, 94vw);
+    max-width: 680px;
+}
+
+body.fp-bluearchive :is(.fp-holidays-date-grid, .fp-closures-date-grid) {
+    position: relative;
+    grid-template-columns: minmax(0, 1.35fr) minmax(150px, 0.75fr) minmax(150px, 0.75fr) auto;
+    grid-template-areas: "name start end button";
+    gap: 8px;
+    margin: 0;
+    padding: 14px;
+    border: 1px solid rgba(35, 139, 195, 0.17);
+    border-radius: 4px 14px 4px 14px;
+    background: rgba(238, 249, 255, 0.7);
+}
+
+body.fp-bluearchive :is(.fp-holidays-date-grid, .fp-closures-date-grid) :is(input, button) {
+    min-height: 38px;
+}
+
+body.fp-bluearchive :is(.fp-holidays-date-grid, .fp-closures-date-grid) .fp-btn--primary {
+    min-width: 98px;
+}
+
+body.fp-bluearchive :is(#fp-holidays-list-modal, #fp-closures-list-modal) > .fp-modal__card {
+    width: min(760px, 94vw);
+    max-width: 760px;
+    max-height: min(760px, 88vh);
+}
+
+body.fp-bluearchive .fp-holidays-list {
+    display: grid;
+    align-content: start;
+    gap: 7px;
+    padding: 3px 4px 4px;
+    overflow-y: auto;
+}
+
+body.fp-bluearchive .fp-holidays-row {
+    min-height: 58px;
+    padding: 8px 10px 8px 14px;
+    border: 1px solid rgba(35, 139, 195, 0.15);
+    border-left: 3px solid var(--fp-ops-cyan);
+    border-radius: 3px 11px 3px 11px;
+    background: rgba(255, 255, 255, 0.93);
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+body.fp-bluearchive .fp-holidays-row:hover,
+body.fp-bluearchive .fp-holidays-row.is-highlight {
+    border-color: rgba(35, 139, 195, 0.38);
+    background: #eaf8ff;
+    transform: translateX(2px);
+}
+
+body.fp-bluearchive .fp-holidays-row__name {
+    color: var(--fp-ops-ink);
+    font-weight: 800;
+}
+
+body.fp-bluearchive .fp-holidays-row__date {
+    display: inline-flex;
+    margin-top: 4px;
+    padding: 3px 7px;
+    color: #42708d;
+    border: 1px solid rgba(35, 139, 195, 0.14);
+    border-radius: 3px 7px 3px 7px;
+    background: #eff9ff;
+    font: 750 9px/1 Consolas, monospace;
+    letter-spacing: 0.04em;
+}
+
+body.fp-bluearchive .fp-holidays-row__edit {
+    gap: 7px;
+}
+
+/* Modifica richiesta */
+body.fp-bluearchive #fp-edit-modal > .fp-modal__card {
+    width: min(790px, 95vw);
+    max-width: 790px;
+    max-height: 92vh;
+    overflow-y: auto;
+}
+
+body.fp-bluearchive #fp-edit-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 15px;
+    border: 1px solid rgba(35, 139, 195, 0.16);
+    border-radius: 4px 16px 4px 16px;
+    background: rgba(245, 252, 255, 0.8);
+    box-shadow: none;
+}
+
+body.fp-bluearchive #fp-edit-form > .fp-checkbox,
+body.fp-bluearchive #fp-edit-form > .fp-grid,
+body.fp-bluearchive #fp-edit-form > .fp-inline-error,
+body.fp-bluearchive #fp-edit-form > .fp-field:has(textarea),
+body.fp-bluearchive #fp-edit-form > .fp-message,
+body.fp-bluearchive #fp-edit-form > .fp-actions {
+    grid-column: 1 / -1;
+}
+
+body.fp-bluearchive #fp-edit-form > .fp-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+    padding: 12px;
+    border: 1px solid rgba(35, 139, 195, 0.14);
+    border-radius: 3px 12px 3px 12px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+body.fp-bluearchive #fp-edit-form textarea {
+    min-height: 84px;
+    resize: vertical;
+}
+
+body.fp-bluearchive #fp-edit-form .fp-actions {
+    justify-content: flex-end;
+}
+
+body.fp-bluearchive #fp-edit-delete {
+    margin-right: auto;
+}
+
+/* Configurazione accessi */
+body.fp-bluearchive #fp-config-modal > .fp-config-card {
+    width: min(1040px, 96vw);
+    max-width: 1040px;
+    max-height: 92vh;
+}
+
+body.fp-bluearchive #fp-config-modal .fp-config-hint {
+    margin: 0 0 12px;
+    padding: 10px 13px;
+    color: #466a82;
+    border: 1px solid rgba(35, 139, 195, 0.16);
+    border-left: 3px solid var(--fp-ops-cyan);
+    border-radius: 3px 10px 3px 10px;
+    background: #eff9ff;
+    font-size: 11px;
+}
+
+body.fp-bluearchive #fp-config-modal .fp-config-body {
+    counter-reset: fp-ops-config;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 2px 3px 3px;
+    overflow-y: auto;
+}
+
+body.fp-bluearchive #fp-config-modal .fp-config-section {
+    counter-increment: fp-ops-config;
+    position: relative;
+    padding: 13px;
+    border: 1px solid rgba(35, 139, 195, 0.17);
+    border-left: 3px solid color-mix(in srgb, var(--fp-ops-cyan) 78%, #fff);
+    border-radius: 3px 13px 3px 13px;
+    background: rgba(250, 254, 255, 0.92);
+}
+
+body.fp-bluearchive #fp-config-modal .fp-config-section::after {
+    content: "0" counter(fp-ops-config);
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    color: #9ab2c1;
+    font: 800 9px/1 Consolas, monospace;
+}
+
+body.fp-bluearchive #fp-config-modal .fp-config-section h4 {
+    margin: 0 0 11px;
+    color: #2f5974;
+    font: 800 10px/1 Consolas, monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+body.fp-bluearchive #fp-config-modal .fp-config-grid {
+    gap: 6px;
+}
+
+body.fp-bluearchive #fp-config-modal .fp-switch {
+    min-height: 38px;
+    padding: 7px 9px;
+    box-sizing: border-box;
+    border: 1px solid rgba(35, 139, 195, 0.11);
+    border-radius: 3px 9px 3px 9px;
+    background: rgba(240, 250, 255, 0.68);
+}
+
+body.fp-bluearchive #fp-config-modal .fp-switch:hover {
+    border-color: rgba(35, 139, 195, 0.26);
+    background: #e9f8ff;
+}
+
+/* Richieste in attesa */
+body.fp-bluearchive .fp-pending-flyout {
+    width: min(460px, calc(100vw - 28px));
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(35, 139, 195, 0.38);
+    border-left: 4px solid var(--fp-ops-cyan);
+    border-radius: var(--fp-ops-cut);
+    background:
+        linear-gradient(rgba(22, 142, 234, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 142, 234, 0.035) 1px, transparent 1px),
+        rgba(248, 253, 255, 0.98);
+    background-size: 20px 20px, 20px 20px, auto;
+    box-shadow: 0 24px 58px rgba(10, 42, 66, 0.3);
+}
+
+body.fp-bluearchive .fp-pending-flyout__header {
+    min-height: 58px;
+    padding: 12px 13px 12px 16px;
+    border-bottom: 1px solid rgba(35, 139, 195, 0.2);
+    background: linear-gradient(100deg, #fff, #e9f8ff);
+}
+
+body.fp-bluearchive .fp-pending-flyout__header h3 {
+    color: var(--fp-ops-ink);
+    font-size: 17px;
+}
+
+body.fp-bluearchive .fp-pending-list {
+    display: grid;
+    gap: 8px;
+    padding: 11px;
+}
+
+body.fp-bluearchive .fp-pending-item {
+    padding: 13px;
+    border: 1px solid rgba(35, 139, 195, 0.15);
+    border-left: 3px solid var(--fp-ops-cyan);
+    border-radius: 3px 12px 3px 12px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 7px 16px rgba(43, 105, 145, 0.08);
+}
+
+body.fp-bluearchive .fp-pending-item h3 {
+    color: var(--fp-ops-ink);
+    font-size: 14px;
+}
+
+body.fp-bluearchive .fp-pending-item p {
+    color: var(--fp-ops-muted);
+}
+
+body.fp-bluearchive .fp-pending-actions {
+    padding-top: 9px;
+    border-top: 1px solid rgba(35, 139, 195, 0.12);
+}
+
+/* Form admin, OTP, conferme e modali utility */
+body.fp-bluearchive :is(
+    #fp-admin-add-modal,
+    #fp-admin-edit-modal,
+    #fp-otp-modal,
+    #fp-confirm-modal,
+    #fp-info-modal
+) > .fp-modal__card {
+    width: min(580px, 94vw);
+    max-width: 580px;
+}
+
+body.fp-bluearchive :is(.fp-admin-grid, .fp-otp-section) {
+    gap: 8px;
+}
+
+body.fp-bluearchive .fp-admin-actions {
+    gap: 8px;
+    padding-top: 10px;
+}
+
+body.fp-bluearchive .fp-admin-list {
+    border: 1px solid rgba(35, 139, 195, 0.16);
+    border-radius: 4px 14px 4px 14px;
+    background: rgba(250, 254, 255, 0.78);
+}
+
+body.fp-bluearchive .fp-message {
+    border-radius: 3px 10px 3px 10px;
+}
+
+/* Export, backup e setup */
+body.fp-bluearchive :is(#fp-export-modal, #fp-backup-modal, #fp-setup-modal) > .fp-modal__card {
+    width: min(720px, 94vw);
+    max-width: 720px;
+}
+
+body.fp-bluearchive :is(.fp-export-section, .fp-setup-section, .fp-admin-section) {
+    border-radius: 3px 12px 3px 12px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive                                                                 */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 1050px) {
+    body.fp-bluearchive .am-main {
+        height: auto;
+        min-height: calc(100vh - 88px);
+        overflow-y: auto;
+    }
+
+    body.fp-bluearchive .am-card {
+        height: auto;
+        grid-template-columns: 1fr;
+    }
+
+    body.fp-bluearchive .am-card > .fp-assignees-section {
+        min-height: 430px;
+    }
+
+    body.fp-bluearchive #fp-edit-form {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    body.fp-bluearchive #fp-edit-form > .fp-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header) {
+        align-items: flex-start;
+        padding-inline: 14px;
+    }
+
+    body.fp-bluearchive :is(.am-header, .adm-header, .fp-hours-header)::before {
+        left: 18px;
+    }
+
+    body.fp-bluearchive :is(.am-actions, .adm-actions, .fp-hours-actions) {
+        flex-wrap: wrap;
+    }
+
+    body.fp-bluearchive :is(.fp-holidays-date-grid, .fp-closures-date-grid) {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "name name"
+            "start end"
+            "button button";
+    }
+
+    body.fp-bluearchive #fp-config-modal .fp-config-body,
+    body.fp-bluearchive #fp-edit-form {
+        grid-template-columns: 1fr;
+    }
+}
+
+@keyframes fp-ops-modal-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes fp-ops-ambient {
+    to {
+        transform: translate3d(1.5%, -1%, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.fp-bluearchive :is(.am-page, .adm-page, .fp-hours-page)::before,
+    body.fp-bluearchive .fp-modal > .fp-modal__card {
+        animation: none;
+    }
+}
