@@ -1711,6 +1711,7 @@ let productManagerForceLogout = false;
 let suppressTicketWindowChaining = false;
 let feriePermessiSplashShown = false;
 let productManagerSplashShown = false;
+let ticketSupportSplashShown = false;
 let isAppQuitting = false;
 let lastFolderDialogPath: string | null = null;
 let lastFolderDialogClosedAt = 0;
@@ -2619,6 +2620,12 @@ function openTicketSupportWindow(
     const requestedTheme =
         options.theme === "bluearchive" ? "bluearchive" : "standard";
     const showSplash = options.showSplash !== false;
+    const shouldShowSplash =
+        showSplash &&
+        (requestedTheme === "bluearchive" || !ticketSupportSplashShown);
+    if (requestedTheme === "standard" && showSplash) {
+        ticketSupportSplashShown = true;
+    }
     if (isWindowAlive(ticketSupportWindow)) {
         ticketSupportWindowTheme = requestedTheme;
         ticketSupportWindow.loadFile(
@@ -2632,11 +2639,7 @@ function openTicketSupportWindow(
             {
                 query: {
                     theme: ticketSupportWindowTheme,
-                    tsSplash:
-                        ticketSupportWindowTheme === "bluearchive" &&
-                        showSplash
-                            ? "1"
-                            : "0",
+                    tsSplash: shouldShowSplash ? "1" : "0",
                 },
             },
         );
@@ -2668,10 +2671,7 @@ function openTicketSupportWindow(
         {
             query: {
                 theme: ticketSupportWindowTheme,
-                tsSplash:
-                    ticketSupportWindowTheme === "bluearchive" && showSplash
-                        ? "1"
-                        : "0",
+                tsSplash: shouldShowSplash ? "1" : "0",
             },
         },
     );

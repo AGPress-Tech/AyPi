@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024" viewBox="0 0 1536 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="48%" r="70%">
+      <stop offset="0" stop-color="#111214"/>
+      <stop offset="0.62" stop-color="#050506"/>
+      <stop offset="1"/>
+    </radialGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="0.52" stop-color="#d7d7d9"/>
+      <stop offset="1" stop-color="#8d8e91"/>
+    </linearGradient>
+  </defs>
+  <rect width="1536" height="1024" fill="url(#bg)"/>
+  <g fill="none" stroke="url(#silver)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M390 548v-72c0-80 59-141 139-141s139 61 139 141v72"/>
+    <path d="M404 472h35v126h-35c-25 0-45-20-45-45v-36c0-25 20-45 45-45z"/>
+    <path d="M654 472h-35v126h35c25 0 45-20 45-45v-36c0-25-20-45-45-45z"/>
+    <path d="M655 598c-9 47-43 70-101 70"/>
+    <rect x="507" y="650" width="49" height="22" rx="11"/>
+  </g>
+  <rect x="736" y="350" width="2" height="290" fill="#bfc0c2"/>
+  <g fill="url(#silver)" font-family="Arial, Helvetica, sans-serif">
+    <text x="782" y="526" font-size="190" font-weight="300" letter-spacing="12">AYPI</text>
+    <text x="795" y="619" font-size="52" font-weight="300" letter-spacing="18">TICKET SUPPORT</text>
+  </g>
+</svg>

@@ -46,11 +46,15 @@ function runBlueArchiveTicketSupportSplash() {
     const splash = document.getElementById("tsBlueArchiveSplash");
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
+    splash.classList.add("is-visible");
     const statusSteps = splash.querySelectorAll(".fp-ba-boot-status span");
     window.setTimeout(() => statusSteps[1]?.classList.add("is-complete"), 1900);
     window.setTimeout(() => statusSteps[2]?.classList.add("is-complete"), 3650);
     window.setTimeout(() => splash.classList.add("is-fading"), 4550);
-    window.setTimeout(() => splash.remove(), 5550);
+    window.setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent("ts-splash-finished"));
+    }, 5550);
 }
 
 runBlueArchiveTicketSupportSplash();
@@ -1362,6 +1366,25 @@ function openLoginModal() {
     openModal("pm-login-modal");
 }
 
+function openLoginModalAfterSplash() {
+    const standardSplash = document.getElementById("ts-standard-splash");
+    const blueArchiveSplash = document.getElementById("tsBlueArchiveSplash");
+    const splashIsActive =
+        standardSplash?.getAttribute("aria-hidden") === "false" ||
+        blueArchiveSplash?.getAttribute("aria-hidden") === "false";
+
+    if (!splashIsActive) {
+        openLoginModal();
+        return;
+    }
+
+    window.addEventListener(
+        "ts-splash-finished",
+        () => openLoginModal(),
+        { once: true },
+    );
+}
+
 function closeLoginModal() {
     resetAdminLoginSensitiveFields();
     closeModal("pm-login-modal");
@@ -2046,7 +2069,7 @@ function applySharedSession(payload) {
             closeLoginModal();
             showInlineMessage("ts-admin-message", "Sessione terminata. Accedi dalla home Ticket Support.", "error");
         } else {
-            openLoginModal();
+            openLoginModalAfterSplash();
         }
     }
 }
@@ -2099,7 +2122,7 @@ async function init() {
         if (currentView === "admin") {
             showInlineMessage("ts-admin-message", "Accedi dalla home Ticket Support per usare questa finestra.", "error");
         } else {
-            openLoginModal();
+            openLoginModalAfterSplash();
         }
     } else if (currentView === "admin" && !isAdmin()) {
         showInlineMessage("ts-admin-message", "Accesso admin richiesto. Cambia utente dalla home Ticket Support.", "error");
@@ -2132,7 +2155,7 @@ ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
     clearSession();
     resetAdminLoginSensitiveFields();
     renderAll();
-    openLoginModal();
+    openLoginModalAfterSplash();
 });
 
 ipcRenderer.on("pm-session-updated", (_event, payload) => {
