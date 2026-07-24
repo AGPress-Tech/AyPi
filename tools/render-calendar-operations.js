@@ -189,6 +189,73 @@ app.whenReady()
         await capture(window, outputDirectory, "admins");
 
         await load(window, "ferie-permessi.html");
+        const exportSelectorsCheck = await window.webContents.executeJavaScript(`(() => {
+            const customRange = document.querySelector(
+                "input[name='fp-export-range'][value='custom']"
+            );
+            const allRange = document.querySelector(
+                "input[name='fp-export-range'][value='all']"
+            );
+            const start = document.getElementById("fp-export-start");
+            const type = document.getElementById("fp-export-ferie");
+            const departments = document.getElementById("fp-export-departments");
+            departments.innerHTML = ["Reparto A", "Reparto B"].map(name =>
+                \`<label><input type="checkbox" value="\${name}" checked> \${name}</label>\`
+            ).join("");
+            const checkedBackground = getComputedStyle(type).backgroundColor;
+            customRange.click();
+            const customEnabled = customRange.checked && !allRange.checked && !start.disabled;
+            type.click();
+            const uncheckedBackground = getComputedStyle(type).backgroundColor;
+            const typeToggled = !type.checked && checkedBackground !== uncheckedBackground;
+            document.getElementById("fp-export-select-none").click();
+            const noneSelected = [...departments.querySelectorAll("input")]
+                .every(input => !input.checked);
+            document.getElementById("fp-export-select-all").click();
+            const allSelected = [...departments.querySelectorAll("input")]
+                .every(input => input.checked);
+            return {
+                ok: customEnabled && typeToggled && noneSelected && allSelected,
+                customEnabled,
+                typeToggled,
+                noneSelected,
+                allSelected,
+                checkedBackground,
+                uncheckedBackground,
+            };
+        })()`);
+        checks.push(exportSelectorsCheck.ok);
+
+        const settingsIdentityChecks = [];
+        for (const buttonId of [
+            "fp-admin-open",
+            "fp-settings-config-open",
+            "fp-backup-open",
+        ]) {
+            settingsIdentityChecks.push(
+                await window.webContents.executeJavaScript(`(() => {
+                    document.querySelectorAll(".fp-modal").forEach(modal => {
+                        modal.classList.add("is-hidden");
+                        modal.setAttribute("aria-hidden", "true");
+                    });
+                    document.getElementById(${JSON.stringify(buttonId)}).click();
+                    const infoModal = document.getElementById("fp-info-modal");
+                    if (!infoModal.classList.contains("is-hidden")) {
+                        document.getElementById("fp-info-login").click();
+                    }
+                    const modal = document.getElementById("fp-approve-modal");
+                    const adminField = document.getElementById("fp-login-admin-field");
+                    return (
+                        modal.classList.contains("fp-identity-gate") &&
+                        !modal.classList.contains("is-hidden") &&
+                        !adminField.classList.contains("is-hidden")
+                    );
+                })()`)
+            );
+        }
+        checks.push(settingsIdentityChecks.every(Boolean));
+        await load(window, "ferie-permessi.html");
+
         await window.webContents.executeJavaScript(`(() => {
             document.querySelectorAll(".fp-modal").forEach(modal => {
                 modal.classList.add("is-hidden");
@@ -328,6 +395,8 @@ app.whenReady()
         const result = {
             ok: checks.every(Boolean),
             checks,
+            exportSelectorsCheck,
+            settingsIdentityChecks,
             loginCheck,
             outputDirectory,
         };

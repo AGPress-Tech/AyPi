@@ -533,7 +533,12 @@ body.fp-bluearchive .fp-modal > .fp-modal__card > h3 {
     border-bottom: 1px solid rgba(35, 139, 195, 0.2);
 }
 
-body.fp-bluearchive .fp-modal :is(input, select, textarea, .fp-field__input) {
+body.fp-bluearchive .fp-modal :is(
+        input:not([type="checkbox"]):not([type="radio"]),
+        select,
+        textarea,
+        .fp-field__input
+    ) {
     border: 1px solid rgba(35, 139, 195, 0.26);
     border-radius: 4px 10px 4px 10px;
     color: var(--fp-ops-ink);
@@ -541,7 +546,12 @@ body.fp-bluearchive .fp-modal :is(input, select, textarea, .fp-field__input) {
     box-shadow: inset 0 1px 2px rgba(41, 100, 138, 0.04);
 }
 
-body.fp-bluearchive .fp-modal :is(input, select, textarea, .fp-field__input):focus {
+body.fp-bluearchive .fp-modal :is(
+        input:not([type="checkbox"]):not([type="radio"]),
+        select,
+        textarea,
+        .fp-field__input
+    ):focus {
     outline: 0;
     border-color: var(--fp-ops-cyan);
     background: #fff;

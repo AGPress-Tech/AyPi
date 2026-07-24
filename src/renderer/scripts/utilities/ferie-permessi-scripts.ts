@@ -3213,6 +3213,7 @@ async function init() {
             !includePermessi &&
             !includeStraordinari &&
             !includeMutua &&
+            !includeInfortunio &&
             !includeSpeciale &&
             !includeRetribuito
         ) {
@@ -3224,6 +3225,14 @@ async function init() {
             return;
         }
         const departments = exportUi.getExportSelectedDepartments();
+        if (!departments.length) {
+            setMessage(
+                document.getElementById("fp-export-message"),
+                UI_TEXTS.exportSelectDepartment,
+                true,
+            );
+            return;
+        }
 
         const payload = loadData();
         const raw = payload.requests || [];
@@ -3242,11 +3251,7 @@ async function init() {
             if (req.type === "infortunio" && !includeInfortunio) return false;
             if (req.type === "speciale" && !includeSpeciale) return false;
             if (req.type === "retribuito" && !includeRetribuito) return false;
-            if (
-                departments.length &&
-                req.department &&
-                !departments.includes(req.department)
-            )
+            if (req.department && !departments.includes(req.department))
                 return false;
             if (rangeMode === "custom") {
                 const { start, end } = getRequestDates(req);

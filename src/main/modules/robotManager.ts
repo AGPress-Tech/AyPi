@@ -1,6 +1,6 @@
 // Importa moduli necessari
 import { ipcMain, dialog } from "electron";
-import { exec } from "child_process";
+import { exec, execFile } from "child_process";
 import { toMAC } from "@network-utils/arp-lookup";
 
 type RobotConfig = { ip: string; mac: string };
@@ -12,6 +12,31 @@ const ROBOTS: Record<string, RobotConfig> = {
 };
 
 const ROBOT_STATUS_TIMEOUT_MS = 2000;
+const ROBOT_CUSTOM_TIMEOUT_MS = 12000;
+
+type RobotStatusResult = {
+    ok: boolean;
+    robotId: string;
+    ip?: string;
+    error?: string;
+    program?: string;
+    state?: string;
+    counter?: string;
+    cycleTime?: string;
+    details?: string;
+};
+
+type RobotPingResult = {
+    ok: boolean;
+    robotId: string;
+    ip?: string;
+    reachable?: boolean;
+    summary?: string;
+    expectedMac?: string;
+    detectedMac?: string | null;
+    macConflict?: boolean;
+    error?: string;
+};
 
 function showInfo(title: string, message: string, buttons?: string[]) {
     return dialog.showMessageBox({
@@ -122,6 +147,116 @@ async function getMacForIP(ip: string) {
     }
 }
 
+async function getRobotStatus(
+    robotId: string,
+    url: string,
+    chiaveStato: string,
+): Promise<RobotStatusResult> {
+    const config = ROBOTS[robotId];
+    if (!config || !url || !chiaveStato) {
+        return {
+            ok: false,
+            robotId,
+            error: "Configurazione robot non valida.",
+        };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(
+        () => controller.abort(),
+        ROBOT_CUSTOM_TIMEOUT_MS,
+    );
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+            throw new Error(`Pagina non raggiungibile (${response.status})`);
+        }
+        const html = await response.text();
+        const cleanText = html
+            .replace(/<[^>]*>/g, "\n")
+            .replace(/\r/g, "")
+            .trim();
+        return {
+            ok: true,
+            robotId,
+            ip: config.ip,
+            program:
+                estraiTesto(cleanText, "Programma di lavoro:") || "Non trovato",
+            state: estraiTesto(cleanText, chiaveStato) || "Non trovato",
+            counter: estraiPrimaParola(cleanText, "PEZZI NUMERO") || undefined,
+            cycleTime:
+                estraiPrimaParola(cleanText, "TEMPO CICLO") || undefined,
+            details:
+                estraiRigaSubitoDopo(cleanText, "PEZZI NUMERO") || undefined,
+        };
+    } catch (error) {
+        const timedOut =
+            error instanceof Error && error.name === "AbortError";
+        return {
+            ok: false,
+            robotId,
+            ip: config.ip,
+            error: timedOut
+                ? "Tempo di risposta scaduto. Il robot potrebbe essere spento o scollegato."
+                : "Robot non individuato. Verifica alimentazione, rete e disponibilità della porta.",
+        };
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function pingRobot(robotId: string): Promise<RobotPingResult> {
+    const config = ROBOTS[robotId];
+    if (!config) {
+        return {
+            ok: false,
+            robotId,
+            error: "Robot non riconosciuto.",
+        };
+    }
+
+    return new Promise((resolve) => {
+        execFile(
+            "ping",
+            ["-n", "1", config.ip],
+            { timeout: ROBOT_CUSTOM_TIMEOUT_MS },
+            async (error, stdout) => {
+                const lines = String(stdout || "")
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter(Boolean);
+                const summary =
+                    lines.find((line) =>
+                        /Persi\s*=|Lost\s*=|Minimum\s*=|Minimo\s*=/i.test(
+                            line,
+                        ),
+                    ) ||
+                    lines.at(-1) ||
+                    "Nessuna risposta ricevuta.";
+                const reachable =
+                    !error && /(?:Persi|Lost)\s*=\s*0/i.test(stdout || "");
+                const detectedMac = reachable
+                    ? await getMacForIP(config.ip)
+                    : null;
+                const macConflict =
+                    !!detectedMac &&
+                    detectedMac.toLowerCase() !== config.mac.toLowerCase();
+
+                resolve({
+                    ok: true,
+                    robotId,
+                    ip: config.ip,
+                    reachable,
+                    summary,
+                    expectedMac: config.mac,
+                    detectedMac,
+                    macConflict,
+                });
+            },
+        );
+    });
+}
+
 function setupRobotManager() {
     ipcMain.on("mostra-robot-popup", async (_event, robotId: string, url: string, chiaveStato: string) => {
         await mostraPopup(robotId, url, chiaveStato);
@@ -164,6 +299,20 @@ function setupRobotManager() {
             });
         });
     });
+
+    ipcMain.handle(
+        "robot-status-custom",
+        async (
+            _event,
+            robotId: string,
+            url: string,
+            chiaveStato: string,
+        ) => getRobotStatus(robotId, url, chiaveStato),
+    );
+
+    ipcMain.handle("ping-robot-custom", async (_event, robotId: string) =>
+        pingRobot(robotId),
+    );
 }
 
 export { setupRobotManager };

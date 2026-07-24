@@ -168,6 +168,86 @@
             </section>
         </div>
 
+        <div class="robot-console-backdrop" id="robotConsoleBackdrop" aria-hidden="true">
+            <section class="robot-console" role="dialog" aria-modal="true" aria-labelledby="robotConsoleTitle">
+                <div class="robot-console-grid" aria-hidden="true"></div>
+                <div class="robot-console-scanline" aria-hidden="true"></div>
+                <button class="robot-console-close" id="robotConsoleClose" type="button" aria-label="Chiudi">×</button>
+
+                <header class="robot-console-header">
+                    <div class="robot-console-emblem" aria-hidden="true">
+                        <i></i><i></i><span>R</span>
+                    </div>
+                    <div>
+                        <div class="eyebrow"><span>RBT</span> AYPI ROBOT NETWORK</div>
+                        <h2 id="robotConsoleTitle">Console diagnostica</h2>
+                        <p id="robotConsoleSubtitle">Seleziona una cella robotizzata da analizzare.</p>
+                    </div>
+                    <div class="robot-console-online"><i></i> NETWORK READY</div>
+                </header>
+
+                <div class="robot-console-selector" id="robotConsoleSelector">
+                    <button class="robot-choice robot-choice-cyan" type="button" data-robot-ping="21D500">
+                        <span class="robot-choice-code">CELL // 01</span>
+                        <strong>21D500</strong>
+                        <small>192.168.1.153</small>
+                        <i aria-hidden="true">↗</i>
+                    </button>
+                    <button class="robot-choice robot-choice-blue" type="button" data-robot-ping="21D600">
+                        <span class="robot-choice-code">CELL // 02</span>
+                        <strong>21D600</strong>
+                        <small>192.168.1.152</small>
+                        <i aria-hidden="true">↗</i>
+                    </button>
+                    <button class="robot-choice robot-choice-navy" type="button" data-robot-ping="21D850">
+                        <span class="robot-choice-code">CELL // 03</span>
+                        <strong>21D850</strong>
+                        <small>192.168.1.92</small>
+                        <i aria-hidden="true">↗</i>
+                    </button>
+                </div>
+
+                <div class="robot-console-loading" id="robotConsoleLoading" hidden>
+                    <div class="robot-radar" aria-hidden="true">
+                        <i class="robot-radar-ring"></i>
+                        <i class="robot-radar-ring"></i>
+                        <i class="robot-radar-ring"></i>
+                        <span></span>
+                    </div>
+                    <div class="robot-loading-copy">
+                        <span>DIAGNOSTIC LINK</span>
+                        <strong id="robotLoadingTitle">Connessione in corso</strong>
+                        <p id="robotLoadingMessage">Interrogazione della cella robotizzata...</p>
+                    </div>
+                    <div class="robot-loading-progress" aria-hidden="true"><i></i></div>
+                </div>
+
+                <div class="robot-console-result" id="robotConsoleResult" hidden>
+                    <div class="robot-result-banner">
+                        <div class="robot-result-status" id="robotResultStatus"><i></i><span>ONLINE</span></div>
+                        <div>
+                            <span>ROBOT NODE</span>
+                            <strong id="robotResultRobot">21D500</strong>
+                        </div>
+                        <div>
+                            <span>IP ADDRESS</span>
+                            <strong id="robotResultIp">192.168.1.153</strong>
+                        </div>
+                    </div>
+                    <div class="robot-result-grid" id="robotResultGrid"></div>
+                    <div class="robot-result-alert" id="robotResultAlert" hidden></div>
+                </div>
+
+                <footer class="robot-console-actions">
+                    <span><i></i> SECURE DIAGNOSTIC CHANNEL // AGPRESS</span>
+                    <div>
+                        <button class="robot-button robot-button-secondary" id="robotConsoleBack" type="button" hidden>Indietro</button>
+                        <button class="robot-button robot-button-primary" id="robotConsoleDone" type="button">Chiudi</button>
+                    </div>
+                </footer>
+            </section>
+        </div>
+
         <div class="admin-backdrop" id="adminBackdrop" aria-hidden="true">
             <section class="admin-panel" role="dialog" aria-modal="true" aria-labelledby="adminPanelTitle">
                 <button class="admin-close" id="adminClose" type="button" aria-label="Chiudi">×</button>

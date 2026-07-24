@@ -109,6 +109,7 @@ export const UI_TEXTS = {
         `Confermi l'eliminazione dell'admin <strong>${adminName}</strong>?`,
     exportInvalidRange: "Seleziona un intervallo valido.",
     exportSelectType: "Seleziona almeno un tipo.",
+    exportSelectDepartment: "Seleziona almeno un reparto.",
     exportNoData: "Nessun dato da esportare.",
     exportSuccess: "File Excel creato con successo.",
     exportPasswordDescription:

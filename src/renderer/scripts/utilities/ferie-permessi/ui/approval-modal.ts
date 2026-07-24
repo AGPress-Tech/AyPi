@@ -233,6 +233,12 @@ function createApprovalModal(options: ApprovalModalOptions) {
         "config-access",
         "backup-access",
     ]);
+    const IDENTITY_GATE_ACTIONS = new Set([
+        "admin-login",
+        "admin-access",
+        "config-access",
+        "backup-access",
+    ]);
 
     async function handleAction(
         admin: AdminLike | null,
@@ -559,7 +565,8 @@ function createApprovalModal(options: ApprovalModalOptions) {
         ) as HTMLSelectElement | null;
         if (!modal || !input) return;
         const useIdentityGate =
-            action?.type === "admin-login" &&
+            !!action?.type &&
+            IDENTITY_GATE_ACTIONS.has(action.type) &&
             document.body.classList.contains("fp-bluearchive");
         setPendingAction(action);
         modal.classList.toggle("fp-identity-gate", useIdentityGate);

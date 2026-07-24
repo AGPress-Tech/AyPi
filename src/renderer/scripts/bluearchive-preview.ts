@@ -7,6 +7,10 @@ type ActionItem = {
     channel?: string;
     channelArgs?: unknown[];
     invoke?: boolean;
+    robotAction?: "status" | "ping";
+    robotId?: string;
+    robotUrl?: string;
+    robotStateKey?: string;
 };
 
 type PageDefinition = {
@@ -178,38 +182,31 @@ const pages: Record<string, PageDefinition> = {
             {
                 label: "Stato Robot 21D500",
                 description: "Diagnostica 21D500",
-                channel: "mostra-robot-popup",
-                channelArgs: [
-                    "21D500",
-                    "http://192.168.1.153/index1.html",
-                    "STATO ROBOT P21160",
-                ],
+                robotAction: "status",
+                robotId: "21D500",
+                robotUrl: "http://192.168.1.153/index1.html",
+                robotStateKey: "STATO ROBOT P21160",
             },
             {
                 label: "Stato Robot 21D600",
                 description: "Diagnostica 21D600",
-                channel: "mostra-robot-popup",
-                channelArgs: [
-                    "21D600",
-                    "http://192.168.1.152/index1.html",
-                    "STATO ROBOT P17259",
-                ],
+                robotAction: "status",
+                robotId: "21D600",
+                robotUrl: "http://192.168.1.152/index1.html",
+                robotStateKey: "STATO ROBOT P17259",
             },
             {
                 label: "Stato Robot 21D850",
                 description: "Diagnostica 21D850",
-                channel: "mostra-robot-popup",
-                channelArgs: [
-                    "21D850",
-                    "http://192.168.1.92/index1.html",
-                    "STATO ROBOT P22022",
-                ],
+                robotAction: "status",
+                robotId: "21D850",
+                robotUrl: "http://192.168.1.92/index1.html",
+                robotStateKey: "STATO ROBOT P22022",
             },
             {
                 label: "Verifica Connessioni",
                 description: "Controllo raggiungibilità robot",
-                channel: "ping-robot-dialog",
-                invoke: true,
+                robotAction: "ping",
             },
         ],
     },
@@ -277,6 +274,51 @@ const pages: Record<string, PageDefinition> = {
 const pageOrder = Object.keys(pages);
 const aura = document.getElementById("cursorAura") as HTMLElement | null;
 const clickLayer = document.getElementById("clickLayer") as HTMLElement | null;
+const robotConsoleBackdrop = document.getElementById(
+    "robotConsoleBackdrop",
+) as HTMLElement | null;
+const robotConsoleSelector = document.getElementById(
+    "robotConsoleSelector",
+) as HTMLElement | null;
+const robotConsoleLoading = document.getElementById(
+    "robotConsoleLoading",
+) as HTMLElement | null;
+const robotConsoleResult = document.getElementById(
+    "robotConsoleResult",
+) as HTMLElement | null;
+const robotConsoleTitle = document.getElementById(
+    "robotConsoleTitle",
+) as HTMLElement | null;
+const robotConsoleSubtitle = document.getElementById(
+    "robotConsoleSubtitle",
+) as HTMLElement | null;
+const robotLoadingTitle = document.getElementById(
+    "robotLoadingTitle",
+) as HTMLElement | null;
+const robotLoadingMessage = document.getElementById(
+    "robotLoadingMessage",
+) as HTMLElement | null;
+const robotResultStatus = document.getElementById(
+    "robotResultStatus",
+) as HTMLElement | null;
+const robotResultRobot = document.getElementById(
+    "robotResultRobot",
+) as HTMLElement | null;
+const robotResultIp = document.getElementById(
+    "robotResultIp",
+) as HTMLElement | null;
+const robotResultGrid = document.getElementById(
+    "robotResultGrid",
+) as HTMLElement | null;
+const robotResultAlert = document.getElementById(
+    "robotResultAlert",
+) as HTMLElement | null;
+const robotConsoleBack = document.getElementById(
+    "robotConsoleBack",
+) as HTMLButtonElement | null;
+const robotConsoleDone = document.getElementById(
+    "robotConsoleDone",
+) as HTMLButtonElement | null;
 const assistant = document.getElementById("assistant") as HTMLElement | null;
 const assistantPlayer = document.getElementById(
     "spineAssistantPlayer",
@@ -986,6 +1028,214 @@ function bindCardInteractions() {
     });
 }
 
+type RobotConsoleResult = {
+    ok: boolean;
+    robotId: string;
+    ip?: string;
+    error?: string;
+    program?: string;
+    state?: string;
+    counter?: string;
+    cycleTime?: string;
+    details?: string;
+    reachable?: boolean;
+    summary?: string;
+    expectedMac?: string;
+    detectedMac?: string | null;
+    macConflict?: boolean;
+};
+
+let robotConsoleRequest = 0;
+let robotConsoleReturnToSelector = false;
+
+function setRobotConsoleView(view: "selector" | "loading" | "result") {
+    if (robotConsoleSelector)
+        robotConsoleSelector.hidden = view !== "selector";
+    if (robotConsoleLoading) robotConsoleLoading.hidden = view !== "loading";
+    if (robotConsoleResult) robotConsoleResult.hidden = view !== "result";
+    if (robotConsoleBack)
+        robotConsoleBack.hidden =
+            view !== "result" || !robotConsoleReturnToSelector;
+    if (robotConsoleDone)
+        robotConsoleDone.textContent = view === "loading" ? "Annulla" : "Chiudi";
+}
+
+function openRobotConsoleSelector() {
+    robotConsoleRequest += 1;
+    robotConsoleReturnToSelector = true;
+    if (robotConsoleTitle) robotConsoleTitle.textContent = "Verifica connessioni";
+    if (robotConsoleSubtitle)
+        robotConsoleSubtitle.textContent =
+            "Seleziona la cella da raggiungere sulla rete di produzione.";
+    setRobotConsoleView("selector");
+    robotConsoleBackdrop?.setAttribute("aria-hidden", "false");
+}
+
+function closeRobotConsole() {
+    robotConsoleRequest += 1;
+    robotConsoleBackdrop?.setAttribute("aria-hidden", "true");
+}
+
+function addRobotResultCard(label: string, value: string) {
+    if (!robotResultGrid || !value) return;
+    const card = document.createElement("div");
+    card.className = "robot-result-card";
+    const caption = document.createElement("span");
+    caption.textContent = label;
+    const content = document.createElement("strong");
+    content.textContent = value;
+    card.append(caption, content);
+    robotResultGrid.appendChild(card);
+}
+
+function renderRobotConsoleResult(
+    result: RobotConsoleResult,
+    mode: "status" | "ping",
+) {
+    if (robotResultGrid) robotResultGrid.innerHTML = "";
+    if (robotResultRobot)
+        robotResultRobot.textContent = result.robotId || "UNKNOWN";
+    if (robotResultIp) robotResultIp.textContent = result.ip || "N/D";
+    if (robotResultAlert) {
+        robotResultAlert.hidden = true;
+        robotResultAlert.textContent = "";
+    }
+
+    const statusLabel = robotResultStatus?.querySelector("span");
+    robotResultStatus?.classList.remove("is-error", "is-warning");
+
+    if (!result.ok) {
+        robotResultStatus?.classList.add("is-error");
+        if (statusLabel) statusLabel.textContent = "LINK ERROR";
+        addRobotResultCard(
+            "DIAGNOSTIC REPORT",
+            result.error || "Connessione non disponibile.",
+        );
+    } else if (mode === "ping") {
+        if (result.reachable) {
+            if (statusLabel) statusLabel.textContent = "ONLINE";
+        } else {
+            robotResultStatus?.classList.add("is-error");
+            if (statusLabel) statusLabel.textContent = "OFFLINE";
+        }
+        addRobotResultCard("PING SUMMARY", result.summary || "Nessun dato");
+        addRobotResultCard("MAC ATTESO", result.expectedMac || "N/D");
+        addRobotResultCard("MAC RILEVATO", result.detectedMac || "Non rilevato");
+        if (result.macConflict && robotResultAlert) {
+            robotResultStatus?.classList.remove("is-error");
+            robotResultStatus?.classList.add("is-warning");
+            if (statusLabel) statusLabel.textContent = "IP CONFLICT";
+            robotResultAlert.hidden = false;
+            robotResultAlert.textContent =
+                "Attenzione: il MAC rilevato non corrisponde a quello configurato. Possibile conflitto di indirizzo IP.";
+        }
+    } else {
+        if (statusLabel) statusLabel.textContent = "ONLINE";
+        addRobotResultCard("PROGRAMMA ATTIVO", result.program || "Non trovato");
+        addRobotResultCard("STATO MACCHINA", result.state || "Non trovato");
+        if (result.counter)
+            addRobotResultCard("CONTAPEZZI", result.counter);
+        if (result.cycleTime)
+            addRobotResultCard("TEMPO CICLO", `${result.cycleTime} secondi`);
+        if (result.details) addRobotResultCard("DETTAGLI", result.details);
+    }
+    setRobotConsoleView("result");
+}
+
+async function runRobotConsoleRequest(
+    mode: "status" | "ping",
+    robotId: string,
+    url?: string,
+    stateKey?: string,
+) {
+    const requestId = ++robotConsoleRequest;
+    if (robotConsoleTitle)
+        robotConsoleTitle.textContent =
+            mode === "ping" ? "Test connettività" : "Stato robot";
+    if (robotConsoleSubtitle)
+        robotConsoleSubtitle.textContent = `Nodo ${robotId} // canale diagnostico protetto`;
+    if (robotLoadingTitle)
+        robotLoadingTitle.textContent =
+            mode === "ping"
+                ? `Ping ${robotId} in corso`
+                : `Connessione a ${robotId}`;
+    if (robotLoadingMessage)
+        robotLoadingMessage.textContent =
+            mode === "ping"
+                ? "Analisi della raggiungibilità e verifica dell'indirizzo MAC..."
+                : "Acquisizione programma, stato macchina e dati di produzione...";
+    setRobotConsoleView("loading");
+    robotConsoleBackdrop?.setAttribute("aria-hidden", "false");
+
+    const slowMessage = window.setTimeout(() => {
+        if (requestId === robotConsoleRequest && robotLoadingMessage) {
+            robotLoadingMessage.textContent =
+                "Il nodo sta impiegando più tempo del previsto. Mantengo aperto il collegamento...";
+        }
+    }, 2200);
+
+    try {
+        const ipcRenderer = require("electron").ipcRenderer;
+        const result = (await ipcRenderer.invoke(
+            mode === "ping" ? "ping-robot-custom" : "robot-status-custom",
+            ...(mode === "ping"
+                ? [robotId]
+                : [robotId, url || "", stateKey || ""]),
+        )) as RobotConsoleResult;
+        if (requestId !== robotConsoleRequest) return;
+        renderRobotConsoleResult(result, mode);
+    } catch {
+        if (requestId !== robotConsoleRequest) return;
+        renderRobotConsoleResult(
+            {
+                ok: false,
+                robotId,
+                error: "Il servizio diagnostico AyPi non è disponibile.",
+            },
+            mode,
+        );
+    } finally {
+        window.clearTimeout(slowMessage);
+    }
+}
+
+function openRobotStatus(action: ActionItem) {
+    robotConsoleReturnToSelector = false;
+    void runRobotConsoleRequest(
+        "status",
+        action.robotId || "",
+        action.robotUrl,
+        action.robotStateKey,
+    );
+}
+
+document.querySelectorAll<HTMLElement>("[data-robot-ping]").forEach((button) => {
+    button.addEventListener("click", () => {
+        robotConsoleReturnToSelector = true;
+        void runRobotConsoleRequest(
+            "ping",
+            button.dataset.robotPing || "",
+        );
+    });
+});
+document
+    .getElementById("robotConsoleClose")
+    ?.addEventListener("click", closeRobotConsole);
+robotConsoleDone?.addEventListener("click", closeRobotConsole);
+robotConsoleBack?.addEventListener("click", openRobotConsoleSelector);
+robotConsoleBackdrop?.addEventListener("click", (event) => {
+    if (event.target === robotConsoleBackdrop) closeRobotConsole();
+});
+document.addEventListener("keydown", (event) => {
+    if (
+        event.key === "Escape" &&
+        robotConsoleBackdrop?.getAttribute("aria-hidden") === "false"
+    ) {
+        event.preventDefault();
+        closeRobotConsole();
+    }
+});
+
 function renderActions(page: PageDefinition) {
     if (!pageContent) return;
     const tones = ["cyan", "blue", "white", "navy"];
@@ -1011,7 +1261,11 @@ function renderActions(page: PageDefinition) {
                 Number(card.dataset.actionIndex)
             ];
             card.addEventListener("click", () => {
-                if (action?.addressKey)
+                if (action?.robotAction === "status") {
+                    openRobotStatus(action);
+                } else if (action?.robotAction === "ping") {
+                    openRobotConsoleSelector();
+                } else if (action?.addressKey)
                     require("electron").ipcRenderer.send("open-address", {
                         key: action.addressKey,
                     });
