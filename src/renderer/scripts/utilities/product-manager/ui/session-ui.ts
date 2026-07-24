@@ -40,9 +40,19 @@ function updateAdminControls(ctx) {
     const catalogAdd = document.getElementById("pm-catalog-add");
     if (catalogAdd) catalogAdd.style.display = adminMode ? "inline-flex" : "none";
     const assigneesBtn = document.getElementById("pm-assignees-open");
-    if (assigneesBtn) assigneesBtn.style.display = adminMode ? "inline-flex" : "none";
+    if (assigneesBtn) {
+        assigneesBtn.style.display = adminMode ? "inline-flex" : "none";
+        assigneesBtn
+            .closest(".fp-export-section")
+            ?.classList.toggle("is-hidden", !adminMode);
+    }
     const adminBtn = document.getElementById("pm-admin-open");
-    if (adminBtn) adminBtn.style.display = adminMode ? "inline-flex" : "none";
+    if (adminBtn) {
+        adminBtn.style.display = adminMode ? "inline-flex" : "none";
+        adminBtn
+            .closest(".fp-export-section")
+            ?.classList.toggle("is-hidden", !adminMode);
+    }
 }
 
 function syncSessionUI(ctx) {

@@ -57,12 +57,29 @@
                         document.body.classList.add("fp-splash-active");
                         splashEl.classList.add("is-visible");
                         var finishSplash = function () {
+                            if (splashEl.dataset.hidden === "1") return;
                             splashEl.classList.add("is-hidden");
                             splashEl.classList.remove("is-visible", "is-fading");
                             splashEl.dataset.hidden = "1";
+                            splashEl.setAttribute("aria-hidden", "true");
                             document.body.classList.add("fp-calendar-ready");
                             document.body.classList.remove("fp-splash-active");
                         };
+                        var skipSplash = function () {
+                            if (
+                                splashEl.dataset.hidden === "1" ||
+                                splashEl.dataset.skipRequested === "1"
+                            ) {
+                                return;
+                            }
+                            splashEl.dataset.skipRequested = "1";
+                            splashEl.classList.add("is-splash-skipping", "is-fading");
+                            setTimeout(finishSplash, 340);
+                        };
+                        splashEl.classList.add("is-splash-skippable");
+                        splashEl.setAttribute("aria-hidden", "false");
+                        splashEl.setAttribute("aria-label", "Clicca per saltare la schermata iniziale");
+                        splashEl.addEventListener("click", skipSplash);
                         if (isBlueArchive) {
                             var exitStarted = false;
                             var beginBlueArchiveExit = function () {
@@ -124,11 +141,11 @@
                         </label>
                         <label class="fp-filter-toggle">
                             <input type="checkbox" id="fp-filter-speciale">
-                            <span>Permesso Chiusura Aziendale</span>
+                            <span>Chiusura aziendale</span>
                         </label>
                         <label class="fp-filter-toggle">
                             <input type="checkbox" id="fp-filter-retribuito">
-                            <span>Permessi Retribuiti</span>
+                            <span>Retribuiti</span>
                         </label>
                     </div>
                     <div class="fp-legend" id="fp-legend">
@@ -145,10 +162,10 @@
                             <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua/Infortunio
                         </button>
                         <button type="button" class="fp-legend__item" data-type="speciale">
-                            <span class="fp-legend__dot fp-legend__dot--speciale"></span>Permesso Chiusura Aziendale
+                            <span class="fp-legend__dot fp-legend__dot--speciale"></span>Chiusura aziendale
                         </button>
                         <button type="button" class="fp-legend__item" data-type="retribuito">
-                            <span class="fp-legend__dot fp-legend__dot--retribuito"></span>Permesso Retribuito
+                            <span class="fp-legend__dot fp-legend__dot--retribuito"></span>Retribuiti
                         </button>
                         <div class="fp-legend-editor is-hidden" id="fp-legend-editor">
                             <div class="fp-legend-editor__title" id="fp-legend-editor-title">Colore legenda</div>

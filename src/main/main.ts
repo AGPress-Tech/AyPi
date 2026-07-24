@@ -21,6 +21,9 @@ let triggerAdminHotkey: (() => void) | null = null;
 const APP_NAME = "AyPi";
 const APP_ID = "com.Agpress.AyPi";
 const IS_BLUE_ARCHIVE_PREVIEW = process.argv.includes("--bluearchive-preview");
+if (IS_BLUE_ARCHIVE_PREVIEW) {
+    process.env.AYPI_BLUEARCHIVE_PREVIEW = "1";
+}
 let isBlueArchiveTheme = false;
 const SCROLLBAR_CSS = `
     * {

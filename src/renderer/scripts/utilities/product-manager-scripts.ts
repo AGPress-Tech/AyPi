@@ -173,6 +173,7 @@ import {
 } from "./product-manager/state/session";
 import { uiState } from "./product-manager/state/ui";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../shared/skippable-splash";
 import { requestBackend, resolveBackendRootUrl } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
 
@@ -190,12 +191,27 @@ function runBlueArchivePurchasingSplash() {
     const splash = document.getElementById("baPurchasingSplash");
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
+    const splashController = makeSplashSkippable(splash);
     const statusSteps = splash.querySelectorAll(".fp-ba-boot-status span");
-    window.setTimeout(() => statusSteps[1]?.classList.add("is-complete"), 1900);
-    window.setTimeout(() => statusSteps[2]?.classList.add("is-complete"), 2800);
-    window.setTimeout(() => statusSteps[3]?.classList.add("is-complete"), 3650);
-    window.setTimeout(() => splash.classList.add("is-fading"), 4550);
-    window.setTimeout(() => splash.remove(), 5550);
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) {
+            statusSteps[1]?.classList.add("is-complete");
+        }
+    }, 1900);
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) {
+            statusSteps[2]?.classList.add("is-complete");
+        }
+    }, 2800);
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) {
+            statusSteps[3]?.classList.add("is-complete");
+        }
+    }, 3650);
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) splash.classList.add("is-fading");
+    }, 4550);
+    window.setTimeout(splashController.finish, 5550);
 }
 
 const {

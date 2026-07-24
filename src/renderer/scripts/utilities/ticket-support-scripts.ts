@@ -13,6 +13,7 @@ import { renderLoginSelectors, renderAdminSelect } from "./product-manager/ui/lo
 import { requestBackend } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../shared/skippable-splash";
 
 const ADMIN_EMAIL = "tech@agpress-srl.it";
 const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
@@ -47,14 +48,26 @@ function runBlueArchiveTicketSupportSplash() {
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
     splash.classList.add("is-visible");
+    const splashController = makeSplashSkippable(splash, {
+        onFinish: () => {
+            window.dispatchEvent(new CustomEvent("ts-splash-finished"));
+        },
+    });
     const statusSteps = splash.querySelectorAll(".fp-ba-boot-status span");
-    window.setTimeout(() => statusSteps[1]?.classList.add("is-complete"), 1900);
-    window.setTimeout(() => statusSteps[2]?.classList.add("is-complete"), 3650);
-    window.setTimeout(() => splash.classList.add("is-fading"), 4550);
     window.setTimeout(() => {
-        splash.remove();
-        window.dispatchEvent(new CustomEvent("ts-splash-finished"));
-    }, 5550);
+        if (!splashController.isFinished()) {
+            statusSteps[1]?.classList.add("is-complete");
+        }
+    }, 1900);
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) {
+            statusSteps[2]?.classList.add("is-complete");
+        }
+    }, 3650);
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) splash.classList.add("is-fading");
+    }, 4550);
+    window.setTimeout(splashController.finish, 5550);
 }
 
 runBlueArchiveTicketSupportSplash();

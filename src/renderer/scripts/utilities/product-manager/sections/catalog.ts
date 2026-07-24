@@ -78,6 +78,7 @@ function getContrastText(ctx, hex) {
 
 function applyCategoryColor(ctx, pill, tag) {
     const color = getCategoryColor(ctx, tag);
+    pill.style.setProperty("--pm-pill-category-color", color);
     pill.style.background = color;
     pill.style.color = getContrastText(ctx, color);
 }

@@ -20,26 +20,65 @@ function applyCalendarButtonStyles(document: Document) {
     const getPalette = () => {
         const isDark = document.body.classList.contains("fp-dark");
         const isAyPi = document.body.classList.contains("fp-aypi");
+        const isBlueArchive =
+            document.body.classList.contains("fp-bluearchive");
         return {
-            baseBackground: isDark ? "#15181d" : isAyPi ? "#2b2824" : "#ffffff",
-            baseBorder: isDark ? "#2b2f36" : isAyPi ? "#4a433d" : "#dadce0",
-            baseColor: isDark ? "#8ab4f8" : isAyPi ? "#f3e6d5" : "#1a73e8",
+            isBlueArchive,
+            baseBackground: isDark
+                ? "#15181d"
+                : isAyPi
+                  ? "#2b2824"
+                  : isBlueArchive
+                    ? "linear-gradient(180deg, #ffffff, #edf9ff)"
+                    : "#ffffff",
+            baseBorder: isDark
+                ? "#2b2f36"
+                : isAyPi
+                  ? "#4a433d"
+                  : isBlueArchive
+                    ? "rgba(38, 166, 225, 0.38)"
+                    : "#dadce0",
+            baseColor: isDark
+                ? "#8ab4f8"
+                : isAyPi
+                  ? "#f3e6d5"
+                  : isBlueArchive
+                    ? "#167fc5"
+                    : "#1a73e8",
             hoverBackground: isDark
                 ? "#1a1e24"
                 : isAyPi
                   ? "#3a3932"
+                  : isBlueArchive
+                    ? "linear-gradient(180deg, #edfaff, #dff5ff)"
                   : "#f6f8fe",
-            hoverBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
+            hoverBorder: isDark
+                ? "#2b2f36"
+                : isAyPi
+                  ? "#6a5d52"
+                  : isBlueArchive
+                    ? "#31c8f3"
+                    : "#d2e3fc",
             activeBackground: isDark
                 ? "#1f2937"
                 : isAyPi
                   ? "#3a3328"
+                  : isBlueArchive
+                    ? "linear-gradient(120deg, #147eda, #30c8f2)"
                   : "#e8f0fe",
-            activeBorder: isDark ? "#2b2f36" : isAyPi ? "#6a5d52" : "#d2e3fc",
+            activeBorder: isDark
+                ? "#2b2f36"
+                : isAyPi
+                  ? "#6a5d52"
+                  : isBlueArchive
+                    ? "transparent"
+                    : "#d2e3fc",
             baseShadow: isDark
                 ? "none"
                 : isAyPi
                   ? "0 2px 6px rgba(0, 0, 0, 0.45)"
+                  : isBlueArchive
+                    ? "0 3px 8px rgba(24, 126, 187, 0.1)"
                   : "0 1px 2px rgba(60, 64, 67, 0.15)",
         };
     };
@@ -49,7 +88,9 @@ function applyCalendarButtonStyles(document: Document) {
         btn.style.background = palette.baseBackground;
         btn.style.borderColor = palette.baseBorder;
         btn.style.color = palette.baseColor;
-        btn.style.borderRadius = "999px";
+        btn.style.borderRadius = palette.isBlueArchive
+            ? "4px 10px 4px 10px"
+            : "999px";
         btn.style.padding = "7px 14px";
         btn.style.fontSize = "13px";
         btn.style.fontWeight = "600";
@@ -230,6 +271,16 @@ function applyCalendarMorePopoverStyles(document: Document) {
     });
 }
 
+function animateCalendarView(document: Document) {
+    const harness = document.querySelector<HTMLElement>(
+        "#fp-calendar .fc-view-harness",
+    );
+    if (!harness) return;
+    harness.classList.remove("fp-view-transition");
+    void harness.offsetWidth;
+    harness.classList.add("fp-view-transition");
+}
+
 function initCalendar(options: CalendarOptions) {
     const {
         document,
@@ -254,7 +305,7 @@ function initCalendar(options: CalendarOptions) {
         height: "100%",
         expandRows: true,
         fixedWeekCount: true,
-        dayMaxEvents: true,
+        // Tre righe totali: tre eventi oppure due eventi e il link "+ altri".
         dayMaxEventRows: 3,
         headerToolbar: {
             left: "prev,next today",
@@ -349,6 +400,7 @@ function initCalendar(options: CalendarOptions) {
         datesSet: (info: any) => {
             const viewType = info?.view?.type || "";
             const isList = viewType === "listWeek" || viewType === "listMonth";
+            animateCalendarView(document);
             if (!isList) {
                 if (typeof setLastNonListViewType === "function") {
                     setLastNonListViewType(viewType);

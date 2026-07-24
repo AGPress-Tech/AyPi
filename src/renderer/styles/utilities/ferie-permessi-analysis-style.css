@@ -246,7 +246,8 @@ body {
     background: #fcfdff;
     min-height: 280px;
     max-height: 360px;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px;
     min-width: 0;
 }
@@ -342,7 +343,8 @@ body {
 .fpa-table-wrap--full {
     margin-top: 8px;
     min-height: 300px !important;
-    max-height: 380px !important;
+    height: 300px;
+    max-height: 300px !important;
 }
 
 .fpa-table {

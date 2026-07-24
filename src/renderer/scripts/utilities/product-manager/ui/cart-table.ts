@@ -291,7 +291,7 @@ function renderCartTable({
         statusCell.append(deleteBtn, confirmBtn);
 
         const productCell = document.createElement("div");
-        productCell.className = "pm-table__cell";
+        productCell.className = "pm-table__cell pm-table__cell--product";
         const productNode = buildProductCell(row.product, row.tags);
         if (isAdmin()) {
             const titleEl = productNode.querySelector(".pm-product-title");

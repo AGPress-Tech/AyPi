@@ -640,10 +640,16 @@ function ensureChartCanvas(host, canvasId, minWidth = 0, height = 260) {
     host.innerHTML = `<canvas id="${canvasId}" height="${height}"></canvas>`;
     const canvas = host.querySelector("canvas");
     if (!canvas) return null;
-    const hostRect = Math.floor(host.getBoundingClientRect().width || 0);
+    const hostStyle = window.getComputedStyle(host);
+    const horizontalPadding =
+        (parseFloat(hostStyle.paddingLeft) || 0) +
+        (parseFloat(hostStyle.paddingRight) || 0);
+    const hostWidth = Math.floor(host.clientWidth - horizontalPadding);
     const fallbackWidth = Math.max(640, Math.floor(window.innerWidth * 0.5));
-    const width = Math.max(minWidth, hostRect || fallbackWidth);
+    const width = Math.max(minWidth, hostWidth > 0 ? hostWidth : fallbackWidth);
     canvas.width = width;
+    canvas.style.display = "block";
+    canvas.style.maxWidth = "100%";
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     return canvas;

@@ -61,15 +61,29 @@
                 }
 
                 splashEl.classList.add("is-visible");
+                splashEl.classList.add("is-splash-skippable");
                 splashEl.setAttribute("aria-hidden", "false");
-                window.setTimeout(function () {
-                    splashEl.classList.add("is-fading");
-                }, 4200);
-                window.setTimeout(function () {
+                splashEl.setAttribute("aria-label", "Clicca per saltare la schermata iniziale");
+                var finishSplash = function () {
+                    if (splashEl.dataset.hidden === "1") return;
+                    splashEl.dataset.hidden = "1";
                     splashEl.classList.add("is-hidden");
                     splashEl.classList.remove("is-visible", "is-fading");
                     splashEl.setAttribute("aria-hidden", "true");
                     window.dispatchEvent(new CustomEvent("ts-splash-finished"));
+                };
+                splashEl.addEventListener("click", function () {
+                    if (splashEl.dataset.skipRequested === "1") return;
+                    splashEl.dataset.skipRequested = "1";
+                    splashEl.classList.add("is-splash-skipping", "is-fading");
+                    window.setTimeout(finishSplash, 340);
+                }, { once: true });
+                window.setTimeout(function () {
+                    if (splashEl.dataset.hidden === "1") return;
+                    splashEl.classList.add("is-fading");
+                }, 4200);
+                window.setTimeout(function () {
+                    finishSplash();
                 }, 5000);
             } catch (err) { }
         })();

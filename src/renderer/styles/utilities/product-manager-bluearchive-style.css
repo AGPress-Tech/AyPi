@@ -2174,3 +2174,282 @@ body.bluearchive-purchasing[data-pm-list-mode] .pm-table__cell {
 body.bluearchive-purchasing[data-pm-list-mode] .pm-table__row--header .pm-table__cell {
     min-height: 40px;
 }
+
+/* Lista acquisti: i tag conservano il colore della categoria in una variante
+   pastello e hanno spazio sufficiente per non essere troncati sotto al prodotto. */
+body.bluearchive-purchasing[data-pm-list-mode="purchase"] .pm-table__cell--product {
+    overflow: hidden;
+    padding-top: 8px;
+    padding-bottom: 9px;
+}
+
+body.bluearchive-purchasing[data-pm-list-mode="purchase"] .pm-table__row:has(.pm-table__cell--product .pm-pill) > .pm-table__cell {
+    min-height: 68px;
+}
+
+body.bluearchive-purchasing[data-pm-list-mode="purchase"] .pm-product-cell {
+    gap: 4px;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+body.bluearchive-purchasing[data-pm-list-mode="purchase"] .pm-product-cell .pm-tag-list {
+    align-items: center;
+    gap: 5px;
+    padding: 0 0 1px;
+    overflow: hidden;
+}
+
+body.bluearchive-purchasing[data-pm-list-mode="purchase"] .pm-product-cell .pm-pill {
+    min-height: 18px;
+    margin: 0;
+    padding: 2px 7px;
+    box-sizing: border-box;
+    color: color-mix(
+        in srgb,
+        var(--pm-pill-category-color, #288ff0) 48%,
+        #173b5b
+    ) !important;
+    background: color-mix(
+        in srgb,
+        var(--pm-pill-category-color, #288ff0) 16%,
+        #fff
+    ) !important;
+    border-color: color-mix(
+        in srgb,
+        var(--pm-pill-category-color, #288ff0) 34%,
+        #b9d7e8
+    );
+    line-height: 1.15;
+    box-shadow: 0 2px 5px rgba(40, 90, 120, 0.05);
+}
+
+/* Settings Purchasing: stessa Control Console del Calendar. */
+body.bluearchive-purchasing #pm-settings-modal {
+    background: rgba(11, 35, 55, 0.56);
+    backdrop-filter: blur(7px) saturate(0.82);
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-modal__card {
+    counter-reset: pm-settings-route;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(760px, 92vw);
+    gap: 12px;
+    padding: 18px 20px 20px;
+    box-sizing: border-box;
+    overflow: hidden;
+    background:
+        linear-gradient(rgba(34, 151, 210, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 151, 210, 0.05) 1px, transparent 1px),
+        linear-gradient(118deg, rgba(255, 255, 255, 0.98) 0 76%, rgba(220, 243, 253, 0.98) 76%);
+    background-size: 20px 20px, 20px 20px, auto;
+    border: 1px solid rgba(34, 137, 193, 0.46);
+    border-left: 4px solid #31c8f3;
+    border-radius: 3px 3px 26px 3px;
+    box-shadow:
+        0 26px 72px rgba(9, 43, 70, 0.34),
+        7px 7px 0 rgba(38, 191, 243, 0.1),
+        inset 0 1px rgba(255, 255, 255, 0.92);
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-modal__card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 150px;
+    height: 5px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: linear-gradient(90deg, transparent, #168eea 48%, #31c8f3);
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-assignees-header {
+    position: relative;
+    grid-column: 1 / -1;
+    align-items: flex-end;
+    min-height: 55px;
+    padding: 4px 0 13px 14px;
+    border-bottom: 1px solid rgba(23, 112, 164, 0.2);
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-assignees-header::before {
+    content: "CONTROL CONSOLE // PURCHASING SETTINGS";
+    position: absolute;
+    left: 14px;
+    top: 2px;
+    color: #168eea;
+    font: 800 8px/1 Consolas, monospace;
+    letter-spacing: 0.15em;
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-settings-title {
+    padding-top: 13px;
+    color: #173b5b;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-settings-close {
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 13px;
+    color: #174d73;
+    background: linear-gradient(180deg, #fff, #e6f5fc);
+    border-color: rgba(22, 117, 170, 0.42);
+    border-radius: 4px 10px 4px 10px;
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-settings-close::before {
+    content: "×";
+    color: #168eea;
+    font: 800 16px/1 "Segoe UI", sans-serif;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section {
+    counter-increment: pm-settings-route;
+    --pm-settings-accent: #2dc8ee;
+    padding: 0;
+    background: transparent;
+    border: 0;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section:has(> #pm-theme-open) {
+    display: none;
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-assignees-open {
+    --pm-settings-accent: #288ff0;
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-admin-open {
+    --pm-settings-accent: #8cdaf4;
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-categories-open {
+    --pm-settings-accent: #17243d;
+    color: #fff;
+    background: linear-gradient(135deg, #223652, #14223a);
+    border-color: rgba(40, 143, 240, 0.22);
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-settings-backup-open {
+    --pm-settings-accent: #2dc8ee;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section .fp-btn {
+    position: relative;
+    width: 100%;
+    min-height: 58px;
+    justify-content: flex-start;
+    gap: 11px;
+    padding: 9px 92px 9px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #17243d;
+    text-shadow: none;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(31, 114, 168, 0.16);
+    border-radius: 4px 13px 4px 13px;
+    box-shadow:
+        inset 3px 0 var(--pm-settings-accent),
+        0 12px 25px rgba(50, 112, 151, 0.1);
+    font-size: 12px;
+    transition:
+        color 160ms ease,
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section .fp-btn::before {
+    content: "";
+    position: absolute;
+    right: -34px;
+    bottom: -48px;
+    width: 92px;
+    height: 92px;
+    pointer-events: none;
+    border: 14px solid color-mix(in srgb, var(--pm-settings-accent) 9%, transparent);
+    border-radius: 50%;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section .fp-btn::after {
+    content: "ROUTE 0" counter(pm-settings-route);
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    color: #91a0b1;
+    font: 800 8px/1 Consolas, monospace;
+    letter-spacing: 0.1em;
+    transform: translateY(-50%);
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section .fp-btn:hover {
+    color: #17243d;
+    background: #fff;
+    border-color: rgba(31, 145, 211, 0.4);
+    box-shadow:
+        inset 4px 0 var(--pm-settings-accent),
+        0 19px 35px rgba(40, 119, 171, 0.19);
+    transform: translateY(-2px);
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-categories-open:hover {
+    color: #fff;
+    background: linear-gradient(135deg, #29415f, #182a46);
+    border-color: rgba(45, 200, 238, 0.42);
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section .fp-btn:hover::after {
+    color: var(--pm-settings-accent);
+}
+
+body.bluearchive-purchasing #pm-settings-modal #pm-categories-open::after,
+body.bluearchive-purchasing #pm-settings-modal #pm-categories-open:hover::after {
+    color: #a8bbcf;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-btn__label {
+    margin-left: 0;
+    text-align: left;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-btn__icon {
+    display: grid;
+    flex: 0 0 29px;
+    place-items: center;
+    width: 29px;
+    height: 29px;
+    box-sizing: border-box;
+    color: var(--pm-settings-accent);
+    background: color-mix(in srgb, var(--pm-settings-accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--pm-settings-accent) 48%, transparent);
+    border-radius: 3px;
+    box-shadow: none;
+    transform: rotate(45deg);
+    transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-export-section .fp-btn:hover .fp-btn__icon {
+    background: color-mix(in srgb, var(--pm-settings-accent) 15%, transparent);
+    transform: rotate(45deg) scale(1.05);
+}
+
+body.bluearchive-purchasing #pm-settings-modal .fp-btn__icon .fp-icon-mi {
+    font-size: 16px;
+    transform: rotate(-45deg);
+}
+
+@media (max-width: 720px) {
+    body.bluearchive-purchasing #pm-settings-modal .fp-modal__card {
+        grid-template-columns: 1fr;
+        width: min(460px, 94vw);
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+}

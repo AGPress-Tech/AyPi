@@ -727,6 +727,12 @@ function openLegendEditor(type) {
         const label = getTypeLabel(type) || "Colore legenda";
         title.textContent = `Colore ${label}`;
     }
+    document
+        .querySelectorAll(".fp-legend__item.is-editing")
+        .forEach((item) => item.classList.remove("is-editing"));
+    document
+        .querySelector(`.fp-legend__item[data-type="${type}"]`)
+        ?.classList.add("is-editing");
     editor.classList.remove("is-hidden");
 }
 
@@ -734,6 +740,9 @@ function closeLegendEditor(revert) {
     const editor = document.getElementById("fp-legend-editor");
     if (!editor) return;
     editor.classList.add("is-hidden");
+    document
+        .querySelectorAll(".fp-legend__item.is-editing")
+        .forEach((item) => item.classList.remove("is-editing"));
     if (revert && legendColorSnapshot) {
         setTypeColors(legendColorSnapshot);
         applyTypeColors();

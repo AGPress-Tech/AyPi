@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import * as XLSX from "xlsx";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../shared/skippable-splash";
 
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
 const IS_BLUE_ARCHIVE_FILE_LIST =
@@ -42,8 +43,13 @@ function runSplash() {
     const splash = document.getElementById("baFileListSplash");
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
-    window.setTimeout(() => splash.classList.add("is-leaving"), 1800);
-    window.setTimeout(() => splash.remove(), 2200);
+    const splashController = makeSplashSkippable(splash, {
+        fadeClass: "is-leaving",
+    });
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) splash.classList.add("is-leaving");
+    }, 1800);
+    window.setTimeout(splashController.finish, 2200);
 }
 
 window.addEventListener("DOMContentLoaded", () => {

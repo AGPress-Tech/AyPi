@@ -3,6 +3,7 @@ import { ipcRenderer } from "electron";
 import fs from "fs";
 import path from "path";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../shared/skippable-splash";
 const QRCode = require("qrcode");
 const bwipjs = require("bwip-js");
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
@@ -21,8 +22,13 @@ function runBlueArchiveQrSplash() {
     const splash = document.getElementById("baQrSplash");
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
-    window.setTimeout(() => splash.classList.add("is-leaving"), 1850);
-    window.setTimeout(() => splash.remove(), 2250);
+    const splashController = makeSplashSkippable(splash, {
+        fadeClass: "is-leaving",
+    });
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) splash.classList.add("is-leaving");
+    }, 1850);
+    window.setTimeout(splashController.finish, 2250);
 }
 
 const getEl = (id: string) => document.getElementById(id);

@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../shared/skippable-splash";
 
 const IS_BLUE_ARCHIVE_HIERARCHY =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
@@ -19,8 +20,13 @@ function runBlueArchiveHierarchySplash() {
     const splash = document.getElementById("baHierarchySplash");
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
-    window.setTimeout(() => splash.classList.add("is-leaving"), 2050);
-    window.setTimeout(() => splash.remove(), 2475);
+    const splashController = makeSplashSkippable(splash, {
+        fadeClass: "is-leaving",
+    });
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) splash.classList.add("is-leaving");
+    }, 2050);
+    window.setTimeout(splashController.finish, 2475);
 }
 
 const showInfo = (message, detail = "") =>

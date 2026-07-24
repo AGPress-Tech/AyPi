@@ -2,6 +2,7 @@
 import "../shared/dev-guards";
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../shared/skippable-splash";
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
@@ -19,8 +20,13 @@ function runBlueArchiveCompareSplash() {
     const splash = document.getElementById("baCompareSplash");
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
-    window.setTimeout(() => splash.classList.add("is-leaving"), 2050);
-    window.setTimeout(() => splash.remove(), 2475);
+    const splashController = makeSplashSkippable(splash, {
+        fadeClass: "is-leaving",
+    });
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) splash.classList.add("is-leaving");
+    }, 2050);
+    window.setTimeout(splashController.finish, 2475);
 }
 
 const showInfo = (message, detail = "") =>

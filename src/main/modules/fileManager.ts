@@ -10,6 +10,7 @@ import fs from "fs";
 import log from "electron-log";
 import { NETWORK_PATHS } from "../config/paths";
 import { ADDRESS_DEFAULTS } from "../config/addresses";
+import { resolveFpBackendBaseUrl } from "../config/backend";
 
 const WINDOW_WEB_PREFERENCES = {
     nodeIntegration: true,
@@ -81,9 +82,6 @@ function setInterfaceIconTheme(theme: "standard" | "bluearchive") {
 }
 const FP_DESKTOP_BASE_DIR = "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS";
 const FP_SERVER_BASE_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
-const FP_DEV_BACKEND_BASE_URL = "http://127.0.0.1:3000/api/ferie-permessi";
-const FP_SERVER_BACKEND_BASE_URL =
-    "http://192.168.1.240:3000/api/ferie-permessi";
 const ADDRESS_BOOK_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\addresses";
 const ADDRESS_BOOK_PATH = path.join(ADDRESS_BOOK_DIR, "aypi-addresses.json");
 
@@ -1151,11 +1149,7 @@ function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
 }
 
 function resolveFpBackendBaseUrlSync() {
-    const backendUrl =
-        process.env.AYPI_FP_BACKEND_URL ||
-        (process.env.AYPI_DEV === "1"
-            ? FP_DEV_BACKEND_BASE_URL
-            : FP_SERVER_BACKEND_BASE_URL);
+    const backendUrl = resolveFpBackendBaseUrl();
     log.info("[ferie-permessi] backend base url:", backendUrl);
     return backendUrl;
 }

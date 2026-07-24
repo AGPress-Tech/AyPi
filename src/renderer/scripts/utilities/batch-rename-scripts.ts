@@ -4,6 +4,7 @@ import { ipcRenderer } from "electron";
 import { showInfo, showWarning, showError } from "../shared/dialogs";
 import { state } from "./batch-rename/state";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../shared/skippable-splash";
 import { parseExtensions } from "./batch-rename/utils";
 import { getFilterConfigFromUI } from "./batch-rename/filters";
 import { collectTargets } from "./batch-rename/collector";
@@ -38,8 +39,13 @@ function runBlueArchiveBatchSplash() {
     const splash = document.getElementById("baBatchRenameSplash");
     if (!splash) return;
     splash.setAttribute("aria-hidden", "false");
-    window.setTimeout(() => splash.classList.add("is-leaving"), 2100);
-    window.setTimeout(() => splash.remove(), 2550);
+    const splashController = makeSplashSkippable(splash, {
+        fadeClass: "is-leaving",
+    });
+    window.setTimeout(() => {
+        if (!splashController.isFinished()) splash.classList.add("is-leaving");
+    }, 2100);
+    window.setTimeout(splashController.finish, 2550);
 }
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 

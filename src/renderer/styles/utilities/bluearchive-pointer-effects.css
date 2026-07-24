@@ -1,9 +1,18 @@
 .fp-ba-pointer-layer {
     position: fixed;
-    z-index: 1900;
+    z-index: 30000;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
+}
+
+.is-splash-skippable {
+    cursor: pointer;
+}
+
+.is-splash-skipping {
+    transition-duration: 0.34s !important;
+    transition-timing-function: ease-out !important;
 }
 
 /* I-beam scuro con bordo chiaro: leggibile sia sui campi bianchi sia scuri. */
