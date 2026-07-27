@@ -1631,6 +1631,7 @@ async function printCard(card) {
             .meta.meta-single { grid-template-columns: 1fr; }
             .meta div { border:1px solid #333; padding:6px; min-height:30px; font-size: 16px; line-height: 1.25; }
             .meta div strong { font-size: 18px; }
+            .meta .note-value { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
             table { width:100%; border-collapse:collapse; table-layout:fixed; }
             th,td { border:1px solid #333; padding:4px; text-align:center; vertical-align:middle; font-size: 14px; white-space: normal; overflow-wrap: break-word; word-break: normal; }
             th { background:#ffffff; }
@@ -1675,7 +1676,7 @@ async function printCard(card) {
           <div><strong>Lavorazione</strong><br>${card.lavorazione || ""}</div>
         </div>
         <div class="meta meta-single">
-          <div><strong>Note</strong><br>${card.note || ""}</div>
+          <div><strong>Note</strong><span class="note-value">${escapeHtml(card.note || "")}</span></div>
         </div>
         <table>
             <thead><tr><th>Nr Unita</th><th>ISO</th><th class="desc">Descrizione Lavorazione</th>${headerIcons.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
