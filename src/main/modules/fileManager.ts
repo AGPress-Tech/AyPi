@@ -1,16 +1,51 @@
 // Gestione finestre e IPC lato main per AyPi
 
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
-import type { OpenDialogOptions } from "electron";
 import path from "path";
-import { exec, execSync, execFileSync } from "child_process";
-import http from "http";
-import https from "https";
 import fs from "fs";
 import log from "electron-log";
-import { NETWORK_PATHS } from "../config/paths";
-import { ADDRESS_DEFAULTS } from "../config/addresses";
-import { resolveFpBackendBaseUrl } from "../config/backend";
+import { requestAypiBackend } from "./file-manager/backend-client";
+import { registerBatchRenameIpc } from "./file-manager/batch-rename-ipc";
+import { registerHierarchyReportIpc } from "./file-manager/hierarchy-report-ipc";
+import { isDl360ServerReachable } from "./file-manager/network-files";
+import {
+    isSameDay,
+    isYoungerThanMinutes,
+    startOfWeekMonday,
+    toDateKey,
+} from "./file-manager/git-date-utils";
+import {
+    readGitStatsSnapshot,
+    readGitflowSnapshot,
+    writeGitStatsSnapshot,
+    writeGitflowSnapshot,
+} from "./file-manager/git-snapshots";
+import {
+    fetchGithubCommits,
+    fetchGithubDiffTotalsForCommits,
+    fetchGithubJson as fetchJson,
+    fetchGithubTags,
+    readSharedGithubToken,
+    resolveGithubTagCommit,
+} from "./file-manager/github-client";
+import { registerAttrezzaggioDataIpc } from "./file-manager/attrezzaggio-data-ipc";
+import { registerFilesystemDialogIpc } from "./file-manager/filesystem-dialog-ipc";
+import { registerFileNavigationIpc } from "./file-manager/file-navigation-ipc";
+import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
+import {
+    createProductManagerSessionState,
+    registerProductManagerSessionIpc,
+} from "./file-manager/product-manager-session";
+import { registerFeriePermessiConfigIpc } from "./file-manager/ferie-permessi-config-ipc";
+import { registerNativeAppIpc } from "./file-manager/native-app-ipc";
+import {
+    getGitDailyStats,
+    getLocalWeekDiffTotals,
+    registerLocalGitStatsIpc,
+    resolveGitRepoRoot,
+} from "./file-manager/local-git-stats";
+import { registerMainWindowLayoutIpc } from "./file-manager/main-window-layout-ipc";
+import { registerAttrezzaggioPdfPreviewIpc } from "./file-manager/attrezzaggio-pdf-preview-ipc";
 
 const WINDOW_WEB_PREFERENCES = {
     nodeIntegration: true,
@@ -80,251 +115,6 @@ function setInterfaceIconTheme(theme: "standard" | "bluearchive") {
     APP_ICON_PATH = getInterfaceIconPath(false);
     BrowserWindow.getAllWindows().forEach(applyInterfaceIconToWindow);
 }
-const FP_DESKTOP_BASE_DIR = "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS";
-const FP_SERVER_BASE_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS";
-const ADDRESS_BOOK_DIR = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\addresses";
-const ADDRESS_BOOK_PATH = path.join(ADDRESS_BOOK_DIR, "aypi-addresses.json");
-
-type AddressEntry = {
-    path: string;
-    kind?: "file" | "directory";
-    id?: string;
-};
-
-type AddressBook = {
-    version: number;
-    updatedAt: string;
-    items: Record<string, AddressEntry>;
-};
-
-let addressBookCache: AddressBook | null = null;
-let adminEnabled = false;
-
-function ensureAddressBookDir() {
-    try {
-        if (!fs.existsSync(ADDRESS_BOOK_DIR)) {
-            fs.mkdirSync(ADDRESS_BOOK_DIR, { recursive: true });
-        }
-    } catch (err) {
-        log.warn(
-            "[addresses] impossibile creare cartella:",
-            ADDRESS_BOOK_DIR,
-            err,
-        );
-    }
-}
-
-function buildDefaultAddressBook() {
-    return {
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        items: JSON.parse(JSON.stringify(ADDRESS_DEFAULTS)),
-    };
-}
-
-function loadAddressBook() {
-    if (addressBookCache) return addressBookCache;
-
-    const defaults = buildDefaultAddressBook();
-    ensureAddressBookDir();
-
-    if (!fs.existsSync(ADDRESS_BOOK_PATH)) {
-        addressBookCache = defaults;
-        try {
-            fs.writeFileSync(
-                ADDRESS_BOOK_PATH,
-                JSON.stringify(addressBookCache, null, 2),
-                "utf8",
-            );
-        } catch (err) {
-            log.warn("[addresses] impossibile salvare file iniziale:", err);
-        }
-        return addressBookCache;
-    }
-
-    try {
-        const raw = fs.readFileSync(ADDRESS_BOOK_PATH, "utf8");
-        const parsed = JSON.parse(raw);
-        const items =
-            parsed && typeof parsed === "object" ? parsed.items || {} : {};
-        const merged = buildDefaultAddressBook();
-
-        Object.keys(items || {}).forEach((key) => {
-            const entry = items[key];
-            if (!entry || typeof entry !== "object") return;
-            if (typeof entry.path === "string" && entry.path.trim()) {
-                merged.items[key] = {
-                    path: entry.path.trim(),
-                    kind: entry.kind || merged.items[key]?.kind || "file",
-                    id: entry.id || merged.items[key]?.id,
-                };
-            }
-        });
-
-        addressBookCache = {
-            version: parsed && parsed.version ? parsed.version : 1,
-            updatedAt:
-                parsed && parsed.updatedAt
-                    ? parsed.updatedAt
-                    : merged.updatedAt,
-            items: merged.items,
-        };
-    } catch (err) {
-        log.warn("[addresses] errore lettura, uso default:", err);
-        addressBookCache = defaults;
-    }
-
-    try {
-        fs.writeFileSync(
-            ADDRESS_BOOK_PATH,
-            JSON.stringify(addressBookCache, null, 2),
-            "utf8",
-        );
-    } catch (err) {
-        log.warn("[addresses] impossibile salvare file dopo merge:", err);
-    }
-
-    return addressBookCache;
-}
-
-function saveAddressBook(book) {
-    addressBookCache = book;
-    ensureAddressBookDir();
-    try {
-        fs.writeFileSync(
-            ADDRESS_BOOK_PATH,
-            JSON.stringify(book, null, 2),
-            "utf8",
-        );
-        return true;
-    } catch (err) {
-        log.warn("[addresses] errore salvataggio:", err);
-        return false;
-    }
-}
-
-function getAddressEntry(key) {
-    const book = loadAddressBook();
-    if (!book || !book.items) return null;
-    return book.items[key] || null;
-}
-
-function updateAddressEntry(key, nextPath) {
-    if (!key || typeof nextPath !== "string" || !nextPath.trim()) return null;
-    const book = loadAddressBook();
-    const entry = book.items[key] || { path: "", kind: "file" };
-    const updated = {
-        path: nextPath.trim(),
-        kind: entry.kind || "file",
-        id: entry.id,
-    };
-    book.items[key] = updated;
-    book.updatedAt = new Date().toISOString();
-    saveAddressBook(book);
-    return updated;
-}
-
-function openFilePath(mainWindow: BrowserWindow, filePath: string) {
-    const testFile = NETWORK_PATHS.dl360ServerCheck;
-
-    fs.access(testFile, fs.constants.F_OK, (err) => {
-        if (err) {
-            log.warn("Server non raggiungibile:", err.message);
-            dialog.showMessageBox(mainWindow, {
-                type: "warning",
-                buttons: ["Ok"],
-                title: "Server Non Raggiungibile",
-                message:
-                    "Il server DL360 non \u00e8 disponibile. Verificare la connessione.",
-            });
-            return;
-        }
-
-        fs.stat(filePath, (statErr, stats) => {
-            if (statErr) {
-                dialog.showMessageBox(mainWindow, {
-                    type: "warning",
-                    buttons: ["Ok"],
-                    title: "Percorso Non Trovato",
-                    message:
-                        "Il file o la cartella non \u00e8 disponibile. Controllare e riprovare.",
-                });
-                return;
-            }
-
-            if (stats.isDirectory()) {
-                shell.openPath(filePath);
-            } else {
-                exec(`start "" "${filePath}"`, (error) => {
-                    if (error) {
-                        if (
-                            error.message.includes(
-                                "utilizzato da un altro processo",
-                            )
-                        ) {
-                            dialog
-                                .showMessageBox(mainWindow, {
-                                    type: "warning",
-                                    buttons: [
-                                        "Apri in sola lettura",
-                                        "Annulla",
-                                    ],
-                                    title: "File in Uso",
-                                    message: "Vuoi aprirlo in sola lettura?",
-                                })
-                                .then((result) => {
-                                    if (result.response === 0) {
-                                        shell.openPath(filePath);
-                                    }
-                                });
-                        } else {
-                            dialog.showMessageBox(mainWindow, {
-                                type: "error",
-                                buttons: ["Ok"],
-                                title: "Errore",
-                                message: "Errore nell'apertura del file.",
-                            });
-                        }
-                    }
-                });
-            }
-        });
-    });
-}
-
-let lastServerReachabilityCheckAt = 0;
-let lastServerReachable = true;
-let inFlightServerCheck: Promise<boolean> | null = null;
-
-async function isDl360ServerReachableQuick(timeoutMs = 5000) {
-    const now = Date.now();
-    if (now - lastServerReachabilityCheckAt < 3000) {
-        return lastServerReachable;
-    }
-
-    if (inFlightServerCheck) return inFlightServerCheck;
-
-    inFlightServerCheck = (async () => {
-        const accessPromise = fs.promises
-            .access(NETWORK_PATHS.dl360ServerCheck, fs.constants.F_OK)
-            .then(() => true)
-            .catch(() => false);
-        const timeoutPromise = new Promise<boolean>((resolve) => {
-            setTimeout(() => resolve(false), timeoutMs);
-        });
-        const reachable = await Promise.race([accessPromise, timeoutPromise]);
-        lastServerReachabilityCheckAt = Date.now();
-        lastServerReachable = reachable;
-        return reachable;
-    })();
-
-    try {
-        return await inFlightServerCheck;
-    } finally {
-        inFlightServerCheck = null;
-    }
-}
-
 function handleServerUnavailableForModule(
     mainWindow: BrowserWindow,
     moduleWindow?: BrowserWindow | null,
@@ -349,415 +139,12 @@ async function guardServerAndOpenModule(
     moduleWindow: BrowserWindow | null,
     openFn: () => void,
 ) {
-    const reachable = await isDl360ServerReachableQuick();
+    const reachable = await isDl360ServerReachable();
     if (!reachable) {
         handleServerUnavailableForModule(mainWindow, moduleWindow);
         return;
     }
     openFn();
-}
-
-function getDefaultFpBaseDir(): string {
-    const fallback = process.env.AYPI_DEV === "1"
-        ? FP_DESKTOP_BASE_DIR
-        : FP_SERVER_BASE_DIR;
-    log.info(
-        "[ferie-permessi] base dir di default:",
-        fallback,
-    );
-    return fallback;
-}
-
-function loadFpBaseDir(): string | null {
-    const fallback = getDefaultFpBaseDir();
-    log.info(
-        "[ferie-permessi] config base dir risolta:",
-        fallback,
-    );
-    return fallback;
-}
-
-function resolveGitRepoRoot() {
-    const candidates = [process.cwd(), app.getAppPath()];
-
-    for (const start of candidates) {
-        let current = start;
-        for (let i = 0; i < 8; i += 1) {
-            if (fs.existsSync(path.join(current, ".git"))) {
-                return current;
-            }
-            const parent = path.dirname(current);
-            if (!parent || parent === current) break;
-            current = parent;
-        }
-    }
-
-    return "";
-}
-
-function getGitDailyStats(repoRoot: string) {
-    try {
-        execSync("git --version", { stdio: "ignore" });
-    } catch (err) {
-        return { ok: false, reason: "git-not-found", data: [], tags: [] };
-    }
-
-    try {
-        const raw = execFileSync(
-            "git",
-            [
-                "-C",
-                repoRoot,
-                "log",
-                "--numstat",
-                "--date=iso",
-                "--pretty=format:@@@%H|%ad",
-            ],
-            { encoding: "utf8" },
-        );
-
-        const map = new Map<
-            string,
-            {
-                date: string;
-                additions: number;
-                deletions: number;
-                commits: number;
-            }
-        >();
-        let currentDate = "";
-
-        raw.split(/\r?\n/).forEach((line) => {
-            if (!line.trim()) return;
-            if (line.startsWith("@@@")) {
-                const parts = line.replace("@@@", "").split("|");
-                const datePart = parts[1] || "";
-                const date = new Date(datePart);
-                if (Number.isNaN(date.getTime())) {
-                    currentDate = "";
-                    return;
-                }
-                const key = date.toISOString().slice(0, 10);
-                currentDate = key;
-                if (!map.has(key)) {
-                    map.set(key, {
-                        date: key,
-                        additions: 0,
-                        deletions: 0,
-                        commits: 0,
-                    });
-                }
-                map.get(key)!.commits += 1;
-                return;
-            }
-
-            if (!currentDate) return;
-            const parts = line.split("\t");
-            if (parts.length < 2) return;
-            const additions = parseInt(parts[0], 10);
-            const deletions = parseInt(parts[1], 10);
-            const safeAdd = Number.isFinite(additions) ? additions : 0;
-            const safeDel = Number.isFinite(deletions) ? deletions : 0;
-            const entry = map.get(currentDate);
-            if (!entry) return;
-            entry.additions += safeAdd;
-            entry.deletions += safeDel;
-        });
-
-        const data = Array.from(map.values()).sort((a, b) =>
-            a.date.localeCompare(b.date),
-        );
-
-        let tags: { name: string; date: string }[] = [];
-        try {
-            const rawTags = execFileSync(
-                "git",
-                [
-                    "-C",
-                    repoRoot,
-                    "for-each-ref",
-                    "refs/tags",
-                    "--sort=creatordate",
-                    "--format=%(refname:short)|%(creatordate:iso)",
-                ],
-                { encoding: "utf8" },
-            );
-            tags = rawTags
-                .split(/\r?\n/)
-                .map((line) => line.trim())
-                .filter(Boolean)
-                .map((line) => {
-                    const [name, date] = line.split("|");
-                    return { name, date };
-                })
-                .filter((entry) => entry.name && entry.date);
-        } catch (_err) {
-            tags = [];
-        }
-
-        return { ok: true, data, tags };
-    } catch (err) {
-        return { ok: false, reason: "git-log-failed", data: [], tags: [] };
-    }
-}
-
-function getCachedGitStats() {
-    try {
-        const appPath = app.getAppPath();
-        const cachedPath = path.join(
-            appPath,
-            "pages",
-            "utilities",
-            "git-stats.json",
-        );
-        if (!fs.existsSync(cachedPath)) return null;
-        const raw = fs.readFileSync(cachedPath, "utf8");
-        const parsed = JSON.parse(raw);
-        if (!parsed || !Array.isArray(parsed.data)) return null;
-        return parsed;
-    } catch (err) {
-        return null;
-    }
-}
-
-function writeGitStatsSnapshot(payload, targetPath?: string) {
-    const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\git-stats.json";
-    const outputPath =
-        targetPath && typeof targetPath === "string"
-            ? targetPath
-            : fallbackPath;
-    try {
-        if (payload && typeof payload === "object" && !payload.fetchedAt) {
-            payload.fetchedAt = new Date().toISOString();
-        }
-        const dir = path.dirname(outputPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2), "utf8");
-        return { ok: true, path: outputPath };
-    } catch (err) {
-        log.warn("[git-stats] write snapshot failed:", err);
-        return {
-            ok: false,
-            path: outputPath,
-            error: err?.message || String(err),
-        };
-    }
-}
-
-function readGitStatsSnapshot(targetPath?: string) {
-    const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\git-stats.json";
-    const inputPath =
-        targetPath && typeof targetPath === "string"
-            ? targetPath
-            : fallbackPath;
-    try {
-        if (!fs.existsSync(inputPath)) return null;
-        const raw = fs.readFileSync(inputPath, "utf8");
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-            if (!parsed.fetchedAt) {
-                try {
-                    const stat = fs.statSync(inputPath);
-                    if (stat && stat.mtime) {
-                        parsed.fetchedAt = stat.mtime.toISOString();
-                    }
-                } catch {
-                    // ignore
-                }
-            }
-            return parsed;
-        }
-        return null;
-    } catch (err) {
-        return null;
-    }
-}
-
-function writeGitflowSnapshot(payload, targetPath?: string) {
-    const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\gitflow.json";
-    const outputPath =
-        targetPath && typeof targetPath === "string"
-            ? targetPath
-            : fallbackPath;
-    try {
-        if (payload && typeof payload === "object" && !payload.fetchedAt) {
-            payload.fetchedAt = new Date().toISOString();
-        }
-        const dir = path.dirname(outputPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2), "utf8");
-        return { ok: true, path: outputPath };
-    } catch (err) {
-        log.warn("[gitflow] write snapshot failed:", err);
-        return {
-            ok: false,
-            path: outputPath,
-            error: err?.message || String(err),
-        };
-    }
-}
-
-function readGitflowSnapshot(targetPath?: string) {
-    const fallbackPath =
-        "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\gitflow.json";
-    const inputPath =
-        targetPath && typeof targetPath === "string"
-            ? targetPath
-            : fallbackPath;
-    try {
-        if (!fs.existsSync(inputPath)) return null;
-        const raw = fs.readFileSync(inputPath, "utf8");
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-            if (!parsed.fetchedAt) {
-                try {
-                    const stat = fs.statSync(inputPath);
-                    if (stat && stat.mtime) {
-                        parsed.fetchedAt = stat.mtime.toISOString();
-                    }
-                } catch {
-                    // ignore
-                }
-            }
-            return parsed;
-        }
-        return null;
-    } catch (err) {
-        return null;
-    }
-}
-
-function isSameDay(a: Date, b: Date) {
-    return (
-        a.getFullYear() === b.getFullYear() &&
-        a.getMonth() === b.getMonth() &&
-        a.getDate() === b.getDate()
-    );
-}
-
-function isYoungerThanMinutes(date: Date, minutes: number) {
-    if (!Number.isFinite(minutes) || minutes <= 0) return false;
-    const ageMs = Date.now() - date.getTime();
-    return ageMs >= 0 && ageMs <= minutes * 60 * 1000;
-}
-
-function startOfWeekMonday(date: Date) {
-    const day = date.getDay();
-    const diff = (day + 6) % 7;
-    const start = new Date(date);
-    start.setDate(date.getDate() - diff);
-    start.setHours(0, 0, 0, 0);
-    return start;
-}
-
-function toDateKey(date: Date) {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, "0");
-    const day = `${date.getDate()}`.padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-
-function fetchJson(url: string, token?: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-        const headers: Record<string, string> = {
-            "User-Agent": "AyPi",
-            Accept: "application/vnd.github+json",
-        };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        const req = https.get(url, { headers }, (res) => {
-            const chunks: Buffer[] = [];
-            res.on("data", (chunk) => chunks.push(chunk));
-            res.on("end", () => {
-                const raw = Buffer.concat(chunks).toString("utf8");
-                const status = res.statusCode || 0;
-                if (status >= 200 && status < 300) {
-                    try {
-                        resolve(JSON.parse(raw));
-                    } catch (err) {
-                        log.warn("[github] JSON parse failed", {
-                            url,
-                            status,
-                            error: err?.message || String(err),
-                        });
-                        reject(err);
-                    }
-                } else if (status === 202) {
-                    log.warn("[github] pending (202)", { url });
-                    resolve({ __pending: true, __status: status });
-                } else {
-                    const body = raw ? raw.slice(0, 600) : "";
-                    log.warn("[github] request failed", { url, status, body });
-                    reject(new Error(`HTTP ${status}: ${body}`));
-                }
-            });
-        });
-        req.on("error", (err) => {
-            log.warn("[github] request error", {
-                url,
-                error: err?.message || String(err),
-            });
-            reject(err);
-        });
-        req.end();
-    });
-}
-
-function readSharedEnvToken() {
-    const envPath = "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\.env";
-    try {
-        if (!fs.existsSync(envPath)) return "";
-        const raw = fs.readFileSync(envPath, "utf8");
-        const lines = raw.split(/\r?\n/);
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith("#")) continue;
-            const idx = trimmed.indexOf("=");
-            if (idx <= 0) continue;
-            const key = trimmed.slice(0, idx).trim();
-            const value = trimmed.slice(idx + 1).trim();
-            if (key === "GH_TOKEN" || key === "GITHUB_TOKEN") {
-                return value.replace(/^\"|\"$/g, "").replace(/^'|'$/g, "");
-            }
-        }
-        return "";
-    } catch {
-        return "";
-    }
-}
-
-async function resolveGithubTagCommit(
-    base: string,
-    sha: string,
-    token?: string,
-): Promise<{ sha: string; date: string } | null> {
-    try {
-        const commit = await fetchJson(`${base}/commits/${sha}`, token);
-        const date = commit?.commit?.author?.date;
-        if (date) {
-            return { sha, date };
-        }
-    } catch {
-        // fallthrough
-    }
-    try {
-        const tagObj = await fetchJson(`${base}/git/tags/${sha}`, token);
-        const targetSha = tagObj?.object?.sha;
-        if (!targetSha) return null;
-        const commit = await fetchJson(`${base}/commits/${targetSha}`, token);
-        const date = commit?.commit?.author?.date;
-        return date ? { sha: targetSha, date } : null;
-    } catch {
-        return null;
-    }
 }
 
 async function fetchGithubStats(owner: string, repo: string, token?: string) {
@@ -920,7 +307,10 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
                     return !Number.isNaN(time) && time >= sinceDate.getTime();
                 });
                 // Prefer local git diff totals when available (faster and more accurate in dev/runtime with repo).
-                const localTotals = getLocalWeekDiffTotals(nowWeekStart);
+                const localTotals = getLocalWeekDiffTotals(
+                    nowWeekStart,
+                    app.getAppPath(),
+                );
                 if (localTotals.additions > 0 || localTotals.deletions > 0) {
                     weekAdditions = localTotals.additions;
                     weekDeletions = localTotals.deletions;
@@ -956,7 +346,10 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
                     Number(lastRow.additions || 0) > 0 ||
                     Number(lastRow.deletions || 0) > 0;
                 if (!hasDiff) {
-                    const localTotals = getLocalWeekDiffTotals(nowWeekStart);
+                    const localTotals = getLocalWeekDiffTotals(
+                        nowWeekStart,
+                        app.getAppPath(),
+                    );
                     if (
                         localTotals.additions > 0 ||
                         localTotals.deletions > 0
@@ -1029,201 +422,6 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
         tags: tagPayload,
         warning,
     };
-}
-
-async function fetchGithubCommits(
-    owner: string,
-    repo: string,
-    token?: string,
-    maxCommits = 400,
-    minDate?: Date,
-) {
-    const base = `https://api.github.com/repos/${owner}/${repo}`;
-    const commits: Array<{ sha: string; date: string }> = [];
-    let page = 1;
-    const minTime = minDate ? new Date(minDate).getTime() : null;
-    while (commits.length < maxCommits) {
-        const res = await fetchJson(
-            `${base}/commits?per_page=100&page=${page}`,
-            token,
-        );
-        if (!Array.isArray(res) || res.length === 0) break;
-        res.forEach((entry) => {
-            const sha = entry?.sha;
-            const date = entry?.commit?.author?.date;
-            if (sha && date) commits.push({ sha, date });
-        });
-        if (minTime && commits.length) {
-            const oldest = new Date(commits[commits.length - 1].date).getTime();
-            if (!Number.isNaN(oldest) && oldest <= minTime) {
-                break;
-            }
-        }
-        if (res.length < 100) break;
-        page += 1;
-    }
-    return commits.slice(0, maxCommits);
-}
-
-async function fetchGithubDiffTotalsForCommits(
-    owner: string,
-    repo: string,
-    commits: Array<{ sha: string; date: string }>,
-    token?: string,
-    maxCommitDetails = 120,
-) {
-    const base = `https://api.github.com/repos/${owner}/${repo}`;
-    let additions = 0;
-    let deletions = 0;
-    const list = Array.isArray(commits)
-        ? commits.slice(0, maxCommitDetails)
-        : [];
-    for (const entry of list) {
-        if (!entry?.sha) continue;
-        try {
-            const details = await fetchJson(`${base}/commits/${entry.sha}`, token);
-            const stats = details?.stats;
-            additions += Number(stats?.additions || 0);
-            deletions += Number(stats?.deletions || 0);
-        } catch (err) {
-            log.warn("[github-stats] commit details fetch failed", {
-                owner,
-                repo,
-                sha: entry.sha,
-                error: err?.message || String(err),
-            });
-        }
-    }
-    return { additions, deletions };
-}
-
-function getLocalWeekDiffTotals(weekStart: Date) {
-    const repoRoot = resolveGitRepoRoot();
-    if (!repoRoot) return { additions: 0, deletions: 0 };
-    const local = getGitDailyStats(repoRoot);
-    if (!local?.ok || !Array.isArray(local.data)) {
-        return { additions: 0, deletions: 0 };
-    }
-    const weekKey = toDateKey(startOfWeekMonday(weekStart));
-    let additions = 0;
-    let deletions = 0;
-    local.data.forEach((row) => {
-        const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
-        if (!rowDate || Number.isNaN(rowDate.getTime())) return;
-        const rowWeek = toDateKey(startOfWeekMonday(rowDate));
-        if (rowWeek !== weekKey) return;
-        additions += Number(row.additions || 0);
-        deletions += Number(row.deletions || 0);
-    });
-    return { additions, deletions };
-}
-
-async function fetchGithubTags(owner: string, repo: string, token?: string) {
-    const base = `https://api.github.com/repos/${owner}/${repo}`;
-    const tags = await fetchJson(`${base}/tags?per_page=100`, token);
-    if (!Array.isArray(tags)) return [];
-    const tagList = tags.slice(0, 200);
-    const tagDetails = await Promise.all(
-        tagList.map(async (tag) => {
-            const sha = tag?.commit?.sha;
-            if (!sha) return null;
-            const resolved = await resolveGithubTagCommit(base, sha, token);
-            return resolved
-                ? { name: tag.name, date: resolved.date, sha: resolved.sha }
-                : null;
-        }),
-    );
-    return tagDetails.filter(Boolean);
-}
-
-function resolveFpBaseDirSync(senderWin?: BrowserWindow | null) {
-    let baseDir = loadFpBaseDir() || getDefaultFpBaseDir();
-    const baseExists = baseDir && fs.existsSync(baseDir);
-
-    if (baseExists) {
-        log.info("[ferie-permessi] base dir risolta:", baseDir);
-        return baseDir;
-    }
-    log.warn("[ferie-permessi] base dir non disponibile, uso il default");
-    return getDefaultFpBaseDir();
-}
-
-function resolveFpBackendBaseUrlSync() {
-    const backendUrl = resolveFpBackendBaseUrl();
-    log.info("[ferie-permessi] backend base url:", backendUrl);
-    return backendUrl;
-}
-
-function resolveAypiBackendBaseUrlSync() {
-    const ferieBaseUrl = resolveFpBackendBaseUrlSync();
-    return ferieBaseUrl.replace(/\/api\/ferie-permessi\/?$/i, "");
-}
-
-async function requestAypiBackend(
-    pathname: string,
-    options?: {
-        method?: string;
-        body?: unknown;
-        headers?: Record<string, string>;
-    },
-) {
-    const baseUrl = resolveAypiBackendBaseUrlSync();
-    const url = new URL(pathname, `${baseUrl}/`);
-    const transport = url.protocol === "https:" ? https : http;
-    const method = String(options?.method || "GET").toUpperCase();
-    const headers = {
-        "Content-Type": "application/json",
-        ...(options?.headers || {}),
-    };
-    const body =
-        options && Object.prototype.hasOwnProperty.call(options, "body")
-            ? JSON.stringify(options.body ?? {})
-            : null;
-
-    return new Promise<any>((resolve, reject) => {
-        const req = transport.request(
-            url,
-            {
-                method,
-                headers: body
-                    ? {
-                          ...headers,
-                          "Content-Length": Buffer.byteLength(body).toString(),
-                      }
-                    : headers,
-            },
-            (res) => {
-                const chunks: Buffer[] = [];
-                res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-                res.on("end", () => {
-                    const raw = Buffer.concat(chunks).toString("utf8");
-                    const statusCode = res.statusCode || 0;
-                    let parsed: any = null;
-                    if (raw) {
-                        try {
-                            parsed = JSON.parse(raw);
-                        } catch {
-                            parsed = raw;
-                        }
-                    }
-                    if (statusCode >= 200 && statusCode < 300) {
-                        resolve(parsed);
-                        return;
-                    }
-                    reject(
-                        new Error(
-                            `Backend ${method} ${url.pathname} failed (${statusCode}): ${
-                                parsed?.error || raw || "Errore sconosciuto"
-                            }`,
-                        ),
-                    );
-                });
-            },
-        );
-        req.on("error", reject);
-        if (body) req.write(body);
-        req.end();
-    });
 }
 
 function animateResize(
@@ -1699,142 +897,12 @@ let adminManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
 let allowTransferAttrezzaggioWindowClose = false;
 let transferAttrezzaggioClosePromptPending = false;
-let attrezzaggioPdfPreviewPath: string | null = null;
-let productManagerSession: Record<string, unknown> | null = null;
-let productManagerForceLogout = false;
+const productManagerSessionState = createProductManagerSessionState();
 let suppressTicketWindowChaining = false;
 let feriePermessiSplashShown = false;
 let productManagerSplashShown = false;
 let ticketSupportSplashShown = false;
 let isAppQuitting = false;
-let lastFolderDialogPath: string | null = null;
-let lastFolderDialogClosedAt = 0;
-
-function getAttrezzaggioPdfPreviewDir() {
-    return path.join(app.getPath("temp"), "aypi-attrezzaggio-preview");
-}
-
-function cleanupAttrezzaggioPdfPreviewFile(filePath?: string | null) {
-    if (!filePath) return;
-    try {
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
-    } catch (err) {
-        log.warn("[attrezzaggio-pdf] impossibile rimuovere file temp:", filePath, err);
-    }
-}
-
-function sanitizePreviewFileName(name: string) {
-    return String(name || "scheda-attrezzaggio")
-        .replace(/[<>:"/\\|?*\u0000-\u001F]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 80) || "scheda-attrezzaggio";
-}
-
-function cleanupOldAttrezzaggioPdfPreviewFiles(maxAgeMs = 24 * 60 * 60 * 1000) {
-    const tempDir = getAttrezzaggioPdfPreviewDir();
-    if (!fs.existsSync(tempDir)) return;
-    const now = Date.now();
-    for (const entry of fs.readdirSync(tempDir, { withFileTypes: true })) {
-        if (!entry.isFile()) continue;
-        const filePath = path.join(tempDir, entry.name);
-        if (attrezzaggioPdfPreviewPath && filePath === attrezzaggioPdfPreviewPath) {
-            continue;
-        }
-        try {
-            const stats = fs.statSync(filePath);
-            if (now - stats.mtimeMs > maxAgeMs) {
-                fs.unlinkSync(filePath);
-            }
-        } catch (err) {
-            log.warn("[attrezzaggio-pdf] impossibile pulire file temp:", filePath, err);
-        }
-    }
-}
-
-async function waitForAttrezzaggioPreviewAssets(win: BrowserWindow) {
-    await win.webContents.executeJavaScript(
-        `
-        new Promise((resolve) => {
-            const settle = () => setTimeout(resolve, 200);
-            const images = Array.from(document.images || []);
-            const waits = images.map((img) => {
-                if (img.complete) return Promise.resolve();
-                return new Promise((done) => {
-                    const finish = () => done();
-                    img.addEventListener("load", finish, { once: true });
-                    img.addEventListener("error", finish, { once: true });
-                    setTimeout(finish, 5000);
-                });
-            });
-            Promise.all(waits)
-                .catch(() => undefined)
-                .then(() => {
-                    if (document.fonts && document.fonts.ready) {
-                        document.fonts.ready.then(settle).catch(settle);
-                    } else {
-                        settle();
-                    }
-                });
-        });
-        `,
-        true,
-    );
-}
-
-async function createAttrezzaggioPreviewPdf(payload: {
-    html: string;
-    title?: string;
-    pageSize?: "A3" | "A4";
-    landscape?: boolean;
-}) {
-    const tempDir = getAttrezzaggioPdfPreviewDir();
-    fs.mkdirSync(tempDir, { recursive: true });
-    cleanupOldAttrezzaggioPdfPreviewFiles();
-
-    const renderWindow = new BrowserWindow({
-        show: false,
-        width: 1400,
-        height: 1000,
-        webPreferences: WINDOW_WEB_PREFERENCES,
-        icon: APP_ICON_PATH,
-    });
-
-    try {
-        await renderWindow.loadURL(
-            `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`,
-        );
-        await waitForAttrezzaggioPreviewAssets(renderWindow);
-        const pdfBuffer = await renderWindow.webContents.printToPDF({
-            printBackground: true,
-            landscape: !!payload.landscape,
-            pageSize: payload.pageSize || "A4",
-            preferCSSPageSize: true,
-        });
-        const fileName = `${Date.now()}-${sanitizePreviewFileName(payload.title || "scheda-attrezzaggio")}.pdf`;
-        const filePath = path.join(tempDir, fileName);
-        fs.writeFileSync(filePath, pdfBuffer);
-        return filePath;
-    } finally {
-        if (!renderWindow.isDestroyed()) {
-            renderWindow.destroy();
-        }
-    }
-}
-
-async function openAttrezzaggioPdfPreviewWindow(pdfPath: string) {
-    const previousPath = attrezzaggioPdfPreviewPath;
-    attrezzaggioPdfPreviewPath = pdfPath;
-    if (previousPath && previousPath !== pdfPath) {
-        cleanupAttrezzaggioPdfPreviewFile(previousPath);
-    }
-    const openResult = await shell.openPath(pdfPath);
-    if (openResult) {
-        throw new Error(openResult);
-    }
-}
 
 function openFileListWindow(
     mainWindow,
@@ -2278,8 +1346,7 @@ function openProductManagerWindow(
         return;
     }
     if (!hasAnyProductOrTicketWindow()) {
-        productManagerSession = null;
-        productManagerForceLogout = true;
+        productManagerSessionState.clear({ forceLogout: true });
     }
 
     productManagerWindowTheme = requestedTheme;
@@ -2328,9 +1395,8 @@ function openProductManagerWindow(
         if (!productManagerWindow.isDestroyed()) {
             productManagerWindow.webContents.send(
                 "pm-force-logout",
-                productManagerForceLogout,
+                productManagerSessionState.consumeForceLogout(),
             );
-            productManagerForceLogout = false;
         }
     });
 
@@ -2338,8 +1404,7 @@ function openProductManagerWindow(
         productManagerWindow = null;
         productManagerWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
-            productManagerSession = null;
-            productManagerForceLogout = true;
+            productManagerSessionState.clear({ forceLogout: true });
         }
     });
 }
@@ -2366,8 +1431,7 @@ function openProductManagerCartWindow(
         return;
     }
     if (!hasAnyProductOrTicketWindow()) {
-        productManagerSession = null;
-        productManagerForceLogout = true;
+        productManagerSessionState.clear({ forceLogout: true });
     }
 
     productManagerCartWindowTheme = requestedTheme;
@@ -2406,9 +1470,8 @@ function openProductManagerCartWindow(
         if (!productManagerCartWindow.isDestroyed()) {
             productManagerCartWindow.webContents.send(
                 "pm-force-logout",
-                productManagerForceLogout,
+                productManagerSessionState.consumeForceLogout(),
             );
-            productManagerForceLogout = false;
         }
     });
 
@@ -2416,8 +1479,7 @@ function openProductManagerCartWindow(
         productManagerCartWindow = null;
         productManagerCartWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
-            productManagerSession = null;
-            productManagerForceLogout = true;
+            productManagerSessionState.clear({ forceLogout: true });
         }
     });
 }
@@ -2444,8 +1506,7 @@ function openProductManagerInterventionsWindow(
         return;
     }
     if (!hasAnyProductOrTicketWindow()) {
-        productManagerSession = null;
-        productManagerForceLogout = true;
+        productManagerSessionState.clear({ forceLogout: true });
     }
 
     productManagerInterventionsWindowTheme = requestedTheme;
@@ -2486,9 +1547,8 @@ function openProductManagerInterventionsWindow(
             if (!productManagerInterventionsWindow.isDestroyed()) {
                 productManagerInterventionsWindow.webContents.send(
                     "pm-force-logout",
-                    productManagerForceLogout,
+                    productManagerSessionState.consumeForceLogout(),
                 );
-                productManagerForceLogout = false;
             }
         },
     );
@@ -2497,8 +1557,7 @@ function openProductManagerInterventionsWindow(
         productManagerInterventionsWindow = null;
         productManagerInterventionsWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
-            productManagerSession = null;
-            productManagerForceLogout = true;
+            productManagerSessionState.clear({ forceLogout: true });
         }
     });
 }
@@ -2642,8 +1701,7 @@ function openTicketSupportWindow(
     }
 
     if (!hasAnyProductOrTicketWindow()) {
-        productManagerSession = null;
-        productManagerForceLogout = true;
+        productManagerSessionState.clear({ forceLogout: true });
     }
 
     ticketSupportWindowTheme = requestedTheme;
@@ -2681,9 +1739,8 @@ function openTicketSupportWindow(
         if (!ticketSupportWindow.isDestroyed()) {
             ticketSupportWindow.webContents.send(
                 "pm-force-logout",
-                productManagerForceLogout,
+                productManagerSessionState.consumeForceLogout(),
             );
-            productManagerForceLogout = false;
         }
     });
 
@@ -2691,8 +1748,7 @@ function openTicketSupportWindow(
         ticketSupportWindow = null;
         ticketSupportWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
-            productManagerSession = null;
-            productManagerForceLogout = true;
+            productManagerSessionState.clear({ forceLogout: true });
         }
         if (suppressTicketWindowChaining) return;
         if (isWindowAlive(ticketSupportAdminWindow)) {
@@ -2729,8 +1785,7 @@ function openTicketSupportAdminWindow(
     }
 
     if (!hasAnyProductOrTicketWindow()) {
-        productManagerSession = null;
-        productManagerForceLogout = true;
+        productManagerSessionState.clear({ forceLogout: true });
     }
 
     ticketSupportAdminWindowTheme = requestedTheme;
@@ -2774,9 +1829,8 @@ function openTicketSupportAdminWindow(
         if (!ticketSupportAdminWindow.isDestroyed()) {
             ticketSupportAdminWindow.webContents.send(
                 "pm-force-logout",
-                productManagerForceLogout,
+                productManagerSessionState.consumeForceLogout(),
             );
-            productManagerForceLogout = false;
         }
     });
 
@@ -2785,8 +1839,7 @@ function openTicketSupportAdminWindow(
         const closingTheme = ticketSupportAdminWindowTheme;
         ticketSupportAdminWindowTheme = "standard";
         if (!hasAnyProductOrTicketWindow()) {
-            productManagerSession = null;
-            productManagerForceLogout = true;
+            productManagerSessionState.clear({ forceLogout: true });
         }
         if (suppressTicketWindowChaining) return;
         if (isWindowAlive(ticketSupportWindow)) {
@@ -3015,366 +2068,62 @@ function openCompareFoldersWindow(
     }
 }
 
-function transferSafeName(input: string) {
-    return String(input || "")
-        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
-        .replace(/\s+/g, " ")
-        .trim();
-}
-
-function transferCodeFromPayload(payload: any) {
-    const articolo = transferSafeName(payload?.codiceArticolo || "");
-    const fase = transferSafeName(payload?.fase || "");
-    const macchina = transferSafeName(payload?.codiceMacchina || "");
-    const metodo = transferSafeName(payload?.metodo || "");
-    return `${articolo} - Fase: ${fase} - ${macchina} - ${metodo}`;
-}
-
-function haasCodeFromPayload(payload: any) {
-    const articolo = transferSafeName(payload?.codiceArticolo || "");
-    const macchina = transferSafeName(payload?.macchina || "");
-    const programma = transferSafeName(payload?.numeroProgramma || "");
-    const metodo = transferSafeName(payload?.metodo || "");
-    return [articolo, macchina, programma, metodo].filter(Boolean).join(" - ");
-}
-
 function setupFileManager(mainWindow) {
     app.on("before-quit", () => {
         isAppQuitting = true;
     });
 
-    loadAddressBook();
-    ipcMain.on("resize-calcolatore", () => {
-        animateResize(mainWindow, 750, 750, 100);
+    registerMainWindowLayoutIpc({
+        ipcMain,
+        mainWindow,
+        animateResize,
+        usesPersistentLayout: mainWindowUsesBlueArchiveLayout,
     });
 
-    ipcMain.on("resize-normale", () => {
-        // I moduli legacy usano questo evento per riportare il vecchio menu a
-        // 750x550. Il menu Blue Archive conserva invece sempre bounds e stato.
-        if (mainWindowUsesBlueArchiveLayout(mainWindow)) return;
-        animateResize(mainWindow, 750, 550, 100);
+    registerFileNavigationIpc({
+        ipcMain,
+        dialog,
+        shell,
+        browserWindow: BrowserWindow,
+        mainWindow,
     });
 
-    ipcMain.on("open-file", (event, filePath) => {
-        if (!filePath) return;
-        openFilePath(mainWindow, filePath);
+    registerAdminStateIpc({
+        ipcMain,
+        browserWindow: BrowserWindow,
     });
 
-    ipcMain.on("open-external", (_event, url) => {
-        if (typeof url !== "string" || !url.trim()) return;
-        shell.openExternal(url.trim());
+    registerFilesystemDialogIpc({
+        ipcMain,
+        app,
+        dialog,
+        browserWindow: BrowserWindow,
+        mainWindow,
+        log,
     });
 
-    ipcMain.on("open-address", (event, payload) => {
-        const key = payload && payload.key ? String(payload.key) : "";
-        if (!key) return;
-        const entry = getAddressEntry(key);
-        if (!entry || !entry.path) {
-            dialog.showMessageBox(mainWindow, {
-                type: "warning",
-                buttons: ["Ok"],
-                title: "Percorso Non Trovato",
-                message: "Il percorso configurato non \u00e8 disponibile.",
-            });
-            return;
-        }
-        openFilePath(mainWindow, entry.path);
+    registerFeriePermessiConfigIpc({
+        ipcMain,
+        log,
     });
 
-    ipcMain.handle("addresses-reconfigure", async (event, payload) => {
-        const key = payload && payload.key ? String(payload.key) : "";
-        if (!key) return { canceled: true };
-        const entry = getAddressEntry(key);
-        const kind = entry && entry.kind === "directory" ? "directory" : "file";
+    registerProductManagerSessionIpc(
+        ipcMain,
+        productManagerSessionState,
+        broadcastProductManagerSession,
+    );
 
-        const senderWin = BrowserWindow.fromWebContents(event.sender);
-        const win = isWindowAlive(senderWin) ? senderWin : mainWindow;
-
-        const dialogOptions: OpenDialogOptions = {
-            title: "Seleziona il percorso da associare",
-            properties: [
-                kind === "directory" ? "openDirectory" : "openFile",
-                "dontAddToRecent",
-            ],
-        };
-        const result = await dialog.showOpenDialog(win, dialogOptions);
-
-        if (result.canceled || !result.filePaths || !result.filePaths[0]) {
-            return { canceled: true };
-        }
-
-        const chosen = result.filePaths[0];
-        const updated = updateAddressEntry(key, chosen);
-
-        dialog.showMessageBox(win, {
-            type: "info",
-            buttons: ["Ok"],
-            title: "Percorso aggiornato",
-            message: "Percorso aggiornato con successo.",
-            detail: chosen,
-        });
-
-        return { canceled: false, updated };
+    registerNativeAppIpc({
+        ipcMain,
+        app,
+        dialog,
+        browserWindow: BrowserWindow,
+        mainWindow,
     });
 
-    ipcMain.handle("admin-auth", async (_event, payload) => {
-        const password =
-            typeof payload === "string"
-                ? payload
-                : payload && payload.password
-                  ? String(payload.password)
-                  : "";
-        if (password === "AGPress") {
-            adminEnabled = true;
-            BrowserWindow.getAllWindows().forEach((win) => {
-                try {
-                    win.webContents.send("admin-state-changed", {
-                        enabled: true,
-                    });
-                } catch {}
-            });
-            return { ok: true };
-        }
-        return { ok: false };
-    });
-
-    ipcMain.handle("admin-is-enabled", async () => {
-        return adminEnabled;
-    });
-
-    ipcMain.handle("admin-disable", async () => {
-        adminEnabled = false;
-        BrowserWindow.getAllWindows().forEach((win) => {
-            try {
-                win.webContents.send("admin-state-changed", { enabled: false });
-            } catch {}
-        });
-        return { ok: true };
-    });
-
-    ipcMain.handle("select-root-folder", async (event) => {
-        const t0 = Date.now();
-        const senderWin = BrowserWindow.fromWebContents(event.sender);
-        const mainWin = isWindowAlive(mainWindow) ? mainWindow : null;
-        const win = isWindowAlive(senderWin) ? senderWin : mainWin;
-
-        const now = Date.now();
-        if (now - lastFolderDialogClosedAt < 300) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-        }
-
-        const getSafeLocalPath = () => {
-            if (process.platform === "win32") {
-                if (!app.isPackaged) {
-                    try {
-                        return app.getPath("home");
-                    } catch {
-                        return "C:\\";
-                    }
-                }
-                return "C:\\";
-            }
-            try {
-                return app.getPath("home");
-            } catch {
-                return undefined;
-            }
-        };
-
-        if (!lastFolderDialogPath) {
-            lastFolderDialogPath = getSafeLocalPath();
-        }
-
-        const dialogOptions: OpenDialogOptions = {
-            title: "Seleziona la cartella",
-            defaultPath:
-                (app.isPackaged ? getSafeLocalPath() : lastFolderDialogPath) ||
-                undefined,
-            properties: ["openDirectory", "dontAddToRecent"],
-        };
-
-        // In build (packaged) evita parent modal: su alcuni PC crea un blocco lungo dopo annulla.
-        const isWindows = process.platform === "win32";
-        const useParentWindow = !isWindows && !app.isPackaged;
-
-        if (isWindows) {
-            try {
-                app.clearRecentDocuments();
-            } catch (err) {
-                log.warn(
-                    "[select-root-folder] clearRecentDocuments failed:",
-                    err,
-                );
-            }
-        }
-        log.info("[select-root-folder] open dialog", {
-            packaged: app.isPackaged,
-            hasParent: !!(win && useParentWindow),
-            defaultPath: dialogOptions.defaultPath,
-        });
-        const result =
-            useParentWindow && win
-                ? await dialog.showOpenDialog(win, dialogOptions)
-                : await dialog.showOpenDialog(dialogOptions);
-
-        lastFolderDialogClosedAt = Date.now();
-        log.info("[select-root-folder] dialog closed", {
-            canceled: !!result.canceled,
-            hasPath: !!(result.filePaths && result.filePaths[0]),
-            ms: Date.now() - t0,
-        });
-
-        if (
-            result.canceled ||
-            !result.filePaths ||
-            result.filePaths.length === 0
-        ) {
-            if (!lastFolderDialogPath) {
-                lastFolderDialogPath = getSafeLocalPath();
-            }
-            return null;
-        }
-        const chosen = result.filePaths[0];
-        if (chosen && !chosen.startsWith("\\\\")) {
-            lastFolderDialogPath = chosen;
-        } else {
-            lastFolderDialogPath = getSafeLocalPath();
-        }
-        return chosen;
-    });
-
-    ipcMain.on("folder-picker-log", (_event, payload) => {
-        try {
-            log.info("[folder-picker]", payload || {});
-        } catch (err) {
-            log.warn("[folder-picker] log failed", err);
-        }
-    });
-
-    ipcMain.handle("select-output-file", async (event, options) => {
-        const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
-
-        const result = await dialog.showSaveDialog(win, {
-            title: "Seleziona il file di destinazione",
-            defaultPath: options?.defaultName || "output.xlsx",
-            filters: options?.filters || [
-                { name: "File Excel", extensions: ["xlsx"] },
-            ],
-        });
-
-        if (result.canceled || !result.filePath) {
-            return null;
-        }
-        return result.filePath;
-    });
-
-    ipcMain.on("fp-get-base-dir", (event) => {
-        const senderWin = BrowserWindow.fromWebContents(event.sender);
-        const baseDir = resolveFpBaseDirSync(senderWin);
-        log.info("[ferie-permessi] renderer richiede base dir:", baseDir);
-        event.returnValue = baseDir;
-    });
-
-    ipcMain.on("fp-get-backend-base-url", (event) => {
-        const backendUrl = resolveFpBackendBaseUrlSync();
-        event.returnValue = backendUrl;
-    });
-
-    ipcMain.on("fp-debug-log", (_event, payload) => {
-        try {
-            console.log("[ferie-permessi][renderer]", payload);
-        } catch (err) {
-            log.warn("[ferie-permessi] debug log fallito:", err);
-        }
-    });
-
-    ipcMain.handle("pm-session-get", async () => {
-        return productManagerSession;
-    });
-
-    ipcMain.handle("pm-session-set", async (_event, payload) => {
-        productManagerSession =
-            payload && typeof payload === "object" ? payload : null;
-        broadcastProductManagerSession(productManagerSession);
-        return true;
-    });
-
-    ipcMain.handle("pm-session-clear", async () => {
-        productManagerSession = null;
-        broadcastProductManagerSession(null);
-        return true;
-    });
-
-    ipcMain.handle("pm-select-image", async () => {
-        const win = BrowserWindow.getFocusedWindow() || mainWindow;
-        const dialogOptions: OpenDialogOptions = {
-            title: "Seleziona immagine prodotto",
-            properties: ["openFile"],
-            filters: [
-                {
-                    name: "Immagini",
-                    extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"],
-                },
-            ],
-        };
-        const result = await dialog.showOpenDialog(win, dialogOptions);
-        if (result.canceled || !result.filePaths.length) return "";
-        return result.filePaths[0];
-    });
-
-    ipcMain.handle("show-message-box", async (event, options) => {
-        const win = BrowserWindow.getFocusedWindow() || mainWindow;
-
-        return dialog.showMessageBox(win, {
-            type: options.type || "none",
-            buttons:
-                Array.isArray(options.buttons) && options.buttons.length
-                    ? options.buttons
-                    : ["OK"],
-            title: "AyPi",
-            message: options.message || "",
-            detail: options.detail || "",
-            defaultId:
-                typeof options.defaultId === "number" ? options.defaultId : 0,
-            cancelId:
-                typeof options.cancelId === "number" ? options.cancelId : 0,
-            noLink: options.noLink !== false,
-            normalizeAccessKeys: true,
-        });
-    });
-
-    ipcMain.handle("get-app-version", async () => {
-        return app.getVersion();
-    });
-
-    ipcMain.handle("git-stats-get", async (_event, options) => {
-        const fresh = !!(options && options.fresh);
-        const targetPath =
-            options && options.persistPath
-                ? String(options.persistPath)
-                : undefined;
-
-        if (!fresh) {
-            const cached = getCachedGitStats();
-            if (cached && cached.ok && cached.data && cached.data.length) {
-                return cached;
-            }
-        }
-
-        const repoRoot = resolveGitRepoRoot();
-        if (!repoRoot) {
-            const payload = {
-                ok: false,
-                reason: "repo-not-found",
-                data: [],
-                tags: [],
-            };
-            writeGitStatsSnapshot(payload, targetPath);
-            return payload;
-        }
-        const payload = getGitDailyStats(repoRoot);
-        writeGitStatsSnapshot(payload, targetPath);
-        return payload;
+    registerLocalGitStatsIpc({
+        ipcMain,
+        app,
     });
 
     ipcMain.handle("github-stats-get", async (_event, options) => {
@@ -3386,7 +2135,7 @@ function setupFileManager(mainWindow) {
                 ? String(options.token)
                 : process.env.GITHUB_TOKEN ||
                   process.env.GH_TOKEN ||
-                  readSharedEnvToken();
+                  readSharedGithubToken();
         const tokenPresent = !!token;
         const targetPath =
             options && options.persistPath
@@ -3417,7 +2166,7 @@ function setupFileManager(mainWindow) {
             if (Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
                 // Enrich rows with commits>0 but zero code frequency using local git stats.
                 // This fixes cases where GitHub stats stay stale on recent weeks.
-                const repoRoot = resolveGitRepoRoot();
+                const repoRoot = resolveGitRepoRoot(app.getAppPath());
                 if (repoRoot) {
                     const local = getGitDailyStats(repoRoot);
                     if (local?.ok && Array.isArray(local.data)) {
@@ -3495,7 +2244,7 @@ function setupFileManager(mainWindow) {
                 payloadWithToken.warning =
                     payloadWithToken.warning || "code-frequency-cache";
             } else if (!hasCodeFrequency) {
-                const repoRoot = resolveGitRepoRoot();
+                const repoRoot = resolveGitRepoRoot(app.getAppPath());
                 if (repoRoot) {
                     const local = getGitDailyStats(repoRoot);
                     if (local && local.ok && Array.isArray(local.data)) {
@@ -3711,7 +2460,7 @@ function setupFileManager(mainWindow) {
                 ? String(options.token)
                 : process.env.GITHUB_TOKEN ||
                   process.env.GH_TOKEN ||
-                  readSharedEnvToken();
+                  readSharedGithubToken();
         const maxCommits =
             options && options.maxCommits ? Number(options.maxCommits) : 400;
         const targetPath =
@@ -3784,106 +2533,7 @@ function setupFileManager(mainWindow) {
         }
     });
 
-    const presetsPath = path.join(
-        app.getPath("userData"),
-        "batch-rename-presets.json",
-    );
-
-    function loadBatchRenamePresets() {
-        try {
-            if (!fs.existsSync(presetsPath)) return [];
-            const raw = fs.readFileSync(presetsPath, "utf8");
-            const data = JSON.parse(raw);
-            if (Array.isArray(data)) return data;
-            return [];
-        } catch (err) {
-            log.error("[batch-rename] impossibile leggere i preset:", err);
-            return [];
-        }
-    }
-
-    function saveBatchRenamePresets(list) {
-        try {
-            fs.writeFileSync(
-                presetsPath,
-                JSON.stringify(list, null, 2),
-                "utf8",
-            );
-        } catch (err) {
-            log.error("[batch-rename] impossibile salvare i preset:", err);
-        }
-    }
-
-    ipcMain.handle("batch-rename-load-presets", async () => {
-        return loadBatchRenamePresets();
-    });
-
-    ipcMain.handle("batch-rename-save-preset", async (event, payload) => {
-        const name = (
-            payload && payload.name ? String(payload.name) : ""
-        ).trim();
-        const data = payload && payload.data ? payload.data : null;
-        if (!name || !data) {
-            return loadBatchRenamePresets();
-        }
-
-        const list = loadBatchRenamePresets();
-        const existingIndex = list.findIndex(
-            (p) => p && typeof p.name === "string" && p.name === name,
-        );
-        const entry = { name, data, updatedAt: new Date().toISOString() };
-        if (existingIndex >= 0) {
-            list[existingIndex] = entry;
-        } else {
-            list.push(entry);
-        }
-        saveBatchRenamePresets(list);
-        return list;
-    });
-
-    ipcMain.handle("batch-rename-delete-preset", async (event, payload) => {
-        const name = (
-            payload && payload.name ? String(payload.name) : ""
-        ).trim();
-        if (!name) {
-            return loadBatchRenamePresets();
-        }
-        const list = loadBatchRenamePresets().filter(
-            (p) => !(p && p.name === name),
-        );
-        saveBatchRenamePresets(list);
-        return list;
-    });
-
-    ipcMain.handle("batch-rename-set-hidden", async (event, payload) => {
-        const targetPath = payload && payload.path ? String(payload.path) : "";
-        const hidden = !!(payload && payload.hidden);
-        if (!targetPath) {
-            return { ok: false, error: "Percorso non valido" };
-        }
-        if (process.platform !== "win32") {
-            return {
-                ok: false,
-                error: "Attributo nascosto supportato solo su Windows",
-            };
-        }
-
-        return new Promise((resolve) => {
-            const flag = hidden ? "+H" : "-H";
-            exec(`attrib ${flag} "${targetPath}"`, (err) => {
-                if (err) {
-                    log.error(
-                        "[batch-rename] errore impostando attributo hidden:",
-                        targetPath,
-                        err,
-                    );
-                    resolve({ ok: false, error: err.message || String(err) });
-                } else {
-                    resolve({ ok: true });
-                }
-            });
-        });
-    });
+    registerBatchRenameIpc();
 
     ipcMain.on("open-file-list-window", (_event, payload) => {
         openFileListWindow(mainWindow, {
@@ -3917,147 +2567,12 @@ function setupFileManager(mainWindow) {
         transferAttrezzaggioWindow?.close();
     });
 
-    ipcMain.handle("attrezzaggio-preview-pdf", async (event, payload) => {
-        try {
-            const html = String(payload?.html || "");
-            if (!html.trim()) {
-                return { ok: false, error: "Contenuto PDF mancante." };
-            }
-            const pdfPath = await createAttrezzaggioPreviewPdf({
-                html,
-                title: String(payload?.title || "scheda-attrezzaggio"),
-                pageSize: payload?.pageSize === "A3" ? "A3" : "A4",
-                landscape: !!payload?.landscape,
-            });
-            await openAttrezzaggioPdfPreviewWindow(pdfPath);
-            return { ok: true };
-        } catch (err) {
-            log.error("[attrezzaggio-pdf] errore anteprima:", err);
-            return { ok: false, error: err?.message || String(err) };
-        }
+    registerAttrezzaggioPdfPreviewIpc({
+        ipcMain,
+        getIconPath: () => APP_ICON_PATH,
     });
 
-    ipcMain.handle("transfer-attrezzaggio-list", async () => {
-        try {
-            const payload = await requestAypiBackend(
-                "/api/transfer-attrezzaggio/items",
-            );
-            return { ok: true, items: Array.isArray(payload?.items) ? payload.items : [] };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
-    ipcMain.handle("transfer-attrezzaggio-load", async (_event, payload) => {
-        try {
-            const code = String(payload?.code || "");
-            if (!code) return { ok: false, error: "Codice mancante." };
-            const item = await requestAypiBackend(
-                `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
-            );
-            return { ok: true, item: item?.item || null };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
-    ipcMain.handle("transfer-attrezzaggio-save", async (_event, payload) => {
-        try {
-            const code = transferCodeFromPayload(payload);
-            if (!code || code === "///") {
-                return { ok: false, error: "Codice scheda non valido." };
-            }
-            const response = await requestAypiBackend(
-                `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
-                {
-                    method: "PUT",
-                    body: {
-                        ...payload,
-                        code,
-                    },
-                },
-            );
-            return { ok: true, code, item: response?.item || null };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
-    ipcMain.handle("transfer-attrezzaggio-delete", async (_event, payload) => {
-        try {
-            const code = String(payload?.code || "");
-            if (!code) return { ok: false, error: "Codice mancante." };
-            await requestAypiBackend(
-                `/api/transfer-attrezzaggio/items/${encodeURIComponent(code)}`,
-                { method: "DELETE" },
-            );
-            return { ok: true };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
-    ipcMain.handle("haas-attrezzaggio-list", async () => {
-        try {
-            const payload = await requestAypiBackend("/api/haas-attrezzaggio/items");
-            return {
-                ok: true,
-                items: Array.isArray(payload?.items) ? payload.items : [],
-            };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
-    ipcMain.handle("haas-attrezzaggio-load", async (_event, payload) => {
-        try {
-            const code = String(payload?.code || "");
-            if (!code) return { ok: false, error: "Codice mancante." };
-            const item = await requestAypiBackend(
-                `/api/haas-attrezzaggio/items/${encodeURIComponent(code)}`,
-            );
-            return { ok: true, item: item?.item || null };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
-    ipcMain.handle("haas-attrezzaggio-save", async (_event, payload) => {
-        try {
-            const code = haasCodeFromPayload(payload);
-            if (!code) {
-                return { ok: false, error: "Codice scheda HAAS non valido." };
-            }
-            const response = await requestAypiBackend(
-                `/api/haas-attrezzaggio/items/${encodeURIComponent(code)}`,
-                {
-                    method: "PUT",
-                    body: {
-                        ...payload,
-                        code,
-                    },
-                },
-            );
-            return { ok: true, code, item: response?.item || null };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
-    ipcMain.handle("haas-attrezzaggio-delete", async (_event, payload) => {
-        try {
-            const code = String(payload?.code || "");
-            if (!code) return { ok: false, error: "Codice mancante." };
-            await requestAypiBackend(
-                `/api/haas-attrezzaggio/items/${encodeURIComponent(code)}`,
-                { method: "DELETE" },
-            );
-            return { ok: true };
-        } catch (err) {
-            return { ok: false, error: err?.message || String(err) };
-        }
-    });
-
+    registerAttrezzaggioDataIpc(ipcMain, requestAypiBackend);
     ipcMain.on("open-qr-generator-window", (_event, payload) => {
         openQrGeneratorWindow(mainWindow, {
             theme:
@@ -4254,131 +2769,11 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    ipcMain.handle(
-        "hierarchy-export-navigable-report",
-        async (event, payload) => {
-            try {
-                const win =
-                    BrowserWindow.fromWebContents(event.sender) || mainWindow;
-
-                if (!payload || !payload.data) {
-                    throw new Error("Dati report non validi.");
-                }
-
-                const data = payload.data;
-                const rootPath = data.meta?.rootPath || "";
-                const rootNameRaw = rootPath
-                    ? path.basename(rootPath.replace(/[\\/]+$/, ""))
-                    : "root";
-                const rootName = rootNameRaw || "root";
-
-                const result = await dialog.showSaveDialog(win, {
-                    title: "Salva report navigabile",
-                    defaultPath: `Report ${rootName}.html`,
-                    filters: [{ name: "File HTML", extensions: ["html"] }],
-                });
-
-                if (result.canceled || !result.filePath) {
-                    return { canceled: true };
-                }
-
-                const chosenDir = path.dirname(result.filePath);
-                const reportDirName = `Report ${rootName}`;
-                const reportDir = path.join(chosenDir, reportDirName);
-                fs.mkdirSync(reportDir, { recursive: true });
-
-                const htmlPath = path.join(reportDir, "report-gerarchia.html");
-                const jsonPath = path.join(reportDir, "report-data.json");
-                const jsPath = path.join(reportDir, "report.js");
-                const cssPath = path.join(reportDir, "report.css");
-                const chartPath = path.join(reportDir, "chart.umd.js");
-
-                fs.writeFileSync(
-                    jsonPath,
-                    JSON.stringify(data, null, 2),
-                    "utf8",
-                );
-
-                try {
-                    const templateDir = path.join(__dirname, "..", "templates");
-                    const htmlTemplatePath = path.join(
-                        templateDir,
-                        "hierarchy-report.html",
-                    );
-                    const cssTemplatePath = path.join(
-                        templateDir,
-                        "hierarchy-report.css",
-                    );
-                    const jsTemplatePath = path.join(
-                        templateDir,
-                        "hierarchy-report.js",
-                    );
-
-                    const htmlTemplate = fs.readFileSync(
-                        htmlTemplatePath,
-                        "utf8",
-                    );
-                    const cssContent = fs.readFileSync(cssTemplatePath, "utf8");
-                    const jsTemplate = fs.readFileSync(jsTemplatePath, "utf8");
-
-                    const jsContent =
-                        "const REPORT_DATA = " +
-                        JSON.stringify(data, null, 2) +
-                        ";\n\n" +
-                        jsTemplate;
-
-                    fs.writeFileSync(htmlPath, htmlTemplate, "utf8");
-                    fs.writeFileSync(cssPath, cssContent, "utf8");
-                    fs.writeFileSync(jsPath, jsContent, "utf8");
-
-                    try {
-                        const chartMainPath = require.resolve("chart.js");
-                        const chartSrcPath = path.join(
-                            path.dirname(chartMainPath),
-                            "chart.umd.js",
-                        );
-                        fs.copyFileSync(chartSrcPath, chartPath);
-                    } catch (chartErr) {
-                        log.warn(
-                            "[hierarchy] impossibile copiare chart.js per il report navigabile:",
-                            chartErr,
-                        );
-                    }
-
-                    return {
-                        canceled: false,
-                        htmlPath,
-                        jsonPath,
-                    };
-                } catch (templateErr) {
-                    log.error(
-                        "[hierarchy] errore durante la generazione del report navigabile da template:",
-                        templateErr,
-                    );
-                }
-
-                const htmlContent = buildHierarchyReportHtml();
-                const cssContent = buildHierarchyReportCss();
-                const jsContent = buildHierarchyReportJs(data);
-
-                fs.writeFileSync(htmlPath, htmlContent, "utf8");
-                fs.writeFileSync(cssPath, cssContent, "utf8");
-                fs.writeFileSync(jsPath, jsContent, "utf8");
-
-                return {
-                    canceled: false,
-                    htmlPath,
-                    jsonPath,
-                };
-            } catch (err) {
-                log.error("[hierarchy] export-navigable-report error", err);
-                return {
-                    canceled: false,
-                    error: err.message || String(err),
-                };
-            }
-        },
-    );
+    registerHierarchyReportIpc(mainWindow, {
+        buildHtml: buildHierarchyReportHtml,
+        buildCss: buildHierarchyReportCss,
+        buildJs: buildHierarchyReportJs,
+    });
 }
 
 export {

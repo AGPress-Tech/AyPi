@@ -2,10 +2,17 @@
 import "../shared/dev-guards";
 import { ipcRenderer } from "electron";
 import path from "path";
-import fs from "fs";
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import {
+    buildFilteredTreeFromOptions,
+    cloneTree,
+    collectSubtreeRows,
+    formatBytes,
+    getSortedChildren,
+} from "./hierarchy/domain/tree-model";
+import { scanFolderRecursively } from "./hierarchy/services/filesystem-scanner";
 
 const IS_BLUE_ARCHIVE_HIERARCHY =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
@@ -429,18 +436,6 @@ function computeFolderStatsRecursiveAsync(node, onProgress, onDone) {
     }
 
     setTimeout(step, 0);
-}
-
-function formatBytes(bytes) {
-    if (!bytes || bytes <= 0) return "0 B";
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let idx = 0;
-    let val = bytes;
-    while (val >= 1024 && idx < units.length - 1) {
-        val /= 1024;
-        idx++;
-    }
-    return `${val.toFixed(2)} ${units[idx]}`;
 }
 
 function collectReportData(maxTop = 50) {
@@ -1520,249 +1515,6 @@ function renderStatsPanelV2() {
 }
 
 renderStatsPanel = renderStatsPanelV2;
-
-async function scanFolderRecursively(rootFolder, onProgress) {
-    const entries = [];
-    let totalFiles = 0;
-    let totalDirs = 0;
-    let processed = 0;
-    const PROGRESS_EVERY = 200;
-
-    function emitProgress(force) {
-        if (!onProgress) return;
-        if (!force && processed % PROGRESS_EVERY !== 0) return;
-        onProgress({ totalFiles, totalDirs });
-    }
-
-    async function walk(currentPath) {
-        let dirEntries;
-        try {
-            dirEntries = await fs.promises.readdir(currentPath, {
-                withFileTypes: true,
-            });
-        } catch (err) {
-            console.error("Errore lettura cartella:", currentPath, err);
-            return;
-        }
-
-        const relDir = path.relative(rootFolder, currentPath);
-        entries.push({
-            kind: "folder",
-            fullPath: currentPath,
-            relPath: relDir || "",
-        });
-        totalDirs++;
-        processed++;
-        emitProgress(false);
-
-        for (const entry of dirEntries) {
-            const full = path.join(currentPath, entry.name);
-
-            let stat;
-            try {
-                stat = await fs.promises.stat(full);
-            } catch (err) {
-                console.error("Errore stat elemento:", full, err);
-                continue;
-            }
-
-            if (stat.isDirectory()) {
-                await walk(full);
-            } else if (stat.isFile()) {
-                const rel = path.relative(rootFolder, full);
-                entries.push({
-                    kind: "file",
-                    fullPath: full,
-                    relPath: rel.replace(/\\/g, "/"),
-                    size: stat.size,
-                    mtimeMs: stat.mtimeMs,
-                });
-                totalFiles++;
-                processed++;
-                emitProgress(false);
-            }
-        }
-    }
-
-    await walk(rootFolder);
-    emitProgress(true);
-    return entries;
-}
-
-function cloneTree(node) {
-    if (!node) return null;
-    return JSON.parse(JSON.stringify(node));
-}
-
-function normalizeScanOptions(options) {
-    const rawDepth = Number(options.maxDepth);
-    const maxDepth =
-        Number.isFinite(rawDepth) && rawDepth > 0 ? rawDepth : null;
-
-    const normalizeExt = (e) =>
-        String(e || "")
-            .toLowerCase()
-            .replace(/^\./, "")
-            .trim();
-
-    const normalizeName = (s) =>
-        String(s || "")
-            .toLowerCase()
-            .trim();
-
-    const excludeExtensions = Array.isArray(options.excludeExtensions)
-        ? options.excludeExtensions
-              .map(normalizeExt)
-              .filter((e) => e.length > 0)
-        : [];
-    const excludeFolders = Array.isArray(options.excludeFolders)
-        ? options.excludeFolders.map(normalizeName).filter((f) => f.length > 0)
-        : [];
-    const excludeFiles = Array.isArray(options.excludeFiles)
-        ? options.excludeFiles.map(normalizeName).filter((f) => f.length > 0)
-        : [];
-
-    return {
-        maxDepth,
-        excludeExtensions,
-        excludeFolders,
-        excludeFiles,
-    };
-}
-
-function buildFilteredTreeFromOptions(sourceRoot, options) {
-    if (!sourceRoot) return null;
-
-    const { maxDepth, excludeExtensions, excludeFolders, excludeFiles } =
-        normalizeScanOptions(options || {});
-
-    const extSet = new Set(excludeExtensions);
-    const folderSet = new Set(excludeFolders);
-    const fileSet = new Set(excludeFiles);
-
-    const normalizeName = (s) =>
-        String(s || "")
-            .toLowerCase()
-            .trim();
-
-    function isExcludedFolder(name, depth) {
-        if (depth === 0) return false;
-        const n = normalizeName(name);
-
-        for (const pattern of folderSet) {
-            if (pattern && n.includes(pattern)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function isExcludedFile(name) {
-        const lower = normalizeName(name);
-
-        for (const pattern of fileSet) {
-            if (pattern && lower.includes(pattern)) {
-                return true;
-            }
-        }
-
-        if (extSet.size > 0) {
-            const ext = (path.extname(lower) || "").replace(/^\./, "");
-            if (ext && extSet.has(ext)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function cloneAndFilter(node, depth) {
-        if (!node) return null;
-
-        if (node.type === "file") {
-            if (isExcludedFile(node.name)) return null;
-            return { ...node };
-        }
-
-        if (node.type === "folder") {
-            if (isExcludedFolder(node.name, depth)) {
-                return null;
-            }
-
-            const cloned = { ...node, children: [] };
-            const nextDepth = depth + 1;
-
-            if (Array.isArray(node.children)) {
-                for (const child of node.children) {
-                    if (maxDepth !== null && nextDepth > maxDepth) {
-                        continue;
-                    }
-                    const filteredChild = cloneAndFilter(child, nextDepth);
-                    if (filteredChild) {
-                        cloned.children.push(filteredChild);
-                    }
-                }
-            }
-
-            if (
-                depth > 0 &&
-                (!cloned.children || cloned.children.length === 0)
-            ) {
-                return null;
-            }
-
-            return cloned;
-        }
-
-        return null;
-    }
-
-    const filtered = cloneAndFilter(sourceRoot, 0);
-    if (!filtered) {
-        return { ...sourceRoot, children: [] };
-    }
-    return filtered;
-}
-
-function collectSubtreeRows(node, basePath, acc = []) {
-    if (!node) return acc;
-
-    if (node.type === "folder") {
-        if (Array.isArray(node.children)) {
-            for (const child of node.children) {
-                collectSubtreeRows(child, basePath, acc);
-            }
-        }
-    } else if (node.type === "file") {
-        const rel =
-            basePath && node.fullPath
-                ? path.relative(basePath, node.fullPath)
-                : node.fullPath || node.name;
-
-        acc.push({
-            Nome: node.name,
-            Tipo: "File",
-            "Percorso relativo": rel || "",
-            "Percorso completo": node.fullPath || "",
-            Dimensione: node.size ?? "",
-            "Dimensione (formattata)": node.size ? formatBytes(node.size) : "",
-            "Ultima modifica": node.mtimeMs
-                ? new Date(node.mtimeMs).toLocaleString()
-                : "",
-        });
-    }
-
-    return acc;
-}
-
-function getSortedChildren(node) {
-    if (!node || !Array.isArray(node.children)) return [];
-    return [...node.children].sort((a, b) => {
-        if (a.type !== b.type) {
-            return a.type === "folder" ? -1 : 1;
-        }
-        return a.name.localeCompare(b.name);
-    });
-}
 
 function createTreeNode(nodeData) {
     const wrapper = document.createElement("div");

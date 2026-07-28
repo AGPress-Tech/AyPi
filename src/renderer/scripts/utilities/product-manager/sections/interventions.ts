@@ -86,6 +86,24 @@ function addInterventionType(ctx) {
     }
 }
 
+export function createInterventionsSection(getContext) {
+    const withContext = (handler) => (...args) =>
+        handler(getContext(), ...args);
+    return {
+        getInterventionType: withContext(getInterventionType),
+        getInterventionDescription: withContext(
+            getInterventionDescription,
+        ),
+        openInterventionTypesModal: withContext(
+            openInterventionTypesModal,
+        ),
+        closeInterventionTypesModal: withContext(
+            closeInterventionTypesModal,
+        ),
+        addInterventionType: withContext(addInterventionType),
+    };
+}
+
 if (
     typeof module !== "undefined" &&
     module.exports &&
@@ -97,4 +115,5 @@ if (
         openInterventionTypesModal,
         closeInterventionTypesModal,
         addInterventionType,
+        createInterventionsSection,
     };

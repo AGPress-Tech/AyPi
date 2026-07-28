@@ -435,6 +435,31 @@ function addCategory(ctx) {
     }
 }
 
+export function createCatalogSection(getContext) {
+    const withContext = (handler) => (...args) =>
+        handler(getContext(), ...args);
+    return {
+        normalizeHexColor: withContext(normalizeHexColor),
+        loadCategoryColors: withContext(loadCategoryColors),
+        saveCategoryColors: withContext(saveCategoryColors),
+        hashCategoryToColor: withContext(hashCategoryToColor),
+        getCategoryColor: withContext(getCategoryColor),
+        getContrastText: withContext(getContrastText),
+        applyCategoryColor: withContext(applyCategoryColor),
+        updateCategoryChipPreview: withContext(updateCategoryChipPreview),
+        openCategoryEditor: withContext(openCategoryEditor),
+        closeCategoryEditor: withContext(closeCategoryEditor),
+        renderCatalog: withContext(renderCatalog),
+        openCatalogModal: withContext(openCatalogModal),
+        closeCatalogModal: withContext(closeCatalogModal),
+        clearCatalogForm: withContext(clearCatalogForm),
+        saveCatalogItem: withContext(saveCatalogItem),
+        openCategoriesModal: withContext(openCategoriesModal),
+        closeCategoriesModal: withContext(closeCategoriesModal),
+        addCategory: withContext(addCategory),
+    };
+}
+
 if (
     typeof module !== "undefined" &&
     module.exports &&
@@ -459,4 +484,5 @@ if (
         openCategoriesModal,
         closeCategoriesModal,
         addCategory,
+        createCatalogSection,
     };

@@ -1,32 +1,28 @@
-import fs from "fs";
 import path from "path";
-import crypto from "crypto";
 import { backendConfig } from "../../config";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
+import { createAttachmentStore } from "../../shared/storage/attachment-store";
 import {
     getSqliteDatabase,
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
+import {
+    parseJson,
+    serializeJson,
+} from "../../shared/storage/json-codec";
 
 const TRANSFER_DIR = backendConfig.modules.transferAttrezzaggio.dir;
 const TRANSFER_ATTACHMENTS_DIR = path.join(TRANSFER_DIR, "_attachments");
 const TRANSFER_ITEMS_TABLE = "transfer_items";
+const attachments = createAttachmentStore(TRANSFER_ATTACHMENTS_DIR);
+const copyAttachments = attachments.copy;
+const normalizeAttachmentMeta = attachments.normalize;
+const resolveAttachmentPath = attachments.resolvePath;
+const saveNewAttachments = attachments.saveNew;
+const deleteAttachmentFiles = attachments.remove;
 
 function ensureTransferBackup() {
     return ensureAgpressDailyBackup("auto", 30);
-}
-
-function serializeJson(value: unknown) {
-    return JSON.stringify(value ?? null);
-}
-
-function parseJson<T>(raw: unknown, fallback: T): T {
-    if (typeof raw !== "string" || !raw.trim()) return fallback;
-    try {
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
-    }
 }
 
 function ensureTransferSqliteSchema() {
@@ -46,99 +42,6 @@ function ensureTransferSqliteSchema() {
         CREATE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_updated_at
             ON ${TRANSFER_ITEMS_TABLE}(updated_at);
     `);
-}
-
-function sanitizeFileName(value: string) {
-    return String(value || "")
-        .trim()
-        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
-        .replace(/\s+/g, " ")
-        .trim();
-}
-
-function normalizeAttachmentMeta(items: any[]) {
-    return Array.isArray(items)
-        ? items
-              .map((item) => ({
-                  id: String(item?.id || "").trim(),
-                  originalName: String(item?.originalName || "").trim(),
-                  storedName: String(item?.storedName || "").trim(),
-                  mimeType: String(item?.mimeType || "").trim(),
-                  size: Number(item?.size || 0) || 0,
-                  createdAt: String(item?.createdAt || "").trim(),
-              }))
-              .filter((item) => item.id && item.storedName)
-        : [];
-}
-
-function getAttachmentExtension(fileName: string, mimeType: string) {
-    const ext = path.extname(String(fileName || "").trim()).toLowerCase();
-    if (ext) return ext;
-    if (mimeType === "image/jpeg") return ".jpg";
-    if (mimeType === "image/webp") return ".webp";
-    if (mimeType === "image/gif") return ".gif";
-    return ".png";
-}
-
-function resolveAttachmentPath(storedName: string) {
-    return path.join(TRANSFER_ATTACHMENTS_DIR, sanitizeFileName(storedName));
-}
-
-function saveNewAttachments(items: any[]) {
-    if (!Array.isArray(items) || !items.length) return [];
-    fs.mkdirSync(TRANSFER_ATTACHMENTS_DIR, { recursive: true });
-    return items
-        .map((item) => {
-            const base64 = String(item?.dataBase64 || "").trim();
-            if (!base64) return null;
-            const id = crypto.randomUUID();
-            const originalName = String(item?.fileName || "immagine").trim() || "immagine";
-            const mimeType = String(item?.mimeType || "").trim() || "image/png";
-            const extension = getAttachmentExtension(originalName, mimeType);
-            const storedName = `${id}${extension}`;
-            const filePath = resolveAttachmentPath(storedName);
-            fs.writeFileSync(filePath, Buffer.from(base64, "base64"));
-            return {
-                id,
-                originalName,
-                storedName,
-                mimeType,
-                size: Number(item?.size || 0) || 0,
-                createdAt: new Date().toISOString(),
-            };
-        })
-        .filter(Boolean);
-}
-
-function copyAttachments(items: any[]) {
-    const attachments = normalizeAttachmentMeta(items);
-    if (!attachments.length) return [];
-    fs.mkdirSync(TRANSFER_ATTACHMENTS_DIR, { recursive: true });
-    return attachments
-        .map((item) => {
-            const sourcePath = resolveAttachmentPath(item.storedName);
-            if (!fs.existsSync(sourcePath)) return null;
-            const id = crypto.randomUUID();
-            const extension = path.extname(item.storedName);
-            const storedName = `${id}${extension}`;
-            fs.copyFileSync(sourcePath, resolveAttachmentPath(storedName));
-            return {
-                ...item,
-                id,
-                storedName,
-                createdAt: new Date().toISOString(),
-            };
-        })
-        .filter(Boolean);
-}
-
-function deleteAttachmentFiles(items: any[]) {
-    normalizeAttachmentMeta(items).forEach((item) => {
-        const filePath = resolveAttachmentPath(item.storedName);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
-    });
 }
 
 function parseCode(code: string) {

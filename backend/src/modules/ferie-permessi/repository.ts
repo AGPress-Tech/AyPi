@@ -17,6 +17,10 @@ import {
     getSqliteDatabase,
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
+import {
+    parseJson,
+    serializeJson,
+} from "../../shared/storage/json-codec";
 import { loadAssigneeOptions } from "../shared/repository";
 import type { FpPayload, RequestLike } from "./types";
 import type { AssigneesPayload } from "./types";
@@ -29,19 +33,6 @@ const FP_CLOSURES_TABLE = "fp_closures";
 
 function getDatabasePath() {
     return backendConfig.database.path;
-}
-
-function serializeJson(value: unknown) {
-    return JSON.stringify(value ?? null);
-}
-
-function parseJson<T>(raw: unknown, fallback: T): T {
-    if (typeof raw !== "string" || !raw.trim()) return fallback;
-    try {
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
-    }
 }
 
 function ensureFpSqliteSchema() {

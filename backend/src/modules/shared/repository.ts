@@ -2,6 +2,10 @@ import crypto from "crypto";
 import { argon2id, argon2Verify } from "hash-wasm";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
+import {
+    parseJson,
+    serializeJson,
+} from "../../shared/storage/json-codec";
 
 export type SharedAdminEntry = {
     name: string;
@@ -86,19 +90,6 @@ const DEFAULT_ACCESS_CONFIG: SharedAccessConfig = {
 };
 function ensureGeneralBackup() {
     return ensureAgpressDailyBackup("auto", 30);
-}
-
-function serializeJson(value: unknown) {
-    return JSON.stringify(value ?? null);
-}
-
-function parseJson<T>(raw: unknown, fallback: T): T {
-    if (typeof raw !== "string" || !raw.trim()) return fallback;
-    try {
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
-    }
 }
 
 function execScalarNumber(sql: string, params: unknown[] = []) {

@@ -6,6 +6,11 @@ import path from "path";
 import { pathToFileURL } from "url";
 
 import * as sharedDialogs from "../shared/dialogs";
+import { normalizeAdminEntry } from "../shared/admin-data";
+import {
+    isValidEmail,
+    isValidItalianPhone as isValidPhone,
+} from "../shared/validation";
 import { createModalHelpers } from "./ferie-permessi/ui/modals";
 import { createAdminModals } from "./ferie-permessi/ui/admin-modals";
 import { UI_TEXTS } from "./ferie-permessi/utils/ui-texts";
@@ -73,31 +78,10 @@ import {
     renderEmployeesList as renderEmployeesListUi,
 } from "./product-manager/ui/assignees-admin-ui";
 import {
-    normalizeHexColor as normalizeHexColorSection,
-    loadCategoryColors as loadCategoryColorsSection,
-    saveCategoryColors as saveCategoryColorsSection,
-    hashCategoryToColor as hashCategoryToColorSection,
-    getCategoryColor as getCategoryColorSection,
-    getContrastText as getContrastTextSection,
-    applyCategoryColor as applyCategoryColorSection,
-    updateCategoryChipPreview as updateCategoryChipPreviewSection,
-    openCategoryEditor as openCategoryEditorSection,
-    closeCategoryEditor as closeCategoryEditorSection,
-    renderCatalog as renderCatalogSection,
-    openCatalogModal as openCatalogModalSection,
-    closeCatalogModal as closeCatalogModalSection,
-    clearCatalogForm as clearCatalogFormSection,
-    saveCatalogItem as saveCatalogItemSection,
-    openCategoriesModal as openCategoriesModalSection,
-    closeCategoriesModal as closeCategoriesModalSection,
-    addCategory as addCategorySection,
+    createCatalogSection,
 } from "./product-manager/sections/catalog";
 import {
-    getInterventionType as getInterventionTypeSection,
-    getInterventionDescription as getInterventionDescriptionSection,
-    openInterventionTypesModal as openInterventionTypesModalSection,
-    closeInterventionTypesModal as closeInterventionTypesModalSection,
-    addInterventionType as addInterventionTypeSection,
+    createInterventionsSection,
 } from "./product-manager/sections/interventions";
 import {
     updateGreeting as updateGreetingUi,
@@ -176,6 +160,33 @@ import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-eff
 import { makeSplashSkippable } from "../shared/skippable-splash";
 import { requestBackend, resolveBackendRootUrl } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
+import {
+    buildRequestRecord as buildRequestRecordDomain,
+    collectRequestPayload as collectRequestPayloadDomain,
+    validateRequestPayload as validateRequestPayloadDomain,
+} from "./product-manager/domain/request";
+import {
+    canAccessRequestLine,
+    getRequestLineDenyReason,
+} from "./product-manager/domain/request-access";
+import {
+    confirmRequestLine,
+    deleteRequestLine,
+    updateRequestLine,
+} from "./product-manager/domain/cart-mutations";
+import { createRequestStore } from "./product-manager/services/request-store";
+import { createCollectionStore } from "./product-manager/services/collection-store";
+import { normalizeAssigneesPayload } from "./shared/assignees-store";
+import { createInterventionRequestLine } from "./product-manager/ui/intervention-request-line";
+import { createPurchaseRequestLine } from "./product-manager/ui/purchase-request-line";
+import { buildEditTagsMultiSelect as buildEditTagsMultiSelectUi } from "./product-manager/ui/edit-tags-multiselect";
+import { createCartModals } from "./product-manager/ui/cart-modals";
+import { createCartRowActions } from "./product-manager/ui/cart-row-actions";
+import { validateModuleBindings as validateBindings } from "./product-manager/utils/module-bindings";
+import { setupLogin as setupLoginUi } from "./product-manager/ui/login-controller";
+import { createPasswordController } from "./product-manager/ui/password-controller";
+import { createPurchasingBackupController } from "./product-manager/ui/backup-controller";
+import { applyRequestModeUi } from "./product-manager/ui/request-mode";
 
 const IS_BLUE_ARCHIVE_PURCHASING =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
@@ -228,19 +239,6 @@ try {
     console.error("Modulo 'xlsx' non trovato. Esegui: npm install xlsx");
 }
 
-function isValidEmail(value) {
-    if (!value) return true;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
-}
-
-function isValidPhone(value) {
-    if (!value) return false;
-    const trimmed = String(value || "").trim();
-    if (!trimmed.startsWith("+39")) return false;
-    const digits = trimmed.replace(/\D/g, "");
-    return digits.length >= 11 && digits.length <= 13;
-}
-
 window.pmLoaded = true;
 
 const asyncGuard = createAsyncGuard({
@@ -263,10 +261,6 @@ let adminCache = [];
 let purchasingRequestsCache = [];
 let interventionsCache = [];
 let adminEditingIndex = -1;
-let editTagsSelect = null;
-let pendingPasswordAction = null;
-let passwordFailCount = 0;
-let adminLoginFailCount = 0;
 let requestLines = [];
 let catalogItems = [];
 let catalogCategories = [];
@@ -289,20 +283,6 @@ let cartState = {
 
 const RETENTION_SETTINGS_KEY = "pm-retention-settings";
 const DEFAULT_RETENTION_SETTINGS = { confirmedDays: 7, deletedDays: 7 };
-
-function normalizeAdminEntry(item) {
-    return {
-        name: String(item?.name || "").trim(),
-        password: item?.password ? String(item.password) : undefined,
-        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
-        email: item?.email ? String(item.email) : "",
-        phone: item?.phone ? String(item.phone) : "",
-        accessCalendar:
-            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
-        accessPurchasing:
-            typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
-    };
-}
 
 function loadAdminCredentialsRemote() {
     return Array.isArray(adminCache) ? adminCache.map(normalizeAdminEntry) : [];
@@ -357,11 +337,10 @@ function findAdminByNameRemote(name) {
 
 async function hydrateAssigneesRemote() {
     const payload = await requestBackend("/api/shared/assignees");
-    assigneeGroups =
-        payload?.groups && typeof payload.groups === "object" ? payload.groups : {};
-    assigneeEmails =
-        payload?.emails && typeof payload.emails === "object" ? payload.emails : {};
-    assigneeOptions = Array.isArray(payload?.options) ? payload.options : Object.values(assigneeGroups).flat();
+    const normalized = normalizeAssigneesPayload(payload);
+    assigneeGroups = normalized.groups;
+    assigneeEmails = normalized.emails;
+    assigneeOptions = normalized.options;
     return {
         groups: assigneeGroups,
         emails: assigneeEmails,
@@ -377,17 +356,12 @@ async function saveAssigneesRemote() {
             emails: assigneeEmails || {},
         },
     });
-    assigneeGroups =
-        payload?.data?.groups && typeof payload.data.groups === "object"
-            ? payload.data.groups
-            : assigneeGroups;
-    assigneeEmails =
-        payload?.data?.emails && typeof payload.data.emails === "object"
-            ? payload.data.emails
-            : assigneeEmails;
-    assigneeOptions = Array.isArray(payload?.data?.options)
-        ? payload.data.options
-        : Object.values(assigneeGroups).flat();
+    if (payload?.data) {
+        const normalized = normalizeAssigneesPayload(payload.data);
+        assigneeGroups = normalized.groups;
+        assigneeEmails = normalized.emails;
+        assigneeOptions = normalized.options;
+    }
 }
 
 async function hydrateProductManagerData() {
@@ -402,17 +376,10 @@ async function hydrateProductManagerData() {
         ? payload.interventionTypes
         : [];
     if (payload?.assignees) {
-        assigneeGroups =
-            payload.assignees.groups && typeof payload.assignees.groups === "object"
-                ? payload.assignees.groups
-                : assigneeGroups;
-        assigneeEmails =
-            payload.assignees.emails && typeof payload.assignees.emails === "object"
-                ? payload.assignees.emails
-                : assigneeEmails;
-        assigneeOptions = Array.isArray(payload.assignees.options)
-            ? payload.assignees.options
-            : Object.values(assigneeGroups).flat();
+        const normalized = normalizeAssigneesPayload(payload.assignees);
+        assigneeGroups = normalized.groups;
+        assigneeEmails = normalized.emails;
+        assigneeOptions = normalized.options;
     }
 }
 
@@ -555,148 +522,210 @@ function getInterventionsSectionCtx() {
     };
 }
 
-function assertFn(label, value) {
-    if (typeof value !== "function") {
-        throw new Error(`Modulo mancante o non valido: ${label}`);
-    }
-}
+const {
+    normalizeHexColor,
+    loadCategoryColors,
+    saveCategoryColors,
+    hashCategoryToColor,
+    getCategoryColor,
+    getContrastText,
+    applyCategoryColor,
+    updateCategoryChipPreview,
+    openCategoryEditor,
+    closeCategoryEditor,
+    renderCatalog,
+    openCatalogModal,
+    closeCatalogModal,
+    clearCatalogForm,
+    saveCatalogItem,
+    openCategoriesModal,
+    closeCategoriesModal,
+    addCategory,
+} = createCatalogSection(getCatalogSectionCtx);
+
+const {
+    getInterventionType,
+    getInterventionDescription,
+    openInterventionTypesModal,
+    closeInterventionTypesModal,
+    addInterventionType,
+} = createInterventionsSection(getInterventionsSectionCtx);
 
 function validateModuleBindings() {
-    assertFn("ui.messages.setMessage", setMessage);
-    assertFn("ui.multiselect.openMultiselectMenu", openMultiselectMenu);
-    assertFn("ui.multiselect.closeMultiselectMenu", closeMultiselectMenu);
-    assertFn("ui.loginSelectors.renderLoginSelectors", renderLoginSelectorsUi);
-    assertFn("ui.loginSelectors.renderAdminSelect", renderAdminSelectUi);
-    assertFn("ui.catalogCells.buildProductCell", buildProductCellUi);
-    assertFn("ui.catalogCells.buildUrlCell", buildUrlCellUi);
-    assertFn("ui.imageViewer.openImageModal", openImageModalUi);
-    assertFn("ui.imageViewer.closeImageModal", closeImageModalUi);
-    assertFn("ui.authModals.openLoginModal", openLoginModalUi);
-    assertFn("ui.authModals.closeLoginModal", closeLoginModalUi);
-    assertFn("ui.authModals.openLogoutModal", openLogoutModalUi);
-    assertFn("ui.authModals.closeLogoutModal", closeLogoutModalUi);
-    assertFn("ui.confirmAlert.openConfirmModal", openConfirmModalUi);
-    assertFn("ui.confirmAlert.closeConfirmModal", closeConfirmModalUi);
-    assertFn("ui.confirmAlert.openReasonModal", openReasonModalUi);
-    assertFn("ui.confirmAlert.closeReasonModal", closeReasonModalUi);
-    assertFn("ui.confirmAlert.openAlertModal", openAlertModalUi);
-    assertFn("ui.confirmAlert.closeAlertModal", closeAlertModalUi);
-    assertFn("ui.notifications.showInfo", showInfoUi);
-    assertFn("ui.notifications.showWarning", showWarningUi);
-    assertFn("ui.notifications.showError", showErrorUi);
-    assertFn("ui.notifications.requireLogin", requireLoginUi);
-    assertFn("ui.notifications.requireAdminAccess", requireAdminAccessUi);
-    assertFn("ui.categoriesLists.renderCategoriesList", renderCategoriesListUi);
-    assertFn(
-        "ui.categoriesLists.renderInterventionTypesList",
-        renderInterventionTypesListUi,
-    );
-    assertFn(
-        "ui.assigneesAdminUi.renderDepartmentSelect",
-        renderDepartmentSelectUi,
-    );
-    assertFn(
-        "ui.assigneesAdminUi.renderDepartmentList",
-        renderDepartmentListUi,
-    );
-    assertFn("ui.assigneesAdminUi.renderEmployeesList", renderEmployeesListUi);
-    assertFn("sections.catalog.normalizeHexColor", normalizeHexColorSection);
-    assertFn("sections.catalog.loadCategoryColors", loadCategoryColorsSection);
-    assertFn("sections.catalog.saveCategoryColors", saveCategoryColorsSection);
-    assertFn(
-        "sections.catalog.hashCategoryToColor",
-        hashCategoryToColorSection,
-    );
-    assertFn("sections.catalog.getCategoryColor", getCategoryColorSection);
-    assertFn("sections.catalog.getContrastText", getContrastTextSection);
-    assertFn("sections.catalog.applyCategoryColor", applyCategoryColorSection);
-    assertFn(
-        "sections.catalog.updateCategoryChipPreview",
-        updateCategoryChipPreviewSection,
-    );
-    assertFn("sections.catalog.openCategoryEditor", openCategoryEditorSection);
-    assertFn(
-        "sections.catalog.closeCategoryEditor",
-        closeCategoryEditorSection,
-    );
-    assertFn("sections.catalog.renderCatalog", renderCatalogSection);
-    assertFn("sections.catalog.openCatalogModal", openCatalogModalSection);
-    assertFn("sections.catalog.closeCatalogModal", closeCatalogModalSection);
-    assertFn("sections.catalog.clearCatalogForm", clearCatalogFormSection);
-    assertFn("sections.catalog.saveCatalogItem", saveCatalogItemSection);
-    assertFn(
-        "sections.catalog.openCategoriesModal",
-        openCategoriesModalSection,
-    );
-    assertFn(
-        "sections.catalog.closeCategoriesModal",
-        closeCategoriesModalSection,
-    );
-    assertFn("sections.catalog.addCategory", addCategorySection);
-    assertFn(
-        "sections.interventions.getInterventionType",
-        getInterventionTypeSection,
-    );
-    assertFn(
-        "sections.interventions.getInterventionDescription",
-        getInterventionDescriptionSection,
-    );
-    assertFn(
-        "sections.interventions.openInterventionTypesModal",
-        openInterventionTypesModalSection,
-    );
-    assertFn(
-        "sections.interventions.closeInterventionTypesModal",
-        closeInterventionTypesModalSection,
-    );
-    assertFn(
-        "sections.interventions.addInterventionType",
-        addInterventionTypeSection,
-    );
-    assertFn("ui.sessionUi.updateGreeting", updateGreetingUi);
-    assertFn("ui.sessionUi.updateLoginButton", updateLoginButtonUi);
-    assertFn("ui.sessionUi.updateAdminControls", updateAdminControlsUi);
-    assertFn("ui.sessionUi.syncSessionUI", syncSessionUi);
-    assertFn("ui.sessionUi.applySharedSession", applySharedSessionUi);
-    assertFn(
-        "services.catalogImages.getCatalogImageSrc",
-        getCatalogImageSrcSvc,
-    );
-    assertFn("services.catalogImages.copyCatalogImage", copyCatalogImageSvc);
-    assertFn("ui.filters.renderCategoryOptions", renderCategoryOptionsUi);
-    assertFn(
-        "ui.filters.renderCatalogFilterOptions",
-        renderCatalogFilterOptionsUi,
-    );
-    assertFn(
-        "ui.filters.renderInterventionTypeOptions",
-        renderInterventionTypeOptionsUi,
-    );
-    assertFn(
-        "ui.filters.renderCartTagFilterOptions",
-        renderCartTagFilterOptionsUi,
-    );
-    assertFn(
-        "ui.filters.renderCartStatusFilterOptions",
-        renderCartStatusFilterOptionsUi,
-    );
-    assertFn("ui.catalogControls.syncCatalogControls", syncCatalogControlsUi);
-    assertFn("ui.catalogControls.initCatalogFilters", initCatalogFiltersUi);
-    assertFn("ui.catalogView.renderCatalog", renderCatalogUi);
-    assertFn("ui.cartControls.initCartFilters", initCartFiltersUi);
-    assertFn("ui.cartTable.renderCartTable", renderCartTableUi);
-    assertFn("ui.export.initExportModal", initExportModalUi);
-    assertFn("ui.headerButtons.setupHeaderButtons", setupHeaderButtonsUi);
-    assertFn("ui.settingsModals.initSettingsModals", initSettingsModalsUi);
-    assertFn("ui.categoriesModals.initCategoriesModal", initCategoriesModalUi);
-    assertFn(
-        "ui.categoriesModals.initInterventionTypesModal",
-        initInterventionTypesModalUi,
-    );
-    assertFn("ui.basicModals.initAddModal", initAddModalUi);
-    assertFn("ui.basicModals.initConfirmModal", initConfirmModalUi);
-    assertFn("ui.basicModals.initAlertModal", initAlertModalUi);
-    assertFn("ui.basicModals.initImageModal", initImageModalUi);
+    validateBindings([
+        ["ui.messages", { setMessage }],
+        [
+            "ui.multiselect",
+            { openMultiselectMenu, closeMultiselectMenu },
+        ],
+        [
+            "ui.loginSelectors",
+            {
+                renderLoginSelectors: renderLoginSelectorsUi,
+                renderAdminSelect: renderAdminSelectUi,
+            },
+        ],
+        [
+            "ui.catalogCells",
+            {
+                buildProductCell: buildProductCellUi,
+                buildUrlCell: buildUrlCellUi,
+            },
+        ],
+        [
+            "ui.imageViewer",
+            {
+                openImageModal: openImageModalUi,
+                closeImageModal: closeImageModalUi,
+            },
+        ],
+        [
+            "ui.authModals",
+            {
+                openLoginModal: openLoginModalUi,
+                closeLoginModal: closeLoginModalUi,
+                openLogoutModal: openLogoutModalUi,
+                closeLogoutModal: closeLogoutModalUi,
+            },
+        ],
+        [
+            "ui.confirmAlert",
+            {
+                openConfirmModal: openConfirmModalUi,
+                closeConfirmModal: closeConfirmModalUi,
+                openReasonModal: openReasonModalUi,
+                closeReasonModal: closeReasonModalUi,
+                openAlertModal: openAlertModalUi,
+                closeAlertModal: closeAlertModalUi,
+            },
+        ],
+        [
+            "ui.notifications",
+            {
+                showInfo: showInfoUi,
+                showWarning: showWarningUi,
+                showError: showErrorUi,
+                requireLogin: requireLoginUi,
+                requireAdminAccess: requireAdminAccessUi,
+            },
+        ],
+        [
+            "ui.categoriesLists",
+            {
+                renderCategoriesList: renderCategoriesListUi,
+                renderInterventionTypesList:
+                    renderInterventionTypesListUi,
+            },
+        ],
+        [
+            "ui.assigneesAdminUi",
+            {
+                renderDepartmentSelect: renderDepartmentSelectUi,
+                renderDepartmentList: renderDepartmentListUi,
+                renderEmployeesList: renderEmployeesListUi,
+            },
+        ],
+        [
+            "sections.catalog",
+            {
+                normalizeHexColor,
+                loadCategoryColors,
+                saveCategoryColors,
+                hashCategoryToColor,
+                getCategoryColor,
+                getContrastText,
+                applyCategoryColor,
+                updateCategoryChipPreview,
+                openCategoryEditor,
+                closeCategoryEditor,
+                renderCatalog,
+                openCatalogModal,
+                closeCatalogModal,
+                clearCatalogForm,
+                saveCatalogItem,
+                openCategoriesModal,
+                closeCategoriesModal,
+                addCategory,
+            },
+        ],
+        [
+            "sections.interventions",
+            {
+                getInterventionType,
+                getInterventionDescription,
+                openInterventionTypesModal,
+                closeInterventionTypesModal,
+                addInterventionType,
+            },
+        ],
+        [
+            "ui.sessionUi",
+            {
+                updateGreeting: updateGreetingUi,
+                updateLoginButton: updateLoginButtonUi,
+                updateAdminControls: updateAdminControlsUi,
+                syncSessionUI: syncSessionUi,
+                applySharedSession: applySharedSessionUi,
+            },
+        ],
+        [
+            "services.catalogImages",
+            {
+                getCatalogImageSrc: getCatalogImageSrcSvc,
+                copyCatalogImage: copyCatalogImageSvc,
+            },
+        ],
+        [
+            "ui.filters",
+            {
+                renderCategoryOptions: renderCategoryOptionsUi,
+                renderCatalogFilterOptions:
+                    renderCatalogFilterOptionsUi,
+                renderInterventionTypeOptions:
+                    renderInterventionTypeOptionsUi,
+                renderCartTagFilterOptions:
+                    renderCartTagFilterOptionsUi,
+                renderCartStatusFilterOptions:
+                    renderCartStatusFilterOptionsUi,
+            },
+        ],
+        [
+            "ui.catalogControls",
+            {
+                syncCatalogControls: syncCatalogControlsUi,
+                initCatalogFilters: initCatalogFiltersUi,
+            },
+        ],
+        ["ui.catalogView", { renderCatalog: renderCatalogUi }],
+        ["ui.cartControls", { initCartFilters: initCartFiltersUi }],
+        ["ui.cartTable", { renderCartTable: renderCartTableUi }],
+        ["ui.export", { initExportModal: initExportModalUi }],
+        [
+            "ui.headerButtons",
+            { setupHeaderButtons: setupHeaderButtonsUi },
+        ],
+        [
+            "ui.settingsModals",
+            { initSettingsModals: initSettingsModalsUi },
+        ],
+        [
+            "ui.categoriesModals",
+            {
+                initCategoriesModal: initCategoriesModalUi,
+                initInterventionTypesModal:
+                    initInterventionTypesModalUi,
+            },
+        ],
+        [
+            "ui.basicModals",
+            {
+                initAddModal: initAddModalUi,
+                initConfirmModal: initConfirmModalUi,
+                initAlertModal: initAlertModalUi,
+                initImageModal: initImageModalUi,
+            },
+        ],
+    ]);
 }
 
 const guideLocalPath = path.resolve(
@@ -746,6 +775,136 @@ const REQUEST_MODES = {
     PURCHASE: "purchase",
     INTERVENTION: "intervention",
 };
+const requestStore = createRequestStore({
+    interventionMode: REQUEST_MODES.INTERVENTION,
+    normalize: normalizeRequestsData,
+    validate: (payload) =>
+        validateWithAjv(validateRequestsSchema, payload, "richieste", {
+            showWarning,
+            showError,
+        }),
+    request: requestBackend,
+    getPurchasingRequests: () => purchasingRequestsCache,
+    setPurchasingRequests: (requests) => {
+        purchasingRequestsCache = requests;
+    },
+    getInterventions: () => interventionsCache,
+    setInterventions: (requests) => {
+        interventionsCache = requests;
+    },
+    showError,
+});
+const catalogStore = createCollectionStore({
+    normalize: normalizeCatalogData,
+    validate: (payload) =>
+        validateWithAjv(validateCatalogSchema, payload, "catalogo", {
+            showWarning,
+            showError,
+        }),
+    getCached: () => catalogItems,
+    setCached: (payload) => {
+        catalogItems = payload;
+    },
+    request: requestBackend,
+    endpoint: "/api/product-manager/catalog",
+    backendErrorMessage: "Errore salvataggio catalogo backend.",
+    saveErrorMessage: "Errore salvataggio catalogo.",
+    showError,
+});
+const categoriesStore = createCollectionStore({
+    normalize: normalizeCategoriesData,
+    validate: (payload) =>
+        validateWithAjv(validateCategoriesSchema, payload, "categorie", {
+            showWarning,
+            showError,
+        }),
+    getCached: () => catalogCategories,
+    setCached: (payload) => {
+        catalogCategories = payload;
+    },
+    request: requestBackend,
+    endpoint: "/api/product-manager/categories",
+    backendErrorMessage: "Errore salvataggio categorie backend.",
+    saveErrorMessage: "Errore salvataggio categorie.",
+    showError,
+});
+const interventionTypesStore = createCollectionStore({
+    normalize: normalizeInterventionTypesData,
+    validate: (payload) =>
+        validateWithAjv(
+            validateInterventionTypesSchema,
+            payload,
+            "tipologie interventi",
+            { showWarning, showError },
+        ),
+    getCached: () => interventionTypes,
+    setCached: (payload) => {
+        interventionTypes = payload;
+    },
+    request: requestBackend,
+    endpoint: "/api/product-manager/intervention-types",
+    backendErrorMessage: "Errore salvataggio tipologie backend.",
+    saveErrorMessage: "Errore salvataggio tipologie interventi.",
+    showError,
+});
+const cartModals = createCartModals({
+    document,
+    uiState,
+    cartState,
+    requestModes: REQUEST_MODES,
+    readRequests: (...args) => readRequestsFile(...args),
+    saveRequests: (...args) => saveRequestsFile(...args),
+    canEditLine,
+    showError,
+    showWarning,
+    getSession: () => session,
+    updateRequestLine,
+    renderCart: renderCartTable,
+    toTags,
+    getCatalogCategories: () => catalogCategories,
+    buildTagsSelect: buildEditTagsMultiSelectUi,
+    openMultiselectMenu,
+    closeMultiselectMenu,
+    normalizePrice: normalizePriceCad,
+    requireLogin,
+    isLoggedIn,
+    openLoginModal,
+    buildRequestRecord,
+});
+const cartRowActions = createCartRowActions({
+    readRequests: (...args) => readRequestsFile(...args),
+    saveRequests: (...args) => saveRequestsFile(...args),
+    isAdmin,
+    canDeleteLine,
+    openConfirmModal,
+    openReasonModal,
+    showWarning,
+    showError,
+    normalizeString,
+    confirmRequestLine,
+    deleteRequestLine,
+    getSession: () => session,
+    renderCart: renderCartTable,
+});
+const purchasingBackupController = createPurchasingBackupController({
+    document,
+    window,
+    setMessage,
+    showModal,
+    hideModal,
+    request: requestBackend,
+    asyncGuard,
+    openConfirmModal,
+    hydrate: hydrateProductManagerData,
+    requireAdminAccess,
+    refreshViews: () => {
+        renderCartTable();
+        renderCatalog();
+        renderCategoryOptions();
+        renderCatalogFilterOptions();
+        renderCartTagFilterOptions();
+    },
+});
 const REQUEST_MODE_STORAGE_KEY = "pm-request-mode";
 const DEFAULT_REQUEST_MODE = REQUEST_MODES.PURCHASE;
 let currentRequestMode = DEFAULT_REQUEST_MODE;
@@ -755,92 +914,11 @@ function isFormPage() {
 }
 
 function initPurchasingBackupModal() {
-    const modal = document.getElementById("pm-backup-modal");
-    const closeBtn = document.getElementById("pm-backup-close");
-    const runBtn = document.getElementById("pm-backup-run");
-    const restoreBtn = document.getElementById("pm-backup-restore");
-    const messageEl = document.getElementById("pm-backup-message");
-
-    const setBackupMessage = (text, type = "") => {
-        if (!messageEl) return;
-        setMessage(messageEl, text, type === "error");
-    };
-
-    if (closeBtn) {
-        closeBtn.addEventListener("click", () => {
-            hideModal(modal);
-        });
-    }
-
-    if (runBtn) {
-        runBtn.addEventListener("click", () => {
-            setBackupMessage("", "");
-            requestBackend("/api/product-manager/backups", {
-                method: "POST",
-            })
-                .then((payload) => {
-                    setBackupMessage(
-                        `Backup creato: ${payload?.path || payload?.name || ""}`,
-                        "success",
-                    );
-                })
-                .catch((err) => {
-                    setBackupMessage(
-                        `Errore creazione backup: ${err.message || String(err)}`,
-                        "error",
-                    );
-                });
-        });
-    }
-
-    if (restoreBtn) {
-        restoreBtn.addEventListener("click", asyncGuard.wrap(async () => {
-            try {
-                setBackupMessage("", "");
-                const ok = await openConfirmModal(
-                    "Ripristinare un backup Purchasing? Il database corrente verrà sostituito.",
-                );
-                if (!ok) return;
-                const list = await requestBackend("/api/product-manager/backups");
-                const items = Array.isArray(list?.items) ? list.items : [];
-                if (!items.length) {
-                    setBackupMessage("Nessun backup disponibile.", "error");
-                    return;
-                }
-                const names = items.map((item) => item.name).filter(Boolean);
-                const selectedName = window.prompt(
-                    `Inserisci il nome del backup da ripristinare:\n${names.join("\n")}`,
-                    names[0] || "",
-                );
-                if (!selectedName) return;
-                await requestBackend(
-                    `/api/product-manager/backups/${encodeURIComponent(selectedName)}/restore`,
-                    { method: "POST" },
-                );
-                await hydrateProductManagerData();
-                renderCartTable();
-                renderCatalog();
-                renderCategoryOptions();
-                renderCatalogFilterOptions();
-                renderCartTagFilterOptions();
-                setBackupMessage("Ripristino completato.", "success");
-            } catch (err) {
-                setBackupMessage(
-                    `Errore ripristino backup: ${err.message || String(err)}`,
-                    "error",
-                );
-            }
-        }));
-    }
+    return purchasingBackupController.init();
 }
 
 function openPurchasingBackup() {
-    requireAdminAccess(() => {
-        const modal = document.getElementById("pm-backup-modal");
-        const messageEl = document.getElementById("pm-backup-message");
-        if (messageEl) setMessage(messageEl, "", "");
-        if (modal) showModal(modal);
-    });
+    return purchasingBackupController.open();
 }
 
 function getActiveMode() {
@@ -860,59 +938,10 @@ function storeRequestMode(mode) {
 
 function applyRequestModeUI() {
     if (!isFormPage()) return;
-    const isIntervention = isInterventionMode(currentRequestMode);
-    const setActionButtonContent = (button, iconName, label) => {
-        if (!button) return;
-        const icon = document.createElement("span");
-        icon.className = "material-icons";
-        icon.setAttribute("aria-hidden", "true");
-        icon.textContent = iconName;
-        button.replaceChildren(icon, document.createTextNode(label));
-    };
-    document.body.classList.toggle("pm-mode-intervention", isIntervention);
-    const formTitle = document.getElementById("pm-form-title");
-    const toggleBtn = document.getElementById("pm-toggle-request");
-    const notesLabel = document.getElementById("pm-notes-label");
-    const notesInput = document.getElementById("pm-notes");
-    const formIntro = document.getElementById("pm-form-intro");
-    const addLineBtn = document.getElementById("pm-add-line");
-    const saveBtn = document.getElementById("pm-request-save");
-    const subtitle = document.getElementById("pm-header-subtitle");
-    if (formTitle)
-        formTitle.textContent = isIntervention
-            ? "Richiesta intervento"
-            : "Nuova richiesta";
-    if (toggleBtn)
-        toggleBtn.textContent = isIntervention
-            ? "Richiedi acquisto"
-            : "Richiedi Intervento";
-    if (notesLabel)
-        notesLabel.textContent = isIntervention
-            ? "Note generali intervento"
-            : "Note generali";
-    if (notesInput)
-        notesInput.placeholder = isIntervention
-            ? "Note generali per l'intervento"
-            : "Note generali per la richiesta";
-    if (formIntro)
-        formIntro.textContent = isIntervention
-            ? "Descrivi gli interventi necessari oppure torna alla richiesta di acquisto."
-            : "Inserisci gli articoli necessari oppure passa alla richiesta di intervento.";
-    setActionButtonContent(
-        addLineBtn,
-        "add",
-        isIntervention ? "Aggiungi intervento" : "Aggiungi prodotto",
+    applyRequestModeUi(
+        document,
+        isInterventionMode(currentRequestMode),
     );
-    setActionButtonContent(
-        saveBtn,
-        "send",
-        isIntervention ? "Invia intervento" : "Invia richiesta",
-    );
-    if (subtitle) {
-        subtitle.textContent = isIntervention
-            ? "Quale intervento vuoi richiedere?"
-            : "Cosa vuoi ordinare?";
-    }
 }
 
 function setRequestMode(mode, { persist = true, reset = true } = {}) {
@@ -970,282 +999,35 @@ function updateLineField(index, field, value) {
 }
 
 function createLineElement(line, index) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "pm-line";
-    wrapper.dataset.index = String(index);
-
-    const grid = document.createElement("div");
-    grid.className = "pm-line-grid";
-
-    const productField = document.createElement("div");
-    productField.className = "pm-field";
-    const productLabel = document.createElement("label");
-    productLabel.textContent = "Prodotto";
-    const productInput = document.createElement("input");
-    productInput.type = "text";
-    productInput.value = line.product;
-    productInput.placeholder = "Nome prodotto";
-    productInput.addEventListener("input", (event) =>
-        updateLineField(index, "product", event.target.value),
+    return createPurchaseRequestLine(
+        {
+            document,
+            catalogCategories,
+            urgencyOptions: URGENCY_OPTIONS,
+            toTags,
+            openMultiselectMenu,
+            closeMultiselectMenu,
+            updateLineField,
+            removeLine,
+        },
+        line,
+        index,
     );
-    productField.append(productLabel, productInput);
-
-    const categoryField = document.createElement("div");
-    categoryField.className = "pm-field";
-    const categoryLabel = document.createElement("label");
-    categoryLabel.textContent = "Tipologia";
-    const categoryWrap = document.createElement("div");
-    categoryWrap.className = "pm-multiselect";
-    const categoryDisplay = document.createElement("button");
-    categoryDisplay.type = "button";
-    categoryDisplay.className = "pm-multiselect__button";
-    const updateCategoryDisplay = (values) => {
-        if (!values.length) {
-            categoryDisplay.textContent = "Seleziona tipologie";
-            return;
-        }
-        if (values.length > 2) {
-            categoryDisplay.textContent = `${values.slice(0, 2).join(", ")} +${values.length - 2} more`;
-            return;
-        }
-        categoryDisplay.textContent = values.join(", ");
-    };
-    updateCategoryDisplay([]);
-    const dropdown = document.createElement("div");
-    dropdown.className = "pm-multiselect__menu is-hidden";
-    const selected = new Set(toTags(line.category || ""));
-    catalogCategories.forEach((cat) => {
-        const option = document.createElement("label");
-        option.className = "pm-multiselect__option";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = cat;
-        if (selected.has(cat)) checkbox.checked = true;
-        const span = document.createElement("span");
-        span.textContent = cat;
-        checkbox.addEventListener("change", () => {
-            if (checkbox.checked) {
-                selected.add(cat);
-            } else {
-                selected.delete(cat);
-            }
-            const values = Array.from(selected.values());
-            updateLineField(index, "category", values.join(", "));
-            updateCategoryDisplay(values);
-        });
-        option.append(checkbox, span);
-        dropdown.appendChild(option);
-    });
-    categoryDisplay.addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (dropdown.classList.contains("is-hidden")) {
-            openMultiselectMenu(dropdown, categoryDisplay, categoryWrap);
-        } else {
-            closeMultiselectMenu(dropdown, categoryWrap);
-        }
-    });
-    document.addEventListener("click", (event) => {
-        if (
-            !categoryWrap.contains(event.target) &&
-            !dropdown.contains(event.target)
-        ) {
-            closeMultiselectMenu(dropdown, categoryWrap);
-        }
-    });
-    updateCategoryDisplay(Array.from(selected.values()));
-    categoryWrap.append(categoryDisplay, dropdown);
-    categoryField.append(categoryLabel, categoryWrap);
-
-    const quantityField = document.createElement("div");
-    quantityField.className = "pm-field";
-    const quantityLabel = document.createElement("label");
-    quantityLabel.textContent = "Quantità";
-    const quantityInput = document.createElement("input");
-    quantityInput.className = "pm-qty-input";
-    quantityInput.type = "number";
-    quantityInput.min = "0";
-    quantityInput.step = "1";
-    quantityInput.value = line.quantity;
-    quantityInput.placeholder = "0";
-    quantityInput.addEventListener("input", (event) =>
-        updateLineField(index, "quantity", event.target.value),
-    );
-    quantityField.append(quantityLabel, quantityInput);
-
-    const unitField = document.createElement("div");
-    unitField.className = "pm-field";
-    const unitLabel = document.createElement("label");
-    unitLabel.textContent = "UM";
-    const unitInput = document.createElement("input");
-    unitInput.type = "text";
-    unitInput.value = line.unit;
-    unitInput.placeholder = "Pezzi / Scatole";
-    unitInput.addEventListener("input", (event) =>
-        updateLineField(index, "unit", event.target.value),
-    );
-    unitField.append(unitLabel, unitInput);
-
-    const urgencyField = document.createElement("div");
-    urgencyField.className = "pm-field";
-    const urgencyLabel = document.createElement("label");
-    urgencyLabel.textContent = "Urgenza";
-    const urgencySelect = document.createElement("select");
-    const urgencyPlaceholder = document.createElement("option");
-    urgencyPlaceholder.value = "";
-    urgencyPlaceholder.textContent = "Seleziona urgenza";
-    urgencyPlaceholder.disabled = true;
-    urgencyPlaceholder.selected = !line.urgency;
-    urgencySelect.appendChild(urgencyPlaceholder);
-    URGENCY_OPTIONS.forEach((option) => {
-        const opt = document.createElement("option");
-        opt.value = option;
-        opt.textContent = option;
-        if (line.urgency === option) opt.selected = true;
-        urgencySelect.appendChild(opt);
-    });
-    urgencySelect.addEventListener("change", (event) =>
-        updateLineField(index, "urgency", event.target.value),
-    );
-    urgencyField.append(urgencyLabel, urgencySelect);
-
-    grid.append(
-        productField,
-        categoryField,
-        quantityField,
-        unitField,
-        urgencyField,
-    );
-
-    const secondary = document.createElement("div");
-    secondary.className = "pm-line-grid pm-line-grid--secondary";
-
-    const supplierField = document.createElement("div");
-    supplierField.className = "pm-field";
-    const supplierLabel = document.createElement("label");
-    supplierLabel.textContent = "Fornitore";
-    const supplierInput = document.createElement("input");
-    supplierInput.type = "text";
-    supplierInput.value = line.supplier || "";
-    supplierInput.placeholder = "Nome fornitore (opzionale)";
-    supplierInput.addEventListener("input", (event) =>
-        updateLineField(index, "supplier", event.target.value),
-    );
-    supplierField.append(supplierLabel, supplierInput);
-
-    const urlField = document.createElement("div");
-    urlField.className = "pm-field";
-    const urlLabel = document.createElement("label");
-    urlLabel.textContent = "URL";
-    const urlInput = document.createElement("input");
-    urlInput.type = "text";
-    urlInput.value = line.url;
-    urlInput.placeholder = "Link prodotto (opzionale)";
-    urlInput.addEventListener("input", (event) =>
-        updateLineField(index, "url", event.target.value),
-    );
-    urlField.append(urlLabel, urlInput);
-
-    const noteField = document.createElement("div");
-    noteField.className = "pm-field";
-    const noteLabel = document.createElement("label");
-    noteLabel.textContent = "Note riga";
-    const noteInput = document.createElement("input");
-    noteInput.type = "text";
-    noteInput.value = line.note;
-    noteInput.placeholder = "Note specifiche";
-    noteInput.addEventListener("input", (event) =>
-        updateLineField(index, "note", event.target.value),
-    );
-    noteField.append(noteLabel, noteInput);
-
-    const actionsField = document.createElement("div");
-    actionsField.className = "pm-field";
-    const actionLabel = document.createElement("label");
-    actionLabel.textContent = "Azioni";
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "pm-btn pm-btn--ghost";
-    removeBtn.textContent = "Rimuovi";
-    removeBtn.addEventListener("click", () => removeLine(index));
-    actionsField.append(actionLabel, removeBtn);
-
-    secondary.append(supplierField, urlField, noteField, actionsField);
-
-    wrapper.append(grid, secondary);
-    return wrapper;
 }
 
 function createInterventionLineElement(line, index) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "pm-line";
-    wrapper.dataset.index = String(index);
-
-    const grid = document.createElement("div");
-    grid.className = "pm-line-grid pm-line-grid--intervention";
-
-    const typeField = document.createElement("div");
-    typeField.className = "pm-field";
-    const typeLabel = document.createElement("label");
-    typeLabel.textContent = "Tipologia di intervento";
-    const { wrap } = renderInterventionTypeOptions(
-        toTags(line.interventionType || ""),
-        (values) => {
-            updateLineField(index, "interventionType", values.join(", "));
+    return createInterventionRequestLine(
+        {
+            document,
+            urgencyOptions: URGENCY_OPTIONS,
+            toTags,
+            renderInterventionTypeOptions,
+            updateLineField,
+            removeLine,
         },
+        line,
+        index,
     );
-    typeField.append(typeLabel, wrap);
-
-    const descField = document.createElement("div");
-    descField.className = "pm-field";
-    const descLabel = document.createElement("label");
-    descLabel.textContent = "Descrizione";
-    const descInput = document.createElement("textarea");
-    descInput.rows = 2;
-    descInput.value = line.description || "";
-    descInput.placeholder = "Descrizione intervento";
-    descInput.addEventListener("input", (event) =>
-        updateLineField(index, "description", event.target.value),
-    );
-    descField.append(descLabel, descInput);
-
-    const urgencyField = document.createElement("div");
-    urgencyField.className = "pm-field";
-    const urgencyLabel = document.createElement("label");
-    urgencyLabel.textContent = "Urgenza";
-    const urgencySelect = document.createElement("select");
-    const urgencyPlaceholder = document.createElement("option");
-    urgencyPlaceholder.value = "";
-    urgencyPlaceholder.textContent = "Seleziona urgenza";
-    urgencyPlaceholder.disabled = true;
-    urgencyPlaceholder.selected = !line.urgency;
-    urgencySelect.appendChild(urgencyPlaceholder);
-    URGENCY_OPTIONS.forEach((option) => {
-        const opt = document.createElement("option");
-        opt.value = option;
-        opt.textContent = option;
-        if (line.urgency === option) opt.selected = true;
-        urgencySelect.appendChild(opt);
-    });
-    urgencySelect.addEventListener("change", (event) =>
-        updateLineField(index, "urgency", event.target.value),
-    );
-    urgencyField.append(urgencyLabel, urgencySelect);
-
-    grid.append(typeField, descField, urgencyField);
-
-    const actionsField = document.createElement("div");
-    actionsField.className = "pm-field";
-    const actionLabel = document.createElement("label");
-    actionLabel.textContent = "Azioni";
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "pm-btn pm-btn--ghost";
-    removeBtn.textContent = "Rimuovi";
-    removeBtn.addEventListener("click", () => removeLine(index));
-    actionsField.append(actionLabel, removeBtn);
-
-    wrapper.append(grid, actionsField);
-    return wrapper;
 }
 
 function renderLines() {
@@ -1297,26 +1079,6 @@ function addLineFromCatalog(item, quantity) {
     renderLines();
 }
 
-function renderCatalog() {
-    return renderCatalogSection(getCatalogSectionCtx());
-}
-
-function openCatalogModal(item = null) {
-    return openCatalogModalSection(getCatalogSectionCtx(), item);
-}
-
-function closeCatalogModal() {
-    return closeCatalogModalSection(getCatalogSectionCtx());
-}
-
-function clearCatalogForm() {
-    return clearCatalogFormSection(getCatalogSectionCtx());
-}
-
-function saveCatalogItem() {
-    return saveCatalogItemSection(getCatalogSectionCtx());
-}
-
 function removeLine(index) {
     if (!requestLines.length) return;
     if (requestLines.length <= 1) {
@@ -1328,241 +1090,74 @@ function removeLine(index) {
 }
 
 function readRequestsFile(mode = getActiveMode()) {
-    try {
-        if (mode === REQUEST_MODES.INTERVENTION) {
-            const data = normalizeRequestsData(interventionsCache);
-            validateWithAjv(validateRequestsSchema, data, "richieste", {
-                showWarning,
-                showError,
-            });
-            return data;
-        }
-
-        const data = normalizeRequestsData(purchasingRequestsCache);
-        validateWithAjv(validateRequestsSchema, data, "richieste", {
-            showWarning,
-            showError,
-        });
-        return data;
-    } catch (err) {
-        showError("Errore lettura richieste.", err.message || String(err));
-        return [];
-    }
+    return requestStore.read(mode);
 }
 
 function saveRequestsFile(payload, mode = getActiveMode()) {
-    try {
-        const normalized = normalizeRequestsData(payload);
-        if (
-            !validateWithAjv(validateRequestsSchema, normalized, "richieste", {
-                showWarning,
-                showError,
-            }).ok
-        )
-            return false;
-        if (mode === REQUEST_MODES.INTERVENTION) {
-            interventionsCache = normalized;
-            requestBackend("/api/product-manager/interventions", {
-                method: "PUT",
-                body: normalized,
-            }).catch((err) => {
-                showError(
-                    "Errore salvataggio interventi backend.",
-                    err?.message || String(err),
-                );
-            });
-        } else {
-            purchasingRequestsCache = normalized;
-            requestBackend("/api/product-manager/requests", {
-                method: "PUT",
-                body: normalized,
-            }).catch((err) => {
-                showError(
-                    "Errore salvataggio richieste backend.",
-                    err?.message || String(err),
-                );
-            });
-        }
-        return true;
-    } catch (err) {
-        showError("Errore salvataggio richieste.", err.message || String(err));
-        return false;
-    }
+    return requestStore.save(payload, mode);
 }
 
 function collectRequestPayload() {
-    const notes = document.getElementById("pm-notes")?.value?.trim() || "";
-    if (isInterventionMode()) {
-        const cleanedLines = requestLines
-            .map((line) => ({
-                interventionType: (
-                    line.interventionType ||
-                    line.type ||
-                    ""
-                ).trim(),
-                description: (line.description || line.details || "").trim(),
-                urgency: (line.urgency || "").trim(),
-            }))
-            .filter(
-                (line) =>
-                    line.interventionType || line.description || line.urgency,
-            );
-
-        return {
-            notes,
-            lines: cleanedLines,
-        };
-    }
-
-    const cleanedLines = requestLines
-        .map((line) => ({
-            product: (line.product || "").trim(),
-            category: (line.category || "").trim(),
-            quantity: (line.quantity || "").toString().trim(),
-            unit: (line.unit || "").trim(),
-            urgency: (line.urgency || "").trim(),
-            supplier: (line.supplier || "").trim(),
-            url: (line.url || "").trim(),
-            note: (line.note || "").trim(),
-        }))
-        .filter(
-            (line) =>
-                line.product ||
-                line.quantity ||
-                line.unit ||
-                line.category ||
-                line.urgency,
-        );
-
-    return {
-        notes,
-        lines: cleanedLines,
-    };
+    return collectRequestPayloadDomain({
+        notes: document.getElementById("pm-notes")?.value || "",
+        lines: requestLines,
+        mode: isInterventionMode() ? "intervention" : "purchase",
+    });
 }
 
 function validateRequestPayload(payload) {
-    if (isInterventionMode()) {
-        if (!payload.lines.length) return "Aggiungi almeno un intervento.";
-        const invalidLine = payload.lines.find(
-            (line) =>
-                !line.interventionType || !line.description || !line.urgency,
-        );
-        if (invalidLine) {
-            return "Compila tipologia, descrizione e urgenza per ogni riga.";
-        }
-        return "";
-    }
-    if (!payload.lines.length) return "Aggiungi almeno un prodotto.";
-    const invalidLine = payload.lines.find(
-        (line) =>
-            !line.product || !line.quantity || !line.unit || !line.urgency,
+    return validateRequestPayloadDomain(
+        payload,
+        isInterventionMode() ? "intervention" : "purchase",
     );
-    if (invalidLine) {
-        return "Compila prodotto, quantita, UM e urgenza per ogni riga.";
-    }
-    return "";
 }
 
 function buildRequestRecord(payload) {
-    const now = new Date().toISOString();
-    const id = `REQ-${Date.now()}`;
-    const employeeName =
-        session.employee ||
-        (session.role === "admin" ? session.adminName || "Admin" : "");
+    return buildRequestRecordDomain(payload, session);
+}
+
+function getRequestAccessSession() {
     return {
-        id,
-        createdAt: now,
-        status: "pending",
-        department: session.department || "",
-        employee: employeeName,
-        createdBy: session.role,
-        adminName: session.adminName || "",
-        notes: payload.notes,
-        lines: payload.lines,
-        history: [
-            {
-                at: now,
-                by: session.role,
-                adminName: session.adminName || "",
-                action: "created",
-            },
-        ],
+        loggedIn: isLoggedIn(),
+        admin: isAdmin(),
+        employee: isEmployee(),
+        employeeName: session.employee,
+        department: session.department,
     };
 }
 
-function isRequestOwner(request) {
-    if (!request || !isEmployee()) return false;
-    const employee = normalizeString(session.employee);
-    if (!employee) return false;
-    if (normalizeString(request.employee) !== employee) return false;
-    const reqDept = normalizeString(request.department);
-    const sessionDept = normalizeString(session.department);
-    if (reqDept && sessionDept && reqDept !== sessionDept) return false;
-    const createdBy = normalizeString(request.createdBy);
-    if (createdBy && createdBy !== "employee") return false;
-    return true;
-}
-
-function hasAdminTouchedRequest(request) {
-    if (!request) return false;
-    const history = Array.isArray(request.history) ? request.history : [];
-    return history.some((entry) => entry && entry.by === "admin");
-}
-
-function isLineFinalized(line) {
-    return Boolean(line && (line.confirmed || line.confirmedAt || line.deletedAt));
-}
-
-function canEmployeeEditLine(request, line) {
-    if (!isEmployee()) return false;
-    if (!isRequestOwner(request)) return false;
-    if (hasAdminTouchedRequest(request)) return false;
-    if (isLineFinalized(line)) return false;
-    return true;
-}
-
 function canEditLine(request, line) {
-    if (isAdmin()) return true;
-    if (!line || line.deletedAt) return false;
-    return canEmployeeEditLine(request, line);
+    return canAccessRequestLine(
+        request,
+        line,
+        getRequestAccessSession(),
+    );
 }
 
 function canDeleteLine(request, line) {
-    if (isAdmin()) return true;
-    if (!line || line.deletedAt) return false;
-    return canEmployeeEditLine(request, line);
+    return canAccessRequestLine(
+        request,
+        line,
+        getRequestAccessSession(),
+    );
 }
 
 function getEditDenyReason(request, line) {
-    if (!isLoggedIn()) return "Effettua il login.";
-    if (!request || !line) return "Elemento non disponibile.";
-    if (line.deletedAt) return "Riga eliminata.";
-    if (line.confirmed || line.confirmedAt) {
-        if (!isAdmin()) return "Richiesta già convalidata.";
-    }
-    if (isAdmin()) return "";
-    if (!isEmployee()) return "Accesso admin richiesto.";
-    if (!isRequestOwner(request)) return "Richiesta di un altro dipendente.";
-    if (hasAdminTouchedRequest(request))
-        return "Richiesta già gestita da un admin.";
-    if (isLineFinalized(line)) return "Richiesta già convalidata o eliminata.";
-    return "Non puoi modificare questa richiesta.";
+    return getRequestLineDenyReason(
+        "edit",
+        request,
+        line,
+        getRequestAccessSession(),
+    );
 }
 
 function getDeleteDenyReason(request, line) {
-    if (!isLoggedIn()) return "Effettua il login.";
-    if (!request || !line) return "Elemento non disponibile.";
-    if (line.deletedAt) return "Riga eliminata.";
-    if (line.confirmed || line.confirmedAt) {
-        if (!isAdmin()) return "Richiesta già convalidata.";
-    }
-    if (isAdmin()) return "";
-    if (!isEmployee()) return "Accesso admin richiesto.";
-    if (!isRequestOwner(request)) return "Richiesta di un altro dipendente.";
-    if (hasAdminTouchedRequest(request))
-        return "Richiesta già gestita da un admin.";
-    if (isLineFinalized(line)) return "Richiesta già convalidata o eliminata.";
-    return "Non puoi eliminare questa richiesta.";
+    return getRequestLineDenyReason(
+        "delete",
+        request,
+        line,
+        getRequestAccessSession(),
+    );
 }
 
 function showFormMessage(text, type = "info") {
@@ -1596,45 +1191,6 @@ function toTags(raw) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-}
-
-function getInterventionType(line) {
-    return getInterventionTypeSection(getInterventionsSectionCtx(), line);
-}
-
-function getInterventionDescription(line) {
-    return getInterventionDescriptionSection(
-        getInterventionsSectionCtx(),
-        line,
-    );
-}
-
-function normalizeHexColor(value, fallback) {
-    return normalizeHexColorSection(getCatalogSectionCtx(), value, fallback);
-}
-
-function loadCategoryColors() {
-    return loadCategoryColorsSection(getCatalogSectionCtx());
-}
-
-function saveCategoryColors(next) {
-    return saveCategoryColorsSection(getCatalogSectionCtx(), next);
-}
-
-function hashCategoryToColor(value) {
-    return hashCategoryToColorSection(getCatalogSectionCtx(), value);
-}
-
-function getCategoryColor(value) {
-    return getCategoryColorSection(getCatalogSectionCtx(), value);
-}
-
-function getContrastText(hex) {
-    return getContrastTextSection(getCatalogSectionCtx(), hex);
-}
-
-function applyCategoryColor(pill, tag) {
-    return applyCategoryColorSection(getCatalogSectionCtx(), pill, tag);
 }
 
 function buildProductCell(productName, tags) {
@@ -1689,427 +1245,48 @@ function renderCartTable() {
     });
 }
 
-function getEditFieldValue(id) {
-    const el = document.getElementById(id);
-    return el ? el.value : "";
-}
-
-function buildEditTagsMultiSelect({ container, input, values, selected }) {
-    if (!container || !input) return null;
-    container.innerHTML = "";
-    const wrap = document.createElement("div");
-    wrap.className = "pm-multiselect";
-    if (!wrap.dataset.pmHostId) {
-        wrap.dataset.pmHostId = `pm-edit-tags-${Math.random().toString(36).slice(2)}`;
-    }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "pm-multiselect__button";
-    const menu = document.createElement("div");
-    menu.className = "pm-multiselect__menu is-hidden";
-    const selectedSet = new Set((selected || []).filter(Boolean));
-    const options = Array.from(new Set((values || []).filter(Boolean))).sort(
-        (a, b) => a.localeCompare(b),
-    );
-
-    const updateLabel = () => {
-        const list = Array.from(selectedSet.values());
-        button.textContent = list.length
-            ? list.join(", ")
-            : "Seleziona tipologie";
-        input.value = list.join(", ");
-    };
-
-    if (!options.length) {
-        const empty = document.createElement("div");
-        empty.className = "pm-message";
-        empty.textContent = "Nessuna tipologia disponibile.";
-        menu.appendChild(empty);
-    }
-
-    options.forEach((value) => {
-        const option = document.createElement("label");
-        option.className = "pm-multiselect__option";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = value;
-        if (selectedSet.has(value)) checkbox.checked = true;
-        const span = document.createElement("span");
-        span.textContent = value;
-        checkbox.addEventListener("change", () => {
-            if (checkbox.checked) selectedSet.add(value);
-            else selectedSet.delete(value);
-            updateLabel();
-        });
-        option.append(checkbox, span);
-        menu.appendChild(option);
-    });
-
-    const closeOtherMenus = () => {
-        document
-            .querySelectorAll(".pm-multiselect__menu--floating")
-            .forEach((menuEl) => {
-                if (menuEl === menu) return;
-                const hostId = menuEl.dataset.pmHostId || "";
-                const host = hostId
-                    ? document.querySelector(`[data-pm-host-id="${hostId}"]`)
-                    : null;
-                closeMultiselectMenu(menuEl, host || null);
-            });
-        document
-            .querySelectorAll(".pm-custom-select.is-open")
-            .forEach((custom) => {
-                custom.classList.remove("is-open");
-            });
-    };
-
-    button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (menu.classList.contains("is-hidden")) {
-            closeOtherMenus();
-            openMultiselectMenu(menu, button, wrap);
-        } else {
-            closeMultiselectMenu(menu, wrap);
-        }
-    });
-    document.addEventListener("click", (event) => {
-        if (!wrap.contains(event.target) && !menu.contains(event.target)) {
-            closeMultiselectMenu(menu, wrap);
-        }
-    });
-
-    updateLabel();
-    wrap.append(button, menu);
-    container.appendChild(wrap);
-    return { getSelected: () => Array.from(selectedSet.values()) };
-}
-
 function openInterventionEditModal(row) {
-    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-    const request = requests[row.requestIndex];
-    const line = request?.lines?.[row.lineIndex];
-    if (!request || !line) {
-        showError(
-            "Elemento non trovato.",
-            "La riga potrebbe essere stata modificata da un altro utente.",
-        );
-        return;
-    }
-    if (!canEditLine(request, line) || line.deletedAt) {
-        showWarning("Non puoi modificare questa richiesta.");
-        return;
-    }
-    uiState.interventionEditingRow = row;
-    const modal = document.getElementById("pm-intervention-edit-modal");
-    if (!modal) return;
-    const typeInput = document.getElementById("pm-intervention-edit-type");
-    const descInput = document.getElementById(
-        "pm-intervention-edit-description",
-    );
-    const urgencyInput = document.getElementById(
-        "pm-intervention-edit-urgency",
-    );
-    if (typeInput) typeInput.value = row.interventionType || "";
-    if (descInput) descInput.value = row.description || "";
-    if (urgencyInput) urgencyInput.value = row.urgency || "";
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    return cartModals.openInterventionEdit(row);
 }
 
 function closeInterventionEditModal() {
-    const modal = document.getElementById("pm-intervention-edit-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
-    uiState.interventionEditingRow = null;
+    return cartModals.closeInterventionEdit();
 }
 
 function saveInterventionEditModal() {
-    const row = uiState.interventionEditingRow;
-    if (!row) return;
-    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
-    const request = requests[row.requestIndex];
-    if (!request || !request.lines || !request.lines[row.lineIndex]) {
-        showError(
-            "Elemento non trovato.",
-            "La riga potrebbe essere stata modificata da un altro utente.",
-        );
-        return;
-    }
-    const line = request.lines[row.lineIndex];
-    if (!canEditLine(request, line) || line.deletedAt) {
-        showWarning("Non puoi modificare questa richiesta.");
-        return;
-    }
-    line.interventionType = getEditFieldValue(
-        "pm-intervention-edit-type",
-    ).trim();
-    line.description = getEditFieldValue(
-        "pm-intervention-edit-description",
-    ).trim();
-    line.urgency = getEditFieldValue("pm-intervention-edit-urgency").trim();
-    request.history = Array.isArray(request.history) ? request.history : [];
-    const actorRole = session.role || "guest";
-    request.history.push({
-        at: new Date().toISOString(),
-        by: actorRole,
-        adminName: session.adminName || "",
-        employee: actorRole === "employee" ? session.employee || "" : "",
-        action: "line-updated",
-    });
-    if (saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
-        closeInterventionEditModal();
-        renderCartTable();
-    }
+    return cartModals.saveInterventionEdit();
 }
 
 function openEditModal(row) {
-    const requests = readRequestsFile();
-    const request = requests[row.requestIndex];
-    const line = request?.lines?.[row.lineIndex];
-    if (!request || !line) {
-        showError(
-            "Elemento non trovato.",
-            "La riga potrebbe essere stata modificata da un altro utente.",
-        );
-        return;
-    }
-    if (!canEditLine(request, line) || line.deletedAt) {
-        showWarning("Non puoi modificare questa richiesta.");
-        return;
-    }
-    cartState.editingRow = row;
-    const modal = document.getElementById("pm-edit-modal");
-    if (!modal) return;
-    const product = document.getElementById("pm-edit-product");
-    const tagsContainer = document.getElementById("pm-edit-tags");
-    const tagsInput = document.getElementById("pm-edit-tags-input");
-    const quantity = document.getElementById("pm-edit-quantity");
-    const unit = document.getElementById("pm-edit-unit");
-    const urgency = document.getElementById("pm-edit-urgency");
-    const supplier = document.getElementById("pm-edit-supplier");
-    const url = document.getElementById("pm-edit-url");
-    const price = document.getElementById("pm-edit-price");
-    const note = document.getElementById("pm-edit-note");
-    if (product) product.value = row.product || "";
-    const selectedTags = Array.isArray(row.tags)
-        ? row.tags
-        : toTags(row.category || "");
-    if (tagsInput) tagsInput.value = selectedTags.join(", ");
-    editTagsSelect = buildEditTagsMultiSelect({
-        container: tagsContainer,
-        input: tagsInput,
-        values: [...catalogCategories, ...selectedTags],
-        selected: selectedTags,
-    });
-    if (quantity) quantity.value = row.quantity || "";
-    if (unit) unit.value = row.unit || "";
-    if (urgency) {
-        urgency.value = row.urgency || "";
-        urgency.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-    if (supplier) supplier.value = row.supplier || "";
-    if (url) url.value = row.url || "";
-    if (price)
-        price.value = row.priceCad
-            ? String(row.priceCad).replace(/[^\d.,-]/g, "")
-            : "";
-    if (note) note.value = row.note || "";
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    return cartModals.openPurchaseEdit(row);
 }
 
 function closeEditModal() {
-    const modal = document.getElementById("pm-edit-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
-    cartState.editingRow = null;
-    editTagsSelect = null;
+    return cartModals.closePurchaseEdit();
 }
 
 function saveEditModal() {
-    const row = cartState.editingRow;
-    if (!row) return;
-    const requests = readRequestsFile();
-    const request = requests[row.requestIndex];
-    if (!request || !request.lines || !request.lines[row.lineIndex]) {
-        showError(
-            "Elemento non trovato.",
-            "La riga potrebbe essere stata modificata da un altro utente.",
-        );
-        return;
-    }
-    const line = request.lines[row.lineIndex];
-    if (!canEditLine(request, line) || line.deletedAt) {
-        showWarning("Non puoi modificare questa richiesta.");
-        return;
-    }
-    line.product = getEditFieldValue("pm-edit-product").trim();
-    line.category = getEditFieldValue("pm-edit-tags-input").trim();
-    line.quantity = getEditFieldValue("pm-edit-quantity").toString().trim();
-    line.unit = getEditFieldValue("pm-edit-unit").trim();
-    line.urgency = getEditFieldValue("pm-edit-urgency").trim();
-    line.supplier = getEditFieldValue("pm-edit-supplier").trim();
-    line.url = getEditFieldValue("pm-edit-url").trim();
-    line.priceCad = normalizePriceCad(getEditFieldValue("pm-edit-price"));
-    line.note = getEditFieldValue("pm-edit-note").trim();
-    request.history = Array.isArray(request.history) ? request.history : [];
-    const actorRole = session.role || "guest";
-    request.history.push({
-        at: new Date().toISOString(),
-        by: actorRole,
-        adminName: session.adminName || "",
-        employee: actorRole === "employee" ? session.employee || "" : "",
-        action: "line-updated",
-    });
-    if (saveRequestsFile(requests)) {
-        closeEditModal();
-        renderCartTable();
-    }
+    return cartModals.savePurchaseEdit();
 }
 
 function openAddModal(row) {
-    if (!requireLogin()) return;
-    uiState.pendingAddRow = row;
-    const modal = document.getElementById("pm-add-modal");
-    const qty = document.getElementById("pm-add-quantity");
-    if (!modal) return;
-    if (qty) qty.value = "";
-    modal.classList.remove("is-hidden");
-    modal.setAttribute("aria-hidden", "false");
+    return cartModals.openAdd(row);
 }
 
 function closeAddModal() {
-    const modal = document.getElementById("pm-add-modal");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.setAttribute("aria-hidden", "true");
-    uiState.pendingAddRow = null;
+    return cartModals.closeAdd();
 }
 
 function saveAddModal() {
-    if (!uiState.pendingAddRow) {
-        closeAddModal();
-        return;
-    }
-    if (!isLoggedIn()) {
-        showWarning("Accesso richiesto.", "Per continuare effettua il login.");
-        openLoginModal();
-        return;
-    }
-    const qtyRaw = document.getElementById("pm-add-quantity")?.value || "";
-    const qty = qtyRaw.toString().trim();
-    if (!qty || Number.parseFloat(qty) <= 0) {
-        showWarning("Quantità non valida.");
-        return;
-    }
-
-    const baseLine = uiState.pendingAddRow;
-    const newLine = {
-        product: baseLine.product || "",
-        category: baseLine.tags
-            ? baseLine.tags.join(", ")
-            : baseLine.category || "",
-        quantity: qty,
-        unit: baseLine.unit || "",
-        urgency: baseLine.urgency || "",
-        supplier: baseLine.supplier || "",
-        url: baseLine.url || "",
-        note: "",
-    };
-    const record = buildRequestRecord({ notes: "", lines: [newLine] });
-    const requests = readRequestsFile();
-    requests.push(record);
-    if (saveRequestsFile(requests)) {
-        closeAddModal();
-        renderCartTable();
-    }
+    return cartModals.saveAdd();
 }
 
 async function confirmCartRow(row) {
-    if (!isAdmin()) {
-        showWarning("Solo gli admin possono convalidare.");
-        return;
-    }
-    const ok = await openConfirmModal("Vuoi convalidare questo elemento?");
-    if (!ok) return;
-    const requests = readRequestsFile();
-    const request = requests[row.requestIndex];
-    if (!request || !request.lines || !request.lines[row.lineIndex]) {
-        showError(
-            "Elemento non trovato.",
-            "La riga potrebbe essere stata modificata da un altro utente.",
-        );
-        return;
-    }
-    const line = request.lines[row.lineIndex];
-    if (line.deletedAt) return;
-    if (line.confirmed) return;
-    line.confirmed = true;
-    line.confirmedAt = new Date().toISOString();
-    line.confirmedBy = session.adminName || "";
-    request.history = Array.isArray(request.history) ? request.history : [];
-    request.history.push({
-        at: line.confirmedAt,
-        by: "admin",
-        adminName: session.adminName || "",
-        action: "line-confirmed",
-    });
-    if (saveRequestsFile(requests)) renderCartTable();
+    return cartRowActions.confirm(row);
 }
 
 async function deleteCartRow(row) {
-    const ok = await openConfirmModal("Vuoi eliminare questo elemento?");
-    if (!ok) return;
-    const requests = readRequestsFile();
-    const request = requests[row.requestIndex];
-    if (!request || !request.lines || !request.lines[row.lineIndex]) {
-        showError(
-            "Elemento non trovato.",
-            "La riga potrebbe essere stata modificata da un altro utente.",
-        );
-        return;
-    }
-    const line = request.lines[row.lineIndex];
-    if (!canDeleteLine(request, line) || line.deletedAt) {
-        showWarning("Non puoi eliminare questa richiesta.");
-        return;
-    }
-    if (line.deletedAt) return;
-    let reason = "";
-    const createdBy = normalizeString(request.createdBy || "");
-    if (isAdmin() && createdBy === "employee") {
-        while (true) {
-            const value = await openReasonModal({
-                title: "Motivazione rifiuto",
-                message: "Inserisci una motivazione per il rifiuto della richiesta.",
-                placeholder: "Motivazione",
-            });
-            if (value === null) return;
-            const trimmed = String(value || "").trim();
-            if (trimmed) {
-                reason = trimmed;
-                break;
-            }
-            showWarning("Inserisci una motivazione.");
-        }
-    }
-    line.deletedAt = new Date().toISOString();
-    line.deletedBy = isAdmin() ? session.adminName || "" : session.employee || "";
-    line.deletedByRole = isAdmin() ? "admin" : "employee";
-    if (reason) line.deletedReason = reason;
-    request.history = Array.isArray(request.history) ? request.history : [];
-    const actorRole = session.role || "guest";
-    request.history.push({
-        at: line.deletedAt,
-        by: actorRole,
-        adminName: session.adminName || "",
-        employee: actorRole === "employee" ? session.employee || "" : "",
-        action: "line-deleted",
-        reason: reason || "",
-    });
-    if (saveRequestsFile(requests)) renderCartTable();
+    return cartRowActions.remove(row);
 }
 
 function initCartFilters() {
@@ -2124,49 +1301,6 @@ function initCartFilters() {
         readRequestsFile,
         saveRequestsFile,
     });
-}
-
-function normalizeAssigneesPayload(parsed) {
-    if (parsed && typeof parsed === "object") {
-        const rawGroups =
-            parsed.groups && typeof parsed.groups === "object"
-                ? parsed.groups
-                : parsed;
-        const rawEmails =
-            parsed.emails && typeof parsed.emails === "object"
-                ? parsed.emails
-                : {};
-        const groups = {};
-        const emails = {};
-        Object.keys(rawGroups).forEach((key) => {
-            const list = Array.isArray(rawGroups[key]) ? rawGroups[key] : [];
-            const names = [];
-            list.forEach((entry) => {
-                if (typeof entry === "string") {
-                    const name = entry.trim();
-                    if (!name) return;
-                    names.push(name);
-                    return;
-                }
-                if (entry && typeof entry === "object") {
-                    const name = String(entry.name || "").trim();
-                    const email = String(entry.email || "").trim();
-                    if (!name) return;
-                    names.push(name);
-                    if (email) emails[`${key}|${name}`] = email;
-                }
-            });
-            groups[key] = names;
-        });
-        Object.keys(rawEmails).forEach((k) => {
-            const value = String(rawEmails[k] || "").trim();
-            if (!value) return;
-            if (!emails[k]) emails[k] = value;
-        });
-        const options = Object.values(groups).flat();
-        return { groups, options, emails };
-    }
-    return { groups: {}, options: [], emails: {} };
 }
 
 function loadAssignees() {
@@ -2197,104 +1331,27 @@ function syncAssignees() {
 }
 
 function loadCatalog() {
-    return normalizeCatalogData(catalogItems);
+    return catalogStore.load();
 }
 
 function saveCatalog(list) {
-    try {
-        const normalized = normalizeCatalogData(list);
-        if (
-            !validateWithAjv(validateCatalogSchema, normalized, "catalogo", {
-                showWarning,
-                showError,
-            }).ok
-        )
-            return false;
-        catalogItems = normalized;
-        requestBackend("/api/product-manager/catalog", {
-            method: "PUT",
-            body: normalized,
-        }).catch((err) => {
-            showError(
-                "Errore salvataggio catalogo backend.",
-                err?.message || String(err),
-            );
-        });
-        return true;
-    } catch (err) {
-        showError("Errore salvataggio catalogo.", err.message || String(err));
-        return false;
-    }
+    return catalogStore.save(list);
 }
 
 function loadCategories() {
-    return normalizeCategoriesData(catalogCategories);
+    return categoriesStore.load();
 }
 
 function saveCategories(list) {
-    try {
-        const normalized = normalizeCategoriesData(list);
-        if (
-            !validateWithAjv(validateCategoriesSchema, normalized, "categorie", {
-                showWarning,
-                showError,
-            }).ok
-        )
-            return false;
-        catalogCategories = normalized;
-        requestBackend("/api/product-manager/categories", {
-            method: "PUT",
-            body: normalized,
-        }).catch((err) => {
-            showError(
-                "Errore salvataggio categorie backend.",
-                err?.message || String(err),
-            );
-        });
-        return true;
-    } catch (err) {
-        showError("Errore salvataggio categorie.", err.message || String(err));
-        return false;
-    }
+    return categoriesStore.save(list);
 }
 
 function loadInterventionTypes() {
-    return normalizeInterventionTypesData(interventionTypes);
+    return interventionTypesStore.load();
 }
 
 function saveInterventionTypes(list) {
-    try {
-        const normalized = normalizeInterventionTypesData(list);
-        if (
-            !validateWithAjv(
-                validateInterventionTypesSchema,
-                normalized,
-                "tipologie interventi",
-                {
-                    showWarning,
-                    showError,
-                },
-            ).ok
-        )
-            return false;
-        interventionTypes = normalized;
-        requestBackend("/api/product-manager/intervention-types", {
-            method: "PUT",
-            body: normalized,
-        }).catch((err) => {
-            showError(
-                "Errore salvataggio tipologie backend.",
-                err?.message || String(err),
-            );
-        });
-        return true;
-    } catch (err) {
-        showError(
-            "Errore salvataggio tipologie interventi.",
-            err.message || String(err),
-        );
-        return false;
-    }
+    return interventionTypesStore.save(list);
 }
 
 function renderCategoryOptions(selected = []) {
@@ -2417,22 +1474,6 @@ function closeImageModal() {
     closeImageModalUi({ document });
 }
 
-function openCategoryEditor(category) {
-    return openCategoryEditorSection(getCatalogSectionCtx(), category);
-}
-
-function closeCategoryEditor(revert) {
-    return closeCategoryEditorSection(getCatalogSectionCtx(), revert);
-}
-
-function updateCategoryChipPreview(name, color) {
-    return updateCategoryChipPreviewSection(
-        getCatalogSectionCtx(),
-        name,
-        color,
-    );
-}
-
 function renderCategoriesList() {
     renderCategoriesListUi({
         document,
@@ -2490,30 +1531,6 @@ function renderInterventionTypesList() {
             interventionTypes = next;
         },
     });
-}
-
-function openInterventionTypesModal() {
-    return openInterventionTypesModalSection(getInterventionsSectionCtx());
-}
-
-function closeInterventionTypesModal() {
-    return closeInterventionTypesModalSection(getInterventionsSectionCtx());
-}
-
-function addInterventionType() {
-    return addInterventionTypeSection(getInterventionsSectionCtx());
-}
-
-function openCategoriesModal() {
-    return openCategoriesModalSection(getCatalogSectionCtx());
-}
-
-function closeCategoriesModal() {
-    return closeCategoriesModalSection(getCatalogSectionCtx());
-}
-
-function addCategory() {
-    return addCategorySection(getCatalogSectionCtx());
 }
 
 function updateGreeting() {
@@ -2717,107 +1734,7 @@ function requireAdminAccess(action) {
 }
 
 function openPasswordModal(action) {
-    pendingPasswordAction = action || null;
-    const modal = document.getElementById("fp-approve-modal");
-    const input = document.getElementById("fp-approve-password");
-    const error = document.getElementById("fp-approve-error");
-    const recover = document.getElementById("fp-approve-recover");
-    const title = document.getElementById("fp-approve-title");
-    const desc = document.getElementById("fp-approve-desc");
-    if (!modal || !input) return;
-    if (title && action?.title) title.textContent = action.title;
-    if (desc && action?.description) desc.textContent = action.description;
-    showModal(modal);
-    if (error) error.classList.add("is-hidden");
-    if (recover) recover.classList.add("is-hidden");
-    input.value = "";
-    setTimeout(() => {
-        input.focus();
-        input.select?.();
-    }, 0);
-}
-
-async function confirmPassword() {
-    const input = document.getElementById("fp-approve-password");
-    const error = document.getElementById("fp-approve-error");
-    const recover = document.getElementById("fp-approve-recover");
-    const password = input ? input.value : "";
-    const action = pendingPasswordAction;
-    if (!action) {
-        if (error) error.classList.add("is-hidden");
-        if (recover) recover.classList.add("is-hidden");
-        return;
-    }
-    const targetName = action?.adminName || action?.id || "";
-    const shouldCheckAny = action.type === "admin-access";
-    const result = await verifyAdminPasswordRemote(
-        password,
-        shouldCheckAny ? undefined : targetName || undefined,
-    ).catch(() => null);
-    if (!result || !result.admin) {
-        if (error) error.classList.remove("is-hidden");
-        passwordFailCount += 1;
-        if (recover && passwordFailCount >= 3) {
-            recover.classList.remove("is-hidden");
-        }
-        return;
-    }
-    passwordFailCount = 0;
-    if (error) error.classList.add("is-hidden");
-    if (recover) recover.classList.add("is-hidden");
-    hideModal(document.getElementById("fp-approve-modal"));
-
-    if (action.type === "admin-access") {
-        adminUi.openAdminModal();
-        return;
-    }
-    if (action.type === "admin-delete") {
-        const adminName = action.adminName || "";
-        adminCache =
-            adminCache.length ? adminCache : loadAdminCredentialsRemote();
-        if (adminCache.length <= 1) {
-            setAdminMessage(
-                "fp-admin-message",
-                UI_TEXTS.adminMinRequired,
-                true,
-            );
-            return;
-        }
-        adminCache = adminCache.filter((item) => item.name !== adminName);
-        setAdminCache(adminCache);
-        saveAdminCredentialsRemote(adminCache);
-        adminUi.renderAdminList();
-        setAdminMessage("fp-admin-message", UI_TEXTS.adminRemoved, false);
-    }
-}
-
-function initPasswordModal() {
-    const cancel = document.getElementById("fp-approve-cancel");
-    const confirm = document.getElementById("fp-approve-confirm");
-    const recover = document.getElementById("fp-approve-recover");
-    const input = document.getElementById("fp-approve-password");
-    if (cancel)
-        cancel.addEventListener("click", () =>
-            hideModal(document.getElementById("fp-approve-modal")),
-        );
-    if (confirm) confirm.addEventListener("click", confirmPassword);
-    if (input) {
-        input.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                confirmPassword();
-            } else if (event.key === "Escape") {
-                event.preventDefault();
-                hideModal(document.getElementById("fp-approve-modal"));
-            }
-        });
-    }
-    if (recover) {
-        recover.addEventListener("click", () => {
-            hideModal(document.getElementById("fp-approve-modal"));
-            openOtpModal();
-        });
-    }
+    return passwordController.open(action);
 }
 
 function renderDepartmentSelect() {
@@ -2932,6 +1849,23 @@ function openOtpModal() {
     otpUi.openOtpModal();
 }
 
+const passwordController = createPasswordController({
+    document,
+    showModal,
+    hideModal,
+    verifyAdminPassword: verifyAdminPasswordRemote,
+    getAdminCache,
+    setAdminCache,
+    loadAdminCredentials: loadAdminCredentialsRemote,
+    saveAdminCredentials: saveAdminCredentialsRemote,
+    setAdminMessage,
+    adminMinRequiredText: UI_TEXTS.adminMinRequired,
+    adminRemovedText: UI_TEXTS.adminRemoved,
+    openAdminModal: () => adminUi.openAdminModal(),
+    renderAdminList: () => adminUi.renderAdminList(),
+    openOtpModal,
+});
+
 const adminUi = createAdminModals({
     document,
     showModal,
@@ -2958,172 +1892,20 @@ const adminUi = createAdminModals({
 });
 
 function setupLogin() {
-    const loginBtn = document.getElementById("pm-login-toggle");
-    const loginClose = document.getElementById("pm-login-close");
-    const choiceEmployee = document.getElementById("pm-login-choice-employee");
-    const choiceAdmin = document.getElementById("pm-login-choice-admin");
-    const employeePanel = document.getElementById("pm-login-employee-panel");
-    const adminPanel = document.getElementById("pm-login-admin-panel");
-    const employeeConfirm = document.getElementById(
-        "pm-login-employee-confirm",
-    );
-    const adminConfirm = document.getElementById("pm-login-admin-confirm");
-    const adminError = document.getElementById("pm-login-admin-error");
-    const adminRecover = document.getElementById("pm-login-admin-recover");
-    const employeeDepartment = document.getElementById("pm-login-department");
-    const employeeName = document.getElementById("pm-login-employee-name");
-    const adminNameInput = document.getElementById("pm-login-admin-name");
-    const adminPasswordInput = document.getElementById(
-        "pm-login-admin-password",
-    );
-
-    if (loginBtn) {
-        loginBtn.addEventListener("click", () => {
-            if (isLoggedIn()) {
-                openLogoutModal();
-                return;
-            }
-            openLoginModal();
-            adminLoginFailCount = 0;
-            if (adminError) adminError.classList.add("is-hidden");
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-        });
-    }
-
-    if (loginClose) {
-        loginClose.addEventListener("click", () => {
-            closeLoginModal();
-            adminLoginFailCount = 0;
-            if (adminError) adminError.classList.add("is-hidden");
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-        });
-    }
-
-    if (choiceEmployee) {
-        choiceEmployee.addEventListener("click", () => {
-            if (employeePanel) employeePanel.classList.remove("is-hidden");
-            if (adminPanel) adminPanel.classList.add("is-hidden");
-            choiceEmployee.classList.add("is-active");
-            if (choiceAdmin) choiceAdmin.classList.remove("is-active");
-            adminLoginFailCount = 0;
-            if (adminError) adminError.classList.add("is-hidden");
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-        });
-    }
-
-    if (choiceAdmin) {
-        choiceAdmin.addEventListener("click", () => {
-            if (adminPanel) adminPanel.classList.remove("is-hidden");
-            if (employeePanel) employeePanel.classList.add("is-hidden");
-            choiceAdmin.classList.add("is-active");
-            if (choiceEmployee) choiceEmployee.classList.remove("is-active");
-            adminLoginFailCount = 0;
-            if (adminError) adminError.classList.add("is-hidden");
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-        });
-    }
-
-    if (employeeConfirm) {
-        employeeConfirm.addEventListener("click", () => {
-            const dept =
-                document.getElementById("pm-login-department")?.value || "";
-            const emp =
-                document.getElementById("pm-login-employee-name")?.value || "";
-            if (!dept || !emp) {
-                showWarning("Seleziona reparto e dipendente per accedere.");
-                return;
-            }
-            setSession({
-                role: "employee",
-                adminName: "",
-                department: dept,
-                employee: emp,
-            });
-            saveSession();
-            syncSessionUI();
-            closeLoginModal();
-        });
-    }
-    [employeeDepartment, employeeName].forEach((field) => {
-        if (!field || !employeeConfirm) return;
-        field.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter") return;
-            if (employeePanel && employeePanel.classList.contains("is-hidden"))
-                return;
-            event.preventDefault();
-            employeeConfirm.click();
-        });
+    setupLoginUi({
+        document,
+        isLoggedIn,
+        openLogoutModal,
+        openLoginModal,
+        closeLoginModal,
+        showWarning,
+        setSession,
+        saveSession,
+        syncSessionUI,
+        asyncGuard,
+        verifyAdminPassword: verifyAdminPasswordRemote,
+        openOtpModal,
     });
-
-    if (adminConfirm) {
-        adminConfirm.addEventListener("click", asyncGuard.wrap(async () => {
-            const adminName =
-                document.getElementById("pm-login-admin-name")?.value || "";
-            const password =
-                document.getElementById("pm-login-admin-password")?.value || "";
-            const defaultErrorText = "Password errata.";
-            if (adminError) adminError.classList.add("is-hidden");
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-            if (!adminName || !password) {
-                if (adminError) adminError.textContent = defaultErrorText;
-                if (adminError) adminError.classList.remove("is-hidden");
-                adminLoginFailCount += 1;
-                if (adminRecover && adminLoginFailCount >= 3) {
-                    adminRecover.classList.remove("is-hidden");
-                }
-                return;
-            }
-            const verified = await verifyAdminPasswordRemote(
-                password,
-                adminName,
-            ).catch(() => null);
-            if (!verified || !verified.admin) {
-                if (adminError) adminError.textContent = defaultErrorText;
-                if (adminError) adminError.classList.remove("is-hidden");
-                adminLoginFailCount += 1;
-                if (adminRecover && adminLoginFailCount >= 3) {
-                    adminRecover.classList.remove("is-hidden");
-                }
-                return;
-            }
-            if (verified.admin && verified.admin.accessPurchasing === false) {
-                if (adminError)
-                    adminError.textContent =
-                        "Accesso admin non abilitato per Purchasing.";
-                if (adminError) adminError.classList.remove("is-hidden");
-                adminLoginFailCount += 1;
-                return;
-            }
-            adminLoginFailCount = 0;
-            if (adminError) adminError.textContent = defaultErrorText;
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-            setSession({
-                role: "admin",
-                adminName: verified.admin.name,
-                department: "",
-                employee: "",
-            });
-            saveSession();
-            syncSessionUI();
-            closeLoginModal();
-        }));
-    }
-    [adminNameInput, adminPasswordInput].forEach((field) => {
-        if (!field || !adminConfirm) return;
-        field.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter") return;
-            if (adminPanel && adminPanel.classList.contains("is-hidden"))
-                return;
-            event.preventDefault();
-            adminConfirm.click();
-        });
-    });
-
-    if (adminRecover) {
-        adminRecover.addEventListener("click", () => {
-            openOtpModal();
-        });
-    }
 }
 
 function initEditModal() {

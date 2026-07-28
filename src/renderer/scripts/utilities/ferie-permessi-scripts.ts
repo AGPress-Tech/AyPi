@@ -2,12 +2,26 @@
 require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import fs from "fs";
-import http from "http";
-import https from "https";
 import path from "path";
 import { pathToFileURL } from "url";
 import { requestBackend } from "../shared/backend-client";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
+import {
+    isValidEmail,
+    isValidItalianPhone as isValidPhone,
+} from "../shared/validation";
+import { normalizeAdminEntry } from "../shared/admin-data";
+import { buildCalendarRequest } from "./ferie-permessi/domain/request-builder";
+import {
+    createTypeColorStore,
+    normalizeHexColor,
+} from "./ferie-permessi/state/type-colors";
+import {
+    createCalendarApi,
+    resolveCalendarBackendBaseUrl,
+} from "./ferie-permessi/services/calendar-api";
+import { createCalendarFilterState } from "./ferie-permessi/state/filter-state";
+import { createCalendarAccessPolicy } from "./ferie-permessi/services/access-policy";
 
 const IS_BLUE_ARCHIVE_CALENDAR =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
@@ -195,29 +209,8 @@ let handlingListRedirect = false;
 let assigneeOptions = [];
 let assigneeGroups = {};
 let assigneeEmails = {};
-let editingDepartment = null;
-let editingEmployee = null;
-let typeColors = { ...DEFAULT_TYPE_COLORS };
 let cachedData = { requests: [] };
-function resolveFpBackendBaseUrl() {
-    if (process.env.AYPI_FP_BACKEND_URL) {
-        return process.env.AYPI_FP_BACKEND_URL;
-    }
-    if (ipcRenderer && typeof ipcRenderer.sendSync === "function") {
-        try {
-            const value = ipcRenderer.sendSync("fp-get-backend-base-url");
-            if (typeof value === "string" && value.trim()) {
-                return value.trim();
-            }
-        } catch (err) {
-            // fallback below
-        }
-    }
-    return "http://192.168.1.240:3000/api/ferie-permessi";
-}
-const FP_BACKEND_BASE_URL = resolveFpBackendBaseUrl();
-let fpSaveSequence = 0;
-let fpBackendUnavailableNotified = false;
+const FP_BACKEND_BASE_URL = resolveCalendarBackendBaseUrl(ipcRenderer);
 let calendarFilters = {
     ferie: true,
     permesso: true,
@@ -229,39 +222,6 @@ let calendarFilters = {
 let editingAdminName = "";
 let adminCache = [];
 let adminEditingIndex = -1;
-
-function isValidEmail(value) {
-    if (!value) return true;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
-}
-
-function isValidPhone(value) {
-    if (!value) return false;
-    const trimmed = String(value || "").trim();
-    if (!trimmed.startsWith("+39")) return false;
-    const digits = trimmed.replace(/\D/g, "");
-    return digits.length >= 11 && digits.length <= 13;
-}
-
-function normalizeAdminEntry(item) {
-    return {
-        name: String(item?.name || "").trim(),
-        password: item?.password ? String(item.password) : undefined,
-        passwordHash: item?.passwordHash
-            ? String(item.passwordHash)
-            : undefined,
-        email: item?.email ? String(item.email) : "",
-        phone: item?.phone ? String(item.phone) : "",
-        accessCalendar:
-            typeof item?.accessCalendar === "boolean"
-                ? item.accessCalendar
-                : true,
-        accessPurchasing:
-            typeof item?.accessPurchasing === "boolean"
-                ? item.accessPurchasing
-                : true,
-    };
-}
 
 function loadAdminCredentials() {
     return Array.isArray(adminCache) ? adminCache.map(normalizeAdminEntry) : [];
@@ -391,216 +351,87 @@ let legendColorSnapshot = null;
 let legendPreviewTimer = null;
 let runExport = null;
 let accessConfig = normalizeAccessConfig(DEFAULT_ACCESS_CONFIG);
-const FILTER_STORAGE_KEY_GUEST = "fp-calendar-filters-guest";
-const FILTER_STORAGE_KEY_ADMIN_PREFIX = "fp-calendar-filters-admin:";
 
 function setAccessConfig(next) {
     accessConfig = normalizeAccessConfig(next);
     return accessConfig;
 }
 
-function toBoolValue(value, fallback) {
-    if (typeof value === "boolean") return value;
-    if (typeof value === "number") return value !== 0;
-    if (typeof value === "string") {
-        const trimmed = value.trim().toLowerCase();
-        if (
-            trimmed === "true" ||
-            trimmed === "1" ||
-            trimmed === "on" ||
-            trimmed === "si"
-        )
-            return true;
-        if (
-            trimmed === "false" ||
-            trimmed === "0" ||
-            trimmed === "off" ||
-            trimmed === "no"
-        )
-            return false;
-    }
-    return fallback;
-}
+const accessPolicy = createCalendarAccessPolicy({
+    request: requestBackend,
+    normalize: normalizeAccessConfig,
+    getConfig: () => accessConfig,
+    setConfig: setAccessConfig,
+});
 
-function getDefaultFilterState(type) {
-    return !isAdminRequiredForFilter(type);
-}
-
-function buildDefaultFilterState() {
-    return {
-        ferie: getDefaultFilterState("ferie"),
-        permesso: getDefaultFilterState("permesso"),
-        overtime: getDefaultFilterState("overtime"),
-        mutua: getDefaultFilterState("mutua"),
-        speciale: getDefaultFilterState("speciale"),
-        retribuito: getDefaultFilterState("retribuito"),
-    };
-}
-
-function getFilterStorageKey() {
-    if (isAdminLoggedIn() && adminSession.name) {
-        return `${FILTER_STORAGE_KEY_ADMIN_PREFIX}${adminSession.name}`;
-    }
-    return FILTER_STORAGE_KEY_GUEST;
-}
-
-function readStoredFilterState(key) {
-    try {
-        if (!window.localStorage) return null;
-        const raw = window.localStorage.getItem(key);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === "object" ? parsed : null;
-    } catch (err) {
-        return null;
-    }
-}
+const filterStateController = createCalendarFilterState({
+    document,
+    getStorage: () => window.localStorage,
+    filters: calendarFilters,
+    isAdminLoggedIn,
+    getAdminName: () => adminSession.name || "",
+    isAdminRequiredForFilter,
+    render: () => renderer?.renderCalendar?.(cachedData),
+});
 
 function persistFilterState() {
-    try {
-        if (!window.localStorage) return;
-        const key = getFilterStorageKey();
-        const payload = {
-            ferie: !!calendarFilters.ferie,
-            permesso: !!calendarFilters.permesso,
-            overtime: !!calendarFilters.overtime,
-            mutua: !!calendarFilters.mutua,
-            speciale: !!calendarFilters.speciale,
-            retribuito: !!calendarFilters.retribuito,
-        };
-        window.localStorage.setItem(key, JSON.stringify(payload));
-    } catch (err) {
-        // no-op: localStorage not available
-    }
-}
-
-function applyFilterState(state) {
-    const ferieToggle = document.getElementById("fp-filter-ferie");
-    const permessoToggle = document.getElementById("fp-filter-permesso");
-    const overtimeToggle = document.getElementById("fp-filter-overtime");
-    const mutuaToggle = document.getElementById("fp-filter-mutua");
-    const specialeToggle = document.getElementById("fp-filter-speciale");
-    const retribuitoToggle = document.getElementById("fp-filter-retribuito");
-
-    const defaults = buildDefaultFilterState();
-    const nextFerie = toBoolValue(state?.ferie, defaults.ferie);
-    const nextPermesso = toBoolValue(state?.permesso, defaults.permesso);
-    const nextOvertime = toBoolValue(state?.overtime, defaults.overtime);
-    const nextMutua = toBoolValue(state?.mutua, defaults.mutua);
-    const nextSpeciale = toBoolValue(state?.speciale, defaults.speciale);
-    const nextRetribuito = toBoolValue(state?.retribuito, defaults.retribuito);
-
-    const allowAdminFilters = isAdminLoggedIn();
-    const finalOvertime =
-        allowAdminFilters || !isAdminRequiredForFilter("overtime")
-            ? nextOvertime
-            : false;
-    const finalMutua =
-        allowAdminFilters || !isAdminRequiredForFilter("mutua")
-            ? nextMutua
-            : false;
-    const finalSpeciale =
-        allowAdminFilters || !isAdminRequiredForFilter("speciale")
-            ? nextSpeciale
-            : false;
-    const finalRetribuito =
-        allowAdminFilters || !isAdminRequiredForFilter("retribuito")
-            ? nextRetribuito
-            : false;
-    const finalFerie =
-        allowAdminFilters || !isAdminRequiredForFilter("ferie")
-            ? nextFerie
-            : false;
-    const finalPermesso =
-        allowAdminFilters || !isAdminRequiredForFilter("permesso")
-            ? nextPermesso
-            : false;
-
-    if (ferieToggle) ferieToggle.checked = finalFerie;
-    if (permessoToggle) permessoToggle.checked = finalPermesso;
-    if (overtimeToggle) overtimeToggle.checked = finalOvertime;
-    if (mutuaToggle) mutuaToggle.checked = finalMutua;
-    if (specialeToggle) specialeToggle.checked = finalSpeciale;
-    if (retribuitoToggle) retribuitoToggle.checked = finalRetribuito;
-    calendarFilters.ferie = finalFerie;
-    calendarFilters.permesso = finalPermesso;
-    calendarFilters.overtime = finalOvertime;
-    calendarFilters.mutua = finalMutua;
-    calendarFilters.speciale = finalSpeciale;
-    calendarFilters.retribuito = finalRetribuito;
-    renderer?.renderCalendar?.(cachedData);
+    return filterStateController.persist();
 }
 
 function applyFilterDefaultsFromAccessConfig() {
-    applyFilterState(buildDefaultFilterState());
-    persistFilterState();
+    return filterStateController.applyDefaults();
 }
 
 function applyStoredFilterStateForCurrentUser() {
-    const key = getFilterStorageKey();
-    const stored = readStoredFilterState(key);
-    if (stored) {
-        applyFilterState(stored);
-        return true;
-    }
-    return false;
+    return filterStateController.applyStored();
 }
 
 async function loadAccessConfigRemote() {
-    const payload = await requestBackend("/api/shared/calendar-access-config");
-    return normalizeAccessConfig(payload);
+    return accessPolicy.load();
 }
 
 async function persistAccessConfigRemote(next) {
-    const payload = await requestBackend("/api/shared/calendar-access-config", {
-        method: "PUT",
-        body: normalizeAccessConfig(next),
-    });
-    const saved = normalizeAccessConfig(payload?.data || next);
-    setAccessConfig(saved);
-    return saved;
+    return accessPolicy.persist(next);
 }
 
 function isAdminRequiredForCreate(type) {
-    const key = type === "infortunio" ? "mutua" : type;
-    return !!accessConfig?.operations?.create?.[key];
+    return accessPolicy.create(type);
 }
 
 function isAdminRequiredForFilter(type) {
-    const key = type === "overtime" ? "straordinari" : type;
-    return !!accessConfig?.operations?.filters?.[key];
+    return accessPolicy.filter(type);
 }
 
 function isAdminRequiredForPendingAccess() {
-    return !!accessConfig?.operations?.pending?.access;
+    return accessPolicy.pendingAccess();
 }
 
 function isAdminRequiredForPendingApprove() {
-    return !!accessConfig?.operations?.pending?.approve;
+    return accessPolicy.pendingApprove();
 }
 
 function isAdminRequiredForPendingReject() {
-    return !!accessConfig?.operations?.pending?.reject;
+    return accessPolicy.pendingReject();
 }
 
 function isAdminRequiredForEditApproved() {
-    return !!accessConfig?.operations?.editApproved;
+    return accessPolicy.editApproved();
 }
 
 function isAdminRequiredForDeleteApproved() {
-    return !!accessConfig?.operations?.deleteApproved;
+    return accessPolicy.deleteApproved();
 }
 
 function isAdminRequiredForManageAccess() {
-    return !!accessConfig?.operations?.manageAccess;
+    return accessPolicy.manageAccess();
 }
 
 function isAdminRequiredForDaysAccess() {
-    return !!accessConfig?.operations?.daysAccess;
+    return accessPolicy.daysAccess();
 }
 
 function isAdminRequiredForExport() {
-    return !!accessConfig?.operations?.export;
+    return accessPolicy.exportData();
 }
 
 function requireAccess(required, action) {
@@ -617,13 +448,6 @@ function getApproverName(admin) {
     return "";
 }
 
-function getAssigneeEmailKey(group, name) {
-    return `${String(group || "").trim()}|${String(name || "").trim()}`;
-}
-
-function getAssigneeEmail(group, name) {
-    return String(assigneeEmails[getAssigneeEmailKey(group, name)] || "");
-}
 const exportUi = createExportController({
     document,
     showModal,
@@ -632,69 +456,16 @@ const exportUi = createExportController({
     getAssigneeGroups: () => assigneeGroups,
 });
 
-function normalizeHexColor(value, fallback) {
-    if (typeof value !== "string") return fallback;
-    const cleaned = value.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(cleaned)) return cleaned.toLowerCase();
-    return fallback;
-}
-
-function loadColorSettings() {
-    try {
-        const raw = window.localStorage?.getItem(COLOR_STORAGE_KEY);
-        if (!raw) return { ...DEFAULT_TYPE_COLORS };
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object")
-            return { ...DEFAULT_TYPE_COLORS };
-        const legacyRetribuito = parsed.retribuito ?? parsed.giustificato;
-        return {
-            ferie: normalizeHexColor(parsed.ferie, DEFAULT_TYPE_COLORS.ferie),
-            permesso: normalizeHexColor(
-                parsed.permesso,
-                DEFAULT_TYPE_COLORS.permesso,
-            ),
-            straordinari: normalizeHexColor(
-                parsed.straordinari,
-                DEFAULT_TYPE_COLORS.straordinari,
-            ),
-            mutua: normalizeHexColor(parsed.mutua, DEFAULT_TYPE_COLORS.mutua),
-            speciale: normalizeHexColor(
-                parsed.speciale,
-                DEFAULT_TYPE_COLORS.speciale,
-            ),
-            retribuito: normalizeHexColor(
-                legacyRetribuito,
-                DEFAULT_TYPE_COLORS.retribuito,
-            ),
-        };
-    } catch (err) {
-        return { ...DEFAULT_TYPE_COLORS };
-    }
-}
-
-function saveColorSettings(colors) {
-    try {
-        if (!window.localStorage) return;
-        window.localStorage.setItem(COLOR_STORAGE_KEY, JSON.stringify(colors));
-    } catch (err) {
-        console.error("Errore salvataggio impostazioni colori:", err);
-    }
-}
-
-function getTypeColor(type) {
-    if (type === "infortunio") {
-        return typeColors.mutua || DEFAULT_TYPE_COLORS.mutua || "#1a73e8";
-    }
-    return typeColors[type] || DEFAULT_TYPE_COLORS[type] || "#1a73e8";
-}
-
-function getTypeColors() {
-    return { ...typeColors };
-}
-
-function setTypeColors(next) {
-    typeColors = { ...next };
-}
+const typeColorStore = createTypeColorStore({
+    storage: window.localStorage,
+    storageKey: COLOR_STORAGE_KEY,
+    defaults: DEFAULT_TYPE_COLORS,
+});
+const loadColorSettings = () => typeColorStore.load();
+const saveColorSettings = (colors) => typeColorStore.save(colors);
+const getTypeColor = (type) => typeColorStore.get(type);
+const getTypeColors = () => typeColorStore.getAll();
+const setTypeColors = (next) => typeColorStore.set(next);
 
 function applyTypeColors() {
     const ferieDot = document.querySelector(".fp-legend__dot--ferie");
@@ -828,322 +599,41 @@ function clonePayload(payload) {
     return JSON.parse(JSON.stringify(payload || { requests: [] }));
 }
 
-async function fetchFpBackend(endpoint = "", options = {}) {
-    const url = `${FP_BACKEND_BASE_URL}${endpoint}`;
-    const headers = {
-        "x-aypi-user": getLoggedAdminName?.() || "guest",
-        "x-aypi-client": "AyPi-Electron",
-        ...(options.headers || {}),
-    };
-    logFpDebug("backend.request", {
-        url,
-        method: options.method || "GET",
-        user: headers["x-aypi-user"],
-    });
-    return new Promise((resolve, reject) => {
-        try {
-            const target = new URL(url);
-            const client = target.protocol === "https:" ? https : http;
-            const request = client.request(
-                {
-                    protocol: target.protocol,
-                    hostname: target.hostname,
-                    port: target.port,
-                    path: `${target.pathname}${target.search}`,
-                    method: options.method || "GET",
-                    headers,
-                },
-                (response) => {
-                    let raw = "";
-                    response.setEncoding("utf8");
-                    response.on("data", (chunk) => {
-                        raw += chunk;
-                    });
-                    response.on("end", () => {
-                        const statusCode = response.statusCode || 500;
-                        if (statusCode < 200 || statusCode >= 300) {
-                            reject(new Error(`HTTP ${statusCode}: ${raw}`));
-                            return;
-                        }
-                        try {
-                            resolve(raw ? JSON.parse(raw) : null);
-                        } catch (err) {
-                            reject(err);
-                        }
-                    });
-                },
-            );
-            request.on("error", reject);
-            if (options.body) {
-                request.write(options.body);
-            }
-            request.end();
-        } catch (err) {
-            reject(err);
-        }
-    });
-}
-
-function getBackendUnavailableMessage(err) {
-    const detail = err?.message || String(err || "");
-    return `Backend ferie-permessi non raggiungibile su ${FP_BACKEND_BASE_URL}.\nAvvia prima 'npm run start:backend'.\n\nDettaglio: ${detail}`;
-}
-
-async function loadDataFromBackend() {
-    try {
-        const payload = await fetchFpBackend("/payload");
-        cachedData = payload || { requests: [] };
-        fpBackendUnavailableNotified = false;
-        logFpDebug("backend.response.load", {
-            requests: Array.isArray(cachedData?.requests)
-                ? cachedData.requests.length
-                : 0,
-        });
-        return cachedData;
-    } catch (err) {
-        logFpDebug("backend.error.load", {
-            detail: err?.message || String(err),
-        });
-        if (!fpBackendUnavailableNotified) {
-            fpBackendUnavailableNotified = true;
-            showDialog(
-                "warning",
-                "Backend ferie/permessi non disponibile.",
-                getBackendUnavailableMessage(err),
-            );
-        }
-        return cachedData;
-    }
-}
-
-async function saveDataToBackend(payload) {
-    const nextSequence = ++fpSaveSequence;
-    const saved = await fetchFpBackend("/payload", {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload || {}),
-    });
-    if (nextSequence === fpSaveSequence && saved) {
-        cachedData = saved;
-    }
-    logFpDebug("backend.response.save", {
-        sequence: nextSequence,
-        requests: Array.isArray(saved?.requests) ? saved.requests.length : 0,
-    });
-    return saved;
-}
-
-async function refreshDataFromBackendAndRender() {
-    const data = await loadDataFromBackend();
-    renderAll(data);
-    return data;
-}
-
-async function createRequestAtomic(request) {
-    const created = await fetchFpBackend("/requests", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request || {}),
-    });
-    logFpDebug("backend.response.create", {
-        id: created?.id || "",
-        status: created?.status || "",
-    });
-    return refreshDataFromBackendAndRender();
-}
-
-async function updateRequestAtomic(requestId, request) {
-    logFpDebug("backend.request.update", {
-        requestId: requestId || "",
-        keys:
-            request && typeof request === "object" ? Object.keys(request) : [],
-        request,
-    });
-    const updated = await fetchFpBackend(`/requests/${requestId}`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request || {}),
-    });
-    logFpDebug("backend.response.update", {
-        id: updated?.id || requestId || "",
-        status: updated?.status || "",
-    });
-    return refreshDataFromBackendAndRender();
-}
-
-async function approveRequestAtomic(requestId, actor) {
-    const updated = await fetchFpBackend(`/requests/${requestId}/approve`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            actor: actor || getLoggedAdminName() || "guest",
-        }),
-    });
-    logFpDebug("backend.response.approve", {
-        id: updated?.request?.id || requestId || "",
-        status: updated?.request?.status || "",
-    });
-    return refreshDataFromBackendAndRender();
-}
-
-async function rejectRequestAtomic(requestId, actor) {
-    const updated = await fetchFpBackend(`/requests/${requestId}/reject`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            actor: actor || getLoggedAdminName() || "guest",
-        }),
-    });
-    logFpDebug("backend.response.reject", {
-        id: updated?.id || requestId || "",
-        status: updated?.status || "",
-    });
-    return refreshDataFromBackendAndRender();
-}
-
-async function deleteRequestAtomic(requestId, actor) {
-    try {
-        const updated = await fetchFpBackend(`/requests/${requestId}`, {
-            method: "DELETE",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                actor: actor || getLoggedAdminName() || "guest",
-            }),
-        });
-        logFpDebug("backend.response.delete", {
-            id: updated?.id || requestId || "",
-            status: updated?.status || "",
-        });
-        return refreshDataFromBackendAndRender();
-    } catch (err) {
-        logFpDebug("backend.error.delete", {
-            requestId: requestId || "",
-            detail: err?.message || String(err),
-        });
-        const data = await refreshDataFromBackendAndRender();
-        const target = (data?.requests || []).find(
-            (req) => req?.id === requestId,
-        );
-        if (!target || target.status === "deleted") {
-            logFpDebug("backend.delete.reconciled", {
-                requestId: requestId || "",
-                status: target?.status || "missing",
-            });
-            return data;
-        }
-        throw err;
-    }
-}
-
-async function createHolidaysAtomic(dates, name) {
-    const result = await fetchFpBackend("/holidays", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ dates: dates || [], name: name || "" }),
-    });
-    logFpDebug("backend.response.holidays.create", {
-        added: result?.added || 0,
-        dates: Array.isArray(dates) ? dates.length : 0,
-    });
-    return refreshDataFromBackendAndRender();
-}
-
-async function deleteHolidayAtomic(date) {
-    const result = await fetchFpBackend(`/holidays/${date}`, {
-        method: "DELETE",
-    });
-    logFpDebug("backend.response.holidays.delete", {
-        date,
-        removed: !!result?.removed,
-    });
-    return refreshDataFromBackendAndRender();
-}
-
-async function updateHolidayAtomic(date, nextDate, nextName) {
-    const result = await fetchFpBackend(`/holidays/${date}`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ nextDate, nextName }),
-    });
-    logFpDebug("backend.response.holidays.update", {
-        date,
-        nextDate,
-        hasConflict: !!result?.hasConflict,
-        updated: !!result?.updated,
-    });
-    const data = await refreshDataFromBackendAndRender();
-    data.holidaysUpdated = !result?.hasConflict && !!result?.updated;
-    return data;
-}
-
-async function createClosureAtomic(entry) {
-    const result = await fetchFpBackend("/closures", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(entry || {}),
-    });
-    logFpDebug("backend.response.closure.create", {
-        added: !!result?.added,
-        start: entry?.start || "",
-        end: entry?.end || "",
-    });
-    const data = await refreshDataFromBackendAndRender();
-    data.closureAdded = !!result?.added;
-    return data;
-}
-
-async function deleteClosureAtomic(entry) {
-    const result = await fetchFpBackend("/closures", {
-        method: "DELETE",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(entry || {}),
-    });
-    logFpDebug("backend.response.closure.delete", {
-        removed: !!result?.removed,
-        start: entry?.start || "",
-        end: entry?.end || "",
-    });
-    return refreshDataFromBackendAndRender();
-}
-
-async function updateClosureAtomic(entry, next) {
-    const result = await fetchFpBackend("/closures", {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ entry, next }),
-    });
-    logFpDebug("backend.response.closure.update", {
-        current: `${entry?.start || ""}|${entry?.end || ""}`,
-        next: `${next?.start || ""}|${next?.end || ""}`,
-        hasConflict: !!result?.hasConflict,
-        updated: !!result?.updated,
-    });
-    const data = await refreshDataFromBackendAndRender();
-    data.closureUpdated = !result?.hasConflict && !!result?.updated;
-    return data;
-}
+const calendarApi = createCalendarApi({
+    baseUrl: FP_BACKEND_BASE_URL,
+    getUser: () => getLoggedAdminName?.() || "guest",
+    getCachedData: () => cachedData,
+    setCachedData: (data) => {
+        cachedData = data;
+    },
+    render: (data) => renderAll(data),
+    debug: logFpDebug,
+    showDialog,
+});
+const fetchFpBackend = (endpoint = "", options = {}) =>
+    calendarApi.request(endpoint, options);
+const getBackendUnavailableMessage = (err) =>
+    calendarApi.unavailableMessage(err);
+const loadDataFromBackend = () => calendarApi.loadData();
+const saveDataToBackend = (payload) => calendarApi.saveData(payload);
+const createRequestAtomic = (request) => calendarApi.createRequest(request);
+const updateRequestAtomic = (requestId, request) =>
+    calendarApi.updateRequest(requestId, request);
+const approveRequestAtomic = (requestId, actor) =>
+    calendarApi.approveRequest(requestId, actor);
+const rejectRequestAtomic = (requestId, actor) =>
+    calendarApi.rejectRequest(requestId, actor);
+const deleteRequestAtomic = (requestId, actor) =>
+    calendarApi.deleteRequest(requestId, actor);
+const createHolidaysAtomic = (dates, name) =>
+    calendarApi.createHolidays(dates, name);
+const deleteHolidayAtomic = (date) => calendarApi.deleteHoliday(date);
+const updateHolidayAtomic = (date, nextDate, nextName) =>
+    calendarApi.updateHoliday(date, nextDate, nextName);
+const createClosureAtomic = (entry) => calendarApi.createClosure(entry);
+const deleteClosureAtomic = (entry) => calendarApi.deleteClosure(entry);
+const updateClosureAtomic = (entry, next) =>
+    calendarApi.updateClosure(entry, next);
 
 function migrateRetribuitoTypes(payload) {
     if (!payload || !Array.isArray(payload.requests))
@@ -1524,33 +1014,7 @@ const approvalUi = createApprovalModal({
     showDialog,
     showInfoModal,
     requireAdminAccess,
-    isAdminRequiredForAction: (action) => {
-        const type = action?.type || "";
-        if (type === "mutua-create") return isAdminRequiredForCreate("mutua");
-        if (type === "infortunio-create")
-            return isAdminRequiredForCreate("infortunio");
-        if (type === "retribuito-create" || type === "giustificato-create")
-            return isAdminRequiredForCreate("retribuito");
-        if (type === "speciale-create")
-            return isAdminRequiredForCreate("speciale");
-        if (
-            type === "holiday-create" ||
-            type === "holiday-remove" ||
-            type === "holiday-update"
-        )
-            return isAdminRequiredForDaysAccess();
-        if (
-            type === "closure-create" ||
-            type === "closure-remove" ||
-            type === "closure-update"
-        )
-            return isAdminRequiredForDaysAccess();
-        if (type === "export") return isAdminRequiredForExport();
-        if (type === "manage-access" || type === "assignees-access")
-            return isAdminRequiredForManageAccess();
-        if (type === "days-access") return isAdminRequiredForDaysAccess();
-        return true;
-    },
+    isAdminRequiredForAction: (action) => accessPolicy.action(action),
     isHashingAvailable,
     loadAdminCredentials,
     verifyAdminPassword: verifyCalendarAdminPassword,
@@ -2013,105 +1477,20 @@ function isChecked(id) {
 }
 
 function buildRequestFromForm(prefix, requestId, allowPast = false) {
-    const department = getFieldValue(`${prefix}-department`);
-    const employee = getFieldValue(`${prefix}-employee`);
-    const type = getFieldValue(`${prefix}-type`) || "ferie";
-    const allDay = isChecked(`${prefix}-all-day`);
-    const startDate = getFieldValue(`${prefix}-start-date`);
-    const endDate = getFieldValue(`${prefix}-end-date`);
-    const startTime = getFieldValue(`${prefix}-start-time`);
-    const endTime = getFieldValue(`${prefix}-end-time`);
-    const note = getFieldValue(`${prefix}-note`).trim();
-
-    if (!employee || !startDate || !endDate) {
-        return { error: UI_TEXTS.requestMissingFields };
-    }
-
-    const today = new Date();
-    const todayMidnight = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate(),
-    );
-    const maxYear = today.getFullYear() + 2;
-    const parseStrictDate = (value) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-        const date = new Date(`${value}T00:00:00`);
-        if (Number.isNaN(date.getTime())) return null;
-        return date;
-    };
-    const startParsed = parseStrictDate(startDate);
-    const endParsed = parseStrictDate(endDate);
-    if (!startParsed || !endParsed) {
-        return { error: UI_TEXTS.requestInvalidDateFormat };
-    }
-    if (
-        startParsed.getFullYear() > maxYear ||
-        endParsed.getFullYear() > maxYear
-    ) {
-        return { error: `L'anno non puo superare ${maxYear}.` };
-    }
-    const allowPastDates =
-        type === "straordinari" ||
-        type === "mutua" ||
-        type === "infortunio" ||
-        type === "retribuito" ||
-        type === "speciale";
-    if (!allowPastDates) {
-        if (startParsed < todayMidnight || endParsed < todayMidnight) {
-            return { error: UI_TEXTS.requestNoPastDates };
-        }
-    }
-    if (endParsed < startParsed) {
-        return { error: UI_TEXTS.requestEndBeforeStart };
-    }
-    if (!allDay && startDate !== endDate) {
-        return { error: UI_TEXTS.requestMultiDayAllDayOnly };
-    }
-
-    if (!allDay) {
-        if (!startTime || !endTime) {
-            return { error: UI_TEXTS.requestMissingTimes };
-        }
-        const startValue = `${startDate}T${startTime}`;
-        const endValue = `${endDate}T${endTime}`;
-        if (endValue < startValue) {
-            return { error: UI_TEXTS.requestEndTimeBeforeStart };
-        }
-        return {
-            request: {
-                id:
-                    requestId ||
-                    `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-                employee,
-                department,
-                type,
-                allDay: false,
-                start: startValue,
-                end: endValue,
-                note,
-                status: requestId ? "approved" : "pending",
-                ...(requestId ? {} : { createdAt: new Date().toISOString() }),
-            },
-        };
-    }
-
-    return {
-        request: {
-            id:
-                requestId ||
-                `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            employee,
-            department,
-            type,
-            allDay: true,
-            start: startDate,
-            end: endDate,
-            note,
-            status: requestId ? "approved" : "pending",
-            ...(requestId ? {} : { createdAt: new Date().toISOString() }),
+    return buildCalendarRequest(
+        {
+            department: getFieldValue(`${prefix}-department`),
+            employee: getFieldValue(`${prefix}-employee`),
+            type: getFieldValue(`${prefix}-type`) || "ferie",
+            allDay: isChecked(`${prefix}-all-day`),
+            startDate: getFieldValue(`${prefix}-start-date`),
+            endDate: getFieldValue(`${prefix}-end-date`),
+            startTime: getFieldValue(`${prefix}-start-time`),
+            endTime: getFieldValue(`${prefix}-end-time`),
+            note: getFieldValue(`${prefix}-note`).trim(),
         },
-    };
+        { requestId, messages: UI_TEXTS },
+    );
 }
 
 function escapeHtml(value) {
@@ -2440,324 +1819,6 @@ function populateEmployeesFor(prefix, groups) {
     updateEmployees();
 }
 
-function renderDepartmentSelect() {
-    const select = document.getElementById("fp-employee-department");
-    if (!select) return;
-    select.innerHTML = "";
-    Object.keys(assigneeGroups)
-        .sort((a, b) => a.localeCompare(b))
-        .forEach((group) => {
-            const option = document.createElement("option");
-            option.value = group;
-            option.textContent = group;
-            select.appendChild(option);
-        });
-}
-
-function renderDepartmentList() {
-    const list = document.getElementById("fp-departments-list");
-    if (!list) return;
-    list.innerHTML = "";
-    const groups = Object.keys(assigneeGroups).sort((a, b) =>
-        a.localeCompare(b),
-    );
-    if (!groups.length) {
-        list.textContent = UI_TEXTS.emptyDepartment;
-        return;
-    }
-    groups.forEach((group) => {
-        const row = document.createElement("div");
-        row.className = "fp-assignees-row";
-
-        const actions = document.createElement("div");
-        actions.className = "fp-assignees-row__actions";
-
-        if (editingDepartment === group) {
-            const input = document.createElement("input");
-            input.className = "fp-field__input";
-            input.value = group;
-            input.addEventListener("keydown", (event) => {
-                if (event.key === "Enter") {
-                    event.preventDefault();
-                    save.click();
-                }
-            });
-
-            const save = document.createElement("button");
-            save.type = "button";
-            save.className = "fp-assignees-link";
-            save.textContent = "Salva";
-            save.addEventListener("click", () => {
-                const trimmed = input.value.trim();
-                if (!trimmed || trimmed === group) {
-                    editingDepartment = null;
-                    renderDepartmentList();
-                    return;
-                }
-                if (assigneeGroups[trimmed]) return;
-                assigneeGroups[trimmed] = assigneeGroups[group];
-                delete assigneeGroups[group];
-                const migratedEmails = { ...assigneeEmails };
-                (assigneeGroups[trimmed] || []).forEach((name) => {
-                    const oldKey = getAssigneeEmailKey(group, name);
-                    const newKey = getAssigneeEmailKey(trimmed, name);
-                    if (migratedEmails[oldKey]) {
-                        migratedEmails[newKey] = migratedEmails[oldKey];
-                        delete migratedEmails[oldKey];
-                    }
-                });
-                assigneeEmails = migratedEmails;
-                if (editingEmployee && editingEmployee.group === group) {
-                    editingEmployee = { ...editingEmployee, group: trimmed };
-                }
-                assigneeOptions = Object.values(assigneeGroups).flat();
-                void saveAssigneeOptionsRemote({
-                    groups: assigneeGroups,
-                    emails: assigneeEmails,
-                });
-                syncBalancesAfterAssignees();
-                editingDepartment = null;
-                renderDepartmentList();
-                renderEmployeesList();
-                renderDepartmentSelect();
-                populateEmployees();
-            });
-
-            const cancel = document.createElement("button");
-            cancel.type = "button";
-            cancel.className = "fp-assignees-link fp-assignees-link--danger";
-            cancel.textContent = "Annulla";
-            cancel.addEventListener("click", () => {
-                editingDepartment = null;
-                renderDepartmentList();
-            });
-
-            row.appendChild(input);
-            actions.appendChild(save);
-            actions.appendChild(cancel);
-        } else {
-            const label = document.createElement("div");
-            label.textContent = group;
-
-            const edit = document.createElement("button");
-            edit.type = "button";
-            edit.className = "fp-assignees-link";
-            edit.textContent = "Modifica";
-            edit.addEventListener("click", () => {
-                editingDepartment = group;
-                renderDepartmentList();
-            });
-
-            const remove = document.createElement("button");
-            remove.type = "button";
-            remove.className = "fp-assignees-link fp-assignees-link--danger";
-            remove.textContent = "Rimuovi";
-            remove.addEventListener("click", () => {
-                if (!window.confirm(`Rimuovere il reparto \"${group}\"?`))
-                    return;
-                const list = Array.isArray(assigneeGroups[group])
-                    ? [...assigneeGroups[group]]
-                    : [];
-                delete assigneeGroups[group];
-                const nextEmails = { ...assigneeEmails };
-                list.forEach((name) => {
-                    delete nextEmails[getAssigneeEmailKey(group, name)];
-                });
-                assigneeEmails = nextEmails;
-                assigneeOptions = Object.values(assigneeGroups).flat();
-                void saveAssigneeOptionsRemote({
-                    groups: assigneeGroups,
-                    emails: assigneeEmails,
-                });
-                syncBalancesAfterAssignees();
-                renderDepartmentList();
-                renderDepartmentSelect();
-                populateEmployees();
-            });
-
-            row.appendChild(label);
-            actions.appendChild(edit);
-            actions.appendChild(remove);
-        }
-
-        row.appendChild(actions);
-        list.appendChild(row);
-    });
-}
-
-function renderEmployeesList() {
-    const list = document.getElementById("fp-employees-list");
-    if (!list) return;
-    list.innerHTML = "";
-    const groups = Object.keys(assigneeGroups).sort((a, b) =>
-        a.localeCompare(b),
-    );
-    const employees = [];
-    groups.forEach((group) => {
-        (assigneeGroups[group] || []).forEach((name) => {
-            employees.push({ group, name });
-        });
-    });
-    if (!employees.length) {
-        list.textContent = UI_TEXTS.emptyEmployee;
-        return;
-    }
-    employees.sort((a, b) => {
-        const nameCompare = a.name.localeCompare(b.name);
-        if (nameCompare !== 0) return nameCompare;
-        return a.group.localeCompare(b.group);
-    });
-    employees.forEach((employee) => {
-        const row = document.createElement("div");
-        row.className = "fp-assignees-row fp-assignees-row--employee";
-
-        const actions = document.createElement("div");
-        actions.className = "fp-assignees-row__actions";
-
-        if (
-            editingEmployee &&
-            editingEmployee.name === employee.name &&
-            editingEmployee.group === employee.group
-        ) {
-            row.classList.add("fp-assignees-row--employee-edit");
-            const select = document.createElement("select");
-            select.className = "fp-field__input";
-            Object.keys(assigneeGroups)
-                .sort((a, b) => a.localeCompare(b))
-                .forEach((group) => {
-                    const option = document.createElement("option");
-                    option.value = group;
-                    option.textContent = group;
-                    if (group === employee.group) option.selected = true;
-                    select.appendChild(option);
-                });
-
-            const input = document.createElement("input");
-            input.className = "fp-field__input";
-            input.value = employee.name;
-            const emailInput = document.createElement("input");
-            emailInput.className = "fp-field__input";
-            emailInput.type = "email";
-            emailInput.placeholder = "Email (opzionale)";
-            emailInput.value = getAssigneeEmail(employee.group, employee.name);
-            input.addEventListener("keydown", (event) => {
-                if (event.key === "Enter") {
-                    event.preventDefault();
-                    save.click();
-                }
-            });
-
-            const save = document.createElement("button");
-            save.type = "button";
-            save.className = "fp-assignees-link";
-            save.textContent = "Salva";
-            save.addEventListener("click", () => {
-                const trimmedName = input.value.trim();
-                const trimmedGroup = select.value;
-                const trimmedEmail = emailInput.value.trim();
-                if (!trimmedName || !trimmedGroup) return;
-                assigneeGroups[employee.group] = (
-                    assigneeGroups[employee.group] || []
-                ).filter((n) => n !== employee.name);
-                if (!assigneeGroups[trimmedGroup])
-                    assigneeGroups[trimmedGroup] = [];
-                assigneeGroups[trimmedGroup].push(trimmedName);
-                assigneeGroups[trimmedGroup].sort((a, b) => a.localeCompare(b));
-                if (assigneeGroups[employee.group].length === 0)
-                    delete assigneeGroups[employee.group];
-                const nextEmails = { ...assigneeEmails };
-                delete nextEmails[
-                    getAssigneeEmailKey(employee.group, employee.name)
-                ];
-                if (trimmedEmail) {
-                    nextEmails[getAssigneeEmailKey(trimmedGroup, trimmedName)] =
-                        trimmedEmail;
-                }
-                assigneeEmails = nextEmails;
-                assigneeOptions = Object.values(assigneeGroups).flat();
-                void saveAssigneeOptionsRemote({
-                    groups: assigneeGroups,
-                    emails: assigneeEmails,
-                });
-                syncBalancesAfterAssignees();
-                editingEmployee = null;
-                renderEmployeesList();
-                renderDepartmentList();
-                renderDepartmentSelect();
-                populateEmployees();
-            });
-
-            const cancel = document.createElement("button");
-            cancel.type = "button";
-            cancel.className = "fp-assignees-link fp-assignees-link--danger";
-            cancel.textContent = "Annulla";
-            cancel.addEventListener("click", () => {
-                editingEmployee = null;
-                renderEmployeesList();
-            });
-
-            row.appendChild(select);
-            row.appendChild(input);
-            row.appendChild(emailInput);
-            actions.appendChild(save);
-            actions.appendChild(cancel);
-        } else {
-            const label = document.createElement("div");
-            const mail = getAssigneeEmail(employee.group, employee.name);
-            label.textContent = mail
-                ? `${employee.name} (${employee.group}) - ${mail}`
-                : `${employee.name} (${employee.group})`;
-
-            const edit = document.createElement("button");
-            edit.type = "button";
-            edit.className = "fp-assignees-link";
-            edit.textContent = "Modifica";
-            edit.addEventListener("click", () => {
-                editingEmployee = {
-                    name: employee.name,
-                    group: employee.group,
-                };
-                renderEmployeesList();
-            });
-
-            const remove = document.createElement("button");
-            remove.type = "button";
-            remove.className = "fp-assignees-link fp-assignees-link--danger";
-            remove.textContent = "Rimuovi";
-            remove.addEventListener("click", () => {
-                if (!window.confirm(`Rimuovere \"${employee.name}\"?`)) return;
-                assigneeGroups[employee.group] = (
-                    assigneeGroups[employee.group] || []
-                ).filter((n) => n !== employee.name);
-                if (assigneeGroups[employee.group].length === 0)
-                    delete assigneeGroups[employee.group];
-                const nextEmails = { ...assigneeEmails };
-                delete nextEmails[
-                    getAssigneeEmailKey(employee.group, employee.name)
-                ];
-                assigneeEmails = nextEmails;
-                assigneeOptions = Object.values(assigneeGroups).flat();
-                void saveAssigneeOptionsRemote({
-                    groups: assigneeGroups,
-                    emails: assigneeEmails,
-                });
-                syncBalancesAfterAssignees();
-                renderEmployeesList();
-                renderDepartmentList();
-                renderDepartmentSelect();
-                populateEmployees();
-            });
-
-            row.appendChild(label);
-            actions.appendChild(edit);
-            actions.appendChild(remove);
-        }
-
-        row.appendChild(actions);
-        list.appendChild(row);
-    });
-}
-
 function initDaysPicker(holidaysUi, closuresUi) {
     const openBtn = document.getElementById("fp-days-manage");
     const modal = document.getElementById("fp-days-picker-modal");
@@ -2831,7 +1892,7 @@ async function init() {
     } catch (err) {
         accessConfig = normalizeAccessConfig(DEFAULT_ACCESS_CONFIG);
     }
-    typeColors = loadColorSettings();
+    loadColorSettings();
     applyTypeColors();
     applyTheme(loadThemeSetting());
     const assigneesData = await loadAssigneeOptionsRemote();

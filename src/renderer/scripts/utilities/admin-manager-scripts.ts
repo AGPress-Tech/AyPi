@@ -26,6 +26,11 @@ const {
 const sharedDialogs = require("../shared/dialogs");
 const { requestBackend } = require("../shared/backend-client");
 const { createAsyncGuard } = require("../shared/async-guard");
+const {
+    isValidEmail,
+    isValidItalianPhone: isValidPhone,
+} = require("../shared/validation");
+const { normalizeAdminEntry } = require("../shared/admin-data");
 
 let adminCache = [];
 let adminEditingIndex = -1;
@@ -99,39 +104,6 @@ function setMessage(el, text, isError = false) {
 
 function setAdminMessage(id, text, isError = false) {
     setMessage(document.getElementById(id), text, isError);
-}
-
-function isValidEmail(value) {
-    if (!value) return true;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
-}
-
-function isValidPhone(value) {
-    if (!value) return false;
-    const trimmed = String(value || "").trim();
-    if (!trimmed.startsWith("+39")) return false;
-    const digits = trimmed.replace(/\D/g, "");
-    return digits.length >= 11 && digits.length <= 13;
-}
-
-function normalizeAdminEntry(item) {
-    return {
-        name: String(item?.name || "").trim(),
-        password: item?.password ? String(item.password) : undefined,
-        passwordHash: item?.passwordHash
-            ? String(item.passwordHash)
-            : undefined,
-        email: item?.email ? String(item.email) : "",
-        phone: item?.phone ? String(item.phone) : "",
-        accessCalendar:
-            typeof item?.accessCalendar === "boolean"
-                ? item.accessCalendar
-                : true,
-        accessPurchasing:
-            typeof item?.accessPurchasing === "boolean"
-                ? item.accessPurchasing
-                : true,
-    };
 }
 
 function loadAdminCredentials() {

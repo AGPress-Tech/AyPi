@@ -14,6 +14,8 @@ import { requestBackend } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { isValidEmail } from "../shared/validation";
+import { normalizeAdminEntry } from "../shared/admin-data";
 
 const ADMIN_EMAIL = "tech@agpress-srl.it";
 const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
@@ -95,25 +97,6 @@ const asyncGuard = createAsyncGuard({
 });
 
 asyncGuard.installGlobalHandlers();
-
-function isValidEmail(value) {
-    if (!value) return true;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));
-}
-
-function normalizeAdminEntry(item) {
-    return {
-        name: String(item?.name || "").trim(),
-        password: item?.password ? String(item.password) : undefined,
-        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
-        email: item?.email ? String(item.email) : "",
-        phone: item?.phone ? String(item.phone) : "",
-        accessCalendar:
-            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
-        accessPurchasing:
-            typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
-    };
-}
 
 function loadAdminCredentials() {
     return Array.isArray(adminCache) ? adminCache.map(normalizeAdminEntry) : [];

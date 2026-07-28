@@ -18,6 +18,10 @@ import {
     getSqliteDatabase,
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
+import {
+    parseJson,
+    serializeJson,
+} from "../../shared/storage/json-codec";
 import { loadAssigneeOptions } from "../shared/repository";
 
 const PURCHASING_DIR = backendConfig.modules.productManager.dir;
@@ -39,19 +43,6 @@ function ensureProductManagerBackup(prefix = "auto", limit = 30) {
         : createAgpressBackup(prefix, limit);
 }
 
-
-function serializeJson(value: unknown) {
-    return JSON.stringify(value ?? null);
-}
-
-function parseJson<T>(raw: unknown, fallback: T): T {
-    if (typeof raw !== "string" || !raw.trim()) return fallback;
-    try {
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
-    }
-}
 
 function ensureProductManagerSqliteSchema() {
     const database = getSqliteDatabase();
