@@ -2092,6 +2092,17 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("DOMContentLoaded", () => {
+    const appVersionElement = document.getElementById("appVersion");
+    if (appVersionElement) {
+        require("electron").ipcRenderer
+            .invoke("get-app-version")
+            .then((version: string) => {
+                appVersionElement.textContent = `AYPI v${version}`;
+            })
+            .catch((error: unknown) => {
+                console.error("Impossibile recuperare la versione di AyPi:", error);
+            });
+    }
     applyPersonalName();
     renderPage("moduli", false);
     initializeAssistant(currentAssistant);

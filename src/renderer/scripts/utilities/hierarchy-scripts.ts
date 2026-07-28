@@ -68,6 +68,39 @@ try {
 let Chart = null;
 let timelineChartInstance = null;
 let extChartInstance = null;
+
+function destroyStatsCharts() {
+    if (extChartInstance) {
+        extChartInstance.destroy();
+        extChartInstance = null;
+    }
+    if (timelineChartInstance) {
+        timelineChartInstance.destroy();
+        timelineChartInstance = null;
+    }
+}
+
+const hierarchyChartTheme = IS_BLUE_ARCHIVE_HIERARCHY
+    ? {
+          text: "#456b83",
+          grid: "rgba(38, 148, 207, 0.14)",
+          border: "rgba(38, 148, 207, 0.24)",
+          primary: "#168eea",
+          secondary: "#2fc7f3",
+          fill: "rgba(47, 199, 243, 0.16)",
+          tooltipBackground: "rgba(23, 36, 61, 0.94)",
+          tooltipText: "#eaf9ff",
+      }
+    : {
+          text: "#eee",
+          grid: "#444",
+          border: "#555",
+          primary: "#cc930e",
+          secondary: "#e6b33d",
+          fill: "rgba(204, 147, 14, 0.25)",
+          tooltipBackground: "rgba(20, 20, 20, 0.92)",
+          tooltipText: "#fff",
+      };
 try {
     Chart = require("chart.js/auto");
 } catch (err) {
@@ -1053,6 +1086,12 @@ function renderStatsPanel() {
 function renderStatsPanelV2() {
     const box = document.getElementById("detailsStatsBox");
     if (!box) return;
+
+    // Chart.js osserva le dimensioni del parent del canvas. I grafici devono
+    // essere distrutti prima che innerHTML rimuova i canvas dal documento,
+    // altrimenti il ResizeObserver può tentare di ridimensionarli da staccati.
+    destroyStatsCharts();
+
     if (!rootTree) {
         box.innerHTML =
             "<p class='muted'>Nessuna gerarchia disponibile. Esegui una scansione.</p>";
@@ -1175,10 +1214,6 @@ function renderStatsPanelV2() {
                 extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0,
             );
 
-            if (extChartInstance) {
-                extChartInstance.destroy();
-            }
-
             extChartInstance = new Chart(ctxExt, {
                 type: "bar",
                 data: {
@@ -1190,7 +1225,37 @@ function renderStatsPanelV2() {
                                     ? "File"
                                     : "Dimensione (byte)",
                             data: dataExt,
-                            backgroundColor: "#cc930e",
+                            backgroundColor(context) {
+                                if (!IS_BLUE_ARCHIVE_HIERARCHY) {
+                                    return hierarchyChartTheme.primary;
+                                }
+                                const { ctx, chartArea } = context.chart;
+                                if (!chartArea) {
+                                    return hierarchyChartTheme.primary;
+                                }
+                                const gradient = ctx.createLinearGradient(
+                                    chartArea.left,
+                                    0,
+                                    chartArea.right,
+                                    0,
+                                );
+                                gradient.addColorStop(
+                                    0,
+                                    hierarchyChartTheme.primary,
+                                );
+                                gradient.addColorStop(
+                                    1,
+                                    hierarchyChartTheme.secondary,
+                                );
+                                return gradient;
+                            },
+                            hoverBackgroundColor:
+                                hierarchyChartTheme.secondary,
+                            borderColor: hierarchyChartTheme.primary,
+                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 1 : 0,
+                            borderRadius: IS_BLUE_ARCHIVE_HIERARCHY ? 7 : 0,
+                            borderSkipped: false,
+                            barPercentage: IS_BLUE_ARCHIVE_HIERARCHY ? 0.72 : 0.9,
                         },
                     ],
                 },
@@ -1201,18 +1266,35 @@ function renderStatsPanelV2() {
                     scales: {
                         x: {
                             ticks: {
-                                color: "#eee",
+                                color: hierarchyChartTheme.text,
+                                font: {
+                                    family: '"Segoe UI", sans-serif',
+                                    size: 10,
+                                },
                             },
                             grid: {
-                                color: "#444",
+                                color: hierarchyChartTheme.grid,
+                                drawTicks: false,
+                            },
+                            border: {
+                                color: hierarchyChartTheme.border,
                             },
                         },
                         y: {
                             ticks: {
-                                color: "#eee",
+                                color: hierarchyChartTheme.text,
+                                padding: 8,
+                                font: {
+                                    family: '"Segoe UI", sans-serif',
+                                    size: 10,
+                                    weight: "600",
+                                },
                             },
                             grid: {
-                                color: "#444",
+                                display: false,
+                            },
+                            border: {
+                                color: hierarchyChartTheme.border,
                             },
                         },
                     },
@@ -1221,6 +1303,15 @@ function renderStatsPanelV2() {
                             display: false,
                         },
                         tooltip: {
+                            backgroundColor:
+                                hierarchyChartTheme.tooltipBackground,
+                            titleColor: "#ffffff",
+                            bodyColor: hierarchyChartTheme.tooltipText,
+                            borderColor: hierarchyChartTheme.secondary,
+                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 1 : 0,
+                            cornerRadius: 8,
+                            padding: 10,
+                            displayColors: false,
                             callbacks: {
                                 label(context) {
                                     const v = context.parsed.x || 0;
@@ -1341,10 +1432,6 @@ function renderStatsPanelV2() {
             const labels = filteredBuckets.map((b) => b.label);
             const data = filteredBuckets.map((b) => b.count);
 
-            if (timelineChartInstance) {
-                timelineChartInstance.destroy();
-            }
-
             timelineChartInstance = new Chart(ctx, {
                 type: "line",
                 data: {
@@ -1353,10 +1440,39 @@ function renderStatsPanelV2() {
                         {
                             label: "File modificati",
                             data,
-                            borderColor: "#cc930e",
-                            backgroundColor: "rgba(204,147,14,0.25)",
-                            tension: 0.25,
-                            pointRadius: 2,
+                            borderColor: hierarchyChartTheme.primary,
+                            backgroundColor(context) {
+                                if (!IS_BLUE_ARCHIVE_HIERARCHY) {
+                                    return hierarchyChartTheme.fill;
+                                }
+                                const { ctx, chartArea } = context.chart;
+                                if (!chartArea) {
+                                    return hierarchyChartTheme.fill;
+                                }
+                                const gradient = ctx.createLinearGradient(
+                                    0,
+                                    chartArea.top,
+                                    0,
+                                    chartArea.bottom,
+                                );
+                                gradient.addColorStop(
+                                    0,
+                                    "rgba(47, 199, 243, 0.32)",
+                                );
+                                gradient.addColorStop(
+                                    1,
+                                    "rgba(47, 199, 243, 0.02)",
+                                );
+                                return gradient;
+                            },
+                            fill: IS_BLUE_ARCHIVE_HIERARCHY,
+                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 3 : 2,
+                            tension: IS_BLUE_ARCHIVE_HIERARCHY ? 0.36 : 0.25,
+                            pointRadius: IS_BLUE_ARCHIVE_HIERARCHY ? 3 : 2,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: "#ffffff",
+                            pointBorderColor: hierarchyChartTheme.primary,
+                            pointBorderWidth: 2,
                         },
                     ],
                 },
@@ -1372,19 +1488,37 @@ function renderStatsPanelV2() {
                             ticks: {
                                 autoSkip: true,
                                 maxTicksLimit: 12,
-                                color: "#eee",
+                                color: hierarchyChartTheme.text,
+                                padding: 8,
+                                font: {
+                                    family: '"Segoe UI", sans-serif',
+                                    size: 10,
+                                },
                             },
                             grid: {
-                                color: "#444",
+                                color: hierarchyChartTheme.grid,
+                                drawTicks: false,
+                            },
+                            border: {
+                                color: hierarchyChartTheme.border,
                             },
                         },
                         y: {
                             beginAtZero: true,
                             ticks: {
-                                color: "#eee",
+                                color: hierarchyChartTheme.text,
+                                padding: 8,
+                                font: {
+                                    family: '"Segoe UI", sans-serif',
+                                    size: 10,
+                                },
                             },
                             grid: {
-                                color: "#444",
+                                color: hierarchyChartTheme.grid,
+                                drawTicks: false,
+                            },
+                            border: {
+                                color: hierarchyChartTheme.border,
                             },
                         },
                     },
@@ -1394,6 +1528,15 @@ function renderStatsPanelV2() {
                         },
                         tooltip: {
                             enabled: true,
+                            backgroundColor:
+                                hierarchyChartTheme.tooltipBackground,
+                            titleColor: "#ffffff",
+                            bodyColor: hierarchyChartTheme.tooltipText,
+                            borderColor: hierarchyChartTheme.secondary,
+                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 1 : 0,
+                            cornerRadius: 8,
+                            padding: 10,
+                            displayColors: false,
                         },
                     },
                     animations: {
@@ -1446,9 +1589,6 @@ function renderStatsPanelV2() {
                     applyYearFilter();
                 }
             });
-            yearFromInput.addEventListener("blur", () => {
-                applyYearFilter();
-            });
         }
         if (yearToInput) {
             yearToInput.addEventListener("change", () => {
@@ -1459,9 +1599,6 @@ function renderStatsPanelV2() {
                     e.preventDefault();
                     applyYearFilter();
                 }
-            });
-            yearToInput.addEventListener("blur", () => {
-                applyYearFilter();
             });
         }
     } else {
