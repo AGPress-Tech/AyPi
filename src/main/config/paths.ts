@@ -1,6 +1,5 @@
 export const NETWORK_PATHS = {
     dl360ServerCheck: "\\\\Dl360\\private\\AyPi Server Validator.txt",
-    amministrazioneObiettivi: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\amministrazione-obiettivi.json",
 };
 
 export const PRODUZIONE_FILES = [

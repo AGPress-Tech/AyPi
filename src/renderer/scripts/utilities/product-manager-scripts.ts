@@ -2377,3 +2377,49 @@ ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
 ipcRenderer.on("pm-session-updated", (_event, payload) => {
     applySharedSession(payload);
 });
+
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeRefreshInFlight = false;
+
+async function refreshProductManagerRealtime(includeShared: boolean) {
+    if (realtimeRefreshInFlight) return;
+    realtimeRefreshInFlight = true;
+    try {
+        await hydrateProductManagerData();
+        if (includeShared) {
+            await hydrateAdminCacheRemote();
+        }
+        syncAssignees();
+        renderLoginSelectors();
+        renderAdminSelect();
+        renderCatalog();
+        renderCategoryOptions();
+        renderCatalogFilterOptions();
+        renderCartTagFilterOptions();
+        renderCartUrgencyFilterOptions();
+        renderCartStatusFilterOptions();
+        renderCartTable();
+    } catch (error) {
+        console.error("[realtime] Aggiornamento Product Manager fallito:", error);
+    } finally {
+        realtimeRefreshInFlight = false;
+    }
+}
+
+ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
+    if (
+        realtimeEvent?.module !== "purchasing" &&
+        realtimeEvent?.module !== "shared" &&
+        realtimeEvent?.module !== "*"
+    ) {
+        return;
+    }
+    if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => {
+        realtimeRefreshTimer = null;
+        void refreshProductManagerRealtime(
+            realtimeEvent?.module === "shared" ||
+                realtimeEvent?.module === "*",
+        );
+    }, 180);
+});

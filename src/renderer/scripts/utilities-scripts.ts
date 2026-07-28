@@ -219,51 +219,12 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    const btnAdmin = document.getElementById("amministrazione");
+    const btnProductionPlanner = document.getElementById("productionPlanner");
     const btnFeriePermessi = document.getElementById("feriePermessi");
-    const adminOverlay = document.getElementById("adminOverlay");
-    const adminPassword = document.getElementById("adminPassword");
-    const adminError = document.getElementById("adminError");
-    const adminCancel = document.getElementById("adminCancel");
-    const adminConfirm = document.getElementById("adminConfirm");
-    let adminPromptAction = null;
 
-    function closeAdminPrompt() {
-        if (!adminOverlay) return;
-        adminOverlay.classList.add("is-hidden");
-        adminOverlay.setAttribute("aria-hidden", "true");
-        if (adminPassword) adminPassword.value = "";
-        if (adminError) adminError.classList.add("is-hidden");
-    }
-
-    function openAdminPrompt() {
-        if (!adminOverlay) return;
-        adminOverlay.classList.remove("is-hidden");
-        adminOverlay.setAttribute("aria-hidden", "false");
-        if (adminPassword) {
-            adminPassword.focus();
-            adminPassword.select();
-        }
-    }
-
-    async function confirmAdminPassword() {
-        const password = adminPassword ? adminPassword.value : "";
-        if (!password) {
-            if (adminError) adminError.classList.remove("is-hidden");
-            return;
-        }
-        if (password !== "AGPress") {
-            if (adminError) adminError.classList.remove("is-hidden");
-            return;
-        }
-        closeAdminPrompt();
-        ipcRenderer.send("open-amministrazione-window");
-    }
-
-    if (btnAdmin) {
-        btnAdmin.addEventListener("click", () => {
-            adminPromptAction = "open-amministrazione";
-            openAdminPrompt();
+    if (btnProductionPlanner) {
+        btnProductionPlanner.addEventListener("click", () => {
+            ipcRenderer.send("open-production-planner-window");
         });
     }
 
@@ -280,35 +241,4 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    if (adminCancel) {
-        adminCancel.addEventListener("click", () => {
-            closeAdminPrompt();
-        });
-    }
-
-    if (adminConfirm) {
-        adminConfirm.addEventListener("click", () => {
-            confirmAdminPassword();
-        });
-    }
-
-    if (adminPassword) {
-        adminPassword.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                confirmAdminPassword();
-            } else if (event.key === "Escape") {
-                event.preventDefault();
-                closeAdminPrompt();
-            }
-        });
-    }
-
-    window.addEventListener("keydown", async (event) => {
-        if (event.key === "F2") {
-            event.preventDefault();
-            adminPromptAction = "open-amministrazione";
-            openAdminPrompt();
-        }
-    });
 });

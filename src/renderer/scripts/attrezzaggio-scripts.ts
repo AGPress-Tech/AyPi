@@ -2296,6 +2296,35 @@ ipcRenderer.on(
 ipcRenderer.on("attrezzaggio-add-row-shortcut", () => {
     addActiveToolRowFromKeyboard();
 });
+
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
+    if (
+        realtimeEvent?.module !== "transfer" &&
+        realtimeEvent?.module !== "attrezzaggio" &&
+        realtimeEvent?.module !== "*"
+    ) {
+        return;
+    }
+    if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => {
+        realtimeRefreshTimer = null;
+        if (
+            (realtimeEvent?.module === "transfer" ||
+                realtimeEvent?.module === "*") &&
+            isViewVisible(listView)
+        ) {
+            void loadList();
+        }
+        if (
+            (realtimeEvent?.module === "attrezzaggio" ||
+                realtimeEvent?.module === "*") &&
+            isViewVisible(haasListView)
+        ) {
+            void loadHaasList();
+        }
+    }, 180);
+});
 document.getElementById("addRowBtn")?.addEventListener("click", () => addRow());
 
 document.addEventListener(

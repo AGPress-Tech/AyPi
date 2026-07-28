@@ -50,11 +50,6 @@ try {
     // Non-blocking: UI can still attempt live git access in dev.
 }
 
-// Copy required vendor assets from node_modules (renderer expects these paths)
-const ganttSrc = path.join(rootDir, "node_modules", "dhtmlx-gantt", "codebase");
-const ganttDest = path.join(distDir, "node_modules", "dhtmlx-gantt", "codebase");
-copyDir(ganttSrc, ganttDest);
-
 // Copy legacy JS modules that are not in TS
 const legacyUpdater = path.join(rootDir, "modules", "updater.js");
 if (fs.existsSync(legacyUpdater)) {

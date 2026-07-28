@@ -5,6 +5,7 @@ import { registerProductManagerRoutes } from "../modules/product-manager/routes"
 import { registerTicketSupportRoutes } from "../modules/ticket-support/routes";
 import { registerTransferAttrezzaggioRoutes } from "../modules/transfer-attrezzaggio/routes";
 import { registerHaasAttrezzaggioRoutes } from "../modules/haas-attrezzaggio/routes";
+import { registerProductionPlannerRoutes } from "../modules/production-planner/routes";
 import { sendJson } from "../shared/http/response";
 import { backendConfig } from "../config";
 
@@ -20,10 +21,15 @@ export function registerRoutes(router: Router) {
                 "ticket-support",
                 "transfer-attrezzaggio",
                 "haas-attrezzaggio",
+                "production-planner",
             ],
             host: backendConfig.advertisedHost,
             port: backendConfig.port,
             profile: backendConfig.profile,
+            realtime: {
+                transport: "websocket",
+                path: "/ws",
+            },
         });
     });
 
@@ -33,4 +39,5 @@ export function registerRoutes(router: Router) {
     registerTicketSupportRoutes(router);
     registerTransferAttrezzaggioRoutes(router);
     registerHaasAttrezzaggioRoutes(router);
+    registerProductionPlannerRoutes(router);
 }

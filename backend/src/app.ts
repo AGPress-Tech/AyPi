@@ -11,6 +11,8 @@ import { initializeProductManagerSqliteStore } from "./modules/product-manager/r
 import { initializeTicketSupportSqliteStore } from "./modules/ticket-support/repository";
 import { initializeTransferSqliteStore } from "./modules/transfer-attrezzaggio/repository";
 import { initializeHaasSqliteStore } from "./modules/haas-attrezzaggio/repository";
+import { initializeProductionPlannerSqliteStore } from "./modules/production-planner/repository";
+import { releaseProductionPlannerWaiters } from "./modules/production-planner/service";
 import { normalizeAgpressLayout } from "./shared/storage/agpress-layout";
 import {
     getRequestClient,
@@ -18,6 +20,11 @@ import {
     getRequestUser,
     setRequestId,
 } from "./shared/http/context";
+import {
+    attachRealtimeHub,
+    closeRealtimeHub,
+    type RealtimeModule,
+} from "./shared/realtime/websocket-hub";
 
 export type BackendServerHandle = {
     host: string;
@@ -39,13 +46,14 @@ export function buildBackendUrl() {
     return `http://${backendConfig.advertisedHost}:${backendConfig.port}`;
 }
 
-function inferRequestModule(requestUrl: string) {
+function inferRequestModule(requestUrl: string): RealtimeModule {
     const normalizedUrl = String(requestUrl || "").toLowerCase();
     if (normalizedUrl.includes("/api/ferie-permessi/")) return "calendar";
     if (normalizedUrl.includes("/api/product-manager/")) return "purchasing";
     if (normalizedUrl.includes("/api/ticket-support/")) return "ticket";
     if (normalizedUrl.includes("/api/transfer-attrezzaggio/")) return "transfer";
     if (normalizedUrl.includes("/api/haas-attrezzaggio/")) return "attrezzaggio";
+    if (normalizedUrl.includes("/api/production-planner/")) return "production-planner";
     if (normalizedUrl.includes("/api/shared/")) return "shared";
     return "core";
 }
@@ -55,7 +63,9 @@ function shouldSkipHttpAccessLog(method: string, requestUrl: string) {
     const normalizedUrl = String(requestUrl || "").toLowerCase();
     return (
         normalizedMethod === "GET" &&
-        normalizedUrl === "/api/ferie-permessi/payload"
+        (normalizedUrl === "/api/ferie-permessi/payload" ||
+            normalizedUrl === "/api/production-planner/revision" ||
+            normalizedUrl.startsWith("/api/production-planner/changes/"))
     );
 }
 
@@ -66,7 +76,8 @@ export function createBackendServer(
     registerRoutes(router);
     const nextRequestId = buildRequestIdFactory();
 
-    return http.createServer(async (request, response) => {
+    let realtimeHub: ReturnType<typeof attachRealtimeHub>;
+    const server = http.createServer(async (request, response) => {
         const startedAt = Date.now();
         const method = (request.method || "GET").toUpperCase();
         const requestUrl = request.url || "/";
@@ -76,6 +87,24 @@ export function createBackendServer(
         const requestId = nextRequestId();
         setRequestId(request, requestId);
         response.setHeader("x-aypi-request-id", requestId);
+        if (
+            ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+            requestUrl.toLowerCase().startsWith("/api/")
+        ) {
+            response.once("finish", () => {
+                if (response.statusCode < 200 || response.statusCode >= 300) {
+                    return;
+                }
+                realtimeHub.publish({
+                    module,
+                    method,
+                    path: requestUrl.split("?")[0],
+                    requestId,
+                    actor: getRequestUser(request),
+                    source: getRequestClient(request),
+                });
+            });
+        }
 
         response.setHeader("Access-Control-Allow-Origin", "*");
         response.setHeader(
@@ -149,6 +178,8 @@ export function createBackendServer(
             sendError(response, error);
         }
     });
+    realtimeHub = attachRealtimeHub(server);
+    return server;
 }
 
 export async function startBackendServer(): Promise<BackendServerHandle> {
@@ -171,6 +202,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
         const onError = (error: Error) => {
             server.off("listening", onListening);
             rejectReady(error);
+            closeRealtimeHub(server);
             reject(error);
         };
 
@@ -187,6 +219,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 initializeTicketSupportSqliteStore();
                 initializeTransferSqliteStore();
                 initializeHaasSqliteStore();
+                initializeProductionPlannerSqliteStore();
                 resolveReady();
 
                 logger.info("AyPi backend listening", {
@@ -208,6 +241,8 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                     server,
                     stop: () =>
                         new Promise<void>((stopResolve, stopReject) => {
+                            releaseProductionPlannerWaiters();
+                            closeRealtimeHub(server);
                             server.close((closeErr) => {
                                 if (closeErr) {
                                     stopReject(closeErr);
@@ -231,6 +266,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 });
             } catch (error) {
                 rejectReady(error);
+                closeRealtimeHub(server);
                 server.close(() => {});
                 try {
                     closeSqliteDatabase();

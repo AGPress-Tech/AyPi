@@ -11,7 +11,7 @@ export type BackendRequestOptions = {
 
 export function resolveAypiBackendBaseUrl() {
     const ferieBaseUrl = resolveFpBackendBaseUrl();
-    log.info("[ferie-permessi] backend base url:", ferieBaseUrl);
+    log.debug("[backend] base url:", ferieBaseUrl);
     return ferieBaseUrl.replace(/\/api\/ferie-permessi\/?$/i, "");
 }
 
@@ -25,6 +25,9 @@ export async function requestAypiBackend(
     const method = String(options?.method || "GET").toUpperCase();
     const headers = {
         "Content-Type": "application/json",
+        "x-aypi-user":
+            process.env.USERNAME || process.env.USER || "Operatore AyPi",
+        "x-aypi-client": "AyPi-Electron-Main",
         ...(options?.headers || {}),
     };
     const body =

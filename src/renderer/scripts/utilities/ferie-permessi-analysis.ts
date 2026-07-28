@@ -1078,6 +1078,22 @@ async function refreshAnalysisData() {
     }
 }
 
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
+    if (
+        realtimeEvent?.module !== "calendar" &&
+        realtimeEvent?.module !== "shared" &&
+        realtimeEvent?.module !== "*"
+    ) {
+        return;
+    }
+    if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => {
+        realtimeRefreshTimer = null;
+        void refreshAnalysisData();
+    }, 180);
+});
+
 async function init() {
     applyTheme();
     resetFilters();

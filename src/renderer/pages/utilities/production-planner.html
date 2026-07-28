@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Pianificazione Produzione</title>
+    <link rel="stylesheet" href="../../styles/utilities/production-planner-style.css">
+</head>
+
+<body>
+    <div class="planner-app">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand__mark">A<span>π</span></div>
+                <div>
+                    <div class="eyebrow">AYPI · PRODUZIONE</div>
+                    <h1>Pianificazione reparti</h1>
+                </div>
+            </div>
+
+            <div class="topbar__actions">
+                <div class="sync-status" id="sync-status" data-status="connecting" title="Stato sincronizzazione">
+                    <i></i>
+                    <span id="sync-status-text">Connessione…</span>
+                </div>
+                <button class="button button--ghost refresh-button" id="refresh-planner" type="button" title="Carica subito gli ultimi dati">
+                    <span>↻</span> Aggiorna
+                </button>
+                <button class="button button--ghost" id="manage-unavailability" type="button">Fermi macchina</button>
+                <button class="button button--ghost" id="manage-closures" type="button">Chiusure / Ferie</button>
+                <button class="button button--ghost" id="manage-machines" type="button">Macchine</button>
+                <button class="button button--primary" id="new-job" type="button">+ Nuova lavorazione</button>
+            </div>
+        </header>
+
+        <section class="summary" aria-label="Riepilogo pianificazione">
+            <article class="summary-card">
+                <span>Programmate</span>
+                <strong id="stat-planned">0</strong>
+                <small>nel periodo visibile</small>
+            </article>
+            <article class="summary-card summary-card--warning">
+                <span>Da pianificare</span>
+                <strong id="stat-backlog">0</strong>
+                <small>in attesa di macchina</small>
+            </article>
+            <article class="summary-card summary-card--danger">
+                <span>Conflitti</span>
+                <strong id="stat-conflicts">0</strong>
+                <small>sovrapposizioni macchina</small>
+            </article>
+            <article class="summary-card summary-card--late">
+                <span>In ritardo</span>
+                <strong id="stat-late">0</strong>
+                <small>oltre la consegna prevista</small>
+            </article>
+        </section>
+
+        <section class="controls">
+            <div class="date-controls">
+                <button class="icon-button" id="previous-period" type="button" aria-label="Periodo precedente">‹</button>
+                <button class="button button--ghost" id="today" type="button">Oggi</button>
+                <input class="quick-date-picker" id="quick-date-picker" type="date" aria-label="Vai rapidamente a una data">
+                <button class="icon-button" id="next-period" type="button" aria-label="Periodo successivo">›</button>
+                <div>
+                    <span class="eyebrow">PERIODO</span>
+                    <strong id="period-label"></strong>
+                </div>
+            </div>
+
+            <div class="filters">
+                <label class="search">
+                    <span>⌕</span>
+                    <input id="search-filter" type="search" placeholder="Cliente, articolo, lotto o fase">
+                </label>
+                <details class="multi-filter" id="department-filter">
+                    <summary>Reparti</summary>
+                    <div class="multi-filter__menu" id="department-filter-options"></div>
+                </details>
+                <details class="multi-filter" id="category-filter">
+                    <summary>Categorie</summary>
+                    <div class="multi-filter__menu" id="category-filter-options"></div>
+                </details>
+                <details class="multi-filter" id="machine-filter">
+                    <summary>Macchine</summary>
+                    <div class="multi-filter__menu" id="machine-filter-options"></div>
+                </details>
+                <details class="multi-filter" id="material-filter">
+                    <summary>Disponibilità materiale</summary>
+                    <div class="multi-filter__menu" id="material-filter-options"></div>
+                </details>
+                <select id="range-select" aria-label="Giorni visualizzati">
+                    <option value="7">7 giorni</option>
+                    <option value="14" selected>14 giorni</option>
+                    <option value="28">28 giorni</option>
+                </select>
+            </div>
+        </section>
+
+        <main class="workspace">
+            <aside class="backlog" id="backlog-dropzone">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">CODA</span>
+                        <h2>Da pianificare</h2>
+                    </div>
+                    <span class="count-badge" id="backlog-count">0</span>
+                </div>
+                <p class="panel-help">Trascina una lavorazione su una macchina e sul giorno desiderato.</p>
+                <div class="backlog__list" id="backlog-list"></div>
+            </aside>
+
+            <section class="timeline-panel">
+                <div class="timeline-legend">
+                    <div class="legend-group">
+                        <span class="legend-title">Materiale</span>
+                        <span><i class="dot dot--available"></i>Disponibile</span>
+                        <span><i class="dot dot--incoming"></i>In arrivo</span>
+                        <span><i class="dot dot--missing"></i>Non disponibile</span>
+                        <span><i class="dot dot--verification"></i>Da verificare</span>
+                    </div>
+                    <div class="legend-group">
+                        <span class="legend-title">Lavorazione</span>
+                        <span><i class="status-mark status-mark--planned"></i>Non ancora iniziato</span>
+                        <span><i class="status-mark status-mark--running"></i>In corso</span>
+                        <span><i class="status-mark status-mark--done"></i>Terminato</span>
+                        <span><i class="status-mark status-mark--unavailable"></i>Fermo macchina</span>
+                    </div>
+                </div>
+
+                <div class="timeline-scroll" id="timeline-scroll">
+                    <div class="timeline" id="timeline"></div>
+                </div>
+            </section>
+        </main>
+
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="dialog-backdrop" id="job-dialog" aria-hidden="true">
+        <form class="dialog" id="job-form">
+            <header class="dialog__header">
+                <div>
+                    <span class="eyebrow">LAVORAZIONE</span>
+                    <h2 id="job-dialog-title">Nuova lavorazione</h2>
+                </div>
+                <button class="dialog__close" data-close-dialog type="button" aria-label="Chiudi">×</button>
+            </header>
+
+            <input id="job-id" type="hidden">
+            <div class="form-grid">
+                <label>Cliente<input id="job-customer" required maxlength="80"></label>
+                <label>Codice articolo<input id="job-article" required maxlength="80"></label>
+                <label>Lotto di produzione <span class="optional-label">Opzionale</span><input id="job-lot" maxlength="80" placeholder="Es. LOT-2026-0142"></label>
+                <label>Riferimento ordine <span class="optional-label">Opzionale</span><input id="job-order-reference" maxlength="80" placeholder="Ordine o commessa"></label>
+                <label class="form-grid__wide">Fase di lavorazione <span class="optional-label">Opzionale</span><input id="job-phase" maxlength="120"></label>
+                <label>Quantità<input id="job-quantity" type="number" min="0" step="1"></label>
+                <label>Unità
+                    <select id="job-unit">
+                        <option value="pz">pezzi</option>
+                        <option value="kg">kg</option>
+                    </select>
+                </label>
+                <label>Macchina
+                    <select id="job-machine">
+                        <option value="">Da pianificare</option>
+                    </select>
+                </label>
+                <label>Priorità
+                    <select id="job-priority">
+                        <option value="normal">Normale</option>
+                        <option value="high">Alta</option>
+                        <option value="urgent">Urgente</option>
+                    </select>
+                </label>
+                <label id="job-start-field">Inizio previsto
+                    <input id="job-start" type="date">
+                    <small class="field-hint" id="job-start-hint">Disponibile dopo aver scelto una macchina.</small>
+                </label>
+                <label>Durata produzione
+                    <span class="field-with-suffix">
+                        <input id="job-duration" type="number" min="1" step="1" value="1" required>
+                        <span>giorni lavorativi</span>
+                    </span>
+                </label>
+                <label>Consegna<input id="job-due" type="date"></label>
+                <label>Prima consegna<input id="job-first-delivery" type="date"></label>
+                <label>Quantità prima consegna <span class="optional-label">Opzionale</span><input id="job-first-delivery-quantity" type="number" min="0" step="1"></label>
+                <label>Stato materiale
+                    <select id="job-material">
+                        <option value="available">Disponibile</option>
+                        <option value="incoming">In arrivo</option>
+                        <option value="missing">Non disponibile</option>
+                        <option value="verification">Da verificare</option>
+                    </select>
+                </label>
+                <label>Stato lavorazione
+                    <select id="job-status">
+                        <option value="not_started">Non ancora iniziato</option>
+                        <option value="running">In corso</option>
+                        <option value="done">Terminato</option>
+                    </select>
+                </label>
+                <label class="form-grid__wide">Note<textarea id="job-notes" rows="3" maxlength="600"></textarea></label>
+            </div>
+            <div class="form-error" id="job-form-error"></div>
+            <footer class="dialog__footer">
+                <button class="button button--danger button--hidden" id="delete-job" type="button">Elimina</button>
+                <span class="dialog__spacer"></span>
+                <button class="button button--ghost" data-close-dialog type="button">Annulla</button>
+                <button class="button button--primary" type="submit">Salva lavorazione</button>
+            </footer>
+        </form>
+    </div>
+
+    <div class="dialog-backdrop" id="machines-dialog" aria-hidden="true">
+        <section class="dialog dialog--compact">
+            <header class="dialog__header">
+                <div>
+                    <span class="eyebrow">RISORSE</span>
+                    <h2>Macchine, reparti e categorie</h2>
+                </div>
+                <button class="dialog__close" data-close-machines type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="machine-list" id="machine-list"></div>
+            <form class="machine-add" id="machine-form">
+                <input id="machine-name" required placeholder="Nome macchina">
+                <input id="machine-department" required placeholder="Reparto">
+                <input id="machine-category" required placeholder="Categoria">
+                <input id="machine-color" type="color" value="#2478c8" aria-label="Colore">
+                <button class="button button--primary" type="submit">Aggiungi</button>
+            </form>
+        </section>
+    </div>
+
+    <div class="dialog-backdrop" id="unavailability-dialog" aria-hidden="true">
+        <section class="dialog dialog--compact">
+            <header class="dialog__header">
+                <div>
+                    <span class="eyebrow">CALENDARIO MACCHINE</span>
+                    <h2>Fermi macchina</h2>
+                </div>
+                <button class="dialog__close" data-close-unavailability type="button" aria-label="Chiudi">×</button>
+            </header>
+            <p class="dialog__intro">Inserisci un guasto o una manutenzione per una singola macchina.</p>
+            <div class="unavailability-list" id="unavailability-list"></div>
+            <form class="unavailability-form" id="unavailability-form">
+                <label>Macchina<select id="unavailability-machine" required></select></label>
+                <label>Tipo
+                    <select id="unavailability-type">
+                        <option value="breakdown">Guasto</option>
+                        <option value="maintenance">Manutenzione</option>
+                    </select>
+                </label>
+                <label>Dal<input id="unavailability-start" type="date" required></label>
+                <label>Al<input id="unavailability-end" type="date" required></label>
+                <label class="unavailability-form__wide">Descrizione <span class="optional-label">Opzionale</span>
+                    <input id="unavailability-title" maxlength="100" placeholder="Motivo o annotazione">
+                </label>
+                <button class="button button--primary unavailability-form__wide" type="submit">Aggiungi indisponibilità</button>
+            </form>
+        </section>
+    </div>
+
+    <div class="dialog-backdrop" id="closures-dialog" aria-hidden="true">
+        <section class="dialog">
+            <header class="dialog__header">
+                <div>
+                    <span class="eyebrow">CALENDARIO AZIENDALE</span>
+                    <h2>Chiusure e ferie</h2>
+                </div>
+                <button class="dialog__close" data-close-closures type="button" aria-label="Chiudi">×</button>
+            </header>
+            <p class="dialog__intro">Applica una regola a tutta l'azienda oppure a più reparti e macchine contemporaneamente.</p>
+            <div class="closure-list" id="closure-list"></div>
+            <form class="closure-form" id="closure-form">
+                <div class="closure-form__dates">
+                    <label>Tipo
+                        <select id="closure-type">
+                            <option value="closure">Chiusura</option>
+                            <option value="vacation">Ferie</option>
+                        </select>
+                    </label>
+                    <label>Dal<input id="closure-start" type="date" required></label>
+                    <label>Al<input id="closure-end" type="date" required></label>
+                    <label>Descrizione <span class="optional-label">Opzionale</span>
+                        <input id="closure-title" maxlength="100" placeholder="Es. Chiusura estiva">
+                    </label>
+                </div>
+
+                <label class="closure-all">
+                    <input id="closure-all" type="checkbox">
+                    <span><strong>Tutta l'azienda</strong><small>Applica a tutte le macchine presenti</small></span>
+                </label>
+
+                <div class="closure-targets" id="closure-targets">
+                    <section>
+                        <div class="closure-targets__heading">Reparti</div>
+                        <div class="closure-targets__list" id="closure-departments"></div>
+                    </section>
+                    <section>
+                        <div class="closure-targets__heading">Macchine</div>
+                        <div class="closure-targets__list" id="closure-machines"></div>
+                    </section>
+                </div>
+
+                <div class="closure-selection-count" id="closure-selection-count">Nessuna macchina selezionata</div>
+                <button class="button button--primary" type="submit">Applica chiusura / ferie</button>
+            </form>
+        </section>
+    </div>
+
+    <div class="job-tooltip" id="job-tooltip" role="tooltip"></div>
+    <div class="context-menu" id="job-context-menu" role="menu" aria-hidden="true"></div>
+
+    <script src="../../scripts/utilities/production-planner-scripts.js"></script>
+</body>
+
+</html>

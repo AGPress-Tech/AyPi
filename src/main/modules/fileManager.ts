@@ -29,6 +29,8 @@ import {
     resolveGithubTagCommit,
 } from "./file-manager/github-client";
 import { registerAttrezzaggioDataIpc } from "./file-manager/attrezzaggio-data-ipc";
+import { registerProductionPlannerIpc } from "./file-manager/production-planner-ipc";
+import { setupRealtimeClient } from "./file-manager/realtime-client";
 import { registerFilesystemDialogIpc } from "./file-manager/filesystem-dialog-ipc";
 import { registerFileNavigationIpc } from "./file-manager/file-navigation-ipc";
 import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
@@ -872,7 +874,7 @@ let timerWindow: BrowserWindow | null = null;
 let timerWindowTheme: "standard" | "bluearchive" = "standard";
 let infographicsWindow: BrowserWindow | null = null;
 let gitflowWindow: BrowserWindow | null = null;
-let amministrazioneWindow: BrowserWindow | null = null;
+let productionPlannerWindow: BrowserWindow | null = null;
 let feriePermessiWindow: BrowserWindow | null = null;
 let feriePermessiWindowTheme: "standard" | "bluearchive" = "standard";
 let feriePermessiHoursWindow: BrowserWindow | null = null;
@@ -1213,41 +1215,43 @@ function openTimerWindow(mainWindow, options: { theme?: string } = {}) {
     });
 }
 
-function openAmministrazioneWindow(mainWindow) {
-    if (isWindowAlive(amministrazioneWindow)) {
-        showWindow(amministrazioneWindow);
+function openProductionPlannerWindow() {
+    if (isWindowAlive(productionPlannerWindow)) {
+        showWindow(productionPlannerWindow);
         return;
     }
 
-    amministrazioneWindow = new BrowserWindow({
+    productionPlannerWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        parent: mainWindow,
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f4f7fb",
     });
 
-    amministrazioneWindow.loadFile(
+    productionPlannerWindow.maximize();
+    productionPlannerWindow.loadFile(
         path.join(
             __dirname,
             "..",
             "pages",
             "utilities",
-            "amministrazione.html",
+            "production-planner.html",
         ),
     );
-    amministrazioneWindow.setMenu(null);
+    productionPlannerWindow.setMenu(null);
 
-    amministrazioneWindow.once("ready-to-show", () => {
-        if (!amministrazioneWindow.isDestroyed()) {
-            amministrazioneWindow.maximize();
+    productionPlannerWindow.once("ready-to-show", () => {
+        if (!productionPlannerWindow.isDestroyed()) {
+            productionPlannerWindow.show();
+            productionPlannerWindow.focus();
         }
     });
 
-    amministrazioneWindow.on("closed", () => {
-        amministrazioneWindow = null;
-        showMainWindow(mainWindow);
+    productionPlannerWindow.on("closed", () => {
+        productionPlannerWindow = null;
     });
 }
 
@@ -2069,6 +2073,7 @@ function openCompareFoldersWindow(
 }
 
 function setupFileManager(mainWindow) {
+    setupRealtimeClient();
     app.on("before-quit", () => {
         isAppQuitting = true;
     });
@@ -2573,6 +2578,7 @@ function setupFileManager(mainWindow) {
     });
 
     registerAttrezzaggioDataIpc(ipcMain, requestAypiBackend);
+    registerProductionPlannerIpc(ipcMain, requestAypiBackend);
     ipcMain.on("open-qr-generator-window", (_event, payload) => {
         openQrGeneratorWindow(mainWindow, {
             theme:
@@ -2615,8 +2621,8 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    ipcMain.on("open-amministrazione-window", () => {
-        openAmministrazioneWindow(mainWindow);
+    ipcMain.on("open-production-planner-window", () => {
+        openProductionPlannerWindow();
     });
 
     ipcMain.on("open-ferie-permessi-window", async (_event, payload) => {

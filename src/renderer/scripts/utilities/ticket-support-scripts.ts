@@ -2157,3 +2157,44 @@ ipcRenderer.on("pm-force-logout", (_event, shouldLogout) => {
 ipcRenderer.on("pm-session-updated", (_event, payload) => {
     applySharedSession(payload);
 });
+
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeRefreshInFlight = false;
+
+async function refreshTicketSupportRealtime(includeShared: boolean) {
+    if (realtimeRefreshInFlight) return;
+    realtimeRefreshInFlight = true;
+    try {
+        await hydrateStore();
+        store = loadStore();
+        await hydrateTicketCategories();
+        if (includeShared) {
+            await hydrateAssignees();
+            await hydrateAdminCache();
+            updateLoginSelectors();
+        }
+        renderAll();
+    } catch (error) {
+        console.error("[realtime] Aggiornamento Ticket Support fallito:", error);
+    } finally {
+        realtimeRefreshInFlight = false;
+    }
+}
+
+ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
+    if (
+        realtimeEvent?.module !== "ticket" &&
+        realtimeEvent?.module !== "shared" &&
+        realtimeEvent?.module !== "*"
+    ) {
+        return;
+    }
+    if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => {
+        realtimeRefreshTimer = null;
+        void refreshTicketSupportRealtime(
+            realtimeEvent?.module === "shared" ||
+                realtimeEvent?.module === "*",
+        );
+    }, 180);
+});

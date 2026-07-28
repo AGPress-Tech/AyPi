@@ -42,6 +42,8 @@ function requestBackend(pathname: string, options?: {
     const responseType = options?.responseType || "json";
     const headers = {
         "Content-Type": "application/json",
+        "x-aypi-user":
+            process.env.USERNAME || process.env.USER || "Operatore AyPi",
         "x-aypi-client": "electron-renderer",
         ...(options?.headers || {}),
     };

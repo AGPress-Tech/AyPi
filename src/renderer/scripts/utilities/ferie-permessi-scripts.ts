@@ -2755,6 +2755,38 @@ ipcRenderer.on("pm-open-calendar-admins", () => {
     ipcRenderer.send("open-admin-manager-window");
 });
 
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
+    if (
+        realtimeEvent?.module !== "calendar" &&
+        realtimeEvent?.module !== "shared" &&
+        realtimeEvent?.module !== "*"
+    ) {
+        return;
+    }
+    if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => {
+        realtimeRefreshTimer = null;
+        void refreshUi.refreshData();
+    }, 180);
+});
+
+function applyRealtimeRefreshStatus(realtimeStatus) {
+    if (realtimeStatus?.state === "connected") {
+        refreshUi.clearAutoRefresh();
+    } else {
+        refreshUi.scheduleAutoRefresh();
+    }
+}
+
+ipcRenderer.on("aypi-realtime-status", (_event, realtimeStatus) => {
+    applyRealtimeRefreshStatus(realtimeStatus);
+});
+void ipcRenderer
+    .invoke("aypi-realtime-status-get")
+    .then(applyRealtimeRefreshStatus)
+    .catch(() => refreshUi.scheduleAutoRefresh());
+
 const guideLocalPath = path.resolve(
     __dirname,
     "..",

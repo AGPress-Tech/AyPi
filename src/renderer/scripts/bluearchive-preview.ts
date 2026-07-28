@@ -254,7 +254,11 @@ const pages: Record<string, PageDefinition> = {
                 channel: "open-hierarchy-window",
                 channelArgs: [{ theme: "bluearchive" }],
             },
-            { label: "Gantt Tasks", description: "Pianificazione attività" },
+            {
+                label: "Pianificazione Produzione",
+                description: "Calendario macchine e lavorazioni",
+                channel: "open-production-planner-window",
+            },
             {
                 label: "Calendario Dipendenti",
                 description: "Ferie, permessi, mutue e straordinari",

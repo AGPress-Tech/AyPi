@@ -180,6 +180,22 @@ async function loadAndRender() {
     setStatus("Dati aggiornati.");
 }
 
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
+    if (
+        realtimeEvent?.module !== "calendar" &&
+        realtimeEvent?.module !== "shared" &&
+        realtimeEvent?.module !== "*"
+    ) {
+        return;
+    }
+    if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => {
+        realtimeRefreshTimer = null;
+        void loadAndRender();
+    }, 180);
+});
+
 async function saveChanges() {
     const assigneesData = await loadAssigneesData();
     const groups = assigneesData.groups || {};

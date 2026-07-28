@@ -109,7 +109,6 @@ async function buildRenderer() {
             "perf_hooks",
             "xlsx",
             "axios",
-            "dhtmlx-gantt",
             "chart.js",
             "chart.js/auto",
             "qrcode",
