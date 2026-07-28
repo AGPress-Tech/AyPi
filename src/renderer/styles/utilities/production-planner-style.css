@@ -47,12 +47,72 @@ button {
 }
 
 .topbar {
+    position: relative;
+    isolation: isolate;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 18px 24px;
-    background: var(--navy);
+    min-height: 76px;
+    padding: 14px 24px;
+    overflow: hidden;
+    border-bottom: 1px solid rgba(111, 205, 255, 0.62);
+    background:
+        radial-gradient(
+            circle at 18% -80%,
+            rgba(75, 176, 238, 0.3),
+            transparent 38%
+        ),
+        linear-gradient(100deg, #102d51 0%, #0e3159 48%, #123b66 100%);
+    box-shadow:
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+        0 4px 13px rgba(10, 34, 60, 0.18);
     color: white;
+}
+
+.topbar::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0 -40px 0 46%;
+    transform: skewX(-18deg);
+    border-left: 1px solid rgba(113, 206, 255, 0.22);
+    background:
+        repeating-linear-gradient(
+            135deg,
+            rgba(116, 207, 255, 0.045) 0,
+            rgba(116, 207, 255, 0.045) 2px,
+            transparent 2px,
+            transparent 17px
+        ),
+        linear-gradient(
+            90deg,
+            rgba(41, 122, 185, 0.06),
+            rgba(62, 157, 220, 0.16)
+        );
+    content: "";
+    pointer-events: none;
+}
+
+.topbar::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background:
+        linear-gradient(
+            90deg,
+            #6ed0ff 0 66px,
+            rgba(110, 208, 255, 0.18) 66px 69%,
+            #6ed0ff 69% 78%,
+            rgba(110, 208, 255, 0.16) 78%
+        );
+    content: "";
+    pointer-events: none;
+}
+
+.topbar > * {
+    position: relative;
+    z-index: 1;
 }
 
 .brand,
@@ -65,23 +125,75 @@ button {
 }
 
 .brand {
-    gap: 13px;
+    gap: 15px;
 }
 
-.brand__mark {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.08);
-    font-size: 20px;
-    font-weight: 800;
+.brand::after {
+    width: 1px;
+    height: 34px;
+    margin-left: 5px;
+    transform: skewX(-16deg);
+    background:
+        linear-gradient(
+            transparent,
+            rgba(110, 208, 255, 0.72),
+            transparent
+        );
+    content: "";
 }
 
-.brand__mark span {
-    color: #64b5f6;
+.planner-aypi-logo {
+    --planner-logo-size: 36px;
+    position: relative;
+    display: inline-flex;
+    width: max-content;
+    flex: 0 0 auto;
+    align-items: baseline;
+    margin: 5px 4px 0 1px;
+    color: white;
+    font-size: var(--planner-logo-size);
+    font-style: italic;
+    font-weight: 900;
+    letter-spacing: -0.079545em;
+    filter: drop-shadow(0 3px 5px rgba(2, 18, 38, 0.34));
+    transform: skewX(-8deg);
+}
+
+.planner-aypi-logo__ay,
+.planner-aypi-logo__pi {
+    font-size: 1em;
+    line-height: 0.9;
+}
+
+.planner-aypi-logo__ay {
+    color: #67caff;
+}
+
+.planner-aypi-logo__pi {
+    color: #f7fbff;
+}
+
+.planner-aypi-logo__halo {
+    position: absolute;
+    top: -0.272727em;
+    left: 46%;
+    width: 1.022727em;
+    height: 0.340909em;
+    transform: translateX(-50%) rotate(17deg);
+    border: 0.045455em solid #dff5ff;
+    border-radius: 50%;
+    opacity: 0.86;
+}
+
+.planner-aypi-logo__slash {
+    position: absolute;
+    top: -0.295455em;
+    left: 57%;
+    width: 0.056818em;
+    height: 1.318182em;
+    transform: rotate(27deg);
+    background: #67caff;
+    box-shadow: 0.147727em 0 0 rgba(103, 202, 255, 0.36);
 }
 
 .brand h1,
@@ -91,7 +203,10 @@ button {
 }
 
 .brand h1 {
+    margin-top: 4px;
     font-size: 21px;
+    letter-spacing: -0.015em;
+    text-shadow: 0 2px 5px rgba(3, 20, 41, 0.28);
 }
 
 .eyebrow {
@@ -102,11 +217,57 @@ button {
 }
 
 .topbar .eyebrow {
-    color: #8db4db;
+    color: #8fd5ff;
+    letter-spacing: 0.17em;
+    text-shadow: 0 0 9px rgba(82, 184, 242, 0.2);
 }
 
 .topbar__actions {
     gap: 10px;
+}
+
+.topbar__actions .button {
+    position: relative;
+    overflow: hidden;
+    border-radius: 10px 10px 10px 4px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        0 4px 10px rgba(3, 19, 39, 0.2);
+    letter-spacing: 0.01em;
+    transition:
+        transform 0.14s ease,
+        border-color 0.14s ease,
+        background 0.14s ease,
+        box-shadow 0.14s ease;
+}
+
+.topbar__actions .button::after {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    width: 8px;
+    height: 2px;
+    border-radius: 999px;
+    background: #78ccff;
+    box-shadow: -4px 4px 0 -0.5px rgba(120, 204, 255, 0.55);
+    content: "";
+    pointer-events: none;
+}
+
+.topbar__actions .button:hover {
+    transform: translateY(-1px);
+}
+
+.topbar__actions .button:focus-visible {
+    outline: 2px solid #a9e4ff;
+    outline-offset: 2px;
+}
+
+.topbar__actions .button:active {
+    transform: translateY(1px);
+    box-shadow:
+        inset 0 1px 3px rgba(2, 20, 42, 0.18),
+        0 2px 5px rgba(3, 19, 39, 0.16);
 }
 
 .sync-status {
@@ -114,7 +275,13 @@ button {
     max-width: 190px;
     gap: 7px;
     align-items: center;
-    color: #b9d0e5;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid rgba(119, 202, 247, 0.22);
+    border-radius: 8px 8px 8px 3px;
+    background: rgba(4, 28, 55, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: #c6e2f5;
     font-size: 9px;
     font-weight: 700;
     white-space: nowrap;
@@ -197,9 +364,51 @@ button {
 }
 
 .topbar .button--ghost {
-    border-color: rgba(255, 255, 255, 0.24);
-    background: rgba(255, 255, 255, 0.08);
-    color: white;
+    border-color: rgba(123, 201, 247, 0.5);
+    background:
+        linear-gradient(
+            180deg,
+            rgba(242, 250, 255, 0.17),
+            rgba(88, 160, 215, 0.1)
+        );
+    color: #f4fbff;
+}
+
+.topbar .button--ghost:hover {
+    border-color: rgba(139, 218, 255, 0.82);
+    background:
+        linear-gradient(
+            180deg,
+            rgba(238, 250, 255, 0.25),
+            rgba(71, 157, 220, 0.18)
+        );
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.34),
+        0 5px 14px rgba(4, 23, 47, 0.25),
+        0 0 0 1px rgba(83, 184, 244, 0.08);
+}
+
+.topbar .button--primary {
+    border: 1px solid #5fc1ff;
+    background:
+        linear-gradient(135deg, #2d94e8 0%, #2478c8 58%, #1765b2 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.32),
+        0 5px 13px rgba(5, 63, 119, 0.38);
+}
+
+.topbar .button--primary::after {
+    background: #c5efff;
+    box-shadow: -4px 4px 0 -0.5px rgba(197, 239, 255, 0.66);
+}
+
+.topbar .button--primary:hover {
+    border-color: #9cddff;
+    background:
+        linear-gradient(135deg, #39a1ef 0%, #2b84d4 58%, #1d6dbb 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 7px 17px rgba(5, 63, 119, 0.42);
 }
 
 .button--danger {
@@ -283,6 +492,13 @@ button {
 .date-controls,
 .filters {
     gap: 8px;
+}
+
+.filters {
+    min-width: 0;
+    flex: 1;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .date-controls {
@@ -404,8 +620,12 @@ button {
 .search {
     display: flex;
     align-items: center;
-    width: min(260px, 24vw);
+    width: min(210px, 18vw);
     padding: 0 10px;
+}
+
+.search--article {
+    width: min(190px, 16vw);
 }
 
 .search span {
@@ -418,6 +638,33 @@ button {
     width: 100%;
     border: 0;
     outline: 0;
+}
+
+.archive-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    color: #344054;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.archive-filter:has(input:checked) {
+    border-color: var(--blue);
+    background: #eef6fd;
+    color: var(--blue);
+}
+
+.archive-filter input {
+    margin: 0;
+    accent-color: var(--blue);
 }
 
 .workspace {
@@ -456,6 +703,32 @@ button {
 
 .panel-heading h2 {
     font-size: 18px;
+}
+
+.backlog-view-switch {
+    display: inline-flex;
+    margin-top: 5px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #f4f7fa;
+}
+
+.backlog-view-switch button {
+    min-height: 28px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.backlog-view-switch button.is-active {
+    background: white;
+    box-shadow: 0 1px 4px rgba(20, 40, 65, 0.12);
+    color: var(--blue);
 }
 
 .count-badge {
@@ -574,6 +847,74 @@ button {
     margin-top: 4px;
     color: var(--muted);
     font-size: 10px;
+}
+
+.filtered-job-card {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 10px 10px 9px 14px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: white;
+    color: var(--ink);
+    text-align: left;
+}
+
+.filtered-job-card::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--material-color);
+    content: "";
+}
+
+.filtered-job-card:hover,
+.filtered-job-card:focus-visible {
+    border-color: #8eb5d8;
+    box-shadow: 0 5px 15px rgba(20, 40, 65, 0.09);
+    outline: 0;
+}
+
+.filtered-job-card strong,
+.filtered-job-card span,
+.filtered-job-card small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.filtered-job-card strong {
+    padding-right: 58px;
+    font-size: 11px;
+}
+
+.filtered-job-card span,
+.filtered-job-card small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.filtered-job-card__state {
+    position: absolute;
+    top: 8px;
+    right: 7px;
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #eaf3fc;
+    color: var(--blue);
+    font-size: 8px;
+    font-style: normal;
+    font-weight: 800;
+}
+
+.filtered-job-card.is-unplanned .filtered-job-card__state {
+    background: #f1f3f5;
+    color: #667085;
 }
 
 .priority-badge {
@@ -704,7 +1045,7 @@ button {
 
 .days-header {
     display: grid;
-    grid-template-columns: repeat(var(--days), var(--day-width));
+    grid-template-columns: repeat(var(--days), minmax(0, 1fr));
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
@@ -791,9 +1132,6 @@ body.is-calendar-panning * {
 .machine-days {
     position: relative;
     min-height: 82px;
-    background-image:
-        repeating-linear-gradient(to right, transparent 0, transparent calc(var(--day-width) - 1px), var(--line) calc(var(--day-width) - 1px), var(--line) var(--day-width)),
-        linear-gradient(to right, transparent var(--weekend-start, 0), transparent);
 }
 
 .unavailability-block {
@@ -852,13 +1190,22 @@ body.is-calendar-panning * {
     box-shadow: inset 0 0 0 1px rgba(36, 120, 200, 0.22);
 }
 
-.weekend-cell {
+.machine-days__grid {
     position: absolute;
     z-index: 0;
-    top: 0;
-    bottom: 0;
-    background: #f5f7fa;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(var(--days), minmax(0, 1fr));
     pointer-events: none;
+}
+
+.day-grid-cell {
+    min-width: 0;
+    border-right: 1px solid var(--line);
+}
+
+.day-grid-cell.is-weekend {
+    background: #f5f7fa;
 }
 
 .drag-preview {
@@ -2096,6 +2443,45 @@ body.is-calendar-panning * {
 }
 
 @media (max-width: 1100px) {
+    .topbar {
+        gap: 12px;
+        padding: 12px 15px;
+    }
+
+    .brand {
+        gap: 10px;
+    }
+
+    .brand::after {
+        display: none;
+    }
+
+    .planner-aypi-logo {
+        --planner-logo-size: 31px;
+    }
+
+    .brand h1 {
+        font-size: 17px;
+    }
+
+    .topbar__actions {
+        min-width: 0;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+
+    .topbar__actions .button {
+        min-height: 34px;
+        padding: 0 9px;
+        font-size: 10px;
+    }
+
+    .sync-status {
+        max-width: 145px;
+        padding: 0 7px;
+        font-size: 8px;
+    }
+
     .controls {
         align-items: stretch;
         flex-direction: column;

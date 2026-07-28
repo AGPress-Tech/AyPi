@@ -34,6 +34,7 @@ type ProductionJob = {
     materialStatus: MaterialStatus;
     workStatus: WorkStatus;
     progressDays: number;
+    completedAt: string;
     priority: Priority;
     notes: string;
     previousJobId: string;
@@ -131,6 +132,8 @@ let localDirty = false;
 let remoteSaveInFlight = false;
 let remoteLoadInFlight = false;
 let realtimeConnected = false;
+let backlogView: "queue" | "filtered" = "queue";
+let showArchived = false;
 let calendarPanSession: null | {
     originX: number;
     originStart: Date;
@@ -290,12 +293,24 @@ function loadState(): PlannerState {
                 : workStatus === "running"
                     ? Math.min(durationDays, Math.max(0, Number(job.progressDays) || 0))
                     : 0;
+            const storedCompletedAt = String(job.completedAt || "");
+            const completedAtDate = storedCompletedAt
+                ? new Date(storedCompletedAt)
+                : null;
+            const completedAt = workStatus === "done"
+                ? completedAtDate && !Number.isNaN(completedAtDate.getTime())
+                    ? completedAtDate.toISOString()
+                    : job.end
+                        ? parseDate(job.end).toISOString()
+                        : new Date().toISOString()
+                : "";
             return {
                 ...job,
                 durationDays,
                 baseSpanDays: Number(job.baseSpanDays) || existingSpan,
                 workStatus,
                 progressDays,
+                completedAt,
                 previousJobId: String(job.previousJobId || ""),
                 nextJobId: String(job.nextJobId || ""),
             };
@@ -340,14 +355,28 @@ function saveState() {
     }, 80);
 }
 
-function syncTimeLabel(value?: string) {
-    const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime())) return "Aggiornato";
-    return `Aggiornato ${new Intl.DateTimeFormat("it-IT", {
+function formatSyncClock(value: string | Date = new Date()) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("it-IT", {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-    }).format(date)}`;
+    }).format(date);
+}
+
+function syncedNowLabel() {
+    return `Sincronizzato ${formatSyncClock()}`;
+}
+
+function snapshotSyncDetail(snapshot: any) {
+    const modifiedAt = formatSyncClock(snapshot?.updatedAt);
+    const actor = String(snapshot?.updatedBy || "").trim();
+    const revision = Number(snapshot?.revision) || remoteRevision;
+    const modification = modifiedAt
+        ? `Ultima modifica ${modifiedAt}${actor ? ` di ${actor}` : ""}`
+        : "Nessuna modifica registrata";
+    return `${modification} · revisione ${revision}`;
 }
 
 function setSyncStatus(
@@ -372,10 +401,8 @@ function applyRemoteSnapshot(snapshot: any, announce = false) {
     localDirty = false;
     setSyncStatus(
         "online",
-        syncTimeLabel(snapshot.updatedAt),
-        snapshot.updatedBy
-            ? `Ultima modifica di ${snapshot.updatedBy} · revisione ${remoteRevision}`
-            : `Revisione ${remoteRevision}`,
+        syncedNowLabel(),
+        snapshotSyncDetail(snapshot),
     );
     renderAll();
     if (announce) notify("Pianificazione aggiornata con gli ultimi dati");
@@ -398,8 +425,8 @@ async function pushPlannerState() {
             if (pushedVersion === localChangeVersion) localDirty = false;
             setSyncStatus(
                 "online",
-                syncTimeLabel(result.snapshot.updatedAt),
-                `Dati condivisi · revisione ${remoteRevision}`,
+                syncedNowLabel(),
+                snapshotSyncDetail(result.snapshot),
             );
         } else if (result?.conflict && result.latest?.state) {
             applyRemoteSnapshot(result.latest);
@@ -456,7 +483,11 @@ async function loadLatestPlanner(options: { manual?: boolean; initial?: boolean 
         ) {
             applyRemoteSnapshot(snapshot, !!options.manual);
         } else {
-            setSyncStatus("online", syncTimeLabel(snapshot?.updatedAt), `Revisione ${remoteRevision}`);
+            setSyncStatus(
+                "online",
+                syncedNowLabel(),
+                snapshotSyncDetail(snapshot),
+            );
             if (options.manual) notify("I dati sono già aggiornati");
         }
     } catch (error) {
@@ -477,6 +508,12 @@ async function checkForRemoteUpdates() {
         }
         if (Number(result.snapshot?.revision) > remoteRevision) {
             await loadLatestPlanner();
+        } else {
+            setSyncStatus(
+                "online",
+                syncedNowLabel(),
+                snapshotSyncDetail(result.snapshot),
+            );
         }
     } catch (error) {
         setSyncStatus("offline", "Offline · dati locali", String(error));
@@ -494,7 +531,8 @@ function notify(message: string) {
 
 function getFilters() {
     return {
-        search: inputValue("search-filter").trim().toLocaleLowerCase("it"),
+        article: inputValue("article-filter").trim().toLocaleLowerCase("it"),
+        details: inputValue("details-filter").trim().toLocaleLowerCase("it"),
         departments: selectedDepartments,
         categories: selectedCategories,
         machines: selectedMachines,
@@ -502,11 +540,50 @@ function getFilters() {
     };
 }
 
+function isArchivedJob(job: ProductionJob) {
+    if (
+        job.workStatus !== "done" ||
+        (job.progressDays || 0) < Math.max(1, job.durationDays || 1) ||
+        !job.completedAt
+    ) {
+        return false;
+    }
+    const completedAt = new Date(job.completedAt);
+    if (Number.isNaN(completedAt.getTime())) return false;
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    return completedAt < oneMonthAgo;
+}
+
 function jobMatches(job: ProductionJob) {
     const filters = getFilters();
     const machine = state.machines.find((item) => item.id === job.machineId);
-    const haystack = `${job.customer} ${job.article} ${job.lot || ""} ${job.orderReference || ""} ${job.phase} ${machine?.name || ""} ${machine?.department || ""} ${machine?.category || ""}`.toLocaleLowerCase("it");
-    if (filters.search && !haystack.includes(filters.search)) return false;
+    if (!showArchived && isArchivedJob(job)) return false;
+    if (
+        filters.article &&
+        String(job.article || "").trim().toLocaleLowerCase("it") !==
+            filters.article
+    ) {
+        return false;
+    }
+    const detailValues = [
+        job.customer,
+        job.lot,
+        job.orderReference,
+        job.phase,
+        machine?.name,
+        machine?.department,
+        machine?.category,
+        job.dueDate,
+        job.firstDeliveryDate,
+        job.quantity,
+        job.unit,
+        materialLabels[job.materialStatus],
+        workLabels[job.workStatus],
+        job.priority,
+        job.notes,
+    ].map((value) => String(value || "").trim().toLocaleLowerCase("it"));
+    if (filters.details && !detailValues.includes(filters.details)) return false;
     if (filters.departments.size && (!machine || !filters.departments.has(machine.department))) return false;
     if (filters.categories.size && (!machine || !filters.categories.has(machine.category))) return false;
     if (filters.machines.size && !filters.machines.has(job.machineId)) return false;
@@ -627,7 +704,54 @@ function renderMachineSelect() {
 function renderBacklog() {
     const list = byId("backlog-list");
     if (!list) return;
+    const backlog = byId("backlog-dropzone");
+    const help = byId("backlog-help");
+    document.querySelectorAll<HTMLElement>("[data-backlog-view]").forEach((button) => {
+        const active = button.dataset.backlogView === backlogView;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", String(active));
+    });
+    backlog?.classList.toggle("is-navigation-mode", backlogView === "filtered");
+
+    if (backlogView === "filtered") {
+        const jobs = state.jobs
+            .filter(jobMatches)
+            .sort((left, right) => {
+                const leftPlanned = !!left.machineId && !!left.start;
+                const rightPlanned = !!right.machineId && !!right.start;
+                if (leftPlanned !== rightPlanned) return leftPlanned ? -1 : 1;
+                if (leftPlanned && rightPlanned) {
+                    const dateOrder = parseDate(left.start).getTime() - parseDate(right.start).getTime();
+                    if (dateOrder) return dateOrder;
+                }
+                return jobTitle(left).localeCompare(jobTitle(right), "it", {
+                    numeric: true,
+                    sensitivity: "base",
+                });
+            });
+        if (help) help.textContent = "Clicca una lavorazione per raggiungerla nel Gantt. La lista segue tutti i filtri attivi.";
+        byId("backlog-count")!.textContent = String(jobs.length);
+        list.innerHTML = jobs.length
+            ? jobs.map((job) => {
+                const machine = state.machines.find((item) => item.id === job.machineId);
+                const planned = !!machine && !!job.start;
+                const position = planned
+                    ? `${machine.name} · ${formatLongDate(job.start)}`
+                    : "Non ancora assegnata a una macchina";
+                return `<button class="filtered-job-card material-${job.materialStatus} ${planned ? "" : "is-unplanned"}"
+                    data-job-navigate="${escapeHtml(job.id)}" type="button">
+                    <em class="filtered-job-card__state">${planned ? "NEL GANTT" : "IN CODA"}</em>
+                    <strong>${escapeHtml(jobTitle(job))}</strong>
+                    <span>${escapeHtml(job.customer)}${job.lot ? ` · Lotto ${escapeHtml(job.lot)}` : ""}</span>
+                    <small>${escapeHtml(position)} · ${job.durationDays || 1} gg lav.</small>
+                </button>`;
+            }).join("")
+            : `<div class="backlog-empty">Nessuna lavorazione corrisponde ai filtri.</div>`;
+        return;
+    }
+
     const jobs = state.jobs.filter((job) => !job.machineId && jobMatches(job));
+    if (help) help.textContent = "Trascina una lavorazione su una macchina e sul giorno desiderato.";
     byId("backlog-count")!.textContent = String(jobs.length);
     list.innerHTML = jobs.length
         ? jobs.map((job) => `
@@ -664,17 +788,18 @@ function renderTimeline() {
             <span>${new Intl.DateTimeFormat("it-IT", { month: "short" }).format(date).replace(".", "")}</span>
         </div>`;
     }).join("");
-    const weekendCells = Array.from({ length: visibleDays }, (_, index) => {
+    const dayGridCells = Array.from({ length: visibleDays }, (_, index) => {
         const date = addDays(visibleStart, index);
-        return isWeekend(date)
-            ? `<i class="weekend-cell" style="left:${index * dayWidth}px;width:${dayWidth}px"></i>`
-            : "";
+        return `<i class="day-grid-cell${isWeekend(date) ? " is-weekend" : ""}"></i>`;
     }).join("");
 
     const conflictIds = getConflictIds();
     const todayOffset = diffDays(new Date(), visibleStart);
     const activeFilters = getFilters();
-    const hasJobContentFilters = !!activeFilters.search || activeFilters.materials.size > 0;
+    const hasJobContentFilters =
+        !!activeFilters.article ||
+        !!activeFilters.details ||
+        activeFilters.materials.size > 0;
     const machines = state.machines.filter((machine) => {
         if (selectedDepartments.size && !selectedDepartments.has(machine.department)) return false;
         if (selectedCategories.size && !selectedCategories.has(machine.category)) return false;
@@ -742,7 +867,7 @@ function renderTimeline() {
                 <i class="machine-label__color"></i>
                 <div><strong>${escapeHtml(machine.name)}</strong><span>${escapeHtml(machine.department)} · ${escapeHtml(machine.category)}</span></div>
             </div>
-            <div class="machine-days" data-machine-id="${escapeHtml(machine.id)}" style="min-height:${rowHeight}px">${weekendCells}${unavailabilityBlocks}${todayLine}${bars}</div>
+            <div class="machine-days" data-machine-id="${escapeHtml(machine.id)}" style="min-height:${rowHeight}px"><div class="machine-days__grid" aria-hidden="true">${dayGridCells}</div>${unavailabilityBlocks}${todayLine}${bars}</div>
         </div>`;
     }).join("");
 
@@ -823,10 +948,11 @@ function renderJobLinks() {
 
 function renderStats() {
     const conflicts = getConflictIds();
-    byId("stat-planned")!.textContent = String(state.jobs.filter((job) => isVisible(job)).length);
-    byId("stat-backlog")!.textContent = String(state.jobs.filter((job) => !job.machineId).length);
+    const filteredJobs = state.jobs.filter(jobMatches);
+    byId("stat-planned")!.textContent = String(filteredJobs.filter((job) => isVisible(job)).length);
+    byId("stat-backlog")!.textContent = String(filteredJobs.filter((job) => !job.machineId).length);
     byId("stat-conflicts")!.textContent = String(conflicts.size);
-    byId("stat-late")!.textContent = String(state.jobs.filter(isLate).length);
+    byId("stat-late")!.textContent = String(filteredJobs.filter(isLate).length);
 }
 
 function renderMachinesDialog() {
@@ -1087,6 +1213,11 @@ function saveJobFromForm(event: SubmitEvent) {
         : workStatus === "running"
             ? Math.min(durationDays, Math.max(1, previous?.progressDays || 1))
             : 0;
+    const completedAt = workStatus === "done"
+        ? previous?.workStatus === "done" && previous.completedAt
+            ? previous.completedAt
+            : new Date().toISOString()
+        : "";
     const job: ProductionJob = {
         id,
         customer: inputValue("job-customer").trim(),
@@ -1107,6 +1238,7 @@ function saveJobFromForm(event: SubmitEvent) {
         materialStatus: inputValue("job-material") as MaterialStatus,
         workStatus,
         progressDays,
+        completedAt,
         priority: inputValue("job-priority") as Priority,
         notes: inputValue("job-notes").trim(),
         previousJobId: previous?.previousJobId || "",
@@ -1738,13 +1870,20 @@ function navigateToLinkedJob(jobId: string) {
         notify("La lavorazione collegata non è più disponibile");
         return;
     }
+    if (isArchivedJob(job) && !showArchived) {
+        showArchived = true;
+        const archiveToggle = byId("show-archive") as HTMLInputElement | null;
+        if (archiveToggle) archiveToggle.checked = true;
+    }
     if (!jobMatches(job)) {
         selectedDepartments.clear();
         selectedCategories.clear();
         selectedMachines.clear();
         selectedMaterials.clear();
-        const search = byId("search-filter") as HTMLInputElement | null;
-        if (search) search.value = "";
+        const articleFilter = byId("article-filter") as HTMLInputElement | null;
+        const detailsFilter = byId("details-filter") as HTMLInputElement | null;
+        if (articleFilter) articleFilter.value = "";
+        if (detailsFilter) detailsFilter.value = "";
     }
     if (job.machineId && job.start) showDateInSecondColumn(job.start);
     renderAll();
@@ -1758,10 +1897,60 @@ function navigateToLinkedJob(jobId: string) {
     });
 }
 
+function navigateToFilteredJob(jobId: string) {
+    const job = state.jobs.find((item) => item.id === jobId);
+    if (!job) {
+        notify("La lavorazione non è più disponibile");
+        return;
+    }
+    if (!job.machineId || !job.start) {
+        backlogView = "queue";
+        renderBacklog();
+        requestAnimationFrame(() => {
+            const target = byId("backlog-list")?.querySelector<HTMLElement>(
+                `[data-job-id="${CSS.escape(job.id)}"]`,
+            );
+            target?.scrollIntoView({ behavior: "smooth", block: "center" });
+            target?.focus({ preventScroll: true });
+            target?.classList.add("is-link-target");
+            setTimeout(() => target?.classList.remove("is-link-target"), 1400);
+        });
+        notify("La lavorazione è ancora da pianificare");
+        return;
+    }
+    showDateInSecondColumn(job.start);
+    renderAll();
+    requestAnimationFrame(() => {
+        const target = byId("timeline")?.querySelector<HTMLElement>(
+            `[data-job-id="${CSS.escape(job.id)}"]`,
+        );
+        target?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+        });
+        target?.focus({ preventScroll: true });
+        target?.classList.add("is-link-target");
+        setTimeout(() => target?.classList.remove("is-link-target"), 1400);
+    });
+}
+
 function bindGlobalEvents() {
     byId("new-job")?.addEventListener("click", () => openJob());
     byId("refresh-planner")?.addEventListener("click", () => {
         void loadLatestPlanner({ manual: true });
+    });
+    document.querySelector(".backlog-view-switch")?.addEventListener("click", (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-backlog-view]");
+        if (!button) return;
+        backlogView = button.dataset.backlogView === "filtered" ? "filtered" : "queue";
+        renderBacklog();
+    });
+    byId("backlog-list")?.addEventListener("click", (event) => {
+        const target = (event.target as HTMLElement).closest<HTMLElement>("[data-job-navigate]");
+        if (!target) return;
+        event.preventDefault();
+        navigateToFilteredJob(target.dataset.jobNavigate || "");
     });
     byId("job-machine")?.addEventListener("change", updateJobStartAvailability);
     byId("job-form")?.addEventListener("submit", saveJobFromForm);
@@ -1951,6 +2140,7 @@ function bindGlobalEvents() {
                 if (job) {
                     job.workStatus = "running";
                     job.progressDays = 0;
+                    job.completedAt = "";
                     saveState();
                     renderAll();
                     closeContextMenu();
@@ -2031,6 +2221,7 @@ function bindGlobalEvents() {
         } else if (actionName === "work:not_started") {
             job.workStatus = "not_started";
             job.progressDays = 0;
+            job.completedAt = "";
             saveState();
             closeContextMenu();
             renderAll();
@@ -2038,6 +2229,7 @@ function bindGlobalEvents() {
         } else if (actionName === "work:done") {
             job.workStatus = "done";
             job.progressDays = job.durationDays || 1;
+            job.completedAt = job.completedAt || new Date().toISOString();
             saveState();
             closeContextMenu();
             renderAll();
@@ -2046,6 +2238,7 @@ function bindGlobalEvents() {
             const days = Number(actionName.split(":")[1]) || 1;
             job.workStatus = "running";
             job.progressDays = Math.min(job.durationDays || 1, Math.max(1, days));
+            job.completedAt = "";
             saveState();
             closeContextMenu();
             renderAll();
@@ -2145,7 +2338,12 @@ function bindGlobalEvents() {
         renderAll();
     });
 
-    byId("search-filter")?.addEventListener("input", renderAll);
+    byId("article-filter")?.addEventListener("input", renderAll);
+    byId("details-filter")?.addEventListener("input", renderAll);
+    byId("show-archive")?.addEventListener("change", () => {
+        showArchived = !!(byId("show-archive") as HTMLInputElement | null)?.checked;
+        renderAll();
+    });
     document.querySelector(".filters")?.addEventListener("change", (event) => {
         const input = event.target as HTMLInputElement;
         if (!input.matches("[data-filter-value]")) return;
@@ -2348,12 +2546,14 @@ function bindGlobalEvents() {
 
     const backlog = byId("backlog-dropzone");
     backlog?.addEventListener("dragover", (event) => {
+        if (backlogView !== "queue") return;
         event.preventDefault();
         clearDragPreview();
         backlog.classList.add("is-drop-target");
     });
     backlog?.addEventListener("dragleave", () => backlog.classList.remove("is-drop-target"));
     backlog?.addEventListener("drop", (event) => {
+        if (backlogView !== "queue") return;
         event.preventDefault();
         backlog.classList.remove("is-drop-target");
         unscheduleJob(event.dataTransfer?.getData("text/plain") || draggedJobId);

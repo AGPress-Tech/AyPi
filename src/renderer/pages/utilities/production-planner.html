@@ -14,7 +14,11 @@
     <div class="planner-app">
         <header class="topbar">
             <div class="brand">
-                <div class="brand__mark">A<span>π</span></div>
+                <div class="planner-aypi-logo" role="img" aria-label="AyPi">
+                    <span class="planner-aypi-logo__halo" aria-hidden="true"></span>
+                    <span class="planner-aypi-logo__ay">Ay</span><span class="planner-aypi-logo__pi">Pi</span>
+                    <span class="planner-aypi-logo__slash" aria-hidden="true"></span>
+                </div>
                 <div>
                     <div class="eyebrow">AYPI · PRODUZIONE</div>
                     <h1>Pianificazione reparti</h1>
@@ -72,9 +76,13 @@
             </div>
 
             <div class="filters">
-                <label class="search">
+                <label class="search search--article" title="Ricerca esatta per codice articolo">
                     <span>⌕</span>
-                    <input id="search-filter" type="search" placeholder="Cliente, articolo, lotto o fase">
+                    <input id="article-filter" type="search" placeholder="Codice articolo esatto">
+                </label>
+                <label class="search search--other" title="Ricerca esatta negli altri campi">
+                    <span>⌕</span>
+                    <input id="details-filter" type="search" placeholder="Cliente, lotto, ordine, fase…">
                 </label>
                 <details class="multi-filter" id="department-filter">
                     <summary>Reparti</summary>
@@ -92,6 +100,10 @@
                     <summary>Disponibilità materiale</summary>
                     <div class="multi-filter__menu" id="material-filter-options"></div>
                 </details>
+                <label class="archive-filter" title="Include le lavorazioni terminate al 100% da oltre un mese">
+                    <input id="show-archive" type="checkbox">
+                    <span>Mostra archivio</span>
+                </label>
                 <select id="range-select" aria-label="Giorni visualizzati">
                     <option value="7">7 giorni</option>
                     <option value="14" selected>14 giorni</option>
@@ -104,12 +116,15 @@
             <aside class="backlog" id="backlog-dropzone">
                 <div class="panel-heading">
                     <div>
-                        <span class="eyebrow">CODA</span>
-                        <h2>Da pianificare</h2>
+                        <span class="eyebrow">ARTICOLI</span>
+                        <div class="backlog-view-switch" role="tablist" aria-label="Vista articoli">
+                            <button class="is-active" data-backlog-view="queue" role="tab" aria-selected="true" type="button">Da pianificare</button>
+                            <button data-backlog-view="filtered" role="tab" aria-selected="false" type="button">Lista filtrata</button>
+                        </div>
                     </div>
                     <span class="count-badge" id="backlog-count">0</span>
                 </div>
-                <p class="panel-help">Trascina una lavorazione su una macchina e sul giorno desiderato.</p>
+                <p class="panel-help" id="backlog-help">Trascina una lavorazione su una macchina e sul giorno desiderato.</p>
                 <div class="backlog__list" id="backlog-list"></div>
             </aside>
 
