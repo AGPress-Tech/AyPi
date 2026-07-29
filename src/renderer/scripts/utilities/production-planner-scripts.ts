@@ -39,6 +39,7 @@ type ProductionJob = {
     quantity: number;
     unit: "pz" | "kg";
     barKgBundles: string;
+    materialOwner: string;
     machineId: string;
     start: string;
     end: string;
@@ -455,6 +456,7 @@ function loadState(): PlannerState {
                 ...normalizedJob,
                 materialAlloy: String(job.materialAlloy || ""),
                 barKgBundles: String(job.barKgBundles || ""),
+                materialOwner: String(job.materialOwner || ""),
                 durationDays,
                 baseSpanDays: Number(job.baseSpanDays) || existingSpan,
                 workStatus,
@@ -775,6 +777,7 @@ function jobMatches(job: ProductionJob) {
         job.quantity,
         job.unit,
         job.barKgBundles,
+        job.materialOwner,
         materialLabels[job.materialStatus],
         workLabels[job.workStatus],
         job.priority,
@@ -1810,6 +1813,7 @@ function openJob(job?: ProductionJob, asCopy = false) {
     (byId("job-quantity") as HTMLInputElement).value = job?.quantity ? String(job.quantity) : "";
     (byId("job-unit") as HTMLSelectElement).value = job?.unit || "pz";
     (byId("job-bar-kg-bundles") as HTMLInputElement).value = job?.barKgBundles || "";
+    (byId("job-material-owner") as HTMLInputElement).value = job?.materialOwner || "";
     (byId("job-machine") as HTMLSelectElement).value = job?.machineId || "";
     (byId("job-priority") as HTMLSelectElement).value = job?.priority || "normal";
     (byId("job-start") as HTMLInputElement).value = job ? job.start : today;
@@ -1881,6 +1885,7 @@ async function saveJobFromForm(event: SubmitEvent) {
         quantity: Number(inputValue("job-quantity")) || 0,
         unit: inputValue("job-unit") as "pz" | "kg",
         barKgBundles: inputValue("job-bar-kg-bundles").trim(),
+        materialOwner: inputValue("job-material-owner").trim(),
         machineId,
         start,
         end,
@@ -2360,13 +2365,19 @@ function tooltipMarkup(job: ProductionJob) {
             <dt>Progresso</dt><dd>${job.progressDays || 0}/${job.durationDays || 1} giorni · ${Math.round(((job.progressDays || 0) / Math.max(1, job.durationDays || 1)) * 100)}%</dd>
             <dt>Quantità</dt><dd>${job.quantity || 0} ${escapeHtml(job.unit)}</dd>
             ${job.barKgBundles ? `<dt>Kg / Fasci di barra</dt><dd>${escapeHtml(job.barKgBundles)}</dd>` : ""}
+            ${job.materialOwner ? `<dt>Proprietario materiale</dt><dd>${escapeHtml(job.materialOwner)}</dd>` : ""}
             <dt>Prima consegna</dt><dd>${escapeHtml(firstDelivery)}</dd>
             <dt>Consegna finale</dt><dd>${formatLongDate(job.dueDate)}</dd>
             <dt>Disponibilità materiale</dt><dd>${escapeHtml(materialLabels[job.materialStatus])}</dd>
             ${previous ? `<dt>Precedente</dt><dd>${escapeHtml(jobTitle(previous))}</dd>` : ""}
             ${next ? `<dt>Successiva</dt><dd>${escapeHtml(jobTitle(next))}</dd>` : ""}
         </dl>
-        ${job.notes ? `<p class="job-tooltip__notes">${escapeHtml(job.notes)}</p>` : ""}
+        ${job.notes ? `
+            <div class="job-tooltip__notes">
+                <strong>Note</strong>
+                <span>${escapeHtml(job.notes)}</span>
+            </div>
+        ` : ""}
     `;
 }
 

@@ -398,7 +398,7 @@ function renderTables(groups) {
         const machine = machineFor(job);
         const onTime = isOnTime(job);
         return [
-            job.article || "—", job.customer || "—", job.phase || "—", job.materialAlloy || "—", job.barKgBundles || "—",
+            job.article || "—", job.customer || "—", job.phase || "—", job.materialAlloy || "—", job.barKgBundles || "—", job.materialOwner || "—",
             machine.name, machine.department, displayDate(job.start), displayDate(job.end),
             displayDate(job.firstDeliveryDate), displayDate(completionDate(job)), WORK_LABELS[job.workStatus] || job.workStatus,
             `${numberFormat.format(progressRatio(job) * 100)}%`, MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
@@ -406,7 +406,7 @@ function renderTables(groups) {
         ];
     });
     byId("detail-table").innerHTML = tableMarkup(
-        ["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Macchina", "Reparto", "Inizio", "Fine", "Prima consegna", "Completata il", "Stato", "Avanzamento", "Disponibilità materiale", "Quantità", "Unità", "Puntuale"],
+        ["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Proprietario barra / materiale", "Macchina", "Reparto", "Inizio", "Fine", "Prima consegna", "Completata il", "Stato", "Avanzamento", "Disponibilità materiale", "Quantità", "Unità", "Puntuale"],
         rows,
     );
     byId("detail-table-count").textContent = filteredJobs.length > limit
@@ -533,6 +533,7 @@ function populateFilterOptions() {
         const machine = plannerState.machines.find((item) => item.id === option.value);
         if (machine) option.textContent = machine.name;
     });
+    renderResourceFilter();
 }
 
 async function loadLatest(manual = false) {
@@ -590,12 +591,99 @@ function resetFilters() {
     });
     document.querySelectorAll(".filter-panel select").forEach((select: HTMLSelectElement) => {
         [...select.options].forEach((option) => option.selected = false);
-        select.selectedIndex = 0;
+        select.selectedIndex = select.multiple ? -1 : 0;
     });
-    (byId("filter-quick-range") as HTMLSelectElement).value = "12-months";
+    (byId("filter-quick-range") as HTMLSelectElement).value = "all";
     (byId("filter-granularity") as HTMLSelectElement).value = "month";
-    setQuickRange("12-months");
+    setQuickRange("all");
+    (byId("resource-filter-search") as HTMLInputElement).value = "";
+    renderResourceFilter();
     applyFilters();
+}
+
+function selectedResourceValues(id: string) {
+    return new Set(
+        [...(byId(id) as HTMLSelectElement).selectedOptions].map(
+            (option) => option.value,
+        ),
+    );
+}
+
+function updateResourceFilterSummary() {
+    const departments = selectedResourceValues("filter-departments").size;
+    const categories = selectedResourceValues("filter-categories").size;
+    const machines = selectedResourceValues("filter-machines").size;
+    const parts = [];
+    if (departments) parts.push(`${departments} ${departments === 1 ? "reparto" : "reparti"}`);
+    if (categories) parts.push(`${categories} ${categories === 1 ? "categoria" : "categorie"}`);
+    if (machines) parts.push(`${machines} ${machines === 1 ? "macchina" : "macchine"}`);
+    byId("resource-filter-summary").textContent =
+        parts.length ? parts.join(" · ") : "Tutti i reparti, categorie e macchine";
+}
+
+function machineMatchesResourceGroups(machine) {
+    const departments = selectedResourceValues("filter-departments");
+    const categories = selectedResourceValues("filter-categories");
+    return (!departments.size || departments.has(machine.department))
+        && (!categories.size || categories.has(machine.category));
+}
+
+function renderResourceMachineList(preserveScroll = true) {
+    const list = byId("filter-machines-options");
+    const previousScrollTop = preserveScroll ? list.scrollTop : 0;
+    const selected = selectedResourceValues("filter-machines");
+    const search = String(
+        (byId("resource-filter-search") as HTMLInputElement)?.value || "",
+    ).trim().toLocaleLowerCase("it");
+    const machines = plannerState.machines
+        .filter(machineMatchesResourceGroups)
+        .filter((machine) => !search || [
+            machine.name,
+            machine.department,
+            machine.category,
+        ].some((value) => String(value || "").toLocaleLowerCase("it").includes(search)));
+    list.innerHTML = machines.length
+        ? machines.map((machine) => `
+            <button class="analysis-resource-machine${selected.has(machine.id) ? " is-active" : ""}"
+                type="button" data-resource-select="filter-machines" data-resource-value="${escapeHtml(machine.id)}">
+                <i style="background:${escapeHtml(machine.color || "#78a6c8")}"></i>
+                <span><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.department)} · ${escapeHtml(machine.category)}</small></span>
+                <b>${selected.has(machine.id) ? "✓" : ""}</b>
+            </button>
+        `).join("")
+        : '<div class="analysis-resource-empty">Nessuna macchina corrisponde ai filtri.</div>';
+    list.scrollTop = Math.min(
+        previousScrollTop,
+        Math.max(0, list.scrollHeight - list.clientHeight),
+    );
+}
+
+function renderResourceFilter(preserveMachineScroll = true) {
+    [
+        ["filter-departments", "filter-departments-options"],
+        ["filter-categories", "filter-categories-options"],
+    ].forEach(([selectId, containerId]) => {
+        const select = byId(selectId) as HTMLSelectElement;
+        const container = byId(containerId);
+        container.innerHTML = [...select.options].map((option) => `
+            <button class="analysis-resource-chip${option.selected ? " is-active" : ""}"
+                type="button" data-resource-select="${selectId}" data-resource-value="${escapeHtml(option.value)}">
+                ${escapeHtml(option.textContent || option.value)}
+            </button>
+        `).join("");
+    });
+    renderResourceMachineList(preserveMachineScroll);
+    updateResourceFilterSummary();
+}
+
+function clearIncompatibleSelectedMachines() {
+    const machineSelect = byId("filter-machines") as HTMLSelectElement;
+    [...machineSelect.options].forEach((option) => {
+        const machine = plannerState.machines.find((item) => item.id === option.value);
+        if (option.selected && machine && !machineMatchesResourceGroups(machine)) {
+            option.selected = false;
+        }
+    });
 }
 
 function exportRows(groups) {
@@ -621,11 +709,11 @@ function exportRows(groups) {
         row.label, row.summary.jobs, row.summary.distinctArticles, row.summary.producedPieces, row.summary.plannedPieces,
         row.summary.producedKg, row.summary.plannedKg, row.summary.completion, row.summary.punctuality ?? "", row.summary.duration,
     ])];
-    const detail = [["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Macchina", "Reparto", "Categoria", "Inizio", "Fine", "Durata", "Prima consegna", "Qtà prima consegna", "Consegna finale opzionale", "Completata il", "Stato", "Avanzamento %", "Disponibilità materiale", "Quantità", "Unità", "Puntuale", "Note"],
+    const detail = [["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Proprietario barra / materiale", "Macchina", "Reparto", "Categoria", "Inizio", "Fine", "Durata", "Prima consegna", "Qtà prima consegna", "Consegna finale opzionale", "Completata il", "Stato", "Avanzamento %", "Disponibilità materiale", "Quantità", "Unità", "Puntuale", "Note"],
         ...filteredJobs.map((job) => {
             const machine = machineFor(job);
             const onTime = isOnTime(job);
-            return [job.article, job.customer, job.phase, job.materialAlloy, job.barKgBundles, machine.name, machine.department, machine.category,
+            return [job.article, job.customer, job.phase, job.materialAlloy, job.barKgBundles, job.materialOwner, machine.name, machine.department, machine.category,
                 job.start, job.end, job.durationDays, job.firstDeliveryDate, job.firstDeliveryQuantity, job.dueDate, completionDate(job),
                 WORK_LABELS[job.workStatus] || job.workStatus, progressRatio(job) * 100, MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
                 job.quantity, job.unit, onTime === null ? "" : onTime ? "Sì" : "No", job.notes];
@@ -705,6 +793,42 @@ function bindEvents() {
     ["filter-production-from", "filter-production-to"].forEach((id) => byId(id).addEventListener("change", () => {
         (byId("filter-quick-range") as HTMLSelectElement).value = "custom";
     }));
+    byId("analysis-resource-filter").addEventListener("click", (event) => {
+        const clear = (event.target as HTMLElement).closest("#resource-filter-clear");
+        if (clear) {
+            ["filter-departments", "filter-categories", "filter-machines"].forEach((id) => {
+                [...(byId(id) as HTMLSelectElement).options].forEach((option) => {
+                    option.selected = false;
+                });
+            });
+            (byId("resource-filter-search") as HTMLInputElement).value = "";
+            renderResourceFilter(false);
+            applyFilters();
+            return;
+        }
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-resource-select]");
+        if (!button) return;
+        const selectId = button.dataset.resourceSelect || "";
+        const select = byId(selectId) as HTMLSelectElement | null;
+        const option = select
+            ? [...select.options].find((item) => item.value === button.dataset.resourceValue)
+            : null;
+        if (!option) return;
+        option.selected = !option.selected;
+        button.classList.toggle("is-active", option.selected);
+        const check = button.querySelector("b");
+        if (check) check.textContent = option.selected ? "✓" : "";
+        if (selectId !== "filter-machines") {
+            clearIncompatibleSelectedMachines();
+            renderResourceFilter(false);
+        } else {
+            updateResourceFilterSummary();
+        }
+        applyFilters();
+    });
+    byId("resource-filter-search").addEventListener("input", () => {
+        renderResourceMachineList(false);
+    });
     byId("filter-granularity").addEventListener("change", applyFilters);
     byId("custom-add").addEventListener("click", () => {
         customAnalyses.push({
@@ -735,6 +859,6 @@ function bindEvents() {
     });
 }
 
-setQuickRange("12-months");
+setQuickRange("all");
 bindEvents();
 void loadLatest(false);

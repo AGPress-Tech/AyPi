@@ -49,11 +49,11 @@
                 <div class="filter-grid">
                     <label>Periodo rapido
                         <select id="filter-quick-range">
-                            <option value="all">Tutto lo storico</option>
+                            <option value="all" selected>Tutto lo storico</option>
                             <option value="current-month">Mese corrente</option>
                             <option value="3-months">Ultimi 3 mesi</option>
                             <option value="6-months">Ultimi 6 mesi</option>
-                            <option value="12-months" selected>Ultimi 12 mesi</option>
+                            <option value="12-months">Ultimi 12 mesi</option>
                             <option value="current-year">Anno corrente</option>
                             <option value="custom">Personalizzato</option>
                         </select>
@@ -115,18 +115,35 @@
                         </select>
                     </label>
 
-                    <label class="multi-select-label">Reparti
-                        <select id="filter-departments" multiple size="4"></select>
-                        <small>Ctrl + clic per selezioni multiple</small>
-                    </label>
-                    <label class="multi-select-label">Categorie
-                        <select id="filter-categories" multiple size="4"></select>
-                        <small>Ctrl + clic per selezioni multiple</small>
-                    </label>
-                    <label class="multi-select-label">Macchine
-                        <select id="filter-machines" multiple size="4"></select>
-                        <small>Ctrl + clic per selezioni multiple</small>
-                    </label>
+                    <section class="analysis-resource-filter" id="analysis-resource-filter">
+                        <header>
+                            <div><strong>Risorse produttive</strong><small id="resource-filter-summary">Tutti i reparti, categorie e macchine</small></div>
+                            <button type="button" id="resource-filter-clear">Mostra tutto</button>
+                        </header>
+                        <label class="analysis-resource-search">
+                            <span>Cerca</span>
+                            <input id="resource-filter-search" type="search" placeholder="Macchina, reparto o categoria">
+                        </label>
+                        <div class="analysis-resource-layout">
+                            <div class="analysis-resource-groups">
+                                <section>
+                                    <strong>Reparti</strong>
+                                    <div class="analysis-resource-chips" id="filter-departments-options"></div>
+                                </section>
+                                <section>
+                                    <strong>Categorie</strong>
+                                    <div class="analysis-resource-chips" id="filter-categories-options"></div>
+                                </section>
+                            </div>
+                            <section class="analysis-resource-machines">
+                                <strong>Macchine</strong>
+                                <div class="analysis-resource-machine-list" id="filter-machines-options"></div>
+                            </section>
+                        </div>
+                        <select id="filter-departments" multiple hidden aria-label="Reparti selezionati"></select>
+                        <select id="filter-categories" multiple hidden aria-label="Categorie selezionate"></select>
+                        <select id="filter-machines" multiple hidden aria-label="Macchine selezionate"></select>
+                    </section>
                     <label class="filter-check">
                         <input id="filter-only-completed" type="checkbox">
                         <span><strong>Solo produzioni completate</strong><small>Esclude lavorazioni aperte e pianificate</small></span>
