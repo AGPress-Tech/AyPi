@@ -45,17 +45,12 @@
             <article class="summary-card">
                 <span>Programmate</span>
                 <strong id="stat-planned">0</strong>
-                <small>nel periodo visibile</small>
+                <small>non ancora completate</small>
             </article>
             <article class="summary-card summary-card--warning">
                 <span>Da pianificare</span>
                 <strong id="stat-backlog">0</strong>
                 <small>in attesa di macchina</small>
-            </article>
-            <article class="summary-card summary-card--danger">
-                <span>Conflitti</span>
-                <strong id="stat-conflicts">0</strong>
-                <small>sovrapposizioni macchina</small>
             </article>
             <article class="summary-card summary-card--late">
                 <span>In ritardo</span>
@@ -180,6 +175,7 @@
                         <option value="kg">kg</option>
                     </select>
                 </label>
+                <label>Kg / Fasci di barra <span class="optional-label">Opzionale</span><input id="job-bar-kg-bundles" maxlength="80" placeholder="Es. 1.200 kg / 3 fasci"></label>
                 <div class="form-field">
                     <span class="form-field__label">Macchina</span>
                     <select id="job-machine" class="machine-picker__native" aria-hidden="true" tabindex="-1">

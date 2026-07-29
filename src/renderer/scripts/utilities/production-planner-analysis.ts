@@ -398,7 +398,7 @@ function renderTables(groups) {
         const machine = machineFor(job);
         const onTime = isOnTime(job);
         return [
-            job.article || "—", job.customer || "—", job.phase || "—", job.materialAlloy || "—",
+            job.article || "—", job.customer || "—", job.phase || "—", job.materialAlloy || "—", job.barKgBundles || "—",
             machine.name, machine.department, displayDate(job.start), displayDate(job.end),
             displayDate(job.firstDeliveryDate), displayDate(completionDate(job)), WORK_LABELS[job.workStatus] || job.workStatus,
             `${numberFormat.format(progressRatio(job) * 100)}%`, MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
@@ -406,7 +406,7 @@ function renderTables(groups) {
         ];
     });
     byId("detail-table").innerHTML = tableMarkup(
-        ["Articolo", "Cliente", "Fase", "Materiale / Lega", "Macchina", "Reparto", "Inizio", "Fine", "Prima consegna", "Completata il", "Stato", "Avanzamento", "Disponibilità materiale", "Quantità", "Unità", "Puntuale"],
+        ["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Macchina", "Reparto", "Inizio", "Fine", "Prima consegna", "Completata il", "Stato", "Avanzamento", "Disponibilità materiale", "Quantità", "Unità", "Puntuale"],
         rows,
     );
     byId("detail-table-count").textContent = filteredJobs.length > limit
@@ -621,11 +621,11 @@ function exportRows(groups) {
         row.label, row.summary.jobs, row.summary.distinctArticles, row.summary.producedPieces, row.summary.plannedPieces,
         row.summary.producedKg, row.summary.plannedKg, row.summary.completion, row.summary.punctuality ?? "", row.summary.duration,
     ])];
-    const detail = [["Articolo", "Cliente", "Fase", "Materiale / Lega", "Macchina", "Reparto", "Categoria", "Inizio", "Fine", "Durata", "Prima consegna", "Qtà prima consegna", "Consegna finale opzionale", "Completata il", "Stato", "Avanzamento %", "Disponibilità materiale", "Quantità", "Unità", "Puntuale", "Note"],
+    const detail = [["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Macchina", "Reparto", "Categoria", "Inizio", "Fine", "Durata", "Prima consegna", "Qtà prima consegna", "Consegna finale opzionale", "Completata il", "Stato", "Avanzamento %", "Disponibilità materiale", "Quantità", "Unità", "Puntuale", "Note"],
         ...filteredJobs.map((job) => {
             const machine = machineFor(job);
             const onTime = isOnTime(job);
-            return [job.article, job.customer, job.phase, job.materialAlloy, machine.name, machine.department, machine.category,
+            return [job.article, job.customer, job.phase, job.materialAlloy, job.barKgBundles, machine.name, machine.department, machine.category,
                 job.start, job.end, job.durationDays, job.firstDeliveryDate, job.firstDeliveryQuantity, job.dueDate, completionDate(job),
                 WORK_LABELS[job.workStatus] || job.workStatus, progressRatio(job) * 100, MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
                 job.quantity, job.unit, onTime === null ? "" : onTime ? "Sì" : "No", job.notes];

@@ -38,6 +38,7 @@ type ProductionJob = {
     materialAlloy: string;
     quantity: number;
     unit: "pz" | "kg";
+    barKgBundles: string;
     machineId: string;
     start: string;
     end: string;
@@ -120,6 +121,8 @@ let visibleStart = startOfWeek(new Date());
 let visibleDays = 14;
 let draggedJobId = "";
 let draggedMachineId = "";
+let machineAutoScrollFrame: number | null = null;
+let machineAutoScrollVelocity = 0;
 let resizeSession: null | {
     jobId: string;
     edge: "start" | "end";
@@ -159,6 +162,7 @@ let rangeEditRevision = 0;
 let machinePickerDepartment = "";
 let machinePickerCategory = "";
 let machinePickerSearch = "";
+let nativeFocusRequest = 0;
 let calendarPanSession: null | {
     originX: number;
     originStart: Date;
@@ -450,6 +454,7 @@ function loadState(): PlannerState {
             return {
                 ...normalizedJob,
                 materialAlloy: String(job.materialAlloy || ""),
+                barKgBundles: String(job.barKgBundles || ""),
                 durationDays,
                 baseSpanDays: Number(job.baseSpanDays) || existingSpan,
                 workStatus,
@@ -769,6 +774,7 @@ function jobMatches(job: ProductionJob) {
         job.firstDeliveryDate,
         job.quantity,
         job.unit,
+        job.barKgBundles,
         materialLabels[job.materialStatus],
         workLabels[job.workStatus],
         job.priority,
@@ -796,23 +802,6 @@ function isLate(job: ProductionJob) {
     const effectiveCompletion =
         plannedEnd.getTime() > today.getTime() ? plannedEnd : today;
     return effectiveCompletion.getTime() > firstDelivery.getTime();
-}
-
-function getConflictIds() {
-    const ids = new Set<string>();
-    state.machines.forEach((machine) => {
-        const jobs = state.jobs
-            .filter((job) => job.machineId === machine.id && job.start && job.end && job.workStatus !== "done")
-            .sort((a, b) => parseDate(a.start).getTime() - parseDate(b.start).getTime());
-        for (let first = 0; first < jobs.length; first += 1) {
-            for (let second = first + 1; second < jobs.length; second += 1) {
-                if (parseDate(jobs[second].start) > parseDate(jobs[first].end)) break;
-                ids.add(jobs[first].id);
-                ids.add(jobs[second].id);
-            }
-        }
-    });
-    return ids;
 }
 
 function assignTracks(jobs: ProductionJob[]) {
@@ -1120,7 +1109,6 @@ function renderTimeline() {
         return `<i class="day-grid-cell${isWeekend(date) ? " is-weekend" : ""}"></i>`;
     }).join("");
 
-    const conflictIds = getConflictIds();
     const todayOffset = diffDays(new Date(), visibleStart);
     const activeFilters = getFilters();
     const hasJobContentFilters =
@@ -1176,7 +1164,7 @@ function renderTimeline() {
             const progressLabel = processedDays > 0
                 ? `<span>${processedDays}/${job.durationDays || 1} gg · ${progressPercent}%</span>`
                 : "";
-            return `<article class="job-bar material-${job.materialStatus} ${conflictIds.has(job.id) ? "has-conflict" : ""} ${isLate(job) ? "is-late" : ""} ${continuesBefore ? "continues-before" : ""} ${continuesAfter ? "continues-after" : ""}"
+            return `<article class="job-bar material-${job.materialStatus} ${isLate(job) ? "is-late" : ""} ${continuesBefore ? "continues-before" : ""} ${continuesAfter ? "continues-after" : ""}"
                 draggable="true" tabindex="0" data-job-id="${escapeHtml(job.id)}" data-status="${job.workStatus}"
                 style="left:${clippedStart * dayWidth + 3}px;width:${Math.max(10, widthDays * dayWidth - 6)}px;top:${track * 62 + 12}px;--job-progress:${progressPercent}%"
                 aria-label="${escapeHtml(job.customer)} · ${escapeHtml(jobTitle(job))}">
@@ -1281,7 +1269,6 @@ function renderJobLinks() {
 }
 
 function renderStats() {
-    const conflicts = getConflictIds();
     const filteredJobs = state.jobs.filter(jobMatches);
     byId("stat-planned")!.textContent = String(
         filteredJobs.filter(
@@ -1289,7 +1276,6 @@ function renderStats() {
         ).length,
     );
     byId("stat-backlog")!.textContent = String(filteredJobs.filter((job) => !job.machineId).length);
-    byId("stat-conflicts")!.textContent = String(conflicts.size);
     byId("stat-late")!.textContent = String(filteredJobs.filter(isLate).length);
 }
 
@@ -1313,6 +1299,58 @@ function clearMachineDropIndicators() {
     document.querySelectorAll<HTMLElement>("#machine-list .machine-item").forEach((row) => {
         row.classList.remove("is-dragging", "drop-before", "drop-after");
     });
+}
+
+function stopMachineListAutoScroll() {
+    machineAutoScrollVelocity = 0;
+    if (machineAutoScrollFrame !== null) {
+        cancelAnimationFrame(machineAutoScrollFrame);
+        machineAutoScrollFrame = null;
+    }
+    byId("machine-list")?.classList.remove(
+        "is-auto-scrolling-up",
+        "is-auto-scrolling-down",
+    );
+}
+
+function runMachineListAutoScroll() {
+    const list = byId("machine-list");
+    if (!list || !draggedMachineId || !machineAutoScrollVelocity) {
+        stopMachineListAutoScroll();
+        return;
+    }
+    list.scrollTop += machineAutoScrollVelocity;
+    machineAutoScrollFrame = requestAnimationFrame(runMachineListAutoScroll);
+}
+
+function updateMachineListAutoScroll(clientY: number) {
+    const list = byId("machine-list");
+    if (!list || !draggedMachineId) {
+        stopMachineListAutoScroll();
+        return;
+    }
+    const rect = list.getBoundingClientRect();
+    const edgeSize = Math.min(90, Math.max(54, rect.height * 0.2));
+    const topDistance = clientY - rect.top;
+    const bottomDistance = rect.bottom - clientY;
+    let velocity = 0;
+    if (topDistance < edgeSize && clientY <= rect.bottom) {
+        const intensity = Math.max(0, Math.min(1, (edgeSize - topDistance) / edgeSize));
+        velocity = -(2 + 22 * intensity * intensity);
+    } else if (bottomDistance < edgeSize && clientY >= rect.top) {
+        const intensity = Math.max(0, Math.min(1, (edgeSize - bottomDistance) / edgeSize));
+        velocity = 2 + 22 * intensity * intensity;
+    }
+    machineAutoScrollVelocity = velocity;
+    list.classList.toggle("is-auto-scrolling-up", velocity < 0);
+    list.classList.toggle("is-auto-scrolling-down", velocity > 0);
+    if (!velocity) {
+        stopMachineListAutoScroll();
+        return;
+    }
+    if (machineAutoScrollFrame === null) {
+        machineAutoScrollFrame = requestAnimationFrame(runMachineListAutoScroll);
+    }
 }
 
 function reorderMachine(
@@ -1346,11 +1384,12 @@ function restoreMachineDialogFocus() {
     if (!dialog?.classList.contains("is-open")) return;
     cancelActivePointerInteractions({ render: false });
     document.body.classList.remove("is-calendar-panning");
-    window.focus();
-    requestAnimationFrame(() => {
-        const input = byId("machine-name") as HTMLInputElement | null;
-        if (!input || !dialog.classList.contains("is-open")) return;
-        input.focus({ preventScroll: true });
+    void focusNativePlannerWindow().finally(() => {
+        requestAnimationFrame(() => {
+            const input = byId("machine-name") as HTMLInputElement | null;
+            if (!input || !dialog.classList.contains("is-open")) return;
+            input.focus({ preventScroll: true });
+        });
     });
 }
 
@@ -1512,7 +1551,7 @@ function closeUnavailabilityRangeEditor() {
     closeDialog("unavailability-range-dialog");
 }
 
-function saveUnavailabilityRange(event: SubmitEvent) {
+async function saveUnavailabilityRange(event: SubmitEvent) {
     event.preventDefault();
     const error = byId("unavailability-range-error");
     const start = inputValue("unavailability-range-start");
@@ -1543,7 +1582,7 @@ function saveUnavailabilityRange(event: SubmitEvent) {
     const targetLabel = shared
         ? `${unavailabilityLabels[reference.type].toLowerCase()} su ${items.length} macchine`
         : `${unavailabilityLabels[reference.type].toLowerCase()} sulla macchina selezionata`;
-    if (!window.confirm(
+    if (!await nativeConfirm(
         `Confermi il nuovo periodo dal ${formatLongDate(start)} al ${formatLongDate(end)} per ${targetLabel}?`,
     )) return;
     const machineIds = new Set(items.map((item) => item.machineId));
@@ -1572,6 +1611,64 @@ function renderAll() {
     renderStats();
 }
 
+async function focusNativePlannerWindow() {
+    const request = ++nativeFocusRequest;
+    try {
+        await ipcRenderer.invoke("focus-sender-window");
+    } catch (error) {
+        console.warn(
+            "[production-planner] Impossibile richiedere il focus nativo",
+            error,
+        );
+    }
+    if (request !== nativeFocusRequest) return false;
+    window.focus();
+    return document.hasFocus();
+}
+
+async function nativeMessage(
+    message: string,
+    options: {
+        detail?: string;
+        type?: "none" | "info" | "warning" | "error" | "question";
+        confirmLabel?: string;
+        destructive?: boolean;
+    } = {},
+) {
+    const [primary, ...detailParts] = String(message).split(/\n\s*\n/);
+    await focusNativePlannerWindow();
+    const result = await ipcRenderer.invoke("show-message-box", {
+        type: options.type || "question",
+        message: primary,
+        detail: options.detail || detailParts.join("\n\n"),
+        buttons: options.confirmLabel
+            ? ["Annulla", options.confirmLabel]
+            : ["OK"],
+        defaultId: options.confirmLabel && !options.destructive ? 1 : 0,
+        cancelId: 0,
+        noLink: true,
+    });
+    await focusNativePlannerWindow();
+    return result;
+}
+
+async function nativeConfirm(
+    message: string,
+    confirmLabel = "Conferma",
+    destructive = false,
+) {
+    const result = await nativeMessage(message, {
+        confirmLabel,
+        destructive,
+        type: destructive ? "warning" : "question",
+    });
+    return Number(result?.response) === 1;
+}
+
+async function nativeAlert(message: string) {
+    await nativeMessage(message, { type: "warning" });
+}
+
 function openDialog(id: string) {
     const dialog = byId(id);
     if (!dialog) return;
@@ -1580,11 +1677,18 @@ function openDialog(id: string) {
     hideJobTooltip();
     dialog.classList.add("is-open");
     dialog.setAttribute("aria-hidden", "false");
+    dialog.removeAttribute("inert");
+    void focusNativePlannerWindow();
 }
 
 function closeDialog(id: string) {
     const dialog = byId(id);
     if (!dialog) return;
+    if (id === "machines-dialog") {
+        stopMachineListAutoScroll();
+        draggedMachineId = "";
+        clearMachineDropIndicators();
+    }
     dialog.classList.remove("is-open");
     dialog.setAttribute("aria-hidden", "true");
 }
@@ -1622,6 +1726,11 @@ function cancelActivePointerInteractions(
     resizeSession = null;
     calendarPanSession = null;
     draggedJobId = "";
+    if (draggedMachineId) {
+        stopMachineListAutoScroll();
+        draggedMachineId = "";
+        clearMachineDropIndicators();
+    }
     document.body.classList.remove("is-calendar-panning");
     clearDragPreview();
     if (hadResize && options.render !== false) renderAll();
@@ -1664,23 +1773,27 @@ function restoreJobFormInteractivity(focusFirstField = true) {
         }
     });
     updateJobStartAvailability();
-    window.focus();
-    if (!focusFirstField) return;
     const focusFirstFormField = () => {
         if (!backdrop.classList.contains("is-open")) return;
         const article = byId("job-article") as HTMLInputElement | null;
         article?.focus({ preventScroll: true });
     };
-    requestAnimationFrame(() => {
-        focusFirstFormField();
-        window.setTimeout(focusFirstFormField, 0);
+    void focusNativePlannerWindow().finally(() => {
+        if (!focusFirstField) return;
+        requestAnimationFrame(() => {
+            focusFirstFormField();
+            window.setTimeout(focusFirstFormField, 40);
+            window.setTimeout(focusFirstFormField, 140);
+        });
     });
 }
 
 function restorePlannerWindowFocus() {
     const active = document.activeElement as HTMLElement | null;
     if (active?.closest(".dialog-backdrop")) active.blur();
-    window.setTimeout(() => window.focus(), 0);
+    window.setTimeout(() => {
+        void focusNativePlannerWindow();
+    }, 0);
 }
 
 function openJob(job?: ProductionJob, asCopy = false) {
@@ -1696,6 +1809,7 @@ function openJob(job?: ProductionJob, asCopy = false) {
     (byId("job-material-alloy") as HTMLInputElement).value = job?.materialAlloy || "";
     (byId("job-quantity") as HTMLInputElement).value = job?.quantity ? String(job.quantity) : "";
     (byId("job-unit") as HTMLSelectElement).value = job?.unit || "pz";
+    (byId("job-bar-kg-bundles") as HTMLInputElement).value = job?.barKgBundles || "";
     (byId("job-machine") as HTMLSelectElement).value = job?.machineId || "";
     (byId("job-priority") as HTMLSelectElement).value = job?.priority || "normal";
     (byId("job-start") as HTMLInputElement).value = job ? job.start : today;
@@ -1714,7 +1828,7 @@ function openJob(job?: ProductionJob, asCopy = false) {
     restoreJobFormInteractivity();
 }
 
-function saveJobFromForm(event: SubmitEvent) {
+async function saveJobFromForm(event: SubmitEvent) {
     event.preventDefault();
     const editingId = inputValue("job-id");
     if (
@@ -1766,6 +1880,7 @@ function saveJobFromForm(event: SubmitEvent) {
         materialAlloy: inputValue("job-material-alloy").trim(),
         quantity: Number(inputValue("job-quantity")) || 0,
         unit: inputValue("job-unit") as "pz" | "kg",
+        barKgBundles: inputValue("job-bar-kg-bundles").trim(),
         machineId,
         start,
         end,
@@ -1787,7 +1902,7 @@ function saveJobFromForm(event: SubmitEvent) {
     const confirmation = index >= 0
         ? `Confermi il salvataggio delle modifiche a "${jobTitle(job)}"?`
         : `Confermi la creazione della lavorazione "${jobTitle(job)}"?`;
-    if (!window.confirm(confirmation)) {
+    if (!await nativeConfirm(confirmation, "Salva")) {
         restoreJobFormInteractivity();
         return;
     }
@@ -1800,19 +1915,21 @@ function saveJobFromForm(event: SubmitEvent) {
     notify(index >= 0 ? "Lavorazione aggiornata" : "Lavorazione creata");
 }
 
-function deleteCurrentJob() {
+async function deleteCurrentJob() {
     const id = inputValue("job-id");
-    if (deleteJobWithConfirmation(id)) {
+    if (await deleteJobWithConfirmation(id)) {
         closeDialog("job-dialog");
         restorePlannerWindowFocus();
     }
 }
 
-function deleteJobWithConfirmation(id: string) {
+async function deleteJobWithConfirmation(id: string) {
     const job = state.jobs.find((item) => item.id === id);
     if (!job) return false;
-    const confirmed = window.confirm(
+    const confirmed = await nativeConfirm(
         `Eliminare definitivamente la lavorazione "${jobTitle(job)}"?\n\nQuesta operazione non può essere annullata.`,
+        "Elimina",
+        true,
     );
     if (!confirmed) return false;
     state.jobs.forEach((item) => {
@@ -1826,7 +1943,7 @@ function deleteJobWithConfirmation(id: string) {
     return true;
 }
 
-function requestCloseJobDialog() {
+async function requestCloseJobDialog() {
     const dialog = byId("job-dialog");
     if (!dialog?.classList.contains("is-open")) return;
     const currentId = inputValue("job-id");
@@ -1834,7 +1951,7 @@ function requestCloseJobDialog() {
     const message = job
         ? `Annullare le modifiche a "${jobTitle(job)}"?\n\nLe modifiche non salvate verranno perse.`
         : "Annullare l'inserimento della nuova lavorazione?\n\nI dati inseriti verranno persi.";
-    if (!window.confirm(message)) {
+    if (!await nativeConfirm(message, "Annulla modifiche", true)) {
         restoreJobFormInteractivity();
         return;
     }
@@ -2242,6 +2359,7 @@ function tooltipMarkup(job: ProductionJob) {
             <dt>Durata</dt><dd>${job.durationDays || 1} giorni lavorativi</dd>
             <dt>Progresso</dt><dd>${job.progressDays || 0}/${job.durationDays || 1} giorni · ${Math.round(((job.progressDays || 0) / Math.max(1, job.durationDays || 1)) * 100)}%</dd>
             <dt>Quantità</dt><dd>${job.quantity || 0} ${escapeHtml(job.unit)}</dd>
+            ${job.barKgBundles ? `<dt>Kg / Fasci di barra</dt><dd>${escapeHtml(job.barKgBundles)}</dd>` : ""}
             <dt>Prima consegna</dt><dd>${escapeHtml(firstDelivery)}</dd>
             <dt>Consegna finale</dt><dd>${formatLongDate(job.dueDate)}</dd>
             <dt>Disponibilità materiale</dt><dd>${escapeHtml(materialLabels[job.materialStatus])}</dd>
@@ -2634,7 +2752,7 @@ function bindGlobalEvents() {
         }
     });
 
-    byId("closure-form")?.addEventListener("submit", (event) => {
+    byId("closure-form")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const type = inputValue("closure-type") as "vacation" | "closure";
         const start = inputValue("closure-start");
@@ -2642,11 +2760,11 @@ function bindGlobalEvents() {
         const targetIds = getClosureTargetMachineIds();
         if (!start || !end) return;
         if (parseDate(end) < parseDate(start)) {
-            window.alert("La fine della regola non può precedere l'inizio.");
+            await nativeAlert("La fine della regola non può precedere l'inizio.");
             return;
         }
         if (!targetIds.size) {
-            window.alert("Seleziona tutta l'azienda, almeno un reparto oppure almeno una macchina.");
+            await nativeAlert("Seleziona tutta l'azienda, almeno un reparto oppure almeno una macchina.");
             return;
         }
 
@@ -2660,7 +2778,7 @@ function bindGlobalEvents() {
         if (selectedDepartmentNames.length) scopeParts.push(`Reparti: ${selectedDepartmentNames.join(", ")}`);
         if (selectedMachineNames.length) scopeParts.push(`Macchine: ${selectedMachineNames.join(", ")}`);
         const scopeLabel = allSelected ? "Tutta l'azienda" : scopeParts.join(" · ");
-        if (!window.confirm(
+        if (!await nativeConfirm(
             `Applicare ${unavailabilityLabels[type].toLowerCase()} dal ${formatLongDate(start)} al ${formatLongDate(end)} a ${targetIds.size} ${targetIds.size === 1 ? "macchina" : "macchine"}?`,
         )) return;
 
@@ -2685,14 +2803,18 @@ function bindGlobalEvents() {
         notify(`${unavailabilityLabels[type]} applicata a ${targetIds.size} ${targetIds.size === 1 ? "macchina" : "macchine"}`);
     });
 
-    byId("closure-list")?.addEventListener("click", (event) => {
+    byId("closure-list")?.addEventListener("click", async (event) => {
         const button = (event.target as HTMLElement).closest("[data-remove-closure]");
         const row = button?.closest("[data-closure-group-id]") as HTMLElement | null;
         const groupId = row?.dataset.closureGroupId;
         if (!groupId) return;
         const items = state.unavailabilities.filter((item) => (item.groupId || item.id) === groupId);
         if (!items.length) return;
-        if (!window.confirm(`Rimuovere definitivamente questa regola da ${items.length} ${items.length === 1 ? "macchina" : "macchine"}?`)) return;
+        if (!await nativeConfirm(
+            `Rimuovere definitivamente questa regola da ${items.length} ${items.length === 1 ? "macchina" : "macchine"}?`,
+            "Rimuovi",
+            true,
+        )) return;
         const machineIds = new Set(items.map((item) => item.machineId));
         state.unavailabilities = state.unavailabilities.filter((item) => (item.groupId || item.id) !== groupId);
         machineIds.forEach(recalculateMachineSchedule);
@@ -2702,7 +2824,7 @@ function bindGlobalEvents() {
         notify("Regola collettiva rimossa");
     });
 
-    byId("unavailability-form")?.addEventListener("submit", (event) => {
+    byId("unavailability-form")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const machineId = inputValue("unavailability-machine");
         const start = inputValue("unavailability-start");
@@ -2710,11 +2832,14 @@ function bindGlobalEvents() {
         const type = inputValue("unavailability-type") as UnavailabilityType;
         if (!machineId || !start || !end) return;
         if (parseDate(end) < parseDate(start)) {
-            window.alert("La fine dell'indisponibilità non può precedere l'inizio.");
+            await nativeAlert("La fine dell'indisponibilità non può precedere l'inizio.");
             return;
         }
         const machine = state.machines.find((item) => item.id === machineId);
-        if (!window.confirm(`Aggiungere ${unavailabilityLabels[type].toLowerCase()} per ${machine?.name || "la macchina"} dal ${formatLongDate(start)} al ${formatLongDate(end)}?`)) return;
+        if (!await nativeConfirm(
+            `Aggiungere ${unavailabilityLabels[type].toLowerCase()} per ${machine?.name || "la macchina"} dal ${formatLongDate(start)} al ${formatLongDate(end)}?`,
+            "Aggiungi",
+        )) return;
         state.unavailabilities.push({
             id: uid("unavailability"),
             machineId,
@@ -2731,12 +2856,16 @@ function bindGlobalEvents() {
         notify("Indisponibilità aggiunta e pianificazione aggiornata");
     });
 
-    byId("unavailability-list")?.addEventListener("click", (event) => {
+    byId("unavailability-list")?.addEventListener("click", async (event) => {
         const button = (event.target as HTMLElement).closest("[data-remove-unavailability]");
         const row = button?.closest("[data-unavailability-id]") as HTMLElement | null;
         const item = state.unavailabilities.find((entry) => entry.id === row?.dataset.unavailabilityId);
         if (!item) return;
-        if (!window.confirm(`Rimuovere definitivamente ${unavailabilityLabels[item.type].toLowerCase()} dal ${formatLongDate(item.start)} al ${formatLongDate(item.end)}?`)) return;
+        if (!await nativeConfirm(
+            `Rimuovere definitivamente ${unavailabilityLabels[item.type].toLowerCase()} dal ${formatLongDate(item.start)} al ${formatLongDate(item.end)}?`,
+            "Rimuovi",
+            true,
+        )) return;
         state.unavailabilities = state.unavailabilities.filter((entry) => entry.id !== item.id);
         recalculateMachineSchedule(item.machineId);
         saveState();
@@ -2951,6 +3080,7 @@ function bindGlobalEvents() {
             return;
         }
         event.stopPropagation();
+        stopMachineListAutoScroll();
         draggedMachineId = row.dataset.machineId;
         row.classList.add("is-dragging");
         event.dataTransfer?.setData("text/x-aypi-machine", draggedMachineId);
@@ -2963,10 +3093,14 @@ function bindGlobalEvents() {
 
     byId("machine-list")?.addEventListener("dragover", (event) => {
         if (!draggedMachineId) return;
-        const row = (event.target as HTMLElement).closest("[data-machine-id]") as HTMLElement | null;
-        if (!row || row.dataset.machineId === draggedMachineId) return;
         event.preventDefault();
         event.stopPropagation();
+        updateMachineListAutoScroll(event.clientY);
+        const row = (event.target as HTMLElement).closest("[data-machine-id]") as HTMLElement | null;
+        if (!row || row.dataset.machineId === draggedMachineId) {
+            if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+            return;
+        }
         document.querySelectorAll<HTMLElement>("#machine-list .machine-item").forEach((item) => {
             item.classList.remove("drop-before", "drop-after");
         });
@@ -2978,6 +3112,7 @@ function bindGlobalEvents() {
     byId("machine-list")?.addEventListener("dragleave", (event) => {
         const list = event.currentTarget as HTMLElement;
         if (list.contains(event.relatedTarget as Node)) return;
+        stopMachineListAutoScroll();
         document.querySelectorAll<HTMLElement>("#machine-list .machine-item").forEach((item) => {
             item.classList.remove("drop-before", "drop-after");
         });
@@ -2985,7 +3120,15 @@ function bindGlobalEvents() {
 
     byId("machine-list")?.addEventListener("drop", (event) => {
         if (!draggedMachineId) return;
-        const row = (event.target as HTMLElement).closest("[data-machine-id]") as HTMLElement | null;
+        stopMachineListAutoScroll();
+        const list = event.currentTarget as HTMLElement;
+        let row = (event.target as HTMLElement).closest("[data-machine-id]") as HTMLElement | null;
+        if (!row) {
+            const rows = [...list.querySelectorAll<HTMLElement>("[data-machine-id]")];
+            row = event.clientY < list.getBoundingClientRect().top + list.clientHeight / 2
+                ? rows[0] || null
+                : rows.at(-1) || null;
+        }
         if (!row?.dataset.machineId || row.dataset.machineId === draggedMachineId) {
             clearMachineDropIndicators();
             draggedMachineId = "";
@@ -2995,7 +3138,8 @@ function bindGlobalEvents() {
         event.stopPropagation();
         const sourceId = draggedMachineId;
         const targetId = row.dataset.machineId;
-        const placeAfter = row.classList.contains("drop-after");
+        const placeAfter = row.classList.contains("drop-after")
+            || event.clientY > row.getBoundingClientRect().top + row.offsetHeight / 2;
         clearMachineDropIndicators();
         draggedMachineId = "";
         window.setTimeout(() => {
@@ -3009,6 +3153,7 @@ function bindGlobalEvents() {
 
     byId("machine-list")?.addEventListener("dragend", (event) => {
         event.stopPropagation();
+        stopMachineListAutoScroll();
         draggedMachineId = "";
         clearMachineDropIndicators();
     });
@@ -3032,7 +3177,7 @@ function bindGlobalEvents() {
         renderAll();
     });
 
-    byId("machine-list")?.addEventListener("click", (event) => {
+    byId("machine-list")?.addEventListener("click", async (event) => {
         const button = (event.target as HTMLElement).closest("[data-remove-machine]");
         if (!button) return;
         event.preventDefault();
@@ -3042,7 +3187,11 @@ function bindGlobalEvents() {
         if (!machine) return;
         const assigned = state.jobs.filter((job) => job.machineId === machine.id).length;
         const detail = assigned ? ` Le ${assigned} lavorazioni assegnate torneranno nella coda.` : "";
-        if (!window.confirm(`Rimuovere ${machine.name}?${detail}`)) {
+        if (!await nativeConfirm(
+            `Rimuovere ${machine.name}?${detail}`,
+            "Rimuovi",
+            true,
+        )) {
             restoreMachineDialogFocus();
             return;
         }

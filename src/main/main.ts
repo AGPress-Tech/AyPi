@@ -327,6 +327,14 @@ app.whenReady().then(() => {
 app.on("browser-window-created", (_event, win) => {
     if (!win || !win.webContents) return;
     applyInterfaceIconToWindow(win);
+    const focusWindowContents = () => {
+        if (win.isDestroyed() || win.webContents.isDestroyed()) return;
+        win.webContents.focus();
+    };
+    win.on("focus", focusWindowContents);
+    win.on("show", () => {
+        setImmediate(focusWindowContents);
+    });
     const notifyAdminPromptClose = () => {
         if (!win || win.isDestroyed() || !win.webContents) return;
         win.webContents.send("admin-hotkey-close");

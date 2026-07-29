@@ -431,7 +431,7 @@ button {
 
 .summary {
     display: grid;
-    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
     gap: 1px;
     border-bottom: 1px solid var(--line);
     background: var(--line);
@@ -468,10 +468,6 @@ button {
 
 .summary-card--warning {
     border-left-color: #e8a923;
-}
-
-.summary-card--danger {
-    border-left-color: #da4b55;
 }
 
 .summary-card--late {
@@ -1998,11 +1994,6 @@ body.is-calendar-panning * {
     border-left: 2px solid #18864b;
 }
 
-.job-bar.has-conflict {
-    outline: 2px solid #d92d20;
-    outline-offset: 1px;
-}
-
 .job-bar.is-late::before {
     position: absolute;
     right: 21px;
@@ -2482,9 +2473,19 @@ body.is-calendar-panning * {
 }
 
 .machine-list {
+    position: relative;
     max-height: 420px;
     padding: 14px 22px;
     overflow: auto;
+    scroll-behavior: auto;
+}
+
+.machine-list.is-auto-scrolling-up {
+    box-shadow: inset 0 16px 16px -18px rgba(36, 120, 200, 0.85);
+}
+
+.machine-list.is-auto-scrolling-down {
+    box-shadow: inset 0 -16px 16px -18px rgba(36, 120, 200, 0.85);
 }
 
 .machine-item {

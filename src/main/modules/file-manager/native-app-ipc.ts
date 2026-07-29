@@ -10,7 +10,10 @@ type NativeAppDependencies = {
     ipcMain: IpcMain;
     app: App;
     dialog: Dialog;
-    browserWindow: Pick<typeof BrowserWindow, "getFocusedWindow">;
+    browserWindow: Pick<
+        typeof BrowserWindow,
+        "getFocusedWindow" | "fromWebContents"
+    >;
     mainWindow: BrowserWindow;
 };
 
@@ -46,8 +49,11 @@ export function registerNativeAppIpc({
             : result.filePaths[0];
     });
 
-    ipcMain.handle("show-message-box", async (_event, options) => {
-        const window = browserWindow.getFocusedWindow() || mainWindow;
+    ipcMain.handle("show-message-box", async (event, options) => {
+        const window =
+            browserWindow.fromWebContents(event.sender) ||
+            browserWindow.getFocusedWindow() ||
+            mainWindow;
         return dialog.showMessageBox(window, {
             type: options.type || "none",
             buttons:
@@ -67,4 +73,17 @@ export function registerNativeAppIpc({
     });
 
     ipcMain.handle("get-app-version", async () => app.getVersion());
+
+    ipcMain.handle("focus-sender-window", (event) => {
+        const window =
+            browserWindow.fromWebContents(event.sender) ||
+            browserWindow.getFocusedWindow() ||
+            mainWindow;
+        if (!window || window.isDestroyed()) return false;
+        if (window.isMinimized()) window.restore();
+        if (!window.isVisible()) window.show();
+        window.focus();
+        window.webContents.focus();
+        return window.isFocused();
+    });
 }
