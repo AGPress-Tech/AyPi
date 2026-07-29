@@ -124,6 +124,16 @@ let draggedJobId = "";
 let draggedMachineId = "";
 let machineAutoScrollFrame: number | null = null;
 let machineAutoScrollVelocity = 0;
+let jobDragAutoScrollFrame: number | null = null;
+let jobDragHorizontalDirection = 0;
+let jobDragHorizontalIntensity = 0;
+let jobDragVerticalVelocity = 0;
+let jobDragLastHorizontalStep = 0;
+let jobDragClientX = 0;
+let jobDragMachineId = "";
+let jobDragAutoScrollReadyAt = 0;
+let jobDragAutoScrollSignature = "";
+const JOB_DRAG_AUTO_SCROLL_DELAY_MS = 480;
 let resizeSession: null | {
     jobId: string;
     edge: "start" | "end";
@@ -156,6 +166,10 @@ let localDirty = false;
 let remoteSaveInFlight = false;
 let remoteLoadInFlight = false;
 let realtimeConnected = false;
+let undoStack: PlannerState[] = [];
+let stateCheckpoint = "";
+let applyingUndo = false;
+const MAX_UNDO_STEPS = 40;
 let backlogView: "queue" | "filtered" = "queue";
 let showArchived = false;
 let rangeEditItemIds: string[] = [];
@@ -245,6 +259,32 @@ function isMachineUnavailable(machineId: string, value: string | Date) {
     );
 }
 
+function newlyBlockedProductionDates(
+    machineId: string,
+    start: string,
+    end: string,
+    previousUnavailabilities: MachineUnavailability[] = state.unavailabilities,
+) {
+    const dates: Date[] = [];
+    for (let date = parseDate(start); date <= parseDate(end); date = addDays(date, 1)) {
+        if (isWeekend(date)) continue;
+        const wasAlreadyUnavailable = previousUnavailabilities.some(
+            (item) => item.machineId === machineId && unavailabilityContains(item, date),
+        );
+        if (!wasAlreadyUnavailable) dates.push(parseDate(date));
+    }
+    return dates;
+}
+
+function nextAvailableProductionDay(value: string | Date, machineId: string) {
+    let date = addDays(value, 1);
+    for (let guard = 0; guard < 3660; guard += 1) {
+        if (!isWeekend(date) && !isMachineUnavailable(machineId, date)) return date;
+        date = addDays(date, 1);
+    }
+    return date;
+}
+
 function endForProductionDuration(start: string | Date, durationDays: number, machineId: string) {
     const duration = Math.max(1, Math.round(durationDays || 1));
     let date = nextWeekday(start);
@@ -259,9 +299,35 @@ function endForProductionDuration(start: string | Date, durationDays: number, ma
 
 function recalculateMachineSchedule(machineId: string) {
     state.jobs.forEach((job) => {
-        if (job.machineId !== machineId || !job.start) return;
+        if (job.machineId !== machineId || !job.start || job.workStatus === "done") return;
         job.end = dateKey(endForProductionDuration(job.start, job.durationDays || 1, machineId));
         job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
+    });
+}
+
+function insertMachineDowntime(machineId: string, blockedDates: Date[]) {
+    if (!blockedDates.length) {
+        recalculateMachineSchedule(machineId);
+        return;
+    }
+    const dates = [...blockedDates].sort((left, right) => left.getTime() - right.getTime());
+    const jobs = state.jobs.filter(
+        (job) => job.machineId === machineId && !!job.start && job.workStatus !== "done",
+    );
+
+    dates.forEach((blockedDate) => {
+        jobs.forEach((job) => {
+            if (parseDate(job.end) < blockedDate) return;
+
+            // Un fermo inserito prima della lavorazione sposta l'intera barra di
+            // una giornata produttiva. Se invece la attraversa, l'inizio resta
+            // fermo e il calcolo della fine recupera il giorno non lavorato.
+            if (parseDate(job.start) > blockedDate) {
+                job.start = dateKey(nextAvailableProductionDay(job.start, machineId));
+            }
+            job.end = dateKey(endForProductionDuration(job.start, job.durationDays || 1, machineId));
+            job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
+        });
     });
 }
 
@@ -524,9 +590,35 @@ function loadState(): PlannerState {
 // Inizializziamo lo stato solo dopo che palette e helper sono stati definiti,
 // evitando la temporal dead zone dei const nelle build appena avviate.
 state = loadState();
+stateCheckpoint = JSON.stringify(state);
+
+function updateUndoButton() {
+    const button = byId("undo-planner") as HTMLButtonElement | null;
+    if (!button) return;
+    const available = undoStack.length > 0;
+    button.disabled = !available;
+    button.title = available
+        ? `Annulla ultima modifica (Ctrl+Z) · ${undoStack.length} ${undoStack.length === 1 ? "passaggio disponibile" : "passaggi disponibili"}`
+        : "Nessuna modifica da annullare";
+}
+
+function resetUndoHistory() {
+    undoStack = [];
+    stateCheckpoint = JSON.stringify(state);
+    updateUndoButton();
+}
 
 function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const serializedState = JSON.stringify(state);
+    if (!applyingUndo && stateCheckpoint && serializedState !== stateCheckpoint) {
+        undoStack.push(JSON.parse(stateCheckpoint));
+        if (undoStack.length > MAX_UNDO_STEPS) {
+            undoStack.splice(0, undoStack.length - MAX_UNDO_STEPS);
+        }
+    }
+    stateCheckpoint = serializedState;
+    updateUndoButton();
+    localStorage.setItem(STORAGE_KEY, serializedState);
     localDirty = true;
     localChangeVersion += 1;
     setSyncStatus("syncing", "Sincronizzazione…");
@@ -535,6 +627,30 @@ function saveState() {
         remoteSaveTimer = null;
         void pushPlannerState();
     }, 80);
+}
+
+function undoLastPlannerChange() {
+    const previousState = undoStack.pop();
+    if (!previousState) {
+        updateUndoButton();
+        notify("Nessuna modifica da annullare");
+        return;
+    }
+
+    if (remoteSaveTimer) {
+        clearTimeout(remoteSaveTimer);
+        remoteSaveTimer = null;
+    }
+    applyingUndo = true;
+    state = JSON.parse(JSON.stringify(previousState));
+    saveState();
+    applyingUndo = false;
+    renderAll();
+    if (byId("machines-dialog")?.classList.contains("is-open")) renderMachinesDialog();
+    if (byId("unavailability-dialog")?.classList.contains("is-open")) renderUnavailabilityList();
+    if (byId("closures-dialog")?.classList.contains("is-open")) renderClosureList();
+    if (byId("machine-picker-dialog")?.classList.contains("is-open")) renderMachinePicker();
+    notify("Ultima modifica annullata");
 }
 
 function formatSyncClock(value: string | Date = new Date()) {
@@ -584,6 +700,7 @@ function applyRemoteSnapshot(snapshot: any, announce = false) {
     state = loadState();
     remoteRevision = Number(snapshot.revision) || 0;
     localDirty = false;
+    resetUndoHistory();
     if (needsMachineColorMigration) {
         saveState();
     } else {
@@ -1589,11 +1706,20 @@ async function saveUnavailabilityRange(event: SubmitEvent) {
         `Confermi il nuovo periodo dal ${formatLongDate(start)} al ${formatLongDate(end)} per ${targetLabel}?`,
     )) return;
     const machineIds = new Set(items.map((item) => item.machineId));
+    const newlyBlockedByMachine = new Map(
+        [...machineIds].map((machineId) => [
+            machineId,
+            newlyBlockedProductionDates(machineId, start, end),
+        ]),
+    );
     items.forEach((item) => {
         item.start = start;
         item.end = end;
     });
-    machineIds.forEach(recalculateMachineSchedule);
+    machineIds.forEach((machineId) => {
+        insertMachineDowntime(machineId, newlyBlockedByMachine.get(machineId) || []);
+        recalculateMachineSchedule(machineId);
+    });
     saveState();
     closeUnavailabilityRangeEditor();
     renderUnavailabilityList();
@@ -2480,6 +2606,125 @@ function clearDragPreview() {
     document.querySelectorAll(".machine-days.is-drop-target").forEach((lane) => lane.classList.remove("is-drop-target"));
 }
 
+function stopJobDragAutoScroll() {
+    jobDragHorizontalDirection = 0;
+    jobDragHorizontalIntensity = 0;
+    jobDragVerticalVelocity = 0;
+    jobDragLastHorizontalStep = 0;
+    jobDragMachineId = "";
+    jobDragAutoScrollReadyAt = 0;
+    jobDragAutoScrollSignature = "";
+    if (jobDragAutoScrollFrame !== null) {
+        cancelAnimationFrame(jobDragAutoScrollFrame);
+        jobDragAutoScrollFrame = null;
+    }
+    byId("timeline-scroll")?.classList.remove(
+        "is-job-auto-scrolling-left",
+        "is-job-auto-scrolling-right",
+        "is-job-auto-scrolling-up",
+        "is-job-auto-scrolling-down",
+    );
+}
+
+function runJobDragAutoScroll(timestamp: number) {
+    const timelineScroll = byId("timeline-scroll");
+    if (!timelineScroll || !draggedJobId) {
+        stopJobDragAutoScroll();
+        return;
+    }
+
+    if (timestamp < jobDragAutoScrollReadyAt) {
+        jobDragAutoScrollFrame = requestAnimationFrame(runJobDragAutoScroll);
+        return;
+    }
+
+    if (jobDragVerticalVelocity) {
+        timelineScroll.scrollTop += jobDragVerticalVelocity;
+    }
+
+    if (jobDragHorizontalDirection) {
+        const interval = 360 - jobDragHorizontalIntensity * 250;
+        if (!jobDragLastHorizontalStep || timestamp - jobDragLastHorizontalStep >= interval) {
+            const scrollTop = timelineScroll.scrollTop;
+            visibleStart = addDays(visibleStart, jobDragHorizontalDirection);
+            renderTimeline();
+            timelineScroll.scrollTop = scrollTop;
+            const lane = document.querySelector<HTMLElement>(
+                `.machine-days[data-machine-id="${CSS.escape(jobDragMachineId)}"]`,
+            );
+            if (lane) showDragPreview(lane, jobDragClientX);
+            jobDragLastHorizontalStep = timestamp;
+        }
+    }
+
+    if (!jobDragHorizontalDirection && !jobDragVerticalVelocity) {
+        stopJobDragAutoScroll();
+        return;
+    }
+    jobDragAutoScrollFrame = requestAnimationFrame(runJobDragAutoScroll);
+}
+
+function updateJobDragAutoScroll(lane: HTMLElement, clientX: number, clientY: number) {
+    const timelineScroll = byId("timeline-scroll");
+    if (!timelineScroll || !draggedJobId) {
+        stopJobDragAutoScroll();
+        return;
+    }
+
+    jobDragClientX = clientX;
+    jobDragMachineId = lane.dataset.machineId || "";
+
+    const laneRect = lane.getBoundingClientRect();
+    const horizontalEdge = Math.min(125, Math.max(52, laneRect.width * 0.14));
+    const leftDistance = clientX - laneRect.left;
+    const rightDistance = laneRect.right - clientX;
+    let horizontalDirection = 0;
+    let horizontalIntensity = 0;
+    if (leftDistance < horizontalEdge && clientX <= laneRect.right) {
+        horizontalDirection = -1;
+        horizontalIntensity = Math.max(0, Math.min(1, (horizontalEdge - leftDistance) / horizontalEdge));
+    } else if (rightDistance < horizontalEdge && clientX >= laneRect.left) {
+        horizontalDirection = 1;
+        horizontalIntensity = Math.max(0, Math.min(1, (horizontalEdge - rightDistance) / horizontalEdge));
+    }
+
+    const scrollRect = timelineScroll.getBoundingClientRect();
+    const rowsTop = Math.min(scrollRect.bottom, scrollRect.top + 58);
+    const verticalEdge = Math.min(100, Math.max(58, (scrollRect.height - 58) * 0.16));
+    const topDistance = clientY - rowsTop;
+    const bottomDistance = scrollRect.bottom - clientY;
+    let verticalVelocity = 0;
+    if (topDistance < verticalEdge && clientY >= scrollRect.top && clientY <= scrollRect.bottom) {
+        const intensity = Math.max(0, Math.min(1, (verticalEdge - topDistance) / verticalEdge));
+        verticalVelocity = -(2 + 20 * intensity * intensity);
+    } else if (bottomDistance < verticalEdge && clientY >= scrollRect.top && clientY <= scrollRect.bottom) {
+        const intensity = Math.max(0, Math.min(1, (verticalEdge - bottomDistance) / verticalEdge));
+        verticalVelocity = 2 + 20 * intensity * intensity;
+    }
+
+    jobDragHorizontalDirection = horizontalDirection;
+    jobDragHorizontalIntensity = horizontalIntensity;
+    jobDragVerticalVelocity = verticalVelocity;
+    const autoScrollSignature = `${horizontalDirection}:${Math.sign(verticalVelocity)}`;
+    if (autoScrollSignature !== jobDragAutoScrollSignature) {
+        jobDragAutoScrollSignature = autoScrollSignature;
+        jobDragAutoScrollReadyAt = performance.now() + JOB_DRAG_AUTO_SCROLL_DELAY_MS;
+        jobDragLastHorizontalStep = 0;
+    }
+    timelineScroll.classList.toggle("is-job-auto-scrolling-left", horizontalDirection < 0);
+    timelineScroll.classList.toggle("is-job-auto-scrolling-right", horizontalDirection > 0);
+    timelineScroll.classList.toggle("is-job-auto-scrolling-up", verticalVelocity < 0);
+    timelineScroll.classList.toggle("is-job-auto-scrolling-down", verticalVelocity > 0);
+
+    if (!horizontalDirection && !verticalVelocity) {
+        stopJobDragAutoScroll();
+        return;
+    }
+    if (jobDragAutoScrollFrame === null) {
+        jobDragAutoScrollFrame = requestAnimationFrame(runJobDragAutoScroll);
+    }
+}
+
 function showDragPreview(lane: HTMLElement, clientX: number) {
     const job = state.jobs.find((item) => item.id === draggedJobId);
     const machineId = lane.dataset.machineId || "";
@@ -2646,6 +2891,10 @@ function bindGlobalEvents() {
     byId("refresh-planner")?.addEventListener("click", () => {
         void loadLatestPlanner({ manual: true });
     });
+    byId("undo-planner")?.addEventListener("click", () => {
+        closeContextMenu();
+        undoLastPlannerChange();
+    });
     byId("open-production-analysis")?.addEventListener("click", () => {
         ipcRenderer.send("open-production-planner-analysis-window");
     });
@@ -2795,6 +3044,12 @@ function bindGlobalEvents() {
 
         const groupId = uid("closure-group");
         const title = inputValue("closure-title").trim();
+        const newlyBlockedByMachine = new Map(
+            [...targetIds].map((machineId) => [
+                machineId,
+                newlyBlockedProductionDates(machineId, start, end),
+            ]),
+        );
         targetIds.forEach((machineId) => {
             state.unavailabilities.push({
                 id: uid("unavailability"),
@@ -2806,7 +3061,9 @@ function bindGlobalEvents() {
                 title,
                 scopeLabel,
             });
-            recalculateMachineSchedule(machineId);
+        });
+        targetIds.forEach((machineId) => {
+            insertMachineDowntime(machineId, newlyBlockedByMachine.get(machineId) || []);
         });
         saveState();
         renderClosureList();
@@ -2851,6 +3108,7 @@ function bindGlobalEvents() {
             `Aggiungere ${unavailabilityLabels[type].toLowerCase()} per ${machine?.name || "la macchina"} dal ${formatLongDate(start)} al ${formatLongDate(end)}?`,
             "Aggiungi",
         )) return;
+        const newlyBlockedDates = newlyBlockedProductionDates(machineId, start, end);
         state.unavailabilities.push({
             id: uid("unavailability"),
             machineId,
@@ -2859,7 +3117,7 @@ function bindGlobalEvents() {
             end,
             title: inputValue("unavailability-title").trim(),
         });
-        recalculateMachineSchedule(machineId);
+        insertMachineDowntime(machineId, newlyBlockedDates);
         saveState();
         (byId("unavailability-title") as HTMLInputElement).value = "";
         renderUnavailabilityList();
@@ -3347,6 +3605,23 @@ function bindGlobalEvents() {
     window.addEventListener("blur", hideJobTooltip);
 
     document.addEventListener("keydown", (event) => {
+        if (
+            (event.ctrlKey || event.metaKey)
+            && !event.shiftKey
+            && event.key.toLocaleLowerCase() === "z"
+        ) {
+            const target = event.target as HTMLElement | null;
+            const isEditingText = !!target?.closest(
+                "input, textarea, select, [contenteditable='true']",
+            );
+            const hasOpenDialog = !!document.querySelector(".dialog-backdrop.is-open");
+            if (!isEditingText && !hasOpenDialog) {
+                event.preventDefault();
+                closeContextMenu();
+                undoLastPlannerChange();
+            }
+            return;
+        }
         if (event.key === "Escape") {
             if (byId("job-context-menu")?.classList.contains("is-open")) {
                 closeContextMenu();
@@ -3426,11 +3701,13 @@ function bindGlobalEvents() {
         const card = (event.target as HTMLElement).closest("[data-job-id]") as HTMLElement | null;
         if (!card) return;
         hideJobTooltip();
+        stopJobDragAutoScroll();
         draggedJobId = card.dataset.jobId || "";
         event.dataTransfer?.setData("text/plain", draggedJobId);
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
     });
     document.addEventListener("dragend", () => {
+        stopJobDragAutoScroll();
         draggedJobId = "";
         clearDragPreview();
         document.querySelectorAll(".is-drop-target").forEach((node) => node.classList.remove("is-drop-target"));
@@ -3441,6 +3718,7 @@ function bindGlobalEvents() {
         if (!lane) return;
         event.preventDefault();
         showDragPreview(lane, event.clientX);
+        updateJobDragAutoScroll(lane, event.clientX, event.clientY);
     });
     byId("timeline")?.addEventListener("dragleave", (event) => {
         const lane = (event.target as HTMLElement).closest(".machine-days") as HTMLElement | null;
@@ -3452,16 +3730,20 @@ function bindGlobalEvents() {
         const lane = (event.target as HTMLElement).closest(".machine-days") as HTMLElement | null;
         if (!lane) return;
         event.preventDefault();
+        const jobId = event.dataTransfer?.getData("text/plain") || draggedJobId;
+        stopJobDragAutoScroll();
         clearDragPreview();
         const rect = lane.getBoundingClientRect();
         const dayIndex = Math.max(0, Math.min(visibleDays - 1, Math.floor((event.clientX - rect.left) / dayWidth)));
-        scheduleJob(event.dataTransfer?.getData("text/plain") || draggedJobId, lane.dataset.machineId || "", addDays(visibleStart, dayIndex));
+        draggedJobId = "";
+        scheduleJob(jobId, lane.dataset.machineId || "", addDays(visibleStart, dayIndex));
     });
 
     const backlog = byId("backlog-dropzone");
     backlog?.addEventListener("dragover", (event) => {
         if (backlogView !== "queue") return;
         event.preventDefault();
+        stopJobDragAutoScroll();
         clearDragPreview();
         backlog.classList.add("is-drop-target");
     });
@@ -3469,13 +3751,17 @@ function bindGlobalEvents() {
     backlog?.addEventListener("drop", (event) => {
         if (backlogView !== "queue") return;
         event.preventDefault();
+        const jobId = event.dataTransfer?.getData("text/plain") || draggedJobId;
+        stopJobDragAutoScroll();
         backlog.classList.remove("is-drop-target");
-        unscheduleJob(event.dataTransfer?.getData("text/plain") || draggedJobId);
+        draggedJobId = "";
+        unscheduleJob(jobId);
     });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     bindGlobalEvents();
+    updateUndoButton();
     renderAll();
     requestAnimationFrame(renderAll);
     void loadLatestPlanner({ initial: true });

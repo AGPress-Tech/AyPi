@@ -58,15 +58,9 @@ function inferRequestModule(requestUrl: string): RealtimeModule {
     return "core";
 }
 
-function shouldSkipHttpAccessLog(method: string, requestUrl: string) {
+function shouldSkipHttpAccessLog(method: string, _requestUrl: string) {
     const normalizedMethod = String(method || "").toUpperCase();
-    const normalizedUrl = String(requestUrl || "").toLowerCase();
-    return (
-        normalizedMethod === "GET" &&
-        (normalizedUrl === "/api/ferie-permessi/payload" ||
-            normalizedUrl === "/api/production-planner/revision" ||
-            normalizedUrl.startsWith("/api/production-planner/changes/"))
-    );
+    return normalizedMethod === "GET" || normalizedMethod === "HEAD";
 }
 
 export function createBackendServer(
@@ -123,22 +117,9 @@ export function createBackendServer(
                 response.end();
                 return;
             }
-            if (!skipHttpAccessLog) {
-                logger.info("HTTP request started", {
-                    event: "http_request_started",
-                    category: "http",
-                    module,
-                    requestId,
-                    method,
-                    url: requestUrl,
-                    user: getRequestUser(request),
-                    client: getRequestClient(request),
-                    remoteAddress,
-                });
-            }
             await router.handle(request, response);
-            if (!skipHttpAccessLog) {
-                logger.info("HTTP request completed", {
+            if (!skipHttpAccessLog && response.statusCode >= 400) {
+                logger.warn("HTTP request completed", {
                     event: "http_request_completed",
                     category: "http",
                     module,

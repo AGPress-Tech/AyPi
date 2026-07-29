@@ -228,7 +228,6 @@ export class RealtimeHub {
             sequence: this.sequence,
             timestamp: new Date().toISOString(),
         };
-        let recipients = 0;
         this.clients.forEach((state, webSocket) => {
             if (
                 !state.modules.has("*") &&
@@ -236,20 +235,7 @@ export class RealtimeHub {
             ) {
                 return;
             }
-            if (this.send(webSocket, payload)) recipients += 1;
-        });
-        logger.info("Realtime module change published", {
-            event: "realtime_change_published",
-            category: "realtime",
-            module: change.module,
-            requestId: change.requestId,
-            method: change.method,
-            path: change.path,
-            actor: change.actor,
-            source: change.source,
-            sequence: this.sequence,
-            recipients,
-            connectedClients: this.clients.size,
+            this.send(webSocket, payload);
         });
     }
 

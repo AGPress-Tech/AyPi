@@ -45,15 +45,13 @@ export {
 
 let fpQueue: Promise<unknown> = Promise.resolve();
 
-function queueFpOperation<T>(operationName: string, run: () => T | Promise<T>) {
+function queueFpOperation<T>(_operationName: string, run: () => T | Promise<T>) {
     const nextRun = fpQueue.then(run, run);
     fpQueue = nextRun.then(
         () => undefined,
         () => undefined,
     );
-    return nextRun.finally(() => {
-        logger.info("FP queue completed", { operationName });
-    });
+    return nextRun;
 }
 
 function buildBusinessRequestId() {
@@ -276,16 +274,11 @@ function buildContext(context?: ActionContext) {
     };
 }
 
-export async function getPayload(context?: ActionContext) {
-    const meta = buildContext(context);
+export async function getPayload(_context?: ActionContext) {
     return queueFpOperation("getPayload", () => {
         const payload = loadFpPayload();
         normalizeBalances(payload, loadAssignees());
         applyMissingRequestDeductions(payload);
-        logger.info("FP payload read", {
-            ...meta,
-            ...summarizePayload(payload),
-        });
         return payload;
     });
 }

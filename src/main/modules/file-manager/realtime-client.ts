@@ -21,13 +21,20 @@ const SUBSCRIBED_MODULES = [
     "production-planner",
     "shared",
 ];
+const CONNECTION_READY_TIMEOUT_MS = 15000;
+const WATCHDOG_CHECK_INTERVAL_MS = 10000;
+const WATCHDOG_ACTIVITY_TIMEOUT_MS = 70000;
 
 let started = false;
 let stopping = false;
 let socket: WebSocket | null = null;
 let retryTimer: NodeJS.Timeout | null = null;
+let connectionReadyTimer: NodeJS.Timeout | null = null;
+let watchdogTimer: NodeJS.Timeout | null = null;
 let retryAttempt = 0;
 let status: RealtimeStatus = { state: "disconnected" };
+let lastActivityAt = 0;
+let forcedReconnectDetail = "";
 const instanceId = randomUUID();
 
 function broadcast(channel: string, payload: unknown) {
@@ -69,7 +76,32 @@ function scheduleReconnect(detail?: string) {
     retryTimer.unref?.();
 }
 
+function clearSocketTimers() {
+    if (connectionReadyTimer) {
+        clearTimeout(connectionReadyTimer);
+        connectionReadyTimer = null;
+    }
+    if (watchdogTimer) {
+        clearInterval(watchdogTimer);
+        watchdogTimer = null;
+    }
+}
+
+function markSocketActivity() {
+    lastActivityAt = Date.now();
+}
+
+function forceReconnect(targetSocket: WebSocket, detail: string) {
+    if (stopping || socket !== targetSocket) return;
+    forcedReconnectDetail = detail;
+    clearSocketTimers();
+    setStatus({ state: "disconnected", detail });
+    log.warn(`[realtime] ${detail}`);
+    targetSocket.terminate();
+}
+
 function handleMessage(raw: WebSocket.RawData) {
+    markSocketActivity();
     let message: any;
     try {
         message = JSON.parse(raw.toString());
@@ -78,6 +110,10 @@ function handleMessage(raw: WebSocket.RawData) {
         return;
     }
     if (message?.type === "connection.ready") {
+        if (connectionReadyTimer) {
+            clearTimeout(connectionReadyTimer);
+            connectionReadyTimer = null;
+        }
         retryAttempt = 0;
         setStatus({
             state: "connected",
@@ -125,20 +161,51 @@ function connect() {
 
     nextSocket.on("open", () => {
         log.info("[realtime] Connessione WebSocket aperta.");
+        markSocketActivity();
+        connectionReadyTimer = setTimeout(() => {
+            forceReconnect(
+                nextSocket,
+                "Handshake realtime non completato: riconnessione automatica.",
+            );
+        }, CONNECTION_READY_TIMEOUT_MS);
+        connectionReadyTimer.unref?.();
+        watchdogTimer = setInterval(() => {
+            const inactiveForMs = Date.now() - lastActivityAt;
+            if (inactiveForMs < WATCHDOG_ACTIVITY_TIMEOUT_MS) return;
+            forceReconnect(
+                nextSocket,
+                `Connessione realtime inattiva da ${Math.round(
+                    inactiveForMs / 1000,
+                )} secondi: riconnessione automatica.`,
+            );
+        }, WATCHDOG_CHECK_INTERVAL_MS);
+        watchdogTimer.unref?.();
     });
+    nextSocket.on("ping", markSocketActivity);
+    nextSocket.on("pong", markSocketActivity);
     nextSocket.on("message", handleMessage);
     nextSocket.on("close", (code, reason) => {
+        clearSocketTimers();
         if (socket === nextSocket) socket = null;
-        const detail = `Connessione chiusa (${code})${
-            reason.length ? `: ${reason.toString("utf8")}` : ""
-        }`;
+        const detail =
+            forcedReconnectDetail ||
+            `Connessione chiusa (${code})${
+                reason.length ? `: ${reason.toString("utf8")}` : ""
+            }`;
+        forcedReconnectDetail = "";
         if (!stopping) {
-            log.warn(`[realtime] ${detail}`);
+            if (!detail.includes("riconnessione automatica")) {
+                log.warn(`[realtime] ${detail}`);
+            }
             scheduleReconnect(detail);
         }
     });
     nextSocket.on("error", (error) => {
         log.warn("[realtime] Errore WebSocket:", error.message);
+        forceReconnect(
+            nextSocket,
+            `Errore realtime: ${error.message}. Riconnessione automatica.`,
+        );
     });
 }
 
@@ -152,6 +219,7 @@ export function setupRealtimeClient() {
             clearTimeout(retryTimer);
             retryTimer = null;
         }
+        clearSocketTimers();
         socket?.close(1000, "Applicazione in chiusura");
         socket = null;
     });

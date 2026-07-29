@@ -64,13 +64,6 @@ export function persistSqliteDatabase() {
     const buffer = Buffer.from(db.export());
     fs.writeFileSync(tempPath, buffer);
     fs.renameSync(tempPath, dbPath);
-    logger.info("SQLite persisted", {
-        event: "sqlite_persisted",
-        category: "storage",
-        module: "core",
-        dbPath,
-        bytes: buffer.byteLength,
-    });
 }
 
 export function closeSqliteDatabase() {

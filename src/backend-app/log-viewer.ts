@@ -571,6 +571,63 @@ function buildStructuredOperationSummary(
         return `${label} completata`;
     }
 
+    const actionLabels: Record<string, string> = {
+        production_planner_saved: "Pianificazione produzione salvata",
+        transfer_item_saved: "Scheda attrezzaggio Transfer salvata",
+        transfer_item_deleted: "Scheda attrezzaggio Transfer eliminata",
+        haas_item_saved: "Scheda attrezzaggio HAAS salvata",
+        haas_item_deleted: "Scheda attrezzaggio HAAS eliminata",
+        purchasing_backup_created: "Backup Purchasing creato",
+        purchasing_backup_restored: "Backup Purchasing ripristinato",
+        purchasing_save_requests: "Richieste Purchasing salvate",
+        purchasing_save_interventions: "Interventi Purchasing salvati",
+        purchasing_save_catalog: "Catalogo Purchasing salvato",
+        purchasing_save_categories: "Categorie Purchasing salvate",
+        purchasing_save_intervention_types: "Tipi intervento Purchasing salvati",
+        purchasing_save_catalog_image: "Immagine catalogo Purchasing salvata",
+        ticket_backup_created: "Backup Ticket creato",
+        ticket_backup_restored: "Backup Ticket ripristinato",
+        ticket_store_saved: "Archivio Ticket salvato",
+        ticket_categories_saved: "Categorie Ticket salvate",
+        ticket_mail_sent: "Email Ticket inviata",
+        shared_save_admins: "Amministratori salvati",
+        shared_save_assignees: "Assegnatari salvati",
+        shared_save_calendar_access_config: "Accessi calendario salvati",
+        shared_save_otp_mail_config: "Configurazione email OTP salvata",
+        shared_verify_admin: "Credenziali amministratore verificate",
+        shared_configured_mail_sent: "Email configurata inviata",
+        shared_send_otp_test_mail: "Email OTP di prova inviata",
+        shared_send_admin_otp_mail: "Email OTP amministratore inviata",
+        backend_listening: "Backend avviato",
+        backend_stopped: "Backend arrestato",
+        realtime_client_connected: "Client realtime collegato",
+        realtime_client_disconnected: "Client realtime scollegato",
+        realtime_client_error: "Errore client realtime",
+        realtime_server_error: "Errore server realtime",
+        realtime_invalid_message: "Messaggio realtime non valido",
+        realtime_heartbeat_timeout: "Timeout client realtime",
+        sqlite_initialized: "Archivio SQLite inizializzato",
+        agpress_layout_ensured: "Struttura dati AGPRESS verificata",
+    };
+    if (actionLabels[event]) return actionLabels[event];
+
+    const messageLabels: Record<string, string> = {
+        "FP payload read": "Stato Ferie e Permessi letto",
+        "FP create request": "Richiesta Ferie e Permessi creata",
+        "FP replace payload": "Stato Ferie e Permessi sostituito",
+        "FP update request": "Richiesta Ferie e Permessi modificata",
+        "FP approve request": "Richiesta Ferie e Permessi approvata",
+        "FP reject request": "Richiesta Ferie e Permessi rifiutata",
+        "FP delete request": "Richiesta Ferie e Permessi eliminata",
+        "FP create holidays": "Festività create",
+        "FP delete holiday": "Festività eliminata",
+        "FP update holiday": "Festività modificata",
+        "FP create closure": "Chiusura creata",
+        "FP delete closure": "Chiusura eliminata",
+        "FP update closure": "Chiusura modificata",
+    };
+    if (messageLabels[message]) return messageLabels[message];
+
     if (event === "queue_operation_completed" && scope && operationName) {
         return `Coda completata: ${scope} / ${operationName}`;
     }
@@ -690,10 +747,46 @@ function interpretDetails(message: string, details: unknown) {
 
 function normalizeTimelineItems(entries: ParsedLogEntry[]) {
     const groupsMap = new Map<string, ParsedLogEntry[]>();
-    entries.forEach((entry) => {
-        if (!entry.requestId) return;
-        if (!groupsMap.has(entry.requestId)) groupsMap.set(entry.requestId, []);
-        groupsMap.get(entry.requestId)?.push(entry);
+    const technicalNoiseEvents = new Set([
+        "http_request_started",
+        "http_request_completed",
+        "http_request_failed",
+        "queue_operation_completed",
+        "file_write",
+        "realtime_change_published",
+        "sqlite_persisted",
+        "sqlite_initialized",
+        "agpress_layout_ensured",
+        "realtime_client_connected",
+        "realtime_client_disconnected",
+    ]);
+    const technicalNoiseMessages = new Set([
+        "HTTP request started",
+        "HTTP request completed",
+        "HTTP request failed",
+        "Queue operation completed",
+        "FP queue completed",
+        "File write",
+        "Realtime module change published",
+        "SQLite persisted",
+    ]);
+    const eventOf = (entry?: ParsedLogEntry) => {
+        const details = entry?.details && typeof entry.details === "object"
+            ? (entry.details as Record<string, unknown>)
+            : {};
+        return String(details.event || "").toLowerCase();
+    };
+    const isTechnicalNoise = (entry?: ParsedLogEntry) =>
+        !!entry && (
+            technicalNoiseEvents.has(eventOf(entry)) ||
+            technicalNoiseMessages.has(entry.message)
+        );
+    entries.forEach((entry, index) => {
+        if (!entry.requestId && isTechnicalNoise(entry)) return;
+        const key = entry.requestId ||
+            `single:${entry.fileName}:${entry.timestamp}:${index}`;
+        if (!groupsMap.has(key)) groupsMap.set(key, []);
+        groupsMap.get(key)?.push(entry);
     });
     return Array.from(groupsMap.entries())
         .map(([requestId, rows]) => {
@@ -702,6 +795,34 @@ function normalizeTimelineItems(entries: ParsedLogEntry[]) {
             );
             const first = sorted[0];
             const last = sorted[sorted.length - 1];
+            const detailsOf = (entry?: ParsedLogEntry) =>
+                entry?.details && typeof entry.details === "object"
+                    ? (entry.details as Record<string, unknown>)
+                    : {};
+            const httpOutcome = [...sorted].reverse().find((entry) =>
+                eventOf(entry) === "http_request_completed" ||
+                eventOf(entry) === "http_request_failed",
+            );
+            const actionEntry = [...sorted].reverse().find(
+                (entry) => !isTechnicalNoise(entry),
+            );
+            const failedEntry = [...sorted].reverse().find(
+                (entry) => entry.level === "ERROR" ||
+                    eventOf(entry) === "http_request_failed",
+            );
+            const primary = failedEntry || actionEntry || httpOutcome || last;
+            const outcomeDetails = detailsOf(httpOutcome || primary);
+            const statusCode = Number(outcomeDetails.statusCode || 0);
+            const outcome = failedEntry || statusCode >= 500
+                ? "error"
+                : statusCode >= 400 || primary?.level === "WARN"
+                    ? "warning"
+                    : "success";
+            const outcomeLabel = outcome === "error"
+                ? "Errore"
+                : outcome === "warning"
+                    ? "Attenzione"
+                    : "Riuscita";
             const users = Array.from(
                 new Set(sorted.map((item) => item.user).filter(Boolean)),
             );
@@ -712,20 +833,33 @@ function normalizeTimelineItems(entries: ParsedLogEntry[]) {
                 requestId,
                 startedAt: first?.timestamp || "",
                 finishedAt: last?.timestamp || "",
-                count: sorted.length,
+                count: 1,
+                technicalCount: sorted.length,
                 user: users.join(", "),
                 modules,
-                entries: sorted.map((entry) => ({
-                    timestamp: entry.timestamp,
-                    level: entry.level,
-                    source: entry.source,
-                    module: entry.module,
-                    category: getCategoryMeta(entry.category),
-                    message: entry.message,
-                    interpreted: interpretDetails(entry.message, entry.details),
-                    remoteAddress: entry.remoteAddress,
-                    fileName: entry.fileName,
-                })),
+                outcome,
+                outcomeLabel,
+                statusCode,
+                durationMs: Number(outcomeDetails.durationMs || 0),
+                method: String(outcomeDetails.method || ""),
+                url: String(outcomeDetails.url || ""),
+                entries: primary
+                    ? [{
+                        timestamp: primary.timestamp,
+                        level: outcome === "error"
+                            ? "ERROR"
+                            : outcome === "warning"
+                                ? "WARN"
+                                : primary.level,
+                        source: primary.source,
+                        module: primary.module,
+                        category: getCategoryMeta(primary.category),
+                        message: primary.message,
+                        interpreted: interpretDetails(primary.message, primary.details),
+                        remoteAddress: primary.remoteAddress,
+                        fileName: primary.fileName,
+                    }]
+                    : [],
             };
         })
         .sort((a, b) => String(b.finishedAt).localeCompare(String(a.finishedAt)));
@@ -793,11 +927,12 @@ export function loadLogViewerData(
     const defaultFile = availableFiles.includes(todayFile)
         ? todayFile
         : availableFiles.find((file) => file !== path.basename(trayDebugLogPath)) || "";
+    const actionGroups = normalizeTimelineItems(entries);
     const stats = {
-        total: entries.length,
-        info: entries.filter((entry) => entry.level === "INFO").length,
-        warn: entries.filter((entry) => entry.level === "WARN").length,
-        error: entries.filter((entry) => entry.level === "ERROR").length,
+        total: actionGroups.length,
+        info: actionGroups.filter((group) => group.outcome === "success").length,
+        warn: actionGroups.filter((group) => group.outcome === "warning").length,
+        error: actionGroups.filter((group) => group.outcome === "error").length,
     };
     const nextCursor =
         fileIndex < descriptors.length
@@ -844,7 +979,7 @@ export function loadLogViewerData(
         ],
         remoteAddresses: [],
         users: [],
-        groups: normalizeTimelineItems(entries),
+        groups: actionGroups,
         hasMore: !!nextCursor,
         nextCursor,
         logDir,
@@ -965,11 +1100,29 @@ export function buildLogViewerHtml() {
     }
     .controls {
       display: grid;
-      grid-template-columns: 1.1fr 0.65fr 0.75fr 0.8fr 0.9fr 0.95fr 0.95fr 1fr;
+      grid-template-columns: 1.4fr 0.7fr 0.9fr 1fr;
       gap: 14px;
       align-items: end;
       padding: 18px;
       margin-bottom: 18px;
+    }
+    .advanced-filters {
+      grid-column: 1 / -1;
+      border-top: 1px solid #e6ebf3;
+      padding-top: 10px;
+    }
+    .advanced-filters > summary {
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      user-select: none;
+    }
+    .advanced-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 12px;
     }
     .field {
       display: grid;
@@ -1045,41 +1198,77 @@ export function buildLogViewerHtml() {
       overflow: hidden;
     }
     .timeline-panel {
-      padding: 18px;
+      padding: 12px;
       display: grid;
-      gap: 14px;
+      gap: 8px;
     }
     .timeline-card {
       border: 1px solid #e0e7f2;
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 12px;
+      padding: 11px 13px;
       background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
     }
+    .timeline-card.is-error { border-left: 4px solid var(--error); }
+    .timeline-card.is-warning { border-left: 4px solid var(--warn); }
+    .timeline-card.is-success { border-left: 4px solid #27905b; }
     .timeline-head {
       display: flex;
       justify-content: space-between;
-      gap: 18px;
-      align-items: start;
-      margin-bottom: 12px;
+      gap: 12px;
+      align-items: center;
     }
     .timeline-title {
-      font-size: 17px;
+      font-size: 14px;
       font-weight: 800;
-      margin: 0 0 6px;
+      margin: 0 0 4px;
     }
     .timeline-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }
     .meta-chip {
       border: 1px solid #dde6f2;
       background: #fff;
       border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 12px;
+      padding: 3px 8px;
+      font-size: 11px;
       color: var(--muted);
       font-weight: 700;
+    }
+    .outcome-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 86px;
+      justify-content: center;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .outcome-badge.is-success { color: #167047; background: #e7f8ef; }
+    .outcome-badge.is-warning { color: var(--warn); background: var(--warn-soft); }
+    .outcome-badge.is-error { color: var(--error); background: var(--error-soft); }
+    .action-details {
+      margin-top: 8px;
+      border-top: 1px solid #edf1f7;
+      padding-top: 7px;
+    }
+    .action-details > summary {
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+      user-select: none;
+    }
+    .technical-line {
+      margin-top: 7px;
+      color: var(--muted);
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10px;
+      overflow-wrap: anywhere;
     }
     .timeline-list {
       display: grid;
@@ -1268,9 +1457,9 @@ export function buildLogViewerHtml() {
     <section class="hero">
       <div class="hero-card">
         <div class="hero-kicker">AyPi Backend</div>
-        <h1>Logger interattivo</h1>
+        <h1>Registro attività backend</h1>
         <p class="hero-copy">
-          Vista leggibile dei log server con filtri, contatori e dettaglio strutturato. I dati arrivano direttamente dai file log del backend e dal log tecnico della tray app.
+          Ogni operazione viene mostrata una sola volta con il relativo esito. I dettagli tecnici restano disponibili solo quando servono.
         </p>
         <div class="path-list">
           <div>
@@ -1285,15 +1474,15 @@ export function buildLogViewerHtml() {
       </div>
       <div class="stats-card">
         <div class="stat">
-          <div class="stat-label">Totale filtrato</div>
+          <div class="stat-label">Azioni</div>
           <div class="stat-value" id="statTotal">0</div>
         </div>
         <div class="stat">
-          <div class="stat-label">Info</div>
+          <div class="stat-label">Riuscite</div>
           <div class="stat-value" id="statInfo">0</div>
         </div>
         <div class="stat">
-          <div class="stat-label">Warn</div>
+          <div class="stat-label">Attenzione</div>
           <div class="stat-value" id="statWarn">0</div>
         </div>
         <div class="stat">
@@ -1318,44 +1507,49 @@ export function buildLogViewerHtml() {
         </select>
       </div>
       <div class="field">
-        <label for="source">Sorgente</label>
-        <select id="source">
-          <option value="">Tutte</option>
-          <option value="backend">Backend</option>
-          <option value="tray">Tray</option>
-        </select>
-      </div>
-      <div class="field">
         <label for="module">Modulo</label>
         <select id="module">
           <option value="">Tutti</option>
         </select>
       </div>
       <div class="field">
-        <label for="remoteAddress">IP remoto</label>
-        <input id="remoteAddress" type="text" placeholder="Es. 192.168.1.23" />
-      </div>
-      <div class="field">
-        <label for="requestId">Request ID</label>
-        <input id="requestId" type="text" placeholder="Es. req_..." />
-      </div>
-      <div class="field">
         <label for="user">Utente</label>
         <input id="user" type="text" placeholder="Es. guest, Admin..." />
       </div>
-      <div class="field">
-        <label for="file">File log</label>
-        <select id="file">
-          <option value="">Tutti</option>
-        </select>
-      </div>
+      <details class="advanced-filters">
+        <summary>Filtri tecnici</summary>
+        <div class="advanced-filter-grid">
+          <div class="field">
+            <label for="source">Sorgente</label>
+            <select id="source">
+              <option value="">Tutte</option>
+              <option value="backend">Backend</option>
+              <option value="tray">Tray</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="remoteAddress">IP remoto</label>
+            <input id="remoteAddress" type="text" placeholder="Es. 192.168.1.23" />
+          </div>
+          <div class="field">
+            <label for="requestId">Request ID</label>
+            <input id="requestId" type="text" placeholder="Es. req_..." />
+          </div>
+          <div class="field">
+            <label for="file">File log</label>
+            <select id="file">
+              <option value="">Tutti</option>
+            </select>
+          </div>
+        </div>
+      </details>
     </section>
 
     <div class="toolbar">
       <div id="resultSummary">0 righe mostrate</div>
       <div class="view-switch">
-        <button class="view-pill active" id="tableViewBtn">Tabella</button>
-        <button class="view-pill" id="timelineViewBtn">Timeline</button>
+        <button class="view-pill active" id="timelineViewBtn">Azioni</button>
+        <button class="view-pill" id="tableViewBtn">Vista tecnica</button>
         <button class="btn" id="resetBtn">Reset</button>
         <button class="btn primary" id="refreshBtn">Aggiorna</button>
       </div>
@@ -1441,6 +1635,19 @@ export function buildLogViewerHtml() {
         .replace(/'/g, "&#39;");
     }
 
+    function formatTimestamp(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value || "");
+      return new Intl.DateTimeFormat("it-IT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(date);
+    }
+
     function currentFilters() {
       return {
         search: searchEl.value || "",
@@ -1501,53 +1708,60 @@ export function buildLogViewerHtml() {
     }
 
     function groupCardMarkup(group) {
-      const meta = [
-        group.user ? '<span class="meta-chip">Utente: ' + escapeHtml(group.user) + "</span>" : "",
-        group.startedAt ? '<span class="meta-chip">Inizio: ' + escapeHtml(group.startedAt) + "</span>" : "",
-        group.finishedAt ? '<span class="meta-chip">Fine: ' + escapeHtml(group.finishedAt) + "</span>" : "",
-        group.count ? '<span class="meta-chip">Eventi: ' + escapeHtml(group.count) + "</span>" : "",
-        Array.isArray(group.modules) && group.modules.length ? '<span class="meta-chip">Moduli: ' + escapeHtml(group.modules.join(", ")) + "</span>" : "",
-      ].filter(Boolean).join("");
-      const rows = (group.entries || []).map((entry) => {
-        const fields = Array.isArray(entry.interpreted?.fields) && entry.interpreted.fields.length
-          ? '<div class="field-grid">' + entry.interpreted.fields.slice(0, 8).map((field) => \`
-              <div class="field-chip \${field.tone ? "is-" + escapeHtml(field.tone) : ""}">
-                <div class="field-label">\${escapeHtml(field.label)}</div>
-                <div class="field-value">\${escapeHtml(field.value)}</div>
-              </div>\`).join("") + "</div>"
-          : "";
-        const changesBlock = renderChangesBlock(entry.interpreted?.changes);
-        return \`
-          <div class="timeline-entry">
-            <div class="timeline-row">
-              <span class="category-badge is-\${escapeHtml(entry.category?.tone || "neutral")}">\${escapeHtml(entry.category?.icon || "•")} \${escapeHtml(entry.category?.label || entry.category?.key || "")}</span>
-              <span class="level-badge level-\${escapeHtml(entry.level)}">\${escapeHtml(entry.level)}</span>
-              <span class="meta-chip">\${escapeHtml(entry.timestamp)}</span>
-              <span class="meta-chip">\${escapeHtml(entry.module || "-")}</span>
-              <span class="meta-chip">\${escapeHtml(entry.source || "-")}</span>
-              \${entry.remoteAddress ? '<span class="meta-chip">IP ' + escapeHtml(entry.remoteAddress) + "</span>" : ""}
-            </div>
-            <div class="message-main">\${escapeHtml(entry.interpreted?.summary || entry.message || "")}</div>
-            <div class="muted" style="margin-bottom:8px;">\${escapeHtml(entry.message || "")} • \${escapeHtml(entry.fileName || "")}</div>
+      const entry = (group.entries || [])[0] || {};
+      const interpreted = entry.interpreted || { summary: entry.message || "", fields: [], changes: [] };
+      const hiddenTechnicalFields = new Set([
+        "Request ID", "Evento", "Categoria", "Client", "Metodo", "URL",
+        "Stato HTTP", "Durata ms", "IP remoto", "Scope", "File",
+      ]);
+      const visibleFields = Array.isArray(interpreted.fields)
+        ? interpreted.fields.filter((field) => !hiddenTechnicalFields.has(field.label)).slice(0, 8)
+        : [];
+      const fields = visibleFields.length
+        ? '<div class="field-grid" style="margin-top:8px;">' + visibleFields.map((field) => \`
+            <div class="field-chip \${field.tone ? "is-" + escapeHtml(field.tone) : ""}">
+              <div class="field-label">\${escapeHtml(field.label)}</div>
+              <div class="field-value">\${escapeHtml(field.value)}</div>
+            </div>\`).join("") + "</div>"
+        : "";
+      const changesBlock = renderChangesBlock(interpreted.changes);
+      const technicalParts = [
+        group.requestId && !String(group.requestId).startsWith("single:") ? "Request " + group.requestId : "",
+        group.method || "",
+        group.url || "",
+        group.statusCode ? "HTTP " + group.statusCode : "",
+        group.technicalCount > 1 ? group.technicalCount + " eventi tecnici raggruppati" : "",
+      ].filter(Boolean).join(" · ");
+      const details = fields || changesBlock || technicalParts
+        ? \`<details class="action-details">
+            <summary>Dettagli</summary>
             \${fields}
             \${changesBlock}
-          </div>\`;
-      }).join("");
+            \${technicalParts ? '<div class="technical-line">' + escapeHtml(technicalParts) + "</div>" : ""}
+          </details>\`
+        : "";
+      const meta = [
+        group.user ? '<span class="meta-chip">Utente: ' + escapeHtml(group.user) + "</span>" : "",
+        group.finishedAt ? '<span class="meta-chip">' + escapeHtml(formatTimestamp(group.finishedAt)) + "</span>" : "",
+        Array.isArray(group.modules) && group.modules.length ? '<span class="meta-chip">' + escapeHtml(group.modules.join(", ")) + "</span>" : "",
+        group.durationMs ? '<span class="meta-chip">' + escapeHtml(group.durationMs) + " ms</span>" : "",
+      ].filter(Boolean).join("");
       return \`
-        <article class="timeline-card">
+        <article class="timeline-card is-\${escapeHtml(group.outcome || "success")}">
           <div class="timeline-head">
             <div>
-              <div class="timeline-title">Request ID: \${escapeHtml(group.requestId)}</div>
+              <div class="timeline-title">\${escapeHtml(interpreted.summary || entry.message || "Azione backend")}</div>
               <div class="timeline-meta">\${meta}</div>
             </div>
+            <span class="outcome-badge is-\${escapeHtml(group.outcome || "success")}">\${group.outcome === "error" ? "✕" : group.outcome === "warning" ? "!" : "✓"} \${escapeHtml(group.outcomeLabel || "Riuscita")}</span>
           </div>
-          <div class="timeline-list">\${rows}</div>
+          \${details}
         </article>\`;
     }
 
     function renderLoadMarker() {
       const status = state.hasMore
-        ? "Scorri verso il fondo per caricare altre righe..."
+        ? "Scorri verso il fondo per caricare altre attività..."
         : state.firstLoadComplete
           ? "Fine log raggiunta."
           : "Caricamento...";
@@ -1564,7 +1778,7 @@ export function buildLogViewerHtml() {
 
     function renderTimeline() {
       if (!Array.isArray(state.groups) || !state.groups.length) {
-        timelineBodyEl.innerHTML = '<div class="empty">Nessuna richiesta raggruppabile con i filtri correnti.</div>';
+        timelineBodyEl.innerHTML = '<div class="empty">Nessuna attività compatibile con i filtri correnti.</div>';
         return;
       }
       timelineBodyEl.innerHTML = state.groups.map(groupCardMarkup).join("") + renderLoadMarker();
@@ -1572,8 +1786,8 @@ export function buildLogViewerHtml() {
 
     function renderSummary() {
       summaryEl.textContent = state.hasMore
-        ? \`\${state.entries.length} righe caricate, altre disponibili\`
-        : \`\${state.entries.length} righe caricate\`;
+        ? \`\${state.groups.length} azioni mostrate, altre disponibili\`
+        : \`\${state.groups.length} azioni mostrate\`;
     }
 
     function renderAll() {
@@ -1599,9 +1813,10 @@ export function buildLogViewerHtml() {
           ...group,
           startedAt: current.startedAt && group.startedAt ? [current.startedAt, group.startedAt].sort()[0] : (current.startedAt || group.startedAt || ""),
           finishedAt: current.finishedAt && group.finishedAt ? [current.finishedAt, group.finishedAt].sort().reverse()[0] : (current.finishedAt || group.finishedAt || ""),
-          count: mergedEntries.length,
+          count: 1,
+          technicalCount: Number(current.technicalCount || 0) + Number(group.technicalCount || 0),
           modules,
-          entries: mergedEntries,
+          entries: mergedEntries.slice(0, 1),
         });
       });
       state.groups = Array.from(map.values()).sort((a, b) => String(b.finishedAt).localeCompare(String(a.finishedAt)));
@@ -1641,10 +1856,10 @@ export function buildLogViewerHtml() {
       state.cursor = payload.nextCursor || null;
       state.hasMore = !!payload.hasMore;
       state.firstLoadComplete = true;
-      statTotalEl.textContent = String(state.entries.length);
-      statInfoEl.textContent = String(state.entries.filter((entry) => entry.level === "INFO").length);
-      statWarnEl.textContent = String(state.entries.filter((entry) => entry.level === "WARN").length);
-      statErrorEl.textContent = String(state.entries.filter((entry) => entry.level === "ERROR").length);
+      statTotalEl.textContent = String(state.groups.length);
+      statInfoEl.textContent = String(state.groups.filter((group) => group.outcome === "success").length);
+      statWarnEl.textContent = String(state.groups.filter((group) => group.outcome === "warning").length);
+      statErrorEl.textContent = String(state.groups.filter((group) => group.outcome === "error").length);
       renderAll();
       return true;
     }
