@@ -1,8 +1,6 @@
 require("./shared/dev-guards");
-import { initBlueArchivePointerEffects } from "./shared/bluearchive-pointer-effects";
 
 window.addEventListener("DOMContentLoaded", () => {
-    initBlueArchivePointerEffects(true);
     const splash = document.getElementById("splash");
     let navigationStarted = false;
     const openModules = () => {

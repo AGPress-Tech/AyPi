@@ -9,6 +9,8 @@ export type BackendRequestOptions = {
     headers?: Record<string, string>;
 };
 
+const BACKEND_REQUEST_TIMEOUT_MS = 10000;
+
 export function resolveAypiBackendBaseUrl() {
     const ferieBaseUrl = resolveFpBackendBaseUrl();
     log.debug("[backend] base url:", ferieBaseUrl);
@@ -34,6 +36,7 @@ export async function requestAypiBackend(
         options && Object.prototype.hasOwnProperty.call(options, "body")
             ? JSON.stringify(options.body ?? {})
             : null;
+    const startedAt = Date.now();
 
     return new Promise<any>((resolve, reject) => {
         const req = transport.request(
@@ -62,6 +65,12 @@ export async function requestAypiBackend(
                         }
                     }
                     if (statusCode >= 200 && statusCode < 300) {
+                        log.debug("[backend] request completed", {
+                            method,
+                            pathname: url.pathname,
+                            statusCode,
+                            durationMs: Date.now() - startedAt,
+                        });
                         resolve(parsed);
                         return;
                     }
@@ -75,7 +84,24 @@ export async function requestAypiBackend(
                 });
             },
         );
-        req.on("error", reject);
+        req.setTimeout(BACKEND_REQUEST_TIMEOUT_MS, () => {
+            req.destroy(
+                new Error(
+                    `Backend ${method} ${url.pathname} timeout dopo ${
+                        BACKEND_REQUEST_TIMEOUT_MS / 1000
+                    } secondi`,
+                ),
+            );
+        });
+        req.on("error", (error) => {
+            log.error("[backend] request failed", {
+                method,
+                pathname: url.pathname,
+                durationMs: Date.now() - startedAt,
+                error: error.message,
+            });
+            reject(error);
+        });
         if (body) req.write(body);
         req.end();
     });

@@ -1,4 +1,5 @@
 import type { IpcMain } from "electron";
+import log from "electron-log";
 
 type BackendRequest = (
     pathname: string,
@@ -18,10 +19,23 @@ export function registerProductionPlannerIpc(
     request: BackendRequest,
 ) {
     ipcMain.handle("production-planner-load", async () => {
+        log.info("[production-planner] Caricamento stato richiesto dal renderer.");
         try {
             const snapshot = await request("/api/production-planner/state");
+            log.info("[production-planner] Stato caricato.", {
+                revision: Number(snapshot?.revision) || 0,
+                machines: Array.isArray(snapshot?.state?.machines)
+                    ? snapshot.state.machines.length
+                    : 0,
+                jobs: Array.isArray(snapshot?.state?.jobs)
+                    ? snapshot.state.jobs.length
+                    : 0,
+            });
             return { ok: true, snapshot };
         } catch (error) {
+            log.error("[production-planner] Caricamento stato fallito.", {
+                error: errorMessage(error),
+            });
             return { ok: false, error: errorMessage(error) };
         }
     });
@@ -31,6 +45,9 @@ export function registerProductionPlannerIpc(
             const snapshot = await request("/api/production-planner/revision");
             return { ok: true, snapshot };
         } catch (error) {
+            log.warn("[production-planner] Controllo revisione fallito.", {
+                error: errorMessage(error),
+            });
             return { ok: false, error: errorMessage(error) };
         }
     });
@@ -51,9 +68,17 @@ export function registerProductionPlannerIpc(
                     baseRevision: Number(payload?.baseRevision) || 0,
                 },
             });
+            log.info("[production-planner] Stato salvato.", {
+                revision: Number(snapshot?.revision) || 0,
+                actor,
+            });
             return { ok: true, snapshot };
         } catch (error) {
             const message = errorMessage(error);
+            log.error("[production-planner] Salvataggio stato fallito.", {
+                actor,
+                error: message,
+            });
             let latest = null;
             try {
                 latest = await request("/api/production-planner/state");

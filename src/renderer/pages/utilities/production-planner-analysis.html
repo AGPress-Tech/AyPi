@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Analisi Produzione</title>
+    <link rel="stylesheet" href="../../styles/utilities/production-planner-analysis-style.css">
+</head>
+
+<body>
+    <div class="analysis-app">
+        <header class="analysis-topbar">
+            <div class="analysis-brand">
+                <div class="analysis-logo" role="img" aria-label="AyPi">
+                    <span class="analysis-logo__halo"></span>
+                    <span class="analysis-logo__ay">Ay</span><span class="analysis-logo__pi">Pi</span>
+                    <span class="analysis-logo__slash"></span>
+                </div>
+                <div>
+                    <span class="eyebrow">AYPI · PRODUZIONE</span>
+                    <h1>Analisi Produzione</h1>
+                    <p>Indicatori, confronti e storico del pianificatore</p>
+                </div>
+            </div>
+            <div class="analysis-topbar__actions">
+                <span class="analysis-sync" id="analysis-sync"><i></i><span>Caricamento…</span></span>
+                <button class="analysis-button analysis-button--ghost" id="analysis-refresh" type="button">↻ Aggiorna</button>
+                <button class="analysis-button analysis-button--primary" id="analysis-export" type="button">Esporta Excel</button>
+                <button class="analysis-button analysis-button--ghost" id="analysis-close" type="button">Chiudi</button>
+            </div>
+        </header>
+
+        <main class="analysis-main">
+            <section class="filter-panel">
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">FILTRI ANALISI</span>
+                        <h2>Perimetro dei dati</h2>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="small-button" id="analysis-reset" type="button">Ripristina</button>
+                        <button class="small-button small-button--primary" id="analysis-apply" type="button">Applica filtri</button>
+                    </div>
+                </div>
+
+                <div class="filter-grid">
+                    <label>Periodo rapido
+                        <select id="filter-quick-range">
+                            <option value="all">Tutto lo storico</option>
+                            <option value="current-month">Mese corrente</option>
+                            <option value="3-months">Ultimi 3 mesi</option>
+                            <option value="6-months">Ultimi 6 mesi</option>
+                            <option value="12-months" selected>Ultimi 12 mesi</option>
+                            <option value="current-year">Anno corrente</option>
+                            <option value="custom">Personalizzato</option>
+                        </select>
+                    </label>
+                    <fieldset class="date-range">
+                        <legend>Produzione</legend>
+                        <label>Da<input id="filter-production-from" type="date"></label>
+                        <label>A<input id="filter-production-to" type="date"></label>
+                    </fieldset>
+                    <fieldset class="date-range">
+                        <legend>Prima consegna</legend>
+                        <label>Da<input id="filter-delivery-from" type="date"></label>
+                        <label>A<input id="filter-delivery-to" type="date"></label>
+                    </fieldset>
+                    <fieldset class="date-range">
+                        <legend>Completamento</legend>
+                        <label>Da<input id="filter-completion-from" type="date"></label>
+                        <label>A<input id="filter-completion-to" type="date"></label>
+                    </fieldset>
+
+                    <label>Codice articolo esatto
+                        <input id="filter-article" placeholder="Es. 400">
+                    </label>
+                    <label>Cliente esatto
+                        <input id="filter-customer-text" placeholder="Nome cliente">
+                    </label>
+                    <label>Stato lavorazione
+                        <select id="filter-work-status">
+                            <option value="">Tutti gli stati</option>
+                            <option value="not_started">Non ancora iniziato</option>
+                            <option value="running">In corso</option>
+                            <option value="done">Terminato</option>
+                        </select>
+                    </label>
+                    <label>Stato materiale
+                        <select id="filter-material-status">
+                            <option value="">Tutti gli stati</option>
+                            <option value="available">Disponibile</option>
+                            <option value="partial">Parzialmente disponibile</option>
+                            <option value="incoming">In arrivo</option>
+                            <option value="missing">Non disponibile</option>
+                            <option value="verification">Da verificare</option>
+                        </select>
+                    </label>
+                    <label>Unità
+                        <select id="filter-unit">
+                            <option value="">Tutte</option>
+                            <option value="pz">Pezzi</option>
+                            <option value="kg">Kg</option>
+                        </select>
+                    </label>
+                    <label>Granularità temporale
+                        <select id="filter-granularity">
+                            <option value="day">Giorno</option>
+                            <option value="week">Settimana</option>
+                            <option value="month" selected>Mese</option>
+                            <option value="quarter">Trimestre</option>
+                            <option value="year">Anno</option>
+                        </select>
+                    </label>
+
+                    <label class="multi-select-label">Reparti
+                        <select id="filter-departments" multiple size="4"></select>
+                        <small>Ctrl + clic per selezioni multiple</small>
+                    </label>
+                    <label class="multi-select-label">Categorie
+                        <select id="filter-categories" multiple size="4"></select>
+                        <small>Ctrl + clic per selezioni multiple</small>
+                    </label>
+                    <label class="multi-select-label">Macchine
+                        <select id="filter-machines" multiple size="4"></select>
+                        <small>Ctrl + clic per selezioni multiple</small>
+                    </label>
+                    <label class="filter-check">
+                        <input id="filter-only-completed" type="checkbox">
+                        <span><strong>Solo produzioni completate</strong><small>Esclude lavorazioni aperte e pianificate</small></span>
+                    </label>
+                </div>
+                <div class="active-filter-summary" id="active-filter-summary">Tutto lo storico disponibile</div>
+            </section>
+
+            <section class="kpi-grid" aria-label="Indicatori principali">
+                <article><span>Lavorazioni</span><strong id="kpi-jobs">0</strong><small id="kpi-jobs-note">0 completate</small></article>
+                <article><span>Articoli distinti</span><strong id="kpi-articles">0</strong><small>codici differenti</small></article>
+                <article><span>Pezzi prodotti</span><strong id="kpi-pieces">0</strong><small>stima sul progresso</small></article>
+                <article><span>Kg prodotti</span><strong id="kpi-kg">0</strong><small>stima sul progresso</small></article>
+                <article><span>Puntualità</span><strong id="kpi-on-time">—</strong><small id="kpi-on-time-note">con prima consegna</small></article>
+                <article><span>Completamento</span><strong id="kpi-completion">0%</strong><small>giorni processati</small></article>
+                <article><span>Durata media</span><strong id="kpi-duration">0</strong><small>giorni lavorativi</small></article>
+                <article><span>Macchine coinvolte</span><strong id="kpi-machines">0</strong><small id="kpi-departments-note">0 reparti</small></article>
+            </section>
+
+            <section class="chart-grid">
+                <article class="analysis-card chart-card chart-card--wide">
+                    <header><div><span class="eyebrow">ANDAMENTO</span><h2>Produzione nel tempo</h2></div></header>
+                    <div class="chart-wrap"><canvas id="chart-timeline"></canvas></div>
+                </article>
+                <article class="analysis-card chart-card">
+                    <header><div><span class="eyebrow">MACCHINE</span><h2>Quantità prodotta</h2></div></header>
+                    <div class="chart-wrap"><canvas id="chart-machines"></canvas></div>
+                </article>
+                <article class="analysis-card chart-card">
+                    <header><div><span class="eyebrow">REPARTI</span><h2>Lavorazioni e articoli</h2></div></header>
+                    <div class="chart-wrap"><canvas id="chart-departments"></canvas></div>
+                </article>
+                <article class="analysis-card chart-card">
+                    <header><div><span class="eyebrow">STATO</span><h2>Avanzamento lavorazioni</h2></div></header>
+                    <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+                </article>
+                <article class="analysis-card chart-card">
+                    <header><div><span class="eyebrow">CONSEGNE</span><h2>Puntualità per reparto</h2></div></header>
+                    <div class="chart-wrap"><canvas id="chart-punctuality"></canvas></div>
+                </article>
+            </section>
+
+            <section class="analysis-card custom-analysis">
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">ANALISI PERSONALIZZATE</span>
+                        <h2>Crea le viste degli operatori</h2>
+                        <p>Scegli una dimensione, una metrica e il tipo di rappresentazione.</p>
+                    </div>
+                    <div class="custom-builder">
+                        <label>Raggruppa per
+                            <select id="custom-dimension">
+                                <option value="machine">Macchina</option>
+                                <option value="department">Reparto</option>
+                                <option value="category">Categoria macchina</option>
+                                <option value="article">Articolo</option>
+                                <option value="customer">Cliente</option>
+                                <option value="material">Stato materiale</option>
+                                <option value="status">Stato lavorazione</option>
+                                <option value="period">Periodo</option>
+                            </select>
+                        </label>
+                        <label>Metrica
+                            <select id="custom-metric">
+                                <option value="jobs">Numero lavorazioni</option>
+                                <option value="distinctArticles">Articoli distinti</option>
+                                <option value="producedPieces">Pezzi prodotti</option>
+                                <option value="plannedPieces">Pezzi pianificati</option>
+                                <option value="producedKg">Kg prodotti</option>
+                                <option value="completion">Completamento medio %</option>
+                                <option value="punctuality">Puntualità %</option>
+                                <option value="duration">Durata media</option>
+                            </select>
+                        </label>
+                        <label>Visualizzazione
+                            <select id="custom-chart-type">
+                                <option value="bar">Barre</option>
+                                <option value="line">Linea</option>
+                                <option value="doughnut">Anello</option>
+                                <option value="table">Tabella</option>
+                            </select>
+                        </label>
+                        <button class="small-button small-button--primary" id="custom-add" type="button">+ Aggiungi analisi</button>
+                    </div>
+                </div>
+                <div class="custom-grid" id="custom-grid">
+                    <div class="custom-empty">Nessuna analisi personalizzata. Aggiungine una usando i controlli sopra.</div>
+                </div>
+            </section>
+
+            <section class="table-stack">
+                <details class="analysis-card table-card" open>
+                    <summary><span>Analisi per macchina</span><small id="machine-table-count"></small></summary>
+                    <div class="table-scroll"><table id="machine-table"></table></div>
+                </details>
+                <details class="analysis-card table-card">
+                    <summary><span>Analisi per reparto</span><small id="department-table-count"></small></summary>
+                    <div class="table-scroll"><table id="department-table"></table></div>
+                </details>
+                <details class="analysis-card table-card">
+                    <summary><span>Analisi per articolo</span><small id="article-table-count"></small></summary>
+                    <div class="table-scroll"><table id="article-table"></table></div>
+                </details>
+                <details class="analysis-card table-card">
+                    <summary><span>Analisi temporale</span><small id="period-table-count"></small></summary>
+                    <div class="table-scroll"><table id="period-table"></table></div>
+                </details>
+                <details class="analysis-card table-card">
+                    <summary><span>Dettaglio lavorazioni filtrate</span><small id="detail-table-count"></small></summary>
+                    <div class="table-scroll table-scroll--detail"><table id="detail-table"></table></div>
+                </details>
+            </section>
+        </main>
+
+        <div class="analysis-toast" id="analysis-toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <script src="../../scripts/utilities/production-planner-analysis.js"></script>
+</body>
+
+</html>

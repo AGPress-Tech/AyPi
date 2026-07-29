@@ -2,7 +2,23 @@
 require("../shared/dev-guards");
 const { ipcRenderer } = require("electron");
 
-type MaterialStatus = "available" | "incoming" | "missing" | "verification";
+window.addEventListener("error", (event) => {
+    console.error("[production-planner] Errore renderer non gestito", {
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        column: event.colno,
+        stack: event.error?.stack || "",
+    });
+});
+window.addEventListener("unhandledrejection", (event) => {
+    console.error(
+        "[production-planner] Promise renderer non gestita",
+        event.reason?.stack || event.reason || "Errore sconosciuto",
+    );
+});
+
+type MaterialStatus = "available" | "partial" | "incoming" | "missing" | "verification";
 type WorkStatus = "not_started" | "running" | "done";
 type Priority = "normal" | "high" | "urgent";
 
@@ -18,9 +34,8 @@ type ProductionJob = {
     id: string;
     customer: string;
     article: string;
-    lot: string;
-    orderReference: string;
     phase: string;
+    materialAlloy: string;
     quantity: number;
     unit: "pz" | "kg";
     machineId: string;
@@ -56,6 +71,7 @@ type MachineUnavailability = {
 
 type PlannerState = {
     version: 1;
+    machineColorSchemeVersion?: number;
     machines: Machine[];
     jobs: ProductionJob[];
     unavailabilities: MachineUnavailability[];
@@ -67,6 +83,7 @@ let dayWidth = 92;
 
 const materialLabels: Record<MaterialStatus, string> = {
     available: "Disponibile",
+    partial: "Parzialmente disponibile",
     incoming: "In arrivo",
     missing: "Non disponibile",
     verification: "Da verificare",
@@ -98,10 +115,11 @@ const defaultMachines: Machine[] = [
     { id: "21d300", name: "21D300 (Haas VF-70)", department: "Centri di lavoro", category: "Centri di lavoro", color: "#1aa7cf" },
 ];
 
-let state: PlannerState = loadState();
+let state: PlannerState;
 let visibleStart = startOfWeek(new Date());
 let visibleDays = 14;
 let draggedJobId = "";
+let draggedMachineId = "";
 let resizeSession: null | {
     jobId: string;
     edge: "start" | "end";
@@ -112,6 +130,8 @@ let resizeSession: null | {
     originalLeft: number;
     originalWidth: number;
     deltaDays: number;
+    pointerId: number;
+    captureTarget: HTMLElement;
 } = null;
 let contextJobId = "";
 let jobFormRevision = 0;
@@ -134,10 +154,17 @@ let remoteLoadInFlight = false;
 let realtimeConnected = false;
 let backlogView: "queue" | "filtered" = "queue";
 let showArchived = false;
+let rangeEditItemIds: string[] = [];
+let rangeEditRevision = 0;
+let machinePickerDepartment = "";
+let machinePickerCategory = "";
+let machinePickerSearch = "";
 let calendarPanSession: null | {
     originX: number;
     originStart: Date;
     lastDeltaDays: number;
+    pointerId: number;
+    captureTarget: HTMLElement;
 } = null;
 const selectedDepartments = new Set<string>();
 const selectedCategories = new Set<string>();
@@ -271,16 +298,132 @@ function jobTitle(job: ProductionJob) {
     return [job.article, job.phase].filter((value) => String(value || "").trim()).join(" · ");
 }
 
+const MACHINE_GROUP_COLORS = [
+    "#2478c8", "#13a9d6", "#2dad62", "#df8b32", "#8b65c2",
+    "#df535b", "#2c9a94", "#5e74d8", "#c2732d", "#3a9c55",
+    "#b95691", "#387fb0", "#8074c9", "#b08a28", "#2f91c7",
+    "#cc5f45", "#498e7c", "#a65bba", "#657f35", "#d34f78",
+];
+
+function machineGroupKey(department: string, category: string) {
+    return `${String(department || "").trim().toLocaleLowerCase("it")}::${String(category || "").trim().toLocaleLowerCase("it")}`;
+}
+
+function randomMachineGroupColor(usedColors: Set<string>) {
+    const available = MACHINE_GROUP_COLORS.filter(
+        (color) => !usedColors.has(color.toLocaleLowerCase()),
+    );
+    if (available.length) {
+        return available[Math.floor(Math.random() * available.length)];
+    }
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+        const hue = Math.floor(Math.random() * 360);
+        const saturation = 58 + Math.floor(Math.random() * 20);
+        const lightness = 42 + Math.floor(Math.random() * 13);
+        const color = hslToHex(hue, saturation, lightness);
+        if (!usedColors.has(color.toLocaleLowerCase())) return color;
+    }
+    const seed = Math.floor(Math.random() * 0xffffff);
+    for (let offset = 0; offset <= 0xffffff; offset += 1) {
+        const color = `#${((seed + offset) % 0x1000000).toString(16).padStart(6, "0")}`;
+        if (!usedColors.has(color.toLocaleLowerCase())) return color;
+    }
+    return "#2478c8";
+}
+
+function hslToHex(hue: number, saturation: number, lightness: number) {
+    const s = saturation / 100;
+    const l = lightness / 100;
+    const chroma = (1 - Math.abs(2 * l - 1)) * s;
+    const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+    const match = l - chroma / 2;
+    let red = 0;
+    let green = 0;
+    let blue = 0;
+    if (hue < 60) [red, green] = [chroma, x];
+    else if (hue < 120) [red, green] = [x, chroma];
+    else if (hue < 180) [green, blue] = [chroma, x];
+    else if (hue < 240) [green, blue] = [x, chroma];
+    else if (hue < 300) [red, blue] = [x, chroma];
+    else [red, blue] = [chroma, x];
+    return `#${[red, green, blue]
+        .map((channel) => Math.round((channel + match) * 255).toString(16).padStart(2, "0"))
+        .join("")}`;
+}
+
+function normalizeMachineGroupColors(
+    machines: Machine[],
+    regenerateExisting = false,
+) {
+    const colorByGroup = new Map<string, string>();
+    const usedColors = new Set<string>();
+    machines.forEach((machine) => {
+        const key = machineGroupKey(machine.department, machine.category);
+        let color = colorByGroup.get(key);
+        const storedColor = regenerateExisting
+            ? ""
+            : String(machine.color || "").trim();
+        if (!color) {
+            color = storedColor && !usedColors.has(storedColor.toLocaleLowerCase())
+                ? storedColor
+                : randomMachineGroupColor(usedColors);
+            colorByGroup.set(key, color);
+            usedColors.add(color.toLocaleLowerCase());
+        }
+        machine.color = color;
+    });
+    return machines;
+}
+
+function assignColorForMachineGroup(machine: Machine, forceNew = false) {
+    const key = machineGroupKey(machine.department, machine.category);
+    const groupMate = state.machines.find(
+        (item) => item.id !== machine.id
+            && machineGroupKey(item.department, item.category) === key,
+    );
+    const usedColors = new Set(
+        state.machines
+            .filter((item) => item.id !== machine.id
+                && machineGroupKey(item.department, item.category) !== key)
+            .map((item) => String(item.color || "").toLocaleLowerCase()),
+    );
+    if (forceNew && machine.color) {
+        usedColors.add(machine.color.toLocaleLowerCase());
+    }
+    machine.color = groupMate?.color || randomMachineGroupColor(usedColors);
+    state.machines.forEach((item) => {
+        if (machineGroupKey(item.department, item.category) === key) {
+            item.color = machine.color;
+        }
+    });
+}
+
 function loadState(): PlannerState {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { version: 1, machines: defaultMachines, jobs: [], unavailabilities: [] };
+        if (!raw) {
+            const initialState: PlannerState = {
+                version: 1,
+                machineColorSchemeVersion: 2,
+                machines: normalizeMachineGroupColors(
+                    defaultMachines.map((machine) => ({ ...machine })),
+                    true,
+                ),
+                jobs: [],
+                unavailabilities: [],
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));
+            return initialState;
+        }
         const parsed = JSON.parse(raw);
         if (!parsed || !Array.isArray(parsed.machines) || !Array.isArray(parsed.jobs)) {
             throw new Error("Formato dati non valido");
         }
         const unavailabilities = Array.isArray(parsed.unavailabilities) ? parsed.unavailabilities : [];
         const jobs = parsed.jobs.map((job: ProductionJob) => {
+            const normalizedJob = { ...job } as Record<string, unknown>;
+            delete normalizedJob.lot;
+            delete normalizedJob.orderReference;
             const existingSpan = job.start && job.end ? Math.max(1, diffDays(job.end, job.start) + 1) : 1;
             const durationDays = Number(job.durationDays) || countWeekdays(job.start, job.end) || 1;
             const workStatus: WorkStatus = job.workStatus === "running"
@@ -305,7 +448,8 @@ function loadState(): PlannerState {
                         : new Date().toISOString()
                 : "";
             return {
-                ...job,
+                ...normalizedJob,
+                materialAlloy: String(job.materialAlloy || ""),
                 durationDays,
                 baseSpanDays: Number(job.baseSpanDays) || existingSpan,
                 workStatus,
@@ -332,16 +476,47 @@ function loadState(): PlannerState {
                 else if (previous.nextJobId !== job.id) job.previousJobId = "";
             }
         });
-        const machines = parsed.machines.map((machine: Machine) => ({
-            ...machine,
-            category: String(machine.category || "").trim() || "Senza categoria",
-        }));
-        return { version: 1, machines, jobs, unavailabilities };
+        const shouldRegenerateMachineColors =
+            Number(parsed.machineColorSchemeVersion) < 2;
+        const machines = normalizeMachineGroupColors(
+            parsed.machines.map((machine: Machine) => ({
+                ...machine,
+                category: String(machine.category || "").trim() || "Senza categoria",
+            })),
+            shouldRegenerateMachineColors,
+        );
+        const normalizedState: PlannerState = {
+            version: 1,
+            machineColorSchemeVersion: 2,
+            machines,
+            jobs,
+            unavailabilities,
+        };
+        if (shouldRegenerateMachineColors) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedState));
+        }
+        return normalizedState;
     } catch (error) {
         console.error("Impossibile caricare il pianificatore:", error);
-        return { version: 1, machines: defaultMachines, jobs: [], unavailabilities: [] };
+        const fallbackState: PlannerState = {
+            version: 1,
+            machineColorSchemeVersion: 2,
+            machines: normalizeMachineGroupColors(
+                defaultMachines.map((machine) => ({ ...machine })),
+                true,
+            ),
+            jobs: [],
+            unavailabilities: [],
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackState));
+        return fallbackState;
     }
 }
+
+// La normalizzazione dello stato usa la palette colori delle macchine.
+// Inizializziamo lo stato solo dopo che palette e helper sono stati definiti,
+// evitando la temporal dead zone dei const nelle build appena avviate.
+state = loadState();
 
 function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -395,16 +570,33 @@ function setSyncStatus(
 
 function applyRemoteSnapshot(snapshot: any, announce = false) {
     if (!snapshot?.state) return false;
+    const previousMachineOrder = state.machines.map((machine) => machine.id).join("|");
+    const needsMachineColorMigration =
+        Number(snapshot.state.machineColorSchemeVersion) < 2;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot.state));
     state = loadState();
     remoteRevision = Number(snapshot.revision) || 0;
     localDirty = false;
-    setSyncStatus(
-        "online",
-        syncedNowLabel(),
-        snapshotSyncDetail(snapshot),
-    );
+    if (needsMachineColorMigration) {
+        saveState();
+    } else {
+        setSyncStatus(
+            "online",
+            syncedNowLabel(),
+            snapshotSyncDetail(snapshot),
+        );
+    }
     renderAll();
+    const nextMachineOrder = state.machines.map((machine) => machine.id).join("|");
+    if (
+        previousMachineOrder !== nextMachineOrder
+        && byId("machines-dialog")?.classList.contains("is-open")
+    ) {
+        renderMachinesDialog();
+    }
+    if (byId("machine-picker-dialog")?.classList.contains("is-open")) {
+        renderMachinePicker();
+    }
     if (announce) notify("Pianificazione aggiornata con gli ultimi dati");
     return true;
 }
@@ -568,9 +760,8 @@ function jobMatches(job: ProductionJob) {
     }
     const detailValues = [
         job.customer,
-        job.lot,
-        job.orderReference,
         job.phase,
+        job.materialAlloy,
         machine?.name,
         machine?.department,
         machine?.category,
@@ -598,7 +789,13 @@ function isVisible(job: ProductionJob) {
 }
 
 function isLate(job: ProductionJob) {
-    return !!job.dueDate && job.workStatus !== "done" && parseDate(job.dueDate) < parseDate(new Date());
+    if (!job.firstDeliveryDate || job.workStatus === "done") return false;
+    const firstDelivery = parseDate(job.firstDeliveryDate);
+    const today = parseDate(new Date());
+    const plannedEnd = job.end ? parseDate(job.end) : today;
+    const effectiveCompletion =
+        plannedEnd.getTime() > today.getTime() ? plannedEnd : today;
+    return effectiveCompletion.getTime() > firstDelivery.getTime();
 }
 
 function getConflictIds() {
@@ -699,6 +896,136 @@ function renderMachineSelect() {
     const selected = select.value;
     select.innerHTML = `<option value="">Da pianificare</option>${state.machines.map((machine) => `<option value="${escapeHtml(machine.id)}">${escapeHtml(machine.department)} · ${escapeHtml(machine.category)} · ${escapeHtml(machine.name)}</option>`).join("")}`;
     select.value = state.machines.some((machine) => machine.id === selected) ? selected : "";
+    updateJobMachinePickerTrigger();
+}
+
+function updateJobMachinePickerTrigger() {
+    const machineId = inputValue("job-machine");
+    const machine = state.machines.find((item) => item.id === machineId);
+    const color = byId("job-machine-picker-color");
+    byId("job-machine-picker-name")!.textContent =
+        machine?.name || "Da pianificare";
+    byId("job-machine-picker-detail")!.textContent = machine
+        ? `${machine.department} · ${machine.category}`
+        : "Nessuna macchina selezionata";
+    if (color) {
+        color.style.background = machine?.color || "";
+        color.classList.toggle("is-empty", !machine);
+    }
+    byId("job-machine-picker")?.classList.toggle("has-selection", !!machine);
+}
+
+function uniqueMachineValues(
+    getter: (machine: Machine) => string,
+    machines = state.machines,
+) {
+    const seen = new Set<string>();
+    return machines
+        .map(getter)
+        .filter((value) => {
+            const key = value.toLocaleLowerCase("it");
+            if (!value || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+}
+
+function renderMachinePicker() {
+    const departments = uniqueMachineValues((machine) => machine.department);
+    const categorySource = machinePickerDepartment
+        ? state.machines.filter(
+            (machine) => machine.department === machinePickerDepartment,
+        )
+        : state.machines;
+    const categories = uniqueMachineValues(
+        (machine) => machine.category,
+        categorySource,
+    );
+    if (
+        machinePickerCategory
+        && !categories.includes(machinePickerCategory)
+    ) {
+        machinePickerCategory = "";
+    }
+    const renderChips = (
+        values: string[],
+        selected: string,
+        attribute: "department" | "category",
+    ) => values.map((value) => `
+        <button class="${selected === value ? "is-active" : ""}" type="button"
+            data-machine-picker-${attribute}="${escapeHtml(value)}">${escapeHtml(value)}</button>
+    `).join("");
+    byId("machine-picker-departments")!.innerHTML = renderChips(
+        departments,
+        machinePickerDepartment,
+        "department",
+    );
+    byId("machine-picker-categories")!.innerHTML = renderChips(
+        categories,
+        machinePickerCategory,
+        "category",
+    );
+
+    const query = machinePickerSearch.trim().toLocaleLowerCase("it");
+    const machines = state.machines.filter((machine) => {
+        if (
+            machinePickerDepartment
+            && machine.department !== machinePickerDepartment
+        ) return false;
+        if (
+            machinePickerCategory
+            && machine.category !== machinePickerCategory
+        ) return false;
+        if (!query) return true;
+        return [machine.name, machine.department, machine.category]
+            .some((value) => String(value || "").toLocaleLowerCase("it").includes(query));
+    });
+    const selectedMachineId = inputValue("job-machine");
+    byId("machine-picker-summary")!.textContent =
+        `${machines.length} ${machines.length === 1 ? "macchina disponibile" : "macchine disponibili"} · ordine condiviso del Gantt`;
+    byId("machine-picker-list")!.innerHTML = `
+        <button class="machine-picker-card machine-picker-card--unplanned ${selectedMachineId ? "" : "is-selected"}"
+            type="button" data-machine-picker-id="">
+            <i></i>
+            <span><strong>Da pianificare</strong><small>Assegna la macchina in un secondo momento</small></span>
+            <b>${selectedMachineId ? "" : "✓"}</b>
+        </button>
+        ${machines.map((machine, index) => `
+            <button class="machine-picker-card ${selectedMachineId === machine.id ? "is-selected" : ""}"
+                type="button" data-machine-picker-id="${escapeHtml(machine.id)}">
+                <i style="background:${escapeHtml(machine.color)}"></i>
+                <span><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.department)} · ${escapeHtml(machine.category)}</small></span>
+                <em>#${state.machines.indexOf(machine) + 1}</em>
+                <b>${selectedMachineId === machine.id ? "✓" : ""}</b>
+            </button>
+        `).join("") || '<div class="machine-picker__empty">Nessuna macchina corrisponde ai filtri selezionati.</div>'}`;
+}
+
+function openMachinePicker() {
+    machinePickerDepartment = "";
+    machinePickerCategory = "";
+    machinePickerSearch = "";
+    const search = byId("machine-picker-search") as HTMLInputElement | null;
+    if (search) search.value = "";
+    renderMachinePicker();
+    openDialog("machine-picker-dialog");
+    requestAnimationFrame(() => search?.focus());
+}
+
+function closeMachinePicker() {
+    closeDialog("machine-picker-dialog");
+    restoreJobFormInteractivity(false);
+}
+
+function selectJobMachine(machineId: string) {
+    const select = byId("job-machine") as HTMLSelectElement | null;
+    if (!select) return;
+    select.value = state.machines.some((machine) => machine.id === machineId)
+        ? machineId
+        : "";
+    updateJobMachinePickerTrigger();
+    updateJobStartAvailability();
+    closeMachinePicker();
 }
 
 function renderBacklog() {
@@ -742,7 +1069,7 @@ function renderBacklog() {
                     data-job-navigate="${escapeHtml(job.id)}" type="button">
                     <em class="filtered-job-card__state">${planned ? "NEL GANTT" : "IN CODA"}</em>
                     <strong>${escapeHtml(jobTitle(job))}</strong>
-                    <span>${escapeHtml(job.customer)}${job.lot ? ` · Lotto ${escapeHtml(job.lot)}` : ""}</span>
+                    <span>${escapeHtml(job.customer)}</span>
                     <small>${escapeHtml(position)} · ${job.durationDays || 1} gg lav.</small>
                 </button>`;
             }).join("")
@@ -761,7 +1088,7 @@ function renderBacklog() {
                 ${job.priority !== "normal" ? `<b class="priority-badge">${job.priority === "urgent" ? "URGENTE" : "ALTA"}</b>` : ""}
                 <strong>${escapeHtml(jobTitle(job))}</strong>
                 <span>${escapeHtml(job.customer)}</span>
-                <small>${job.lot ? `Lotto ${escapeHtml(job.lot)} · ` : ""}${job.durationDays || 1} gg lav. · ${job.quantity || 0} ${escapeHtml(job.unit)}</small>
+                <small>${job.durationDays || 1} gg lav. · ${job.quantity || 0} ${escapeHtml(job.unit)}</small>
             </article>`).join("")
         : `<div class="backlog-empty">Nessuna lavorazione in attesa.</div>`;
 }
@@ -824,14 +1151,19 @@ function renderTimeline() {
                 const widthDays = Math.max(1, clippedEnd - clippedStart + 1);
                 const label = item.title || unavailabilityLabels[item.type];
                 return `<div class="unavailability-block unavailability-block--${item.type}"
+                    data-unavailability-edit="${escapeHtml(item.id)}"
                     style="left:${clippedStart * dayWidth + 2}px;width:${widthDays * dayWidth - 4}px"
-                    title="${escapeHtml(label)} · ${formatLongDate(item.start)} — ${formatLongDate(item.end)}">
+                    title="${escapeHtml(label)} · ${formatLongDate(item.start)} — ${formatLongDate(item.end)} · Tasto destro per modificare">
                     <span>${escapeHtml(label)}</span>
                 </div>`;
             }).join("");
         const bars = jobs.map((job) => {
-            const clippedStart = Math.max(0, diffDays(job.start, visibleStart));
-            const clippedEnd = Math.min(visibleDays - 1, diffDays(job.end, visibleStart));
+            const rawStart = diffDays(job.start, visibleStart);
+            const rawEnd = diffDays(job.end, visibleStart);
+            const continuesBefore = rawStart < 0;
+            const continuesAfter = rawEnd >= visibleDays;
+            const clippedStart = Math.max(0, rawStart);
+            const clippedEnd = Math.min(visibleDays - 1, rawEnd);
             const widthDays = Math.max(1, clippedEnd - clippedStart + 1);
             const track = trackData.tracks.get(job.id) || 0;
             const firstDelivery = job.firstDeliveryDate
@@ -844,16 +1176,18 @@ function renderTimeline() {
             const progressLabel = processedDays > 0
                 ? `<span>${processedDays}/${job.durationDays || 1} gg · ${progressPercent}%</span>`
                 : "";
-            return `<article class="job-bar material-${job.materialStatus} ${conflictIds.has(job.id) ? "has-conflict" : ""} ${isLate(job) ? "is-late" : ""}"
+            return `<article class="job-bar material-${job.materialStatus} ${conflictIds.has(job.id) ? "has-conflict" : ""} ${isLate(job) ? "is-late" : ""} ${continuesBefore ? "continues-before" : ""} ${continuesAfter ? "continues-after" : ""}"
                 draggable="true" tabindex="0" data-job-id="${escapeHtml(job.id)}" data-status="${job.workStatus}"
                 style="left:${clippedStart * dayWidth + 3}px;width:${Math.max(10, widthDays * dayWidth - 6)}px;top:${track * 62 + 12}px;--job-progress:${progressPercent}%"
                 aria-label="${escapeHtml(job.customer)} · ${escapeHtml(jobTitle(job))}">
                 <i class="job-bar__progress"></i>
+                ${continuesBefore ? '<i class="job-bar__continuation job-bar__continuation--before" aria-hidden="true">‹‹</i>' : ""}
+                ${continuesAfter ? '<i class="job-bar__continuation job-bar__continuation--after" aria-hidden="true">››</i>' : ""}
                 <i class="job-resize job-resize--start" data-resize-edge="start"></i>
                 ${job.previousJobId ? `<button class="job-link-point job-link-point--previous" draggable="false" data-link-navigate="${escapeHtml(job.previousJobId)}" type="button" title="Vai alla lavorazione precedente" aria-label="Vai alla lavorazione precedente"></button>` : ""}
                 <strong>${escapeHtml(jobTitle(job))}</strong>
                 <small>${escapeHtml(job.customer)} · ${job.durationDays || 1} gg lav. · ${job.quantity || 0} ${escapeHtml(job.unit)}</small>
-                <em class="job-bar__meta">${progressLabel}${job.lot ? `<span>Lotto ${escapeHtml(job.lot)}</span>` : ""}${firstDelivery}</em>
+                <em class="job-bar__meta">${progressLabel}${firstDelivery}</em>
                 <i class="job-resize job-resize--end" data-resize-edge="end"></i>
                 ${job.nextJobId ? `<button class="job-link-point job-link-point--next" draggable="false" data-link-navigate="${escapeHtml(job.nextJobId)}" type="button" title="Vai alla lavorazione successiva" aria-label="Vai alla lavorazione successiva"></button>` : ""}
                 <i class="job-bar__status"></i>
@@ -949,7 +1283,11 @@ function renderJobLinks() {
 function renderStats() {
     const conflicts = getConflictIds();
     const filteredJobs = state.jobs.filter(jobMatches);
-    byId("stat-planned")!.textContent = String(filteredJobs.filter((job) => isVisible(job)).length);
+    byId("stat-planned")!.textContent = String(
+        filteredJobs.filter(
+            (job) => !!job.machineId && job.workStatus !== "done",
+        ).length,
+    );
     byId("stat-backlog")!.textContent = String(filteredJobs.filter((job) => !job.machineId).length);
     byId("stat-conflicts")!.textContent = String(conflicts.size);
     byId("stat-late")!.textContent = String(filteredJobs.filter(isLate).length);
@@ -960,12 +1298,60 @@ function renderMachinesDialog() {
     if (!list) return;
     list.innerHTML = state.machines.map((machine) => `
         <div class="machine-item" data-machine-id="${escapeHtml(machine.id)}" style="--machine-color:${escapeHtml(machine.color)}">
+            <button class="machine-drag-handle" draggable="true" type="button"
+                aria-label="Trascina per riordinare ${escapeHtml(machine.name)}"
+                title="Trascina per riordinare"><span></span><span></span><span></span><span></span><span></span><span></span></button>
             <i></i>
             <input data-machine-field="name" value="${escapeHtml(machine.name)}" aria-label="Nome macchina">
             <input data-machine-field="department" value="${escapeHtml(machine.department)}" aria-label="Reparto">
             <input data-machine-field="category" value="${escapeHtml(machine.category)}" aria-label="Categoria">
             <button class="machine-remove" data-remove-machine type="button">Rimuovi</button>
         </div>`).join("");
+}
+
+function clearMachineDropIndicators() {
+    document.querySelectorAll<HTMLElement>("#machine-list .machine-item").forEach((row) => {
+        row.classList.remove("is-dragging", "drop-before", "drop-after");
+    });
+}
+
+function reorderMachine(
+    machineId: string,
+    targetMachineId: string,
+    placeAfter: boolean,
+) {
+    if (!machineId || !targetMachineId || machineId === targetMachineId) return false;
+    const originalOrder = state.machines.map((machine) => machine.id).join("|");
+    const sourceIndex = state.machines.findIndex((machine) => machine.id === machineId);
+    if (sourceIndex < 0) return false;
+    const [machine] = state.machines.splice(sourceIndex, 1);
+    const targetIndex = state.machines.findIndex((item) => item.id === targetMachineId);
+    if (targetIndex < 0) {
+        state.machines.splice(sourceIndex, 0, machine);
+        return false;
+    }
+    state.machines.splice(targetIndex + (placeAfter ? 1 : 0), 0, machine);
+    return originalOrder !== state.machines.map((item) => item.id).join("|");
+}
+
+function refreshMachineDialogColors() {
+    document.querySelectorAll<HTMLElement>("#machine-list [data-machine-id]").forEach((row) => {
+        const machine = state.machines.find((item) => item.id === row.dataset.machineId);
+        if (machine) row.style.setProperty("--machine-color", machine.color);
+    });
+}
+
+function restoreMachineDialogFocus() {
+    const dialog = byId("machines-dialog");
+    if (!dialog?.classList.contains("is-open")) return;
+    cancelActivePointerInteractions({ render: false });
+    document.body.classList.remove("is-calendar-panning");
+    window.focus();
+    requestAnimationFrame(() => {
+        const input = byId("machine-name") as HTMLInputElement | null;
+        if (!input || !dialog.classList.contains("is-open")) return;
+        input.focus({ preventScroll: true });
+    });
 }
 
 function renderUnavailabilityMachineSelect() {
@@ -1087,6 +1473,95 @@ function renderClosureList() {
         : `<div class="unavailability-empty">Nessuna chiusura o ferie inserita.</div>`;
 }
 
+function openUnavailabilityRangeEditor(itemId: string) {
+    const item = state.unavailabilities.find((entry) => entry.id === itemId);
+    if (!item) return;
+    const isSharedRule =
+        (item.type === "closure" || item.type === "vacation")
+        && !!item.groupId;
+    const items = isSharedRule
+        ? state.unavailabilities.filter(
+            (entry) => (entry.groupId || entry.id) === item.groupId,
+        )
+        : [item];
+    if (!items.length) return;
+    rangeEditItemIds = items.map((entry) => entry.id);
+    rangeEditRevision = remoteRevision;
+    const machineNames = items
+        .map((entry) => state.machines.find((machine) => machine.id === entry.machineId)?.name)
+        .filter(Boolean);
+    const departments = [...new Set(items
+        .map((entry) => state.machines.find((machine) => machine.id === entry.machineId)?.department)
+        .filter(Boolean))];
+    const typeLabel = item.title || unavailabilityLabels[item.type];
+    byId("unavailability-range-title")!.textContent = typeLabel;
+    byId("unavailability-range-scope")!.textContent = isSharedRule
+        ? `${unavailabilityLabels[item.type]} condivisa: il nuovo periodo verrà applicato a ${items.length} ${items.length === 1 ? "macchina" : "macchine"}${departments.length ? ` nei reparti ${departments.join(", ")}` : ""}.`
+        : `${unavailabilityLabels[item.type]} sulla macchina ${machineNames[0] || "selezionata"}.`;
+    (byId("unavailability-range-start") as HTMLInputElement).value = item.start;
+    (byId("unavailability-range-end") as HTMLInputElement).value = item.end;
+    byId("unavailability-range-error")!.textContent = "";
+    openDialog("unavailability-range-dialog");
+    requestAnimationFrame(() => {
+        (byId("unavailability-range-start") as HTMLInputElement | null)?.focus();
+    });
+}
+
+function closeUnavailabilityRangeEditor() {
+    rangeEditItemIds = [];
+    closeDialog("unavailability-range-dialog");
+}
+
+function saveUnavailabilityRange(event: SubmitEvent) {
+    event.preventDefault();
+    const error = byId("unavailability-range-error");
+    const start = inputValue("unavailability-range-start");
+    const end = inputValue("unavailability-range-end");
+    if (!start || !end) return;
+    if (parseDate(end) < parseDate(start)) {
+        if (error) error.textContent = "La fine del periodo non può precedere l’inizio.";
+        return;
+    }
+    if (rangeEditRevision !== remoteRevision) {
+        if (error) {
+            error.textContent =
+                "Il pianificatore è stato aggiornato da un altro operatore. Chiudi e riapri l’editor prima di salvare.";
+        }
+        return;
+    }
+    const items = state.unavailabilities.filter((item) =>
+        rangeEditItemIds.includes(item.id),
+    );
+    if (!items.length) {
+        closeUnavailabilityRangeEditor();
+        return;
+    }
+    const reference = items[0];
+    const shared =
+        (reference.type === "closure" || reference.type === "vacation")
+        && !!reference.groupId;
+    const targetLabel = shared
+        ? `${unavailabilityLabels[reference.type].toLowerCase()} su ${items.length} macchine`
+        : `${unavailabilityLabels[reference.type].toLowerCase()} sulla macchina selezionata`;
+    if (!window.confirm(
+        `Confermi il nuovo periodo dal ${formatLongDate(start)} al ${formatLongDate(end)} per ${targetLabel}?`,
+    )) return;
+    const machineIds = new Set(items.map((item) => item.machineId));
+    items.forEach((item) => {
+        item.start = start;
+        item.end = end;
+    });
+    machineIds.forEach(recalculateMachineSchedule);
+    saveState();
+    closeUnavailabilityRangeEditor();
+    renderUnavailabilityList();
+    renderClosureList();
+    renderAll();
+    notify(shared
+        ? `Periodo aggiornato su ${items.length} macchine`
+        : "Periodo indisponibilità aggiornato");
+}
+
 function renderAll() {
     hideJobTooltip();
     renderFilters();
@@ -1100,6 +1575,9 @@ function renderAll() {
 function openDialog(id: string) {
     const dialog = byId(id);
     if (!dialog) return;
+    cancelActivePointerInteractions({ render: false });
+    closeContextMenu();
+    hideJobTooltip();
     dialog.classList.add("is-open");
     dialog.setAttribute("aria-hidden", "false");
 }
@@ -1111,8 +1589,32 @@ function closeDialog(id: string) {
     dialog.setAttribute("aria-hidden", "true");
 }
 
-function cancelActivePointerInteractions() {
+function releaseCapturedPointer(
+    target: HTMLElement | undefined,
+    pointerId: number | undefined,
+) {
+    if (!target || pointerId === undefined) return;
+    try {
+        if (target.hasPointerCapture?.(pointerId)) {
+            target.releasePointerCapture(pointerId);
+        }
+    } catch {
+        // Il nodo potrebbe essere stato ridisegnato durante il trascinamento.
+    }
+}
+
+function cancelActivePointerInteractions(
+    options: { render?: boolean } = {},
+) {
     const hadResize = !!resizeSession;
+    releaseCapturedPointer(
+        resizeSession?.captureTarget,
+        resizeSession?.pointerId,
+    );
+    releaseCapturedPointer(
+        calendarPanSession?.captureTarget,
+        calendarPanSession?.pointerId,
+    );
     if (resizeSession?.bar) {
         resizeSession.bar.draggable = true;
         resizeSession.bar.classList.remove("is-resizing");
@@ -1122,7 +1624,7 @@ function cancelActivePointerInteractions() {
     draggedJobId = "";
     document.body.classList.remove("is-calendar-panning");
     clearDragPreview();
-    if (hadResize) renderAll();
+    if (hadResize && options.render !== false) renderAll();
 }
 
 function updateJobStartAvailability() {
@@ -1141,19 +1643,57 @@ function updateJobStartAvailability() {
             ? "Data prevista di avvio produzione."
             : "Disponibile dopo aver scelto una macchina.";
     }
+    updateJobMachinePickerTrigger();
+}
+
+function restoreJobFormInteractivity(focusFirstField = true) {
+    const backdrop = byId("job-dialog");
+    const form = byId("job-form") as HTMLFormElement | null;
+    if (!backdrop || !form) return;
+    backdrop.removeAttribute("inert");
+    form.removeAttribute("inert");
+    backdrop.style.pointerEvents = "auto";
+    form.style.pointerEvents = "auto";
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>(
+        "input, select, textarea, button",
+    ).forEach((control) => {
+        control.style.pointerEvents = "auto";
+        if (control.id !== "job-start") control.disabled = false;
+        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+            control.readOnly = false;
+        }
+    });
+    updateJobStartAvailability();
+    window.focus();
+    if (!focusFirstField) return;
+    const focusFirstFormField = () => {
+        if (!backdrop.classList.contains("is-open")) return;
+        const article = byId("job-article") as HTMLInputElement | null;
+        article?.focus({ preventScroll: true });
+    };
+    requestAnimationFrame(() => {
+        focusFirstFormField();
+        window.setTimeout(focusFirstFormField, 0);
+    });
+}
+
+function restorePlannerWindowFocus() {
+    const active = document.activeElement as HTMLElement | null;
+    if (active?.closest(".dialog-backdrop")) active.blur();
+    window.setTimeout(() => window.focus(), 0);
 }
 
 function openJob(job?: ProductionJob, asCopy = false) {
     cancelActivePointerInteractions();
     closeContextMenu();
+    (byId("job-form") as HTMLFormElement | null)?.reset();
     const today = dateKey(new Date());
     jobFormRevision = remoteRevision;
     (byId("job-id") as HTMLInputElement).value = asCopy ? uid("job") : job?.id || "";
     (byId("job-customer") as HTMLInputElement).value = job?.customer || "";
     (byId("job-article") as HTMLInputElement).value = job?.article || "";
-    (byId("job-lot") as HTMLInputElement).value = job?.lot || "";
-    (byId("job-order-reference") as HTMLInputElement).value = job?.orderReference || "";
     (byId("job-phase") as HTMLInputElement).value = job?.phase || "";
+    (byId("job-material-alloy") as HTMLInputElement).value = job?.materialAlloy || "";
     (byId("job-quantity") as HTMLInputElement).value = job?.quantity ? String(job.quantity) : "";
     (byId("job-unit") as HTMLSelectElement).value = job?.unit || "pz";
     (byId("job-machine") as HTMLSelectElement).value = job?.machineId || "";
@@ -1171,7 +1711,7 @@ function openJob(job?: ProductionJob, asCopy = false) {
     byId("job-form-error")!.textContent = "";
     byId("delete-job")!.classList.toggle("button--hidden", !job || asCopy);
     openDialog("job-dialog");
-    setTimeout(() => (byId("job-customer") as HTMLInputElement)?.focus(), 0);
+    restoreJobFormInteractivity();
 }
 
 function saveJobFromForm(event: SubmitEvent) {
@@ -1222,9 +1762,8 @@ function saveJobFromForm(event: SubmitEvent) {
         id,
         customer: inputValue("job-customer").trim(),
         article: inputValue("job-article").trim(),
-        lot: inputValue("job-lot").trim(),
-        orderReference: inputValue("job-order-reference").trim(),
         phase: inputValue("job-phase").trim(),
+        materialAlloy: inputValue("job-material-alloy").trim(),
         quantity: Number(inputValue("job-quantity")) || 0,
         unit: inputValue("job-unit") as "pz" | "kg",
         machineId,
@@ -1248,18 +1787,25 @@ function saveJobFromForm(event: SubmitEvent) {
     const confirmation = index >= 0
         ? `Confermi il salvataggio delle modifiche a "${jobTitle(job)}"?`
         : `Confermi la creazione della lavorazione "${jobTitle(job)}"?`;
-    if (!window.confirm(confirmation)) return;
+    if (!window.confirm(confirmation)) {
+        restoreJobFormInteractivity();
+        return;
+    }
     if (index >= 0) state.jobs[index] = job;
     else state.jobs.push(job);
     saveState();
     closeDialog("job-dialog");
+    restorePlannerWindowFocus();
     renderAll();
     notify(index >= 0 ? "Lavorazione aggiornata" : "Lavorazione creata");
 }
 
 function deleteCurrentJob() {
     const id = inputValue("job-id");
-    if (deleteJobWithConfirmation(id)) closeDialog("job-dialog");
+    if (deleteJobWithConfirmation(id)) {
+        closeDialog("job-dialog");
+        restorePlannerWindowFocus();
+    }
 }
 
 function deleteJobWithConfirmation(id: string) {
@@ -1288,8 +1834,12 @@ function requestCloseJobDialog() {
     const message = job
         ? `Annullare le modifiche a "${jobTitle(job)}"?\n\nLe modifiche non salvate verranno perse.`
         : "Annullare l'inserimento della nuova lavorazione?\n\nI dati inseriti verranno persi.";
-    if (!window.confirm(message)) return;
+    if (!window.confirm(message)) {
+        restoreJobFormInteractivity();
+        return;
+    }
     closeDialog("job-dialog");
+    restorePlannerWindowFocus();
 }
 
 function closeContextMenu() {
@@ -1431,8 +1981,8 @@ function unlinkAllJobs(jobId: string) {
 function filteredLinkCandidates(job: ProductionJob) {
     return linkCandidates(job, linkPickerDirection).filter((candidate) => {
         if (linkPickerCustomer && candidate.customer !== linkPickerCustomer) return false;
-        if (linkPickerDeliveryFrom && (!candidate.dueDate || candidate.dueDate < linkPickerDeliveryFrom)) return false;
-        if (linkPickerDeliveryTo && (!candidate.dueDate || candidate.dueDate > linkPickerDeliveryTo)) return false;
+        if (linkPickerDeliveryFrom && (!candidate.firstDeliveryDate || candidate.firstDeliveryDate < linkPickerDeliveryFrom)) return false;
+        if (linkPickerDeliveryTo && (!candidate.firstDeliveryDate || candidate.firstDeliveryDate > linkPickerDeliveryTo)) return false;
         if (linkPickerProductionFrom && (!candidate.end || candidate.end < linkPickerProductionFrom)) return false;
         if (linkPickerProductionTo && (!candidate.start || candidate.start > linkPickerProductionTo)) return false;
         return true;
@@ -1447,7 +1997,7 @@ function linkPickerResultsMarkup(job: ProductionJob) {
             <div class="context-link-picker__current">
                 <span>COLLEGAMENTO ATTUALE</span>
                 <strong>${escapeHtml(jobTitle(current) || current.customer)}</strong>
-                <small>${current.lot ? `Lotto ${escapeHtml(current.lot)} · ` : ""}${current.start ? formatLongDate(current.start) : "Da pianificare"}</small>
+                <small>${current.start ? formatLongDate(current.start) : "Da pianificare"}</small>
                 <button type="button" data-context-action="unlink:${linkPickerDirection}">Scollega</button>
             </div>`;
     }
@@ -1458,7 +2008,7 @@ function linkPickerResultsMarkup(job: ProductionJob) {
                 <span>↗</span>
                 <div>
                     <strong>${escapeHtml(candidate.article || jobTitle(candidate) || "Senza articolo")}</strong>
-                    <small>${candidate.lot ? `Lotto ${escapeHtml(candidate.lot)} · ` : ""}${escapeHtml(candidate.customer)} · ${candidate.start ? formatLongDate(candidate.start) : "Da pianificare"}</small>
+                    <small>${escapeHtml(candidate.customer)} · ${candidate.start ? formatLongDate(candidate.start) : "Da pianificare"}</small>
                 </div>
             </button>`).join("")
         : `<div class="context-submenu__empty">Nessuna lavorazione corrisponde ai filtri.</div>`;
@@ -1488,7 +2038,7 @@ function renderContextMenu(view: "main" | "material" | "work" | "progress" | "li
         menu.innerHTML = `
             ${menuButton("edit", "✎", "Modifica", "Apri tutte le informazioni")}
             ${menuButton("copy", "⧉", "Copia", "Crea una nuova lavorazione precompilata")}
-            ${menuButton("links-view", "↔", "Collega lavorazione", "Cerca per articolo o lotto")}
+            ${menuButton("links-view", "↔", "Collega lavorazione", "Cerca per articolo e cliente")}
             ${menuButton(
                 "unlink-all",
                 "⊘",
@@ -1567,7 +2117,7 @@ function renderContextMenu(view: "main" | "material" | "work" | "progress" | "li
                     </select>
                 </label>
                 <fieldset class="context-link-picker__period">
-                    <legend>Data di consegna</legend>
+                    <legend>Data prima consegna</legend>
                     <label>
                         <span>Da</span>
                         <input id="context-link-delivery-from" type="date" value="${escapeHtml(linkPickerDeliveryFrom)}">
@@ -1685,8 +2235,8 @@ function tooltipMarkup(job: ProductionJob) {
         </div>
         <dl class="job-tooltip__grid">
             <dt>Cliente</dt><dd>${escapeHtml(job.customer)}</dd>
-            <dt>Lotto</dt><dd>${escapeHtml(job.lot || "—")}</dd>
-            <dt>Ordine</dt><dd>${escapeHtml(job.orderReference || "—")}</dd>
+            <dt>Fase</dt><dd>${escapeHtml(job.phase || "—")}</dd>
+            <dt>Materiale / Lega</dt><dd>${escapeHtml(job.materialAlloy || "—")}</dd>
             <dt>Macchina</dt><dd>${escapeHtml(machine?.name || "Da pianificare")}</dd>
             <dt>Periodo</dt><dd>${formatLongDate(job.start)} — ${formatLongDate(job.end)}</dd>
             <dt>Durata</dt><dd>${job.durationDays || 1} giorni lavorativi</dd>
@@ -1694,7 +2244,7 @@ function tooltipMarkup(job: ProductionJob) {
             <dt>Quantità</dt><dd>${job.quantity || 0} ${escapeHtml(job.unit)}</dd>
             <dt>Prima consegna</dt><dd>${escapeHtml(firstDelivery)}</dd>
             <dt>Consegna finale</dt><dd>${formatLongDate(job.dueDate)}</dd>
-            <dt>Materiale</dt><dd>${escapeHtml(materialLabels[job.materialStatus])}</dd>
+            <dt>Disponibilità materiale</dt><dd>${escapeHtml(materialLabels[job.materialStatus])}</dd>
             ${previous ? `<dt>Precedente</dt><dd>${escapeHtml(jobTitle(previous))}</dd>` : ""}
             ${next ? `<dt>Successiva</dt><dd>${escapeHtml(jobTitle(next))}</dd>` : ""}
         </dl>
@@ -1749,6 +2299,8 @@ function startJobResize(event: PointerEvent, handle: HTMLElement) {
         originalLeft: Number.parseFloat(bar.style.left) || 0,
         originalWidth: Number.parseFloat(bar.style.width) || dayWidth,
         deltaDays: 0,
+        pointerId: event.pointerId,
+        captureTarget: handle,
     };
     handle.setPointerCapture?.(event.pointerId);
 }
@@ -1788,6 +2340,7 @@ function finishJobResize() {
     }
     session.bar.draggable = true;
     session.bar.classList.remove("is-resizing");
+    releaseCapturedPointer(session.captureTarget, session.pointerId);
     resizeSession = null;
     suppressJobClickUntil = Date.now() + 300;
     renderAll();
@@ -1840,11 +2393,16 @@ function startCalendarPan(event: PointerEvent) {
     event.preventDefault();
     hideJobTooltip();
     closeContextMenu();
+    const captureTarget = byId("timeline");
+    if (!captureTarget) return;
     calendarPanSession = {
         originX: event.clientX,
         originStart: parseDate(visibleStart),
         lastDeltaDays: 0,
+        pointerId: event.pointerId,
+        captureTarget,
     };
+    captureTarget.setPointerCapture?.(event.pointerId);
     document.body.classList.add("is-calendar-panning");
 }
 
@@ -1860,6 +2418,10 @@ function updateCalendarPan(event: PointerEvent) {
 
 function finishCalendarPan() {
     if (!calendarPanSession) return;
+    releaseCapturedPointer(
+        calendarPanSession.captureTarget,
+        calendarPanSession.pointerId,
+    );
     calendarPanSession = null;
     document.body.classList.remove("is-calendar-panning");
 }
@@ -1936,9 +2498,27 @@ function navigateToFilteredJob(jobId: string) {
 }
 
 function bindGlobalEvents() {
+    document.addEventListener("pointerdown", (event) => {
+        const openDialog = (event.target as HTMLElement).closest(
+            ".dialog-backdrop.is-open",
+        );
+        if (!openDialog) {
+            return;
+        }
+        cancelActivePointerInteractions({ render: false });
+        closeContextMenu();
+        hideJobTooltip();
+        if (openDialog.id === "job-dialog") {
+            restoreJobFormInteractivity(false);
+        }
+    }, true);
+
     byId("new-job")?.addEventListener("click", () => openJob());
     byId("refresh-planner")?.addEventListener("click", () => {
         void loadLatestPlanner({ manual: true });
+    });
+    byId("open-production-analysis")?.addEventListener("click", () => {
+        ipcRenderer.send("open-production-planner-analysis-window");
     });
     document.querySelector(".backlog-view-switch")?.addEventListener("click", (event) => {
         const button = (event.target as HTMLElement).closest<HTMLElement>("[data-backlog-view]");
@@ -1953,6 +2533,50 @@ function bindGlobalEvents() {
         navigateToFilteredJob(target.dataset.jobNavigate || "");
     });
     byId("job-machine")?.addEventListener("change", updateJobStartAvailability);
+    byId("job-machine-picker")?.addEventListener("click", openMachinePicker);
+    document.querySelectorAll("[data-close-machine-picker]").forEach((button) => {
+        button.addEventListener("click", closeMachinePicker);
+    });
+    byId("machine-picker-search")?.addEventListener("input", (event) => {
+        machinePickerSearch = (event.target as HTMLInputElement).value;
+        renderMachinePicker();
+    });
+    byId("machine-picker-reset")?.addEventListener("click", () => {
+        machinePickerDepartment = "";
+        machinePickerCategory = "";
+        machinePickerSearch = "";
+        const search = byId("machine-picker-search") as HTMLInputElement | null;
+        if (search) search.value = "";
+        renderMachinePicker();
+        search?.focus();
+    });
+    byId("machine-picker-departments")?.addEventListener("click", (event) => {
+        const button = (event.target as HTMLElement).closest(
+            "[data-machine-picker-department]",
+        ) as HTMLElement | null;
+        if (!button) return;
+        const value = button.dataset.machinePickerDepartment || "";
+        machinePickerDepartment =
+            machinePickerDepartment === value ? "" : value;
+        renderMachinePicker();
+    });
+    byId("machine-picker-categories")?.addEventListener("click", (event) => {
+        const button = (event.target as HTMLElement).closest(
+            "[data-machine-picker-category]",
+        ) as HTMLElement | null;
+        if (!button) return;
+        const value = button.dataset.machinePickerCategory || "";
+        machinePickerCategory =
+            machinePickerCategory === value ? "" : value;
+        renderMachinePicker();
+    });
+    byId("machine-picker-list")?.addEventListener("click", (event) => {
+        const card = (event.target as HTMLElement).closest(
+            "[data-machine-picker-id]",
+        ) as HTMLElement | null;
+        if (!card) return;
+        selectJobMachine(card.dataset.machinePickerId || "");
+    });
     byId("job-form")?.addEventListener("submit", saveJobFromForm);
     byId("delete-job")?.addEventListener("click", deleteCurrentJob);
 
@@ -1971,6 +2595,13 @@ function bindGlobalEvents() {
     document.querySelectorAll("[data-close-closures]").forEach((button) => {
         button.addEventListener("click", () => closeDialog("closures-dialog"));
     });
+    document.querySelectorAll("[data-close-unavailability-range]").forEach((button) => {
+        button.addEventListener("click", closeUnavailabilityRangeEditor);
+    });
+    byId("unavailability-range-form")?.addEventListener(
+        "submit",
+        saveUnavailabilityRange,
+    );
 
     byId("manage-machines")?.addEventListener("click", () => {
         renderMachinesDialog();
@@ -2297,12 +2928,89 @@ function bindGlobalEvents() {
         const department = inputValue("machine-department").trim();
         const category = inputValue("machine-category").trim();
         if (!name || !department || !category) return;
-        state.machines.push({ id: uid("machine"), name, department, category, color: inputValue("machine-color") || "#2478c8" });
+        const machine: Machine = {
+            id: uid("machine"),
+            name,
+            department,
+            category,
+            color: "",
+        };
+        assignColorForMachineGroup(machine);
+        state.machines.push(machine);
         saveState();
         (byId("machine-form") as HTMLFormElement).reset();
-        (byId("machine-color") as HTMLInputElement).value = "#2478c8";
         renderMachinesDialog();
         renderAll();
+    });
+
+    byId("machine-list")?.addEventListener("dragstart", (event) => {
+        const handle = (event.target as HTMLElement).closest(".machine-drag-handle");
+        const row = handle?.closest("[data-machine-id]") as HTMLElement | null;
+        if (!handle || !row?.dataset.machineId) {
+            event.preventDefault();
+            return;
+        }
+        event.stopPropagation();
+        draggedMachineId = row.dataset.machineId;
+        row.classList.add("is-dragging");
+        event.dataTransfer?.setData("text/x-aypi-machine", draggedMachineId);
+        event.dataTransfer?.setData("text/plain", draggedMachineId);
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setDragImage(row, 18, row.offsetHeight / 2);
+        }
+    });
+
+    byId("machine-list")?.addEventListener("dragover", (event) => {
+        if (!draggedMachineId) return;
+        const row = (event.target as HTMLElement).closest("[data-machine-id]") as HTMLElement | null;
+        if (!row || row.dataset.machineId === draggedMachineId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        document.querySelectorAll<HTMLElement>("#machine-list .machine-item").forEach((item) => {
+            item.classList.remove("drop-before", "drop-after");
+        });
+        const placeAfter = event.clientY > row.getBoundingClientRect().top + row.offsetHeight / 2;
+        row.classList.add(placeAfter ? "drop-after" : "drop-before");
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    });
+
+    byId("machine-list")?.addEventListener("dragleave", (event) => {
+        const list = event.currentTarget as HTMLElement;
+        if (list.contains(event.relatedTarget as Node)) return;
+        document.querySelectorAll<HTMLElement>("#machine-list .machine-item").forEach((item) => {
+            item.classList.remove("drop-before", "drop-after");
+        });
+    });
+
+    byId("machine-list")?.addEventListener("drop", (event) => {
+        if (!draggedMachineId) return;
+        const row = (event.target as HTMLElement).closest("[data-machine-id]") as HTMLElement | null;
+        if (!row?.dataset.machineId || row.dataset.machineId === draggedMachineId) {
+            clearMachineDropIndicators();
+            draggedMachineId = "";
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const sourceId = draggedMachineId;
+        const targetId = row.dataset.machineId;
+        const placeAfter = row.classList.contains("drop-after");
+        clearMachineDropIndicators();
+        draggedMachineId = "";
+        window.setTimeout(() => {
+            if (!reorderMachine(sourceId, targetId, placeAfter)) return;
+            saveState();
+            renderMachinesDialog();
+            renderAll();
+            notify("Ordine macchine aggiornato per tutti gli utenti");
+        }, 0);
+    });
+
+    byId("machine-list")?.addEventListener("dragend", (event) => {
+        event.stopPropagation();
+        draggedMachineId = "";
+        clearMachineDropIndicators();
     });
 
     byId("machine-list")?.addEventListener("change", (event) => {
@@ -2312,30 +3020,45 @@ function bindGlobalEvents() {
         const machine = state.machines.find((item) => item.id === row.dataset.machineId);
         if (!machine) return;
         const value = input.value.trim();
+        const previousGroupKey = machineGroupKey(machine.department, machine.category);
         machine[input.dataset.machineField] = input.dataset.machineField === "category"
             ? value || "Senza categoria"
             : value;
+        const groupChanged = previousGroupKey
+            !== machineGroupKey(machine.department, machine.category);
+        if (groupChanged) assignColorForMachineGroup(machine, true);
         saveState();
+        refreshMachineDialogColors();
         renderAll();
     });
 
     byId("machine-list")?.addEventListener("click", (event) => {
         const button = (event.target as HTMLElement).closest("[data-remove-machine]");
         if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
         const row = button.closest("[data-machine-id]") as HTMLElement | null;
         const machine = state.machines.find((item) => item.id === row?.dataset.machineId);
         if (!machine) return;
         const assigned = state.jobs.filter((job) => job.machineId === machine.id).length;
         const detail = assigned ? ` Le ${assigned} lavorazioni assegnate torneranno nella coda.` : "";
-        if (!window.confirm(`Rimuovere ${machine.name}?${detail}`)) return;
-        state.jobs.forEach((job) => {
-            if (job.machineId === machine.id) job.machineId = "";
-        });
-        state.unavailabilities = state.unavailabilities.filter((item) => item.machineId !== machine.id);
-        state.machines = state.machines.filter((item) => item.id !== machine.id);
-        saveState();
-        renderMachinesDialog();
-        renderAll();
+        if (!window.confirm(`Rimuovere ${machine.name}?${detail}`)) {
+            restoreMachineDialogFocus();
+            return;
+        }
+        const machineId = machine.id;
+        (button as HTMLButtonElement).disabled = true;
+        window.setTimeout(() => {
+            state.jobs.forEach((job) => {
+                if (job.machineId === machineId) job.machineId = "";
+            });
+            state.unavailabilities = state.unavailabilities.filter((item) => item.machineId !== machineId);
+            state.machines = state.machines.filter((item) => item.id !== machineId);
+            saveState();
+            renderMachinesDialog();
+            renderAll();
+            restoreMachineDialogFocus();
+        }, 0);
     });
 
     byId("article-filter")?.addEventListener("input", renderAll);
@@ -2469,10 +3192,15 @@ function bindGlobalEvents() {
                 closeContextMenu();
                 return;
             }
+            if (byId("machine-picker-dialog")?.classList.contains("is-open")) {
+                closeMachinePicker();
+                return;
+            }
             requestCloseJobDialog();
             closeDialog("machines-dialog");
             closeDialog("unavailability-dialog");
             closeDialog("closures-dialog");
+            closeUnavailabilityRangeEditor();
         }
         if ((event.key === "Enter" || event.key === " ") && event.target instanceof HTMLElement) {
             if (event.target.closest("[data-link-navigate]")) return;
@@ -2485,6 +3213,32 @@ function bindGlobalEvents() {
     });
 
     document.addEventListener("contextmenu", (event) => {
+        const unavailableBlock = (event.target as HTMLElement).closest(
+            "[data-unavailability-edit]",
+        ) as HTMLElement | null;
+        const closureRow = (event.target as HTMLElement).closest(
+            "[data-closure-group-id]",
+        ) as HTMLElement | null;
+        const unavailableRow = (event.target as HTMLElement).closest(
+            "[data-unavailability-id]",
+        ) as HTMLElement | null;
+        let unavailableId = unavailableBlock?.dataset.unavailabilityEdit
+            || unavailableRow?.dataset.unavailabilityId
+            || "";
+        if (!unavailableId && closureRow?.dataset.closureGroupId) {
+            unavailableId = state.unavailabilities.find(
+                (item) => (item.groupId || item.id)
+                    === closureRow.dataset.closureGroupId,
+            )?.id || "";
+        }
+        if (unavailableId) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeContextMenu();
+            hideJobTooltip();
+            openUnavailabilityRangeEditor(unavailableId);
+            return;
+        }
         const card = (event.target as HTMLElement).closest("[data-job-id]") as HTMLElement | null;
         if (!card) {
             closeContextMenu();

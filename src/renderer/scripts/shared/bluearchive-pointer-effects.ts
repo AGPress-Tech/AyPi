@@ -1,6 +1,6 @@
 type TrailPoint = { x: number; y: number; time: number };
 
-function initBlueArchivePointerEffects(enabled = true) {
+function initBlueArchivePointerEffects(enabled = false) {
     if (!enabled || document.documentElement.dataset.baPointerEffects === "1") {
         return;
     }

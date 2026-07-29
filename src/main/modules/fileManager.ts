@@ -875,6 +875,7 @@ let timerWindowTheme: "standard" | "bluearchive" = "standard";
 let infographicsWindow: BrowserWindow | null = null;
 let gitflowWindow: BrowserWindow | null = null;
 let productionPlannerWindow: BrowserWindow | null = null;
+let productionPlannerAnalysisWindow: BrowserWindow | null = null;
 let feriePermessiWindow: BrowserWindow | null = null;
 let feriePermessiWindowTheme: "standard" | "bluearchive" = "standard";
 let feriePermessiHoursWindow: BrowserWindow | null = null;
@@ -1242,6 +1243,38 @@ function openProductionPlannerWindow() {
         ),
     );
     productionPlannerWindow.setMenu(null);
+    productionPlannerWindow.webContents.on(
+        "console-message",
+        (_event, level, message, line, sourceId) => {
+            const payload = {
+                level,
+                message,
+                line,
+                source: sourceId,
+            };
+            if (level >= 2) {
+                log.error("[production-planner:renderer] Console error.", payload);
+                return;
+            }
+            log.debug("[production-planner:renderer] Console message.", payload);
+        },
+    );
+    productionPlannerWindow.webContents.on(
+        "did-fail-load",
+        (_event, errorCode, errorDescription, validatedURL) => {
+            log.error("[production-planner:renderer] Caricamento pagina fallito.", {
+                errorCode,
+                errorDescription,
+                url: validatedURL,
+            });
+        },
+    );
+    productionPlannerWindow.webContents.on(
+        "render-process-gone",
+        (_event, details) => {
+            log.error("[production-planner:renderer] Processo terminato.", details);
+        },
+    );
 
     productionPlannerWindow.once("ready-to-show", () => {
         if (!productionPlannerWindow.isDestroyed()) {
@@ -1252,6 +1285,48 @@ function openProductionPlannerWindow() {
 
     productionPlannerWindow.on("closed", () => {
         productionPlannerWindow = null;
+    });
+}
+
+function openProductionPlannerAnalysisWindow() {
+    if (isWindowAlive(productionPlannerAnalysisWindow)) {
+        showWindow(productionPlannerAnalysisWindow);
+        return;
+    }
+
+    productionPlannerAnalysisWindow = new BrowserWindow({
+        width: 1360,
+        height: 860,
+        minWidth: 1080,
+        minHeight: 680,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#edf4fa",
+    });
+
+    productionPlannerAnalysisWindow.maximize();
+    productionPlannerAnalysisWindow.loadFile(
+        path.join(
+            __dirname,
+            "..",
+            "pages",
+            "utilities",
+            "production-planner-analysis.html",
+        ),
+    );
+    productionPlannerAnalysisWindow.setMenu(null);
+
+    productionPlannerAnalysisWindow.once("ready-to-show", () => {
+        if (!productionPlannerAnalysisWindow?.isDestroyed()) {
+            productionPlannerAnalysisWindow.show();
+            productionPlannerAnalysisWindow.focus();
+        }
+    });
+
+    productionPlannerAnalysisWindow.on("closed", () => {
+        productionPlannerAnalysisWindow = null;
     });
 }
 
@@ -2623,6 +2698,10 @@ function setupFileManager(mainWindow) {
 
     ipcMain.on("open-production-planner-window", () => {
         openProductionPlannerWindow();
+    });
+
+    ipcMain.on("open-production-planner-analysis-window", () => {
+        openProductionPlannerAnalysisWindow();
     });
 
     ipcMain.on("open-ferie-permessi-window", async (_event, payload) => {
