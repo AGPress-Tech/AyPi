@@ -8,9 +8,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Pianificazione Produzione</title>
     <link rel="stylesheet" href="../../styles/utilities/production-planner-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/production-planner-splash-bluearchive.css">
+    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
 </head>
 
 <body>
+    <div class="planner-splash" id="planner-splash" aria-hidden="true">
+        <img class="planner-splash__standard" src="../../assets/AyPi Pianificazione.png"
+            alt="AyPi Pianificazione">
+        <div class="planner-ba-boot" aria-hidden="true">
+            <div class="planner-ba-boot__grid"></div>
+            <div class="planner-ba-boot__sweep"></div>
+            <div class="planner-ba-boot__corner planner-ba-boot__corner--left">AGP // SYSTEM ROUTE 04</div>
+            <div class="planner-ba-boot__corner planner-ba-boot__corner--right">AYPI PLANNING</div>
+            <div class="planner-ba-boot__center">
+                <div class="planner-ba-boot__emblem">
+                    <span class="planner-ba-boot__halo"></span>
+                    <span class="planner-ba-boot__ay">Ay</span><span class="planner-ba-boot__pi">Pi</span>
+                    <span class="planner-ba-boot__slash"></span>
+                </div>
+                <div class="planner-ba-boot__route">
+                    <i></i><span>PRODUCTION PLANNER</span><i></i>
+                </div>
+                <h1>Accesso al modulo <strong>Pianificazione.</strong></h1>
+                <p>Sincronizzazione macchine, lavorazioni e reparti</p>
+                <div class="planner-ba-boot__progress"><i></i></div>
+                <div class="planner-ba-boot__status">
+                    <span class="is-complete">01&nbsp; DATI</span>
+                    <span>02&nbsp; MACCHINE</span>
+                    <span>03&nbsp; LAVORAZIONI</span>
+                    <span>04&nbsp; CALENDARIO</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="../../scripts/utilities/production-planner-splash.js"></script>
     <div class="planner-app">
         <header class="topbar">
             <div class="brand">
@@ -76,9 +108,10 @@
             </div>
 
             <div class="filters">
-                <label class="search search--article" title="Ricerca esatta per codice articolo">
+                <label class="search search--article"
+                    title="Ricerca progressiva con % finale automatico. Usa | per fermare il codice esattamente lì; % più caratteri, _ un carattere, [] insieme, [^] esclusione, - intervallo, {} escape">
                     <span>⌕</span>
-                    <input id="article-filter" type="search" placeholder="Codice articolo esatto">
+                    <input id="article-filter" type="search" placeholder="Codice articolo o wildcard">
                 </label>
                 <label class="search search--other" title="Ricerca esatta negli altri campi">
                     <span>⌕</span>

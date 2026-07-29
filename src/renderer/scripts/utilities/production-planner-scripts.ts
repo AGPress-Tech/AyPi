@@ -1,6 +1,9 @@
 // @ts-nocheck
 require("../shared/dev-guards");
 const { ipcRenderer } = require("electron");
+const {
+    matchesArticleWildcard,
+} = require("./production-planner/article-wildcard");
 
 window.addEventListener("error", (event) => {
     console.error("[production-planner] Errore renderer non gestito", {
@@ -188,6 +191,10 @@ let calendarPanSession: null | {
 const selectedDepartments = new Set<string>();
 const selectedCategories = new Set<string>();
 const selectedMachines = new Set<string>();
+const pendingDepartments = new Set<string>();
+const pendingCategories = new Set<string>();
+const pendingMachines = new Set<string>();
+let resourceFilterDraftActive = false;
 const selectedMaterials = new Set<MaterialStatus>();
 const contextHoverTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
@@ -847,7 +854,7 @@ function notify(message: string) {
 
 function getFilters() {
     return {
-        article: inputValue("article-filter").trim().toLocaleLowerCase("it"),
+        article: inputValue("article-filter").trim(),
         details: inputValue("details-filter").trim().toLocaleLowerCase("it"),
         departments: selectedDepartments,
         categories: selectedCategories,
@@ -877,8 +884,10 @@ function jobMatches(job: ProductionJob) {
     if (!showArchived && isArchivedJob(job)) return false;
     if (
         filters.article &&
-        String(job.article || "").trim().toLocaleLowerCase("it") !==
-            filters.article
+        !matchesArticleWildcard(
+            String(job.article || "").trim(),
+            filters.article,
+        )
     ) {
         return false;
     }
@@ -940,17 +949,206 @@ function assignTracks(jobs: ProductionJob[]) {
     return { tracks: result, count: Math.max(1, trackEnds.length) };
 }
 
+function replaceSet<T>(target: Set<T>, source: Set<T>) {
+    target.clear();
+    source.forEach((value) => target.add(value));
+}
+
+function resourceFilterSelections() {
+    return resourceFilterDraftActive
+        ? {
+              departments: pendingDepartments,
+              categories: pendingCategories,
+              machines: pendingMachines,
+          }
+        : {
+              departments: selectedDepartments,
+              categories: selectedCategories,
+              machines: selectedMachines,
+          };
+}
+
+function machineMatchesResourceGroups(
+    machine: Machine,
+    departments: Set<string>,
+    categories: Set<string>,
+) {
+    return (
+        (!departments.size || departments.has(machine.department)) &&
+        (!categories.size || categories.has(machine.category))
+    );
+}
+
+function clearIncompatibleMachines(
+    departments: Set<string>,
+    categories: Set<string>,
+    machines: Set<string>,
+) {
+    [...machines].forEach((machineId) => {
+        const machine = state.machines.find((item) => item.id === machineId);
+        if (
+            !machine ||
+            !machineMatchesResourceGroups(machine, departments, categories)
+        ) {
+            machines.delete(machineId);
+        }
+    });
+}
+
+function updateResourceFilterSummary() {
+    const parts: string[] = [];
+    if (selectedDepartments.size) {
+        parts.push(
+            `${selectedDepartments.size} ${
+                selectedDepartments.size === 1 ? "reparto" : "reparti"
+            }`,
+        );
+    }
+    if (selectedCategories.size) {
+        parts.push(
+            `${selectedCategories.size} ${
+                selectedCategories.size === 1 ? "categoria" : "categorie"
+            }`,
+        );
+    }
+    if (selectedMachines.size) {
+        parts.push(
+            `${selectedMachines.size} ${
+                selectedMachines.size === 1 ? "macchina" : "macchine"
+            }`,
+        );
+    }
+    const summary = byId("resource-filter-summary");
+    if (summary) {
+        summary.textContent =
+            parts.length
+                ? parts.join(" · ")
+                : "Tutti i reparti, categorie e macchine";
+    }
+}
+
+function renderResourceFilter(
+    departments: string[],
+    categories: string[],
+    preserveMachineScroll = true,
+) {
+    const selections = resourceFilterSelections();
+    const renderChips = (
+        containerId: string,
+        items: string[],
+        selected: Set<string>,
+        type: "department" | "category",
+    ) => {
+        const container = byId(containerId);
+        if (!container) return;
+        container.innerHTML = items.length
+            ? items
+                  .map(
+                      (item) => `
+                <button class="resource-filter__chip ${
+                    selected.has(item) ? "is-active" : ""
+                }" type="button" data-resource-type="${type}"
+                    data-resource-value="${escapeHtml(item)}">${escapeHtml(item)}</button>`,
+                  )
+                  .join("")
+            : '<div class="resource-filter__empty">Nessuna voce disponibile.</div>';
+    };
+
+    renderChips(
+        "department-filter-options",
+        departments,
+        selections.departments,
+        "department",
+    );
+    renderChips(
+        "category-filter-options",
+        categories,
+        selections.categories,
+        "category",
+    );
+
+    const list = byId("machine-filter-options");
+    if (list) {
+        const previousScrollTop = preserveMachineScroll ? list.scrollTop : 0;
+        const search = String(
+            (byId("resource-filter-search") as HTMLInputElement | null)?.value ||
+                "",
+        )
+            .trim()
+            .toLocaleLowerCase("it");
+        const machines = state.machines
+            .filter((machine) =>
+                machineMatchesResourceGroups(
+                    machine,
+                    selections.departments,
+                    selections.categories,
+                ),
+            )
+            .filter(
+                (machine) =>
+                    !search ||
+                    [machine.name, machine.department, machine.category].some(
+                        (value) =>
+                            String(value || "")
+                                .toLocaleLowerCase("it")
+                                .includes(search),
+                    ),
+            );
+        list.innerHTML = machines.length
+            ? machines
+                  .map(
+                      (machine) => `
+                <button class="resource-filter__machine ${
+                    selections.machines.has(machine.id) ? "is-active" : ""
+                }" type="button" data-resource-type="machine"
+                    data-resource-value="${escapeHtml(machine.id)}">
+                    <i style="background:${escapeHtml(
+                        machine.color || "#78a6c8",
+                    )}"></i>
+                    <span>
+                        <strong>${escapeHtml(machine.name)}</strong>
+                        <small>${escapeHtml(machine.department)} · ${escapeHtml(
+                            machine.category,
+                        )}</small>
+                    </span>
+                    <b>${selections.machines.has(machine.id) ? "✓" : ""}</b>
+                </button>`,
+                  )
+                  .join("")
+            : '<div class="resource-filter__empty">Nessuna macchina corrisponde ai filtri.</div>';
+        list.scrollTop = Math.min(
+            previousScrollTop,
+            Math.max(0, list.scrollHeight - list.clientHeight),
+        );
+    }
+    updateResourceFilterSummary();
+}
+
 function renderFilters() {
     const departments = [...new Set(state.machines.map((machine) => machine.department))].sort((a, b) => a.localeCompare(b));
-    const categories = [...new Set(state.machines.map((machine) => machine.category))].sort((a, b) => a.localeCompare(b));
     [...selectedDepartments].forEach((item) => {
         if (!departments.includes(item)) selectedDepartments.delete(item);
     });
+    const machinesInDepartments = state.machines.filter(
+        (machine) =>
+            !selectedDepartments.size ||
+            selectedDepartments.has(machine.department),
+    );
+    const categories = [
+        ...new Set(machinesInDepartments.map((machine) => machine.category)),
+    ].sort((a, b) => a.localeCompare(b));
     [...selectedCategories].forEach((item) => {
         if (!categories.includes(item)) selectedCategories.delete(item);
     });
+    const availableMachines = machinesInDepartments.filter(
+        (machine) =>
+            !selectedCategories.size ||
+            selectedCategories.has(machine.category),
+    );
     [...selectedMachines].forEach((item) => {
-        if (!state.machines.some((machine) => machine.id === item)) selectedMachines.delete(item);
+        if (!availableMachines.some((machine) => machine.id === item)) {
+            selectedMachines.delete(item);
+        }
     });
 
     const renderOptions = (
@@ -970,7 +1168,10 @@ function renderFilters() {
 
     renderOptions(
         "department-filter-options",
-        departments.map((department) => ({ value: department, label: department })),
+        departments.map((department) => ({
+            value: department,
+            label: department,
+        })),
         selectedDepartments,
     );
     renderOptions(
@@ -980,7 +1181,10 @@ function renderFilters() {
     );
     renderOptions(
         "machine-filter-options",
-        state.machines.map((machine) => ({ value: machine.id, label: `${machine.department} · ${machine.category} · ${machine.name}` })),
+        availableMachines.map((machine) => ({
+            value: machine.id,
+            label: `${machine.department} · ${machine.category} · ${machine.name}`,
+        })),
         selectedMachines,
     );
     renderOptions(
@@ -3490,13 +3694,14 @@ function bindGlobalEvents() {
         if (!input.matches("[data-filter-value]")) return;
         const details = input.closest(".multi-filter") as HTMLElement | null;
         const value = input.dataset.filterValue || "";
-        const selected = details?.id === "department-filter"
-            ? selectedDepartments
-            : details?.id === "category-filter"
-                ? selectedCategories
-            : details?.id === "machine-filter"
-                ? selectedMachines
-                : selectedMaterials;
+        const selected =
+            details?.id === "department-filter"
+                ? selectedDepartments
+                : details?.id === "category-filter"
+                  ? selectedCategories
+                  : details?.id === "machine-filter"
+                    ? selectedMachines
+                    : selectedMaterials;
         if (input.checked) selected.add(value);
         else selected.delete(value);
         renderAll();

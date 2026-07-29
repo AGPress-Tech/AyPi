@@ -905,6 +905,7 @@ let suppressTicketWindowChaining = false;
 let feriePermessiSplashShown = false;
 let productManagerSplashShown = false;
 let ticketSupportSplashShown = false;
+let productionPlannerSplashShown = false;
 let isAppQuitting = false;
 
 function openFileListWindow(
@@ -1216,7 +1217,11 @@ function openTimerWindow(mainWindow, options: { theme?: string } = {}) {
     });
 }
 
-function openProductionPlannerWindow() {
+function openProductionPlannerWindow(
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(productionPlannerWindow)) {
         showWindow(productionPlannerWindow);
         return;
@@ -1233,6 +1238,11 @@ function openProductionPlannerWindow() {
     });
 
     productionPlannerWindow.maximize();
+    const shouldShowSplash =
+        requestedTheme === "bluearchive" || !productionPlannerSplashShown;
+    if (requestedTheme === "standard") {
+        productionPlannerSplashShown = true;
+    }
     productionPlannerWindow.loadFile(
         path.join(
             __dirname,
@@ -1241,6 +1251,12 @@ function openProductionPlannerWindow() {
             "utilities",
             "production-planner.html",
         ),
+        {
+            query: {
+                plannerSplash: shouldShowSplash ? "1" : "0",
+                theme: requestedTheme,
+            },
+        },
     );
     productionPlannerWindow.setMenu(null);
     productionPlannerWindow.webContents.on(
@@ -2696,8 +2712,13 @@ function setupFileManager(mainWindow) {
         });
     });
 
-    ipcMain.on("open-production-planner-window", () => {
-        openProductionPlannerWindow();
+    ipcMain.on("open-production-planner-window", (_event, payload) => {
+        openProductionPlannerWindow({
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
+        });
     });
 
     ipcMain.on("open-production-planner-analysis-window", () => {

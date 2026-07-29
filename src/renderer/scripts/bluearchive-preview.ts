@@ -258,6 +258,7 @@ const pages: Record<string, PageDefinition> = {
                 label: "Pianificazione Produzione",
                 description: "Calendario macchine e lavorazioni",
                 channel: "open-production-planner-window",
+                channelArgs: [{ theme: "bluearchive" }],
             },
             {
                 label: "Calendario Dipendenti",
