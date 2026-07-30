@@ -15,6 +15,7 @@
         android:theme="@style/Theme.AyPiCalendar">
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true"
             android:screenOrientation="unspecified">
             <intent-filter>

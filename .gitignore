@@ -13,6 +13,40 @@
 /dist-backend-app
 /dist-backend
 /dist-botbackend
+/dist-mobile
+
+# packaged applications and installers
+*.apk
+*.aab
+*.apks
+*.exe
+*.msi
+*.msix
+*.appx
+*.appxbundle
+*.dmg
+*.deb
+*.rpm
+
+# generated archives and debug output
+*.log
+*.tmp
+*.bak
+*.cache
+*.stackdump
+*.pid
+
+# local build and test workspaces
+/.tmp-*
+/.snapshots/
+/.alpackages/
+**/.gradle/
+**/build/
+**/out/
+**/local.properties
+*.iml
+*.jks
+*.keystore
 
 # misc
 .DS_Store
@@ -28,7 +62,6 @@ src/main/config/otp-mail.json
 config/otp-mail.json
 .tmp-fullcalendar-*
 .tmp-botbackend-test/
-*.tmp
 
 # local bot knowledge files
 docs/bot/ticket-support-bot-checklist.txt

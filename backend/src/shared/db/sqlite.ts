@@ -2,7 +2,10 @@ import fs from "fs";
 import path from "path";
 import initSqlJs from "sql.js";
 import { backendConfig } from "../../config";
-import { ensureFolderFor } from "../storage/json-files";
+import {
+    ensureFolderFor,
+    replaceFileAtomic,
+} from "../storage/json-files";
 import { logger } from "../logging/logger";
 
 type SqlJsDatabase = any;
@@ -60,10 +63,8 @@ export function persistSqliteDatabase() {
     const db = getSqliteDatabase();
     const dbPath = getDatabasePath();
     ensureFolderFor(dbPath);
-    const tempPath = `${dbPath}.tmp`;
     const buffer = Buffer.from(db.export());
-    fs.writeFileSync(tempPath, buffer);
-    fs.renameSync(tempPath, dbPath);
+    replaceFileAtomic(dbPath, buffer);
 }
 
 export function closeSqliteDatabase() {
