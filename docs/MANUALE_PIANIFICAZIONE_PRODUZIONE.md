@@ -67,6 +67,17 @@ Il modulo non impone un vincolo di capacità esclusiva: **una macchina può aver
 
 Il pianificatore si apre in una **finestra AyPi dedicata**, separata da AyPi Home e dagli altri moduli. In questo modo può essere mantenuto aperto, spostato su un altro monitor e usato senza occupare la finestra principale.
 
+### Schermata iniziale
+
+All’apertura viene usato lo splash coerente con la modalità dalla quale è stato avviato il modulo:
+
+- dalla modalità **AyPi standard** compare l’immagine nero/argento **AyPi Pianificazione**; viene mostrata al primo avvio del pianificatore nella sessione, rimane pienamente visibile per circa 800 ms e completa la dissolvenza entro circa 1,6 secondi;
+- dalla modalità **Blue Archive** compare il boot animato con griglia tecnica, sweep luminoso, emblema AyPi e avanzamento `Dati → Macchine → Lavorazioni → Calendario`;
+- facendo clic sullo splash è possibile saltarlo;
+- la coda luminosa del puntatore è attiva durante lo splash soltanto in modalità Blue Archive.
+
+Lo splash non cambia l’interfaccia operativa del pianificatore: terminata l’animazione, il modulo mantiene la propria grafica unica.
+
 La schermata è suddivisa nelle seguenti aree:
 
 1. **Barra superiore**, con stato di sincronizzazione e comandi principali.
@@ -81,11 +92,16 @@ La schermata è suddivisa nelle seguenti aree:
 | Pulsante | Funzione |
 |---|---|
 | **Aggiorna** | Richiede immediatamente lo stato più recente al backend. |
+| **Annulla** | Ripristina l’ultimo stato precedente disponibile. Equivale a `Ctrl+Z` quando non si sta scrivendo in un campo o usando un form. |
 | **Analisi** | Apre la finestra dedicata alle analisi di produzione. |
 | **Fermi macchina** | Apre la gestione di guasti e manutenzioni per una singola macchina. |
 | **Chiusure / Ferie** | Apre la gestione delle indisponibilità aziendali, di reparto o di più macchine. |
 | **Macchine** | Apre l’anagrafica delle macchine, dei reparti, delle categorie e dell’ordine nel Gantt. |
 | **+ Nuova lavorazione** | Apre il modulo per creare un nuovo articolo/ordine di produzione. |
+
+### Adattamento alle finestre ridotte
+
+Ridimensionando la finestra, font, logo, spaziature e pulsanti della barra superiore diventano progressivamente più compatti. Sotto i **965 px** di larghezza i comandi vengono disposti su più righe, così le scritte restano contenute nei pulsanti e tutti i comandi continuano a essere utilizzabili.
 
 ---
 
@@ -117,6 +133,20 @@ Quando un altro operatore salva una modifica, gli altri pianificatori aperti ric
 - fermi macchina;
 - chiusure e ferie.
 
+### Riconnessione automatica e watchdog
+
+Il client non richiede un intervento manuale dopo una normale caduta di rete o il riavvio del backend:
+
+- tenta la riconnessione con attese progressive di circa 1, 2, 4, 8 e 16 secondi, fino a un massimo di circa 30 secondi;
+- aggiunge una piccola variazione casuale, evitando che molte postazioni si ricolleghino nello stesso istante;
+- dopo la riconnessione esegue una risincronizzazione dei moduli;
+- il server controlla periodicamente la vitalità delle connessioni con heartbeat;
+- il client verifica che l’handshake venga completato entro 15 secondi;
+- se non rileva attività per 70 secondi considera il collegamento bloccato, lo chiude e avvia una nuova connessione;
+- un errore esplicito del socket provoca lo stesso recupero automatico.
+
+Durante il recupero, l’indicatore della barra passa a uno stato di connessione, offline o riconnessione e ne conserva il motivo nel suggerimento visualizzato al passaggio del mouse.
+
 ### Indicatore di sincronizzazione
 
 Accanto al pulsante **Aggiorna** è presente un indicatore che può mostrare stati come:
@@ -140,7 +170,7 @@ Il tempo reale è automatico, ma **Aggiorna** permette di forzare una verifica i
 
 ### Rete temporaneamente assente
 
-Se il WebSocket non è disponibile, l’app utilizza anche un controllo periodico di sicurezza. Le modifiche locali in attesa non vengono scartate automaticamente: il pianificatore tenta di riallinearsi e di salvare nuovamente quando possibile.
+Se il WebSocket non è disponibile, l’app utilizza anche un controllo HTTP periodico di sicurezza, normalmente ogni 10 secondi. Le modifiche locali in attesa non vengono scartate automaticamente: il pianificatore tenta di riallinearsi e di salvare nuovamente quando possibile.
 
 ### Modifica concorrente
 
@@ -227,11 +257,36 @@ I filtri sono combinabili. Se si selezionano più valori nello stesso gruppo, ve
 
 ### Codice articolo
 
-Il campo dedicato all’articolo usa una ricerca **esatta**.
+Il campo dedicato all’articolo usa una ricerca progressiva ancorata all’inizio. Se non viene indicato diversamente, il sistema considera automaticamente un `%` alla fine di ciò che viene scritto.
 
-- Cercando `400` viene mostrato l’articolo `400`.
-- L’articolo `T400` non viene mostrato.
-- La ricerca non interpreta `400` come una porzione di tutti i codici più lunghi.
+Di conseguenza:
+
+- `1144` trova `1144`, `11440`, `1144A` e in generale tutti i codici che iniziano con `1144`;
+- non trova `A1144`, perché l’inizio deve corrispondere;
+- la ricerca continua ad aggiornarsi mentre l’operatore digita.
+
+Il confronto non distingue maiuscole e minuscole.
+
+#### Wildcard disponibili
+
+| Simbolo | Significato | Esempio |
+|---|---|---|
+| `%` | Zero o più caratteri | `%1144` trova tutti i codici che contengono `1144`. |
+| `_` | Un singolo carattere | `T_00` trova `T100`, `TA00`, ecc. |
+| `[]` | Un carattere compreso nell’insieme | `[AB]400` trova `A400` e `B400`. |
+| `[^]` | Un carattere non compreso nell’insieme | `[^T]400` esclude `T400`. |
+| `-` | Un carattere compreso nell’intervallo indicato dentro `[]` | `[0-9]00` trova codici come `400`. |
+| `{}` | Tratta come letterale il contenuto racchiuso | `{%}400` cerca un `%` reale; `A{_}B` cerca `_`. |
+| `|` | Termina il modello esattamente nel punto indicato | `1144|` trova esclusivamente `1144`. |
+
+Il terminatore `|` permette di costruire facilmente ricerche con fine esatta:
+
+- `%1144|` trova i codici che terminano con `1144`;
+- `T%50|` trova i codici che iniziano con `T` e terminano con `50`;
+- `1144|` ripristina una ricerca completamente esatta;
+- `{|}` cerca una barra verticale reale invece di usarla come terminatore.
+
+I caratteri scritti dopo un `|` non fanno parte del modello. Parentesi incomplete, intervalli non validi o altri input malformati vengono trattati in sicurezza come testo letterale e non interrompono il filtro.
 
 ### Altri dettagli
 
@@ -265,6 +320,18 @@ Permette di selezionare una o più categorie di macchina. La categoria è indipe
 ### Macchine
 
 Permette di selezionare una o più macchine specifiche.
+
+### Filtri macchina a cascata
+
+I tre menu **Reparti**, **Categorie** e **Macchine** restano separati e sono tutti multi-select, ma le opzioni vengono proposte gerarchicamente:
+
+1. scegliendo uno o più reparti, nel menu Categorie rimangono soltanto le categorie realmente presenti nei reparti scelti;
+2. il menu Macchine mostra soltanto le macchine appartenenti ai reparti e alle categorie correnti;
+3. aggiungendo o togliendo categorie, l’elenco delle macchine viene aggiornato immediatamente;
+4. una categoria o una macchina già selezionata viene rimossa automaticamente se una nuova scelta superiore la rende incompatibile;
+5. deselezionando reparti o categorie, le opzioni disponibili si ampliano nuovamente.
+
+Più valori selezionati nello stesso menu vengono interpretati come alternative valide; i livelli differenti vengono invece combinati per restringere il risultato.
 
 ### Disponibilità materiale
 
@@ -503,6 +570,8 @@ Mantenendo la barra trascinata:
 
 La velocità aumenta avvicinandosi al bordo. L’anteprima rimane agganciata alla lavorazione e viene aggiornata mentre cambiano il periodo e la riga sottostante. Un leggero indicatore azzurro sul bordo segnala la direzione di scorrimento attiva.
 
+Lo scorrimento non parte istantaneamente: viene applicato un leggero ritardo di circa **480 ms**. Questo permette di depositare una lavorazione vicino ai bordi o nel pannello Da pianificare senza provocare uno spostamento involontario del calendario.
+
 Allontanando il puntatore dai bordi lo scorrimento si interrompe; rilasciando la barra, la lavorazione viene salvata sulla macchina e sul giorno mostrati dall’ultima anteprima.
 
 ### Rimandare Da pianificare
@@ -531,6 +600,21 @@ Dopo l’importazione o la creazione, lo spostamento di una barra **non deve cam
 Se una lavorazione con durata produttiva viene collocata su un fine settimana, il sistema porta l’avvio operativo al primo giorno feriale utile e prolunga la barra per conservare tutti i giorni lavorativi richiesti.
 
 Un ridimensionamento manuale successivo rimane comunque possibile.
+
+### Annullare una modifica
+
+Il pulsante **Annulla** e la scorciatoia `Ctrl+Z` ripristinano l’ultimo stato precedente disponibile.
+
+Caratteristiche:
+
+- la cronologia conserva fino a **40 passaggi** locali;
+- ogni annullamento viene salvato e sincronizzato come una normale modifica, quindi viene trasmesso agli altri operatori;
+- il suggerimento del pulsante indica quanti passaggi sono disponibili;
+- il pulsante è disabilitato quando non esiste nulla da annullare;
+- `Ctrl+Z` non viene intercettato mentre si sta scrivendo in un campo, usando un selettore o lavorando dentro un form: in questi casi resta disponibile l’annullamento testuale nativo;
+- la scorciatoia globale non opera mentre è aperta una finestra di dialogo, per evitare modifiche accidentali allo stato sottostante.
+
+La cronologia è locale alla sessione del pianificatore e viene azzerata quando viene acquisito uno stato remoto completo. Non sostituisce quindi un sistema storico permanente o un backup.
 
 ---
 
@@ -581,7 +665,7 @@ La voce In corso è sia cliccabile sia dotata di un ulteriore sottomenu per i gi
 
 ### Elimina
 
-Chiede una conferma esplicita e poi elimina definitivamente la lavorazione. L’eliminazione non equivale all’archiviazione ed è irreversibile dall’interfaccia ordinaria.
+Chiede una conferma esplicita e poi elimina la lavorazione. L’eliminazione non equivale all’archiviazione. Subito dopo l’operazione può essere possibile ripristinare lo stato precedente con **Annulla**, finché quel passaggio è ancora presente nella cronologia locale; oltre tale cronologia, l’eliminazione è definitiva dall’interfaccia ordinaria.
 
 ---
 
@@ -1422,9 +1506,18 @@ Se la lavorazione è appena avviata, fare clic direttamente su In corso per regi
 
 ### Cercare rapidamente un articolo
 
-1. Inserire il codice esatto nel filtro Articolo.
-2. Aprire **Lista filtrata**.
-3. Fare clic sul risultato per raggiungerlo.
+1. Iniziare a digitare il codice nel filtro Articolo: il `%` finale implicito mostra subito i codici con lo stesso inizio.
+2. Se necessario, usare `%` all’inizio per cercare il testo in qualsiasi posizione.
+3. Aggiungere `|` quando la parte finale deve essere esatta.
+4. Aprire **Lista filtrata**.
+5. Fare clic sul risultato per raggiungerlo.
+
+Esempi:
+
+- `T` mostra tutti i codici che iniziano per T;
+- `%1144` mostra tutti i codici che contengono 1144;
+- `T%50|` mostra i codici che iniziano per T e terminano per 50;
+- `1144|` cerca esclusivamente il codice 1144.
 
 ### Preparare un report mensile
 
@@ -1454,10 +1547,14 @@ Tra le operazioni protette rientrano:
 
 ### Eliminazione e archivio
 
-- **Elimina** rimuove definitivamente.
+- **Elimina** rimuove la lavorazione, con possibilità di usare immediatamente Annulla finché il passaggio è ancora nella cronologia locale.
 - **Archivio** nasconde automaticamente ma conserva.
 
 Prima di eliminare una lavorazione storica, verificare se sia sufficiente impostarla Terminata e lasciarla archiviare.
+
+### Annulla non è un backup
+
+La cronologia dei 40 passaggi è pensata per correggere rapidamente un errore operativo. Può essere azzerata da un riallineamento completo con il backend e non deve essere considerata un archivio permanente delle versioni.
 
 ### Validazione
 
@@ -1486,7 +1583,7 @@ Il modulo è progettato per conservare lo storico senza cancellarlo. Per allegge
 Con migliaia di articoli è consigliato:
 
 1. lasciare disattivato Mostra archivio durante la pianificazione;
-2. usare filtri esatti;
+2. usare ricerche articolo mirate, aggiungendo `|` quando serve una corrispondenza esatta;
 3. scegliere il minor intervallo visivo sufficiente;
 4. usare la Lista filtrata per saltare direttamente al risultato;
 5. svolgere le consultazioni storiche estese nella finestra Analisi.
@@ -1505,7 +1602,7 @@ Con migliaia di articoli è consigliato:
 
 ### Una lavorazione terminata non si vede
 
-Potrebbe essere archiviata. Attivare **Mostra archivio** e cercare il codice esatto.
+Potrebbe essere archiviata. Attivare **Mostra archivio** e cercare il codice con il terminatore `|` se è necessaria una corrispondenza esatta, per esempio `1144|`.
 
 ### Se tolgo l’ultima macchina nell’Analisi compare tutto
 
@@ -1546,9 +1643,25 @@ Se il problema continua, annotare quale form e quale operazione lo precedono per
 1. Premere Aggiorna.
 2. Controllare che il backend risponda.
 3. Verificare che la porta del backend sia raggiungibile.
-4. Verificare nei log la presenza di “Connessione WebSocket aperta”.
+4. Osservare se la barra passa automaticamente da Offline/Riconnessione a Sincronizzato.
+5. Verificare nei log la presenza di “Connessione WebSocket aperta” oppure di un messaggio di watchdog, handshake o riconnessione automatica.
 
 Il WebSocket usa la porta del backend e il percorso `/ws`.
+
+Il watchdog può impiegare fino a circa 70 secondi per riconoscere una connessione apparentemente aperta ma completamente inattiva. Nel frattempo il controllo HTTP periodico continua a verificare gli aggiornamenti del pianificatore.
+
+### Lettura dei log
+
+Il Backend Logger privilegia una vista compatta: ogni operazione viene presentata come azione con relativo esito, evitando di mostrare come eventi principali tutti i passaggi tecnici intermedi. Identificativi richiesta, metodo, URL e altri dettagli restano disponibili quando servono per la diagnosi.
+
+Per una segnalazione utile annotare:
+
+- data e ora approssimativa;
+- postazione e utente;
+- modulo Pianificazione Produzione;
+- azione eseguita;
+- esito o messaggio mostrato;
+- eventuale stato Realtime/Offline indicato nella barra.
 
 ### Dati cambiati mentre stavo lavorando
 
@@ -1605,6 +1718,22 @@ Numero usato dal backend per proteggere i dati da salvataggi concorrenti obsolet
 
 **WebSocket**  
 Canale con cui le finestre ricevono in tempo reale le modifiche salvate dagli altri operatori.
+
+**Watchdog realtime**
+
+Controllo del client che riconosce handshake incompleti, socket inattivi o errori di connessione e forza una riconnessione automatica.
+
+**Wildcard**
+
+Simbolo usato nella ricerca articolo per descrivere un modello invece di un singolo codice; per esempio `%`, `_`, `[]` o `|`.
+
+**Terminatore `|`**
+
+Simbolo che impone la fine esatta del modello articolo nel punto in cui viene scritto.
+
+**Annulla / Ctrl+Z**
+
+Ripristino di uno stato precedente mediante la cronologia locale, fino a 40 passaggi.
 
 ---
 

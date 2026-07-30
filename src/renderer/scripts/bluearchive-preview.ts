@@ -1,4 +1,5 @@
 import { installAddinFunction } from "../modules/utils";
+import { setupWeatherWidget } from "./bluearchive/weather-widget";
 
 type ActionItem = {
     label: string;
@@ -2109,6 +2110,7 @@ window.addEventListener("DOMContentLoaded", () => {
             });
     }
     applyPersonalName();
+    setupWeatherWidget();
     renderPage("moduli", false);
     initializeAssistant(currentAssistant);
     updateClock();

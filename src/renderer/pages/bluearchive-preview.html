@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; connect-src 'self' file: https://api.open-meteo.com; object-src 'none'">
     <title>AyPi — Blue Archive Mode</title>
     <link rel="stylesheet" href="../assets/vendor/spine-player/spine-player.css">
     <link rel="stylesheet" href="../styles/bluearchive-preview.css">
@@ -165,6 +165,106 @@
                     <span><i></i> AYPI TIME SYSTEM // OPERATIVO</span>
                     <span id="timerPanelClock">--:--:--</span>
                 </footer>
+            </section>
+        </div>
+
+        <div class="weather-backdrop" id="weatherBackdrop" aria-hidden="true">
+            <section class="weather-panel" role="dialog" aria-modal="true" aria-labelledby="weatherPanelTitle">
+                <div class="weather-panel-grid" aria-hidden="true"></div>
+                <header class="weather-panel-header">
+                    <div>
+                        <div class="eyebrow"><span>WX</span> AYPI WEATHER SYSTEM</div>
+                        <h2 id="weatherPanelTitle">Meteo Omegna</h2>
+                        <p>Omegna, Piemonte · previsioni locali</p>
+                    </div>
+                    <div class="weather-panel-actions">
+                        <button class="weather-refresh" id="weatherRefresh" type="button"
+                            title="Aggiorna previsioni" aria-label="Aggiorna previsioni">↻</button>
+                        <button class="weather-close" id="weatherClose" type="button"
+                            aria-label="Chiudi pannello">×</button>
+                    </div>
+                </header>
+
+                <div class="weather-current" id="weatherCurrent">
+                    <div class="weather-current-icon" id="weatherCurrentIcon" aria-hidden="true">·</div>
+                    <div class="weather-current-main">
+                        <strong id="weatherCurrentTemperature">--°</strong>
+                        <span id="weatherCurrentDescription">Caricamento meteo…</span>
+                    </div>
+                    <div class="weather-current-stats">
+                        <span><small>PERCEPITA</small><b id="weatherFeelsLike">--°</b></span>
+                        <span><small>UMIDITÀ</small><b id="weatherHumidity">--%</b></span>
+                        <span><small>VENTO</small><b id="weatherWind">-- km/h</b></span>
+                    </div>
+                </div>
+
+                <div class="weather-tabs" role="tablist" aria-label="Periodo previsioni">
+                    <button class="weather-tab active" type="button" data-weather-view="today"
+                        role="tab" aria-selected="true">Oggi</button>
+                    <button class="weather-tab" type="button" data-weather-view="week"
+                        role="tab" aria-selected="false">Questa settimana</button>
+                    <button class="weather-tab" type="button" data-weather-view="next"
+                        role="tab" aria-selected="false">Prossima settimana</button>
+                </div>
+
+                <div class="weather-views">
+                    <section class="weather-view active" data-weather-panel="today">
+                        <div class="weather-view-heading">
+                            <div><strong>Previsioni di oggi</strong><small id="weatherTodayDate"></small></div>
+                            <span>ORA PER ORA</span>
+                        </div>
+                        <div class="weather-hourly" id="weatherHourly"></div>
+                    </section>
+                    <section class="weather-view" data-weather-panel="week">
+                        <div class="weather-view-heading">
+                            <div><strong>Settimana corrente</strong><small>Da oggi a domenica</small></div>
+                            <span>GIORNO PER GIORNO</span>
+                        </div>
+                        <div class="weather-daily" id="weatherCurrentWeek"></div>
+                    </section>
+                    <section class="weather-view" data-weather-panel="next">
+                        <div class="weather-view-heading">
+                            <div><strong>Prossima settimana</strong><small>Da lunedì a domenica</small></div>
+                            <span>FINO A 16 GIORNI</span>
+                        </div>
+                        <div class="weather-daily" id="weatherNextWeek"></div>
+                    </section>
+                    <section class="weather-day-detail" id="weatherDayDetail" aria-hidden="true">
+                        <header class="weather-detail-header">
+                            <button id="weatherDetailBack" type="button" aria-label="Torna alle previsioni">‹</button>
+                            <div>
+                                <span>DETTAGLIO GIORNALIERO</span>
+                                <h3 id="weatherDetailDate">--</h3>
+                            </div>
+                        </header>
+                        <div class="weather-detail-summary">
+                            <div class="weather-detail-condition">
+                                <i id="weatherDetailIcon" aria-hidden="true">·</i>
+                                <div>
+                                    <strong id="weatherDetailDescription">--</strong>
+                                    <span>Omegna, Piemonte</span>
+                                </div>
+                            </div>
+                            <div class="weather-detail-metrics">
+                                <span><small>MASSIMA</small><b id="weatherDetailMax">--°</b></span>
+                                <span><small>MINIMA</small><b id="weatherDetailMin">--°</b></span>
+                                <span><small>PIOGGIA</small><b id="weatherDetailRain">--%</b></span>
+                                <span><small>ALBA</small><b id="weatherDetailSunrise">--:--</b></span>
+                                <span><small>TRAMONTO</small><b id="weatherDetailSunset">--:--</b></span>
+                            </div>
+                        </div>
+                        <div class="weather-detail-hourly-heading">
+                            <strong>Andamento della giornata</strong>
+                            <span>TEMPERATURA · PIOGGIA · VENTO · UMIDITÀ</span>
+                        </div>
+                        <div class="weather-detail-hourly" id="weatherDetailHourly"></div>
+                    </section>
+                </div>
+
+                <div class="weather-panel-footer">
+                    <span id="weatherUpdateStatus"><i></i> Connessione al servizio meteo…</span>
+                    <span>Dati: Open-Meteo</span>
+                </div>
             </section>
         </div>
 
@@ -345,8 +445,17 @@
 
         <footer>
             <span id="appVersion">AYPI v...</span>
-            <button class="footer-clock" id="footerClock" type="button" aria-label="Apri Timer e Cronometri"
-                aria-expanded="false" title="Apri Timer e Cronometri">--:--:--</button>
+            <div class="footer-tools">
+                <button class="footer-weather" id="footerWeather" type="button"
+                    aria-label="Apri meteo di Omegna" aria-expanded="false" title="Meteo Omegna">
+                    <span class="footer-weather-icon" id="footerWeatherIcon" aria-hidden="true">·</span>
+                    <span class="footer-weather-location">OMEGNA</span>
+                    <strong id="footerWeatherTemperature">--°</strong>
+                </button>
+                <i class="footer-tools-divider" aria-hidden="true"></i>
+                <button class="footer-clock" id="footerClock" type="button" aria-label="Apri Timer e Cronometri"
+                    aria-expanded="false" title="Apri Timer e Cronometri">--:--:--</button>
+            </div>
             <span>© AGPRESS</span>
         </footer>
     </div>
