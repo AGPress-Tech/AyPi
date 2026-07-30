@@ -13,6 +13,10 @@ import { initializeTransferSqliteStore } from "./modules/transfer-attrezzaggio/r
 import { initializeHaasSqliteStore } from "./modules/haas-attrezzaggio/repository";
 import { initializeProductionPlannerSqliteStore } from "./modules/production-planner/repository";
 import { releaseProductionPlannerWaiters } from "./modules/production-planner/service";
+import {
+    startTelegramBotService,
+    stopTelegramBotService,
+} from "./modules/telegram-bot/service";
 import { normalizeAgpressLayout } from "./shared/storage/agpress-layout";
 import {
     getRequestClient,
@@ -215,6 +219,13 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                     logDir: backendConfig.logging.dir,
                     dbPath: backendConfig.database.path,
                 });
+                if (!process.env.AYPI_BACKEND_URL) {
+                    process.env.AYPI_BACKEND_URL = url;
+                }
+                void startTelegramBotService().catch(() => {
+                    // The Telegram integration is optional and must never take
+                    // down the HTTP/WebSocket backend.
+                });
                 resolve({
                     host,
                     port,
@@ -224,7 +235,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                         new Promise<void>((stopResolve, stopReject) => {
                             releaseProductionPlannerWaiters();
                             closeRealtimeHub(server);
-                            server.close((closeErr) => {
+                            void stopTelegramBotService().finally(() => server.close((closeErr) => {
                                 if (closeErr) {
                                     stopReject(closeErr);
                                     return;
@@ -242,7 +253,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                                     // ignore sqlite shutdown issues
                                 }
                                 stopResolve();
-                            });
+                            }));
                         }),
                 });
             } catch (error) {

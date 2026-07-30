@@ -12,6 +12,7 @@
 /backend-dist
 /dist-backend-app
 /dist-backend
+/dist-botbackend
 
 # misc
 .DS_Store
@@ -22,9 +23,11 @@
 .env
 .env.backend
 backend/.env
+bot-backend/.env
 src/main/config/otp-mail.json
 config/otp-mail.json
 .tmp-fullcalendar-*
+.tmp-botbackend-test/
 *.tmp
 
 # local bot knowledge files

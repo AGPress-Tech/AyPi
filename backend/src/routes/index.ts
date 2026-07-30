@@ -8,6 +8,7 @@ import { registerHaasAttrezzaggioRoutes } from "../modules/haas-attrezzaggio/rou
 import { registerProductionPlannerRoutes } from "../modules/production-planner/routes";
 import { sendJson } from "../shared/http/response";
 import { backendConfig } from "../config";
+import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
 
 export function registerRoutes(router: Router) {
     router.register("GET", "/health", async (_req, res) => {
@@ -22,6 +23,7 @@ export function registerRoutes(router: Router) {
                 "transfer-attrezzaggio",
                 "haas-attrezzaggio",
                 "production-planner",
+                "telegram-bot",
             ],
             host: backendConfig.advertisedHost,
             port: backendConfig.port,
@@ -30,6 +32,7 @@ export function registerRoutes(router: Router) {
                 transport: "websocket",
                 path: "/ws",
             },
+            telegramBot: getTelegramBotServiceStatus(),
         });
     });
 

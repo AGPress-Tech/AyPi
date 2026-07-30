@@ -7,6 +7,8 @@
   "files": [
     "dist-backend-app/**/*",
     "backend-dist/**/*",
+    "bot-backend/src/**/*",
+    "bot-backend/assets/**/*",
     "assets/**/*",
     "package.json"
   ],
