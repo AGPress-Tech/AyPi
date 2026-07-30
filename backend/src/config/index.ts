@@ -13,6 +13,12 @@ function getEnvString(name: string, fallback: string) {
     return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
+function getEnvBoolean(name: string, fallback: boolean) {
+    const value = process.env[name];
+    if (typeof value !== "string" || !value.trim()) return fallback;
+    return !["0", "false", "no", "off"].includes(value.trim().toLowerCase());
+}
+
 const isDevProfile = (process.env.AYPI_BACKEND_PROFILE || "").trim() === "dev";
 const defaultHost = isDevProfile ? "127.0.0.1" : "192.168.1.240";
 const defaultGeneralDir = isDevProfile
@@ -61,6 +67,15 @@ export const backendConfig = {
     },
     database: {
         path: databasePath,
+    },
+    mobileGateway: {
+        enabled: getEnvBoolean("AYPI_MOBILE_GATEWAY_ENABLED", true),
+        host: getEnvString("AYPI_MOBILE_GATEWAY_HOST", "127.0.0.1"),
+        port: getEnvNumber("AYPI_MOBILE_GATEWAY_PORT", 3010),
+        sessionDays: Math.max(
+            1,
+            Math.min(30, getEnvNumber("AYPI_MOBILE_SESSION_DAYS", 7)),
+        ),
     },
     modules: {
         feriePermessi: {

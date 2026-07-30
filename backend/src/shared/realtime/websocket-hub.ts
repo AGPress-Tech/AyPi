@@ -34,6 +34,29 @@ type ClientState = {
 };
 
 const hubs = new WeakMap<http.Server, RealtimeHub>();
+const changeSubscribers = new Set<(change: RealtimeChange) => void>();
+
+export function subscribeRealtimeChanges(
+    listener: (change: RealtimeChange) => void,
+) {
+    changeSubscribers.add(listener);
+    return () => changeSubscribers.delete(listener);
+}
+
+export function publishRealtimeChange(change: RealtimeChange) {
+    changeSubscribers.forEach((listener) => {
+        try {
+            listener(change);
+        } catch (error) {
+            logger.warn("Realtime change subscriber failed", {
+                event: "realtime_subscriber_failed",
+                category: "realtime",
+                module: change.module,
+                detail: error instanceof Error ? error.message : String(error),
+            });
+        }
+    });
+}
 
 function parseModules(value: unknown) {
     if (!Array.isArray(value)) return new Set(["*"]);
@@ -53,6 +76,7 @@ export class RealtimeHub {
     private readonly heartbeatTimer: NodeJS.Timeout;
     private sequence = 0;
     private closing = false;
+    private readonly unsubscribeChanges: () => void;
 
     constructor(private readonly server: http.Server) {
         this.socketServer = new WebSocketServer({ noServer: true });
@@ -68,6 +92,9 @@ export class RealtimeHub {
         });
         this.heartbeatTimer = setInterval(() => this.heartbeat(), 30000);
         this.heartbeatTimer.unref?.();
+        this.unsubscribeChanges = subscribeRealtimeChanges((change) =>
+            this.deliver(change),
+        );
     }
 
     private readonly handleUpgrade = (
@@ -220,7 +247,7 @@ export class RealtimeHub {
         });
     }
 
-    publish(change: RealtimeChange) {
+    private deliver(change: RealtimeChange) {
         this.sequence += 1;
         const payload = {
             type: "module.changed",
@@ -239,9 +266,14 @@ export class RealtimeHub {
         });
     }
 
+    publish(change: RealtimeChange) {
+        publishRealtimeChange(change);
+    }
+
     close() {
         if (this.closing) return;
         this.closing = true;
+        this.unsubscribeChanges();
         clearInterval(this.heartbeatTimer);
         this.server.off("upgrade", this.handleUpgrade);
         this.clients.forEach((_state, webSocket) => {

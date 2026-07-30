@@ -8,6 +8,12 @@ export type BackendRuntimeConfig = {
     port: number;
     generalDir: string;
     logDir: string;
+    mobileGateway: {
+        enabled: boolean;
+        host: string;
+        port: number;
+        sessionDays: number;
+    };
 };
 
 const IS_DEV_PROFILE = (process.env.AYPI_BACKEND_PROFILE || "").trim() === "dev";
@@ -18,6 +24,12 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           port: 3000,
           generalDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General",
           logDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\log",
+          mobileGateway: {
+              enabled: true,
+              host: "127.0.0.1",
+              port: 3010,
+              sessionDays: 7,
+          },
       }
     : {
           host: "192.168.1.240",
@@ -25,6 +37,12 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           port: 3000,
           generalDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General",
           logDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\log",
+          mobileGateway: {
+              enabled: true,
+              host: "127.0.0.1",
+              port: 3010,
+              sessionDays: 7,
+          },
       };
 
 function getConfigCandidates() {
@@ -76,6 +94,12 @@ function getNumber(value: unknown, fallback: number) {
     return Number.isFinite(num) ? num : fallback;
 }
 
+function getBoolean(value: unknown, fallback: boolean) {
+    if (typeof value === "boolean") return value;
+    if (typeof value !== "string" || !value.trim()) return fallback;
+    return !["0", "false", "no", "off"].includes(value.trim().toLowerCase());
+}
+
 export function loadBackendRuntimeConfig() {
     const loaded = loadConfigFile();
     const payload = loaded.payload || {};
@@ -87,6 +111,10 @@ export function loadBackendRuntimeConfig() {
         process.env.AYPI_LOG_DIR,
         getString(payload.logDir, DEFAULT_CONFIG.logDir),
     );
+    const mobilePayload =
+        payload.mobileGateway && typeof payload.mobileGateway === "object"
+            ? (payload.mobileGateway as Record<string, unknown>)
+            : {};
     const config: BackendRuntimeConfig = {
         host: getString(process.env.AYPI_BACKEND_HOST, getString(payload.host, DEFAULT_CONFIG.host)),
         advertisedHost: getString(
@@ -96,6 +124,42 @@ export function loadBackendRuntimeConfig() {
         port: getNumber(process.env.AYPI_BACKEND_PORT, getNumber(payload.port, DEFAULT_CONFIG.port)),
         generalDir,
         logDir: rawLogDir,
+        mobileGateway: {
+            enabled: getBoolean(
+                process.env.AYPI_MOBILE_GATEWAY_ENABLED,
+                getBoolean(
+                    mobilePayload.enabled,
+                    DEFAULT_CONFIG.mobileGateway.enabled,
+                ),
+            ),
+            host: getString(
+                process.env.AYPI_MOBILE_GATEWAY_HOST,
+                getString(
+                    mobilePayload.host,
+                    DEFAULT_CONFIG.mobileGateway.host,
+                ),
+            ),
+            port: getNumber(
+                process.env.AYPI_MOBILE_GATEWAY_PORT,
+                getNumber(
+                    mobilePayload.port,
+                    DEFAULT_CONFIG.mobileGateway.port,
+                ),
+            ),
+            sessionDays: Math.max(
+                1,
+                Math.min(
+                    30,
+                    getNumber(
+                        process.env.AYPI_MOBILE_SESSION_DAYS,
+                        getNumber(
+                            mobilePayload.sessionDays,
+                            DEFAULT_CONFIG.mobileGateway.sessionDays,
+                        ),
+                    ),
+                ),
+            ),
+        },
     };
 
     return {

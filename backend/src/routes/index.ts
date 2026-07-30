@@ -32,6 +32,12 @@ export function registerRoutes(router: Router) {
                 transport: "websocket",
                 path: "/ws",
             },
+            mobileGateway: {
+                enabled: backendConfig.mobileGateway.enabled,
+                host: backendConfig.mobileGateway.host,
+                port: backendConfig.mobileGateway.port,
+                scope: "calendar-admin",
+            },
             telegramBot: getTelegramBotServiceStatus(),
         });
     });

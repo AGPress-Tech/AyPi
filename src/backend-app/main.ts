@@ -67,6 +67,16 @@ function applyRuntimeConfig() {
     process.env.AYPI_BACKEND_PORT = String(loaded.config.port);
     process.env.AYPI_FP_GENERAL_DIR = loaded.config.generalDir;
     process.env.AYPI_LOG_DIR = loaded.config.logDir;
+    process.env.AYPI_MOBILE_GATEWAY_ENABLED = loaded.config.mobileGateway.enabled
+        ? "1"
+        : "0";
+    process.env.AYPI_MOBILE_GATEWAY_HOST = loaded.config.mobileGateway.host;
+    process.env.AYPI_MOBILE_GATEWAY_PORT = String(
+        loaded.config.mobileGateway.port,
+    );
+    process.env.AYPI_MOBILE_SESSION_DAYS = String(
+        loaded.config.mobileGateway.sessionDays,
+    );
     return loaded;
 }
 
@@ -122,6 +132,12 @@ function updateTrayMenu() {
     const template: Electron.MenuItemConstructorOptions[] = [
         { label: statusLabel, enabled: false },
         { label: `Host: ${loaded.config.host}:${loaded.config.port}`, enabled: false },
+        {
+            label: loaded.config.mobileGateway.enabled
+                ? `Gateway mobile: ${loaded.config.mobileGateway.host}:${loaded.config.mobileGateway.port}`
+                : "Gateway mobile: disattivato",
+            enabled: false,
+        },
         { label: `General: ${loaded.config.generalDir}`, enabled: false },
         { label: `PID: ${machine.pid} • ${machine.hostName}`, enabled: false },
         { type: "separator" },

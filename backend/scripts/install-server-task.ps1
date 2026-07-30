@@ -14,9 +14,12 @@ if (-not (Test-Path -LiteralPath $ExePath)) {
     throw "Exe non trovato: $ExePath"
 }
 
-$quotedExe = '"' + $ExePath + '"'
-$taskCommand = "/c set AYPI_BACKEND_HEADLESS=1&& $quotedExe"
-$taskAction = New-ScheduledTaskAction -Execute "cmd.exe" -Argument $taskCommand
+$resolvedExePath = (Resolve-Path -LiteralPath $ExePath).Path
+$exeDirectory = Split-Path -Parent $resolvedExePath
+$taskAction = New-ScheduledTaskAction `
+    -Execute $resolvedExePath `
+    -Argument "--headless" `
+    -WorkingDirectory $exeDirectory
 $taskTrigger = New-ScheduledTaskTrigger -AtStartup
 $taskPrincipal = if ($RunAsUser -eq "SYSTEM") {
     New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
@@ -27,8 +30,9 @@ $taskSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -MultipleInstances IgnoreNew `
-    -RestartCount 3 `
+    -RestartCount 999 `
     -RestartInterval (New-TimeSpan -Minutes 1) `
+    -ExecutionTimeLimit ([TimeSpan]::Zero) `
     -StartWhenAvailable
 
 $task = New-ScheduledTask `
@@ -37,8 +41,9 @@ $task = New-ScheduledTask `
     -Principal $taskPrincipal `
     -Settings $taskSettings
 
+Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
 
 Write-Host "Task '$TaskName' installato e avviato."
-Write-Host "Comando: cmd.exe $taskCommand"
+Write-Host "Eseguibile: $resolvedExePath --headless"

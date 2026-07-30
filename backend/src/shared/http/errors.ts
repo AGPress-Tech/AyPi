@@ -37,6 +37,20 @@ export function unauthorized(message = "Unauthorized", details?: unknown) {
     });
 }
 
+export function forbidden(message = "Forbidden", details?: unknown) {
+    return new HttpError(403, message, {
+        code: "FORBIDDEN",
+        details,
+    });
+}
+
+export function tooManyRequests(message = "Too many requests", details?: unknown) {
+    return new HttpError(429, message, {
+        code: "TOO_MANY_REQUESTS",
+        details,
+    });
+}
+
 export function notFound(message = "Not found", details?: unknown) {
     return new HttpError(404, message, {
         code: "NOT_FOUND",

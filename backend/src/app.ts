@@ -17,6 +17,10 @@ import {
     startTelegramBotService,
     stopTelegramBotService,
 } from "./modules/telegram-bot/service";
+import {
+    startMobileGatewayServer,
+    type MobileGatewayHandle,
+} from "./modules/mobile-gateway/server";
 import { normalizeAgpressLayout } from "./shared/storage/agpress-layout";
 import {
     getRequestClient,
@@ -180,6 +184,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
 
     return new Promise((resolve, reject) => {
         const server = createBackendServer(ready);
+        let mobileGateway: MobileGatewayHandle | null = null;
         const host = backendConfig.host;
         const port = backendConfig.port;
         const url = buildBackendUrl();
@@ -205,6 +210,22 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 initializeTransferSqliteStore();
                 initializeHaasSqliteStore();
                 initializeProductionPlannerSqliteStore();
+                try {
+                    mobileGateway = await startMobileGatewayServer();
+                } catch (error) {
+                    mobileGateway = null;
+                    logger.error("Mobile gateway unavailable", {
+                        event: "mobile_gateway_unavailable",
+                        category: "lifecycle",
+                        module: "calendar",
+                        host: backendConfig.mobileGateway.host,
+                        port: backendConfig.mobileGateway.port,
+                        detail:
+                            error instanceof Error
+                                ? error.message
+                                : String(error),
+                    });
+                }
                 resolveReady();
 
                 logger.info("AyPi backend listening", {
@@ -235,7 +256,10 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                         new Promise<void>((stopResolve, stopReject) => {
                             releaseProductionPlannerWaiters();
                             closeRealtimeHub(server);
-                            void stopTelegramBotService().finally(() => server.close((closeErr) => {
+                            void Promise.allSettled([
+                                stopTelegramBotService(),
+                                mobileGateway?.stop() || Promise.resolve(),
+                            ]).finally(() => server.close((closeErr) => {
                                 if (closeErr) {
                                     stopReject(closeErr);
                                     return;
@@ -259,6 +283,10 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
             } catch (error) {
                 rejectReady(error);
                 closeRealtimeHub(server);
+                if (mobileGateway) {
+                    void mobileGateway.stop().catch(() => {});
+                    mobileGateway = null;
+                }
                 server.close(() => {});
                 try {
                     closeSqliteDatabase();

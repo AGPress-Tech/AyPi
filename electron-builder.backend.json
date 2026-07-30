@@ -32,5 +32,11 @@
     "target": "nsis",
     "sign": false
   },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": true,
+    "runAfterFinish": false,
+    "include": "backend/scripts/backend-installer.nsh"
+  },
   "publish": null
 }

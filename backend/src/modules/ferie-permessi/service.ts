@@ -337,6 +337,72 @@ export async function replacePayload(nextPayload: FpPayload, context?: ActionCon
     });
 }
 
+export async function updateBalanceEntries(
+    entries: Array<{
+        key: string;
+        hoursAvailable: number;
+        monthlyAccrualHours: number;
+    }>,
+    context?: ActionContext,
+) {
+    const meta = buildContext(context);
+    return queueFpOperation("updateBalanceEntries", () => {
+        const payload = loadFpPayload();
+        normalizeBalances(payload, loadAssignees());
+        applyMissingRequestDeductions(payload);
+        const changes: Array<{
+            key: string;
+            beforeHours: number;
+            afterHours: number;
+            beforeAccrual: number;
+            afterAccrual: number;
+        }> = [];
+
+        entries.forEach((entry) => {
+            const key = String(entry?.key || "").trim();
+            const current = key ? payload.balances?.[key] : null;
+            if (!current) return;
+            const hoursAvailable = Number(entry.hoursAvailable);
+            const monthlyAccrualHours = Number(entry.monthlyAccrualHours);
+            if (
+                !Number.isFinite(hoursAvailable) ||
+                !Number.isFinite(monthlyAccrualHours) ||
+                monthlyAccrualHours < 0
+            ) {
+                return;
+            }
+            const beforeHours = Number(current.hoursAvailable) || 0;
+            const beforeAccrual = Number(current.monthlyAccrualHours) || 16;
+            current.hoursAvailable = Math.round(hoursAvailable * 100) / 100;
+            current.monthlyAccrualHours =
+                Math.round(monthlyAccrualHours * 100) / 100;
+            if (
+                beforeHours !== current.hoursAvailable ||
+                beforeAccrual !== current.monthlyAccrualHours
+            ) {
+                changes.push({
+                    key,
+                    beforeHours,
+                    afterHours: current.hoursAvailable,
+                    beforeAccrual,
+                    afterAccrual: current.monthlyAccrualHours,
+                });
+            }
+        });
+
+        if (changes.length) saveFpPayload(payload);
+        logger.info("FP update balance entries", {
+            ...meta,
+            event: "fp_balance_entries_updated",
+            module: "calendar",
+            category: "data",
+            updated: changes.length,
+            changes,
+        });
+        return payload.balances;
+    });
+}
+
 function findRequestIndex(payload: FpPayload, id: string) {
     return (payload.requests || []).findIndex((request) => request.id === id);
 }
