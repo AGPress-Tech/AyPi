@@ -1,0 +1,1 @@
+window.AYPI_SPINE_CHARACTERS = [];

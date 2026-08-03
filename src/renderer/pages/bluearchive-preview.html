@@ -114,7 +114,22 @@
                 <i></i><span>ARONA SYSTEM</span>
             </div>
             <button class="assistant-switch" id="assistantSwitch" type="button"
-                title="Passa ad Arona o Plana" aria-label="Cambia assistente">A / P</button>
+                title="Scegli assistente" aria-label="Scegli assistente" aria-expanded="false"
+                aria-controls="assistantPicker">☰</button>
+            <section class="assistant-picker" id="assistantPicker" aria-hidden="true"
+                aria-label="Scegli il personaggio">
+                <header>
+                    <strong>PERSONAGGIO</strong>
+                    <button id="assistantPickerClose" type="button" aria-label="Chiudi selezione"
+                        title="Chiudi">×</button>
+                </header>
+                <label class="assistant-picker-search">
+                    <span class="visually-hidden">Cerca personaggio</span>
+                    <input id="assistantPickerSearch" type="search" placeholder="Cerca..." autocomplete="off">
+                </label>
+                <div class="assistant-picker-list" id="assistantPickerList" role="listbox"></div>
+                <p class="assistant-picker-empty" id="assistantPickerEmpty" hidden>Nessun personaggio trovato.</p>
+            </section>
             <span class="assistant-label" id="assistantLabel">ARONA // ONLINE</span>
         </div>
 
@@ -412,7 +427,7 @@
                 <div class="animation-lab-auth" id="animationLabAuth">
                     <div class="eyebrow"><span>F6</span> SPINE ANIMATION LAB</div>
                     <h2 id="animationLabTitle">Archivio animazioni</h2>
-                    <p>Inserisci la password per accedere alle animazioni di Arona e Plana.</p>
+                    <p>Inserisci la password per accedere alle animazioni del personaggio selezionato.</p>
                     <form id="animationLabAuthForm">
                         <label for="animationLabPassword">Password</label>
                         <input id="animationLabPassword" type="password" autocomplete="off" placeholder="Inserisci la password">
@@ -433,10 +448,6 @@
                         </div>
                         <label class="animation-loop"><input id="animationLoop" type="checkbox"> Ripeti</label>
                     </header>
-                    <div class="animation-character-tabs" role="tablist">
-                        <button type="button" data-animation-character="arona">Arona</button>
-                        <button type="button" data-animation-character="plana">Plana</button>
-                    </div>
                     <div class="animation-lab-status" id="animationLabStatus">Caricamento modello...</div>
                     <div class="animation-grid" id="animationGrid"></div>
                 </div>
@@ -461,6 +472,7 @@
     </div>
 
     <script src="../assets/vendor/spine-player/spine-player.js"></script>
+    <script src="../assets/bluearchive/spine/characters/characters.js"></script>
     <script src="../scripts/bluearchive-preview.js"></script>
 </body>
 </html>

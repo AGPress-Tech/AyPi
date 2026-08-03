@@ -424,6 +424,30 @@
         </section>
     </div>
 
+    <div class="dialog-backdrop" id="machine-shift-dialog" aria-hidden="true">
+        <form class="dialog dialog--shift" id="machine-shift-form">
+            <header class="dialog__header">
+                <div>
+                    <span class="eyebrow" id="machine-shift-direction">SPOSTA ORDINI</span>
+                    <h2 id="machine-shift-title">Sposta gli ordini</h2>
+                </div>
+                <button class="dialog__close" data-close-machine-shift type="button" aria-label="Chiudi">×</button>
+            </header>
+            <p class="dialog__intro dialog__intro--shift" id="machine-shift-scope"></p>
+            <label class="machine-shift-field">
+                Di quanti giorni produttivi vuoi far slittare gli ordini?
+                <input id="machine-shift-days" type="number" min="1" max="3650" step="1" value="1" required>
+                <small>Sabati, domeniche e indisponibilità della macchina non vengono conteggiati.</small>
+            </label>
+            <div class="form-error" id="machine-shift-error"></div>
+            <footer class="dialog__footer">
+                <span class="dialog__spacer"></span>
+                <button class="button button--ghost" data-close-machine-shift type="button">Annulla</button>
+                <button class="button button--primary" type="submit">Sposta ordini</button>
+            </footer>
+        </form>
+    </div>
+
     <div class="job-tooltip" id="job-tooltip" role="tooltip"></div>
     <div class="context-menu" id="job-context-menu" role="menu" aria-hidden="true"></div>
 

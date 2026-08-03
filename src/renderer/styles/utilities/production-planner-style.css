@@ -2246,6 +2246,27 @@ body.is-calendar-panning * {
     outline: 0;
 }
 
+.context-menu button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.context-menu__heading--machine > div {
+    display: grid;
+    gap: 2px;
+}
+
+.context-menu__heading--machine strong {
+    color: var(--ink);
+    font-size: 11px;
+}
+
+.context-menu__heading--machine small {
+    color: var(--muted);
+    font-size: 8px;
+    text-transform: none;
+}
+
 .context-menu button > span {
     display: grid;
     place-items: center;
@@ -2458,6 +2479,40 @@ body.is-calendar-panning * {
 
 .dialog--range {
     width: min(520px, 96vw);
+}
+
+.dialog--shift {
+    width: min(480px, 96vw);
+}
+
+.dialog__intro--shift {
+    padding: 18px 22px 0;
+}
+
+.machine-shift-field {
+    display: grid;
+    gap: 7px;
+    padding: 18px 22px 8px;
+    color: #435168;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.machine-shift-field input {
+    height: 42px;
+    padding: 0 11px;
+    border: 1px solid #ccd5df;
+    border-radius: 7px;
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+}
+
+.machine-shift-field small {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1.4;
 }
 
 #job-form {

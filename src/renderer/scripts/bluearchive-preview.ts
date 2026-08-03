@@ -335,6 +335,21 @@ const assistantHeadHitbox = document.getElementById(
 const assistantSwitch = document.getElementById(
     "assistantSwitch",
 ) as HTMLButtonElement | null;
+const assistantPicker = document.getElementById(
+    "assistantPicker",
+) as HTMLElement | null;
+const assistantPickerClose = document.getElementById(
+    "assistantPickerClose",
+) as HTMLButtonElement | null;
+const assistantPickerSearch = document.getElementById(
+    "assistantPickerSearch",
+) as HTMLInputElement | null;
+const assistantPickerList = document.getElementById(
+    "assistantPickerList",
+) as HTMLElement | null;
+const assistantPickerEmpty = document.getElementById(
+    "assistantPickerEmpty",
+) as HTMLElement | null;
 const assistantLabel = document.getElementById(
     "assistantLabel",
 ) as HTMLElement | null;
@@ -464,12 +479,43 @@ let countdownRemainingMs = countdownInitialMs;
 let countdownStartedAt = 0;
 let countdownRunning = false;
 let countdownFinishedNotified = false;
-let currentAssistant: "arona" | "plana" =
-    window.localStorage.getItem("aypi-bluearchive-assistant-v1") === "plana"
-        ? "plana"
+type AssistantAsset = { id: string; skel: string; atlas: string };
+type AssistantReaction = { animation: string; text: string };
+type AssistantConfig = AssistantAsset & {
+    idle?: string;
+    blink?: string;
+    rightEye?: string;
+    leftEye?: string;
+    frontHead?: string;
+    backHead?: string;
+    eyeAngle?: number;
+    reactions: AssistantReaction[];
+};
+
+const importedAssistants = (
+    ((window as any).AYPI_SPINE_CHARACTERS || []) as AssistantAsset[]
+).filter(
+    (character) =>
+        character?.id &&
+        character.skel &&
+        character.atlas &&
+        character.id.toLowerCase() !== "arona_spr",
+);
+const importedAssistantMap = new Map(
+    importedAssistants.map((character) => [character.id, character]),
+);
+const storedAssistant =
+    window.localStorage.getItem("aypi-bluearchive-assistant-v1") || "arona";
+let currentAssistant =
+    storedAssistant === "arona" ||
+    storedAssistant === "plana" ||
+    importedAssistantMap.has(storedAssistant)
+        ? storedAssistant
         : "arona";
 let spinePlayerInstance: any = null;
 let spineAnimationState: any = null;
+let assistantIdleAnimation = "";
+let assistantBlinkAnimation = "";
 let spineBones: null | {
     skeleton: any;
     rightEye: any;
@@ -521,8 +567,9 @@ function resizeTrailCanvas() {
 resizeTrailCanvas();
 window.addEventListener("resize", resizeTrailCanvas);
 
-const assistantConfigs = {
+const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
     arona: {
+        id: "arona",
         skel: "../assets/bluearchive/spine/arona/arona_spr.skel",
         atlas: "../assets/bluearchive/spine/arona/arona_spr.atlas",
         idle: "Idle_01",
@@ -572,6 +619,7 @@ const assistantConfigs = {
         ],
     },
     plana: {
+        id: "plana",
         skel: "../assets/bluearchive/spine/plana/plana_spr.skel",
         atlas: "../assets/bluearchive/spine/plana/plana_spr.atlas",
         idle: "Idle_01",
@@ -614,6 +662,55 @@ const assistantConfigs = {
         ],
     },
 };
+
+function assistantDisplayName(character: string) {
+    if (character === "arona") return "Arona";
+    if (character === "plana") return "Plana";
+    return character
+        .replace(/_spr$/i, "")
+        .split("_")
+        .filter(Boolean)
+        .map((part) =>
+            /^ch\d+$/i.test(part)
+                ? part.toUpperCase()
+                : part.charAt(0).toUpperCase() + part.slice(1).toLowerCase(),
+        )
+        .join(" ");
+}
+
+function getAssistantConfig(character: string): AssistantConfig {
+    if (character === "arona" || character === "plana") {
+        return assistantConfigs[character];
+    }
+    const asset = importedAssistantMap.get(character);
+    if (!asset) return assistantConfigs.arona;
+    return {
+        ...asset,
+        idle: "Idle_01",
+        blink: "Eye_Close_01",
+        rightEye: "R_Eye_01",
+        leftEye: "L_Eye_01",
+        frontHead: "Head_01",
+        backHead: "Head_Back",
+        eyeAngle: 76.307,
+        reactions: [],
+    };
+}
+
+function findAvailableAnimation(...candidates: Array<string | undefined>) {
+    const availableNames = new Map(
+        availableAnimations.map((animation) => [
+            animation.name.toLowerCase(),
+            animation.name,
+        ]),
+    );
+    for (const candidate of candidates) {
+        if (!candidate) continue;
+        const match = availableNames.get(candidate.toLowerCase());
+        if (match) return match;
+    }
+    return "";
+}
 
 function personalize(text: string) {
     return text.replace(/Sensei/gi, personalName);
@@ -665,12 +762,15 @@ function scheduleAssistantBlink() {
     assistantBlinkTimer = setTimeout(
         () => {
             if (!assistantSpeaking && spineAnimationState) {
-                const config = assistantConfigs[currentAssistant];
-                spineAnimationState.setAnimation(1, config.blink, false);
+                if (!assistantBlinkAnimation) {
+                    scheduleAssistantBlink();
+                    return;
+                }
+                spineAnimationState.setAnimation(1, assistantBlinkAnimation, false);
                 if (Math.random() > 0.62) {
                     spineAnimationState.addAnimation(
                         1,
-                        config.blink,
+                        assistantBlinkAnimation,
                         false,
                         0.12,
                     );
@@ -684,11 +784,11 @@ function scheduleAssistantBlink() {
 
 function updateAssistantGaze(event: MouseEvent) {
     if (!spineBones || assistantSpeaking || !assistantPlayer) return;
-    const config = assistantConfigs[currentAssistant];
+    const config = getAssistantConfig(currentAssistant);
     const rect = assistantPlayer.getBoundingClientRect();
     const mouseX = event.clientX - (rect.left + rect.width / 2);
     const mouseY = event.clientY - (rect.top + rect.height * 0.28);
-    const rotation = (-config.eyeAngle * Math.PI) / 180;
+    const rotation = (-(config.eyeAngle || 0) * Math.PI) / 180;
     const rotatedX = mouseX * Math.cos(rotation) - mouseY * Math.sin(rotation);
     const rotatedY = mouseX * Math.sin(rotation) + mouseY * Math.cos(rotation);
     const angle = Math.atan2(rotatedY, rotatedX);
@@ -719,6 +819,8 @@ function updateAssistantGaze(event: MouseEvent) {
 
 function startPattingAssistant() {
     if (isPattingAssistant || !spineAnimationState) return;
+    const patAnimation = findAvailableAnimation("Dev_Pat_01_M");
+    if (!patAnimation) return;
     if (assistantReactionTimer) clearTimeout(assistantReactionTimer);
     assistantReactionTimer = null;
     if (animationPlaybackTimer) clearTimeout(animationPlaybackTimer);
@@ -727,7 +829,7 @@ function startPattingAssistant() {
     assistantSpeaking = true;
     assistant?.classList.add("patting");
     resetAssistantBones();
-    spineAnimationState.setAnimation(2, "Dev_Pat_01_M", true);
+    spineAnimationState.setAnimation(2, patAnimation, true);
 }
 
 function stopPattingAssistant(playEndAnimation = true) {
@@ -739,9 +841,15 @@ function stopPattingAssistant(playEndAnimation = true) {
         assistantSpeaking = false;
         return;
     }
-    spineAnimationState.setAnimation(2, "Dev_PatEnd_01_M", false);
+    const patEndAnimation = findAvailableAnimation("Dev_PatEnd_01_M");
+    if (!patEndAnimation) {
+        spineAnimationState.setEmptyAnimation(2, 0.2);
+        assistantSpeaking = false;
+        return;
+    }
+    spineAnimationState.setAnimation(2, patEndAnimation, false);
     const endDuration =
-        availableAnimations.find((animation) => animation.name === "Dev_PatEnd_01_M")
+        availableAnimations.find((animation) => animation.name === patEndAnimation)
             ?.duration || 1.25;
     patEndTimer = setTimeout(() => {
         spineAnimationState?.setEmptyAnimation(2, 0.2);
@@ -750,30 +858,33 @@ function stopPattingAssistant(playEndAnimation = true) {
     }, endDuration * 1000 + 160);
 }
 
-function initializeAssistant(character: "arona" | "plana") {
+function initializeAssistant(character: string) {
     if (!assistantPlayer || !assistant) return;
     stopPattingAssistant(false);
     if (assistantReactionTimer) clearTimeout(assistantReactionTimer);
     assistantReactionTimer = null;
     currentAssistant = character;
     window.localStorage.setItem("aypi-bluearchive-assistant-v1", character);
-    const config = assistantConfigs[character];
+    const config = getAssistantConfig(character);
+    const displayName = assistantDisplayName(character);
     assistant.classList.remove("ready", "failed");
     assistant.setAttribute(
         "aria-label",
-        `Assistente ${character === "arona" ? "Arona" : "Plana"}`,
+        `Assistente ${displayName}`,
     );
     assistantPlayer.setAttribute(
         "aria-label",
-        `Parla con ${character === "arona" ? "Arona" : "Plana"}`,
+        `Parla con ${displayName}`,
     );
     if (assistantLabel)
-        assistantLabel.textContent = `${character.toUpperCase()} // LOADING`;
+        assistantLabel.textContent = `${displayName.toUpperCase()} // LOADING`;
     if (assistantBlinkTimer) clearTimeout(assistantBlinkTimer);
     assistantSpeaking = false;
     availableAnimations = [];
+    assistantIdleAnimation = "";
+    assistantBlinkAnimation = "";
     if (animationLabUnlocked && animationLabStatus) {
-        animationLabStatus.textContent = `CARICAMENTO ${character.toUpperCase()}...`;
+        animationLabStatus.textContent = `CARICAMENTO ${displayName.toUpperCase()}...`;
     }
     if (animationLabUnlocked && animationGrid) animationGrid.innerHTML = "";
     spineBones = null;
@@ -789,7 +900,7 @@ function initializeAssistant(character: "arona" | "plana") {
     if (!spineRuntime?.SpinePlayer) {
         assistant.classList.add("failed");
         if (assistantLabel)
-            assistantLabel.textContent = `${character.toUpperCase()} // OFFLINE`;
+            assistantLabel.textContent = `${displayName.toUpperCase()} // OFFLINE`;
         showBubble("Runtime Spine non disponibile.");
         return;
     }
@@ -802,7 +913,6 @@ function initializeAssistant(character: "arona" | "plana") {
         alpha: true,
         showControls: false,
         success: (player: any) => {
-            player.setAnimation(config.idle, true);
             spineAnimationState = player.animationState;
             const skeleton = player.skeleton;
             availableAnimations = (skeleton?.data?.animations || [])
@@ -817,10 +927,37 @@ function initializeAssistant(character: "arona" | "plana") {
                         sensitivity: "base",
                     }),
                 );
-            const rightEye = skeleton.findBone(config.rightEye);
-            const leftEye = skeleton.findBone(config.leftEye);
-            const frontHead = skeleton.findBone(config.frontHead);
-            const backHead = skeleton.findBone(config.backHead);
+            assistantIdleAnimation =
+                findAvailableAnimation(
+                    config.idle,
+                    "Idle_01",
+                    "idle",
+                    "01_normal",
+                    "01_Normal",
+                    "00_default",
+                    "default",
+                ) || availableAnimations[0]?.name || "";
+            assistantBlinkAnimation = findAvailableAnimation(
+                config.blink,
+                "Eye_Close_01",
+                "eyeclose",
+                "EyeClose",
+            );
+            if (assistantIdleAnimation) {
+                player.setAnimation(assistantIdleAnimation, true);
+            }
+            const rightEye = config.rightEye
+                ? skeleton.findBone(config.rightEye)
+                : null;
+            const leftEye = config.leftEye
+                ? skeleton.findBone(config.leftEye)
+                : null;
+            const frontHead = config.frontHead
+                ? skeleton.findBone(config.frontHead)
+                : null;
+            const backHead = config.backHead
+                ? skeleton.findBone(config.backHead)
+                : null;
             spineBones = {
                 skeleton,
                 rightEye,
@@ -838,7 +975,8 @@ function initializeAssistant(character: "arona" | "plana") {
             };
             assistant.classList.add("ready");
             if (assistantLabel)
-                assistantLabel.textContent = `${character.toUpperCase()} // ONLINE`;
+                assistantLabel.textContent = `${displayName.toUpperCase()} // ONLINE`;
+            renderAssistantPicker();
             if (animationLabUnlocked) renderAnimationButtons();
             scheduleAssistantBlink();
         },
@@ -846,7 +984,7 @@ function initializeAssistant(character: "arona" | "plana") {
             console.error("Caricamento assistente Spine fallito:", reason);
             assistant.classList.add("failed");
             if (assistantLabel)
-                assistantLabel.textContent = `${character.toUpperCase()} // OFFLINE`;
+                assistantLabel.textContent = `${displayName.toUpperCase()} // OFFLINE`;
             showBubble("Non riesco a caricare il modello Spine.");
         },
     });
@@ -854,9 +992,32 @@ function initializeAssistant(character: "arona" | "plana") {
 
 function playAssistantReaction() {
     if (assistantSpeaking || !spineAnimationState) return false;
-    const config = assistantConfigs[currentAssistant];
+    const config = getAssistantConfig(currentAssistant);
+    const compatibleReactions = config.reactions.filter((reaction) =>
+        availableAnimations.some(
+            (animation) => animation.name === reaction.animation,
+        ),
+    );
+    const fallbackAnimations = availableAnimations.filter(
+        (animation) =>
+            animation.name !== assistantIdleAnimation &&
+            animation.name !== assistantBlinkAnimation &&
+            !/^dev_pat/i.test(animation.name),
+    );
     const reaction =
-        config.reactions[Math.floor(Math.random() * config.reactions.length)];
+        compatibleReactions[
+            Math.floor(Math.random() * compatibleReactions.length)
+        ] ||
+        (fallbackAnimations.length
+            ? {
+                  animation:
+                      fallbackAnimations[
+                          Math.floor(Math.random() * fallbackAnimations.length)
+                      ].name,
+                  text: "Tutto pronto. Quale modulo apriamo?",
+              }
+            : null);
+    if (!reaction) return false;
     const animationDuration =
         availableAnimations.find((animation) => animation.name === reaction.animation)
             ?.duration || 0;
@@ -1674,18 +1835,75 @@ function openThemePanel() {
     setTimeout(() => themePassword?.focus(), 40);
 }
 
+function renderAssistantPicker(query = assistantPickerSearch?.value || "") {
+    if (!assistantPickerList || !assistantPickerEmpty) return;
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const catalog = [
+        { id: "arona", skel: "", atlas: "" },
+        { id: "plana", skel: "", atlas: "" },
+        ...importedAssistants,
+    ]
+        .map((character) => ({
+            ...character,
+            label: assistantDisplayName(character.id),
+        }))
+        .filter(
+            (character) =>
+                !normalizedQuery ||
+                character.label.toLocaleLowerCase().includes(normalizedQuery) ||
+                character.id.toLocaleLowerCase().includes(normalizedQuery),
+        )
+        .sort((left, right) =>
+            left.label.localeCompare(right.label, undefined, {
+                numeric: true,
+                sensitivity: "base",
+            }),
+        );
+
+    assistantPickerList.innerHTML = "";
+    for (const character of catalog) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "assistant-picker-option";
+        button.dataset.assistantId = character.id;
+        button.textContent = character.label;
+        button.setAttribute("role", "option");
+        button.setAttribute(
+            "aria-selected",
+            String(character.id === currentAssistant),
+        );
+        button.addEventListener("click", () => {
+            closeAssistantPicker();
+            if (character.id !== currentAssistant) {
+                initializeAssistant(character.id);
+            }
+        });
+        assistantPickerList.appendChild(button);
+    }
+    assistantPickerEmpty.hidden = catalog.length > 0;
+}
+
+function openAssistantPicker() {
+    if (!assistantPicker || !assistantSwitch) return;
+    renderAssistantPicker();
+    assistantPicker.setAttribute("aria-hidden", "false");
+    assistantSwitch.setAttribute("aria-expanded", "true");
+    setTimeout(() => {
+        assistantPickerSearch?.focus();
+        assistantPickerSearch?.select();
+    }, 30);
+}
+
+function closeAssistantPicker() {
+    assistantPicker?.setAttribute("aria-hidden", "true");
+    assistantSwitch?.setAttribute("aria-expanded", "false");
+}
+
 function renderAnimationButtons() {
     if (!animationGrid || !animationLabStatus) return;
     assistantSpeaking = true;
-    document
-        .querySelectorAll<HTMLButtonElement>("[data-animation-character]")
-        .forEach((button) =>
-            button.classList.toggle(
-                "active",
-                button.dataset.animationCharacter === currentAssistant,
-            ),
-        );
-    animationLabStatus.textContent = `${currentAssistant.toUpperCase()} // ${availableAnimations.length} ANIMAZIONI DISPONIBILI`;
+    const displayName = assistantDisplayName(currentAssistant).toUpperCase();
+    animationLabStatus.textContent = `${displayName} // ${availableAnimations.length} ANIMAZIONI DISPONIBILI`;
     animationGrid.innerHTML = "";
     availableAnimations.forEach((animation) => {
         const button = document.createElement("button");
@@ -1708,7 +1926,7 @@ function renderAnimationButtons() {
                 .forEach((item) =>
                     item.classList.toggle("active", item === button),
                 );
-            animationLabStatus.textContent = `${currentAssistant.toUpperCase()} // PLAYING: ${animation.name}${shouldLoop ? " // LOOP" : ""}`;
+            animationLabStatus.textContent = `${displayName} // PLAYING: ${animation.name}${shouldLoop ? " // LOOP" : ""}`;
             if (!shouldLoop) {
                 animationPlaybackTimer = setTimeout(
                     () => {
@@ -1716,7 +1934,7 @@ function renderAnimationButtons() {
                         assistantSpeaking = animationLabUnlocked;
                         button.classList.remove("active");
                         if (animationLabStatus) {
-                            animationLabStatus.textContent = `${currentAssistant.toUpperCase()} // ${availableAnimations.length} ANIMAZIONI DISPONIBILI`;
+                            animationLabStatus.textContent = `${displayName} // ${availableAnimations.length} ANIMAZIONI DISPONIBILI`;
                         }
                     },
                     Math.max(250, animation.duration * 1000 + 180),
@@ -1759,8 +1977,7 @@ function openNamePanel() {
         personalNameInput.value = personalName === "Sensei" ? "" : personalName;
     }
     if (nameAssistantLabel) {
-        nameAssistantLabel.textContent =
-            currentAssistant === "arona" ? "Arona" : "Plana";
+        nameAssistantLabel.textContent = assistantDisplayName(currentAssistant);
     }
     if (nameError) nameError.textContent = "";
     nameBackdrop?.setAttribute("aria-hidden", "false");
@@ -1905,21 +2122,6 @@ document
         animationLabPassword.value = "";
         renderAnimationButtons();
     });
-document
-    .querySelectorAll<HTMLButtonElement>("[data-animation-character]")
-    .forEach((button) => {
-        button.addEventListener("click", () => {
-            const character =
-                button.dataset.animationCharacter === "plana"
-                    ? "plana"
-                    : "arona";
-            if (character === currentAssistant && availableAnimations.length) {
-                renderAnimationButtons();
-                return;
-            }
-            initializeAssistant(character);
-        });
-    });
 timerClose?.addEventListener("click", closeTimerPanel);
 timerBackdrop?.addEventListener("click", (event) => {
     if (event.target === timerBackdrop) closeTimerPanel();
@@ -2059,8 +2261,16 @@ assistantHeadHitbox?.addEventListener("keyup", (event) => {
 
 assistantSwitch?.addEventListener("click", (event) => {
     event.stopPropagation();
-    initializeAssistant(currentAssistant === "arona" ? "plana" : "arona");
+    if (assistantPicker?.getAttribute("aria-hidden") === "false") {
+        closeAssistantPicker();
+    } else {
+        openAssistantPicker();
+    }
 });
+assistantPicker?.addEventListener("click", (event) => event.stopPropagation());
+assistantPickerClose?.addEventListener("click", closeAssistantPicker);
+assistantPickerSearch?.addEventListener("input", () => renderAssistantPicker());
+document.addEventListener("click", closeAssistantPicker);
 
 startupSequence?.addEventListener("click", finishStartup);
 
@@ -2099,7 +2309,7 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("DOMContentLoaded", () => {
     const appVersionElement = document.getElementById("appVersion");
-    if (appVersionElement) {
+    if (appVersionElement && typeof require === "function") {
         require("electron").ipcRenderer
             .invoke("get-app-version")
             .then((version: string) => {

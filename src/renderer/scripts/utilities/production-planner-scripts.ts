@@ -151,6 +151,11 @@ let resizeSession: null | {
     captureTarget: HTMLElement;
 } = null;
 let contextJobId = "";
+let contextMachineId = "";
+let pendingMachineShift: null | {
+    machineId: string;
+    direction: 1 | -1;
+} = null;
 let jobFormRevision = 0;
 let linkPickerDirection: "previous" | "next" = "next";
 let linkPickerCustomer = "";
@@ -300,6 +305,24 @@ function endForProductionDuration(start: string | Date, durationDays: number, ma
         if (!isWeekend(date) && !isMachineUnavailable(machineId, date)) producedDays += 1;
         if (producedDays >= duration) return date;
         date = addDays(date, 1);
+    }
+    return date;
+}
+
+function shiftByProductionDays(
+    value: string | Date,
+    productionDays: number,
+    machineId: string,
+) {
+    const direction = productionDays < 0 ? -1 : 1;
+    const daysToMove = Math.abs(Math.trunc(productionDays));
+    let date = parseDate(value);
+    let movedDays = 0;
+    for (let guard = 0; guard < 36600 && movedDays < daysToMove; guard += 1) {
+        date = addDays(date, direction);
+        if (!isWeekend(date) && !isMachineUnavailable(machineId, date)) {
+            movedDays += 1;
+        }
     }
     return date;
 }
@@ -2305,6 +2328,7 @@ function closeContextMenu() {
     menu.classList.remove("context-menu--link-picker");
     menu.setAttribute("aria-hidden", "true");
     contextJobId = "";
+    contextMachineId = "";
 }
 
 function keepContextMenuInViewport() {
@@ -2649,6 +2673,92 @@ function openContextMenu(jobId: string, event: MouseEvent) {
     menu.setAttribute("aria-hidden", "false");
     keepContextMenuInViewport();
     (menu.querySelector("[data-context-action='edit']") as HTMLButtonElement | null)?.focus();
+}
+
+function openMachineContextMenu(machineId: string, clickedDate: Date, event: MouseEvent) {
+    const menu = byId("job-context-menu");
+    const machine = state.machines.find((item) => item.id === machineId);
+    if (!menu || !machine) return;
+    event.preventDefault();
+    cancelActivePointerInteractions();
+    hideJobTooltip();
+    contextJobId = "";
+    contextMachineId = machineId;
+    const jobCount = state.jobs.filter(
+        (job) => job.machineId === machineId && !!job.start && !!job.end,
+    ).length;
+    const detail = jobCount
+        ? `${jobCount} ${jobCount === 1 ? "ordine pianificato" : "ordini pianificati"}`
+        : "Nessun ordine pianificato";
+    menu.classList.remove("context-menu--link-picker");
+    menu.classList.toggle("context-menu--flip", event.clientX + 520 > window.innerWidth);
+    menu.style.left = `${Math.max(8, event.clientX)}px`;
+    menu.style.top = `${Math.max(8, event.clientY)}px`;
+    menu.innerHTML = `
+        <div class="context-menu__heading context-menu__heading--machine">
+            <div>
+                <span>SPOSTA ORDINI · ${escapeHtml(formatLongDate(clickedDate))}</span>
+                <strong>${escapeHtml(machine.name)}</strong>
+                <small>${escapeHtml(detail)}</small>
+            </div>
+        </div>
+        <button type="button" data-machine-shift="forward" role="menuitem" ${jobCount ? "" : "disabled"}>
+            <span>→</span>
+            <div><strong>Aggiungi giorni</strong><small>Avanti, saltando i giorni non produttivi</small></div>
+        </button>
+        <button type="button" data-machine-shift="backward" role="menuitem" ${jobCount ? "" : "disabled"}>
+            <span>←</span>
+            <div><strong>Togli giorni</strong><small>Indietro, saltando i giorni non produttivi</small></div>
+        </button>`;
+    menu.classList.add("is-open");
+    menu.setAttribute("aria-hidden", "false");
+    keepContextMenuInViewport();
+    (menu.querySelector("[data-machine-shift='forward']") as HTMLButtonElement | null)?.focus();
+}
+
+function openMachineShiftPrompt(machineId: string, direction: 1 | -1) {
+    const machine = state.machines.find((item) => item.id === machineId);
+    const dialog = byId("machine-shift-dialog");
+    const input = byId("machine-shift-days") as HTMLInputElement | null;
+    if (!machine || !dialog || !input) return;
+    pendingMachineShift = { machineId, direction };
+    byId("machine-shift-direction")!.textContent = direction > 0
+        ? "AGGIUNGI GIORNI"
+        : "TOGLI GIORNI";
+    byId("machine-shift-title")!.textContent = direction > 0
+        ? "Sposta gli ordini in avanti"
+        : "Sposta gli ordini indietro";
+    byId("machine-shift-scope")!.textContent = `Macchina ${machine.name}. Verranno spostati tutti gli ordini pianificati su questa macchina.`;
+    byId("machine-shift-error")!.textContent = "";
+    input.value = "1";
+    openDialog("machine-shift-dialog");
+    requestAnimationFrame(() => {
+        input.focus();
+        input.select();
+    });
+}
+
+function closeMachineShiftPrompt() {
+    pendingMachineShift = null;
+    closeDialog("machine-shift-dialog");
+}
+
+function shiftMachineJobs(machineId: string, deltaDays: number) {
+    const jobs = state.jobs.filter(
+        (job) => job.machineId === machineId && !!job.start && !!job.end,
+    );
+    jobs.forEach((job) => {
+        const shiftedStart = shiftByProductionDays(job.start, deltaDays, machineId);
+        job.start = dateKey(shiftedStart);
+        job.end = dateKey(
+            endForProductionDuration(shiftedStart, job.durationDays || 1, machineId),
+        );
+        job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
+    });
+    if (!jobs.length) return 0;
+    saveState();
+    renderAll();
+    return jobs.length;
 }
 
 function scheduleJob(jobId: string, machineId: string, startDate: Date) {
@@ -3350,6 +3460,15 @@ function bindGlobalEvents() {
     byId("job-context-menu")?.addEventListener("click", (event) => {
         event.stopPropagation();
         const target = event.target as HTMLElement;
+        const machineShiftButton = target.closest("[data-machine-shift]") as HTMLElement | null;
+        if (machineShiftButton && contextMachineId) {
+            event.preventDefault();
+            const machineId = contextMachineId;
+            const direction = machineShiftButton.dataset.machineShift === "backward" ? -1 : 1;
+            closeContextMenu();
+            openMachineShiftPrompt(machineId, direction);
+            return;
+        }
         const directionButton = target.closest("[data-link-direction]") as HTMLElement | null;
         if (directionButton) {
             event.preventDefault();
@@ -3477,6 +3596,27 @@ function bindGlobalEvents() {
             renderAll();
             notify(`${job.progressDays}/${job.durationDays || 1} giorni processati`);
         }
+    });
+
+    document.querySelectorAll("[data-close-machine-shift]").forEach((button) => {
+        button.addEventListener("click", closeMachineShiftPrompt);
+    });
+    byId("machine-shift-form")?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!pendingMachineShift) return;
+        const input = byId("machine-shift-days") as HTMLInputElement | null;
+        const days = Number(input?.value);
+        const error = byId("machine-shift-error");
+        if (!Number.isInteger(days) || days < 1 || days > 3650) {
+            if (error) error.textContent = "Inserisci un numero intero di giorni compreso tra 1 e 3650.";
+            input?.focus();
+            return;
+        }
+        const { machineId, direction } = pendingMachineShift;
+        const machine = state.machines.find((item) => item.id === machineId);
+        const moved = shiftMachineJobs(machineId, days * direction);
+        closeMachineShiftPrompt();
+        notify(`${moved} ${moved === 1 ? "ordine spostato" : "ordini spostati"} ${direction > 0 ? "in avanti" : "indietro"} di ${days} ${days === 1 ? "giorno produttivo" : "giorni produttivi"}${machine ? ` · ${machine.name}` : ""}`);
     });
 
     byId("job-context-menu")?.addEventListener("change", (event) => {
@@ -3840,6 +3980,7 @@ function bindGlobalEvents() {
             closeDialog("machines-dialog");
             closeDialog("unavailability-dialog");
             closeDialog("closures-dialog");
+            closeMachineShiftPrompt();
             closeUnavailabilityRangeEditor();
         }
         if ((event.key === "Enter" || event.key === " ") && event.target instanceof HTMLElement) {
@@ -3881,6 +4022,20 @@ function bindGlobalEvents() {
         }
         const card = (event.target as HTMLElement).closest("[data-job-id]") as HTMLElement | null;
         if (!card) {
+            const lane = (event.target as HTMLElement).closest(".machine-days") as HTMLElement | null;
+            if (lane) {
+                const rect = lane.getBoundingClientRect();
+                const dayIndex = Math.max(
+                    0,
+                    Math.min(visibleDays - 1, Math.floor((event.clientX - rect.left) / dayWidth)),
+                );
+                openMachineContextMenu(
+                    lane.dataset.machineId || "",
+                    addDays(visibleStart, dayIndex),
+                    event as MouseEvent,
+                );
+                return;
+            }
             closeContextMenu();
             return;
         }
