@@ -1441,8 +1441,7 @@ private fun PlannerGanttGrid(
             }
             val fill = when {
                 stopped -> Color(0xFFEDE3F8)
-                day.dayOfWeek == DayOfWeek.SATURDAY ||
-                    day.dayOfWeek == DayOfWeek.SUNDAY -> Color(0xFFF1F4F8)
+                (day.dayOfWeek.value % 7) in machine.closedWeekdays -> Color(0xFFF1F4F8)
                 else -> Color.White
             }
             drawRect(

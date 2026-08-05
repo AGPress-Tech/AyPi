@@ -31,6 +31,7 @@ type Machine = {
     department: string;
     category: string;
     color: string;
+    closedWeekdays?: number[];
 };
 
 type ProductionJob = {
@@ -77,6 +78,7 @@ type MachineUnavailability = {
 type PlannerState = {
     version: 1;
     machineColorSchemeVersion?: number;
+    machineCalendarSchemeVersion?: number;
     machines: Machine[];
     jobs: ProductionJob[];
     unavailabilities: MachineUnavailability[];
@@ -84,6 +86,16 @@ type PlannerState = {
 
 const STORAGE_KEY = "aypi-production-planner-v1";
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_CLOSED_WEEKDAYS = [0, 6];
+const WEEKDAY_OPTIONS = [
+    { value: 1, short: "Lun", label: "Lunedì" },
+    { value: 2, short: "Mar", label: "Martedì" },
+    { value: 3, short: "Mer", label: "Mercoledì" },
+    { value: 4, short: "Gio", label: "Giovedì" },
+    { value: 5, short: "Ven", label: "Venerdì" },
+    { value: 6, short: "Sab", label: "Sabato" },
+    { value: 0, short: "Dom", label: "Domenica" },
+];
 let dayWidth = 92;
 
 const materialLabels: Record<MaterialStatus, string> = {
@@ -125,6 +137,7 @@ let visibleStart = startOfWeek(new Date());
 let visibleDays = 14;
 let draggedJobId = "";
 let draggedMachineId = "";
+let openMachineCalendarId = "";
 let machineAutoScrollFrame: number | null = null;
 let machineAutoScrollVelocity = 0;
 let jobDragAutoScrollFrame: number | null = null;
@@ -232,9 +245,29 @@ function isWeekend(value: string | Date) {
     return day === 0 || day === 6;
 }
 
-function nextWeekday(value: string | Date) {
+function normalizeClosedWeekdays(value: unknown) {
+    if (!Array.isArray(value)) return [...DEFAULT_CLOSED_WEEKDAYS];
+    const normalized = [...new Set(value
+        .map((day) => Number(day))
+        .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))]
+        .sort((left, right) => left - right);
+    return normalized.length < 7 ? normalized : [...DEFAULT_CLOSED_WEEKDAYS];
+}
+
+function machineClosedWeekdays(machineId: string) {
+    const machine = state.machines.find((item) => item.id === machineId);
+    return normalizeClosedWeekdays(machine?.closedWeekdays);
+}
+
+function isMachineStandardClosure(machineId: string, value: string | Date) {
+    return machineClosedWeekdays(machineId).includes(parseDate(value).getDay());
+}
+
+function nextMachineStandardOpenDay(value: string | Date, machineId: string) {
     let date = parseDate(value);
-    while (isWeekend(date)) date = addDays(date, 1);
+    for (let guard = 0; guard < 7 && isMachineStandardClosure(machineId, date); guard += 1) {
+        date = addDays(date, 1);
+    }
     return date;
 }
 
@@ -255,7 +288,7 @@ function countProductionDays(start: string | Date, end: string | Date, machineId
     if (!start || !end || parseDate(end) < parseDate(start)) return 0;
     let count = 0;
     for (let date = parseDate(start); date <= parseDate(end); date = addDays(date, 1)) {
-        if (!isWeekend(date) && !isMachineUnavailable(machineId, date)) count += 1;
+        if (!isMachineStandardClosure(machineId, date) && !isMachineUnavailable(machineId, date)) count += 1;
     }
     return count;
 }
@@ -279,7 +312,7 @@ function newlyBlockedProductionDates(
 ) {
     const dates: Date[] = [];
     for (let date = parseDate(start); date <= parseDate(end); date = addDays(date, 1)) {
-        if (isWeekend(date)) continue;
+        if (isMachineStandardClosure(machineId, date)) continue;
         const wasAlreadyUnavailable = previousUnavailabilities.some(
             (item) => item.machineId === machineId && unavailabilityContains(item, date),
         );
@@ -291,7 +324,7 @@ function newlyBlockedProductionDates(
 function nextAvailableProductionDay(value: string | Date, machineId: string) {
     let date = addDays(value, 1);
     for (let guard = 0; guard < 3660; guard += 1) {
-        if (!isWeekend(date) && !isMachineUnavailable(machineId, date)) return date;
+        if (!isMachineStandardClosure(machineId, date) && !isMachineUnavailable(machineId, date)) return date;
         date = addDays(date, 1);
     }
     return date;
@@ -299,10 +332,10 @@ function nextAvailableProductionDay(value: string | Date, machineId: string) {
 
 function endForProductionDuration(start: string | Date, durationDays: number, machineId: string) {
     const duration = Math.max(1, Math.round(durationDays || 1));
-    let date = nextWeekday(start);
+    let date = nextMachineStandardOpenDay(start, machineId);
     let producedDays = 0;
     for (let guard = 0; guard < 3660; guard += 1) {
-        if (!isWeekend(date) && !isMachineUnavailable(machineId, date)) producedDays += 1;
+        if (!isMachineStandardClosure(machineId, date) && !isMachineUnavailable(machineId, date)) producedDays += 1;
         if (producedDays >= duration) return date;
         date = addDays(date, 1);
     }
@@ -320,7 +353,7 @@ function shiftByProductionDays(
     let movedDays = 0;
     for (let guard = 0; guard < 36600 && movedDays < daysToMove; guard += 1) {
         date = addDays(date, direction);
-        if (!isWeekend(date) && !isMachineUnavailable(machineId, date)) {
+        if (!isMachineStandardClosure(machineId, date) && !isMachineUnavailable(machineId, date)) {
             movedDays += 1;
         }
     }
@@ -330,6 +363,7 @@ function shiftByProductionDays(
 function recalculateMachineSchedule(machineId: string) {
     state.jobs.forEach((job) => {
         if (job.machineId !== machineId || !job.start || job.workStatus === "done") return;
+        job.start = dateKey(nextMachineStandardOpenDay(job.start, machineId));
         job.end = dateKey(endForProductionDuration(job.start, job.durationDays || 1, machineId));
         job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
     });
@@ -506,8 +540,12 @@ function loadState(): PlannerState {
             const initialState: PlannerState = {
                 version: 1,
                 machineColorSchemeVersion: 2,
+                machineCalendarSchemeVersion: 1,
                 machines: normalizeMachineGroupColors(
-                    defaultMachines.map((machine) => ({ ...machine })),
+                    defaultMachines.map((machine) => ({
+                        ...machine,
+                        closedWeekdays: [...DEFAULT_CLOSED_WEEKDAYS],
+                    })),
                     true,
                 ),
                 jobs: [],
@@ -581,21 +619,25 @@ function loadState(): PlannerState {
         });
         const shouldRegenerateMachineColors =
             Number(parsed.machineColorSchemeVersion) < 2;
+        const shouldMigrateMachineCalendars =
+            Number(parsed.machineCalendarSchemeVersion) < 1;
         const machines = normalizeMachineGroupColors(
             parsed.machines.map((machine: Machine) => ({
                 ...machine,
                 category: String(machine.category || "").trim() || "Senza categoria",
+                closedWeekdays: normalizeClosedWeekdays(machine.closedWeekdays),
             })),
             shouldRegenerateMachineColors,
         );
         const normalizedState: PlannerState = {
             version: 1,
             machineColorSchemeVersion: 2,
+            machineCalendarSchemeVersion: 1,
             machines,
             jobs,
             unavailabilities,
         };
-        if (shouldRegenerateMachineColors) {
+        if (shouldRegenerateMachineColors || shouldMigrateMachineCalendars) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedState));
         }
         return normalizedState;
@@ -604,8 +646,12 @@ function loadState(): PlannerState {
         const fallbackState: PlannerState = {
             version: 1,
             machineColorSchemeVersion: 2,
+            machineCalendarSchemeVersion: 1,
             machines: normalizeMachineGroupColors(
-                defaultMachines.map((machine) => ({ ...machine })),
+                defaultMachines.map((machine) => ({
+                    ...machine,
+                    closedWeekdays: [...DEFAULT_CLOSED_WEEKDAYS],
+                })),
                 true,
             ),
             jobs: [],
@@ -726,12 +772,14 @@ function applyRemoteSnapshot(snapshot: any, announce = false) {
     const previousMachineOrder = state.machines.map((machine) => machine.id).join("|");
     const needsMachineColorMigration =
         Number(snapshot.state.machineColorSchemeVersion) < 2;
+    const needsMachineCalendarMigration =
+        Number(snapshot.state.machineCalendarSchemeVersion) < 1;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot.state));
     state = loadState();
     remoteRevision = Number(snapshot.revision) || 0;
     localDirty = false;
     resetUndoHistory();
-    if (needsMachineColorMigration) {
+    if (needsMachineColorMigration || needsMachineCalendarMigration) {
         saveState();
     } else {
         setSyncStatus(
@@ -1451,11 +1499,6 @@ function renderTimeline() {
             <span>${new Intl.DateTimeFormat("it-IT", { month: "short" }).format(date).replace(".", "")}</span>
         </div>`;
     }).join("");
-    const dayGridCells = Array.from({ length: visibleDays }, (_, index) => {
-        const date = addDays(visibleStart, index);
-        return `<i class="day-grid-cell${isWeekend(date) ? " is-weekend" : ""}"></i>`;
-    }).join("");
-
     const todayOffset = diffDays(new Date(), visibleStart);
     const activeFilters = getFilters();
     const hasJobContentFilters =
@@ -1475,6 +1518,10 @@ function renderTimeline() {
     });
 
     const rows = machines.map((machine) => {
+        const dayGridCells = Array.from({ length: visibleDays }, (_, index) => {
+            const date = addDays(visibleStart, index);
+            return `<i class="day-grid-cell${isMachineStandardClosure(machine.id, date) ? " is-weekend" : ""}"></i>`;
+        }).join("");
         const jobs = state.jobs.filter((job) => job.machineId === machine.id && isVisible(job) && jobMatches(job));
         const trackData = assignTracks(jobs);
         const rowHeight = Math.max(82, trackData.count * 62 + 14);
@@ -1629,8 +1676,14 @@ function renderStats() {
 function renderMachinesDialog() {
     const list = byId("machine-list");
     if (!list) return;
-    list.innerHTML = state.machines.map((machine) => `
-        <div class="machine-item" data-machine-id="${escapeHtml(machine.id)}" style="--machine-color:${escapeHtml(machine.color)}">
+    list.innerHTML = state.machines.map((machine) => {
+        const closedWeekdays = normalizeClosedWeekdays(machine.closedWeekdays);
+        const weeklySummary = WEEKDAY_OPTIONS
+            .filter((day) => closedWeekdays.includes(day.value))
+            .map((day) => day.short)
+            .join(", ") || "Nessuno";
+        return `
+        <div class="machine-item ${openMachineCalendarId === machine.id ? "is-calendar-open" : ""}" data-machine-id="${escapeHtml(machine.id)}" style="--machine-color:${escapeHtml(machine.color)}">
             <button class="machine-drag-handle" draggable="true" type="button"
                 aria-label="Trascina per riordinare ${escapeHtml(machine.name)}"
                 title="Trascina per riordinare"><span></span><span></span><span></span><span></span><span></span><span></span></button>
@@ -1638,8 +1691,22 @@ function renderMachinesDialog() {
             <input data-machine-field="name" value="${escapeHtml(machine.name)}" aria-label="Nome macchina">
             <input data-machine-field="department" value="${escapeHtml(machine.department)}" aria-label="Reparto">
             <input data-machine-field="category" value="${escapeHtml(machine.category)}" aria-label="Categoria">
+            <button class="machine-calendar-trigger" data-toggle-machine-calendar type="button"
+                aria-expanded="${openMachineCalendarId === machine.id}" title="Configura giorni di chiusura standard">
+                <span>Giorni chiusi</span><small>${escapeHtml(weeklySummary)}</small>
+            </button>
             <button class="machine-remove" data-remove-machine type="button">Rimuovi</button>
-        </div>`).join("");
+            <div class="machine-weekly-calendar" aria-label="Giorni di chiusura standard di ${escapeHtml(machine.name)}">
+                <div><strong>Chiusura settimanale</strong><small>I giorni selezionati vengono saltati nella pianificazione.</small></div>
+                <div class="machine-weekday-buttons">
+                    ${WEEKDAY_OPTIONS.map((day) => `
+                        <button class="${closedWeekdays.includes(day.value) ? "is-selected" : ""}"
+                            data-machine-closed-weekday="${day.value}" type="button"
+                            aria-pressed="${closedWeekdays.includes(day.value)}" title="${day.label}">${day.short}</button>`).join("")}
+                </div>
+            </div>
+        </div>`;
+    }).join("");
 }
 
 function clearMachineDropIndicators() {
@@ -1750,11 +1817,22 @@ function renderUnavailabilityMachineSelect() {
     if (state.machines.some((machine) => machine.id === selected)) select.value = selected;
 }
 
+function matchesTemporalDateRange(
+    item: MachineUnavailability,
+    from: string,
+    to: string,
+) {
+    return (!from || item.end >= from) && (!to || item.start <= to);
+}
+
 function renderUnavailabilityList() {
     const list = byId("unavailability-list");
     if (!list) return;
+    const from = inputValue("unavailability-filter-from");
+    const to = inputValue("unavailability-filter-to");
     const items = state.unavailabilities
         .filter((item) => item.type === "breakdown" || item.type === "maintenance")
+        .filter((item) => matchesTemporalDateRange(item, from, to))
         .slice()
         .sort((left, right) => parseDate(left.start).getTime() - parseDate(right.start).getTime());
     list.innerHTML = items.length
@@ -1826,9 +1904,12 @@ function renderClosureTargets() {
 function renderClosureList() {
     const list = byId("closure-list");
     if (!list) return;
+    const from = inputValue("closure-filter-from");
+    const to = inputValue("closure-filter-to");
     const groups = new Map<string, MachineUnavailability[]>();
     state.unavailabilities
         .filter((item) => item.type === "vacation" || item.type === "closure")
+        .filter((item) => matchesTemporalDateRange(item, from, to))
         .forEach((item) => {
             const key = item.groupId || item.id;
             if (!groups.has(key)) groups.set(key, []);
@@ -2043,6 +2124,7 @@ function closeDialog(id: string) {
     if (id === "machines-dialog") {
         stopMachineListAutoScroll();
         draggedMachineId = "";
+        openMachineCalendarId = "";
         clearMachineDropIndicators();
     }
     dialog.classList.remove("is-open");
@@ -2198,7 +2280,9 @@ async function saveJobFromForm(event: SubmitEvent) {
     }
     const machineId = inputValue("job-machine");
     const rawStart = inputValue("job-start");
-    const start = rawStart ? dateKey(nextWeekday(rawStart)) : "";
+    const start = rawStart
+        ? dateKey(nextMachineStandardOpenDay(rawStart, machineId))
+        : "";
     const durationDays = Math.max(1, Math.round(Number(inputValue("job-duration")) || 1));
     const error = byId("job-form-error")!;
     if (machineId && !start) {
@@ -2764,7 +2848,7 @@ function shiftMachineJobs(machineId: string, deltaDays: number) {
 function scheduleJob(jobId: string, machineId: string, startDate: Date) {
     const job = state.jobs.find((item) => item.id === jobId);
     if (!job) return;
-    const scheduledStart = nextWeekday(startDate);
+    const scheduledStart = nextMachineStandardOpenDay(startDate, machineId);
     job.machineId = machineId;
     job.start = dateKey(scheduledStart);
     job.end = dateKey(endForProductionDuration(scheduledStart, job.durationDays || 1, machineId));
@@ -3053,7 +3137,7 @@ function showDragPreview(lane: HTMLElement, clientX: number) {
     const rect = lane.getBoundingClientRect();
     const dayIndex = Math.max(0, Math.min(visibleDays - 1, Math.floor((clientX - rect.left) / dayWidth)));
     const requestedDate = addDays(visibleStart, dayIndex);
-    const scheduledStart = nextWeekday(requestedDate);
+    const scheduledStart = nextMachineStandardOpenDay(requestedDate, machineId);
     const scheduledEnd = endForProductionDuration(scheduledStart, job.durationDays || 1, machineId);
     const rawStartIndex = diffDays(scheduledStart, visibleStart);
     const rawEndIndex = diffDays(scheduledEnd, visibleStart);
@@ -3309,6 +3393,9 @@ function bindGlobalEvents() {
         openDialog("unavailability-dialog");
     });
 
+    byId("unavailability-filter-from")?.addEventListener("change", renderUnavailabilityList);
+    byId("unavailability-filter-to")?.addEventListener("change", renderUnavailabilityList);
+
     byId("manage-closures")?.addEventListener("click", () => {
         renderClosureTargets();
         renderClosureList();
@@ -3318,6 +3405,9 @@ function bindGlobalEvents() {
         (byId("closure-title") as HTMLInputElement).value = "";
         openDialog("closures-dialog");
     });
+
+    byId("closure-filter-from")?.addEventListener("change", renderClosureList);
+    byId("closure-filter-to")?.addEventListener("change", renderClosureList);
 
     byId("closures-dialog")?.addEventListener("change", (event) => {
         const input = event.target as HTMLInputElement;
@@ -3676,6 +3766,7 @@ function bindGlobalEvents() {
             department,
             category,
             color: "",
+            closedWeekdays: [...DEFAULT_CLOSED_WEEKDAYS],
         };
         assignColorForMachineGroup(machine);
         state.machines.push(machine);
@@ -3791,7 +3882,42 @@ function bindGlobalEvents() {
     });
 
     byId("machine-list")?.addEventListener("click", async (event) => {
-        const button = (event.target as HTMLElement).closest("[data-remove-machine]");
+        const target = event.target as HTMLElement;
+        const calendarToggle = target.closest("[data-toggle-machine-calendar]");
+        const weekdayButton = target.closest<HTMLElement>("[data-machine-closed-weekday]");
+        const calendarRow = (calendarToggle || weekdayButton)?.closest("[data-machine-id]") as HTMLElement | null;
+        const calendarMachine = state.machines.find((item) => item.id === calendarRow?.dataset.machineId);
+        if (calendarToggle && calendarMachine) {
+            event.preventDefault();
+            event.stopPropagation();
+            openMachineCalendarId = openMachineCalendarId === calendarMachine.id
+                ? ""
+                : calendarMachine.id;
+            renderMachinesDialog();
+            return;
+        }
+        if (weekdayButton && calendarMachine) {
+            event.preventDefault();
+            event.stopPropagation();
+            const weekday = Number(weekdayButton.dataset.machineClosedWeekday);
+            const closed = new Set(normalizeClosedWeekdays(calendarMachine.closedWeekdays));
+            if (closed.has(weekday)) closed.delete(weekday);
+            else {
+                if (closed.size >= 6) {
+                    notify("Lascia almeno un giorno produttivo alla settimana");
+                    return;
+                }
+                closed.add(weekday);
+            }
+            calendarMachine.closedWeekdays = [...closed].sort((left, right) => left - right);
+            recalculateMachineSchedule(calendarMachine.id);
+            saveState();
+            renderMachinesDialog();
+            renderAll();
+            notify(`Calendario settimanale aggiornato · ${calendarMachine.name}`);
+            return;
+        }
+        const button = target.closest("[data-remove-machine]");
         if (!button) return;
         event.preventDefault();
         event.stopPropagation();

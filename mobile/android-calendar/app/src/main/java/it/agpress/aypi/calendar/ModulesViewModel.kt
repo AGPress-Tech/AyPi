@@ -21,8 +21,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
-import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 data class ModulesUiState(
     val purchasing: PurchasingSnapshot = PurchasingSnapshot(),
@@ -249,8 +249,11 @@ class ModulesViewModel(application: Application) : AndroidViewModel(application)
             val objects = (0 until jobs.length()).mapNotNull { jobs.optJSONObject(it) }.toMutableList()
             val existingIndex = objects.indexOfFirst { it.optString("id") == draft.id }
             val existing = objects.getOrNull(existingIndex) ?: JSONObject()
-            val start = draft.start?.toString().orEmpty()
-            val end = draft.start?.let {
+            val normalizedStart = draft.start?.let {
+                nextPlannerStandardOpenDay(it, draft.machineId, _state.value.planner)
+            }
+            val start = normalizedStart?.toString().orEmpty()
+            val end = normalizedStart?.let {
                 calculatePlannerEnd(
                     it,
                     draft.durationDays,
@@ -270,7 +273,14 @@ class ModulesViewModel(application: Application) : AndroidViewModel(application)
                 .put("start", start)
                 .put("end", end)
                 .put("durationDays", draft.durationDays)
-                .put("baseSpanDays", draft.durationDays)
+                .put(
+                    "baseSpanDays",
+                    if (normalizedStart != null && end.isNotBlank()) {
+                        ChronoUnit.DAYS.between(normalizedStart, LocalDate.parse(end)).toInt() + 1
+                    } else {
+                        draft.durationDays
+                    },
+                )
                 .put("dueDate", draft.dueDate?.toString().orEmpty())
                 .put("firstDeliveryDate", draft.firstDeliveryDate?.toString().orEmpty())
                 .put("materialStatus", draft.materialStatus)
@@ -382,10 +392,12 @@ class ModulesViewModel(application: Application) : AndroidViewModel(application)
     ): LocalDate {
         var cursor = start
         var remaining = durationDays.coerceAtLeast(1)
+        val closedWeekdays = planner.machines
+            .firstOrNull { it.id == machineId }
+            ?.closedWeekdays
+            ?: listOf(0, 6)
         while (true) {
-            val weekend =
-                cursor.dayOfWeek == DayOfWeek.SATURDAY ||
-                    cursor.dayOfWeek == DayOfWeek.SUNDAY
+            val standardClosure = (cursor.dayOfWeek.value % 7) in closedWeekdays
             val unavailable = planner.unavailabilities.any {
                 (it.machineId.isBlank() || it.machineId == machineId) &&
                     runCatching {
@@ -394,11 +406,28 @@ class ModulesViewModel(application: Application) : AndroidViewModel(application)
                         !cursor.isBefore(first) && !cursor.isAfter(last)
                     }.getOrDefault(false)
             }
-            if (!weekend && !unavailable) {
+            if (!standardClosure && !unavailable) {
                 remaining--
                 if (remaining == 0) return cursor
             }
             cursor = cursor.plusDays(1)
         }
+    }
+
+    private fun nextPlannerStandardOpenDay(
+        start: LocalDate,
+        machineId: String,
+        planner: PlannerSnapshot,
+    ): LocalDate {
+        val closedWeekdays = planner.machines
+            .firstOrNull { it.id == machineId }
+            ?.closedWeekdays
+            ?: listOf(0, 6)
+        var cursor = start
+        repeat(7) {
+            if ((cursor.dayOfWeek.value % 7) !in closedWeekdays) return cursor
+            cursor = cursor.plusDays(1)
+        }
+        return start
     }
 }

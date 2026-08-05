@@ -303,6 +303,10 @@
                 <button class="dialog__close" data-close-unavailability type="button" aria-label="Chiudi">×</button>
             </header>
             <p class="dialog__intro">Inserisci un guasto o una manutenzione per una singola macchina.</p>
+            <div class="temporal-list-filter">
+                <label>Da<input id="unavailability-filter-from" type="date"></label>
+                <label>A<input id="unavailability-filter-to" type="date"></label>
+            </div>
             <div class="unavailability-list" id="unavailability-list"></div>
             <form class="unavailability-form" id="unavailability-form">
                 <label>Macchina<select id="unavailability-machine" required></select></label>
@@ -332,6 +336,10 @@
                 <button class="dialog__close" data-close-closures type="button" aria-label="Chiudi">×</button>
             </header>
             <p class="dialog__intro">Applica una regola a tutta l'azienda oppure a più reparti e macchine contemporaneamente.</p>
+            <div class="temporal-list-filter">
+                <label>Da<input id="closure-filter-from" type="date"></label>
+                <label>A<input id="closure-filter-to" type="date"></label>
+            </div>
             <div class="closure-list" id="closure-list"></div>
             <form class="closure-form" id="closure-form">
                 <div class="closure-form__dates">

@@ -87,6 +87,7 @@ data class PlannerMachine(
     val department: String,
     val category: String,
     val color: String,
+    val closedWeekdays: List<Int>,
 )
 
 data class PlannerJob(
@@ -229,12 +230,21 @@ fun parsePlanner(source: JSONObject): PlannerSnapshot {
         updatedAt = source.optString("updatedAt"),
         updatedBy = source.optString("updatedBy"),
         machines = state.optJSONArray("machines").jsonObjects().map {
+            val closedWeekdays = it.optJSONArray("closedWeekdays")?.let { days ->
+                (0 until days.length())
+                    .map { index -> days.optInt(index, -1) }
+                    .filter { day -> day in 0..6 }
+                    .distinct()
+                    .takeIf { daysList -> daysList.size < 7 }
+                    ?: listOf(0, 6)
+            } ?: listOf(0, 6)
             PlannerMachine(
                 id = it.optString("id"),
                 name = it.optString("name"),
                 department = it.optString("department"),
                 category = it.optString("category"),
                 color = it.optString("color", "#2386D8"),
+                closedWeekdays = closedWeekdays,
             )
         },
         jobs = state.optJSONArray("jobs").jsonObjects().map {
