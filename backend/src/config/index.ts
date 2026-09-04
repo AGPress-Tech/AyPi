@@ -45,6 +45,10 @@ const haasAttrezzaggioDir = getEnvString(
     "AYPI_HAAS_DIR",
     path.join(feriePermessiBaseDir, "Schede Attrezzaggio", "HAAS"),
 );
+const registrazioniProgettazioneStampiDir = getEnvString(
+    "AYPI_REGISTRAZIONI_PROGETTAZIONE_STAMPI_DIR",
+    path.join(feriePermessiBaseDir, "Registrazioni Progettazione", "Costruzione Stampi"),
+);
 const backendLogDir = getEnvString(
     "AYPI_LOG_DIR",
     path.join(feriePermessiGeneralDir, "log"),
@@ -93,6 +97,9 @@ export const backendConfig = {
         },
         haasAttrezzaggio: {
             dir: haasAttrezzaggioDir,
+        },
+        registrazioniProgettazioneStampi: {
+            dir: registrazioniProgettazioneStampiDir,
         },
     },
 };

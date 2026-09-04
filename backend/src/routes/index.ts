@@ -6,6 +6,7 @@ import { registerTicketSupportRoutes } from "../modules/ticket-support/routes";
 import { registerTransferAttrezzaggioRoutes } from "../modules/transfer-attrezzaggio/routes";
 import { registerHaasAttrezzaggioRoutes } from "../modules/haas-attrezzaggio/routes";
 import { registerProductionPlannerRoutes } from "../modules/production-planner/routes";
+import { registerRegistrazioniProgettazioneStampiRoutes } from "../modules/registrazioni-progettazione-stampi/routes";
 import { sendJson } from "../shared/http/response";
 import { backendConfig } from "../config";
 import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
@@ -23,6 +24,7 @@ export function registerRoutes(router: Router) {
                 "transfer-attrezzaggio",
                 "haas-attrezzaggio",
                 "production-planner",
+                "registrazioni-progettazione-stampi",
                 "telegram-bot",
             ],
             host: backendConfig.advertisedHost,
@@ -49,4 +51,5 @@ export function registerRoutes(router: Router) {
     registerTransferAttrezzaggioRoutes(router);
     registerHaasAttrezzaggioRoutes(router);
     registerProductionPlannerRoutes(router);
+    registerRegistrazioniProgettazioneStampiRoutes(router);
 }

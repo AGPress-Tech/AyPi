@@ -148,6 +148,11 @@ const pages: Record<string, PageDefinition> = {
                 description: "Configurazioni di attrezzaggio",
                 channel: "open-attrezzaggio-window",
             },
+            {
+                label: "Registrazioni Progettazione",
+                description: "Registrazioni stampi e progetti speciali",
+                channel: "open-registrazioni-progettazione-window",
+            },
         ],
     },
     produzioni: {
@@ -1393,6 +1398,7 @@ robotConsoleBack?.addEventListener("click", openRobotConsoleSelector);
 robotConsoleBackdrop?.addEventListener("click", (event) => {
     if (event.target === robotConsoleBackdrop) closeRobotConsole();
 });
+
 document.addEventListener("keydown", (event) => {
     if (
         event.key === "Escape" &&

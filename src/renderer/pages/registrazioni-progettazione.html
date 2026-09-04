@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrazioni Progettazione</title>
+    <link rel="stylesheet" href="../styles/attrezzaggio-style.css">
+    <link rel="stylesheet" href="../styles/registrazioni-progettazione-style.css">
+</head>
+
+<body>
+    <main class="container">
+        <section id="homeView" class="view">
+            <article class="home-card">
+                <h1>Registrazioni Progettazione</h1>
+                <p class="home-subtitle">Seleziona la tipologia di registrazione da gestire.</p>
+                <div class="home-actions">
+                    <button id="openStampiBtn" type="button">Registrazioni Progettazione - Costruzione Stampi</button>
+                    <button id="openSpecialiBtn" type="button">Registrazioni Progetti Speciali</button>
+                    <button id="closeWindowBtn" type="button">Chiudi</button>
+                </div>
+            </article>
+        </section>
+
+        <section id="listView" class="view hidden" aria-live="polite">
+            <div class="toolbar">
+                <button id="backFromListBtn" type="button">Indietro</button>
+                <button id="createBtn" type="button">Crea Nuova Registrazione</button>
+            </div>
+            <h2 id="listTitle"></h2>
+            <p id="listDescription" class="home-subtitle"></p>
+            <p id="listCount" class="list-count">0 registrazioni</p>
+            <ul id="registrationsList" class="cards-list" aria-label="Elenco registrazioni"></ul>
+            <div id="emptyList" class="empty-list hidden">
+                <h3>Nessuna registrazione presente</h3>
+                <p>Le registrazioni create compariranno in questo elenco.</p>
+                <button id="createEmptyBtn" type="button">Crea Nuova Registrazione</button>
+            </div>
+        </section>
+
+        <section id="createView" class="view hidden">
+            <div class="toolbar">
+                <button id="backFromCreateBtn" type="button">Indietro all'elenco</button>
+                <button id="newFormBtn" type="button">Nuova</button>
+                <button id="saveFormBtn" type="button">Salva Registrazione</button>
+            </div>
+
+            <div id="stampiForm" class="design-workspace hidden">
+            <article class="design-sheet">
+                <header class="design-sheet-head">
+                    <div class="design-brand">
+                        <img src="../assets/agpress-logo-generico.png" alt="A.G.PRESS">
+                    </div>
+                    <div class="design-title">REGISTRAZIONE DELLA PROGETTAZIONE<br>- COSTRUZIONE STAMPI -</div>
+                </header>
+
+                <section class="form-section">
+                    <div class="section-heading">
+                        <span class="section-number">01</span>
+                        <div>
+                            <h2>Dati del progetto</h2>
+                            <p>Identificazione e descrizione generale.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid project-grid">
+                        <label><span class="field-label">Progetto Numero <b class="required">*</b></span>
+                            <input id="progettoNumero" type="text" autocomplete="off">
+                        </label>
+                        <label>Descrizione del progetto
+                            <input id="descrizioneProgetto" type="text">
+                        </label>
+                        <label>Tipologia
+                            <input id="tipologia" type="text">
+                        </label>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <div class="section-heading">
+                        <span class="section-number">02</span>
+                        <div>
+                            <h2>Classificazione del progetto</h2>
+                            <p>Origine, personalizzazioni e revisione.</p>
+                        </div>
+                    </div>
+                    <div class="choice-grid">
+                        <fieldset>
+                            <legend>Nuovo progetto</legend>
+                            <label><input type="radio" name="nuovoProgetto" value="si"> Sì</label>
+                            <label><input type="radio" name="nuovoProgetto" value="no"> No</label>
+                        </fieldset>
+                        <fieldset>
+                            <legend>Origine del progetto</legend>
+                            <label><input type="radio" name="origineProgetto" value="interno"> Progetto Interno</label>
+                            <label><input type="radio" name="origineProgetto" value="cliente"> Progetto Cliente</label>
+                        </fieldset>
+                        <fieldset>
+                            <legend>Personalizzazione Cliente</legend>
+                            <label><input type="radio" name="personalizzazioneCliente" value="si"> Sì</label>
+                            <label><input type="radio" name="personalizzazioneCliente" value="no"> No</label>
+                        </fieldset>
+                        <fieldset>
+                            <legend>Revisione Vecchio Progetto</legend>
+                            <label><input type="radio" name="revisioneVecchioProgetto" value="si"> Sì</label>
+                            <label><input type="radio" name="revisioneVecchioProgetto" value="no"> No</label>
+                        </fieldset>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <div class="section-heading">
+                        <span class="section-number">03</span>
+                        <div>
+                            <h2>Caratteristiche tecniche</h2>
+                            <p>Dati dell'articolo, dello stampo e requisiti interni.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid technical-grid">
+                        <label>Codice Articolo<input id="codiceArticolo" type="text"></label>
+                        <label>Dimensione dello Stampo<input id="dimensioneStampo" type="text"></label>
+                        <label>Materiale Previsto<input id="materialePrevisto" type="text"></label>
+                        <label>Peso dello stampato (g)<input id="pesoStampato" type="number" min="0" step="any"></label>
+                        <fieldset>
+                            <legend>Requisiti Interni UNI EN 12420</legend>
+                            <label><input type="radio" name="requisitiUniEn12420" value="si"> Sì</label>
+                            <label><input type="radio" name="requisitiUniEn12420" value="no"> No</label>
+                        </fieldset>
+                        <fieldset>
+                            <legend>Requisiti interni di Brevetto</legend>
+                            <label><input type="radio" name="requisitiBrevetto" value="si"> Sì</label>
+                            <label><input type="radio" name="requisitiBrevetto" value="no"> No</label>
+                        </fieldset>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <div class="section-heading">
+                        <span class="section-number">04</span>
+                        <div>
+                            <h2>Pianificazione</h2>
+                            <p>Date richieste e termine effettivo della progettazione.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid dates-grid">
+                        <label>Consegna Richiesta dal Cliente<input id="consegnaRichiestaCliente" type="date"></label>
+                        <label>Sviluppo Progettazione da Ultimare Entro<input id="sviluppoDaUltimareEntro" type="date"></label>
+                        <label>Data Effettiva di Termine Progettazione<input id="dataTermineEffettiva" type="date"></label>
+                    </div>
+                </section>
+
+                <section class="form-section analysis-section">
+                    <div class="section-heading">
+                        <span class="section-number">05</span>
+                        <div>
+                            <h2>DFMEA - PFMEA e rischio percepito</h2>
+                            <p>Valutazione preliminare tratta dal modello M19-7.</p>
+                        </div>
+                    </div>
+                    <div class="analysis-grid">
+                        <fieldset class="check-panel">
+                            <legend>Previste modifiche alla progettazione e/o ai processi?</legend>
+                            <div class="check-panel-body">
+                                <div class="check-options">
+                                    <label><input type="checkbox" name="dfmeaPfmea" value="materiali"> Materiali</label>
+                                    <label><input type="checkbox" name="dfmeaPfmea" value="metodi-produzione-controllo"> Metodi di produzione e controllo</label>
+                                    <label><input type="checkbox" name="dfmeaPfmea" value="formazione-personale"> Formazione del personale</label>
+                                    <label><input type="checkbox" name="dfmeaPfmea" value="attrezzature-macchine"> Attrezzature e/o macchine</label>
+                                </div>
+                                <label class="dfmea-note">Note
+                                    <textarea id="dfmeaPfmeaNote" rows="4"></textarea>
+                                </label>
+                            </div>
+                        </fieldset>
+                        <fieldset class="risk-panel">
+                            <legend>Rischio di Progetto Percepito</legend>
+                            <p>Costruzione, sicurezza del prodotto, fallimento del progetto, ecc.</p>
+                            <div class="risk-options">
+                                <label class="risk-high"><span>Alto</span><textarea id="rischioAlto" rows="4"></textarea></label>
+                                <label class="risk-medium"><span>Medio</span><textarea id="rischioMedio" rows="4"></textarea></label>
+                                <label class="risk-low"><span>Basso</span><textarea id="rischioBasso" rows="4"></textarea></label>
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <div class="section-heading">
+                        <span class="section-number">06</span>
+                        <div>
+                            <h2>Note e Allegati</h2>
+                            <p>Informazioni aggiuntive e documentazione di supporto.</p>
+                        </div>
+                    </div>
+                    <label class="full-field">Note<textarea id="note" rows="5"></textarea></label>
+                    <div class="attachments-section design-attachments">
+                        <div class="attachments-topbar">
+                            <h3>Allegati</h3>
+                            <button id="addAttachmentBtn" type="button">Aggiungi File</button>
+                            <input id="attachmentInput" type="file" multiple hidden>
+                        </div>
+                        <div id="attachmentsList" class="document-attachments"></div>
+                    </div>
+                </section>
+
+                <section class="form-section completion-section">
+                    <div class="section-heading">
+                        <span class="section-number">07</span>
+                        <div>
+                            <h2>Emissione del blocco</h2>
+                            <p>Il blocco risulta completo quando entrambi i campi sono compilati.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid issue-grid">
+                        <label><span class="field-label">Data <b class="required">*</b></span><input id="data" type="date"></label>
+                        <label><span class="field-label">Emesso da <b class="required">*</b></span>
+                            <input id="emessoDa" type="text">
+                            <small>Responsabile qualità e progettazione</small>
+                        </label>
+                    </div>
+                </section>
+            </article>
+
+            <aside class="progress-sidebar" aria-label="Avanzamento registrazione">
+                <div class="progress-heading">
+                    <h2>Avanzamento</h2>
+                    <p>La checklist si aggiorna automaticamente.</p>
+                </div>
+                <ol class="progress-list">
+                    <li id="blockStatus" class="progress-step" data-complete="false">
+                        <span class="progress-marker">1</span>
+                        <div><strong>Requisiti di base</strong><small id="blockStatusText">Da completare</small></div>
+                    </li>
+                    <li class="progress-step is-future"><span class="progress-marker">2</span><div><strong>1° Riesame del progetto</strong><small>Non iniziato</small></div></li>
+                    <li class="progress-step is-future"><span class="progress-marker">3</span><div><strong>1ª Verifica del progetto</strong><small>Non iniziato</small></div></li>
+                    <li class="progress-step is-future"><span class="progress-marker">4</span><div><strong>2ª Verifica del progetto</strong><small>Non iniziato</small></div></li>
+                    <li class="progress-step is-future"><span class="progress-marker">5</span><div><strong>3ª Verifica eventuale</strong><small>Non iniziato</small></div></li>
+                    <li class="progress-step is-future"><span class="progress-marker">6</span><div><strong>2° Riesame del progetto</strong><small>Non iniziato</small></div></li>
+                    <li class="progress-step is-future"><span class="progress-marker">7</span><div><strong>Validazione del progetto</strong><small>Non iniziato</small></div></li>
+                    <li class="progress-step is-future"><span class="progress-marker">8</span><div><strong>Modifiche al progetto</strong><small>Non iniziato</small></div></li>
+                </ol>
+            </aside>
+            </div>
+
+            <article id="specialiPlaceholder" class="sheet hidden">
+                <header class="sheet-head">
+                    <div id="createTitle" class="sheet-title"></div>
+                    <div class="sheet-code">Nuova registrazione</div>
+                </header>
+                <section class="form-placeholder">
+                    <h2>Struttura della registrazione da definire</h2>
+                    <p>Il modulo Progetti Speciali verrà costruito nella fase dedicata.</p>
+                    <button id="returnToListBtn" type="button">Torna all'elenco</button>
+                </section>
+            </article>
+        </section>
+    </main>
+
+    <script src="../scripts/registrazioni-progettazione-scripts.js"></script>
+</body>
+
+</html>

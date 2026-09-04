@@ -36,6 +36,12 @@ document
         ipcRenderer.send("open-attrezzaggio-window");
     });
 
+document
+    .getElementById("openRegistrazioniProgettazione")
+    ?.addEventListener("click", () => {
+        ipcRenderer.send("open-registrazioni-progettazione-window");
+    });
+
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });

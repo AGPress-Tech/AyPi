@@ -48,6 +48,7 @@ import {
 } from "./file-manager/local-git-stats";
 import { registerMainWindowLayoutIpc } from "./file-manager/main-window-layout-ipc";
 import { registerAttrezzaggioPdfPreviewIpc } from "./file-manager/attrezzaggio-pdf-preview-ipc";
+import { registerRegistrazioniProgettazioneDataIpc } from "./file-manager/registrazioni-progettazione-data-ipc";
 
 const WINDOW_WEB_PREFERENCES = {
     nodeIntegration: true,
@@ -343,7 +344,7 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
         } else {
             // Week already present from GitHub stats: enrich current week diffs when GitHub returns stale/zero code_frequency.
             const lastRow = data[data.length - 1];
-            if (lastRow && (Number(lastRow.commits || 0) > 0)) {
+            if (lastRow && Number(lastRow.commits || 0) > 0) {
                 const hasDiff =
                     Number(lastRow.additions || 0) > 0 ||
                     Number(lastRow.deletions || 0) > 0;
@@ -898,6 +899,7 @@ let assigneesManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let adminManagerWindow: BrowserWindow | null = null;
 let adminManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
+let registrazioniProgettazioneWindow: BrowserWindow | null = null;
 let allowTransferAttrezzaggioWindowClose = false;
 let transferAttrezzaggioClosePromptPending = false;
 const productManagerSessionState = createProductManagerSessionState();
@@ -918,7 +920,13 @@ function openFileListWindow(
         if (fileListWindowTheme !== requestedTheme) {
             fileListWindowTheme = requestedTheme;
             fileListWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "file-list.html",
+                ),
                 { query: { theme: fileListWindowTheme } },
             );
         }
@@ -960,7 +968,13 @@ function openBatchRenameWindow(
         if (batchRenameWindowTheme !== requestedTheme) {
             batchRenameWindowTheme = requestedTheme;
             batchRenameWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "batch-rename.html",
+                ),
                 { query: { theme: batchRenameWindowTheme } },
             );
         }
@@ -1008,7 +1022,13 @@ function openQrGeneratorWindow(
         if (qrGeneratorWindowTheme !== requestedTheme) {
             qrGeneratorWindowTheme = requestedTheme;
             qrGeneratorWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "qr-generator.html",
+                ),
                 { query: { theme: qrGeneratorWindowTheme } },
             );
         }
@@ -1058,7 +1078,13 @@ function openHierarchyWindow(
                 requestedTheme === "bluearchive" ? 850 : 800,
             );
             hierarchyWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "hierarchy.html",
+                ),
                 { query: { theme: hierarchyWindowTheme } },
             );
             hierarchyWindow.center();
@@ -1168,7 +1194,8 @@ function openGitflowWindow(mainWindow, options?: { force?: boolean }) {
 }
 
 function openTimerWindow(mainWindow, options: { theme?: string } = {}) {
-    const requestedTheme = options.theme === "bluearchive" ? "bluearchive" : "standard";
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(timerWindow)) {
         if (timerWindowTheme !== requestedTheme) {
             timerWindowTheme = requestedTheme;
@@ -1269,26 +1296,38 @@ function openProductionPlannerWindow(
                 source: sourceId,
             };
             if (level >= 2) {
-                log.error("[production-planner:renderer] Console error.", payload);
+                log.error(
+                    "[production-planner:renderer] Console error.",
+                    payload,
+                );
                 return;
             }
-            log.debug("[production-planner:renderer] Console message.", payload);
+            log.debug(
+                "[production-planner:renderer] Console message.",
+                payload,
+            );
         },
     );
     productionPlannerWindow.webContents.on(
         "did-fail-load",
         (_event, errorCode, errorDescription, validatedURL) => {
-            log.error("[production-planner:renderer] Caricamento pagina fallito.", {
-                errorCode,
-                errorDescription,
-                url: validatedURL,
-            });
+            log.error(
+                "[production-planner:renderer] Caricamento pagina fallito.",
+                {
+                    errorCode,
+                    errorDescription,
+                    url: validatedURL,
+                },
+            );
         },
     );
     productionPlannerWindow.webContents.on(
         "render-process-gone",
         (_event, details) => {
-            log.error("[production-planner:renderer] Processo terminato.", details);
+            log.error(
+                "[production-planner:renderer] Processo terminato.",
+                details,
+            );
         },
     );
 
@@ -1356,7 +1395,13 @@ function openFeriePermessiWindow(
         if (feriePermessiWindowTheme !== nextTheme) {
             feriePermessiWindowTheme = nextTheme;
             feriePermessiWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "ferie-permessi.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "ferie-permessi.html",
+                ),
                 {
                     query: {
                         fpSplash:
@@ -1375,8 +1420,7 @@ function openFeriePermessiWindow(
     feriePermessiWindowTheme = nextTheme;
 
     const shouldShowSplash =
-        feriePermessiWindowTheme === "bluearchive" ||
-        !feriePermessiSplashShown;
+        feriePermessiWindowTheme === "bluearchive" || !feriePermessiSplashShown;
     feriePermessiSplashShown = true;
 
     feriePermessiWindow = new BrowserWindow({
@@ -1452,15 +1496,12 @@ function openProductManagerWindow(
         icon: APP_ICON_PATH,
         show: false,
         backgroundColor:
-            productManagerWindowTheme === "bluearchive"
-                ? "#edf9ff"
-                : "#f4f2ef",
+            productManagerWindowTheme === "bluearchive" ? "#edf9ff" : "#f4f2ef",
     });
 
     productManagerWindow.maximize();
     const shouldShowSplash =
-        productManagerWindowTheme === "standard" &&
-        !productManagerSplashShown;
+        productManagerWindowTheme === "standard" && !productManagerSplashShown;
     if (productManagerWindowTheme === "standard") {
         productManagerSplashShown = true;
     }
@@ -1662,7 +1703,13 @@ function openFeriePermessiHoursWindow(mainWindow) {
         if (feriePermessiHoursWindowTheme !== feriePermessiWindowTheme) {
             feriePermessiHoursWindowTheme = feriePermessiWindowTheme;
             feriePermessiHoursWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "ferie-permessi-hours.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "ferie-permessi-hours.html",
+                ),
                 { query: { theme: feriePermessiHoursWindowTheme } },
             );
         }
@@ -1672,13 +1719,18 @@ function openFeriePermessiHoursWindow(mainWindow) {
 
     feriePermessiHoursWindowTheme = feriePermessiWindowTheme;
 
+    const calendarWindow = isWindowAlive(feriePermessiWindow)
+        ? feriePermessiWindow
+        : null;
+
     feriePermessiHoursWindow = new BrowserWindow({
         width: 1000,
         height: 720,
-        parent: mainWindow,
+        parent: calendarWindow || mainWindow,
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
+        show: false,
     });
 
     feriePermessiHoursWindow.loadFile(
@@ -1702,6 +1754,11 @@ function openFeriePermessiHoursWindow(mainWindow) {
     feriePermessiHoursWindow.on("closed", () => {
         feriePermessiHoursWindow = null;
         feriePermessiHoursWindowTheme = "standard";
+        if (isAppQuitting) return;
+        if (isWindowAlive(calendarWindow)) {
+            showWindow(calendarWindow);
+            return;
+        }
         showMainWindow(mainWindow);
     });
 }
@@ -1711,7 +1768,13 @@ function openFeriePermessiAnalysisWindow(mainWindow) {
         if (feriePermessiAnalysisWindowTheme !== feriePermessiWindowTheme) {
             feriePermessiAnalysisWindowTheme = feriePermessiWindowTheme;
             feriePermessiAnalysisWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "ferie-permessi-analysis.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "ferie-permessi-analysis.html",
+                ),
                 { query: { theme: feriePermessiAnalysisWindowTheme } },
             );
         } else {
@@ -1807,9 +1870,7 @@ function openTicketSupportWindow(
         icon: APP_ICON_PATH,
         show: false,
         backgroundColor:
-            ticketSupportWindowTheme === "bluearchive"
-                ? "#edf8fd"
-                : "#f4f7fb",
+            ticketSupportWindowTheme === "bluearchive" ? "#edf8fd" : "#f4f7fb",
     });
 
     ticketSupportWindow.maximize();
@@ -1962,7 +2023,13 @@ function openAssigneesManagerWindow(
         if (assigneesManagerWindowTheme !== requestedTheme) {
             assigneesManagerWindowTheme = requestedTheme;
             assigneesManagerWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "assignees-manager.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "assignees-manager.html",
+                ),
                 { query: { theme: assigneesManagerWindowTheme } },
             );
         }
@@ -2020,7 +2087,13 @@ function openAdminManagerWindow(
         if (adminManagerWindowTheme !== requestedTheme) {
             adminManagerWindowTheme = requestedTheme;
             adminManagerWindow.loadFile(
-                path.join(__dirname, "..", "pages", "utilities", "admin-manager.html"),
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "utilities",
+                    "admin-manager.html",
+                ),
                 { query: { theme: adminManagerWindowTheme } },
             );
         }
@@ -2103,6 +2176,38 @@ function openTransferAttrezzaggioWindow(mainWindow) {
     });
 }
 
+function openRegistrazioniProgettazioneWindow(mainWindow: BrowserWindow) {
+    if (isWindowAlive(registrazioniProgettazioneWindow)) {
+        showWindow(registrazioniProgettazioneWindow);
+        return;
+    }
+
+    registrazioniProgettazioneWindow = new BrowserWindow({
+        width: 1180,
+        height: 800,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+    });
+
+    registrazioniProgettazioneWindow.loadFile(
+        path.join(__dirname, "..", "pages", "registrazioni-progettazione.html"),
+    );
+    registrazioniProgettazioneWindow.setMenu(null);
+    registrazioniProgettazioneWindow.once("ready-to-show", () => {
+        if (!registrazioniProgettazioneWindow?.isDestroyed()) {
+            registrazioniProgettazioneWindow.maximize();
+            showWindow(registrazioniProgettazioneWindow);
+        }
+    });
+
+    registrazioniProgettazioneWindow.on("closed", () => {
+        registrazioniProgettazioneWindow = null;
+        if (!isAppQuitting) showMainWindow(mainWindow);
+    });
+}
+
 function openCompareFoldersWindow(
     slot,
     folder,
@@ -2119,7 +2224,10 @@ function openCompareFoldersWindow(
     };
     const loadCompareInterface = () => {
         if (!isWindowAlive(compareFoldersWindow)) return;
-        compareFoldersWindow.webContents.once("did-finish-load", sendPendingFolder);
+        compareFoldersWindow.webContents.once(
+            "did-finish-load",
+            sendPendingFolder,
+        );
         compareFoldersWindow.loadFile(
             path.join(
                 __dirname,
@@ -2259,19 +2367,31 @@ function setupFileManager(mainWindow) {
         try {
             const payload = await fetchGithubStats(owner, repo, token);
             const payloadWithToken = { ...payload, tokenPresent };
-            if (Array.isArray(payloadWithToken.data) && payloadWithToken.data.length) {
+            if (
+                Array.isArray(payloadWithToken.data) &&
+                payloadWithToken.data.length
+            ) {
                 // Enrich rows with commits>0 but zero code frequency using local git stats.
                 // This fixes cases where GitHub stats stay stale on recent weeks.
                 const repoRoot = resolveGitRepoRoot(app.getAppPath());
                 if (repoRoot) {
                     const local = getGitDailyStats(repoRoot);
                     if (local?.ok && Array.isArray(local.data)) {
-                        const localMap = new Map<string, { additions: number; deletions: number }>();
+                        const localMap = new Map<
+                            string,
+                            { additions: number; deletions: number }
+                        >();
                         local.data.forEach((row) => {
-                            const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
-                            if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+                            const rowDate = row?.date
+                                ? new Date(`${row.date}T00:00:00Z`)
+                                : null;
+                            if (!rowDate || Number.isNaN(rowDate.getTime()))
+                                return;
                             const key = toDateKey(startOfWeekMonday(rowDate));
-                            const prev = localMap.get(key) || { additions: 0, deletions: 0 };
+                            const prev = localMap.get(key) || {
+                                additions: 0,
+                                deletions: 0,
+                            };
                             prev.additions += Number(row.additions || 0);
                             prev.deletions += Number(row.deletions || 0);
                             localMap.set(key, prev);
@@ -2283,18 +2403,27 @@ function setupFileManager(mainWindow) {
                                 Number(row?.additions || 0) !== 0 ||
                                 Number(row?.deletions || 0) !== 0;
                             if (commits <= 0 || hasDiff) return;
-                            const rowDate = row?.date ? new Date(`${row.date}T00:00:00Z`) : null;
-                            if (!rowDate || Number.isNaN(rowDate.getTime())) return;
+                            const rowDate = row?.date
+                                ? new Date(`${row.date}T00:00:00Z`)
+                                : null;
+                            if (!rowDate || Number.isNaN(rowDate.getTime()))
+                                return;
                             const key = toDateKey(startOfWeekMonday(rowDate));
                             const localRow = localMap.get(key);
                             if (!localRow) return;
-                            if (Number(localRow.additions || 0) === 0 && Number(localRow.deletions || 0) === 0) return;
+                            if (
+                                Number(localRow.additions || 0) === 0 &&
+                                Number(localRow.deletions || 0) === 0
+                            )
+                                return;
                             row.additions = localRow.additions;
                             row.deletions = localRow.deletions;
                             enrichedRows += 1;
                         });
                         if (enrichedRows > 0) {
-                            payloadWithToken.warning = payloadWithToken.warning || "code-frequency-local";
+                            payloadWithToken.warning =
+                                payloadWithToken.warning ||
+                                "code-frequency-local";
                         }
                     }
                 }
@@ -2650,6 +2779,9 @@ function setupFileManager(mainWindow) {
     ipcMain.on("open-attrezzaggio-window", () => {
         openTransferAttrezzaggioWindow(mainWindow);
     });
+    ipcMain.on("open-registrazioni-progettazione-window", () => {
+        openRegistrazioniProgettazioneWindow(mainWindow);
+    });
     ipcMain.on("attrezzaggio-window-close-response", (event, payload) => {
         if (
             !isWindowAlive(transferAttrezzaggioWindow) ||
@@ -2669,6 +2801,7 @@ function setupFileManager(mainWindow) {
     });
 
     registerAttrezzaggioDataIpc(ipcMain, requestAypiBackend);
+    registerRegistrazioniProgettazioneDataIpc(ipcMain, requestAypiBackend);
     registerProductionPlannerIpc(ipcMain, requestAypiBackend);
     ipcMain.on("open-qr-generator-window", (_event, payload) => {
         openQrGeneratorWindow(mainWindow, {
@@ -2708,7 +2841,10 @@ function setupFileManager(mainWindow) {
 
     ipcMain.on("open-timer-window", (_event, payload) => {
         openTimerWindow(mainWindow, {
-            theme: payload && payload.theme === "bluearchive" ? "bluearchive" : "standard",
+            theme:
+                payload && payload.theme === "bluearchive"
+                    ? "bluearchive"
+                    : "standard",
         });
     });
 
@@ -2799,20 +2935,17 @@ function setupFileManager(mainWindow) {
         );
     });
 
-    ipcMain.on(
-        "open-ticket-support-admin-window",
-        async (_event, payload) => {
-            const theme =
-                payload && payload.theme === "bluearchive"
-                    ? "bluearchive"
-                    : interfaceIconTheme;
-            await guardServerAndOpenModule(
-                mainWindow,
-                ticketSupportAdminWindow,
-                () => openTicketSupportAdminWindow(mainWindow, { theme }),
-            );
-        },
-    );
+    ipcMain.on("open-ticket-support-admin-window", async (_event, payload) => {
+        const theme =
+            payload && payload.theme === "bluearchive"
+                ? "bluearchive"
+                : interfaceIconTheme;
+        await guardServerAndOpenModule(
+            mainWindow,
+            ticketSupportAdminWindow,
+            () => openTicketSupportAdminWindow(mainWindow, { theme }),
+        );
+    });
 
     ipcMain.on("open-assignees-manager-window", () => {
         openAssigneesManagerWindow(mainWindow);
