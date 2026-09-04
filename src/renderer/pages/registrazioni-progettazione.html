@@ -55,7 +55,7 @@
                     <div class="design-title">REGISTRAZIONE DELLA PROGETTAZIONE<br>- COSTRUZIONE STAMPI -</div>
                 </header>
 
-                <section class="form-section">
+                <section id="baseProjectSection" class="form-section">
                     <div class="section-heading">
                         <span class="section-number">01</span>
                         <div>
@@ -219,6 +219,8 @@
                         </label>
                     </div>
                 </section>
+
+                <div id="successivePhases" class="successive-phases"></div>
             </article>
 
             <aside class="progress-sidebar" aria-label="Avanzamento registrazione">
@@ -227,16 +229,16 @@
                     <p>La checklist si aggiorna automaticamente.</p>
                 </div>
                 <ol class="progress-list">
-                    <li id="blockStatus" class="progress-step" data-complete="false">
+                    <li id="blockStatus" class="progress-step" data-state="empty" data-progress-target="base">
                         <span class="progress-marker">1</span>
-                        <div><strong>Requisiti di base</strong><small id="blockStatusText">Da completare</small></div>
+                        <div><strong>Requisiti di base</strong><small id="blockStatusText">Non iniziato</small></div>
                     </li>
-                    <li class="progress-step is-future"><span class="progress-marker">2</span><div><strong>1° Riesame del progetto</strong><small>Non iniziato</small></div></li>
-                    <li class="progress-step is-future"><span class="progress-marker">3</span><div><strong>1ª Verifica del progetto</strong><small>Non iniziato</small></div></li>
-                    <li class="progress-step is-future"><span class="progress-marker">4</span><div><strong>2ª Verifica del progetto</strong><small>Non iniziato</small></div></li>
-                    <li class="progress-step is-future"><span class="progress-marker">5</span><div><strong>3ª Verifica eventuale</strong><small>Non iniziato</small></div></li>
-                    <li class="progress-step is-future"><span class="progress-marker">6</span><div><strong>2° Riesame del progetto</strong><small>Non iniziato</small></div></li>
-                    <li class="progress-step is-future"><span class="progress-marker">7</span><div><strong>Validazione del progetto</strong><small>Non iniziato</small></div></li>
+                    <li id="progress-riesame1" class="progress-step is-future" data-progress-target="riesame1"><span class="progress-marker">2</span><div><strong>1° Riesame del progetto</strong><small>Bloccato</small></div></li>
+                    <li id="progress-verifica1" class="progress-step is-future" data-progress-target="verifica1"><span class="progress-marker">3</span><div><strong>1ª Verifica del progetto</strong><small>Bloccato</small></div></li>
+                    <li id="progress-verifica2" class="progress-step is-future" data-progress-target="verifica2"><span class="progress-marker">4</span><div><strong>2ª Verifica del progetto</strong><small>Bloccato</small></div></li>
+                    <li id="progress-verifica3" class="progress-step is-future" data-progress-target="verifica3"><span class="progress-marker">5</span><div><strong>3ª Verifica eventuale</strong><small>Bloccato</small></div></li>
+                    <li id="progress-riesame2" class="progress-step is-future" data-progress-target="riesame2"><span class="progress-marker">6</span><div><strong>2° Riesame del progetto</strong><small>Bloccato</small></div></li>
+                    <li id="progress-validation" class="progress-step is-future" data-progress-target="validation"><span class="progress-marker">7</span><div><strong>Validazione del progetto</strong><small>Bloccato</small></div></li>
                     <li class="progress-step is-future"><span class="progress-marker">8</span><div><strong>Modifiche al progetto</strong><small>Non iniziato</small></div></li>
                 </ol>
             </aside>

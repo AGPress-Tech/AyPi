@@ -26,6 +26,97 @@ const radioNames = [
     "nuovoProgetto", "origineProgetto", "personalizzazioneCliente",
     "revisioneVecchioProgetto", "requisitiUniEn12420", "requisitiBrevetto",
 ];
+const workflowPhases = [
+    {
+        key: "riesame1",
+        number: "08",
+        title: "1° Riesame del progetto",
+        description: "Valutazione dei primi modelli o disegni realizzati.",
+        participants: true,
+        internalChecks: ["Riesame e verifica preliminare interna degli elaborati 2D e 3D"],
+        clientChecks: ["Riesame del cliente rispetto ai requisiti di base e alla UNI EN 12420:2000 §6.10"],
+    },
+    {
+        key: "verifica1",
+        number: "09",
+        title: "1ª Verifica del progetto",
+        description: "Controllo tecnico-dimensionale del fascicolo tecnico di lay-out.",
+        procurement: true,
+        internalChecks: [
+            "Riesame e verifica preliminare interna degli elaborati 2D e 3D",
+            "Verifica tecnica della completezza del fascicolo di lay-out stampo",
+        ],
+        clientChecks: ["Verifica tecnica della completezza del fascicolo di lay-out stampo"],
+    },
+    {
+        key: "verifica2",
+        number: "10",
+        title: "2ª Verifica del progetto",
+        description: "Controllo tecnico-dimensionale dei percorsi utensile e degli zolfi.",
+        internalChecks: [
+            "Creazione dei percorsi utensile CAM e trasferimento al centro di lavoro",
+            "Costruzione degli accessori, punzoni e slitte",
+            "Controllo della geometria/forma tramite esecuzione degli zolfi",
+        ],
+        clientChecks: [
+            "Creazione dei percorsi utensile CAM e trasferimento al centro di lavoro",
+            "Costruzione degli accessori, punzoni e slitte",
+            "Controllo della geometria/forma tramite esecuzione degli zolfi",
+        ],
+    },
+    {
+        key: "verifica3",
+        number: "11",
+        title: "3ª Verifica del progetto (eventuale)",
+        description: "Controllo dei percorsi utensile e degli zolfi per il controllo tempra.",
+        internalChecks: [
+            "Trattamento termico di tempra secondo procedura interna",
+            "Controllo della geometria/forma tramite esecuzione degli zolfi",
+        ],
+        clientChecks: [
+            "Trattamento termico di tempra secondo procedura interna",
+            "Controllo della geometria/forma tramite esecuzione degli zolfi",
+        ],
+    },
+    {
+        key: "riesame2",
+        number: "12",
+        title: "2° Riesame del progetto",
+        description: "Valutazione dei risultati a fronte della prova di stampaggio.",
+        participants: true,
+        internalChecks: [
+            "Verifica della corretta lucidatura",
+            "Verifica dello scorrimento dei punzoni e delle slitte",
+            "Prova di stampaggio con avvio manuale",
+            "Verifica dimensionale delle lavorazioni secondo disegno tecnico",
+        ],
+        clientChecks: [
+            "Verifica della corretta lucidatura",
+            "Verifica dello scorrimento dei punzoni e delle slitte",
+            "Prova di stampaggio con avvio manuale",
+            "Riesame del cliente rispetto ai requisiti di base e alla UNI EN 12420:2000 §6.10",
+        ],
+    },
+    {
+        key: "validation",
+        number: "13",
+        title: "Validazione del progetto",
+        description: "Check di controllo finale prima dell'avvio dello stampaggio a caldo.",
+        validation: true,
+        internalChecks: [
+            "I disegni tecnici sono tutti disponibili, archiviati ed approvati?",
+            "Il progetto è stato eseguito nei tempi previsti?",
+            "Sono previste specifiche o istruzioni di lavoro per la produzione e/o il controllo dell'articolo?",
+            "Conformità delle lavorazioni da macchina utensile (solo per lavorazioni eseguite internamente)",
+        ],
+        clientChecks: [
+            "I disegni tecnici sono tutti disponibili, archiviati ed approvati?",
+            "Il progetto è stato eseguito nei tempi previsti?",
+            "Sono previste specifiche o istruzioni di lavoro per la produzione e/o il controllo dell'articolo?",
+            "Conformità delle lavorazioni da macchina utensile (solo per lavorazioni eseguite internamente)",
+        ],
+    },
+];
 
 const homeView = document.getElementById("homeView");
 const listView = document.getElementById("listView");
@@ -44,6 +135,7 @@ const blockStatus = document.getElementById("blockStatus");
 const blockStatusText = document.getElementById("blockStatusText");
 const saveFormBtn = document.getElementById("saveFormBtn");
 const newFormBtn = document.getElementById("newFormBtn");
+const successivePhases = document.getElementById("successivePhases");
 
 let activeType: RegistrationType = "stampi";
 let listItems: any[] = [];
@@ -51,6 +143,8 @@ let currentCode = "";
 let currentAttachments: any[] = [];
 let pendingAttachments: any[] = [];
 let savedSnapshot = "";
+let successiveData: Record<string, Record<string, any>> = { interno: {}, cliente: {} };
+let renderedOrigin = "";
 
 const asyncGuard = createAsyncGuard({
     errorTitle: "Errore Registrazioni Progettazione.",
@@ -84,14 +178,338 @@ function checkedValues(name: string) {
     return Array.from(document.querySelectorAll<HTMLInputElement>(`input[name="${name}"]:checked`))
         .map((input) => input.value);
 }
+function escapeHtml(value: unknown) {
+    return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+function emptyWorkflowData() {
+    return { interno: {}, cliente: {} };
+}
+function getPhaseData(origin: string, key: string) {
+    if (!successiveData[origin]) successiveData[origin] = {};
+    if (!successiveData[origin][key]) {
+        successiveData[origin][key] = {
+            checks: [],
+            approvvigionamentoMateriaPrima: "",
+            note: "",
+            data: "",
+            emessoDa: "",
+            partecipantiProduzione: "",
+            partecipantiStampaggio: "",
+            partecipantiOfficina: "",
+            responsabileLavorazioniInterpellato: "",
+            firmaDirezioneProduzione: "",
+            answers: {},
+        };
+    }
+    return successiveData[origin][key];
+}
+function firstBlockComplete() {
+    return Boolean(inputValue("data") && inputValue("emessoDa"));
+}
+function syncWorkflowDataFromDom() {
+    if (!renderedOrigin || !successivePhases) return;
+    workflowPhases.forEach((phase) => {
+        const section = successivePhases.querySelector<HTMLElement>(`[data-phase="${phase.key}"]`);
+        if (!section) return;
+        const data = getPhaseData(renderedOrigin, phase.key);
+        data.checks = Array.from(section.querySelectorAll<HTMLInputElement>('input[data-field="checks"]:checked'))
+            .map((input) => input.value);
+        [
+            "note", "data", "emessoDa", "partecipantiProduzione",
+            "partecipantiStampaggio", "partecipantiOfficina",
+            "responsabileLavorazioniInterpellato", "firmaDirezioneProduzione",
+        ].forEach((field) => {
+            const input = section.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`);
+            if (input) data[field] = input.value.trim();
+        });
+        data.approvvigionamentoMateriaPrima = String(
+            section.querySelector<HTMLInputElement>('input[data-field="approvvigionamentoMateriaPrima"]:checked')?.value || "",
+        );
+        data.answers = {};
+        section.querySelectorAll<HTMLInputElement>('input[data-field="validationAnswer"]:checked').forEach((input) => {
+            data.answers[String(input.dataset.question || "")] = input.value;
+        });
+    });
+}
+function phaseHasContent(origin: string, phase: any, data: any) {
+    const workflowKey = phaseAttachmentKey(origin, phase.key);
+    const hasAttachment = currentAttachments.some((item) => item.workflowKey === workflowKey) ||
+        pendingAttachments.some((item) => item.workflowKey === workflowKey);
+    const scalarFields = [
+        "approvvigionamentoMateriaPrima", "note", "data", "emessoDa",
+        "partecipantiProduzione", "partecipantiStampaggio", "partecipantiOfficina",
+        "responsabileLavorazioniInterpellato", "firmaDirezioneProduzione",
+    ];
+    return hasAttachment ||
+        (Array.isArray(data.checks) && data.checks.length > 0) ||
+        Object.values(data.answers || {}).some(Boolean) ||
+        scalarFields.some((field) => Boolean(String(data[field] || "").trim()));
+}
+function phaseIsComplete(phase: any, data: any) {
+    if (!data.data || !data.emessoDa) return false;
+    if (phase.validation) return Boolean(data.firmaDirezioneProduzione);
+    if (phase.participants) {
+        return Boolean(
+            data.partecipantiProduzione &&
+            data.partecipantiStampaggio &&
+            data.partecipantiOfficina
+        );
+    }
+    return true;
+}
+function setProgressStep(key: string, locked: boolean, state: "empty" | "partial" | "complete") {
+    const step = document.getElementById(`progress-${key}`);
+    if (!step) return;
+    step.classList.toggle("is-locked", locked);
+    step.classList.toggle("is-future", locked);
+    step.setAttribute("data-state", locked ? "empty" : state);
+    const status = step.querySelector("small");
+    if (status) status.textContent = locked
+        ? "Bloccato"
+        : state === "complete"
+          ? "Completato"
+          : state === "partial"
+            ? "In compilazione"
+            : "Non iniziato";
+}
+function updateWorkflowProgress() {
+    const unlocked = firstBlockComplete();
+    const origin = radioValue("origineProgetto");
+    workflowPhases.forEach((phase) => {
+        const data = origin ? getPhaseData(origin, phase.key) : {};
+        const complete = phaseIsComplete(phase, data);
+        const partial = origin ? phaseHasContent(origin, phase, data) : false;
+        setProgressStep(
+            phase.key,
+            !unlocked || !origin,
+            complete ? "complete" : partial ? "partial" : "empty",
+        );
+    });
+}
+function phaseAttachmentKey(origin: string, phaseKey: string) {
+    return `${origin}:${phaseKey}`;
+}
+function renderPhaseAttachments(origin: string, phaseKey: string) {
+    if (!successivePhases) return;
+    const target = successivePhases.querySelector<HTMLElement>(`[data-phase-files="${phaseKey}"]`);
+    if (!target) return;
+    const workflowKey = phaseAttachmentKey(origin, phaseKey);
+    const items = [
+        ...currentAttachments.filter((item) => item.workflowKey === workflowKey).map((item) => ({ ...item, pending: false })),
+        ...pendingAttachments.filter((item) => item.workflowKey === workflowKey).map((item) => ({ ...item, id: item.tempId, pending: true })),
+    ];
+    target.innerHTML = "";
+    if (!items.length) {
+        target.innerHTML = '<span class="phase-files-empty">Nessun allegato.</span>';
+        return;
+    }
+    items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "phase-file";
+        const name = document.createElement("span");
+        name.textContent = item.originalName || "Allegato";
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Rimuovi";
+        remove.addEventListener("click", () => {
+            if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
+            else currentAttachments = currentAttachments.filter((entry) => entry.id !== item.id);
+            renderPhaseAttachments(origin, phaseKey);
+            updateWorkflowProgress();
+        });
+        row.append(name, remove);
+        target.appendChild(row);
+    });
+}
+function workflowSectionHtml(phase: any, origin: string) {
+    const checks = origin === "interno" ? phase.internalChecks : phase.clientChecks;
+    const modelLabel = phase.validation
+        ? "Validazione finale"
+        : origin === "interno"
+          ? "Progettazione Interna"
+          : "Progettazione per Cliente";
+    const checkHtml = phase.validation
+        ? checks.map((label: string, index: number) => `
+            <div class="validation-question">
+                <span>${index + 1}. ${escapeHtml(label)}</span>
+                <div>
+                    <label><input type="radio" data-field="validationAnswer" data-question="${index}" name="${origin}-${phase.key}-question-${index}" value="si"> Sì</label>
+                    <label><input type="radio" data-field="validationAnswer" data-question="${index}" name="${origin}-${phase.key}-question-${index}" value="no"> No</label>
+                </div>
+            </div>
+        `).join("")
+        : checks.map((label: string, index: number) => `
+            <label><input type="checkbox" data-field="checks" value="${index}"> ${escapeHtml(label)}</label>
+        `).join("");
+    const procurementHtml = phase.procurement ? `
+        <div class="workflow-procurement">
+            <strong>Controllo approvvigionamento materia prima</strong>
+            <label><input type="radio" data-field="approvvigionamentoMateriaPrima" name="${origin}-${phase.key}-approvvigionamento" value="si"> Sì</label>
+            <label><input type="radio" data-field="approvvigionamentoMateriaPrima" name="${origin}-${phase.key}-approvvigionamento" value="no"> No</label>
+        </div>
+    ` : "";
+    const participantsHtml = phase.participants ? `
+        <div class="workflow-participants">
+            <label>Partecipanti · Direzione di produzione<input data-field="partecipantiProduzione" type="text"></label>
+            <label>Partecipanti · Responsabile stampaggio<input data-field="partecipantiStampaggio" type="text"></label>
+            <label>Partecipanti · Responsabile Officina<input data-field="partecipantiOfficina" type="text"></label>
+        </div>
+    ` : "";
+    const contentHtml = phase.validation ? `
+        <div class="validation-questions">${checkHtml}</div>
+    ` : `
+        <div class="workflow-grid">
+            <fieldset class="workflow-checks"><legend>Verifiche previste</legend>${checkHtml}${procurementHtml}</fieldset>
+            <label class="workflow-notes">Note<textarea data-field="note" rows="4"></textarea></label>
+            <div class="workflow-attachments">
+                <div class="workflow-attachments-head"><span>Allega</span><button type="button" data-add-phase-file="${phase.key}">Aggiungi File</button></div>
+                <input type="file" data-phase-file-input="${phase.key}" multiple hidden>
+                <div class="phase-files" data-phase-files="${phase.key}"></div>
+            </div>
+        </div>
+    `;
+    const directionSignature = phase.validation
+        ? '<label>Firma · Direzione di produzione<input data-field="firmaDirezioneProduzione" type="text"></label>'
+        : "";
+    const responsibleField = phase.validation
+        ? '<label><span>Responsabile delle lavorazioni interpellato <small>· Opzionale</small></span><input data-field="responsabileLavorazioniInterpellato" type="text"></label>'
+        : "";
+    return `
+        <section class="form-section workflow-section" data-phase="${phase.key}">
+            <div class="section-heading workflow-heading">
+                <span class="section-number">${phase.number}</span>
+                <div><h2>${escapeHtml(phase.title)}</h2><p>${escapeHtml(phase.description)}</p></div>
+                <span class="model-badge">${modelLabel}</span>
+            </div>
+            ${contentHtml}
+            ${participantsHtml}
+            <div class="workflow-issue ${phase.validation ? "validation-issue" : ""}">
+                ${responsibleField}
+                <label>Data<input data-field="data" type="date"></label>
+                <label>Firma · Emesso da<input data-field="emessoDa" type="text"><small>Responsabile qualità e progettazione</small></label>
+                ${directionSignature}
+            </div>
+        </section>
+    `;
+}
+function fillWorkflowSection(phase: any, origin: string) {
+    if (!successivePhases) return;
+    const section = successivePhases.querySelector<HTMLElement>(`[data-phase="${phase.key}"]`);
+    if (!section) return;
+    const data = getPhaseData(origin, phase.key);
+    const selectedChecks = new Set(Array.isArray(data.checks) ? data.checks.map(String) : []);
+    section.querySelectorAll<HTMLInputElement>('input[data-field="checks"]').forEach((input) => {
+        input.checked = selectedChecks.has(input.value);
+    });
+    [
+        "note", "data", "emessoDa", "partecipantiProduzione", "partecipantiStampaggio",
+        "partecipantiOfficina", "responsabileLavorazioniInterpellato", "firmaDirezioneProduzione",
+    ].forEach((field) => {
+        const input = section.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-field="${field}"]`);
+        if (input) input.value = String(data[field] || "");
+    });
+    section.querySelectorAll<HTMLInputElement>('input[data-field="approvvigionamentoMateriaPrima"]').forEach((input) => {
+        input.checked = input.value === String(data.approvvigionamentoMateriaPrima || "");
+    });
+    section.querySelectorAll<HTMLInputElement>('input[data-field="validationAnswer"]').forEach((input) => {
+        input.checked = input.value === String(data.answers?.[String(input.dataset.question || "")] || "");
+    });
+    renderPhaseAttachments(origin, phase.key);
+}
+function updateWorkflowLock() {
+    if (!successivePhases) return;
+    const locked = !firstBlockComplete() || !renderedOrigin;
+    successivePhases.classList.toggle("is-locked", locked);
+    successivePhases.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("input, textarea, button")
+        .forEach((control) => (control.disabled = locked));
+    updateWorkflowProgress();
+}
+function bindWorkflowEvents(origin: string) {
+    if (!successivePhases) return;
+    successivePhases.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[data-field], textarea[data-field]')
+        .forEach((control) => control.addEventListener("input", () => {
+            syncWorkflowDataFromDom();
+            updateWorkflowProgress();
+        }));
+    successivePhases.querySelectorAll<HTMLButtonElement>("[data-add-phase-file]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const key = button.dataset.addPhaseFile || "";
+            successivePhases.querySelector<HTMLInputElement>(`[data-phase-file-input="${key}"]`)?.click();
+        });
+    });
+    successivePhases.querySelectorAll<HTMLInputElement>("[data-phase-file-input]").forEach((input) => {
+        input.addEventListener("change", asyncGuard.wrap(async () => {
+            const phaseKey = input.dataset.phaseFileInput || "";
+            const files = Array.from(input.files || []);
+            const next = await Promise.all(files.map(async (file) => ({
+                tempId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                originalName: file.name,
+                dataBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+                mimeType: file.type || "application/octet-stream",
+                size: Number(file.size || 0),
+                workflowKey: phaseAttachmentKey(origin, phaseKey),
+            })));
+            pendingAttachments = [...pendingAttachments, ...next];
+            input.value = "";
+            renderPhaseAttachments(origin, phaseKey);
+            updateWorkflowProgress();
+        }));
+    });
+}
+function renderSuccessivePhases() {
+    if (!successivePhases) return;
+    if (renderedOrigin) syncWorkflowDataFromDom();
+    const origin = radioValue("origineProgetto");
+    renderedOrigin = origin;
+    if (!origin) {
+        successivePhases.innerHTML = `
+            <section class="workflow-waiting">
+                <h2>Seleziona l'origine del progetto</h2>
+                <p>Scegli “Progetto Interno” o “Progetto Cliente” nel primo blocco per predisporre riesami e verifiche.</p>
+            </section>`;
+        updateWorkflowProgress();
+        return;
+    }
+    successivePhases.innerHTML = workflowPhases.map((phase) => workflowSectionHtml(phase, origin)).join("");
+    workflowPhases.forEach((phase) => fillWorkflowSection(phase, origin));
+    bindWorkflowEvents(origin);
+    updateWorkflowLock();
+}
+function scrollToProgressSection(key: string) {
+    if (!stampiForm) return;
+    const target = key === "base"
+        ? document.getElementById("baseProjectSection")
+        : successivePhases?.querySelector<HTMLElement>(`[data-phase="${key}"]`) || successivePhases;
+    if (!target) return;
+    const workspaceRect = stampiForm.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    stampiForm.scrollTo({
+        top: stampiForm.scrollTop + targetRect.top - workspaceRect.top,
+        behavior: "smooth",
+    });
+}
 function updateCompletionStatus() {
     const completed = Boolean(inputValue("data") && inputValue("emessoDa"));
-    blockStatus?.setAttribute("data-complete", completed ? "true" : "false");
+    const started = fieldIds.some((id) => Boolean(inputValue(id))) ||
+        radioNames.some((name) => Boolean(radioValue(name))) ||
+        checkedValues("dfmeaPfmea").length > 0 ||
+        currentAttachments.some((item) => !item.workflowKey) ||
+        pendingAttachments.some((item) => !item.workflowKey);
+    const state = completed ? "complete" : started ? "partial" : "empty";
+    blockStatus?.setAttribute("data-state", state);
     if (blockStatusText) blockStatusText.textContent = completed
         ? "Primo blocco completato"
-        : "Blocco da completare";
+        : started
+          ? "In compilazione"
+          : "Non iniziato";
+    updateWorkflowLock();
 }
 function readForm() {
+    syncWorkflowDataFromDom();
     const values: Record<string, string> = {};
     fieldIds.forEach((id) => (values[id] = inputValue(id)));
     radioNames.forEach((name) => (values[name] = radioValue(name)));
@@ -99,12 +517,14 @@ function readForm() {
         ...values,
         previousCode: currentCode,
         dfmeaPfmea: checkedValues("dfmeaPfmea"),
+        fasiSuccessive: successiveData,
         attachments: currentAttachments,
         newAttachments: pendingAttachments.map((item) => ({
             fileName: item.originalName,
             dataBase64: item.dataBase64,
             mimeType: item.mimeType,
             size: item.size,
+            workflowKey: item.workflowKey || "",
         })),
     };
 }
@@ -112,8 +532,8 @@ function snapshot() {
     const payload = readForm();
     return JSON.stringify({
         ...payload,
-        attachments: currentAttachments.map((item) => item.id),
-        newAttachments: pendingAttachments.map((item) => [item.originalName, item.size]),
+        attachments: currentAttachments.map((item) => [item.id, item.workflowKey || ""]),
+        newAttachments: pendingAttachments.map((item) => [item.originalName, item.size, item.workflowKey || ""]),
     });
 }
 function markSaved() {
@@ -134,16 +554,23 @@ function resetForm() {
     currentCode = "";
     currentAttachments = [];
     pendingAttachments = [];
+    successiveData = emptyWorkflowData();
+    renderedOrigin = "";
     fieldIds.forEach((id) => setInputValue(id, ""));
     radioNames.forEach((name) => setRadioValue(name, ""));
     document.querySelectorAll<HTMLInputElement>('input[name="dfmeaPfmea"]').forEach((input) => {
         input.checked = false;
     });
     renderAttachments();
+    renderSuccessivePhases();
     updateCompletionStatus();
     markSaved();
 }
 function populateForm(item: any) {
+    renderedOrigin = "";
+    successiveData = item?.fasiSuccessive && typeof item.fasiSuccessive === "object"
+        ? item.fasiSuccessive
+        : emptyWorkflowData();
     currentCode = String(item?.code || item?.progettoNumero || "").trim();
     fieldIds.forEach((id) => setInputValue(id, item?.[id]));
     radioNames.forEach((name) => setRadioValue(name, item?.[name]));
@@ -154,6 +581,7 @@ function populateForm(item: any) {
     currentAttachments = Array.isArray(item?.attachments) ? item.attachments : [];
     pendingAttachments = [];
     renderAttachments();
+    renderSuccessivePhases();
     updateCompletionStatus();
     markSaved();
 }
@@ -161,8 +589,8 @@ function renderAttachments() {
     if (!attachmentsList) return;
     attachmentsList.innerHTML = "";
     const items = [
-        ...currentAttachments.map((item) => ({ ...item, pending: false })),
-        ...pendingAttachments.map((item) => ({ ...item, id: item.tempId, pending: true })),
+        ...currentAttachments.filter((item) => !item.workflowKey).map((item) => ({ ...item, pending: false })),
+        ...pendingAttachments.filter((item) => !item.workflowKey).map((item) => ({ ...item, id: item.tempId, pending: true })),
     ];
     if (!items.length) {
         attachmentsList.innerHTML = '<p class="attachment-empty">Nessun allegato inserito.</p>';
@@ -185,6 +613,7 @@ function renderAttachments() {
             if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
             else currentAttachments = currentAttachments.filter((entry) => entry.id !== item.id);
             renderAttachments();
+            updateCompletionStatus();
         });
         row.append(info, remove);
         attachmentsList.appendChild(row);
@@ -341,9 +770,30 @@ attachmentInput?.addEventListener("change", asyncGuard.wrap(async (event) => {
     pendingAttachments = [...pendingAttachments, ...next];
     attachmentInput.value = "";
     renderAttachments();
+    updateCompletionStatus();
 }));
-document.getElementById("data")?.addEventListener("input", updateCompletionStatus);
-document.getElementById("emessoDa")?.addEventListener("input", updateCompletionStatus);
+stampiForm?.addEventListener("input", (event) => {
+    if (successivePhases?.contains(event.target as Node)) return;
+    updateCompletionStatus();
+});
+stampiForm?.addEventListener("change", (event) => {
+    if (successivePhases?.contains(event.target as Node)) return;
+    updateCompletionStatus();
+});
+document.querySelectorAll<HTMLInputElement>('input[name="origineProgetto"]').forEach((input) => {
+    input.addEventListener("change", renderSuccessivePhases);
+});
+document.querySelectorAll<HTMLElement>("[data-progress-target]").forEach((step) => {
+    step.setAttribute("role", "button");
+    step.tabIndex = 0;
+    const navigate = () => scrollToProgressSection(step.dataset.progressTarget || "");
+    step.addEventListener("click", navigate);
+    step.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        navigate();
+    });
+});
 
 resetForm();
 showView("home");

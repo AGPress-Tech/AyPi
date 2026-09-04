@@ -35,6 +35,18 @@ function yesNo(value: unknown) {
     return normalized === "si" || normalized === "no" ? normalized : "";
 }
 
+function normalizeWorkflowAttachments(items: unknown) {
+    const source = Array.isArray(items) ? items : [];
+    const normalized = attachments.normalize(source);
+    return normalized.map((item) => {
+        const original = source.find((candidate) => String(candidate?.id || "") === item.id);
+        return {
+            ...item,
+            workflowKey: text(original?.workflowKey),
+        };
+    });
+}
+
 export function normalizeRegistrazioneStampi(raw: any) {
     const item = raw && typeof raw === "object" ? raw : {};
     const data = text(item.data);
@@ -70,10 +82,14 @@ export function normalizeRegistrazioneStampi(raw: any) {
             ? text(item.rischioProgetto)
             : "",
         note: text(item.note),
+        fasiSuccessive:
+            item.fasiSuccessive && typeof item.fasiSuccessive === "object"
+                ? item.fasiSuccessive
+                : {},
         data,
         emessoDa,
         completato: Boolean(data && emessoDa),
-        attachments: attachments.normalize(item.attachments),
+        attachments: normalizeWorkflowAttachments(item.attachments),
         newAttachments: Array.isArray(item.newAttachments) ? item.newAttachments : [],
         createdAt: text(item.createdAt),
         updatedAt: text(item.updatedAt),
@@ -110,15 +126,18 @@ export function saveRegistrazioneStampi(payload: any) {
     const previousCode = text(payload?.previousCode);
     const current = loadRegistrazioneStampi(normalized.code) ||
         (previousCode ? loadRegistrazioneStampi(previousCode) : null);
-    const retained = attachments.normalize(normalized.attachments);
+    const retained = normalizeWorkflowAttachments(normalized.attachments);
     const retainedIds = new Set(retained.map((item) => item.id));
-    const removed = attachments
-        .normalize(current?.attachments)
+    const removed = normalizeWorkflowAttachments(current?.attachments)
         .filter((item) => !retainedIds.has(item.id));
+    const added = attachments.saveNew(normalized.newAttachments).map((item, index) => ({
+        ...item,
+        workflowKey: text(normalized.newAttachments?.[index]?.workflowKey),
+    }));
     const now = new Date().toISOString();
     const next = {
         ...normalized,
-        attachments: [...retained, ...attachments.saveNew(normalized.newAttachments)],
+        attachments: [...retained, ...added],
         newAttachments: [],
         createdAt: normalized.createdAt || current?.createdAt || now,
         updatedAt: now,
