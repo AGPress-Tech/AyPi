@@ -27,6 +27,7 @@ const validateTransferPayload = createSchemaValidator<any>({
     additionalProperties: true,
     properties: {
         code: { type: "string", nullable: true },
+        recordId: { type: "string", nullable: true },
         previousCode: { type: "string", nullable: true },
         codiceArticolo: { type: "string", nullable: true },
         fase: { type: "string", nullable: true },

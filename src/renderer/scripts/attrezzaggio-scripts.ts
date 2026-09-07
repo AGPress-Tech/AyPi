@@ -43,6 +43,8 @@ const PRINT_LOGO_PATH = path.join(
 );
 
 let currentCode = null;
+let currentRecordId = null;
+let loadedTransferIdentity = null;
 const iconDataByCol = {};
 let printLogoData = "";
 let formOrigin = "home";
@@ -553,6 +555,22 @@ function buildCodeHtml(item) {
         return `<strong>${escapeHtml(art)}</strong> - Fase: ${escapeHtml(fase)} - ${escapeHtml(mac)} - ${escapeHtml(met)}`;
     }
     return escapeHtml(item?.code || "");
+}
+
+function readTransferIdentity() {
+    return {
+        codiceArticolo: getVal("codiceArticolo"),
+        fase: getVal("fase"),
+        codiceMacchina: getVal("codiceMacchina"),
+        metodo: getVal("metodo"),
+    };
+}
+
+function transferIdentityChanged(current) {
+    if (!loadedTransferIdentity) return false;
+    return Object.keys(loadedTransferIdentity).some(
+        (key) => String(loadedTransferIdentity[key] || "").trim() !== String(current[key] || "").trim(),
+    );
 }
 
 function createRowDragHandle(label = "riga") {
@@ -1528,6 +1546,8 @@ async function exportAttrezzaggioPrimaryKeys() {
 
 function resetForm() {
     currentCode = null;
+    currentRecordId = null;
+    loadedTransferIdentity = null;
     currentAttachments = [];
     pendingAttachments.forEach((item) => {
         if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -1695,6 +1715,7 @@ async function loadCardAndOpenForm(code, options = { readOnly: false }) {
     }
     const card = loaded.item;
     currentCode = card.code;
+    currentRecordId = card.recordId || null;
     setVal("codiceArticolo", card.codiceArticolo);
     setVal("fase", card.fase);
     setVal("codiceMacchina", card.codiceMacchina);
@@ -1708,6 +1729,7 @@ async function loadCardAndOpenForm(code, options = { readOnly: false }) {
     setVal("mani", card.mani);
     setVal("morsetti", card.morsetti);
     setVal("note", card.note);
+    loadedTransferIdentity = readTransferIdentity();
     currentAttachments = Array.isArray(card.attachments) ? card.attachments : [];
     pendingAttachments = [];
     renderAttachments();
@@ -1728,6 +1750,8 @@ async function copyCardAndOpenForm(code) {
     if (!loaded) return;
 
     currentCode = null;
+    currentRecordId = null;
+    loadedTransferIdentity = null;
     ["codiceArticolo", "fase", "codiceMacchina", "metodo"].forEach((id) =>
         setVal(id, ""),
     );
@@ -1856,7 +1880,7 @@ function renderListFiltered() {
         code.className = "code";
         code.innerHTML = buildCodeHtml(item);
         code.addEventListener("click", () =>
-            loadCardAndOpenForm(item.code, { readOnly: true }),
+            loadCardAndOpenForm(item.recordId || item.code, { readOnly: true }),
         );
         code.title = "Apri scheda in sola visualizzazione";
         const meta = document.createElement("span");
@@ -1886,14 +1910,14 @@ function renderListFiltered() {
         const edit = document.createElement("button");
         edit.textContent = "Modifica";
         edit.addEventListener("click", () =>
-            loadCardAndOpenForm(item.code, { readOnly: false }),
+            loadCardAndOpenForm(item.recordId || item.code, { readOnly: false }),
         );
         const copy = document.createElement("button");
         copy.textContent = "Copia";
         copy.title = "Crea una nuova scheda partendo da questa";
         copy.addEventListener(
             "click",
-            asyncGuard.wrap(async () => copyCardAndOpenForm(item.code)),
+            asyncGuard.wrap(async () => copyCardAndOpenForm(item.recordId || item.code)),
         );
         const print = document.createElement("button");
         print.textContent = "Stampa";
@@ -1902,7 +1926,7 @@ function renderListFiltered() {
             asyncGuard.wrap(async () => {
             const loaded = await ipcRenderer.invoke(
                 "transfer-attrezzaggio-load",
-                { code: item.code },
+                { code: item.recordId || item.code },
             );
             if (!loaded?.ok) return;
             await printCard(loaded.item);
@@ -1921,7 +1945,7 @@ function renderListFiltered() {
             try {
                 resDel = await ipcRenderer.invoke(
                     "transfer-attrezzaggio-delete",
-                    { code: item.code },
+                    { code: item.recordId || item.code },
                 );
             } catch (err) {
                 await showError(
@@ -1950,6 +1974,7 @@ function renderListFiltered() {
 
 async function saveForm() {
     const payload = {
+        recordId: currentRecordId,
         code: currentCode,
         previousCode: currentCode,
         codiceArticolo: getVal("codiceArticolo"),
@@ -2001,12 +2026,24 @@ async function saveForm() {
         return;
     }
 
+    const nextIdentity = readTransferIdentity();
+    if (currentRecordId && transferIdentityChanged(nextIdentity)) {
+        const confirmed = await confirmDialog(
+            "Modificare i dati identificativi della scheda?",
+            `Da: ${loadedTransferIdentity.codiceArticolo} · Fase ${loadedTransferIdentity.fase} · ${loadedTransferIdentity.codiceMacchina} · ${loadedTransferIdentity.metodo}\n` +
+            `A: ${nextIdentity.codiceArticolo} · Fase ${nextIdentity.fase} · ${nextIdentity.codiceMacchina} · ${nextIdentity.metodo}\n\n` +
+            "La scheda manterrà lo stesso identificatore interno.",
+        );
+        if (!confirmed) return;
+    }
+
     const res = await withAttachmentSaveUi(() => ipcRenderer.invoke("transfer-attrezzaggio-save", payload));
     if (!res?.ok) {
         await showError(res?.error || "Errore salvataggio");
         return;
     }
     currentCode = res.code;
+    currentRecordId = res.item?.recordId || res.recordId || currentRecordId;
     if (payload.code !== res.code) {
         currentAttachments = [];
     }
@@ -2016,7 +2053,9 @@ async function saveForm() {
     }
     renderAttachments();
     updateCodeLabel();
+    loadedTransferIdentity = nextIdentity;
     markTransferFormAsSaved();
+    await loadList();
     await showInfo(`Scheda salvata: ${res.code}`);
 }
 
@@ -2135,8 +2174,7 @@ document
             if (!(await confirmExitWithUnsavedChanges("transfer"))) return;
             if (formOrigin === "list") {
                 showView("list");
-                if (!allListItems.length) await loadList();
-                else renderListFiltered();
+                await loadList();
                 return;
             }
             showView("transfer-home");

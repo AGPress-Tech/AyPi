@@ -44,6 +44,7 @@ function registerItemHandlers(
         buildCode: (payload: any) => string;
         invalidCode: (code: string) => boolean;
         invalidCodeMessage: string;
+        useStableRecordId?: boolean;
     },
 ) {
     ipcMain.handle(`${options.channelPrefix}-list`, async () => {
@@ -87,8 +88,11 @@ function registerItemHandlers(
                         error: options.invalidCodeMessage,
                     };
                 }
+                const identifier = options.useStableRecordId && payload?.recordId
+                    ? String(payload.recordId).trim()
+                    : code;
                 const response = await request(
-                    `${options.endpoint}/${encodeURIComponent(code)}`,
+                    `${options.endpoint}/${encodeURIComponent(identifier)}`,
                     {
                         method: "PUT",
                         body: { ...payload, code },
@@ -97,6 +101,7 @@ function registerItemHandlers(
                 return {
                     ok: true,
                     code,
+                    recordId: response?.item?.recordId || payload?.recordId || "",
                     item: response?.item || null,
                 };
             } catch (error) {
@@ -135,6 +140,7 @@ export function registerAttrezzaggioDataIpc(
         buildCode: transferCodeFromPayload,
         invalidCode: (code) => !code || code === "///",
         invalidCodeMessage: "Codice scheda non valido.",
+        useStableRecordId: true,
     });
     registerItemHandlers(ipcMain, request, {
         channelPrefix: "haas-attrezzaggio",

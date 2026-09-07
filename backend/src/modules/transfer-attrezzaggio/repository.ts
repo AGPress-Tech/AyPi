@@ -1,5 +1,8 @@
+import crypto from "crypto";
+import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
+import { logger } from "../../shared/logging/logger";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import { createAttachmentStore } from "../../shared/storage/attachment-store";
 import {
@@ -20,28 +23,104 @@ const normalizeAttachmentMeta = attachments.normalize;
 const resolveAttachmentPath = attachments.resolvePath;
 const saveNewAttachments = attachments.saveNew;
 const deleteAttachmentFiles = attachments.remove;
+let transferSchemaReady = false;
 
 function ensureTransferBackup() {
     return ensureAgpressDailyBackup("auto", 30);
 }
 
 function ensureTransferSqliteSchema() {
+    if (transferSchemaReady) return;
     const database = getSqliteDatabase();
-    database.exec(`
-        CREATE TABLE IF NOT EXISTS ${TRANSFER_ITEMS_TABLE} (
-            code TEXT PRIMARY KEY,
-            codice_articolo TEXT,
-            fase TEXT,
-            codice_macchina TEXT,
-            metodo_variante TEXT,
-            updated_at TEXT,
-            payload_json TEXT NOT NULL
+    const tableExists = Boolean(database.exec(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
+        [TRANSFER_ITEMS_TABLE],
+    )?.[0]?.values?.length);
+    const existingColumns = tableExists
+        ? database.exec(`PRAGMA table_info(${TRANSFER_ITEMS_TABLE})`)?.[0]?.values || []
+        : [];
+    const hasRecordId = existingColumns.some((row: unknown[]) => row?.[1] === "record_id");
+    let safetyCopy = "";
+
+    if (tableExists && !hasRecordId && fs.existsSync(backendConfig.database.path)) {
+        safetyCopy = `${backendConfig.database.path}.pre-transfer-record-id.bak`;
+        if (!fs.existsSync(safetyCopy)) {
+            fs.copyFileSync(backendConfig.database.path, safetyCopy, fs.constants.COPYFILE_EXCL);
+        }
+    }
+
+    try {
+        runSqliteTransaction((transaction) => {
+            transaction.exec(`
+                CREATE TABLE IF NOT EXISTS ${TRANSFER_ITEMS_TABLE} (
+                    code TEXT PRIMARY KEY,
+                    record_id TEXT,
+                    codice_articolo TEXT,
+                    fase TEXT,
+                    codice_macchina TEXT,
+                    metodo_variante TEXT,
+                    updated_at TEXT,
+                    payload_json TEXT NOT NULL
+                );
+            `);
+            const columns = transaction.exec(`PRAGMA table_info(${TRANSFER_ITEMS_TABLE})`)?.[0]?.values || [];
+            if (!columns.some((row: unknown[]) => row?.[1] === "record_id")) {
+                transaction.exec(`ALTER TABLE ${TRANSFER_ITEMS_TABLE} ADD COLUMN record_id TEXT`);
+            }
+            const rows = transaction.exec(
+                `SELECT code, record_id, payload_json FROM ${TRANSFER_ITEMS_TABLE}`,
+            )?.[0]?.values || [];
+            const update = transaction.prepare(
+                `UPDATE ${TRANSFER_ITEMS_TABLE} SET record_id = ?, payload_json = ? WHERE code = ?`,
+            );
+            rows.forEach((row: unknown[]) => {
+                const code = String(row?.[0] || "").trim();
+                const currentRecordId = String(row?.[1] || "").trim();
+                const payload: any = parseJson(row?.[2], {});
+                const recordId = currentRecordId || String(payload?.recordId || "").trim() || crypto.randomUUID();
+                if (currentRecordId === recordId && payload?.recordId === recordId) return;
+                update.run([recordId, serializeJson({ ...payload, recordId }), code]);
+            });
+            update.free();
+            transaction.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_record_id
+                    ON ${TRANSFER_ITEMS_TABLE}(record_id);
+                CREATE TABLE IF NOT EXISTS transfer_item_aliases (
+                    alias_code TEXT PRIMARY KEY,
+                    record_id TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_transfer_item_aliases_record_id
+                    ON transfer_item_aliases(record_id);
+                CREATE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_codice_articolo
+                    ON ${TRANSFER_ITEMS_TABLE}(codice_articolo);
+                CREATE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_updated_at
+                    ON ${TRANSFER_ITEMS_TABLE}(updated_at);
+            `);
+        });
+    } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        logger.error("Migrazione ID schede Transfer annullata: database ripristinato", {
+            event: "transfer_record_ids_migration_failed",
+            category: "storage",
+            module: "transfer",
+            outcome: "error",
+            safetyCopy,
+            detail,
+        });
+        throw new Error(
+            `Migrazione ID schede Transfer annullata. Il backend non è stato avviato. ` +
+            `Copia di sicurezza: ${safetyCopy || "non necessaria per un database nuovo"}. Dettaglio: ${detail}`,
         );
-        CREATE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_codice_articolo
-            ON ${TRANSFER_ITEMS_TABLE}(codice_articolo);
-        CREATE INDEX IF NOT EXISTS idx_${TRANSFER_ITEMS_TABLE}_updated_at
-            ON ${TRANSFER_ITEMS_TABLE}(updated_at);
-    `);
+    }
+    if (tableExists && !hasRecordId) {
+        logger.info("Migrazione ID schede Transfer completata correttamente", {
+            event: "transfer_record_ids_initialized",
+            category: "storage",
+            module: "transfer",
+            safetyCopy,
+        });
+    }
+    transferSchemaReady = true;
 }
 
 function parseCode(code: string) {
@@ -105,6 +184,7 @@ export function normalizeTransferItem(raw: any) {
                 ? raw
                 : {};
     return {
+        recordId: String(item.recordId || raw?.recordId || "").trim(),
         code: String(item.code || raw?.code || "").trim(),
         codiceArticolo: String(item.codiceArticolo || "").trim(),
         fase: String(item.fase || "").trim(),
@@ -127,25 +207,30 @@ export function normalizeTransferItem(raw: any) {
     };
 }
 
-function saveTransferItemsToSqlite(items: any[]) {
+function saveTransferItemsToSqlite(
+    items: any[],
+    options?: { aliasCode?: string; recordId?: string; deletedRecordId?: string },
+) {
     runSqliteTransaction((database) => {
         database.run(`DELETE FROM ${TRANSFER_ITEMS_TABLE}`);
         const statement = database.prepare(`
             INSERT INTO ${TRANSFER_ITEMS_TABLE} (
                 code,
+                record_id,
                 codice_articolo,
                 fase,
                 codice_macchina,
                 metodo_variante,
                 updated_at,
                 payload_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
         (Array.isArray(items) ? items : []).forEach((item) => {
             const normalized = normalizeTransferItem(item);
             if (!normalized.code) return;
             statement.run([
                 normalized.code,
+                normalized.recordId || null,
                 normalized.codiceArticolo || null,
                 normalized.fase || null,
                 normalized.codiceMacchina || null,
@@ -155,18 +240,36 @@ function saveTransferItemsToSqlite(items: any[]) {
             ]);
         });
         statement.free();
+        if (options?.deletedRecordId) {
+            database.run(`DELETE FROM transfer_item_aliases WHERE record_id = ?`, [options.deletedRecordId]);
+        }
+        if (options?.recordId) {
+            const currentCode = items.find((item) => item.recordId === options.recordId)?.code;
+            if (currentCode) {
+                database.run(`DELETE FROM transfer_item_aliases WHERE alias_code = ?`, [currentCode]);
+            }
+            if (options.aliasCode && options.aliasCode !== currentCode) {
+                database.run(
+                    `INSERT OR REPLACE INTO transfer_item_aliases (alias_code, record_id) VALUES (?, ?)`,
+                    [options.aliasCode, options.recordId],
+                );
+            }
+        }
     });
 }
 
 function loadTransferItemsFromSqlite() {
     const database = getSqliteDatabase();
     const rows = database.exec(`
-        SELECT payload_json
+        SELECT record_id, payload_json
         FROM ${TRANSFER_ITEMS_TABLE}
         ORDER BY COALESCE(updated_at, code) DESC, code ASC
     `);
     return (rows?.[0]?.values || []).map((row: unknown[]) => {
-        const item = normalizeTransferItem(parseJson(row?.[0], {}));
+        const item = normalizeTransferItem({
+            ...parseJson(row?.[1], {}),
+            recordId: row?.[0],
+        });
         const parts = parseCode(item.code);
         return {
             ...item,
@@ -190,15 +293,25 @@ function loadTransferItemsFromSqlite() {
     });
 }
 
-function loadTransferItemFromSqlite(code: string) {
+function loadTransferItemFromSqlite(identifier: string) {
     const database = getSqliteDatabase();
     const rows = database.exec(
-        `SELECT payload_json FROM ${TRANSFER_ITEMS_TABLE} WHERE code = ?`,
-        [String(code || "").trim()],
+        `SELECT item.record_id, item.payload_json
+         FROM ${TRANSFER_ITEMS_TABLE} item
+         LEFT JOIN transfer_item_aliases alias ON alias.record_id = item.record_id
+         WHERE item.record_id = ? OR item.code = ? OR alias.alias_code = ?
+         ORDER BY CASE
+             WHEN item.record_id = ? THEN 0
+             WHEN item.code = ? THEN 1
+             ELSE 2
+         END
+         LIMIT 1`,
+        Array(5).fill(String(identifier || "").trim()),
     );
-    const raw = rows?.[0]?.values?.[0]?.[0];
+    const row = rows?.[0]?.values?.[0];
+    const raw = row?.[1];
     if (!raw) return null;
-    return normalizeTransferItem(parseJson(raw, {}));
+    return normalizeTransferItem({ ...parseJson(raw, {}), recordId: row?.[0] });
 }
 
 export function initializeTransferSqliteStore() {
@@ -210,9 +323,9 @@ export function listTransferItems() {
     return loadTransferItemsFromSqlite();
 }
 
-export function loadTransferItem(code: string) {
+export function loadTransferItem(identifier: string) {
     ensureTransferSqliteSchema();
-    return loadTransferItemFromSqlite(code);
+    return loadTransferItemFromSqlite(identifier);
 }
 
 export function saveTransferItem(payload: any) {
@@ -220,7 +333,17 @@ export function saveTransferItem(payload: any) {
     ensureTransferBackup();
     const normalized = normalizeTransferItem(payload);
     const previousCode = String(payload?.previousCode || "").trim();
-    const current = normalized.code ? loadTransferItem(normalized.code) : null;
+    const current = normalized.recordId
+        ? loadTransferItem(normalized.recordId)
+        : previousCode
+          ? loadTransferItem(previousCode)
+          : normalized.code
+            ? loadTransferItem(normalized.code)
+            : null;
+    const codeConflict = normalized.code ? loadTransferItem(normalized.code) : null;
+    if (codeConflict?.code === normalized.code && codeConflict.recordId !== current?.recordId) {
+        throw new Error(`Esiste già una scheda con il codice ${normalized.code}.`);
+    }
     const retainedAttachments =
         !current && !previousCode
             ? copyAttachments(normalized.attachments)
@@ -234,6 +357,7 @@ export function saveTransferItem(payload: any) {
     const now = new Date().toISOString();
     const next = {
         ...normalized,
+        recordId: current?.recordId || normalized.recordId || crypto.randomUUID(),
         attachments: [...retainedAttachments, ...addedAttachments],
         newAttachments: [],
         createdAt: normalized.createdAt || current?.createdAt || now,
@@ -244,21 +368,25 @@ export function saveTransferItem(payload: any) {
         normalizeTransferItem(item),
     );
     const filtered = items.filter(
-        (item) => item.code !== next.code && (!previousCode || item.code !== previousCode),
+        (item) => item.recordId !== next.recordId && item.code !== next.code &&
+            (!previousCode || item.code !== previousCode),
     );
     filtered.push(next);
-    saveTransferItemsToSqlite(filtered);
+    saveTransferItemsToSqlite(filtered, {
+        aliasCode: previousCode,
+        recordId: next.recordId,
+    });
     return next;
 }
 
-export function deleteTransferItem(code: string) {
+export function deleteTransferItem(identifier: string) {
     ensureTransferSqliteSchema();
-    const current = loadTransferItem(code);
+    const current = loadTransferItem(identifier);
     if (!current) return false;
     const items = loadTransferItemsFromSqlite()
         .map((item) => normalizeTransferItem(item))
-        .filter((item) => item.code !== code);
-    saveTransferItemsToSqlite(items);
+        .filter((item) => item.recordId !== current.recordId && item.code !== current.code);
+    saveTransferItemsToSqlite(items, { deletedRecordId: current.recordId });
     deleteAttachmentFiles(current?.attachments);
     return true;
 }

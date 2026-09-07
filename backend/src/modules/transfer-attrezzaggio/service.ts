@@ -21,8 +21,8 @@ export function getTransferItems() {
     return listTransferItems();
 }
 
-export function getTransferItem(code: string) {
-    return loadTransferItem(code);
+export function getTransferItem(identifier: string) {
+    return loadTransferItem(identifier);
 }
 
 function summarizeTransferHeader(item: any) {
@@ -68,13 +68,15 @@ function summarizeUtensiliRows(item: any) {
         : [];
 }
 
-export function saveTransfer(code: string, payload: any, context?: ActionContext) {
+export function saveTransfer(identifier: string, payload: any, context?: ActionContext) {
     const meta = buildContext(context);
     return enqueue("saveItem", () => {
-        const beforeItem = loadTransferItem(code);
+        const beforeItem = loadTransferItem(identifier);
         const saved = saveTransferItem({
             ...payload,
-            code,
+            recordId: beforeItem?.recordId || payload?.recordId,
+            previousCode: beforeItem?.code || payload?.previousCode,
+            code: String(payload?.code || beforeItem?.code || identifier).trim(),
         });
         const headerChanges = buildChanges(
             summarizeTransferHeader(beforeItem),
@@ -124,7 +126,8 @@ export function saveTransfer(code: string, payload: any, context?: ActionContext
             event: "transfer_item_saved",
             module: "transfer",
             category: "data",
-            code,
+            code: saved.code,
+            recordId: saved.recordId,
             beforeTools: summarizeUtensiliRows(beforeItem).length,
             afterTools: summarizeUtensiliRows(saved).length,
             added: utensiliDiff.added,
@@ -133,7 +136,7 @@ export function saveTransfer(code: string, payload: any, context?: ActionContext
             changes,
             changeSummary:
                 buildChangeSummary(changes) ||
-                `Scheda ${code} salvata`,
+                `Scheda ${saved.code} salvata`,
         });
         return saved;
     });
@@ -143,26 +146,27 @@ export function getTransferAttachmentPath(storedName: string) {
     return resolveTransferAttachmentPath(storedName);
 }
 
-export function removeTransfer(code: string, context?: ActionContext) {
+export function removeTransfer(identifier: string, context?: ActionContext) {
     const meta = buildContext(context);
     return enqueue("deleteItem", () => {
-        const beforeItem = loadTransferItem(code);
-        const ok = deleteTransferItem(code);
+        const beforeItem = loadTransferItem(identifier);
+        const ok = deleteTransferItem(identifier);
         if (ok) {
             logger.info("Transfer item deleted", {
                 ...meta,
                 event: "transfer_item_deleted",
                 module: "transfer",
                 category: "data",
-                code,
+                code: beforeItem?.code || identifier,
+                recordId: beforeItem?.recordId || "",
                 changes: [
                     {
                         label: "Scheda attrezzaggio rimossa",
-                        before: String(beforeItem?.code || code),
+                        before: String(beforeItem?.code || identifier),
                         after: "-",
                     },
                 ],
-                changeSummary: `Scheda attrezzaggio rimossa: ${String(beforeItem?.code || code)}`,
+                changeSummary: `Scheda attrezzaggio rimossa: ${String(beforeItem?.code || identifier)}`,
             });
         }
         return ok;
