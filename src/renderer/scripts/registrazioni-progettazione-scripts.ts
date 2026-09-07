@@ -1,7 +1,8 @@
 // @ts-nocheck
 require("./shared/dev-guards");
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, webUtils } = require("electron");
 const { createAsyncGuard } = require("./shared/async-guard");
+const { withAttachmentSaveUi } = require("./shared/attachment-save-ui");
 const { showInfo, showError, showWarning, confirmDialog } = require("./shared/dialogs");
 
 type RegistrationType = "stampi" | "speciali";
@@ -448,7 +449,7 @@ function bindWorkflowEvents(origin: string) {
             const next = await Promise.all(files.map(async (file) => ({
                 tempId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
                 originalName: file.name,
-                dataBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+                dataFilePath: webUtils.getPathForFile(file),
                 mimeType: file.type || "application/octet-stream",
                 size: Number(file.size || 0),
                 workflowKey: phaseAttachmentKey(origin, phaseKey),
@@ -521,7 +522,7 @@ function readForm() {
         attachments: currentAttachments,
         newAttachments: pendingAttachments.map((item) => ({
             fileName: item.originalName,
-            dataBase64: item.dataBase64,
+            dataFilePath: item.dataFilePath,
             mimeType: item.mimeType,
             size: item.size,
             workflowKey: item.workflowKey || "",
@@ -719,7 +720,7 @@ async function saveForm() {
         (document.getElementById("progettoNumero") as HTMLInputElement)?.focus();
         return;
     }
-    const result = await ipcRenderer.invoke("registrazioni-progettazione-stampi-save", payload);
+    const result = await withAttachmentSaveUi(() => ipcRenderer.invoke("registrazioni-progettazione-stampi-save", payload));
     if (!result?.ok) {
         await showError("Impossibile salvare la registrazione.", result?.error || "");
         return;
@@ -763,7 +764,7 @@ attachmentInput?.addEventListener("change", asyncGuard.wrap(async (event) => {
     const next = await Promise.all(files.map(async (file: File) => ({
         tempId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         originalName: file.name,
-        dataBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+        dataFilePath: webUtils.getPathForFile(file),
         mimeType: file.type || "application/octet-stream",
         size: Number(file.size || 0),
     })));

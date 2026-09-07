@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { writeAttachmentData } from "./upload-store";
 
 export type AttachmentMeta = {
     id: string;
@@ -71,16 +72,13 @@ export function createAttachmentStore(directory: string) {
                     mimeType,
                 );
                 const storedName = `${id}${extension}`;
-                fs.writeFileSync(
-                    resolvePath(storedName),
-                    Buffer.from(base64, "base64"),
-                );
+                const size = writeAttachmentData(base64, resolvePath(storedName));
                 return {
                     id,
                     originalName,
                     storedName,
                     mimeType,
-                    size: Number(item?.size || 0) || 0,
+                    size,
                     createdAt: new Date().toISOString(),
                 };
             })

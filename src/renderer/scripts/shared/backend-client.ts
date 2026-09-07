@@ -3,6 +3,7 @@ require("./dev-guards");
 import { ipcRenderer } from "electron";
 import http from "http";
 import https from "https";
+import { withUploadedAttachments } from "../../../main/modules/file-manager/attachment-upload";
 
 let backendRootUrlCache = "";
 
@@ -30,6 +31,18 @@ function resolveBackendRootUrl() {
 }
 
 function requestBackend(pathname: string, options?: {
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string>;
+    responseType?: "json" | "text" | "buffer";
+}) {
+    return withUploadedAttachments(options?.body,
+        (path, uploadOptions) => requestBackendRaw(path, { ...uploadOptions, headers: options?.headers }),
+        (body) => requestBackendRaw(pathname, options && Object.prototype.hasOwnProperty.call(options, "body") ? { ...options, body } : options));
+}
+
+function requestBackendRaw(pathname: string, options?: {
+    timeoutMs?: number;
     method?: string;
     body?: unknown;
     headers?: Record<string, string>;
@@ -102,6 +115,7 @@ function requestBackend(pathname: string, options?: {
                 });
             },
         );
+        req.setTimeout(options?.timeoutMs || 120000, () => req.destroy(new Error("Tempo di attesa del server superato. Riprovare il salvataggio.")));
         req.on("error", reject);
         if (hasBody) req.write(body);
         req.end();

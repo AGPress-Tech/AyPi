@@ -1,4 +1,5 @@
 import fs from "fs";
+import { writeAttachmentData } from "../../shared/storage/upload-store";
 import path from "path";
 import { backendConfig } from "../../config";
 import { ensureFolderFor } from "../../shared/storage/json-files";
@@ -266,10 +267,9 @@ export function saveCatalogImage(payload: {
     }
     const ext = path.extname(originalName) || ".png";
     const safeName = `${catalogId}${ext}`;
-    const buffer = Buffer.from(String(payload.dataBase64 || ""), "base64");
     const filePath = path.join(PRODUCTS_DIR, safeName);
     ensureFolderFor(filePath);
-    fs.writeFileSync(filePath, buffer);
+    writeAttachmentData(String(payload.dataBase64 || ""), filePath);
     return {
         imageFile: safeName,
     };

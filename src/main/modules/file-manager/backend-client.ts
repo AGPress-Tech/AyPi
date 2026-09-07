@@ -1,15 +1,17 @@
 import http from "http";
 import https from "https";
 import log from "electron-log";
+import { withUploadedAttachments } from "./attachment-upload";
 import { resolveFpBackendBaseUrl } from "../../config/backend";
 
 export type BackendRequestOptions = {
     method?: string;
     body?: unknown;
     headers?: Record<string, string>;
+    timeoutMs?: number;
 };
 
-const BACKEND_REQUEST_TIMEOUT_MS = 10000;
+const BACKEND_REQUEST_TIMEOUT_MS = 120000;
 
 export function resolveAypiBackendBaseUrl() {
     const ferieBaseUrl = resolveFpBackendBaseUrl();
@@ -18,6 +20,15 @@ export function resolveAypiBackendBaseUrl() {
 }
 
 export async function requestAypiBackend(
+    pathname: string,
+    options?: BackendRequestOptions,
+) {
+    return withUploadedAttachments(options?.body,
+        (path, uploadOptions) => requestAypiBackendRaw(path, { ...uploadOptions, headers: options?.headers }),
+        (body) => requestAypiBackendRaw(pathname, options && Object.prototype.hasOwnProperty.call(options, "body") ? { ...options, body } : options));
+}
+
+function requestAypiBackendRaw(
     pathname: string,
     options?: BackendRequestOptions,
 ) {
@@ -84,7 +95,7 @@ export async function requestAypiBackend(
                 });
             },
         );
-        req.setTimeout(BACKEND_REQUEST_TIMEOUT_MS, () => {
+        req.setTimeout(options?.timeoutMs || BACKEND_REQUEST_TIMEOUT_MS, () => {
             req.destroy(
                 new Error(
                     `Backend ${method} ${url.pathname} timeout dopo ${

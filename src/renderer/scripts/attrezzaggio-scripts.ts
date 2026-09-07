@@ -1,10 +1,11 @@
 // @ts-nocheck
 require("./shared/dev-guards");
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, webUtils } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const XLSX = require("xlsx");
 const { createAsyncGuard } = require("./shared/async-guard");
+const { withAttachmentSaveUi } = require("./shared/attachment-save-ui");
 const {
     resolveBackendRootUrl,
 } = require("./shared/backend-client");
@@ -310,16 +311,6 @@ function closeImagePreview() {
     if (!imagePreviewOverlay || !imagePreviewFull) return;
     imagePreviewOverlay.classList.add("hidden");
     imagePreviewFull.src = "";
-}
-
-function bytesToBase64(bytes) {
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let index = 0; index < bytes.length; index += chunkSize) {
-        const chunk = bytes.subarray(index, index + chunkSize);
-        binary += String.fromCharCode(...chunk);
-    }
-    return btoa(binary);
 }
 
 function renderAttachments() {
@@ -974,7 +965,6 @@ function collectHaasFormData() {
                 id: item.tempId,
                 originalName: item.originalName,
                 previewUrl: item.previewUrl,
-                dataUrl: `data:${item.mimeType};base64,${item.dataBase64}`,
                 mimeType: item.mimeType,
                 size: item.size,
             })),
@@ -1172,6 +1162,13 @@ function renderHaasListFiltered() {
 
 async function saveHaasForm() {
     const payload = collectHaasFormData();
+    payload.attachments = currentHaasAttachments;
+    payload.newAttachments = pendingHaasAttachments.map((item) => ({
+        fileName: item.originalName,
+        dataFilePath: item.dataFilePath,
+        mimeType: item.mimeType,
+        size: item.size,
+    }));
     if (
         !payload.codiceArticolo ||
         !payload.numeroProgramma ||
@@ -1192,10 +1189,10 @@ async function saveHaasForm() {
         return;
     }
 
-    const res = await ipcRenderer.invoke("haas-attrezzaggio-save", {
+    const res = await withAttachmentSaveUi(() => ipcRenderer.invoke("haas-attrezzaggio-save", {
         ...payload,
         previousCode: currentHaasCode,
-    });
+    }));
     if (!res?.ok) {
         await showError(res?.error || "Errore salvataggio scheda HAAS");
         return;
@@ -1972,7 +1969,7 @@ async function saveForm() {
         attachments: currentAttachments,
         newAttachments: pendingAttachments.map((item) => ({
             fileName: item.originalName,
-            dataBase64: item.dataBase64,
+            dataFilePath: item.dataFilePath,
             mimeType: item.mimeType,
             size: item.size,
         })),
@@ -2004,7 +2001,7 @@ async function saveForm() {
         return;
     }
 
-    const res = await ipcRenderer.invoke("transfer-attrezzaggio-save", payload);
+    const res = await withAttachmentSaveUi(() => ipcRenderer.invoke("transfer-attrezzaggio-save", payload));
     if (!res?.ok) {
         await showError(res?.error || "Errore salvataggio");
         return;
@@ -2165,13 +2162,11 @@ attachmentInput?.addEventListener(
         );
         const nextItems = await Promise.all(
             imageFiles.map(async (file) => {
-                const buffer = await file.arrayBuffer();
-                const bytes = new Uint8Array(buffer);
                 return {
                     tempId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
                     originalName: file.name,
                     previewUrl: URL.createObjectURL(file),
-                    dataBase64: bytesToBase64(bytes),
+                    dataFilePath: webUtils.getPathForFile(file),
                     mimeType: file.type || "image/png",
                     size: Number(file.size || 0) || 0,
                 };
@@ -2192,13 +2187,11 @@ haasAttachmentInput?.addEventListener(
         );
         const nextItems = await Promise.all(
             imageFiles.map(async (file) => {
-                const buffer = await file.arrayBuffer();
-                const bytes = new Uint8Array(buffer);
                 return {
                     tempId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
                     originalName: file.name,
                     previewUrl: URL.createObjectURL(file),
-                    dataBase64: bytesToBase64(bytes),
+                    dataFilePath: webUtils.getPathForFile(file),
                     mimeType: file.type || "image/png",
                     size: Number(file.size || 0) || 0,
                 };

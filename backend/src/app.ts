@@ -91,7 +91,8 @@ export function createBackendServer(
         response.setHeader("x-aypi-request-id", requestId);
         if (
             ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
-            requestUrl.toLowerCase().startsWith("/api/")
+            requestUrl.toLowerCase().startsWith("/api/") &&
+            !requestUrl.toLowerCase().startsWith("/api/uploads")
         ) {
             response.once("finish", () => {
                 if (response.statusCode < 200 || response.statusCode >= 300) {

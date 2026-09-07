@@ -1,4 +1,5 @@
 import type { Router } from "../shared/http/router";
+import { registerUploadRoutes } from "../shared/http/upload-routes";
 import { registerFeriePermessiRoutes } from "../modules/ferie-permessi/routes";
 import { registerSharedRoutes } from "../modules/shared/routes";
 import { registerProductManagerRoutes } from "../modules/product-manager/routes";
@@ -12,6 +13,7 @@ import { backendConfig } from "../config";
 import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
 
 export function registerRoutes(router: Router) {
+    registerUploadRoutes(router);
     router.register("GET", "/health", async (_req, res) => {
         sendJson(res, 200, {
             ok: true,

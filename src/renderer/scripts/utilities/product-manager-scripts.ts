@@ -394,13 +394,12 @@ function uploadCatalogImageToBackend(filePath, catalogId) {
     const ext = path.extname(filePath) || ".png";
     const fileName = `${catalogId}${ext}`;
     try {
-        const buffer = fs.readFileSync(filePath);
         requestBackend("/api/product-manager/catalog-image", {
             method: "POST",
             body: {
                 catalogId,
                 fileName: path.basename(filePath),
-                dataBase64: buffer.toString("base64"),
+                dataFilePath: filePath,
             },
         }).catch((err) => {
             showError(
