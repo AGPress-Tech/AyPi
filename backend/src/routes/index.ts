@@ -8,6 +8,7 @@ import { registerTransferAttrezzaggioRoutes } from "../modules/transfer-attrezza
 import { registerHaasAttrezzaggioRoutes } from "../modules/haas-attrezzaggio/routes";
 import { registerProductionPlannerRoutes } from "../modules/production-planner/routes";
 import { registerRegistrazioniProgettazioneStampiRoutes } from "../modules/registrazioni-progettazione-stampi/routes";
+import { registerRegistrazioniProgettiSpecialiRoutes } from "../modules/registrazioni-progetti-speciali/routes";
 import { sendJson } from "../shared/http/response";
 import { backendConfig } from "../config";
 import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
@@ -27,6 +28,7 @@ export function registerRoutes(router: Router) {
                 "haas-attrezzaggio",
                 "production-planner",
                 "registrazioni-progettazione-stampi",
+                "registrazioni-progetti-speciali",
                 "telegram-bot",
             ],
             host: backendConfig.advertisedHost,
@@ -54,4 +56,5 @@ export function registerRoutes(router: Router) {
     registerHaasAttrezzaggioRoutes(router);
     registerProductionPlannerRoutes(router);
     registerRegistrazioniProgettazioneStampiRoutes(router);
+    registerRegistrazioniProgettiSpecialiRoutes(router);
 }

@@ -123,7 +123,7 @@ const homeView = document.getElementById("homeView");
 const listView = document.getElementById("listView");
 const createView = document.getElementById("createView");
 const stampiForm = document.getElementById("stampiForm");
-const specialiPlaceholder = document.getElementById("specialiPlaceholder");
+const specialiForm = document.getElementById("specialiForm");
 const listTitle = document.getElementById("listTitle");
 const listDescription = document.getElementById("listDescription");
 const createTitle = document.getElementById("createTitle");
@@ -146,6 +146,10 @@ let pendingAttachments: any[] = [];
 let savedSnapshot = "";
 let successiveData: Record<string, Record<string, any>> = { interno: {}, cliente: {} };
 let renderedOrigin = "";
+
+function specialProjectsForm() {
+    return (globalThis as any).specialProjectsForm;
+}
 
 const asyncGuard = createAsyncGuard({
     errorTitle: "Errore Registrazioni Progettazione.",
@@ -541,8 +545,11 @@ function markSaved() {
     savedSnapshot = snapshot();
 }
 function hasUnsavedChanges() {
-    return activeType === "stampi" &&
-        !stampiForm?.classList.contains("hidden") && snapshot() !== savedSnapshot;
+    if (activeType === "speciali") {
+        return !specialiForm?.classList.contains("hidden") &&
+            Boolean(specialProjectsForm()?.hasUnsavedChanges?.());
+    }
+    return !stampiForm?.classList.contains("hidden") && snapshot() !== savedSnapshot;
 }
 async function confirmDiscardChanges() {
     if (!hasUnsavedChanges()) return true;
@@ -633,7 +640,7 @@ function formatDate(value: unknown) {
 function renderList() {
     if (!registrationsList || !listCount || !emptyList) return;
     registrationsList.innerHTML = "";
-    const items = activeType === "stampi" ? listItems : [];
+    const items = listItems;
     listCount.textContent = `${items.length} ${items.length === 1 ? "registrazione" : "registrazioni"}`;
     emptyList.classList.toggle("hidden", items.length > 0);
     items.forEach((item) => {
@@ -646,10 +653,13 @@ function renderList() {
         code.addEventListener("click", () => void openExisting(item.code));
         const meta = document.createElement("span");
         meta.className = "code-meta";
-        meta.textContent = `${item.descrizioneProgetto || "Nessuna descrizione"} | Articolo: ${item.codiceArticolo || "-"} | Agg.: ${formatDate(item.updatedAt)}`;
+        const context = activeType === "stampi"
+            ? `Articolo: ${item.codiceArticolo || "-"}`
+            : `Richiesto da: ${item.richiestoDa || "-"}`;
+        meta.textContent = `${item.descrizioneProgetto || "Nessuna descrizione"} | ${context} | Agg.: ${formatDate(item.updatedAt)}`;
         const completion = document.createElement("span");
         completion.className = `registration-completion ${item.completato ? "is-complete" : ""}`;
-        completion.textContent = item.completato ? "Primo blocco completato" : "Primo blocco da completare";
+        completion.textContent = item.completato ? "Registrazione completata" : "Registrazione in compilazione";
         details.append(code, meta, completion);
         const actions = document.createElement("div");
         actions.className = "card-actions";
@@ -667,12 +677,10 @@ function renderList() {
     });
 }
 async function loadList() {
-    if (activeType !== "stampi") {
-        listItems = [];
-        renderList();
-        return;
-    }
-    const result = await ipcRenderer.invoke("registrazioni-progettazione-stampi-list");
+    const channel = activeType === "stampi"
+        ? "registrazioni-progettazione-stampi-list"
+        : "registrazioni-progetti-speciali-list";
+    const result = await ipcRenderer.invoke(channel);
     if (!result?.ok) {
         listItems = [];
         renderList();
@@ -692,40 +700,50 @@ function openCreateView() {
     updateTypeContent();
     const isStampi = activeType === "stampi";
     stampiForm?.classList.toggle("hidden", !isStampi);
-    specialiPlaceholder?.classList.toggle("hidden", isStampi);
-    saveFormBtn?.classList.toggle("hidden", !isStampi);
-    newFormBtn?.classList.toggle("hidden", !isStampi);
+    specialiForm?.classList.toggle("hidden", isStampi);
+    saveFormBtn?.classList.remove("hidden");
+    newFormBtn?.classList.remove("hidden");
     if (isStampi) resetForm();
+    else specialProjectsForm()?.reset?.();
     showView("create");
 }
 async function openExisting(code: string) {
-    const result = await ipcRenderer.invoke("registrazioni-progettazione-stampi-load", { code });
+    const channel = activeType === "stampi"
+        ? "registrazioni-progettazione-stampi-load"
+        : "registrazioni-progetti-speciali-load";
+    const result = await ipcRenderer.invoke(channel, { code });
     if (!result?.ok || !result.item) {
         await showError("Impossibile aprire la registrazione.", result?.error || "");
         return;
     }
-    activeType = "stampi";
     updateTypeContent();
-    stampiForm?.classList.remove("hidden");
-    specialiPlaceholder?.classList.add("hidden");
+    const isStampi = activeType === "stampi";
+    stampiForm?.classList.toggle("hidden", !isStampi);
+    specialiForm?.classList.toggle("hidden", isStampi);
     saveFormBtn?.classList.remove("hidden");
     newFormBtn?.classList.remove("hidden");
-    populateForm(result.item);
+    if (isStampi) populateForm(result.item);
+    else specialProjectsForm()?.populate?.(result.item);
     showView("create");
 }
 async function saveForm() {
-    const payload = readForm();
+    const isStampi = activeType === "stampi";
+    const payload = isStampi ? readForm() : specialProjectsForm()?.read?.();
     if (!payload.progettoNumero) {
         await showWarning("Inserire il numero del progetto.");
-        (document.getElementById("progettoNumero") as HTMLInputElement)?.focus();
+        (document.getElementById(isStampi ? "progettoNumero" : "specialProgettoNumero") as HTMLInputElement)?.focus();
         return;
     }
-    const result = await withAttachmentSaveUi(() => ipcRenderer.invoke("registrazioni-progettazione-stampi-save", payload));
+    const channel = isStampi
+        ? "registrazioni-progettazione-stampi-save"
+        : "registrazioni-progetti-speciali-save";
+    const result = await withAttachmentSaveUi(() => ipcRenderer.invoke(channel, payload));
     if (!result?.ok) {
         await showError("Impossibile salvare la registrazione.", result?.error || "");
         return;
     }
-    populateForm(result.item || { ...payload, code: result.code, newAttachments: [] });
+    if (isStampi) populateForm(result.item || { ...payload, code: result.code, newAttachments: [] });
+    else specialProjectsForm()?.populate?.(result.item || { ...payload, code: result.code, newAttachments: [] });
     await showInfo(`Registrazione salvata: ${result.code}`);
 }
 async function deleteItem(code: string) {
@@ -734,7 +752,10 @@ async function deleteItem(code: string) {
         "La registrazione e i relativi allegati verranno rimossi.",
     );
     if (!confirmed) return;
-    const result = await ipcRenderer.invoke("registrazioni-progettazione-stampi-delete", { code });
+    const channel = activeType === "stampi"
+        ? "registrazioni-progettazione-stampi-delete"
+        : "registrazioni-progetti-speciali-delete";
+    const result = await ipcRenderer.invoke(channel, { code });
     if (!result?.ok) {
         await showError("Impossibile eliminare la registrazione.", result?.error || "");
         return;
@@ -755,7 +776,8 @@ document.getElementById("backFromCreateBtn")?.addEventListener("click", asyncGua
 }));
 newFormBtn?.addEventListener("click", asyncGuard.wrap(async () => {
     if (!(await confirmDiscardChanges())) return;
-    resetForm();
+    if (activeType === "stampi") resetForm();
+    else specialProjectsForm()?.reset?.();
 }));
 saveFormBtn?.addEventListener("click", asyncGuard.wrap(saveForm));
 document.getElementById("addAttachmentBtn")?.addEventListener("click", () => attachmentInput?.click());

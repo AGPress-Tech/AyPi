@@ -12,6 +12,8 @@ export function normalizeAgpressLayout() {
     const haasDir = backendConfig.modules.haasAttrezzaggio.dir;
     const registrazioniProgettazioneStampiDir =
         backendConfig.modules.registrazioniProgettazioneStampi.dir;
+    const registrazioniProgettiSpecialiDir =
+        backendConfig.modules.registrazioniProgettiSpeciali.dir;
 
     [
         baseDir,
@@ -26,6 +28,8 @@ export function normalizeAgpressLayout() {
         path.join(haasDir, "_attachments"),
         registrazioniProgettazioneStampiDir,
         path.join(registrazioniProgettazioneStampiDir, "_attachments"),
+        registrazioniProgettiSpecialiDir,
+        path.join(registrazioniProgettiSpecialiDir, "_attachments"),
     ].forEach((dirPath) => ensureDir(dirPath));
 
     logger.info("AGPRESS layout ensured", {

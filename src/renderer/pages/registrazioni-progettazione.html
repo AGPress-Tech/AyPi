@@ -244,20 +244,101 @@
             </aside>
             </div>
 
-            <article id="specialiPlaceholder" class="sheet hidden">
-                <header class="sheet-head">
-                    <div id="createTitle" class="sheet-title"></div>
-                    <div class="sheet-code">Nuova registrazione</div>
-                </header>
-                <section class="form-placeholder">
-                    <h2>Struttura della registrazione da definire</h2>
-                    <p>Il modulo Progetti Speciali verrà costruito nella fase dedicata.</p>
-                    <button id="returnToListBtn" type="button">Torna all'elenco</button>
-                </section>
-            </article>
+            <div id="specialiForm" class="design-workspace special-workspace hidden">
+                <article class="design-sheet">
+                    <header class="design-sheet-head">
+                        <div class="design-brand"><img src="../assets/agpress-logo-generico.png" alt="A.G.PRESS"></div>
+                        <div class="design-title">REGISTRAZIONI DEI PROGETTI SPECIALI</div>
+                    </header>
+
+                    <section id="specialBaseSection" class="form-section">
+                        <div class="section-heading">
+                            <span class="section-number">01</span>
+                            <div><h2>Requisiti di base del progetto</h2><p>Identificazione ed elementi in ingresso.</p></div>
+                        </div>
+                        <div class="form-grid special-base-grid">
+                            <label><span class="field-label">Progetto Numero <b class="required">*</b></span><input id="specialProgettoNumero" type="text"></label>
+                            <label>Descrizione del Progetto<input id="specialDescrizioneProgetto" type="text"></label>
+                            <fieldset><legend>Nuovo Progetto</legend><label><input type="radio" name="specialNuovoProgetto" value="si"> Sì</label><label><input type="radio" name="specialNuovoProgetto" value="no"> No</label></fieldset>
+                            <label>Condizioni d'impiego<input id="specialCondizioniImpiego" type="text"></label>
+                            <label>Richiesto da<input id="specialRichiestoDa" type="text"></label>
+                            <label>Peso Stampato<input id="specialPesoStampato" type="number" min="0" step="any"></label>
+                            <label>Peso Tornito<input id="specialPesoTornito" type="number" min="0" step="any"></label>
+                            <label>Requisiti Normativi<input id="specialRequisitiNormativi" type="text"></label>
+                            <label>Requisiti di Brevetto<input id="specialRequisitiBrevetto" type="text"></label>
+                            <label>Validazione della preserie prevista per<input id="specialValidazionePreserie" type="date"></label>
+                            <label>Inizio Produzione Prevista per<input id="specialInizioProduzione" type="date"></label>
+                        </div>
+                    </section>
+
+                    <section class="form-section">
+                        <div class="section-heading">
+                            <span class="section-number">02</span>
+                            <div><h2>DFMEA - PFMEA e rischio percepito</h2><p>Valutazione preliminare del progetto speciale.</p></div>
+                        </div>
+                        <div class="analysis-grid">
+                            <fieldset class="check-panel">
+                                <legend>Previste modifiche alla progettazione e/o ai processi?</legend>
+                                <div class="check-panel-body">
+                                    <div class="check-options">
+                                        <label><input type="checkbox" name="specialDfmeaPfmea" value="materiali"> Materiali</label>
+                                        <label><input type="checkbox" name="specialDfmeaPfmea" value="metodi-produzione-controllo"> Metodi di produzione e controllo</label>
+                                        <label><input type="checkbox" name="specialDfmeaPfmea" value="formazione-personale"> Formazione del personale</label>
+                                        <label><input type="checkbox" name="specialDfmeaPfmea" value="attrezzature-macchine"> Attrezzature e/o macchine</label>
+                                    </div>
+                                    <label class="dfmea-note">Note<textarea id="specialDfmeaNote" rows="4"></textarea></label>
+                                </div>
+                            </fieldset>
+                            <fieldset class="risk-panel">
+                                <legend>Rischio di Progetto Percepito</legend>
+                                <p>Costruzione, sicurezza del prodotto, fallimento del progetto, ecc.</p>
+                                <div class="risk-options">
+                                    <label><span>Alto</span><textarea id="specialRischioAlto" rows="4"></textarea></label>
+                                    <label><span>Medio</span><textarea id="specialRischioMedio" rows="4"></textarea></label>
+                                    <label><span>Basso</span><textarea id="specialRischioBasso" rows="4"></textarea></label>
+                                </div>
+                            </fieldset>
+                        </div>
+                        <label class="full-field special-general-note">Note<textarea id="specialNote" rows="4"></textarea></label>
+                        <div class="attachments-section design-attachments">
+                            <div class="attachments-topbar">
+                                <h3>Allegati</h3>
+                                <button id="specialAddAttachmentBtn" type="button">Aggiungi File</button>
+                                <input id="specialAttachmentInput" type="file" multiple hidden>
+                            </div>
+                            <div id="specialAttachmentsList" class="document-attachments"></div>
+                        </div>
+                    </section>
+
+                    <section class="form-section">
+                        <div class="section-heading">
+                            <span class="section-number">03</span>
+                            <div><h2>Impostazione della progettazione</h2><p>Supporto esterno e caratteristiche generali.</p></div>
+                        </div>
+                        <div class="special-support-grid">
+                            <fieldset><legend>Progettazione Prevista con Supporto esterno</legend><label><input type="radio" name="specialSupportoEsterno" value="si"> Sì</label><label><input type="radio" name="specialSupportoEsterno" value="no"> No</label></fieldset>
+                            <label>Note<textarea id="specialSupportoEsternoNote" rows="3"></textarea></label>
+                            <label>Caratteristiche Generali del progetto<textarea id="specialCaratteristicheGenerali" rows="3"></textarea></label>
+                        </div>
+                        <div class="workflow-issue special-base-issue">
+                            <label>Data<input id="specialData" type="date"></label>
+                            <label>Firma · Emesso da<input id="specialEmessoDa" type="text"><small>Direzione commerciale</small></label>
+                        </div>
+                    </section>
+
+                    <div id="specialPairsContainer"></div>
+                    <div id="specialValidationsContainer"></div>
+                </article>
+
+                <aside class="progress-sidebar" aria-label="Avanzamento progetto speciale">
+                    <div class="progress-heading"><h2>Avanzamento</h2><p>La checklist si aggiorna automaticamente.</p></div>
+                    <ol id="specialProgressList" class="progress-list"></ol>
+                </aside>
+            </div>
         </section>
     </main>
 
+    <script src="../scripts/registrazioni-progetti-speciali-scripts.js"></script>
     <script src="../scripts/registrazioni-progettazione-scripts.js"></script>
 </body>
 
