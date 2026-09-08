@@ -42,6 +42,16 @@ function normalizeScopedAttachments(items: unknown) {
     });
 }
 
+function normalizeLinkedPaths(items: unknown) {
+    return (Array.isArray(items) ? items : []).map((item: any, index) => ({
+        id: text(item?.id) || `path-${index + 1}`,
+        name: text(item?.name) || path.basename(text(item?.path)),
+        path: text(item?.path),
+        scopeKey: text(item?.scopeKey) || "base",
+        createdAt: text(item?.createdAt),
+    })).filter((item) => item.path);
+}
+
 function normalizePairs(value: unknown) {
     if (!Array.isArray(value)) return [];
     return value.map((pair, index) => ({
@@ -124,6 +134,7 @@ export function normalizeRegistrazioneProgettoSpeciale(raw: any) {
             validazioni.length > 0 && validationComplete(validazioni[validazioni.length - 1])
         ),
         attachments: normalizeScopedAttachments(item.attachments),
+        linkedPaths: normalizeLinkedPaths(item.linkedPaths),
         newAttachments: Array.isArray(item.newAttachments) ? item.newAttachments : [],
         createdAt: text(item.createdAt),
         updatedAt: text(item.updatedAt),
@@ -156,8 +167,11 @@ export function saveRegistrazioneProgettoSpeciale(payload: any) {
     ensureAgpressDailyBackup("auto", 30);
     const normalized = normalizeRegistrazioneProgettoSpeciale(payload);
     const previousCode = text(payload?.previousCode);
-    const current = loadRegistrazioneProgettoSpeciale(normalized.code) ||
-        (previousCode ? loadRegistrazioneProgettoSpeciale(previousCode) : null);
+    const target = loadRegistrazioneProgettoSpeciale(normalized.code);
+    if (target && previousCode !== normalized.code) {
+        throw new Error(`Esiste già una registrazione con numero progetto ${normalized.code}.`);
+    }
+    const current = (previousCode ? loadRegistrazioneProgettoSpeciale(previousCode) : null) || target;
     const retained = normalizeScopedAttachments(normalized.attachments);
     const retainedIds = new Set(retained.map((item) => item.id));
     const removed = normalizeScopedAttachments(current?.attachments)
@@ -174,24 +188,29 @@ export function saveRegistrazioneProgettoSpeciale(payload: any) {
         createdAt: normalized.createdAt || current?.createdAt || now,
         updatedAt: now,
     });
-    runSqliteTransaction((database) => {
-        if (previousCode && previousCode !== next.code) {
-            database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [previousCode]);
-        }
-        database.run(
-            `INSERT OR REPLACE INTO ${TABLE}
-                (code, descrizione, richiesto_da, completato, updated_at, payload_json)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-                next.code,
-                next.descrizioneProgetto || null,
-                next.richiestoDa || null,
-                next.completato ? 1 : 0,
-                next.updatedAt,
-                serializeJson(next),
-            ],
-        );
-    });
+    try {
+        runSqliteTransaction((database) => {
+            if (previousCode && previousCode !== next.code) {
+                database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [previousCode]);
+            }
+            database.run(
+                `INSERT OR REPLACE INTO ${TABLE}
+                    (code, descrizione, richiesto_da, completato, updated_at, payload_json)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    next.code,
+                    next.descrizioneProgetto || null,
+                    next.richiestoDa || null,
+                    next.completato ? 1 : 0,
+                    next.updatedAt,
+                    serializeJson(next),
+                ],
+            );
+        });
+    } catch (error) {
+        attachments.remove(added);
+        throw error;
+    }
     attachments.remove(removed);
     return next;
 }

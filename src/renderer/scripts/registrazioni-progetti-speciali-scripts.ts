@@ -1,5 +1,7 @@
 // @ts-nocheck
 require("./shared/dev-guards");
+const { ipcRenderer, shell, webUtils } = require("electron");
+const { resolveBackendRootUrl } = require("./shared/backend-client");
 const { showWarning, confirmDialog } = require("./shared/dialogs");
 
 const specialFieldMap = {
@@ -45,10 +47,37 @@ let pairs: any[] = [];
 let validations: any[] = [];
 let currentAttachments: any[] = [];
 let pendingAttachments: any[] = [];
+let currentLinkedPaths: any[] = [];
 let savedSnapshot = "";
 
 function uid(prefix: string) {
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+async function openStoredAttachment(item: any) {
+    if (item.pending && item.dataFilePath) {
+        const error = await shell.openPath(item.dataFilePath);
+        if (error) await showWarning(error);
+        return;
+    }
+    if (item.storedName) {
+        await shell.openExternal(`${resolveBackendRootUrl()}/api/registrazioni-progetti-speciali/attachments/${encodeURIComponent(item.storedName)}`);
+    }
+}
+async function openLinkedPath(item: any) {
+    const result = await ipcRenderer.invoke("registrazioni-progettazione-open-linked-path", { path: item.path });
+    if (!result?.ok) await showWarning(result?.error || "Percorso non disponibile.");
+}
+async function addLinkedPaths(scopeKey: string) {
+    const result = await ipcRenderer.invoke("registrazioni-progettazione-select-linked-paths");
+    if (!result?.ok) { await showWarning(result?.error || "Impossibile selezionare il percorso."); return; }
+    for (const selectedPath of result.paths || []) {
+        const normalized = String(selectedPath || "").trim();
+        if (!normalized || currentLinkedPaths.some((item) => item.path === normalized && item.scopeKey === scopeKey)) continue;
+        currentLinkedPaths.push({
+            id: uid("path"), name: normalized.split(/[\\/]/).filter(Boolean).pop() || normalized,
+            path: normalized, scopeKey, createdAt: new Date().toISOString(),
+        });
+    }
 }
 function textValue(id: string) {
     return String((document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement)?.value || "").trim();
@@ -91,7 +120,8 @@ function pairPartStarted(pairId: string, part: string, data: any) {
     const scope = `pair:${pairId}:${part}`;
     return Object.values(data || {}).some((value) => Boolean(String(value || "").trim())) ||
         currentAttachments.some((item) => item.scopeKey === scope) ||
-        pendingAttachments.some((item) => item.scopeKey === scope);
+        pendingAttachments.some((item) => item.scopeKey === scope) ||
+        currentLinkedPaths.some((item) => item.scopeKey === scope);
 }
 function validationSigned(attempt: any) {
     return Boolean(
@@ -107,7 +137,8 @@ function validationStarted(attempt: any) {
         Object.values(attempt?.answers || {}).some(Boolean) ||
         attempt?.note ||
         currentAttachments.some((item) => item.scopeKey === scope) ||
-        pendingAttachments.some((item) => item.scopeKey === scope),
+        pendingAttachments.some((item) => item.scopeKey === scope) ||
+        currentLinkedPaths.some((item) => item.scopeKey === scope),
     );
 }
 function allPairsComplete() {
@@ -121,7 +152,8 @@ function baseStarted() {
         Boolean(radioValue("specialSupportoEsterno")) ||
         document.querySelectorAll<HTMLInputElement>('input[name="specialDfmeaPfmea"]:checked').length > 0 ||
         currentAttachments.some((item) => item.scopeKey === "base") ||
-        pendingAttachments.some((item) => item.scopeKey === "base");
+        pendingAttachments.some((item) => item.scopeKey === "base") ||
+        currentLinkedPaths.some((item) => item.scopeKey === "base");
 }
 function stateOf(started: boolean, complete: boolean) {
     return complete ? "complete" : started ? "partial" : "empty";
@@ -129,7 +161,7 @@ function stateOf(started: boolean, complete: boolean) {
 function setControlsLocked(container: Element | null, locked: boolean) {
     container?.classList.toggle("is-locked", locked);
     container?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("input, textarea, button")
-        .forEach((control) => (control.disabled = locked));
+        .forEach((control) => { if (!control.dataset.attachmentOpen) control.disabled = locked; });
 }
 function syncPairsFromDom() {
     pairs.forEach((pair) => {
@@ -164,8 +196,9 @@ function syncDynamicData() {
 }
 function scopedItems(scopeKey: string) {
     return [
-        ...currentAttachments.filter((item) => item.scopeKey === scopeKey).map((item) => ({ ...item, pending: false })),
-        ...pendingAttachments.filter((item) => item.scopeKey === scopeKey).map((item) => ({ ...item, id: item.tempId, pending: true })),
+        ...currentAttachments.filter((item) => item.scopeKey === scopeKey).map((item) => ({ ...item, pending: false, linked: false })),
+        ...pendingAttachments.filter((item) => item.scopeKey === scopeKey).map((item) => ({ ...item, id: item.tempId, pending: true, linked: false })),
+        ...currentLinkedPaths.filter((item) => item.scopeKey === scopeKey).map((item) => ({ ...item, linked: true })),
     ];
 }
 function renderFileList(target: HTMLElement | null, scopeKey: string) {
@@ -180,26 +213,30 @@ function renderFileList(target: HTMLElement | null, scopeKey: string) {
         const row = document.createElement("div");
         row.className = "phase-file";
         const name = document.createElement("span");
-        name.textContent = item.originalName || "Allegato";
+        name.textContent = item.linked ? `Percorso: ${item.name}` : (item.originalName || "Allegato");
+        const open = document.createElement("button");
+        open.type = "button"; open.textContent = "Apri"; open.dataset.attachmentOpen = "true";
+        open.addEventListener("click", () => void (item.linked ? openLinkedPath(item) : openStoredAttachment(item)));
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "Rimuovi";
         remove.addEventListener("click", () => {
-            if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
+            if (item.linked) currentLinkedPaths = currentLinkedPaths.filter((entry) => entry.id !== item.id);
+            else if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
             else currentAttachments = currentAttachments.filter((entry) => entry.id !== item.id);
             renderFileList(target, scopeKey);
             renderProgress();
         });
-        row.append(name, remove);
+        row.append(name, open, remove);
         target.appendChild(row);
     });
 }
 async function addFiles(files: File[], scopeKey: string) {
-    const next = await Promise.all(files.map(async (file) => ({
+    const next = files.map((file) => ({
         tempId: uid("file"), originalName: file.name,
-        dataBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+        dataFilePath: webUtils.getPathForFile(file),
         mimeType: file.type || "application/octet-stream", size: Number(file.size || 0), scopeKey,
-    })));
+    }));
     pendingAttachments = [...pendingAttachments, ...next];
 }
 function pairPartHtml(pair: any, index: number, part: "verifica" | "riesame") {
@@ -223,7 +260,7 @@ function pairPartHtml(pair: any, index: number, part: "verifica" | "riesame") {
             <div class="special-record-grid">
                 <label>Note<textarea data-special-field="note" rows="4">${escapeHtml(data.note)}</textarea></label>
                 <div class="workflow-attachments">
-                    <div class="workflow-attachments-head"><span>Allega</span><button type="button" data-special-add-files="${scope}">Aggiungi File</button></div>
+                    <div class="workflow-attachments-head"><span>Allega</span><button type="button" data-special-add-files="${scope}">Aggiungi File</button><button type="button" data-special-link-path="${scope}">Collega Percorso</button></div>
                     <input type="file" data-special-file-input="${scope}" multiple hidden>
                     <div class="phase-files" data-special-files="${scope}"></div>
                 </div>
@@ -254,6 +291,12 @@ function renderPairs() {
         input.addEventListener("input", () => { syncPairsFromDom(); updateLocks(); renderProgress(); }));
     pairsContainer.querySelectorAll<HTMLButtonElement>("[data-special-add-files]").forEach((button) => button.addEventListener("click", () =>
         pairsContainer.querySelector<HTMLInputElement>(`[data-special-file-input="${button.dataset.specialAddFiles}"]`)?.click()));
+    pairsContainer.querySelectorAll<HTMLButtonElement>("[data-special-link-path]").forEach((button) => button.addEventListener("click", async () => {
+        const scope = button.dataset.specialLinkPath || "";
+        await addLinkedPaths(scope);
+        renderFileList(pairsContainer.querySelector<HTMLElement>(`[data-special-files="${scope}"]`), scope);
+        renderProgress();
+    }));
     pairsContainer.querySelectorAll<HTMLInputElement>("[data-special-file-input]").forEach((input) => input.addEventListener("change", async () => {
         const scope = input.dataset.specialFileInput || "";
         await addFiles(Array.from(input.files || []), scope);
@@ -270,6 +313,7 @@ function renderPairs() {
         const id = button.dataset.removeSpecialPair || "";
         currentAttachments = currentAttachments.filter((item) => !String(item.scopeKey).startsWith(`pair:${id}:`));
         pendingAttachments = pendingAttachments.filter((item) => !String(item.scopeKey).startsWith(`pair:${id}:`));
+        currentLinkedPaths = currentLinkedPaths.filter((item) => !String(item.scopeKey).startsWith(`pair:${id}:`));
         pairs = pairs.filter((pair) => pair.id !== id);
         renderPairs(); renderValidations(); updateLocks(); renderProgress();
     }));
@@ -288,7 +332,7 @@ function validationHtml(attempt: any, index: number) {
             <div class="special-record-grid special-validation-records">
                 <label>Note<textarea data-special-validation-field="note" rows="5">${escapeHtml(attempt.note)}</textarea></label>
                 <div class="workflow-attachments">
-                    <div class="workflow-attachments-head"><span>Allegati</span><button type="button" data-special-validation-add-files="${scope}">Aggiungi File</button></div>
+                    <div class="workflow-attachments-head"><span>Allegati</span><button type="button" data-special-validation-add-files="${scope}">Aggiungi File</button><button type="button" data-special-validation-link-path="${scope}">Collega Percorso</button></div>
                     <input type="file" data-special-validation-file-input="${scope}" multiple hidden>
                     <div class="phase-files" data-special-validation-files="${scope}"></div>
                 </div>
@@ -347,6 +391,7 @@ function renderValidations() {
             const removedIds = new Set(validations.slice(attemptIndex + 1).map((entry) => entry.id));
             currentAttachments = currentAttachments.filter((item) => !removedIds.has(String(item.scopeKey || "").replace(/^validation:/, "")));
             pendingAttachments = pendingAttachments.filter((item) => !removedIds.has(String(item.scopeKey || "").replace(/^validation:/, "")));
+            currentLinkedPaths = currentLinkedPaths.filter((item) => !removedIds.has(String(item.scopeKey || "").replace(/^validation:/, "")));
             validations = validations.slice(0, attemptIndex + 1);
             structureChanged = true;
         }
@@ -360,6 +405,12 @@ function renderValidations() {
     }));
     validationsContainer.querySelectorAll<HTMLButtonElement>("[data-special-validation-add-files]").forEach((button) => button.addEventListener("click", () =>
         validationsContainer.querySelector<HTMLInputElement>(`[data-special-validation-file-input="${button.dataset.specialValidationAddFiles}"]`)?.click()));
+    validationsContainer.querySelectorAll<HTMLButtonElement>("[data-special-validation-link-path]").forEach((button) => button.addEventListener("click", async () => {
+        const scope = button.dataset.specialValidationLinkPath || "";
+        await addLinkedPaths(scope);
+        renderFileList(validationsContainer.querySelector<HTMLElement>(`[data-special-validation-files="${scope}"]`), scope);
+        renderProgress();
+    }));
     validationsContainer.querySelectorAll<HTMLInputElement>("[data-special-validation-file-input]").forEach((input) => input.addEventListener("change", async (event) => {
         event.stopPropagation();
         const scope = input.dataset.specialValidationFileInput || "";
@@ -443,8 +494,9 @@ function read() {
         dfmeaPfmea: Array.from(document.querySelectorAll<HTMLInputElement>('input[name="specialDfmeaPfmea"]:checked')).map((input) => input.value),
         coppieVerificaRiesame: pairs, validazioni: validations,
         attachments: currentAttachments,
+        linkedPaths: currentLinkedPaths,
         newAttachments: pendingAttachments.map((item) => ({
-            fileName: item.originalName, dataBase64: item.dataBase64,
+            fileName: item.originalName, dataFilePath: item.dataFilePath,
             mimeType: item.mimeType, size: item.size, scopeKey: item.scopeKey,
         })),
     };
@@ -453,12 +505,13 @@ function snapshot() {
     const payload = read();
     return JSON.stringify({ ...payload,
         attachments: currentAttachments.map((item) => [item.id, item.scopeKey]),
+        linkedPaths: currentLinkedPaths.map((item) => [item.id, item.path, item.scopeKey]),
         newAttachments: pendingAttachments.map((item) => [item.originalName, item.size, item.scopeKey]),
     });
 }
 function markSaved() { savedSnapshot = snapshot(); }
 function reset() {
-    currentCode = ""; currentAttachments = []; pendingAttachments = [];
+    currentCode = ""; currentAttachments = []; pendingAttachments = []; currentLinkedPaths = [];
     Object.values(specialFieldMap).forEach((id) => setTextValue(id, ""));
     setRadio("specialNuovoProgetto", ""); setRadio("specialSupportoEsterno", "");
     document.querySelectorAll<HTMLInputElement>('input[name="specialDfmeaPfmea"]').forEach((input) => input.checked = false);
@@ -474,6 +527,7 @@ function populate(item: any) {
     pairs = Array.isArray(item?.coppieVerificaRiesame) && item.coppieVerificaRiesame.length ? item.coppieVerificaRiesame : [newPair()];
     validations = Array.isArray(item?.validazioni) && item.validazioni.length ? item.validazioni : [newValidation()];
     currentAttachments = Array.isArray(item?.attachments) ? item.attachments : []; pendingAttachments = [];
+    currentLinkedPaths = Array.isArray(item?.linkedPaths) ? item.linkedPaths : [];
     renderFileList(baseAttachmentsList, "base"); renderPairs(); renderValidations(); updateLocks(); renderProgress(); markSaved();
 }
 
@@ -486,6 +540,11 @@ specialForm?.addEventListener("change", (event) => {
     updateLocks(); renderProgress();
 });
 document.getElementById("specialAddAttachmentBtn")?.addEventListener("click", () => baseAttachmentInput?.click());
+document.getElementById("specialLinkAttachmentPathBtn")?.addEventListener("click", async () => {
+    await addLinkedPaths("base");
+    renderFileList(baseAttachmentsList, "base");
+    renderProgress();
+});
 baseAttachmentInput?.addEventListener("change", async () => {
     await addFiles(Array.from(baseAttachmentInput.files || []), "base");
     baseAttachmentInput.value = ""; renderFileList(baseAttachmentsList, "base"); renderProgress();
@@ -498,6 +557,11 @@ baseAttachmentInput?.addEventListener("change", async () => {
     markSaved,
     hasUnsavedChanges: () => snapshot() !== savedSnapshot,
     getCurrentCode: () => currentCode,
+    setReadOnly: (readOnly: boolean) => {
+        specialForm?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>("input, textarea, select, button")
+            .forEach((control) => { if (!control.dataset.attachmentOpen) control.disabled = readOnly; });
+        if (!readOnly) updateLocks();
+    },
 };
 
 reset();

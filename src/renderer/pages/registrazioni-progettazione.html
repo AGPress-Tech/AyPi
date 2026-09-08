@@ -30,6 +30,30 @@
             </div>
             <h2 id="listTitle"></h2>
             <p id="listDescription" class="home-subtitle"></p>
+            <div id="registrationFilters" class="list-filters registration-filters">
+                <label>Progetto Numero<input id="filterProjectNumber" type="search" autocomplete="off"></label>
+                <label><span id="filterSecondaryLabel">Codice Articolo</span><input id="filterSecondary" type="search" autocomplete="off"></label>
+                <label><span id="filterClassificationLabel">Progetto Interno/Cliente</span>
+                    <select id="filterClassification"></select>
+                </label>
+                <label>Stato
+                    <select id="filterStatus">
+                        <option value="">Tutti</option>
+                        <option value="complete">Completati</option>
+                        <option value="partial">Parzialmente completati</option>
+                    </select>
+                </label>
+                <label>Ricerca generale<input id="filterGeneral" type="search" placeholder="Descrizione, note, tipologia..."></label>
+                <label>Ordinamento
+                    <select id="listSort">
+                        <option value="updated-desc">Ultima modifica (recenti)</option>
+                        <option value="updated-asc">Ultima modifica (meno recenti)</option>
+                        <option value="project-asc">Numero progetto (A-Z)</option>
+                        <option value="project-desc">Numero progetto (Z-A)</option>
+                    </select>
+                </label>
+                <button id="clearRegistrationFiltersBtn" type="button">Azzera filtri</button>
+            </div>
             <p id="listCount" class="list-count">0 registrazioni</p>
             <ul id="registrationsList" class="cards-list" aria-label="Elenco registrazioni"></ul>
             <div id="emptyList" class="empty-list hidden">
@@ -197,6 +221,7 @@
                         <div class="attachments-topbar">
                             <h3>Allegati</h3>
                             <button id="addAttachmentBtn" type="button">Aggiungi File</button>
+                            <button id="linkAttachmentPathBtn" type="button">Collega Percorso</button>
                             <input id="attachmentInput" type="file" multiple hidden>
                         </div>
                         <div id="attachmentsList" class="document-attachments"></div>
@@ -304,6 +329,7 @@
                             <div class="attachments-topbar">
                                 <h3>Allegati</h3>
                                 <button id="specialAddAttachmentBtn" type="button">Aggiungi File</button>
+                                <button id="specialLinkAttachmentPathBtn" type="button">Collega Percorso</button>
                                 <input id="specialAttachmentInput" type="file" multiple hidden>
                             </div>
                             <div id="specialAttachmentsList" class="document-attachments"></div>

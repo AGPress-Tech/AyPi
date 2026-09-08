@@ -39,6 +39,24 @@
     display: none !important;
 }
 
+.registration-filters {
+    grid-template-columns: repeat(4, minmax(155px, 1fr));
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #f7f9fc;
+}
+
+.registration-filters #clearRegistrationFiltersBtn {
+    min-height: 31px;
+    margin: 0;
+    align-self: end;
+}
+
+.card-actions button {
+    min-width: 82px;
+}
+
 #createView:not(.hidden) {
     height: calc(100vh - 32px);
     display: flex;
@@ -400,6 +418,29 @@ input[type="checkbox"] {
 .document-attachment button {
     flex: 0 0 auto;
     margin: 0;
+}
+
+.is-read-only input:disabled,
+.is-read-only textarea:disabled,
+.is-read-only select:disabled {
+    opacity: 1;
+    color: var(--text);
+    background: #f7f9fb;
+    -webkit-text-fill-color: var(--text);
+}
+
+.is-read-only input[type="radio"]:disabled,
+.is-read-only input[type="checkbox"]:disabled {
+    opacity: 1;
+}
+
+.is-read-only button:not([data-attachment-open]) {
+    display: none;
+}
+
+.is-read-only [data-attachment-open] {
+    opacity: 1;
+    cursor: pointer;
 }
 
 .registration-completion {

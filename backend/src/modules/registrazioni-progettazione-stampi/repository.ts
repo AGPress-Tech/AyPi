@@ -47,6 +47,35 @@ function normalizeWorkflowAttachments(items: unknown) {
     });
 }
 
+function normalizeLinkedPaths(items: unknown) {
+    return (Array.isArray(items) ? items : []).map((item: any, index) => ({
+        id: text(item?.id) || `path-${index + 1}`,
+        name: text(item?.name) || path.basename(text(item?.path)),
+        path: text(item?.path),
+        workflowKey: text(item?.workflowKey),
+        createdAt: text(item?.createdAt),
+    })).filter((item) => item.path);
+}
+
+function workflowPhaseComplete(phaseKey: string, data: any) {
+    if (!data?.data || !data?.emessoDa) return false;
+    if (phaseKey === "validation") return Boolean(data.firmaDirezioneProduzione);
+    if (phaseKey === "riesame1" || phaseKey === "riesame2") {
+        return Boolean(data.partecipantiProduzione && data.partecipantiStampaggio && data.partecipantiOfficina);
+    }
+    return true;
+}
+
+function registrationComplete(item: any, data: string, emessoDa: string) {
+    if (!data || !emessoDa) return false;
+    const origin = text(item.origineProgetto);
+    const phases = item?.fasiSuccessive?.[origin];
+    if (!phases || typeof phases !== "object") return false;
+    // La terza verifica è esplicitamente eventuale e non blocca la chiusura del modulo.
+    return ["riesame1", "verifica1", "verifica2", "riesame2", "validation"]
+        .every((phaseKey) => workflowPhaseComplete(phaseKey, phases[phaseKey]));
+}
+
 export function normalizeRegistrazioneStampi(raw: any) {
     const item = raw && typeof raw === "object" ? raw : {};
     const data = text(item.data);
@@ -88,8 +117,9 @@ export function normalizeRegistrazioneStampi(raw: any) {
                 : {},
         data,
         emessoDa,
-        completato: Boolean(data && emessoDa),
+        completato: registrationComplete(item, data, emessoDa),
         attachments: normalizeWorkflowAttachments(item.attachments),
+        linkedPaths: normalizeLinkedPaths(item.linkedPaths),
         newAttachments: Array.isArray(item.newAttachments) ? item.newAttachments : [],
         createdAt: text(item.createdAt),
         updatedAt: text(item.updatedAt),
@@ -124,8 +154,11 @@ export function saveRegistrazioneStampi(payload: any) {
     ensureAgpressDailyBackup("auto", 30);
     const normalized = normalizeRegistrazioneStampi(payload);
     const previousCode = text(payload?.previousCode);
-    const current = loadRegistrazioneStampi(normalized.code) ||
-        (previousCode ? loadRegistrazioneStampi(previousCode) : null);
+    const target = loadRegistrazioneStampi(normalized.code);
+    if (target && previousCode !== normalized.code) {
+        throw new Error(`Esiste già una registrazione con numero progetto ${normalized.code}.`);
+    }
+    const current = (previousCode ? loadRegistrazioneStampi(previousCode) : null) || target;
     const retained = normalizeWorkflowAttachments(normalized.attachments);
     const retainedIds = new Set(retained.map((item) => item.id));
     const removed = normalizeWorkflowAttachments(current?.attachments)
@@ -143,25 +176,30 @@ export function saveRegistrazioneStampi(payload: any) {
         updatedAt: now,
     };
 
-    runSqliteTransaction((database) => {
-        if (previousCode && previousCode !== next.code) {
-            database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [previousCode]);
-        }
-        database.run(
-            `INSERT OR REPLACE INTO ${TABLE}
-                (code, descrizione, tipologia, codice_articolo, completato, updated_at, payload_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-                next.code,
-                next.descrizioneProgetto || null,
-                next.tipologia || null,
-                next.codiceArticolo || null,
-                next.completato ? 1 : 0,
-                next.updatedAt,
-                serializeJson(next),
-            ],
-        );
-    });
+    try {
+        runSqliteTransaction((database) => {
+            if (previousCode && previousCode !== next.code) {
+                database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [previousCode]);
+            }
+            database.run(
+                `INSERT OR REPLACE INTO ${TABLE}
+                    (code, descrizione, tipologia, codice_articolo, completato, updated_at, payload_json)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    next.code,
+                    next.descrizioneProgetto || null,
+                    next.tipologia || null,
+                    next.codiceArticolo || null,
+                    next.completato ? 1 : 0,
+                    next.updatedAt,
+                    serializeJson(next),
+                ],
+            );
+        });
+    } catch (error) {
+        attachments.remove(added);
+        throw error;
+    }
     attachments.remove(removed);
     return next;
 }

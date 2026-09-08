@@ -50,6 +50,7 @@ import { registerMainWindowLayoutIpc } from "./file-manager/main-window-layout-i
 import { registerAttrezzaggioPdfPreviewIpc } from "./file-manager/attrezzaggio-pdf-preview-ipc";
 import { registerRegistrazioniProgettazioneDataIpc } from "./file-manager/registrazioni-progettazione-data-ipc";
 import { registerRegistrazioniProgettiSpecialiDataIpc } from "./file-manager/registrazioni-progetti-speciali-data-ipc";
+import { registerRegistrazioniProgettazionePathIpc } from "./file-manager/registrazioni-progettazione-path-ipc";
 
 const WINDOW_WEB_PREFERENCES = {
     nodeIntegration: true,
@@ -2804,6 +2805,12 @@ function setupFileManager(mainWindow) {
     registerAttrezzaggioDataIpc(ipcMain, requestAypiBackend);
     registerRegistrazioniProgettazioneDataIpc(ipcMain, requestAypiBackend);
     registerRegistrazioniProgettiSpecialiDataIpc(ipcMain, requestAypiBackend);
+    registerRegistrazioniProgettazionePathIpc({
+        ipcMain,
+        dialog,
+        shell,
+        getParentWindow: () => registrazioniProgettazioneWindow || mainWindow,
+    });
     registerProductionPlannerIpc(ipcMain, requestAypiBackend);
     ipcMain.on("open-qr-generator-window", (_event, payload) => {
         openQrGeneratorWindow(mainWindow, {

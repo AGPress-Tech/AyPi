@@ -1,6 +1,7 @@
 // @ts-nocheck
 require("./shared/dev-guards");
-const { ipcRenderer, webUtils } = require("electron");
+const { ipcRenderer, webUtils, shell } = require("electron");
+const { resolveBackendRootUrl } = require("./shared/backend-client");
 const { createAsyncGuard } = require("./shared/async-guard");
 const { withAttachmentSaveUi } = require("./shared/attachment-save-ui");
 const { showInfo, showError, showWarning, confirmDialog } = require("./shared/dialogs");
@@ -137,18 +138,69 @@ const blockStatusText = document.getElementById("blockStatusText");
 const saveFormBtn = document.getElementById("saveFormBtn");
 const newFormBtn = document.getElementById("newFormBtn");
 const successivePhases = document.getElementById("successivePhases");
+const filterProjectNumber = document.getElementById("filterProjectNumber") as HTMLInputElement;
+const filterSecondary = document.getElementById("filterSecondary") as HTMLInputElement;
+const filterSecondaryLabel = document.getElementById("filterSecondaryLabel");
+const filterClassificationLabel = document.getElementById("filterClassificationLabel");
+const filterClassification = document.getElementById("filterClassification") as HTMLSelectElement;
+const filterStatus = document.getElementById("filterStatus") as HTMLSelectElement;
+const filterGeneral = document.getElementById("filterGeneral") as HTMLInputElement;
+const listSort = document.getElementById("listSort") as HTMLSelectElement;
 
 let activeType: RegistrationType = "stampi";
 let listItems: any[] = [];
 let currentCode = "";
 let currentAttachments: any[] = [];
 let pendingAttachments: any[] = [];
+let currentLinkedPaths: any[] = [];
 let savedSnapshot = "";
 let successiveData: Record<string, Record<string, any>> = { interno: {}, cliente: {} };
 let renderedOrigin = "";
 
 function specialProjectsForm() {
     return (globalThis as any).specialProjectsForm;
+}
+
+function attachmentUrl(storedName: string) {
+    const modulePath = activeType === "stampi"
+        ? "registrazioni-progettazione-stampi"
+        : "registrazioni-progetti-speciali";
+    return `${resolveBackendRootUrl()}/api/${modulePath}/attachments/${encodeURIComponent(storedName)}`;
+}
+
+async function openStoredAttachment(item: any) {
+    if (item.pending && item.dataFilePath) {
+        const error = await shell.openPath(item.dataFilePath);
+        if (error) await showError("Impossibile aprire l'allegato.", error);
+        return;
+    }
+    if (!item.storedName) return;
+    await shell.openExternal(attachmentUrl(item.storedName));
+}
+
+async function openLinkedPath(item: any) {
+    const result = await ipcRenderer.invoke("registrazioni-progettazione-open-linked-path", { path: item.path });
+    if (!result?.ok) await showError("Impossibile aprire il percorso collegato.", result?.error || "");
+}
+
+async function selectLinkedPaths(workflowKey = "") {
+    const result = await ipcRenderer.invoke("registrazioni-progettazione-select-linked-paths");
+    if (!result?.ok) {
+        await showError("Impossibile selezionare il percorso.", result?.error || "");
+        return;
+    }
+    const now = new Date().toISOString();
+    for (const selectedPath of result.paths || []) {
+        const normalized = String(selectedPath || "").trim();
+        if (!normalized || currentLinkedPaths.some((item) => item.path === normalized && item.workflowKey === workflowKey)) continue;
+        currentLinkedPaths.push({
+            id: `path-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            name: normalized.split(/[\\/]/).filter(Boolean).pop() || normalized,
+            path: normalized,
+            workflowKey,
+            createdAt: now,
+        });
+    }
 }
 
 const asyncGuard = createAsyncGuard({
@@ -243,7 +295,8 @@ function syncWorkflowDataFromDom() {
 function phaseHasContent(origin: string, phase: any, data: any) {
     const workflowKey = phaseAttachmentKey(origin, phase.key);
     const hasAttachment = currentAttachments.some((item) => item.workflowKey === workflowKey) ||
-        pendingAttachments.some((item) => item.workflowKey === workflowKey);
+        pendingAttachments.some((item) => item.workflowKey === workflowKey) ||
+        currentLinkedPaths.some((item) => item.workflowKey === workflowKey);
     const scalarFields = [
         "approvvigionamentoMateriaPrima", "note", "data", "emessoDa",
         "partecipantiProduzione", "partecipantiStampaggio", "partecipantiOfficina",
@@ -304,8 +357,9 @@ function renderPhaseAttachments(origin: string, phaseKey: string) {
     if (!target) return;
     const workflowKey = phaseAttachmentKey(origin, phaseKey);
     const items = [
-        ...currentAttachments.filter((item) => item.workflowKey === workflowKey).map((item) => ({ ...item, pending: false })),
-        ...pendingAttachments.filter((item) => item.workflowKey === workflowKey).map((item) => ({ ...item, id: item.tempId, pending: true })),
+        ...currentAttachments.filter((item) => item.workflowKey === workflowKey).map((item) => ({ ...item, pending: false, linked: false })),
+        ...pendingAttachments.filter((item) => item.workflowKey === workflowKey).map((item) => ({ ...item, id: item.tempId, pending: true, linked: false })),
+        ...currentLinkedPaths.filter((item) => item.workflowKey === workflowKey).map((item) => ({ ...item, linked: true })),
     ];
     target.innerHTML = "";
     if (!items.length) {
@@ -316,17 +370,23 @@ function renderPhaseAttachments(origin: string, phaseKey: string) {
         const row = document.createElement("div");
         row.className = "phase-file";
         const name = document.createElement("span");
-        name.textContent = item.originalName || "Allegato";
+        name.textContent = item.linked ? `Percorso: ${item.name}` : (item.originalName || "Allegato");
+        const open = document.createElement("button");
+        open.type = "button";
+        open.textContent = "Apri";
+        open.dataset.attachmentOpen = "true";
+        open.addEventListener("click", () => void (item.linked ? openLinkedPath(item) : openStoredAttachment(item)));
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "Rimuovi";
         remove.addEventListener("click", () => {
-            if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
+            if (item.linked) currentLinkedPaths = currentLinkedPaths.filter((entry) => entry.id !== item.id);
+            else if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
             else currentAttachments = currentAttachments.filter((entry) => entry.id !== item.id);
             renderPhaseAttachments(origin, phaseKey);
             updateWorkflowProgress();
         });
-        row.append(name, remove);
+        row.append(name, open, remove);
         target.appendChild(row);
     });
 }
@@ -371,7 +431,7 @@ function workflowSectionHtml(phase: any, origin: string) {
             <fieldset class="workflow-checks"><legend>Verifiche previste</legend>${checkHtml}${procurementHtml}</fieldset>
             <label class="workflow-notes">Note<textarea data-field="note" rows="4"></textarea></label>
             <div class="workflow-attachments">
-                <div class="workflow-attachments-head"><span>Allega</span><button type="button" data-add-phase-file="${phase.key}">Aggiungi File</button></div>
+                <div class="workflow-attachments-head"><span>Allega</span><button type="button" data-add-phase-file="${phase.key}">Aggiungi File</button><button type="button" data-link-phase-path="${phase.key}">Collega Percorso</button></div>
                 <input type="file" data-phase-file-input="${phase.key}" multiple hidden>
                 <div class="phase-files" data-phase-files="${phase.key}"></div>
             </div>
@@ -430,7 +490,7 @@ function updateWorkflowLock() {
     const locked = !firstBlockComplete() || !renderedOrigin;
     successivePhases.classList.toggle("is-locked", locked);
     successivePhases.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>("input, textarea, button")
-        .forEach((control) => (control.disabled = locked));
+        .forEach((control) => { if (!control.dataset.attachmentOpen) control.disabled = locked; });
     updateWorkflowProgress();
 }
 function bindWorkflowEvents(origin: string) {
@@ -445,6 +505,14 @@ function bindWorkflowEvents(origin: string) {
             const key = button.dataset.addPhaseFile || "";
             successivePhases.querySelector<HTMLInputElement>(`[data-phase-file-input="${key}"]`)?.click();
         });
+    });
+    successivePhases.querySelectorAll<HTMLButtonElement>("[data-link-phase-path]").forEach((button) => {
+        button.addEventListener("click", asyncGuard.wrap(async () => {
+            const phaseKey = button.dataset.linkPhasePath || "";
+            await selectLinkedPaths(phaseAttachmentKey(origin, phaseKey));
+            renderPhaseAttachments(origin, phaseKey);
+            updateWorkflowProgress();
+        }));
     });
     successivePhases.querySelectorAll<HTMLInputElement>("[data-phase-file-input]").forEach((input) => {
         input.addEventListener("change", asyncGuard.wrap(async () => {
@@ -503,7 +571,8 @@ function updateCompletionStatus() {
         radioNames.some((name) => Boolean(radioValue(name))) ||
         checkedValues("dfmeaPfmea").length > 0 ||
         currentAttachments.some((item) => !item.workflowKey) ||
-        pendingAttachments.some((item) => !item.workflowKey);
+        pendingAttachments.some((item) => !item.workflowKey) ||
+        currentLinkedPaths.some((item) => !item.workflowKey);
     const state = completed ? "complete" : started ? "partial" : "empty";
     blockStatus?.setAttribute("data-state", state);
     if (blockStatusText) blockStatusText.textContent = completed
@@ -524,6 +593,7 @@ function readForm() {
         dfmeaPfmea: checkedValues("dfmeaPfmea"),
         fasiSuccessive: successiveData,
         attachments: currentAttachments,
+        linkedPaths: currentLinkedPaths,
         newAttachments: pendingAttachments.map((item) => ({
             fileName: item.originalName,
             dataFilePath: item.dataFilePath,
@@ -538,6 +608,7 @@ function snapshot() {
     return JSON.stringify({
         ...payload,
         attachments: currentAttachments.map((item) => [item.id, item.workflowKey || ""]),
+        linkedPaths: currentLinkedPaths.map((item) => [item.id, item.path, item.workflowKey || ""]),
         newAttachments: pendingAttachments.map((item) => [item.originalName, item.size, item.workflowKey || ""]),
     });
 }
@@ -562,6 +633,7 @@ function resetForm() {
     currentCode = "";
     currentAttachments = [];
     pendingAttachments = [];
+    currentLinkedPaths = [];
     successiveData = emptyWorkflowData();
     renderedOrigin = "";
     fieldIds.forEach((id) => setInputValue(id, ""));
@@ -587,6 +659,7 @@ function populateForm(item: any) {
         input.checked = dfmeaValues.has(input.value);
     });
     currentAttachments = Array.isArray(item?.attachments) ? item.attachments : [];
+    currentLinkedPaths = Array.isArray(item?.linkedPaths) ? item.linkedPaths : [];
     pendingAttachments = [];
     renderAttachments();
     renderSuccessivePhases();
@@ -597,8 +670,9 @@ function renderAttachments() {
     if (!attachmentsList) return;
     attachmentsList.innerHTML = "";
     const items = [
-        ...currentAttachments.filter((item) => !item.workflowKey).map((item) => ({ ...item, pending: false })),
-        ...pendingAttachments.filter((item) => !item.workflowKey).map((item) => ({ ...item, id: item.tempId, pending: true })),
+        ...currentAttachments.filter((item) => !item.workflowKey).map((item) => ({ ...item, pending: false, linked: false })),
+        ...pendingAttachments.filter((item) => !item.workflowKey).map((item) => ({ ...item, id: item.tempId, pending: true, linked: false })),
+        ...currentLinkedPaths.filter((item) => !item.workflowKey).map((item) => ({ ...item, linked: true })),
     ];
     if (!items.length) {
         attachmentsList.innerHTML = '<p class="attachment-empty">Nessun allegato inserito.</p>';
@@ -610,20 +684,26 @@ function renderAttachments() {
         const info = document.createElement("div");
         info.className = "document-attachment-info";
         const name = document.createElement("strong");
-        name.textContent = item.originalName || "Allegato";
+        name.textContent = item.linked ? `Percorso: ${item.name}` : (item.originalName || "Allegato");
         const size = document.createElement("span");
-        size.textContent = `${(Number(item.size || 0) / 1024).toFixed(1)} KB${item.pending ? " · da salvare" : ""}`;
+        size.textContent = item.linked ? item.path : `${(Number(item.size || 0) / 1024).toFixed(1)} KB${item.pending ? " · da salvare" : ""}`;
         info.append(name, size);
+        const open = document.createElement("button");
+        open.type = "button";
+        open.textContent = "Apri";
+        open.dataset.attachmentOpen = "true";
+        open.addEventListener("click", () => void (item.linked ? openLinkedPath(item) : openStoredAttachment(item)));
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "Rimuovi";
         remove.addEventListener("click", () => {
-            if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
+            if (item.linked) currentLinkedPaths = currentLinkedPaths.filter((entry) => entry.id !== item.id);
+            else if (item.pending) pendingAttachments = pendingAttachments.filter((entry) => entry.tempId !== item.id);
             else currentAttachments = currentAttachments.filter((entry) => entry.id !== item.id);
             renderAttachments();
             updateCompletionStatus();
         });
-        row.append(info, remove);
+        row.append(info, open, remove);
         attachmentsList.appendChild(row);
     });
 }
@@ -632,17 +712,63 @@ function updateTypeContent() {
     if (listTitle) listTitle.textContent = current.title;
     if (listDescription) listDescription.textContent = current.description;
     if (createTitle) createTitle.textContent = current.title;
+    if (filterSecondaryLabel) filterSecondaryLabel.textContent = activeType === "stampi" ? "Codice Articolo" : "Richiesto da";
+    if (filterClassificationLabel) filterClassificationLabel.textContent = activeType === "stampi" ? "Progetto Interno/Cliente" : "Supporto esterno";
+    if (filterClassification) filterClassification.innerHTML = activeType === "stampi"
+        ? '<option value="">Tutti</option><option value="interno">Progetto Interno</option><option value="cliente">Progetto Cliente</option>'
+        : '<option value="">Tutti</option><option value="si">Con supporto esterno</option><option value="no">Senza supporto esterno</option>';
 }
 function formatDate(value: unknown) {
     const date = new Date(String(value || ""));
     return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("it-IT");
 }
+function normalizedSearch(value: unknown) {
+    return String(value || "").trim().toLocaleLowerCase("it-IT");
+}
+function filteredListItems() {
+    const project = normalizedSearch(filterProjectNumber?.value);
+    const secondary = normalizedSearch(filterSecondary?.value);
+    const classification = normalizedSearch(filterClassification?.value);
+    const status = filterStatus?.value || "";
+    const general = normalizedSearch(filterGeneral?.value);
+    const filtered = listItems.filter((item) => {
+        const projectValue = normalizedSearch(item.progettoNumero || item.code);
+        const secondaryValue = normalizedSearch(activeType === "stampi" ? item.codiceArticolo : item.richiestoDa);
+        const classificationValue = normalizedSearch(activeType === "stampi" ? item.origineProgetto : item.supportoEsterno);
+        const searchable = normalizedSearch([
+            item.progettoNumero, item.code, item.descrizioneProgetto, item.tipologia,
+            item.codiceArticolo, item.richiestoDa, item.note, item.dfmeaPfmeaNote,
+            item.caratteristicheGenerali, item.condizioniImpiego,
+        ].filter(Boolean).join(" "));
+        return (!project || projectValue.includes(project)) &&
+            (!secondary || secondaryValue.includes(secondary)) &&
+            (!classification || classificationValue === classification) &&
+            (!status || (status === "complete" ? Boolean(item.completato) : !item.completato)) &&
+            (!general || searchable.includes(general));
+    });
+    const direction = listSort?.value || "updated-desc";
+    return filtered.sort((a, b) => {
+        if (direction.startsWith("project")) {
+            const comparison = String(a.progettoNumero || a.code || "").localeCompare(String(b.progettoNumero || b.code || ""), "it", { numeric: true });
+            return direction === "project-desc" ? -comparison : comparison;
+        }
+        const comparison = new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
+        return direction === "updated-asc" ? comparison : -comparison;
+    });
+}
 function renderList() {
     if (!registrationsList || !listCount || !emptyList) return;
     registrationsList.innerHTML = "";
-    const items = listItems;
-    listCount.textContent = `${items.length} ${items.length === 1 ? "registrazione" : "registrazioni"}`;
+    const items = filteredListItems();
+    listCount.textContent = items.length === listItems.length
+        ? `${items.length} ${items.length === 1 ? "registrazione" : "registrazioni"}`
+        : `${items.length} visualizzate su ${listItems.length}`;
     emptyList.classList.toggle("hidden", items.length > 0);
+    const emptyTitle = emptyList.querySelector("h3");
+    const emptyText = emptyList.querySelector("p");
+    const hasFilters = Boolean(filterProjectNumber?.value || filterSecondary?.value || filterClassification?.value || filterStatus?.value || filterGeneral?.value);
+    if (emptyTitle) emptyTitle.textContent = hasFilters ? "Nessun risultato" : "Nessuna registrazione presente";
+    if (emptyText) emptyText.textContent = hasFilters ? "Nessuna registrazione corrisponde ai filtri impostati." : "Le registrazioni create compariranno in questo elenco.";
     items.forEach((item) => {
         const li = document.createElement("li");
         const details = document.createElement("div");
@@ -650,12 +776,12 @@ function renderList() {
         const code = document.createElement("span");
         code.className = "code";
         code.textContent = item.progettoNumero || item.code || "Senza numero";
-        code.addEventListener("click", () => void openExisting(item.code));
+        code.addEventListener("click", () => void openExisting(item.code, "view"));
         const meta = document.createElement("span");
         meta.className = "code-meta";
         const context = activeType === "stampi"
-            ? `Articolo: ${item.codiceArticolo || "-"}`
-            : `Richiesto da: ${item.richiestoDa || "-"}`;
+            ? `Articolo: ${item.codiceArticolo || "-"} | Origine: ${item.origineProgetto === "interno" ? "Interno" : item.origineProgetto === "cliente" ? "Cliente" : "-"}`
+            : `Richiesto da: ${item.richiestoDa || "-"} | Supporto esterno: ${item.supportoEsterno === "si" ? "Sì" : item.supportoEsterno === "no" ? "No" : "-"}`;
         meta.textContent = `${item.descrizioneProgetto || "Nessuna descrizione"} | ${context} | Agg.: ${formatDate(item.updatedAt)}`;
         const completion = document.createElement("span");
         completion.className = `registration-completion ${item.completato ? "is-complete" : ""}`;
@@ -663,15 +789,19 @@ function renderList() {
         details.append(code, meta, completion);
         const actions = document.createElement("div");
         actions.className = "card-actions";
-        const open = document.createElement("button");
-        open.type = "button";
-        open.textContent = "Apri";
-        open.addEventListener("click", () => void openExisting(item.code));
+        const consult = document.createElement("button");
+        consult.type = "button";
+        consult.textContent = "Consulta";
+        consult.addEventListener("click", () => void openExisting(item.code, "view"));
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.textContent = "Modifica";
+        edit.addEventListener("click", () => void openExisting(item.code, "edit"));
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "Elimina";
         remove.addEventListener("click", () => void deleteItem(item.code));
-        actions.append(open, remove);
+        actions.append(consult, edit, remove);
         li.append(details, actions);
         registrationsList.appendChild(li);
     });
@@ -692,6 +822,9 @@ async function loadList() {
 }
 async function openList(type: RegistrationType) {
     activeType = type;
+    [filterProjectNumber, filterSecondary, filterGeneral].forEach((input) => { if (input) input.value = ""; });
+    [filterClassification, filterStatus].forEach((select) => { if (select) select.value = ""; });
+    if (listSort) listSort.value = "updated-desc";
     updateTypeContent();
     showView("list");
     await loadList();
@@ -701,13 +834,22 @@ function openCreateView() {
     const isStampi = activeType === "stampi";
     stampiForm?.classList.toggle("hidden", !isStampi);
     specialiForm?.classList.toggle("hidden", isStampi);
-    saveFormBtn?.classList.remove("hidden");
-    newFormBtn?.classList.remove("hidden");
+    applyFormMode(false);
     if (isStampi) resetForm();
     else specialProjectsForm()?.reset?.();
     showView("create");
 }
-async function openExisting(code: string) {
+function applyFormMode(readOnly: boolean) {
+    saveFormBtn?.classList.toggle("hidden", readOnly);
+    newFormBtn?.classList.toggle("hidden", readOnly);
+    stampiForm?.classList.toggle("is-read-only", readOnly);
+    specialiForm?.classList.toggle("is-read-only", readOnly);
+    stampiForm?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>("input, textarea, select, button")
+        .forEach((control) => { if (!control.dataset.attachmentOpen) control.disabled = readOnly; });
+    specialProjectsForm()?.setReadOnly?.(readOnly);
+    if (!readOnly) updateWorkflowLock();
+}
+async function openExisting(code: string, mode: "view" | "edit" = "view") {
     const channel = activeType === "stampi"
         ? "registrazioni-progettazione-stampi-load"
         : "registrazioni-progetti-speciali-load";
@@ -720,10 +862,9 @@ async function openExisting(code: string) {
     const isStampi = activeType === "stampi";
     stampiForm?.classList.toggle("hidden", !isStampi);
     specialiForm?.classList.toggle("hidden", isStampi);
-    saveFormBtn?.classList.remove("hidden");
-    newFormBtn?.classList.remove("hidden");
     if (isStampi) populateForm(result.item);
     else specialProjectsForm()?.populate?.(result.item);
+    applyFormMode(mode === "view");
     showView("create");
 }
 async function saveForm() {
@@ -781,6 +922,11 @@ newFormBtn?.addEventListener("click", asyncGuard.wrap(async () => {
 }));
 saveFormBtn?.addEventListener("click", asyncGuard.wrap(saveForm));
 document.getElementById("addAttachmentBtn")?.addEventListener("click", () => attachmentInput?.click());
+document.getElementById("linkAttachmentPathBtn")?.addEventListener("click", asyncGuard.wrap(async () => {
+    await selectLinkedPaths("");
+    renderAttachments();
+    updateCompletionStatus();
+}));
 attachmentInput?.addEventListener("change", asyncGuard.wrap(async (event) => {
     const files = Array.from(event?.target?.files || []);
     const next = await Promise.all(files.map(async (file: File) => ({
@@ -816,6 +962,14 @@ document.querySelectorAll<HTMLElement>("[data-progress-target]").forEach((step) 
         event.preventDefault();
         navigate();
     });
+});
+[filterProjectNumber, filterSecondary, filterGeneral].forEach((input) => input?.addEventListener("input", renderList));
+[filterClassification, filterStatus, listSort].forEach((select) => select?.addEventListener("change", renderList));
+document.getElementById("clearRegistrationFiltersBtn")?.addEventListener("click", () => {
+    [filterProjectNumber, filterSecondary, filterGeneral].forEach((input) => { if (input) input.value = ""; });
+    [filterClassification, filterStatus].forEach((select) => { if (select) select.value = ""; });
+    if (listSort) listSort.value = "updated-desc";
+    renderList();
 });
 
 resetForm();
