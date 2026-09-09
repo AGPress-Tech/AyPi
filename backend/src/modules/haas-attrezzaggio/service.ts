@@ -59,10 +59,15 @@ function summarizeUtensiliRows(item: any) {
 export function saveHaas(code: string, payload: any, context?: ActionContext) {
     const meta = buildContext(context);
     return enqueue("saveItem", () => {
-        const beforeItem = loadHaasItem(code);
+        const previousCode = String(payload?.previousCode || "").trim();
+        const existingIdentifier = previousCode
+            ? String(payload?.recordId || previousCode).trim()
+            : "";
+        const beforeItem = existingIdentifier ? loadHaasItem(existingIdentifier) : null;
         const saved = saveHaasItem({
             ...payload,
-            code,
+            recordId: beforeItem?.recordId || payload?.recordId,
+            code: String(payload?.code || beforeItem?.code || code).trim(),
         });
         const headerChanges = buildChanges(
             summarizeHaasHeader(beforeItem),
@@ -100,7 +105,8 @@ export function saveHaas(code: string, payload: any, context?: ActionContext) {
             event: "haas_item_saved",
             module: "attrezzaggio",
             category: "data",
-            code,
+            code: saved.code,
+            recordId: saved.recordId,
             beforeTools: summarizeUtensiliRows(beforeItem).length,
             afterTools: summarizeUtensiliRows(saved).length,
             added: utensiliDiff.added,

@@ -10,6 +10,7 @@ export type AttachmentMeta = {
     mimeType: string;
     size: number;
     createdAt: string;
+    rotation: number;
 };
 
 type NewAttachment = {
@@ -17,7 +18,13 @@ type NewAttachment = {
     fileName?: unknown;
     mimeType?: unknown;
     size?: unknown;
+    rotation?: unknown;
 };
+
+function normalizeRotation(value: unknown) {
+    const rotation = Math.round(Number(value) || 0);
+    return ((rotation % 360) + 360) % 360;
+}
 
 function sanitizeFileName(value: unknown) {
     return String(value || "")
@@ -51,6 +58,7 @@ export function createAttachmentStore(directory: string) {
                 mimeType: String(item?.mimeType || "").trim(),
                 size: Number(item?.size || 0) || 0,
                 createdAt: String(item?.createdAt || "").trim(),
+                rotation: normalizeRotation(item?.rotation),
             }))
             .filter((item) => item.id && item.storedName);
     }
@@ -80,6 +88,7 @@ export function createAttachmentStore(directory: string) {
                     mimeType,
                     size,
                     createdAt: new Date().toISOString(),
+                    rotation: normalizeRotation(item?.rotation),
                 };
             })
             .filter((item): item is AttachmentMeta => item !== null);

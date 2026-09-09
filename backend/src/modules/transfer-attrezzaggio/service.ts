@@ -71,7 +71,11 @@ function summarizeUtensiliRows(item: any) {
 export function saveTransfer(identifier: string, payload: any, context?: ActionContext) {
     const meta = buildContext(context);
     return enqueue("saveItem", () => {
-        const beforeItem = loadTransferItem(identifier);
+        const previousCode = String(payload?.previousCode || "").trim();
+        const existingIdentifier = previousCode
+            ? String(payload?.recordId || previousCode).trim()
+            : "";
+        const beforeItem = existingIdentifier ? loadTransferItem(existingIdentifier) : null;
         const saved = saveTransferItem({
             ...payload,
             recordId: beforeItem?.recordId || payload?.recordId,

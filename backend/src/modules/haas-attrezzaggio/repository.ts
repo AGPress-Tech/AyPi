@@ -1,5 +1,8 @@
+import crypto from "crypto";
+import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
+import { logger } from "../../shared/logging/logger";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import { createAttachmentStore } from "../../shared/storage/attachment-store";
 import {
@@ -19,28 +22,114 @@ const normalizeAttachmentMeta = attachments.normalize;
 const resolveAttachmentPath = attachments.resolvePath;
 const saveNewAttachments = attachments.saveNew;
 const deleteAttachmentFiles = attachments.remove;
+let haasSchemaReady = false;
 
 function ensureHaasBackup() {
     return ensureAgpressDailyBackup("auto", 30);
 }
 
 function ensureHaasSqliteSchema() {
+    if (haasSchemaReady) return;
     const database = getSqliteDatabase();
-    database.exec(`
-        CREATE TABLE IF NOT EXISTS ${HAAS_ITEMS_TABLE} (
-            code TEXT PRIMARY KEY,
-            codice_articolo TEXT,
-            numero_programma TEXT,
-            macchina TEXT,
-            metodo TEXT,
-            updated_at TEXT,
-            payload_json TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_${HAAS_ITEMS_TABLE}_codice_articolo
-            ON ${HAAS_ITEMS_TABLE}(codice_articolo);
-        CREATE INDEX IF NOT EXISTS idx_${HAAS_ITEMS_TABLE}_updated_at
-            ON ${HAAS_ITEMS_TABLE}(updated_at);
-    `);
+    const tableExists = Boolean(database.exec(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
+        [HAAS_ITEMS_TABLE],
+    )?.[0]?.values?.length);
+    const columns = tableExists
+        ? database.exec(`PRAGMA table_info(${HAAS_ITEMS_TABLE})`)?.[0]?.values || []
+        : [];
+    const recordIdColumn = columns.find((row: unknown[]) => row?.[1] === "record_id");
+    const requiresMigration = tableExists && Number(recordIdColumn?.[5] || 0) === 0;
+    let safetyCopy = "";
+
+    if (requiresMigration && fs.existsSync(backendConfig.database.path)) {
+        safetyCopy = `${backendConfig.database.path}.pre-haas-unique-record-id.bak`;
+        if (!fs.existsSync(safetyCopy)) {
+            fs.copyFileSync(backendConfig.database.path, safetyCopy, fs.constants.COPYFILE_EXCL);
+        }
+    }
+
+    try {
+        runSqliteTransaction((transaction) => {
+            if (!tableExists) {
+                transaction.exec(`
+                    CREATE TABLE ${HAAS_ITEMS_TABLE} (
+                        record_id TEXT PRIMARY KEY NOT NULL,
+                        code TEXT NOT NULL,
+                        codice_articolo TEXT,
+                        numero_programma TEXT,
+                        macchina TEXT,
+                        metodo TEXT,
+                        updated_at TEXT,
+                        payload_json TEXT NOT NULL
+                    )
+                `);
+            } else if (requiresMigration) {
+                const recordIdSelect = recordIdColumn ? "record_id" : "NULL";
+                const rows = transaction.exec(`
+                    SELECT ${recordIdSelect}, code, codice_articolo, numero_programma,
+                           macchina, metodo, updated_at, payload_json
+                    FROM ${HAAS_ITEMS_TABLE}
+                `)?.[0]?.values || [];
+                transaction.exec(`DROP TABLE IF EXISTS haas_items_with_unique_ids`);
+                transaction.exec(`
+                    CREATE TABLE haas_items_with_unique_ids (
+                        record_id TEXT PRIMARY KEY NOT NULL,
+                        code TEXT NOT NULL,
+                        codice_articolo TEXT,
+                        numero_programma TEXT,
+                        macchina TEXT,
+                        metodo TEXT,
+                        updated_at TEXT,
+                        payload_json TEXT NOT NULL
+                    )
+                `);
+                const insert = transaction.prepare(`
+                    INSERT INTO haas_items_with_unique_ids (
+                        record_id, code, codice_articolo, numero_programma,
+                        macchina, metodo, updated_at, payload_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `);
+                const usedIds = new Set<string>();
+                rows.forEach((row: unknown[]) => {
+                    let recordId = crypto.randomUUID();
+                    while (usedIds.has(recordId)) recordId = crypto.randomUUID();
+                    usedIds.add(recordId);
+                    const payload: any = parseJson(row?.[7], {});
+                    insert.run([
+                        recordId,
+                        String(row?.[1] || "").trim(),
+                        row?.[2] || null,
+                        row?.[3] || null,
+                        row?.[4] || null,
+                        row?.[5] || null,
+                        row?.[6] || null,
+                        serializeJson({ ...payload, recordId }),
+                    ]);
+                });
+                insert.free();
+                transaction.exec(`DROP TABLE ${HAAS_ITEMS_TABLE}`);
+                transaction.exec(`ALTER TABLE haas_items_with_unique_ids RENAME TO ${HAAS_ITEMS_TABLE}`);
+            }
+            transaction.exec(`
+                CREATE INDEX IF NOT EXISTS idx_${HAAS_ITEMS_TABLE}_codice_articolo
+                    ON ${HAAS_ITEMS_TABLE}(codice_articolo);
+                CREATE INDEX IF NOT EXISTS idx_${HAAS_ITEMS_TABLE}_updated_at
+                    ON ${HAAS_ITEMS_TABLE}(updated_at);
+            `);
+        });
+    } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        logger.error("Migrazione ID schede HAAS annullata", {
+            event: "haas_record_ids_migration_failed",
+            module: "attrezzaggio",
+            category: "storage",
+            safetyCopy,
+            detail,
+        });
+        throw new Error(`Migrazione ID schede HAAS annullata. Copia di sicurezza: ${safetyCopy || "non necessaria"}. Dettaglio: ${detail}`);
+    }
+    haasSchemaReady = true;
 }
 
 function normalizeUtensiliRows(rows: any[]) {
@@ -69,6 +158,7 @@ export function normalizeHaasItem(raw: any) {
                 ? raw
                 : {};
     return {
+        recordId: String(item.recordId || raw?.recordId || "").trim(),
         code: String(item.code || raw?.code || "").trim(),
         codiceArticolo: String(item.codiceArticolo || "").trim(),
         denominazioneArticolo: String(item.denominazioneArticolo || "").trim(),
@@ -90,6 +180,7 @@ function saveHaasItemsToSqlite(items: any[]) {
         database.run(`DELETE FROM ${HAAS_ITEMS_TABLE}`);
         const statement = database.prepare(`
             INSERT INTO ${HAAS_ITEMS_TABLE} (
+                record_id,
                 code,
                 codice_articolo,
                 numero_programma,
@@ -97,12 +188,13 @@ function saveHaasItemsToSqlite(items: any[]) {
                 metodo,
                 updated_at,
                 payload_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
         (Array.isArray(items) ? items : []).forEach((item) => {
             const normalized = normalizeHaasItem(item);
             if (!normalized.code) return;
             statement.run([
+                normalized.recordId,
                 normalized.code,
                 normalized.codiceArticolo || null,
                 normalized.numeroProgramma || null,
@@ -119,12 +211,12 @@ function saveHaasItemsToSqlite(items: any[]) {
 function loadHaasItemsFromSqlite() {
     const database = getSqliteDatabase();
     const rows = database.exec(`
-        SELECT payload_json
+        SELECT record_id, payload_json
         FROM ${HAAS_ITEMS_TABLE}
         ORDER BY COALESCE(updated_at, code) DESC, code ASC
     `);
     return (rows?.[0]?.values || []).map((row: unknown[]) => {
-        const item = normalizeHaasItem(parseJson(row?.[0], {}));
+        const item = normalizeHaasItem({ ...parseJson(row?.[1], {}), recordId: row?.[0] });
         return {
             ...item,
             utensiliCount: Array.isArray(item.utensili) ? item.utensili.length : 0,
@@ -135,15 +227,19 @@ function loadHaasItemsFromSqlite() {
     });
 }
 
-function loadHaasItemFromSqlite(code: string) {
+function loadHaasItemFromSqlite(identifier: string) {
     const database = getSqliteDatabase();
     const rows = database.exec(
-        `SELECT payload_json FROM ${HAAS_ITEMS_TABLE} WHERE code = ?`,
-        [String(code || "").trim()],
+        `SELECT record_id, payload_json FROM ${HAAS_ITEMS_TABLE}
+         WHERE record_id = ? OR code = ?
+         ORDER BY CASE WHEN record_id = ? THEN 0 ELSE 1 END
+         LIMIT 1`,
+        Array(3).fill(String(identifier || "").trim()),
     );
-    const raw = rows?.[0]?.values?.[0]?.[0];
+    const row = rows?.[0]?.values?.[0];
+    const raw = row?.[1];
     if (!raw) return null;
-    return normalizeHaasItem(parseJson(raw, {}));
+    return normalizeHaasItem({ ...parseJson(raw, {}), recordId: row?.[0] });
 }
 
 export function initializeHaasSqliteStore() {
@@ -165,11 +261,11 @@ export function saveHaasItem(payload: any) {
     ensureHaasBackup();
     const normalized = normalizeHaasItem(payload);
     const previousCode = String(payload?.previousCode || "").trim();
-    const current =
-        (normalized.code ? loadHaasItem(normalized.code) : null) ||
-        (previousCode && previousCode !== normalized.code
-            ? loadHaasItem(previousCode)
-            : null);
+    const current = previousCode
+        ? normalized.recordId
+            ? loadHaasItem(normalized.recordId)
+            : loadHaasItem(previousCode)
+        : null;
     const retainedAttachments = normalizeAttachmentMeta(normalized.attachments);
     const retainedIds = new Set(retainedAttachments.map((item) => item.id));
     const previousAttachments = normalizeAttachmentMeta(current?.attachments);
@@ -178,8 +274,11 @@ export function saveHaasItem(payload: any) {
     );
     const addedAttachments = saveNewAttachments(normalized.newAttachments);
     const now = new Date().toISOString();
+    let recordId = current?.recordId || normalized.recordId || crypto.randomUUID();
+    while (!current && loadHaasItem(recordId)) recordId = crypto.randomUUID();
     const next = {
         ...normalized,
+        recordId,
         attachments: [...retainedAttachments, ...addedAttachments],
         newAttachments: [],
         createdAt: normalized.createdAt || current?.createdAt || now,
@@ -187,9 +286,7 @@ export function saveHaasItem(payload: any) {
     };
 
     const items = loadHaasItemsFromSqlite().map((item) => normalizeHaasItem(item));
-    const filtered = items.filter(
-        (item) => item.code !== next.code && (!previousCode || item.code !== previousCode),
-    );
+    const filtered = items.filter((item) => item.recordId !== next.recordId);
     filtered.push(next);
     saveHaasItemsToSqlite(filtered);
     return next;
@@ -201,7 +298,7 @@ export function deleteHaasItem(code: string) {
     if (!current) return false;
     const items = loadHaasItemsFromSqlite()
         .map((item) => normalizeHaasItem(item))
-        .filter((item) => item.code !== code);
+        .filter((item) => item.recordId !== current.recordId);
     saveHaasItemsToSqlite(items);
     deleteAttachmentFiles(current?.attachments);
     return true;

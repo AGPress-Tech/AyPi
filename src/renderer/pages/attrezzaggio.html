@@ -286,9 +286,19 @@
         </section>
     </main>
 
-    <div id="imagePreviewOverlay" class="image-preview-overlay hidden">
-        <button id="closeImagePreviewBtn" class="image-preview-close" type="button">Chiudi</button>
-        <img id="imagePreviewFull" alt="Anteprima allegato">
+    <div id="imagePreviewOverlay" class="image-preview-overlay hidden" role="dialog" aria-modal="true" aria-label="Visualizzatore allegato">
+        <div class="image-preview-toolbar">
+            <button id="rotateImageLeftBtn" type="button" title="Ruota a sinistra">↶ Ruota</button>
+            <button id="rotateImageRightBtn" type="button" title="Ruota a destra">Ruota ↷</button>
+            <button id="zoomImageOutBtn" type="button" title="Riduci">−</button>
+            <span id="imageZoomLevel" class="image-preview-level" aria-live="polite">100%</span>
+            <button id="zoomImageInBtn" type="button" title="Ingrandisci">+</button>
+            <button id="resetImageViewBtn" type="button">Ripristina</button>
+            <button id="closeImagePreviewBtn" type="button">Chiudi</button>
+        </div>
+        <div id="imagePreviewViewport" class="image-preview-viewport">
+            <img id="imagePreviewFull" alt="Anteprima allegato" draggable="false">
+        </div>
     </div>
 
     <dialog id="attrezzaggioDebugDialog" class="debug-export-dialog">

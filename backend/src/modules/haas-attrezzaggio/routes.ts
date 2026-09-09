@@ -27,6 +27,7 @@ const validateHaasPayload = createSchemaValidator<any>({
     additionalProperties: true,
     properties: {
         code: { type: "string", nullable: true },
+        recordId: { type: "string", nullable: true },
         previousCode: { type: "string", nullable: true },
         codiceArticolo: { type: "string", nullable: true },
         denominazioneArticolo: { type: "string", nullable: true },
@@ -48,6 +49,7 @@ const validateHaasPayload = createSchemaValidator<any>({
                     mimeType: { type: "string", nullable: true },
                     size: { type: "number", nullable: true },
                     createdAt: { type: "string", nullable: true },
+                    rotation: { type: "number", nullable: true },
                 },
             },
         },
@@ -62,6 +64,7 @@ const validateHaasPayload = createSchemaValidator<any>({
                     dataBase64: { type: "string", nullable: true },
                     mimeType: { type: "string", nullable: true },
                     size: { type: "number", nullable: true },
+                    rotation: { type: "number", nullable: true },
                 },
             },
         },

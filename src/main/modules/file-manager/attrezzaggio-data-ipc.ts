@@ -128,6 +128,50 @@ function registerItemHandlers(
             }
         },
     );
+
+    ipcMain.handle(
+        `${options.channelPrefix}-rotate-attachment`,
+        async (_event, payload) => {
+            try {
+                const recordId = String(payload?.recordId || "").trim();
+                const attachmentId = String(payload?.attachmentId || "").trim();
+                if (!recordId || !attachmentId) {
+                    return { ok: false, error: "Scheda o allegato mancante." };
+                }
+                const loaded = await request(
+                    `${options.endpoint}/${encodeURIComponent(recordId)}`,
+                );
+                const item = loaded?.item;
+                if (!item) return { ok: false, error: "Scheda non trovata." };
+                let found = false;
+                const rotation = ((Math.round(Number(payload?.rotation) || 0) % 360) + 360) % 360;
+                const attachments = (Array.isArray(item.attachments) ? item.attachments : []).map(
+                    (attachment) => {
+                        if (String(attachment?.id || "") !== attachmentId) return attachment;
+                        found = true;
+                        return { ...attachment, rotation };
+                    },
+                );
+                if (!found) return { ok: false, error: "Allegato non trovato." };
+                const response = await request(
+                    `${options.endpoint}/${encodeURIComponent(recordId)}`,
+                    {
+                        method: "PUT",
+                        body: {
+                            ...item,
+                            recordId,
+                            previousCode: item.code,
+                            attachments,
+                            newAttachments: [],
+                        },
+                    },
+                );
+                return { ok: true, item: response?.item || null };
+            } catch (error) {
+                return { ok: false, error: errorMessage(error) };
+            }
+        },
+    );
 }
 
 export function registerAttrezzaggioDataIpc(
@@ -148,5 +192,6 @@ export function registerAttrezzaggioDataIpc(
         buildCode: haasCodeFromPayload,
         invalidCode: (code) => !code,
         invalidCodeMessage: "Codice scheda HAAS non valido.",
+        useStableRecordId: true,
     });
 }

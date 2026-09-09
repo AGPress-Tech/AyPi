@@ -302,28 +302,63 @@ button:hover { border-color: var(--accent); color: var(--accent); }
     position: fixed;
     inset: 0;
     background: rgba(15, 20, 28, 0.92);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px;
     z-index: 9999;
+    user-select: none;
 }
 
 .image-preview-overlay.hidden {
     display: none;
 }
 
-.image-preview-overlay img {
+.image-preview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    z-index: 1;
+}
+
+.image-preview-toolbar button {
+    margin: 0;
+    min-width: 44px;
+}
+
+.image-preview-level {
+    min-width: 86px;
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+}
+
+.image-preview-viewport {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.image-preview-viewport.is-dragging {
+    cursor: grabbing;
+}
+
+.image-preview-viewport img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-}
-
-.image-preview-close {
-    position: absolute;
-    top: 18px;
-    right: 18px;
-    margin: 0;
+    transform-origin: center;
+    will-change: transform;
+    pointer-events: auto;
 }
 
 .table-wrap {

@@ -3,6 +3,7 @@ require("./shared/dev-guards");
 const { ipcRenderer, webUtils } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const XLSX = require("xlsx");
 const { createAsyncGuard } = require("./shared/async-guard");
 const { withAttachmentSaveUi } = require("./shared/attachment-save-ui");
@@ -85,6 +86,8 @@ const haasAttachmentsList = document.getElementById("haasAttachmentsList");
 const haasAttachmentInput = document.getElementById("haasAttachmentInput");
 const imagePreviewOverlay = document.getElementById("imagePreviewOverlay");
 const imagePreviewFull = document.getElementById("imagePreviewFull");
+const imagePreviewViewport = document.getElementById("imagePreviewViewport");
+const imageZoomLevel = document.getElementById("imageZoomLevel");
 const attrezzaggioDebugDialog = document.getElementById("attrezzaggioDebugDialog");
 const debugPasswordForm = document.getElementById("debugPasswordForm");
 const debugPasswordInput = document.getElementById("debugPasswordInput");
@@ -97,10 +100,25 @@ let pendingAttachments = [];
 let currentHaasAttachments = [];
 let pendingHaasAttachments = [];
 let currentHaasCode = null;
+let currentHaasRecordId = null;
 let haasFormOrigin = "home";
 let haasListItems = [];
 let transferSavedSnapshot = "";
 let haasSavedSnapshot = "";
+const attachmentRotationSaveTimers = new Map();
+const imageViewState = {
+    scale: 1,
+    rotation: 0,
+    offsetX: 0,
+    offsetY: 0,
+    dragging: false,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startOffsetX: 0,
+    startOffsetY: 0,
+    onRotationChange: null,
+};
 const HAAS_ROW_FIELDS = [
     "t",
     "ciclo",
@@ -302,8 +320,87 @@ function escapeAttr(v) {
     return escapeHtml(v).replace(/"/g, "&quot;");
 }
 
-function openImagePreview(src, alt) {
+function normalizeImageRotation(value) {
+    const rotation = Math.round(Number(value) || 0);
+    return ((rotation % 360) + 360) % 360;
+}
+
+function attachmentRotationStyle(item) {
+    const rotation = normalizeImageRotation(item?.rotation);
+    return rotation ? ` style="transform: rotate(${rotation}deg)"` : "";
+}
+
+function setAttachmentRotation(kind, item, rotation) {
+    const normalizedRotation = normalizeImageRotation(rotation);
+    const currentItems = kind === "haas" ? currentHaasAttachments : currentAttachments;
+    const pendingItems = kind === "haas" ? pendingHaasAttachments : pendingAttachments;
+    const target = item?.id
+        ? currentItems.find((entry) => entry.id === item.id)
+        : pendingItems.find((entry) => entry.tempId === item?.tempId);
+    if (target) target.rotation = normalizedRotation;
+    const recordId = kind === "haas" ? currentHaasRecordId : currentRecordId;
+    const isPersistedCard = kind === "haas" ? currentHaasCode : currentCode;
+    if (!item?.isPending && item?.id && recordId && isPersistedCard) {
+        const timerKey = `${kind}:${recordId}:${item.id}`;
+        clearTimeout(attachmentRotationSaveTimers.get(timerKey));
+        attachmentRotationSaveTimers.set(timerKey, setTimeout(async () => {
+            attachmentRotationSaveTimers.delete(timerKey);
+            const result = await ipcRenderer.invoke(
+                `${kind === "haas" ? "haas" : "transfer"}-attrezzaggio-rotate-attachment`,
+                { recordId, attachmentId: item.id, rotation: normalizedRotation },
+            );
+            if (!result?.ok) {
+                await showError(result?.error || "Impossibile salvare la rotazione dell'allegato.");
+            }
+        }, 250));
+    }
+}
+
+function applyImageViewTransform() {
+    if (!imagePreviewFull) return;
+    imagePreviewFull.style.transform =
+        `translate(${imageViewState.offsetX}px, ${imageViewState.offsetY}px) ` +
+        `rotate(${imageViewState.rotation}deg) scale(${imageViewState.scale})`;
+    if (imageZoomLevel) {
+        imageZoomLevel.textContent =
+            `${Math.round(imageViewState.scale * 100)}% · ${imageViewState.rotation}°`;
+    }
+}
+
+function resetImageView(notifyRotationChange = false) {
+    imageViewState.scale = 1;
+    imageViewState.rotation = 0;
+    imageViewState.offsetX = 0;
+    imageViewState.offsetY = 0;
+    applyImageViewTransform();
+    if (notifyRotationChange) imageViewState.onRotationChange?.(0);
+}
+
+function resetImageZoom() {
+    imageViewState.scale = 1;
+    imageViewState.offsetX = 0;
+    imageViewState.offsetY = 0;
+    applyImageViewTransform();
+}
+
+function zoomImage(direction) {
+    const factor = direction > 0 ? 1.2 : 1 / 1.2;
+    imageViewState.scale = Math.min(5, Math.max(0.25, imageViewState.scale * factor));
+    applyImageViewTransform();
+}
+
+function rotateImage(direction) {
+    imageViewState.rotation = (imageViewState.rotation + direction * 90 + 360) % 360;
+    applyImageViewTransform();
+    imageViewState.onRotationChange?.(imageViewState.rotation);
+}
+
+function openImagePreview(src, alt, rotation = 0, onRotationChange = null) {
     if (!imagePreviewOverlay || !imagePreviewFull) return;
+    resetImageView();
+    imageViewState.rotation = normalizeImageRotation(rotation);
+    imageViewState.onRotationChange = onRotationChange;
+    applyImageViewTransform();
     imagePreviewFull.src = src || "";
     imagePreviewFull.alt = alt || "Anteprima allegato";
     imagePreviewOverlay.classList.remove("hidden");
@@ -313,6 +410,10 @@ function closeImagePreview() {
     if (!imagePreviewOverlay || !imagePreviewFull) return;
     imagePreviewOverlay.classList.add("hidden");
     imagePreviewFull.src = "";
+    imageViewState.dragging = false;
+    imageViewState.pointerId = null;
+    imageViewState.onRotationChange = null;
+    imagePreviewViewport?.classList.remove("is-dragging");
 }
 
 function renderAttachments() {
@@ -343,9 +444,10 @@ function renderAttachments() {
         thumb.type = "button";
         thumb.className = "attachment-thumb";
         thumb.title = "Apri anteprima";
-        thumb.innerHTML = `<img src="${escapeAttr(item.previewUrl)}" alt="${escapeAttr(item.originalName || "Immagine")}">`;
+        thumb.innerHTML = `<img src="${escapeAttr(item.previewUrl)}" alt="${escapeAttr(item.originalName || "Immagine")}"${attachmentRotationStyle(item)}>`;
         thumb.addEventListener("click", () =>
-            openImagePreview(item.previewUrl, item.originalName),
+            openImagePreview(item.previewUrl, item.originalName, item.rotation, (rotation) =>
+                setAttachmentRotation("transfer", item, rotation)),
         );
 
         const name = document.createElement("div");
@@ -359,7 +461,8 @@ function renderAttachments() {
         previewBtn.type = "button";
         previewBtn.textContent = "Anteprima";
         previewBtn.addEventListener("click", () =>
-            openImagePreview(item.previewUrl, item.originalName),
+            openImagePreview(item.previewUrl, item.originalName, item.rotation, (rotation) =>
+                setAttachmentRotation("transfer", item, rotation)),
         );
 
         const removeBtn = document.createElement("button");
@@ -415,7 +518,7 @@ function buildAttachmentPrintPages(card) {
                     const src = item.previewUrl || getAttachmentUrl(item.storedName);
                     return `
                         <div class="attachment-slot attachment-slot-${position}">
-                            <img src="${escapeAttr(src)}" alt="${escapeAttr(item.originalName || "Immagine")}">
+                            <img src="${escapeAttr(src)}" alt="${escapeAttr(item.originalName || "Immagine")}"${attachmentRotationStyle(item)}>
                             <div class="attachment-caption">${escapeHtml(item.originalName || "")}</div>
                         </div>
                     `;
@@ -454,9 +557,10 @@ function renderHaasAttachments() {
         thumb.type = "button";
         thumb.className = "attachment-thumb";
         thumb.title = "Apri anteprima";
-        thumb.innerHTML = `<img src="${escapeAttr(item.previewUrl)}" alt="${escapeAttr(item.originalName || "Immagine")}">`;
+        thumb.innerHTML = `<img src="${escapeAttr(item.previewUrl)}" alt="${escapeAttr(item.originalName || "Immagine")}"${attachmentRotationStyle(item)}>`;
         thumb.addEventListener("click", () =>
-            openImagePreview(item.previewUrl, item.originalName),
+            openImagePreview(item.previewUrl, item.originalName, item.rotation, (rotation) =>
+                setAttachmentRotation("haas", item, rotation)),
         );
 
         const name = document.createElement("div");
@@ -470,7 +574,8 @@ function renderHaasAttachments() {
         previewBtn.type = "button";
         previewBtn.textContent = "Anteprima";
         previewBtn.addEventListener("click", () =>
-            openImagePreview(item.previewUrl, item.originalName),
+            openImagePreview(item.previewUrl, item.originalName, item.rotation, (rotation) =>
+                setAttachmentRotation("haas", item, rotation)),
         );
 
         const removeBtn = document.createElement("button");
@@ -511,7 +616,7 @@ function buildHaasAttachmentPrintPages(card) {
             return `
                 <section class="haas-attachment-print-page">
                     <div class="haas-attachment-print-frame">
-                        <img src="${escapeAttr(src)}" alt="${escapeAttr(item.originalName || "Immagine")}">
+                        <img src="${escapeAttr(src)}" alt="${escapeAttr(item.originalName || "Immagine")}"${attachmentRotationStyle(item)}>
                         <div class="haas-attachment-print-caption">${escapeHtml(item.originalName || "")}</div>
                     </div>
                 </section>
@@ -913,6 +1018,7 @@ function addHaasRow(row = {}) {
 
 function resetHaasForm() {
     currentHaasCode = null;
+    currentHaasRecordId = crypto.randomUUID();
     currentHaasAttachments = [];
     pendingHaasAttachments.forEach((item) => {
         if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -961,6 +1067,7 @@ function readHaasRows() {
 
 function collectHaasFormData() {
     return {
+        recordId: currentHaasRecordId,
         code: currentHaasCode || buildHaasCode({
             codiceArticolo: getHaasVal("haasCodiceArticolo"),
             macchina: getHaasVal("haasMacchina"),
@@ -985,6 +1092,7 @@ function collectHaasFormData() {
                 previewUrl: item.previewUrl,
                 mimeType: item.mimeType,
                 size: item.size,
+                rotation: normalizeImageRotation(item.rotation),
             })),
         ],
         utensili: readHaasRows(),
@@ -993,6 +1101,7 @@ function collectHaasFormData() {
 
 function loadHaasItemIntoForm(item) {
     currentHaasCode = item.code || null;
+    currentHaasRecordId = item.recordId || null;
     setVal("haasCodiceArticolo", item.codiceArticolo || "");
     setVal("haasDenominazioneArticolo", item.denominazioneArticolo || "");
     setVal("haasNumeroProgramma", item.numeroProgramma || "");
@@ -1108,7 +1217,7 @@ function renderHaasListFiltered() {
         code.innerHTML = `<strong>${escapeHtml(item.codiceArticolo || "-")}</strong> - ${escapeHtml(item.macchina || "-")} - ${escapeHtml(item.numeroProgramma || "-")} - ${escapeHtml(item.metodo || "-")}`;
         code.title = "Apri scheda";
         code.addEventListener("click", asyncGuard.wrap(async () => {
-            const ok = await loadHaasCardAndOpenForm(item.code);
+            const ok = await loadHaasCardAndOpenForm(item.recordId || item.code);
             if (!ok) return;
             haasFormOrigin = "list";
             showView("haas-form");
@@ -1136,7 +1245,7 @@ function renderHaasListFiltered() {
         const edit = document.createElement("button");
         edit.textContent = "Modifica";
         edit.addEventListener("click", asyncGuard.wrap(async () => {
-            const ok = await loadHaasCardAndOpenForm(item.code);
+            const ok = await loadHaasCardAndOpenForm(item.recordId || item.code);
             if (!ok) return;
             haasFormOrigin = "list";
             showView("haas-form");
@@ -1145,7 +1254,7 @@ function renderHaasListFiltered() {
         const print = document.createElement("button");
         print.textContent = "Stampa";
         print.addEventListener("click", asyncGuard.wrap(async () => {
-            const ok = await loadHaasCardAndOpenForm(item.code);
+            const ok = await loadHaasCardAndOpenForm(item.recordId || item.code);
             if (!ok) return;
             await printHaasForm();
         }));
@@ -1158,7 +1267,7 @@ function renderHaasListFiltered() {
             );
             if (!ok) return;
             const res = await ipcRenderer.invoke("haas-attrezzaggio-delete", {
-                code: item.code,
+                code: item.recordId || item.code,
             });
             if (!res?.ok) {
                 await showError(
@@ -1186,6 +1295,7 @@ async function saveHaasForm() {
         dataFilePath: item.dataFilePath,
         mimeType: item.mimeType,
         size: item.size,
+        rotation: normalizeImageRotation(item.rotation),
     }));
     if (
         !payload.codiceArticolo ||
@@ -1216,6 +1326,7 @@ async function saveHaasForm() {
         return;
     }
     currentHaasCode = res.code || nextCode;
+    currentHaasRecordId = res.item?.recordId || res.recordId || currentHaasRecordId;
     pendingHaasAttachments.forEach((item) => {
         if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
     });
@@ -1490,7 +1601,7 @@ function toExcelDate(value) {
 function buildAttrezzaggioExportRows(items) {
     return (Array.isArray(items) ? items : [])
         .map((item) => ({
-            PK: String(item?.code || "").trim(),
+            PK: String(item?.recordId || item?.code || "").trim(),
             "Data creazione": toExcelDate(item?.createdAt),
             "Data modifica": toExcelDate(item?.updatedAt),
         }))
@@ -1546,7 +1657,7 @@ async function exportAttrezzaggioPrimaryKeys() {
 
 function resetForm() {
     currentCode = null;
-    currentRecordId = null;
+    currentRecordId = crypto.randomUUID();
     loadedTransferIdentity = null;
     currentAttachments = [];
     pendingAttachments.forEach((item) => {
@@ -1750,7 +1861,7 @@ async function copyCardAndOpenForm(code) {
     if (!loaded) return;
 
     currentCode = null;
-    currentRecordId = null;
+    currentRecordId = crypto.randomUUID();
     loadedTransferIdentity = null;
     ["codiceArticolo", "fase", "codiceMacchina", "metodo"].forEach((id) =>
         setVal(id, ""),
@@ -1997,6 +2108,7 @@ async function saveForm() {
             dataFilePath: item.dataFilePath,
             mimeType: item.mimeType,
             size: item.size,
+            rotation: normalizeImageRotation(item.rotation),
         })),
         utensili: readRows(),
     };
@@ -2268,6 +2380,7 @@ document.getElementById("printFormBtn")?.addEventListener("click", asyncGuard.wr
                 previewUrl: item.previewUrl,
                 mimeType: item.mimeType,
                 size: item.size,
+                rotation: normalizeImageRotation(item.rotation),
             })),
         ],
         utensili: readRows(),
@@ -2277,8 +2390,69 @@ document.getElementById("printFormBtn")?.addEventListener("click", asyncGuard.wr
 document
     .getElementById("closeImagePreviewBtn")
     ?.addEventListener("click", closeImagePreview);
+document
+    .getElementById("rotateImageLeftBtn")
+    ?.addEventListener("click", () => rotateImage(-1));
+document
+    .getElementById("rotateImageRightBtn")
+    ?.addEventListener("click", () => rotateImage(1));
+document
+    .getElementById("zoomImageOutBtn")
+    ?.addEventListener("click", () => zoomImage(-1));
+document
+    .getElementById("zoomImageInBtn")
+    ?.addEventListener("click", () => zoomImage(1));
+document
+    .getElementById("resetImageViewBtn")
+    ?.addEventListener("click", () => resetImageView(true));
 imagePreviewOverlay?.addEventListener("click", (event) => {
     if (event.target === imagePreviewOverlay) closeImagePreview();
+});
+imagePreviewViewport?.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    zoomImage(event.deltaY < 0 ? 1 : -1);
+}, { passive: false });
+imagePreviewViewport?.addEventListener("dblclick", () => {
+    if (imageViewState.scale > 1) resetImageZoom();
+    else zoomImage(1);
+});
+imagePreviewViewport?.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    imageViewState.dragging = true;
+    imageViewState.pointerId = event.pointerId;
+    imageViewState.startX = event.clientX;
+    imageViewState.startY = event.clientY;
+    imageViewState.startOffsetX = imageViewState.offsetX;
+    imageViewState.startOffsetY = imageViewState.offsetY;
+    imagePreviewViewport.classList.add("is-dragging");
+    imagePreviewViewport.setPointerCapture(event.pointerId);
+});
+imagePreviewViewport?.addEventListener("pointermove", (event) => {
+    if (!imageViewState.dragging || imageViewState.pointerId !== event.pointerId) return;
+    imageViewState.offsetX = imageViewState.startOffsetX + event.clientX - imageViewState.startX;
+    imageViewState.offsetY = imageViewState.startOffsetY + event.clientY - imageViewState.startY;
+    applyImageViewTransform();
+});
+function finishImageDrag(event) {
+    if (imageViewState.pointerId !== event.pointerId) return;
+    imageViewState.dragging = false;
+    imageViewState.pointerId = null;
+    imagePreviewViewport?.classList.remove("is-dragging");
+    if (imagePreviewViewport?.hasPointerCapture(event.pointerId)) {
+        imagePreviewViewport.releasePointerCapture(event.pointerId);
+    }
+}
+imagePreviewViewport?.addEventListener("pointerup", finishImageDrag);
+imagePreviewViewport?.addEventListener("pointercancel", finishImageDrag);
+document.addEventListener("keydown", (event) => {
+    if (imagePreviewOverlay?.classList.contains("hidden")) return;
+    if (event.key === "Escape") closeImagePreview();
+    else if (event.key === "+" || event.key === "=") zoomImage(1);
+    else if (event.key === "-") zoomImage(-1);
+    else if (event.key.toLowerCase() === "r") rotateImage(event.shiftKey ? -1 : 1);
+    else if (event.key === "0") resetImageView(true);
+    else return;
+    event.preventDefault();
 });
 debugPasswordForm?.addEventListener("submit", (event) => {
     event.preventDefault();
