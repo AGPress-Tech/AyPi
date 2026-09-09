@@ -42,6 +42,12 @@ document
         ipcRenderer.send("open-registrazioni-progettazione-window");
     });
 
+document
+    .getElementById("openInventarioMagazzino")
+    ?.addEventListener("click", () => {
+        ipcRenderer.send("open-inventario-magazzino-window");
+    });
+
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });

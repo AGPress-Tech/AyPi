@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AyPi - Inventario magazzino</title>
+    <link rel="stylesheet" href="../styles/inventario-magazzino-style.css">
+</head>
+
+<body>
+    <main class="inventory-shell">
+        <header class="inventory-header">
+            <div>
+                <span class="eyebrow">ARTICOLI / MAGAZZINO</span>
+                <h1>Inventario magazzino</h1>
+                <p>Base strutturale della mappa: 5 file, 3 livelli e 96 slot per fila.</p>
+            </div>
+            <div class="status-pill"><i></i> Dati dimostrativi · non salvati</div>
+        </header>
+
+        <section class="summary-grid" aria-label="Riepilogo magazzino">
+            <article><span>Capacità totale</span><strong id="totalSlots">480</strong><small>cassoni</small></article>
+            <article><span>Slot occupati</span><strong id="occupiedSlots">0</strong><small>dati dimostrativi</small></article>
+            <article><span>Slot liberi</span><strong id="freeSlots">480</strong><small>su 480 posizioni</small></article>
+            <article><span>File</span><strong>5</strong><small>A, B, C, D, E</small></article>
+        </section>
+
+        <section class="operation-bar" aria-label="Operazioni future">
+            <div>
+                <span class="section-label">OPERAZIONI</span>
+                <p>I flussi saranno attivati dopo la definizione completa delle regole.</p>
+            </div>
+            <button type="button" disabled>Carico</button>
+            <button type="button" disabled>Scarico</button>
+            <button type="button" disabled>Spostamento</button>
+            <button type="button" disabled>Gestione tag</button>
+        </section>
+
+        <section class="warehouse-layout">
+            <div class="map-panel">
+                <div class="map-toolbar">
+                    <div>
+                        <span class="section-label">MAPPA POSIZIONI</span>
+                        <h2 id="rowTitle">Fila A</h2>
+                    </div>
+                    <nav class="row-tabs" id="rowTabs" aria-label="Seleziona la fila"></nav>
+                    <label class="display-mode" for="displayMode">
+                        Visualizza celle come
+                        <select id="displayMode">
+                            <option value="location">Ubicazione</option>
+                            <option value="article">Articolo</option>
+                            <option value="customer">Cliente</option>
+                            <option value="order">Riferimento ordine</option>
+                            <option value="combined">Ubicazione - Articolo - Riferimento ordine</option>
+                        </select>
+                    </label>
+                    <form class="position-search" id="positionSearchForm">
+                        <label for="positionSearch">Vai alla posizione</label>
+                        <div>
+                            <input id="positionSearch" autocomplete="off" maxlength="4" placeholder="es. A2c">
+                            <button type="submit">Cerca</button>
+                        </div>
+                        <small id="searchMessage" aria-live="polite"></small>
+                    </form>
+                </div>
+
+                <div class="map-legend" aria-label="Legenda">
+                    <span><i class="legend-box legend-box--free"></i> Slot libero</span>
+                    <span><i class="legend-box legend-box--occupied"></i> Slot occupato</span>
+                    <span><i class="legend-box legend-box--selected"></i> Posizione selezionata</span>
+                    <span><i class="legend-box legend-box--match"></i> Contenuto corrispondente</span>
+                    <span><i class="legend-box legend-box--search"></i> Risultato ricerca</span>
+                    <span><i class="partial-mark"></i> Cassone parziale</span>
+                </div>
+
+                <div class="levels" id="warehouseLevels"></div>
+            </div>
+
+            <aside class="inventory-sidebar">
+                <section class="inventory-search" aria-labelledby="inventorySearchTitle">
+                    <form class="inventory-search__form" id="inventorySearchForm">
+                        <div class="inventory-search__heading">
+                            <div>
+                                <span class="section-label">RICERCA TRASVERSALE</span>
+                                <h3 id="inventorySearchTitle">Cerca nei cassoni</h3>
+                            </div>
+                            <button id="clearInventorySearch" type="button">Azzera</button>
+                        </div>
+                        <input id="inventorySearchInput" type="search" autocomplete="off"
+                            placeholder="Articolo, cliente, ordine, tag o stato…">
+                        <fieldset>
+                            <legend>Cerca in</legend>
+                            <label><input type="checkbox" name="searchField" value="article" checked> Articolo</label>
+                            <label><input type="checkbox" name="searchField" value="customer" checked> Cliente</label>
+                            <label><input type="checkbox" name="searchField" value="order" checked> Rif. ordine</label>
+                            <label><input type="checkbox" name="searchField" value="tags" checked> Tag</label>
+                            <label><input type="checkbox" name="searchField" value="partial" checked> Parziale</label>
+                            <label><input type="checkbox" name="searchField" value="movement" checked> In movimento</label>
+                        </fieldset>
+                        <small>Puoi combinare più parole, per esempio “AGPRESS 25/00114”.</small>
+                    </form>
+
+                    <div class="search-report">
+                        <div class="search-report__heading">
+                            <div>
+                                <span class="section-label">REPORT RISULTATI</span>
+                                <h3 id="searchReportSummary">Inserisci una ricerca</h3>
+                            </div>
+                            <span id="selectedResultCount">0 selezionati</span>
+                        </div>
+                        <div class="search-report__columns" aria-hidden="true">
+                            <span></span>
+                            <span>Ubic.</span>
+                            <span>Articolo</span>
+                            <span>Cliente</span>
+                            <span>Rif. ordine</span>
+                            <span>Stati</span>
+                        </div>
+                        <div class="search-report__list" id="searchReportList">
+                            <p class="search-report__empty">I risultati compariranno qui e verranno evidenziati nella mappa.</p>
+                        </div>
+                        <button class="search-report__action" id="prepareUnloadButton" type="button" disabled>
+                            Prepara scarico · prossima fase
+                        </button>
+                    </div>
+                </section>
+
+                <section class="details-panel" aria-live="polite">
+                <span class="section-label">DETTAGLIO SLOT</span>
+                <div class="empty-detail" id="emptyDetail">
+                    <div class="empty-detail__icon">⌖</div>
+                    <h2>Seleziona una posizione</h2>
+                    <p>Clicca uno slot nella mappa oppure cercalo tramite la sua coordinata.</p>
+                </div>
+                <div class="slot-detail" id="slotDetail" hidden>
+                    <div class="slot-code" id="detailCode">A1a</div>
+                    <dl>
+                        <div><dt>Fila</dt><dd id="detailRow">A</dd></div>
+                        <div><dt>Colonna</dt><dd id="detailColumn">1</dd></div>
+                        <div><dt>Lato</dt><dd id="detailSide">Anteriore</dd></div>
+                        <div><dt>Livello</dt><dd id="detailLevel">a · basso</dd></div>
+                        <div><dt>Stato</dt><dd><span id="detailStatus" class="free-badge">Libero</span></dd></div>
+                        <div id="detailArticleRow" hidden><dt>Articolo</dt><dd id="detailArticle">—</dd></div>
+                        <div id="detailCustomerRow" hidden><dt>Cliente</dt><dd id="detailCustomer">—</dd></div>
+                        <div id="detailOrderRow" hidden><dt>Rif. ordine</dt><dd id="detailOrder">—</dd></div>
+                        <div id="detailTagsRow" hidden><dt>Tag</dt><dd id="detailTags">—</dd></div>
+                        <div id="detailMovementRow" hidden><dt>Movimento</dt><dd id="detailMovement">—</dd></div>
+                    </dl>
+                    <p id="detailNote">I dati del cassone, la cronologia e i tag saranno aggiunti nelle fasi successive.</p>
+                </div>
+                </section>
+            </aside>
+        </section>
+    </main>
+
+    <div class="slot-context-menu" id="slotContextMenu" role="menu" aria-hidden="true">
+        <div class="slot-context-menu__title" id="contextSlotCode">A1a</div>
+        <button id="togglePartialButton" type="button" role="menuitem">Segna come parziale</button>
+        <small id="contextMenuHint"></small>
+    </div>
+
+    <script src="../scripts/inventario-magazzino-scripts.js"></script>
+</body>
+
+</html>

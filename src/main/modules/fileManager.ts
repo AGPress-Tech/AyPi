@@ -902,6 +902,7 @@ let adminManagerWindow: BrowserWindow | null = null;
 let adminManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
 let registrazioniProgettazioneWindow: BrowserWindow | null = null;
+let inventarioMagazzinoWindow: BrowserWindow | null = null;
 let allowTransferAttrezzaggioWindowClose = false;
 let transferAttrezzaggioClosePromptPending = false;
 const productManagerSessionState = createProductManagerSessionState();
@@ -2210,6 +2211,42 @@ function openRegistrazioniProgettazioneWindow(mainWindow: BrowserWindow) {
     });
 }
 
+function openInventarioMagazzinoWindow(mainWindow: BrowserWindow) {
+    if (isWindowAlive(inventarioMagazzinoWindow)) {
+        showWindow(inventarioMagazzinoWindow);
+        return;
+    }
+
+    inventarioMagazzinoWindow = new BrowserWindow({
+        width: 1920,
+        height: 1080,
+        minWidth: 1000,
+        minHeight: 680,
+        parent: mainWindow,
+        modal: false,
+        webPreferences: WINDOW_WEB_PREFERENCES,
+        icon: APP_ICON_PATH,
+        show: false,
+        backgroundColor: "#f3f5f7",
+    });
+
+    inventarioMagazzinoWindow.loadFile(
+        path.join(__dirname, "..", "pages", "inventario-magazzino.html"),
+    );
+    inventarioMagazzinoWindow.setMenu(null);
+    inventarioMagazzinoWindow.once("ready-to-show", () => {
+        if (!inventarioMagazzinoWindow?.isDestroyed()) {
+            inventarioMagazzinoWindow.center();
+            showWindow(inventarioMagazzinoWindow);
+        }
+    });
+
+    inventarioMagazzinoWindow.on("closed", () => {
+        inventarioMagazzinoWindow = null;
+        if (!isAppQuitting) showMainWindow(mainWindow);
+    });
+}
+
 function openCompareFoldersWindow(
     slot,
     folder,
@@ -2783,6 +2820,9 @@ function setupFileManager(mainWindow) {
     });
     ipcMain.on("open-registrazioni-progettazione-window", () => {
         openRegistrazioniProgettazioneWindow(mainWindow);
+    });
+    ipcMain.on("open-inventario-magazzino-window", () => {
+        openInventarioMagazzinoWindow(mainWindow);
     });
     ipcMain.on("attrezzaggio-window-close-response", (event, payload) => {
         if (

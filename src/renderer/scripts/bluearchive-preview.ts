@@ -153,6 +153,11 @@ const pages: Record<string, PageDefinition> = {
                 description: "Registrazioni stampi e progetti speciali",
                 channel: "open-registrazioni-progettazione-window",
             },
+            {
+                label: "Inventario magazzino",
+                description: "Mappa e gestione dei cassoni",
+                channel: "open-inventario-magazzino-window",
+            },
         ],
     },
     produzioni: {
