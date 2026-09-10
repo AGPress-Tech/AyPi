@@ -39,7 +39,7 @@
         <section class="summary-grid" aria-label="Riepilogo magazzino">
             <article><span>Capacità totale</span><strong id="totalSlots">480</strong><small>cassoni</small></article>
             <article><span>Slot occupati</span><strong id="occupiedSlots">0</strong><small>dati dimostrativi</small></article>
-            <article><span>Slot liberi</span><strong id="freeSlots">480</strong><small id="freeSlotsCapacity">su 480 posizioni</small></article>
+            <article><span>Slot disponibili</span><strong id="freeSlots">480</strong><small id="freeSlotsCapacity">su 480 posizioni</small></article>
             <article><span>File</span><strong id="rowCount">5</strong><small id="rowList">A, B, C, D, E</small></article>
         </section>
 
@@ -63,8 +63,7 @@
                     </div>
                     <nav class="row-tabs" id="rowTabs" aria-label="Seleziona la fila"></nav>
                     <label class="display-mode" for="displayMode">
-                        Visualizza celle come
-                        <select id="displayMode">
+                        <select id="displayMode" aria-label="Contenuto visualizzato nelle celle">
                             <option value="location">Ubicazione</option>
                             <option value="article">Articolo</option>
                             <option value="customer">Cliente</option>
@@ -72,14 +71,17 @@
                             <option value="combined">Ubicazione - Articolo - Riferimento ordine</option>
                         </select>
                     </label>
-                    <form class="toolbar-inventory-search" id="inventorySearchForm">
-                        <label for="inventorySearchInput" id="inventorySearchTitle">Ricerca magazzino</label>
-                        <div>
-                            <input id="inventorySearchInput" type="search" autocomplete="off"
-                                placeholder="Articolo, cliente, ordine, tag o stato…">
-                            <button id="clearInventorySearch" type="button">Azzera</button>
-                        </div>
-                    </form>
+                    <div class="toolbar-search-tools">
+                        <label class="quick-inventory-search" for="quickInventorySearchInput">
+                            <span aria-hidden="true">⌕</span>
+                            <input id="quickInventorySearchInput" type="search" autocomplete="off"
+                                placeholder="Cerca ed evidenzia…" aria-label="Cerca ed evidenzia nel magazzino">
+                        </label>
+                        <button class="toolbar-search-launch" id="openInventorySearchDialog" type="button">
+                            <span aria-hidden="true">⌕</span>
+                            <span><strong>Ricerca e prelievo</strong><small>Filtri, risultati e selezione multipla</small></span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="map-legend" aria-label="Legenda">
@@ -89,6 +91,7 @@
                     <span><i class="legend-box legend-box--match"></i> Contenuto corrispondente</span>
                     <span><i class="legend-box legend-box--search"></i> Risultato ricerca</span>
                     <span><i class="partial-mark"></i> Cassone parziale</span>
+                    <span><i class="pallet-mark"></i> Pallet</span>
                 </div>
 
                 <div class="slot-pager" id="slotPager" data-range-mode="paged">
@@ -102,81 +105,6 @@
                 </div>
             </div>
 
-            <aside class="inventory-sidebar">
-                <section class="inventory-search" aria-label="Filtri e risultati della ricerca">
-                    <div class="inventory-search__form">
-                        <div class="inventory-search__heading">
-                            <div>
-                                <span class="section-label">FILTRI RICERCA</span>
-                                <h3>Cerca nei campi selezionati</h3>
-                            </div>
-                        </div>
-                        <fieldset>
-                            <legend>Cerca in</legend>
-                            <label><input type="checkbox" name="searchField" value="article" checked> Articolo</label>
-                            <label><input type="checkbox" name="searchField" value="customer" checked> Cliente</label>
-                            <label><input type="checkbox" name="searchField" value="order" checked> Rif. ordine</label>
-                            <label><input type="checkbox" name="searchField" value="tags" checked> Tag</label>
-                            <label><input type="checkbox" name="searchField" value="type" checked> Tipologia</label>
-                            <label><input type="checkbox" name="searchField" value="partial" checked> Parziale</label>
-                            <label><input type="checkbox" name="searchField" value="movement" checked> In movimento</label>
-                        </fieldset>
-                        <small>Puoi combinare più parole, per esempio “AGPRESS 25/00114”.</small>
-                    </div>
-
-                    <div class="search-report">
-                        <div class="search-report__heading">
-                            <div>
-                                <span class="section-label">REPORT RISULTATI</span>
-                                <h3 id="searchReportSummary">Inserisci una ricerca</h3>
-                            </div>
-                            <span id="selectedResultCount">0 selezionati</span>
-                        </div>
-                        <div class="search-report__columns" aria-hidden="true">
-                            <span></span>
-                            <span>Ubic.</span>
-                            <span>Articolo</span>
-                            <span>Cliente</span>
-                            <span>Rif. ordine</span>
-                            <span>Stati</span>
-                        </div>
-                        <div class="search-report__list" id="searchReportList">
-                            <p class="search-report__empty">I risultati compariranno qui e verranno evidenziati nella mappa.</p>
-                        </div>
-                        <button class="search-report__action" id="prepareUnloadButton" type="button" disabled>
-                            Prepara scarico · prossima fase
-                        </button>
-                    </div>
-                </section>
-
-                <section class="details-panel" aria-live="polite">
-                <span class="section-label">DETTAGLIO SLOT</span>
-                <div class="empty-detail" id="emptyDetail">
-                    <div class="empty-detail__icon">⌖</div>
-                    <h2>Seleziona una posizione</h2>
-                    <p>Clicca uno slot nella mappa oppure selezionalo dai risultati della ricerca.</p>
-                </div>
-                <div class="slot-detail" id="slotDetail" hidden>
-                    <dl>
-                        <div><dt>Fila</dt><dd id="detailRow">A</dd></div>
-                        <div><dt>Colonna</dt><dd id="detailColumn">1</dd></div>
-                        <div><dt>Lato</dt><dd id="detailSide">Anteriore</dd></div>
-                        <div><dt>Livello</dt><dd id="detailLevel">a · basso</dd></div>
-                        <div><dt>Stato</dt><dd><span id="detailStatus" class="free-badge">Libero</span></dd></div>
-                        <div id="detailTypeRow" hidden><dt>Tipologia</dt><dd id="detailType">Cassone</dd></div>
-                        <div id="detailPairRow" hidden><dt>Ingombro pallet</dt><dd id="detailPair">—</dd></div>
-                        <div id="detailArticleRow" hidden><dt>Articolo</dt><dd id="detailArticle">—</dd></div>
-                        <div id="detailCustomerRow" hidden><dt>Cliente</dt><dd id="detailCustomer">—</dd></div>
-                        <div id="detailOrderRow" hidden><dt>Rif. ordine</dt><dd id="detailOrder">—</dd></div>
-                        <div id="detailTagsRow" hidden><dt>Tag</dt><dd id="detailTags">—</dd></div>
-                        <div id="detailMovementRow" hidden><dt>Movimento</dt><dd id="detailMovement">—</dd></div>
-                        <div id="detailRestrictionRow" hidden><dt>Vincolo cliente</dt><dd id="detailRestriction">—</dd></div>
-                        <div id="detailComplianceRow" hidden><dt>Verifica</dt><dd id="detailCompliance">—</dd></div>
-                    </dl>
-                    <p id="detailNote">I dati del cassone, la cronologia e i tag saranno aggiunti nelle fasi successive.</p>
-                </div>
-                </section>
-            </aside>
         </section>
         </section>
 
@@ -194,6 +122,7 @@
                     </label>
                     <label class="analysis-check"><input id="analysisOccupiedOnly" type="checkbox"> Solo occupati</label>
                     <button id="openAnalysisSelection" type="button" disabled>Apri sulla mappa</button>
+                    <button class="analysis-primary-action" id="analyzeAnalysisSelection" type="button" disabled>Analisi articolo</button>
                 </div>
             </header>
             <div class="analysis-meta">
@@ -227,6 +156,29 @@
             </div>
         </section>
     </main>
+
+    <section class="slot-hover-card" id="slotHoverCard" aria-live="polite" hidden>
+        <header><span class="section-label">DETTAGLIO SLOT</span><strong id="detailCode">A1a</strong></header>
+        <div class="slot-detail" id="slotDetail">
+            <dl>
+                <div><dt>Fila</dt><dd id="detailRow">A</dd></div>
+                <div><dt>Colonna</dt><dd id="detailColumn">1</dd></div>
+                <div><dt>Lato</dt><dd id="detailSide">Anteriore</dd></div>
+                <div><dt>Livello</dt><dd id="detailLevel">a · basso</dd></div>
+                <div><dt>Stato</dt><dd><span id="detailStatus" class="free-badge">Libero</span></dd></div>
+                <div id="detailTypeRow" hidden><dt>Tipologia</dt><dd id="detailType">Cassone</dd></div>
+                <div id="detailPairRow" hidden><dt>Ingombro pallet</dt><dd id="detailPair">—</dd></div>
+                <div id="detailArticleRow" hidden><dt>Articolo</dt><dd id="detailArticle">—</dd></div>
+                <div id="detailCustomerRow" hidden><dt>Cliente</dt><dd id="detailCustomer">—</dd></div>
+                <div id="detailOrderRow" hidden><dt>Rif. ordine</dt><dd id="detailOrder">—</dd></div>
+                <div id="detailTagsRow" hidden><dt>Tag</dt><dd id="detailTags">—</dd></div>
+                <div id="detailMovementRow" hidden><dt>Movimento</dt><dd id="detailMovement">—</dd></div>
+                <div id="detailRestrictionRow" hidden><dt>Vincolo cliente</dt><dd id="detailRestriction">—</dd></div>
+                <div id="detailComplianceRow" hidden><dt>Verifica</dt><dd id="detailCompliance">—</dd></div>
+            </dl>
+            <p id="detailNote"></p>
+        </div>
+    </section>
 
     <div class="tools-drawer-scrim" id="toolsDrawerScrim" aria-hidden="true"></div>
     <aside class="tools-drawer" id="toolsDrawer" aria-label="Strumenti di visualizzazione">
@@ -315,6 +267,101 @@
                     <button type="submit">Prepara richiesta di carico</button>
                 </div>
             </form>
+        </section>
+    </div>
+
+    <div class="restriction-backdrop article-analysis-backdrop" id="articleAnalysisDialog" aria-hidden="true">
+        <section class="article-analysis-dialog" role="dialog" aria-modal="true" aria-labelledby="articleAnalysisTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">ANALISI ARTICOLO</span>
+                    <h2 id="articleAnalysisTitle">Articolo</h2>
+                    <p id="articleAnalysisSubtitle">Riepilogo delle unità attualmente presenti nel magazzino.</p>
+                </div>
+                <button id="closeArticleAnalysis" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="article-analysis-body">
+                <section class="article-analysis-kpis" aria-label="Indicatori articolo">
+                    <article><span>Unità complessive</span><strong id="articleUnitCount">0</strong></article>
+                    <article><span>Cassoni</span><strong id="articleCrateCount">0</strong></article>
+                    <article><span>Pallet</span><strong id="articlePalletCount">0</strong></article>
+                    <article><span>Slot impegnati</span><strong id="articleSlotCount">0</strong></article>
+                    <article><span>Rif. ordine distinti</span><strong id="articleOrderCount">0</strong></article>
+                    <article><span>Clienti distinti</span><strong id="articleCustomerCount">0</strong></article>
+                    <article><span>Parziali</span><strong id="articlePartialCount">0</strong></article>
+                    <article><span>In movimento</span><strong id="articleMovementCount">0</strong></article>
+                </section>
+                <div class="article-analysis-details">
+                    <section>
+                        <div class="article-analysis-section-title"><strong>Distribuzione per ordine</strong><span>Unità logistiche</span></div>
+                        <div class="article-analysis-list" id="articleAnalysisOrders"></div>
+                    </section>
+                    <section>
+                        <div class="article-analysis-section-title"><strong>Ubicazioni</strong><span id="articleAnalysisRows"></span></div>
+                        <div class="article-analysis-locations" id="articleAnalysisLocations"></div>
+                    </section>
+                </div>
+                <div class="article-analysis-footer">
+                    <span>Clienti</span><strong id="articleAnalysisCustomers">—</strong>
+                    <span>Tag presenti</span><strong id="articleAnalysisTags">—</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="restriction-backdrop inventory-search-backdrop" id="inventorySearchDialog" aria-hidden="true">
+        <section class="inventory-search-dialog" role="dialog" aria-modal="true" aria-labelledby="inventorySearchDialogTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">RICERCA MAGAZZINO</span>
+                    <h2 id="inventorySearchDialogTitle">Ricerca, selezione e prelievo</h2>
+                    <p>I risultati selezionati restano evidenziati sulla mappa anche dopo la chiusura.</p>
+                </div>
+                <button id="closeInventorySearchDialog" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <section class="inventory-search inventory-search--dialog" aria-label="Filtri e risultati della ricerca">
+                <form class="inventory-search__form" id="inventorySearchForm">
+                    <div class="inventory-search__heading">
+                        <div>
+                            <span class="section-label">FILTRI RICERCA</span>
+                            <h3>Cerca nei campi selezionati</h3>
+                        </div>
+                        <button id="clearInventorySearch" type="button">Azzera</button>
+                    </div>
+                    <input class="inventory-search__input" id="inventorySearchInput" type="search" autocomplete="off"
+                        placeholder="Articolo, cliente, ordine, tag, tipologia o stato…">
+                    <fieldset>
+                        <legend>Cerca in</legend>
+                        <label><input type="checkbox" name="searchField" value="article" checked> Articolo</label>
+                        <label><input type="checkbox" name="searchField" value="customer" checked> Cliente</label>
+                        <label><input type="checkbox" name="searchField" value="order" checked> Rif. ordine</label>
+                        <label><input type="checkbox" name="searchField" value="tags" checked> Tag</label>
+                        <label><input type="checkbox" name="searchField" value="type" checked> Tipologia</label>
+                        <label><input type="checkbox" name="searchField" value="partial" checked> Parziale</label>
+                        <label><input type="checkbox" name="searchField" value="movement" checked> In movimento</label>
+                    </fieldset>
+                    <small>Puoi combinare più parole, per esempio “AGPRESS 25/00114”.</small>
+                </form>
+
+                <div class="search-report">
+                    <div class="search-report__heading">
+                        <div>
+                            <span class="section-label">REPORT RISULTATI</span>
+                            <h3 id="searchReportSummary">Inserisci una ricerca</h3>
+                        </div>
+                        <span id="selectedResultCount">0 selezionati</span>
+                    </div>
+                    <div class="search-report__columns" aria-hidden="true">
+                        <span></span><span>Ubic.</span><span>Articolo</span><span>Cliente</span><span>Rif. ordine</span><span>Stati</span>
+                    </div>
+                    <div class="search-report__list" id="searchReportList">
+                        <p class="search-report__empty">I risultati compariranno qui e verranno evidenziati nella mappa.</p>
+                    </div>
+                    <button class="search-report__action" id="prepareUnloadButton" type="button" disabled>
+                        Prepara scarico · prossima fase
+                    </button>
+                </div>
+            </section>
         </section>
     </div>
 

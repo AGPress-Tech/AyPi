@@ -27,7 +27,7 @@ Il magazzino contiene due tipologie distinte:
 - **Cassone**: occupa un singolo slot e può essere impilato sui livelli `a`, `b` e `c`, rispettando i vincoli verticali;
 - **Pallet**: occupa obbligatoriamente due slot accoppiati, uno anteriore e uno posteriore dello stesso modulo fisico, per esempio `A3a + A4a`.
 
-Un pallet può essere collocato soltanto a terra, sul livello `a`. L'intera colonna deve essere libera: non può esserci alcun cassone o pallet sui livelli `b` e `c`, né sopra né sotto l'unità. I due slot condividono un unico identificativo pallet e ogni carico, scarico o spostamento dovrà trattarli come un'unità indivisibile.
+Un pallet può essere collocato soltanto a terra, sul livello `a`. L'intera colonna deve essere libera: non può esserci alcun cassone o pallet sui livelli `b` e `c`, né sopra né sotto l'unità. I due slot condividono un unico identificativo pallet e ogni carico, scarico o spostamento dovrà trattarli come un'unità indivisibile. Quando il pallet è presente, le quattro posizioni superiori della coppia fronte/retro vengono mostrate in grigio e rese non interagibili; la vista database le identifica come **Bloccato da pallet** e il riepilogo le esclude dagli slot disponibili.
 
 ### Interpretazione iniziale da confermare
 
@@ -73,6 +73,8 @@ Ogni numero esiste ai livelli `a`, `b`, `c`. Questa interpretazione deve essere 
 - I risultati devono essere evidenziati sulla mappa anche quando appartengono a file non visibili.
 - Oltre all'evidenziazione serve un report scritto con ubicazione, articolo, cliente, riferimento ordine e stati rilevanti.
 - Le righe del report devono essere selezionabili tramite spunta per preparare uno scarico multiplo. Il comando operativo verrà abilitato solo dopo aver definito la zona speciale di movimentazione.
+- Per mantenere pulita la schermata operativa, filtri e report sono raccolti in una finestra dedicata aperta dal pulsante **Ricerca e prelievo**. La chiusura della finestra non cancella ricerca, selezioni o evidenziazioni presenti sulla mappa.
+- Una barra rapida resta visibile nella toolbar per cercare ed evidenziare immediatamente gli slot. Il suo testo è sincronizzato bidirezionalmente con il campo della finestra **Ricerca e prelievo** e utilizza gli stessi campi di ricerca abilitati.
 
 ### Stato “In movimento” e zona di movimentazione
 
@@ -107,6 +109,8 @@ La cella selezionata ha un bordo blu scuro spesso. Le altre celle corrispondenti
 
 Le linguette `A–E` indicano quando una fila non visibile contiene corrispondenze.
 
+Il selettore del contenuto delle celle è allineato alle linguette delle file e non presenta un'etichetta superiore, per mantenere compatta la toolbar. La dimensione dei testi viene calcolata per ogni pulsante partendo dalla misura più leggibile e riducendola soltanto quando articolo, cliente o ordine non entrano nello spazio disponibile. La legenda distingue inoltre i pallet con un indicatore rosso pastello.
+
 Nella vista combinata ogni cella occupata mostra su tre righe distinte ubicazione, articolo e riferimento ordine, mantenendo invariata la larghezza della scaffalatura.
 
 La densità della mappa è selezionabile dal pannello strumenti flottante sul bordo sinistro:
@@ -127,9 +131,11 @@ Il modulo dispone di una navigazione interna a schede, simile alle pagine di un 
 - **Mappa magazzino** per l'uso operativo;
 - **Vista database** per analisi e controllo complessivo.
 
-La vista database elenca tutte le ubicazioni previste dalla struttura configurata, comprese quelle libere, in una tabella stile foglio di calcolo. Espone geometria dello slot, stato, identificativo dell'unità logistica, tipologia, articolo, cliente, ordine, tag e stato del contenuto. Può essere filtrata testualmente oppure limitata ai soli slot occupati.
+La vista database elenca tutte le ubicazioni previste dalla struttura configurata, comprese quelle libere, in una tabella stile foglio di calcolo. Espone geometria dello slot, stato, identificativo dell'unità logistica, tipologia, articolo, cliente, ordine, tag e stato del contenuto. Può essere filtrata testualmente oppure limitata ai soli slot occupati. Tutte le intestazioni sono ordinabili in modo alfanumerico naturale, crescente o decrescente, quindi per esempio `A2a` precede correttamente `A10a`.
 
 Una riga può essere selezionata e aperta sulla mappa tramite pulsante o doppio clic. Le future funzioni di esportazione e analisi useranno questa stessa vista senza duplicare il modello dati.
+
+Se la riga selezionata contiene un articolo, il comando **Analisi articolo** apre un riepilogo dedicato. Mostra unità logistiche complessive, distinzione fra cassoni e pallet, slot fisicamente impegnati, riferimenti ordine e clienti distinti, parziali, unità in movimento, file interessate, ubicazioni, tag e distribuzione delle unità per ordine. Un pallet viene contato una sola volta come unità logistica, pur mantenendo visibili entrambi gli slot occupati.
 
 ### Stato parziale
 
@@ -244,14 +250,17 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Pulsante “Inventario magazzino” nella pagina Articoli.
 - Finestra dedicata al modulo.
 - Visualizzazione delle file `A–E`, dei livelli `a–c` e delle coppie fronte/retro.
-- Ricerca e dettaglio di una coordinata.
+- Dettaglio flottante di una coordinata dopo circa un secondo di permanenza del puntatore sulla cella; la scheda si chiude uscendo dalla cella e non modifica la selezione.
 - Modalità di etichettatura per ubicazione, articolo, cliente, ordine e vista combinata.
 - Evidenziazione della selezione e dei cassoni corrispondenti, comprese le altre file.
 - Menu contestuale per simulare in memoria lo stato parziale.
 - Ricerca testuale combinata per articolo, cliente, ordine, tag, parziale e in movimento.
 - Report scritto dei risultati con selezione multipla già predisposta; avvio scarico ancora disabilitato.
-- Ricerca principale integrata nella toolbar della mappa, con criteri e report nella colonna laterale.
-- Vista database a 480 righe con filtro, selezione e ritorno diretto alla posizione sulla mappa.
+- Pulsante compatto “Ricerca e prelievo” nella toolbar, con filtri e report selezionabile in una finestra dedicata.
+- Barra di ricerca rapida sincronizzata con la finestra di ricerca avanzata.
+- Vista database dinamica con filtro, selezione e ritorno diretto alla posizione sulla mappa.
+- Ordinamento crescente/decrescente e alfanumerico naturale per tutte le colonne della vista database.
+- Finestra di analisi aggregata per l'articolo selezionato, con conteggi per unità, tipologia, ordini, clienti, stati e ubicazioni.
 - Configuratore whitelist/blacklist per fila e slot, valutazione gerarchica e rilevazione dei conflitti esistenti.
 - Pannello strumenti flottante con selezione della densità `1–16 / 17–32` oppure `1–32` e accesso ai vincoli cliente.
 - Configurazione in memoria del numero di file e della capacità individuale di ciascuna fila.

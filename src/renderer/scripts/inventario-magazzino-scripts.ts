@@ -71,6 +71,8 @@ let displayMode = "location";
 let slotRangeMode = "paged";
 let slotPage = 0;
 let slotPageDirection = null;
+let slotPreviewTimer = null;
+let slotLabelFitFrame = null;
 let contextSlotCode = null;
 let currentSearchResults = [];
 const selectedReportLocations = new Set();
@@ -149,6 +151,21 @@ function parseSlotCode(value) {
     };
 }
 
+function palletBlockingSlot(location) {
+    const parsed = typeof location === "string" ? parseSlotCode(location) : location;
+    if (!parsed || parsed.level === "a") return null;
+    const frontGround = `${parsed.row}${parsed.physicalColumn * 2 - 1}a`;
+    const rearGround = `${parsed.row}${parsed.physicalColumn * 2}a`;
+    const pallet = [frontGround, rearGround]
+        .map((code) => inventory.get(code))
+        .find((item) => item?.type === "pallet");
+    return pallet?.id || null;
+}
+
+function blockedSlotCount() {
+    return allWarehouseSlots().filter((slot) => !slot.item && palletBlockingSlot(slot)).length;
+}
+
 function itemMatchesSelection(item) {
     if (!selectedSlot || !item) return false;
     const selectedItem = inventory.get(selectedSlot.code);
@@ -188,20 +205,56 @@ function renderCellLabel(button, code, item) {
     });
 }
 
+function fitSlotButtonLabel(button) {
+    const combined = displayMode === "combined" && button.querySelector(".slot__line");
+    let size = slotRangeMode === "paged" ? 14 : combined ? 12 : 11;
+    const minimum = slotRangeMode === "paged" ? 10 : 8.5;
+    button.style.fontSize = `${size}px`;
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        const contentNodes = combined ? Array.from(button.querySelectorAll(".slot__line")) : [button];
+        const widthRatio = Math.max(...contentNodes.map((node) => {
+            const availableWidth = combined ? node.clientWidth : button.clientWidth;
+            return availableWidth > 0 ? node.scrollWidth / availableWidth : 1;
+        }));
+        const ratio = widthRatio;
+        if (ratio <= 1.01) break;
+        const nextSize = Math.max(minimum, Math.floor((size / ratio) * 10) / 10);
+        if (nextSize >= size) break;
+        size = nextSize;
+        button.style.fontSize = `${size}px`;
+    }
+}
+
+function scheduleSlotLabelFit() {
+    if (slotLabelFitFrame) cancelAnimationFrame(slotLabelFitFrame);
+    slotLabelFitFrame = requestAnimationFrame(() => {
+        document.querySelectorAll("#warehouseLevels .slot").forEach(fitSlotButtonLabel);
+        slotLabelFitFrame = null;
+    });
+}
+
 function createSlotButton(row, columnIndex, side, level) {
     const code = slotCode(row, columnIndex, side, level);
     const item = inventory.get(code);
+    const blockingPalletId = !item ? palletBlockingSlot(code) : null;
     const button = document.createElement("button");
     button.type = "button";
     button.className = `slot slot--${side}`;
     button.dataset.slot = code;
     renderCellLabel(button, code, item);
-    button.title = item
+    button.title = blockingPalletId
+        ? `${code} | Non disponibile: colonna occupata dal pallet ${blockingPalletId}`
+        : item
         ? `${code} | ${item.type === "pallet" ? "Pallet" : "Cassone"} | ${item.article} | ${item.customer} | ${item.orderReference}${item.pairedLocation ? ` | Occupa anche ${item.pairedLocation}` : ""}${item.tags.length ? ` | Tag: ${item.tags.join(", ")}` : ""}${item.partial ? " | Parziale" : ""}${item.inMovement ? " | In movimento" : ""}`
         : `${code} | Libero`;
-    button.setAttribute("aria-label", item ? `${code}, articolo ${item.article}` : `${code}, libero`);
+    button.setAttribute("aria-label", blockingPalletId
+        ? `${code}, bloccato dal pallet ${blockingPalletId}`
+        : item ? `${code}, articolo ${item.article}` : `${code}, libero`);
+    button.disabled = Boolean(blockingPalletId);
     button.classList.toggle("is-occupied", Boolean(item));
     button.classList.toggle("is-pallet", item?.type === "pallet");
+    button.classList.toggle("is-pallet-blocked", Boolean(blockingPalletId));
     button.classList.toggle("is-partial", Boolean(item?.partial));
     button.classList.toggle("is-match", code !== selectedSlot?.code && itemMatchesSelection(item));
     button.classList.toggle("is-search-match", currentSearchResults.some((result) => result.location === code));
@@ -210,6 +263,10 @@ function createSlotButton(row, columnIndex, side, level) {
         "has-customer-conflict",
         Boolean(item && !evaluateCustomerForSlot(code, item.customer).allowed),
     );
+    button.addEventListener("pointerenter", () => scheduleSlotPreview(code, button));
+    button.addEventListener("pointerleave", hideSlotPreview);
+    button.addEventListener("focus", () => scheduleSlotPreview(code, button, 0));
+    button.addEventListener("blur", hideSlotPreview);
     button.addEventListener("click", () => selectSlot(code));
     button.addEventListener("contextmenu", (event) => {
         event.preventDefault();
@@ -284,6 +341,7 @@ function updateSlotPager() {
 }
 
 function renderMap() {
+    hideSlotPreview();
     const levelsContainer = document.getElementById("warehouseLevels");
     const rowTitle = document.getElementById("rowTitle");
     if (!levelsContainer || !rowTitle) return;
@@ -314,6 +372,7 @@ function renderMap() {
     }
     updateTabs();
     updateSlotPager();
+    scheduleSlotLabelFit();
 }
 
 function rowContainsMatch(row) {
@@ -367,26 +426,20 @@ function setDetailRowVisibility(id, visible) {
     if (row) row.hidden = !visible;
 }
 
-function renderDetails() {
-    if (!selectedSlot) {
-        document.getElementById("emptyDetail")?.removeAttribute("hidden");
-        const emptyDetail = document.getElementById("slotDetail");
-        if (emptyDetail) emptyDetail.hidden = true;
-        return;
-    }
-    const item = inventory.get(selectedSlot.code);
-    document.getElementById("emptyDetail")?.setAttribute("hidden", "");
-    const detail = document.getElementById("slotDetail");
-    if (detail) detail.hidden = false;
-    document.getElementById("detailRow").textContent = selectedSlot.row;
-    document.getElementById("detailColumn").textContent = String(selectedSlot.physicalColumn);
-    document.getElementById("detailSide").textContent = selectedSlot.side === "rear" ? "Posteriore" : "Anteriore";
-    const level = LEVELS.find((entry) => entry.code === selectedSlot.level);
-    document.getElementById("detailLevel").textContent = `${selectedSlot.level} · ${level?.label || ""}`;
+function renderDetails(detailSlot = selectedSlot) {
+    if (!detailSlot) return;
+    const item = inventory.get(detailSlot.code);
+    const blockingPalletId = !item ? palletBlockingSlot(detailSlot) : null;
+    document.getElementById("detailCode").textContent = detailSlot.code;
+    document.getElementById("detailRow").textContent = detailSlot.row;
+    document.getElementById("detailColumn").textContent = String(detailSlot.physicalColumn);
+    document.getElementById("detailSide").textContent = detailSlot.side === "rear" ? "Posteriore" : "Anteriore";
+    const level = LEVELS.find((entry) => entry.code === detailSlot.level);
+    document.getElementById("detailLevel").textContent = `${detailSlot.level} · ${level?.label || ""}`;
 
     const status = document.getElementById("detailStatus");
-    status.className = item?.partial ? "partial-badge" : item ? "occupied-badge" : "free-badge";
-    status.textContent = item?.partial ? "Parziale" : item ? "Occupato" : "Libero";
+    status.className = blockingPalletId ? "blocked-badge" : item?.partial ? "partial-badge" : item ? "occupied-badge" : "free-badge";
+    status.textContent = blockingPalletId ? "Bloccato da pallet" : item?.partial ? "Parziale" : item ? "Occupato" : "Libero";
     setDetailRowVisibility("detailTypeRow", Boolean(item));
     setDetailRowVisibility("detailPairRow", item?.type === "pallet");
     setDetailRowVisibility("detailArticleRow", Boolean(item));
@@ -394,8 +447,8 @@ function renderDetails() {
     setDetailRowVisibility("detailOrderRow", Boolean(item));
     setDetailRowVisibility("detailTagsRow", Boolean(item?.tags?.length));
     setDetailRowVisibility("detailMovementRow", Boolean(item?.inMovement));
-    const rowRule = rowRestrictions.get(selectedSlot.row);
-    const slotRule = slotRestrictions.get(selectedSlot.code);
+    const rowRule = rowRestrictions.get(detailSlot.row);
+    const slotRule = slotRestrictions.get(detailSlot.code);
     const hasCustomerRule = hasRestriction(rowRule) || hasRestriction(slotRule);
     setDetailRowVisibility("detailRestrictionRow", hasCustomerRule);
     setDetailRowVisibility("detailComplianceRow", Boolean(item && hasCustomerRule));
@@ -417,14 +470,42 @@ function renderDetails() {
         document.getElementById("detailRestriction").textContent = parts.join(" · ");
     }
     if (item && hasCustomerRule) {
-        const customerCheck = evaluateCustomerForSlot(selectedSlot.code, item.customer);
+        const customerCheck = evaluateCustomerForSlot(detailSlot.code, item.customer);
         const compliance = document.getElementById("detailCompliance");
         compliance.textContent = customerCheck.allowed ? "Conforme" : `Conflitto · ${customerCheck.source}`;
         compliance.className = customerCheck.allowed ? "table-status--allowed" : "table-status--conflict";
     }
-    document.getElementById("detailNote").textContent = item
+    document.getElementById("detailNote").textContent = blockingPalletId
+        ? `Posizione non utilizzabile: la colonna è riservata al pallet ${blockingPalletId} collocato a terra.`
+        : item
         ? "Cassone dimostrativo. Tasto destro sulla cella per modificare lo stato parziale."
         : "Slot libero. I flussi di carico saranno aggiunti nelle fasi successive.";
+}
+
+function hideSlotPreview() {
+    if (slotPreviewTimer) clearTimeout(slotPreviewTimer);
+    slotPreviewTimer = null;
+    const card = document.getElementById("slotHoverCard");
+    if (card) card.hidden = true;
+}
+
+function scheduleSlotPreview(code, anchor, delay = 1000) {
+    hideSlotPreview();
+    slotPreviewTimer = setTimeout(() => {
+        const parsed = parseSlotCode(code);
+        const card = document.getElementById("slotHoverCard");
+        if (!parsed || !card || !anchor.isConnected) return;
+        renderDetails(parsed);
+        card.hidden = false;
+        const anchorRect = anchor.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+        let left = anchorRect.right + 10;
+        if (left + cardRect.width > window.innerWidth - 8) left = anchorRect.left - cardRect.width - 10;
+        const top = Math.max(8, Math.min(anchorRect.top, window.innerHeight - cardRect.height - 8));
+        card.style.left = `${Math.max(8, left)}px`;
+        card.style.top = `${top}px`;
+        slotPreviewTimer = null;
+    }, delay);
 }
 
 function selectSlot(code, scroll = true) {
@@ -851,6 +932,8 @@ function renderSearchReport(query) {
 
 function refreshInventorySearch() {
     const query = document.getElementById("inventorySearchInput")?.value || "";
+    const quickInput = document.getElementById("quickInventorySearchInput");
+    if (quickInput && quickInput.value !== query) quickInput.value = query;
     currentSearchResults = findInventoryMatches(query);
     const visibleLocations = new Set(currentSearchResults.map((item) => item.location));
     Array.from(selectedReportLocations).forEach((location) => {
@@ -858,22 +941,59 @@ function refreshInventorySearch() {
     });
     renderSearchReport(query);
     renderMap();
+    document.getElementById("openInventorySearchDialog")?.classList.toggle("has-active-search", Boolean(normalizeSearchText(query)));
+}
+
+function openInventorySearchDialog() {
+    const dialog = document.getElementById("inventorySearchDialog");
+    dialog?.classList.add("is-open");
+    dialog?.setAttribute("aria-hidden", "false");
+    document.getElementById("inventorySearchInput")?.focus();
+}
+
+function closeInventorySearchDialog() {
+    const dialog = document.getElementById("inventorySearchDialog");
+    dialog?.classList.remove("is-open");
+    dialog?.setAttribute("aria-hidden", "true");
 }
 
 function setupInventorySearch() {
     const form = document.getElementById("inventorySearchForm");
     const input = document.getElementById("inventorySearchInput");
+    const quickInput = document.getElementById("quickInventorySearchInput");
     form?.addEventListener("submit", (event) => event.preventDefault());
-    input?.addEventListener("input", refreshInventorySearch);
+    input?.addEventListener("input", () => {
+        if (quickInput) quickInput.value = input.value;
+        refreshInventorySearch();
+    });
+    quickInput?.addEventListener("input", () => {
+        if (input) input.value = quickInput.value;
+        refreshInventorySearch();
+    });
     document.querySelectorAll('input[name="searchField"]').forEach((checkbox) => {
         checkbox.addEventListener("change", refreshInventorySearch);
     });
     document.getElementById("clearInventorySearch")?.addEventListener("click", () => {
         if (input) input.value = "";
+        if (quickInput) quickInput.value = "";
         selectedReportLocations.clear();
         refreshInventorySearch();
         input?.focus();
     });
+    document.getElementById("openInventorySearchDialog")?.addEventListener("click", openInventorySearchDialog);
+    document.getElementById("closeInventorySearchDialog")?.addEventListener("click", closeInventorySearchDialog);
+    document.getElementById("inventorySearchDialog")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) closeInventorySearchDialog();
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeInventorySearchDialog();
+    });
+}
+
+function setupSlotPreview() {
+    window.addEventListener("resize", hideSlotPreview);
+    window.addEventListener("resize", scheduleSlotLabelFit);
+    document.addEventListener("scroll", hideSlotPreview, true);
 }
 
 function restrictionFromInputs(whitelistId, blacklistId) {
@@ -1070,6 +1190,13 @@ function setupRestrictionDialog() {
 }
 
 let selectedAnalysisLocation = null;
+let analysisSort = { key: "location", direction: "asc" };
+const ANALYSIS_SORT_KEYS = [
+    "location", "row", "physicalColumn", "side", "level", "slotStatus", "id", "type",
+    "article", "customer", "orderReference", "tags", "contentStatus", "rowRestriction",
+    "slotRestriction", "customerCompliance",
+];
+const analysisCollator = new Intl.Collator("it", { numeric: true, sensitivity: "base" });
 
 function allWarehouseSlots() {
     const slots = [];
@@ -1088,13 +1215,14 @@ function analysisSlotMatches(slot, query) {
     const normalized = normalizeSearchText(query);
     if (!normalized) return true;
     const item = slot.item;
+    const blockingPalletId = !item ? palletBlockingSlot(slot) : null;
     const values = normalizeSearchText([
         slot.code,
         slot.row,
         slot.physicalColumn,
         slot.side === "rear" ? "posteriore retro" : "anteriore fronte",
         slot.level,
-        item ? "occupato" : "libero",
+        blockingPalletId ? `bloccato pallet ${blockingPalletId}` : item ? "occupato" : "libero",
         item?.id,
         item?.type === "pallet" ? "pallet bancale" : item ? "cassone" : "",
         item?.article,
@@ -1108,6 +1236,57 @@ function analysisSlotMatches(slot, query) {
         item && !evaluateCustomerForSlot(slot.code, item.customer).allowed ? "conflitto cliente" : "conforme",
     ].join(" "));
     return normalized.split(/\s+/).every((token) => values.includes(token));
+}
+
+function analysisSortValue(slot, key) {
+    const item = slot.item;
+    const blockingPalletId = !item ? palletBlockingSlot(slot) : null;
+    const customerCheck = item ? evaluateCustomerForSlot(slot.code, item.customer) : null;
+    const values = {
+        location: slot.code,
+        row: slot.row,
+        physicalColumn: slot.physicalColumn,
+        side: slot.side === "rear" ? "Posteriore" : "Anteriore",
+        level: slot.level,
+        slotStatus: blockingPalletId ? "Bloccato da pallet" : item ? "Occupato" : "Libero",
+        id: item?.id || "",
+        type: item?.type === "pallet" ? "Pallet" : item ? "Cassone" : "",
+        article: item?.article || "",
+        customer: item?.customer || "",
+        orderReference: item?.orderReference || "",
+        tags: item?.tags?.join(", ") || "",
+        contentStatus: item ? `${item.partial ? "Parziale" : "Pieno"}${item.inMovement ? " In movimento" : ""}` : "",
+        rowRestriction: restrictionLabel(rowRestrictions.get(slot.row)),
+        slotRestriction: restrictionLabel(slotRestrictions.get(slot.code)),
+        customerCompliance: !item ? "" : customerCheck.allowed ? "Conforme" : `Conflitto ${customerCheck.source}`,
+    };
+    return values[key];
+}
+
+function compareAnalysisSlots(left, right) {
+    const leftValue = analysisSortValue(left, analysisSort.key);
+    const rightValue = analysisSortValue(right, analysisSort.key);
+    const leftEmpty = leftValue === "" || leftValue === null || leftValue === undefined;
+    const rightEmpty = rightValue === "" || rightValue === null || rightValue === undefined;
+    if (leftEmpty !== rightEmpty) return leftEmpty ? 1 : -1;
+    let comparison = typeof leftValue === "number" && typeof rightValue === "number"
+        ? leftValue - rightValue
+        : analysisCollator.compare(String(leftValue), String(rightValue));
+    if (analysisSort.direction === "desc") comparison *= -1;
+    return comparison || analysisCollator.compare(left.code, right.code);
+}
+
+function updateAnalysisSortHeaders() {
+    document.querySelectorAll(".analysis-table th").forEach((header, index) => {
+        const key = ANALYSIS_SORT_KEYS[index];
+        header.dataset.sortKey = key;
+        header.tabIndex = 0;
+        const active = analysisSort.key === key;
+        header.setAttribute("aria-sort", active ? (analysisSort.direction === "asc" ? "ascending" : "descending") : "none");
+        header.title = active
+            ? `Ordinamento ${analysisSort.direction === "asc" ? "crescente" : "decrescente"}. Clicca per invertire.`
+            : "Ordina questa colonna in modo alfanumerico";
+    });
 }
 
 function appendAnalysisCell(row, value, className = "") {
@@ -1126,11 +1305,12 @@ function renderAnalysisTable() {
     const occupiedOnly = Boolean(document.getElementById("analysisOccupiedOnly")?.checked);
     const slots = allWarehouseSlots().filter(
         (slot) => (!occupiedOnly || slot.item) && analysisSlotMatches(slot, query),
-    );
+    ).sort(compareAnalysisSlots);
     body.replaceChildren();
     const fragment = document.createDocumentFragment();
     slots.forEach((slot) => {
         const item = slot.item;
+        const blockingPalletId = !item ? palletBlockingSlot(slot) : null;
         const row = document.createElement("tr");
         row.dataset.location = slot.code;
         row.classList.toggle("is-selected", selectedAnalysisLocation === slot.code);
@@ -1141,8 +1321,8 @@ function renderAnalysisTable() {
         appendAnalysisCell(row, slot.level);
         appendAnalysisCell(
             row,
-            item ? "Occupato" : "Libero",
-            `table-status ${item ? "table-status--occupied" : "table-status--free"}`,
+            blockingPalletId ? "Bloccato da pallet" : item ? "Occupato" : "Libero",
+            `table-status ${blockingPalletId ? "table-status--blocked" : item ? "table-status--occupied" : "table-status--free"}`,
         );
         appendAnalysisCell(row, item?.id || "");
         appendAnalysisCell(row, item?.type === "pallet" ? "Pallet" : item ? "Cassone" : "");
@@ -1182,6 +1362,8 @@ function renderAnalysisTable() {
             });
             const openButton = document.getElementById("openAnalysisSelection");
             if (openButton) openButton.disabled = false;
+            const analysisButton = document.getElementById("analyzeAnalysisSelection");
+            if (analysisButton) analysisButton.disabled = !item;
         });
         row.addEventListener("dblclick", () => openAnalysisLocation(slot.code));
         fragment.appendChild(row);
@@ -1197,6 +1379,90 @@ function renderAnalysisTable() {
     }
     body.appendChild(fragment);
     document.getElementById("analysisResultCount").textContent = `${slots.length} ${slots.length === 1 ? "riga" : "righe"}`;
+}
+
+function articleUnits(article) {
+    const units = new Map();
+    Array.from(inventory.values())
+        .filter((item) => item.article === article)
+        .forEach((item) => {
+            const key = item.id || item.location;
+            if (!units.has(key)) units.set(key, { item, locations: [] });
+            units.get(key).locations.push(item.location);
+        });
+    return Array.from(units.values());
+}
+
+function setArticleMetric(id, value) {
+    document.getElementById(id).textContent = String(value);
+}
+
+function openArticleAnalysis() {
+    const selectedItem = selectedAnalysisLocation ? inventory.get(selectedAnalysisLocation) : null;
+    if (!selectedItem) return;
+    const units = articleUnits(selectedItem.article);
+    const occupiedSlots = units.flatMap((unit) => unit.locations);
+    const orders = new Map();
+    const customers = new Set();
+    const rows = new Set();
+    const tags = new Set();
+
+    units.forEach((unit) => {
+        const item = unit.item;
+        orders.set(item.orderReference, (orders.get(item.orderReference) || 0) + 1);
+        if (item.customer) customers.add(item.customer);
+        item.tags.forEach((tag) => tags.add(tag));
+        unit.locations.forEach((location) => rows.add(parseSlotCode(location)?.row));
+    });
+
+    document.getElementById("articleAnalysisTitle").textContent = `Articolo ${selectedItem.article}`;
+    document.getElementById("articleAnalysisSubtitle").textContent =
+        `${units.length} ${units.length === 1 ? "unità logistica" : "unità logistiche"} presenti, conteggiando ogni pallet una sola volta.`;
+    setArticleMetric("articleUnitCount", units.length);
+    setArticleMetric("articleCrateCount", units.filter((unit) => unit.item.type !== "pallet").length);
+    setArticleMetric("articlePalletCount", units.filter((unit) => unit.item.type === "pallet").length);
+    setArticleMetric("articleSlotCount", occupiedSlots.length);
+    setArticleMetric("articleOrderCount", orders.size);
+    setArticleMetric("articleCustomerCount", customers.size);
+    setArticleMetric("articlePartialCount", units.filter((unit) => unit.item.partial).length);
+    setArticleMetric("articleMovementCount", units.filter((unit) => unit.item.inMovement).length);
+
+    const orderList = document.getElementById("articleAnalysisOrders");
+    orderList.replaceChildren();
+    Array.from(orders.entries())
+        .sort(([left], [right]) => analysisCollator.compare(left, right))
+        .forEach(([order, count]) => {
+            const row = document.createElement("div");
+            const label = document.createElement("span");
+            label.textContent = order || "Senza riferimento";
+            const value = document.createElement("b");
+            value.textContent = String(count);
+            row.append(label, value);
+            orderList.appendChild(row);
+        });
+
+    const locations = document.getElementById("articleAnalysisLocations");
+    locations.replaceChildren();
+    occupiedSlots.sort(analysisCollator.compare).forEach((location) => {
+        const badge = document.createElement("span");
+        badge.textContent = location;
+        locations.appendChild(badge);
+    });
+    document.getElementById("articleAnalysisRows").textContent =
+        `${rows.size} ${rows.size === 1 ? "fila" : "file"}: ${Array.from(rows).sort().join(", ")}`;
+    document.getElementById("articleAnalysisCustomers").textContent = Array.from(customers).sort(analysisCollator.compare).join(", ") || "—";
+    document.getElementById("articleAnalysisTags").textContent = Array.from(tags).sort(analysisCollator.compare).join(", ") || "—";
+
+    const dialog = document.getElementById("articleAnalysisDialog");
+    dialog.classList.add("is-open");
+    dialog.setAttribute("aria-hidden", "false");
+    document.getElementById("closeArticleAnalysis")?.focus();
+}
+
+function closeArticleAnalysis() {
+    const dialog = document.getElementById("articleAnalysisDialog");
+    dialog?.classList.remove("is-open");
+    dialog?.setAttribute("aria-hidden", "true");
 }
 
 function setActiveView(view) {
@@ -1230,14 +1496,41 @@ function setupAnalysisView() {
     document.getElementById("openAnalysisSelection")?.addEventListener("click", () => {
         if (selectedAnalysisLocation) openAnalysisLocation(selectedAnalysisLocation);
     });
+    document.getElementById("analyzeAnalysisSelection")?.addEventListener("click", openArticleAnalysis);
+    document.getElementById("closeArticleAnalysis")?.addEventListener("click", closeArticleAnalysis);
+    document.getElementById("articleAnalysisDialog")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) closeArticleAnalysis();
+    });
+    document.querySelectorAll(".analysis-table th").forEach((header, index) => {
+        const applySort = () => {
+            const key = ANALYSIS_SORT_KEYS[index];
+            analysisSort = analysisSort.key === key
+                ? { key, direction: analysisSort.direction === "asc" ? "desc" : "asc" }
+                : { key, direction: "asc" };
+            updateAnalysisSortHeaders();
+            renderAnalysisTable();
+        };
+        header.addEventListener("click", applySort);
+        header.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                applySort();
+            }
+        });
+    });
+    updateAnalysisSortHeaders();
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeArticleAnalysis();
+    });
 }
 
 function updateSummary() {
     const capacity = totalSlots();
+    const blocked = blockedSlotCount();
     document.getElementById("totalSlots").textContent = String(capacity);
     document.getElementById("occupiedSlots").textContent = String(inventory.size);
-    document.getElementById("freeSlots").textContent = String(capacity - inventory.size);
-    document.getElementById("freeSlotsCapacity").textContent = `su ${capacity} posizioni`;
+    document.getElementById("freeSlots").textContent = String(capacity - inventory.size - blocked);
+    document.getElementById("freeSlotsCapacity").textContent = `${blocked} bloccati da pallet · su ${capacity} posizioni`;
     document.getElementById("rowCount").textContent = String(warehouseRows.length);
     document.getElementById("rowList").textContent = rowCodes().join(", ");
     document.getElementById("warehouseStructureSummary").textContent =
@@ -1251,6 +1544,7 @@ setupSlotPager();
 setupToolsDrawer();
 setupWarehouseStructure();
 setupLoadDialog();
+setupSlotPreview();
 setupContextMenu();
 setupInventorySearch();
 setupAnalysisView();
