@@ -7,7 +7,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Inventario magazzino</title>
-    <link rel="stylesheet" href="../styles/inventario-magazzino-style.css">
+    <link rel="stylesheet" href="../styles/inventario-magazzino-style.css?v=20260910-pallet-red">
 </head>
 
 <body>
@@ -15,17 +15,32 @@
         <header class="inventory-header">
             <div>
                 <span class="eyebrow">ARTICOLI / MAGAZZINO</span>
-                <h1>Inventario magazzino</h1>
-                <p>Base strutturale della mappa: 5 file, 3 livelli e 96 slot per fila.</p>
+                <div class="inventory-title-row">
+                    <button class="tools-menu-trigger" id="toolsDrawerHandle" type="button" aria-expanded="false"
+                        aria-controls="toolsDrawerPanel" aria-label="Apri strumenti magazzino">
+                        <i></i><i></i><i></i>
+                    </button>
+                    <div>
+                        <h1>Inventario magazzino</h1>
+                        <p id="warehouseStructureSummary">Struttura configurata: 5 file, 3 livelli e 480 slot totali.</p>
+                    </div>
+                </div>
             </div>
-            <div class="status-pill"><i></i> Dati dimostrativi · non salvati</div>
+            <div class="header-actions">
+                <nav class="view-tabs" aria-label="Viste inventario">
+                    <button class="is-active" type="button" data-view="warehouse" aria-pressed="true">Mappa magazzino</button>
+                    <button type="button" data-view="analysis" aria-pressed="false">Vista database</button>
+                </nav>
+                <div class="status-pill"><i></i> Dati dimostrativi · non salvati</div>
+            </div>
         </header>
 
+        <section class="app-view app-view--warehouse" id="warehouseView">
         <section class="summary-grid" aria-label="Riepilogo magazzino">
             <article><span>Capacità totale</span><strong id="totalSlots">480</strong><small>cassoni</small></article>
             <article><span>Slot occupati</span><strong id="occupiedSlots">0</strong><small>dati dimostrativi</small></article>
-            <article><span>Slot liberi</span><strong id="freeSlots">480</strong><small>su 480 posizioni</small></article>
-            <article><span>File</span><strong>5</strong><small>A, B, C, D, E</small></article>
+            <article><span>Slot liberi</span><strong id="freeSlots">480</strong><small id="freeSlotsCapacity">su 480 posizioni</small></article>
+            <article><span>File</span><strong id="rowCount">5</strong><small id="rowList">A, B, C, D, E</small></article>
         </section>
 
         <section class="operation-bar" aria-label="Operazioni future">
@@ -33,7 +48,7 @@
                 <span class="section-label">OPERAZIONI</span>
                 <p>I flussi saranno attivati dopo la definizione completa delle regole.</p>
             </div>
-            <button type="button" disabled>Carico</button>
+            <button class="operation-button--active" id="openLoadButton" type="button">Carico</button>
             <button type="button" disabled>Scarico</button>
             <button type="button" disabled>Spostamento</button>
             <button type="button" disabled>Gestione tag</button>
@@ -57,13 +72,13 @@
                             <option value="combined">Ubicazione - Articolo - Riferimento ordine</option>
                         </select>
                     </label>
-                    <form class="position-search" id="positionSearchForm">
-                        <label for="positionSearch">Vai alla posizione</label>
+                    <form class="toolbar-inventory-search" id="inventorySearchForm">
+                        <label for="inventorySearchInput" id="inventorySearchTitle">Ricerca magazzino</label>
                         <div>
-                            <input id="positionSearch" autocomplete="off" maxlength="4" placeholder="es. A2c">
-                            <button type="submit">Cerca</button>
+                            <input id="inventorySearchInput" type="search" autocomplete="off"
+                                placeholder="Articolo, cliente, ordine, tag o stato…">
+                            <button id="clearInventorySearch" type="button">Azzera</button>
                         </div>
-                        <small id="searchMessage" aria-live="polite"></small>
                     </form>
                 </div>
 
@@ -76,32 +91,38 @@
                     <span><i class="partial-mark"></i> Cassone parziale</span>
                 </div>
 
-                <div class="levels" id="warehouseLevels"></div>
+                <div class="slot-pager" id="slotPager" data-range-mode="paged">
+                    <button class="pager-arrow pager-arrow--previous" id="previousSlotPage" type="button" aria-label="Mostra slot da 1 a 16">
+                        <span>‹</span><small>1–16</small>
+                    </button>
+                    <div class="levels" id="warehouseLevels"></div>
+                    <button class="pager-arrow pager-arrow--next" id="nextSlotPage" type="button" aria-label="Mostra slot da 17 a 32">
+                        <span>›</span><small>17–32</small>
+                    </button>
+                </div>
             </div>
 
             <aside class="inventory-sidebar">
-                <section class="inventory-search" aria-labelledby="inventorySearchTitle">
-                    <form class="inventory-search__form" id="inventorySearchForm">
+                <section class="inventory-search" aria-label="Filtri e risultati della ricerca">
+                    <div class="inventory-search__form">
                         <div class="inventory-search__heading">
                             <div>
-                                <span class="section-label">RICERCA TRASVERSALE</span>
-                                <h3 id="inventorySearchTitle">Cerca nei cassoni</h3>
+                                <span class="section-label">FILTRI RICERCA</span>
+                                <h3>Cerca nei campi selezionati</h3>
                             </div>
-                            <button id="clearInventorySearch" type="button">Azzera</button>
                         </div>
-                        <input id="inventorySearchInput" type="search" autocomplete="off"
-                            placeholder="Articolo, cliente, ordine, tag o stato…">
                         <fieldset>
                             <legend>Cerca in</legend>
                             <label><input type="checkbox" name="searchField" value="article" checked> Articolo</label>
                             <label><input type="checkbox" name="searchField" value="customer" checked> Cliente</label>
                             <label><input type="checkbox" name="searchField" value="order" checked> Rif. ordine</label>
                             <label><input type="checkbox" name="searchField" value="tags" checked> Tag</label>
+                            <label><input type="checkbox" name="searchField" value="type" checked> Tipologia</label>
                             <label><input type="checkbox" name="searchField" value="partial" checked> Parziale</label>
                             <label><input type="checkbox" name="searchField" value="movement" checked> In movimento</label>
                         </fieldset>
                         <small>Puoi combinare più parole, per esempio “AGPRESS 25/00114”.</small>
-                    </form>
+                    </div>
 
                     <div class="search-report">
                         <div class="search-report__heading">
@@ -133,33 +154,256 @@
                 <div class="empty-detail" id="emptyDetail">
                     <div class="empty-detail__icon">⌖</div>
                     <h2>Seleziona una posizione</h2>
-                    <p>Clicca uno slot nella mappa oppure cercalo tramite la sua coordinata.</p>
+                    <p>Clicca uno slot nella mappa oppure selezionalo dai risultati della ricerca.</p>
                 </div>
                 <div class="slot-detail" id="slotDetail" hidden>
-                    <div class="slot-code" id="detailCode">A1a</div>
                     <dl>
                         <div><dt>Fila</dt><dd id="detailRow">A</dd></div>
                         <div><dt>Colonna</dt><dd id="detailColumn">1</dd></div>
                         <div><dt>Lato</dt><dd id="detailSide">Anteriore</dd></div>
                         <div><dt>Livello</dt><dd id="detailLevel">a · basso</dd></div>
                         <div><dt>Stato</dt><dd><span id="detailStatus" class="free-badge">Libero</span></dd></div>
+                        <div id="detailTypeRow" hidden><dt>Tipologia</dt><dd id="detailType">Cassone</dd></div>
+                        <div id="detailPairRow" hidden><dt>Ingombro pallet</dt><dd id="detailPair">—</dd></div>
                         <div id="detailArticleRow" hidden><dt>Articolo</dt><dd id="detailArticle">—</dd></div>
                         <div id="detailCustomerRow" hidden><dt>Cliente</dt><dd id="detailCustomer">—</dd></div>
                         <div id="detailOrderRow" hidden><dt>Rif. ordine</dt><dd id="detailOrder">—</dd></div>
                         <div id="detailTagsRow" hidden><dt>Tag</dt><dd id="detailTags">—</dd></div>
                         <div id="detailMovementRow" hidden><dt>Movimento</dt><dd id="detailMovement">—</dd></div>
+                        <div id="detailRestrictionRow" hidden><dt>Vincolo cliente</dt><dd id="detailRestriction">—</dd></div>
+                        <div id="detailComplianceRow" hidden><dt>Verifica</dt><dd id="detailCompliance">—</dd></div>
                     </dl>
                     <p id="detailNote">I dati del cassone, la cronologia e i tag saranno aggiunti nelle fasi successive.</p>
                 </div>
                 </section>
             </aside>
         </section>
+        </section>
+
+        <section class="app-view analysis-view" id="analysisView" hidden>
+            <header class="analysis-header">
+                <div>
+                    <span class="section-label">VISTA ANALISTA</span>
+                    <h2>Database completo del magazzino</h2>
+                    <p>Una riga per ogni ubicazione fisica, comprese le posizioni libere.</p>
+                </div>
+                <div class="analysis-actions">
+                    <label>
+                        Cerca nella tabella
+                        <input id="analysisSearch" type="search" placeholder="Ubicazione, articolo, cliente, ordine, tag…">
+                    </label>
+                    <label class="analysis-check"><input id="analysisOccupiedOnly" type="checkbox"> Solo occupati</label>
+                    <button id="openAnalysisSelection" type="button" disabled>Apri sulla mappa</button>
+                </div>
+            </header>
+            <div class="analysis-meta">
+                <strong id="analysisResultCount">480 righe</strong>
+                <span>Seleziona una riga oppure fai doppio clic per aprire direttamente lo slot nella mappa.</span>
+            </div>
+            <div class="analysis-table-wrap">
+                <table class="analysis-table">
+                    <thead>
+                        <tr>
+                            <th>Ubicazione</th>
+                            <th>Fila</th>
+                            <th>Colonna</th>
+                            <th>Lato</th>
+                            <th>Livello</th>
+                            <th>Stato slot</th>
+                            <th>ID cassone</th>
+                            <th>Tipologia</th>
+                            <th>Articolo</th>
+                            <th>Cliente</th>
+                            <th>Rif. ordine</th>
+                            <th>Tag</th>
+                            <th>Stato contenuto</th>
+                            <th>Vincolo fila</th>
+                            <th>Vincolo slot</th>
+                            <th>Verifica cliente</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analysisTableBody"></tbody>
+                </table>
+            </div>
+        </section>
     </main>
+
+    <div class="tools-drawer-scrim" id="toolsDrawerScrim" aria-hidden="true"></div>
+    <aside class="tools-drawer" id="toolsDrawer" aria-label="Strumenti di visualizzazione">
+        <div class="tools-drawer__panel" id="toolsDrawerPanel">
+            <header class="tools-drawer__header">
+                <span class="section-label">IMPOSTAZIONI RAPIDE</span>
+                <h2>Strumenti mappa</h2>
+                <p>Scegli come distribuire le posizioni senza modificare la struttura della pagina.</p>
+            </header>
+
+            <section class="tools-drawer__section" aria-labelledby="slotRangeTitle">
+                <div class="tools-drawer__section-heading">
+                    <span>VISUALIZZAZIONE SLOT</span>
+                    <strong id="slotRangeTitle">Densità della scaffalatura</strong>
+                </div>
+                <div class="range-options" role="group" aria-label="Densità della scaffalatura">
+                    <button class="range-option is-active" type="button" data-slot-range="paged" aria-pressed="true">
+                        <span class="range-option__icon" aria-hidden="true"><i></i><i></i></span>
+                        <span><strong>Vista suddivisa</strong><small id="pagedRangeDescription">Posizioni 1–16 e 17–32</small></span>
+                        <b aria-hidden="true">✓</b>
+                    </button>
+                    <button class="range-option" type="button" data-slot-range="all" aria-pressed="false">
+                        <span class="range-option__icon range-option__icon--full" aria-hidden="true"><i></i></span>
+                        <span><strong>Vista completa</strong><small id="allRangeDescription">Tutte le posizioni 1–32</small></span>
+                        <b aria-hidden="true">✓</b>
+                    </button>
+                </div>
+            </section>
+
+            <section class="tools-drawer__section" aria-labelledby="warehouseStructureTitle">
+                <div class="tools-drawer__section-heading">
+                    <span>STRUTTURA FISICA</span>
+                    <strong id="warehouseStructureTitle">File e capacità</strong>
+                </div>
+                <p class="tools-drawer__description">Indica quanti cassoni standard può contenere ogni fila. Il valore deve essere un multiplo di 6.</p>
+                <div class="warehouse-row-editor" id="warehouseRowsEditor"></div>
+                <div class="warehouse-structure-actions">
+                    <button id="addWarehouseRow" type="button">+ Aggiungi fila</button>
+                    <button id="applyWarehouseStructure" type="button">Applica struttura</button>
+                </div>
+                <p class="warehouse-structure-message" id="warehouseStructureMessage" role="status"></p>
+            </section>
+
+            <section class="tools-drawer__section tools-drawer__section--restrictions">
+                <div class="tools-drawer__section-heading">
+                    <span>REGOLE DI ALLOCAZIONE</span>
+                    <strong>Vincoli per cliente</strong>
+                </div>
+                <p>Configura whitelist e blacklist per fila oppure per singola ubicazione.</p>
+                <button class="tools-drawer__action" id="openRestrictionsButton" type="button">
+                    <span><strong>Apri vincoli cliente</strong><small>Gestione priorità fila e slot</small></span>
+                    <b aria-hidden="true">›</b>
+                </button>
+            </section>
+        </div>
+    </aside>
+
+    <div class="restriction-backdrop load-backdrop" id="loadDialog" aria-hidden="true">
+        <section class="load-dialog" role="dialog" aria-modal="true" aria-labelledby="loadDialogTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">NUOVO CARICO</span>
+                    <h2 id="loadDialogTitle">Dati della merce in ingresso</h2>
+                    <p>La proposta automatica delle ubicazioni verrà collegata al motore di slotting.</p>
+                </div>
+                <button id="closeLoadButton" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <form class="load-form" id="loadForm">
+                <div class="load-form__grid">
+                    <label>Articolo<input id="loadArticle" required placeholder="es. T0410AOA77"></label>
+                    <label>Cliente<input id="loadCustomer" required placeholder="es. AGPRESS"></label>
+                    <label>Riferimento ordine<input id="loadOrderReference" required placeholder="es. 25/00114"></label>
+                    <label>Quantità unità<input id="loadQuantity" type="number" min="1" step="1" value="1" required></label>
+                    <label>Parziale
+                        <select id="loadPartial"><option value="no">No</option><option value="yes">Sì</option></select>
+                    </label>
+                    <label>Tipologia
+                        <select id="loadType"><option value="crate">Cassone</option><option value="pallet">Pallet</option></select>
+                    </label>
+                </div>
+                <div class="load-type-note" id="loadTypeNote">
+                    Un cassone occupa una singola ubicazione e può essere impilato rispettando i livelli.
+                </div>
+                <div class="load-form__footer">
+                    <p id="loadFormMessage" role="status"></p>
+                    <button type="submit">Prepara richiesta di carico</button>
+                </div>
+            </form>
+        </section>
+    </div>
 
     <div class="slot-context-menu" id="slotContextMenu" role="menu" aria-hidden="true">
         <div class="slot-context-menu__title" id="contextSlotCode">A1a</div>
         <button id="togglePartialButton" type="button" role="menuitem">Segna come parziale</button>
         <small id="contextMenuHint"></small>
+    </div>
+
+    <div class="restriction-backdrop" id="restrictionDialog" aria-hidden="true">
+        <section class="restriction-dialog" role="dialog" aria-modal="true" aria-labelledby="restrictionDialogTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">REGOLE DI ALLOCAZIONE</span>
+                    <h2 id="restrictionDialogTitle">Vincoli cliente per fila e slot</h2>
+                    <p>La regola della fila ha priorità. Lo slot può soltanto applicare un'ulteriore restrizione.</p>
+                </div>
+                <button id="closeRestrictionsButton" type="button" aria-label="Chiudi">×</button>
+            </header>
+
+            <div class="restriction-dialog__body">
+                <aside class="restriction-rows">
+                    <span class="section-label">FILE MAGAZZINO</span>
+                    <div id="restrictionRowTabs"></div>
+                    <div class="restriction-summary">
+                        <strong id="restrictionConfiguredCount">0 regole configurate</strong>
+                        <span id="restrictionConflictCount">Nessun conflitto</span>
+                    </div>
+                </aside>
+
+                <div class="restriction-editors">
+                    <section class="restriction-editor">
+                        <div class="restriction-editor__heading">
+                            <div><span>PRIORITÀ 1</span><h3 id="rowRestrictionTitle">Regola fila A</h3></div>
+                            <button id="clearRowRestriction" type="button">Rimuovi regola</button>
+                        </div>
+                        <div class="restriction-fields">
+                            <label>
+                                Whitelist · solo questi clienti
+                                <input id="rowWhitelist" placeholder="es. FANTINI, AGPRESS">
+                                <small>Se valorizzata, tutti gli altri clienti vengono esclusi.</small>
+                            </label>
+                            <label>
+                                Blacklist · clienti vietati
+                                <input id="rowBlacklist" placeholder="es. FANTINI">
+                                <small>Separare più clienti con virgola.</small>
+                            </label>
+                        </div>
+                        <div class="restriction-editor__footer">
+                            <span id="rowRestrictionMessage" role="status"></span>
+                            <button class="restriction-save" id="saveRowRestriction" type="button">Salva regola fila</button>
+                        </div>
+                    </section>
+
+                    <section class="restriction-editor">
+                        <div class="restriction-editor__heading">
+                            <div><span>PRIORITÀ 2</span><h3>Restrizione aggiuntiva del singolo slot</h3></div>
+                            <button id="clearSlotRestriction" type="button">Rimuovi regola</button>
+                        </div>
+                        <label class="restriction-slot-select">
+                            Ubicazione della fila selezionata
+                            <select id="restrictionSlotSelect"></select>
+                        </label>
+                        <div class="restriction-fields">
+                            <label>
+                                Whitelist dello slot
+                                <input id="slotWhitelist" placeholder="Clienti ammessi nello slot">
+                            </label>
+                            <label>
+                                Blacklist dello slot
+                                <input id="slotBlacklist" placeholder="Clienti vietati nello slot">
+                            </label>
+                        </div>
+                        <div class="restriction-editor__footer">
+                            <span id="slotRestrictionMessage" role="status"></span>
+                            <button class="restriction-save" id="saveSlotRestriction" type="button">Salva regola slot</button>
+                        </div>
+                    </section>
+
+                    <section class="restriction-effective">
+                        <div>
+                            <span class="section-label">REGOLA EFFETTIVA</span>
+                            <strong id="effectiveRestrictionTitle">A1a</strong>
+                        </div>
+                        <p id="effectiveRestrictionText">Nessuna restrizione: tutti i clienti sono ammessi.</p>
+                    </section>
+                </div>
+            </div>
+        </section>
     </div>
 
     <script src="../scripts/inventario-magazzino-scripts.js"></script>

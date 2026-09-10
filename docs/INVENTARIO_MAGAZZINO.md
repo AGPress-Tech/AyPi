@@ -17,6 +17,17 @@ Il sistema dovrà supportare sia proposte automatiche sia operazioni manuali for
 - I numeri dispari identificano il lato anteriore; i numeri pari il lato posteriore.
 - Una posizione completa è composta da fila, numero e livello, per esempio `A1a` oppure `A2c`.
 - Il prelievo avviene sempre dal lato anteriore.
+- La struttura non è necessariamente uniforme: ogni fila può avere una capacità diversa, espressa come numero di cassoni standard.
+- Poiché ogni modulo fisico contiene 2 lati × 3 livelli, la capacità configurabile di una fila deve essere un multiplo di 6.
+
+### Tipologie di unità logistica
+
+Il magazzino contiene due tipologie distinte:
+
+- **Cassone**: occupa un singolo slot e può essere impilato sui livelli `a`, `b` e `c`, rispettando i vincoli verticali;
+- **Pallet**: occupa obbligatoriamente due slot accoppiati, uno anteriore e uno posteriore dello stesso modulo fisico, per esempio `A3a + A4a`.
+
+Un pallet può essere collocato soltanto a terra, sul livello `a`. L'intera colonna deve essere libera: non può esserci alcun cassone o pallet sui livelli `b` e `c`, né sopra né sotto l'unità. I due slot condividono un unico identificativo pallet e ogni carico, scarico o spostamento dovrà trattarli come un'unità indivisibile.
 
 ### Interpretazione iniziale da confermare
 
@@ -34,6 +45,8 @@ Ogni numero esiste ai livelli `a`, `b`, `c`. Questa interpretazione deve essere 
 ### Carico automatico
 
 - L'operatore indica articolo e numero di cassoni da caricare.
+- Ogni richiesta di carico raccoglie: articolo, cliente, riferimento ordine, quantità, stato parziale (`Sì/No`) e tipologia (`Cassone/Pallet`).
+- Se la tipologia è pallet, ogni unità richiesta consuma una coppia fronte/retro a terra e l'algoritmo deve escludere qualsiasi colonna verticalmente occupata.
 - A magazzino vuoto si preferiscono inizialmente gli slot posteriori, perché l'accesso è frontale.
 - I cassoni dello stesso carico vanno raggruppati in pile complete da 3 quando possibile.
 - Il sistema non deve semplicemente saturare i primi vuoti disponibili.
@@ -94,6 +107,30 @@ La cella selezionata ha un bordo blu scuro spesso. Le altre celle corrispondenti
 
 Le linguette `A–E` indicano quando una fila non visibile contiene corrispondenze.
 
+Nella vista combinata ogni cella occupata mostra su tre righe distinte ubicazione, articolo e riferimento ordine, mantenendo invariata la larghezza della scaffalatura.
+
+La densità della mappa è selezionabile dal pannello strumenti flottante sul bordo sinistro:
+
+- **Metà scaffale**, modalità predefinita: mostra alternativamente le posizioni `1–16` e `17–32`, con celle più larghe e testi più leggibili;
+- **Scaffale completo**: mostra tutte le posizioni `1â€“32` contemporaneamente.
+
+Nella vista a metà scaffale le frecce laterali permettono di passare da una zona all'altra. Se un cassone selezionato si trova nella metà nascosta, la relativa freccia viene evidenziata. Gli indicatori viola dei vincoli non vengono mostrati sulla mappa: la configurazione resta disponibile nel pannello strumenti e gli eventuali conflitti reali continuano a essere segnalati.
+
+Il pannello si apre passando sul pulsante hamburger blu scuro posto immediatamente prima del titolo “Inventario magazzino”. Si sovrappone alla pagina senza modificarne le dimensioni e oscura leggermente il contenuto sottostante. Si richiude automaticamente quando il puntatore esce dalla sua area. Ospita la scelta della densità, l'accesso ai vincoli cliente e la configurazione della struttura fisica.
+
+La configurazione strutturale permette di aggiungere o rimuovere file e assegnare a ciascuna la propria capacità in cassoni. Il prototipo impedisce di rimuovere o accorciare una fila quando l'operazione escluderebbe ubicazioni già occupate. Le modifiche sono per ora mantenute soltanto in memoria.
+
+### Vista analitica del database
+
+Il modulo dispone di una navigazione interna a schede, simile alle pagine di un browser:
+
+- **Mappa magazzino** per l'uso operativo;
+- **Vista database** per analisi e controllo complessivo.
+
+La vista database elenca tutte le ubicazioni previste dalla struttura configurata, comprese quelle libere, in una tabella stile foglio di calcolo. Espone geometria dello slot, stato, identificativo dell'unità logistica, tipologia, articolo, cliente, ordine, tag e stato del contenuto. Può essere filtrata testualmente oppure limitata ai soli slot occupati.
+
+Una riga può essere selezionata e aperta sulla mappa tramite pulsante o doppio clic. Le future funzioni di esportazione e analisi useranno questa stessa vista senza duplicare il modello dati.
+
 ### Stato parziale
 
 - Il menu contestuale con tasto destro permette di attivare o rimuovere lo stato **parziale** su un cassone.
@@ -111,6 +148,29 @@ L'operatore potrà forzare:
 - scelta di un cassone specifico.
 
 Ogni forzatura dovrà comunque validare i vincoli fisici e lasciare una traccia nella cronologia.
+
+### Vincoli cliente per fila e slot
+
+Ogni fila e ogni singolo slot possono avere regole opzionali di allocazione per cliente:
+
+- **whitelist**: ammette esclusivamente i clienti elencati;
+- **blacklist**: vieta i clienti elencati;
+- nessuna lista: non applica restrizioni a quel livello.
+
+La gerarchia è intenzionalmente restrittiva:
+
+1. viene valutata per prima la regola della fila;
+2. se la fila rifiuta il cliente, nessuna regola dello slot può riabilitarlo;
+3. se la fila ammette il cliente, lo slot può ancora vietarlo o applicare una whitelist più stretta.
+
+Quindi la regola dello slot può soltanto restringere quella della fila, mai ampliarla. Per esempio:
+
+- file `D` ed `E`: whitelist `FANTINI`;
+- file `A`, `B` e `C`: blacklist `FANTINI`.
+
+Il configuratore segnala i clienti inseriti contemporaneamente in whitelist e blacklist. Dopo ogni modifica vengono inoltre controllati i cassoni già presenti: eventuali occupazioni non conformi sono evidenziate nella mappa, nel dettaglio slot e nella vista database, indicando se il conflitto deriva dalla fila o dallo slot.
+
+Nel prototipo le regole sono mantenute soltanto in memoria. La versione operativa dovrà salvarle nel database, registrare autore e data della modifica e impedirne l'aggiramento nei flussi automatici e manuali.
 
 ## 4. Modello dati proposto
 
@@ -155,6 +215,9 @@ I pesi non sono ancora definiti. Prima dell'implementazione serviranno casi di p
 - Chi può forzare una proposta automatica e come viene registrata l'autorizzazione?
 - Il sistema dovrà funzionare su più postazioni contemporaneamente?
 - Qual è la sorgente ufficiale dell'anagrafica articoli?
+- Le regole cliente devono usare una selezione dall'anagrafica ufficiale oppure consentire anche valori liberi?
+- Chi può modificare whitelist e blacklist e serve un'approvazione amministrativa?
+- Una modifica che rende non conforme un cassone già presente deve essere bloccata oppure consentita con un piano obbligatorio di riallocazione?
 - Come viene identificata fisicamente la zona speciale di movimentazione e quanti cassoni può contenere?
 - Una selezione multipla dal report genera un unico piano di scarico o più movimenti indipendenti?
 - In quale momento un cassone passa da “In movimento” a “Scaricato” o “Rientrato”?
@@ -187,5 +250,12 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Menu contestuale per simulare in memoria lo stato parziale.
 - Ricerca testuale combinata per articolo, cliente, ordine, tag, parziale e in movimento.
 - Report scritto dei risultati con selezione multipla già predisposta; avvio scarico ancora disabilitato.
+- Ricerca principale integrata nella toolbar della mappa, con criteri e report nella colonna laterale.
+- Vista database a 480 righe con filtro, selezione e ritorno diretto alla posizione sulla mappa.
+- Configuratore whitelist/blacklist per fila e slot, valutazione gerarchica e rilevazione dei conflitti esistenti.
+- Pannello strumenti flottante con selezione della densità `1–16 / 17–32` oppure `1–32` e accesso ai vincoli cliente.
+- Configurazione in memoria del numero di file e della capacità individuale di ciascuna fila.
+- Modulo iniziale di carico con articolo, cliente, riferimento ordine, quantità, parziale e tipologia.
+- Distinzione fra cassone e pallet, con pallet dimostrativo associato a una coppia fronte/retro a terra.
 - Un piccolo set di dati dimostrativi non persistenti per verificare la grafica; non rappresenta la giacenza reale.
 - Operazioni di carico, scarico, spostamento e tag mostrate ma disabilitate fino alla definizione dei requisiti.
