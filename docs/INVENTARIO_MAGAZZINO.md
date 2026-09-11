@@ -14,11 +14,22 @@ Il sistema dovrà supportare sia proposte automatiche sia operazioni manuali for
 - 96 cassoni per fila, per una capacità totale teorica di 480 cassoni.
 - 3 livelli verticali: `a` in basso, `b` al centro, `c` in alto.
 - Per ciascun livello: 16 cassoni anteriori e 16 posteriori.
-- I numeri dispari identificano il lato anteriore; i numeri pari il lato posteriore.
+- La corrispondenza fra numeri dispari/pari e lato anteriore/posteriore dipende dall'orientamento configurato per ciascuna fila.
 - Una posizione completa è composta da fila, numero e livello, per esempio `A1a` oppure `A2c`.
 - Il prelievo avviene sempre dal lato anteriore.
 - La struttura non è necessariamente uniforme: ogni fila può avere una capacità diversa, espressa come numero di cassoni standard.
 - Poiché ogni modulo fisico contiene 2 lati × 3 livelli, la capacità configurabile di una fila deve essere un multiplo di 6.
+
+### Orientamento delle file
+
+Ogni fila possiede un'impostazione fisica **Standard/Invertita** che determina la numerazione vista da sinistra:
+
+- **Standard**: numeri dispari sul lato anteriore e numeri pari sul lato posteriore;
+- **Invertita**: numeri dispari sul lato posteriore e numeri pari sul lato anteriore.
+
+La configurazione iniziale è `A`, `C`, `E` standard e `B`, `D` invertite. Le coppie di scaffalature `B-C` e `D-E` sono infatti schiena contro schiena: senza inversione, il lato indicato come anteriore per `B` e `D` risulterebbe rivolto verso la scaffalatura adiacente e quindi inaccessibile dal corridoio. La lettura delle posizioni parte sempre da sinistra, indipendentemente dall'orientamento.
+
+Questa impostazione deve restare modificabile per ogni fila esistente o futura e deve essere usata da mappa, dettaglio, database, ricerca e algoritmi di carico, scarico e riassetto. Non è quindi una semplice trasformazione grafica. Le nuove file con lettera pari vengono proposte invertite per impostazione predefinita, ma l'operatore può cambiarle dal pannello struttura.
 
 ### Tipologie di unità logistica
 
@@ -29,40 +40,92 @@ Il magazzino contiene due tipologie distinte:
 
 Un pallet può essere collocato soltanto a terra, sul livello `a`. L'intera colonna deve essere libera: non può esserci alcun cassone o pallet sui livelli `b` e `c`, né sopra né sotto l'unità. I due slot condividono un unico identificativo pallet e ogni carico, scarico o spostamento dovrà trattarli come un'unità indivisibile. Quando il pallet è presente, le quattro posizioni superiori della coppia fronte/retro vengono mostrate in grigio e rese non interagibili; la vista database le identifica come **Bloccato da pallet** e il riepilogo le esclude dagli slot disponibili.
 
-### Interpretazione iniziale da confermare
+### Schema di numerazione
 
-Per far tornare i 96 posti per fila, la base visuale assume 16 colonne fisiche, ciascuna con una coppia fronte/retro:
+Per far tornare i 96 posti per fila, la base visuale assume 16 colonne fisiche, ciascuna con una coppia fronte/retro. In una fila standard:
 
 - colonna fisica 1: `1` davanti e `2` dietro;
 - colonna fisica 2: `3` davanti e `4` dietro;
 - ...
 - colonna fisica 16: `31` davanti e `32` dietro.
 
-Ogni numero esiste ai livelli `a`, `b`, `c`. Questa interpretazione deve essere confermata, in particolare rispetto all'esempio `A16a/b/c`.
+Ogni numero esiste ai livelli `a`, `b`, `c`.
+
+In una fila invertita la coppia numerica rimane nella stessa colonna fisica, ma i due lati sono scambiati: nella prima colonna `1` è dietro e `2` davanti, nella seconda `3` è dietro e `4` davanti, e così via.
 
 ## 3. Regole funzionali già definite
 
 ### Carico automatico
 
-- L'operatore indica articolo e numero di cassoni da caricare.
+- L'operatore indica l'intero blocco da caricare, composto da uno o più articoli e dalle rispettive quantità.
 - Ogni richiesta di carico raccoglie: articolo, cliente, riferimento ordine, quantità, stato parziale (`Sì/No`) e tipologia (`Cassone/Pallet`).
 - Se la tipologia è pallet, ogni unità richiesta consuma una coppia fronte/retro a terra e l'algoritmo deve escludere qualsiasi colonna verticalmente occupata.
 - A magazzino vuoto si preferiscono inizialmente gli slot posteriori, perché l'accesso è frontale.
 - I cassoni dello stesso carico vanno raggruppati in pile complete da 3 quando possibile.
 - Il sistema non deve semplicemente saturare i primi vuoti disponibili.
 - Deve ridurre le future movimentazioni e usare gli spazi parziali quando questo non peggiora la disposizione complessiva.
+- La scansione da sinistra verso destra e la preferenza posteriore → anteriore costituiscono il criterio iniziale, ma possono essere superate quando una diversa combinazione dell'intero carico riduce realmente movimentazioni o frammentazione.
+- Le piccole quantità possono completare livelli liberi sopra pile già esistenti, anche di articoli diversi, se i supporti sono validi e questo riduce il numero di divisioni senza peggiorare l'accessibilità futura.
 - Esempio ricevuto: 4 cassoni di `1400A` → `A2a`, `A2b`, `A2c`, `A1a`.
 - Esempio ricevuto: 6 cassoni → preferire una distribuzione `3 + 3`, possibilmente su una coppia fronte/retro libera, invece di `3 + 2 + 1`.
+
+#### Pianificazione congiunta del blocco
+
+Le righe di un carico non devono essere elaborate e confermate una alla volta. Il motore deve ricevere prima **tutti i cassoni e pallet di tutti gli articoli del blocco**, quindi cercare la combinazione complessiva migliore. Una soluzione ottima per il primo articolo isolato potrebbe infatti impedire una disposizione migliore per quelli successivi.
+
+La proposta deve includere sia lo stato finale sia una sequenza eseguibile delle operazioni. Movimentazioni temporanee comuni devono essere accorpate: se l'apertura di una zona anteriore permette di lavorare su più unità posteriori dello stesso blocco, il fronte va rimosso e ripristinato una sola volta quando possibile, anziché ripetere l'operazione per ogni articolo.
+
+Questo concetto vale anche per blocchi misti di carico e scarico, se l'operatività reale consente di dichiararli insieme. Prima di implementarlo va definito quando un blocco è considerato completo, chi può modificarlo dopo il calcolo e cosa accade se quantità o priorità cambiano durante l'esecuzione.
+
+Il flusso dell'interfaccia è articolato in tre fasi:
+
+1. **Composizione**: ogni articolo viene aggiunto al gruppo senza modificare il magazzino; le righe possono essere modificate o rimosse;
+2. **Anteprima**: vengono mostrati riepilogo, quantità complessive e tutte le righe prima di richiedere il calcolo definitivo;
+3. **Conferma**: il gruppo viene congelato e consegnato al motore di slotting. Finché il motore non sarà implementato, questa fase non modifica le occupazioni.
+
+Dall'anteprima è possibile tornare alla composizione per correggere le righe o aggiungere altri articoli. L'annullamento elimina l'intero gruppo e riporta alla mappa; la semplice chiusura della finestra conserva invece la bozza in memoria.
 
 ### Scarico automatico
 
 - Applicare FIFO: prelevare prima i cassoni più vecchi.
+- Il riferimento ordine è un filtro opzionale, non un dato obbligatorio per individuare l'articolo da prelevare.
+- Se l'operatore specifica il riferimento ordine, il motore limita i candidati alle unità dell'articolo associate a quel riferimento e applica FIFO all'interno dell'insieme risultante.
+- Se il riferimento ordine non viene specificato, il motore considera tutte le unità dell'articolo richiesto, indipendentemente dall'ordine, e preleva sempre prima le più vecchie.
+- Il formato del riferimento è `AA/NNNNN` oppure `AA/NNNNN/C`: `AA` rappresenta l'anno, `NNNNN` il progressivo e il suffisso `/C` identifica i contratti. Il suffisso non modifica la priorità FIFO.
 - Ottimizzare lo spazio e ridurre le movimentazioni necessarie per raggiungere i cassoni.
 - Un prelievo può prevedere un movimento intermedio: un cassone viene estratto, usato o controllato e può poi tornare in magazzino.
 - La struttura deve rispettare la gravità verticale: `b` richiede `a` occupato e `c` richiede `a` e `b` occupati sullo stesso numero.
 - Se viene prelevato un cassone intermedio, quelli sopra scendono automaticamente per chiudere il vuoto. Esempio: prelevando `A1b`, il contenuto di `A1c` passa ad `A1b`.
-- Una posizione anteriore dispari non può restare occupata se la corrispondente posizione posteriore pari è libera.
+- Una posizione anteriore non può restare occupata se la corrispondente posizione posteriore è libera. Nelle file standard l'anteriore è dispari e il posteriore pari; nelle file invertite vale il contrario.
 - Quando il retro si libera e davanti sono presenti cassoni, il piano di ottimizzazione può spostarli dietro per liberare slot frontali. La scelta esatta dipenderà dal costo delle movimentazioni e dalle regole ancora da definire.
+- Nel prelievo di più unità dello stesso articolo, una pila posteriore completa può essere preferibile a una combinazione di unità anteriori e posteriori quando quest'ultima richiederebbe più movimentazioni, sempre nel rispetto della priorità FIFO applicabile.
+
+### Normalizzazione locale della coppia fronte/retro
+
+Quando, nella stessa coppia fisica, una pila anteriore è completa in altezza e quella posteriore è incompleta, la disposizione rende costoso il refill del retro. In occasione di una movimentazione reale che interessa quella coppia, il sistema deve valutare lo scambio delle due pile:
+
+- pila completa sul lato posteriore;
+- pila incompleta sul lato anteriore, quindi direttamente accessibile per essere completata.
+
+Lo scambio non deve essere eseguito come manutenzione continua né a ogni ricalcolo della mappa. Va proposto soltanto quando la coppia viene già interessata da un carico, scarico o spostamento e quando il beneficio futuro giustifica il costo aggiuntivo. La simulazione mostra, dopo un prelievo, lo scambio delle posizioni `3-4` proprio per portare davanti la pila rimasta incompleta.
+
+### Movimentazioni fisiche implicite per accedere al retro
+
+La configurazione finale delle ubicazioni non descrive da sola tutto il lavoro svolto dall'operatore. Quando una posizione a terra anteriore e la corrispondente posteriore sono entrambe occupate, ma sopra il cassone posteriore esistono livelli liberi, il caricamento su quei livelli richiede comunque di:
+
+1. prelevare temporaneamente il cassone anteriore per liberare l'accesso;
+2. caricare uno o più cassoni sopra la posizione posteriore;
+3. riposizionare il cassone anteriore nella sua ubicazione originale.
+
+Il cassone anteriore non cambia ubicazione nello stato iniziale/finale e questi passaggi possono non essere mostrati singolarmente nell'interfaccia operativa, perché l'operatore li esegue come parte naturale dell'azione. Devono però essere sempre calcolati dal motore come **movimentazioni fisiche implicite**: incidono sul costo, sul tempo stimato, sul confronto fra proposte, sul carico di lavoro umano e sull'eventuale limite massimo `X`.
+
+Il modello dovrà pertanto distinguere almeno:
+
+- **spostamento logistico**: l'unità cambia ubicazione registrata;
+- **manipolazione temporanea**: l'unità viene rimossa e rimessa nella stessa ubicazione;
+- **movimentazione fisica totale**: tutte le prese, rimozioni temporanee, depositi e riposizionamenti necessari a completare il piano.
+
+L'algoritmo non dovrà considerare gratuito l'accesso ai livelli posteriori e dovrà preferire, a parità di risultato, soluzioni che richiedono meno rimozioni temporanee del fronte. Anche quando i singoli gesti non vengono guidati a schermo, il piano dovrà comunicare chiaramente che una proposta comporta movimentazioni accessorie.
 
 ### Interrogazione (asking)
 
@@ -72,7 +135,7 @@ Ogni numero esiste ai livelli `a`, `b`, `c`. Questa interpretazione deve essere 
 - Più parole nella stessa ricerca vengono combinate: ogni parola deve comparire in almeno uno dei campi abilitati.
 - I risultati devono essere evidenziati sulla mappa anche quando appartengono a file non visibili.
 - Oltre all'evidenziazione serve un report scritto con ubicazione, articolo, cliente, riferimento ordine e stati rilevanti.
-- Le righe del report devono essere selezionabili tramite spunta per preparare uno scarico multiplo. Il comando operativo verrà abilitato solo dopo aver definito la zona speciale di movimentazione.
+- Le righe del report sono selezionabili tramite spunta e possono essere aggiunte direttamente a un gruppo di scarico. Le due ubicazioni dello stesso pallet vengono deduplicate come una sola unità logistica. L'esecuzione fisica resterà disabilitata finché non saranno definiti motore di prelievo e zona speciale di movimentazione.
 - Per mantenere pulita la schermata operativa, filtri e report sono raccolti in una finestra dedicata aperta dal pulsante **Ricerca e prelievo**. La chiusura della finestra non cancella ricerca, selezioni o evidenziazioni presenti sulla mappa.
 - Una barra rapida resta visibile nella toolbar per cercare ed evidenziare immediatamente gli slot. Il suo testo è sincronizzato bidirezionalmente con il campo della finestra **Ricerca e prelievo** e utilizza gli stessi campi di ricerca abilitati.
 
@@ -182,11 +245,14 @@ Nel prototipo le regole sono mantenute soltanto in memoria. La versione operativ
 
 Entità iniziali, da validare prima di creare la persistenza definitiva:
 
+- **Fila**: codice, capacità, orientamento standard/invertito e vincoli di accessibilità.
 - **Slot**: coordinata, fila, colonna fisica, lato, livello, stato e possibili vincoli/blocchi.
 - **Cassone**: identificativo univoco, articolo, lotto, quantità/parziale, data di ingresso, tag e stato.
 - **Occupazione**: relazione temporale tra cassone e slot.
 - **Movimento**: carico, scarico, spostamento, estrazione intermedia o rientro; origine, destinazione, operatore e data/ora.
 - **Piano di movimentazione**: sequenza proposta dall'algoritmo, con punteggio e motivazioni.
+- **Blocco operativo**: insieme completo delle righe di carico e/o scarico da ottimizzare congiuntamente, con stato, versione, priorità e responsabile.
+- **Riga del blocco**: articolo, cliente, riferimento ordine, quantità, tipologia e vincoli specifici richiesti dall'operatore.
 
 Un cassone deve avere un identificativo proprio anche quando più cassoni contengono lo stesso articolo. Questo è necessario per FIFO, tag e audit dei movimenti.
 
@@ -205,18 +271,73 @@ L'algoritmo dovrà produrre e confrontare più distribuzioni candidate, non appl
 
 I pesi non sono ancora definiti. Prima dell'implementazione serviranno casi di prova reali con risultato atteso.
 
+### Requisiti ricavati dalla simulazione del 11 settembre 2026
+
+Il PDF `Gestione Magazzino.pdf` descrive una simulazione ridotta a sei coppie (`1-2` … `11-12`) e tre livelli. I colori rappresentano articoli diversi e non stati logistici.
+
+La sequenza conferma questi comportamenti:
+
+1. `3 × 1400`: creazione di una pila posteriore completa;
+2. `2 × 1500`: creazione di una pila posteriore adiacente da due livelli;
+3. inserimento congiunto di `4 × 1600`, `1 × 1700`, `6 × 1800`, `7 × 1900`, `3 × 2000`: uso prioritario di pile complete e collocazione dei resti in livelli già supportati;
+4. `4 × 2100`, `4 × 2200` e ulteriori `2 × 1500`: completamento di spazi verticali disponibili e riduzione delle divisioni;
+5. scarico di `2 × 1500` con FIFO e `2 × 2200`: compattazione verticale e scambio locale fronte/retro per rendere accessibile una pila incompleta;
+6. carico di `3 × 1700`: completamento prioritario delle pile parziali compatibili;
+7. scarico di `3 × 1600`: preferenza per una pila posteriore completa rispetto a una composizione `1 anteriore + 2 posteriori`, indicata come più costosa da movimentare.
+
+La simulazione rafforza quindi che il punteggio deve misurare almeno: numero di pile/divisioni create, pile completate, livelli supportati riutilizzati, aperture temporanee del fronte, scambi fronte/retro, manipolazioni complessive e accessibilità lasciata ai refill successivi.
+
+### Riassetto automatico dello stock esistente
+
+Il sistema dovrà poter generare un piano di **auto-sorting** dell'intero stock già presente, comprendendo sia cassoni sia pallet. Lo scopo è migliorare distribuzione, accessibilità e utilizzo dello spazio applicando gli stessi criteri del motore di storing/slotting, senza confonderlo con un semplice riordino compatto.
+
+Il piano deve rispettare almeno:
+
+- orientamento fisico di ogni fila e reale accessibilità dal corridoio;
+- gravità verticale e dipendenze fra livelli `a`, `b`, `c`;
+- vincoli indivisibili e blocchi verticali dei pallet;
+- whitelist e blacklist cliente di fila e slot;
+- FIFO, tag, priorità operative e ordini urgenti;
+- capacità della zona di movimentazione e necessità di appoggi temporanei;
+- occupazioni riservate o modificate contemporaneamente da altri operatori.
+
+L'operatore potrà indicare un **numero massimo `X` di spostamenti manuali**. Questo valore è un limite rigido: l'algoritmo dovrà proporre il miglior miglioramento raggiungibile entro il budget, anche quando non coincide con l'assetto teoricamente ottimo. Prima di fissare la metrica va chiarito se uno “spostamento” indica un viaggio del mezzo, una presa/deposito, un cambio di ubicazione o l'intera sequenza origine-destinazione.
+
+Nel calcolo del limite `X` dovranno rientrare anche le manipolazioni temporanee necessarie a rimuovere un cassone anteriore, operare sul retro e riposizionarlo, pur non producendo un cambio di ubicazione finale. L'interfaccia potrà aggregarle in un'unica istruzione operativa, ma il costo usato dall'ottimizzatore non potrà ometterle.
+
+#### Lato umano dell'operazione
+
+Il riassetto non dovrà essere applicato in autonomia. Il flusso previsto è:
+
+1. simulazione senza modificare le giacenze;
+2. confronto sintetico prima/dopo, con beneficio atteso e costo operativo;
+3. approvazione del responsabile;
+4. esecuzione in piccoli lotti ordinati, assegnabili a uno o più operatori;
+5. conferma o scansione di origine, unità e destinazione a ogni passo;
+6. possibilità di pausa, ripresa, annullamento controllato e ricalcolo in caso di imprevisto.
+
+Il piano deve ridurre percorsi inutili, movimentazioni ripetute e cambi frequenti di zona; considerare peso, ergonomia, mezzi disponibili, turni e sicurezza dei corridoi; non bloccare prelievi urgenti o vie di passaggio. Per ogni movimento deve spiegare in modo semplice il motivo e il vantaggio. Cicli di scambio fra slot occupati richiedono una posizione temporanea esplicita nella zona di movimentazione. Tutte le conferme, deviazioni manuali ed eccezioni devono rimanere tracciate nell'audit.
+
+Fra gli indicatori da mostrare prima dell'avvio: movimentazioni previste, distanza o tempo stimato, pile consolidate, slot frontali liberati, frammentazione ridotta, articoli resi più accessibili, conflitti risolti e margine residuo rispetto al limite `X`.
+
 ## 6. Vincoli da chiarire
 
-- Conferma della numerazione completa: `1–32` oppure altra convenzione.
 - Relazione fisica tra livelli: è consentito occupare `b` o `c` se il posto sotto è vuoto?
 - I cassoni sono tutti uguali per dimensioni, peso e impilabilità?
 - Un cassone contiene sempre un solo articolo e lotto?
 - Significato esatto di “parziale”: cassone non pieno, quantità residua o prelievo parziale temporaneo?
 - Il rientro dopo movimento intermedio conserva data FIFO originale oppure ne genera una nuova?
+- Quale data determina formalmente l'anzianità FIFO: ingresso fisico del singolo cassone, registrazione del carico, lotto oppure sequenza ricavata dal riferimento ordine? Il codice ordine non deve diventare implicitamente la sorgente FIFO senza questa conferma.
 - È possibile mescolare articoli diversi nella stessa pila verticale? In quali casi?
 - Lo scorrimento verticale è una conseguenza fisica gestita come un solo movimento oppure deve generare un movimento di audit per ogni cassone che cambia coordinata?
 - Lo spostamento fronte → retro è sempre automatico o deve prima essere confermato dall'operatore?
 - Esistono corridoi, ostacoli o file più costose da raggiungere?
+- Come vengono misurati gli spostamenti del limite `X`: viaggi, prese/depositi o cambi di ubicazione? Il limite vale per piano, turno o operatore?
+- Nel PDF viene nuovamente indicato `A1a` come posteriore e `A2a` come anteriore, mentre la configurazione attuale della fila `A` è standard (`A1a` anteriore, `A2a` posteriore): confermare se la simulazione usa una numerazione astratta oppure se va invertito anche l'orientamento iniziale di `A`.
+- Quali finestre orarie e quali mezzi/operatori possono essere usati per un riassetto automatico?
+- Un blocco operativo può contenere contemporaneamente carichi e scarichi oppure i due flussi devono restare separati?
+- Qual è l'evento che chiude il blocco e autorizza il calcolo: conferma manuale, fine documento di trasporto, ordine o timeout?
+- Nella simulazione finale, dopo lo scarico di `3 × 1600`, la rappresentazione sembra non mostrare il quarto cassone `1600` precedentemente presente sul fronte: verificare se è un'omissione grafica, uno spostamento implicito o un ulteriore prelievo.
 - Quali tag sono bloccanti e quali sono semplici preferenze?
 - Chi può forzare una proposta automatica e come viene registrata l'autorizzazione?
 - Il sistema dovrà funzionare su più postazioni contemporaneamente?
@@ -236,8 +357,9 @@ I pesi non sono ancora definiti. Prima dell'implementazione serviranno casi di p
 4. Definire persistenza, concorrenza e audit dei movimenti.
 5. Implementare operazioni manuali e validazioni.
 6. Implementare il motore di proposte automatiche e renderne spiegabile il punteggio.
-7. Aggiungere ricerca articolo, tag e prelievo FIFO.
-8. Collaudare su una copia dei dati prima dell'uso operativo.
+7. Implementare la simulazione di riassetto automatico con budget massimo di movimenti e piano a lotti.
+8. Aggiungere ricerca articolo, tag e prelievo FIFO.
+9. Collaudare su una copia dei dati prima dell'uso operativo.
 
 ## 7.1 Visualizzazione 3D futura
 
@@ -263,8 +385,10 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Finestra di analisi aggregata per l'articolo selezionato, con conteggi per unità, tipologia, ordini, clienti, stati e ubicazioni.
 - Configuratore whitelist/blacklist per fila e slot, valutazione gerarchica e rilevazione dei conflitti esistenti.
 - Pannello strumenti flottante con selezione della densità `1–16 / 17–32` oppure `1–32` e accesso ai vincoli cliente.
-- Configurazione in memoria del numero di file e della capacità individuale di ciascuna fila.
-- Modulo iniziale di carico con articolo, cliente, riferimento ordine, quantità, parziale e tipologia.
+- Configurazione in memoria del numero di file, della capacità individuale e dell'orientamento fronte/retro di ciascuna fila; `B` e `D` sono inizialmente invertite.
+- Flusso in tre fasi per gruppi multi-articolo di carico e scarico: composizione, anteprima modificabile e conferma dimostrativa.
+- Bozze separate di carico e scarico mantenute in memoria anche chiudendo la finestra; annullamento completo con ritorno alla mappa.
+- Modulo di carico con articolo, cliente, riferimento ordine, quantità, parziale e tipologia; modulo di scarico manuale oppure alimentato dalle unità selezionate nella ricerca.
 - Distinzione fra cassone e pallet, con pallet dimostrativo associato a una coppia fronte/retro a terra.
 - Un piccolo set di dati dimostrativi non persistenti per verificare la grafica; non rappresenta la giacenza reale.
-- Operazioni di carico, scarico, spostamento e tag mostrate ma disabilitate fino alla definizione dei requisiti.
+- Carico e scarico permettono di preparare i gruppi, ma non modificano ancora le giacenze; spostamento e gestione tag restano disabilitati fino alla definizione dei requisiti.

@@ -1,7 +1,15 @@
 // @ts-nocheck
 require("./shared/dev-guards");
 
-let warehouseRows = ["A", "B", "C", "D", "E"].map((code) => ({ code, capacity: 96 }));
+function defaultInvertedSides(code) {
+    return (code.charCodeAt(0) - "A".charCodeAt(0) + 1) % 2 === 0;
+}
+
+let warehouseRows = ["A", "B", "C", "D", "E"].map((code) => ({
+    code,
+    capacity: 96,
+    invertedSides: defaultInvertedSides(code),
+}));
 const LEVELS = [
     { code: "c", label: "alto", order: 3 },
     { code: "b", label: "intermedio", order: 2 },
@@ -79,6 +87,11 @@ const selectedReportLocations = new Set();
 const rowRestrictions = new Map();
 const slotRestrictions = new Map();
 let selectedRestrictionRow = "A";
+const operationGroups = { load: [], unload: [] };
+const operationGroupStages = { load: "compose", unload: "compose" };
+let operationGroupMode = "load";
+let editingOperationLineIndex = null;
+let nextOperationLineId = 1;
 
 function normalizeCustomer(value) {
     return String(value || "").trim().toUpperCase();
@@ -130,8 +143,16 @@ function validateRestriction(rule) {
 }
 
 function slotCode(row, columnIndex, side, level) {
-    const number = columnIndex * 2 + (side === "front" ? 1 : 2);
+    const inverted = Boolean(rowConfiguration(row)?.invertedSides);
+    const oddNumberSide = inverted ? "rear" : "front";
+    const number = columnIndex * 2 + (side === oddNumberSide ? 1 : 2);
     return `${row}${number}${level}`;
+}
+
+function sideForPosition(row, number) {
+    const inverted = Boolean(rowConfiguration(row)?.invertedSides);
+    const oddPosition = number % 2 !== 0;
+    return oddPosition === inverted ? "rear" : "front";
 }
 
 function parseSlotCode(value) {
@@ -146,7 +167,7 @@ function parseSlotCode(value) {
         row,
         number,
         level: match[3].toLowerCase(),
-        side: number % 2 === 0 ? "rear" : "front",
+        side: sideForPosition(row, number),
         physicalColumn: Math.ceil(number / 2),
     };
 }
@@ -659,9 +680,11 @@ function renderWarehouseStructureEditor() {
         .forEach((configuration) => {
             const row = document.createElement("div");
             row.className = "warehouse-row-editor__row";
+            row.dataset.row = configuration.code;
             const label = document.createElement("strong");
             label.textContent = `Fila ${configuration.code}`;
             const inputLabel = document.createElement("label");
+            inputLabel.className = "warehouse-row-editor__capacity";
             const input = document.createElement("input");
             input.type = "number";
             input.min = "6";
@@ -676,6 +699,25 @@ function renderWarehouseStructureEditor() {
             const suffix = document.createElement("span");
             suffix.textContent = "cassoni";
             inputLabel.append(input, suffix);
+            const orientationLabel = document.createElement("label");
+            orientationLabel.className = "warehouse-row-editor__orientation";
+            const orientationInput = document.createElement("input");
+            orientationInput.type = "checkbox";
+            orientationInput.checked = Boolean(configuration.invertedSides);
+            orientationInput.setAttribute("aria-label", `Inverti lato anteriore e posteriore della fila ${configuration.code}`);
+            const orientationText = document.createElement("span");
+            const updateOrientationText = () => {
+                orientationText.textContent = orientationInput.checked
+                    ? "Invertita · dispari dietro, pari davanti"
+                    : "Standard · dispari davanti, pari dietro";
+            };
+            updateOrientationText();
+            orientationInput.addEventListener("change", () => {
+                configuration.invertedSides = orientationInput.checked;
+                updateOrientationText();
+                setWarehouseStructureMessage("Modifica da applicare.");
+            });
+            orientationLabel.append(orientationInput, orientationText);
             const remove = document.createElement("button");
             remove.type = "button";
             remove.className = "warehouse-row-editor__remove";
@@ -687,7 +729,7 @@ function renderWarehouseStructureEditor() {
                 renderWarehouseStructureEditor();
                 setWarehouseStructureMessage("Modifica da applicare.");
             });
-            row.append(label, inputLabel, remove);
+            row.append(label, inputLabel, remove, orientationLabel);
             container.appendChild(row);
         });
 }
@@ -726,7 +768,7 @@ function applyWarehouseStructure() {
     });
     if (!validRows.has(selectedRow)) selectedRow = warehouseRows[0].code;
     if (!validRows.has(selectedRestrictionRow)) selectedRestrictionRow = warehouseRows[0].code;
-    if (selectedSlot && !parseSlotCode(selectedSlot.code)) selectedSlot = null;
+    if (selectedSlot) selectedSlot = parseSlotCode(selectedSlot.code);
     slotPage = 0;
     renderTabs();
     renderMap();
@@ -744,7 +786,7 @@ function setupWarehouseStructure() {
             setWarehouseStructureMessage("Hai raggiunto il limite di 26 file.");
             return;
         }
-        warehouseStructureDraft.push({ code, capacity: 96 });
+        warehouseStructureDraft.push({ code, capacity: 96, invertedSides: defaultInvertedSides(code) });
         renderWarehouseStructureEditor();
         setWarehouseStructureMessage("Nuova fila da applicare.");
     });
@@ -755,6 +797,11 @@ function updateLoadTypeNote() {
     const type = document.getElementById("loadType")?.value;
     const note = document.getElementById("loadTypeNote");
     if (!note) return;
+    if (operationGroupMode === "unload") {
+        note.classList.remove("is-pallet");
+        note.textContent = "Il prelievo applicherà FIFO e ottimizzerà l'intero gruppo. Puoi anche aggiungere unità specifiche dal report di ricerca.";
+        return;
+    }
     const pallet = type === "pallet";
     note.classList.toggle("is-pallet", pallet);
     note.textContent = pallet
@@ -762,42 +809,256 @@ function updateLoadTypeNote() {
         : "Un cassone occupa una singola ubicazione e può essere impilato rispettando i livelli.";
 }
 
-function openLoadDialog() {
-    const dialog = document.getElementById("loadDialog");
-    dialog?.classList.add("is-open");
-    dialog?.setAttribute("aria-hidden", "false");
+function operationModeLabel(capitalized = false) {
+    const label = operationGroupMode === "load" ? "carico" : "scarico";
+    return capitalized ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : label;
+}
+
+function activeOperationGroup() {
+    return operationGroups[operationGroupMode];
+}
+
+function updateOperationButtons() {
+    const loadCount = operationGroups.load.length;
+    const unloadCount = operationGroups.unload.length;
+    const loadButton = document.getElementById("openLoadButton");
+    const unloadButton = document.getElementById("openUnloadButton");
+    if (loadButton) loadButton.textContent = loadCount ? `Carico · ${loadCount}` : "Carico";
+    if (unloadButton) unloadButton.textContent = unloadCount ? `Scarico · ${unloadCount}` : "Scarico";
+}
+
+function setOperationStage(stage) {
+    operationGroupStages[operationGroupMode] = stage;
+    document.getElementById("operationComposeStage").hidden = stage !== "compose";
+    document.getElementById("operationReviewStage").hidden = stage !== "review";
+    document.getElementById("operationReadyStage").hidden = stage !== "ready";
+    document.querySelectorAll("[data-operation-step]").forEach((step) => {
+        const names = ["compose", "review", "ready"];
+        const currentIndex = names.indexOf(stage);
+        const stepIndex = names.indexOf(step.dataset.operationStep);
+        step.classList.toggle("is-active", stepIndex === currentIndex);
+        step.classList.toggle("is-complete", stepIndex < currentIndex);
+    });
+}
+
+function resetOperationLineForm() {
+    const form = document.getElementById("operationLineForm");
+    form?.reset();
+    document.getElementById("loadQuantity").value = "1";
+    editingOperationLineIndex = null;
+    document.getElementById("addOperationLine").textContent = `Aggiungi al gruppo di ${operationModeLabel()}`;
     document.getElementById("loadFormMessage").textContent = "";
+    updateLoadTypeNote();
+}
+
+function configureOperationDialog() {
+    const load = operationGroupMode === "load";
+    document.getElementById("operationDialogEyebrow").textContent = load ? "NUOVO GRUPPO DI CARICO" : "NUOVO GRUPPO DI SCARICO";
+    document.getElementById("operationDialogTitle").textContent = load ? "Componi il carico" : "Componi lo scarico";
+    document.getElementById("operationDialogDescription").textContent = load
+        ? "Inserisci tutti gli articoli prima di calcolare la proposta complessiva."
+        : "Inserisci più articoli o importa le unità selezionate dalla ricerca prima del calcolo FIFO.";
+    document.getElementById("operationPartialField").hidden = !load;
+    document.getElementById("loadCustomer").required = load;
+    document.getElementById("loadOrderReference").required = load;
+    document.getElementById("operationOrderLabelText").textContent = load
+        ? "Riferimento ordine"
+        : "Riferimento ordine (opzionale · vuoto = FIFO globale)";
+    document.getElementById("loadOrderReference").placeholder = load
+        ? "es. 25/00114 oppure 25/00114/C"
+        : "Lascia vuoto per prelevare i più vecchi";
+    document.getElementById("reviewOperationGroup").textContent = `Visualizza ${operationModeLabel()}`;
+    document.getElementById("confirmOperationGroup").textContent = `Conferma gruppo di ${operationModeLabel()}`;
+    updateLoadTypeNote();
+}
+
+function createOperationLineElement(entry, index, review = false) {
+    const row = document.createElement("article");
+    row.className = "operation-line";
+    const main = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = entry.article;
+    const meta = document.createElement("small");
+    const orderDescription = entry.order
+        ? entry.order
+        : operationGroupMode === "unload" ? "Tutti gli ordini · FIFO più vecchio" : "Ordine non indicato";
+    const details = [entry.customer || "Qualsiasi cliente", orderDescription, entry.type === "pallet" ? "Pallet" : "Cassone"];
+    if (entry.partial && operationGroupMode === "load") details.push("Parziale");
+    if (entry.sourceLocations?.length) details.push(`Da ${entry.sourceLocations.join(" + ")}`);
+    meta.textContent = details.join(" · ");
+    main.append(title, meta);
+    const quantity = document.createElement("b");
+    quantity.textContent = `${entry.quantity} ${entry.type === "pallet" ? (entry.quantity === 1 ? "pallet" : "pallet") : entry.quantity === 1 ? "cassone" : "cassoni"}`;
+    const actions = document.createElement("div");
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "Modifica";
+    edit.addEventListener("click", () => editOperationLine(index));
+    actions.appendChild(edit);
+    if (!review) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "is-danger";
+        remove.textContent = "Rimuovi";
+        remove.addEventListener("click", () => {
+            activeOperationGroup().splice(index, 1);
+            renderOperationGroup();
+        });
+        actions.appendChild(remove);
+    }
+    row.append(main, quantity, actions);
+    return row;
+}
+
+function renderOperationGroup() {
+    const entries = activeOperationGroup();
+    const units = entries.reduce((total, entry) => total + entry.quantity, 0);
+    const draft = document.getElementById("operationDraftList");
+    const review = document.getElementById("operationReviewList");
+    const ready = document.getElementById("operationReadyList");
+    [draft, review, ready].forEach((container) => container?.replaceChildren());
+    if (!entries.length) {
+        const empty = document.createElement("p");
+        empty.className = "operation-lines__empty";
+        empty.textContent = `Aggiungi il primo articolo al gruppo di ${operationModeLabel()}.`;
+        draft?.appendChild(empty);
+    }
+    entries.forEach((entry, index) => {
+        draft?.appendChild(createOperationLineElement(entry, index));
+        review?.appendChild(createOperationLineElement(entry, index, true));
+        const readyLine = createOperationLineElement(entry, index, true);
+        readyLine.querySelector("div:last-child")?.remove();
+        ready?.appendChild(readyLine);
+    });
+    document.getElementById("operationDraftSummary").textContent = entries.length
+        ? `${entries.length} ${entries.length === 1 ? "riga" : "righe"} · ${units} ${units === 1 ? "unità" : "unità"}`
+        : "Nessuna riga aggiunta";
+    document.getElementById("reviewOperationGroup").disabled = !entries.length;
+    document.getElementById("operationReviewLineCount").textContent = String(entries.length);
+    document.getElementById("operationReviewUnitCount").textContent = String(units);
+    document.getElementById("operationReviewCrateCount").textContent = String(entries.filter((entry) => entry.type === "crate").reduce((total, entry) => total + entry.quantity, 0));
+    document.getElementById("operationReviewPalletCount").textContent = String(entries.filter((entry) => entry.type === "pallet").reduce((total, entry) => total + entry.quantity, 0));
+    const unrestrictedOrders = entries.filter((entry) => !entry.order).length;
+    document.getElementById("operationReviewNote").textContent = operationGroupMode === "load"
+        ? "La futura proposta userà tutte le righe insieme per ridurre divisioni e movimentazioni implicite. Nessuna ubicazione è ancora stata modificata."
+        : `${unrestrictedOrders ? `${unrestrictedOrders} ${unrestrictedOrders === 1 ? "riga userà" : "righe useranno"} tutti i riferimenti ordine e ` : ""}il prelievo applicherà sempre FIFO, scegliendo prima le unità più vecchie tra quelle ammesse. Nessuna unità è ancora stata prelevata.`;
+    updateOperationButtons();
+}
+
+function editOperationLine(index) {
+    const entry = activeOperationGroup()[index];
+    if (!entry) return;
+    setOperationStage("compose");
+    editingOperationLineIndex = index;
+    document.getElementById("loadArticle").value = entry.article;
+    document.getElementById("loadCustomer").value = entry.customer;
+    document.getElementById("loadOrderReference").value = entry.order;
+    document.getElementById("loadQuantity").value = String(entry.quantity);
+    document.getElementById("loadPartial").value = entry.partial ? "yes" : "no";
+    document.getElementById("loadType").value = entry.type;
+    document.getElementById("addOperationLine").textContent = "Salva modifica";
+    document.getElementById("loadFormMessage").textContent = `Modifica della riga ${index + 1}.`;
+    updateLoadTypeNote();
     document.getElementById("loadArticle")?.focus();
 }
 
-function closeLoadDialog() {
-    const dialog = document.getElementById("loadDialog");
+function openOperationDialog(mode, stage) {
+    operationGroupMode = mode;
+    configureOperationDialog();
+    resetOperationLineForm();
+    renderOperationGroup();
+    setOperationStage(stage || operationGroupStages[mode] || "compose");
+    const dialog = document.getElementById("operationGroupDialog");
+    dialog?.classList.add("is-open");
+    dialog?.setAttribute("aria-hidden", "false");
+    if ((stage || operationGroupStages[mode]) === "compose") document.getElementById("loadArticle")?.focus();
+}
+
+function closeOperationDialog() {
+    const dialog = document.getElementById("operationGroupDialog");
     dialog?.classList.remove("is-open");
     dialog?.setAttribute("aria-hidden", "true");
 }
 
+function cancelOperationGroup() {
+    const entries = activeOperationGroup();
+    if (entries.length && !window.confirm(`Annullare completamente il gruppo di ${operationModeLabel()}?`)) return;
+    entries.splice(0);
+    operationGroupStages[operationGroupMode] = "compose";
+    resetOperationLineForm();
+    renderOperationGroup();
+    closeOperationDialog();
+}
+
+function addSelectedResultsToUnloadGroup() {
+    const alreadyAdded = new Set(operationGroups.unload.flatMap((entry) => entry.sourceIds || []));
+    const units = new Map();
+    selectedReportLocations.forEach((location) => {
+        const item = inventory.get(location);
+        if (item && !alreadyAdded.has(item.id) && !units.has(item.id)) units.set(item.id, item);
+    });
+    const grouped = new Map();
+    units.forEach((item) => {
+        const key = [item.article, item.customer, item.orderReference, item.type, item.partial].join("|");
+        if (!grouped.has(key)) grouped.set(key, { article: item.article, customer: item.customer, order: item.orderReference, quantity: 0, partial: item.partial, type: item.type, sourceIds: [], sourceLocations: [] });
+        const entry = grouped.get(key);
+        entry.quantity += 1;
+        entry.sourceIds.push(item.id);
+        const sourceLocation = item.type === "pallet"
+            ? [item.location, item.pairedLocation].sort((left, right) => left.localeCompare(right, undefined, { numeric: true })).join(" + ")
+            : item.location;
+        entry.sourceLocations.push(sourceLocation);
+    });
+    grouped.forEach((entry) => operationGroups.unload.push({ ...entry, id: nextOperationLineId++ }));
+    closeInventorySearchDialog();
+    openOperationDialog("unload", "compose");
+    document.getElementById("loadFormMessage").textContent = units.size
+        ? `${units.size} ${units.size === 1 ? "unità aggiunta" : "unità aggiunte"} dalla ricerca.`
+        : "Le unità selezionate erano già presenti nel gruppo di scarico.";
+}
+
 function setupLoadDialog() {
-    document.getElementById("openLoadButton")?.addEventListener("click", openLoadDialog);
-    document.getElementById("closeLoadButton")?.addEventListener("click", closeLoadDialog);
-    document.getElementById("loadDialog")?.addEventListener("click", (event) => {
-        if (event.target === event.currentTarget) closeLoadDialog();
+    document.getElementById("openLoadButton")?.addEventListener("click", () => openOperationDialog("load"));
+    document.getElementById("openUnloadButton")?.addEventListener("click", () => openOperationDialog("unload"));
+    document.getElementById("closeOperationDialog")?.addEventListener("click", closeOperationDialog);
+    document.getElementById("operationGroupDialog")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) closeOperationDialog();
     });
     document.getElementById("loadType")?.addEventListener("change", updateLoadTypeNote);
-    document.getElementById("loadForm")?.addEventListener("submit", (event) => {
+    document.getElementById("operationLineForm")?.addEventListener("submit", (event) => {
         event.preventDefault();
         const article = document.getElementById("loadArticle").value.trim();
         const customer = document.getElementById("loadCustomer").value.trim();
         const order = document.getElementById("loadOrderReference").value.trim();
         const quantity = Number(document.getElementById("loadQuantity").value);
-        const partial = document.getElementById("loadPartial").value === "yes";
+        const partial = operationGroupMode === "load" && document.getElementById("loadPartial").value === "yes";
         const type = document.getElementById("loadType").value;
-        document.getElementById("loadFormMessage").textContent =
-            `Richiesta pronta: ${quantity} ${type === "pallet" ? "pallet" : quantity === 1 ? "cassone" : "cassoni"} · ${article} · ${customer} · ${order}${partial ? " · parziale" : ""}. L'assegnazione automatica sarà collegata nella prossima fase.`;
+        const previous = editingOperationLineIndex === null ? null : activeOperationGroup()[editingOperationLineIndex];
+        const entry = { id: previous?.id || nextOperationLineId++, article, customer, order, quantity, partial, type, sourceIds: previous?.sourceIds || [], sourceLocations: previous?.sourceLocations || [] };
+        if (editingOperationLineIndex === null) activeOperationGroup().push(entry);
+        else activeOperationGroup()[editingOperationLineIndex] = entry;
+        resetOperationLineForm();
+        renderOperationGroup();
+        document.getElementById("loadFormMessage").textContent = previous ? "Riga aggiornata." : `Articolo aggiunto al gruppo di ${operationModeLabel()}.`;
+        document.getElementById("loadArticle")?.focus();
     });
+    document.getElementById("reviewOperationGroup")?.addEventListener("click", () => setOperationStage("review"));
+    document.getElementById("backToOperationCompose")?.addEventListener("click", () => setOperationStage("compose"));
+    document.getElementById("cancelOperationGroup")?.addEventListener("click", cancelOperationGroup);
+    document.getElementById("cancelOperationReview")?.addEventListener("click", cancelOperationGroup);
+    document.getElementById("confirmOperationGroup")?.addEventListener("click", () => {
+        setOperationStage("ready");
+        document.getElementById("operationReadyTitle").textContent = `Gruppo di ${operationModeLabel()} confermato`;
+        document.getElementById("operationReadyText").textContent = `Il gruppo contiene ${activeOperationGroup().length} ${activeOperationGroup().length === 1 ? "riga" : "righe"}. È pronto per essere passato al futuro motore di ${operationGroupMode === "load" ? "slotting" : "prelievo FIFO"}; in questa fase dimostrativa il magazzino non viene modificato.`;
+    });
+    document.getElementById("reviseConfirmedOperation")?.addEventListener("click", () => setOperationStage("compose"));
+    document.getElementById("finishOperationGroup")?.addEventListener("click", closeOperationDialog);
+    document.getElementById("prepareUnloadButton")?.addEventListener("click", addSelectedResultsToUnloadGroup);
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeLoadDialog();
+        if (event.key === "Escape") closeOperationDialog();
     });
     updateLoadTypeNote();
+    updateOperationButtons();
 }
 
 function normalizeSearchText(value) {
@@ -856,6 +1117,7 @@ function createResultFlag(text, className = "") {
 function updateSelectedResultCount() {
     const count = selectedReportLocations.size;
     document.getElementById("selectedResultCount").textContent = `${count} ${count === 1 ? "selezionato" : "selezionati"}`;
+    document.getElementById("prepareUnloadButton").disabled = count === 0;
 }
 
 function renderSearchReport(query) {
