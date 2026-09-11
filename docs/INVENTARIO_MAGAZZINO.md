@@ -392,3 +392,35 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Distinzione fra cassone e pallet, con pallet dimostrativo associato a una coppia fronte/retro a terra.
 - Un piccolo set di dati dimostrativi non persistenti per verificare la grafica; non rappresenta la giacenza reale.
 - Carico e scarico permettono di preparare i gruppi, ma non modificano ancora le giacenze; spostamento e gestione tag restano disabilitati fino alla definizione dei requisiti.
+
+## Sistema di "peso" per allocazione/sorting
+
+Posizionare prima cassoni nelle zone posteriori, a partire da sinistra.
+Successivamente, posizionare i cassoni negli slot anteriori.
+Prima di popolare un piano anteriore, i piani posteriori devono essere full.
+Cercare di mettere i cassoni dello stesso articolo nella stessa fila (pesi che differenziano le file per assicurarci che è molto piu probabile avere tutti i cassoni di un articolo nella stessa fila)
+
+Avrò di conseguenza dei pesi per i vari slot, file etc... dove quelli di posizione, vado da post a ant e da sx a destra.
+Avrò i pesi di relazione che vanno per distanza da una divisione all'altra (dove per divisione si intente prima una colonna, esempio colonna A2) e poi per coppia di colonne, ovvero A2-A1.
+Avrò successivamente i pesi per divisione, dove prediligo il completare divisioni (colonne) per fare in modo che lo score sia il numero di divisioni per il peso di divisione. Questo si calcola in relazione agli altri pesi empiricamente. (probabilmente esiste un modo migliore!)
+
+Nel caso in cui i cassoni sono disposti il questa configurazione:
+3 nella colonna A2, 2 nella colonna A1 e 3 nella colonna A4
+aggiungendone 5 di tipo diverso (uguali fra loro), la disposizione corretta sarebbe:
+- 3 in colonna A6 e 2 in colonna A3
+- 2 in A6 e 3 in colonna A3
+(dovrebbe in teoria avere lo stesso peso di movimentazione)
+In teoria il peso maggiore lo danno le divisioni
+
+Fare prove con vari pesi per assicurarci disposizioni ottimali (fare magari delle simulazioni con dati di esempio con X numero di cassoni compreso tra 1 e 20 per almeno 30 articoli diversi (comprendendo filtri white e blacklist dati da me))
+
+Posso scegliere in fase di carico un sistema per gestire pesi "leggermente" variato, dove possono andare a fillare gli slot per MENO movimentazioni possibili, e una per miglior filling/sorting...
+
+La movimentazioni dei cassoni avvengono nei seguenti modi:
+- I cassoni vengono impilati e movimentati con un muletto
+- Il muletto può alzare fino a 3 cassoni contemporaneamente.
+- Per accedere ai cassoni posteriori deve prima "spostare temporaneamente nel corridoio" la colonna frontale.
+- Il muletto può prendere solo il top e o due top cassoni di una colonna, ma non puo prendere contemporaneamente cassoni da lato anteriore e posteriore nella stessa movimentazione (perche avrebbe i cassoni "piu in basso" che intralcerebbero il movimento)
+- Per prendere un cassone nel piano b e basta, deve prima spostare temporaneamente quello nel piano c, prelevare il b, e riposizionare il c sostituendolo nella posizione b ora libera
+- se ho una colonna posteriore libera solo in piano c e ho 3 cassoni da inserire (uno in c e gli altri due in a e b frontali), devo comunque prima prendere un singolo cassone, posizionarlo in c e poi movimentare gli altri due insieme per posizionarli in a e b frontali....
+- i pallet possono solo essere spostati uno alla volta.
