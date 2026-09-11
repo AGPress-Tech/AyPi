@@ -554,6 +554,19 @@ h1 {
     color: #15324e;
     outline: 2px solid rgba(18, 63, 112, .16);
 }
+.slot.is-multi-selected {
+    z-index: 3;
+    border: 3px solid #236ea5;
+    padding: 2px 0;
+    outline: 2px solid rgba(35, 110, 165, .22);
+    box-shadow: inset 0 0 0 1px #fff;
+}
+.slot.is-relocation-source {
+    z-index: 4;
+    border: 3px dashed #8c4fa7;
+    padding: 2px 0;
+    outline: 2px solid rgba(140, 79, 167, .18);
+}
 .slot.is-partial::after {
     content: "";
     position: absolute;
@@ -1353,12 +1366,35 @@ h1 {
 .operation-lines--review,
 .operation-lines--ready { max-height: 420px; margin-top: 10px; border: 1px solid #d6dee4; border-radius: 6px; }
 .operation-review-note { margin: 10px 0 0; padding: 9px 10px; border: 1px solid #c7dae6; border-radius: 5px; color: #3c6078; background: #eef7fc; font-size: 10px; }
+.operation-review-note.is-error { border-color: #e0b8b8; color: #9a3333; background: #fff4f4; }
 .operation-stage--ready { padding: 24px; text-align: center; }
 .operation-ready-icon { display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto; border-radius: 50%; color: #fff; background: #2d8652; font-size: 24px; font-weight: 800; }
 .operation-stage--ready h3 { margin: 10px 0 4px; color: #1e374a; font-size: 18px; }
 .operation-stage--ready > p { max-width: 680px; margin: 0 auto; color: #64727d; font-size: 10px; line-height: 1.5; }
 .operation-stage--ready .operation-line { grid-template-columns: minmax(0, 1fr) 105px; text-align: left; }
 .operation-stage__actions--ready { padding-right: 0; padding-left: 0; }
+.movement-line { padding: 9px 11px; border-bottom: 1px solid #e5eaee; text-align: left; }
+.movement-line:last-child { border-bottom: 0; }
+.movement-line strong { display: block; color: #1c3b52; font-size: 11px; }
+.movement-line p { margin: 4px 0 0; color: #5f6d77; font-size: 10px; line-height: 1.45; }
+.movement-history-dialog {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: min(900px, 94vw);
+    height: min(760px, 90vh);
+    overflow: hidden;
+    border: 1px solid #aeb9c2;
+    border-radius: 9px;
+    background: #f4f6f8;
+    box-shadow: 0 24px 70px rgba(15, 27, 38, .34);
+}
+.movement-history-list { min-height: 0; padding: 13px; overflow: auto; }
+.movement-history-empty { display: grid; place-items: center; height: 100%; margin: 0; color: #77848e; font-size: 11px; }
+.movement-history-card { margin-bottom: 9px; overflow: hidden; border: 1px solid #d4dde3; border-radius: 6px; background: #fff; }
+.movement-history-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 11px; border-bottom: 1px solid #e2e7ea; background: #f8fafb; }
+.movement-history-card > header strong { display: block; color: #183a55; font-size: 12px; }
+.movement-history-card > header small { display: block; margin-top: 2px; color: #78848d; font-size: 9px; }
+.movement-history-card > header span { padding: 4px 8px; border-radius: 999px; color: #174f80; background: #e5f2fa; font-size: 9px; font-weight: 800; text-transform: uppercase; }
 
 .article-analysis-dialog {
     width: min(960px, 95vw);
@@ -1628,6 +1664,29 @@ h1 {
 .slot-context-menu button:hover { background: #e1edf5; }
 .slot-context-menu button:disabled { color: #9ba3ab; cursor: not-allowed; }
 .slot-context-menu small { display: block; padding: 6px 7px 2px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.slot-selection-rectangle {
+    position: fixed;
+    z-index: 90;
+    border: 1px solid #17689f;
+    background: rgba(50, 145, 204, .14);
+    pointer-events: none;
+}
+.warehouse-toast {
+    position: fixed;
+    z-index: 180;
+    right: 18px;
+    bottom: 18px;
+    max-width: 520px;
+    padding: 10px 13px;
+    border: 1px solid #8bbca0;
+    border-radius: 6px;
+    color: #245f3d;
+    background: #effaf3;
+    box-shadow: 0 10px 28px rgba(22, 44, 59, .2);
+    font-size: 10px;
+    font-weight: 700;
+}
+.warehouse-toast.is-error { border-color: #dea8a8; color: #973737; background: #fff2f2; }
 
 @media (max-width: 1150px) {
     body { height: auto; overflow: auto; }

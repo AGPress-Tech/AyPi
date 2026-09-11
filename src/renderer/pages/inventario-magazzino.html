@@ -233,6 +233,18 @@
                     <b aria-hidden="true">›</b>
                 </button>
             </section>
+
+            <section class="tools-drawer__section">
+                <div class="tools-drawer__section-heading">
+                    <span>TRACCIABILITÀ</span>
+                    <strong>Movimenti automatici</strong>
+                </div>
+                <p>Rivedi posizioni assegnate e unità prelevate nei gruppi completati.</p>
+                <button class="tools-drawer__action" id="openMovementHistory" type="button">
+                    <span><strong>Apri storico movimenti</strong><small id="movementHistoryCount">Nessun movimento registrato</small></span>
+                    <b aria-hidden="true">›</b>
+                </button>
+            </section>
         </div>
     </aside>
 
@@ -311,7 +323,7 @@
                 <p id="operationReadyText"></p>
                 <div class="operation-lines operation-lines--ready" id="operationReadyList"></div>
                 <footer class="operation-stage__actions operation-stage__actions--ready">
-                    <button id="reviseConfirmedOperation" type="button">← Torna alla composizione</button>
+                    <button id="reviseConfirmedOperation" type="button">Prepara un nuovo gruppo</button>
                     <button class="operation-button--primary" id="finishOperationGroup" type="button">Torna alla mappa</button>
                 </footer>
             </section>
@@ -413,11 +425,35 @@
         </section>
     </div>
 
+    <div class="restriction-backdrop movement-history-backdrop" id="movementHistoryDialog" aria-hidden="true">
+        <section class="movement-history-dialog" role="dialog" aria-modal="true" aria-labelledby="movementHistoryTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">TRACCIABILITÀ MAGAZZINO</span>
+                    <h2 id="movementHistoryTitle">Storico movimenti automatici</h2>
+                    <p>Carichi e scarichi completati. Le riallocazioni manuali non vengono registrate qui.</p>
+                </div>
+                <button id="closeMovementHistory" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="movement-history-list" id="movementHistoryList"></div>
+        </section>
+    </div>
+
     <div class="slot-context-menu" id="slotContextMenu" role="menu" aria-hidden="true">
         <div class="slot-context-menu__title" id="contextSlotCode">A1a</div>
         <button id="togglePartialButton" type="button" role="menuitem">Segna come parziale</button>
+        <button id="markSelectionPartial" type="button" role="menuitem" hidden>Segna selezione come parziale</button>
+        <button id="clearSelectionPartial" type="button" role="menuitem" hidden>Rimuovi parziale dalla selezione</button>
+        <button id="startRelocationButton" type="button" role="menuitem">Rialloca</button>
+        <button id="placeRelocationButton" type="button" role="menuitem" hidden>Inserisci qui</button>
+        <button id="swapRelocationButton" type="button" role="menuitem" hidden>Scambia posizioni</button>
+        <button id="manageSlotRestrictionsButton" type="button" role="menuitem">Gestisci vincolo dello slot</button>
+        <button id="applySelectionRestrictions" type="button" role="menuitem" hidden>Applica vincolo alla selezione</button>
         <small id="contextMenuHint"></small>
     </div>
+
+    <div class="slot-selection-rectangle" id="slotSelectionRectangle" hidden></div>
+    <div class="warehouse-toast" id="warehouseToast" role="status" aria-live="polite" hidden></div>
 
     <div class="restriction-backdrop" id="restrictionDialog" aria-hidden="true">
         <section class="restriction-dialog" role="dialog" aria-modal="true" aria-labelledby="restrictionDialogTitle">

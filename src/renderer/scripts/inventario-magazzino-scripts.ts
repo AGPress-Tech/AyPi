@@ -69,6 +69,7 @@ const inventory = new Map(
             partial,
             type,
             pairedLocation,
+            receivedAt: new Date(2025, 0, index + 1, 8, 0, 0).toISOString(),
         },
     ]),
 );
@@ -92,6 +93,12 @@ const operationGroupStages = { load: "compose", unload: "compose" };
 let operationGroupMode = "load";
 let editingOperationLineIndex = null;
 let nextOperationLineId = 1;
+const movementHistory = [];
+const selectedSlotCodes = new Set();
+let relocationSourceCode = null;
+let restrictionBatchTargets = null;
+let completedOperationMovement = null;
+let suppressSlotClickUntil = 0;
 
 function normalizeCustomer(value) {
     return String(value || "").trim().toUpperCase();
@@ -280,6 +287,8 @@ function createSlotButton(row, columnIndex, side, level) {
     button.classList.toggle("is-match", code !== selectedSlot?.code && itemMatchesSelection(item));
     button.classList.toggle("is-search-match", currentSearchResults.some((result) => result.location === code));
     button.classList.toggle("is-selected", code === selectedSlot?.code);
+    button.classList.toggle("is-multi-selected", selectedSlotCodes.has(code));
+    button.classList.toggle("is-relocation-source", code === relocationSourceCode);
     button.classList.toggle(
         "has-customer-conflict",
         Boolean(item && !evaluateCustomerForSlot(code, item.customer).allowed),
@@ -288,10 +297,20 @@ function createSlotButton(row, columnIndex, side, level) {
     button.addEventListener("pointerleave", hideSlotPreview);
     button.addEventListener("focus", () => scheduleSlotPreview(code, button, 0));
     button.addEventListener("blur", hideSlotPreview);
-    button.addEventListener("click", () => selectSlot(code));
+    button.addEventListener("click", (event) => {
+        if (Date.now() < suppressSlotClickUntil) return;
+        if (event.ctrlKey || event.metaKey) toggleSlotSelection(code);
+        else {
+            selectedSlotCodes.clear();
+            selectSlot(code);
+        }
+    });
     button.addEventListener("contextmenu", (event) => {
         event.preventDefault();
-        selectSlot(code, false);
+        if (!(selectedSlotCodes.size > 1 && selectedSlotCodes.has(code))) {
+            selectedSlotCodes.clear();
+            selectSlot(code, false);
+        }
         openContextMenu(code, event.clientX, event.clientY);
     });
     return button;
@@ -541,6 +560,37 @@ function selectSlot(code, scroll = true) {
     }
 }
 
+function toggleSlotSelection(code) {
+    if (selectedSlotCodes.has(code)) selectedSlotCodes.delete(code);
+    else selectedSlotCodes.add(code);
+    selectedSlot = parseSlotCode(code);
+    document.querySelectorAll(".slot").forEach((button) => {
+        button.classList.toggle("is-multi-selected", selectedSlotCodes.has(button.dataset.slot));
+    });
+    renderDetails();
+}
+
+let warehouseToastTimer = null;
+function showWarehouseToast(message, error = false) {
+    const toast = document.getElementById("warehouseToast");
+    if (!toast) return;
+    if (warehouseToastTimer) clearTimeout(warehouseToastTimer);
+    toast.textContent = message;
+    toast.hidden = false;
+    toast.classList.toggle("is-error", error);
+    warehouseToastTimer = setTimeout(() => {
+        toast.hidden = true;
+        warehouseToastTimer = null;
+    }, 4200);
+}
+
+function refreshWarehouseAfterManualChange() {
+    refreshInventorySearch();
+    renderDetails();
+    updateSummary();
+    if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+}
+
 function closeContextMenu() {
     const menu = document.getElementById("slotContextMenu");
     menu?.classList.remove("is-open");
@@ -555,18 +605,87 @@ function openContextMenu(code, x, y) {
     const item = inventory.get(code);
     if (!menu || !toggleButton || !hint) return;
     contextSlotCode = code;
-    document.getElementById("contextSlotCode").textContent = code;
-    toggleButton.disabled = !item;
+    const multiSelection = selectedSlotCodes.size > 1 && selectedSlotCodes.has(code);
+    const selectedItems = Array.from(selectedSlotCodes).map((location) => inventory.get(location)).filter(Boolean);
+    document.getElementById("contextSlotCode").textContent = multiSelection ? `${selectedSlotCodes.size} posizioni selezionate` : code;
+    toggleButton.hidden = multiSelection;
+    toggleButton.disabled = !item || item.type === "pallet";
     toggleButton.textContent = item?.partial ? "Rimuovi stato parziale" : "Segna come parziale";
-    hint.textContent = item
-        ? "Il cassone contiene più dello 0% e meno del 100%."
-        : "Uno slot libero non può essere indicato come parziale.";
+    document.getElementById("markSelectionPartial").hidden = !multiSelection;
+    document.getElementById("clearSelectionPartial").hidden = !multiSelection;
+    document.getElementById("markSelectionPartial").disabled = !selectedItems.some((selected) => selected.type === "crate");
+    document.getElementById("clearSelectionPartial").disabled = !selectedItems.some((selected) => selected.type === "crate");
+    const relocate = document.getElementById("startRelocationButton");
+    const place = document.getElementById("placeRelocationButton");
+    const swap = document.getElementById("swapRelocationButton");
+    relocate.hidden = multiSelection || Boolean(relocationSourceCode);
+    relocate.disabled = !item || item.type !== "crate";
+    place.hidden = multiSelection || !relocationSourceCode || Boolean(item);
+    swap.hidden = multiSelection || !relocationSourceCode || !item || code === relocationSourceCode;
+    document.getElementById("manageSlotRestrictionsButton").hidden = multiSelection;
+    document.getElementById("applySelectionRestrictions").hidden = !multiSelection;
+    hint.textContent = multiSelection
+        ? `Le azioni massive interessano ${selectedSlotCodes.size} slot; la riallocazione resta disponibile soltanto per un cassone.`
+        : relocationSourceCode
+          ? `Riallocazione di ${relocationSourceCode}: scegli uno slot libero oppure occupato.`
+          : item ? "Azioni sul contenuto e sulla singola ubicazione." : "Slot libero: puoi gestire il vincolo cliente o completare una riallocazione.";
     menu.classList.add("is-open");
     menu.setAttribute("aria-hidden", "false");
     const left = Math.min(x, window.innerWidth - menu.offsetWidth - 8);
     const top = Math.min(y, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left = `${Math.max(8, left)}px`;
     menu.style.top = `${Math.max(8, top)}px`;
+}
+
+function applyInventoryState(state) {
+    inventory.clear();
+    state.forEach((item, location) => inventory.set(location, item));
+    refreshWarehouseAfterManualChange();
+}
+
+function validFrontRearModule(state, location) {
+    const parsed = parseSlotCode(location);
+    if (!parsed) return false;
+    const frontNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "front", "a")).number;
+    const rearNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a")).number;
+    const frontOccupied = ["a", "b", "c"].some((level) => state.has(`${parsed.row}${frontNumber}${level}`));
+    const rearFull = ["a", "b", "c"].every((level) => state.has(`${parsed.row}${rearNumber}${level}`));
+    return !frontOccupied || rearFull;
+}
+
+function relocateCrate(sourceCode, targetCode, swap = false) {
+    const source = inventory.get(sourceCode);
+    const target = inventory.get(targetCode);
+    if (!source || source.type !== "crate") return { error: "La riallocazione manuale è disponibile soltanto per un cassone." };
+    if (swap) {
+        if (!target || target.type !== "crate") return { error: "Lo scambio richiede due cassoni standard." };
+        if (!evaluateCustomerForSlot(targetCode, source.customer).allowed || !evaluateCustomerForSlot(sourceCode, target.customer).allowed) {
+            return { error: "Scambio non conforme ai vincoli cliente di una delle due ubicazioni." };
+        }
+        const state = cloneInventoryState();
+        const left = state.get(sourceCode);
+        const right = state.get(targetCode);
+        left.location = targetCode;
+        right.location = sourceCode;
+        state.set(sourceCode, right);
+        state.set(targetCode, left);
+        applyInventoryState(state);
+        return { message: `${sourceCode} e ${targetCode} scambiati. Operazione manuale non inserita nello storico.` };
+    }
+    const state = cloneInventoryState();
+    state.delete(sourceCode);
+    compactCrateStacks(state);
+    const parsed = parseSlotCode(targetCode);
+    if (!validCrateDestination(state, parsed, source.customer)) {
+        return { error: `${targetCode} non è una destinazione valida per vincoli fisici o cliente.` };
+    }
+    const moved = { ...source, tags: [...source.tags], location: targetCode };
+    state.set(targetCode, moved);
+    if (!validFrontRearModule(state, sourceCode) || !validFrontRearModule(state, targetCode)) {
+        return { error: "Riallocazione non conforme: lascerebbe una pila anteriore davanti a un posteriore non completo." };
+    }
+    applyInventoryState(state);
+    return { message: `${sourceCode} riallocato in ${targetCode}. Operazione manuale non inserita nello storico.` };
 }
 
 function setupContextMenu() {
@@ -579,12 +698,134 @@ function setupContextMenu() {
         renderDetails();
         closeContextMenu();
     });
+    document.getElementById("markSelectionPartial")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        let changed = 0;
+        selectedSlotCodes.forEach((location) => {
+            const item = inventory.get(location);
+            if (item?.type === "crate") {
+                item.partial = true;
+                changed += 1;
+            }
+        });
+        refreshWarehouseAfterManualChange();
+        closeContextMenu();
+        showWarehouseToast(`${changed} ${changed === 1 ? "cassone segnato" : "cassoni segnati"} come parziali.`);
+    });
+    document.getElementById("clearSelectionPartial")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        let changed = 0;
+        selectedSlotCodes.forEach((location) => {
+            const item = inventory.get(location);
+            if (item?.type === "crate") {
+                item.partial = false;
+                changed += 1;
+            }
+        });
+        refreshWarehouseAfterManualChange();
+        closeContextMenu();
+        showWarehouseToast(`Stato parziale rimosso da ${changed} ${changed === 1 ? "cassone" : "cassoni"}.`);
+    });
+    document.getElementById("startRelocationButton")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!contextSlotCode || inventory.get(contextSlotCode)?.type !== "crate") return;
+        relocationSourceCode = contextSlotCode;
+        selectedSlotCodes.clear();
+        renderMap();
+        closeContextMenu();
+        showWarehouseToast(`Riallocazione avviata da ${relocationSourceCode}. Scegli la destinazione con il tasto destro.`);
+    });
+    const completeRelocation = (swap) => {
+        if (!relocationSourceCode || !contextSlotCode) return;
+        const source = relocationSourceCode;
+        const result = relocateCrate(source, contextSlotCode, swap);
+        if (!result.error) relocationSourceCode = null;
+        renderMap();
+        closeContextMenu();
+        showWarehouseToast(result.error || result.message, Boolean(result.error));
+    };
+    document.getElementById("placeRelocationButton")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        completeRelocation(false);
+    });
+    document.getElementById("swapRelocationButton")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        completeRelocation(true);
+    });
+    document.getElementById("manageSlotRestrictionsButton")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const target = contextSlotCode;
+        closeContextMenu();
+        openRestrictionDialog(target ? [target] : null);
+    });
+    document.getElementById("applySelectionRestrictions")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const targets = Array.from(selectedSlotCodes);
+        closeContextMenu();
+        openRestrictionDialog(targets);
+    });
     document.addEventListener("click", closeContextMenu);
     window.addEventListener("blur", closeContextMenu);
     window.addEventListener("resize", closeContextMenu);
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeContextMenu();
+        if (event.key === "Escape") {
+            closeContextMenu();
+            if (relocationSourceCode) {
+                relocationSourceCode = null;
+                renderMap();
+                showWarehouseToast("Riallocazione annullata.");
+            }
+        }
     });
+}
+
+function setupSlotAreaSelection() {
+    let drag = null;
+    const rectangle = document.getElementById("slotSelectionRectangle");
+    document.addEventListener("pointerdown", (event) => {
+        const slot = event.target.closest?.("#warehouseLevels .slot");
+        if (!slot || event.button !== 0 || slot.disabled) return;
+        drag = {
+            startX: event.clientX,
+            startY: event.clientY,
+            active: false,
+            initial: event.ctrlKey || event.metaKey ? new Set(selectedSlotCodes) : new Set(),
+        };
+    }, true);
+    document.addEventListener("pointermove", (event) => {
+        if (!drag) return;
+        const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+        if (!drag.active && distance < 6) return;
+        drag.active = true;
+        hideSlotPreview();
+        const left = Math.min(drag.startX, event.clientX);
+        const top = Math.min(drag.startY, event.clientY);
+        const right = Math.max(drag.startX, event.clientX);
+        const bottom = Math.max(drag.startY, event.clientY);
+        rectangle.hidden = false;
+        Object.assign(rectangle.style, { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+        selectedSlotCodes.clear();
+        drag.initial.forEach((code) => selectedSlotCodes.add(code));
+        document.querySelectorAll("#warehouseLevels .slot:not(:disabled)").forEach((button) => {
+            const bounds = button.getBoundingClientRect();
+            const intersects = bounds.right >= left && bounds.left <= right && bounds.bottom >= top && bounds.top <= bottom;
+            if (intersects) selectedSlotCodes.add(button.dataset.slot);
+            button.classList.toggle("is-multi-selected", selectedSlotCodes.has(button.dataset.slot));
+        });
+    }, true);
+    document.addEventListener("pointerup", () => {
+        if (!drag) return;
+        if (drag.active) {
+            suppressSlotClickUntil = Date.now() + 250;
+            rectangle.hidden = true;
+            const last = Array.from(selectedSlotCodes).at(-1);
+            if (last) {
+                selectedSlot = parseSlotCode(last);
+                renderDetails();
+            }
+        }
+        drag = null;
+    }, true);
 }
 
 function setupDisplayMode() {
@@ -939,6 +1180,7 @@ function renderOperationGroup() {
     document.getElementById("operationReviewCrateCount").textContent = String(entries.filter((entry) => entry.type === "crate").reduce((total, entry) => total + entry.quantity, 0));
     document.getElementById("operationReviewPalletCount").textContent = String(entries.filter((entry) => entry.type === "pallet").reduce((total, entry) => total + entry.quantity, 0));
     const unrestrictedOrders = entries.filter((entry) => !entry.order).length;
+    document.getElementById("operationReviewNote").classList.remove("is-error");
     document.getElementById("operationReviewNote").textContent = operationGroupMode === "load"
         ? "La futura proposta userà tutte le righe insieme per ridurre divisioni e movimentazioni implicite. Nessuna ubicazione è ancora stata modificata."
         : `${unrestrictedOrders ? `${unrestrictedOrders} ${unrestrictedOrders === 1 ? "riga userà" : "righe useranno"} tutti i riferimenti ordine e ` : ""}il prelievo applicherà sempre FIFO, scegliendo prima le unità più vecchie tra quelle ammesse. Nessuna unità è ancora stata prelevata.`;
@@ -1017,6 +1259,287 @@ function addSelectedResultsToUnloadGroup() {
         : "Le unità selezionate erano già presenti nel gruppo di scarico.";
 }
 
+function cloneInventoryState() {
+    return new Map(Array.from(inventory, ([location, item]) => [location, { ...item, tags: [...item.tags] }]));
+}
+
+function stateHasBlockingPallet(state, parsed) {
+    if (!parsed || parsed.level === "a") return false;
+    const groundCodes = [
+        slotCode(parsed.row, parsed.physicalColumn - 1, "front", "a"),
+        slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a"),
+    ];
+    return groundCodes.some((code) => state.get(code)?.type === "pallet");
+}
+
+function crateCandidateScore(state, parsed, article) {
+    const stack = ["a", "b", "c"].map((level) => state.get(`${parsed.row}${parsed.number}${level}`)).filter(Boolean);
+    const rowHasArticle = Array.from(state.values()).some((item) => item.location.startsWith(parsed.row) && item.article === article);
+    const sameArticleInStack = stack.some((item) => item.article === article);
+    const mixedStack = stack.some((item) => item.article !== article);
+    const levelValue = { a: 0, b: 1, c: 2 }[parsed.level];
+    return (rowHasArticle ? -10000 : 0)
+        + (sameArticleInStack ? -4500 : 0)
+        + (stack.length ? -1600 : 0)
+        + (mixedStack ? 700 : 0)
+        + (parsed.side === "rear" ? -500 : 0)
+        + rowCodes().indexOf(parsed.row) * 120
+        + parsed.physicalColumn * 8
+        + levelValue;
+}
+
+function validCrateDestination(state, parsed, customer) {
+    if (!parsed || state.has(parsed.code) || stateHasBlockingPallet(state, parsed)) return false;
+    if (!evaluateCustomerForSlot(parsed.code, customer).allowed) return false;
+    const lowerLevels = parsed.level === "c" ? ["a", "b"] : parsed.level === "b" ? ["a"] : [];
+    if (!lowerLevels.every((level) => state.has(`${parsed.row}${parsed.number}${level}`))) return false;
+    if (parsed.side === "front") {
+        const rearNumber = slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a").match(/\d+/)?.[0];
+        if (!["a", "b", "c"].every((level) => state.has(`${parsed.row}${rearNumber}${level}`))) return false;
+    }
+    return true;
+}
+
+function bestCrateDestination(state, article, customer) {
+    return allWarehouseSlots()
+        .map((slot) => parseSlotCode(slot.code))
+        .filter((slot) => validCrateDestination(state, slot, customer))
+        .sort((left, right) => crateCandidateScore(state, left, article) - crateCandidateScore(state, right, article))[0] || null;
+}
+
+function bestPalletDestination(state, customer) {
+    for (const row of rowCodes()) {
+        for (let column = 0; column < physicalColumnsForRow(row); column += 1) {
+            const front = slotCode(row, column, "front", "a");
+            const rear = slotCode(row, column, "rear", "a");
+            const columnCodes = [front, rear].flatMap((ground) => {
+                const number = parseSlotCode(ground).number;
+                return ["a", "b", "c"].map((level) => `${row}${number}${level}`);
+            });
+            if (columnCodes.some((code) => state.has(code))) continue;
+            if (![front, rear].every((code) => evaluateCustomerForSlot(code, customer).allowed)) continue;
+            return [rear, front];
+        }
+    }
+    return null;
+}
+
+function summarizeMovementLines(actions) {
+    const grouped = new Map();
+    actions.forEach((action) => {
+        if (!grouped.has(action.article)) grouped.set(action.article, []);
+        grouped.get(action.article).push(...action.locations);
+    });
+    return Array.from(grouped, ([article, locations]) => ({ article, locations }));
+}
+
+function planLoadOperation(entries) {
+    const state = cloneInventoryState();
+    const actions = [];
+    const timestamp = new Date();
+    let sequence = 0;
+    for (const entry of entries) {
+        const locations = [];
+        for (let unit = 0; unit < entry.quantity; unit += 1) {
+            const id = `AUTO-${timestamp.getTime()}-${sequence++}`;
+            const receivedAt = new Date(timestamp.getTime() + sequence).toISOString();
+            if (entry.type === "pallet") {
+                const pair = bestPalletDestination(state, entry.customer);
+                if (!pair) return { error: `Spazio valido insufficiente per ${entry.article}: impossibile collocare tutti i pallet.` };
+                pair.forEach((location, index) => state.set(location, {
+                    id,
+                    location,
+                    article: entry.article,
+                    customer: entry.customer,
+                    orderReference: entry.order,
+                    tags: [],
+                    inMovement: false,
+                    partial: entry.partial,
+                    type: "pallet",
+                    pairedLocation: pair[index === 0 ? 1 : 0],
+                    receivedAt,
+                }));
+                locations.push(pair.join(" + "));
+            } else {
+                const destination = bestCrateDestination(state, entry.article, entry.customer);
+                if (!destination) return { error: `Spazio valido insufficiente per ${entry.article}: impossibile collocare tutti i cassoni.` };
+                state.set(destination.code, {
+                    id,
+                    location: destination.code,
+                    article: entry.article,
+                    customer: entry.customer,
+                    orderReference: entry.order,
+                    tags: [],
+                    inMovement: false,
+                    partial: entry.partial,
+                    type: "crate",
+                    pairedLocation: null,
+                    receivedAt,
+                });
+                locations.push(destination.code);
+            }
+        }
+        actions.push({ article: entry.article, locations });
+    }
+    return { state, lines: summarizeMovementLines(actions) };
+}
+
+function logicalInventoryUnits(state) {
+    const units = new Map();
+    state.forEach((item) => {
+        if (!units.has(item.id)) units.set(item.id, { item, locations: [] });
+        units.get(item.id).locations.push(item.location);
+    });
+    return Array.from(units.values());
+}
+
+function compactCrateStacks(state) {
+    rowCodes().forEach((row) => {
+        for (let number = 1; number <= maximumPositionForRow(row); number += 1) {
+            const codes = ["a", "b", "c"].map((level) => `${row}${number}${level}`);
+            if (codes.some((code) => state.get(code)?.type === "pallet")) continue;
+            const items = codes.map((code) => state.get(code)).filter(Boolean);
+            codes.forEach((code) => state.delete(code));
+            items.forEach((item, index) => {
+                const location = `${row}${number}${["a", "b", "c"][index]}`;
+                item.location = location;
+                state.set(location, item);
+            });
+        }
+    });
+}
+
+function planUnloadOperation(entries) {
+    const state = cloneInventoryState();
+    const selectedIds = new Set();
+    const actions = [];
+    for (const entry of entries) {
+        const requestedIds = new Set(entry.sourceIds || []);
+        const candidates = logicalInventoryUnits(state)
+            .filter(({ item }) => !selectedIds.has(item.id)
+                && item.article === entry.article
+                && (!entry.customer || item.customer === entry.customer)
+                && (!entry.order || item.orderReference === entry.order)
+                && (!entry.type || item.type === entry.type)
+                && (!requestedIds.size || requestedIds.has(item.id)))
+            .sort((left, right) => new Date(left.item.receivedAt || 0) - new Date(right.item.receivedAt || 0)
+                || left.locations[0].localeCompare(right.locations[0], undefined, { numeric: true }));
+        if (candidates.length < entry.quantity) {
+            const orderText = entry.order ? ` per l'ordine ${entry.order}` : " considerando tutti gli ordini";
+            return { error: `Disponibilità insufficiente: richieste ${entry.quantity} unità di ${entry.article}${orderText}, trovate ${candidates.length}.` };
+        }
+        const chosen = candidates.slice(0, entry.quantity);
+        chosen.forEach(({ item, locations }) => {
+            selectedIds.add(item.id);
+            locations.forEach((location) => state.delete(location));
+        });
+        actions.push({ article: entry.article, locations: chosen.flatMap(({ item, locations }) => item.type === "pallet" ? [locations.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join(" + ")] : locations) });
+    }
+    compactCrateStacks(state);
+    return { state, lines: summarizeMovementLines(actions) };
+}
+
+function movementIdentifier(date) {
+    const part = (value) => String(value).padStart(2, "0");
+    const base = `MV_${part(date.getFullYear() % 100)}-${part(date.getMonth() + 1)}-${part(date.getDate())}_${part(date.getHours())}:${part(date.getMinutes())}`;
+    const duplicates = movementHistory.filter((movement) => movement.id === base || movement.id.startsWith(`${base}_`)).length;
+    return duplicates ? `${base}_${part(duplicates + 1)}` : base;
+}
+
+function commitOperationGroup() {
+    const plan = operationGroupMode === "load"
+        ? planLoadOperation(activeOperationGroup())
+        : planUnloadOperation(activeOperationGroup());
+    if (plan.error) return plan;
+    inventory.clear();
+    plan.state.forEach((item, location) => inventory.set(location, item));
+    const now = new Date();
+    const movement = { id: movementIdentifier(now), timestamp: now.toISOString(), type: operationGroupMode, lines: plan.lines };
+    movementHistory.unshift(movement);
+    completedOperationMovement = movement;
+    renderMovementHistory();
+    refreshInventorySearch();
+    renderDetails();
+    updateSummary();
+    if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+    return { movement };
+}
+
+function appendMovementLines(container, movement) {
+    container.replaceChildren();
+    movement.lines.forEach((line) => {
+        const row = document.createElement("article");
+        row.className = "movement-line";
+        const title = document.createElement("strong");
+        title.textContent = `Articolo ${line.article}`;
+        const locations = document.createElement("p");
+        locations.textContent = `Posizioni ${line.locations.join(", ")}`;
+        row.append(title, locations);
+        container.appendChild(row);
+    });
+}
+
+function renderMovementHistory() {
+    const count = document.getElementById("movementHistoryCount");
+    if (count) count.textContent = movementHistory.length
+        ? `${movementHistory.length} ${movementHistory.length === 1 ? "movimento registrato" : "movimenti registrati"}`
+        : "Nessun movimento registrato";
+    const list = document.getElementById("movementHistoryList");
+    if (!list) return;
+    list.replaceChildren();
+    if (!movementHistory.length) {
+        const empty = document.createElement("p");
+        empty.className = "movement-history-empty";
+        empty.textContent = "Lo storico si popolerà completando un gruppo automatico di carico o scarico.";
+        list.appendChild(empty);
+        return;
+    }
+    movementHistory.forEach((movement) => {
+        const card = document.createElement("article");
+        card.className = "movement-history-card";
+        const header = document.createElement("header");
+        const heading = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = movement.id;
+        const date = document.createElement("small");
+        date.textContent = new Date(movement.timestamp).toLocaleString("it-IT");
+        heading.append(title, date);
+        const badge = document.createElement("span");
+        badge.textContent = movement.type === "load" ? "Carico" : "Scarico";
+        header.append(heading, badge);
+        const lines = document.createElement("div");
+        lines.className = "movement-history-card__lines";
+        appendMovementLines(lines, movement);
+        card.append(header, lines);
+        list.appendChild(card);
+    });
+}
+
+function openMovementHistoryDialog() {
+    closeToolsDrawer();
+    renderMovementHistory();
+    const dialog = document.getElementById("movementHistoryDialog");
+    dialog?.classList.add("is-open");
+    dialog?.setAttribute("aria-hidden", "false");
+}
+
+function closeMovementHistoryDialog() {
+    const dialog = document.getElementById("movementHistoryDialog");
+    dialog?.classList.remove("is-open");
+    dialog?.setAttribute("aria-hidden", "true");
+}
+
+function clearCompletedOperationGroup(closeDialog = false) {
+    activeOperationGroup().splice(0);
+    operationGroupStages[operationGroupMode] = "compose";
+    completedOperationMovement = null;
+    resetOperationLineForm();
+    renderOperationGroup();
+    setOperationStage("compose");
+    if (closeDialog) closeOperationDialog();
+    else document.getElementById("loadArticle")?.focus();
+}
+
 function setupLoadDialog() {
     document.getElementById("openLoadButton")?.addEventListener("click", () => openOperationDialog("load"));
     document.getElementById("openUnloadButton")?.addEventListener("click", () => openOperationDialog("unload"));
@@ -1047,18 +1570,35 @@ function setupLoadDialog() {
     document.getElementById("cancelOperationGroup")?.addEventListener("click", cancelOperationGroup);
     document.getElementById("cancelOperationReview")?.addEventListener("click", cancelOperationGroup);
     document.getElementById("confirmOperationGroup")?.addEventListener("click", () => {
+        const result = commitOperationGroup();
+        if (result.error) {
+            const note = document.getElementById("operationReviewNote");
+            note.textContent = result.error;
+            note.classList.add("is-error");
+            return;
+        }
         setOperationStage("ready");
         document.getElementById("operationReadyTitle").textContent = `Gruppo di ${operationModeLabel()} confermato`;
-        document.getElementById("operationReadyText").textContent = `Il gruppo contiene ${activeOperationGroup().length} ${activeOperationGroup().length === 1 ? "riga" : "righe"}. È pronto per essere passato al futuro motore di ${operationGroupMode === "load" ? "slotting" : "prelievo FIFO"}; in questa fase dimostrativa il magazzino non viene modificato.`;
+        document.getElementById("operationReadyText").textContent = `${result.movement.id} completato. La mappa è stata aggiornata con la nuova disposizione.`;
+        appendMovementLines(document.getElementById("operationReadyList"), result.movement);
     });
-    document.getElementById("reviseConfirmedOperation")?.addEventListener("click", () => setOperationStage("compose"));
-    document.getElementById("finishOperationGroup")?.addEventListener("click", closeOperationDialog);
+    document.getElementById("reviseConfirmedOperation")?.addEventListener("click", () => clearCompletedOperationGroup());
+    document.getElementById("finishOperationGroup")?.addEventListener("click", () => clearCompletedOperationGroup(true));
     document.getElementById("prepareUnloadButton")?.addEventListener("click", addSelectedResultsToUnloadGroup);
+    document.getElementById("openMovementHistory")?.addEventListener("click", openMovementHistoryDialog);
+    document.getElementById("closeMovementHistory")?.addEventListener("click", closeMovementHistoryDialog);
+    document.getElementById("movementHistoryDialog")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) closeMovementHistoryDialog();
+    });
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeOperationDialog();
+        if (event.key === "Escape") {
+            closeOperationDialog();
+            closeMovementHistoryDialog();
+        }
     });
     updateLoadTypeNote();
     updateOperationButtons();
+    renderMovementHistory();
 }
 
 function normalizeSearchText(value) {
@@ -1383,10 +1923,16 @@ function refreshRestrictionViews() {
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
 }
 
-function openRestrictionDialog() {
+function openRestrictionDialog(targets = null) {
     closeToolsDrawer();
-    selectedRestrictionRow = selectedSlot?.row || selectedRow;
-    renderRestrictionDialog(selectedSlot?.code);
+    const targetCodes = Array.isArray(targets) ? targets.filter((code) => parseSlotCode(code)) : [];
+    restrictionBatchTargets = targetCodes.length > 1 ? targetCodes : null;
+    const preferredLocation = targetCodes[0] || selectedSlot?.code;
+    selectedRestrictionRow = parseSlotCode(preferredLocation)?.row || selectedRow;
+    renderRestrictionDialog(preferredLocation);
+    document.getElementById("restrictionDialogTitle").textContent = restrictionBatchTargets
+        ? `Vincoli cliente per ${restrictionBatchTargets.length} slot selezionati`
+        : "Vincoli cliente per fila e slot";
     const dialog = document.getElementById("restrictionDialog");
     dialog.classList.add("is-open");
     dialog.setAttribute("aria-hidden", "false");
@@ -1397,10 +1943,11 @@ function closeRestrictionDialog() {
     const dialog = document.getElementById("restrictionDialog");
     dialog?.classList.remove("is-open");
     dialog?.setAttribute("aria-hidden", "true");
+    restrictionBatchTargets = null;
 }
 
 function setupRestrictionDialog() {
-    document.getElementById("openRestrictionsButton")?.addEventListener("click", openRestrictionDialog);
+    document.getElementById("openRestrictionsButton")?.addEventListener("click", () => openRestrictionDialog());
     document.getElementById("closeRestrictionsButton")?.addEventListener("click", closeRestrictionDialog);
     document.getElementById("restrictionDialog")?.addEventListener("click", (event) => {
         if (event.target === event.currentTarget) closeRestrictionDialog();
@@ -1427,10 +1974,11 @@ function setupRestrictionDialog() {
             setRestrictionMessage("slotRestrictionMessage", error);
             return;
         }
-        storeRestriction(slotRestrictions, location, rule);
+        const targets = restrictionBatchTargets || [location];
+        targets.forEach((target) => storeRestriction(slotRestrictions, target, rule));
         refreshRestrictionViews();
         renderRestrictionDialog(location);
-        setRestrictionMessage("slotRestrictionMessage", "Regola dello slot salvata.", true);
+        setRestrictionMessage("slotRestrictionMessage", targets.length === 1 ? "Regola dello slot salvata." : `Regola applicata a ${targets.length} slot.`, true);
     });
     document.getElementById("clearRowRestriction")?.addEventListener("click", () => {
         const location = document.getElementById("restrictionSlotSelect")?.value;
@@ -1441,10 +1989,11 @@ function setupRestrictionDialog() {
     });
     document.getElementById("clearSlotRestriction")?.addEventListener("click", () => {
         const location = document.getElementById("restrictionSlotSelect")?.value;
-        slotRestrictions.delete(location);
+        const targets = restrictionBatchTargets || [location];
+        targets.forEach((target) => slotRestrictions.delete(target));
         refreshRestrictionViews();
         renderRestrictionDialog(location);
-        setRestrictionMessage("slotRestrictionMessage", "Regola dello slot rimossa.", true);
+        setRestrictionMessage("slotRestrictionMessage", targets.length === 1 ? "Regola dello slot rimossa." : `Regola rimossa da ${targets.length} slot.`, true);
     });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") closeRestrictionDialog();
@@ -1808,6 +2357,7 @@ setupWarehouseStructure();
 setupLoadDialog();
 setupSlotPreview();
 setupContextMenu();
+setupSlotAreaSelection();
 setupInventorySearch();
 setupAnalysisView();
 setupRestrictionDialog();

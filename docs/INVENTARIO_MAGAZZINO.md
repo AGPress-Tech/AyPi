@@ -1,6 +1,6 @@
 # Inventario magazzino — piano di progetto
 
-Stato: raccolta requisiti e base visuale iniziale. Le funzioni operative non sono ancora abilitate.
+Stato: raccolta requisiti e prototipo operativo in memoria. I gruppi automatici di carico/scarico aggiornano la mappa e generano uno storico di sessione; algoritmo definitivo, database e audit persistente restano da realizzare.
 
 ## 1. Obiettivo
 
@@ -81,7 +81,7 @@ Il flusso dell'interfaccia è articolato in tre fasi:
 
 1. **Composizione**: ogni articolo viene aggiunto al gruppo senza modificare il magazzino; le righe possono essere modificate o rimosse;
 2. **Anteprima**: vengono mostrati riepilogo, quantità complessive e tutte le righe prima di richiedere il calcolo definitivo;
-3. **Conferma**: il gruppo viene congelato e consegnato al motore di slotting. Finché il motore non sarà implementato, questa fase non modifica le occupazioni.
+3. **Conferma**: il gruppo viene congelato, validato integralmente e applicato in modo atomico. Il prototipo usa un primo motore euristico: se non riesce a collocare o prelevare tutte le unità non modifica il magazzino; se riesce aggiorna immediatamente mappa, ricerca, riepiloghi e vista database.
 
 Dall'anteprima è possibile tornare alla composizione per correggere le righe o aggiungere altri articoli. L'annullamento elimina l'intero gruppo e riporta alla mappa; la semplice chiusura della finestra conserva invece la bozza in memoria.
 
@@ -135,7 +135,7 @@ L'algoritmo non dovrà considerare gratuito l'accesso ai livelli posteriori e do
 - Più parole nella stessa ricerca vengono combinate: ogni parola deve comparire in almeno uno dei campi abilitati.
 - I risultati devono essere evidenziati sulla mappa anche quando appartengono a file non visibili.
 - Oltre all'evidenziazione serve un report scritto con ubicazione, articolo, cliente, riferimento ordine e stati rilevanti.
-- Le righe del report sono selezionabili tramite spunta e possono essere aggiunte direttamente a un gruppo di scarico. Le due ubicazioni dello stesso pallet vengono deduplicate come una sola unità logistica. L'esecuzione fisica resterà disabilitata finché non saranno definiti motore di prelievo e zona speciale di movimentazione.
+- Le righe del report sono selezionabili tramite spunta e possono essere aggiunte direttamente a un gruppo di scarico. Le due ubicazioni dello stesso pallet vengono deduplicate come una sola unità logistica. Il prototipo esegue già il prelievo logico e aggiorna le giacenze; la futura zona speciale di movimentazione servirà a rappresentare l'esecuzione fisica intermedia.
 - Per mantenere pulita la schermata operativa, filtri e report sono raccolti in una finestra dedicata aperta dal pulsante **Ricerca e prelievo**. La chiusura della finestra non cancella ricerca, selezioni o evidenziazioni presenti sulla mappa.
 - Una barra rapida resta visibile nella toolbar per cercare ed evidenziare immediatamente gli slot. Il suo testo è sincronizzato bidirezionalmente con il campo della finestra **Ricerca e prelievo** e utilizza gli stessi campi di ricerca abilitati.
 
@@ -209,14 +209,28 @@ Se la riga selezionata contiene un articolo, il comando **Analisi articolo** apr
 
 ### Operazioni manuali
 
-L'operatore potrà forzare:
+Il prototipo consente la riallocazione di un solo cassone alla volta tramite menu contestuale:
 
-- carico diretto in una posizione scelta;
-- scarico diretto;
-- spostamento da una posizione a un'altra;
-- scelta di un cassone specifico.
+- tasto destro sul cassone e comando **Rialloca**;
+- tasto destro su uno slot libero e comando **Inserisci qui**;
+- tasto destro su un altro cassone e comando **Scambia posizioni**.
 
-Ogni forzatura dovrà comunque validare i vincoli fisici e lasciare una traccia nella cronologia.
+Inserimento e scambio vengono rifiutati se violano vincoli cliente, sostegno verticale, occupazione da pallet o relazione fronte/retro. Per scelta esplicita, queste forzature manuali **non entrano nello storico dei movimenti automatici**.
+
+`Ctrl+clic` aggiunge o rimuove singoli slot da una selezione; il trascinamento disegna un'area e seleziona gli slot intersecati. Una selezione multipla può essere usata soltanto per impostare/rimuovere lo stato parziale o applicare lo stesso vincolo cliente agli slot scelti. Non può avviare riallocazioni multiple.
+
+Sugli slot, liberi o occupati, il menu contestuale permette di gestire whitelist e blacklist della singola ubicazione. Il vincolo appartiene allo slot, non al contenitore che vi si trova in quel momento.
+
+### Storico dei movimenti automatici
+
+Ogni gruppo automatico di carico o scarico completato produce un blocco identificato come `MV_AA-MM-GG_HH:mm`. Se più gruppi vengono completati nello stesso minuto, dal secondo viene aggiunto un suffisso progressivo (`_02`, `_03`, ...) per mantenere l'identificativo univoco.
+
+Il riepilogo operativo e lo storico mostrano esclusivamente quanto richiesto all'operatore:
+
+- `Articolo X`;
+- `Posizioni A1a, A1b, A1c, ...` caricate o rimosse.
+
+Non vengono descritte le preparazioni esterne al magazzino. Lo storico distingue carico e scarico e conserva l'ordine cronologico delle operazioni. Nel prototipo corrente rimane soltanto nella memoria della finestra: al riavvio viene perso. La versione definitiva dovrà persistere movimento, righe, ubicazioni, data/ora e operatore nel database, senza includere le riallocazioni manuali nello storico automatico.
 
 ### Vincoli cliente per fila e slot
 
@@ -249,7 +263,7 @@ Entità iniziali, da validare prima di creare la persistenza definitiva:
 - **Slot**: coordinata, fila, colonna fisica, lato, livello, stato e possibili vincoli/blocchi.
 - **Cassone**: identificativo univoco, articolo, lotto, quantità/parziale, data di ingresso, tag e stato.
 - **Occupazione**: relazione temporale tra cassone e slot.
-- **Movimento**: carico, scarico, spostamento, estrazione intermedia o rientro; origine, destinazione, operatore e data/ora.
+- **Movimento automatico**: blocco `MV_*` di carico o scarico con righe articolo, ubicazioni interessate, operatore e data/ora. Le riallocazioni manuali sono escluse da questa entità per requisito.
 - **Piano di movimentazione**: sequenza proposta dall'algoritmo, con punteggio e motivazioni.
 - **Blocco operativo**: insieme completo delle righe di carico e/o scarico da ottimizzare congiuntamente, con stato, versione, priorità e responsabile.
 - **Riga del blocco**: articolo, cliente, riferimento ordine, quantità, tipologia e vincoli specifici richiesti dall'operatore.
@@ -375,9 +389,10 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Dettaglio flottante di una coordinata dopo circa un secondo di permanenza del puntatore sulla cella; la scheda si chiude uscendo dalla cella e non modifica la selezione.
 - Modalità di etichettatura per ubicazione, articolo, cliente, ordine e vista combinata.
 - Evidenziazione della selezione e dei cassoni corrispondenti, comprese le altre file.
-- Menu contestuale per simulare in memoria lo stato parziale.
+- Menu contestuale per stato parziale, riallocazione singola, scambio e vincoli della singola ubicazione.
+- Selezione multipla con `Ctrl+clic` o rettangolo trascinato, utilizzabile per parziale e vincoli ma non per spostamenti.
 - Ricerca testuale combinata per articolo, cliente, ordine, tag, parziale e in movimento.
-- Report scritto dei risultati con selezione multipla già predisposta; avvio scarico ancora disabilitato.
+- Report scritto dei risultati con selezione multipla e passaggio diretto delle unità al gruppo di scarico.
 - Pulsante compatto “Ricerca e prelievo” nella toolbar, con filtri e report selezionabile in una finestra dedicata.
 - Barra di ricerca rapida sincronizzata con la finestra di ricerca avanzata.
 - Vista database dinamica con filtro, selezione e ritorno diretto alla posizione sulla mappa.
@@ -386,12 +401,14 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Configuratore whitelist/blacklist per fila e slot, valutazione gerarchica e rilevazione dei conflitti esistenti.
 - Pannello strumenti flottante con selezione della densità `1–16 / 17–32` oppure `1–32` e accesso ai vincoli cliente.
 - Configurazione in memoria del numero di file, della capacità individuale e dell'orientamento fronte/retro di ciascuna fila; `B` e `D` sono inizialmente invertite.
-- Flusso in tre fasi per gruppi multi-articolo di carico e scarico: composizione, anteprima modificabile e conferma dimostrativa.
+- Flusso in tre fasi per gruppi multi-articolo di carico e scarico: composizione, anteprima modificabile e conferma operativa atomica.
 - Bozze separate di carico e scarico mantenute in memoria anche chiudendo la finestra; annullamento completo con ritorno alla mappa.
 - Modulo di carico con articolo, cliente, riferimento ordine, quantità, parziale e tipologia; modulo di scarico manuale oppure alimentato dalle unità selezionate nella ricerca.
 - Distinzione fra cassone e pallet, con pallet dimostrativo associato a una coppia fronte/retro a terra.
 - Un piccolo set di dati dimostrativi non persistenti per verificare la grafica; non rappresenta la giacenza reale.
-- Carico e scarico permettono di preparare i gruppi, ma non modificano ancora le giacenze; spostamento e gestione tag restano disabilitati fino alla definizione dei requisiti.
+- Primo motore euristico di carico e scarico: la conferma aggiorna le giacenze in memoria, applica FIFO nello scarico e mostra soltanto articolo e posizioni interessate.
+- Storico di sessione dei gruppi automatici con identificativi `MV_AA-MM-GG_HH:mm`; le operazioni nello stesso minuto ricevono un suffisso progressivo.
+- Le riallocazioni manuali aggiornano la mappa ma non vengono inserite nello storico automatico. Persistenza su database e gestione completa dei tag restano da realizzare.
 
 ## Sistema di "peso" per allocazione/sorting
 
