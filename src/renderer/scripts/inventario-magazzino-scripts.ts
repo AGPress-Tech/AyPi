@@ -1,5 +1,7 @@
 // @ts-nocheck
 require("./shared/dev-guards");
+const { requestBackend } = require("./shared/backend-client");
+const { ipcRenderer } = require("electron");
 
 function defaultInvertedSides(code) {
     return (code.charCodeAt(0) - "A".charCodeAt(0) + 1) % 2 === 0;
@@ -37,42 +39,8 @@ function totalSlots() {
     return warehouseRows.reduce((total, row) => total + row.capacity, 0);
 }
 
-// Dati esclusivamente dimostrativi: verranno sostituiti dalla persistenza reale.
-const inventory = new Map(
-    [
-        ["A2a", "1400", "AGPRESS", "25/00114", ["urgente", "preferito"], false, false],
-        ["A2b", "1401", "AGPRESS", "25/00114", ["controllo"], false, true],
-        ["A2c", "1500", "AGPRESS", "25/00115", [], false, false],
-        ["A1a", "1400", "AGPRESS", "25/00114", ["preferito"], false, false],
-        ["A1b", "1401", "AGPRESS", "25/00115", [], false, false],
-        ["A1c", "1500", "CLIENTE DEMO", "25/00116", ["prossimo prelievo"], false, false],
-        ["A4a", "T0410AOA77", "AGPRESS", "25/00114", [], false, false],
-        ["A4b", "T0410AOA77", "AGPRESS", "25/00114", ["verifica"], false, true],
-        ["B2a", "T0410AOA77", "AGPRESS", "25/00114", ["preferito"], true, false],
-        ["B2b", "T0410AOA77", "CLIENTE DEMO", "25/00114", [], false, false],
-        ["B4a", "1400", "AGPRESS", "25/00120", [], false, false],
-        ["C2a", "1900", "CLIENTE DEMO", "25/00121", [], false, false],
-        ["C2b", "1900", "CLIENTE DEMO", "25/00121", ["riserva"], false, false],
-        ["C2c", "1900", "CLIENTE DEMO", "25/00121", [], false, false],
-        ["D5a", "PALLET-DEMO", "FANTINI", "26/00001", ["pallet"], false, false, "pallet", "D6a", "PALLET-001"],
-        ["D6a", "PALLET-DEMO", "FANTINI", "26/00001", ["pallet"], false, false, "pallet", "D5a", "PALLET-001"],
-    ].map(([location, article, customer, orderReference, tags, inMovement, partial, type = "crate", pairedLocation = null, unitId = null], index) => [
-        location,
-        {
-            id: unitId || `DEMO-${String(index + 1).padStart(3, "0")}`,
-            location,
-            article,
-            customer,
-            orderReference,
-            tags,
-            inMovement,
-            partial,
-            type,
-            pairedLocation,
-            receivedAt: new Date(2025, 0, index + 1, 8, 0, 0).toISOString(),
-        },
-    ]),
-);
+// La sorgente effettiva viene caricata dalle tabelle SQLite del backend.
+const inventory = new Map();
 
 let selectedRow = "A";
 let selectedSlot = null;
@@ -99,6 +67,138 @@ let relocationSourceCode = null;
 let restrictionBatchTargets = null;
 let completedOperationMovement = null;
 let suppressSlotClickUntil = 0;
+let warehouseRevision = 0;
+let warehousePersistenceReady = false;
+let warehousePersistenceQueue = Promise.resolve();
+const warehousePersistenceMode = process.env.AYPI_WAREHOUSE_USE_BACKEND === "1" ? "backend" : "local";
+
+function warehouseStorageLabel() {
+    return warehousePersistenceMode === "backend" ? "SQLite condiviso" : "SQLite locale";
+}
+
+function loadPersistedWarehouseData() {
+    return warehousePersistenceMode === "backend"
+        ? requestBackend("/api/warehouse-inventory/state")
+        : ipcRenderer.invoke("warehouse-inventory-local-load");
+}
+
+function savePersistedWarehouseData(snapshot) {
+    return warehousePersistenceMode === "backend"
+        ? requestBackend("/api/warehouse-inventory/state", { method: "PUT", body: snapshot })
+        : ipcRenderer.invoke("warehouse-inventory-local-save", snapshot);
+}
+
+function setWarehouseDatabaseStatus(state, message) {
+    const status = document.getElementById("warehouseDatabaseStatus");
+    if (!status) return;
+    status.classList.remove("is-saving", "is-ready", "is-error");
+    if (state) status.classList.add(`is-${state}`);
+    const indicator = status.querySelector("i");
+    status.replaceChildren();
+    if (indicator) status.appendChild(indicator);
+    status.append(document.createTextNode(` ${message}`));
+}
+
+function serializeWarehouseInventory() {
+    return Array.from(inventory.values()).map((item) => ({
+        ...item,
+        tags: Array.isArray(item.tags) ? [...item.tags] : [],
+        pairedLocation: item.pairedLocation || null,
+    }));
+}
+
+function serializeWarehouseMovements() {
+    return movementHistory.map((movement) => ({
+        ...movement,
+        lines: movement.lines.map((line) => ({ ...line, locations: [...line.locations] })),
+    }));
+}
+
+function hydrateWarehouseSnapshot(snapshot) {
+    inventory.clear();
+    (snapshot?.inventory || []).forEach((item) => {
+        if (!item?.location || !item?.id) return;
+        inventory.set(item.location, {
+            ...item,
+            tags: Array.isArray(item.tags) ? [...item.tags] : [],
+            pairedLocation: item.pairedLocation || null,
+        });
+    });
+    movementHistory.splice(0, movementHistory.length, ...(snapshot?.movements || []).map((movement) => ({
+        ...movement,
+        lines: (movement.lines || []).map((line) => ({ ...line, locations: [...(line.locations || [])] })),
+    })));
+    warehouseRevision = Number(snapshot?.revision) || 0;
+}
+
+function refreshWarehouseDataViews() {
+    selectedSlotCodes.clear();
+    selectedReportLocations.clear();
+    selectedSlot = null;
+    selectedAnalysisLocation = null;
+    renderTabs();
+    renderMap();
+    refreshInventorySearch();
+    renderDetails();
+    renderMovementHistory();
+    updateSummary();
+    if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+}
+
+function setTestDatabaseButtonsDisabled(disabled) {
+    document.getElementById("populateWarehouseDatabase").disabled = disabled;
+    document.getElementById("clearWarehouseDatabase").disabled = disabled;
+}
+
+function setWarehouseOperationsDisabled(disabled) {
+    document.getElementById("openLoadButton").disabled = disabled;
+    document.getElementById("openUnloadButton").disabled = disabled;
+}
+
+async function initializeWarehousePersistence() {
+    setTestDatabaseButtonsDisabled(true);
+    setWarehouseOperationsDisabled(true);
+    setWarehouseDatabaseStatus("saving", "Caricamento database…");
+    try {
+        const snapshot = await loadPersistedWarehouseData();
+        hydrateWarehouseSnapshot(snapshot);
+        warehousePersistenceReady = true;
+        refreshWarehouseDataViews();
+        setWarehouseDatabaseStatus("ready", `${warehouseStorageLabel()} · ${inventory.size} slot occupati`);
+    } catch (error) {
+        warehousePersistenceReady = false;
+        setWarehouseDatabaseStatus("error", "Database non raggiungibile");
+        showWarehouseToast(`Impossibile caricare il database: ${error.message}`, true);
+    } finally {
+        setTestDatabaseButtonsDisabled(!warehousePersistenceReady);
+        setWarehouseOperationsDisabled(!warehousePersistenceReady);
+    }
+}
+
+function persistWarehouseData(
+    inventorySnapshot = serializeWarehouseInventory(),
+    movementSnapshot = serializeWarehouseMovements(),
+) {
+    const snapshot = {
+        inventory: inventorySnapshot,
+        movements: movementSnapshot,
+    };
+    warehousePersistenceQueue = warehousePersistenceQueue.catch(() => undefined).then(async () => {
+        if (!warehousePersistenceReady) throw new Error("Database del magazzino non connesso.");
+        setWarehouseDatabaseStatus("saving", "Salvataggio SQLite…");
+        try {
+            const saved = await savePersistedWarehouseData({ ...snapshot, baseRevision: warehouseRevision });
+            warehouseRevision = Number(saved?.revision) || warehouseRevision + 1;
+            setWarehouseDatabaseStatus("ready", `${warehouseStorageLabel()} salvato · ${snapshot.inventory.length} slot occupati`);
+            return saved;
+        } catch (error) {
+            setWarehouseDatabaseStatus("error", "Salvataggio non riuscito");
+            showWarehouseToast(`Dati modificati localmente ma non salvati: ${error.message}`, true);
+            throw error;
+        }
+    });
+    return warehousePersistenceQueue;
+}
 
 function normalizeCustomer(value) {
     return String(value || "").trim().toUpperCase();
@@ -604,6 +704,7 @@ function openContextMenu(code, x, y) {
     const hint = document.getElementById("contextMenuHint");
     const item = inventory.get(code);
     if (!menu || !toggleButton || !hint) return;
+    menu.querySelectorAll("button").forEach((button) => { button.disabled = false; });
     contextSlotCode = code;
     const multiSelection = selectedSlotCodes.size > 1 && selectedSlotCodes.has(code);
     const selectedItems = Array.from(selectedSlotCodes).map((location) => inventory.get(location)).filter(Boolean);
@@ -624,6 +725,9 @@ function openContextMenu(code, x, y) {
     swap.hidden = multiSelection || !relocationSourceCode || !item || code === relocationSourceCode;
     document.getElementById("manageSlotRestrictionsButton").hidden = multiSelection;
     document.getElementById("applySelectionRestrictions").hidden = !multiSelection;
+    if (!warehousePersistenceReady) {
+        menu.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    }
     hint.textContent = multiSelection
         ? `Le azioni massive interessano ${selectedSlotCodes.size} slot; la riallocazione resta disponibile soltanto per un cassone.`
         : relocationSourceCode
@@ -641,6 +745,7 @@ function applyInventoryState(state) {
     inventory.clear();
     state.forEach((item, location) => inventory.set(location, item));
     refreshWarehouseAfterManualChange();
+    void persistWarehouseData().catch(() => {});
 }
 
 function validFrontRearModule(state, location) {
@@ -696,6 +801,7 @@ function setupContextMenu() {
         item.partial = !item.partial;
         refreshInventorySearch();
         renderDetails();
+        void persistWarehouseData().catch(() => {});
         closeContextMenu();
     });
     document.getElementById("markSelectionPartial")?.addEventListener("click", (event) => {
@@ -709,6 +815,7 @@ function setupContextMenu() {
             }
         });
         refreshWarehouseAfterManualChange();
+        void persistWarehouseData().catch(() => {});
         closeContextMenu();
         showWarehouseToast(`${changed} ${changed === 1 ? "cassone segnato" : "cassoni segnati"} come parziali.`);
     });
@@ -723,6 +830,7 @@ function setupContextMenu() {
             }
         });
         refreshWarehouseAfterManualChange();
+        void persistWarehouseData().catch(() => {});
         closeContextMenu();
         showWarehouseToast(`Stato parziale rimosso da ${changed} ${changed === 1 ? "cassone" : "cassoni"}.`);
     });
@@ -1204,16 +1312,35 @@ function editOperationLine(index) {
     document.getElementById("loadArticle")?.focus();
 }
 
+async function focusOperationDialogInput() {
+    try {
+        await ipcRenderer.invoke("warehouse-inventory-focus-window");
+    } catch {
+        window.focus();
+    }
+    requestAnimationFrame(() => {
+        const input = document.getElementById("loadArticle");
+        input?.focus({ preventScroll: true });
+        input?.select();
+    });
+}
+
 function openOperationDialog(mode, stage) {
+    closeToolsDrawer();
+    closeContextMenu();
+    hideSlotPreview();
     operationGroupMode = mode;
     configureOperationDialog();
     resetOperationLineForm();
     renderOperationGroup();
     setOperationStage(stage || operationGroupStages[mode] || "compose");
     const dialog = document.getElementById("operationGroupDialog");
+    if (dialog) dialog.inert = false;
     dialog?.classList.add("is-open");
     dialog?.setAttribute("aria-hidden", "false");
-    if ((stage || operationGroupStages[mode]) === "compose") document.getElementById("loadArticle")?.focus();
+    if ((stage || operationGroupStages[mode]) === "compose") {
+        void focusOperationDialogInput();
+    }
 }
 
 function closeOperationDialog() {
@@ -1259,8 +1386,8 @@ function addSelectedResultsToUnloadGroup() {
         : "Le unità selezionate erano già presenti nel gruppo di scarico.";
 }
 
-function cloneInventoryState() {
-    return new Map(Array.from(inventory, ([location, item]) => [location, { ...item, tags: [...item.tags] }]));
+function cloneInventoryState(source = inventory) {
+    return new Map(Array.from(source, ([location, item]) => [location, { ...item, tags: [...item.tags] }]));
 }
 
 function stateHasBlockingPallet(state, parsed) {
@@ -1272,21 +1399,25 @@ function stateHasBlockingPallet(state, parsed) {
     return groundCodes.some((code) => state.get(code)?.type === "pallet");
 }
 
-function crateCandidateScore(state, parsed, article) {
-    const stack = ["a", "b", "c"].map((level) => state.get(`${parsed.row}${parsed.number}${level}`)).filter(Boolean);
-    const rowHasArticle = Array.from(state.values()).some((item) => item.location.startsWith(parsed.row) && item.article === article);
-    const sameArticleInStack = stack.some((item) => item.article === article);
-    const mixedStack = stack.some((item) => item.article !== article);
-    const levelValue = { a: 0, b: 1, c: 2 }[parsed.level];
-    return (rowHasArticle ? -10000 : 0)
-        + (sameArticleInStack ? -4500 : 0)
-        + (stack.length ? -1600 : 0)
-        + (mixedStack ? 700 : 0)
-        + (parsed.side === "rear" ? -500 : 0)
-        + rowCodes().indexOf(parsed.row) * 120
-        + parsed.physicalColumn * 8
-        + levelValue;
-}
+const CRATE_SORTING_WEIGHTS = Object.freeze({
+    forkliftMovement: 220,
+    touchedStack: 260,
+    newArticleDivision: 300,
+    touchedPhysicalModule: 120,
+    newPhysicalModule: 450,
+    mixedArticleStack: 100,
+    mixedArticleUnit: 450,
+    frontUnit: 90,
+    completeStack: -220,
+    twoHighStack: -45,
+    sameArticleFrontRearModule: -800,
+    continueExistingArticleUnit: -900,
+    differentRowDistance: 2000,
+    physicalColumnDistance: 35,
+    oppositeSideDistance: 15,
+    initialRowOrder: 180,
+    initialColumnOrder: 8,
+});
 
 function validCrateDestination(state, parsed, customer) {
     if (!parsed || state.has(parsed.code) || stateHasBlockingPallet(state, parsed)) return false;
@@ -1300,14 +1431,251 @@ function validCrateDestination(state, parsed, customer) {
     return true;
 }
 
-function bestCrateDestination(state, article, customer) {
-    return allWarehouseSlots()
-        .map((slot) => parseSlotCode(slot.code))
-        .filter((slot) => validCrateDestination(state, slot, customer))
-        .sort((left, right) => crateCandidateScore(state, left, article) - crateCandidateScore(state, right, article))[0] || null;
+function crateStackItems(state, parsed) {
+    return ["a", "b", "c"].map((level) => state.get(`${parsed.row}${parsed.number}${level}`));
 }
 
-function bestPalletDestination(state, customer) {
+function generateCratePlacementMoves(state, maximumUnits, article, customer) {
+    const levels = ["a", "b", "c"];
+    const moves = [];
+    rowCodes().forEach((row) => {
+        for (let number = 1; number <= maximumPositionForRow(row); number += 1) {
+            const ground = parseSlotCode(`${row}${number}a`);
+            const stack = crateStackItems(state, ground);
+            const occupied = stack.filter(Boolean).length;
+            const compact = stack.slice(0, occupied).every(Boolean)
+                && stack.slice(occupied).every((item) => !item);
+            if (!compact || occupied >= 3) continue;
+            const largestMove = Math.min(3 - occupied, maximumUnits, 3);
+            const validationState = new Map(state);
+            const codes = [];
+            for (let size = 1; size <= largestMove; size += 1) {
+                const code = `${row}${number}${levels[occupied + size - 1]}`;
+                const parsed = parseSlotCode(code);
+                if (!validCrateDestination(validationState, parsed, customer)) break;
+                validationState.set(code, { location: code, article, customer, type: "crate", tags: [] });
+                codes.push(code);
+                moves.push({ codes: [...codes] });
+            }
+        }
+    });
+    return moves;
+}
+
+function cratePlanSignature(node) {
+    return [...node.locations].sort((left, right) => left.localeCompare(right, undefined, { numeric: true })).join("|");
+}
+
+function crateMovementOrderKey(node) {
+    return (node.moveSizes || []).map((size) => 4 - size).join("");
+}
+
+function scoreCratePlan(initialState, state, locations, article, movements, initialArticleLocations) {
+    const levels = ["a", "b", "c"];
+    const touchedStacks = new Map();
+    locations.forEach((code) => {
+        const parsed = parseSlotCode(code);
+        touchedStacks.set(`${parsed.row}:${parsed.number}`, parsed);
+    });
+    const touchedModules = new Map();
+    let mixedStacks = 0;
+    let mixedUnits = 0;
+    let newArticleDivisions = 0;
+    let newPhysicalModules = 0;
+    let frontUnits = 0;
+    let completedStacks = 0;
+    let twoHighStacks = 0;
+    let distanceScore = 0;
+    let initialPositionScore = 0;
+    touchedStacks.forEach((parsed) => {
+        const initialItems = crateStackItems(initialState, parsed).filter(Boolean);
+        const finalItems = crateStackItems(state, parsed).filter(Boolean);
+        if (initialItems.some((item) => item.article !== article)) {
+            mixedStacks += 1;
+            mixedUnits += locations.filter((code) => {
+                const location = parseSlotCode(code);
+                return location.row === parsed.row && location.number === parsed.number;
+            }).length;
+        }
+        if (!initialItems.some((item) => item.article === article)) newArticleDivisions += 1;
+        if (finalItems.length === 3) completedStacks += 1;
+        else if (finalItems.length === 2) twoHighStacks += 1;
+        touchedModules.set(`${parsed.row}:${parsed.physicalColumn}`, parsed);
+        if (initialArticleLocations.length) {
+            distanceScore += Math.min(...initialArticleLocations.map((existing) => (
+                Math.abs(rowCodes().indexOf(parsed.row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
+                + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
+                + (parsed.side === existing.side ? 0 : CRATE_SORTING_WEIGHTS.oppositeSideDistance)
+            )));
+        } else {
+            initialPositionScore += rowCodes().indexOf(parsed.row) * CRATE_SORTING_WEIGHTS.initialRowOrder
+                + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
+        }
+    });
+    locations.forEach((code) => {
+        if (parseSlotCode(code).side === "front") frontUnits += 1;
+    });
+    let pairedArticleModules = 0;
+    let continuedArticleUnits = 0;
+    touchedModules.forEach((parsed) => {
+        const rearNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a")).number;
+        const frontNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "front", "a")).number;
+        const moduleWasEmpty = [rearNumber, frontNumber].every((number) => (
+            levels.every((level) => !initialState.has(`${parsed.row}${number}${level}`))
+        ));
+        if (moduleWasEmpty) newPhysicalModules += 1;
+        const initialRearHasArticle = levels.some((level) => initialState.get(`${parsed.row}${rearNumber}${level}`)?.article === article);
+        const initialFrontHasArticle = levels.some((level) => initialState.get(`${parsed.row}${frontNumber}${level}`)?.article === article);
+        const rearHasArticle = levels.some((level) => state.get(`${parsed.row}${rearNumber}${level}`)?.article === article);
+        const frontHasArticle = levels.some((level) => state.get(`${parsed.row}${frontNumber}${level}`)?.article === article);
+        const moduleHasOtherArticle = [rearNumber, frontNumber].some((number) => levels.some((level) => {
+            const item = state.get(`${parsed.row}${number}${level}`);
+            return item && item.article !== article;
+        }));
+        if (rearHasArticle && frontHasArticle && !moduleHasOtherArticle) {
+            pairedArticleModules += 1;
+            if (initialRearHasArticle || initialFrontHasArticle) {
+                continuedArticleUnits += locations.filter((code) => {
+                    const location = parseSlotCode(code);
+                    return location.row === parsed.row && location.physicalColumn === parsed.physicalColumn;
+                }).length;
+            }
+        }
+    });
+    return movements * CRATE_SORTING_WEIGHTS.forkliftMovement
+        + touchedStacks.size * CRATE_SORTING_WEIGHTS.touchedStack
+        + newArticleDivisions * CRATE_SORTING_WEIGHTS.newArticleDivision
+        + touchedModules.size * CRATE_SORTING_WEIGHTS.touchedPhysicalModule
+        + newPhysicalModules * CRATE_SORTING_WEIGHTS.newPhysicalModule
+        + mixedStacks * CRATE_SORTING_WEIGHTS.mixedArticleStack
+        + mixedUnits * CRATE_SORTING_WEIGHTS.mixedArticleUnit
+        + frontUnits * CRATE_SORTING_WEIGHTS.frontUnit
+        + completedStacks * CRATE_SORTING_WEIGHTS.completeStack
+        + twoHighStacks * CRATE_SORTING_WEIGHTS.twoHighStack
+        + pairedArticleModules * CRATE_SORTING_WEIGHTS.sameArticleFrontRearModule
+        + continuedArticleUnits * CRATE_SORTING_WEIGHTS.continueExistingArticleUnit
+        + distanceScore
+        + initialPositionScore;
+}
+
+function scoreCrateMoveCandidate(state, move, article, initialArticleLocations) {
+    const parsed = parseSlotCode(move.codes[0]);
+    const stack = crateStackItems(state, parsed).filter(Boolean);
+    const finalHeight = stack.length + move.codes.length;
+    const rearNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a")).number;
+    const frontNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "front", "a")).number;
+    const moduleNumbers = [rearNumber, frontNumber];
+    const moduleWasEmpty = moduleNumbers.every((number) => (
+        ["a", "b", "c"].every((level) => !state.has(`${parsed.row}${number}${level}`))
+    ));
+    const sideHasArticle = (number) => ["a", "b", "c"].some((level) => (
+        state.get(`${parsed.row}${number}${level}`)?.article === article
+            || move.codes.includes(`${parsed.row}${number}${level}`)
+    ));
+    const moduleHasOtherArticle = moduleNumbers.some((number) => ["a", "b", "c"].some((level) => {
+        const item = state.get(`${parsed.row}${number}${level}`);
+        return item && item.article !== article;
+    }));
+    const distance = initialArticleLocations.length
+        ? Math.min(...initialArticleLocations.map((existing) => (
+            Math.abs(rowCodes().indexOf(parsed.row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
+            + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
+            + (parsed.side === existing.side ? 0 : CRATE_SORTING_WEIGHTS.oppositeSideDistance)
+        )))
+        : rowCodes().indexOf(parsed.row) * CRATE_SORTING_WEIGHTS.initialRowOrder
+            + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
+    return CRATE_SORTING_WEIGHTS.forkliftMovement
+        + CRATE_SORTING_WEIGHTS.touchedStack
+        + CRATE_SORTING_WEIGHTS.touchedPhysicalModule
+        + (stack.some((item) => item.article !== article)
+            ? CRATE_SORTING_WEIGHTS.mixedArticleStack + move.codes.length * CRATE_SORTING_WEIGHTS.mixedArticleUnit
+            : 0)
+        + (!stack.some((item) => item.article === article) ? CRATE_SORTING_WEIGHTS.newArticleDivision : 0)
+        + (moduleWasEmpty ? CRATE_SORTING_WEIGHTS.newPhysicalModule : 0)
+        + move.codes.filter((code) => parseSlotCode(code).side === "front").length * CRATE_SORTING_WEIGHTS.frontUnit
+        + (finalHeight === 3 ? CRATE_SORTING_WEIGHTS.completeStack : finalHeight === 2 ? CRATE_SORTING_WEIGHTS.twoHighStack : 0)
+        + (sideHasArticle(rearNumber) && sideHasArticle(frontNumber) && !moduleHasOtherArticle
+            ? CRATE_SORTING_WEIGHTS.sameArticleFrontRearModule
+            : 0)
+        + distance;
+}
+
+function trimCratePlanBeam(nodes, width) {
+    const unique = new Map();
+    nodes.forEach((node) => {
+        const signature = cratePlanSignature(node);
+        const current = unique.get(signature);
+        if (!current || node.score < current.score
+            || (node.score === current.score && crateMovementOrderKey(node) < crateMovementOrderKey(current))
+            || (node.score === current.score && crateMovementOrderKey(node) === crateMovementOrderKey(current)
+                && node.locations.join("|") < current.locations.join("|"))) {
+            unique.set(signature, node);
+        }
+    });
+    return Array.from(unique.values())
+        .sort((left, right) => left.score - right.score
+            || crateMovementOrderKey(left).localeCompare(crateMovementOrderKey(right))
+            || left.locations.join("|").localeCompare(right.locations.join("|"), undefined, { numeric: true }))
+        .slice(0, width);
+}
+
+function planWeightedCrateAllocation(initialState, entry) {
+    const quantity = entry.quantity;
+    const beamWidth = quantity <= 6 ? 32 : quantity <= 20 ? 14 : quantity <= 60 ? 8 : 4;
+    const actionWidth = quantity <= 20 ? 12 : 8;
+    const initialArticleLocations = Array.from(initialState.values())
+        .filter((item) => item.article === entry.article)
+        .map((item) => parseSlotCode(item.location))
+        .filter(Boolean);
+    const layers = Array.from({ length: quantity + 1 }, () => []);
+    layers[0].push({ state: new Map(initialState), locations: [], movements: 0, moveSizes: [], score: 0 });
+    for (let placed = 0; placed < quantity; placed += 1) {
+        const layer = trimCratePlanBeam(layers[placed], beamWidth);
+        for (const node of layer) {
+            const moves = generateCratePlacementMoves(node.state, quantity - placed, entry.article, entry.customer);
+            const shortlistedMoves = [1, 2, 3].flatMap((size) => moves
+                .filter((move) => move.codes.length === size)
+                .map((move) => ({
+                    ...move,
+                    quickScore: scoreCrateMoveCandidate(node.state, move, entry.article, initialArticleLocations),
+                }))
+                .sort((left, right) => left.quickScore - right.quickScore
+                    || left.codes[0].localeCompare(right.codes[0], undefined, { numeric: true }))
+                .slice(0, actionWidth));
+            for (const move of shortlistedMoves) {
+                const moveState = new Map(node.state);
+                move.codes.forEach((code) => moveState.set(code, {
+                    location: code,
+                    article: entry.article,
+                    customer: entry.customer,
+                    type: "crate",
+                    tags: [],
+                }));
+                const locations = [...node.locations, ...move.codes];
+                const movements = node.movements + 1;
+                const target = placed + move.codes.length;
+                layers[target].push({
+                    state: moveState,
+                    locations,
+                    movements,
+                    moveSizes: [...node.moveSizes, move.codes.length],
+                    score: scoreCratePlan(initialState, moveState, locations, entry.article, movements, initialArticleLocations),
+                });
+                if (layers[target].length > beamWidth * 12) {
+                    layers[target] = trimCratePlanBeam(layers[target], beamWidth * 4);
+                }
+            }
+        }
+    }
+    return trimCratePlanBeam(layers[quantity], 1)[0] || null;
+}
+
+function bestPalletDestination(state, article, customer) {
+    const articleLocations = Array.from(state.values())
+        .filter((item) => item.article === article)
+        .map((item) => parseSlotCode(item.location))
+        .filter(Boolean);
+    const candidates = [];
     for (const row of rowCodes()) {
         for (let column = 0; column < physicalColumnsForRow(row); column += 1) {
             const front = slotCode(row, column, "front", "a");
@@ -1318,10 +1686,20 @@ function bestPalletDestination(state, customer) {
             });
             if (columnCodes.some((code) => state.has(code))) continue;
             if (![front, rear].every((code) => evaluateCustomerForSlot(code, customer).allowed)) continue;
-            return [rear, front];
+            const parsed = parseSlotCode(rear);
+            const distance = articleLocations.length
+                ? Math.min(...articleLocations.map((existing) => (
+                    Math.abs(rowCodes().indexOf(row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
+                    + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
+                )))
+                : rowCodes().indexOf(row) * CRATE_SORTING_WEIGHTS.initialRowOrder
+                    + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
+            candidates.push({ pair: [rear, front], score: distance });
         }
     }
-    return null;
+    candidates.sort((left, right) => left.score - right.score
+        || left.pair[0].localeCompare(right.pair[0], undefined, { numeric: true }));
+    return candidates[0]?.pair || null;
 }
 
 function summarizeMovementLines(actions) {
@@ -1333,18 +1711,36 @@ function summarizeMovementLines(actions) {
     return Array.from(grouped, ([article, locations]) => ({ article, locations }));
 }
 
-function planLoadOperation(entries) {
-    const state = cloneInventoryState();
+function planLoadOperation(entries, initialState = inventory) {
+    const state = cloneInventoryState(initialState);
     const actions = [];
     const timestamp = new Date();
     let sequence = 0;
     for (const entry of entries) {
         const locations = [];
-        for (let unit = 0; unit < entry.quantity; unit += 1) {
+        const insertCrate = (location) => {
             const id = `AUTO-${timestamp.getTime()}-${sequence++}`;
             const receivedAt = new Date(timestamp.getTime() + sequence).toISOString();
-            if (entry.type === "pallet") {
-                const pair = bestPalletDestination(state, entry.customer);
+            state.set(location, {
+                id,
+                location,
+                article: entry.article,
+                customer: entry.customer,
+                orderReference: entry.order,
+                tags: [],
+                inMovement: false,
+                partial: entry.partial,
+                type: "crate",
+                pairedLocation: null,
+                receivedAt,
+            });
+            locations.push(location);
+        };
+        if (entry.type === "pallet") {
+            for (let unit = 0; unit < entry.quantity; unit += 1) {
+                const id = `AUTO-${timestamp.getTime()}-${sequence++}`;
+                const receivedAt = new Date(timestamp.getTime() + sequence).toISOString();
+                const pair = bestPalletDestination(state, entry.article, entry.customer);
                 if (!pair) return { error: `Spazio valido insufficiente per ${entry.article}: impossibile collocare tutti i pallet.` };
                 pair.forEach((location, index) => state.set(location, {
                     id,
@@ -1360,24 +1756,11 @@ function planLoadOperation(entries) {
                     receivedAt,
                 }));
                 locations.push(pair.join(" + "));
-            } else {
-                const destination = bestCrateDestination(state, entry.article, entry.customer);
-                if (!destination) return { error: `Spazio valido insufficiente per ${entry.article}: impossibile collocare tutti i cassoni.` };
-                state.set(destination.code, {
-                    id,
-                    location: destination.code,
-                    article: entry.article,
-                    customer: entry.customer,
-                    orderReference: entry.order,
-                    tags: [],
-                    inMovement: false,
-                    partial: entry.partial,
-                    type: "crate",
-                    pairedLocation: null,
-                    receivedAt,
-                });
-                locations.push(destination.code);
             }
+        } else {
+            const plan = planWeightedCrateAllocation(state, entry);
+            if (!plan) return { error: `Spazio valido insufficiente per ${entry.article}: impossibile collocare tutti i cassoni.` };
+            plan.locations.forEach(insertCrate);
         }
         actions.push({ article: entry.article, locations });
     }
@@ -1446,15 +1829,23 @@ function movementIdentifier(date) {
     return duplicates ? `${base}_${part(duplicates + 1)}` : base;
 }
 
-function commitOperationGroup() {
+async function commitOperationGroup() {
     const plan = operationGroupMode === "load"
         ? planLoadOperation(activeOperationGroup())
         : planUnloadOperation(activeOperationGroup());
     if (plan.error) return plan;
-    inventory.clear();
-    plan.state.forEach((item, location) => inventory.set(location, item));
     const now = new Date();
     const movement = { id: movementIdentifier(now), timestamp: now.toISOString(), type: operationGroupMode, lines: plan.lines };
+    try {
+        await persistWarehouseData(
+            Array.from(plan.state.values()).map((item) => ({ ...item, tags: [...item.tags] })),
+            [movement, ...serializeWarehouseMovements()],
+        );
+    } catch (error) {
+        return { error: `Operazione non applicata: ${error.message}` };
+    }
+    inventory.clear();
+    plan.state.forEach((item, location) => inventory.set(location, item));
     movementHistory.unshift(movement);
     completedOperationMovement = movement;
     renderMovementHistory();
@@ -1547,6 +1938,9 @@ function setupLoadDialog() {
     document.getElementById("operationGroupDialog")?.addEventListener("click", (event) => {
         if (event.target === event.currentTarget) closeOperationDialog();
     });
+    document.getElementById("operationGroupDialog")?.addEventListener("pointerdown", (event) => {
+        if (event.target.closest?.("input, select, textarea, button")) event.stopPropagation();
+    });
     document.getElementById("loadType")?.addEventListener("change", updateLoadTypeNote);
     document.getElementById("operationLineForm")?.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -1569,8 +1963,11 @@ function setupLoadDialog() {
     document.getElementById("backToOperationCompose")?.addEventListener("click", () => setOperationStage("compose"));
     document.getElementById("cancelOperationGroup")?.addEventListener("click", cancelOperationGroup);
     document.getElementById("cancelOperationReview")?.addEventListener("click", cancelOperationGroup);
-    document.getElementById("confirmOperationGroup")?.addEventListener("click", () => {
-        const result = commitOperationGroup();
+    document.getElementById("confirmOperationGroup")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        const result = await commitOperationGroup();
+        button.disabled = false;
         if (result.error) {
             const note = document.getElementById("operationReviewNote");
             note.textContent = result.error;
@@ -2348,6 +2745,94 @@ function updateSummary() {
         `Struttura configurata: ${warehouseRows.length} ${warehouseRows.length === 1 ? "fila" : "file"}, 3 livelli e ${capacity} slot totali.`;
 }
 
+function pseudoRandomInteger(minimum, maximum) {
+    return Math.floor(Math.random() * (maximum - minimum + 1)) + minimum;
+}
+
+function buildPseudoRandomWarehouseState() {
+    const customers = ["AGPRESS", "FANTINI", "CLIENTE DEMO", "TECNOSTAMPA", "ROSSI SPA"];
+    const entries = [];
+    for (let index = 0; index < 4; index += 1) {
+        entries.push({
+            article: `PALLET-${String(index + 1).padStart(3, "0")}`,
+            customer: customers[pseudoRandomInteger(0, customers.length - 1)],
+            order: `${pseudoRandomInteger(25, 26)}/${String(pseudoRandomInteger(1, 99999)).padStart(5, "0")}`,
+            quantity: pseudoRandomInteger(1, 2),
+            partial: false,
+            type: "pallet",
+        });
+    }
+    for (let index = 0; index < 24; index += 1) {
+        entries.push({
+            article: index % 4 === 0 ? `T${pseudoRandomInteger(1000000, 9999999)}A` : String(pseudoRandomInteger(1100, 9900)),
+            customer: customers[pseudoRandomInteger(0, customers.length - 1)],
+            order: `${pseudoRandomInteger(24, 26)}/${String(pseudoRandomInteger(1, 99999)).padStart(5, "0")}${Math.random() < .08 ? "/C" : ""}`,
+            quantity: pseudoRandomInteger(1, 7),
+            partial: Math.random() < .14,
+            type: "crate",
+        });
+    }
+    const plan = planLoadOperation(entries, new Map());
+    if (plan.error) return plan;
+    const receivedDates = new Map();
+    const tagOptions = ["preferito", "urgente", "controllo", "riserva"];
+    plan.state.forEach((item) => {
+        if (!receivedDates.has(item.id)) {
+            receivedDates.set(item.id, new Date(Date.now() - pseudoRandomInteger(1, 540) * 86400000).toISOString());
+        }
+        item.receivedAt = receivedDates.get(item.id);
+        item.tags = Math.random() < .18 ? [tagOptions[pseudoRandomInteger(0, tagOptions.length - 1)]] : [];
+    });
+    return plan;
+}
+
+function resetOperationDraftsAfterDatabaseChange() {
+    operationGroups.load.splice(0);
+    operationGroups.unload.splice(0);
+    operationGroupStages.load = "compose";
+    operationGroupStages.unload = "compose";
+    completedOperationMovement = null;
+}
+
+function setupTemporaryDatabaseActions() {
+    document.getElementById("populateWarehouseDatabase")?.addEventListener("click", async () => {
+        if ((inventory.size || movementHistory.length) && !window.confirm("Sostituire tutte le giacenze e lo storico con nuovi dati pseudo-randomici di test?")) return;
+        setTestDatabaseButtonsDisabled(true);
+        try {
+            const plan = buildPseudoRandomWarehouseState();
+            if (plan.error) throw new Error(plan.error);
+            inventory.clear();
+            plan.state.forEach((item, location) => inventory.set(location, item));
+            movementHistory.splice(0);
+            resetOperationDraftsAfterDatabaseChange();
+            refreshWarehouseDataViews();
+            await persistWarehouseData();
+            showWarehouseToast(`Database popolato con ${logicalInventoryUnits(inventory).length} unità logistiche di test.`);
+        } catch (error) {
+            showWarehouseToast(`Popolamento non completato: ${error.message}`, true);
+        } finally {
+            setTestDatabaseButtonsDisabled(false);
+        }
+    });
+
+    document.getElementById("clearWarehouseDatabase")?.addEventListener("click", async () => {
+        if (!window.confirm("Svuotare completamente giacenze e storico del magazzino? L'operazione non è annullabile.")) return;
+        setTestDatabaseButtonsDisabled(true);
+        try {
+            inventory.clear();
+            movementHistory.splice(0);
+            resetOperationDraftsAfterDatabaseChange();
+            refreshWarehouseDataViews();
+            await persistWarehouseData();
+            showWarehouseToast("Database del magazzino svuotato completamente.");
+        } catch (error) {
+            showWarehouseToast(`Svuotamento non salvato: ${error.message}`, true);
+        } finally {
+            setTestDatabaseButtonsDisabled(false);
+        }
+    });
+}
+
 renderTabs();
 renderMap();
 setupDisplayMode();
@@ -2361,4 +2846,6 @@ setupSlotAreaSelection();
 setupInventorySearch();
 setupAnalysisView();
 setupRestrictionDialog();
+setupTemporaryDatabaseActions();
 updateSummary();
+void initializeWarehousePersistence();

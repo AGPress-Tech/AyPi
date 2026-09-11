@@ -31,14 +31,19 @@
                     <button class="is-active" type="button" data-view="warehouse" aria-pressed="true">Mappa magazzino</button>
                     <button type="button" data-view="analysis" aria-pressed="false">Vista database</button>
                 </nav>
-                <div class="status-pill"><i></i> Dati dimostrativi · non salvati</div>
+                <div class="test-database-actions" aria-label="Strumenti database temporanei">
+                    <span>TEST DB</span>
+                    <button id="populateWarehouseDatabase" type="button">Popola pseudo-random</button>
+                    <button class="is-danger" id="clearWarehouseDatabase" type="button">Svuota database</button>
+                </div>
+                <div class="status-pill" id="warehouseDatabaseStatus"><i></i> Connessione al database…</div>
             </div>
         </header>
 
         <section class="app-view app-view--warehouse" id="warehouseView">
         <section class="summary-grid" aria-label="Riepilogo magazzino">
             <article><span>Capacità totale</span><strong id="totalSlots">480</strong><small>cassoni</small></article>
-            <article><span>Slot occupati</span><strong id="occupiedSlots">0</strong><small>dati dimostrativi</small></article>
+            <article><span>Slot occupati</span><strong id="occupiedSlots">0</strong><small>dati persistenti</small></article>
             <article><span>Slot disponibili</span><strong id="freeSlots">480</strong><small id="freeSlotsCapacity">su 480 posizioni</small></article>
             <article><span>File</span><strong id="rowCount">5</strong><small id="rowList">A, B, C, D, E</small></article>
         </section>
@@ -46,7 +51,7 @@
         <section class="operation-bar" aria-label="Operazioni magazzino">
             <div>
                 <span class="section-label">OPERAZIONI</span>
-                <p>Prepara gruppi multi-articolo; l'assegnazione delle ubicazioni resta dimostrativa.</p>
+                <p>Prepara gruppi multi-articolo e salva nel database la disposizione confermata.</p>
             </div>
             <button class="operation-button--active" id="openLoadButton" type="button">Carico</button>
             <button class="operation-button--active" id="openUnloadButton" type="button">Scarico</button>

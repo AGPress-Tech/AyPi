@@ -1,6 +1,6 @@
 # Inventario magazzino — piano di progetto
 
-Stato: raccolta requisiti e prototipo operativo in memoria. I gruppi automatici di carico/scarico aggiornano la mappa e generano uno storico di sessione; algoritmo definitivo, database e audit persistente restano da realizzare.
+Stato: raccolta requisiti e prototipo operativo con persistenza SQLite. Giacenze, occupazioni e storico automatico sopravvivono al riavvio; algoritmo definitivo e audit completo restano da realizzare.
 
 ## 1. Obiettivo
 
@@ -60,12 +60,14 @@ In una fila invertita la coppia numerica rimane nella stessa colonna fisica, ma 
 - L'operatore indica l'intero blocco da caricare, composto da uno o più articoli e dalle rispettive quantità.
 - Ogni richiesta di carico raccoglie: articolo, cliente, riferimento ordine, quantità, stato parziale (`Sì/No`) e tipologia (`Cassone/Pallet`).
 - Se la tipologia è pallet, ogni unità richiesta consuma una coppia fronte/retro a terra e l'algoritmo deve escludere qualsiasi colonna verticalmente occupata.
-- A magazzino vuoto si preferiscono inizialmente gli slot posteriori, perché l'accesso è frontale.
-- I cassoni dello stesso carico vanno raggruppati in pile complete da 3 quando possibile.
-- Il sistema non deve semplicemente saturare i primi vuoti disponibili.
-- Deve ridurre le future movimentazioni e usare gli spazi parziali quando questo non peggiora la disposizione complessiva.
-- La scansione da sinistra verso destra e la preferenza posteriore → anteriore costituiscono il criterio iniziale, ma possono essere superate quando una diversa combinazione dell'intero carico riduce realmente movimentazioni o frammentazione.
-- Le piccole quantità possono completare livelli liberi sopra pile già esistenti, anche di articoli diversi, se i supporti sono validi e questo riduce il numero di divisioni senza peggiorare l'accessibilità futura.
+- Gravità, blocchi pallet, accessibilità del fronte e vincoli cliente sono condizioni rigide: una combinazione che ne viola una viene scartata.
+- Retro prima del fronte, sinistra prima della destra, pile complete, poche divisioni, vicinanza dello stesso articolo e riduzione delle movimentazioni sono invece preferenze pesate. Nessuna di esse viene più implementata come eccezione assoluta.
+- Il motore genera inserimenti verticali validi da 1, 2 o 3 cassoni, combina più inserimenti e confronta il punteggio dell'intero piano prima di assegnare le ubicazioni.
+- Una ricerca beam mantiene le migliori alternative a ogni quantità già collocata. In questo modo valuta configurazioni come `3+1`, `2+2`, `3+2` e `1+1` senza enumerare in modo ingestibile tutte le permutazioni dei 480 slot.
+- La mescolanza di articoli nella stessa pila riceve una penalità proporzionale al numero di nuovi cassoni coinvolti, ma rimane tecnicamente possibile: un singolo `+1` che completa il livello `c` può vincere per vicinanza e compattezza, mentre collocare due cassoni sopra un articolo diverso perde normalmente contro una nuova pila posteriore libera.
+- La continuità dello stesso articolo nella pila o nella coppia fronte/retro riceve un forte vantaggio. Per questo `A2a+A2b` esistenti possono essere continuati con `A2c+A1a` per due nuove unità dello stesso articolo, senza una regola speciale dedicata.
+- Il numero di pile/divisioni e di moduli fisici coinvolti pesa più della semplice posizione; distanza, fronte/retro e ordinamento da sinistra risolvono progressivamente le alternative rimanenti.
+- Ogni inserimento verticale da massimo tre cassoni conta come una movimentazione del muletto. Passare dal posteriore all'anteriore richiede quindi due inserimenti distinti ed entra nel punteggio del piano.
 - Esempio ricevuto: 4 cassoni di `1400A` → `A2a`, `A2b`, `A2c`, `A1a`.
 - Esempio ricevuto: 6 cassoni → preferire una distribuzione `3 + 3`, possibilmente su una coppia fronte/retro libera, invece di `3 + 2 + 1`.
 
@@ -230,7 +232,19 @@ Il riepilogo operativo e lo storico mostrano esclusivamente quanto richiesto all
 - `Articolo X`;
 - `Posizioni A1a, A1b, A1c, ...` caricate o rimosse.
 
-Non vengono descritte le preparazioni esterne al magazzino. Lo storico distingue carico e scarico e conserva l'ordine cronologico delle operazioni. Nel prototipo corrente rimane soltanto nella memoria della finestra: al riavvio viene perso. La versione definitiva dovrà persistere movimento, righe, ubicazioni, data/ora e operatore nel database, senza includere le riallocazioni manuali nello storico automatico.
+Non vengono descritte le preparazioni esterne al magazzino. Lo storico distingue carico e scarico e conserva l'ordine cronologico delle operazioni. Movimento, righe, ubicazioni e data/ora sono ora persistiti in SQLite; le riallocazioni manuali restano escluse dallo storico automatico.
+
+### Persistenza SQLite
+
+Il modulo usa subito un database SQLite locale integrato nel processo principale dell'app, salvato nella cartella dati di AyPi. Non richiede quindi che il backend HTTP sia in esecuzione. Il formato dello snapshot è compatibile con l'API magazzino già predisposta sul backend; impostando `AYPI_WAREHOUSE_USE_BACKEND=1` sarà possibile spostarlo nel file `aypi.db` condiviso da Calendar e Purchasing. Sul backend sono già presenti le tabelle dedicate con prefisso `warehouse_`:
+
+- unità logistiche, con articolo, cliente, riferimento ordine, tipologia, parziale, tag e data FIFO;
+- occupazioni fisiche e coppia associata dei pallet;
+- testata dei movimenti automatici;
+- righe articolo/posizioni di ogni movimento;
+- revisione dello stato per rilevare aggiornamenti concorrenti.
+
+Il database nasce vuoto e non viene più caricato il precedente set dimostrativo dal codice. In questa fase sono visibili due comandi temporanei **TEST DB**: uno sostituisce il contenuto con dati pseudo-randomici fisicamente validi, l'altro elimina giacenze e storico del solo modulo magazzino. Entrambi verranno rimossi terminato il collaudo. Struttura delle file, whitelist/blacklist e bozze operative sono ancora in memoria e richiederanno tabelle dedicate in una fase successiva.
 
 ### Vincoli cliente per fila e slot
 
@@ -404,13 +418,39 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Flusso in tre fasi per gruppi multi-articolo di carico e scarico: composizione, anteprima modificabile e conferma operativa atomica.
 - Bozze separate di carico e scarico mantenute in memoria anche chiudendo la finestra; annullamento completo con ritorno alla mappa.
 - Modulo di carico con articolo, cliente, riferimento ordine, quantità, parziale e tipologia; modulo di scarico manuale oppure alimentato dalle unità selezionate nella ricerca.
-- Distinzione fra cassone e pallet, con pallet dimostrativo associato a una coppia fronte/retro a terra.
-- Un piccolo set di dati dimostrativi non persistenti per verificare la grafica; non rappresenta la giacenza reale.
-- Primo motore euristico di carico e scarico: la conferma aggiorna le giacenze in memoria, applica FIFO nello scarico e mostra soltanto articolo e posizioni interessate.
-- Storico di sessione dei gruppi automatici con identificativi `MV_AA-MM-GG_HH:mm`; le operazioni nello stesso minuto ricevono un suffisso progressivo.
-- Le riallocazioni manuali aggiornano la mappa ma non vengono inserite nello storico automatico. Persistenza su database e gestione completa dei tag restano da realizzare.
+- Distinzione fra cassone e pallet, con pallet associato a una coppia fronte/retro a terra.
+- Database inizialmente vuoto, senza giacenze dimostrative incorporate nel codice.
+- Primo motore euristico di carico e scarico: la conferma aggiorna le giacenze SQLite, applica FIFO nello scarico e mostra soltanto articolo e posizioni interessate.
+- Storico persistente dei gruppi automatici con identificativi `MV_AA-MM-GG_HH:mm`; le operazioni nello stesso minuto ricevono un suffisso progressivo.
+- Persistenza SQLite locale integrata e API backend predisposta con tabelle dedicate a unità, occupazioni, movimenti e righe movimento per il futuro `aypi.db` condiviso.
+- Comandi temporanei in alto a destra per popolamento pseudo-randomico e svuotamento completo dei dati magazzino.
+- Le riallocazioni manuali aggiornano e persistono la mappa ma non vengono inserite nello storico automatico. Struttura, vincoli cliente e gestione completa dei tag restano da completare.
 
 ## Sistema di "peso" per allocazione/sorting
+
+Il prototipo usa ora realmente un motore a punteggio: **vince il piano con lo score più basso**. I valori iniziali, centralizzati nel codice per poter essere tarati con le simulazioni, sono:
+
+| Fattore | Peso |
+| --- | ---: |
+| Pila resa promiscua | `+100` |
+| Ogni nuovo cassone inserito in una pila di altro articolo | `+450` |
+| Distanza di una fila dallo stesso articolo | `+2000` per fila |
+| Continuità dello stesso articolo fronte/retro | `-800` |
+| Ogni nuovo cassone in continuità fronte/retro con giacenza preesistente | `-900` |
+| Nuovo modulo fisico aperto | `+450` |
+| Nuova divisione/pila per l'articolo | `+300` |
+| Pila interessata dal piano | `+260` |
+| Movimentazione del muletto | `+220` |
+| Fila iniziale successiva | `+180` |
+| Modulo fisico interessato | `+120` |
+| Cassone collocato anteriormente | `+90` |
+| Distanza di una colonna fisica dallo stesso articolo | `+35` |
+| Cambio lato rispetto allo stesso articolo | `+15` |
+| Colonna iniziale successiva da sinistra | `+8` |
+| Pila completata a tre | `-220` |
+| Pila portata a due | `-45` |
+
+Questi numeri non sono regole funzionali definitive: costituiscono il primo profilo empirico da calibrare con casi reali e simulazioni massive. Le combinazioni non valide fisicamente non ricevono uno score alto, ma vengono escluse prima del confronto.
 
 Posizionare prima cassoni nelle zone posteriori, a partire da sinistra.
 Successivamente, posizionare i cassoni negli slot anteriori.

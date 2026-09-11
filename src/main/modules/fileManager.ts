@@ -51,6 +51,7 @@ import { registerAttrezzaggioPdfPreviewIpc } from "./file-manager/attrezzaggio-p
 import { registerRegistrazioniProgettazioneDataIpc } from "./file-manager/registrazioni-progettazione-data-ipc";
 import { registerRegistrazioniProgettiSpecialiDataIpc } from "./file-manager/registrazioni-progetti-speciali-data-ipc";
 import { registerRegistrazioniProgettazionePathIpc } from "./file-manager/registrazioni-progettazione-path-ipc";
+import { registerWarehouseInventoryIpc } from "./file-manager/warehouse-inventory-ipc";
 
 const WINDOW_WEB_PREFERENCES = {
     nodeIntegration: true,
@@ -2222,8 +2223,7 @@ function openInventarioMagazzinoWindow(mainWindow: BrowserWindow) {
         height: 1080,
         minWidth: 1000,
         minHeight: 680,
-        parent: mainWindow,
-        modal: false,
+        focusable: true,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
@@ -2238,6 +2238,7 @@ function openInventarioMagazzinoWindow(mainWindow: BrowserWindow) {
         if (!inventarioMagazzinoWindow?.isDestroyed()) {
             inventarioMagazzinoWindow.center();
             showWindow(inventarioMagazzinoWindow);
+            inventarioMagazzinoWindow.webContents.focus();
         }
     });
 
@@ -2312,6 +2313,7 @@ function openCompareFoldersWindow(
 
 function setupFileManager(mainWindow) {
     setupRealtimeClient();
+    registerWarehouseInventoryIpc(ipcMain, app);
     app.on("before-quit", () => {
         isAppQuitting = true;
     });
