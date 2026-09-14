@@ -76,6 +76,7 @@ const selectedSlotCodes = new Set();
 let relocationSourceCode = null;
 let restrictionBatchTargets = null;
 let completedOperationMovement = null;
+let operationPreviewPlan = null;
 let suppressSlotClickUntil = 0;
 let warehouseRevision = 0;
 let warehousePersistenceReady = false;
@@ -1548,6 +1549,7 @@ function createOperationLineElement(entry, index, review = false) {
         remove.textContent = "Rimuovi";
         remove.addEventListener("click", () => {
             activeOperationGroup().splice(index, 1);
+            operationPreviewPlan = null;
             renderOperationGroup();
         });
         actions.appendChild(remove);
@@ -1656,6 +1658,7 @@ function cancelOperationGroup() {
     if (entries.length && !window.confirm(`Annullare completamente il gruppo di ${operationModeLabel()}?`)) return;
     entries.splice(0);
     operationGroupStages[operationGroupMode] = "compose";
+    operationPreviewPlan = null;
     resetOperationLineForm();
     renderOperationGroup();
     closeOperationDialog();
@@ -1681,6 +1684,7 @@ function addSelectedResultsToUnloadGroup() {
         entry.sourceLocations.push(sourceLocation);
     });
     grouped.forEach((entry) => operationGroups.unload.push({ ...entry, id: nextOperationLineId++ }));
+    operationPreviewPlan = null;
     closeInventorySearchDialog();
     openOperationDialog("unload", "compose");
     document.getElementById("loadFormMessage").textContent = units.size
@@ -1690,6 +1694,62 @@ function addSelectedResultsToUnloadGroup() {
 
 function cloneInventoryState(source = inventory) {
     return new Map(Array.from(source, ([location, item]) => [location, { ...item, tags: [...item.tags] }]));
+}
+
+class LoadPlanningState {
+    constructor(source) {
+        if (source instanceof LoadPlanningState) {
+            this.base = source.base;
+            this.additions = new Map(source.additions);
+        } else {
+            this.base = source instanceof Map ? source : new Map(source || []);
+            this.additions = new Map();
+        }
+    }
+
+    get size() { return this.base.size + this.additions.size; }
+
+    has(location) { return this.additions.has(location) || this.base.has(location); }
+
+    get(location) { return this.additions.has(location) ? this.additions.get(location) : this.base.get(location); }
+
+    withItems(items) {
+        const next = new LoadPlanningState(this);
+        items.forEach(([location, item]) => next.additions.set(location, item));
+        return next;
+    }
+
+    *entries() {
+        yield* this.base.entries();
+        yield* this.additions.entries();
+    }
+
+    *values() {
+        yield* this.base.values();
+        yield* this.additions.values();
+    }
+
+    [Symbol.iterator]() { return this.entries(); }
+
+    forEach(callback) {
+        this.base.forEach((item, location) => callback(item, location, this));
+        this.additions.forEach((item, location) => callback(item, location, this));
+    }
+
+    toMap() { return new Map(this.entries()); }
+}
+
+function asLoadPlanningState(source) {
+    return source instanceof LoadPlanningState ? source : new LoadPlanningState(source);
+}
+
+function createMutableLoadOverlay(source) {
+    const additions = new Map();
+    return {
+        has: (location) => additions.has(location) || source.has(location),
+        get: (location) => additions.has(location) ? additions.get(location) : source.get(location),
+        set: (location, item) => additions.set(location, item),
+    };
 }
 
 function stateHasBlockingPallet(state, parsed) {
@@ -1751,7 +1811,7 @@ function generateCratePlacementMoves(state, maximumUnits, article, customer) {
                 && stack.slice(occupied).every((item) => !item);
             if (!compact || occupied >= 3) continue;
             const largestMove = Math.min(3 - occupied, maximumUnits, 3);
-            const validationState = new Map(state);
+            const validationState = createMutableLoadOverlay(state);
             const codes = [];
             for (let size = 1; size <= largestMove; size += 1) {
                 const code = `${row}${number}${levels[occupied + size - 1]}`;
@@ -1774,12 +1834,42 @@ function crateMovementOrderKey(node) {
     return (node.moveSizes || []).map((size) => 4 - size).join("");
 }
 
-function scoreCratePlan(initialState, state, locations, article, movements, initialArticleLocations) {
+function createCrateScoreContext(initialArticleLocations) {
+    const locations = initialArticleLocations || [];
+    const distanceByStack = new Map();
+    rowCodes().forEach((row) => {
+        for (let number = 1; number <= maximumPositionForRow(row); number += 1) {
+            const parsed = parseSlotCode(`${row}${number}a`);
+            const otherStacks = locations.filter((existing) => (
+                existing.row !== parsed.row || existing.number !== parsed.number
+            ));
+            const proximityReferences = otherStacks.length ? otherStacks : locations;
+            const distance = proximityReferences.length
+                ? Math.min(...proximityReferences.map((existing) => (
+                    Math.abs(rowCodes().indexOf(parsed.row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
+                    + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
+                    + (parsed.side === existing.side ? 0 : CRATE_SORTING_WEIGHTS.oppositeSideDistance)
+                )))
+                : rowCodes().indexOf(parsed.row) * CRATE_SORTING_WEIGHTS.initialRowOrder
+                    + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
+            distanceByStack.set(`${parsed.row}:${parsed.number}`, distance);
+        }
+    });
+    return {
+        hasExistingArticle: locations.length > 0,
+        distance: (parsed) => distanceByStack.get(`${parsed.row}:${parsed.number}`) || 0,
+    };
+}
+
+function scoreCratePlan(initialState, state, locations, article, movements, scoreContext) {
     const levels = ["a", "b", "c"];
     const touchedStacks = new Map();
+    const addedByStack = new Map();
     locations.forEach((code) => {
         const parsed = parseSlotCode(code);
-        touchedStacks.set(`${parsed.row}:${parsed.number}`, parsed);
+        const key = `${parsed.row}:${parsed.number}`;
+        touchedStacks.set(key, parsed);
+        addedByStack.set(key, (addedByStack.get(key) || 0) + 1);
     });
     const touchedModules = new Map();
     let mixedStacks = 0;
@@ -1795,34 +1885,20 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
     touchedStacks.forEach((parsed) => {
         const initialItems = crateStackItems(initialState, parsed).filter(Boolean);
         const finalItems = crateStackItems(state, parsed).filter(Boolean);
-        if (initialItems.some((item) => item.article !== article)) {
+        if (finalItems.some((item) => item.article !== article)) {
             mixedStacks += 1;
-            mixedUnits += locations.filter((code) => {
-                const location = parseSlotCode(code);
-                return location.row === parsed.row && location.number === parsed.number;
-            }).length;
+            mixedUnits += addedByStack.get(`${parsed.row}:${parsed.number}`) || 0;
         }
         if (!initialItems.some((item) => item.article === article)) newArticleDivisions += 1;
         if (finalItems.length === 3) {
             completedStacks += 1;
-            const addedHere = locations.filter((code) => {
-                const location = parseSlotCode(code);
-                return location.row === parsed.row && location.number === parsed.number;
-            }).length;
+            const addedHere = addedByStack.get(`${parsed.row}:${parsed.number}`) || 0;
             if (locations.length % 3 === 1 && initialItems.length === 2 && addedHere === 1) residualSingleCompletions += 1;
         }
         else if (finalItems.length === 2) twoHighStacks += 1;
         touchedModules.set(`${parsed.row}:${parsed.physicalColumn}`, parsed);
-        if (initialArticleLocations.length) {
-            distanceScore += Math.min(...initialArticleLocations.map((existing) => (
-                Math.abs(rowCodes().indexOf(parsed.row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
-                + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
-                + (parsed.side === existing.side ? 0 : CRATE_SORTING_WEIGHTS.oppositeSideDistance)
-            )));
-        } else {
-            initialPositionScore += rowCodes().indexOf(parsed.row) * CRATE_SORTING_WEIGHTS.initialRowOrder
-                + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
-        }
+        if (scoreContext.hasExistingArticle) distanceScore += scoreContext.distance(parsed);
+        else initialPositionScore += scoreContext.distance(parsed);
     });
     locations.forEach((code) => {
         if (parseSlotCode(code).side === "front") frontUnits += 1;
@@ -1851,10 +1927,9 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
             const frontIsFullArticle = levels.every((level) => state.get(`${parsed.row}${frontNumber}${level}`)?.article === article);
             if (rearIsFullArticle && frontIsFullArticle) fullPairedArticleModules += 1;
             if (initialRearHasArticle || initialFrontHasArticle) {
-                continuedArticleUnits += locations.filter((code) => {
-                    const location = parseSlotCode(code);
-                    return location.row === parsed.row && location.physicalColumn === parsed.physicalColumn;
-                }).length;
+                const rearKey = `${parsed.row}:${rearNumber}`;
+                const frontKey = `${parsed.row}:${frontNumber}`;
+                continuedArticleUnits += (addedByStack.get(rearKey) || 0) + (addedByStack.get(frontKey) || 0);
             }
         }
     });
@@ -1876,7 +1951,7 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
         + initialPositionScore;
 }
 
-function scoreCrateMoveCandidate(state, move, article, initialArticleLocations, requestedQuantity) {
+function scoreCrateMoveCandidate(state, move, article, scoreContext, requestedQuantity) {
     const parsed = parseSlotCode(move.codes[0]);
     const stack = crateStackItems(state, parsed).filter(Boolean);
     const finalHeight = stack.length + move.codes.length;
@@ -1898,14 +1973,7 @@ function scoreCrateMoveCandidate(state, move, article, initialArticleLocations, 
         const item = state.get(`${parsed.row}${number}${level}`);
         return item && item.article !== article;
     }));
-    const distance = initialArticleLocations.length
-        ? Math.min(...initialArticleLocations.map((existing) => (
-            Math.abs(rowCodes().indexOf(parsed.row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
-            + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
-            + (parsed.side === existing.side ? 0 : CRATE_SORTING_WEIGHTS.oppositeSideDistance)
-        )))
-        : rowCodes().indexOf(parsed.row) * CRATE_SORTING_WEIGHTS.initialRowOrder
-            + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
+    const distance = scoreContext.distance(parsed);
     return CRATE_SORTING_WEIGHTS.forkliftMovement
         + CRATE_SORTING_WEIGHTS.touchedStack
         + CRATE_SORTING_WEIGHTS.touchedPhysicalModule
@@ -1947,16 +2015,20 @@ function trimCratePlanBeam(nodes, width) {
         .slice(0, width);
 }
 
-function planWeightedCrateAllocation(initialState, entry) {
+function planWeightedCrateAllocations(initialState, entry, resultLimit = 1, searchProfile = "standard") {
     const quantity = entry.quantity;
-    const beamWidth = quantity <= 6 ? 32 : quantity <= 20 ? 14 : quantity <= 60 ? 8 : 4;
-    const actionWidth = quantity <= 20 ? 12 : 8;
+    const jointSearch = searchProfile === "joint";
+    const beamWidth = jointSearch
+        ? quantity <= 6 ? 6 : quantity <= 20 ? 3 : quantity <= 60 ? 3 : 2
+        : quantity <= 6 ? 32 : quantity <= 20 ? 14 : quantity <= 60 ? 8 : 4;
+    const actionWidth = jointSearch ? 3 : quantity <= 20 ? 12 : 8;
     const initialArticleLocations = Array.from(initialState.values())
         .filter((item) => item.article === entry.article)
         .map((item) => parseSlotCode(item.location))
         .filter(Boolean);
+    const scoreContext = createCrateScoreContext(initialArticleLocations);
     const layers = Array.from({ length: quantity + 1 }, () => []);
-    layers[0].push({ state: new Map(initialState), locations: [], movements: 0, moveSizes: [], score: 0 });
+    layers[0].push({ state: asLoadPlanningState(initialState), locations: [], movements: 0, moveSizes: [], score: 0 });
     for (let placed = 0; placed < quantity; placed += 1) {
         const layer = trimCratePlanBeam(layers[placed], beamWidth);
         for (const node of layer) {
@@ -1965,20 +2037,19 @@ function planWeightedCrateAllocation(initialState, entry) {
                 .filter((move) => move.codes.length === size)
                 .map((move) => ({
                     ...move,
-                    quickScore: scoreCrateMoveCandidate(node.state, move, entry.article, initialArticleLocations, quantity),
+                    quickScore: scoreCrateMoveCandidate(node.state, move, entry.article, scoreContext, quantity),
                 }))
                 .sort((left, right) => left.quickScore - right.quickScore
                     || left.codes[0].localeCompare(right.codes[0], undefined, { numeric: true }))
                 .slice(0, actionWidth));
             for (const move of shortlistedMoves) {
-                const moveState = new Map(node.state);
-                move.codes.forEach((code) => moveState.set(code, {
+                const moveState = node.state.withItems(move.codes.map((code) => [code, {
                     location: code,
                     article: entry.article,
                     customer: entry.customer,
                     type: "crate",
                     tags: [],
-                }));
+                }]));
                 const locations = [...node.locations, ...move.codes];
                 const movements = node.movements + 1;
                 const target = placed + move.codes.length;
@@ -1987,7 +2058,7 @@ function planWeightedCrateAllocation(initialState, entry) {
                     locations,
                     movements,
                     moveSizes: [...node.moveSizes, move.codes.length],
-                    score: scoreCratePlan(initialState, moveState, locations, entry.article, movements, initialArticleLocations),
+                    score: scoreCratePlan(initialState, moveState, locations, entry.article, movements, scoreContext),
                 });
                 if (layers[target].length > beamWidth * 12) {
                     layers[target] = trimCratePlanBeam(layers[target], beamWidth * 4);
@@ -1995,10 +2066,16 @@ function planWeightedCrateAllocation(initialState, entry) {
             }
         }
     }
-    return trimCratePlanBeam(layers[quantity], 1)[0] || null;
+    return trimCratePlanBeam(layers[quantity], Math.max(1, resultLimit));
 }
 
-function bestPalletDestination(state, article, customer) {
+function planWeightedCrateAllocation(initialState, entry) {
+    const plan = planWeightedCrateAllocations(initialState, entry, 1)[0] || null;
+    if (!plan) return null;
+    return { ...plan, state: plan.state.toMap() };
+}
+
+function palletDestinationCandidates(state, article, customer, limit = 1) {
     const articleLocations = Array.from(state.values())
         .filter((item) => item.article === article)
         .map((item) => parseSlotCode(item.location))
@@ -2027,7 +2104,11 @@ function bestPalletDestination(state, article, customer) {
     }
     candidates.sort((left, right) => left.score - right.score
         || left.pair[0].localeCompare(right.pair[0], undefined, { numeric: true }));
-    return candidates[0]?.pair || null;
+    return candidates.slice(0, Math.max(1, limit));
+}
+
+function bestPalletDestination(state, article, customer) {
+    return palletDestinationCandidates(state, article, customer, 1)[0]?.pair || null;
 }
 
 function summarizeMovementLines(actions) {
@@ -2039,12 +2120,225 @@ function summarizeMovementLines(actions) {
     return Array.from(grouped, ([article, locations]) => ({ article, locations }));
 }
 
+const JOINT_LOAD_LIMITS = Object.freeze({
+    smallBlockEntries: 6,
+    mediumBlockEntries: 14,
+    smallBeam: 8,
+    mediumBeam: 3,
+    largeBeam: 2,
+    smallEntryBranches: 6,
+    mediumEntryBranches: 2,
+    largeEntryBranches: 2,
+    allocationVariants: 2,
+    palletVariants: 4,
+});
+
+function planPalletEntryAllocations(initialState, entry, resultLimit = 1) {
+    let nodes = [{ state: asLoadPlanningState(initialState), pairs: [], score: 0 }];
+    const beamWidth = Math.max(8, resultLimit * 4);
+    for (let unit = 0; unit < entry.quantity; unit += 1) {
+        const expanded = [];
+        nodes.forEach((node) => {
+            palletDestinationCandidates(node.state, entry.article, entry.customer, JOINT_LOAD_LIMITS.palletVariants)
+                .forEach((candidate) => {
+                    const pair = candidate.pair;
+                    const state = node.state.withItems(pair.map((location, index) => [location, {
+                        location,
+                        article: entry.article,
+                        customer: entry.customer,
+                        type: "pallet",
+                        pairedLocation: pair[index === 0 ? 1 : 0],
+                        tags: [],
+                    }]));
+                    expanded.push({ state, pairs: [...node.pairs, pair], score: node.score + candidate.score });
+                });
+        });
+        const unique = new Map();
+        expanded.forEach((node) => {
+            const signature = node.pairs.flat().slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join("|");
+            const current = unique.get(signature);
+            if (!current || node.score < current.score) unique.set(signature, node);
+        });
+        nodes = Array.from(unique.values())
+            .sort((left, right) => left.score - right.score
+                || left.pairs.flat().join("|").localeCompare(right.pairs.flat().join("|"), undefined, { numeric: true }))
+            .slice(0, beamWidth);
+        if (!nodes.length) break;
+    }
+    return nodes.slice(0, Math.max(1, resultLimit));
+}
+
+function jointLoadNodeSignature(node) {
+    return node.allocations.map((allocation) => {
+        if (!allocation) return "";
+        const locations = allocation.type === "pallet" ? allocation.pairs.flat() : allocation.locations;
+        return `${allocation.entryKey}:${locations.slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join(",")}`;
+    }).filter(Boolean).sort((a, b) => a.localeCompare(b, "it", { numeric: true })).join("|");
+}
+
+function scoreJointLoadNode(initialState, node, entries, initialArticleScoreContexts) {
+    const cratePlans = new Map();
+    let score = 0;
+    node.allocations.forEach((allocation, index) => {
+        if (!allocation) return;
+        const entry = entries[index];
+        if (allocation.type === "pallet") {
+            score += allocation.score;
+            return;
+        }
+        if (!cratePlans.has(entry.article)) cratePlans.set(entry.article, { locations: [], movements: 0 });
+        const articlePlan = cratePlans.get(entry.article);
+        articlePlan.locations.push(...allocation.locations);
+        articlePlan.movements += allocation.movements;
+    });
+    cratePlans.forEach((plan, article) => {
+        score += scoreCratePlan(
+            initialState,
+            node.state,
+            plan.locations,
+            article,
+            plan.movements,
+            initialArticleScoreContexts.get(article) || createCrateScoreContext([]),
+        );
+    });
+    return score;
+}
+
+function trimJointLoadBeam(nodes, width) {
+    const unique = new Map();
+    nodes.forEach((node) => {
+        const signature = jointLoadNodeSignature(node);
+        const current = unique.get(signature);
+        if (!current || node.score < current.score) unique.set(signature, node);
+    });
+    return Array.from(unique.values())
+        .sort((left, right) => left.score - right.score
+            || jointLoadNodeSignature(left).localeCompare(jointLoadNodeSignature(right), undefined, { numeric: true }))
+        .slice(0, width);
+}
+
+function canonicalLoadEntryKey(entry) {
+    return [entry.type, entry.article, entry.customer, entry.order, entry.partial ? "1" : "0", entry.quantity].join("|");
+}
+
+function jointEntryPriority(entry, initialArticleCounts, entryScarcity) {
+    const scarcityPriority = (entryScarcity.get(canonicalLoadEntryKey(entry)) || 0) * 100000;
+    const palletPriority = entry.type === "pallet" ? -10000 : 0;
+    const continuityPriority = -(initialArticleCounts.get(entry.article) || 0) * 1000;
+    const quantityPriority = -Number(entry.quantity || 0) * 10;
+    return scarcityPriority + palletPriority + continuityPriority + quantityPriority;
+}
+
+function planJointLoadAllocation(entries, initialState) {
+    const planningState = asLoadPlanningState(initialState);
+    if (!entries.length) return { state: planningState, allocations: [], score: 0 };
+    if (entries.length === 1) {
+        const entry = entries[0];
+        const candidate = entry.type === "pallet"
+            ? planPalletEntryAllocations(planningState, entry, 1)[0]
+            : planWeightedCrateAllocations(planningState, entry, 1, "standard")[0];
+        if (!candidate) return null;
+        const allocation = entry.type === "pallet"
+            ? { type: "pallet", entryKey: canonicalLoadEntryKey(entry), pairs: candidate.pairs.map((pair) => [...pair]), score: candidate.score }
+            : {
+                type: "crate",
+                entryKey: canonicalLoadEntryKey(entry),
+                locations: [...candidate.locations],
+                movements: candidate.movements,
+                moveSizes: [...candidate.moveSizes],
+                score: candidate.score,
+            };
+        return { state: candidate.state, allocations: [allocation], score: candidate.score };
+    }
+    const initialArticleLocations = new Map();
+    const initialArticleCounts = new Map();
+    Array.from(planningState.values()).forEach((item) => {
+        const parsed = parseSlotCode(item.location);
+        if (!parsed) return;
+        if (!initialArticleLocations.has(item.article)) initialArticleLocations.set(item.article, []);
+        initialArticleLocations.get(item.article).push(parsed);
+        initialArticleCounts.set(item.article, (initialArticleCounts.get(item.article) || 0) + 1);
+    });
+    const initialArticleScoreContexts = new Map(entries
+        .filter((entry) => entry.type !== "pallet")
+        .map((entry) => [entry.article, createCrateScoreContext(initialArticleLocations.get(entry.article) || [])]));
+    const entryScarcity = new Map(entries.map((entry) => [
+        canonicalLoadEntryKey(entry),
+        entry.type === "pallet"
+            ? palletDestinationCandidates(planningState, entry.article, entry.customer, totalSlots()).length
+            : generateCratePlacementMoves(planningState, Math.min(3, entry.quantity), entry.article, entry.customer).length,
+    ]));
+    const beamWidth = entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
+        ? JOINT_LOAD_LIMITS.smallBeam
+        : entries.length <= JOINT_LOAD_LIMITS.mediumBlockEntries
+          ? JOINT_LOAD_LIMITS.mediumBeam
+          : JOINT_LOAD_LIMITS.largeBeam;
+    const entryBranches = entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
+        ? JOINT_LOAD_LIMITS.smallEntryBranches
+        : entries.length <= JOINT_LOAD_LIMITS.mediumBlockEntries
+          ? JOINT_LOAD_LIMITS.mediumEntryBranches
+          : JOINT_LOAD_LIMITS.largeEntryBranches;
+    const allocationVariants = entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
+        ? JOINT_LOAD_LIMITS.allocationVariants
+        : 1;
+    let nodes = [{
+        state: planningState,
+        allocations: Array(entries.length).fill(null),
+        remaining: entries.map((_entry, index) => index),
+        score: 0,
+    }];
+    for (let depth = 0; depth < entries.length; depth += 1) {
+        const expanded = [];
+        trimJointLoadBeam(nodes, beamWidth).forEach((node) => {
+            const candidateEntries = node.remaining.slice()
+                .sort((left, right) => jointEntryPriority(entries[left], initialArticleCounts, entryScarcity)
+                    - jointEntryPriority(entries[right], initialArticleCounts, entryScarcity)
+                    || canonicalLoadEntryKey(entries[left]).localeCompare(canonicalLoadEntryKey(entries[right]), "it", { numeric: true }))
+                .slice(0, Math.min(entryBranches, node.remaining.length));
+            candidateEntries.forEach((entryIndex) => {
+                const entry = entries[entryIndex];
+                const candidates = entry.type === "pallet"
+                    ? planPalletEntryAllocations(node.state, entry, allocationVariants)
+                    : planWeightedCrateAllocations(node.state, entry, allocationVariants, "joint");
+                candidates.forEach((candidate) => {
+                    const allocation = entry.type === "pallet"
+                        ? { type: "pallet", entryKey: canonicalLoadEntryKey(entry), pairs: candidate.pairs.map((pair) => [...pair]), score: candidate.score }
+                        : {
+                            type: "crate",
+                            entryKey: canonicalLoadEntryKey(entry),
+                            locations: [...candidate.locations],
+                            movements: candidate.movements,
+                            moveSizes: [...candidate.moveSizes],
+                            score: candidate.score,
+                        };
+                    const allocations = [...node.allocations];
+                    allocations[entryIndex] = allocation;
+                    const child = {
+                        state: candidate.state,
+                        allocations,
+                        remaining: node.remaining.filter((index) => index !== entryIndex),
+                        score: 0,
+                    };
+                    child.score = scoreJointLoadNode(initialState, child, entries, initialArticleScoreContexts);
+                    expanded.push(child);
+                });
+            });
+        });
+        nodes = trimJointLoadBeam(expanded, beamWidth);
+        if (!nodes.length) return null;
+    }
+    return trimJointLoadBeam(nodes, 1)[0] || null;
+}
+
 function planLoadOperation(entries, initialState = inventory) {
+    const jointPlan = planJointLoadAllocation(entries, initialState);
+    if (!jointPlan) return { error: "Spazio valido insufficiente: impossibile trovare una combinazione congiunta per l'intero gruppo di carico." };
     const state = cloneInventoryState(initialState);
     const actions = [];
     const timestamp = new Date();
     let sequence = 0;
-    for (const entry of entries) {
+    entries.forEach((entry, entryIndex) => {
+        const allocation = jointPlan.allocations[entryIndex];
         const locations = [];
         const insertCrate = (location) => {
             const id = `AUTO-${timestamp.getTime()}-${sequence++}`;
@@ -2065,11 +2359,9 @@ function planLoadOperation(entries, initialState = inventory) {
             locations.push(location);
         };
         if (entry.type === "pallet") {
-            for (let unit = 0; unit < entry.quantity; unit += 1) {
+            allocation.pairs.forEach((pair) => {
                 const id = `AUTO-${timestamp.getTime()}-${sequence++}`;
                 const receivedAt = new Date(timestamp.getTime() + sequence).toISOString();
-                const pair = bestPalletDestination(state, entry.article, entry.customer);
-                if (!pair) return { error: `Spazio valido insufficiente per ${entry.article}: impossibile collocare tutti i pallet.` };
                 pair.forEach((location, index) => state.set(location, {
                     id,
                     location,
@@ -2084,15 +2376,13 @@ function planLoadOperation(entries, initialState = inventory) {
                     receivedAt,
                 }));
                 locations.push(pair.join(" + "));
-            }
+            });
         } else {
-            const plan = planWeightedCrateAllocation(state, entry);
-            if (!plan) return { error: `Spazio valido insufficiente per ${entry.article}: impossibile collocare tutti i cassoni.` };
-            plan.locations.forEach(insertCrate);
+            allocation.locations.forEach(insertCrate);
         }
         actions.push({ article: entry.article, locations });
-    }
-    return { state, lines: summarizeMovementLines(actions) };
+    });
+    return { state, lines: summarizeMovementLines(actions), score: jointPlan.score };
 }
 
 function logicalInventoryUnits(state) {
@@ -2200,17 +2490,93 @@ function movementIdentifier(date) {
     return duplicates ? `${base}_${part(duplicates + 1)}` : base;
 }
 
+function operationPlanKey() {
+    return JSON.stringify({
+        mode: operationGroupMode,
+        revision: warehouseRevision,
+        entries: activeOperationGroup().map((entry) => ({
+            article: entry.article,
+            customer: entry.customer,
+            order: entry.order,
+            quantity: entry.quantity,
+            partial: entry.partial,
+            type: entry.type,
+            sourceIds: [...(entry.sourceIds || [])].sort(),
+        })),
+    });
+}
+
+async function prepareOperationReview() {
+    const note = document.getElementById("operationReviewNote");
+    const button = document.getElementById("reviewOperationGroup");
+    button.disabled = true;
+    setOperationStage("review");
+    note.classList.remove("is-error");
+    note.textContent = operationGroupMode === "load"
+        ? "Calcolo congiunto dell'intero gruppo in corso…"
+        : "Calcolo FIFO del gruppo di scarico in corso…";
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    const key = operationPlanKey();
+    const startedAt = performance.now();
+    const plan = operationGroupMode === "load"
+        ? planLoadOperation(activeOperationGroup())
+        : planUnloadOperation(activeOperationGroup());
+    const elapsed = performance.now() - startedAt;
+    button.disabled = false;
+    if (plan.error) {
+        operationPreviewPlan = null;
+        note.textContent = plan.error;
+        note.classList.add("is-error");
+        return;
+    }
+    operationPreviewPlan = { key, plan };
+    appendMovementLines(document.getElementById("operationReviewList"), plan);
+    note.textContent = operationGroupMode === "load"
+        ? `Proposta congiunta calcolata su ${activeOperationGroup().length} ${activeOperationGroup().length === 1 ? "riga" : "righe"} in ${Math.round(elapsed)} ms · score ${Math.round(plan.score || 0)}. Il magazzino non è ancora stato modificato.`
+        : `Proposta FIFO calcolata in ${Math.round(elapsed)} ms. Il magazzino non è ancora stato modificato.`;
+}
+
+function finalizeLoadPlanIdentity(plan, timestamp) {
+    const existingIds = new Set(Array.from(inventory.values(), (item) => item.id));
+    const replacementIds = new Map();
+    let sequence = 0;
+    const state = new Map();
+    plan.state.forEach((item, location) => {
+        if (existingIds.has(item.id)) {
+            state.set(location, item);
+            return;
+        }
+        if (!replacementIds.has(item.id)) {
+            replacementIds.set(item.id, {
+                id: `AUTO-${timestamp.getTime()}-${sequence}`,
+                receivedAt: new Date(timestamp.getTime() + sequence + 1).toISOString(),
+            });
+            sequence += 1;
+        }
+        state.set(location, { ...item, ...replacementIds.get(item.id), tags: [...(item.tags || [])] });
+    });
+    return { ...plan, state };
+}
+
 async function commitOperationGroup() {
     if (!isWarehouseLoggedIn()) {
         openWarehouseLogin();
         return { error: "Effettua il login operatore prima di confermare il movimento." };
     }
     const beforeState = serializeWarehouseInventory();
-    const plan = operationGroupMode === "load"
-        ? planLoadOperation(activeOperationGroup())
-        : planUnloadOperation(activeOperationGroup());
+    const key = operationPlanKey();
+    let plan = operationPreviewPlan?.key === key
+        ? operationPreviewPlan.plan
+        : operationGroupMode === "load"
+          ? planLoadOperation(activeOperationGroup())
+          : planUnloadOperation(activeOperationGroup());
     if (plan.error) return plan;
     const now = new Date();
+    if (operationGroupMode === "load") plan = finalizeLoadPlanIdentity(plan, now);
+    else plan = {
+        ...plan,
+        unloadedUnits: (plan.unloadedUnits || []).map((item) => ({ ...item, stagedAt: now.toISOString() })),
+    };
     const afterState = Array.from(plan.state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
     const movement = {
         id: movementIdentifier(now),
@@ -2239,6 +2605,7 @@ async function commitOperationGroup() {
     movementHistory.unshift(movement);
     unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
     completedOperationMovement = movement;
+    operationPreviewPlan = null;
     renderMovementHistory();
     refreshInventorySearch();
     renderDetails();
@@ -2391,6 +2758,7 @@ function clearCompletedOperationGroup(closeDialog = false) {
     activeOperationGroup().splice(0);
     operationGroupStages[operationGroupMode] = "compose";
     completedOperationMovement = null;
+    operationPreviewPlan = null;
     resetOperationLineForm();
     renderOperationGroup();
     setOperationStage("compose");
@@ -2615,12 +2983,13 @@ function setupLoadDialog() {
         const entry = { id: previous?.id || nextOperationLineId++, article, customer, order, quantity, partial, type, sourceIds: previous?.sourceIds || [], sourceLocations: previous?.sourceLocations || [] };
         if (editingOperationLineIndex === null) activeOperationGroup().push(entry);
         else activeOperationGroup()[editingOperationLineIndex] = entry;
+        operationPreviewPlan = null;
         resetOperationLineForm();
         renderOperationGroup();
         document.getElementById("loadFormMessage").textContent = previous ? "Riga aggiornata." : `Articolo aggiunto al gruppo di ${operationModeLabel()}.`;
         document.getElementById("loadArticle")?.focus();
     });
-    document.getElementById("reviewOperationGroup")?.addEventListener("click", () => setOperationStage("review"));
+    document.getElementById("reviewOperationGroup")?.addEventListener("click", prepareOperationReview);
     document.getElementById("backToOperationCompose")?.addEventListener("click", () => setOperationStage("compose"));
     document.getElementById("cancelOperationGroup")?.addEventListener("click", cancelOperationGroup);
     document.getElementById("cancelOperationReview")?.addEventListener("click", cancelOperationGroup);
@@ -3530,6 +3899,7 @@ function resetOperationDraftsAfterDatabaseChange() {
     operationGroupStages.load = "compose";
     operationGroupStages.unload = "compose";
     completedOperationMovement = null;
+    operationPreviewPlan = null;
 }
 
 function setupTemporaryDatabaseActions() {

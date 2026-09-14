@@ -418,6 +418,7 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - La mappa si apre per impostazione predefinita in vista completa `1–32`, mostrando l'articolo nelle celle.
 - Configurazione in memoria del numero di file, della capacità individuale e dell'orientamento fronte/retro di ciascuna fila; `B` e `D` sono inizialmente invertite.
 - Flusso in tre fasi per gruppi multi-articolo di carico e scarico: composizione, anteprima modificabile e conferma operativa atomica.
+- L'anteprima del carico mostra ora le ubicazioni effettivamente proposte, lo score complessivo e il tempo di calcolo; la conferma riutilizza la proposta già validata senza eseguire una seconda ottimizzazione.
 - Bozze separate di carico e scarico mantenute in memoria anche chiudendo la finestra; annullamento completo con ritorno alla mappa.
 - Modulo di carico con articolo, cliente, riferimento ordine, quantità, parziale e tipologia; modulo di scarico manuale oppure alimentato dalle unità selezionate nella ricerca.
 - Distinzione fra cassone e pallet, con pallet associato a una coppia fronte/retro a terra.
@@ -439,6 +440,8 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 ## Sistema di "peso" per allocazione/sorting
 
 Il prototipo usa ora realmente un motore a punteggio: **vince il piano con lo score più basso**. I valori iniziali, centralizzati nel codice per poter essere tarati con le simulazioni, sono:
+
+Il carico multi-articolo non viene più fissato riga dopo riga nell'ordine inserito dall'operatore. Un beam search esterno valuta congiuntamente ordini e varianti di allocazione delle righe, mentre il beam interno conserva le stesse mosse, regole fisiche e componenti di punteggio del singolo articolo. I pareggi usano una chiave canonica indipendente dall'ordine di inserimento. Per contenere il costo, ogni candidato condivide lo stato iniziale e mantiene soltanto il delta dei nuovi slot; il calcolo delle distanze viene preindicizzato e i conteggi per pila evitano scansioni ripetute delle ubicazioni. La ricerca resta euristica e limitata, non esaustiva, ma la funzione obiettivo viene valutata sull'intero blocco.
 
 | Fattore | Peso |
 | --- | ---: |
@@ -465,6 +468,8 @@ Il prototipo usa ora realmente un motore a punteggio: **vince il piano con lo sc
 Questi numeri non sono regole funzionali definitive: costituiscono il primo profilo empirico da calibrare con casi reali e simulazioni massive. Le combinazioni non valide fisicamente non ricevono uno score alto, ma vengono escluse prima del confronto.
 
 La continuità con lo stesso articolo nella coppia fronte/retro pesa leggermente più del completamento generico di una pila. In questo modo una coppia `3+1` viene completata con gli ulteriori uno o due cassoni dello stesso articolo; in assenza di continuità articolo, un residuo singolo può comunque chiudere l'unico livello `c` libero della prima coppia prima di aprire una nuova pila più lontana.
+
+Quando esistono già giacenze dello stesso articolo, l'ordine sinistra-destra non attribuisce alcun premio: prevale la distanza dalle altre pile di quell'articolo. Nel confronto fra più pile parziali, la pila candidata viene esclusa dai propri riferimenti di distanza, evitando che tutte risultino artificialmente a distanza zero; a parità di completamento viene quindi scelta quella realmente più vicina al resto della giacenza. La posizione da sinistra rimane soltanto uno spareggio deterministico dopo continuità, completamento e vicinanza.
 
 Posizionare prima cassoni nelle zone posteriori, a partire da sinistra.
 Successivamente, posizionare i cassoni negli slot anteriori.
