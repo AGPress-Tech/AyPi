@@ -9,7 +9,17 @@ let database: any = null;
 let databasePromise: Promise<any> | null = null;
 let registered = false;
 let movementDetailsWindow: BrowserWindow | null = null;
+let movementDetailsOwner: BrowserWindow | null = null;
 let movementDetailsPayload: any = null;
+
+function focusBrowserWindow(window: BrowserWindow | null) {
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.moveTop();
+    window.focus();
+    window.webContents.focus();
+}
 
 function databasePath(app: App) {
     return path.join(app.getPath("userData"), "data", "aypi.db");
@@ -120,19 +130,16 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
     ipcMain.handle("warehouse-inventory-focus-window", (event) => {
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window || window.isDestroyed()) return false;
-        if (window.isMinimized()) window.restore();
-        window.show();
-        window.focus();
-        window.webContents.focus();
+        focusBrowserWindow(window);
         return window.isFocused();
     });
     ipcMain.on("open-warehouse-movement-details-window", (event, payload) => {
         const owner = BrowserWindow.fromWebContents(event.sender);
         if (!owner || owner.isDestroyed() || !payload?.id) return;
+        movementDetailsOwner = owner;
         movementDetailsPayload = payload;
         if (movementDetailsWindow && !movementDetailsWindow.isDestroyed()) {
-            movementDetailsWindow.show();
-            movementDetailsWindow.focus();
+            focusBrowserWindow(movementDetailsWindow);
             movementDetailsWindow.webContents.send("warehouse-movement-details-data", movementDetailsPayload);
             return;
         }
@@ -141,6 +148,7 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
             height: 900,
             minWidth: 980,
             minHeight: 620,
+            parent: owner,
             show: false,
             backgroundColor: "#eef2f5",
             webPreferences: { nodeIntegration: true, contextIsolation: false },
@@ -148,14 +156,14 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         movementDetailsWindow.setMenu(null);
         movementDetailsWindow.loadFile(path.join(__dirname, "..", "..", "pages", "warehouse-movement-details.html"));
         movementDetailsWindow.once("ready-to-show", () => {
-            if (!movementDetailsWindow?.isDestroyed()) {
-                movementDetailsWindow.show();
-                movementDetailsWindow.focus();
-            }
+            focusBrowserWindow(movementDetailsWindow);
         });
+        movementDetailsWindow.on("focus", () => movementDetailsWindow?.webContents.focus());
         movementDetailsWindow.on("closed", () => {
             movementDetailsWindow = null;
             movementDetailsPayload = null;
+            focusBrowserWindow(movementDetailsOwner);
+            movementDetailsOwner = null;
         });
     });
     ipcMain.on("warehouse-movement-details-ready", (event) => {

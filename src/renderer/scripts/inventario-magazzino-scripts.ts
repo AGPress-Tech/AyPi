@@ -82,6 +82,10 @@ let suppressSlotClickUntil = 0;
 let warehouseRevision = 0;
 let warehousePersistenceReady = false;
 let warehousePersistenceQueue = Promise.resolve();
+const warehouseDialogOrigins = new WeakMap();
+const warehouseDialogFocusTargets = new WeakMap();
+const warehouseDialogStack = [];
+let warehouseConfirmResolver = null;
 const warehousePersistenceMode = process.env.AYPI_WAREHOUSE_USE_BACKEND === "1" ? "backend" : "local";
 
 function warehouseStorageLabel() {
@@ -221,16 +225,120 @@ function fillWarehouseSelect(select, values, placeholder) {
     });
 }
 
+function visibleDialogFocusTarget(dialog) {
+    const preferred = warehouseDialogFocusTargets.get(dialog);
+    if (preferred?.isConnected && !preferred.disabled && !preferred.hidden && preferred.offsetParent !== null) return preferred;
+    const candidates = Array.from(dialog?.querySelectorAll?.("[autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])") || []);
+    return candidates.find((control) => !control.hidden && control.offsetParent !== null) || null;
+}
+
+async function focusWarehouseElement(target, selectText = false) {
+    try {
+        await ipcRenderer.invoke("warehouse-inventory-focus-window");
+    } catch {
+        window.focus();
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (!target?.isConnected || target.disabled || target.hidden || target.offsetParent === null) return;
+    target.focus({ preventScroll: true });
+    if (selectText && typeof target.select === "function") target.select();
+}
+
+function openWarehouseDialog(dialog, focusTarget = null, selectText = false) {
+    if (!dialog) return;
+    if (!dialog.classList.contains("is-open")) warehouseDialogOrigins.set(dialog, document.activeElement);
+    if (focusTarget) warehouseDialogFocusTargets.set(dialog, focusTarget);
+    dialog.inert = false;
+    dialog.classList.add("is-open");
+    dialog.setAttribute("aria-hidden", "false");
+    const previousIndex = warehouseDialogStack.indexOf(dialog);
+    if (previousIndex >= 0) warehouseDialogStack.splice(previousIndex, 1);
+    warehouseDialogStack.push(dialog);
+    void focusWarehouseElement(focusTarget || visibleDialogFocusTarget(dialog), selectText);
+}
+
+function closeWarehouseDialog(dialog, restoreFocus = true) {
+    if (!dialog) return;
+    dialog.classList.remove("is-open");
+    dialog.setAttribute("aria-hidden", "true");
+    dialog.inert = true;
+    const stackIndex = warehouseDialogStack.indexOf(dialog);
+    if (stackIndex >= 0) warehouseDialogStack.splice(stackIndex, 1);
+    const origin = warehouseDialogOrigins.get(dialog);
+    warehouseDialogOrigins.delete(dialog);
+    warehouseDialogFocusTargets.delete(dialog);
+    if (restoreFocus && origin?.isConnected && !origin.disabled && !origin.hidden) void focusWarehouseElement(origin);
+}
+
+function topmostWarehouseDialog() {
+    return warehouseDialogStack[warehouseDialogStack.length - 1] || null;
+}
+
+function settleWarehouseConfirm(confirmed) {
+    const resolver = warehouseConfirmResolver;
+    warehouseConfirmResolver = null;
+    closeWarehouseDialog(document.getElementById("warehouseConfirmDialog"));
+    resolver?.(confirmed);
+}
+
+function showWarehouseConfirm({ title = "Conferma operazione", message, confirmLabel = "Conferma", danger = false }) {
+    if (warehouseConfirmResolver) settleWarehouseConfirm(false);
+    document.getElementById("warehouseConfirmTitle").textContent = title;
+    document.getElementById("warehouseConfirmMessage").textContent = message;
+    const accept = document.getElementById("warehouseConfirmAccept");
+    accept.textContent = confirmLabel;
+    accept.classList.toggle("is-danger", danger);
+    openWarehouseDialog(document.getElementById("warehouseConfirmDialog"), accept);
+    return new Promise((resolve) => { warehouseConfirmResolver = resolve; });
+}
+
+function setupWarehouseDialogFocus() {
+    document.getElementById("warehouseConfirmCancel")?.addEventListener("click", () => settleWarehouseConfirm(false));
+    document.getElementById("warehouseConfirmAccept")?.addEventListener("click", () => settleWarehouseConfirm(true));
+    window.addEventListener("focus", () => {
+        const dialog = topmostWarehouseDialog();
+        if (dialog && !dialog.contains(document.activeElement)) void focusWarehouseElement(visibleDialogFocusTarget(dialog));
+    });
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") return;
+        const dialog = topmostWarehouseDialog();
+        if (dialog) void focusWarehouseElement(visibleDialogFocusTarget(dialog));
+    });
+    document.addEventListener("pointerdown", (event) => {
+        if (event.target.closest?.(".restriction-backdrop.is-open")) void ipcRenderer.invoke("warehouse-inventory-focus-window").catch(() => window.focus());
+    }, true);
+    document.addEventListener("keydown", (event) => {
+        const dialog = topmostWarehouseDialog();
+        if (!dialog) return;
+        if (dialog.id === "warehouseConfirmDialog" && event.key === "Escape") {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            settleWarehouseConfirm(false);
+            return;
+        }
+        if (event.key !== "Tab") return;
+        const controls = Array.from(dialog.querySelectorAll("input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex='-1'])"))
+            .filter((control) => control.offsetParent !== null && !control.hidden);
+        if (!controls.length) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }, true);
+}
+
 function openWarehouseLogin() {
     const dialog = document.getElementById("warehouseLoginDialog");
-    dialog?.classList.add("is-open");
-    dialog?.setAttribute("aria-hidden", "false");
+    openWarehouseDialog(dialog, document.getElementById("warehouseLoginDepartment"));
 }
 
 function closeWarehouseLogin() {
-    const dialog = document.getElementById("warehouseLoginDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("warehouseLoginDialog"));
 }
 
 function renderWarehouseLoginSources() {
@@ -1632,20 +1740,7 @@ function editOperationLine(index) {
     document.getElementById("addOperationLine").textContent = "Salva modifica";
     document.getElementById("loadFormMessage").textContent = `Modifica della riga ${index + 1}.`;
     updateLoadTypeNote();
-    document.getElementById("loadArticle")?.focus();
-}
-
-async function focusOperationDialogInput() {
-    try {
-        await ipcRenderer.invoke("warehouse-inventory-focus-window");
-    } catch {
-        window.focus();
-    }
-    requestAnimationFrame(() => {
-        const input = document.getElementById("loadArticle");
-        input?.focus({ preventScroll: true });
-        input?.select();
-    });
+    void focusWarehouseElement(document.getElementById("loadArticle"), true);
 }
 
 function openOperationDialog(mode, stage) {
@@ -1663,23 +1758,22 @@ function openOperationDialog(mode, stage) {
     renderOperationGroup();
     setOperationStage(stage || operationGroupStages[mode] || "compose");
     const dialog = document.getElementById("operationGroupDialog");
-    if (dialog) dialog.inert = false;
-    dialog?.classList.add("is-open");
-    dialog?.setAttribute("aria-hidden", "false");
-    if ((stage || operationGroupStages[mode]) === "compose") {
-        void focusOperationDialogInput();
-    }
+    const composeStage = (stage || operationGroupStages[mode]) === "compose";
+    openWarehouseDialog(dialog, document.getElementById(composeStage ? "loadArticle" : "closeOperationDialog"), composeStage);
 }
 
 function closeOperationDialog() {
-    const dialog = document.getElementById("operationGroupDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("operationGroupDialog"));
 }
 
-function cancelOperationGroup() {
+async function cancelOperationGroup() {
     const entries = activeOperationGroup();
-    if (entries.length && !window.confirm(`Annullare completamente il gruppo di ${operationModeLabel()}?`)) return;
+    if (entries.length && !await showWarehouseConfirm({
+        title: `Annulla gruppo di ${operationModeLabel()}`,
+        message: `Vuoi eliminare completamente tutte le righe del gruppo di ${operationModeLabel()}?`,
+        confirmLabel: "Annulla gruppo",
+        danger: true,
+    })) return;
     entries.splice(0);
     operationGroupStages[operationGroupMode] = "compose";
     operationPreviewPlan = null;
@@ -2975,15 +3069,11 @@ function openManualMovementDialog(mode = "load", location = "") {
     field.value = parseSlotCode(location)?.code || String(location || "").trim().toUpperCase();
     refreshManualUnloadSource();
     const dialog = document.getElementById("manualMovementDialog");
-    dialog?.classList.add("is-open");
-    dialog?.setAttribute("aria-hidden", "false");
-    window.setTimeout(() => field?.focus(), 0);
+    openWarehouseDialog(dialog, field, true);
 }
 
 function closeManualMovementDialog() {
-    const dialog = document.getElementById("manualMovementDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("manualMovementDialog"));
 }
 
 async function commitManualLoad() {
@@ -3110,7 +3200,7 @@ function setupManualMovement() {
         document.getElementById("manualMovementForm").reset();
         resetManualMovementResult();
         configureManualMovement(manualMovementMode);
-        document.getElementById("manualMovementLocation")?.focus();
+        void focusWarehouseElement(document.getElementById("manualMovementLocation"), true);
     });
     document.getElementById("manualLoadMode")?.addEventListener("click", () => configureManualMovement("load"));
     document.getElementById("manualUnloadMode")?.addEventListener("click", () => configureManualMovement("unload"));
@@ -3453,15 +3543,11 @@ function highlightMovementOnMap(movement) {
 function openMovementHistoryDialog() {
     closeToolsDrawer();
     renderMovementHistory();
-    const dialog = document.getElementById("movementHistoryDialog");
-    dialog?.classList.add("is-open");
-    dialog?.setAttribute("aria-hidden", "false");
+    openWarehouseDialog(document.getElementById("movementHistoryDialog"), document.getElementById("closeMovementHistory"));
 }
 
 function closeMovementHistoryDialog() {
-    const dialog = document.getElementById("movementHistoryDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("movementHistoryDialog"));
 }
 
 function clearCompletedOperationGroup(closeDialog = false) {
@@ -3473,7 +3559,7 @@ function clearCompletedOperationGroup(closeDialog = false) {
     renderOperationGroup();
     setOperationStage("compose");
     if (closeDialog) closeOperationDialog();
-    else document.getElementById("loadArticle")?.focus();
+    else void focusWarehouseElement(document.getElementById("loadArticle"), true);
 }
 
 function closeUnloadZoneContextMenu() {
@@ -3548,16 +3634,12 @@ function renderUnloadZone() {
 function openUnloadZoneDialog() {
     closeToolsDrawer();
     renderUnloadZone();
-    const dialog = document.getElementById("unloadZoneDialog");
-    dialog?.classList.add("is-open");
-    dialog?.setAttribute("aria-hidden", "false");
+    openWarehouseDialog(document.getElementById("unloadZoneDialog"), document.getElementById("closeUnloadZone"));
 }
 
 function closeUnloadZoneDialog() {
     closeUnloadZoneContextMenu();
-    const dialog = document.getElementById("unloadZoneDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("unloadZoneDialog"));
 }
 
 async function reloadUnloadZoneUnit(unitId) {
@@ -3639,7 +3721,12 @@ async function confirmVehicleLoad() {
         return;
     }
     const quantity = unloadZone.length;
-    if (!window.confirm(`Confermare il caricamento sul veicolo di ${quantity} ${quantity === 1 ? "unità" : "unità"}? Le unità usciranno definitivamente dalla zona scarico.`)) return;
+    if (!await showWarehouseConfirm({
+        title: "Conferma caricamento veicolo",
+        message: `Confermare il caricamento sul veicolo di ${quantity} ${quantity === 1 ? "unità" : "unità"}? Le unità usciranno definitivamente dalla Zona scarico.`,
+        confirmLabel: "Conferma uscita",
+        danger: true,
+    })) return;
     const button = document.getElementById("confirmVehicleLoad");
     button.disabled = true;
     try {
@@ -3697,7 +3784,7 @@ function setupLoadDialog() {
         resetOperationLineForm();
         renderOperationGroup();
         document.getElementById("loadFormMessage").textContent = previous ? "Riga aggiornata." : `Articolo aggiunto al gruppo di ${operationModeLabel()}.`;
-        document.getElementById("loadArticle")?.focus();
+        void focusWarehouseElement(document.getElementById("loadArticle"), true);
     });
     document.getElementById("reviewOperationGroup")?.addEventListener("click", prepareOperationReview);
     document.getElementById("backToOperationCompose")?.addEventListener("click", () => setOperationStage("compose"));
@@ -3761,7 +3848,11 @@ function setupWarehouseLogin() {
             openWarehouseLogin();
             return;
         }
-        if (!window.confirm(`Disconnettere ${warehouseActorSnapshot().displayName}?`)) return;
+        if (!await showWarehouseConfirm({
+            title: "Disconnetti operatore",
+            message: `Vuoi disconnettere ${warehouseActorSnapshot().displayName}?`,
+            confirmLabel: "Disconnetti",
+        })) return;
         await ipcRenderer.invoke("pm-session-clear");
         applyWarehouseSession(null);
         openWarehouseLogin();
@@ -3957,16 +4048,11 @@ function refreshInventorySearch() {
 }
 
 function openInventorySearchDialog() {
-    const dialog = document.getElementById("inventorySearchDialog");
-    dialog?.classList.add("is-open");
-    dialog?.setAttribute("aria-hidden", "false");
-    document.getElementById("inventorySearchInput")?.focus();
+    openWarehouseDialog(document.getElementById("inventorySearchDialog"), document.getElementById("inventorySearchInput"), true);
 }
 
 function closeInventorySearchDialog() {
-    const dialog = document.getElementById("inventorySearchDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("inventorySearchDialog"));
 }
 
 function setupInventorySearch() {
@@ -3990,7 +4076,7 @@ function setupInventorySearch() {
         if (quickInput) quickInput.value = "";
         selectedReportLocations.clear();
         refreshInventorySearch();
-        input?.focus();
+        void focusWarehouseElement(input, true);
     });
     document.getElementById("openInventorySearchDialog")?.addEventListener("click", openInventorySearchDialog);
     document.getElementById("closeInventorySearchDialog")?.addEventListener("click", closeInventorySearchDialog);
@@ -4147,16 +4233,11 @@ function openRestrictionDialog(targets = null) {
     document.getElementById("restrictionDialogTitle").textContent = restrictionBatchTargets
         ? `Vincoli cliente per ${restrictionBatchTargets.length} slot selezionati`
         : "Vincoli cliente per fila e slot";
-    const dialog = document.getElementById("restrictionDialog");
-    dialog.classList.add("is-open");
-    dialog.setAttribute("aria-hidden", "false");
-    document.getElementById("rowWhitelist")?.focus();
+    openWarehouseDialog(document.getElementById("restrictionDialog"), document.getElementById("rowWhitelist"));
 }
 
 function closeRestrictionDialog() {
-    const dialog = document.getElementById("restrictionDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("restrictionDialog"));
     restrictionBatchTargets = null;
 }
 
@@ -4478,16 +4559,11 @@ function openArticleAnalysis() {
     document.getElementById("articleAnalysisCustomers").textContent = Array.from(customers).sort(analysisCollator.compare).join(", ") || "—";
     document.getElementById("articleAnalysisTags").textContent = Array.from(tags).sort(analysisCollator.compare).join(", ") || "—";
 
-    const dialog = document.getElementById("articleAnalysisDialog");
-    dialog.classList.add("is-open");
-    dialog.setAttribute("aria-hidden", "false");
-    document.getElementById("closeArticleAnalysis")?.focus();
+    openWarehouseDialog(document.getElementById("articleAnalysisDialog"), document.getElementById("closeArticleAnalysis"));
 }
 
 function closeArticleAnalysis() {
-    const dialog = document.getElementById("articleAnalysisDialog");
-    dialog?.classList.remove("is-open");
-    dialog?.setAttribute("aria-hidden", "true");
+    closeWarehouseDialog(document.getElementById("articleAnalysisDialog"));
 }
 
 function setActiveView(view) {
@@ -4614,7 +4690,12 @@ function resetOperationDraftsAfterDatabaseChange() {
 
 function setupTemporaryDatabaseActions() {
     document.getElementById("populateWarehouseDatabase")?.addEventListener("click", async () => {
-        if ((inventory.size || movementHistory.length) && !window.confirm("Sostituire tutte le giacenze e lo storico con nuovi dati pseudo-randomici di test?")) return;
+        if ((inventory.size || movementHistory.length) && !await showWarehouseConfirm({
+            title: "Sostituisci database di test",
+            message: "Tutte le giacenze, la Zona scarico e lo storico saranno sostituiti con nuovi dati pseudo-randomici.",
+            confirmLabel: "Sostituisci dati",
+            danger: true,
+        })) return;
         setTestDatabaseButtonsDisabled(true);
         try {
             const plan = buildPseudoRandomWarehouseState();
@@ -4635,7 +4716,12 @@ function setupTemporaryDatabaseActions() {
     });
 
     document.getElementById("clearWarehouseDatabase")?.addEventListener("click", async () => {
-        if (!window.confirm("Svuotare completamente giacenze, zona scarico e storico del magazzino? L'operazione non è annullabile.")) return;
+        if (!await showWarehouseConfirm({
+            title: "Svuota database magazzino",
+            message: "Giacenze, Zona scarico e storico verranno eliminati completamente. L'operazione non è annullabile.",
+            confirmLabel: "Svuota database",
+            danger: true,
+        })) return;
         setTestDatabaseButtonsDisabled(true);
         try {
             inventory.clear();
@@ -4654,6 +4740,7 @@ function setupTemporaryDatabaseActions() {
 }
 
 setupWarehouseSplash();
+setupWarehouseDialogFocus();
 renderTabs();
 renderMap();
 setupDisplayMode();

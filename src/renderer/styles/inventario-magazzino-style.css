@@ -1872,6 +1872,47 @@ h1 {
     backdrop-filter: blur(2px);
 }
 .restriction-backdrop.is-open { display: grid; }
+.warehouse-confirm-backdrop { z-index: 520; }
+.warehouse-confirm-dialog {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 13px;
+    width: min(480px, 92vw);
+    padding: 18px;
+    border: 1px solid #aeb9c2;
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 27, 38, .38);
+}
+.warehouse-confirm-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid #dfbd78;
+    border-radius: 50%;
+    color: #8b5900;
+    background: #fff5dc;
+    font-size: 18px;
+    font-weight: 800;
+}
+.warehouse-confirm-dialog h2 { margin: 3px 0 5px; color: #1f3445; font-size: 19px; }
+.warehouse-confirm-dialog p { margin: 0; color: #5e6b75; font-size: 11px; line-height: 1.5; }
+.warehouse-confirm-dialog footer { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 7px; }
+.warehouse-confirm-dialog footer button {
+    min-width: 88px;
+    min-height: 33px;
+    padding: 7px 12px;
+    border: 1px solid #bcc7cf;
+    border-radius: 4px;
+    color: #3d4e5b;
+    background: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.warehouse-confirm-dialog .warehouse-confirm-accept { border-color: #174f80; color: #fff; background: #174f80; }
+.warehouse-confirm-dialog .warehouse-confirm-accept.is-danger { border-color: #b73b3b; background: #b73b3b; }
 .restriction-dialog {
     width: min(1040px, 96vw);
     max-height: 92vh;

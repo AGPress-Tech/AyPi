@@ -601,6 +601,21 @@
     <div class="slot-selection-rectangle" id="slotSelectionRectangle" hidden></div>
     <div class="warehouse-toast" id="warehouseToast" role="status" aria-live="polite" hidden></div>
 
+    <div class="restriction-backdrop warehouse-confirm-backdrop" id="warehouseConfirmDialog" aria-hidden="true" inert>
+        <section class="warehouse-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="warehouseConfirmTitle" aria-describedby="warehouseConfirmMessage">
+            <div class="warehouse-confirm-icon" aria-hidden="true">!</div>
+            <div>
+                <span class="section-label">CONFERMA OPERAZIONE</span>
+                <h2 id="warehouseConfirmTitle">Conferma</h2>
+                <p id="warehouseConfirmMessage"></p>
+            </div>
+            <footer>
+                <button id="warehouseConfirmCancel" type="button">Annulla</button>
+                <button class="warehouse-confirm-accept" id="warehouseConfirmAccept" type="button">Conferma</button>
+            </footer>
+        </section>
+    </div>
+
     <div class="restriction-backdrop" id="restrictionDialog" aria-hidden="true">
         <section class="restriction-dialog" role="dialog" aria-modal="true" aria-labelledby="restrictionDialogTitle">
             <header class="restriction-dialog__header">

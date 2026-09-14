@@ -101,6 +101,12 @@ Il flusso dell'interfaccia è articolato in tre fasi:
 
 Dall'anteprima è possibile tornare alla composizione per correggere le righe o aggiungere altri articoli. L'annullamento elimina l'intero gruppo e riporta alla mappa; la chiusura esplicita della finestra conserva invece la bozza in memoria. Un clic sullo sfondo non chiude le finestre di carico o scarico, evitando perdite di contesto accidentali durante la compilazione.
 
+### Finestre, conferme e focus
+
+Il modulo non deve utilizzare prompt, alert o conferme native di Windows. Annullamento dei gruppi, conferma del veicolo, logout e comandi distruttivi del database test usano dialog AyPi interni. Ogni apertura registra il controllo di origine, porta in primo piano la finestra Electron, assegna il focus al primo campo pertinente e confina la navigazione da tastiera nel popup; alla chiusura il focus torna al controllo che lo aveva aperto. Quando l'applicazione recupera il focus dopo un prompt esterno di sistema, il popup AyPi attivo riacquisisce automaticamente il focus e mantiene compilabili i campi.
+
+Le finestre Electron separate, come il dettaglio prima/dopo di un movimento, sono associate alla finestra Inventario proprietaria. All'apertura vengono mostrate e portate in primo piano esplicitamente; alla chiusura il focus viene restituito alla finestra Inventario.
+
 ### Scarico automatico
 
 - Applicare FIFO: prelevare prima i cassoni più vecchi.
