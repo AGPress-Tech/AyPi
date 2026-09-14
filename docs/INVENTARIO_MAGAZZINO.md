@@ -8,6 +8,19 @@ Gestire lo stock di articoli conservati in cassoni, proponendo carico, scarico e
 
 Il sistema dovrà supportare sia proposte automatiche sia operazioni manuali forzate dall'operatore.
 
+### Spostamenti manuali
+
+Il prototipo dispone di un flusso separato **Spostamento manuale**, accessibile dalla barra Operazioni e dal menu contestuale delle celle:
+
+- su uno slot libero, `Carico manuale qui` crea un singolo cassone con articolo, cliente, riferimento ordine e stato parziale indicati dall'operatore;
+- su uno slot occupato, `Scarico manuale da qui` identifica l'unità mediante ubicazione e la preleva esattamente da quella posizione, senza sostituirla con un'altra unità scelta dal FIFO;
+- il carico forzato non può violare esistenza dello slot, gravità verticale, blocchi pallet, accessibilità fronte/retro o whitelist/blacklist cliente;
+- lo scarico puntuale calcola gli eventuali cassoni d'ingombro e li rialloca attraverso il motore di carico, mostrando all'operatore ogni passaggio origine → destinazione;
+- il cassone prelevato entra nella Zona scarico persistente, dove può ancora essere ricaricato prima della conferma del veicolo;
+- salvataggio SQLite e aggiornamento dell'interfaccia sono atomici: se la persistenza fallisce, la giacenza visibile non viene modificata.
+
+Ogni carico e scarico manuale produce un blocco `MV_*`, registra l'operatore e conserva gli snapshot prima/dopo come le operazioni automatiche. Restano escluse dallo storico soltanto le riallocazioni e gli scambi manuali fra slot. Il flusso iniziale gestisce soltanto cassoni singoli; la movimentazione manuale indivisibile dei pallet resta da progettare.
+
 ## 2. Struttura fisica comunicata
 
 - 5 file di scaffalature, identificate con lettere maiuscole: `A`, `B`, `C`, `D`, `E`.
@@ -94,6 +107,7 @@ Dall'anteprima è possibile tornare alla composizione per correggere le righe o 
 - Il riferimento ordine è un filtro opzionale, non un dato obbligatorio per individuare l'articolo da prelevare.
 - Se l'operatore specifica il riferimento ordine, il motore limita i candidati alle unità dell'articolo associate a quel riferimento e applica FIFO all'interno dell'insieme risultante.
 - Se il riferimento ordine non viene specificato, il motore considera tutte le unità dell'articolo richiesto, indipendentemente dall'ordine, e preleva sempre prima le più vecchie.
+- All'interno dello stesso istante FIFO, lo scarico attribuisce una priorità esplicita alle unità frontali direttamente accessibili. Questa preferenza usa il lato fisico configurato e funziona quindi anche sulle file invertite `B` e `D`; non riutilizza l'ordinamento retro-prima-del-fronte proprio del carico.
 - Il formato del riferimento è `AA/NNNNN` oppure `AA/NNNNN/C`: `AA` rappresenta l'anno, `NNNNN` il progressivo e il suffisso `/C` identifica i contratti. Il suffisso non modifica la priorità FIFO.
 - Ottimizzare lo spazio e ridurre le movimentazioni necessarie per raggiungere i cassoni.
 - Un prelievo può prevedere un movimento intermedio: un cassone viene estratto, usato o controllato e può poi tornare in magazzino.
@@ -102,6 +116,13 @@ Dall'anteprima è possibile tornare alla composizione per correggere le righe o 
 - Una posizione anteriore non può restare occupata se la corrispondente posizione posteriore è libera. Nelle file standard l'anteriore è dispari e il posteriore pari; nelle file invertite vale il contrario.
 - Quando il retro si libera e davanti sono presenti cassoni, il piano di ottimizzazione può spostarli dietro per liberare slot frontali. La scelta esatta dipenderà dal costo delle movimentazioni e dalle regole ancora da definire.
 - Nel prelievo di più unità dello stesso articolo, una pila posteriore completa può essere preferibile a una combinazione di unità anteriori e posteriori quando quest'ultima richiederebbe più movimentazioni, sempre nel rispetto della priorità FIFO applicabile.
+- FIFO è applicato per istante di carico: i lotti più vecchi vengono esauriti prima dei successivi. Tutte le unità dello stesso movimento ricevono il medesimo istante FIFO; al loro interno vince prima il minor numero stimato di movimentazioni umane, poi il maggior numero di pile e coppie completamente liberate.
+- Eccezione controllata di consolidamento: all'interno dello stesso istante FIFO il piano può accettare al massimo il costo equivalente a una movimentazione aggiuntiva quando questo permette di liberare una coppia fronte/retro completa. Il beneficio viene riconosciuto una sola volta nel punteggio, evitando che molte liberazioni possano giustificare un numero incontrollato di interventi extra.
+- Le unità sopra un cassone prelevato e le pile anteriori che impediscono l'accesso al retro vengono spostate temporaneamente nel corridoio. Dopo il prelievo rientrano nella stessa pila o nella stessa coppia fisica, applicando soltanto lo scorrimento verticale e l'eventuale passaggio fronte/retro indispensabili per ottenere uno stato valido. Lo scarico non usa il planner globale di carico per disperdere questi ingombri in altre colonne.
+- L'anteprima distingue esplicitamente `Preleva articolo` da `Rialloca articolo`, mostra ogni passaggio `origine → destinazione` e riporta movimentazioni stimate, pile liberate e coppie liberate.
+- Il report operativo dello scarico è una sequenza numerata eseguibile: rimozioni temporanee verso il corridoio, prelievi verso la Zona scarico e ricollocazioni dal corridoio vengono presentati nell'ordine imposto dagli ingombri fisici.
+- Cassoni contigui della stessa pila vengono accorpati in un'unica istruzione quando il muletto può prenderli insieme. Ogni passo riporta articolo, cliente e riferimento ordine; se il gruppo contiene dati diversi, li specifica separatamente per ubicazione.
+- Una pila completa spostata insieme nel corridoio rimane un gruppo indivisibile anche nella relativa istruzione di reinserimento. Il riassetto locale privilegia il ritorno nella posizione originaria; quando il prelievo rende quella configurazione fisicamente invalida, mantiene comunque la pila unita e la trasferisce sul lato opposto della stessa coppia.
 
 ### Normalizzazione locale della coppia fronte/retro
 
@@ -138,15 +159,15 @@ L'algoritmo non dovrà considerare gratuito l'accesso ai livelli posteriori e do
 - Più parole nella stessa ricerca vengono combinate: ogni parola deve comparire in almeno uno dei campi abilitati.
 - I risultati devono essere evidenziati sulla mappa anche quando appartengono a file non visibili.
 - Oltre all'evidenziazione serve un report scritto con ubicazione, articolo, cliente, riferimento ordine e stati rilevanti.
-- Le righe del report sono selezionabili tramite spunta e possono essere aggiunte direttamente a un gruppo di scarico. Le due ubicazioni dello stesso pallet vengono deduplicate come una sola unità logistica. Il prototipo esegue già il prelievo logico e aggiorna le giacenze; la futura zona speciale di movimentazione servirà a rappresentare l'esecuzione fisica intermedia.
+- Le righe del report sono selezionabili tramite spunta e possono essere aggiunte direttamente a un gruppo di scarico. Le due ubicazioni dello stesso pallet vengono deduplicate come una sola unità logistica. Il prelievo aggiorna le giacenze e trasferisce le unità nella zona scarico persistente.
 - Per mantenere pulita la schermata operativa, filtri e report sono raccolti in una finestra dedicata aperta dal pulsante **Ricerca e prelievo**. La chiusura della finestra non cancella ricerca, selezioni o evidenziazioni presenti sulla mappa.
 - Una barra rapida resta visibile nella toolbar per cercare ed evidenziare immediatamente gli slot. Il suo testo è sincronizzato bidirezionalmente con il campo della finestra **Ricerca e prelievo** e utilizza gli stessi campi di ricerca abilitati.
 
 ### Stato “In movimento” e zona di movimentazione
 
 - **In movimento** identifica un cassone già rimosso dalla propria ubicazione durante lo spostamento intermedio che precede lo scarico definitivo.
-- Dovrà esistere una zona speciale di movimentazione, separata dagli slot ordinari.
-- Restano da definire capacità, coordinate, permanenza massima, concorrenza tra operatori e possibili destinazioni dalla zona speciale.
+- La zona scarico persistente è separata dagli slot ordinari e conserva le unità prelevate fino al ricarico a magazzino oppure alla conferma del caricamento veicolo.
+- Restano da definire capacità fisica, permanenza massima e concorrenza tra operatori della zona scarico.
 - La ricerca deve includere i cassoni in movimento anche se non occupano temporaneamente uno slot ordinario.
 
 ### Tag
@@ -230,8 +251,9 @@ Ogni gruppo automatico di carico o scarico completato produce un blocco identifi
 
 Il riepilogo operativo e lo storico mostrano esclusivamente quanto richiesto all'operatore:
 
-- `Articolo X`;
-- `Posizioni A1a, A1b, A1c, ...` caricate o rimosse.
+- `Preleva articolo X` con le ubicazioni di origine;
+- `Rialloca articolo Y` con ogni passaggio `origine → destinazione` necessario;
+- per una manipolazione che termina nella stessa ubicazione, `origine → corridoio → origine`.
 
 Non vengono descritte le preparazioni esterne al magazzino. Lo storico distingue carico e scarico e conserva l'ordine cronologico delle operazioni. Movimento, righe, ubicazioni e data/ora sono ora persistiti in SQLite; le riallocazioni manuali restano escluse dallo storico automatico.
 
@@ -278,7 +300,7 @@ Entità iniziali, da validare prima di creare la persistenza definitiva:
 - **Slot**: coordinata, fila, colonna fisica, lato, livello, stato e possibili vincoli/blocchi.
 - **Cassone**: identificativo univoco, articolo, lotto, quantità/parziale, data di ingresso, tag e stato.
 - **Occupazione**: relazione temporale tra cassone e slot.
-- **Movimento automatico**: blocco `MV_*` di carico o scarico con righe articolo, ubicazioni interessate, operatore e data/ora. Le riallocazioni manuali sono escluse da questa entità per requisito.
+- **Movimento di magazzino**: blocco `MV_*` di carico o scarico, automatico o manuale, con righe articolo, ubicazioni interessate, operatore, data/ora e snapshot prima/dopo. Le sole riallocazioni e gli scambi manuali tra slot sono esclusi da questa entità per requisito.
 - **Piano di movimentazione**: sequenza proposta dall'algoritmo, con punteggio e motivazioni.
 - **Blocco operativo**: insieme completo delle righe di carico e/o scarico da ottimizzare congiuntamente, con stato, versione, priorità e responsabile.
 - **Riga del blocco**: articolo, cliente, riferimento ordine, quantità, tipologia e vincoli specifici richiesti dall'operatore.

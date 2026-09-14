@@ -81,12 +81,12 @@
         <section class="operation-bar" aria-label="Operazioni magazzino">
             <div>
                 <span class="section-label">OPERAZIONI</span>
-                <p>Prepara gruppi multi-articolo e salva nel database la disposizione confermata.</p>
+                <p>Prepara gruppi automatici oppure forza carichi e scarichi su ubicazioni precise.</p>
             </div>
             <button class="operation-button--active" id="openLoadButton" type="button">Carico</button>
             <button class="operation-button--active" id="openUnloadButton" type="button">Scarico</button>
             <button class="unload-zone-button" id="openUnloadZoneButton" type="button">Zona scarico <b id="unloadZoneCount">0</b></button>
-            <button type="button" disabled>Spostamento</button>
+            <button class="operation-button--active" id="openManualMovementButton" type="button">Spostamento manuale</button>
             <button type="button" disabled>Gestione tag</button>
         </section>
 
@@ -455,6 +455,63 @@
         </section>
     </div>
 
+    <div class="restriction-backdrop manual-movement-backdrop" id="manualMovementDialog" aria-hidden="true">
+        <section class="manual-movement-dialog" role="dialog" aria-modal="true" aria-labelledby="manualMovementTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">OPERAZIONE FORZATA</span>
+                    <h2 id="manualMovementTitle">Spostamento manuale</h2>
+                    <p>Carica un nuovo cassone in una posizione precisa oppure preleva il cassone presente nell'ubicazione indicata.</p>
+                </div>
+                <button id="closeManualMovement" type="button" aria-label="Chiudi">×</button>
+            </header>
+
+            <div class="manual-movement-modes" role="tablist" aria-label="Tipo di spostamento manuale">
+                <button class="is-active" id="manualLoadMode" type="button" role="tab" aria-selected="true">Carico manuale</button>
+                <button id="manualUnloadMode" type="button" role="tab" aria-selected="false">Scarico manuale</button>
+            </div>
+
+            <form class="manual-movement-form" id="manualMovementForm">
+                <div class="manual-movement-grid">
+                    <label>Ubicazione obbligatoria
+                        <input id="manualMovementLocation" required placeholder="es. A2c" autocomplete="off">
+                        <small id="manualMovementLocationHint">Indica lo slot libero in cui forzare il nuovo cassone.</small>
+                    </label>
+                    <div class="manual-movement-source" id="manualUnloadSource" hidden>
+                        <span>CONTENUTO SELEZIONATO</span>
+                        <strong id="manualUnloadSourceTitle">Nessuna ubicazione valida</strong>
+                        <small id="manualUnloadSourceDetails">Inserisci una posizione occupata da un cassone.</small>
+                    </div>
+                    <div class="manual-load-fields" id="manualLoadFields">
+                        <label>Articolo<input id="manualLoadArticle" required placeholder="es. T0410AOA77"></label>
+                        <label>Cliente<input id="manualLoadCustomer" placeholder="es. AGPRESS"></label>
+                        <label>Riferimento ordine<input id="manualLoadOrder" pattern="[0-9]{2}/[0-9]{5}(/C)?" placeholder="es. 25/00114 oppure 25/00114/C" title="Formato richiesto: AA/NNNNN oppure AA/NNNNN/C"></label>
+                        <label>Parziale<select id="manualLoadPartial"><option value="no">No</option><option value="yes">Sì</option></select></label>
+                    </div>
+                </div>
+                <div class="manual-movement-validation">
+                    <p id="manualMovementMessage" role="status">L'operazione verrà convalidata rispetto a struttura fisica, pallet e vincoli cliente.</p>
+                    <small>Carichi e scarichi manuali vengono tracciati; le sole riallocazioni e gli scambi tra slot restano esclusi.</small>
+                </div>
+                <footer class="manual-movement-actions">
+                    <button id="cancelManualMovement" type="button">Annulla</button>
+                    <button class="operation-button--primary" id="executeManualMovement" type="submit">Esegui carico manuale</button>
+                </footer>
+            </form>
+
+            <section class="manual-movement-result" id="manualMovementResult" hidden>
+                <div class="operation-ready-icon" aria-hidden="true">✓</div>
+                <h3>Operazione manuale completata</h3>
+                <p id="manualMovementResultText"></p>
+                <div class="operation-lines operation-lines--ready" id="manualMovementResultLines"></div>
+                <footer class="manual-movement-actions">
+                    <button id="newManualMovement" type="button">Nuova operazione</button>
+                    <button class="operation-button--primary" id="finishManualMovement" type="button">Torna alla mappa</button>
+                </footer>
+            </section>
+        </section>
+    </div>
+
     <div class="restriction-backdrop movement-history-backdrop" id="movementHistoryDialog" aria-hidden="true">
         <section class="movement-history-dialog" role="dialog" aria-modal="true" aria-labelledby="movementHistoryTitle">
             <header class="restriction-dialog__header">
@@ -534,6 +591,8 @@
         <button id="startRelocationButton" type="button" role="menuitem">Rialloca</button>
         <button id="placeRelocationButton" type="button" role="menuitem" hidden>Inserisci qui</button>
         <button id="swapRelocationButton" type="button" role="menuitem" hidden>Scambia posizioni</button>
+        <button id="manualLoadHereButton" type="button" role="menuitem">Carico manuale qui</button>
+        <button id="manualUnloadHereButton" type="button" role="menuitem">Scarico manuale da qui</button>
         <button id="manageSlotRestrictionsButton" type="button" role="menuitem">Gestisci vincolo dello slot</button>
         <button id="applySelectionRestrictions" type="button" role="menuitem" hidden>Applica vincolo alla selezione</button>
         <small id="contextMenuHint"></small>

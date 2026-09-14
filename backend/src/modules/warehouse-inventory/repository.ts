@@ -34,7 +34,24 @@ export type WarehouseMovement = {
     id: string;
     timestamp: string;
     type: "load" | "unload";
-    lines: Array<{ article: string; locations: string[] }>;
+    manual?: boolean;
+    lines: Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" }>;
+    operationalSteps?: Array<{
+        order: number;
+        kind: "corridor" | "unload" | "reinsert";
+        from: string[];
+        to: string[];
+        wholeStack?: boolean;
+        units: Array<{
+            id: string;
+            article: string;
+            customer: string;
+            orderReference: string;
+            type: "crate" | "pallet";
+            from: string;
+            to: string;
+        }>;
+    }>;
     actor?: Record<string, unknown> | null;
     beforeState?: WarehouseInventoryItem[];
     afterState?: WarehouseInventoryItem[];
@@ -178,7 +195,7 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
         FROM ${MOVEMENT_LINES_TABLE}
         ORDER BY movement_id ASC, line_order ASC
     `);
-    const linesByMovement = new Map<string, Array<{ article: string; locations: string[] }>>();
+    const linesByMovement = new Map<string, Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" }>>();
     (lineRows?.[0]?.values || []).forEach((row: unknown[]) => {
         const movementId = String(row[0] || "");
         if (!linesByMovement.has(movementId)) linesByMovement.set(movementId, []);
@@ -189,12 +206,18 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
     });
     const movements = (movementRows?.[0]?.values || []).map((row: unknown[]) => {
         const details = parseJson<Record<string, unknown>>(row[3], {});
+        const lineDetails = Array.isArray(details.lineDetails) ? details.lineDetails as Array<{ kind?: "loaded" | "unloaded" | "relocated" }> : [];
+        const lines = (linesByMovement.get(String(row[0] || "")) || []).map((line, index) => ({
+            ...line,
+            ...(lineDetails[index]?.kind ? { kind: lineDetails[index].kind } : {}),
+        }));
+        delete details.lineDetails;
         return {
             ...details,
             id: String(row[0] || ""),
             type: row[1] === "unload" ? "unload" as const : "load" as const,
             timestamp: String(row[2] || ""),
-            lines: linesByMovement.get(String(row[0] || "")) || [],
+            lines,
         } as WarehouseMovement;
     });
     const unloadRows = database.exec(`
@@ -280,6 +303,9 @@ export function saveWarehouseSnapshot(
                     beforeState: movement.beforeState || [],
                     afterState: movement.afterState || [],
                     changes: movement.changes || null,
+                    manual: Boolean(movement.manual),
+                    operationalSteps: movement.operationalSteps || [],
+                    lineDetails: movement.lines.map((line) => ({ kind: line.kind || null })),
                     reconstructed: Boolean((movement as WarehouseMovement & { reconstructed?: boolean }).reconstructed),
                 }),
             ]);
