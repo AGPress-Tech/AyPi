@@ -2,6 +2,7 @@
 require("./shared/dev-guards");
 const { requestBackend } = require("./shared/backend-client");
 const { ipcRenderer } = require("electron");
+const WAREHOUSE_LOGIN_REQUIRED = new URLSearchParams(window.location.search).get("warehouseRequireLogin") === "1";
 
 function defaultInvertedSides(code) {
     return (code.charCodeAt(0) - "A".charCodeAt(0) + 1) % 2 === 0;
@@ -44,8 +45,8 @@ const inventory = new Map();
 
 let selectedRow = "A";
 let selectedSlot = null;
-let displayMode = "location";
-let slotRangeMode = "paged";
+let displayMode = "article";
+let slotRangeMode = "all";
 let slotPage = 0;
 let slotPageDirection = null;
 let slotPreviewTimer = null;
@@ -62,6 +63,15 @@ let operationGroupMode = "load";
 let editingOperationLineIndex = null;
 let nextOperationLineId = 1;
 const movementHistory = [];
+const unloadZone = [];
+const warehouseSession = { role: "guest", adminName: "", department: "", employee: "" };
+let warehouseAssigneeGroups = {};
+let warehouseAdmins = [];
+let warehouseStorageUnavailable = true;
+let movementHighlight = null;
+let movementHighlightTimer = null;
+let contextMovementId = null;
+let contextUnloadZoneUnitId = null;
 const selectedSlotCodes = new Set();
 let relocationSourceCode = null;
 let restrictionBatchTargets = null;
@@ -74,6 +84,184 @@ const warehousePersistenceMode = process.env.AYPI_WAREHOUSE_USE_BACKEND === "1" 
 
 function warehouseStorageLabel() {
     return warehousePersistenceMode === "backend" ? "SQLite condiviso" : "SQLite locale";
+}
+
+function setupWarehouseSplash() {
+    const splash = document.getElementById("warehouseSplash");
+    const parameters = new URLSearchParams(window.location.search);
+    const enabled = parameters.get("warehouseSplash") === "1";
+    const blueArchive = parameters.get("theme") === "bluearchive";
+    document.body.classList.toggle("warehouse-bluearchive", blueArchive);
+    if (!enabled || !splash) {
+        document.body.classList.add("warehouse-ready");
+        splash?.remove();
+        return;
+    }
+    document.body.classList.add("warehouse-splash-active");
+    splash.setAttribute("aria-hidden", "false");
+    splash.setAttribute("role", "button");
+    splash.setAttribute("tabindex", "0");
+    splash.setAttribute("aria-label", "Clicca per saltare la schermata iniziale");
+    const finish = (immediate = false) => {
+        if (splash.classList.contains("is-leaving")) return;
+        splash.classList.add("is-leaving");
+        splash.setAttribute("aria-hidden", "true");
+        if (immediate) {
+            document.body.classList.remove("warehouse-splash-active");
+            document.body.classList.add("warehouse-ready");
+            splash.remove();
+            return;
+        }
+        window.setTimeout(() => {
+            document.body.classList.remove("warehouse-splash-active");
+            document.body.classList.add("warehouse-ready");
+            splash.remove();
+        }, 800);
+    };
+    splash.addEventListener("click", () => finish(true), { once: true });
+    splash.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        finish(true);
+    });
+    if (blueArchive) {
+        const steps = splash.querySelectorAll(".warehouse-ba-boot__status span");
+        window.setTimeout(() => steps[1]?.classList.add("is-complete"), 1750);
+        window.setTimeout(() => steps[2]?.classList.add("is-complete"), 2650);
+        window.setTimeout(() => steps[3]?.classList.add("is-complete"), 3500);
+        window.setTimeout(finish, 4850);
+    } else {
+        window.setTimeout(finish, 4200);
+    }
+}
+
+function isWarehouseLoggedIn() {
+    return !WAREHOUSE_LOGIN_REQUIRED || warehouseSession.role === "employee" || warehouseSession.role === "admin";
+}
+
+function isWarehouseAdmin() {
+    return !WAREHOUSE_LOGIN_REQUIRED || warehouseSession.role === "admin";
+}
+
+function warehouseActorSnapshot() {
+    if (!WAREHOUSE_LOGIN_REQUIRED) {
+        return {
+            role: "test",
+            adminName: "",
+            department: "Sviluppo",
+            employee: "Operatore test",
+            displayName: "Operatore test",
+        };
+    }
+    const displayName = warehouseSession.role === "admin"
+        ? warehouseSession.adminName
+        : warehouseSession.employee;
+    return {
+        role: warehouseSession.role,
+        adminName: warehouseSession.adminName || "",
+        department: warehouseSession.department || "",
+        employee: warehouseSession.employee || "",
+        displayName: displayName || "Operatore AyPi",
+    };
+}
+
+function syncWarehouseSessionUi() {
+    const button = document.getElementById("warehouseLoginToggle");
+    if (button) {
+        button.hidden = !WAREHOUSE_LOGIN_REQUIRED;
+        const name = warehouseSession.role === "admin" ? warehouseSession.adminName : warehouseSession.employee;
+        button.classList.toggle("is-authenticated", isWarehouseLoggedIn());
+        button.querySelector("strong").textContent = isWarehouseLoggedIn()
+            ? `${warehouseSession.role === "admin" ? "Admin" : "Operatore"}: ${name}`
+            : "Login";
+        button.title = isWarehouseLoggedIn() ? "Clicca per disconnettere l'operatore" : "Accedi per abilitare carico e scarico";
+    }
+    const disabled = warehouseStorageUnavailable || !isWarehouseLoggedIn();
+    ["openLoadButton", "openUnloadButton"].forEach((id) => {
+        const control = document.getElementById(id);
+        if (!control) return;
+        control.disabled = disabled;
+        control.title = !isWarehouseLoggedIn() ? "Login operatore richiesto" : disabled ? "Database non disponibile" : "";
+    });
+    document.querySelectorAll("[data-admin-only]").forEach((section) => {
+        const locked = !isWarehouseAdmin();
+        section.classList.toggle("is-admin-locked", locked);
+        section.hidden = locked;
+        section.title = locked ? "Accesso amministratore richiesto" : "";
+    });
+    if (!isWarehouseAdmin()) closeRestrictionDialog();
+    renderUnloadZone();
+}
+
+function applyWarehouseSession(payload) {
+    Object.assign(warehouseSession, { role: "guest", adminName: "", department: "", employee: "" },
+        payload && ["employee", "admin"].includes(payload.role) ? payload : {});
+    syncWarehouseSessionUi();
+}
+
+async function saveWarehouseSession(payload) {
+    applyWarehouseSession(payload);
+    await ipcRenderer.invoke("pm-session-set", warehouseSession);
+}
+
+function fillWarehouseSelect(select, values, placeholder) {
+    if (!select) return;
+    select.replaceChildren();
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = placeholder;
+    select.appendChild(empty);
+    values.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+    });
+}
+
+function openWarehouseLogin() {
+    const dialog = document.getElementById("warehouseLoginDialog");
+    dialog?.classList.add("is-open");
+    dialog?.setAttribute("aria-hidden", "false");
+}
+
+function closeWarehouseLogin() {
+    const dialog = document.getElementById("warehouseLoginDialog");
+    dialog?.classList.remove("is-open");
+    dialog?.setAttribute("aria-hidden", "true");
+}
+
+function renderWarehouseLoginSources() {
+    const departments = Object.keys(warehouseAssigneeGroups).sort((a, b) => a.localeCompare(b, "it"));
+    fillWarehouseSelect(document.getElementById("warehouseLoginDepartment"), departments, "Seleziona reparto");
+    fillWarehouseSelect(document.getElementById("warehouseLoginEmployee"), [], "Seleziona reparto");
+    fillWarehouseSelect(document.getElementById("warehouseLoginAdmin"), warehouseAdmins, "Seleziona admin");
+}
+
+async function initializeWarehouseAuthentication() {
+    if (!WAREHOUSE_LOGIN_REQUIRED) {
+        applyWarehouseSession(null);
+        closeWarehouseLogin();
+        return;
+    }
+    try {
+        applyWarehouseSession(await ipcRenderer.invoke("pm-session-get"));
+    } catch {
+        applyWarehouseSession(null);
+    }
+    if (!isWarehouseLoggedIn()) openWarehouseLogin();
+    const [assignees, admins] = await Promise.allSettled([
+        requestBackend("/api/shared/assignees"),
+        requestBackend("/api/shared/admins"),
+    ]);
+    if (assignees.status === "fulfilled") {
+        const payload = assignees.value || {};
+        warehouseAssigneeGroups = payload.groups && typeof payload.groups === "object" ? payload.groups : {};
+    }
+    if (admins.status === "fulfilled") {
+        warehouseAdmins = (admins.value?.admins || []).map((admin) => String(admin?.name || "").trim()).filter(Boolean);
+    }
+    renderWarehouseLoginSources();
 }
 
 function loadPersistedWarehouseData() {
@@ -107,11 +295,105 @@ function serializeWarehouseInventory() {
     }));
 }
 
-function serializeWarehouseMovements() {
-    return movementHistory.map((movement) => ({
-        ...movement,
-        lines: movement.lines.map((line) => ({ ...line, locations: [...line.locations] })),
+function cloneUnloadZoneUnits(units = unloadZone) {
+    return (units || []).map((item) => ({
+        ...item,
+        tags: [...(item.tags || [])],
+        originalLocations: [...(item.originalLocations || [])],
     }));
+}
+
+function serializeWarehouseMovements() {
+    return movementHistory.map(cloneWarehouseMovement);
+}
+
+function cloneWarehouseRows(rows) {
+    return (rows || []).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+}
+
+function cloneWarehouseMovement(movement) {
+    return {
+        ...movement,
+        actor: movement.actor ? { ...movement.actor } : null,
+        lines: (movement.lines || []).map((line) => ({ ...line, locations: [...(line.locations || [])] })),
+        beforeState: cloneWarehouseRows(movement.beforeState),
+        afterState: cloneWarehouseRows(movement.afterState),
+        changes: movement.changes ? {
+            loaded: (movement.changes.loaded || []).map((entry) => ({ ...entry, from: [...(entry.from || [])], to: [...(entry.to || [])] })),
+            unloaded: (movement.changes.unloaded || []).map((entry) => ({ ...entry, from: [...(entry.from || [])], to: [...(entry.to || [])] })),
+            shifted: (movement.changes.shifted || []).map((entry) => ({ ...entry, from: [...(entry.from || [])], to: [...(entry.to || [])] })),
+        } : null,
+    };
+}
+
+function legacyMovementUnit(movement, article, locations, sequence) {
+    const pallet = locations.length === 2
+        && locations.every((location) => parseSlotCode(location)?.level === "a");
+    const id = `legacy-${movement.id}-${sequence}`;
+    return locations.map((location, index) => ({
+        id,
+        location,
+        article,
+        customer: "",
+        orderReference: "",
+        tags: ["ricostruzione storica"],
+        inMovement: false,
+        partial: false,
+        type: pallet ? "pallet" : "crate",
+        pairedLocation: pallet ? locations[index === 0 ? 1 : 0] : null,
+        receivedAt: movement.timestamp,
+    }));
+}
+
+function backfillLegacyMovementSnapshots() {
+    let workingState = serializeWarehouseInventory();
+    movementHistory.forEach((movement) => {
+        if (movement.beforeState?.length || movement.afterState?.length || movement.changes) {
+            workingState = cloneWarehouseRows(movement.beforeState);
+            return;
+        }
+        const afterState = cloneWarehouseRows(workingState);
+        const previousByLocation = new Map(afterState.map((item) => [item.location, { ...item, tags: [...(item.tags || [])] }]));
+        if (movement.type === "load") {
+            const removedIds = new Set();
+            (movement.lines || []).forEach((line) => {
+                (line.locations || []).forEach((entry) => {
+                    const locations = String(entry || "").split(/\s*\+\s*/).filter((location) => parseSlotCode(location));
+                    const exact = locations.map((location) => previousByLocation.get(location)).find((item) => item?.article === line.article);
+                    const fallback = Array.from(previousByLocation.values()).find((item) => item.article === line.article && !removedIds.has(item.id));
+                    const target = exact || fallback;
+                    if (!target) return;
+                    removedIds.add(target.id);
+                    Array.from(previousByLocation.entries()).forEach(([location, item]) => {
+                        if (item.id === target.id) previousByLocation.delete(location);
+                    });
+                });
+            });
+        } else {
+            let sequence = 0;
+            (movement.lines || []).forEach((line) => {
+                (line.locations || []).forEach((entry) => {
+                    const locations = String(entry || "").split(/\s*\+\s*/).filter((location) => parseSlotCode(location));
+                    legacyMovementUnit(movement, line.article, locations, sequence++).forEach((item) => {
+                        if (!previousByLocation.has(item.location)) previousByLocation.set(item.location, item);
+                    });
+                });
+            });
+        }
+        const beforeState = Array.from(previousByLocation.values());
+        movement.beforeState = cloneWarehouseRows(beforeState);
+        movement.afterState = cloneWarehouseRows(afterState);
+        movement.changes = buildMovementChanges(beforeState, afterState);
+        movement.reconstructed = true;
+        movement.actor = movement.actor || {
+            role: "legacy",
+            displayName: "Operatore storico non registrato",
+            adminName: "",
+            department: "",
+            employee: "",
+        };
+        workingState = beforeState;
+    });
 }
 
 function hydrateWarehouseSnapshot(snapshot) {
@@ -124,10 +406,9 @@ function hydrateWarehouseSnapshot(snapshot) {
             pairedLocation: item.pairedLocation || null,
         });
     });
-    movementHistory.splice(0, movementHistory.length, ...(snapshot?.movements || []).map((movement) => ({
-        ...movement,
-        lines: (movement.lines || []).map((line) => ({ ...line, locations: [...(line.locations || [])] })),
-    })));
+    unloadZone.splice(0, unloadZone.length, ...cloneUnloadZoneUnits(snapshot?.unloadZone || []));
+    movementHistory.splice(0, movementHistory.length, ...(snapshot?.movements || []).map(cloneWarehouseMovement));
+    backfillLegacyMovementSnapshots();
     warehouseRevision = Number(snapshot?.revision) || 0;
 }
 
@@ -141,6 +422,7 @@ function refreshWarehouseDataViews() {
     refreshInventorySearch();
     renderDetails();
     renderMovementHistory();
+    renderUnloadZone();
     updateSummary();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
 }
@@ -151,8 +433,8 @@ function setTestDatabaseButtonsDisabled(disabled) {
 }
 
 function setWarehouseOperationsDisabled(disabled) {
-    document.getElementById("openLoadButton").disabled = disabled;
-    document.getElementById("openUnloadButton").disabled = disabled;
+    warehouseStorageUnavailable = disabled;
+    syncWarehouseSessionUi();
 }
 
 async function initializeWarehousePersistence() {
@@ -178,10 +460,12 @@ async function initializeWarehousePersistence() {
 function persistWarehouseData(
     inventorySnapshot = serializeWarehouseInventory(),
     movementSnapshot = serializeWarehouseMovements(),
+    unloadZoneSnapshot = cloneUnloadZoneUnits(),
 ) {
     const snapshot = {
         inventory: inventorySnapshot,
         movements: movementSnapshot,
+        unloadZone: unloadZoneSnapshot,
     };
     warehousePersistenceQueue = warehousePersistenceQueue.catch(() => undefined).then(async () => {
         if (!warehousePersistenceReady) throw new Error("Database del magazzino non connesso.");
@@ -371,11 +655,6 @@ function createSlotButton(row, columnIndex, side, level) {
     button.className = `slot slot--${side}`;
     button.dataset.slot = code;
     renderCellLabel(button, code, item);
-    button.title = blockingPalletId
-        ? `${code} | Non disponibile: colonna occupata dal pallet ${blockingPalletId}`
-        : item
-        ? `${code} | ${item.type === "pallet" ? "Pallet" : "Cassone"} | ${item.article} | ${item.customer} | ${item.orderReference}${item.pairedLocation ? ` | Occupa anche ${item.pairedLocation}` : ""}${item.tags.length ? ` | Tag: ${item.tags.join(", ")}` : ""}${item.partial ? " | Parziale" : ""}${item.inMovement ? " | In movimento" : ""}`
-        : `${code} | Libero`;
     button.setAttribute("aria-label", blockingPalletId
         ? `${code}, bloccato dal pallet ${blockingPalletId}`
         : item ? `${code}, articolo ${item.article}` : `${code}, libero`);
@@ -389,6 +668,13 @@ function createSlotButton(row, columnIndex, side, level) {
     button.classList.toggle("is-selected", code === selectedSlot?.code);
     button.classList.toggle("is-multi-selected", selectedSlotCodes.has(code));
     button.classList.toggle("is-relocation-source", code === relocationSourceCode);
+    const highlightedUnitId = item?.id || null;
+    button.classList.toggle("is-movement-loaded", Boolean(movementHighlight && (
+        movementHighlight.loadedIds.has(highlightedUnitId) || movementHighlight.loadedLocations.has(code)
+    )));
+    button.classList.toggle("is-movement-shifted", Boolean(movementHighlight && (
+        movementHighlight.shiftedIds.has(highlightedUnitId) || movementHighlight.shiftedLocations.has(code)
+    )));
     button.classList.toggle(
         "has-customer-conflict",
         Boolean(item && !evaluateCustomerForSlot(code, item.customer).allowed),
@@ -532,13 +818,20 @@ function updateTabs() {
         const active = row === selectedRow;
         const hasMatch = rowContainsMatch(row);
         const hasSearchMatch = rowContainsSearchMatch(row);
+        const hasMovementHighlight = Boolean(movementHighlight && Array.from(inventory.entries()).some(([location, item]) =>
+            location.startsWith(row) && (movementHighlight.loadedIds.has(item.id)
+                || movementHighlight.shiftedIds.has(item.id)
+                || movementHighlight.loadedLocations.has(location)
+                || movementHighlight.shiftedLocations.has(location))));
         button.classList.toggle("is-active", active);
         button.classList.toggle("has-match", hasMatch);
         button.classList.toggle("has-search-match", hasSearchMatch);
+        button.classList.toggle("has-movement-highlight", hasMovementHighlight);
         button.setAttribute("aria-pressed", String(active));
         const indicators = [];
         if (hasMatch) indicators.push("corrispondenze");
         if (hasSearchMatch) indicators.push("risultati di ricerca");
+        if (hasMovementHighlight) indicators.push("unità del movimento evidenziato");
         button.title = indicators.length ? `Fila ${row}: contiene ${indicators.join(" e ")}` : `Fila ${row}`;
     });
 }
@@ -723,8 +1016,8 @@ function openContextMenu(code, x, y) {
     relocate.disabled = !item || item.type !== "crate";
     place.hidden = multiSelection || !relocationSourceCode || Boolean(item);
     swap.hidden = multiSelection || !relocationSourceCode || !item || code === relocationSourceCode;
-    document.getElementById("manageSlotRestrictionsButton").hidden = multiSelection;
-    document.getElementById("applySelectionRestrictions").hidden = !multiSelection;
+    document.getElementById("manageSlotRestrictionsButton").hidden = multiSelection || !isWarehouseAdmin();
+    document.getElementById("applySelectionRestrictions").hidden = !multiSelection || !isWarehouseAdmin();
     if (!warehousePersistenceReady) {
         menu.querySelectorAll("button").forEach((button) => { button.disabled = true; });
     }
@@ -1102,6 +1395,10 @@ function validateWarehouseStructure() {
 }
 
 function applyWarehouseStructure() {
+    if (!isWarehouseAdmin()) {
+        showWarehouseToast("Accesso amministratore richiesto per modificare la struttura fisica.", true);
+        return;
+    }
     const error = validateWarehouseStructure();
     if (error) {
         setWarehouseStructureMessage(error);
@@ -1326,6 +1623,11 @@ async function focusOperationDialogInput() {
 }
 
 function openOperationDialog(mode, stage) {
+    if (!isWarehouseLoggedIn()) {
+        openWarehouseLogin();
+        showWarehouseToast("Login operatore richiesto per carico e scarico.", true);
+        return;
+    }
     closeToolsDrawer();
     closeContextMenu();
     hideSlotPreview();
@@ -1409,8 +1711,10 @@ const CRATE_SORTING_WEIGHTS = Object.freeze({
     mixedArticleUnit: 450,
     frontUnit: 90,
     completeStack: -220,
+    residualSingleCompletion: -450,
     twoHighStack: -45,
     sameArticleFrontRearModule: -800,
+    fullArticleFrontRearModule: -660,
     continueExistingArticleUnit: -900,
     differentRowDistance: 2000,
     physicalColumnDistance: 35,
@@ -1484,6 +1788,7 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
     let newPhysicalModules = 0;
     let frontUnits = 0;
     let completedStacks = 0;
+    let residualSingleCompletions = 0;
     let twoHighStacks = 0;
     let distanceScore = 0;
     let initialPositionScore = 0;
@@ -1498,7 +1803,14 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
             }).length;
         }
         if (!initialItems.some((item) => item.article === article)) newArticleDivisions += 1;
-        if (finalItems.length === 3) completedStacks += 1;
+        if (finalItems.length === 3) {
+            completedStacks += 1;
+            const addedHere = locations.filter((code) => {
+                const location = parseSlotCode(code);
+                return location.row === parsed.row && location.number === parsed.number;
+            }).length;
+            if (locations.length % 3 === 1 && initialItems.length === 2 && addedHere === 1) residualSingleCompletions += 1;
+        }
         else if (finalItems.length === 2) twoHighStacks += 1;
         touchedModules.set(`${parsed.row}:${parsed.physicalColumn}`, parsed);
         if (initialArticleLocations.length) {
@@ -1516,6 +1828,7 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
         if (parseSlotCode(code).side === "front") frontUnits += 1;
     });
     let pairedArticleModules = 0;
+    let fullPairedArticleModules = 0;
     let continuedArticleUnits = 0;
     touchedModules.forEach((parsed) => {
         const rearNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a")).number;
@@ -1534,6 +1847,9 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
         }));
         if (rearHasArticle && frontHasArticle && !moduleHasOtherArticle) {
             pairedArticleModules += 1;
+            const rearIsFullArticle = levels.every((level) => state.get(`${parsed.row}${rearNumber}${level}`)?.article === article);
+            const frontIsFullArticle = levels.every((level) => state.get(`${parsed.row}${frontNumber}${level}`)?.article === article);
+            if (rearIsFullArticle && frontIsFullArticle) fullPairedArticleModules += 1;
             if (initialRearHasArticle || initialFrontHasArticle) {
                 continuedArticleUnits += locations.filter((code) => {
                     const location = parseSlotCode(code);
@@ -1551,14 +1867,16 @@ function scoreCratePlan(initialState, state, locations, article, movements, init
         + mixedUnits * CRATE_SORTING_WEIGHTS.mixedArticleUnit
         + frontUnits * CRATE_SORTING_WEIGHTS.frontUnit
         + completedStacks * CRATE_SORTING_WEIGHTS.completeStack
+        + residualSingleCompletions * CRATE_SORTING_WEIGHTS.residualSingleCompletion
         + twoHighStacks * CRATE_SORTING_WEIGHTS.twoHighStack
         + pairedArticleModules * CRATE_SORTING_WEIGHTS.sameArticleFrontRearModule
+        + fullPairedArticleModules * CRATE_SORTING_WEIGHTS.fullArticleFrontRearModule
         + continuedArticleUnits * CRATE_SORTING_WEIGHTS.continueExistingArticleUnit
         + distanceScore
         + initialPositionScore;
 }
 
-function scoreCrateMoveCandidate(state, move, article, initialArticleLocations) {
+function scoreCrateMoveCandidate(state, move, article, initialArticleLocations, requestedQuantity) {
     const parsed = parseSlotCode(move.codes[0]);
     const stack = crateStackItems(state, parsed).filter(Boolean);
     const finalHeight = stack.length + move.codes.length;
@@ -1569,6 +1887,10 @@ function scoreCrateMoveCandidate(state, move, article, initialArticleLocations) 
         ["a", "b", "c"].every((level) => !state.has(`${parsed.row}${number}${level}`))
     ));
     const sideHasArticle = (number) => ["a", "b", "c"].some((level) => (
+        state.get(`${parsed.row}${number}${level}`)?.article === article
+            || move.codes.includes(`${parsed.row}${number}${level}`)
+    ));
+    const sideIsFullArticle = (number) => ["a", "b", "c"].every((level) => (
         state.get(`${parsed.row}${number}${level}`)?.article === article
             || move.codes.includes(`${parsed.row}${number}${level}`)
     ));
@@ -1594,8 +1916,14 @@ function scoreCrateMoveCandidate(state, move, article, initialArticleLocations) 
         + (moduleWasEmpty ? CRATE_SORTING_WEIGHTS.newPhysicalModule : 0)
         + move.codes.filter((code) => parseSlotCode(code).side === "front").length * CRATE_SORTING_WEIGHTS.frontUnit
         + (finalHeight === 3 ? CRATE_SORTING_WEIGHTS.completeStack : finalHeight === 2 ? CRATE_SORTING_WEIGHTS.twoHighStack : 0)
+        + (requestedQuantity % 3 === 1 && stack.length === 2 && move.codes.length === 1
+            ? CRATE_SORTING_WEIGHTS.residualSingleCompletion
+            : 0)
         + (sideHasArticle(rearNumber) && sideHasArticle(frontNumber) && !moduleHasOtherArticle
             ? CRATE_SORTING_WEIGHTS.sameArticleFrontRearModule
+            : 0)
+        + (sideIsFullArticle(rearNumber) && sideIsFullArticle(frontNumber) && !moduleHasOtherArticle
+            ? CRATE_SORTING_WEIGHTS.fullArticleFrontRearModule
             : 0)
         + distance;
 }
@@ -1637,7 +1965,7 @@ function planWeightedCrateAllocation(initialState, entry) {
                 .filter((move) => move.codes.length === size)
                 .map((move) => ({
                     ...move,
-                    quickScore: scoreCrateMoveCandidate(node.state, move, entry.article, initialArticleLocations),
+                    quickScore: scoreCrateMoveCandidate(node.state, move, entry.article, initialArticleLocations, quantity),
                 }))
                 .sort((left, right) => left.quickScore - right.quickScore
                     || left.codes[0].localeCompare(right.codes[0], undefined, { numeric: true }))
@@ -1792,10 +2120,44 @@ function compactCrateStacks(state) {
     });
 }
 
+function indexLogicalUnits(rows) {
+    const units = new Map();
+    (rows || []).forEach((item) => {
+        if (!item?.id) return;
+        if (!units.has(item.id)) units.set(item.id, { item, locations: [] });
+        units.get(item.id).locations.push(item.location);
+    });
+    units.forEach((unit) => unit.locations.sort((a, b) => a.localeCompare(b, "it", { numeric: true })));
+    return units;
+}
+
+function buildMovementChanges(beforeState, afterState) {
+    const before = indexLogicalUnits(beforeState);
+    const after = indexLogicalUnits(afterState);
+    const loaded = [];
+    const unloaded = [];
+    const shifted = [];
+    after.forEach((unit, id) => {
+        if (!before.has(id)) {
+            loaded.push({ id, article: unit.item.article, from: [], to: [...unit.locations] });
+            return;
+        }
+        const previous = before.get(id);
+        if (previous.locations.join("|") !== unit.locations.join("|")) {
+            shifted.push({ id, article: unit.item.article, from: [...previous.locations], to: [...unit.locations] });
+        }
+    });
+    before.forEach((unit, id) => {
+        if (!after.has(id)) unloaded.push({ id, article: unit.item.article, from: [...unit.locations], to: [] });
+    });
+    return { loaded, unloaded, shifted };
+}
+
 function planUnloadOperation(entries) {
     const state = cloneInventoryState();
     const selectedIds = new Set();
     const actions = [];
+    const unloadedUnits = [];
     for (const entry of entries) {
         const requestedIds = new Set(entry.sourceIds || []);
         const candidates = logicalInventoryUnits(state)
@@ -1814,12 +2176,21 @@ function planUnloadOperation(entries) {
         const chosen = candidates.slice(0, entry.quantity);
         chosen.forEach(({ item, locations }) => {
             selectedIds.add(item.id);
+            unloadedUnits.push({
+                ...item,
+                location: null,
+                pairedLocation: null,
+                tags: [...(item.tags || [])],
+                inMovement: true,
+                originalLocations: [...locations].sort((a, b) => a.localeCompare(b, "it", { numeric: true })),
+                stagedAt: new Date().toISOString(),
+            });
             locations.forEach((location) => state.delete(location));
         });
         actions.push({ article: entry.article, locations: chosen.flatMap(({ item, locations }) => item.type === "pallet" ? [locations.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join(" + ")] : locations) });
     }
     compactCrateStacks(state);
-    return { state, lines: summarizeMovementLines(actions) };
+    return { state, lines: summarizeMovementLines(actions), unloadedUnits };
 }
 
 function movementIdentifier(date) {
@@ -1830,16 +2201,35 @@ function movementIdentifier(date) {
 }
 
 async function commitOperationGroup() {
+    if (!isWarehouseLoggedIn()) {
+        openWarehouseLogin();
+        return { error: "Effettua il login operatore prima di confermare il movimento." };
+    }
+    const beforeState = serializeWarehouseInventory();
     const plan = operationGroupMode === "load"
         ? planLoadOperation(activeOperationGroup())
         : planUnloadOperation(activeOperationGroup());
     if (plan.error) return plan;
     const now = new Date();
-    const movement = { id: movementIdentifier(now), timestamp: now.toISOString(), type: operationGroupMode, lines: plan.lines };
+    const afterState = Array.from(plan.state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+    const movement = {
+        id: movementIdentifier(now),
+        timestamp: now.toISOString(),
+        type: operationGroupMode,
+        actor: warehouseActorSnapshot(),
+        lines: plan.lines,
+        beforeState: cloneWarehouseRows(beforeState),
+        afterState: cloneWarehouseRows(afterState),
+        changes: buildMovementChanges(beforeState, afterState),
+    };
+    const nextUnloadZone = operationGroupMode === "unload"
+        ? [...cloneUnloadZoneUnits(), ...cloneUnloadZoneUnits(plan.unloadedUnits)]
+        : cloneUnloadZoneUnits();
     try {
         await persistWarehouseData(
-            Array.from(plan.state.values()).map((item) => ({ ...item, tags: [...item.tags] })),
+            afterState,
             [movement, ...serializeWarehouseMovements()],
+            nextUnloadZone,
         );
     } catch (error) {
         return { error: `Operazione non applicata: ${error.message}` };
@@ -1847,11 +2237,13 @@ async function commitOperationGroup() {
     inventory.clear();
     plan.state.forEach((item, location) => inventory.set(location, item));
     movementHistory.unshift(movement);
+    unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
     completedOperationMovement = movement;
     renderMovementHistory();
     refreshInventorySearch();
     renderDetails();
     updateSummary();
+    renderUnloadZone();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
     return { movement };
 }
@@ -1888,6 +2280,8 @@ function renderMovementHistory() {
     movementHistory.forEach((movement) => {
         const card = document.createElement("article");
         card.className = "movement-history-card";
+        card.dataset.movementId = movement.id;
+        card.tabIndex = 0;
         const header = document.createElement("header");
         const heading = document.createElement("div");
         const title = document.createElement("strong");
@@ -1901,9 +2295,82 @@ function renderMovementHistory() {
         const lines = document.createElement("div");
         lines.className = "movement-history-card__lines";
         appendMovementLines(lines, movement);
-        card.append(header, lines);
+        const actor = document.createElement("p");
+        actor.className = "movement-history-card__actor";
+        const actorName = movement.actor?.displayName || movement.actor?.employee || movement.actor?.adminName || "Operatore non registrato";
+        actor.textContent = `Operatore: ${actorName}${movement.actor?.department ? ` · ${movement.actor.department}` : ""}`;
+        card.append(header, actor, lines);
+        card.addEventListener("click", () => highlightMovementOnMap(movement));
+        card.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                highlightMovementOnMap(movement);
+            }
+        });
+        card.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            openMovementContextMenu(movement, event.clientX, event.clientY);
+        });
         list.appendChild(card);
     });
+}
+
+function closeMovementContextMenu() {
+    contextMovementId = null;
+    const menu = document.getElementById("movementContextMenu");
+    menu?.classList.remove("is-open");
+    menu?.setAttribute("aria-hidden", "true");
+}
+
+function openMovementContextMenu(movement, x, y) {
+    contextMovementId = movement.id;
+    const menu = document.getElementById("movementContextMenu");
+    if (!menu) return;
+    document.getElementById("movementContextTitle").textContent = movement.id;
+    menu.classList.add("is-open");
+    menu.setAttribute("aria-hidden", "false");
+    const width = 220;
+    const height = 78;
+    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
+}
+
+function highlightMovementOnMap(movement) {
+    const loaded = movement.changes?.loaded || [];
+    const shifted = movement.changes?.shifted || [];
+    const fallbackLocations = movement.type === "load" && !movement.changes
+        ? movement.lines.flatMap((line) => line.locations || []).filter((location) => parseSlotCode(location))
+        : [];
+    movementHighlight = {
+        loadedIds: new Set(loaded.map((entry) => entry.id)),
+        loadedLocations: new Set([...loaded.flatMap((entry) => entry.to || []), ...fallbackLocations]),
+        shiftedIds: new Set(shifted.map((entry) => entry.id)),
+        shiftedLocations: new Set(shifted.flatMap((entry) => entry.to || [])),
+    };
+    const currentLocations = [];
+    inventory.forEach((item, location) => {
+        if (movementHighlight.loadedIds.has(item.id) || movementHighlight.shiftedIds.has(item.id)
+            || movementHighlight.loadedLocations.has(location) || movementHighlight.shiftedLocations.has(location)) currentLocations.push(location);
+    });
+    const first = currentLocations.sort((a, b) => a.localeCompare(b, "it", { numeric: true }))[0]
+        || [...movementHighlight.loadedLocations, ...movementHighlight.shiftedLocations][0];
+    const parsed = parseSlotCode(first);
+    if (parsed) {
+        selectedRow = parsed.row;
+        const half = Math.ceil(physicalColumnsForRow(parsed.row) / 2) * 2;
+        if (slotRangeMode === "paged") slotPage = parsed.number <= half ? 0 : 1;
+    }
+    closeMovementHistoryDialog();
+    setActiveView("warehouse");
+    renderTabs();
+    renderMap();
+    if (movementHighlightTimer) window.clearTimeout(movementHighlightTimer);
+    movementHighlightTimer = window.setTimeout(() => {
+        movementHighlight = null;
+        renderTabs();
+        renderMap();
+    }, 8000);
+    showWarehouseToast(`${movement.id}: giallo = caricato, rosa = ricollocato. Evidenziazione attiva per 8 secondi.`);
 }
 
 function openMovementHistoryDialog() {
@@ -1931,13 +2398,207 @@ function clearCompletedOperationGroup(closeDialog = false) {
     else document.getElementById("loadArticle")?.focus();
 }
 
+function closeUnloadZoneContextMenu() {
+    contextUnloadZoneUnitId = null;
+    const menu = document.getElementById("unloadZoneContextMenu");
+    menu?.classList.remove("is-open");
+    menu?.setAttribute("aria-hidden", "true");
+}
+
+function openUnloadZoneContextMenu(item, x, y) {
+    contextUnloadZoneUnitId = item.id;
+    const menu = document.getElementById("unloadZoneContextMenu");
+    if (!menu) return;
+    document.getElementById("unloadZoneContextTitle").textContent = `${item.article} · ${item.id}`;
+    const reload = document.getElementById("reloadUnloadZoneUnit");
+    reload.disabled = warehouseStorageUnavailable || !isWarehouseLoggedIn();
+    menu.classList.add("is-open");
+    menu.setAttribute("aria-hidden", "false");
+    const width = 230;
+    const height = 78;
+    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
+}
+
+function renderUnloadZone() {
+    const count = document.getElementById("unloadZoneCount");
+    if (count) count.textContent = String(unloadZone.length);
+    const summary = document.getElementById("unloadZoneSummary");
+    if (summary) summary.textContent = unloadZone.length
+        ? `${unloadZone.length} ${unloadZone.length === 1 ? "unità in attesa" : "unità in attesa"}`
+        : "Zona vuota";
+    const confirmButton = document.getElementById("confirmVehicleLoad");
+    if (confirmButton) confirmButton.disabled = !unloadZone.length || warehouseStorageUnavailable || !isWarehouseLoggedIn();
+    const list = document.getElementById("unloadZoneList");
+    if (!list) return;
+    list.replaceChildren();
+    if (!unloadZone.length) {
+        const empty = document.createElement("p");
+        empty.className = "unload-zone-empty";
+        empty.textContent = "Gli articoli scaricati compariranno qui fino alla conferma del caricamento sul veicolo.";
+        list.appendChild(empty);
+        return;
+    }
+    unloadZone.forEach((item) => {
+        const row = document.createElement("article");
+        row.className = "unload-zone-row";
+        row.dataset.unitId = item.id;
+        row.tabIndex = 0;
+        const values = [
+            item.article || "—",
+            item.customer || "—",
+            item.orderReference || "—",
+            item.type === "pallet" ? "Pallet" : item.partial ? "Cassone · parziale" : "Cassone",
+            (item.originalLocations || []).join(" + ") || "—",
+            "In attesa",
+        ];
+        values.forEach((value, index) => {
+            const cell = document.createElement(index === 0 ? "strong" : "span");
+            cell.textContent = value;
+            if (index === 5) cell.className = "unload-zone-status";
+            row.appendChild(cell);
+        });
+        row.title = "Tasto destro per ricaricare questa unità a magazzino";
+        row.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            openUnloadZoneContextMenu(item, event.clientX, event.clientY);
+        });
+        list.appendChild(row);
+    });
+}
+
+function openUnloadZoneDialog() {
+    closeToolsDrawer();
+    renderUnloadZone();
+    const dialog = document.getElementById("unloadZoneDialog");
+    dialog?.classList.add("is-open");
+    dialog?.setAttribute("aria-hidden", "false");
+}
+
+function closeUnloadZoneDialog() {
+    closeUnloadZoneContextMenu();
+    const dialog = document.getElementById("unloadZoneDialog");
+    dialog?.classList.remove("is-open");
+    dialog?.setAttribute("aria-hidden", "true");
+}
+
+async function reloadUnloadZoneUnit(unitId) {
+    if (!isWarehouseLoggedIn()) {
+        openWarehouseLogin();
+        return { error: "Effettua il login operatore prima di ricaricare la merce." };
+    }
+    const staged = unloadZone.find((item) => item.id === unitId);
+    if (!staged) return { error: "L'unità selezionata non è più presente nella zona scarico." };
+    const beforeState = serializeWarehouseInventory();
+    const entry = {
+        article: staged.article,
+        customer: staged.customer,
+        order: staged.orderReference,
+        quantity: 1,
+        partial: Boolean(staged.partial),
+        type: staged.type,
+    };
+    const plan = planLoadOperation([entry]);
+    if (plan.error) return plan;
+    const existingIds = new Set(beforeState.map((item) => item.id));
+    const generatedIds = new Set(Array.from(plan.state.values())
+        .filter((item) => !existingIds.has(item.id))
+        .map((item) => item.id));
+    const destinations = Array.from(plan.state.entries())
+        .filter(([, item]) => generatedIds.has(item.id))
+        .map(([location]) => location)
+        .sort((left, right) => compareLocations({ location: left }, { location: right }));
+    if (!destinations.length) return { error: "Il sistema non ha prodotto una destinazione valida." };
+    Array.from(plan.state.entries()).forEach(([location, item]) => {
+        if (generatedIds.has(item.id)) plan.state.delete(location);
+    });
+    const { originalLocations: _originalLocations, stagedAt: _stagedAt, ...warehouseItem } = staged;
+    destinations.forEach((location, index) => {
+        plan.state.set(location, {
+            ...warehouseItem,
+            id: staged.id,
+            location,
+            pairedLocation: staged.type === "pallet" ? destinations[index === 0 ? 1 : 0] || null : null,
+            tags: [...(staged.tags || [])],
+            inMovement: false,
+        });
+    });
+    const now = new Date();
+    const afterState = Array.from(plan.state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+    const movement = {
+        id: movementIdentifier(now),
+        timestamp: now.toISOString(),
+        type: "load",
+        actor: warehouseActorSnapshot(),
+        lines: [{ article: staged.article, locations: staged.type === "pallet" ? [destinations.join(" + ")] : destinations }],
+        beforeState: cloneWarehouseRows(beforeState),
+        afterState: cloneWarehouseRows(afterState),
+        changes: buildMovementChanges(beforeState, afterState),
+    };
+    const nextUnloadZone = unloadZone.filter((item) => item.id !== unitId);
+    try {
+        await persistWarehouseData(afterState, [movement, ...serializeWarehouseMovements()], nextUnloadZone);
+    } catch (error) {
+        return { error: `Ricarico non applicato: ${error.message}` };
+    }
+    inventory.clear();
+    plan.state.forEach((item, location) => inventory.set(location, item));
+    movementHistory.unshift(movement);
+    unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
+    renderMovementHistory();
+    renderUnloadZone();
+    refreshInventorySearch();
+    renderDetails();
+    updateSummary();
+    if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+    return { movement };
+}
+
+async function confirmVehicleLoad() {
+    if (!unloadZone.length) return;
+    if (!isWarehouseLoggedIn()) {
+        openWarehouseLogin();
+        return;
+    }
+    const quantity = unloadZone.length;
+    if (!window.confirm(`Confermare il caricamento sul veicolo di ${quantity} ${quantity === 1 ? "unità" : "unità"}? Le unità usciranno definitivamente dalla zona scarico.`)) return;
+    const button = document.getElementById("confirmVehicleLoad");
+    button.disabled = true;
+    try {
+        await persistWarehouseData(serializeWarehouseInventory(), serializeWarehouseMovements(), []);
+        unloadZone.splice(0);
+        renderUnloadZone();
+        showWarehouseToast(`Caricamento veicolo confermato: ${quantity} ${quantity === 1 ? "unità rimossa" : "unità rimosse"} dalla zona scarico.`);
+    } catch (error) {
+        showWarehouseToast(`Conferma non salvata: ${error.message}`, true);
+        renderUnloadZone();
+    }
+}
+
+function setupUnloadZone() {
+    document.getElementById("openUnloadZoneButton")?.addEventListener("click", openUnloadZoneDialog);
+    document.getElementById("closeUnloadZone")?.addEventListener("click", closeUnloadZoneDialog);
+    document.getElementById("reloadUnloadZoneUnit")?.addEventListener("click", async () => {
+        const unitId = contextUnloadZoneUnitId;
+        closeUnloadZoneContextMenu();
+        if (!unitId) return;
+        const result = await reloadUnloadZoneUnit(unitId);
+        showWarehouseToast(result.error || `${result.movement.id}: unità ricaricata a magazzino.`, Boolean(result.error));
+    });
+    document.getElementById("confirmVehicleLoad")?.addEventListener("click", confirmVehicleLoad);
+    document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest?.("#unloadZoneContextMenu")) closeUnloadZoneContextMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeUnloadZoneDialog();
+    });
+    renderUnloadZone();
+}
+
 function setupLoadDialog() {
     document.getElementById("openLoadButton")?.addEventListener("click", () => openOperationDialog("load"));
     document.getElementById("openUnloadButton")?.addEventListener("click", () => openOperationDialog("unload"));
     document.getElementById("closeOperationDialog")?.addEventListener("click", closeOperationDialog);
-    document.getElementById("operationGroupDialog")?.addEventListener("click", (event) => {
-        if (event.target === event.currentTarget) closeOperationDialog();
-    });
     document.getElementById("operationGroupDialog")?.addEventListener("pointerdown", (event) => {
         if (event.target.closest?.("input, select, textarea, button")) event.stopPropagation();
     });
@@ -1987,6 +2648,15 @@ function setupLoadDialog() {
     document.getElementById("movementHistoryDialog")?.addEventListener("click", (event) => {
         if (event.target === event.currentTarget) closeMovementHistoryDialog();
     });
+    document.getElementById("openMovementDetails")?.addEventListener("click", () => {
+        const movement = movementHistory.find((entry) => entry.id === contextMovementId);
+        if (!movement) return;
+        closeMovementContextMenu();
+        ipcRenderer.send("open-warehouse-movement-details-window", cloneWarehouseMovement(movement));
+    });
+    document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest?.("#movementContextMenu")) closeMovementContextMenu();
+    });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
             closeOperationDialog();
@@ -1996,6 +2666,70 @@ function setupLoadDialog() {
     updateLoadTypeNote();
     updateOperationButtons();
     renderMovementHistory();
+}
+
+function setupWarehouseLogin() {
+    const chooseMode = (mode) => {
+        const employee = mode === "employee";
+        document.getElementById("warehouseEmployeeLoginPanel").hidden = !employee;
+        document.getElementById("warehouseAdminLoginPanel").hidden = employee;
+        document.getElementById("warehouseLoginEmployeeChoice")?.classList.toggle("is-active", employee);
+        document.getElementById("warehouseLoginAdminChoice")?.classList.toggle("is-active", !employee);
+        document.getElementById("warehouseLoginError").hidden = true;
+    };
+    document.getElementById("warehouseLoginToggle")?.addEventListener("click", async () => {
+        if (!isWarehouseLoggedIn()) {
+            openWarehouseLogin();
+            return;
+        }
+        if (!window.confirm(`Disconnettere ${warehouseActorSnapshot().displayName}?`)) return;
+        await ipcRenderer.invoke("pm-session-clear");
+        applyWarehouseSession(null);
+        openWarehouseLogin();
+    });
+    document.getElementById("closeWarehouseLogin")?.addEventListener("click", closeWarehouseLogin);
+    document.getElementById("warehouseLoginEmployeeChoice")?.addEventListener("click", () => chooseMode("employee"));
+    document.getElementById("warehouseLoginAdminChoice")?.addEventListener("click", () => chooseMode("admin"));
+    document.getElementById("warehouseLoginDepartment")?.addEventListener("change", (event) => {
+        fillWarehouseSelect(document.getElementById("warehouseLoginEmployee"), warehouseAssigneeGroups[event.currentTarget.value] || [], "Seleziona dipendente");
+    });
+    document.getElementById("warehouseEmployeeLoginConfirm")?.addEventListener("click", async () => {
+        const department = document.getElementById("warehouseLoginDepartment").value;
+        const employee = document.getElementById("warehouseLoginEmployee").value;
+        if (!department || !employee) {
+            showWarehouseToast("Seleziona reparto e dipendente per accedere.", true);
+            return;
+        }
+        await saveWarehouseSession({ role: "employee", adminName: "", department, employee });
+        closeWarehouseLogin();
+    });
+    document.getElementById("warehouseAdminLoginConfirm")?.addEventListener("click", async () => {
+        const targetName = document.getElementById("warehouseLoginAdmin").value;
+        const password = document.getElementById("warehouseLoginPassword").value;
+        const error = document.getElementById("warehouseLoginError");
+        error.hidden = true;
+        if (!targetName || !password) {
+            error.textContent = "Seleziona un admin e inserisci la password.";
+            error.hidden = false;
+            return;
+        }
+        try {
+            const verified = await requestBackend("/api/shared/admins/verify", { method: "POST", body: { password, targetName } });
+            if (!verified?.admin) throw new Error("Credenziali non valide");
+            await saveWarehouseSession({ role: "admin", adminName: verified.admin.name, department: "", employee: "" });
+            document.getElementById("warehouseLoginPassword").value = "";
+            closeWarehouseLogin();
+        } catch {
+            error.textContent = "Password errata.";
+            error.hidden = false;
+        }
+    });
+    ["warehouseLoginPassword", "warehouseLoginAdmin"].forEach((id) => {
+        document.getElementById(id)?.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") document.getElementById("warehouseAdminLoginConfirm")?.click();
+        });
+    });
+    ipcRenderer.on("pm-session-updated", (_event, payload) => applyWarehouseSession(payload));
 }
 
 function normalizeSearchText(value) {
@@ -2321,6 +3055,10 @@ function refreshRestrictionViews() {
 }
 
 function openRestrictionDialog(targets = null) {
+    if (!isWarehouseAdmin()) {
+        showWarehouseToast("Accesso amministratore richiesto per gestire i vincoli cliente.", true);
+        return;
+    }
     closeToolsDrawer();
     const targetCodes = Array.isArray(targets) ? targets.filter((code) => parseSlotCode(code)) : [];
     restrictionBatchTargets = targetCodes.length > 1 ? targetCodes : null;
@@ -2804,6 +3542,7 @@ function setupTemporaryDatabaseActions() {
             inventory.clear();
             plan.state.forEach((item, location) => inventory.set(location, item));
             movementHistory.splice(0);
+            unloadZone.splice(0);
             resetOperationDraftsAfterDatabaseChange();
             refreshWarehouseDataViews();
             await persistWarehouseData();
@@ -2816,11 +3555,12 @@ function setupTemporaryDatabaseActions() {
     });
 
     document.getElementById("clearWarehouseDatabase")?.addEventListener("click", async () => {
-        if (!window.confirm("Svuotare completamente giacenze e storico del magazzino? L'operazione non è annullabile.")) return;
+        if (!window.confirm("Svuotare completamente giacenze, zona scarico e storico del magazzino? L'operazione non è annullabile.")) return;
         setTestDatabaseButtonsDisabled(true);
         try {
             inventory.clear();
             movementHistory.splice(0);
+            unloadZone.splice(0);
             resetOperationDraftsAfterDatabaseChange();
             refreshWarehouseDataViews();
             await persistWarehouseData();
@@ -2833,6 +3573,7 @@ function setupTemporaryDatabaseActions() {
     });
 }
 
+setupWarehouseSplash();
 renderTabs();
 renderMap();
 setupDisplayMode();
@@ -2840,6 +3581,7 @@ setupSlotPager();
 setupToolsDrawer();
 setupWarehouseStructure();
 setupLoadDialog();
+setupUnloadZone();
 setupSlotPreview();
 setupContextMenu();
 setupSlotAreaSelection();
@@ -2847,5 +3589,7 @@ setupInventorySearch();
 setupAnalysisView();
 setupRestrictionDialog();
 setupTemporaryDatabaseActions();
+setupWarehouseLogin();
 updateSummary();
+void initializeWarehouseAuthentication();
 void initializeWarehousePersistence();

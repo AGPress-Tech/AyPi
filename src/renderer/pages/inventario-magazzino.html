@@ -11,6 +11,33 @@
 </head>
 
 <body>
+    <div class="warehouse-splash" id="warehouseSplash" aria-hidden="true">
+        <img class="warehouse-splash__standard" src="../../assets/AyPi Inventario.png" alt="AyPi Inventario">
+        <div class="warehouse-ba-boot" aria-hidden="true">
+            <div class="warehouse-ba-boot__grid"></div>
+            <div class="warehouse-ba-boot__sweep"></div>
+            <div class="warehouse-ba-boot__corner warehouse-ba-boot__corner--left">AGP // SYSTEM ROUTE 05</div>
+            <div class="warehouse-ba-boot__corner warehouse-ba-boot__corner--right">AYPI INVENTARIO</div>
+            <div class="warehouse-ba-boot__center">
+                <div class="warehouse-ba-boot__emblem">
+                    <span class="warehouse-ba-boot__halo"></span>
+                    <span class="warehouse-ba-boot__ay">Ay</span><span class="warehouse-ba-boot__pi">Pi</span>
+                    <span class="warehouse-ba-boot__slash"></span>
+                </div>
+                <div class="warehouse-ba-boot__route"><i></i><span>WAREHOUSE INVENTORY MODULE</span><i></i></div>
+                <h1>Accesso al modulo <strong>Inventario.</strong></h1>
+                <p>Sincronizzazione operatori, ubicazioni e movimenti</p>
+                <div class="warehouse-ba-boot__progress"><i></i></div>
+                <div class="warehouse-ba-boot__status">
+                    <span class="is-complete">01&nbsp; OPERATORI</span>
+                    <span>02&nbsp; DATABASE</span>
+                    <span>03&nbsp; UBICAZIONI</span>
+                    <span>04&nbsp; MOVIMENTI</span>
+                </div>
+            </div>
+        </div>
+        <button type="button" id="skipWarehouseSplash">Premi per continuare</button>
+    </div>
     <main class="inventory-shell">
         <header class="inventory-header">
             <div>
@@ -27,6 +54,9 @@
                 </div>
             </div>
             <div class="header-actions">
+                <button class="warehouse-login-toggle" id="warehouseLoginToggle" type="button">
+                    <span aria-hidden="true">&#9679;</span><strong>Login</strong>
+                </button>
                 <nav class="view-tabs" aria-label="Viste inventario">
                     <button class="is-active" type="button" data-view="warehouse" aria-pressed="true">Mappa magazzino</button>
                     <button type="button" data-view="analysis" aria-pressed="false">Vista database</button>
@@ -55,6 +85,7 @@
             </div>
             <button class="operation-button--active" id="openLoadButton" type="button">Carico</button>
             <button class="operation-button--active" id="openUnloadButton" type="button">Scarico</button>
+            <button class="unload-zone-button" id="openUnloadZoneButton" type="button">Zona scarico <b id="unloadZoneCount">0</b></button>
             <button type="button" disabled>Spostamento</button>
             <button type="button" disabled>Gestione tag</button>
         </section>
@@ -70,7 +101,7 @@
                     <label class="display-mode" for="displayMode">
                         <select id="displayMode" aria-label="Contenuto visualizzato nelle celle">
                             <option value="location">Ubicazione</option>
-                            <option value="article">Articolo</option>
+                            <option value="article" selected>Articolo</option>
                             <option value="customer">Cliente</option>
                             <option value="order">Riferimento ordine</option>
                             <option value="combined">Ubicazione - Articolo - Riferimento ordine</option>
@@ -99,7 +130,7 @@
                     <span><i class="pallet-mark"></i> Pallet</span>
                 </div>
 
-                <div class="slot-pager" id="slotPager" data-range-mode="paged">
+                <div class="slot-pager" id="slotPager" data-range-mode="all">
                     <button class="pager-arrow pager-arrow--previous" id="previousSlotPage" type="button" aria-label="Mostra slot da 1 a 16">
                         <span>‹</span><small>1–16</small>
                     </button>
@@ -188,24 +219,18 @@
     <div class="tools-drawer-scrim" id="toolsDrawerScrim" aria-hidden="true"></div>
     <aside class="tools-drawer" id="toolsDrawer" aria-label="Strumenti di visualizzazione">
         <div class="tools-drawer__panel" id="toolsDrawerPanel">
-            <header class="tools-drawer__header">
-                <span class="section-label">IMPOSTAZIONI RAPIDE</span>
-                <h2>Strumenti mappa</h2>
-                <p>Scegli come distribuire le posizioni senza modificare la struttura della pagina.</p>
-            </header>
-
             <section class="tools-drawer__section" aria-labelledby="slotRangeTitle">
                 <div class="tools-drawer__section-heading">
                     <span>VISUALIZZAZIONE SLOT</span>
                     <strong id="slotRangeTitle">Densità della scaffalatura</strong>
                 </div>
                 <div class="range-options" role="group" aria-label="Densità della scaffalatura">
-                    <button class="range-option is-active" type="button" data-slot-range="paged" aria-pressed="true">
+                    <button class="range-option" type="button" data-slot-range="paged" aria-pressed="false">
                         <span class="range-option__icon" aria-hidden="true"><i></i><i></i></span>
                         <span><strong>Vista suddivisa</strong><small id="pagedRangeDescription">Posizioni 1–16 e 17–32</small></span>
                         <b aria-hidden="true">✓</b>
                     </button>
-                    <button class="range-option" type="button" data-slot-range="all" aria-pressed="false">
+                    <button class="range-option is-active" type="button" data-slot-range="all" aria-pressed="true">
                         <span class="range-option__icon range-option__icon--full" aria-hidden="true"><i></i></span>
                         <span><strong>Vista completa</strong><small id="allRangeDescription">Tutte le posizioni 1–32</small></span>
                         <b aria-hidden="true">✓</b>
@@ -213,10 +238,10 @@
                 </div>
             </section>
 
-            <section class="tools-drawer__section" aria-labelledby="warehouseStructureTitle">
+            <section class="tools-drawer__section" data-admin-only hidden aria-labelledby="warehouseStructureTitle">
                 <div class="tools-drawer__section-heading">
                     <span>STRUTTURA FISICA</span>
-                    <strong id="warehouseStructureTitle">File e capacità</strong>
+                    <strong id="warehouseStructureTitle">File e capacità <em class="admin-only-badge">ADMIN</em></strong>
                 </div>
                 <p class="tools-drawer__description">Configura capacità e orientamento fronte/retro di ogni fila. La capacità deve essere un multiplo di 6.</p>
                 <div class="warehouse-row-editor" id="warehouseRowsEditor"></div>
@@ -227,10 +252,10 @@
                 <p class="warehouse-structure-message" id="warehouseStructureMessage" role="status"></p>
             </section>
 
-            <section class="tools-drawer__section tools-drawer__section--restrictions">
+            <section class="tools-drawer__section tools-drawer__section--restrictions" data-admin-only hidden>
                 <div class="tools-drawer__section-heading">
                     <span>REGOLE DI ALLOCAZIONE</span>
-                    <strong>Vincoli per cliente</strong>
+                    <strong>Vincoli per cliente <em class="admin-only-badge">ADMIN</em></strong>
                 </div>
                 <p>Configura whitelist e blacklist per fila oppure per singola ubicazione.</p>
                 <button class="tools-drawer__action" id="openRestrictionsButton" type="button">
@@ -436,11 +461,68 @@
                 <div>
                     <span class="section-label">TRACCIABILITÀ MAGAZZINO</span>
                     <h2 id="movementHistoryTitle">Storico movimenti automatici</h2>
-                    <p>Carichi e scarichi completati. Le riallocazioni manuali non vengono registrate qui.</p>
+                    <p>Clic: evidenzia sulla mappa · Tasto destro: dettaglio prima/dopo. Le riallocazioni manuali non vengono registrate.</p>
                 </div>
                 <button id="closeMovementHistory" type="button" aria-label="Chiudi">×</button>
             </header>
             <div class="movement-history-list" id="movementHistoryList"></div>
+        </section>
+    </div>
+
+    <div class="restriction-backdrop unload-zone-backdrop" id="unloadZoneDialog" aria-hidden="true">
+        <section class="unload-zone-dialog" role="dialog" aria-modal="true" aria-labelledby="unloadZoneTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">AREA TEMPORANEA</span>
+                    <h2 id="unloadZoneTitle">Zona scarico</h2>
+                    <p>Unità prelevate dal magazzino e in attesa del caricamento sul veicolo.</p>
+                </div>
+                <button id="closeUnloadZone" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="unload-zone-toolbar">
+                <div><strong id="unloadZoneSummary">Zona vuota</strong><small>Tasto destro su un’unità per ricaricarla a magazzino.</small></div>
+                <button id="confirmVehicleLoad" type="button" disabled>Conferma caricamento veicolo</button>
+            </div>
+            <div class="unload-zone-columns" aria-hidden="true"><span>Articolo</span><span>Cliente</span><span>Rif. ordine</span><span>Tipologia</span><span>Provenienza</span><span>Stato</span></div>
+            <div class="unload-zone-list" id="unloadZoneList"></div>
+        </section>
+    </div>
+
+    <div class="movement-context-menu unload-zone-context-menu" id="unloadZoneContextMenu" role="menu" aria-hidden="true">
+        <strong id="unloadZoneContextTitle">Unità in attesa</strong>
+        <button id="reloadUnloadZoneUnit" type="button" role="menuitem">Ricarica a magazzino</button>
+    </div>
+
+    <div class="movement-context-menu" id="movementContextMenu" role="menu" aria-hidden="true">
+        <strong id="movementContextTitle">Movimento</strong>
+        <button id="openMovementDetails" type="button" role="menuitem">Dettagli prima / dopo</button>
+    </div>
+
+    <div class="restriction-backdrop warehouse-login-backdrop" id="warehouseLoginDialog" aria-hidden="true">
+        <section class="warehouse-login-dialog" role="dialog" aria-modal="true" aria-labelledby="warehouseLoginTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">ACCESSO OPERATORE</span>
+                    <h2 id="warehouseLoginTitle">Accedi al magazzino</h2>
+                    <p>La sessione è condivisa con Calendar e Purchasing e verrà registrata nei movimenti.</p>
+                </div>
+                <button id="closeWarehouseLogin" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="warehouse-login-choice" role="tablist" aria-label="Tipo di accesso">
+                <button class="is-active" id="warehouseLoginEmployeeChoice" type="button">Dipendente</button>
+                <button id="warehouseLoginAdminChoice" type="button">Admin</button>
+            </div>
+            <section class="warehouse-login-panel" id="warehouseEmployeeLoginPanel">
+                <label>Reparto<select id="warehouseLoginDepartment"><option value="">Caricamento…</option></select></label>
+                <label>Dipendente<select id="warehouseLoginEmployee"><option value="">Seleziona reparto</option></select></label>
+                <button class="warehouse-login-confirm" id="warehouseEmployeeLoginConfirm" type="button">Entra</button>
+            </section>
+            <section class="warehouse-login-panel" id="warehouseAdminLoginPanel" hidden>
+                <label>Admin<select id="warehouseLoginAdmin"><option value="">Caricamento…</option></select></label>
+                <label>Password<input id="warehouseLoginPassword" type="password" autocomplete="current-password"></label>
+                <p class="warehouse-login-error" id="warehouseLoginError" role="alert" hidden>Password errata.</p>
+                <button class="warehouse-login-confirm" id="warehouseAdminLoginConfirm" type="button">Entra</button>
+            </section>
         </section>
     </div>
 

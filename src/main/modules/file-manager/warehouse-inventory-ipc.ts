@@ -8,6 +8,8 @@ const STORE_KEY = "main";
 let database: any = null;
 let databasePromise: Promise<any> | null = null;
 let registered = false;
+let movementDetailsWindow: BrowserWindow | null = null;
+let movementDetailsPayload: any = null;
 
 function databasePath(app: App) {
     return path.join(app.getPath("userData"), "data", "aypi.db");
@@ -60,7 +62,7 @@ async function loadSnapshot(app: App) {
         [STORE_KEY],
     );
     const row = rows?.[0]?.values?.[0];
-    if (!row) return { inventory: [], movements: [], revision: 0, updatedAt: "", updatedBy: "" };
+    if (!row) return { inventory: [], movements: [], unloadZone: [], revision: 0, updatedAt: "", updatedBy: "" };
     let payload: any = {};
     try {
         payload = JSON.parse(String(row[2] || "{}"));
@@ -70,6 +72,7 @@ async function loadSnapshot(app: App) {
     return {
         inventory: Array.isArray(payload.inventory) ? payload.inventory : [],
         movements: Array.isArray(payload.movements) ? payload.movements : [],
+        unloadZone: Array.isArray(payload.unloadZone) ? payload.unloadZone : [],
         revision: Number(row[0]) || 0,
         updatedAt: String(row[1] || ""),
         updatedBy: "Database locale AyPi",
@@ -88,6 +91,7 @@ async function saveSnapshot(app: App, payload: any) {
     const state = {
         inventory: Array.isArray(payload?.inventory) ? payload.inventory : [],
         movements: Array.isArray(payload?.movements) ? payload.movements : [],
+        unloadZone: Array.isArray(payload?.unloadZone) ? payload.unloadZone : [],
     };
     db.exec("BEGIN IMMEDIATE TRANSACTION;");
     try {
@@ -121,6 +125,43 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         window.focus();
         window.webContents.focus();
         return window.isFocused();
+    });
+    ipcMain.on("open-warehouse-movement-details-window", (event, payload) => {
+        const owner = BrowserWindow.fromWebContents(event.sender);
+        if (!owner || owner.isDestroyed() || !payload?.id) return;
+        movementDetailsPayload = payload;
+        if (movementDetailsWindow && !movementDetailsWindow.isDestroyed()) {
+            movementDetailsWindow.show();
+            movementDetailsWindow.focus();
+            movementDetailsWindow.webContents.send("warehouse-movement-details-data", movementDetailsPayload);
+            return;
+        }
+        movementDetailsWindow = new BrowserWindow({
+            width: 1500,
+            height: 900,
+            minWidth: 980,
+            minHeight: 620,
+            show: false,
+            backgroundColor: "#eef2f5",
+            webPreferences: { nodeIntegration: true, contextIsolation: false },
+        });
+        movementDetailsWindow.setMenu(null);
+        movementDetailsWindow.loadFile(path.join(__dirname, "..", "..", "pages", "warehouse-movement-details.html"));
+        movementDetailsWindow.once("ready-to-show", () => {
+            if (!movementDetailsWindow?.isDestroyed()) {
+                movementDetailsWindow.show();
+                movementDetailsWindow.focus();
+            }
+        });
+        movementDetailsWindow.on("closed", () => {
+            movementDetailsWindow = null;
+            movementDetailsPayload = null;
+        });
+    });
+    ipcMain.on("warehouse-movement-details-ready", (event) => {
+        if (!movementDetailsWindow || movementDetailsWindow.isDestroyed()
+            || movementDetailsWindow.webContents !== event.sender || !movementDetailsPayload) return;
+        event.sender.send("warehouse-movement-details-data", movementDetailsPayload);
     });
     app.on("before-quit", () => {
         try { persistDatabase(app); } catch { /* a previous atomic save remains valid */ }

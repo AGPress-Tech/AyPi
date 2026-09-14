@@ -505,6 +505,7 @@ function hasAnyProductOrTicketWindow() {
         productManagerInterventionsWindow,
         ticketSupportWindow,
         ticketSupportAdminWindow,
+        inventarioMagazzinoWindow,
     ].some((win) => isWindowAlive(win));
 }
 
@@ -515,6 +516,7 @@ function broadcastProductManagerSession(payload) {
         productManagerInterventionsWindow,
         ticketSupportWindow,
         ticketSupportAdminWindow,
+        inventarioMagazzinoWindow,
     ].forEach((win) => {
         if (isWindowAlive(win)) {
             win.webContents.send("pm-session-updated", payload || null);
@@ -904,6 +906,7 @@ let adminManagerWindowTheme: "standard" | "bluearchive" = "standard";
 let transferAttrezzaggioWindow: BrowserWindow | null = null;
 let registrazioniProgettazioneWindow: BrowserWindow | null = null;
 let inventarioMagazzinoWindow: BrowserWindow | null = null;
+let inventarioMagazzinoWindowTheme: "standard" | "bluearchive" = "standard";
 let allowTransferAttrezzaggioWindowClose = false;
 let transferAttrezzaggioClosePromptPending = false;
 const productManagerSessionState = createProductManagerSessionState();
@@ -912,6 +915,7 @@ let feriePermessiSplashShown = false;
 let productManagerSplashShown = false;
 let ticketSupportSplashShown = false;
 let productionPlannerSplashShown = false;
+let inventarioMagazzinoSplashShown = false;
 let isAppQuitting = false;
 
 function openFileListWindow(
@@ -2212,11 +2216,29 @@ function openRegistrazioniProgettazioneWindow(mainWindow: BrowserWindow) {
     });
 }
 
-function openInventarioMagazzinoWindow(mainWindow: BrowserWindow) {
+function openInventarioMagazzinoWindow(
+    mainWindow: BrowserWindow,
+    options: { theme?: "standard" | "bluearchive" } = {},
+) {
+    const requestedTheme = options.theme === "bluearchive" ? "bluearchive" : "standard";
+    const warehouseRequireLogin = app.isPackaged ? "1" : "0";
     if (isWindowAlive(inventarioMagazzinoWindow)) {
+        if (inventarioMagazzinoWindowTheme !== requestedTheme) {
+            inventarioMagazzinoWindowTheme = requestedTheme;
+            inventarioMagazzinoWindow.loadFile(
+                path.join(__dirname, "..", "pages", "inventario-magazzino.html"),
+                { query: {
+                    warehouseSplash: requestedTheme === "bluearchive" ? "1" : "0",
+                    warehouseRequireLogin,
+                    theme: requestedTheme,
+                } },
+            );
+        }
         showWindow(inventarioMagazzinoWindow);
         return;
     }
+
+    inventarioMagazzinoWindowTheme = requestedTheme;
 
     inventarioMagazzinoWindow = new BrowserWindow({
         width: 1920,
@@ -2227,11 +2249,18 @@ function openInventarioMagazzinoWindow(mainWindow: BrowserWindow) {
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: "#f3f5f7",
+        backgroundColor: requestedTheme === "bluearchive" ? "#edf9ff" : "#f3f5f7",
     });
 
+    const showSplash = requestedTheme === "bluearchive" || !inventarioMagazzinoSplashShown;
+    if (requestedTheme === "standard") inventarioMagazzinoSplashShown = true;
     inventarioMagazzinoWindow.loadFile(
         path.join(__dirname, "..", "pages", "inventario-magazzino.html"),
+        { query: {
+            warehouseSplash: showSplash ? "1" : "0",
+            warehouseRequireLogin,
+            theme: requestedTheme,
+        } },
     );
     inventarioMagazzinoWindow.setMenu(null);
     inventarioMagazzinoWindow.once("ready-to-show", () => {
@@ -2244,6 +2273,11 @@ function openInventarioMagazzinoWindow(mainWindow: BrowserWindow) {
 
     inventarioMagazzinoWindow.on("closed", () => {
         inventarioMagazzinoWindow = null;
+        inventarioMagazzinoWindowTheme = "standard";
+        if (!hasAnyProductOrTicketWindow()) {
+            productManagerSessionState.clear();
+            broadcastProductManagerSession(null);
+        }
         if (!isAppQuitting) showMainWindow(mainWindow);
     });
 }
@@ -2823,8 +2857,10 @@ function setupFileManager(mainWindow) {
     ipcMain.on("open-registrazioni-progettazione-window", () => {
         openRegistrazioniProgettazioneWindow(mainWindow);
     });
-    ipcMain.on("open-inventario-magazzino-window", () => {
-        openInventarioMagazzinoWindow(mainWindow);
+    ipcMain.on("open-inventario-magazzino-window", (_event, payload) => {
+        openInventarioMagazzinoWindow(mainWindow, {
+            theme: payload?.theme === "bluearchive" ? "bluearchive" : "standard",
+        });
     });
     ipcMain.on("attrezzaggio-window-close-response", (event, payload) => {
         if (

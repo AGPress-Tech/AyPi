@@ -68,6 +68,7 @@ In una fila invertita la coppia numerica rimane nella stessa colonna fisica, ma 
 - La continuità dello stesso articolo nella pila o nella coppia fronte/retro riceve un forte vantaggio. Per questo `A2a+A2b` esistenti possono essere continuati con `A2c+A1a` per due nuove unità dello stesso articolo, senza una regola speciale dedicata.
 - Il numero di pile/divisioni e di moduli fisici coinvolti pesa più della semplice posizione; distanza, fronte/retro e ordinamento da sinistra risolvono progressivamente le alternative rimanenti.
 - Ogni inserimento verticale da massimo tre cassoni conta come una movimentazione del muletto. Passare dal posteriore all'anteriore richiede quindi due inserimenti distinti ed entra nel punteggio del piano.
+- Una coppia completa `3 posteriori + 3 anteriori` dello stesso articolo riceve un premio equivalente a tre movimentazioni evitate (`3 × 220 = 660`). Per un carico da 8, questo orienta il piano verso `3+3` nella stessa coppia e `2` nella pila posteriore laterale: il primo blocco FIFO da 6 potrà essere estratto con due prese, evitando di dover liberare e ripristinare una pila anteriore estranea al blocco.
 - Esempio ricevuto: 4 cassoni di `1400A` → `A2a`, `A2b`, `A2c`, `A1a`.
 - Esempio ricevuto: 6 cassoni → preferire una distribuzione `3 + 3`, possibilmente su una coppia fronte/retro libera, invece di `3 + 2 + 1`.
 
@@ -85,7 +86,7 @@ Il flusso dell'interfaccia è articolato in tre fasi:
 2. **Anteprima**: vengono mostrati riepilogo, quantità complessive e tutte le righe prima di richiedere il calcolo definitivo;
 3. **Conferma**: il gruppo viene congelato, validato integralmente e applicato in modo atomico. Il prototipo usa un primo motore euristico: se non riesce a collocare o prelevare tutte le unità non modifica il magazzino; se riesce aggiorna immediatamente mappa, ricerca, riepiloghi e vista database.
 
-Dall'anteprima è possibile tornare alla composizione per correggere le righe o aggiungere altri articoli. L'annullamento elimina l'intero gruppo e riporta alla mappa; la semplice chiusura della finestra conserva invece la bozza in memoria.
+Dall'anteprima è possibile tornare alla composizione per correggere le righe o aggiungere altri articoli. L'annullamento elimina l'intero gruppo e riporta alla mappa; la chiusura esplicita della finestra conserva invece la bozza in memoria. Un clic sullo sfondo non chiude le finestre di carico o scarico, evitando perdite di contesto accidentali durante la compilazione.
 
 ### Scarico automatico
 
@@ -412,8 +413,9 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Vista database dinamica con filtro, selezione e ritorno diretto alla posizione sulla mappa.
 - Ordinamento crescente/decrescente e alfanumerico naturale per tutte le colonne della vista database.
 - Finestra di analisi aggregata per l'articolo selezionato, con conteggi per unità, tipologia, ordini, clienti, stati e ubicazioni.
-- Configuratore whitelist/blacklist per fila e slot, valutazione gerarchica e rilevazione dei conflitti esistenti.
+- Configuratore whitelist/blacklist per fila e slot, valutazione gerarchica e rilevazione dei conflitti esistenti. Struttura fisica e vincoli cliente sono comandi riservati agli amministratori nella versione ufficiale.
 - Pannello strumenti flottante con selezione della densità `1–16 / 17–32` oppure `1–32` e accesso ai vincoli cliente.
+- La mappa si apre per impostazione predefinita in vista completa `1–32`, mostrando l'articolo nelle celle.
 - Configurazione in memoria del numero di file, della capacità individuale e dell'orientamento fronte/retro di ciascuna fila; `B` e `D` sono inizialmente invertite.
 - Flusso in tre fasi per gruppi multi-articolo di carico e scarico: composizione, anteprima modificabile e conferma operativa atomica.
 - Bozze separate di carico e scarico mantenute in memoria anche chiudendo la finestra; annullamento completo con ritorno alla mappa.
@@ -421,7 +423,15 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Distinzione fra cassone e pallet, con pallet associato a una coppia fronte/retro a terra.
 - Database inizialmente vuoto, senza giacenze dimostrative incorporate nel codice.
 - Primo motore euristico di carico e scarico: la conferma aggiorna le giacenze SQLite, applica FIFO nello scarico e mostra soltanto articolo e posizioni interessate.
+- Zona scarico persistente: le unità prelevate restano in attesa del caricamento veicolo; il menu contestuale consente di ricaricare una singola unità con il normale algoritmo di storing, mentre la conferma veicolo elimina definitivamente le unità rimaste dalla zona temporanea.
 - Storico persistente dei gruppi automatici con identificativi `MV_AA-MM-GG_HH:mm`; le operazioni nello stesso minuto ricevono un suffisso progressivo.
+- Splash screen dedicata `AyPi Inventario`: versione standard raster coerente con Calendar/Purchasing e variante Blue Archive animata con griglia, sweep, logo, progressione e stati di inizializzazione.
+- L'intera splash è cliccabile per saltare immediatamente l'animazione; sono supportati anche `Invio` e `Spazio` da tastiera.
+- Login dipendente/admin condiviso con Calendar e Purchasing; carico e scarico richiedono una sessione attiva e ogni movimento conserva il nominativo dell'operatore.
+- Il login è disattivato automaticamente nelle esecuzioni di sviluppo/test non pacchettizzate; resta obbligatorio esclusivamente nella build ufficiale e i movimenti di prova vengono firmati come `Operatore test`.
+- Ogni nuovo movimento conserva lo stato occupato prima/dopo e le differenze per unità caricata, prelevata o ricollocata automaticamente.
+- Per i movimenti salvati prima dell'introduzione degli snapshot, il dettaglio ricostruisce retroattivamente gli stati prima/dopo ripercorrendo lo storico a ritroso e segnala esplicitamente lo snapshot legacy.
+- Clic sullo storico con evidenziazione temporanea sulla mappa (giallo per i carichi, rosa per le ricollocazioni); menu contestuale con confronto read-only prima/dopo in finestra separata.
 - Persistenza SQLite locale integrata e API backend predisposta con tabelle dedicate a unità, occupazioni, movimenti e righe movimento per il futuro `aypi.db` condiviso.
 - Comandi temporanei in alto a destra per popolamento pseudo-randomico e svuotamento completo dei dati magazzino.
 - Le riallocazioni manuali aggiornano e persistono la mappa ma non vengono inserite nello storico automatico. Struttura, vincoli cliente e gestione completa dei tag restano da completare.
@@ -436,6 +446,7 @@ Il prototipo usa ora realmente un motore a punteggio: **vince il piano con lo sc
 | Ogni nuovo cassone inserito in una pila di altro articolo | `+450` |
 | Distanza di una fila dallo stesso articolo | `+2000` per fila |
 | Continuità dello stesso articolo fronte/retro | `-800` |
+| Coppia fronte/retro completa `3+3` dello stesso articolo | `-660` |
 | Ogni nuovo cassone in continuità fronte/retro con giacenza preesistente | `-900` |
 | Nuovo modulo fisico aperto | `+450` |
 | Nuova divisione/pila per l'articolo | `+300` |
@@ -448,9 +459,12 @@ Il prototipo usa ora realmente un motore a punteggio: **vince il piano con lo sc
 | Cambio lato rispetto allo stesso articolo | `+15` |
 | Colonna iniziale successiva da sinistra | `+8` |
 | Pila completata a tre | `-220` |
+| Completamento con il singolo residuo di un gruppo `3n+1` | `-450` aggiuntivo |
 | Pila portata a due | `-45` |
 
 Questi numeri non sono regole funzionali definitive: costituiscono il primo profilo empirico da calibrare con casi reali e simulazioni massive. Le combinazioni non valide fisicamente non ricevono uno score alto, ma vengono escluse prima del confronto.
+
+La continuità con lo stesso articolo nella coppia fronte/retro pesa leggermente più del completamento generico di una pila. In questo modo una coppia `3+1` viene completata con gli ulteriori uno o due cassoni dello stesso articolo; in assenza di continuità articolo, un residuo singolo può comunque chiudere l'unico livello `c` libero della prima coppia prima di aprire una nuova pila più lontana.
 
 Posizionare prima cassoni nelle zone posteriori, a partire da sinistra.
 Successivamente, posizionare i cassoni negli slot anteriori.

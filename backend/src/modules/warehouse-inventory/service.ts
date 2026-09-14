@@ -7,6 +7,7 @@ import {
     saveWarehouseSnapshot,
     type WarehouseInventoryItem,
     type WarehouseMovement,
+    type WarehouseUnloadZoneItem,
 } from "./repository";
 
 const enqueue = createOperationQueue("warehouse-inventory");
@@ -19,6 +20,7 @@ export function saveWarehouseState(
     payload: {
         inventory: WarehouseInventoryItem[];
         movements: WarehouseMovement[];
+        unloadZone: WarehouseUnloadZoneItem[];
         baseRevision: number;
     },
     context?: ActionContext,
@@ -28,6 +30,7 @@ export function saveWarehouseState(
         const snapshot = saveWarehouseSnapshot(
             payload.inventory,
             payload.movements,
+            payload.unloadZone,
             payload.baseRevision,
             meta.actor || "Operatore AyPi",
         );
@@ -39,6 +42,7 @@ export function saveWarehouseState(
             revision: snapshot.revision,
             occupiedSlots: snapshot.inventory.length,
             movements: snapshot.movements.length,
+            unloadZoneUnits: snapshot.unloadZone.length,
         });
         return snapshot;
     });

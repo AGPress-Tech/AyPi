@@ -13,6 +13,7 @@ const UNITS_TABLE = "warehouse_units";
 const OCCUPANCIES_TABLE = "warehouse_occupancies";
 const MOVEMENTS_TABLE = "warehouse_movements";
 const MOVEMENT_LINES_TABLE = "warehouse_movement_lines";
+const UNLOAD_ZONE_TABLE = "warehouse_unload_zone";
 const STORE_KEY = "main";
 
 export type WarehouseInventoryItem = {
@@ -34,11 +35,26 @@ export type WarehouseMovement = {
     timestamp: string;
     type: "load" | "unload";
     lines: Array<{ article: string; locations: string[] }>;
+    actor?: Record<string, unknown> | null;
+    beforeState?: WarehouseInventoryItem[];
+    afterState?: WarehouseInventoryItem[];
+    changes?: {
+        loaded: Array<Record<string, unknown>>;
+        unloaded: Array<Record<string, unknown>>;
+        shifted: Array<Record<string, unknown>>;
+    } | null;
+};
+
+export type WarehouseUnloadZoneItem = Omit<WarehouseInventoryItem, "location"> & {
+    location: null;
+    originalLocations: string[];
+    stagedAt: string;
 };
 
 export type WarehouseSnapshot = {
     inventory: WarehouseInventoryItem[];
     movements: WarehouseMovement[];
+    unloadZone: WarehouseUnloadZoneItem[];
     revision: number;
     updatedAt: string;
     updatedBy: string;
@@ -86,7 +102,8 @@ export function initializeWarehouseInventorySqliteStore() {
         CREATE TABLE IF NOT EXISTS ${MOVEMENTS_TABLE} (
             movement_id TEXT PRIMARY KEY,
             movement_type TEXT NOT NULL CHECK (movement_type IN ('load', 'unload')),
-            occurred_at TEXT NOT NULL
+            occurred_at TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '{}'
         );
         CREATE INDEX IF NOT EXISTS idx_${MOVEMENTS_TABLE}_occurred
             ON ${MOVEMENTS_TABLE}(occurred_at);
@@ -99,7 +116,15 @@ export function initializeWarehouseInventorySqliteStore() {
             PRIMARY KEY (movement_id, line_order),
             FOREIGN KEY (movement_id) REFERENCES ${MOVEMENTS_TABLE}(movement_id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS ${UNLOAD_ZONE_TABLE} (
+            unit_id TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL
+        );
     `);
+    const movementColumns = database.exec(`PRAGMA table_info(${MOVEMENTS_TABLE})`);
+    const hasDetails = (movementColumns?.[0]?.values || []).some((row: unknown[]) => String(row[1]) === "details_json");
+    if (!hasDetails) database.run(`ALTER TABLE ${MOVEMENTS_TABLE} ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}'`);
 }
 
 function loadRevision() {
@@ -144,7 +169,7 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
     }));
 
     const movementRows = database.exec(`
-        SELECT movement_id, movement_type, occurred_at
+        SELECT movement_id, movement_type, occurred_at, details_json
         FROM ${MOVEMENTS_TABLE}
         ORDER BY occurred_at DESC, movement_id DESC
     `);
@@ -162,18 +187,31 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
             locations: parseJson<string[]>(row[3], []),
         });
     });
-    const movements = (movementRows?.[0]?.values || []).map((row: unknown[]) => ({
-        id: String(row[0] || ""),
-        type: row[1] === "unload" ? "unload" as const : "load" as const,
-        timestamp: String(row[2] || ""),
-        lines: linesByMovement.get(String(row[0] || "")) || [],
-    }));
-    return { inventory, movements, ...meta };
+    const movements = (movementRows?.[0]?.values || []).map((row: unknown[]) => {
+        const details = parseJson<Record<string, unknown>>(row[3], {});
+        return {
+            ...details,
+            id: String(row[0] || ""),
+            type: row[1] === "unload" ? "unload" as const : "load" as const,
+            timestamp: String(row[2] || ""),
+            lines: linesByMovement.get(String(row[0] || "")) || [],
+        } as WarehouseMovement;
+    });
+    const unloadRows = database.exec(`
+        SELECT payload_json
+        FROM ${UNLOAD_ZONE_TABLE}
+        ORDER BY rowid ASC
+    `);
+    const unloadZone = (unloadRows?.[0]?.values || [])
+        .map((row: unknown[]) => parseJson<WarehouseUnloadZoneItem | null>(row[0], null))
+        .filter((item): item is WarehouseUnloadZoneItem => Boolean(item?.id));
+    return { inventory, movements, unloadZone, ...meta };
 }
 
 export function saveWarehouseSnapshot(
     inventory: WarehouseInventoryItem[],
     movements: WarehouseMovement[],
+    unloadZone: WarehouseUnloadZoneItem[],
     baseRevision: number,
     updatedBy: string,
 ): WarehouseSnapshot {
@@ -191,6 +229,7 @@ export function saveWarehouseSnapshot(
         database.run(`DELETE FROM ${MOVEMENTS_TABLE}`);
         database.run(`DELETE FROM ${OCCUPANCIES_TABLE}`);
         database.run(`DELETE FROM ${UNITS_TABLE}`);
+        database.run(`DELETE FROM ${UNLOAD_ZONE_TABLE}`);
 
         const unitStatement = database.prepare(`
             INSERT INTO ${UNITS_TABLE} (
@@ -224,21 +263,39 @@ export function saveWarehouseSnapshot(
         occupancyStatement.free();
 
         const movementStatement = database.prepare(`
-            INSERT INTO ${MOVEMENTS_TABLE} (movement_id, movement_type, occurred_at)
-            VALUES (?, ?, ?)
+            INSERT INTO ${MOVEMENTS_TABLE} (movement_id, movement_type, occurred_at, details_json)
+            VALUES (?, ?, ?, ?)
         `);
         const lineStatement = database.prepare(`
             INSERT INTO ${MOVEMENT_LINES_TABLE} (movement_id, line_order, article, locations_json)
             VALUES (?, ?, ?, ?)
         `);
         movements.forEach((movement) => {
-            movementStatement.run([movement.id, movement.type, movement.timestamp]);
+            movementStatement.run([
+                movement.id,
+                movement.type,
+                movement.timestamp,
+                serializeJson({
+                    actor: movement.actor || null,
+                    beforeState: movement.beforeState || [],
+                    afterState: movement.afterState || [],
+                    changes: movement.changes || null,
+                    reconstructed: Boolean((movement as WarehouseMovement & { reconstructed?: boolean }).reconstructed),
+                }),
+            ]);
             movement.lines.forEach((line, index) => {
                 lineStatement.run([movement.id, index, line.article, serializeJson(line.locations || [])]);
             });
         });
         movementStatement.free();
         lineStatement.free();
+
+        const unloadStatement = database.prepare(`
+            INSERT INTO ${UNLOAD_ZONE_TABLE} (unit_id, payload_json)
+            VALUES (?, ?)
+        `);
+        unloadZone.forEach((item) => unloadStatement.run([item.id, serializeJson(item)]));
+        unloadStatement.free();
 
         const revision = currentRevision + 1;
         const updatedAt = new Date().toISOString();

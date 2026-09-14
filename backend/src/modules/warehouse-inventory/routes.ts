@@ -6,7 +6,7 @@ import { sendJson } from "../../shared/http/response";
 import { getWarehouseSnapshot, saveWarehouseState } from "./service";
 
 function validateStatePayload(value: any) {
-    if (!value || !Array.isArray(value.inventory) || !Array.isArray(value.movements)) {
+    if (!value || !Array.isArray(value.inventory) || !Array.isArray(value.movements) || !Array.isArray(value.unloadZone)) {
         throw badRequest("Stato magazzino non valido.");
     }
     const baseRevision = Number(value.baseRevision);
@@ -23,9 +23,16 @@ function validateStatePayload(value: any) {
             throw badRequest("Movimento di magazzino non valido.");
         }
     });
+    value.unloadZone.forEach((item: any) => {
+        if (!item || !item.id || !item.article || !["crate", "pallet"].includes(item.type)
+            || !Array.isArray(item.originalLocations)) {
+            throw badRequest("Unità in zona scarico non valida.");
+        }
+    });
     return {
         inventory: value.inventory,
         movements: value.movements,
+        unloadZone: value.unloadZone,
         baseRevision,
     };
 }

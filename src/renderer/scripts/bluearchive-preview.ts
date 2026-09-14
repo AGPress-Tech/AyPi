@@ -157,6 +157,7 @@ const pages: Record<string, PageDefinition> = {
                 label: "Inventario magazzino",
                 description: "Mappa e gestione dei cassoni",
                 channel: "open-inventario-magazzino-window",
+                channelArgs: [{ theme: "bluearchive" }],
             },
         ],
     },

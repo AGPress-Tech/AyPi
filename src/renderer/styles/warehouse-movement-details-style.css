@@ -1,0 +1,22 @@
+:root { color-scheme: light; --ink: #1d2e3b; --muted: #687784; --line: #d4dde4; --blue: #174f80; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 980px; height: 100vh; overflow: hidden; color: var(--ink); background: #eef2f5; font-family: Arial, sans-serif; }
+.movement-audit-shell { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; height: 100vh; padding: 18px; }
+.movement-audit-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.movement-audit-header span, .movement-audit-comparison article > header span { color: #966100; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+h1 { margin: 3px 0 2px; font-size: 25px; } .movement-audit-header p { margin: 0; color: var(--muted); font-size: 12px; }
+.movement-audit-legend { display: flex; gap: 14px; padding-bottom: 3px; color: #52626f; font-size: 11px; }
+.movement-audit-legend span { display: flex; align-items: center; gap: 5px; color: inherit; font-size: inherit; font-weight: 600; letter-spacing: 0; }
+.movement-audit-legend i { width: 12px; height: 12px; border: 1px solid; border-radius: 3px; }
+.movement-audit-legend .is-loaded { background: #fff1a8; border-color: #d6ad24; }.movement-audit-legend .is-shifted { background: #ffd9e4; border-color: #d9849c; }.movement-audit-legend .is-unloaded { background: #ffe1dc; border-color: #d78678; }
+.movement-audit-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.movement-audit-summary article { padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+.movement-audit-summary span { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; }.movement-audit-summary strong { margin-right: 7px; color: var(--blue); font-size: 22px; }.movement-audit-summary small { color: var(--muted); font-size: 10px; }
+.movement-audit-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 0; }
+.movement-audit-comparison > article { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.movement-audit-comparison article > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); background: #f8fafb; }
+h2 { margin: 2px 0 0; font-size: 15px; }.movement-audit-comparison article > header strong { color: var(--blue); font-size: 11px; }
+.movement-table-wrap { min-height: 0; overflow: auto; } table { width: 100%; border-collapse: collapse; font-size: 10px; }
+th { position: sticky; top: 0; z-index: 1; padding: 7px 8px; border-right: 1px solid #dbe2e7; border-bottom: 1px solid #cbd5dc; color: #526471; background: #edf2f5; text-align: left; text-transform: uppercase; font-size: 8px; }
+td { padding: 6px 8px; border-right: 1px solid #e1e6e9; border-bottom: 1px solid #e7ebee; white-space: nowrap; } tr.is-loaded td { background: #fff6c8; } tr.is-shifted td { background: #ffe3eb; } tr.is-unloaded td { background: #ffe7e2; text-decoration: line-through; }
+.movement-audit-note { margin: 0; color: #74818b; font-size: 10px; text-align: right; }
