@@ -16,7 +16,7 @@
                 <p class="home-subtitle">Seleziona la tipologia di scheda da gestire.</p>
                 <div class="home-actions">
                     <button id="openTransferTypeBtn">Schede Attrezzaggio Transfer</button>
-                    <button id="openHaasTypeBtn">Schede Attrezzaggio HAAS</button>
+                    <button id="openHaasTypeBtn">Schede Attrezzaggio Centri</button>
                     <button id="closeWindowBtn">Chiudi</button>
                 </div>
             </article>
@@ -159,8 +159,8 @@
 
         <section id="haasHomeView" class="view hidden">
             <article class="home-card">
-                <h1>Schede Attrezzaggio HAAS</h1>
-                <p class="home-subtitle">Gestione, modifica e stampa delle schede attrezzaggio HAAS.</p>
+                <h1>Schede Attrezzaggio Centro</h1>
+                <p class="home-subtitle">Gestione, modifica e stampa delle schede attrezzaggio Centro.</p>
                 <div class="home-actions">
                     <button id="showHaasListBtn">Lista Schede Attrezzaggio</button>
                     <button id="showCreateHaasBtn">Crea Scheda Attrezzaggio</button>
@@ -174,7 +174,7 @@
                 <button id="backFromHaasListBtn">Indietro</button>
                 <button id="refreshHaasListBtn">Aggiorna Lista</button>
             </div>
-            <h2>Lista Schede HAAS</h2>
+            <h2>Lista Schede Centro</h2>
             <div class="list-filters haas-list-filters">
                 <label>Codice Articolo
                     <input id="haasFilterCodiceArticolo" type="text">
@@ -286,7 +286,8 @@
         </section>
     </main>
 
-    <div id="imagePreviewOverlay" class="image-preview-overlay hidden" role="dialog" aria-modal="true" aria-label="Visualizzatore allegato">
+    <div id="imagePreviewOverlay" class="image-preview-overlay hidden" role="dialog" aria-modal="true"
+        aria-label="Visualizzatore allegato">
         <div class="image-preview-toolbar">
             <button id="rotateImageLeftBtn" type="button" title="Ruota a sinistra">↶ Ruota</button>
             <button id="rotateImageRightBtn" type="button" title="Ruota a destra">Ruota ↷</button>
@@ -316,7 +317,8 @@
 
         <section id="debugExportMenu" class="debug-stage hidden">
             <h2>Esportazione schede attrezzaggio</h2>
-            <p>Il file Excel conterrà due fogli, Transfer e HAAS, con le sole colonne PK, data di creazione e data di modifica.</p>
+            <p>Il file Excel conterrà due fogli, Transfer e Centro, con le sole colonne PK, data di creazione e data di
+                modifica.</p>
             <div class="debug-dialog-actions">
                 <button id="closeDebugMenuBtn" type="button">Chiudi</button>
                 <button id="exportAttrezzaggioPkBtn" type="button">Esporta Excel</button>
