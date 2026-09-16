@@ -490,7 +490,13 @@ let countdownRemainingMs = countdownInitialMs;
 let countdownStartedAt = 0;
 let countdownRunning = false;
 let countdownFinishedNotified = false;
-type AssistantAsset = { id: string; skel: string; atlas: string };
+type AssistantAsset = {
+    id: string;
+    name?: string;
+    runtime?: "3.8" | "4.2";
+    skel: string;
+    atlas: string;
+};
 type AssistantReaction = { animation: string; text: string };
 type AssistantConfig = AssistantAsset & {
     idle?: string;
@@ -677,6 +683,8 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
 function assistantDisplayName(character: string) {
     if (character === "arona") return "Arona";
     if (character === "plana") return "Plana";
+    const importedName = importedAssistantMap.get(character)?.name?.trim();
+    if (importedName) return importedName;
     return character
         .replace(/_spr$/i, "")
         .split("_")
@@ -902,12 +910,17 @@ function initializeAssistant(character: string) {
     spineAnimationState = null;
     try {
         spinePlayerInstance?.stopRendering?.();
+        spinePlayerInstance?.dispose?.();
     } catch {
         // Il runtime può essere ancora in fase di caricamento.
     }
     assistantPlayer.innerHTML = "";
 
-    const spineRuntime = (window as any).spine;
+    const spineRuntime =
+        config.runtime === "4.2"
+            ? (window as any).spine
+            : (window as any).AYPI_SPINE_RUNTIMES?.["3.8"] ||
+              (window as any).spine;
     if (!spineRuntime?.SpinePlayer) {
         assistant.classList.add("failed");
         if (assistantLabel)
@@ -916,9 +929,14 @@ function initializeAssistant(character: string) {
         return;
     }
 
+    const skeletonUrl = resolvePreviewAsset(config.skel);
+    const atlasUrl = resolvePreviewAsset(config.atlas);
+    const assetConfig =
+        config.runtime === "4.2"
+            ? { skeleton: skeletonUrl, atlas: atlasUrl }
+            : { skelUrl: skeletonUrl, atlasUrl };
     spinePlayerInstance = new spineRuntime.SpinePlayer(assistantPlayer, {
-        skelUrl: resolvePreviewAsset(config.skel),
-        atlasUrl: resolvePreviewAsset(config.atlas),
+        ...assetConfig,
         premultipliedAlpha: true,
         backgroundColor: "#00000000",
         alpha: true,
