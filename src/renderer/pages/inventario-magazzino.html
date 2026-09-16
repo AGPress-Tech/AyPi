@@ -99,17 +99,21 @@
                         <h2 id="rowTitle">Fila A</h2>
                     </div>
                     <nav class="row-tabs" id="rowTabs" aria-label="Seleziona la fila"></nav>
-                    <label class="display-mode" for="displayMode">
-                        <select id="displayMode" aria-label="Contenuto visualizzato nelle celle">
-                            <option value="location">Ubicazione</option>
-                            <option value="article" selected>Articolo</option>
-                            <option value="articleQuantity">Articolo - Quantità</option>
-                            <option value="customer">Cliente</option>
-                            <option value="order">Riferimento ordine</option>
-                            <option value="weighing">Codice pesata</option>
-                            <option value="combined">Ubicazione - Articolo - Riferimento ordine</option>
-                        </select>
-                    </label>
+                    <details class="display-mode" id="displayFieldsMenu">
+                        <summary id="displayFieldsSummary">Ubicazione · Articolo · N. pezzi</summary>
+                        <div class="display-mode__menu" aria-label="Informazioni visualizzate nei cassoni">
+                            <strong>Mostra nei cassoni</strong>
+                            <label><input type="checkbox" name="displayField" value="location" checked> Ubicazione</label>
+                            <label><input type="checkbox" name="displayField" value="article" checked> Articolo</label>
+                            <label><input type="checkbox" name="displayField" value="pieces" checked> N. pezzi</label>
+                            <label><input type="checkbox" name="displayField" value="customer"> Cliente</label>
+                            <label><input type="checkbox" name="displayField" value="order"> Rif. ordine</label>
+                            <label><input type="checkbox" name="displayField" value="weighing"> Codice pesata</label>
+                            <label><input type="checkbox" name="displayField" value="type"> Tipologia</label>
+                            <label><input type="checkbox" name="displayField" value="tags"> Tag</label>
+                            <label><input type="checkbox" name="displayField" value="receivedAt"> Data ingresso</label>
+                        </div>
+                    </details>
                     <div class="toolbar-search-tools">
                         <label class="quick-inventory-search" for="quickInventorySearchInput">
                             <span aria-hidden="true">⌕</span>

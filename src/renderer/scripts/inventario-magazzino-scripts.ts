@@ -45,7 +45,7 @@ const inventory = new Map();
 
 let selectedRow = "A";
 let selectedSlot = null;
-let displayMode = "article";
+const displayFields = new Set(["location", "article", "pieces"]);
 let slotRangeMode = "all";
 let slotPage = 0;
 let slotPageDirection = null;
@@ -752,43 +752,38 @@ function itemMatchesSelection(item) {
     if (!selectedSlot || !item) return false;
     const selectedItem = inventory.get(selectedSlot.code);
     if (!selectedItem) return false;
-    if (displayMode === "articleQuantity") return item.article === selectedItem.article;
-    if (displayMode === "customer") return item.customer === selectedItem.customer;
-    if (displayMode === "order") return item.orderReference === selectedItem.orderReference;
-    if (displayMode === "weighing") return Boolean(selectedItem.weighingCode)
+    if (displayFields.has("article")) return item.article === selectedItem.article;
+    if (displayFields.has("customer")) return item.customer === selectedItem.customer;
+    if (displayFields.has("order")) return item.orderReference === selectedItem.orderReference;
+    if (displayFields.has("weighing")) return Boolean(selectedItem.weighingCode)
         && normalizeCustomer(item.weighingCode) === normalizeCustomer(selectedItem.weighingCode);
-    if (displayMode === "combined") {
-        return item.article === selectedItem.article && item.orderReference === selectedItem.orderReference;
-    }
     return item.article === selectedItem.article;
 }
 
-function cellLabel(code, item) {
-    if (!item) return displayMode === "location" ? code : "Libero";
-    if (displayMode === "article") return item.article;
-    if (displayMode === "articleQuantity") return `${item.article} · ${warehouseItemPieces(item)} pz`;
-    if (displayMode === "customer") return item.customer;
-    if (displayMode === "order") return item.orderReference;
-    if (displayMode === "weighing") return item.weighingCode || "Senza pesata";
-    if (displayMode === "combined") return `${code} · ${item.article} · ${item.orderReference}`;
-    return code;
+function slotDisplayLines(code, item) {
+    const values = {
+        location: [code, "location"],
+        article: [item.article || "Articolo —", "article"],
+        pieces: [`${warehouseItemPieces(item)} pezzi`, "quantity"],
+        customer: [item.customer || "Cliente —", "customer"],
+        order: [item.orderReference || "Ordine —", "order"],
+        weighing: [item.weighingCode ? `Pesata ${item.weighingCode}` : "Pesata —", "weighing"],
+        type: [item.type === "pallet" ? "Pallet" : "Cassone", "type"],
+        tags: [item.tags?.length ? item.tags.map((tag) => `#${tag}`).join(" ") : "Tag —", "tags"],
+        receivedAt: [item.receivedAt
+            ? `Ingresso ${new Date(item.receivedAt).toLocaleDateString("it-IT")}`
+            : "Ingresso —", "receivedAt"],
+    };
+    return Array.from(displayFields, (field) => values[field]).filter(Boolean);
 }
 
 function renderCellLabel(button, code, item) {
     button.replaceChildren();
-    if (!["combined", "articleQuantity"].includes(displayMode) || !item) {
-        button.textContent = cellLabel(code, item);
+    if (!item) {
+        button.textContent = displayFields.has("location") ? code : "Libero";
         return;
     }
-    const lines = displayMode === "articleQuantity" ? [
-        [item.article, "article"],
-        [`${warehouseItemPieces(item)} pezzi`, "quantity"],
-    ] : [
-        [code, "location"],
-        [item.article, "article"],
-        [item.orderReference, "order"],
-    ];
-    lines.forEach(([text, type]) => {
+    slotDisplayLines(code, item).forEach(([text, type]) => {
         const line = document.createElement("span");
         line.className = `slot__line slot__line--${type}`;
         line.textContent = text;
@@ -797,8 +792,9 @@ function renderCellLabel(button, code, item) {
 }
 
 function fitSlotButtonLabel(button) {
-    const combined = ["combined", "articleQuantity"].includes(displayMode) && button.querySelector(".slot__line");
-    let size = slotRangeMode === "paged" ? 14 : combined ? 12 : 11;
+    const combined = Boolean(button.querySelector(".slot__line"));
+    const lineCount = button.querySelectorAll(".slot__line").length;
+    let size = slotRangeMode === "paged" ? (lineCount > 3 ? 12 : 14) : lineCount > 3 ? 10.5 : 12;
     const minimum = slotRangeMode === "paged" ? 10 : 8.5;
     button.style.fontSize = `${size}px`;
 
@@ -950,7 +946,9 @@ function renderMap() {
     const rowTitle = document.getElementById("rowTitle");
     if (!levelsContainer || !rowTitle) return;
     rowTitle.textContent = `Fila ${selectedRow}`;
-    levelsContainer.dataset.displayMode = displayMode;
+    levelsContainer.dataset.displayMode = "multi";
+    levelsContainer.dataset.fieldCount = String(displayFields.size);
+    levelsContainer.style.setProperty("--slot-content-height", `${Math.min(122, 42 + Math.max(0, displayFields.size - 1) * 16)}px`);
     levelsContainer.classList.remove("slide-next", "slide-previous");
     levelsContainer.replaceChildren();
 
@@ -1380,10 +1378,40 @@ function setupSlotAreaSelection() {
 }
 
 function setupDisplayMode() {
-    document.getElementById("displayMode")?.addEventListener("change", (event) => {
-        displayMode = event.target.value;
-        renderMap();
+    const menu = document.getElementById("displayFieldsMenu");
+    const summary = document.getElementById("displayFieldsSummary");
+    const labels = {
+        location: "Ubicazione",
+        article: "Articolo",
+        pieces: "N. pezzi",
+        customer: "Cliente",
+        order: "Rif. ordine",
+        weighing: "Codice pesata",
+        type: "Tipologia",
+        tags: "Tag",
+        receivedAt: "Data ingresso",
+    };
+    const updateSummary = () => {
+        const selected = Array.from(displayFields, (field) => labels[field]);
+        summary.textContent = selected.length <= 3
+            ? selected.join(" · ")
+            : `${selected.length} campi selezionati`;
+        summary.title = selected.join(" · ");
+    };
+    document.querySelectorAll('input[name="displayField"]').forEach((input) => {
+        input.checked = displayFields.has(input.value);
+        input.addEventListener("change", () => {
+            if (input.checked) displayFields.add(input.value);
+            else if (displayFields.size > 1) displayFields.delete(input.value);
+            else input.checked = true;
+            updateSummary();
+            renderMap();
+        });
     });
+    document.addEventListener("pointerdown", (event) => {
+        if (menu?.open && !event.target.closest?.("#displayFieldsMenu")) menu.open = false;
+    });
+    updateSummary();
 }
 
 function setupSlotPager() {

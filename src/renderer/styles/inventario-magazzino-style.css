@@ -452,19 +452,50 @@ h1 {
 .row-tabs button.has-movement-highlight { box-shadow: inset 0 -4px 0 #e0b42e; }
 .row-tabs button.has-movement-highlight.is-active { box-shadow: inset 0 -4px 0 #fff1a8; }
 .display-mode {
+    position: relative;
+    z-index: 25;
     display: block;
+    width: 265px;
     height: 34px;
 }
 
-.display-mode select {
+.display-mode > summary {
+    display: flex;
+    align-items: center;
     height: 34px;
-    max-width: 265px;
-    padding: 6px 28px 6px 8px;
+    padding: 6px 30px 6px 9px;
+    overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 4px;
     color: var(--text);
     background: #fff;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    list-style: none;
 }
+.display-mode > summary::-webkit-details-marker { display: none; }
+.display-mode > summary::after { content: "⌄"; position: absolute; right: 10px; color: #405665; font-size: 14px; }
+.display-mode[open] > summary { border-color: #087fbd; box-shadow: 0 0 0 2px rgba(8, 127, 189, .1); }
+.display-mode__menu {
+    position: absolute;
+    top: 39px;
+    left: 0;
+    z-index: 80;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 8px;
+    width: 330px;
+    padding: 10px;
+    border: 1px solid #aebfca;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(20, 43, 59, .22);
+}
+.display-mode__menu > strong { grid-column: 1 / -1; margin-bottom: 4px; color: #1d3c53; font-size: 10px; text-transform: uppercase; }
+.display-mode__menu label { display: flex; align-items: center; gap: 6px; min-height: 26px; color: #42535f; font-size: 10px; cursor: pointer; }
+.display-mode__menu input { accent-color: #174f80; }
 
 .toolbar-search-tools {
     display: flex;
@@ -777,6 +808,21 @@ h1 {
     font-size: 14px;
     line-height: 1.3;
 }
+.levels[data-display-mode="multi"] .slot {
+    min-height: var(--slot-content-height, 74px);
+    padding-right: 3px;
+    padding-left: 3px;
+    line-height: 1.22;
+    white-space: normal;
+}
+.slot-pager[data-range-mode="paged"] .levels[data-display-mode="multi"] .slot {
+    min-height: var(--slot-content-height, 74px);
+}
+.slot__line--customer,
+.slot__line--weighing,
+.slot__line--type,
+.slot__line--tags,
+.slot__line--receivedAt { color: #526979; font-size: .82em; }
 
 .levels.slide-next { animation: slot-page-next .16s ease-out; }
 .levels.slide-previous { animation: slot-page-previous .16s ease-out; }
