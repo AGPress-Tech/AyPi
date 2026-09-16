@@ -19,6 +19,7 @@ const LEVELS = [
     { code: "a", label: "basso", order: 1 },
 ];
 const SLOT_PATTERN = /^([A-Z])(\d{1,3})([a-c])$/i;
+const STAGING_AREA_LABEL = "In Attesa/Preparazione/Montaggio";
 
 function rowCodes() {
     return warehouseRows.map((row) => row.code);
@@ -3896,11 +3897,11 @@ function buildUnloadOperationalSteps(sourceState, selectedUnits, relocations) {
             const step = {
                 kind,
                 from: ordered.map((unit) => unit.location),
-                to: kind === "unload" ? ["Zona scarico"] : ["Corridoio"],
+                to: kind === "unload" ? [STAGING_AREA_LABEL] : ["Corridoio"],
                 units: ordered.map((unit) => operationalUnit(
                     unit.item,
                     unit.location,
-                    kind === "unload" ? "Zona scarico" : relocationById.get(unit.item.id)?.to?.[0] || "",
+                    kind === "unload" ? STAGING_AREA_LABEL : relocationById.get(unit.item.id)?.to?.[0] || "",
                 )),
                 wholeStack: ordered.length === 3 && ordered.map((unit) => unit.parsed.level).join("") === "abc",
             };
@@ -3914,8 +3915,8 @@ function buildUnloadOperationalSteps(sourceState, selectedUnits, relocations) {
         extractionSteps.push({
             kind: "unload",
             from: locations,
-            to: ["Zona scarico"],
-            units: [operationalUnit(unit.item, locations.join(" + "), "Zona scarico")],
+            to: [STAGING_AREA_LABEL],
+            units: [operationalUnit(unit.item, locations.join(" + "), STAGING_AREA_LABEL)],
             wholeStack: false,
         });
     });
@@ -4016,9 +4017,9 @@ function planUnloadOperation(entries, initialState = inventory) {
     partialSelections.forEach((selection) => {
         const pieceStep = {
             kind: "piece-pick",
-            from: ["Zona scarico"],
-            to: ["Zona scarico"],
-            units: [operationalUnit(selection.unit.item, selection.unit.locations[0], "Zona scarico")],
+            from: [STAGING_AREA_LABEL],
+            to: [STAGING_AREA_LABEL],
+            units: [operationalUnit(selection.unit.item, selection.unit.locations[0], STAGING_AREA_LABEL)],
             pieceQuantity: selection.takenPieces,
             remainingPieces: selection.availablePieces - selection.takenPieces,
             requiresWarehouseReturn: true,
@@ -4259,7 +4260,7 @@ async function commitManualUnload() {
         lines: plan.lines,
         operationalSteps: plan.operationalSteps || [],
         movement,
-        message: `${movement.id}: ${item.article} è stato prelevato da ${parsed.code} e portato nella Zona scarico.${plan.relocations?.length ? ` ${plan.relocations.length} riallocazioni necessarie.` : ""}`,
+        message: `${movement.id}: ${item.article} è stato prelevato da ${parsed.code} e portato in ${STAGING_AREA_LABEL}.${plan.relocations?.length ? ` ${plan.relocations.length} riallocazioni necessarie.` : ""}`,
     };
 }
 
@@ -4466,12 +4467,12 @@ function appendMovementLines(container, movement) {
             } else if (step.kind === "unload") {
                 const pallet = step.units?.length === 1 && step.units[0].type === "pallet";
                 title.textContent = pallet
-                    ? `Preleva il pallet ${source} e posizionalo nella Zona scarico`
-                    : `Preleva ${crateWording(step.from?.length || 0)} ${source} e ${step.from?.length === 1 ? "posizionalo" : "posizionali"} nella Zona scarico`;
+                    ? `Preleva il pallet ${source} e posizionalo in ${STAGING_AREA_LABEL}`
+                    : `Preleva ${crateWording(step.from?.length || 0)} ${source} e ${step.from?.length === 1 ? "posizionalo" : "posizionali"} in ${STAGING_AREA_LABEL}`;
             } else if (step.kind === "piece-pick") {
                 const origin = step.units?.[0]?.from || source;
-                title.textContent = source === "Zona scarico"
-                    ? `Nella Zona scarico, preleva ${step.pieceQuantity} pezzi dal cassone proveniente da ${origin} · residuo ${step.remainingPieces} pezzi da rimettere a magazzino`
+                title.textContent = source === STAGING_AREA_LABEL
+                    ? `In ${STAGING_AREA_LABEL}, preleva ${step.pieceQuantity} pezzi dal cassone proveniente da ${origin} · residuo ${step.remainingPieces} pezzi da rimettere a magazzino`
                     : source === "Corridoio"
                     ? `Dal cassone proveniente da ${origin}, nel corridoio, preleva ${step.pieceQuantity} pezzi · residuo ${step.remainingPieces} pezzi`
                     : `Preleva ${step.pieceQuantity} pezzi dal cassone ${source} · residuo ${step.remainingPieces} pezzi`;
@@ -4528,10 +4529,10 @@ function operationalUnitRoute(step, unit) {
     if (["reinsert", "optimization-place"].includes(step.kind)) {
         return `CORRIDOIO → ${unit.to || italianLocationList(step.to)}`;
     }
-    if (step.kind === "unload") return `${unit.from || italianLocationList(step.from)} → ZONA SCARICO`;
+    if (step.kind === "unload") return `${unit.from || italianLocationList(step.from)} → ${STAGING_AREA_LABEL.toUpperCase()}`;
     if (step.kind === "piece-pick") {
-        const source = step.from?.[0] === "Zona scarico"
-            ? "ZONA SCARICO"
+        const source = step.from?.[0] === STAGING_AREA_LABEL
+            ? STAGING_AREA_LABEL.toUpperCase()
             : step.from?.[0] === "Corridoio" ? "CORRIDOIO" : unit.from;
         return `${source} · PRELIEVO ${step.pieceQuantity} PZ · RESIDUO ${step.remainingPieces} PZ`;
     }
@@ -4760,7 +4761,7 @@ function renderUnloadZone() {
     const returnRequired = unloadZone.filter((item) => item.requiresWarehouseReturn).length;
     const vehicleReady = unloadZone.length - returnRequired;
     if (summary) summary.textContent = unloadZone.length
-        ? `${unloadZone.length} unità in attesa · ${vehicleReady} per il veicolo · ${returnRequired} da rimettere a magazzino`
+        ? `${unloadZone.length} unità in lavorazione · ${vehicleReady} pronte per la Zona Scarico · ${returnRequired} da rimettere a magazzino`
         : "Zona vuota";
     const confirmButton = document.getElementById("confirmVehicleLoad");
     if (confirmButton) confirmButton.disabled = !vehicleReady || warehouseStorageUnavailable || !isWarehouseLoggedIn();
@@ -4770,7 +4771,7 @@ function renderUnloadZone() {
     if (!unloadZone.length) {
         const empty = document.createElement("p");
         empty.className = "unload-zone-empty";
-        empty.textContent = "Gli articoli scaricati compariranno qui fino alla conferma del caricamento sul veicolo.";
+        empty.textContent = `Le unità prelevate compariranno qui fino al rientro a magazzino o all'uscita verso la Zona Scarico.`;
         list.appendChild(empty);
         return;
     }
@@ -4785,13 +4786,27 @@ function renderUnloadZone() {
             item.orderReference || "—",
             `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${warehouseItemPieces(item)} pezzi${item.weighingCode ? ` · ${item.weighingCode}` : ""}`,
             (item.originalLocations || []).join(" + ") || "—",
-            item.requiresWarehouseReturn ? "Rientro necessario" : "In attesa veicolo",
+            item.requiresWarehouseReturn ? "Rientro necessario" : "Pronto per Zona Scarico",
         ];
         values.forEach((value, index) => {
             const cell = document.createElement(index === 0 ? "strong" : "span");
             cell.textContent = value;
             if (index === 5) cell.className = `unload-zone-status${item.requiresWarehouseReturn ? " is-return-required" : ""}`;
             row.appendChild(cell);
+        });
+        const actions = document.createElement("div");
+        actions.className = "unload-zone-actions";
+        const exitButton = document.createElement("button");
+        exitButton.className = "unload-zone-exit";
+        exitButton.type = "button";
+        exitButton.textContent = "Zona Scarico";
+        exitButton.disabled = item.requiresWarehouseReturn || warehouseStorageUnavailable || !isWarehouseLoggedIn();
+        exitButton.title = item.requiresWarehouseReturn
+            ? "Questo cassone contiene merce residua e deve rientrare a magazzino"
+            : "Fai uscire definitivamente questa unità";
+        exitButton.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            await moveSingleUnitToUnloadArea(item.id);
         });
         const reloadButton = document.createElement("button");
         reloadButton.className = "unload-zone-reload";
@@ -4802,8 +4817,11 @@ function renderUnloadZone() {
             event.stopPropagation();
             openUnloadReloadDialog(item.id);
         });
-        row.appendChild(reloadButton);
-        row.title = "Usa Prepara rientro oppure il tasto destro per ricaricare questa unità";
+        actions.append(exitButton, reloadButton);
+        row.appendChild(actions);
+        row.title = item.requiresWarehouseReturn
+            ? "Questo cassone deve essere rimesso a magazzino"
+            : "Scegli il rientro a magazzino oppure l'uscita definitiva verso la Zona Scarico";
         row.addEventListener("contextmenu", (event) => {
             event.preventDefault();
             openUnloadZoneContextMenu(item, event.clientX, event.clientY);
@@ -4829,7 +4847,7 @@ function prepareUnloadZoneReload(unitId, overrides = {}) {
         return { error: "Effettua il login operatore prima di ricaricare la merce." };
     }
     const staged = unloadZone.find((item) => item.id === unitId);
-    if (!staged) return { error: "L'unità selezionata non è più presente nella zona scarico." };
+    if (!staged) return { error: `L'unità selezionata non è più presente in ${STAGING_AREA_LABEL}.` };
     const pieceCount = overrides.pieceCount === undefined
         ? Math.max(1, Number(staged.pieceCount) || 1)
         : Number(overrides.pieceCount);
@@ -4953,7 +4971,7 @@ function refreshUnloadReloadPreview(unitId, overrides = unloadReloadFormValues()
 function openUnloadReloadDialog(unitId) {
     const staged = unloadZone.find((item) => item.id === unitId);
     if (!staged) {
-        showWarehouseToast("L'unità selezionata non è più presente nella zona scarico.", true);
+        showWarehouseToast(`L'unità selezionata non è più presente in ${STAGING_AREA_LABEL}.`, true);
         return;
     }
     document.getElementById("unloadReloadWeighing").value = staged.weighingCode || "";
@@ -4993,6 +5011,39 @@ async function reloadUnloadZoneUnit(unitId, overrides = {}) {
     return { movement, destinations: prepared.destinations };
 }
 
+async function moveSingleUnitToUnloadArea(unitId) {
+    const item = unloadZone.find((unit) => unit.id === unitId);
+    if (!item) {
+        showWarehouseToast(`L'unità selezionata non è più presente in ${STAGING_AREA_LABEL}.`, true);
+        return;
+    }
+    if (item.requiresWarehouseReturn) {
+        showWarehouseToast("Il cassone contiene merce residua e deve essere rimesso a magazzino.", true);
+        return;
+    }
+    if (!isWarehouseLoggedIn()) {
+        openWarehouseLogin();
+        return;
+    }
+    const identity = item.weighingCode ? `pesata ${item.weighingCode}` : `proveniente da ${(item.originalLocations || []).join(" + ") || "ubicazione non indicata"}`;
+    if (!await showWarehouseConfirm({
+        title: "Sposta in Zona Scarico",
+        message: `Confermare l'uscita definitiva dell'articolo ${item.article}, ${identity}? L'unità verrà rimossa da ${STAGING_AREA_LABEL}.`,
+        confirmLabel: "Sposta in Zona Scarico",
+        danger: true,
+    })) return;
+    const nextUnloadZone = unloadZone.filter((unit) => unit.id !== unitId);
+    try {
+        await persistWarehouseData(serializeWarehouseInventory(), serializeWarehouseMovements(), cloneUnloadZoneUnits(nextUnloadZone));
+        unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
+        renderUnloadZone();
+        showWarehouseToast(`Articolo ${item.article}: uscita definitiva verso la Zona Scarico registrata.`);
+    } catch (error) {
+        showWarehouseToast(`Uscita non salvata: ${error.message}`, true);
+        renderUnloadZone();
+    }
+}
+
 async function confirmVehicleLoad() {
     const vehicleUnits = unloadZone.filter((item) => !item.requiresWarehouseReturn);
     const returnUnits = unloadZone.filter((item) => item.requiresWarehouseReturn);
@@ -5003,9 +5054,9 @@ async function confirmVehicleLoad() {
     }
     const quantity = vehicleUnits.length;
     if (!await showWarehouseConfirm({
-        title: "Conferma caricamento veicolo",
-        message: `Confermare il caricamento sul veicolo di ${quantity} ${quantity === 1 ? "unità" : "unità"}?${returnUnits.length ? ` I ${returnUnits.length} cassoni parziali con rientro necessario resteranno nella Zona scarico.` : ""}`,
-        confirmLabel: "Conferma uscita",
+        title: "Sposta tutti in Zona Scarico",
+        message: `Confermare l'uscita definitiva verso la Zona Scarico di ${quantity} ${quantity === 1 ? "unità" : "unità"}?${returnUnits.length ? ` I ${returnUnits.length} cassoni con rientro necessario resteranno in ${STAGING_AREA_LABEL}.` : ""}`,
+        confirmLabel: "Sposta tutti",
         danger: true,
     })) return;
     const button = document.getElementById("confirmVehicleLoad");
@@ -5014,7 +5065,7 @@ async function confirmVehicleLoad() {
         await persistWarehouseData(serializeWarehouseInventory(), serializeWarehouseMovements(), cloneUnloadZoneUnits(returnUnits));
         unloadZone.splice(0, unloadZone.length, ...returnUnits);
         renderUnloadZone();
-        showWarehouseToast(`Caricamento veicolo confermato: ${quantity} ${quantity === 1 ? "unità rimossa" : "unità rimosse"}.${returnUnits.length ? ` ${returnUnits.length} da rimettere a magazzino restano in attesa.` : ""}`);
+        showWarehouseToast(`Zona Scarico: ${quantity} ${quantity === 1 ? "unità uscita" : "unità uscite"} definitivamente.${returnUnits.length ? ` ${returnUnits.length} da rimettere a magazzino restano in lavorazione.` : ""}`);
     } catch (error) {
         showWarehouseToast(`Conferma non salvata: ${error.message}`, true);
         renderUnloadZone();
@@ -6260,7 +6311,7 @@ function setupTemporaryDatabaseActions() {
     document.getElementById("populateWarehouseDatabase")?.addEventListener("click", async () => {
         if ((inventory.size || movementHistory.length) && !await showWarehouseConfirm({
             title: "Sostituisci database di test",
-            message: "Tutte le giacenze, la Zona scarico e lo storico saranno sostituiti con nuovi dati pseudo-randomici.",
+            message: `Tutte le giacenze, l'area ${STAGING_AREA_LABEL} e lo storico saranno sostituiti con nuovi dati pseudo-randomici.`,
             confirmLabel: "Sostituisci dati",
             danger: true,
         })) return;
@@ -6286,7 +6337,7 @@ function setupTemporaryDatabaseActions() {
     document.getElementById("clearWarehouseDatabase")?.addEventListener("click", async () => {
         if (!await showWarehouseConfirm({
             title: "Svuota database magazzino",
-            message: "Giacenze, Zona scarico e storico verranno eliminati completamente. L'operazione non è annullabile.",
+            message: `Giacenze, area ${STAGING_AREA_LABEL} e storico verranno eliminati completamente. L'operazione non è annullabile.`,
             confirmLabel: "Svuota database",
             danger: true,
         })) return;

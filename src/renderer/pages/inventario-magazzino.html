@@ -85,7 +85,7 @@
             </div>
             <button class="operation-button--active" id="openLoadButton" type="button">Carico</button>
             <button class="operation-button--active" id="openUnloadButton" type="button">Scarico</button>
-            <button class="unload-zone-button" id="openUnloadZoneButton" type="button">Zona scarico <b id="unloadZoneCount">0</b></button>
+            <button class="unload-zone-button" id="openUnloadZoneButton" type="button">In Attesa/Preparazione/Montaggio <b id="unloadZoneCount">0</b></button>
             <button class="operation-button--active" id="openManualMovementButton" type="button">Spostamento manuale</button>
             <button class="operation-button--active operation-button--optimize" id="openWarehouseOptimizer" data-admin-only hidden type="button">Ottimizza</button>
             <button type="button" disabled>Gestione tag</button>
@@ -658,14 +658,14 @@
             <header class="restriction-dialog__header">
                 <div>
                     <span class="section-label">AREA TEMPORANEA</span>
-                    <h2 id="unloadZoneTitle">Zona scarico</h2>
-                    <p>Unità in attesa del veicolo oppure cassoni parziali da rimettere obbligatoriamente a magazzino.</p>
+                    <h2 id="unloadZoneTitle">In Attesa/Preparazione/Montaggio</h2>
+                    <p>Unità in lavorazione: possono rientrare a magazzino oppure uscire definitivamente verso la Zona Scarico.</p>
                 </div>
                 <button id="closeUnloadZone" type="button" aria-label="Chiudi">×</button>
             </header>
             <div class="unload-zone-toolbar">
-                <div><strong id="unloadZoneSummary">Zona vuota</strong><small>Tasto destro su un’unità per ricaricarla a magazzino.</small></div>
-                <button id="confirmVehicleLoad" type="button" disabled>Conferma caricamento veicolo</button>
+                <div><strong id="unloadZoneSummary">Zona vuota</strong><small>Gestisci il rientro o l’uscita definitiva di ogni singola unità.</small></div>
+                <button id="confirmVehicleLoad" type="button" disabled>Sposta tutti in Zona Scarico</button>
             </div>
             <div class="unload-zone-columns" aria-hidden="true"><span>Articolo</span><span>Cliente</span><span>Rif. ordine</span><span>Tipologia</span><span>Provenienza</span><span>Stato</span><span>Azioni</span></div>
             <div class="unload-zone-list" id="unloadZoneList"></div>
@@ -676,7 +676,7 @@
         <section class="unload-reload-dialog" role="dialog" aria-modal="true" aria-labelledby="unloadReloadTitle">
             <header class="restriction-dialog__header">
                 <div>
-                    <span class="section-label">RIENTRO DALLA ZONA SCARICO</span>
+                    <span class="section-label">RIENTRO DALL'AREA DI ATTESA</span>
                     <h2 id="unloadReloadTitle">Verifica rientro a magazzino</h2>
                     <p>Controlla l'unità selezionata e la destinazione proposta prima di confermare.</p>
                 </div>
@@ -700,7 +700,7 @@
                 <section class="unload-reload-destination">
                     <span class="section-label">DESTINAZIONE PROPOSTA</span>
                     <strong id="unloadReloadDestination">Calcolo in corso…</strong>
-                    <p id="unloadReloadMessage">Il cassone resterà nella Zona scarico fino alla conferma.</p>
+                    <p id="unloadReloadMessage">Il cassone resterà nell'area In Attesa/Preparazione/Montaggio fino alla conferma.</p>
                 </section>
                 <footer class="unload-reload-actions">
                     <button id="cancelUnloadReload" type="button">Annulla</button>
