@@ -2235,6 +2235,8 @@ function openInventarioMagazzinoWindow(
             );
         }
         showWindow(inventarioMagazzinoWindow);
+        inventarioMagazzinoWindow.moveTop();
+        inventarioMagazzinoWindow.webContents.focus();
         return;
     }
 
@@ -2269,6 +2271,9 @@ function openInventarioMagazzinoWindow(
             showWindow(inventarioMagazzinoWindow);
             inventarioMagazzinoWindow.webContents.focus();
         }
+    });
+    inventarioMagazzinoWindow.on("focus", () => {
+        if (!inventarioMagazzinoWindow?.isDestroyed()) inventarioMagazzinoWindow.webContents.focus();
     });
 
     inventarioMagazzinoWindow.on("closed", () => {

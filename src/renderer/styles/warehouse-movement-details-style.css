@@ -18,5 +18,5 @@ h1 { margin: 3px 0 2px; font-size: 25px; } .movement-audit-header p { margin: 0;
 h2 { margin: 2px 0 0; font-size: 15px; }.movement-audit-comparison article > header strong { color: var(--blue); font-size: 11px; }
 .movement-table-wrap { min-height: 0; overflow: auto; } table { width: 100%; border-collapse: collapse; font-size: 10px; }
 th { position: sticky; top: 0; z-index: 1; padding: 7px 8px; border-right: 1px solid #dbe2e7; border-bottom: 1px solid #cbd5dc; color: #526471; background: #edf2f5; text-align: left; text-transform: uppercase; font-size: 8px; }
-td { padding: 6px 8px; border-right: 1px solid #e1e6e9; border-bottom: 1px solid #e7ebee; white-space: nowrap; } tr.is-loaded td { background: #fff6c8; } tr.is-shifted td { background: #ffe3eb; } tr.is-unloaded td { background: #ffe7e2; text-decoration: line-through; }
+td { padding: 6px 8px; border-right: 1px solid #e1e6e9; border-bottom: 1px solid #e7ebee; white-space: nowrap; } tr.is-loaded td { background: #fff6c8; } tr.is-shifted td { background: #ffe3eb; } tr.is-unloaded td { background: #ffe7e2; text-decoration: line-through; } tr.is-adjusted td { background: #e4f2ff; }
 .movement-audit-note { margin: 0; color: #74818b; font-size: 10px; text-align: right; }

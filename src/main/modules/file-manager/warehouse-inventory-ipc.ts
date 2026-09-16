@@ -103,6 +103,20 @@ async function saveSnapshot(app: App, payload: any) {
         movements: Array.isArray(payload?.movements) ? payload.movements : [],
         unloadZone: Array.isArray(payload?.unloadZone) ? payload.unloadZone : [],
     };
+    const weighingOwners = new Map<string, string>();
+    state.inventory.forEach((item: any) => {
+        const pieces = Number(item?.pieceCount);
+        const capacity = Number(item?.maxPieceCapacity);
+        if (!Number.isInteger(pieces) || pieces < 1 || !Number.isInteger(capacity) || capacity < pieces) {
+            throw new Error(`Quantità pezzi non valida per il cassone ${item?.id || "senza ID"}.`);
+        }
+        const weighingCode = String(item?.weighingCode || "").trim().toUpperCase();
+        const owner = weighingOwners.get(weighingCode);
+        if (weighingCode && owner && owner !== item.id) {
+            throw new Error(`Il codice pesata ${weighingCode} è già assegnato al cassone ${owner}.`);
+        }
+        if (weighingCode) weighingOwners.set(weighingCode, item.id);
+    });
     db.exec("BEGIN IMMEDIATE TRANSACTION;");
     try {
         db.run(`

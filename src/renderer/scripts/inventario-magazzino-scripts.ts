@@ -72,12 +72,21 @@ let movementHighlight = null;
 let movementHighlightTimer = null;
 let contextMovementId = null;
 let contextUnloadZoneUnitId = null;
+let unloadZoneReloadPreview = null;
 let manualMovementMode = "load";
 const selectedSlotCodes = new Set();
 let relocationSourceCode = null;
 let restrictionBatchTargets = null;
 let completedOperationMovement = null;
 let operationPreviewPlan = null;
+let warehouseOptimizationPreview = null;
+let activeCrateSortingProfile = null;
+let activeOptimizationScope = null;
+let optimizerSelectedRows = null;
+const optimizerFilters = {
+    articles: { include: new Set(), exclude: new Set() },
+    customers: { include: new Set(), exclude: new Set() },
+};
 let suppressSlotClickUntil = 0;
 let warehouseRevision = 0;
 let warehousePersistenceReady = false;
@@ -86,6 +95,8 @@ const warehouseDialogOrigins = new WeakMap();
 const warehouseDialogFocusTargets = new WeakMap();
 const warehouseDialogStack = [];
 let warehouseConfirmResolver = null;
+let warehouseFocusRecoveryPending = false;
+let queuedWarehouseFocus = null;
 const warehousePersistenceMode = process.env.AYPI_WAREHOUSE_USE_BACKEND === "1" ? "backend" : "local";
 
 function warehouseStorageLabel() {
@@ -183,7 +194,7 @@ function syncWarehouseSessionUi() {
         button.title = isWarehouseLoggedIn() ? "Clicca per disconnettere l'operatore" : "Accedi per abilitare carico e scarico";
     }
     const disabled = warehouseStorageUnavailable || !isWarehouseLoggedIn();
-    ["openLoadButton", "openUnloadButton", "openManualMovementButton"].forEach((id) => {
+    ["openLoadButton", "openUnloadButton", "openManualMovementButton", "openWarehouseOptimizer"].forEach((id) => {
         const control = document.getElementById(id);
         if (!control) return;
         control.disabled = disabled;
@@ -195,7 +206,10 @@ function syncWarehouseSessionUi() {
         section.hidden = locked;
         section.title = locked ? "Accesso amministratore richiesto" : "";
     });
-    if (!isWarehouseAdmin()) closeRestrictionDialog();
+    if (!isWarehouseAdmin()) {
+        closeRestrictionDialog();
+        closeWarehouseOptimizer();
+    }
     renderUnloadZone();
 }
 
@@ -233,15 +247,28 @@ function visibleDialogFocusTarget(dialog) {
 }
 
 async function focusWarehouseElement(target, selectText = false) {
-    try {
-        await ipcRenderer.invoke("warehouse-inventory-focus-window");
-    } catch {
-        window.focus();
+    if (warehouseFocusRecoveryPending) {
+        queuedWarehouseFocus = { target, selectText };
+        return;
     }
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    if (!target?.isConnected || target.disabled || target.hidden || target.offsetParent === null) return;
-    target.focus({ preventScroll: true });
-    if (selectText && typeof target.select === "function") target.select();
+    warehouseFocusRecoveryPending = true;
+    try {
+        try {
+            await ipcRenderer.invoke("warehouse-inventory-focus-window");
+        } catch {
+            window.focus();
+        }
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        if (target?.isConnected && !target.disabled && !target.hidden && target.offsetParent !== null) {
+            target.focus({ preventScroll: true });
+            if (selectText && typeof target.select === "function") target.select();
+        }
+    } finally {
+        warehouseFocusRecoveryPending = false;
+        const queued = queuedWarehouseFocus;
+        queuedWarehouseFocus = null;
+        if (queued) void focusWarehouseElement(queued.target, queued.selectText);
+    }
 }
 
 function openWarehouseDialog(dialog, focusTarget = null, selectText = false) {
@@ -297,12 +324,12 @@ function setupWarehouseDialogFocus() {
     document.getElementById("warehouseConfirmAccept")?.addEventListener("click", () => settleWarehouseConfirm(true));
     window.addEventListener("focus", () => {
         const dialog = topmostWarehouseDialog();
-        if (dialog && !dialog.contains(document.activeElement)) void focusWarehouseElement(visibleDialogFocusTarget(dialog));
+        if (dialog) void focusWarehouseElement(dialog.contains(document.activeElement) ? document.activeElement : visibleDialogFocusTarget(dialog));
     });
     document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible") return;
         const dialog = topmostWarehouseDialog();
-        if (dialog) void focusWarehouseElement(visibleDialogFocusTarget(dialog));
+        if (dialog) void focusWarehouseElement(dialog.contains(document.activeElement) ? document.activeElement : visibleDialogFocusTarget(dialog));
     });
     document.addEventListener("pointerdown", (event) => {
         if (event.target.closest?.(".restriction-backdrop.is-open")) void ipcRenderer.invoke("warehouse-inventory-focus-window").catch(() => window.focus());
@@ -310,10 +337,23 @@ function setupWarehouseDialogFocus() {
     document.addEventListener("keydown", (event) => {
         const dialog = topmostWarehouseDialog();
         if (!dialog) return;
-        if (dialog.id === "warehouseConfirmDialog" && event.key === "Escape") {
+        if (event.key === "Escape") {
             event.preventDefault();
             event.stopImmediatePropagation();
-            settleWarehouseConfirm(false);
+            const closeByDialog = {
+                warehouseConfirmDialog: () => settleWarehouseConfirm(false),
+                operationGroupDialog: closeOperationDialog,
+                manualMovementDialog: closeManualMovementDialog,
+                warehouseOptimizerDialog: closeWarehouseOptimizer,
+                movementHistoryDialog: closeMovementHistoryDialog,
+                unloadZoneDialog: closeUnloadZoneDialog,
+                unloadReloadDialog: closeUnloadReloadDialog,
+                inventorySearchDialog: closeInventorySearchDialog,
+                restrictionDialog: closeRestrictionDialog,
+                articleAnalysisDialog: closeArticleAnalysis,
+                warehouseLoginDialog: closeWarehouseLogin,
+            };
+            closeByDialog[dialog.id]?.();
             return;
         }
         if (event.key !== "Tab") return;
@@ -438,6 +478,7 @@ function cloneWarehouseMovement(movement) {
             loaded: (movement.changes.loaded || []).map((entry) => ({ ...entry, from: [...(entry.from || [])], to: [...(entry.to || [])] })),
             unloaded: (movement.changes.unloaded || []).map((entry) => ({ ...entry, from: [...(entry.from || [])], to: [...(entry.to || [])] })),
             shifted: (movement.changes.shifted || []).map((entry) => ({ ...entry, from: [...(entry.from || [])], to: [...(entry.to || [])] })),
+            adjusted: (movement.changes.adjusted || []).map((entry) => ({ ...entry })),
         } : null,
     };
 }
@@ -454,7 +495,6 @@ function legacyMovementUnit(movement, article, locations, sequence) {
         orderReference: "",
         tags: ["ricostruzione storica"],
         inMovement: false,
-        partial: false,
         type: pallet ? "pallet" : "crate",
         pairedLocation: pallet ? locations[index === 0 ? 1 : 0] : null,
         receivedAt: movement.timestamp,
@@ -516,13 +556,27 @@ function hydrateWarehouseSnapshot(snapshot) {
     inventory.clear();
     (snapshot?.inventory || []).forEach((item) => {
         if (!item?.location || !item?.id) return;
+        const pieceCount = Math.max(1, Number(item.pieceCount) || 1);
+        const { partial: _legacyPartial, ...warehouseItem } = item;
         inventory.set(item.location, {
-            ...item,
+            ...warehouseItem,
+            weighingCode: String(item.weighingCode || "").trim(),
+            pieceCount,
+            maxPieceCapacity: Math.max(pieceCount, Number(item.maxPieceCapacity) || pieceCount),
             tags: Array.isArray(item.tags) ? [...item.tags] : [],
             pairedLocation: item.pairedLocation || null,
         });
     });
-    unloadZone.splice(0, unloadZone.length, ...cloneUnloadZoneUnits(snapshot?.unloadZone || []));
+    unloadZone.splice(0, unloadZone.length, ...cloneUnloadZoneUnits(snapshot?.unloadZone || []).map((item) => {
+        const { partial: _legacyPartial, ...warehouseItem } = item;
+        const pieceCount = Math.max(1, Number(item.pieceCount) || 1);
+        return {
+            ...warehouseItem,
+            weighingCode: String(item.weighingCode || "").trim(),
+            pieceCount,
+            maxPieceCapacity: Math.max(pieceCount, Number(item.maxPieceCapacity) || pieceCount),
+        };
+    }));
     movementHistory.splice(0, movementHistory.length, ...(snapshot?.movements || []).map(cloneWarehouseMovement));
     backfillLegacyMovementSnapshots();
     warehouseRevision = Number(snapshot?.revision) || 0;
@@ -698,8 +752,11 @@ function itemMatchesSelection(item) {
     if (!selectedSlot || !item) return false;
     const selectedItem = inventory.get(selectedSlot.code);
     if (!selectedItem) return false;
+    if (displayMode === "articleQuantity") return item.article === selectedItem.article;
     if (displayMode === "customer") return item.customer === selectedItem.customer;
     if (displayMode === "order") return item.orderReference === selectedItem.orderReference;
+    if (displayMode === "weighing") return Boolean(selectedItem.weighingCode)
+        && normalizeCustomer(item.weighingCode) === normalizeCustomer(selectedItem.weighingCode);
     if (displayMode === "combined") {
         return item.article === selectedItem.article && item.orderReference === selectedItem.orderReference;
     }
@@ -709,23 +766,29 @@ function itemMatchesSelection(item) {
 function cellLabel(code, item) {
     if (!item) return displayMode === "location" ? code : "Libero";
     if (displayMode === "article") return item.article;
+    if (displayMode === "articleQuantity") return `${item.article} · ${warehouseItemPieces(item)} pz`;
     if (displayMode === "customer") return item.customer;
     if (displayMode === "order") return item.orderReference;
+    if (displayMode === "weighing") return item.weighingCode || "Senza pesata";
     if (displayMode === "combined") return `${code} · ${item.article} · ${item.orderReference}`;
     return code;
 }
 
 function renderCellLabel(button, code, item) {
     button.replaceChildren();
-    if (displayMode !== "combined" || !item) {
+    if (!["combined", "articleQuantity"].includes(displayMode) || !item) {
         button.textContent = cellLabel(code, item);
         return;
     }
-    [
+    const lines = displayMode === "articleQuantity" ? [
+        [item.article, "article"],
+        [`${warehouseItemPieces(item)} pezzi`, "quantity"],
+    ] : [
         [code, "location"],
         [item.article, "article"],
         [item.orderReference, "order"],
-    ].forEach(([text, type]) => {
+    ];
+    lines.forEach(([text, type]) => {
         const line = document.createElement("span");
         line.className = `slot__line slot__line--${type}`;
         line.textContent = text;
@@ -734,7 +797,7 @@ function renderCellLabel(button, code, item) {
 }
 
 function fitSlotButtonLabel(button) {
-    const combined = displayMode === "combined" && button.querySelector(".slot__line");
+    const combined = ["combined", "articleQuantity"].includes(displayMode) && button.querySelector(".slot__line");
     let size = slotRangeMode === "paged" ? 14 : combined ? 12 : 11;
     const minimum = slotRangeMode === "paged" ? 10 : 8.5;
     button.style.fontSize = `${size}px`;
@@ -778,7 +841,6 @@ function createSlotButton(row, columnIndex, side, level) {
     button.classList.toggle("is-occupied", Boolean(item));
     button.classList.toggle("is-pallet", item?.type === "pallet");
     button.classList.toggle("is-pallet-blocked", Boolean(blockingPalletId));
-    button.classList.toggle("is-partial", Boolean(item?.partial));
     button.classList.toggle("is-match", code !== selectedSlot?.code && itemMatchesSelection(item));
     button.classList.toggle("is-search-match", currentSearchResults.some((result) => result.location === code));
     button.classList.toggle("is-selected", code === selectedSlot?.code);
@@ -987,13 +1049,15 @@ function renderDetails(detailSlot = selectedSlot) {
     document.getElementById("detailLevel").textContent = `${detailSlot.level} · ${level?.label || ""}`;
 
     const status = document.getElementById("detailStatus");
-    status.className = blockingPalletId ? "blocked-badge" : item?.partial ? "partial-badge" : item ? "occupied-badge" : "free-badge";
-    status.textContent = blockingPalletId ? "Bloccato da pallet" : item?.partial ? "Parziale" : item ? "Occupato" : "Libero";
+    status.className = blockingPalletId ? "blocked-badge" : item ? "occupied-badge" : "free-badge";
+    status.textContent = blockingPalletId ? "Bloccato da pallet" : item ? "Occupato" : "Libero";
     setDetailRowVisibility("detailTypeRow", Boolean(item));
     setDetailRowVisibility("detailPairRow", item?.type === "pallet");
     setDetailRowVisibility("detailArticleRow", Boolean(item));
     setDetailRowVisibility("detailCustomerRow", Boolean(item));
     setDetailRowVisibility("detailOrderRow", Boolean(item));
+    setDetailRowVisibility("detailWeighingRow", Boolean(item));
+    setDetailRowVisibility("detailPiecesRow", Boolean(item));
     setDetailRowVisibility("detailTagsRow", Boolean(item?.tags?.length));
     setDetailRowVisibility("detailMovementRow", Boolean(item?.inMovement));
     const rowRule = rowRestrictions.get(detailSlot.row);
@@ -1008,7 +1072,9 @@ function renderDetails(detailSlot = selectedSlot) {
         }
         document.getElementById("detailArticle").textContent = item.article;
         document.getElementById("detailCustomer").textContent = item.customer;
-        document.getElementById("detailOrder").textContent = item.orderReference;
+        document.getElementById("detailOrder").textContent = item.orderReference || "—";
+        document.getElementById("detailWeighing").textContent = item.weighingCode || "—";
+        document.getElementById("detailPieces").textContent = `${item.pieceCount} / ${item.maxPieceCapacity}`;
         document.getElementById("detailTags").textContent = item.tags.length ? item.tags.join(", ") : "—";
         document.getElementById("detailMovement").textContent = item.inMovement ? "In movimento" : "—";
     }
@@ -1027,7 +1093,7 @@ function renderDetails(detailSlot = selectedSlot) {
     document.getElementById("detailNote").textContent = blockingPalletId
         ? `Posizione non utilizzabile: la colonna è riservata al pallet ${blockingPalletId} collocato a terra.`
         : item
-        ? "Cassone dimostrativo. Tasto destro sulla cella per modificare lo stato parziale."
+        ? "Contenuto registrato. Il dettaglio mostra pezzi correnti e capienza iniziale."
         : "Slot libero. I flussi di carico saranno aggiunti nelle fasi successive.";
 }
 
@@ -1109,22 +1175,13 @@ function closeContextMenu() {
 
 function openContextMenu(code, x, y) {
     const menu = document.getElementById("slotContextMenu");
-    const toggleButton = document.getElementById("togglePartialButton");
     const hint = document.getElementById("contextMenuHint");
     const item = inventory.get(code);
-    if (!menu || !toggleButton || !hint) return;
+    if (!menu || !hint) return;
     menu.querySelectorAll("button").forEach((button) => { button.disabled = false; });
     contextSlotCode = code;
     const multiSelection = selectedSlotCodes.size > 1 && selectedSlotCodes.has(code);
-    const selectedItems = Array.from(selectedSlotCodes).map((location) => inventory.get(location)).filter(Boolean);
     document.getElementById("contextSlotCode").textContent = multiSelection ? `${selectedSlotCodes.size} posizioni selezionate` : code;
-    toggleButton.hidden = multiSelection;
-    toggleButton.disabled = !item || item.type === "pallet";
-    toggleButton.textContent = item?.partial ? "Rimuovi stato parziale" : "Segna come parziale";
-    document.getElementById("markSelectionPartial").hidden = !multiSelection;
-    document.getElementById("clearSelectionPartial").hidden = !multiSelection;
-    document.getElementById("markSelectionPartial").disabled = !selectedItems.some((selected) => selected.type === "crate");
-    document.getElementById("clearSelectionPartial").disabled = !selectedItems.some((selected) => selected.type === "crate");
     const relocate = document.getElementById("startRelocationButton");
     const place = document.getElementById("placeRelocationButton");
     const swap = document.getElementById("swapRelocationButton");
@@ -1208,46 +1265,6 @@ function relocateCrate(sourceCode, targetCode, swap = false) {
 }
 
 function setupContextMenu() {
-    document.getElementById("togglePartialButton")?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const item = contextSlotCode ? inventory.get(contextSlotCode) : null;
-        if (!item) return;
-        item.partial = !item.partial;
-        refreshInventorySearch();
-        renderDetails();
-        void persistWarehouseData().catch(() => {});
-        closeContextMenu();
-    });
-    document.getElementById("markSelectionPartial")?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        let changed = 0;
-        selectedSlotCodes.forEach((location) => {
-            const item = inventory.get(location);
-            if (item?.type === "crate") {
-                item.partial = true;
-                changed += 1;
-            }
-        });
-        refreshWarehouseAfterManualChange();
-        void persistWarehouseData().catch(() => {});
-        closeContextMenu();
-        showWarehouseToast(`${changed} ${changed === 1 ? "cassone segnato" : "cassoni segnati"} come parziali.`);
-    });
-    document.getElementById("clearSelectionPartial")?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        let changed = 0;
-        selectedSlotCodes.forEach((location) => {
-            const item = inventory.get(location);
-            if (item?.type === "crate") {
-                item.partial = false;
-                changed += 1;
-            }
-        });
-        refreshWarehouseAfterManualChange();
-        void persistWarehouseData().catch(() => {});
-        closeContextMenu();
-        showWarehouseToast(`Stato parziale rimosso da ${changed} ${changed === 1 ? "cassone" : "cassoni"}.`);
-    });
     document.getElementById("startRelocationButton")?.addEventListener("click", (event) => {
         event.stopPropagation();
         if (!contextSlotCode || inventory.get(contextSlotCode)?.type !== "crate") return;
@@ -1597,6 +1614,70 @@ function activeOperationGroup() {
     return operationGroups[operationGroupMode];
 }
 
+function loadBatchCount() {
+    const field = document.getElementById("loadBatchCount");
+    return Math.max(1, Math.min(50, Math.trunc(Number(field?.value) || 1)));
+}
+
+function createLoadBatchRow(index) {
+    const row = document.createElement("div");
+    row.className = "load-batch__row";
+    row.dataset.batchIndex = String(index);
+    const number = document.createElement("strong");
+    number.textContent = String(index + 1);
+    const weighingLabel = document.createElement("label");
+    const weighing = document.createElement("input");
+    weighing.className = "load-batch-weighing";
+    weighing.placeholder = `Pesata cassone ${index + 1} (opzionale)`;
+    weighing.autocomplete = "off";
+    weighingLabel.appendChild(weighing);
+    const piecesLabel = document.createElement("label");
+    const pieces = document.createElement("input");
+    pieces.className = "load-batch-pieces";
+    pieces.type = "number";
+    pieces.min = "1";
+    pieces.step = "1";
+    pieces.required = true;
+    pieces.placeholder = `Pezzi cassone ${index + 1}`;
+    piecesLabel.appendChild(pieces);
+    row.append(number, weighingLabel, piecesLabel);
+    return row;
+}
+
+function updateLoadBatchRows() {
+    const rows = document.getElementById("loadBatchRows");
+    const countField = document.getElementById("loadBatchCount");
+    const controls = document.getElementById("loadBatchControls");
+    const section = document.getElementById("loadBatchSection");
+    if (!rows || !countField || !controls || !section) return;
+    const batchAllowed = operationGroupMode === "load"
+        && document.getElementById("loadType")?.value === "crate"
+        && editingOperationLineIndex === null;
+    controls.hidden = operationGroupMode !== "load";
+    countField.disabled = !batchAllowed;
+    if (!batchAllowed) countField.value = "1";
+    const targetCount = batchAllowed ? loadBatchCount() : 1;
+    countField.value = String(targetCount);
+    while (rows.children.length < targetCount) rows.appendChild(createLoadBatchRow(rows.children.length));
+    while (rows.children.length > targetCount) rows.lastElementChild?.remove();
+    rows.querySelectorAll(".load-batch-pieces").forEach((input) => { input.required = operationGroupMode === "load"; });
+    section.classList.toggle("is-single", targetCount === 1);
+    const addButton = document.getElementById("addOperationLine");
+    if (addButton && editingOperationLineIndex === null) {
+        addButton.textContent = targetCount > 1
+            ? `Aggiungi ${targetCount} cassoni al gruppo di carico`
+            : `Aggiungi al gruppo di ${operationModeLabel()}`;
+    }
+}
+
+function loadBatchValues() {
+    return Array.from(document.querySelectorAll("#loadBatchRows .load-batch__row"), (row, index) => ({
+        index,
+        weighingCode: row.querySelector(".load-batch-weighing")?.value.trim().toUpperCase() || "",
+        pieceCount: Number(row.querySelector(".load-batch-pieces")?.value),
+    }));
+}
+
 function updateOperationButtons() {
     const loadCount = operationGroups.load.length;
     const unloadCount = operationGroups.unload.length;
@@ -1624,8 +1705,12 @@ function resetOperationLineForm() {
     const form = document.getElementById("operationLineForm");
     form?.reset();
     document.getElementById("loadQuantity").value = "1";
+    document.getElementById("loadPieceCount").value = "";
+    document.getElementById("loadWeighingCode").value = "";
+    document.getElementById("loadBatchCount").value = "1";
     editingOperationLineIndex = null;
     document.getElementById("addOperationLine").textContent = `Aggiungi al gruppo di ${operationModeLabel()}`;
+    updateLoadBatchRows();
     document.getElementById("loadFormMessage").textContent = "";
     updateLoadTypeNote();
 }
@@ -1635,19 +1720,28 @@ function configureOperationDialog() {
     document.getElementById("operationDialogEyebrow").textContent = load ? "NUOVO GRUPPO DI CARICO" : "NUOVO GRUPPO DI SCARICO";
     document.getElementById("operationDialogTitle").textContent = load ? "Componi il carico" : "Componi lo scarico";
     document.getElementById("operationDialogDescription").textContent = load
-        ? "Inserisci tutti gli articoli prima di calcolare la proposta complessiva."
-        : "Inserisci più articoli o importa le unità selezionate dalla ricerca prima del calcolo FIFO.";
-    document.getElementById("operationPartialField").hidden = !load;
+        ? "Inserisci un singolo cassone oppure aggiungine più insieme condividendo articolo, cliente e ordine."
+        : "Preleva per articolo e pezzi, per riferimento ordine oppure mediante codice pesata esatto.";
     document.getElementById("loadCustomer").required = load;
-    document.getElementById("loadOrderReference").required = load;
+    document.getElementById("loadArticle").required = load;
+    document.getElementById("loadOrderReference").required = false;
+    document.getElementById("loadPieceCount").required = load;
     document.getElementById("operationOrderLabelText").textContent = load
         ? "Riferimento ordine"
-        : "Riferimento ordine (opzionale · vuoto = FIFO globale)";
+        : "Riferimento ordine (opzionale · tutti i corrispondenti)";
     document.getElementById("loadOrderReference").placeholder = load
         ? "es. 25/00114 oppure 25/00114/C"
         : "Lascia vuoto per prelevare i più vecchi";
+    document.getElementById("operationWeighingLabelText").textContent = load
+        ? "Codice pesata (opzionale · univoco)"
+        : "Codice pesata (opzionale · cassone esatto)";
+    document.getElementById("operationPiecesLabelText").textContent = load
+        ? "Numero pezzi nel cassone"
+        : "Numero pezzi da prelevare (opzionale)";
+    document.getElementById("loadPieceCount").placeholder = load ? "es. 250" : "Vuoto = cassoni interi";
     document.getElementById("reviewOperationGroup").textContent = `Visualizza ${operationModeLabel()}`;
     document.getElementById("confirmOperationGroup").textContent = `Conferma gruppo di ${operationModeLabel()}`;
+    updateLoadBatchRows();
     updateLoadTypeNote();
 }
 
@@ -1656,18 +1750,27 @@ function createOperationLineElement(entry, index, review = false) {
     row.className = "operation-line";
     const main = document.createElement("div");
     const title = document.createElement("strong");
-    title.textContent = entry.article;
+    title.textContent = entry.article || (entry.weighingCode ? `Pesata ${entry.weighingCode}` : entry.order ? `Ordine ${entry.order}` : "Prelievo");
     const meta = document.createElement("small");
     const orderDescription = entry.order
         ? entry.order
         : operationGroupMode === "unload" ? "Tutti gli ordini · FIFO più vecchio" : "Ordine non indicato";
     const details = [entry.customer || "Qualsiasi cliente", orderDescription, entry.type === "pallet" ? "Pallet" : "Cassone"];
-    if (entry.partial && operationGroupMode === "load") details.push("Parziale");
+    if (entry.weighingCode) details.push(`Pesata ${entry.weighingCode}`);
+    if (entry.pieceCount) details.push(`${entry.pieceCount} pezzi`);
+    if (entry.availablePieces) details.push(`${entry.availablePieces} pezzi disponibili`);
+    if (entry.requestedPieces) details.push(`Richiesti ${entry.requestedPieces} pezzi`);
     if (entry.sourceLocations?.length) details.push(`Da ${entry.sourceLocations.join(" + ")}`);
     meta.textContent = details.join(" · ");
     main.append(title, meta);
     const quantity = document.createElement("b");
-    quantity.textContent = `${entry.quantity} ${entry.type === "pallet" ? (entry.quantity === 1 ? "pallet" : "pallet") : entry.quantity === 1 ? "cassone" : "cassoni"}`;
+    quantity.textContent = operationGroupMode === "load"
+        ? `1 ${entry.type === "pallet" ? "pallet" : "cassone"}`
+        : entry.requestedPieces
+          ? `${entry.requestedPieces} pezzi`
+          : entry.weighingCode
+            ? "1 cassone"
+            : entry.order ? "Tutti ordine" : `${entry.quantity || 1} unità`;
     const actions = document.createElement("div");
     const edit = document.createElement("button");
     edit.type = "button";
@@ -1692,7 +1795,9 @@ function createOperationLineElement(entry, index, review = false) {
 
 function renderOperationGroup() {
     const entries = activeOperationGroup();
-    const units = entries.reduce((total, entry) => total + entry.quantity, 0);
+    const units = operationGroupMode === "load"
+        ? entries.length
+        : entries.reduce((total, entry) => total + (Number(entry.quantity) || 0), 0);
     const draft = document.getElementById("operationDraftList");
     const review = document.getElementById("operationReviewList");
     const ready = document.getElementById("operationReadyList");
@@ -1716,8 +1821,8 @@ function renderOperationGroup() {
     document.getElementById("reviewOperationGroup").disabled = !entries.length;
     document.getElementById("operationReviewLineCount").textContent = String(entries.length);
     document.getElementById("operationReviewUnitCount").textContent = String(units);
-    document.getElementById("operationReviewCrateCount").textContent = String(entries.filter((entry) => entry.type === "crate").reduce((total, entry) => total + entry.quantity, 0));
-    document.getElementById("operationReviewPalletCount").textContent = String(entries.filter((entry) => entry.type === "pallet").reduce((total, entry) => total + entry.quantity, 0));
+    document.getElementById("operationReviewCrateCount").textContent = String(entries.filter((entry) => entry.type === "crate").reduce((total, entry) => total + (Number(entry.quantity) || (operationGroupMode === "load" ? 1 : 0)), 0));
+    document.getElementById("operationReviewPalletCount").textContent = String(entries.filter((entry) => entry.type === "pallet").reduce((total, entry) => total + (Number(entry.quantity) || (operationGroupMode === "load" ? 1 : 0)), 0));
     const unrestrictedOrders = entries.filter((entry) => !entry.order).length;
     document.getElementById("operationReviewNote").classList.remove("is-error");
     document.getElementById("operationReviewNote").textContent = operationGroupMode === "load"
@@ -1731,11 +1836,14 @@ function editOperationLine(index) {
     if (!entry) return;
     setOperationStage("compose");
     editingOperationLineIndex = index;
+    document.getElementById("loadBatchCount").value = "1";
+    updateLoadBatchRows();
     document.getElementById("loadArticle").value = entry.article;
     document.getElementById("loadCustomer").value = entry.customer;
     document.getElementById("loadOrderReference").value = entry.order;
     document.getElementById("loadQuantity").value = String(entry.quantity);
-    document.getElementById("loadPartial").value = entry.partial ? "yes" : "no";
+    document.getElementById("loadWeighingCode").value = entry.weighingCode || "";
+    document.getElementById("loadPieceCount").value = entry.requestedPieces || entry.pieceCount || "";
     document.getElementById("loadType").value = entry.type;
     document.getElementById("addOperationLine").textContent = "Salva modifica";
     document.getElementById("loadFormMessage").textContent = `Modifica della riga ${index + 1}.`;
@@ -1789,19 +1897,25 @@ function addSelectedResultsToUnloadGroup() {
         const item = inventory.get(location);
         if (item && !alreadyAdded.has(item.id) && !units.has(item.id)) units.set(item.id, item);
     });
-    const grouped = new Map();
     units.forEach((item) => {
-        const key = [item.article, item.customer, item.orderReference, item.type, item.partial].join("|");
-        if (!grouped.has(key)) grouped.set(key, { article: item.article, customer: item.customer, order: item.orderReference, quantity: 0, partial: item.partial, type: item.type, sourceIds: [], sourceLocations: [] });
-        const entry = grouped.get(key);
-        entry.quantity += 1;
-        entry.sourceIds.push(item.id);
         const sourceLocation = item.type === "pallet"
             ? [item.location, item.pairedLocation].sort((left, right) => left.localeCompare(right, undefined, { numeric: true })).join(" + ")
             : item.location;
-        entry.sourceLocations.push(sourceLocation);
+        operationGroups.unload.push({
+            id: nextOperationLineId++,
+            article: item.article,
+            customer: item.customer,
+            order: item.orderReference,
+            weighingCode: item.weighingCode || "",
+            pieceCount: null,
+            availablePieces: warehouseItemPieces(item),
+            requestedPieces: null,
+            quantity: 1,
+            type: item.type,
+            sourceIds: [item.id],
+            sourceLocations: [sourceLocation],
+        });
     });
-    grouped.forEach((entry) => operationGroups.unload.push({ ...entry, id: nextOperationLineId++ }));
     operationPreviewPlan = null;
     closeInventorySearchDialog();
     openOperationDialog("unload", "compose");
@@ -1900,9 +2014,35 @@ const CRATE_SORTING_WEIGHTS = Object.freeze({
     initialRowOrder: 180,
     initialColumnOrder: 8,
 });
+const CRATE_SORTING_WEIGHT_GROUPS = Object.freeze({
+    proximity: new Set([
+        "newArticleDivision", "mixedArticleStack", "mixedArticleUnit", "continueExistingArticleUnit",
+        "differentRowDistance", "physicalColumnDistance", "oppositeSideDistance",
+    ]),
+    space: new Set([
+        "touchedStack", "newArticleDivision", "touchedPhysicalModule", "newPhysicalModule",
+        "completeStack", "residualSingleCompletion", "twoHighStack", "sameArticleFrontRearModule",
+        "fullArticleFrontRearModule",
+    ]),
+    handling: new Set([
+        "forkliftMovement", "frontUnit", "completeStack", "sameArticleFrontRearModule",
+        "fullArticleFrontRearModule",
+    ]),
+});
+
+function sortingWeight(name) {
+    const base = CRATE_SORTING_WEIGHTS[name];
+    if (!activeCrateSortingProfile) return base;
+    let multiplier = 1;
+    if (activeCrateSortingProfile.preferProximity && CRATE_SORTING_WEIGHT_GROUPS.proximity.has(name)) multiplier *= 1.85;
+    if (activeCrateSortingProfile.optimizeSpace && CRATE_SORTING_WEIGHT_GROUPS.space.has(name)) multiplier *= 1.65;
+    if (activeCrateSortingProfile.reduceFutureMoves && CRATE_SORTING_WEIGHT_GROUPS.handling.has(name)) multiplier *= 1.45;
+    return base * multiplier;
+}
 
 function validCrateDestination(state, parsed, customer) {
     if (!parsed || state.has(parsed.code) || stateHasBlockingPallet(state, parsed)) return false;
+    if (activeOptimizationScope && !optimizationLocationAllowed(parsed.code, activeOptimizationScope)) return false;
     if (!evaluateCustomerForSlot(parsed.code, customer).allowed) return false;
     const lowerLevels = parsed.level === "c" ? ["a", "b"] : parsed.level === "b" ? ["a"] : [];
     if (!lowerLevels.every((level) => state.has(`${parsed.row}${parsed.number}${level}`))) return false;
@@ -1964,12 +2104,12 @@ function createCrateScoreContext(initialArticleLocations) {
             const proximityReferences = otherStacks.length ? otherStacks : locations;
             const distance = proximityReferences.length
                 ? Math.min(...proximityReferences.map((existing) => (
-                    Math.abs(rowCodes().indexOf(parsed.row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
-                    + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
-                    + (parsed.side === existing.side ? 0 : CRATE_SORTING_WEIGHTS.oppositeSideDistance)
+                    Math.abs(rowCodes().indexOf(parsed.row) - rowCodes().indexOf(existing.row)) * sortingWeight("differentRowDistance")
+                    + Math.abs(parsed.physicalColumn - existing.physicalColumn) * sortingWeight("physicalColumnDistance")
+                    + (parsed.side === existing.side ? 0 : sortingWeight("oppositeSideDistance"))
                 )))
-                : rowCodes().indexOf(parsed.row) * CRATE_SORTING_WEIGHTS.initialRowOrder
-                    + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
+                : rowCodes().indexOf(parsed.row) * sortingWeight("initialRowOrder")
+                    + parsed.physicalColumn * sortingWeight("initialColumnOrder");
             distanceByStack.set(`${parsed.row}:${parsed.number}`, distance);
         }
     });
@@ -1979,7 +2119,45 @@ function createCrateScoreContext(initialArticleLocations) {
     };
 }
 
-function scoreCratePlan(initialState, state, locations, article, movements, scoreContext) {
+function crateLocationAccessibilityBurden(state, code) {
+    const parsed = parseSlotCode(code);
+    if (!parsed) return Number.POSITIVE_INFINITY;
+    const levels = ["a", "b", "c"];
+    const levelIndex = levels.indexOf(parsed.level);
+    const above = levels.slice(levelIndex + 1)
+        .filter((level) => state.has(`${parsed.row}${parsed.number}${level}`)).length;
+    let frontObstruction = 0;
+    if (parsed.side === "rear") {
+        const frontNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "front", "a")).number;
+        frontObstruction = levels.some((level) => state.has(`${parsed.row}${frontNumber}${level}`)) ? 1 : 0;
+    }
+    return above * 1.4 + frontObstruction;
+}
+
+function compareCrateLocationsByAccessibility(state, left, right) {
+    const burdenDifference = crateLocationAccessibilityBurden(state, left)
+        - crateLocationAccessibilityBurden(state, right);
+    if (burdenDifference) return burdenDifference;
+    const leftParsed = parseSlotCode(left);
+    const rightParsed = parseSlotCode(right);
+    const sideDifference = (leftParsed.side === "front" ? 0 : 1) - (rightParsed.side === "front" ? 0 : 1);
+    if (sideDifference) return sideDifference;
+    const levelPriority = { c: 0, b: 1, a: 2 };
+    const levelDifference = levelPriority[leftParsed.level] - levelPriority[rightParsed.level];
+    if (levelDifference) return levelDifference;
+    return left.localeCompare(right, undefined, { numeric: true });
+}
+
+function cratePieceAccessibilityScore(state, locations, pieceCount) {
+    const pieces = Number(pieceCount);
+    if (!Number.isFinite(pieces) || pieces <= 0) return 0;
+    const urgency = 5200 / Math.sqrt(pieces);
+    return locations.reduce((score, code) => (
+        score + crateLocationAccessibilityBurden(state, code) * urgency
+    ), 0);
+}
+
+function scoreCratePlan(initialState, state, locations, article, movements, scoreContext, pieceCount = 0) {
     const levels = ["a", "b", "c"];
     const touchedStacks = new Map();
     const addedByStack = new Map();
@@ -2051,25 +2229,26 @@ function scoreCratePlan(initialState, state, locations, article, movements, scor
             }
         }
     });
-    return movements * CRATE_SORTING_WEIGHTS.forkliftMovement
-        + touchedStacks.size * CRATE_SORTING_WEIGHTS.touchedStack
-        + newArticleDivisions * CRATE_SORTING_WEIGHTS.newArticleDivision
-        + touchedModules.size * CRATE_SORTING_WEIGHTS.touchedPhysicalModule
-        + newPhysicalModules * CRATE_SORTING_WEIGHTS.newPhysicalModule
-        + mixedStacks * CRATE_SORTING_WEIGHTS.mixedArticleStack
-        + mixedUnits * CRATE_SORTING_WEIGHTS.mixedArticleUnit
-        + frontUnits * CRATE_SORTING_WEIGHTS.frontUnit
-        + completedStacks * CRATE_SORTING_WEIGHTS.completeStack
-        + residualSingleCompletions * CRATE_SORTING_WEIGHTS.residualSingleCompletion
-        + twoHighStacks * CRATE_SORTING_WEIGHTS.twoHighStack
-        + pairedArticleModules * CRATE_SORTING_WEIGHTS.sameArticleFrontRearModule
-        + fullPairedArticleModules * CRATE_SORTING_WEIGHTS.fullArticleFrontRearModule
-        + continuedArticleUnits * CRATE_SORTING_WEIGHTS.continueExistingArticleUnit
+    return movements * sortingWeight("forkliftMovement")
+        + touchedStacks.size * sortingWeight("touchedStack")
+        + newArticleDivisions * sortingWeight("newArticleDivision")
+        + touchedModules.size * sortingWeight("touchedPhysicalModule")
+        + newPhysicalModules * sortingWeight("newPhysicalModule")
+        + mixedStacks * sortingWeight("mixedArticleStack")
+        + mixedUnits * sortingWeight("mixedArticleUnit")
+        + frontUnits * sortingWeight("frontUnit")
+        + completedStacks * sortingWeight("completeStack")
+        + residualSingleCompletions * sortingWeight("residualSingleCompletion")
+        + twoHighStacks * sortingWeight("twoHighStack")
+        + pairedArticleModules * sortingWeight("sameArticleFrontRearModule")
+        + fullPairedArticleModules * sortingWeight("fullArticleFrontRearModule")
+        + continuedArticleUnits * sortingWeight("continueExistingArticleUnit")
         + distanceScore
-        + initialPositionScore;
+        + initialPositionScore
+        + cratePieceAccessibilityScore(state, locations, pieceCount);
 }
 
-function scoreCrateMoveCandidate(state, move, article, scoreContext, requestedQuantity) {
+function scoreCrateMoveCandidate(state, move, article, scoreContext, requestedQuantity, pieceCount = 0) {
     const parsed = parseSlotCode(move.codes[0]);
     const stack = crateStackItems(state, parsed).filter(Boolean);
     const finalHeight = stack.length + move.codes.length;
@@ -2092,26 +2271,27 @@ function scoreCrateMoveCandidate(state, move, article, scoreContext, requestedQu
         return item && item.article !== article;
     }));
     const distance = scoreContext.distance(parsed);
-    return CRATE_SORTING_WEIGHTS.forkliftMovement
-        + CRATE_SORTING_WEIGHTS.touchedStack
-        + CRATE_SORTING_WEIGHTS.touchedPhysicalModule
+    return sortingWeight("forkliftMovement")
+        + sortingWeight("touchedStack")
+        + sortingWeight("touchedPhysicalModule")
         + (stack.some((item) => item.article !== article)
-            ? CRATE_SORTING_WEIGHTS.mixedArticleStack + move.codes.length * CRATE_SORTING_WEIGHTS.mixedArticleUnit
+            ? sortingWeight("mixedArticleStack") + move.codes.length * sortingWeight("mixedArticleUnit")
             : 0)
-        + (!stack.some((item) => item.article === article) ? CRATE_SORTING_WEIGHTS.newArticleDivision : 0)
-        + (moduleWasEmpty ? CRATE_SORTING_WEIGHTS.newPhysicalModule : 0)
-        + move.codes.filter((code) => parseSlotCode(code).side === "front").length * CRATE_SORTING_WEIGHTS.frontUnit
-        + (finalHeight === 3 ? CRATE_SORTING_WEIGHTS.completeStack : finalHeight === 2 ? CRATE_SORTING_WEIGHTS.twoHighStack : 0)
+        + (!stack.some((item) => item.article === article) ? sortingWeight("newArticleDivision") : 0)
+        + (moduleWasEmpty ? sortingWeight("newPhysicalModule") : 0)
+        + move.codes.filter((code) => parseSlotCode(code).side === "front").length * sortingWeight("frontUnit")
+        + (finalHeight === 3 ? sortingWeight("completeStack") : finalHeight === 2 ? sortingWeight("twoHighStack") : 0)
         + (requestedQuantity % 3 === 1 && stack.length === 2 && move.codes.length === 1
-            ? CRATE_SORTING_WEIGHTS.residualSingleCompletion
+            ? sortingWeight("residualSingleCompletion")
             : 0)
         + (sideHasArticle(rearNumber) && sideHasArticle(frontNumber) && !moduleHasOtherArticle
-            ? CRATE_SORTING_WEIGHTS.sameArticleFrontRearModule
+            ? sortingWeight("sameArticleFrontRearModule")
             : 0)
         + (sideIsFullArticle(rearNumber) && sideIsFullArticle(frontNumber) && !moduleHasOtherArticle
-            ? CRATE_SORTING_WEIGHTS.fullArticleFrontRearModule
+            ? sortingWeight("fullArticleFrontRearModule")
             : 0)
-        + distance;
+        + distance
+        + cratePieceAccessibilityScore(state, move.codes, pieceCount);
 }
 
 function trimCratePlanBeam(nodes, width) {
@@ -2155,7 +2335,7 @@ function planWeightedCrateAllocations(initialState, entry, resultLimit = 1, sear
                 .filter((move) => move.codes.length === size)
                 .map((move) => ({
                     ...move,
-                    quickScore: scoreCrateMoveCandidate(node.state, move, entry.article, scoreContext, quantity),
+                    quickScore: scoreCrateMoveCandidate(node.state, move, entry.article, scoreContext, quantity, entry.pieceCount),
                 }))
                 .sort((left, right) => left.quickScore - right.quickScore
                     || left.codes[0].localeCompare(right.codes[0], undefined, { numeric: true }))
@@ -2176,7 +2356,7 @@ function planWeightedCrateAllocations(initialState, entry, resultLimit = 1, sear
                     locations,
                     movements,
                     moveSizes: [...node.moveSizes, move.codes.length],
-                    score: scoreCratePlan(initialState, moveState, locations, entry.article, movements, scoreContext),
+                    score: scoreCratePlan(initialState, moveState, locations, entry.article, movements, scoreContext, entry.pieceCount),
                 });
                 if (layers[target].length > beamWidth * 12) {
                     layers[target] = trimCratePlanBeam(layers[target], beamWidth * 4);
@@ -2203,6 +2383,8 @@ function palletDestinationCandidates(state, article, customer, limit = 1) {
         for (let column = 0; column < physicalColumnsForRow(row); column += 1) {
             const front = slotCode(row, column, "front", "a");
             const rear = slotCode(row, column, "rear", "a");
+            if (activeOptimizationScope
+                && ![front, rear].every((code) => optimizationLocationAllowed(code, activeOptimizationScope))) continue;
             const columnCodes = [front, rear].flatMap((ground) => {
                 const number = parseSlotCode(ground).number;
                 return ["a", "b", "c"].map((level) => `${row}${number}${level}`);
@@ -2212,11 +2394,11 @@ function palletDestinationCandidates(state, article, customer, limit = 1) {
             const parsed = parseSlotCode(rear);
             const distance = articleLocations.length
                 ? Math.min(...articleLocations.map((existing) => (
-                    Math.abs(rowCodes().indexOf(row) - rowCodes().indexOf(existing.row)) * CRATE_SORTING_WEIGHTS.differentRowDistance
-                    + Math.abs(parsed.physicalColumn - existing.physicalColumn) * CRATE_SORTING_WEIGHTS.physicalColumnDistance
+                    Math.abs(rowCodes().indexOf(row) - rowCodes().indexOf(existing.row)) * sortingWeight("differentRowDistance")
+                    + Math.abs(parsed.physicalColumn - existing.physicalColumn) * sortingWeight("physicalColumnDistance")
                 )))
-                : rowCodes().indexOf(row) * CRATE_SORTING_WEIGHTS.initialRowOrder
-                    + parsed.physicalColumn * CRATE_SORTING_WEIGHTS.initialColumnOrder;
+                : rowCodes().indexOf(row) * sortingWeight("initialRowOrder")
+                    + parsed.physicalColumn * sortingWeight("initialColumnOrder");
             candidates.push({ pair: [rear, front], score: distance });
         }
     }
@@ -2230,12 +2412,7 @@ function bestPalletDestination(state, article, customer) {
 }
 
 function summarizeMovementLines(actions) {
-    const grouped = new Map();
-    actions.forEach((action) => {
-        if (!grouped.has(action.article)) grouped.set(action.article, []);
-        grouped.get(action.article).push(...action.locations);
-    });
-    return Array.from(grouped, ([article, locations]) => ({ article, locations }));
+    return actions.map((action) => ({ ...action, kind: action.kind || "loaded" }));
 }
 
 const JOINT_LOAD_LIMITS = Object.freeze({
@@ -2308,6 +2485,7 @@ function scoreJointLoadNode(initialState, node, entries, initialArticleScoreCont
         const articlePlan = cratePlans.get(entry.article);
         articlePlan.locations.push(...allocation.locations);
         articlePlan.movements += allocation.movements;
+        score += cratePieceAccessibilityScore(node.state, allocation.locations, entry.pieceCount);
     });
     cratePlans.forEach((plan, article) => {
         score += scoreCratePlan(
@@ -2336,7 +2514,7 @@ function trimJointLoadBeam(nodes, width) {
 }
 
 function canonicalLoadEntryKey(entry) {
-    return [entry.type, entry.article, entry.customer, entry.order, entry.partial ? "1" : "0", entry.quantity].join("|");
+    return [entry.type, entry.article, entry.customer, entry.order, entry.weighingCode || "", entry.pieceCount || "", entry.quantity].join("|");
 }
 
 function jointEntryPriority(entry, initialArticleCounts, entryScarcity) {
@@ -2386,19 +2564,26 @@ function planJointLoadAllocation(entries, initialState) {
             ? palletDestinationCandidates(planningState, entry.article, entry.customer, totalSlots()).length
             : generateCratePlacementMoves(planningState, Math.min(3, entry.quantity), entry.article, entry.customer).length,
     ]));
-    const beamWidth = entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
-        ? JOINT_LOAD_LIMITS.smallBeam
-        : entries.length <= JOINT_LOAD_LIMITS.mediumBlockEntries
-          ? JOINT_LOAD_LIMITS.mediumBeam
-          : JOINT_LOAD_LIMITS.largeBeam;
-    const entryBranches = entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
-        ? JOINT_LOAD_LIMITS.smallEntryBranches
-        : entries.length <= JOINT_LOAD_LIMITS.mediumBlockEntries
-          ? JOINT_LOAD_LIMITS.mediumEntryBranches
-          : JOINT_LOAD_LIMITS.largeEntryBranches;
-    const allocationVariants = entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
-        ? JOINT_LOAD_LIMITS.allocationVariants
-        : 1;
+    const optimizationSearch = Boolean(activeCrateSortingProfile);
+    const beamWidth = optimizationSearch
+        ? entries.length <= 6 ? 18 : entries.length <= 14 ? 9 : 5
+        : entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
+          ? JOINT_LOAD_LIMITS.smallBeam
+          : entries.length <= JOINT_LOAD_LIMITS.mediumBlockEntries
+            ? JOINT_LOAD_LIMITS.mediumBeam
+            : JOINT_LOAD_LIMITS.largeBeam;
+    const entryBranches = optimizationSearch
+        ? entries.length <= 6 ? entries.length : entries.length <= 14 ? 5 : 3
+        : entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
+          ? JOINT_LOAD_LIMITS.smallEntryBranches
+          : entries.length <= JOINT_LOAD_LIMITS.mediumBlockEntries
+            ? JOINT_LOAD_LIMITS.mediumEntryBranches
+            : JOINT_LOAD_LIMITS.largeEntryBranches;
+    const allocationVariants = optimizationSearch
+        ? entries.length <= 14 ? 3 : 2
+        : entries.length <= JOINT_LOAD_LIMITS.smallBlockEntries
+          ? JOINT_LOAD_LIMITS.allocationVariants
+          : 1;
     let nodes = [{
         state: planningState,
         allocations: Array(entries.length).fill(null),
@@ -2448,15 +2633,73 @@ function planJointLoadAllocation(entries, initialState) {
     return trimJointLoadBeam(nodes, 1)[0] || null;
 }
 
+function createLoadPlanningGroups(entries) {
+    const groups = [];
+    const crateGroupsByKey = new Map();
+    entries.forEach((entry, entryIndex) => {
+        const canShareCratePlan = entry.type === "crate" && Number(entry.quantity) === 1;
+        const key = canShareCratePlan
+            ? [entry.type, entry.article, normalizeCustomer(entry.customer), entry.order || ""].join("|")
+            : null;
+        let group = key ? crateGroupsByKey.get(key) : null;
+        if (!group) {
+            group = { entry: { ...entry }, memberIndices: [] };
+            groups.push(group);
+            if (key) crateGroupsByKey.set(key, group);
+        }
+        group.memberIndices.push(entryIndex);
+    });
+    groups.forEach((group) => {
+        if (group.memberIndices.length < 2) return;
+        group.entry.quantity = group.memberIndices.length;
+        // La quantità dei pezzi non deve modificare la geometria del lotto (per esempio
+        // trasformare una pila da tre in tre cassoni isolati). Viene applicata dopo la
+        // pianificazione per mettere i cassoni meno pieni nelle posizioni più accessibili.
+        group.entry.pieceCount = 0;
+        group.entry.weighingCode = "";
+    });
+    return groups;
+}
+
+function expandLoadPlanningAllocations(entries, groups, jointPlan) {
+    const allocations = Array(entries.length).fill(null);
+    groups.forEach((group, groupIndex) => {
+        const allocation = jointPlan.allocations[groupIndex];
+        if (group.memberIndices.length === 1) {
+            allocations[group.memberIndices[0]] = allocation;
+            return;
+        }
+        const entriesByPieces = [...group.memberIndices].sort((left, right) => (
+            Number(entries[left].pieceCount) - Number(entries[right].pieceCount)
+            || left - right
+        ));
+        const locationsByAccessibility = [...allocation.locations]
+            .sort((left, right) => compareCrateLocationsByAccessibility(jointPlan.state, left, right));
+        entriesByPieces.forEach((entryIndex, rank) => {
+            allocations[entryIndex] = {
+                ...allocation,
+                entryKey: canonicalLoadEntryKey(entries[entryIndex]),
+                locations: [locationsByAccessibility[rank]],
+                movements: 1,
+                moveSizes: [1],
+            };
+        });
+    });
+    return allocations;
+}
+
 function planLoadOperation(entries, initialState = inventory) {
-    const jointPlan = planJointLoadAllocation(entries, initialState);
+    const planningGroups = createLoadPlanningGroups(entries);
+    const planningEntries = planningGroups.map((group) => group.entry);
+    const jointPlan = planJointLoadAllocation(planningEntries, initialState);
     if (!jointPlan) return { error: "Spazio valido insufficiente: impossibile trovare una combinazione congiunta per l'intero gruppo di carico." };
+    const assignedAllocations = expandLoadPlanningAllocations(entries, planningGroups, jointPlan);
     const state = cloneInventoryState(initialState);
     const actions = [];
     const timestamp = new Date();
     let sequence = 0;
     entries.forEach((entry, entryIndex) => {
-        const allocation = jointPlan.allocations[entryIndex];
+        const allocation = assignedAllocations[entryIndex];
         const locations = [];
         const insertCrate = (location) => {
             const id = `AUTO-${timestamp.getTime()}-${sequence++}`;
@@ -2467,9 +2710,11 @@ function planLoadOperation(entries, initialState = inventory) {
                 article: entry.article,
                 customer: entry.customer,
                 orderReference: entry.order,
+                weighingCode: entry.weighingCode || "",
+                pieceCount: entry.pieceCount,
+                maxPieceCapacity: entry.pieceCount,
                 tags: [],
                 inMovement: false,
-                partial: entry.partial,
                 type: "crate",
                 pairedLocation: null,
                 receivedAt,
@@ -2486,9 +2731,11 @@ function planLoadOperation(entries, initialState = inventory) {
                     article: entry.article,
                     customer: entry.customer,
                     orderReference: entry.order,
+                    weighingCode: entry.weighingCode || "",
+                    pieceCount: entry.pieceCount,
+                    maxPieceCapacity: entry.pieceCount,
                     tags: [],
                     inMovement: false,
-                    partial: entry.partial,
                     type: "pallet",
                     pairedLocation: pair[index === 0 ? 1 : 0],
                     receivedAt,
@@ -2498,7 +2745,13 @@ function planLoadOperation(entries, initialState = inventory) {
         } else {
             allocation.locations.forEach(insertCrate);
         }
-        actions.push({ article: entry.article, locations });
+        actions.push({
+            article: entry.article,
+            locations,
+            weighingCode: entry.weighingCode || "",
+            pieceCount: Math.max(1, Number(entry.pieceCount) || 1),
+            maxPieceCapacity: Math.max(1, Number(entry.pieceCount) || 1),
+        });
     });
     return { state, lines: summarizeMovementLines(actions), score: jointPlan.score };
 }
@@ -2510,6 +2763,687 @@ function logicalInventoryUnits(state) {
         units.get(item.id).locations.push(item.location);
     });
     return Array.from(units.values());
+}
+
+function optimizationLocationAllowed(location, scope) {
+    const parsed = parseSlotCode(location);
+    if (!parsed || !scope.rows.includes(parsed.row)) return false;
+    if (parsed.physicalColumn < scope.columnFrom || parsed.physicalColumn > scope.columnTo) return false;
+    if (parsed.side === "rear" && !scope.includeRear) return false;
+    if (parsed.side === "front" && !scope.includeFront) return false;
+    return true;
+}
+
+function optimizationValueAllowed(value, filter) {
+    const normalized = normalizeCustomer(value);
+    if (filter.include.length && !filter.include.includes(normalized)) return false;
+    return !filter.exclude.includes(normalized);
+}
+
+function unitIncludedInOptimization(unit, options) {
+    const locationsAllowed = unit.item.type === "pallet"
+        ? unit.locations.every((location) => optimizationLocationAllowed(location, options))
+        : unit.locations.some((location) => optimizationLocationAllowed(location, options));
+    return locationsAllowed
+        && (unit.item.type === "pallet" ? options.includePallets : options.includeCrates)
+        && optimizationValueAllowed(unit.item.article, options.articles)
+        && optimizationValueAllowed(unit.item.customer, options.customers);
+}
+
+function removeUnitsBlockedByScope(units) {
+    const blockedIds = new Set();
+    let changed = true;
+    while (changed) {
+        changed = false;
+        const selectedIds = new Set(units.map((unit) => unit.item.id).filter((id) => !blockedIds.has(id)));
+        units.forEach((unit) => {
+            if (blockedIds.has(unit.item.id) || unit.item.type !== "crate") return;
+            const parsed = parseSlotCode(unit.locations[0]);
+            const levelIndex = ["a", "b", "c"].indexOf(parsed?.level);
+            if (!parsed || levelIndex < 0) return;
+            const blocked = ["a", "b", "c"].slice(levelIndex + 1).some((level) => {
+                const blocker = inventory.get(`${parsed.row}${parsed.number}${level}`);
+                return blocker && !selectedIds.has(blocker.id);
+            });
+            const frontDependsOnRear = parsed.side === "rear" && (() => {
+                const frontGround = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "front", "a"));
+                return ["a", "b", "c"].some((level) => {
+                    const frontItem = inventory.get(`${parsed.row}${frontGround.number}${level}`);
+                    return frontItem && !selectedIds.has(frontItem.id);
+                });
+            })();
+            if (blocked || frontDependsOnRear) {
+                blockedIds.add(unit.item.id);
+                changed = true;
+            }
+        });
+    }
+    return { units: units.filter((unit) => !blockedIds.has(unit.item.id)), blockedCount: blockedIds.size };
+}
+
+function warehouseOptimizationOptions() {
+    const columnFrom = Math.max(1, Number(document.getElementById("optimizerColumnFrom")?.value) || 1);
+    const columnTo = Math.max(columnFrom, Number(document.getElementById("optimizerColumnTo")?.value) || columnFrom);
+    return {
+        maxMovements: Math.max(2, Math.min(10000, Number(document.getElementById("optimizerMaxMovements")?.value) || 500)),
+        preferProximity: Boolean(document.getElementById("optimizerPreferProximity")?.checked),
+        optimizeSpace: Boolean(document.getElementById("optimizerOptimizeSpace")?.checked),
+        reduceFutureMoves: Boolean(document.getElementById("optimizerReduceFutureMoves")?.checked),
+        rows: Array.from(document.querySelectorAll("#optimizerRows input:checked"), (input) => input.value),
+        includeRear: Boolean(document.getElementById("optimizerIncludeRear")?.checked),
+        includeFront: Boolean(document.getElementById("optimizerIncludeFront")?.checked),
+        includeCrates: Boolean(document.getElementById("optimizerIncludeCrates")?.checked),
+        includePallets: Boolean(document.getElementById("optimizerIncludePallets")?.checked),
+        columnFrom,
+        columnTo,
+        articles: {
+            include: Array.from(optimizerFilters.articles.include),
+            exclude: Array.from(optimizerFilters.articles.exclude),
+        },
+        customers: {
+            include: Array.from(optimizerFilters.customers.include),
+            exclude: Array.from(optimizerFilters.customers.exclude),
+        },
+    };
+}
+
+function optimizationGroupKey(item) {
+    return JSON.stringify([
+        item.type || "crate",
+        item.article || "",
+        item.customer || "",
+        item.orderReference || "",
+        Math.max(1, Number(item.pieceCount) || 1),
+    ]);
+}
+
+function optimizationEntriesAndUnits(units) {
+    const groups = new Map();
+    units.forEach((unit) => {
+        const key = optimizationGroupKey(unit.item);
+        if (!groups.has(key)) groups.set(key, { units: [], item: unit.item });
+        groups.get(key).units.push(unit);
+    });
+    const values = Array.from(groups.values()).sort((left, right) => (
+        String(left.item.article).localeCompare(String(right.item.article), "it", { numeric: true })
+        || String(left.item.customer).localeCompare(String(right.item.customer), "it")
+        || String(left.item.orderReference).localeCompare(String(right.item.orderReference), "it", { numeric: true })
+        || String(left.item.type).localeCompare(String(right.item.type), "it")
+    ));
+    values.forEach((group) => group.units.sort((left, right) => (
+        compareLocations({ location: left.locations[0] }, { location: right.locations[0] })
+        || String(left.item.id).localeCompare(String(right.item.id), "it", { numeric: true })
+    )));
+    return {
+        groups: values,
+        entries: values.map((group) => ({
+            article: group.item.article,
+            customer: group.item.customer,
+            order: group.item.orderReference,
+            pieceCount: Math.max(1, Number(group.item.pieceCount) || 1),
+            type: group.item.type,
+            quantity: group.units.length,
+        })),
+    };
+}
+
+function buildOptimizationTarget(jointPlan, groups, baseState = new Map()) {
+    const state = cloneInventoryState(baseState);
+    groups.forEach((group, index) => {
+        const allocation = jointPlan.allocations[index];
+        if (!allocation) throw new Error(`Allocazione mancante per l'articolo ${group.item.article}.`);
+        if (group.item.type === "pallet") {
+            if (allocation.pairs.length !== group.units.length) throw new Error("Numero di destinazioni pallet incoerente.");
+            const pairKey = (locations) => locations.slice().sort((left, right) => left.localeCompare(right, "it", { numeric: true })).join("|");
+            const remainingPairs = allocation.pairs.map((pair) => [...pair]);
+            const assignments = [];
+            const remainingUnits = [];
+            group.units.forEach((unit) => {
+                const matchIndex = remainingPairs.findIndex((pair) => pairKey(pair) === pairKey(unit.locations));
+                if (matchIndex < 0) remainingUnits.push(unit);
+                else assignments.push({ unit, pair: remainingPairs.splice(matchIndex, 1)[0] });
+            });
+            remainingUnits.forEach((unit) => assignments.push({ unit, pair: remainingPairs.shift() }));
+            assignments.forEach(({ unit, pair }) => {
+                pair.forEach((location, pairIndex) => state.set(location, {
+                    ...unit.item,
+                    location,
+                    pairedLocation: pair[pairIndex === 0 ? 1 : 0],
+                    tags: [...(unit.item.tags || [])],
+                }));
+            });
+            return;
+        }
+        if (allocation.locations.length !== group.units.length) throw new Error("Numero di destinazioni cassoni incoerente.");
+        const remainingLocations = [...allocation.locations];
+        const assignments = [];
+        const remainingUnits = [];
+        group.units.forEach((unit) => {
+            const matchIndex = remainingLocations.indexOf(unit.locations[0]);
+            if (matchIndex < 0) remainingUnits.push(unit);
+            else assignments.push({ unit, location: remainingLocations.splice(matchIndex, 1)[0] });
+        });
+        remainingUnits.forEach((unit) => assignments.push({ unit, location: remainingLocations.shift() }));
+        assignments.forEach(({ unit, location }) => {
+            state.set(location, {
+                ...unit.item,
+                location,
+                pairedLocation: null,
+                tags: [...(unit.item.tags || [])],
+            });
+        });
+    });
+    return state;
+}
+
+function optimizationStackBundle(state, row, number) {
+    const items = ["a", "b", "c"]
+        .map((level) => state.get(`${row}${number}${level}`))
+        .filter((item) => item?.type === "crate");
+    if (!items.length) return null;
+    return {
+        type: "crate",
+        locations: items.map((item) => item.location),
+        items,
+    };
+}
+
+function optimizationPalletBundle(state, firstLocation, seenPallets) {
+    const item = state.get(firstLocation);
+    if (item?.type !== "pallet" || seenPallets.has(item.id)) return null;
+    seenPallets.add(item.id);
+    const locations = [item.location, item.pairedLocation]
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right, "it", { numeric: true }));
+    return { type: "pallet", locations, items: [item] };
+}
+
+function optimizationBundles(state, placing = false, includedModules = null) {
+    const bundles = [];
+    const seenPallets = new Set();
+    rowCodes().forEach((row) => {
+        for (let column = 0; column < physicalColumnsForRow(row); column += 1) {
+            if (includedModules && !includedModules.has(`${row}:${column + 1}`)) continue;
+            const rear = parseSlotCode(slotCode(row, column, "rear", "a"));
+            const front = parseSlotCode(slotCode(row, column, "front", "a"));
+            const grounds = placing ? [rear, front] : [front, rear];
+            const pallet = grounds.map((parsed) => optimizationPalletBundle(state, parsed.code, seenPallets)).find(Boolean);
+            if (pallet) {
+                bundles.push(pallet);
+                continue;
+            }
+            grounds.forEach((parsed) => {
+                const stack = optimizationStackBundle(state, row, parsed.number);
+                if (stack) bundles.push(stack);
+            });
+        }
+    });
+    return bundles;
+}
+
+function optimizationOperationalSteps(beforeState, afterState, includedModules) {
+    const steps = [];
+    const targetUnits = new Map(logicalInventoryUnits(afterState).map((unit) => [unit.item.id, unit]));
+    const targetChunks = new Map();
+    optimizationBundles(beforeState, false, includedModules).forEach((bundle) => {
+        steps.push({
+            order: steps.length + 1,
+            kind: "optimization-corridor",
+            from: [...bundle.locations],
+            to: [],
+            wholeStack: bundle.type === "crate" && bundle.locations.length > 1,
+            units: bundle.items.map((item) => operationalUnit(item, item.location)),
+        });
+        if (bundle.type !== "crate") return;
+        const targetKey = (item) => {
+            const target = targetUnits.get(item.id)?.locations?.[0];
+            const parsed = parseSlotCode(target);
+            return parsed ? `${parsed.row}:${parsed.number}` : item.id;
+        };
+        const runs = [];
+        bundle.items.forEach((item) => {
+            const key = targetKey(item);
+            const previous = runs[runs.length - 1];
+            if (previous?.key === key) previous.items.push(item);
+            else runs.push({ key, items: [item] });
+        });
+        runs.forEach((run) => {
+            if (!targetChunks.has(run.key)) targetChunks.set(run.key, []);
+            targetChunks.get(run.key).push(run.items);
+        });
+        // Il gruppo più basso può restare fermo; ogni altro gruppo deve essere separato partendo dall'alto.
+        runs.slice(1).reverse().forEach((run) => {
+            const destinations = run.items.flatMap((item) => targetUnits.get(item.id)?.locations || []);
+            steps.push({
+                order: steps.length + 1,
+                kind: "optimization-stage",
+                from: run.items.map((item) => item.location),
+                to: destinations,
+                wholeStack: run.items.length > 1,
+                units: run.items.map((item) => operationalUnit(item, item.location, targetUnits.get(item.id)?.locations?.[0] || "")),
+            });
+        });
+    });
+    optimizationBundles(afterState, true, includedModules).forEach((bundle) => {
+        if (bundle.type === "crate") {
+            const parsed = parseSlotCode(bundle.locations[0]);
+            const chunks = (targetChunks.get(`${parsed.row}:${parsed.number}`) || [])
+                .map((items) => items.slice().sort((left, right) => {
+                    const leftLevel = parseSlotCode(targetUnits.get(left.id)?.locations?.[0])?.level || "a";
+                    const rightLevel = parseSlotCode(targetUnits.get(right.id)?.locations?.[0])?.level || "a";
+                    return ["a", "b", "c"].indexOf(leftLevel) - ["a", "b", "c"].indexOf(rightLevel);
+                }))
+                .sort((left, right) => {
+                    const leftLevel = parseSlotCode(targetUnits.get(left[0].id)?.locations?.[0])?.level || "a";
+                    const rightLevel = parseSlotCode(targetUnits.get(right[0].id)?.locations?.[0])?.level || "a";
+                    return ["a", "b", "c"].indexOf(leftLevel) - ["a", "b", "c"].indexOf(rightLevel);
+                });
+            chunks.forEach((items) => {
+                const destinations = items.map((item) => targetUnits.get(item.id)?.locations?.[0]).filter(Boolean);
+                steps.push({
+                    order: steps.length + 1,
+                    kind: "optimization-place",
+                    from: [],
+                    to: destinations,
+                    wholeStack: destinations.length > 1,
+                    units: items.map((item) => operationalUnit(item, "", targetUnits.get(item.id)?.locations?.[0] || "")),
+                });
+            });
+            return;
+        }
+        steps.push({
+            order: steps.length + 1,
+            kind: "optimization-place",
+            from: [],
+            to: [...bundle.locations],
+            wholeStack: bundle.type === "crate" && bundle.locations.length > 1,
+            units: bundle.items.map((item) => operationalUnit(item, "", item.location)),
+        });
+    });
+    return steps;
+}
+
+function buildOptimizationLines(beforeState, afterState) {
+    const before = indexLogicalUnits(Array.from(beforeState.values()));
+    const after = indexLogicalUnits(Array.from(afterState.values()));
+    const lines = new Map();
+    after.forEach((unit, id) => {
+        const previous = before.get(id);
+        if (!previous) return;
+        const from = previous.locations.join(" + ");
+        const to = unit.locations.join(" + ");
+        if (from === to) return;
+        if (!lines.has(unit.item.article)) lines.set(unit.item.article, { kind: "relocated", article: unit.item.article, locations: [] });
+        lines.get(unit.item.article).locations.push(`${from} → ${to}`);
+    });
+    return Array.from(lines.values());
+}
+
+function planWarehouseOptimization(options) {
+    if (!inventory.size) return { error: "Il magazzino è vuoto: non ci sono unità da ottimizzare." };
+    if (!options.rows.length) return { error: "Seleziona almeno una fila da includere nell'ottimizzazione.", options };
+    if (!options.includeRear && !options.includeFront) return { error: "Seleziona almeno un lato utilizzabile.", options };
+    const allUnits = logicalInventoryUnits(inventory);
+    const requestedUnits = allUnits.filter((unit) => unitIncludedInOptimization(unit, options));
+    const movableSelection = removeUnitsBlockedByScope(requestedUnits);
+    const selectedUnits = movableSelection.units;
+    if (!selectedUnits.length) return {
+        error: movableSelection.blockedCount
+            ? "Alcune unità dipendono fisicamente da cassoni esclusi dal filtro. Amplia il perimetro per poterle movimentare in sicurezza."
+            : "Nessuna unità corrisponde all'area e ai filtri selezionati.",
+        options,
+    };
+    const selectedIds = new Set(selectedUnits.map((unit) => unit.item.id));
+    const baseState = cloneInventoryState(inventory);
+    Array.from(baseState.entries()).forEach(([location, item]) => {
+        if (selectedIds.has(item.id)) baseState.delete(location);
+    });
+    const { entries, groups } = optimizationEntriesAndUnits(selectedUnits);
+    let jointPlan;
+    activeCrateSortingProfile = options;
+    activeOptimizationScope = options;
+    try {
+        jointPlan = planJointLoadAllocation(entries, baseState);
+    } finally {
+        activeCrateSortingProfile = null;
+        activeOptimizationScope = null;
+    }
+    if (!jointPlan) return { error: "Non esiste una disposizione globale valida per la struttura e i vincoli cliente attuali." };
+    let state;
+    try {
+        state = buildOptimizationTarget(jointPlan, groups, baseState);
+    } catch (error) {
+        return { error: `Piano globale non valido: ${error.message}` };
+    }
+    const beforeRows = serializeWarehouseInventory();
+    const afterRows = Array.from(state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+    const changes = buildMovementChanges(beforeRows, afterRows);
+    const includedModules = new Set(changes.shifted.flatMap((change) => [...(change.from || []), ...(change.to || [])]).map((location) => {
+        const parsed = parseSlotCode(location);
+        return parsed ? `${parsed.row}:${parsed.physicalColumn}` : "";
+    }).filter(Boolean));
+    const operationalSteps = changes.shifted.length ? optimizationOperationalSteps(inventory, state, includedModules) : [];
+    const humanMovements = operationalSteps.length;
+    return {
+        state,
+        lines: buildOptimizationLines(inventory, state),
+        operationalSteps,
+        changes,
+        humanMovements,
+        unitCount: selectedUnits.length,
+        changedCount: changes.shifted.length,
+        score: jointPlan.score,
+        warning: movableSelection.blockedCount
+            ? `${movableSelection.blockedCount} unità con dipendenze fisiche escluse sono rimaste ferme per sicurezza.`
+            : "",
+        options: { ...options },
+        applicable: changes.shifted.length > 0 && humanMovements <= options.maxMovements,
+        error: humanMovements > options.maxMovements
+            ? `Il piano completo richiede ${humanMovements} spostamenti e supera il limite di ${options.maxMovements}. Nessuna modifica verrà applicata.`
+            : changes.shifted.length ? "" : "Il magazzino rispetta già la migliore disposizione trovata con questi criteri.",
+    };
+}
+
+function optimizationStepTitle(step) {
+    const source = italianLocationList(step.from || []);
+    const destination = italianLocationList(step.to || []);
+    const pallet = step.units?.length === 1 && step.units[0].type === "pallet";
+    if (step.kind === "optimization-corridor") {
+        if (pallet) return `Preleva il pallet ${source} e posizionalo nel corridoio`;
+        return step.wholeStack
+            ? `Preleva insieme l'intera pila ${source} e posizionala nel corridoio`
+            : `Preleva il cassone ${source} e posizionalo nel corridoio`;
+    }
+    if (step.kind === "optimization-stage") {
+        return step.wholeStack
+            ? `Separa nel corridoio il gruppo ${source} destinato alla pila ${destination}`
+            : `Separa nel corridoio il cassone ${source} destinato a ${destination}`;
+    }
+    if (pallet) return `Posiziona il pallet dal corridoio in ${destination}`;
+    return step.wholeStack
+        ? `Posiziona insieme la pila dal corridoio in ${destination}`
+        : `Posiziona il cassone dal corridoio in ${destination}`;
+}
+
+function invalidateWarehouseOptimizationPreview() {
+    warehouseOptimizationPreview = null;
+    document.getElementById("applyWarehouseOptimization").disabled = true;
+    document.getElementById("warehouseOptimizerPreview").hidden = true;
+}
+
+function renderOptimizerRows() {
+    const container = document.getElementById("optimizerRows");
+    if (!container) return;
+    const available = rowCodes();
+    if (!optimizerSelectedRows) optimizerSelectedRows = new Set(available);
+    else {
+        optimizerSelectedRows = new Set(Array.from(optimizerSelectedRows).filter((row) => available.includes(row)));
+    }
+    container.replaceChildren();
+    available.forEach((row) => {
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = row;
+        checkbox.checked = optimizerSelectedRows.has(row);
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked) optimizerSelectedRows.add(row);
+            else optimizerSelectedRows.delete(row);
+            invalidateWarehouseOptimizationPreview();
+        });
+        label.append(checkbox, document.createTextNode(`Fila ${row}`));
+        container.appendChild(label);
+    });
+    const maximum = Math.max(...available.map((row) => physicalColumnsForRow(row)), 1);
+    const to = document.getElementById("optimizerColumnTo");
+    const from = document.getElementById("optimizerColumnFrom");
+    to.max = String(maximum);
+    from.max = String(maximum);
+    if (!Number(to.value) || Number(to.value) > maximum) to.value = String(maximum);
+    if (!Number(from.value) || Number(from.value) > maximum) from.value = "1";
+}
+
+function optimizerTokenConfig(kind) {
+    return kind === "articles"
+        ? { entryId: "optimizerArticleEntry", actionId: "optimizerArticleAction", containerId: "optimizerArticleTokens" }
+        : { entryId: "optimizerCustomerEntry", actionId: "optimizerCustomerAction", containerId: "optimizerCustomerTokens" };
+}
+
+function renderOptimizerTokens(kind) {
+    const config = optimizerTokenConfig(kind);
+    const container = document.getElementById(config.containerId);
+    container.replaceChildren();
+    const values = [
+        ...Array.from(optimizerFilters[kind].include).map((value) => ({ value, action: "include" })),
+        ...Array.from(optimizerFilters[kind].exclude).map((value) => ({ value, action: "exclude" })),
+    ];
+    if (!values.length) {
+        const empty = document.createElement("span");
+        empty.textContent = "Nessun filtro";
+        container.appendChild(empty);
+        return;
+    }
+    values.forEach(({ value, action }) => {
+        const chip = document.createElement("span");
+        chip.className = `warehouse-optimizer-token${action === "exclude" ? " is-exclude" : ""}`;
+        const mode = document.createElement("small");
+        mode.textContent = action === "include" ? "includi" : "escludi";
+        const text = document.createElement("span");
+        text.textContent = value;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.title = `Rimuovi filtro ${value}`;
+        remove.addEventListener("click", () => {
+            optimizerFilters[kind][action].delete(value);
+            renderOptimizerTokens(kind);
+            invalidateWarehouseOptimizationPreview();
+        });
+        chip.append(mode, text, remove);
+        container.appendChild(chip);
+    });
+}
+
+function addOptimizerToken(kind) {
+    const config = optimizerTokenConfig(kind);
+    const entry = document.getElementById(config.entryId);
+    const action = document.getElementById(config.actionId).value === "exclude" ? "exclude" : "include";
+    const opposite = action === "include" ? "exclude" : "include";
+    const values = parseCustomerList(entry.value);
+    values.forEach((value) => {
+        optimizerFilters[kind][opposite].delete(value);
+        optimizerFilters[kind][action].add(value);
+    });
+    entry.value = "";
+    renderOptimizerTokens(kind);
+    invalidateWarehouseOptimizationPreview();
+    entry.focus();
+}
+
+function renderWarehouseOptimizationPreview(plan, elapsed) {
+    const preview = document.getElementById("warehouseOptimizerPreview");
+    const apply = document.getElementById("applyWarehouseOptimization");
+    const status = document.getElementById("warehouseOptimizerStatus");
+    preview.hidden = false;
+    document.getElementById("optimizerMovementCount").textContent = String(plan.humanMovements || 0);
+    document.getElementById("optimizerMovementLimit").textContent = `massimo ${plan.options?.maxMovements || warehouseOptimizationOptions().maxMovements}`;
+    document.getElementById("optimizerUnitCount").textContent = String(plan.unitCount || 0);
+    document.getElementById("optimizerChangedCount").textContent = String(plan.changedCount || 0);
+    document.getElementById("optimizerElapsedTime").textContent = elapsed >= 1000
+        ? `${(elapsed / 1000).toFixed(1)} s`
+        : `${Math.round(elapsed)} ms`;
+    status.textContent = plan.error || [
+        `Piano completo valido: ${plan.changedCount} unità cambieranno ubicazione in ${plan.humanMovements} spostamenti.`,
+        plan.warning,
+    ].filter(Boolean).join(" ");
+    status.classList.toggle("is-error", Boolean(plan.error));
+    const scope = plan.options || warehouseOptimizationOptions();
+    const filterLabel = (filter) => [
+        filter?.include?.length ? `includi ${filter.include.join(", ")}` : "",
+        filter?.exclude?.length ? `escludi ${filter.exclude.join(", ")}` : "",
+    ].filter(Boolean).join("; ") || "tutti";
+    document.getElementById("warehouseOptimizerScopeSummary").textContent = [
+        `File: ${scope.rows?.join(", ") || "nessuna"}`,
+        `Lati: ${[scope.includeRear ? "posteriore" : "", scope.includeFront ? "anteriore" : ""].filter(Boolean).join(" + ") || "nessuno"}`,
+        `Coppie fisiche: ${scope.columnFrom || 1}–${scope.columnTo || 1}`,
+        `Unità: ${[scope.includeCrates ? "cassoni" : "", scope.includePallets ? "pallet" : ""].filter(Boolean).join(", ") || "nessuna"}`,
+        `Articoli: ${filterLabel(scope.articles)}`,
+        `Clienti: ${filterLabel(scope.customers)}`,
+    ].join(" · ");
+    apply.disabled = !plan.applicable;
+
+    const instructions = document.getElementById("warehouseOptimizerInstructions");
+    instructions.replaceChildren();
+    if (!plan.operationalSteps?.length) return;
+    plan.operationalSteps.forEach((step, index) => {
+        const row = document.createElement("article");
+        const number = document.createElement("b");
+        number.textContent = String(index + 1);
+        const content = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = optimizationStepTitle(step);
+        const details = document.createElement("small");
+        details.textContent = operationalUnitsDescription(step.units || []);
+        content.append(title, details);
+        row.append(number, content);
+        instructions.appendChild(row);
+    });
+}
+
+function openWarehouseOptimizer() {
+    if (!isWarehouseAdmin()) {
+        showWarehouseToast("Accesso amministratore richiesto per ottimizzare il magazzino.", true);
+        return;
+    }
+    closeToolsDrawer();
+    warehouseOptimizationPreview = null;
+    renderOptimizerRows();
+    renderOptimizerTokens("articles");
+    renderOptimizerTokens("customers");
+    document.getElementById("warehouseOptimizerPreview").hidden = true;
+    document.getElementById("applyWarehouseOptimization").disabled = true;
+    openWarehouseDialog(document.getElementById("warehouseOptimizerDialog"), document.getElementById("optimizerMaxMovements"));
+}
+
+function closeWarehouseOptimizer() {
+    closeWarehouseDialog(document.getElementById("warehouseOptimizerDialog"));
+    warehouseOptimizationPreview = null;
+}
+
+async function calculateWarehouseOptimization() {
+    if (!isWarehouseAdmin()) return;
+    if (document.getElementById("optimizerArticleEntry")?.value.trim()) addOptimizerToken("articles");
+    if (document.getElementById("optimizerCustomerEntry")?.value.trim()) addOptimizerToken("customers");
+    const button = document.getElementById("calculateWarehouseOptimization");
+    const options = warehouseOptimizationOptions();
+    document.getElementById("optimizerMaxMovements").value = String(options.maxMovements);
+    button.disabled = true;
+    button.textContent = "Calcolo globale in corso…";
+    document.getElementById("applyWarehouseOptimization").disabled = true;
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    const startedAt = performance.now();
+    let plan;
+    try {
+        plan = planWarehouseOptimization(options);
+    } catch (error) {
+        plan = { error: `Calcolo non completato: ${error.message}`, options, applicable: false };
+    }
+    const elapsed = performance.now() - startedAt;
+    button.disabled = false;
+    button.textContent = "Ricalcola anteprima completa";
+    warehouseOptimizationPreview = plan.state ? { revision: warehouseRevision, plan } : null;
+    renderWarehouseOptimizationPreview(plan, elapsed);
+}
+
+async function applyWarehouseOptimization() {
+    const preview = warehouseOptimizationPreview;
+    if (!isWarehouseAdmin()) {
+        showWarehouseToast("Accesso amministratore richiesto.", true);
+        return;
+    }
+    if (!preview?.plan?.applicable) return;
+    if (preview.revision !== warehouseRevision) {
+        warehouseOptimizationPreview = null;
+        document.getElementById("applyWarehouseOptimization").disabled = true;
+        const status = document.getElementById("warehouseOptimizerStatus");
+        status.textContent = "Il magazzino è cambiato dopo il calcolo. Ricalcola l'anteprima prima di applicarla.";
+        status.classList.add("is-error");
+        return;
+    }
+    const accepted = await showWarehouseConfirm({
+        title: "Applicare l'ottimizzazione completa?",
+        message: `${preview.plan.humanMovements} spostamenti ricostruiranno la disposizione del magazzino. L'operazione sarà registrata nello storico.`,
+        confirmLabel: "Applica ottimizzazione",
+    });
+    if (!accepted) return;
+    const button = document.getElementById("applyWarehouseOptimization");
+    button.disabled = true;
+    button.textContent = "Salvataggio…";
+    const beforeState = serializeWarehouseInventory();
+    const afterState = Array.from(preview.plan.state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+    const now = new Date();
+    const movement = {
+        id: movementIdentifier(now),
+        timestamp: now.toISOString(),
+        type: "load",
+        optimization: true,
+        optimizationOptions: { ...preview.plan.options },
+        actor: warehouseActorSnapshot(),
+        lines: preview.plan.lines,
+        operationalSteps: preview.plan.operationalSteps,
+        beforeState: cloneWarehouseRows(beforeState),
+        afterState: cloneWarehouseRows(afterState),
+        changes: buildMovementChanges(beforeState, afterState),
+    };
+    try {
+        await persistWarehouseData(afterState, [movement, ...serializeWarehouseMovements()], cloneUnloadZoneUnits());
+    } catch (error) {
+        button.disabled = false;
+        button.textContent = "Applica ottimizzazione";
+        const status = document.getElementById("warehouseOptimizerStatus");
+        status.textContent = `Ottimizzazione non applicata: ${error.message}`;
+        status.classList.add("is-error");
+        return;
+    }
+    inventory.clear();
+    preview.plan.state.forEach((item, location) => inventory.set(location, item));
+    movementHistory.unshift(movement);
+    warehouseOptimizationPreview = null;
+    movementHighlight = {
+        loadedIds: new Set(),
+        loadedLocations: new Set(),
+        shiftedIds: new Set(movement.changes.shifted.map((entry) => entry.id)),
+        shiftedLocations: new Set(movement.changes.shifted.flatMap((entry) => entry.to || [])),
+    };
+    refreshWarehouseDataViews();
+    closeWarehouseOptimizer();
+    showWarehouseToast(`${movement.id}: ottimizzazione completata e registrata.`);
+}
+
+function setupWarehouseOptimizer() {
+    document.getElementById("openWarehouseOptimizer")?.addEventListener("click", openWarehouseOptimizer);
+    document.getElementById("closeWarehouseOptimizer")?.addEventListener("click", closeWarehouseOptimizer);
+    document.getElementById("cancelWarehouseOptimizer")?.addEventListener("click", closeWarehouseOptimizer);
+    document.getElementById("addOptimizerArticle")?.addEventListener("click", () => addOptimizerToken("articles"));
+    document.getElementById("addOptimizerCustomer")?.addEventListener("click", () => addOptimizerToken("customers"));
+    [["optimizerArticleEntry", "articles"], ["optimizerCustomerEntry", "customers"]].forEach(([id, kind]) => {
+        document.getElementById(id)?.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== ",") return;
+            event.preventDefault();
+            addOptimizerToken(kind);
+        });
+    });
+    [
+        "optimizerMaxMovements", "optimizerIncludeRear", "optimizerIncludeFront",
+        "optimizerIncludeCrates", "optimizerIncludePallets",
+        "optimizerColumnFrom", "optimizerColumnTo", "optimizerPreferProximity",
+        "optimizerOptimizeSpace", "optimizerReduceFutureMoves",
+    ].forEach((id) => document.getElementById(id)?.addEventListener("change", invalidateWarehouseOptimizationPreview));
+    document.getElementById("warehouseOptimizerForm")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await calculateWarehouseOptimization();
+    });
+    document.getElementById("applyWarehouseOptimization")?.addEventListener("click", applyWarehouseOptimization);
 }
 
 function compactCrateStacks(state) {
@@ -2545,12 +3479,21 @@ function buildMovementChanges(beforeState, afterState) {
     const loaded = [];
     const unloaded = [];
     const shifted = [];
+    const adjusted = [];
     after.forEach((unit, id) => {
         if (!before.has(id)) {
             loaded.push({ id, article: unit.item.article, from: [], to: [...unit.locations] });
             return;
         }
         const previous = before.get(id);
+        if (warehouseItemPieces(previous.item) !== warehouseItemPieces(unit.item)) {
+            adjusted.push({
+                id,
+                article: unit.item.article,
+                beforePieces: warehouseItemPieces(previous.item),
+                afterPieces: warehouseItemPieces(unit.item),
+            });
+        }
         if (previous.locations.join("|") !== unit.locations.join("|")) {
             shifted.push({ id, article: unit.item.article, from: [...previous.locations], to: [...unit.locations] });
         }
@@ -2558,7 +3501,7 @@ function buildMovementChanges(beforeState, afterState) {
     before.forEach((unit, id) => {
         if (!after.has(id)) unloaded.push({ id, article: unit.item.article, from: [...unit.locations], to: [] });
     });
-    return { loaded, unloaded, shifted };
+    return { loaded, unloaded, shifted, adjusted };
 }
 
 function fifoOperationalBatch(item) {
@@ -2578,6 +3521,7 @@ function estimateUnloadSelection(state, selectedIds) {
     let releasedModules = 0;
     let frontUnits = 0;
     let rearUnits = 0;
+    let isolatedUnits = 0;
     selected.forEach((id) => {
         const unit = units.get(id);
         if (!unit) return;
@@ -2590,6 +3534,8 @@ function estimateUnloadSelection(state, selectedIds) {
         const parsed = parseSlotCode(unit.locations[0]);
         if (parsed.side === "front") frontUnits += 1;
         else rearUnits += 1;
+        const sourceStack = ["a", "b", "c"].map((level) => state.get(`${parsed.row}${parsed.number}${level}`)).filter(Boolean);
+        if (sourceStack.length === 1) isolatedUnits += 1;
         touchedStacks.set(`${parsed.row}:${parsed.number}`, parsed);
         if (parsed.side === "rear") rearModules.set(`${parsed.row}:${parsed.physicalColumn}`, parsed);
     });
@@ -2623,13 +3569,14 @@ function estimateUnloadSelection(state, selectedIds) {
     });
     releasedStacks += selectedPalletModules.size * 2;
     releasedModules += selectedPalletModules.size;
-    return { humanMovements, releasedStacks, releasedModules, frontUnits, rearUnits };
+    return { humanMovements, releasedStacks, releasedModules, frontUnits, rearUnits, isolatedUnits };
 }
 
 const UNLOAD_SELECTION_WEIGHTS = Object.freeze({
     humanMovement: 1000,
     firstReleasedModuleCredit: 1100,
     releasedStackCredit: 60,
+    isolatedUnitCredit: 1200,
     rearUnitPenalty: 25,
     combinationBeamWidth: 64,
 });
@@ -2638,6 +3585,7 @@ function scoreUnloadSelection(metrics) {
     return metrics.humanMovements * UNLOAD_SELECTION_WEIGHTS.humanMovement
         - (metrics.releasedModules > 0 ? UNLOAD_SELECTION_WEIGHTS.firstReleasedModuleCredit : 0)
         - metrics.releasedStacks * UNLOAD_SELECTION_WEIGHTS.releasedStackCredit
+        - metrics.isolatedUnits * UNLOAD_SELECTION_WEIGHTS.isolatedUnitCredit
         + metrics.rearUnits * UNLOAD_SELECTION_WEIGHTS.rearUnitPenalty;
 }
 
@@ -2645,6 +3593,7 @@ function compareUnloadSelectionNodes(left, right) {
     return left.score - right.score
         || left.metrics.humanMovements - right.metrics.humanMovements
         || right.metrics.releasedModules - left.metrics.releasedModules
+        || right.metrics.isolatedUnits - left.metrics.isolatedUnits
         || right.metrics.releasedStacks - left.metrics.releasedStacks
         || left.metrics.rearUnits - right.metrics.rearUnits
         || right.metrics.frontUnits - left.metrics.frontUnits
@@ -2702,6 +3651,28 @@ function chooseUnloadUnits(state, candidates, quantity, alreadySelected, forced)
         return chosen.length >= quantity;
     });
     return chosen;
+}
+
+function warehouseItemPieces(item) {
+    return Math.max(1, Number(item?.pieceCount) || 1);
+}
+
+function choosePieceWithdrawalUnits(candidates, requestedPieces) {
+    const ordered = candidates.slice().sort((left, right) => (
+        warehouseItemPieces(left.item) - warehouseItemPieces(right.item)
+        || fifoOperationalBatch(left.item).localeCompare(fifoOperationalBatch(right.item))
+        || left.locations[0].localeCompare(right.locations[0], "it", { numeric: true })
+    ));
+    const selections = [];
+    let remaining = requestedPieces;
+    for (const unit of ordered) {
+        if (remaining <= 0) break;
+        const availablePieces = warehouseItemPieces(unit.item);
+        const takenPieces = Math.min(remaining, availablePieces);
+        selections.push({ unit, takenPieces, availablePieces, complete: takenPieces === availablePieces });
+        remaining -= takenPieces;
+    }
+    return { selections, remaining };
 }
 
 function collectUnloadAffectedUnits(state, selectedIds) {
@@ -2819,6 +3790,9 @@ function operationalUnit(item, from, to = "") {
         article: item.article || "",
         customer: item.customer || "",
         orderReference: item.orderReference || "",
+        weighingCode: item.weighingCode || "",
+        pieceCount: Math.max(1, Number(item.pieceCount) || 1),
+        maxPieceCapacity: Math.max(1, Number(item.maxPieceCapacity) || Number(item.pieceCount) || 1),
         type: item.type || "crate",
         from,
         to,
@@ -2835,6 +3809,13 @@ function sameOperationalDestination(previous, next) {
 
 function unloadSourceStacks(sourceState, selectedIds, affectedIds) {
     const stacks = new Map();
+    const isolatedModules = new Set();
+    sourceState.forEach((item, location) => {
+        if (item.type !== "crate" || !selectedIds.has(item.id)) return;
+        const parsed = parseSlotCode(location);
+        const stackSize = ["a", "b", "c"].map((level) => sourceState.get(`${parsed.row}${parsed.number}${level}`)).filter(Boolean).length;
+        if (stackSize === 1) isolatedModules.add(`${parsed.row}:${parsed.physicalColumn}`);
+    });
     sourceState.forEach((item, location) => {
         if (item.type !== "crate" || (!selectedIds.has(item.id) && !affectedIds.has(item.id))) return;
         const parsed = parseSlotCode(location);
@@ -2843,6 +3824,9 @@ function unloadSourceStacks(sourceState, selectedIds, affectedIds) {
         stacks.get(key).units.push({ item, location, parsed });
     });
     return Array.from(stacks.values()).sort((left, right) => {
+        const leftIsolated = isolatedModules.has(`${left.parsed.row}:${left.parsed.physicalColumn}`);
+        const rightIsolated = isolatedModules.has(`${right.parsed.row}:${right.parsed.physicalColumn}`);
+        if (leftIsolated !== rightIsolated) return leftIsolated ? -1 : 1;
         const rowDifference = rowCodes().indexOf(left.parsed.row) - rowCodes().indexOf(right.parsed.row);
         if (rowDifference) return rowDifference;
         if (left.parsed.physicalColumn !== right.parsed.physicalColumn) return left.parsed.physicalColumn - right.parsed.physicalColumn;
@@ -2930,44 +3914,108 @@ function planUnloadOperation(entries, initialState = inventory) {
     const sourceState = cloneInventoryState(initialState);
     const logicalUnits = logicalInventoryUnits(sourceState);
     const selectedIds = new Set();
+    const touchedIds = new Set();
     const selectedUnits = [];
+    const pieceSelections = [];
     for (const entry of entries) {
         const requestedIds = new Set(entry.sourceIds || []);
-        const candidates = logicalUnits.filter(({ item }) => !selectedIds.has(item.id)
-            && item.article === entry.article
+        const weighingCode = normalizeCustomer(entry.weighingCode);
+        const candidates = logicalUnits.filter(({ item }) => !touchedIds.has(item.id)
+            && (!entry.article || item.article === entry.article)
             && (!entry.customer || item.customer === entry.customer)
             && (!entry.order || item.orderReference === entry.order)
+            && (!weighingCode || normalizeCustomer(item.weighingCode) === weighingCode)
             && (!entry.type || item.type === entry.type)
             && (!requestedIds.size || requestedIds.has(item.id)));
-        if (candidates.length < entry.quantity) {
-            const orderText = entry.order ? ` per l'ordine ${entry.order}` : " considerando tutti gli ordini";
-            return { error: `Disponibilità insufficiente: richieste ${entry.quantity} unità di ${entry.article}${orderText}, trovate ${candidates.length}.` };
+        if (weighingCode && candidates.length !== 1) {
+            return { error: candidates.length ? `Il codice pesata ${entry.weighingCode} non è univoco.` : `Nessun cassone trovato con codice pesata ${entry.weighingCode}.` };
         }
-        chooseUnloadUnits(sourceState, candidates, entry.quantity, selectedIds, requestedIds.size > 0).forEach((unit) => {
+        if (entry.requestedPieces) {
+            const requestedPieces = Math.max(1, Number(entry.requestedPieces) || 0);
+            const availablePieces = candidates.reduce((sum, unit) => sum + warehouseItemPieces(unit.item), 0);
+            if (availablePieces < requestedPieces) {
+                return { error: `Disponibilità insufficiente: richiesti ${requestedPieces} pezzi${entry.article ? ` dell'articolo ${entry.article}` : ""}, disponibili ${availablePieces}.` };
+            }
+            choosePieceWithdrawalUnits(candidates, requestedPieces).selections.forEach((selection) => {
+                touchedIds.add(selection.unit.item.id);
+                pieceSelections.push(selection);
+                if (selection.complete) {
+                    selectedIds.add(selection.unit.item.id);
+                    selectedUnits.push(selection.unit);
+                }
+            });
+            continue;
+        }
+        const quantity = entry.order && !weighingCode && !requestedIds.size
+            ? candidates.length
+            : Math.max(1, Number(entry.quantity) || 1);
+        if (candidates.length < quantity || quantity < 1) {
+            const target = entry.article || entry.order || entry.weighingCode || "la selezione indicata";
+            return { error: `Disponibilità insufficiente per ${target}: richieste ${quantity} unità, trovate ${candidates.length}.` };
+        }
+        chooseUnloadUnits(sourceState, candidates, quantity, selectedIds, requestedIds.size > 0 || Boolean(weighingCode)).forEach((unit) => {
+            touchedIds.add(unit.item.id);
             selectedIds.add(unit.item.id);
             selectedUnits.push(unit);
         });
     }
+    const partialSelections = pieceSelections.filter((selection) => !selection.complete);
+    partialSelections.forEach((selection) => {
+        selectedIds.add(selection.unit.item.id);
+        selectedUnits.push(selection.unit);
+    });
     const affectedUnits = collectUnloadAffectedUnits(sourceState, selectedIds);
     const reallocation = restoreUnloadObstructionsLocally(sourceState, selectedUnits, affectedUnits);
     if (reallocation.error) return reallocation;
+    const partialSelectionById = new Map(partialSelections.map((selection) => [selection.unit.item.id, selection]));
     const unloadedUnits = selectedUnits.map(({ item, locations }) => ({
         ...item,
+        pieceCount: partialSelectionById.has(item.id)
+            ? partialSelectionById.get(item.id).availablePieces - partialSelectionById.get(item.id).takenPieces
+            : warehouseItemPieces(item),
+        maxPieceCapacity: Math.max(warehouseItemPieces(item), Number(item.maxPieceCapacity) || warehouseItemPieces(item)),
         location: null,
         pairedLocation: null,
         tags: [...(item.tags || [])],
         inMovement: true,
+        requiresWarehouseReturn: partialSelectionById.has(item.id),
+        withdrawnPieceCount: partialSelectionById.get(item.id)?.takenPieces || 0,
         originalLocations: [...locations].sort((a, b) => a.localeCompare(b, "it", { numeric: true })),
         stagedAt: new Date().toISOString(),
     }));
     const metrics = estimateUnloadSelection(sourceState, selectedIds);
     const operationalSteps = buildUnloadOperationalSteps(sourceState, selectedUnits, reallocation.relocations);
+    partialSelections.forEach((selection) => {
+        const pieceStep = {
+            kind: "piece-pick",
+            from: ["Zona scarico"],
+            to: ["Zona scarico"],
+            units: [operationalUnit(selection.unit.item, selection.unit.locations[0], "Zona scarico")],
+            pieceQuantity: selection.takenPieces,
+            remainingPieces: selection.availablePieces - selection.takenPieces,
+            requiresWarehouseReturn: true,
+            wholeStack: false,
+        };
+        const unloadIndex = operationalSteps.findIndex((step) => step.kind === "unload"
+            && step.units?.some((unit) => unit.id === selection.unit.item.id));
+        let insertionIndex = unloadIndex >= 0 ? unloadIndex + 1 : operationalSteps.length;
+        while (operationalSteps[insertionIndex]?.kind === "piece-pick") insertionIndex += 1;
+        operationalSteps.splice(insertionIndex, 0, pieceStep);
+    });
+    operationalSteps.forEach((step, index) => { step.order = index + 1; });
+    const lines = buildUnloadMovementLines(selectedUnits, reallocation.relocations);
+    pieceSelections.filter((selection) => !selection.complete).forEach((selection) => lines.push({
+        kind: "pieces",
+        article: selection.unit.item.article,
+        locations: [`${selection.unit.locations[0]} · ${selection.takenPieces} pezzi prelevati · ${selection.availablePieces - selection.takenPieces} residui`],
+    }));
     return {
         state: reallocation.state,
-        lines: buildUnloadMovementLines(selectedUnits, reallocation.relocations),
+        lines,
         operationalSteps,
         unloadedUnits,
-        humanMovements: metrics.humanMovements,
+        pickedPieces: pieceSelections.reduce((sum, selection) => sum + selection.takenPieces, 0),
+        humanMovements: metrics.humanMovements + partialSelections.length,
         releasedStacks: metrics.releasedStacks,
         releasedModules: metrics.releasedModules,
         relocations: reallocation.relocations,
@@ -3020,7 +4068,7 @@ function refreshManualUnloadSource() {
         return;
     }
     title.textContent = `${parsed.code} · ${item.article}`;
-    details.textContent = `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${item.customer || "Cliente non indicato"} · ${item.orderReference || "Rif. ordine non indicato"}${item.partial ? " · Parziale" : ""}`;
+    details.textContent = `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${item.customer || "Cliente non indicato"} · ${item.orderReference || "Rif. ordine non indicato"}${item.weighingCode ? ` · Pesata ${item.weighingCode}` : ""} · ${warehouseItemPieces(item)} pezzi`;
 }
 
 function configureManualMovement(mode) {
@@ -3035,6 +4083,7 @@ function configureManualMovement(mode) {
     document.getElementById("manualLoadFields").hidden = !loading;
     document.getElementById("manualUnloadSource").hidden = loading;
     document.getElementById("manualLoadArticle").required = loading;
+    document.getElementById("manualLoadPieces").required = loading;
     document.getElementById("manualMovementLocationHint").textContent = loading
         ? "Indica lo slot libero in cui forzare il nuovo cassone."
         : "Indica la posizione esatta del cassone da prelevare.";
@@ -3082,7 +4131,13 @@ async function commitManualLoad() {
     const article = document.getElementById("manualLoadArticle").value.trim();
     const customer = document.getElementById("manualLoadCustomer").value.trim();
     const orderReference = document.getElementById("manualLoadOrder").value.trim();
+    const weighingCode = document.getElementById("manualLoadWeighing").value.trim().toUpperCase();
+    const pieceCount = Number(document.getElementById("manualLoadPieces").value);
     if (!article) return { error: "Indica l'articolo del cassone da caricare." };
+    if (!Number.isInteger(pieceCount) || pieceCount < 1) return { error: "Il numero pezzi è obbligatorio e deve essere un intero positivo." };
+    if (weighingCode && logicalInventoryUnits(inventory).some((unit) => normalizeCustomer(unit.item.weighingCode) === weighingCode)) {
+        return { error: `Il codice pesata ${weighingCode} è già assegnato a un altro cassone.` };
+    }
     const error = manualDestinationError(location, customer);
     if (error) return { error };
     const now = new Date();
@@ -3093,9 +4148,11 @@ async function commitManualLoad() {
         article,
         customer,
         orderReference,
+        weighingCode,
+        pieceCount,
+        maxPieceCapacity: pieceCount,
         tags: [],
         inMovement: false,
-        partial: document.getElementById("manualLoadPartial").value === "yes",
         type: "crate",
         pairedLocation: null,
         receivedAt: now.toISOString(),
@@ -3240,8 +4297,10 @@ function operationPlanKey() {
             article: entry.article,
             customer: entry.customer,
             order: entry.order,
+            weighingCode: entry.weighingCode || "",
+            pieceCount: entry.pieceCount || null,
+            requestedPieces: entry.requestedPieces || null,
             quantity: entry.quantity,
-            partial: entry.partial,
             type: entry.type,
             sourceIds: [...(entry.sourceIds || [])].sort(),
         })),
@@ -3370,7 +4429,9 @@ function appendMovementLines(container, movement) {
             const title = document.createElement("strong");
             const source = italianLocationList(step.from || []);
             const destination = italianLocationList(step.to || []);
-            if (step.kind === "corridor") {
+            if (["optimization-corridor", "optimization-stage", "optimization-place"].includes(step.kind)) {
+                title.textContent = optimizationStepTitle(step);
+            } else if (step.kind === "corridor") {
                 title.textContent = step.wholeStack
                     ? `Sposta temporaneamente l'intera pila ${source} nel corridoio`
                     : `Sposta temporaneamente ${crateWording(step.from?.length || 0)} ${source} nel corridoio`;
@@ -3379,13 +4440,22 @@ function appendMovementLines(container, movement) {
                 title.textContent = pallet
                     ? `Preleva il pallet ${source} e posizionalo nella Zona scarico`
                     : `Preleva ${crateWording(step.from?.length || 0)} ${source} e ${step.from?.length === 1 ? "posizionalo" : "posizionali"} nella Zona scarico`;
+            } else if (step.kind === "piece-pick") {
+                const origin = step.units?.[0]?.from || source;
+                title.textContent = source === "Zona scarico"
+                    ? `Nella Zona scarico, preleva ${step.pieceQuantity} pezzi dal cassone proveniente da ${origin} · residuo ${step.remainingPieces} pezzi da rimettere a magazzino`
+                    : source === "Corridoio"
+                    ? `Dal cassone proveniente da ${origin}, nel corridoio, preleva ${step.pieceQuantity} pezzi · residuo ${step.remainingPieces} pezzi`
+                    : `Preleva ${step.pieceQuantity} pezzi dal cassone ${source} · residuo ${step.remainingPieces} pezzi`;
             } else {
+                const origin = italianLocationList(step.units?.map((unit) => unit.from) || []);
                 title.textContent = step.wholeStack
-                    ? `Ricolloca insieme l'intera pila dal corridoio in ${destination}`
-                    : `Ricolloca dal corridoio ${crateWording(step.to?.length || 0)} in ${destination}`;
+                    ? `Ricolloca insieme dal corridoio la pila proveniente da ${origin} in ${destination}`
+                    : step.units?.length === 1
+                      ? `Ricolloca dal corridoio il cassone proveniente da ${origin} in ${destination}`
+                      : `Ricolloca dal corridoio ${crateWording(step.to?.length || 0)} in ${destination}`;
             }
-            const details = document.createElement("p");
-            details.textContent = operationalUnitsDescription(step.units || []);
+            const details = operationalUnitsDetail(step);
             content.append(title, details);
             row.append(number, content);
             container.appendChild(row);
@@ -3398,13 +4468,16 @@ function appendMovementLines(container, movement) {
         const title = document.createElement("strong");
         title.textContent = line.kind === "unloaded"
             ? `Preleva articolo ${line.article}`
+            : line.kind === "pieces"
+              ? `Preleva pezzi articolo ${line.article}`
             : line.kind === "relocated"
               ? `Rialloca articolo ${line.article}`
               : line.kind === "loaded"
                 ? `Carica articolo ${line.article}`
                 : `Articolo ${line.article}`;
         const locations = document.createElement("p");
-        locations.textContent = `${line.kind === "relocated" ? "Spostamenti" : line.kind === "unloaded" ? "Preleva da" : line.kind === "loaded" ? "Carica in" : "Posizioni"} ${line.locations.join(", ")}`;
+        const logistics = [line.weighingCode ? `pesata ${line.weighingCode}` : "", line.pieceCount ? `${line.pieceCount} pezzi` : ""].filter(Boolean);
+        locations.textContent = `${line.kind === "relocated" ? "Spostamenti" : line.kind === "unloaded" ? "Preleva da" : line.kind === "pieces" ? "Dettaglio" : line.kind === "loaded" ? "Carica in" : "Posizioni"} ${line.locations.join(", ")}${logistics.length ? ` · ${logistics.join(" · ")}` : ""}`;
         row.append(title, locations);
         container.appendChild(row);
     });
@@ -3420,11 +4493,66 @@ function crateWording(quantity) {
     return quantity === 1 ? "il cassone" : `i ${quantity} cassoni`;
 }
 
+function operationalUnitRoute(step, unit) {
+    if (["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind)) {
+        return `${unit.from || italianLocationList(step.from)} → CORRIDOIO${unit.to ? ` → ${unit.to}` : ""}`;
+    }
+    if (["reinsert", "optimization-place"].includes(step.kind)) {
+        return `CORRIDOIO → ${unit.to || italianLocationList(step.to)}`;
+    }
+    if (step.kind === "unload") return `${unit.from || italianLocationList(step.from)} → ZONA SCARICO`;
+    if (step.kind === "piece-pick") {
+        const source = step.from?.[0] === "Zona scarico"
+            ? "ZONA SCARICO"
+            : step.from?.[0] === "Corridoio" ? "CORRIDOIO" : unit.from;
+        return `${source} · PRELIEVO ${step.pieceQuantity} PZ · RESIDUO ${step.remainingPieces} PZ`;
+    }
+    return `${unit.from || italianLocationList(step.from)} → ${unit.to || italianLocationList(step.to)}`;
+}
+
+function operationalUnitsDetail(step) {
+    const list = document.createElement("div");
+    list.className = `movement-unit-list movement-unit-list--${step.kind}`;
+    (step.units || []).forEach((unit) => {
+        const row = document.createElement("div");
+        row.className = "movement-unit-detail";
+        const identity = document.createElement("span");
+        identity.className = "movement-unit-identity";
+        identity.textContent = unit.weighingCode
+            ? `PESATA ${unit.weighingCode}`
+            : `${unit.type === "pallet" ? "PALLET" : "CASSONE"} DA ${unit.from || "—"}`;
+        const route = document.createElement("b");
+        route.className = "movement-unit-route";
+        route.textContent = operationalUnitRoute(step, unit);
+        const metadata = document.createElement("small");
+        metadata.textContent = [
+            `articolo ${unit.article || "—"}`,
+            `cliente ${unit.customer || "—"}`,
+            `ordine ${unit.orderReference || "—"}`,
+            `${unit.pieceCount || 0} pezzi`,
+        ].join(" · ");
+        row.append(identity, route, metadata);
+        list.appendChild(row);
+    });
+    if (!list.childElementCount) {
+        const fallback = document.createElement("p");
+        fallback.textContent = operationalUnitsDescription(step.units || []);
+        list.appendChild(fallback);
+    }
+    return list;
+}
+
 function operationalUnitsDescription(units) {
     if (!units.length) return "";
-    const signature = (unit) => `${unit.article}|${unit.customer}|${unit.orderReference}`;
+    const signature = (unit) => `${unit.article}|${unit.customer}|${unit.orderReference}|${unit.weighingCode}|${unit.pieceCount}`;
     const allEqual = units.every((unit) => signature(unit) === signature(units[0]));
-    const describe = (unit) => `articolo ${unit.article || "—"} · cliente ${unit.customer || "—"} · ordine ${unit.orderReference || "—"}`;
+    const describe = (unit) => [
+        `articolo ${unit.article || "—"}`,
+        `cliente ${unit.customer || "—"}`,
+        `ordine ${unit.orderReference || "—"}`,
+        unit.weighingCode ? `pesata ${unit.weighingCode}` : "",
+        `${unit.pieceCount || 0} pezzi`,
+    ].filter(Boolean).join(" · ");
     if (allEqual) return describe(units[0]);
     return units.map((unit) => `${unit.from}: ${describe(unit)}`).join("; ");
 }
@@ -3440,7 +4568,7 @@ function renderMovementHistory() {
     if (!movementHistory.length) {
         const empty = document.createElement("p");
         empty.className = "movement-history-empty";
-        empty.textContent = "Lo storico si popolerà completando un gruppo automatico di carico o scarico.";
+        empty.textContent = "Lo storico si popolerà completando un carico, uno scarico o un'ottimizzazione globale.";
         list.appendChild(empty);
         return;
     }
@@ -3457,11 +4585,24 @@ function renderMovementHistory() {
         date.textContent = new Date(movement.timestamp).toLocaleString("it-IT");
         heading.append(title, date);
         const badge = document.createElement("span");
-        badge.textContent = `${movement.type === "load" ? "Carico" : "Scarico"}${movement.manual ? " manuale" : ""}`;
+        badge.textContent = movement.optimization
+            ? "Ottimizzazione"
+            : `${movement.type === "load" ? "Carico" : "Scarico"}${movement.manual ? " manuale" : ""}`;
         header.append(heading, badge);
         const lines = document.createElement("div");
         lines.className = "movement-history-card__lines";
-        appendMovementLines(lines, movement);
+        if (movement.optimization) {
+            const summary = document.createElement("article");
+            summary.className = "movement-line";
+            const heading = document.createElement("strong");
+            heading.textContent = "Riassetto globale del magazzino";
+            const details = document.createElement("p");
+            details.textContent = `${movement.operationalSteps?.length || 0} spostamenti · ${movement.changes?.shifted?.length || 0} unità con nuova ubicazione`;
+            summary.append(heading, details);
+            lines.appendChild(summary);
+        } else {
+            appendMovementLines(lines, movement);
+        }
         const actor = document.createElement("p");
         actor.className = "movement-history-card__actor";
         const actorName = movement.actor?.displayName || movement.actor?.employee || movement.actor?.adminName || "Operatore non registrato";
@@ -3588,11 +4729,13 @@ function renderUnloadZone() {
     const count = document.getElementById("unloadZoneCount");
     if (count) count.textContent = String(unloadZone.length);
     const summary = document.getElementById("unloadZoneSummary");
+    const returnRequired = unloadZone.filter((item) => item.requiresWarehouseReturn).length;
+    const vehicleReady = unloadZone.length - returnRequired;
     if (summary) summary.textContent = unloadZone.length
-        ? `${unloadZone.length} ${unloadZone.length === 1 ? "unità in attesa" : "unità in attesa"}`
+        ? `${unloadZone.length} unità in attesa · ${vehicleReady} per il veicolo · ${returnRequired} da rimettere a magazzino`
         : "Zona vuota";
     const confirmButton = document.getElementById("confirmVehicleLoad");
-    if (confirmButton) confirmButton.disabled = !unloadZone.length || warehouseStorageUnavailable || !isWarehouseLoggedIn();
+    if (confirmButton) confirmButton.disabled = !vehicleReady || warehouseStorageUnavailable || !isWarehouseLoggedIn();
     const list = document.getElementById("unloadZoneList");
     if (!list) return;
     list.replaceChildren();
@@ -3612,17 +4755,27 @@ function renderUnloadZone() {
             item.article || "—",
             item.customer || "—",
             item.orderReference || "—",
-            item.type === "pallet" ? "Pallet" : item.partial ? "Cassone · parziale" : "Cassone",
+            `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${warehouseItemPieces(item)} pezzi${item.weighingCode ? ` · ${item.weighingCode}` : ""}`,
             (item.originalLocations || []).join(" + ") || "—",
-            "In attesa",
+            item.requiresWarehouseReturn ? "Rientro necessario" : "In attesa veicolo",
         ];
         values.forEach((value, index) => {
             const cell = document.createElement(index === 0 ? "strong" : "span");
             cell.textContent = value;
-            if (index === 5) cell.className = "unload-zone-status";
+            if (index === 5) cell.className = `unload-zone-status${item.requiresWarehouseReturn ? " is-return-required" : ""}`;
             row.appendChild(cell);
         });
-        row.title = "Tasto destro per ricaricare questa unità a magazzino";
+        const reloadButton = document.createElement("button");
+        reloadButton.className = "unload-zone-reload";
+        reloadButton.type = "button";
+        reloadButton.textContent = "Prepara rientro";
+        reloadButton.disabled = warehouseStorageUnavailable || !isWarehouseLoggedIn();
+        reloadButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            openUnloadReloadDialog(item.id);
+        });
+        row.appendChild(reloadButton);
+        row.title = "Usa Prepara rientro oppure il tasto destro per ricaricare questa unità";
         row.addEventListener("contextmenu", (event) => {
             event.preventDefault();
             openUnloadZoneContextMenu(item, event.clientX, event.clientY);
@@ -3642,20 +4795,40 @@ function closeUnloadZoneDialog() {
     closeWarehouseDialog(document.getElementById("unloadZoneDialog"));
 }
 
-async function reloadUnloadZoneUnit(unitId) {
+function prepareUnloadZoneReload(unitId, overrides = {}) {
     if (!isWarehouseLoggedIn()) {
         openWarehouseLogin();
         return { error: "Effettua il login operatore prima di ricaricare la merce." };
     }
     const staged = unloadZone.find((item) => item.id === unitId);
     if (!staged) return { error: "L'unità selezionata non è più presente nella zona scarico." };
+    const pieceCount = overrides.pieceCount === undefined
+        ? Math.max(1, Number(staged.pieceCount) || 1)
+        : Number(overrides.pieceCount);
+    if (!Number.isInteger(pieceCount) || pieceCount < 1) {
+        return { error: "Il numero pezzi al rientro deve essere un intero positivo." };
+    }
+    const maximumPieceCapacity = Math.max(1, Number(staged.maxPieceCapacity) || Number(staged.pieceCount) || 1);
+    if (pieceCount > maximumPieceCapacity) {
+        return { error: `Il cassone può contenere al massimo ${maximumPieceCapacity} pezzi.` };
+    }
+    const weighingCode = overrides.weighingCode === undefined
+        ? String(staged.weighingCode || "").trim()
+        : String(overrides.weighingCode || "").trim();
+    const normalizedWeighing = normalizeCustomer(weighingCode);
+    const weighingAlreadyUsed = normalizedWeighing && (
+        logicalInventoryUnits(inventory).some((unit) => normalizeCustomer(unit.item.weighingCode) === normalizedWeighing)
+        || unloadZone.some((item) => item.id !== unitId && normalizeCustomer(item.weighingCode) === normalizedWeighing)
+    );
+    if (weighingAlreadyUsed) return { error: `Il codice pesata ${weighingCode} è già assegnato a un altro cassone.` };
     const beforeState = serializeWarehouseInventory();
     const entry = {
         article: staged.article,
         customer: staged.customer,
         order: staged.orderReference,
+        weighingCode,
+        pieceCount,
         quantity: 1,
-        partial: Boolean(staged.partial),
         type: staged.type,
     };
     const plan = planLoadOperation([entry]);
@@ -3672,12 +4845,21 @@ async function reloadUnloadZoneUnit(unitId) {
     Array.from(plan.state.entries()).forEach(([location, item]) => {
         if (generatedIds.has(item.id)) plan.state.delete(location);
     });
-    const { originalLocations: _originalLocations, stagedAt: _stagedAt, ...warehouseItem } = staged;
+    const {
+        originalLocations: _originalLocations,
+        stagedAt: _stagedAt,
+        requiresWarehouseReturn: _requiresWarehouseReturn,
+        withdrawnPieceCount: _withdrawnPieceCount,
+        ...warehouseItem
+    } = staged;
     destinations.forEach((location, index) => {
         plan.state.set(location, {
             ...warehouseItem,
             id: staged.id,
             location,
+            weighingCode,
+            pieceCount,
+            maxPieceCapacity: maximumPieceCapacity,
             pairedLocation: staged.type === "pallet" ? destinations[index === 0 ? 1 : 0] || null : null,
             tags: [...(staged.tags || [])],
             inMovement: false,
@@ -3690,12 +4872,81 @@ async function reloadUnloadZoneUnit(unitId) {
         timestamp: now.toISOString(),
         type: "load",
         actor: warehouseActorSnapshot(),
-        lines: [{ article: staged.article, locations: staged.type === "pallet" ? [destinations.join(" + ")] : destinations }],
+        lines: [{
+            article: staged.article,
+            locations: staged.type === "pallet" ? [destinations.join(" + ")] : destinations,
+            weighingCode,
+            pieceCount,
+        }],
         beforeState: cloneWarehouseRows(beforeState),
         afterState: cloneWarehouseRows(afterState),
         changes: buildMovementChanges(beforeState, afterState),
     };
     const nextUnloadZone = unloadZone.filter((item) => item.id !== unitId);
+    return { staged, plan, destinations, afterState, movement, nextUnloadZone, weighingCode, pieceCount };
+}
+
+function closeUnloadReloadDialog() {
+    unloadZoneReloadPreview = null;
+    closeWarehouseDialog(document.getElementById("unloadReloadDialog"));
+}
+
+function unloadReloadFormValues() {
+    return {
+        weighingCode: document.getElementById("unloadReloadWeighing")?.value || "",
+        pieceCount: document.getElementById("unloadReloadPieces")?.value || "",
+    };
+}
+
+function refreshUnloadReloadPreview(unitId, overrides = unloadReloadFormValues()) {
+    const preview = prepareUnloadZoneReload(unitId, overrides);
+    const destination = document.getElementById("unloadReloadDestination");
+    const message = document.getElementById("unloadReloadMessage");
+    message.classList.toggle("is-error", Boolean(preview.error));
+    if (preview.error) {
+        destination.textContent = "Destinazione non disponibile";
+        message.textContent = preview.error;
+        document.getElementById("confirmUnloadReload").disabled = true;
+        return preview;
+    }
+    unloadZoneReloadPreview = {
+        unitId,
+        revision: warehouseRevision,
+        destinations: [...preview.destinations],
+        weighingCode: preview.weighingCode,
+        pieceCount: preview.pieceCount,
+    };
+    destination.textContent = preview.destinations.join(" + ");
+    message.textContent = "Anteprima soltanto: quantità, pesata e destinazione saranno applicate esclusivamente alla conferma.";
+    document.getElementById("confirmUnloadReload").disabled = false;
+    return preview;
+}
+
+function openUnloadReloadDialog(unitId) {
+    const staged = unloadZone.find((item) => item.id === unitId);
+    if (!staged) {
+        showWarehouseToast("L'unità selezionata non è più presente nella zona scarico.", true);
+        return;
+    }
+    document.getElementById("unloadReloadWeighing").value = staged.weighingCode || "";
+    const piecesInput = document.getElementById("unloadReloadPieces");
+    piecesInput.value = String(Math.max(1, Number(staged.pieceCount) || 1));
+    piecesInput.max = String(Math.max(1, Number(staged.maxPieceCapacity) || Number(staged.pieceCount) || 1));
+    const preview = refreshUnloadReloadPreview(unitId);
+    if (preview.error) {
+        showWarehouseToast(preview.error, true);
+    }
+    document.getElementById("unloadReloadArticle").textContent = staged.article || "—";
+    document.getElementById("unloadReloadCustomer").textContent = staged.customer || "—";
+    document.getElementById("unloadReloadOrder").textContent = staged.orderReference || "—";
+    document.getElementById("unloadReloadOrigin").textContent = (staged.originalLocations || []).join(" + ") || "—";
+    openWarehouseDialog(document.getElementById("unloadReloadDialog"), document.getElementById("unloadReloadWeighing"), true);
+}
+
+async function reloadUnloadZoneUnit(unitId, overrides = {}) {
+    const prepared = prepareUnloadZoneReload(unitId, overrides);
+    if (prepared.error) return prepared;
+    const { plan, afterState, movement, nextUnloadZone } = prepared;
     try {
         await persistWarehouseData(afterState, [movement, ...serializeWarehouseMovements()], nextUnloadZone);
     } catch (error) {
@@ -3711,29 +4962,31 @@ async function reloadUnloadZoneUnit(unitId) {
     renderDetails();
     updateSummary();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
-    return { movement };
+    return { movement, destinations: prepared.destinations };
 }
 
 async function confirmVehicleLoad() {
-    if (!unloadZone.length) return;
+    const vehicleUnits = unloadZone.filter((item) => !item.requiresWarehouseReturn);
+    const returnUnits = unloadZone.filter((item) => item.requiresWarehouseReturn);
+    if (!vehicleUnits.length) return;
     if (!isWarehouseLoggedIn()) {
         openWarehouseLogin();
         return;
     }
-    const quantity = unloadZone.length;
+    const quantity = vehicleUnits.length;
     if (!await showWarehouseConfirm({
         title: "Conferma caricamento veicolo",
-        message: `Confermare il caricamento sul veicolo di ${quantity} ${quantity === 1 ? "unità" : "unità"}? Le unità usciranno definitivamente dalla Zona scarico.`,
+        message: `Confermare il caricamento sul veicolo di ${quantity} ${quantity === 1 ? "unità" : "unità"}?${returnUnits.length ? ` I ${returnUnits.length} cassoni parziali con rientro necessario resteranno nella Zona scarico.` : ""}`,
         confirmLabel: "Conferma uscita",
         danger: true,
     })) return;
     const button = document.getElementById("confirmVehicleLoad");
     button.disabled = true;
     try {
-        await persistWarehouseData(serializeWarehouseInventory(), serializeWarehouseMovements(), []);
-        unloadZone.splice(0);
+        await persistWarehouseData(serializeWarehouseInventory(), serializeWarehouseMovements(), cloneUnloadZoneUnits(returnUnits));
+        unloadZone.splice(0, unloadZone.length, ...returnUnits);
         renderUnloadZone();
-        showWarehouseToast(`Caricamento veicolo confermato: ${quantity} ${quantity === 1 ? "unità rimossa" : "unità rimosse"} dalla zona scarico.`);
+        showWarehouseToast(`Caricamento veicolo confermato: ${quantity} ${quantity === 1 ? "unità rimossa" : "unità rimosse"}.${returnUnits.length ? ` ${returnUnits.length} da rimettere a magazzino restano in attesa.` : ""}`);
     } catch (error) {
         showWarehouseToast(`Conferma non salvata: ${error.message}`, true);
         renderUnloadZone();
@@ -3741,14 +4994,46 @@ async function confirmVehicleLoad() {
 }
 
 function setupUnloadZone() {
+    let reloadPreviewTimer = null;
     document.getElementById("openUnloadZoneButton")?.addEventListener("click", openUnloadZoneDialog);
     document.getElementById("closeUnloadZone")?.addEventListener("click", closeUnloadZoneDialog);
     document.getElementById("reloadUnloadZoneUnit")?.addEventListener("click", async () => {
         const unitId = contextUnloadZoneUnitId;
         closeUnloadZoneContextMenu();
         if (!unitId) return;
-        const result = await reloadUnloadZoneUnit(unitId);
-        showWarehouseToast(result.error || `${result.movement.id}: unità ricaricata a magazzino.`, Boolean(result.error));
+        openUnloadReloadDialog(unitId);
+    });
+    document.getElementById("closeUnloadReload")?.addEventListener("click", closeUnloadReloadDialog);
+    document.getElementById("cancelUnloadReload")?.addEventListener("click", closeUnloadReloadDialog);
+    ["unloadReloadWeighing", "unloadReloadPieces"].forEach((id) => {
+        document.getElementById(id)?.addEventListener("input", () => {
+            if (!unloadZoneReloadPreview?.unitId) return;
+            if (reloadPreviewTimer) window.clearTimeout(reloadPreviewTimer);
+            reloadPreviewTimer = window.setTimeout(() => {
+                const unitId = unloadZoneReloadPreview?.unitId;
+                if (unitId) refreshUnloadReloadPreview(unitId);
+            }, 180);
+        });
+    });
+    document.getElementById("confirmUnloadReload")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const unitId = unloadZoneReloadPreview?.unitId;
+        if (!unitId) return;
+        button.disabled = true;
+        const message = document.getElementById("unloadReloadMessage");
+        message.classList.remove("is-error");
+        message.textContent = "Salvataggio del rientro in corso…";
+        const result = await reloadUnloadZoneUnit(unitId, unloadReloadFormValues());
+        button.disabled = false;
+        if (result.error) {
+            message.textContent = result.error;
+            message.classList.add("is-error");
+            return;
+        }
+        closeUnloadReloadDialog();
+        closeUnloadZoneDialog();
+        highlightMovementOnMap(result.movement);
+        showWarehouseToast(`${result.movement.id}: unità ricaricata in ${result.destinations.join(" + ")} ed evidenziata sulla mappa.`);
     });
     document.getElementById("confirmVehicleLoad")?.addEventListener("click", confirmVehicleLoad);
     document.addEventListener("pointerdown", (event) => {
@@ -3767,23 +5052,88 @@ function setupLoadDialog() {
     document.getElementById("operationGroupDialog")?.addEventListener("pointerdown", (event) => {
         if (event.target.closest?.("input, select, textarea, button")) event.stopPropagation();
     });
-    document.getElementById("loadType")?.addEventListener("change", updateLoadTypeNote);
+    document.getElementById("loadType")?.addEventListener("change", () => {
+        updateLoadTypeNote();
+        updateLoadBatchRows();
+    });
+    document.getElementById("loadBatchCount")?.addEventListener("input", updateLoadBatchRows);
+    document.getElementById("loadBatchCount")?.addEventListener("change", updateLoadBatchRows);
     document.getElementById("operationLineForm")?.addEventListener("submit", (event) => {
         event.preventDefault();
         const article = document.getElementById("loadArticle").value.trim();
         const customer = document.getElementById("loadCustomer").value.trim();
         const order = document.getElementById("loadOrderReference").value.trim();
-        const quantity = Number(document.getElementById("loadQuantity").value);
-        const partial = operationGroupMode === "load" && document.getElementById("loadPartial").value === "yes";
+        const batchValues = loadBatchValues();
+        const weighingCode = batchValues[0]?.weighingCode || "";
+        const enteredPieces = batchValues[0]?.pieceCount;
         const type = document.getElementById("loadType").value;
         const previous = editingOperationLineIndex === null ? null : activeOperationGroup()[editingOperationLineIndex];
-        const entry = { id: previous?.id || nextOperationLineId++, article, customer, order, quantity, partial, type, sourceIds: previous?.sourceIds || [], sourceLocations: previous?.sourceLocations || [] };
-        if (editingOperationLineIndex === null) activeOperationGroup().push(entry);
+        const message = document.getElementById("loadFormMessage");
+        if (operationGroupMode === "load") {
+            const invalidPieces = batchValues.find((unit) => !Number.isInteger(unit.pieceCount) || unit.pieceCount < 1);
+            if (invalidPieces) {
+                message.textContent = `Il numero pezzi del cassone ${invalidPieces.index + 1} è obbligatorio e deve essere un intero positivo.`;
+                return;
+            }
+            const occupiedWeighings = new Set(logicalInventoryUnits(inventory)
+                .map((unit) => normalizeCustomer(unit.item.weighingCode))
+                .filter(Boolean));
+            operationGroups.load.forEach((entry, index) => {
+                if (index !== editingOperationLineIndex && entry.weighingCode) occupiedWeighings.add(normalizeCustomer(entry.weighingCode));
+            });
+            const incomingWeighings = new Set();
+            let duplicate = null;
+            for (const unit of batchValues) {
+                if (!unit.weighingCode) continue;
+                if (occupiedWeighings.has(unit.weighingCode) || incomingWeighings.has(unit.weighingCode)) {
+                    duplicate = unit;
+                    break;
+                }
+                incomingWeighings.add(unit.weighingCode);
+            }
+            if (duplicate) {
+                message.textContent = `Il codice pesata ${duplicate.weighingCode} del cassone ${duplicate.index + 1} è già assegnato.`;
+                return;
+            }
+        }
+        if (operationGroupMode === "unload" && !weighingCode && !order && (!Number.isInteger(enteredPieces) || enteredPieces < 1)) {
+            message.textContent = "Indica almeno un riferimento ordine, un codice pesata oppure il numero di pezzi da prelevare.";
+            return;
+        }
+        if (operationGroupMode === "unload" && Number.isInteger(enteredPieces) && enteredPieces > 0 && !article && !weighingCode) {
+            message.textContent = "Per il prelievo a pezzi indica l'articolo oppure un codice pesata esatto.";
+            return;
+        }
+        const entry = {
+            id: previous?.id || nextOperationLineId++,
+            article,
+            customer,
+            order,
+            weighingCode,
+            pieceCount: operationGroupMode === "load" ? enteredPieces : null,
+            requestedPieces: operationGroupMode === "unload" && Number.isInteger(enteredPieces) && enteredPieces > 0 ? enteredPieces : null,
+            quantity: 1,
+            type,
+            sourceIds: previous?.sourceIds || [],
+            sourceLocations: previous?.sourceLocations || [],
+        };
+        if (operationGroupMode === "load" && editingOperationLineIndex === null) {
+            activeOperationGroup().push(...batchValues.map((unit) => ({
+                ...entry,
+                id: unit.index === 0 ? entry.id : nextOperationLineId++,
+                weighingCode: unit.weighingCode,
+                pieceCount: unit.pieceCount,
+            })));
+        } else if (editingOperationLineIndex === null) activeOperationGroup().push(entry);
         else activeOperationGroup()[editingOperationLineIndex] = entry;
         operationPreviewPlan = null;
         resetOperationLineForm();
         renderOperationGroup();
-        document.getElementById("loadFormMessage").textContent = previous ? "Riga aggiornata." : `Articolo aggiunto al gruppo di ${operationModeLabel()}.`;
+        document.getElementById("loadFormMessage").textContent = previous
+            ? "Riga aggiornata."
+            : operationGroupMode === "load" && batchValues.length > 1
+              ? `${batchValues.length} cassoni aggiunti insieme al gruppo di carico.`
+              : `Articolo aggiunto al gruppo di ${operationModeLabel()}.`;
         void focusWarehouseElement(document.getElementById("loadArticle"), true);
     });
     document.getElementById("reviewOperationGroup")?.addEventListener("click", prepareOperationReview);
@@ -3919,9 +5269,10 @@ function searchableValues(item, fields) {
         article: item.article,
         customer: item.customer,
         order: item.orderReference,
+        weighing: item.weighingCode || "",
+        pieces: `${item.pieceCount || 0} pezzi capienza ${item.maxPieceCapacity || item.pieceCount || 0}`,
         tags: item.tags.join(" "),
         type: item.type === "pallet" ? "pallet bancale" : "cassone",
-        partial: item.partial ? "parziale parziali" : "",
         movement: item.inMovement ? "in movimento movimentazione spostamento scarico" : "",
     };
     return fields.map((field) => normalizeSearchText(values[field]));
@@ -4011,8 +5362,14 @@ function renderSearchReport(query) {
         customer.textContent = item.customer;
         customer.title = `Cliente: ${item.customer}`;
         const order = document.createElement("span");
-        order.textContent = item.orderReference;
+        order.textContent = item.orderReference || "—";
         order.title = `Rif. ordine: ${item.orderReference}`;
+        const weighing = document.createElement("span");
+        weighing.textContent = item.weighingCode || "—";
+        weighing.title = `Codice pesata: ${item.weighingCode || "non indicato"}`;
+        const pieces = document.createElement("span");
+        pieces.textContent = `${warehouseItemPieces(item)} / ${Math.max(warehouseItemPieces(item), Number(item.maxPieceCapacity) || warehouseItemPieces(item))}`;
+        pieces.title = "Pezzi correnti / capienza iniziale";
         const flags = document.createElement("div");
         flags.className = "result-flags";
         if (item.tags.length) {
@@ -4020,10 +5377,9 @@ function renderSearchReport(query) {
             tagFlag.title = item.tags.join(", ");
             flags.appendChild(tagFlag);
         }
-        if (item.partial) flags.appendChild(createResultFlag("Parziale", "result-flag--partial"));
         if (item.inMovement) flags.appendChild(createResultFlag("Movimento", "result-flag--movement"));
         if (item.type === "pallet") flags.appendChild(createResultFlag("Pallet", "result-flag--pallet"));
-        row.append(checkbox, location, article, customer, order, flags);
+        row.append(checkbox, location, article, customer, order, weighing, pieces, flags);
         row.addEventListener("click", () => selectSlot(item.location));
         row.addEventListener("keydown", (event) => {
             if (event.key === "Enter") selectSlot(item.location);
@@ -4101,10 +5457,96 @@ function restrictionFromInputs(whitelistId, blacklistId) {
     };
 }
 
+const restrictionCustomerEditors = {
+    rowWhitelist: { entryId: "rowWhitelistEntry", chipsId: "rowWhitelistChips", oppositeId: "rowBlacklist" },
+    rowBlacklist: { entryId: "rowBlacklistEntry", chipsId: "rowBlacklistChips", oppositeId: "rowWhitelist" },
+    slotWhitelist: { entryId: "slotWhitelistEntry", chipsId: "slotWhitelistChips", oppositeId: "slotBlacklist" },
+    slotBlacklist: { entryId: "slotBlacklistEntry", chipsId: "slotBlacklistChips", oppositeId: "slotWhitelist" },
+};
+
+function restrictionCustomerValues(fieldId) {
+    return parseCustomerList(document.getElementById(fieldId)?.value);
+}
+
+function markRestrictionDraft(fieldId) {
+    const messageId = fieldId.startsWith("row") ? "rowRestrictionMessage" : "slotRestrictionMessage";
+    setRestrictionMessage(messageId, "Modifica pronta: premi Salva per applicarla.");
+}
+
+function renderRestrictionCustomerEditor(fieldId) {
+    const editor = restrictionCustomerEditors[fieldId];
+    const container = document.getElementById(editor?.chipsId);
+    if (!editor || !container) return;
+    container.replaceChildren();
+    const customers = restrictionCustomerValues(fieldId);
+    if (!customers.length) {
+        const empty = document.createElement("span");
+        empty.className = "restriction-customer-chips__empty";
+        empty.textContent = "Nessun cliente inserito";
+        container.appendChild(empty);
+        return;
+    }
+    customers.forEach((customer) => {
+        const chip = document.createElement("span");
+        chip.className = "restriction-customer-chip";
+        const label = document.createElement("span");
+        label.textContent = customer;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", `Rimuovi ${customer}`);
+        remove.title = `Rimuovi ${customer}`;
+        remove.addEventListener("click", () => {
+            document.getElementById(fieldId).value = customers.filter((value) => value !== customer).join(", ");
+            renderRestrictionCustomerEditor(fieldId);
+            markRestrictionDraft(fieldId);
+            document.getElementById(editor.entryId)?.focus();
+        });
+        chip.append(label, remove);
+        container.appendChild(chip);
+    });
+}
+
+function addRestrictionCustomer(fieldId) {
+    const editor = restrictionCustomerEditors[fieldId];
+    const entry = document.getElementById(editor?.entryId);
+    if (!editor || !entry) return;
+    const additions = parseCustomerList(entry.value);
+    if (!additions.length) {
+        entry.focus();
+        return;
+    }
+    const next = Array.from(new Set([...restrictionCustomerValues(fieldId), ...additions]));
+    document.getElementById(fieldId).value = next.join(", ");
+
+    // Un cliente non può essere contemporaneamente ammesso e vietato allo stesso livello.
+    const opposite = restrictionCustomerValues(editor.oppositeId).filter((customer) => !additions.includes(customer));
+    document.getElementById(editor.oppositeId).value = opposite.join(", ");
+    entry.value = "";
+    renderRestrictionCustomerEditor(fieldId);
+    renderRestrictionCustomerEditor(editor.oppositeId);
+    markRestrictionDraft(fieldId);
+    entry.focus();
+}
+
+function commitPendingRestrictionCustomers(...fieldIds) {
+    fieldIds.forEach((fieldId) => {
+        const editor = restrictionCustomerEditors[fieldId];
+        const entry = document.getElementById(editor?.entryId);
+        if (entry?.value.trim()) addRestrictionCustomer(fieldId);
+    });
+}
+
 function writeRestrictionInputs(rule, whitelistId, blacklistId) {
     const safeRule = rule || { whitelist: [], blacklist: [] };
     document.getElementById(whitelistId).value = safeRule.whitelist.join(", ");
     document.getElementById(blacklistId).value = safeRule.blacklist.join(", ");
+    const whitelistEntry = restrictionCustomerEditors[whitelistId]?.entryId;
+    const blacklistEntry = restrictionCustomerEditors[blacklistId]?.entryId;
+    if (whitelistEntry) document.getElementById(whitelistEntry).value = "";
+    if (blacklistEntry) document.getElementById(blacklistEntry).value = "";
+    renderRestrictionCustomerEditor(whitelistId);
+    renderRestrictionCustomerEditor(blacklistId);
 }
 
 function storeRestriction(collection, key, rule) {
@@ -4186,6 +5628,7 @@ function renderRestrictionRows() {
         button.addEventListener("click", () => {
             selectedRestrictionRow = row;
             renderRestrictionDialog();
+            setRestrictionView("editor");
         });
         container.appendChild(button);
     });
@@ -4201,6 +5644,84 @@ function renderRestrictionSummary() {
         ? `${conflicts} ${conflicts === 1 ? "cassone non conforme" : "cassoni non conformi"}`
         : "Nessun conflitto";
     conflictElement.classList.toggle("has-conflicts", conflicts > 0);
+}
+
+function setRestrictionView(view) {
+    const overview = view === "overview";
+    document.getElementById("restrictionEditorView").hidden = overview;
+    document.getElementById("restrictionOverviewView").hidden = !overview;
+    document.getElementById("openRestrictionOverview")?.classList.toggle("is-active", overview);
+    if (overview) renderRestrictionOverview();
+}
+
+function restrictionOverviewCustomers(customers, emptyText) {
+    const container = document.createElement("div");
+    container.className = "restriction-overview__customers";
+    if (!customers.length) {
+        const empty = document.createElement("span");
+        empty.className = "restriction-overview__empty-value";
+        empty.textContent = emptyText;
+        container.appendChild(empty);
+        return container;
+    }
+    customers.forEach((customer) => {
+        const chip = document.createElement("span");
+        chip.textContent = customer;
+        container.appendChild(chip);
+    });
+    return container;
+}
+
+function openRestrictionRule(scope, key) {
+    const location = scope === "slot" ? key : `${key}1a`;
+    selectedRestrictionRow = scope === "slot" ? parseSlotCode(key)?.row : key;
+    renderRestrictionDialog(location);
+    setRestrictionView("editor");
+    if (scope === "slot") document.getElementById("restrictionSlotSelect")?.focus();
+    else document.getElementById("rowWhitelistEntry")?.focus();
+}
+
+function renderRestrictionOverview() {
+    const container = document.getElementById("restrictionOverviewRows");
+    if (!container) return;
+    container.replaceChildren();
+    const rules = [
+        ...Array.from(rowRestrictions.entries()).map(([key, rule]) => ({ scope: "row", key, rule })),
+        ...Array.from(slotRestrictions.entries()).map(([key, rule]) => ({ scope: "slot", key, rule })),
+    ].sort((left, right) => {
+        const leftCode = left.scope === "row" ? `${left.key}0` : left.key;
+        const rightCode = right.scope === "row" ? `${right.key}0` : right.key;
+        return leftCode.localeCompare(rightCode, "it", { numeric: true });
+    });
+    if (!rules.length) {
+        const empty = document.createElement("div");
+        empty.className = "restriction-overview__empty";
+        empty.textContent = "Nessuna regola configurata. Seleziona una fila per iniziare.";
+        container.appendChild(empty);
+        return;
+    }
+    rules.forEach(({ scope, key, rule }) => {
+        const row = document.createElement("div");
+        row.className = "restriction-overview__row";
+        row.setAttribute("role", "row");
+        const scopeCell = document.createElement("div");
+        const scopeLabel = document.createElement("strong");
+        scopeLabel.textContent = scope === "row" ? `Fila ${key}` : `Slot ${key}`;
+        const scopeHint = document.createElement("small");
+        scopeHint.textContent = scope === "row" ? "Priorità 1" : `Fila ${parseSlotCode(key)?.row} · Priorità 2`;
+        scopeCell.append(scopeLabel, scopeHint);
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.textContent = "Modifica";
+        edit.addEventListener("click", () => openRestrictionRule(scope, key));
+        row.append(
+            scopeCell,
+            restrictionOverviewCustomers(rule.whitelist, "Tutti ammessi"),
+            restrictionOverviewCustomers(rule.blacklist, "Nessuna esclusione"),
+            edit,
+        );
+        container.appendChild(row);
+    });
 }
 
 function renderRestrictionDialog(preferredLocation) {
@@ -4233,7 +5754,8 @@ function openRestrictionDialog(targets = null) {
     document.getElementById("restrictionDialogTitle").textContent = restrictionBatchTargets
         ? `Vincoli cliente per ${restrictionBatchTargets.length} slot selezionati`
         : "Vincoli cliente per fila e slot";
-    openWarehouseDialog(document.getElementById("restrictionDialog"), document.getElementById("rowWhitelist"));
+    setRestrictionView("editor");
+    openWarehouseDialog(document.getElementById("restrictionDialog"), document.getElementById("rowWhitelistEntry"));
 }
 
 function closeRestrictionDialog() {
@@ -4248,7 +5770,18 @@ function setupRestrictionDialog() {
         if (event.target === event.currentTarget) closeRestrictionDialog();
     });
     document.getElementById("restrictionSlotSelect")?.addEventListener("change", loadSelectedSlotRestriction);
+    document.getElementById("openRestrictionOverview")?.addEventListener("click", () => setRestrictionView("overview"));
+    document.getElementById("closeRestrictionOverview")?.addEventListener("click", () => setRestrictionView("editor"));
+    Object.entries(restrictionCustomerEditors).forEach(([fieldId, editor]) => {
+        document.querySelector(`[data-restriction-add="${fieldId}"]`)?.addEventListener("click", () => addRestrictionCustomer(fieldId));
+        document.getElementById(editor.entryId)?.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== ",") return;
+            event.preventDefault();
+            addRestrictionCustomer(fieldId);
+        });
+    });
     document.getElementById("saveRowRestriction")?.addEventListener("click", () => {
+        commitPendingRestrictionCustomers("rowWhitelist", "rowBlacklist");
         const rule = restrictionFromInputs("rowWhitelist", "rowBlacklist");
         const error = validateRestriction(rule);
         if (error) {
@@ -4262,6 +5795,7 @@ function setupRestrictionDialog() {
         setRestrictionMessage("rowRestrictionMessage", "Regola della fila salvata.", true);
     });
     document.getElementById("saveSlotRestriction")?.addEventListener("click", () => {
+        commitPendingRestrictionCustomers("slotWhitelist", "slotBlacklist");
         const location = document.getElementById("restrictionSlotSelect")?.value;
         const rule = restrictionFromInputs("slotWhitelist", "slotBlacklist");
         const error = validateRestriction(rule);
@@ -4299,7 +5833,7 @@ let selectedAnalysisLocation = null;
 let analysisSort = { key: "location", direction: "asc" };
 const ANALYSIS_SORT_KEYS = [
     "location", "row", "physicalColumn", "side", "level", "slotStatus", "id", "type",
-    "article", "customer", "orderReference", "tags", "contentStatus", "rowRestriction",
+    "article", "customer", "orderReference", "weighingCode", "pieceCount", "maxPieceCapacity", "tags", "contentStatus", "rowRestriction",
     "slotRestriction", "customerCompliance",
 ];
 const analysisCollator = new Intl.Collator("it", { numeric: true, sensitivity: "base" });
@@ -4334,8 +5868,10 @@ function analysisSlotMatches(slot, query) {
         item?.article,
         item?.customer,
         item?.orderReference,
+        item?.weighingCode,
+        item?.pieceCount,
+        item?.maxPieceCapacity,
         item?.tags?.join(" "),
-        item?.partial ? "parziale" : "pieno",
         item?.inMovement ? "in movimento" : "",
         restrictionLabel(rowRestrictions.get(slot.row)),
         restrictionLabel(slotRestrictions.get(slot.code)),
@@ -4360,8 +5896,11 @@ function analysisSortValue(slot, key) {
         article: item?.article || "",
         customer: item?.customer || "",
         orderReference: item?.orderReference || "",
+        weighingCode: item?.weighingCode || "",
+        pieceCount: item ? Math.max(1, Number(item.pieceCount) || 1) : "",
+        maxPieceCapacity: item ? Math.max(1, Number(item.maxPieceCapacity) || Number(item.pieceCount) || 1) : "",
         tags: item?.tags?.join(", ") || "",
-        contentStatus: item ? `${item.partial ? "Parziale" : "Pieno"}${item.inMovement ? " In movimento" : ""}` : "",
+        contentStatus: item?.inMovement ? "In movimento" : "",
         rowRestriction: restrictionLabel(rowRestrictions.get(slot.row)),
         slotRestriction: restrictionLabel(slotRestrictions.get(slot.code)),
         customerCompliance: !item ? "" : customerCheck.allowed ? "Conforme" : `Conflitto ${customerCheck.source}`,
@@ -4435,19 +5974,18 @@ function renderAnalysisTable() {
         appendAnalysisCell(row, item?.article || "");
         appendAnalysisCell(row, item?.customer || "");
         appendAnalysisCell(row, item?.orderReference || "");
+        appendAnalysisCell(row, item?.weighingCode || "");
+        appendAnalysisCell(row, item ? String(item.pieceCount) : "");
+        appendAnalysisCell(row, item ? String(item.maxPieceCapacity) : "");
         appendAnalysisCell(row, item?.tags?.join(", ") || "");
         const contentStates = [];
-        if (item?.partial) contentStates.push("Parziale");
-        else if (item) contentStates.push("Pieno");
         if (item?.inMovement) contentStates.push("In movimento");
         appendAnalysisCell(
             row,
             contentStates.join(" · "),
             item?.inMovement
                 ? "table-status table-status--movement"
-                : item?.partial
-                  ? "table-status table-status--partial"
-                  : "",
+                : "",
         );
         appendAnalysisCell(row, restrictionLabel(rowRestrictions.get(slot.row)));
         appendAnalysisCell(row, restrictionLabel(slotRestrictions.get(slot.code)));
@@ -4477,7 +6015,7 @@ function renderAnalysisTable() {
     if (!slots.length) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = 16;
+        cell.colSpan = 19;
         cell.className = "table-empty";
         cell.textContent = "Nessuna ubicazione corrisponde ai filtri impostati.";
         row.appendChild(cell);
@@ -4530,8 +6068,8 @@ function openArticleAnalysis() {
     setArticleMetric("articleSlotCount", occupiedSlots.length);
     setArticleMetric("articleOrderCount", orders.size);
     setArticleMetric("articleCustomerCount", customers.size);
-    setArticleMetric("articlePartialCount", units.filter((unit) => unit.item.partial).length);
     setArticleMetric("articleMovementCount", units.filter((unit) => unit.item.inMovement).length);
+    setArticleMetric("articlePieceCount", units.reduce((sum, unit) => sum + warehouseItemPieces(unit.item), 0));
 
     const orderList = document.getElementById("articleAnalysisOrders");
     orderList.replaceChildren();
@@ -4650,8 +6188,9 @@ function buildPseudoRandomWarehouseState() {
             article: `PALLET-${String(index + 1).padStart(3, "0")}`,
             customer: customers[pseudoRandomInteger(0, customers.length - 1)],
             order: `${pseudoRandomInteger(25, 26)}/${String(pseudoRandomInteger(1, 99999)).padStart(5, "0")}`,
+            weighingCode: "",
+            pieceCount: pseudoRandomInteger(40, 450),
             quantity: pseudoRandomInteger(1, 2),
-            partial: false,
             type: "pallet",
         });
     }
@@ -4660,8 +6199,9 @@ function buildPseudoRandomWarehouseState() {
             article: index % 4 === 0 ? `T${pseudoRandomInteger(1000000, 9999999)}A` : String(pseudoRandomInteger(1100, 9900)),
             customer: customers[pseudoRandomInteger(0, customers.length - 1)],
             order: `${pseudoRandomInteger(24, 26)}/${String(pseudoRandomInteger(1, 99999)).padStart(5, "0")}${Math.random() < .08 ? "/C" : ""}`,
+            weighingCode: "",
+            pieceCount: pseudoRandomInteger(10, 600),
             quantity: pseudoRandomInteger(1, 7),
-            partial: Math.random() < .14,
             type: "crate",
         });
     }
@@ -4749,6 +6289,7 @@ setupToolsDrawer();
 setupWarehouseStructure();
 setupLoadDialog();
 setupManualMovement();
+setupWarehouseOptimizer();
 setupUnloadZone();
 setupSlotPreview();
 setupContextMenu();

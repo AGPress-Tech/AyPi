@@ -12,7 +12,7 @@ Il sistema dovrà supportare sia proposte automatiche sia operazioni manuali for
 
 Il prototipo dispone di un flusso separato **Spostamento manuale**, accessibile dalla barra Operazioni e dal menu contestuale delle celle:
 
-- su uno slot libero, `Carico manuale qui` crea un singolo cassone con articolo, cliente, riferimento ordine e stato parziale indicati dall'operatore;
+- su uno slot libero, `Carico manuale qui` crea un singolo cassone con articolo, cliente, riferimento ordine opzionale, codice pesata opzionale e numero pezzi obbligatorio;
 - su uno slot occupato, `Scarico manuale da qui` identifica l'unità mediante ubicazione e la preleva esattamente da quella posizione, senza sostituirla con un'altra unità scelta dal FIFO;
 - il carico forzato non può violare esistenza dello slot, gravità verticale, blocchi pallet, accessibilità fronte/retro o whitelist/blacklist cliente;
 - lo scarico puntuale calcola gli eventuali cassoni d'ingombro e li rialloca attraverso il motore di carico, mostrando all'operatore ogni passaggio origine → destinazione;
@@ -70,11 +70,13 @@ In una fila invertita la coppia numerica rimane nella stessa colonna fisica, ma 
 
 ### Carico automatico
 
-- L'operatore indica l'intero blocco da caricare, composto da uno o più articoli e dalle rispettive quantità.
-- Ogni richiesta di carico raccoglie: articolo, cliente, riferimento ordine, quantità, stato parziale (`Sì/No`) e tipologia (`Cassone/Pallet`).
+- L'operatore può aggiungere un singolo cassone oppure selezionare fino a 50 cassoni omogenei per articolo, cliente, riferimento ordine e tipologia. Nel secondo caso il form genera una coppia `codice pesata + numero pezzi` per ogni cassone e li inserisce insieme nella bozza. Ogni cassone resta comunque una riga e un'unità logistica autonoma; il planner continua a ottimizzare congiuntamente tutte le righe del gruppo.
+- Ogni cassone raccoglie: articolo, cliente, riferimento ordine opzionale, codice pesata opzionale e univoco, numero pezzi obbligatorio e tipologia (`Cassone/Pallet`).
+- `pieceCount` rappresenta il contenuto corrente; `maxPieceCapacity` conserva il valore iniziale del singolo cassone. Un aggiornamento non può mai portare il contenuto corrente oltre tale capacità originaria.
 - Se la tipologia è pallet, ogni unità richiesta consuma una coppia fronte/retro a terra e l'algoritmo deve escludere qualsiasi colonna verticalmente occupata.
 - Gravità, blocchi pallet, accessibilità del fronte e vincoli cliente sono condizioni rigide: una combinazione che ne viola una viene scartata.
 - Retro prima del fronte, sinistra prima della destra, pile complete, poche divisioni, vicinanza dello stesso articolo e riduzione delle movimentazioni sono invece preferenze pesate. Nessuna di esse viene più implementata come eccezione assoluta.
+- A parità degli altri criteri, un cassone con meno pezzi riceve un costo maggiore se collocato sotto altri cassoni o dietro una pila frontale: i contenitori più prossimi all'esaurimento restano quindi più accessibili.
 - Il motore genera inserimenti verticali validi da 1, 2 o 3 cassoni, combina più inserimenti e confronta il punteggio dell'intero piano prima di assegnare le ubicazioni.
 - Una ricerca beam mantiene le migliori alternative a ogni quantità già collocata. In questo modo valuta configurazioni come `3+1`, `2+2`, `3+2` e `1+1` senza enumerare in modo ingestibile tutte le permutazioni dei 480 slot.
 - La mescolanza di articoli nella stessa pila riceve una penalità proporzionale al numero di nuovi cassoni coinvolti, ma rimane tecnicamente possibile: un singolo `+1` che completa il livello `c` può vincere per vicinanza e compattezza, mentre collocare due cassoni sopra un articolo diverso perde normalmente contro una nuova pila posteriore libera.
@@ -95,7 +97,7 @@ Questo concetto vale anche per blocchi misti di carico e scarico, se l'operativi
 
 Il flusso dell'interfaccia è articolato in tre fasi:
 
-1. **Composizione**: ogni articolo viene aggiunto al gruppo senza modificare il magazzino; le righe possono essere modificate o rimosse;
+1. **Composizione**: ogni articolo può essere aggiunto singolarmente oppure mediante inserimento multiplo di cassoni omogenei; nessuna delle righe modifica ancora il magazzino e ciascuna può essere modificata o rimossa;
 2. **Anteprima**: vengono mostrati riepilogo, quantità complessive e tutte le righe prima di richiedere il calcolo definitivo;
 3. **Conferma**: il gruppo viene congelato, validato integralmente e applicato in modo atomico. Il prototipo usa un primo motore euristico: se non riesce a collocare o prelevare tutte le unità non modifica il magazzino; se riesce aggiorna immediatamente mappa, ricerca, riepiloghi e vista database.
 
@@ -107,13 +109,20 @@ Il modulo non deve utilizzare prompt, alert o conferme native di Windows. Annull
 
 Le finestre Electron separate, come il dettaglio prima/dopo di un movimento, sono associate alla finestra Inventario proprietaria. All'apertura vengono mostrate e portate in primo piano esplicitamente; alla chiusura il focus viene restituito alla finestra Inventario.
 
+Il rientro dalla Zona scarico non viene applicato direttamente dal menu contestuale. Ogni riga espone il comando visibile **Prepara rientro**, che apre un'anteprima con articolo, cliente, riferimento ordine, ubicazione di provenienza e destinazione calcolata. Solo la conferma applica il rientro; al termine la Zona scarico viene chiusa e la nuova posizione è evidenziata temporaneamente sulla mappa.
+
 ### Scarico automatico
 
+- Lo scarico può essere richiesto per riferimento ordine, per codice pesata o per numero di pezzi. Il riferimento ordine può selezionare più cassoni; la pesata identifica una singola unità logistica.
+- Nel prelievo a pezzi il motore somma la disponibilità dei cassoni candidati e li consuma in ordine di contenuto crescente. Questo massimizza il numero di cassoni completamente svuotati; soltanto l'ultimo cassone necessario può restare in magazzino con un residuo.
+- Un cassone completamente svuotato entra nella Zona scarico. Un cassone usato solo in parte conserva identificativo, pesata e `maxPieceCapacity`, aggiorna `pieceCount` e rimane/rientra nella propria ubicazione valida.
+- Se i pezzi complessivamente disponibili non coprono la richiesta, l'intero gruppo viene rifiutato senza modificare giacenze o storico.
 - Applicare FIFO: prelevare prima i cassoni più vecchi.
 - Il riferimento ordine è un filtro opzionale, non un dato obbligatorio per individuare l'articolo da prelevare.
 - Se l'operatore specifica il riferimento ordine, il motore limita i candidati alle unità dell'articolo associate a quel riferimento e applica FIFO all'interno dell'insieme risultante.
 - Se il riferimento ordine non viene specificato, il motore considera tutte le unità dell'articolo richiesto, indipendentemente dall'ordine, e preleva sempre prima le più vecchie.
 - All'interno dello stesso istante FIFO, lo scarico attribuisce una priorità esplicita alle unità frontali direttamente accessibili. Questa preferenza usa il lato fisico configurato e funziona quindi anche sulle file invertite `B` e `D`; non riutilizza l'ordinamento retro-prima-del-fronte proprio del carico.
+- Prima della normale preferenza frontale viene premiata la rimozione di un cassone realmente isolato, cioè unica unità della propria pila. Nel caso `3+3+1`, uno scarico di due unità prende quindi prima il `+1` isolato e subito dopo il cassone superiore della pila frontale, purché appartengano allo stesso istante FIFO applicabile.
 - Il formato del riferimento è `AA/NNNNN` oppure `AA/NNNNN/C`: `AA` rappresenta l'anno, `NNNNN` il progressivo e il suffisso `/C` identifica i contratti. Il suffisso non modifica la priorità FIFO.
 - Ottimizzare lo spazio e ridurre le movimentazioni necessarie per raggiungere i cassoni.
 - Un prelievo può prevedere un movimento intermedio: un cassone viene estratto, usato o controllato e può poi tornare in magazzino.
@@ -161,7 +170,7 @@ L'algoritmo non dovrà considerare gratuito l'accesso ai livelli posteriori e do
 
 - Cercare un articolo e listare tutti i relativi cassoni con le loro posizioni.
 - La base corrente permette di cercare e ispezionare una coordinata fisica e usa solo cassoni dimostrativi; non contiene ancora giacenze reali.
-- La ricerca testuale trasversale deve poter interrogare contemporaneamente articolo, cliente, riferimento ordine, tag e stati **Parziale** e **In movimento**.
+- La ricerca testuale trasversale deve poter interrogare contemporaneamente articolo, cliente, riferimento ordine, codice pesata, numero pezzi, tag e stato **In movimento**.
 - Più parole nella stessa ricerca vengono combinate: ogni parola deve comparire in almeno uno dei campi abilitati.
 - I risultati devono essere evidenziati sulla mappa anche quando appartengono a file non visibili.
 - Oltre all'evidenziazione serve un report scritto con ubicazione, articolo, cliente, riferimento ordine e stati rilevanti.
@@ -188,16 +197,20 @@ Le celle possono mostrare:
 
 - ubicazione;
 - articolo;
+- articolo e quantità corrente;
 - cliente;
 - riferimento ordine;
+- codice pesata;
 - ubicazione, articolo e riferimento ordine insieme.
 
 La cella selezionata ha un bordo blu scuro spesso. Le altre celle corrispondenti hanno un bordo azzurro spesso, anche quando appartengono a un'altra fila. Il criterio dipende dalla modalità attiva:
 
 - ubicazione → stesso articolo;
 - articolo → stesso articolo;
+- articolo e quantità → stesso articolo e stesso numero di pezzi correnti;
 - cliente → stesso cliente;
 - riferimento ordine → stesso riferimento ordine;
+- codice pesata → stessa pesata univoca; le celle senza pesata non vengono raggruppate;
 - vista combinata → stesso articolo e stesso riferimento ordine.
 
 Le linguette `A–E` indicano quando una fila non visibile contiene corrispondenze.
@@ -230,12 +243,9 @@ Una riga può essere selezionata e aperta sulla mappa tramite pulsante o doppio 
 
 Se la riga selezionata contiene un articolo, il comando **Analisi articolo** apre un riepilogo dedicato. Mostra unità logistiche complessive, distinzione fra cassoni e pallet, slot fisicamente impegnati, riferimenti ordine e clienti distinti, parziali, unità in movimento, file interessate, ubicazioni, tag e distribuzione delle unità per ordine. Un pallet viene contato una sola volta come unità logistica, pur mantenendo visibili entrambi gli slot occupati.
 
-### Stato parziale
+### Quantità contenuta
 
-- Il menu contestuale con tasto destro permette di attivare o rimuovere lo stato **parziale** su un cassone.
-- Parziale significa contenuto maggiore dello 0% e minore del 100%.
-- Uno slot libero non può essere parziale.
-- La quantità o percentuale esatta non è ancora modellata e dovrà essere definita prima della persistenza.
+Il precedente flag manuale **Parziale** è stato eliminato. La quantità reale è rappresentata esclusivamente da `pieceCount`, mentre `maxPieceCapacity` conserva la capienza iniziale immutabile del singolo cassone. Non esiste più uno stato parziale impostabile manualmente.
 
 ### Operazioni manuali
 
@@ -247,7 +257,7 @@ Il prototipo consente la riallocazione di un solo cassone alla volta tramite men
 
 Inserimento e scambio vengono rifiutati se violano vincoli cliente, sostegno verticale, occupazione da pallet o relazione fronte/retro. Per scelta esplicita, queste forzature manuali **non entrano nello storico dei movimenti automatici**.
 
-`Ctrl+clic` aggiunge o rimuove singoli slot da una selezione; il trascinamento disegna un'area e seleziona gli slot intersecati. Una selezione multipla può essere usata soltanto per impostare/rimuovere lo stato parziale o applicare lo stesso vincolo cliente agli slot scelti. Non può avviare riallocazioni multiple.
+`Ctrl+clic` aggiunge o rimuove singoli slot da una selezione; il trascinamento disegna un'area e seleziona gli slot intersecati. Una selezione multipla può essere usata per applicare lo stesso vincolo cliente agli slot scelti. Non può avviare riallocazioni multiple.
 
 Sugli slot, liberi o occupati, il menu contestuale permette di gestire whitelist e blacklist della singola ubicazione. Il vincolo appartiene allo slot, non al contenitore che vi si trova in quel momento.
 
@@ -267,7 +277,7 @@ Non vengono descritte le preparazioni esterne al magazzino. Lo storico distingue
 
 Il modulo usa subito un database SQLite locale integrato nel processo principale dell'app, salvato nella cartella dati di AyPi. Non richiede quindi che il backend HTTP sia in esecuzione. Il formato dello snapshot è compatibile con l'API magazzino già predisposta sul backend; impostando `AYPI_WAREHOUSE_USE_BACKEND=1` sarà possibile spostarlo nel file `aypi.db` condiviso da Calendar e Purchasing. Sul backend sono già presenti le tabelle dedicate con prefisso `warehouse_`:
 
-- unità logistiche, con articolo, cliente, riferimento ordine, tipologia, parziale, tag e data FIFO;
+- unità logistiche, con articolo, cliente, riferimento ordine, codice pesata, pezzi correnti, capienza iniziale, tipologia, tag e data FIFO;
 - occupazioni fisiche e coppia associata dei pallet;
 - testata dei movimenti automatici;
 - righe articolo/posizioni di ogni movimento;
@@ -296,6 +306,8 @@ Quindi la regola dello slot può soltanto restringere quella della fila, mai amp
 
 Il configuratore segnala i clienti inseriti contemporaneamente in whitelist e blacklist. Dopo ogni modifica vengono inoltre controllati i cassoni già presenti: eventuali occupazioni non conformi sono evidenziate nella mappa, nel dettaglio slot e nella vista database, indicando se il conflitto deriva dalla fila o dallo slot.
 
+Nel configuratore i clienti vengono aggiunti uno alla volta e mostrati come etichette removibili singolarmente. L'inserimento di un cliente in whitelist lo rimuove automaticamente dalla blacklist dello stesso livello, e viceversa. Il riepilogo completo elenca in un'unica vista tutte le regole di fila e di slot, con accesso diretto alla relativa configurazione. Le regole di slot appartengono all'ubicazione fisica e restano valide quando il cassone presente cambia.
+
 Nel prototipo le regole sono mantenute soltanto in memoria. La versione operativa dovrà salvarle nel database, registrare autore e data della modifica e impedirne l'aggiramento nei flussi automatici e manuali.
 
 ## 4. Modello dati proposto
@@ -304,7 +316,7 @@ Entità iniziali, da validare prima di creare la persistenza definitiva:
 
 - **Fila**: codice, capacità, orientamento standard/invertito e vincoli di accessibilità.
 - **Slot**: coordinata, fila, colonna fisica, lato, livello, stato e possibili vincoli/blocchi.
-- **Cassone**: identificativo univoco, articolo, lotto, quantità/parziale, data di ingresso, tag e stato.
+- **Cassone**: identificativo univoco, articolo, lotto, codice pesata, pezzi correnti, capienza iniziale, data di ingresso, tag e stato.
 - **Occupazione**: relazione temporale tra cassone e slot.
 - **Movimento di magazzino**: blocco `MV_*` di carico o scarico, automatico o manuale, con righe articolo, ubicazioni interessate, operatore, data/ora e snapshot prima/dopo. Le sole riallocazioni e gli scambi manuali tra slot sono esclusi da questa entità per requisito.
 - **Piano di movimentazione**: sequenza proposta dall'algoritmo, con punteggio e motivazioni.
@@ -358,9 +370,13 @@ Il piano deve rispettare almeno:
 - capacità della zona di movimentazione e necessità di appoggi temporanei;
 - occupazioni riservate o modificate contemporaneamente da altri operatori.
 
-L'operatore potrà indicare un **numero massimo `X` di spostamenti manuali**. Questo valore è un limite rigido: l'algoritmo dovrà proporre il miglior miglioramento raggiungibile entro il budget, anche quando non coincide con l'assetto teoricamente ottimo. Prima di fissare la metrica va chiarito se uno “spostamento” indica un viaggio del mezzo, una presa/deposito, un cambio di ubicazione o l'intera sequenza origine-destinazione.
+L'amministratore può indicare un **numero massimo `X` di spostamenti manuali**. Questo valore è un limite rigido e l'operazione è atomica dal punto di vista progettuale: viene proposta e applicata soltanto una disposizione globale completa. Se estrazione, preparazione nel corridoio e ricollocazione superano `X`, il piano resta consultabile ma non può essere confermato; non viene lasciato un magazzino riordinato soltanto in parte.
 
 Nel calcolo del limite `X` dovranno rientrare anche le manipolazioni temporanee necessarie a rimuovere un cassone anteriore, operare sul retro e riposizionarlo, pur non producendo un cambio di ubicazione finale. L'interfaccia potrà aggregarle in un'unica istruzione operativa, ma il costo usato dall'ottimizzatore non potrà ometterle.
+
+Il comando amministrativo **Ottimizza** espone inoltre tre rafforzamenti opzionali dello score: vicinanza tra unità dello stesso articolo, completamento di pile/coppie e riduzione delle movimentazioni nei prelievi futuri. L'anteprima conserva identità, anzianità FIFO, tag, cliente, ordine, pesata e quantità delle unità; cambia esclusivamente la loro ubicazione. Cassoni e pallet vengono pianificati congiuntamente e ogni passaggio operativo viene registrato nello storico con snapshot prima/dopo.
+
+Il limite iniziale proposto è di `500` spostamenti. Il perimetro può essere ristretto per file, lato anteriore/posteriore, intervallo di coppie fisiche da sinistra, tipologia cassone/pallet, articoli e clienti. Articoli e clienti supportano elenchi distinti di inclusione ed esclusione con rimozione individuale. Le unità fuori perimetro non cambiano ubicazione finale; possono essere movimentate temporaneamente soltanto quando appartengono a un modulo fisico che deve essere aperto per eseguire il piano, e anche tali passaggi consumano il budget. Le unità che non possono essere separate in sicurezza da cassoni esclusi sovrastanti o frontali vengono lasciate ferme e segnalate nell'anteprima.
 
 #### Lato umano dell'operazione
 
@@ -382,7 +398,6 @@ Fra gli indicatori da mostrare prima dell'avvio: movimentazioni previste, distan
 - Relazione fisica tra livelli: è consentito occupare `b` o `c` se il posto sotto è vuoto?
 - I cassoni sono tutti uguali per dimensioni, peso e impilabilità?
 - Un cassone contiene sempre un solo articolo e lotto?
-- Significato esatto di “parziale”: cassone non pieno, quantità residua o prelievo parziale temporaneo?
 - Il rientro dopo movimento intermedio conserva data FIFO originale oppure ne genera una nuova?
 - Quale data determina formalmente l'anzianità FIFO: ingresso fisico del singolo cassone, registrazione del carico, lotto oppure sequenza ricavata dal riferimento ordine? Il codice ordine non deve diventare implicitamente la sorgente FIFO senza questa conferma.
 - È possibile mescolare articoli diversi nella stessa pila verticale? In quali casi?
@@ -432,9 +447,9 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Dettaglio flottante di una coordinata dopo circa un secondo di permanenza del puntatore sulla cella; la scheda si chiude uscendo dalla cella e non modifica la selezione.
 - Modalità di etichettatura per ubicazione, articolo, cliente, ordine e vista combinata.
 - Evidenziazione della selezione e dei cassoni corrispondenti, comprese le altre file.
-- Menu contestuale per stato parziale, riallocazione singola, scambio e vincoli della singola ubicazione.
-- Selezione multipla con `Ctrl+clic` o rettangolo trascinato, utilizzabile per parziale e vincoli ma non per spostamenti.
-- Ricerca testuale combinata per articolo, cliente, ordine, tag, parziale e in movimento.
+- Menu contestuale per riallocazione singola, scambio e vincoli della singola ubicazione.
+- Selezione multipla con `Ctrl+clic` o rettangolo trascinato, utilizzabile per i vincoli ma non per spostamenti.
+- Ricerca testuale combinata per articolo, cliente, ordine, pesata, pezzi, tag e in movimento.
 - Report scritto dei risultati con selezione multipla e passaggio diretto delle unità al gruppo di scarico.
 - Pulsante compatto “Ricerca e prelievo” nella toolbar, con filtri e report selezionabile in una finestra dedicata.
 - Barra di ricerca rapida sincronizzata con la finestra di ricerca avanzata.
@@ -448,7 +463,7 @@ La scelta del motore verrà fatta più avanti considerando peso del pacchetto, p
 - Flusso in tre fasi per gruppi multi-articolo di carico e scarico: composizione, anteprima modificabile e conferma operativa atomica.
 - L'anteprima del carico mostra ora le ubicazioni effettivamente proposte, lo score complessivo e il tempo di calcolo; la conferma riutilizza la proposta già validata senza eseguire una seconda ottimizzazione.
 - Bozze separate di carico e scarico mantenute in memoria anche chiudendo la finestra; annullamento completo con ritorno alla mappa.
-- Modulo di carico con articolo, cliente, riferimento ordine, quantità, parziale e tipologia; modulo di scarico manuale oppure alimentato dalle unità selezionate nella ricerca.
+- Modulo di carico unitario con articolo, cliente, riferimento ordine opzionale, pesata opzionale, pezzi obbligatori e tipologia; modulo di scarico manuale oppure alimentato dalle unità selezionate nella ricerca.
 - Distinzione fra cassone e pallet, con pallet associato a una coppia fronte/retro a terra.
 - Database inizialmente vuoto, senza giacenze dimostrative incorporate nel codice.
 - Primo motore euristico di carico e scarico: la conferma aggiorna le giacenze SQLite, applica FIFO nello scarico e mostra soltanto articolo e posizioni interessate.

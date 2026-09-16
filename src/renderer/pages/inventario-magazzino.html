@@ -87,6 +87,7 @@
             <button class="operation-button--active" id="openUnloadButton" type="button">Scarico</button>
             <button class="unload-zone-button" id="openUnloadZoneButton" type="button">Zona scarico <b id="unloadZoneCount">0</b></button>
             <button class="operation-button--active" id="openManualMovementButton" type="button">Spostamento manuale</button>
+            <button class="operation-button--active operation-button--optimize" id="openWarehouseOptimizer" data-admin-only hidden type="button">Ottimizza</button>
             <button type="button" disabled>Gestione tag</button>
         </section>
 
@@ -102,8 +103,10 @@
                         <select id="displayMode" aria-label="Contenuto visualizzato nelle celle">
                             <option value="location">Ubicazione</option>
                             <option value="article" selected>Articolo</option>
+                            <option value="articleQuantity">Articolo - Quantità</option>
                             <option value="customer">Cliente</option>
                             <option value="order">Riferimento ordine</option>
+                            <option value="weighing">Codice pesata</option>
                             <option value="combined">Ubicazione - Articolo - Riferimento ordine</option>
                         </select>
                     </label>
@@ -126,7 +129,6 @@
                     <span><i class="legend-box legend-box--selected"></i> Posizione selezionata</span>
                     <span><i class="legend-box legend-box--match"></i> Contenuto corrispondente</span>
                     <span><i class="legend-box legend-box--search"></i> Risultato ricerca</span>
-                    <span><i class="partial-mark"></i> Cassone parziale</span>
                     <span><i class="pallet-mark"></i> Pallet</span>
                 </div>
 
@@ -180,8 +182,11 @@
                             <th>Articolo</th>
                             <th>Cliente</th>
                             <th>Rif. ordine</th>
+                            <th>Codice pesata</th>
+                            <th>Pezzi</th>
+                            <th>Capienza iniziale</th>
                             <th>Tag</th>
-                            <th>Stato contenuto</th>
+                            <th>Stato operativo</th>
                             <th>Vincolo fila</th>
                             <th>Vincolo slot</th>
                             <th>Verifica cliente</th>
@@ -207,6 +212,8 @@
                 <div id="detailArticleRow" hidden><dt>Articolo</dt><dd id="detailArticle">—</dd></div>
                 <div id="detailCustomerRow" hidden><dt>Cliente</dt><dd id="detailCustomer">—</dd></div>
                 <div id="detailOrderRow" hidden><dt>Rif. ordine</dt><dd id="detailOrder">—</dd></div>
+                <div id="detailWeighingRow" hidden><dt>Codice pesata</dt><dd id="detailWeighing">—</dd></div>
+                <div id="detailPiecesRow" hidden><dt>Pezzi</dt><dd id="detailPieces">—</dd></div>
                 <div id="detailTagsRow" hidden><dt>Tag</dt><dd id="detailTags">—</dd></div>
                 <div id="detailMovementRow" hidden><dt>Movimento</dt><dd id="detailMovement">—</dd></div>
                 <div id="detailRestrictionRow" hidden><dt>Vincolo cliente</dt><dd id="detailRestriction">—</dd></div>
@@ -302,13 +309,26 @@
                         <label><span id="operationOrderLabelText">Riferimento ordine</span><input id="loadOrderReference"
                             pattern="[0-9]{2}/[0-9]{5}(/C)?" placeholder="es. 25/00114 oppure 25/00114/C"
                             title="Formato richiesto: AA/NNNNN oppure AA/NNNNN/C"></label>
-                        <label>Quantità unità<input id="loadQuantity" type="number" min="1" step="1" value="1" required></label>
-                        <label id="operationPartialField">Parziale
-                            <select id="loadPartial"><option value="no">No</option><option value="yes">Sì</option></select>
-                        </label>
                         <label>Tipologia
                             <select id="loadType"><option value="crate">Cassone</option><option value="pallet">Pallet</option></select>
                         </label>
+                        <section class="load-batch" id="loadBatchSection">
+                            <header id="loadBatchControls">
+                                <div><strong>Dettaglio cassoni</strong><small>Articolo, cliente e ordine vengono condivisi da tutte le righe.</small></div>
+                                <label>Numero cassoni
+                                    <input id="loadBatchCount" type="number" min="1" max="50" step="1" value="1">
+                                </label>
+                            </header>
+                            <div class="load-batch__columns" aria-hidden="true"><span>Cassone</span><span>Codice pesata (opzionale)</span><span>Numero pezzi</span></div>
+                            <div class="load-batch__rows" id="loadBatchRows">
+                                <div class="load-batch__row" data-batch-index="0">
+                                    <strong>1</strong>
+                                    <label><span id="operationWeighingLabelText">Codice pesata (opzionale)</span><input id="loadWeighingCode" class="load-batch-weighing" placeholder="es. PS-000184" autocomplete="off"></label>
+                                    <label><span id="operationPiecesLabelText">Numero pezzi</span><input id="loadPieceCount" class="load-batch-pieces" type="number" min="1" step="1" required placeholder="es. 250"></label>
+                                </div>
+                            </div>
+                        </section>
+                        <input id="loadQuantity" type="hidden" value="1">
                     </div>
                     <div class="load-type-note" id="loadTypeNote">
                         Un cassone occupa una singola ubicazione e può essere impilato rispettando i livelli.
@@ -378,8 +398,8 @@
                     <article><span>Slot impegnati</span><strong id="articleSlotCount">0</strong></article>
                     <article><span>Rif. ordine distinti</span><strong id="articleOrderCount">0</strong></article>
                     <article><span>Clienti distinti</span><strong id="articleCustomerCount">0</strong></article>
-                    <article><span>Parziali</span><strong id="articlePartialCount">0</strong></article>
                     <article><span>In movimento</span><strong id="articleMovementCount">0</strong></article>
+                    <article><span>Pezzi complessivi</span><strong id="articlePieceCount">0</strong></article>
                 </section>
                 <div class="article-analysis-details">
                     <section>
@@ -419,15 +439,16 @@
                         <button id="clearInventorySearch" type="button">Azzera</button>
                     </div>
                     <input class="inventory-search__input" id="inventorySearchInput" type="search" autocomplete="off"
-                        placeholder="Articolo, cliente, ordine, tag, tipologia o stato…">
+                        placeholder="Articolo, cliente, ordine, pesata, pezzi, tag o stato…">
                     <fieldset>
                         <legend>Cerca in</legend>
                         <label><input type="checkbox" name="searchField" value="article" checked> Articolo</label>
                         <label><input type="checkbox" name="searchField" value="customer" checked> Cliente</label>
                         <label><input type="checkbox" name="searchField" value="order" checked> Rif. ordine</label>
+                        <label><input type="checkbox" name="searchField" value="weighing" checked> Pesata</label>
+                        <label><input type="checkbox" name="searchField" value="pieces" checked> Pezzi</label>
                         <label><input type="checkbox" name="searchField" value="tags" checked> Tag</label>
                         <label><input type="checkbox" name="searchField" value="type" checked> Tipologia</label>
-                        <label><input type="checkbox" name="searchField" value="partial" checked> Parziale</label>
                         <label><input type="checkbox" name="searchField" value="movement" checked> In movimento</label>
                     </fieldset>
                     <small>Puoi combinare più parole, per esempio “AGPRESS 25/00114”.</small>
@@ -442,7 +463,7 @@
                         <span id="selectedResultCount">0 selezionati</span>
                     </div>
                     <div class="search-report__columns" aria-hidden="true">
-                        <span></span><span>Ubic.</span><span>Articolo</span><span>Cliente</span><span>Rif. ordine</span><span>Stati</span>
+                        <span></span><span>Ubic.</span><span>Articolo</span><span>Cliente</span><span>Rif. ordine</span><span>Pesata</span><span>Pezzi</span><span>Stati</span>
                     </div>
                     <div class="search-report__list" id="searchReportList">
                         <p class="search-report__empty">I risultati compariranno qui e verranno evidenziati nella mappa.</p>
@@ -452,6 +473,107 @@
                     </button>
                 </div>
             </section>
+        </section>
+    </div>
+
+    <div class="restriction-backdrop warehouse-optimizer-backdrop" id="warehouseOptimizerDialog" aria-hidden="true">
+        <section class="warehouse-optimizer-dialog" role="dialog" aria-modal="true" aria-labelledby="warehouseOptimizerTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">OTTIMIZZAZIONE GLOBALE · ADMIN</span>
+                    <h2 id="warehouseOptimizerTitle">Ottimizza l'intero magazzino</h2>
+                    <p>Calcola una nuova disposizione completa rispettando struttura, pallet e vincoli cliente.</p>
+                </div>
+                <button id="closeWarehouseOptimizer" type="button" aria-label="Chiudi">×</button>
+            </header>
+
+            <div class="warehouse-optimizer-body">
+                <form class="warehouse-optimizer-settings" id="warehouseOptimizerForm">
+                    <div class="warehouse-optimizer-limit">
+                        <label for="optimizerMaxMovements">Numero massimo di spostamenti</label>
+                        <input id="optimizerMaxMovements" type="number" min="2" max="10000" step="1" value="500" required>
+                        <small>Limite rigido: se il piano completo lo supera, non potrà essere applicato.</small>
+                    </div>
+                    <fieldset class="warehouse-optimizer-scope">
+                        <legend>Area da riorganizzare</legend>
+                        <span class="warehouse-optimizer-field-label">File incluse</span>
+                        <div class="warehouse-optimizer-rows" id="optimizerRows"></div>
+                        <span class="warehouse-optimizer-field-label">Lati utilizzabili</span>
+                        <div class="warehouse-optimizer-inline-checks">
+                            <label><input id="optimizerIncludeRear" type="checkbox" checked> Posteriore</label>
+                            <label><input id="optimizerIncludeFront" type="checkbox" checked> Anteriore</label>
+                        </div>
+                        <span class="warehouse-optimizer-field-label">Tipologia</span>
+                        <div class="warehouse-optimizer-inline-checks">
+                            <label><input id="optimizerIncludeCrates" type="checkbox" checked> Cassoni</label>
+                            <label><input id="optimizerIncludePallets" type="checkbox" checked> Pallet</label>
+                        </div>
+                        <span class="warehouse-optimizer-field-label">Intervallo coppie fisiche da sinistra</span>
+                        <div class="warehouse-optimizer-range">
+                            <label>Da<input id="optimizerColumnFrom" type="number" min="1" value="1"></label>
+                            <label>A<input id="optimizerColumnTo" type="number" min="1" value="16"></label>
+                        </div>
+                    </fieldset>
+                    <fieldset class="warehouse-optimizer-filters">
+                        <legend>Filtri facoltativi sulle unità</legend>
+                        <div class="warehouse-optimizer-token-group" data-optimizer-token-group="articles">
+                            <strong>Articoli</strong>
+                            <div class="warehouse-optimizer-token-entry">
+                                <input id="optimizerArticleEntry" placeholder="Scrivi un articolo" autocomplete="off">
+                                <select id="optimizerArticleAction" aria-label="Tipo filtro articolo"><option value="include">Includi</option><option value="exclude">Escludi</option></select>
+                                <button id="addOptimizerArticle" type="button">Aggiungi</button>
+                            </div>
+                            <div class="warehouse-optimizer-tokens" id="optimizerArticleTokens"><span>Nessun filtro</span></div>
+                        </div>
+                        <div class="warehouse-optimizer-token-group" data-optimizer-token-group="customers">
+                            <strong>Clienti</strong>
+                            <div class="warehouse-optimizer-token-entry">
+                                <input id="optimizerCustomerEntry" placeholder="Scrivi un cliente" autocomplete="off">
+                                <select id="optimizerCustomerAction" aria-label="Tipo filtro cliente"><option value="include">Includi</option><option value="exclude">Escludi</option></select>
+                                <button id="addOptimizerCustomer" type="button">Aggiungi</button>
+                            </div>
+                            <div class="warehouse-optimizer-tokens" id="optimizerCustomerTokens"><span>Nessun filtro</span></div>
+                        </div>
+                        <small>“Includi” limita il riassetto ai valori elencati; “Escludi” li lascia nella posizione finale attuale.</small>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Criteri da rafforzare</legend>
+                        <label class="warehouse-optimizer-option">
+                            <input id="optimizerPreferProximity" type="checkbox" checked>
+                            <span><strong>Prediligi vicinanza articoli</strong><small>Raggruppa lo stesso articolo nella stessa fila e nelle coppie più vicine.</small></span>
+                        </label>
+                        <label class="warehouse-optimizer-option">
+                            <input id="optimizerOptimizeSpace" type="checkbox" checked>
+                            <span><strong>Ottimizza spazi</strong><small>Completa pile e coppie, riducendo frammentazione e slot isolati.</small></span>
+                        </label>
+                        <label class="warehouse-optimizer-option">
+                            <input id="optimizerReduceFutureMoves" type="checkbox" checked>
+                            <span><strong>Riduci movimentazioni future</strong><small>Favorisce blocchi prelevabili con meno interventi del muletto.</small></span>
+                        </label>
+                    </fieldset>
+                    <div class="warehouse-optimizer-warning">
+                        Il calcolo non modifica il database. L'applicazione sarà disponibile soltanto dopo aver verificato l'anteprima.
+                    </div>
+                    <button class="warehouse-optimizer-calculate" id="calculateWarehouseOptimization" type="submit">Calcola anteprima completa</button>
+                </form>
+
+                <section class="warehouse-optimizer-preview" id="warehouseOptimizerPreview" hidden>
+                    <div class="warehouse-optimizer-preview__summary">
+                        <article><span>Spostamenti</span><strong id="optimizerMovementCount">0</strong><small id="optimizerMovementLimit">massimo 0</small></article>
+                        <article><span>Unità logistiche</span><strong id="optimizerUnitCount">0</strong><small>nel perimetro</small></article>
+                        <article><span>Ricollocate</span><strong id="optimizerChangedCount">0</strong><small>nuova ubicazione</small></article>
+                        <article><span>Tempo calcolo</span><strong id="optimizerElapsedTime">0 ms</strong><small>piano globale</small></article>
+                    </div>
+                    <div class="warehouse-optimizer-status" id="warehouseOptimizerStatus" role="status"></div>
+                    <div class="warehouse-optimizer-scope-summary" id="warehouseOptimizerScopeSummary"></div>
+                    <div class="warehouse-optimizer-instructions" id="warehouseOptimizerInstructions"></div>
+                </section>
+            </div>
+
+            <footer class="warehouse-optimizer-actions">
+                <button id="cancelWarehouseOptimizer" type="button">Annulla</button>
+                <button class="operation-button--primary" id="applyWarehouseOptimization" type="button" disabled>Applica ottimizzazione</button>
+            </footer>
         </section>
     </div>
 
@@ -486,7 +608,8 @@
                         <label>Articolo<input id="manualLoadArticle" required placeholder="es. T0410AOA77"></label>
                         <label>Cliente<input id="manualLoadCustomer" placeholder="es. AGPRESS"></label>
                         <label>Riferimento ordine<input id="manualLoadOrder" pattern="[0-9]{2}/[0-9]{5}(/C)?" placeholder="es. 25/00114 oppure 25/00114/C" title="Formato richiesto: AA/NNNNN oppure AA/NNNNN/C"></label>
-                        <label>Parziale<select id="manualLoadPartial"><option value="no">No</option><option value="yes">Sì</option></select></label>
+                        <label>Codice pesata (opzionale)<input id="manualLoadWeighing" placeholder="es. PS-000184" autocomplete="off"></label>
+                        <label>Numero pezzi<input id="manualLoadPieces" type="number" min="1" step="1" required placeholder="es. 250"></label>
                     </div>
                 </div>
                 <div class="manual-movement-validation">
@@ -532,7 +655,7 @@
                 <div>
                     <span class="section-label">AREA TEMPORANEA</span>
                     <h2 id="unloadZoneTitle">Zona scarico</h2>
-                    <p>Unità prelevate dal magazzino e in attesa del caricamento sul veicolo.</p>
+                    <p>Unità in attesa del veicolo oppure cassoni parziali da rimettere obbligatoriamente a magazzino.</p>
                 </div>
                 <button id="closeUnloadZone" type="button" aria-label="Chiudi">×</button>
             </header>
@@ -540,8 +663,46 @@
                 <div><strong id="unloadZoneSummary">Zona vuota</strong><small>Tasto destro su un’unità per ricaricarla a magazzino.</small></div>
                 <button id="confirmVehicleLoad" type="button" disabled>Conferma caricamento veicolo</button>
             </div>
-            <div class="unload-zone-columns" aria-hidden="true"><span>Articolo</span><span>Cliente</span><span>Rif. ordine</span><span>Tipologia</span><span>Provenienza</span><span>Stato</span></div>
+            <div class="unload-zone-columns" aria-hidden="true"><span>Articolo</span><span>Cliente</span><span>Rif. ordine</span><span>Tipologia</span><span>Provenienza</span><span>Stato</span><span>Azioni</span></div>
             <div class="unload-zone-list" id="unloadZoneList"></div>
+        </section>
+    </div>
+
+    <div class="restriction-backdrop unload-reload-backdrop" id="unloadReloadDialog" aria-hidden="true" inert>
+        <section class="unload-reload-dialog" role="dialog" aria-modal="true" aria-labelledby="unloadReloadTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">RIENTRO DALLA ZONA SCARICO</span>
+                    <h2 id="unloadReloadTitle">Verifica rientro a magazzino</h2>
+                    <p>Controlla l'unità selezionata e la destinazione proposta prima di confermare.</p>
+                </div>
+                <button id="closeUnloadReload" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="unload-reload-body">
+                <div class="unload-reload-grid">
+                    <article><span>Articolo</span><strong id="unloadReloadArticle">—</strong></article>
+                    <article><span>Cliente</span><strong id="unloadReloadCustomer">—</strong></article>
+                    <article><span>Rif. ordine</span><strong id="unloadReloadOrder">—</strong></article>
+                    <article><span>Provenienza</span><strong id="unloadReloadOrigin">—</strong></article>
+                    <label class="unload-reload-field">
+                        <span>Codice pesata al rientro (opzionale)</span>
+                        <input id="unloadReloadWeighing" type="text" autocomplete="off" placeholder="Lascia vuoto se non disponibile">
+                    </label>
+                    <label class="unload-reload-field">
+                        <span>Numero pezzi al rientro</span>
+                        <input id="unloadReloadPieces" type="number" min="1" step="1" required>
+                    </label>
+                </div>
+                <section class="unload-reload-destination">
+                    <span class="section-label">DESTINAZIONE PROPOSTA</span>
+                    <strong id="unloadReloadDestination">Calcolo in corso…</strong>
+                    <p id="unloadReloadMessage">Il cassone resterà nella Zona scarico fino alla conferma.</p>
+                </section>
+                <footer class="unload-reload-actions">
+                    <button id="cancelUnloadReload" type="button">Annulla</button>
+                    <button class="operation-button--primary" id="confirmUnloadReload" type="button">Conferma rientro</button>
+                </footer>
+            </div>
         </section>
     </div>
 
@@ -585,9 +746,6 @@
 
     <div class="slot-context-menu" id="slotContextMenu" role="menu" aria-hidden="true">
         <div class="slot-context-menu__title" id="contextSlotCode">A1a</div>
-        <button id="togglePartialButton" type="button" role="menuitem">Segna come parziale</button>
-        <button id="markSelectionPartial" type="button" role="menuitem" hidden>Segna selezione come parziale</button>
-        <button id="clearSelectionPartial" type="button" role="menuitem" hidden>Rimuovi parziale dalla selezione</button>
         <button id="startRelocationButton" type="button" role="menuitem">Rialloca</button>
         <button id="placeRelocationButton" type="button" role="menuitem" hidden>Inserisci qui</button>
         <button id="swapRelocationButton" type="button" role="menuitem" hidden>Scambia posizioni</button>
@@ -635,25 +793,47 @@
                         <strong id="restrictionConfiguredCount">0 regole configurate</strong>
                         <span id="restrictionConflictCount">Nessun conflitto</span>
                     </div>
+                    <button class="restriction-overview-open" id="openRestrictionOverview" type="button">
+                        <strong>Riepilogo completo</strong>
+                        <small>Tutte le inclusioni ed esclusioni</small>
+                    </button>
                 </aside>
 
-                <div class="restriction-editors">
+                <div class="restriction-editors" id="restrictionEditorView">
+                    <div class="restriction-quick-help">
+                        <strong>Come si usa</strong>
+                        <span>Scrivi un cliente, premi <b>Aggiungi</b> e ripeti. Usa <b>×</b> per rimuoverne soltanto uno, quindi salva la regola.</span>
+                    </div>
                     <section class="restriction-editor">
                         <div class="restriction-editor__heading">
                             <div><span>PRIORITÀ 1</span><h3 id="rowRestrictionTitle">Regola fila A</h3></div>
                             <button id="clearRowRestriction" type="button">Rimuovi regola</button>
                         </div>
                         <div class="restriction-fields">
-                            <label>
+                            <div class="restriction-customer-field">
+                                <span class="restriction-customer-field__label">
                                 Whitelist · solo questi clienti
-                                <input id="rowWhitelist" placeholder="es. FANTINI, AGPRESS">
-                                <small>Se valorizzata, tutti gli altri clienti vengono esclusi.</small>
-                            </label>
-                            <label>
+                                </span>
+                                <div class="restriction-customer-add">
+                                    <input id="rowWhitelistEntry" placeholder="Scrivi un cliente" autocomplete="off" aria-label="Aggiungi cliente alla whitelist della fila">
+                                    <button type="button" data-restriction-add="rowWhitelist">Aggiungi</button>
+                                </div>
+                                <input id="rowWhitelist" type="hidden">
+                                <div class="restriction-customer-chips" id="rowWhitelistChips"></div>
+                                <small>Solo i clienti elencati potranno essere allocati nella fila.</small>
+                            </div>
+                            <div class="restriction-customer-field">
+                                <span class="restriction-customer-field__label">
                                 Blacklist · clienti vietati
-                                <input id="rowBlacklist" placeholder="es. FANTINI">
-                                <small>Separare più clienti con virgola.</small>
-                            </label>
+                                </span>
+                                <div class="restriction-customer-add">
+                                    <input id="rowBlacklistEntry" placeholder="Scrivi un cliente" autocomplete="off" aria-label="Aggiungi cliente alla blacklist della fila">
+                                    <button type="button" data-restriction-add="rowBlacklist">Aggiungi</button>
+                                </div>
+                                <input id="rowBlacklist" type="hidden">
+                                <div class="restriction-customer-chips" id="rowBlacklistChips"></div>
+                                <small>I clienti elencati saranno esclusi dalla fila.</small>
+                            </div>
                         </div>
                         <div class="restriction-editor__footer">
                             <span id="rowRestrictionMessage" role="status"></span>
@@ -669,16 +849,33 @@
                         <label class="restriction-slot-select">
                             Ubicazione della fila selezionata
                             <select id="restrictionSlotSelect"></select>
+                            <small>La regola appartiene all'ubicazione e resta valida anche quando cambia il cassone.</small>
                         </label>
                         <div class="restriction-fields">
-                            <label>
+                            <div class="restriction-customer-field">
+                                <span class="restriction-customer-field__label">
                                 Whitelist dello slot
-                                <input id="slotWhitelist" placeholder="Clienti ammessi nello slot">
-                            </label>
-                            <label>
+                                </span>
+                                <div class="restriction-customer-add">
+                                    <input id="slotWhitelistEntry" placeholder="Scrivi un cliente" autocomplete="off" aria-label="Aggiungi cliente alla whitelist dello slot">
+                                    <button type="button" data-restriction-add="slotWhitelist">Aggiungi</button>
+                                </div>
+                                <input id="slotWhitelist" type="hidden">
+                                <div class="restriction-customer-chips" id="slotWhitelistChips"></div>
+                                <small>Può solo restringere ulteriormente la regola della fila.</small>
+                            </div>
+                            <div class="restriction-customer-field">
+                                <span class="restriction-customer-field__label">
                                 Blacklist dello slot
-                                <input id="slotBlacklist" placeholder="Clienti vietati nello slot">
-                            </label>
+                                </span>
+                                <div class="restriction-customer-add">
+                                    <input id="slotBlacklistEntry" placeholder="Scrivi un cliente" autocomplete="off" aria-label="Aggiungi cliente alla blacklist dello slot">
+                                    <button type="button" data-restriction-add="slotBlacklist">Aggiungi</button>
+                                </div>
+                                <input id="slotBlacklist" type="hidden">
+                                <div class="restriction-customer-chips" id="slotBlacklistChips"></div>
+                                <small>Puoi configurare ogni ubicazione in modo indipendente.</small>
+                            </div>
                         </div>
                         <div class="restriction-editor__footer">
                             <span id="slotRestrictionMessage" role="status"></span>
@@ -693,6 +890,23 @@
                         </div>
                         <p id="effectiveRestrictionText">Nessuna restrizione: tutti i clienti sono ammessi.</p>
                     </section>
+                </div>
+
+                <div class="restriction-overview" id="restrictionOverviewView" hidden>
+                    <div class="restriction-overview__heading">
+                        <div>
+                            <span class="section-label">QUADRO COMPLETO</span>
+                            <h3>Tutte le regole configurate</h3>
+                            <p>Apri una riga per modificarla o rimuovere un solo cliente.</p>
+                        </div>
+                        <button id="closeRestrictionOverview" type="button">Torna alla configurazione</button>
+                    </div>
+                    <div class="restriction-overview__table" role="table" aria-label="Riepilogo vincoli cliente">
+                        <div class="restriction-overview__row restriction-overview__row--header" role="row">
+                            <span>Ambito</span><span>Whitelist</span><span>Blacklist</span><span></span>
+                        </div>
+                        <div id="restrictionOverviewRows"></div>
+                    </div>
                 </div>
             </div>
         </section>
