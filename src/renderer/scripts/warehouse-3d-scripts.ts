@@ -88,8 +88,10 @@ let savedCameraViews = [];
 let activeCameraViewId = "";
 let cameraTransition = null;
 let cameraViewOwner = { key: "guest", label: "Nessun operatore", canManage: false };
+let savedPersonalViewPresets = [];
 const CAMERA_VIEWS_STORAGE_KEY = "aypi-warehouse-3d-camera-views-by-operator";
 const LEGACY_CAMERA_VIEWS_STORAGE_KEY = "aypi-warehouse-3d-camera-views";
+const VIEW_PRESETS_STORAGE_KEY = "aypi-warehouse-3d-view-presets-by-operator";
 
 function validCameraViews(entries) {
     if (!Array.isArray(entries)) return [];
@@ -144,13 +146,41 @@ function saveCameraViews() {
     localStorage.setItem(CAMERA_VIEWS_STORAGE_KEY, JSON.stringify(registry));
 }
 
+function personalViewPresetRegistry() {
+    try {
+        const registry = JSON.parse(localStorage.getItem(VIEW_PRESETS_STORAGE_KEY) || "{}");
+        return registry && typeof registry === "object" && !Array.isArray(registry) ? registry : {};
+    } catch {
+        return {};
+    }
+}
+
+function validPersonalViewPresets(entries) {
+    if (!Array.isArray(entries)) return [];
+    return entries.filter((entry) => entry?.id && entry?.name && entry?.settings && typeof entry.settings === "object").slice(0, 20);
+}
+
+function loadPersonalViewPresets(ownerKey) {
+    return validPersonalViewPresets(personalViewPresetRegistry()[ownerKey]);
+}
+
+function savePersonalViewPresets() {
+    if (!cameraViewOwner.canManage) return;
+    const registry = personalViewPresetRegistry();
+    registry[cameraViewOwner.key] = validPersonalViewPresets(savedPersonalViewPresets);
+    localStorage.setItem(VIEW_PRESETS_STORAGE_KEY, JSON.stringify(registry));
+}
+
 function applyCameraViewOwner(actor) {
     const nextOwner = cameraOwnerIdentity(actor);
-    if (nextOwner.key === cameraViewOwner.key) return;
+    const ownerChanged = nextOwner.key !== cameraViewOwner.key;
     cameraViewOwner = nextOwner;
-    savedCameraViews = loadCameraViews(cameraViewOwner.key);
-    activeCameraViewId = "";
-    cameraTransition = null;
+    if (ownerChanged) {
+        savedCameraViews = loadCameraViews(cameraViewOwner.key);
+        savedPersonalViewPresets = loadPersonalViewPresets(cameraViewOwner.key);
+        activeCameraViewId = "";
+        cameraTransition = null;
+    }
     const saveButton = document.getElementById("saveCameraView");
     const newButton = document.getElementById("newCameraView");
     saveButton.disabled = !cameraViewOwner.canManage;
@@ -161,6 +191,8 @@ function applyCameraViewOwner(actor) {
         : "Accedi come operatore o admin per gestire i POV personali.";
     closeCameraSaveForm();
     renderCameraViews();
+    syncPersonalViewPresetAccess();
+    renderPersonalViewPresets();
 }
 
 function saveViewerSettings() {
@@ -195,10 +227,6 @@ function rowFrontDirection(row) {
 function sidePhysicalDirection(row, side) {
     const frontDirection = rowFrontDirection(row);
     return side === "front" ? frontDirection : -frontDirection;
-}
-
-function surfaceFaceForSide(row, side) {
-    return sidePhysicalDirection(row, side) > 0 ? "rear" : "front";
 }
 
 function slotCode(row, columnIndex, side, level) {
@@ -450,8 +478,7 @@ function addSlotMesh(location, item, state, position, locations = [location]) {
     pickables.push(mesh);
     if (item) {
         const lines = itemLabelLines(locations.length > 1 ? locations.join(" + ") : location, item);
-        const parsed = parseLocation(location);
-        const faces = pallet ? ["front", "rear"] : [surfaceFaceForSide(parsed?.row, parsed?.side || "front")];
+        const faces = ["front", "rear"];
         mesh.userData.labels = faces.map((face) => {
             const label = createSurfaceLabel(lines, face, pallet);
             label.position.set(0, 0, (face === "front" ? -1 : 1) * (pallet ? .816 : .386));
@@ -1068,6 +1095,174 @@ function renderRowSpacingControls() {
     }
 }
 
+function captureViewerPresetSettings() {
+    return {
+        rowSpacing: viewerSettings.rowSpacing,
+        rowSpacings: { ...(viewerSettings.rowSpacings || {}) },
+        rackOpacity: viewerSettings.rackOpacity,
+        labelScale: viewerSettings.labelScale,
+        cameraFov: viewerSettings.cameraFov,
+        movementSpeed: viewerSettings.movementSpeed,
+        showRacks: viewerSettings.showRacks,
+        showGrid: viewerSettings.showGrid,
+        hiddenRows: [...(viewerSettings.hiddenRows || [])],
+    };
+}
+
+function applyPersonalViewPreset(preset) {
+    const settings = preset?.settings || {};
+    viewerSettings = {
+        ...defaultViewerSettings,
+        ...settings,
+        rowSpacings: settings.rowSpacings && typeof settings.rowSpacings === "object" ? { ...settings.rowSpacings } : {},
+        hiddenRows: Array.isArray(settings.hiddenRows) ? [...settings.hiddenRows] : [],
+    };
+    camera.fov = viewerSettings.cameraFov;
+    camera.updateProjectionMatrix();
+    document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
+    syncViewSettingsUi();
+    scheduleSceneRebuild();
+}
+
+function syncPersonalViewPresetAccess() {
+    const saveButton = document.getElementById("saveViewPreset");
+    const owner = document.getElementById("viewPresetOwner");
+    saveButton.disabled = !cameraViewOwner.canManage;
+    saveButton.title = cameraViewOwner.canManage
+        ? `Salva una configurazione personale per ${cameraViewOwner.label}`
+        : "Accedi come operatore o admin per salvare preset personali";
+    owner.textContent = cameraViewOwner.canManage
+        ? `Solo per ${cameraViewOwner.label}`
+        : "Login operatore richiesto";
+    if (!cameraViewOwner.canManage) document.getElementById("viewPresetForm").hidden = true;
+}
+
+function renderPersonalViewPresets() {
+    const list = document.getElementById("personalViewPresetList");
+    const empty = document.getElementById("personalViewPresetEmpty");
+    list.replaceChildren();
+    empty.hidden = savedPersonalViewPresets.length > 0;
+    empty.textContent = cameraViewOwner.canManage
+        ? "Nessun preset personale salvato."
+        : "Accedi come operatore o admin per usare i preset personali.";
+    savedPersonalViewPresets.forEach((preset) => {
+        const card = document.createElement("article");
+        card.className = "personal-view-preset";
+        const name = document.createElement("input");
+        name.value = preset.name;
+        name.maxLength = 42;
+        name.readOnly = true;
+        name.setAttribute("aria-label", `Nome preset ${preset.name}`);
+        const actions = document.createElement("div");
+        actions.className = "personal-view-preset__actions";
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.className = "is-apply";
+        apply.textContent = "Applica";
+        apply.addEventListener("click", () => applyPersonalViewPreset(preset));
+        const rename = document.createElement("button");
+        rename.type = "button";
+        rename.textContent = "Rinomina";
+        rename.addEventListener("click", () => {
+            if (name.readOnly) {
+                name.readOnly = false;
+                rename.textContent = "Salva";
+                name.focus();
+                name.select();
+                return;
+            }
+            const nextName = name.value.trim();
+            const duplicate = savedPersonalViewPresets.some((entry) => entry.id !== preset.id
+                && entry.name.toUpperCase() === nextName.toUpperCase());
+            if (!nextName || duplicate) {
+                name.value = preset.name;
+                name.select();
+                return;
+            }
+            preset.name = nextName;
+            preset.updatedAt = new Date().toISOString();
+            savePersonalViewPresets();
+            renderPersonalViewPresets();
+        });
+        name.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !name.readOnly) rename.click();
+            if (event.key === "Escape" && !name.readOnly) renderPersonalViewPresets();
+        });
+        const replace = document.createElement("button");
+        replace.type = "button";
+        replace.textContent = "Aggiorna";
+        replace.title = "Sostituisci il preset con le impostazioni attuali";
+        replace.addEventListener("click", () => armCameraAction(replace, "Conferma", () => {
+            preset.settings = captureViewerPresetSettings();
+            preset.updatedAt = new Date().toISOString();
+            savePersonalViewPresets();
+            renderPersonalViewPresets();
+        }));
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "is-danger";
+        remove.textContent = "Elimina";
+        remove.addEventListener("click", () => armCameraAction(remove, "Conferma", () => {
+            savedPersonalViewPresets = savedPersonalViewPresets.filter((entry) => entry.id !== preset.id);
+            savePersonalViewPresets();
+            renderPersonalViewPresets();
+        }));
+        actions.append(apply, rename, replace, remove);
+        card.append(name, actions);
+        list.appendChild(card);
+    });
+}
+
+function setupPersonalViewPresets() {
+    const form = document.getElementById("viewPresetForm");
+    const input = document.getElementById("viewPresetName");
+    const message = document.getElementById("viewPresetMessage");
+    const closeForm = () => {
+        form.hidden = true;
+        message.textContent = "";
+    };
+    document.getElementById("saveViewPreset").addEventListener("click", () => {
+        if (!cameraViewOwner.canManage) return;
+        form.hidden = false;
+        message.textContent = "";
+        input.value = `Configurazione ${savedPersonalViewPresets.length + 1}`;
+        input.focus();
+        input.select();
+    });
+    document.getElementById("cancelViewPreset").addEventListener("click", closeForm);
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!cameraViewOwner.canManage) return;
+        const name = input.value.trim();
+        if (!name) {
+            message.textContent = "Inserisci un nome per il preset.";
+            input.focus();
+            return;
+        }
+        if (savedPersonalViewPresets.some((entry) => entry.name.toUpperCase() === name.toUpperCase())) {
+            message.textContent = "Esiste già un preset con questo nome.";
+            input.focus();
+            input.select();
+            return;
+        }
+        if (savedPersonalViewPresets.length >= 20) {
+            message.textContent = "Puoi salvare al massimo 20 preset personali.";
+            return;
+        }
+        savedPersonalViewPresets.push({
+            id: `view-preset-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            name,
+            settings: captureViewerPresetSettings(),
+            updatedAt: new Date().toISOString(),
+        });
+        savePersonalViewPresets();
+        closeForm();
+        renderPersonalViewPresets();
+    });
+    syncPersonalViewPresetAccess();
+    renderPersonalViewPresets();
+}
+
 function syncViewSettingsUi() {
     const values = {
         rackOpacityControl: Math.round(viewerSettings.rackOpacity * 100),
@@ -1231,6 +1426,7 @@ window.addEventListener("blur", () => pressedMovementKeys.clear());
 window.addEventListener("beforeunload", () => movementTimer.dispose(), { once: true });
 window.addEventListener("resize", resize);
 setupViewSettings();
+setupPersonalViewPresets();
 setupCameraViews();
 
 ipcRenderer.on("warehouse-3d-data", (_event, payload) => {

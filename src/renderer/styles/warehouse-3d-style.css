@@ -69,6 +69,25 @@ button, input { font: inherit; }
 .scene-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 12px 0; }
 .scene-presets button, .scene-rows button, .viewer-settings footer button { min-height: 30px; border: 1px solid #b8c8d2; border-radius: 4px; color: #3b5363; background: #fff; font-size: 9px; font-weight: 750; cursor: pointer; }
 .scene-presets button.is-active { border-color: var(--blue); color: #fff; background: var(--blue); }
+.personal-view-presets { margin-bottom: 12px; padding: 9px; border: 1px solid #c8d7e0; border-radius: 5px; background: #f1f6f9; }
+.personal-view-presets__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.personal-view-presets__heading > div { display: grid; gap: 1px; color: #3c5362; font-size: 10px; }
+.personal-view-presets__heading small { color: #788893; font-size: 8px; font-weight: 500; }
+.personal-view-presets button { min-height: 27px; padding: 4px 7px; border: 1px solid #adc0cc; border-radius: 4px; color: #3b5363; background: #fff; font-size: 8px; font-weight: 750; cursor: pointer; }
+.personal-view-presets button:not(.is-apply):not(.is-danger):hover { border-color: var(--blue); color: var(--blue); }
+.personal-view-presets button:disabled { opacity: .48; cursor: not-allowed; }
+#viewPresetForm { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; margin-top: 8px; }
+#viewPresetForm input { min-width: 0; height: 29px; padding: 4px 7px; border: 1px solid #adbec9; border-radius: 4px; color: #263f4e; background: #fff; font-size: 9px; outline: none; }
+#viewPresetForm input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(36,118,168,.12); }
+#viewPresetForm p { grid-column: 1 / -1; min-height: 0; margin: 0; color: #9b3939; font-size: 8px; }
+#personalViewPresetList { display: grid; gap: 5px; margin-top: 8px; }
+.personal-view-preset { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 6px; border: 1px solid #cfdae1; border-radius: 4px; background: #fff; }
+.personal-view-preset input { min-width: 0; height: 25px; padding: 3px 5px; overflow: hidden; border: 1px solid transparent; border-radius: 3px; color: #314958; background: transparent; font-size: 9px; font-weight: 800; text-overflow: ellipsis; }
+.personal-view-preset input:not([readonly]) { border-color: #9db9ca; background: #fff; outline: none; }
+.personal-view-preset__actions { display: flex; gap: 3px; }
+.personal-view-preset__actions .is-apply { border-color: #2a759f; color: #fff; background: #2a759f; }
+.personal-view-preset__actions .is-danger { color: #963b3b; border-color: #dabbbb; background: #fff7f7; }
+.personal-view-presets__empty { margin: 8px 2px 0; color: #7a8992; font-size: 8px; text-align: center; }
 .scene-controls { display: grid; gap: 11px; }
 .scene-controls label { display: grid; gap: 5px; color: #536775; font-size: 10px; font-weight: 650; }
 .scene-controls label > span { display: flex; justify-content: space-between; gap: 10px; }

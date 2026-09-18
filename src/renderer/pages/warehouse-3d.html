@@ -64,6 +64,20 @@
                     <button class="is-active" type="button" data-scene-preset="operational">Operativa</button>
                     <button type="button" data-scene-preset="exploded">Esplosa</button>
                 </div>
+                <section class="personal-view-presets">
+                    <div class="personal-view-presets__heading">
+                        <div><strong>Preset personali</strong><small id="viewPresetOwner">Configurazioni dell'operatore</small></div>
+                        <button id="saveViewPreset" type="button">＋ Salva attuale</button>
+                    </div>
+                    <form id="viewPresetForm" hidden>
+                        <input id="viewPresetName" maxlength="42" autocomplete="off" placeholder="Nome configurazione">
+                        <button type="submit">Salva</button>
+                        <button id="cancelViewPreset" type="button">Annulla</button>
+                        <p id="viewPresetMessage" role="alert"></p>
+                    </form>
+                    <div id="personalViewPresetList"></div>
+                    <p class="personal-view-presets__empty" id="personalViewPresetEmpty">Nessun preset personale salvato.</p>
+                </section>
                 <div class="scene-controls">
                     <label><span>Opacità scaffalatura <output id="rackOpacityValue">22%</output></span><input id="rackOpacityControl" type="range" min="5" max="100" step="1" value="22"></label>
                     <label><span>Dimensione scritte <output id="labelScaleValue">105%</output></span><input id="labelScaleControl" type="range" min="75" max="120" step="1" value="105"></label>

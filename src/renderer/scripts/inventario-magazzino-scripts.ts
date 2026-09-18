@@ -161,6 +161,12 @@ function isWarehouseAdmin() {
     return !WAREHOUSE_LOGIN_REQUIRED || warehouseSession.role === "admin";
 }
 
+function isExclusiveTestDatabaseAdmin() {
+    return WAREHOUSE_LOGIN_REQUIRED
+        && warehouseSession.role === "admin"
+        && String(warehouseSession.adminName || "").trim().localeCompare("Ayrton Pizzi", "it", { sensitivity: "base" }) === 0;
+}
+
 function warehouseActorSnapshot() {
     if (!WAREHOUSE_LOGIN_REQUIRED) {
         return {
@@ -207,6 +213,11 @@ function syncWarehouseSessionUi() {
         section.hidden = locked;
         section.title = locked ? "Accesso amministratore richiesto" : "";
     });
+    const testDatabaseActions = document.getElementById("testDatabaseActions");
+    const canManageTestDatabase = isExclusiveTestDatabaseAdmin();
+    if (testDatabaseActions) testDatabaseActions.hidden = !canManageTestDatabase;
+    setTestDatabaseButtonsDisabled(warehouseStorageUnavailable);
+    if (!canManageTestDatabase) closePseudoPopulateDialog();
     if (!isWarehouseAdmin()) {
         closeRestrictionDialog();
         closeWarehouseOptimizer();
@@ -644,8 +655,9 @@ function refreshWarehouseDataViews() {
 }
 
 function setTestDatabaseButtonsDisabled(disabled) {
-    document.getElementById("populateWarehouseDatabase").disabled = disabled;
-    document.getElementById("clearWarehouseDatabase").disabled = disabled;
+    const inaccessible = !isExclusiveTestDatabaseAdmin();
+    document.getElementById("populateWarehouseDatabase").disabled = disabled || inaccessible;
+    document.getElementById("clearWarehouseDatabase").disabled = disabled || inaccessible;
 }
 
 function setWarehouseOperationsDisabled(disabled) {
@@ -6395,6 +6407,11 @@ function renderPseudoPopulationSummary() {
 }
 
 function openPseudoPopulateDialog() {
+    if (!isExclusiveTestDatabaseAdmin()) {
+        closePseudoPopulateDialog();
+        showWarehouseToast("Funzione riservata all'admin Ayrton Pizzi.", true);
+        return;
+    }
     document.getElementById("pseudoPopulateStatus").textContent = "";
     renderPseudoPopulationSummary();
     openWarehouseDialog(document.getElementById("pseudoPopulateDialog"), document.getElementById("pseudoTotalCrates"), true);
@@ -6507,6 +6524,11 @@ function setupTemporaryDatabaseActions() {
     }));
     document.getElementById("pseudoPopulateForm")?.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (!isExclusiveTestDatabaseAdmin()) {
+            closePseudoPopulateDialog();
+            showWarehouseToast("Funzione riservata all'admin Ayrton Pizzi.", true);
+            return;
+        }
         const result = readPseudoPopulationOptions();
         const status = document.getElementById("pseudoPopulateStatus");
         if (result.error) {
@@ -6547,6 +6569,10 @@ function setupTemporaryDatabaseActions() {
     });
 
     document.getElementById("clearWarehouseDatabase")?.addEventListener("click", async () => {
+        if (!isExclusiveTestDatabaseAdmin()) {
+            showWarehouseToast("Funzione riservata all'admin Ayrton Pizzi.", true);
+            return;
+        }
         if (!await showWarehouseConfirm({
             title: "Svuota database magazzino",
             message: `Giacenze, area ${STAGING_AREA_LABEL} e storico verranno eliminati completamente. L'operazione non è annullabile.`,
