@@ -1749,9 +1749,9 @@ function configureOperationDialog() {
     document.getElementById("operationDialogEyebrow").textContent = load ? "NUOVO GRUPPO DI CARICO" : "NUOVO GRUPPO DI SCARICO";
     document.getElementById("operationDialogTitle").textContent = load ? "Componi il carico" : "Componi lo scarico";
     document.getElementById("operationDialogDescription").textContent = load
-        ? "Inserisci un singolo cassone oppure aggiungine più insieme condividendo articolo, cliente e ordine."
+        ? "Inserisci un singolo cassone oppure aggiungine più insieme condividendo articolo e, se indicati, cliente e ordine."
         : "Preleva per articolo e pezzi, per riferimento ordine oppure mediante codice pesata esatto.";
-    document.getElementById("loadCustomer").required = load;
+    document.getElementById("loadCustomer").required = false;
     document.getElementById("loadArticle").required = load;
     document.getElementById("loadOrderReference").required = false;
     document.getElementById("loadPieceCount").required = load;
@@ -1784,7 +1784,9 @@ function createOperationLineElement(entry, index, review = false) {
     const orderDescription = entry.order
         ? entry.order
         : operationGroupMode === "unload" ? "Tutti gli ordini · FIFO più vecchio" : "Ordine non indicato";
-    const details = [entry.customer || "Qualsiasi cliente", orderDescription, entry.type === "pallet" ? "Pallet" : "Cassone"];
+    const customerDescription = entry.customer
+        || (operationGroupMode === "unload" ? "Qualsiasi cliente" : "Cliente non indicato");
+    const details = [customerDescription, orderDescription, entry.type === "pallet" ? "Pallet" : "Cassone"];
     if (entry.weighingCode) details.push(`Pesata ${entry.weighingCode}`);
     if (entry.pieceCount) details.push(`${entry.pieceCount} pezzi`);
     if (entry.availablePieces) details.push(`${entry.availablePieces} pezzi disponibili`);
@@ -1868,7 +1870,7 @@ function editOperationLine(index) {
     document.getElementById("loadBatchCount").value = "1";
     updateLoadBatchRows();
     document.getElementById("loadArticle").value = entry.article;
-    document.getElementById("loadCustomer").value = entry.customer;
+    document.getElementById("loadCustomer").value = entry.customer || "";
     document.getElementById("loadOrderReference").value = entry.order;
     document.getElementById("loadQuantity").value = String(entry.quantity);
     document.getElementById("loadWeighingCode").value = entry.weighingCode || "";
@@ -3686,19 +3688,28 @@ function warehouseItemPieces(item) {
     return Math.max(1, Number(item?.pieceCount) || 1);
 }
 
-function choosePieceWithdrawalUnits(candidates, requestedPieces) {
-    const ordered = candidates.slice().sort((left, right) => (
-        warehouseItemPieces(left.item) - warehouseItemPieces(right.item)
-        || fifoOperationalBatch(left.item).localeCompare(fifoOperationalBatch(right.item))
-        || left.locations[0].localeCompare(right.locations[0], "it", { numeric: true })
-    ));
+function choosePieceWithdrawalUnits(state, candidates, requestedPieces, alreadySelected = new Set()) {
+    const remainingCandidates = candidates.slice();
+    const selectedIds = new Set(alreadySelected);
     const selections = [];
     let remaining = requestedPieces;
-    for (const unit of ordered) {
-        if (remaining <= 0) break;
+    while (remaining > 0 && remainingCandidates.length) {
+        remainingCandidates.sort((left, right) => {
+            const pieceDifference = warehouseItemPieces(left.item) - warehouseItemPieces(right.item);
+            if (pieceDifference) return pieceDifference;
+            const leftMetrics = estimateUnloadSelection(state, new Set([...selectedIds, left.item.id]));
+            const rightMetrics = estimateUnloadSelection(state, new Set([...selectedIds, right.item.id]));
+            const movementDifference = leftMetrics.humanMovements - rightMetrics.humanMovements;
+            return movementDifference
+                || scoreUnloadSelection(leftMetrics) - scoreUnloadSelection(rightMetrics)
+                || fifoOperationalBatch(left.item).localeCompare(fifoOperationalBatch(right.item))
+                || left.locations[0].localeCompare(right.locations[0], "it", { numeric: true });
+        });
+        const unit = remainingCandidates.shift();
         const availablePieces = warehouseItemPieces(unit.item);
         const takenPieces = Math.min(remaining, availablePieces);
         selections.push({ unit, takenPieces, availablePieces, complete: takenPieces === availablePieces });
+        selectedIds.add(unit.item.id);
         remaining -= takenPieces;
     }
     return { selections, remaining };
@@ -3965,7 +3976,7 @@ function planUnloadOperation(entries, initialState = inventory) {
             if (availablePieces < requestedPieces) {
                 return { error: `Disponibilità insufficiente: richiesti ${requestedPieces} pezzi${entry.article ? ` dell'articolo ${entry.article}` : ""}, disponibili ${availablePieces}.` };
             }
-            choosePieceWithdrawalUnits(candidates, requestedPieces).selections.forEach((selection) => {
+            choosePieceWithdrawalUnits(sourceState, candidates, requestedPieces, selectedIds).selections.forEach((selection) => {
                 touchedIds.add(selection.unit.item.id);
                 pieceSelections.push(selection);
                 if (selection.complete) {
