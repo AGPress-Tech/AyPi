@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
+    <title>AyPi - Magazzino 3D</title>
+    <link rel="stylesheet" href="../styles/warehouse-3d-style.css">
+</head>
+<body>
+    <header class="viewer-header">
+        <div class="viewer-title">
+            <span class="eyebrow">DIGITAL TWIN · MAGAZZINO</span>
+            <h1>Visualizzazione 3D</h1>
+            <p id="viewerStatus">In attesa dei dati del magazzino…</p>
+        </div>
+        <div class="viewer-summary">
+            <article><span>FILE</span><strong id="viewerRows">0</strong></article>
+            <article><span>UNITÀ</span><strong id="viewerUnits">0</strong></article>
+            <article><span>SLOT LIBERI</span><strong id="viewerFree">0</strong></article>
+            <i id="viewerLiveState">LIVE</i>
+        </div>
+    </header>
+
+    <main class="viewer-layout">
+        <section class="viewer-stage" id="viewerStage">
+            <canvas id="warehouseCanvas" aria-label="Modello tridimensionale del magazzino"></canvas>
+            <div class="viewer-toolbar">
+                <div class="row-jump" id="viewerRowButtons" aria-label="Vai alla fila"></div>
+                <div class="camera-tools">
+                    <button id="cameraHome" type="button">Isometrica</button>
+                    <button id="cameraTop" type="button">Dall'alto</button>
+                    <button id="toggleViewSettings" type="button" aria-expanded="false">Personalizza</button>
+                    <button id="toggleLabels" class="is-active" type="button" aria-pressed="true" title="Mostra o nasconde le scritte sui cassoni">Scritte visibili</button>
+                    <button id="toggleFreeSlots" class="is-active" type="button" aria-pressed="true">Slot liberi</button>
+                </div>
+            </div>
+            <label class="viewer-search">
+                <span aria-hidden="true">⌕</span>
+                <input id="viewerSearch" type="search" autocomplete="off" placeholder="Ubicazione, articolo, cliente, ordine o pesata…">
+                <kbd>ESC</kbd>
+            </label>
+            <div class="viewer-legend" aria-label="Legenda">
+                <span><i class="is-free"></i> Libero</span>
+                <span><i class="is-occupied"></i> Cassone</span>
+                <span><i class="is-pallet"></i> Pallet</span>
+                <span><i class="is-blocked"></i> Bloccato</span>
+                <span><i class="is-selected"></i> Selezionato</span>
+                <span><i class="is-related"></i> Contenuto corrispondente</span>
+                <span><i class="is-match"></i> Risultato</span>
+            </div>
+            <div class="viewer-help">Trascina per ruotare · rotella per zoom · tasto destro per spostare · WASD per muoverti</div>
+            <section class="viewer-settings" id="viewerSettings" hidden>
+                <header>
+                    <div><span class="eyebrow">CONFIGURAZIONE SCENA</span><h2>Personalizza visuale</h2></div>
+                    <button id="closeViewSettings" type="button" aria-label="Chiudi">×</button>
+                </header>
+                <div class="scene-presets" aria-label="Preset visualizzazione">
+                    <button type="button" data-scene-preset="compact">Compatta</button>
+                    <button class="is-active" type="button" data-scene-preset="operational">Operativa</button>
+                    <button type="button" data-scene-preset="exploded">Esplosa</button>
+                </div>
+                <div class="scene-controls">
+                    <label><span>Distanza tra scaffalature <output id="rowSpacingValue">6,2 u</output></span><input id="rowSpacingControl" type="range" min="3.2" max="10" step="0.1" value="6.2"></label>
+                    <label><span>Opacità scaffalatura <output id="rackOpacityValue">22%</output></span><input id="rackOpacityControl" type="range" min="5" max="100" step="1" value="22"></label>
+                    <label><span>Dimensione scritte <output id="labelScaleValue">105%</output></span><input id="labelScaleControl" type="range" min="75" max="120" step="1" value="105"></label>
+                    <label><span>Ampiezza visuale <output id="cameraFovValue">42°</output></span><input id="cameraFovControl" type="range" min="28" max="65" step="1" value="42"></label>
+                    <label><span>Velocità movimento <output id="movementSpeedValue">100%</output></span><input id="movementSpeedControl" type="range" min="40" max="250" step="10" value="100"></label>
+                </div>
+                <div class="scene-switches">
+                    <label><input id="showRacksControl" type="checkbox" checked> Mostra scaffalature</label>
+                    <label><input id="showGridControl" type="checkbox" checked> Mostra griglia pavimento</label>
+                </div>
+                <div class="scene-rows">
+                    <div><strong>File visibili</strong><button id="showAllRows" type="button">Mostra tutte</button></div>
+                    <div id="sceneRowVisibility"></div>
+                </div>
+                <footer><button id="resetViewSettings" type="button">Ripristina impostazioni</button></footer>
+            </section>
+            <div class="slot-tooltip" id="slotTooltip" hidden></div>
+            <div class="viewer-loading" id="viewerLoading"><span></span><strong>Preparazione modello 3D…</strong></div>
+        </section>
+
+        <aside class="viewer-details">
+            <div class="details-empty" id="detailsEmpty">
+                <div class="details-cube">◇</div>
+                <h2>Seleziona uno slot</h2>
+                <p>Clicca su un cassone o uno spazio libero per consultarne i dati.</p>
+            </div>
+            <div id="detailsContent" hidden>
+                <span class="eyebrow">DETTAGLIO POSIZIONE</span>
+                <div class="details-heading">
+                    <h2 id="detailLocation">—</h2>
+                    <span id="detailState">—</span>
+                </div>
+                <dl id="detailFields"></dl>
+                <button id="showOn2dMap" type="button">Evidenzia nella mappa 2D</button>
+            </div>
+        </aside>
+    </main>
+
+    <script src="../scripts/warehouse-3d-scripts.js"></script>
+</body>
+</html>

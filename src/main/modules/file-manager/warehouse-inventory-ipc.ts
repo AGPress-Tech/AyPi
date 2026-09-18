@@ -11,6 +11,9 @@ let registered = false;
 let movementDetailsWindow: BrowserWindow | null = null;
 let movementDetailsOwner: BrowserWindow | null = null;
 let movementDetailsPayload: any = null;
+let warehouse3dWindow: BrowserWindow | null = null;
+let warehouse3dOwner: BrowserWindow | null = null;
+let warehouse3dPayload: any = null;
 
 function focusBrowserWindow(window: BrowserWindow | null) {
     if (!window || window.isDestroyed()) return;
@@ -184,6 +187,58 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         if (!movementDetailsWindow || movementDetailsWindow.isDestroyed()
             || movementDetailsWindow.webContents !== event.sender || !movementDetailsPayload) return;
         event.sender.send("warehouse-movement-details-data", movementDetailsPayload);
+    });
+    ipcMain.handle("warehouse-3d-open-window", (event, payload) => {
+        const owner = BrowserWindow.fromWebContents(event.sender);
+        if (!owner || owner.isDestroyed()) return false;
+        warehouse3dOwner = owner;
+        warehouse3dPayload = payload;
+        if (warehouse3dWindow && !warehouse3dWindow.isDestroyed()) {
+            warehouse3dWindow.maximize();
+            focusBrowserWindow(warehouse3dWindow);
+            warehouse3dWindow.webContents.send("warehouse-3d-data", warehouse3dPayload);
+            return true;
+        }
+        warehouse3dWindow = new BrowserWindow({
+            width: 1600,
+            height: 920,
+            minWidth: 1040,
+            minHeight: 680,
+            parent: owner,
+            show: false,
+            backgroundColor: "#e9f0f5",
+            webPreferences: { nodeIntegration: true, contextIsolation: false },
+        });
+        warehouse3dWindow.setMenu(null);
+        warehouse3dWindow.loadFile(path.join(__dirname, "..", "..", "pages", "warehouse-3d.html"));
+        warehouse3dWindow.once("ready-to-show", () => {
+            warehouse3dWindow?.maximize();
+            focusBrowserWindow(warehouse3dWindow);
+        });
+        warehouse3dWindow.on("focus", () => warehouse3dWindow?.webContents.focus());
+        warehouse3dWindow.on("closed", () => {
+            warehouse3dWindow = null;
+            focusBrowserWindow(warehouse3dOwner);
+            warehouse3dOwner = null;
+        });
+        return true;
+    });
+    ipcMain.on("warehouse-3d-update", (event, payload) => {
+        const sender = BrowserWindow.fromWebContents(event.sender);
+        if (sender && !sender.isDestroyed()) warehouse3dOwner = sender;
+        warehouse3dPayload = payload;
+        if (warehouse3dWindow && !warehouse3dWindow.isDestroyed()) {
+            warehouse3dWindow.webContents.send("warehouse-3d-data", warehouse3dPayload);
+        }
+    });
+    ipcMain.on("warehouse-3d-ready", (event) => {
+        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
+            || warehouse3dWindow.webContents !== event.sender || !warehouse3dPayload) return;
+        event.sender.send("warehouse-3d-data", warehouse3dPayload);
+    });
+    ipcMain.on("warehouse-3d-select-slot", (_event, location) => {
+        if (!warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
+        warehouse3dOwner.webContents.send("warehouse-3d-slot-selected", String(location || ""));
     });
     app.on("before-quit", () => {
         try { persistDatabase(app); } catch { /* a previous atomic save remains valid */ }

@@ -184,6 +184,25 @@ input { font: inherit; }
 .warehouse-login-toggle.is-authenticated { border-color: #8dbba0; color: #245f3d; background: #eef8f2; }
 .warehouse-login-toggle.is-authenticated > span { color: #2d8652; }
 
+.warehouse-3d-launch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 11px;
+    border: 1px solid #174f80;
+    border-radius: 6px;
+    color: #fff;
+    background: linear-gradient(135deg, #174f80, #267daf);
+    box-shadow: 0 3px 8px rgba(23, 79, 128, .18);
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+}
+.warehouse-3d-launch span { font-size: 16px; line-height: 1; transform: rotate(45deg); }
+.warehouse-3d-launch:hover { background: linear-gradient(135deg, #103e67, #1c6896); }
+.warehouse-3d-launch:disabled { opacity: .58; cursor: wait; }
+
 .test-database-actions {
     display: flex;
     align-items: center;

@@ -447,6 +447,47 @@ function serializeWarehouseInventory() {
     }));
 }
 
+function warehouse3dStateSnapshot() {
+    return {
+        rows: warehouseRows.map((row) => ({ ...row })),
+        inventory: serializeWarehouseInventory(),
+        selectedLocation: selectedSlot?.code || "",
+        displayFields: Array.from(displayFields),
+        revision: warehouseRevision,
+        generatedAt: new Date().toISOString(),
+    };
+}
+
+function broadcastWarehouse3dState() {
+    ipcRenderer.send("warehouse-3d-update", warehouse3dStateSnapshot());
+}
+
+function setupWarehouse3dViewer() {
+    document.getElementById("openWarehouse3d")?.addEventListener("click", async () => {
+        const button = document.getElementById("openWarehouse3d");
+        button.disabled = true;
+        try {
+            const opened = await ipcRenderer.invoke("warehouse-3d-open-window", warehouse3dStateSnapshot());
+            if (!opened) throw new Error("Il processo principale non ha creato la finestra.");
+        } catch (error) {
+            showWarehouseToast(`Vista 3D non disponibile: ${error.message}. Chiudi completamente AyPi e riavvialo.`, true);
+        } finally {
+            button.disabled = false;
+        }
+    });
+    ipcRenderer.on("warehouse-3d-slot-selected", (_event, location) => {
+        const parsed = parseSlotCode(location);
+        if (!parsed) return;
+        selectedRow = parsed.row;
+        selectedSlot = parsed;
+        selectedSlotCodes.clear();
+        selectedSlotCodes.add(parsed.code);
+        renderTabs();
+        renderMap();
+        renderDetails();
+    });
+}
+
 function cloneUnloadZoneUnits(units = unloadZone) {
     return (units || []).map((item) => ({
         ...item,
@@ -597,6 +638,7 @@ function refreshWarehouseDataViews() {
     renderUnloadZone();
     updateSummary();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+    broadcastWarehouse3dState();
 }
 
 function setTestDatabaseButtonsDisabled(disabled) {
@@ -646,6 +688,7 @@ function persistWarehouseData(
             const saved = await savePersistedWarehouseData({ ...snapshot, baseRevision: warehouseRevision });
             warehouseRevision = Number(saved?.revision) || warehouseRevision + 1;
             setWarehouseDatabaseStatus("ready", `${warehouseStorageLabel()} salvato · ${snapshot.inventory.length} slot occupati`);
+            broadcastWarehouse3dState();
             return saved;
         } catch (error) {
             setWarehouseDatabaseStatus("error", "Salvataggio non riuscito");
@@ -1130,6 +1173,7 @@ function selectSlot(code, scroll = true) {
     selectedRow = parsed.row;
     renderMap();
     renderDetails();
+    broadcastWarehouse3dState();
     if (scroll) {
         document.querySelector(`[data-slot="${parsed.code}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
@@ -1143,6 +1187,7 @@ function toggleSlotSelection(code) {
         button.classList.toggle("is-multi-selected", selectedSlotCodes.has(button.dataset.slot));
     });
     renderDetails();
+    broadcastWarehouse3dState();
 }
 
 let warehouseToastTimer = null;
@@ -1408,6 +1453,7 @@ function setupDisplayMode() {
             else input.checked = true;
             updateSummary();
             renderMap();
+            broadcastWarehouse3dState();
         });
     });
     document.addEventListener("pointerdown", (event) => {
@@ -1602,6 +1648,7 @@ function applyWarehouseStructure() {
     updateSummary();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
     setWarehouseStructureMessage("Struttura applicata. Le modifiche sono ancora solo dimostrative.", true);
+    broadcastWarehouse3dState();
 }
 
 function setupWarehouseStructure() {
@@ -6540,6 +6587,7 @@ setupInventorySearch();
 setupAnalysisView();
 setupRestrictionDialog();
 setupTemporaryDatabaseActions();
+setupWarehouse3dViewer();
 setupWarehouseLogin();
 updateSummary();
 void initializeWarehouseAuthentication();

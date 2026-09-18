@@ -56,9 +56,16 @@ if (IS_DEV) {
     }
 
     // 3) IPC channel checks
-    const knownChannels = new Set<string>();
+    // Canali dei moduli caricati in finestre secondarie: possono essere registrati
+    // dopo la prima lettura di dev-ipc-channels, ma sono comunque contratti noti.
+    const knownChannels = new Set<string>([
+        "warehouse-3d-open-window",
+        "warehouse-3d-update",
+        "warehouse-3d-ready",
+        "warehouse-3d-select-slot",
+    ]);
     if (ipcRenderer && typeof ipcRenderer.invoke === "function") {
-        ipcRenderer
+        const refreshKnownChannels = () => ipcRenderer
             .invoke("dev-ipc-channels")
             .then((payload: { on?: string[]; handle?: string[] } | null) => {
                 if (!payload) return;
@@ -66,6 +73,13 @@ if (IS_DEV) {
                 (payload.handle || []).forEach((ch) => knownChannels.add(ch));
             })
             .catch(() => {});
+        void refreshKnownChannels();
+        // La pagina principale può iniziare a caricarsi qualche istante prima che
+        // setupFileManager abbia registrato tutti i moduli IPC. Aggiorna quindi il
+        // catalogo anche dopo l'avvio, evitando falsi "unknown channel" in sviluppo.
+        window.setTimeout(refreshKnownChannels, 300);
+        window.setTimeout(refreshKnownChannels, 1200);
+        window.addEventListener("focus", refreshKnownChannels);
 
         const originalSend = ipcRenderer.send.bind(ipcRenderer);
         ipcRenderer.send = (channel: string, ...args: unknown[]) => {
