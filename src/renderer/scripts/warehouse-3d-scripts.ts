@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const { ipcRenderer } = require("electron");
+const { requestBackend } = require("./shared/backend-client");
 
 const canvas = document.getElementById("warehouseCanvas");
 const stage = document.getElementById("viewerStage");
@@ -56,6 +57,8 @@ let cameraHasBeenFramed = false;
 let pointerDown = null;
 let layoutRows = [];
 let layoutRowZ = [];
+const surfaceLabelTextureCache = new Map();
+const usedSurfaceLabelTextureKeys = new Set();
 
 const defaultViewerSettings = {
     rowSpacing: 6.2,
@@ -92,6 +95,7 @@ let savedPersonalViewPresets = [];
 const CAMERA_VIEWS_STORAGE_KEY = "aypi-warehouse-3d-camera-views-by-operator";
 const LEGACY_CAMERA_VIEWS_STORAGE_KEY = "aypi-warehouse-3d-camera-views";
 const VIEW_PRESETS_STORAGE_KEY = "aypi-warehouse-3d-view-presets-by-operator";
+const remotePersonalPreferenceTimers = new Map();
 
 function validCameraViews(entries) {
     if (!Array.isArray(entries)) return [];
@@ -144,6 +148,7 @@ function saveCameraViews() {
     const registry = cameraViewRegistry();
     registry[cameraViewOwner.key] = validCameraViews(savedCameraViews);
     localStorage.setItem(CAMERA_VIEWS_STORAGE_KEY, JSON.stringify(registry));
+    scheduleRemotePersonalPreferencesSave();
 }
 
 function personalViewPresetRegistry() {
@@ -169,6 +174,102 @@ function savePersonalViewPresets() {
     const registry = personalViewPresetRegistry();
     registry[cameraViewOwner.key] = validPersonalViewPresets(savedPersonalViewPresets);
     localStorage.setItem(VIEW_PRESETS_STORAGE_KEY, JSON.stringify(registry));
+    scheduleRemotePersonalPreferencesSave();
+}
+
+function clonePreferenceEntries(entries) {
+    return JSON.parse(JSON.stringify(entries || []));
+}
+
+function mergePreferenceEntries(serverEntries, localEntries, validator, limit) {
+    const merged = validator(serverEntries);
+    const indexes = new Map(merged.map((entry, index) => [entry.id, index]));
+    validator(localEntries).forEach((localEntry) => {
+        const existingIndex = indexes.get(localEntry.id);
+        if (existingIndex === undefined) {
+            indexes.set(localEntry.id, merged.length);
+            merged.push(localEntry);
+            return;
+        }
+        const serverTime = Date.parse(merged[existingIndex].updatedAt || "") || 0;
+        const localTime = Date.parse(localEntry.updatedAt || "") || 0;
+        if (localTime >= serverTime) merged[existingIndex] = localEntry;
+    });
+    return merged.slice(0, limit);
+}
+
+function cachePersonalPreferences(ownerKey, cameraViews, viewPresets) {
+    const cameraRegistry = cameraViewRegistry();
+    cameraRegistry[ownerKey] = validCameraViews(cameraViews);
+    localStorage.setItem(CAMERA_VIEWS_STORAGE_KEY, JSON.stringify(cameraRegistry));
+    const presetRegistry = personalViewPresetRegistry();
+    presetRegistry[ownerKey] = validPersonalViewPresets(viewPresets);
+    localStorage.setItem(VIEW_PRESETS_STORAGE_KEY, JSON.stringify(presetRegistry));
+}
+
+function remotePersonalPreferencesPayload(ownerKey = cameraViewOwner.key, ownerLabel = cameraViewOwner.label) {
+    const cameraRegistry = cameraViewRegistry();
+    const presetRegistry = personalViewPresetRegistry();
+    return {
+        ownerKey,
+        ownerLabel,
+        cameraViews: clonePreferenceEntries(ownerKey === cameraViewOwner.key ? savedCameraViews : cameraRegistry[ownerKey]),
+        viewPresets: clonePreferenceEntries(ownerKey === cameraViewOwner.key ? savedPersonalViewPresets : presetRegistry[ownerKey]),
+    };
+}
+
+function saveRemotePersonalPreferences(payload) {
+    return requestBackend("/api/warehouse-inventory/view-preferences", { method: "PUT", body: payload });
+}
+
+function scheduleRemotePersonalPreferencesSave() {
+    if (!cameraViewOwner.canManage) return;
+    const payload = remotePersonalPreferencesPayload();
+    const previousTimer = remotePersonalPreferenceTimers.get(payload.ownerKey);
+    if (previousTimer) window.clearTimeout(previousTimer);
+    const timer = window.setTimeout(() => {
+        remotePersonalPreferenceTimers.delete(payload.ownerKey);
+        void saveRemotePersonalPreferences(payload).catch((error) => {
+            console.warn("[warehouse-3d] Preferenze personali salvate solo nella cache locale:", error?.message || error);
+        });
+    }, 350);
+    remotePersonalPreferenceTimers.set(payload.ownerKey, timer);
+}
+
+async function syncRemotePersonalPreferences(owner) {
+    if (!owner.canManage) return;
+    try {
+        const remote = await requestBackend(`/api/warehouse-inventory/view-preferences?owner=${encodeURIComponent(owner.key)}`);
+        const cameraRegistry = cameraViewRegistry();
+        const presetRegistry = personalViewPresetRegistry();
+        const mergedCameraViews = mergePreferenceEntries(remote?.cameraViews, cameraRegistry[owner.key], validCameraViews, 30);
+        const mergedViewPresets = mergePreferenceEntries(remote?.viewPresets, presetRegistry[owner.key], validPersonalViewPresets, 20);
+        const pendingTimer = remotePersonalPreferenceTimers.get(owner.key);
+        if (pendingTimer) {
+            window.clearTimeout(pendingTimer);
+            remotePersonalPreferenceTimers.delete(owner.key);
+        }
+        cachePersonalPreferences(owner.key, mergedCameraViews, mergedViewPresets);
+        if (cameraViewOwner.key === owner.key) {
+            savedCameraViews = mergedCameraViews;
+            savedPersonalViewPresets = mergedViewPresets;
+            renderCameraViews();
+            renderPersonalViewPresets();
+        }
+        const remoteCameraViews = validCameraViews(remote?.cameraViews);
+        const remoteViewPresets = validPersonalViewPresets(remote?.viewPresets);
+        if (JSON.stringify(remoteCameraViews) !== JSON.stringify(mergedCameraViews)
+            || JSON.stringify(remoteViewPresets) !== JSON.stringify(mergedViewPresets)) {
+            await saveRemotePersonalPreferences({
+                ownerKey: owner.key,
+                ownerLabel: owner.label,
+                cameraViews: clonePreferenceEntries(mergedCameraViews),
+                viewPresets: clonePreferenceEntries(mergedViewPresets),
+            });
+        }
+    } catch (error) {
+        console.warn("[warehouse-3d] Preferenze personali server non disponibili; uso cache locale:", error?.message || error);
+    }
 }
 
 function applyCameraViewOwner(actor) {
@@ -193,6 +294,7 @@ function applyCameraViewOwner(actor) {
     renderCameraViews();
     syncPersonalViewPresetAccess();
     renderPersonalViewPresets();
+    if (ownerChanged) void syncRemotePersonalPreferences({ ...cameraViewOwner });
 }
 
 function saveViewerSettings() {
@@ -256,7 +358,7 @@ function clearObject(group) {
         object.geometry?.dispose?.();
         if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose?.());
         else {
-            object.material?.map?.dispose?.();
+            if (!object.material?.map?.userData?.warehouseSurfaceLabel) object.material?.map?.dispose?.();
             object.material?.dispose?.();
         }
     });
@@ -307,28 +409,37 @@ function createTextSprite(lines, colors = {}) {
     return sprite;
 }
 
-function createSurfaceLabel(lines, face = "rear", pallet = false) {
+function surfaceLabelTexture(lines) {
+    const key = JSON.stringify(lines.slice(0, 3).map((line) => String(line).slice(0, 20)));
+    usedSurfaceLabelTextureKeys.add(key);
+    if (surfaceLabelTextureCache.has(key)) return surfaceLabelTextureCache.get(key);
     const surface = document.createElement("canvas");
-    surface.width = 768;
-    surface.height = 512;
+    surface.width = 512;
+    surface.height = 320;
     const context = surface.getContext("2d");
     context.clearRect(0, 0, surface.width, surface.height);
     context.textAlign = "center";
     context.textBaseline = "middle";
     const visible = lines.slice(0, 3);
     visible.forEach((line, index) => {
-        context.font = `${index === 0 ? "900 108px" : "800 86px"} Segoe UI, Arial`;
-        context.lineWidth = 4;
+        context.font = `${index === 0 ? "900 72px" : "800 56px"} Segoe UI, Arial`;
+        context.lineWidth = 3;
         context.strokeStyle = "rgba(246,252,255,.98)";
-        context.strokeText(String(line).slice(0, 20), 384, 116 + index * 137, 716);
+        context.strokeText(String(line).slice(0, 20), 256, 72 + index * 87, 478);
         context.fillStyle = index === 0 ? "#123f70" : "#203947";
-        context.fillText(String(line).slice(0, 20), 384, 116 + index * 137, 716);
+        context.fillText(String(line).slice(0, 20), 256, 72 + index * 87, 478);
     });
     const texture = new THREE.CanvasTexture(surface);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    texture.userData.warehouseSurfaceLabel = true;
+    surfaceLabelTextureCache.set(key, texture);
+    return texture;
+}
+
+function createSurfaceLabel(lines, face = "rear", pallet = false) {
     const material = new THREE.MeshBasicMaterial({
-        map: texture,
+        map: surfaceLabelTexture(lines),
         transparent: true,
         depthTest: true,
         depthWrite: false,
@@ -337,9 +448,10 @@ function createSurfaceLabel(lines, face = "rear", pallet = false) {
         polygonOffsetFactor: -2,
     });
     const label = new THREE.Mesh(new THREE.PlaneGeometry(
-        (pallet ? .88 : .86) * viewerSettings.labelScale,
-        (pallet ? .48 : .59) * viewerSettings.labelScale,
+        pallet ? .88 : .86,
+        pallet ? .48 : .59,
     ), material);
+    label.scale.setScalar(viewerSettings.labelScale);
     label.renderOrder = 3;
     if (face === "front") label.rotation.y = Math.PI;
     return label;
@@ -375,6 +487,9 @@ function addShelfStructure(row, rowIndex, columns, baseZ) {
         const mesh = new THREE.Mesh(geometry, frameMaterial);
         mesh.position.set(x, y, z);
         mesh.castShadow = true;
+        mesh.visible = viewerSettings.showRacks;
+        mesh.userData.sceneRole = "rack";
+        mesh.userData.rowCode = row.code;
         world.add(mesh);
     };
     for (let column = 0; column <= columns; column += 1) {
@@ -392,6 +507,9 @@ function addShelfStructure(row, rowIndex, columns, baseZ) {
     });
     label.position.set(-width / 2 - 1.3, 3.25, baseZ);
     label.scale.set(2.25, .9, 1);
+    label.visible = viewerSettings.showRacks;
+    label.userData.sceneRole = "rack";
+    label.userData.rowCode = row.code;
     world.add(label);
 }
 
@@ -430,6 +548,51 @@ function layoutDepth(extra = 0) {
     return Math.max(5, Math.max(...layoutRowZ) - Math.min(...layoutRowZ) + viewerSettings.rowSpacing + extra);
 }
 
+function updateRowLayoutLive() {
+    const previousPositions = new Map(layoutRows.map((row, index) => [row.code, layoutRowZ[index] || 0]));
+    const nextPositions = calculateLayoutRowZ();
+    const nextByRow = new Map(layoutRows.map((row, index) => [row.code, nextPositions[index] || 0]));
+    world.children.forEach((object) => {
+        const rowCode = object.userData?.rowCode;
+        if (!rowCode || !previousPositions.has(rowCode) || !nextByRow.has(rowCode)) return;
+        object.position.z += nextByRow.get(rowCode) - previousPositions.get(rowCode);
+    });
+    layoutRowZ = nextPositions;
+}
+
+function updateRackAppearanceLive() {
+    world.traverse((object) => {
+        if (object.userData?.sceneRole !== "rack") return;
+        object.visible = viewerSettings.showRacks;
+        if (object.material?.isMeshStandardMaterial) {
+            object.material.opacity = viewerSettings.rackOpacity;
+            object.material.needsUpdate = true;
+        }
+    });
+}
+
+function updateLabelScaleLive() {
+    pickables.forEach((mesh) => (mesh.userData.labels || []).forEach((label) => {
+        label.scale.setScalar(viewerSettings.labelScale);
+    }));
+}
+
+function updateGridVisibilityLive() {
+    world.children.forEach((object) => {
+        if (object.userData?.sceneRole === "grid") object.visible = viewerSettings.showGrid;
+    });
+}
+
+function applyViewerSettingsLive({ updateRows = true } = {}) {
+    if (updateRows) updateRowLayoutLive();
+    updateRackAppearanceLive();
+    updateLabelScaleLive();
+    updateGridVisibilityLive();
+    camera.fov = viewerSettings.cameraFov;
+    camera.updateProjectionMatrix();
+    saveViewerSettings();
+}
+
 function slotPosition(rowIndex, column, side, level) {
     const baseZ = layoutRowZ[rowIndex] || 0;
     const columns = physicalColumns(layoutRows[rowIndex]);
@@ -451,6 +614,7 @@ function addSlotMesh(location, item, state, position, locations = [location]) {
     mesh.userData = {
         location,
         locations,
+        rowCode: parseLocation(location)?.row?.code || "",
         item: item || null,
         state,
         baseColor: palette[state],
@@ -491,6 +655,7 @@ function addSlotMesh(location, item, state, position, locations = [location]) {
 }
 
 function buildWarehouse() {
+    usedSurfaceLabelTextureKeys.clear();
     clearObject(world);
     pickables = [];
     hoveredObject = null;
@@ -511,7 +676,7 @@ function buildWarehouse() {
     layoutRows.forEach((row, rowIndex) => {
         const columns = physicalColumns(row);
         const baseZ = layoutRowZ[rowIndex] || 0;
-        if (viewerSettings.showRacks) addShelfStructure(row, rowIndex, columns, baseZ);
+        addShelfStructure(row, rowIndex, columns, baseZ);
         for (let columnIndex = 0; columnIndex < columns; columnIndex += 1) {
             for (const side of ["rear", "front"]) {
                 for (const level of ["a", "b", "c"]) {
@@ -534,6 +699,11 @@ function buildWarehouse() {
         }
     });
     addFloor();
+    surfaceLabelTextureCache.forEach((texture, key) => {
+        if (usedSurfaceLabelTextureKeys.has(key)) return;
+        texture.dispose();
+        surfaceLabelTextureCache.delete(key);
+    });
     applyFreeSlotVisibility();
     applySearch();
     const selectedMesh = pickables.find((mesh) => mesh.userData.locations?.includes(currentSelection)
@@ -554,7 +724,7 @@ function buildWarehouse() {
 function addFloor() {
     const maxColumns = Math.max(1, ...layoutRows.map(physicalColumns));
     const width = maxColumns * 1.28 + 10;
-    const depth = Math.max(10, layoutDepth(7));
+    const depth = Math.max(10, Math.max(layoutDepth(7), Math.max(1, currentSnapshot.rows.length - 1) * 14 + 12));
     const floor = new THREE.Mesh(
         new THREE.PlaneGeometry(width, depth),
         new THREE.MeshStandardMaterial({ color: 0xdbe3e8, roughness: .94, metalness: 0 }),
@@ -562,12 +732,14 @@ function addFloor() {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -.08;
     floor.receiveShadow = true;
+    floor.userData.sceneRole = "floor";
     world.add(floor);
     const grid = new THREE.GridHelper(Math.max(width, depth), Math.ceil(Math.max(width, depth) / 1.25), 0x86a0b0, 0xb7c5ce);
     grid.position.y = -.065;
     grid.material.transparent = true;
     grid.material.opacity = .34;
     grid.visible = viewerSettings.showGrid;
+    grid.userData.sceneRole = "grid";
     world.add(grid);
 }
 
@@ -1083,7 +1255,7 @@ function renderRowSpacingControls() {
             viewerSettings.rowSpacings = { ...viewerSettings.rowSpacings, [key]: Number(input.value) };
             document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
             updateOutput();
-            scheduleSceneRebuild();
+            applyViewerSettingsLive();
         });
         label.append(name, input, output);
         container.appendChild(label);
@@ -1111,6 +1283,7 @@ function captureViewerPresetSettings() {
 
 function applyPersonalViewPreset(preset) {
     const settings = preset?.settings || {};
+    const previousHiddenRows = JSON.stringify([...(viewerSettings.hiddenRows || [])].sort());
     viewerSettings = {
         ...defaultViewerSettings,
         ...settings,
@@ -1121,7 +1294,8 @@ function applyPersonalViewPreset(preset) {
     camera.updateProjectionMatrix();
     document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
     syncViewSettingsUi();
-    scheduleSceneRebuild();
+    applyViewerSettingsLive();
+    if (previousHiddenRows !== JSON.stringify([...(viewerSettings.hiddenRows || [])].sort())) scheduleSceneRebuild();
 }
 
 function syncPersonalViewPresetAccess() {
@@ -1296,7 +1470,7 @@ function applyScenePreset(name) {
     camera.updateProjectionMatrix();
     document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.toggle("is-active", button.dataset.scenePreset === name));
     syncViewSettingsUi();
-    scheduleSceneRebuild();
+    applyViewerSettingsLive();
 }
 
 function setupViewSettings() {
@@ -1311,35 +1485,41 @@ function setupViewSettings() {
     toggle.addEventListener("click", () => setOpen(panel.hidden));
     document.getElementById("closeViewSettings").addEventListener("click", () => setOpen(false));
     document.querySelectorAll("[data-scene-preset]").forEach((button) => button.addEventListener("click", () => applyScenePreset(button.dataset.scenePreset)));
-    const rebuildControls = {
-        rackOpacityControl: (value) => { viewerSettings.rackOpacity = Number(value) / 100; },
-        labelScaleControl: (value) => { viewerSettings.labelScale = Number(value) / 100; },
-    };
-    Object.entries(rebuildControls).forEach(([id, setter]) => document.getElementById(id).addEventListener("input", (event) => {
-        setter(event.target.value);
+    document.getElementById("rackOpacityControl").addEventListener("input", (event) => {
+        viewerSettings.rackOpacity = Number(event.target.value) / 100;
         document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
-        syncViewSettingsUi();
-        scheduleSceneRebuild();
-    }));
+        document.getElementById("rackOpacityValue").textContent = `${Math.round(viewerSettings.rackOpacity * 100)}%`;
+        updateRackAppearanceLive();
+        saveViewerSettings();
+    });
+    document.getElementById("labelScaleControl").addEventListener("input", (event) => {
+        viewerSettings.labelScale = Number(event.target.value) / 100;
+        document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
+        document.getElementById("labelScaleValue").textContent = `${Math.round(viewerSettings.labelScale * 100)}%`;
+        updateLabelScaleLive();
+        saveViewerSettings();
+    });
     document.getElementById("cameraFovControl").addEventListener("input", (event) => {
         viewerSettings.cameraFov = Number(event.target.value);
         camera.fov = viewerSettings.cameraFov;
         camera.updateProjectionMatrix();
         saveViewerSettings();
-        syncViewSettingsUi();
+        document.getElementById("cameraFovValue").textContent = `${viewerSettings.cameraFov}Â°`;
     });
     document.getElementById("movementSpeedControl").addEventListener("input", (event) => {
         viewerSettings.movementSpeed = Number(event.target.value) / 100;
         saveViewerSettings();
-        syncViewSettingsUi();
+        document.getElementById("movementSpeedValue").textContent = `${Math.round(viewerSettings.movementSpeed * 100)}%`;
     });
     document.getElementById("showRacksControl").addEventListener("change", (event) => {
         viewerSettings.showRacks = event.target.checked;
-        scheduleSceneRebuild();
+        updateRackAppearanceLive();
+        saveViewerSettings();
     });
     document.getElementById("showGridControl").addEventListener("change", (event) => {
         viewerSettings.showGrid = event.target.checked;
-        scheduleSceneRebuild();
+        updateGridVisibilityLive();
+        saveViewerSettings();
     });
     document.getElementById("showAllRows").addEventListener("click", () => {
         viewerSettings.hiddenRows = [];
@@ -1347,12 +1527,14 @@ function setupViewSettings() {
         scheduleSceneRebuild();
     });
     document.getElementById("resetViewSettings").addEventListener("click", () => {
+        const hadHiddenRows = Boolean(viewerSettings.hiddenRows?.length);
         viewerSettings = { ...defaultViewerSettings, rowSpacings: {}, hiddenRows: [] };
         camera.fov = viewerSettings.cameraFov;
         camera.updateProjectionMatrix();
         document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.toggle("is-active", button.dataset.scenePreset === "operational"));
         syncViewSettingsUi();
-        scheduleSceneRebuild();
+        applyViewerSettingsLive();
+        if (hadHiddenRows) scheduleSceneRebuild();
     });
     syncViewSettingsUi();
 }

@@ -4,7 +4,9 @@ import { logger } from "../../shared/logging/logger";
 import { createOperationQueue } from "../../shared/ops/queue";
 import {
     loadWarehouseSnapshot,
+    loadWarehouseViewPreferences,
     saveWarehouseSnapshot,
+    saveWarehouseViewPreferences,
     type WarehouseInventoryItem,
     type WarehouseMovement,
     type WarehouseUnloadZoneItem,
@@ -45,5 +47,36 @@ export function saveWarehouseState(
             unloadZoneUnits: snapshot.unloadZone.length,
         });
         return snapshot;
+    });
+}
+
+export function getWarehouseViewPreferences(ownerKey: string) {
+    return loadWarehouseViewPreferences(ownerKey);
+}
+
+export function saveWarehouseUserViewPreferences(payload: {
+    ownerKey: string;
+    ownerLabel: string;
+    cameraViews: unknown[];
+    viewPresets: unknown[];
+}, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("saveViewPreferences", () => {
+        const preferences = saveWarehouseViewPreferences(
+            payload.ownerKey,
+            payload.ownerLabel,
+            payload.cameraViews,
+            payload.viewPresets,
+        );
+        logger.info("Warehouse 3D preferences saved", {
+            ...meta,
+            event: "warehouse_view_preferences_saved",
+            module: "warehouse",
+            category: "settings",
+            ownerKey: payload.ownerKey,
+            cameraViews: payload.cameraViews.length,
+            viewPresets: payload.viewPresets.length,
+        });
+        return preferences;
     });
 }

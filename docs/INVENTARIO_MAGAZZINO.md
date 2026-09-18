@@ -275,7 +275,7 @@ Non vengono descritte le preparazioni esterne al magazzino. Lo storico distingue
 
 ### Persistenza SQLite
 
-Il modulo usa subito un database SQLite locale integrato nel processo principale dell'app, salvato nella cartella dati di AyPi. Non richiede quindi che il backend HTTP sia in esecuzione. Il formato dello snapshot è compatibile con l'API magazzino già predisposta sul backend; impostando `AYPI_WAREHOUSE_USE_BACKEND=1` sarà possibile spostarlo nel file `aypi.db` condiviso da Calendar e Purchasing. Sul backend sono già presenti le tabelle dedicate con prefisso `warehouse_`:
+Il modulo usa esclusivamente il database SQLite condiviso del backend AyPi, nello stesso file `aypi.db` impiegato dagli altri moduli. Tutte le postazioni caricano e salvano lo stato attraverso `/api/warehouse-inventory/state`; non viene effettuato alcun fallback silenzioso sul database locale del singolo PC. Sul backend sono presenti le tabelle dedicate con prefisso `warehouse_`:
 
 - unità logistiche, con articolo, cliente, riferimento ordine, codice pesata, pezzi correnti, capienza iniziale, tipologia, tag e data FIFO;
 - occupazioni fisiche e coppia associata dei pallet;
@@ -284,6 +284,8 @@ Il modulo usa subito un database SQLite locale integrato nel processo principale
 - revisione dello stato per rilevare aggiornamenti concorrenti.
 
 Il database nasce vuoto e non viene più caricato il precedente set dimostrativo dal codice. In questa fase sono visibili due comandi temporanei **TEST DB**: uno sostituisce il contenuto con dati pseudo-randomici fisicamente validi, l'altro elimina giacenze e storico del solo modulo magazzino. Entrambi verranno rimossi terminato il collaudo. Struttura delle file, whitelist/blacklist e bozze operative sono ancora in memoria e richiederanno tabelle dedicate in una fase successiva.
+
+I POV e i preset personali della visualizzazione 3D sono salvati nella tabella server `warehouse_view_preferences`, separati tramite l'identità dell'operatore o dell'admin. La cache locale serve soltanto per apertura rapida e continuità in caso di indisponibilità temporanea della rete. Al primo collegamento, eventuali configurazioni precedentemente presenti sul PC vengono unite automaticamente a quelle dell'account sul server.
 
 ### Vincoli cliente per fila e slot
 

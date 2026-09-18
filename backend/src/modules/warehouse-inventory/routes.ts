@@ -3,7 +3,30 @@ import { getRequestId, getRequestUser } from "../../shared/http/context";
 import { badRequest } from "../../shared/http/errors";
 import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
-import { getWarehouseSnapshot, saveWarehouseState } from "./service";
+import {
+    getWarehouseSnapshot,
+    getWarehouseViewPreferences,
+    saveWarehouseState,
+    saveWarehouseUserViewPreferences,
+} from "./service";
+
+function validatePreferenceOwner(value: unknown) {
+    const ownerKey = String(value || "").trim();
+    if (!ownerKey || ownerKey.length > 240 || !/^(admin|employee|test):/i.test(ownerKey)) {
+        throw badRequest("Account delle preferenze 3D non valido.");
+    }
+    return ownerKey;
+}
+
+function validateViewPreferencesPayload(value: any) {
+    const ownerKey = validatePreferenceOwner(value?.ownerKey);
+    const ownerLabel = String(value?.ownerLabel || "").trim().slice(0, 120);
+    if (!Array.isArray(value?.cameraViews) || !Array.isArray(value?.viewPresets)
+        || value.cameraViews.length > 30 || value.viewPresets.length > 20) {
+        throw badRequest("Preferenze della visualizzazione 3D non valide.");
+    }
+    return { ownerKey, ownerLabel, cameraViews: value.cameraViews, viewPresets: value.viewPresets };
+}
 
 function validateStatePayload(value: any) {
     if (!value || !Array.isArray(value.inventory) || !Array.isArray(value.movements) || !Array.isArray(value.unloadZone)) {
@@ -45,6 +68,19 @@ export function registerWarehouseInventoryRoutes(router: Router) {
     router.register("PUT", "/api/warehouse-inventory/state", async (req, res) => {
         const payload = validateStatePayload(await readJsonBody(req));
         sendJson(res, 200, await saveWarehouseState(payload, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        }));
+    });
+
+    router.register("GET", "/api/warehouse-inventory/view-preferences", async (req, res) => {
+        const requestUrl = new URL(req.url || "/", "http://localhost");
+        sendJson(res, 200, getWarehouseViewPreferences(validatePreferenceOwner(requestUrl.searchParams.get("owner"))));
+    });
+
+    router.register("PUT", "/api/warehouse-inventory/view-preferences", async (req, res) => {
+        const payload = validateViewPreferencesPayload(await readJsonBody(req));
+        sendJson(res, 200, await saveWarehouseUserViewPreferences(payload, {
             actor: getRequestUser(req),
             requestId: getRequestId(req),
         }));

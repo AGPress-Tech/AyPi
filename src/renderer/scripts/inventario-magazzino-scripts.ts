@@ -98,10 +98,8 @@ const warehouseDialogStack = [];
 let warehouseConfirmResolver = null;
 let warehouseFocusRecoveryPending = false;
 let queuedWarehouseFocus = null;
-const warehousePersistenceMode = process.env.AYPI_WAREHOUSE_USE_BACKEND === "1" ? "backend" : "local";
-
 function warehouseStorageLabel() {
-    return warehousePersistenceMode === "backend" ? "SQLite condiviso" : "SQLite locale";
+    return "SQLite server condiviso";
 }
 
 function setupWarehouseSplash() {
@@ -429,15 +427,11 @@ async function initializeWarehouseAuthentication() {
 }
 
 function loadPersistedWarehouseData() {
-    return warehousePersistenceMode === "backend"
-        ? requestBackend("/api/warehouse-inventory/state")
-        : ipcRenderer.invoke("warehouse-inventory-local-load");
+    return requestBackend("/api/warehouse-inventory/state");
 }
 
 function savePersistedWarehouseData(snapshot) {
-    return warehousePersistenceMode === "backend"
-        ? requestBackend("/api/warehouse-inventory/state", { method: "PUT", body: snapshot })
-        : ipcRenderer.invoke("warehouse-inventory-local-save", snapshot);
+    return requestBackend("/api/warehouse-inventory/state", { method: "PUT", body: snapshot });
 }
 
 function setWarehouseDatabaseStatus(state, message) {

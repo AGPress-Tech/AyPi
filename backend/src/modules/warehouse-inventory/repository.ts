@@ -14,6 +14,7 @@ const OCCUPANCIES_TABLE = "warehouse_occupancies";
 const MOVEMENTS_TABLE = "warehouse_movements";
 const MOVEMENT_LINES_TABLE = "warehouse_movement_lines";
 const UNLOAD_ZONE_TABLE = "warehouse_unload_zone";
+const VIEW_PREFERENCES_TABLE = "warehouse_view_preferences";
 const STORE_KEY = "main";
 
 export type WarehouseInventoryItem = {
@@ -150,6 +151,14 @@ export function initializeWarehouseInventorySqliteStore() {
             unit_id TEXT PRIMARY KEY,
             payload_json TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS ${VIEW_PREFERENCES_TABLE} (
+            owner_key TEXT PRIMARY KEY,
+            owner_label TEXT NOT NULL,
+            camera_views_json TEXT NOT NULL DEFAULT '[]',
+            view_presets_json TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT NOT NULL
+        );
     `);
     const movementColumns = database.exec(`PRAGMA table_info(${MOVEMENTS_TABLE})`);
     const hasDetails = (movementColumns?.[0]?.values || []).some((row: unknown[]) => String(row[1]) === "details_json");
@@ -159,6 +168,47 @@ export function initializeWarehouseInventorySqliteStore() {
     if (!unitColumns.has("piece_count")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN piece_count INTEGER NOT NULL DEFAULT 1`);
     if (!unitColumns.has("max_piece_capacity")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN max_piece_capacity INTEGER NOT NULL DEFAULT 1`);
     database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${UNITS_TABLE}_weighing ON ${UNITS_TABLE}(weighing_code) WHERE weighing_code <> ''`);
+}
+
+export function loadWarehouseViewPreferences(ownerKey: string) {
+    initializeWarehouseInventorySqliteStore();
+    const database = getSqliteDatabase();
+    const rows = database.exec(`
+        SELECT owner_label, camera_views_json, view_presets_json, updated_at
+        FROM ${VIEW_PREFERENCES_TABLE}
+        WHERE owner_key = ?
+    `, [ownerKey]);
+    const row = rows?.[0]?.values?.[0];
+    return {
+        ownerKey,
+        ownerLabel: String(row?.[0] || ""),
+        cameraViews: parseJson<unknown[]>(row?.[1], []),
+        viewPresets: parseJson<unknown[]>(row?.[2], []),
+        updatedAt: String(row?.[3] || ""),
+    };
+}
+
+export function saveWarehouseViewPreferences(
+    ownerKey: string,
+    ownerLabel: string,
+    cameraViews: unknown[],
+    viewPresets: unknown[],
+) {
+    const updatedAt = new Date().toISOString();
+    initializeWarehouseInventorySqliteStore();
+    runSqliteTransaction((database) => {
+        database.run(`
+            INSERT INTO ${VIEW_PREFERENCES_TABLE} (
+                owner_key, owner_label, camera_views_json, view_presets_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(owner_key) DO UPDATE SET
+                owner_label = excluded.owner_label,
+                camera_views_json = excluded.camera_views_json,
+                view_presets_json = excluded.view_presets_json,
+                updated_at = excluded.updated_at
+        `, [ownerKey, ownerLabel, serializeJson(cameraViews), serializeJson(viewPresets), updatedAt]);
+    });
+    return loadWarehouseViewPreferences(ownerKey);
 }
 
 function loadRevision() {
