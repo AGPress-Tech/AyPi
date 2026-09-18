@@ -63,6 +63,11 @@ if (IS_DEV) {
         "warehouse-3d-update",
         "warehouse-3d-ready",
         "warehouse-3d-select-slot",
+        "warehouse-inventory-local-load",
+        "warehouse-inventory-local-save",
+        "warehouse-inventory-focus-window",
+        "open-warehouse-movement-details-window",
+        "warehouse-movement-details-ready",
     ]);
     if (ipcRenderer && typeof ipcRenderer.invoke === "function") {
         const refreshKnownChannels = () => ipcRenderer

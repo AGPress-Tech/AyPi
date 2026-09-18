@@ -9,10 +9,21 @@
 </head>
 <body>
     <header class="viewer-header">
-        <div class="viewer-title">
-            <span class="eyebrow">DIGITAL TWIN · MAGAZZINO</span>
-            <h1>Visualizzazione 3D</h1>
-            <p id="viewerStatus">In attesa dei dati del magazzino…</p>
+        <div class="viewer-heading">
+            <div class="viewer-title">
+                <span class="eyebrow">DIGITAL TWIN · MAGAZZINO</span>
+                <h1>Visualizzazione 3D</h1>
+                <p id="viewerStatus">In attesa dei dati del magazzino…</p>
+            </div>
+            <div class="camera-tools" aria-label="Comandi visualizzazione 3D">
+                <button id="cameraHome" type="button">Isometrica</button>
+                <button id="cameraTop" type="button">Dall'alto</button>
+                <button id="saveCameraView" type="button">＋ Salva POV</button>
+                <button id="openCameraViews" type="button" aria-expanded="false">POV salvati <b id="cameraViewCount">0</b></button>
+                <button id="toggleViewSettings" type="button" aria-expanded="false">Personalizza</button>
+                <button id="toggleLabels" class="is-active" type="button" aria-pressed="true" title="Mostra o nasconde le scritte sui cassoni">Scritte visibili</button>
+                <button id="toggleFreeSlots" class="is-active" type="button" aria-pressed="true">Slot liberi</button>
+            </div>
         </div>
         <div class="viewer-summary">
             <article><span>FILE</span><strong id="viewerRows">0</strong></article>
@@ -27,13 +38,6 @@
             <canvas id="warehouseCanvas" aria-label="Modello tridimensionale del magazzino"></canvas>
             <div class="viewer-toolbar">
                 <div class="row-jump" id="viewerRowButtons" aria-label="Vai alla fila"></div>
-                <div class="camera-tools">
-                    <button id="cameraHome" type="button">Isometrica</button>
-                    <button id="cameraTop" type="button">Dall'alto</button>
-                    <button id="toggleViewSettings" type="button" aria-expanded="false">Personalizza</button>
-                    <button id="toggleLabels" class="is-active" type="button" aria-pressed="true" title="Mostra o nasconde le scritte sui cassoni">Scritte visibili</button>
-                    <button id="toggleFreeSlots" class="is-active" type="button" aria-pressed="true">Slot liberi</button>
-                </div>
             </div>
             <label class="viewer-search">
                 <span aria-hidden="true">⌕</span>
@@ -61,11 +65,14 @@
                     <button type="button" data-scene-preset="exploded">Esplosa</button>
                 </div>
                 <div class="scene-controls">
-                    <label><span>Distanza tra scaffalature <output id="rowSpacingValue">6,2 u</output></span><input id="rowSpacingControl" type="range" min="3.2" max="10" step="0.1" value="6.2"></label>
                     <label><span>Opacità scaffalatura <output id="rackOpacityValue">22%</output></span><input id="rackOpacityControl" type="range" min="5" max="100" step="1" value="22"></label>
                     <label><span>Dimensione scritte <output id="labelScaleValue">105%</output></span><input id="labelScaleControl" type="range" min="75" max="120" step="1" value="105"></label>
                     <label><span>Ampiezza visuale <output id="cameraFovValue">42°</output></span><input id="cameraFovControl" type="range" min="28" max="65" step="1" value="42"></label>
                     <label><span>Velocità movimento <output id="movementSpeedValue">100%</output></span><input id="movementSpeedControl" type="range" min="40" max="250" step="10" value="100"></label>
+                </div>
+                <div class="scene-spacing">
+                    <strong>Distanza tra le file</strong>
+                    <div id="rowSpacingControls"></div>
                 </div>
                 <div class="scene-switches">
                     <label><input id="showRacksControl" type="checkbox" checked> Mostra scaffalature</label>
@@ -76,6 +83,22 @@
                     <div id="sceneRowVisibility"></div>
                 </div>
                 <footer><button id="resetViewSettings" type="button">Ripristina impostazioni</button></footer>
+            </section>
+            <section class="camera-views-panel" id="cameraViewsPanel" hidden>
+                <header>
+                    <div><span class="eyebrow">REGIA VISUALE</span><h2>POV salvati</h2><p id="cameraViewOwner">Tasti 1–9 per il richiamo rapido.</p></div>
+                    <button id="closeCameraViews" type="button" aria-label="Chiudi">×</button>
+                </header>
+                <form class="camera-save-form" id="cameraSaveForm" hidden>
+                    <label>Nome della visuale<input id="cameraViewName" maxlength="42" autocomplete="off" placeholder="es. Corridoio A–B"></label>
+                    <div><button id="cancelCameraSave" type="button">Annulla</button><button class="is-primary" type="submit">Salva posizione corrente</button></div>
+                    <p id="cameraSaveMessage" role="alert"></p>
+                </form>
+                <div class="camera-view-list" id="cameraViewList"></div>
+                <div class="camera-view-empty" id="cameraViewEmpty">
+                    <span>⌖</span><strong>Nessun POV salvato</strong><p>Posiziona la telecamera e salva la prima inquadratura.</p>
+                </div>
+                <footer><button id="newCameraView" type="button">＋ Nuovo POV dalla posizione corrente</button></footer>
             </section>
             <div class="slot-tooltip" id="slotTooltip" hidden></div>
             <div class="viewer-loading" id="viewerLoading"><span></span><strong>Preparazione modello 3D…</strong></div>

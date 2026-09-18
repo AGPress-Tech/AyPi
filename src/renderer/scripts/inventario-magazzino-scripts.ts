@@ -218,6 +218,7 @@ function applyWarehouseSession(payload) {
     Object.assign(warehouseSession, { role: "guest", adminName: "", department: "", employee: "" },
         payload && ["employee", "admin"].includes(payload.role) ? payload : {});
     syncWarehouseSessionUi();
+    broadcastWarehouse3dState();
 }
 
 async function saveWarehouseSession(payload) {
@@ -451,6 +452,7 @@ function warehouse3dStateSnapshot() {
     return {
         rows: warehouseRows.map((row) => ({ ...row })),
         inventory: serializeWarehouseInventory(),
+        actor: warehouseActorSnapshot(),
         selectedLocation: selectedSlot?.code || "",
         displayFields: Array.from(displayFields),
         revision: warehouseRevision,
