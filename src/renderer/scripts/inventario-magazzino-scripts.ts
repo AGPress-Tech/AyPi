@@ -351,6 +351,7 @@ function setupWarehouseDialogFocus() {
                 unloadReloadDialog: closeUnloadReloadDialog,
                 inventorySearchDialog: closeInventorySearchDialog,
                 restrictionDialog: closeRestrictionDialog,
+                pseudoPopulateDialog: closePseudoPopulateDialog,
                 articleAnalysisDialog: closeArticleAnalysis,
                 warehouseLoginDialog: closeWarehouseLogin,
             };
@@ -6266,33 +6267,163 @@ function updateSummary() {
         `Struttura configurata: ${warehouseRows.length} ${warehouseRows.length === 1 ? "fila" : "file"}, 3 livelli e ${capacity} slot totali.`;
 }
 
-function pseudoRandomInteger(minimum, maximum) {
-    return Math.floor(Math.random() * (maximum - minimum + 1)) + minimum;
+function createSeededRandom(seed) {
+    let state = Number(seed) >>> 0;
+    if (!state) state = 0x6d2b79f5;
+    return () => {
+        state += 0x6d2b79f5;
+        let value = state;
+        value = Math.imul(value ^ value >>> 15, value | 1);
+        value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+        return ((value ^ value >>> 14) >>> 0) / 4294967296;
+    };
 }
 
-function buildPseudoRandomWarehouseState() {
-    const customers = ["AGPRESS", "FANTINI", "CLIENTE DEMO", "TECNOSTAMPA", "ROSSI SPA"];
+function pseudoRandomInteger(minimum, maximum, random = Math.random) {
+    return Math.floor(random() * (maximum - minimum + 1)) + minimum;
+}
+
+function shufflePseudoRandom(values, random) {
+    for (let index = values.length - 1; index > 0; index -= 1) {
+        const target = pseudoRandomInteger(0, index, random);
+        [values[index], values[target]] = [values[target], values[index]];
+    }
+    return values;
+}
+
+function pseudoPopulationFieldValue(id) {
+    return Number(document.getElementById(id)?.value);
+}
+
+function readPseudoPopulationOptions() {
+    const seedValue = document.getElementById("pseudoSeed")?.value.trim();
+    const options = {
+        totalCrates: pseudoPopulationFieldValue("pseudoTotalCrates"),
+        totalPallets: pseudoPopulationFieldValue("pseudoTotalPallets"),
+        minimumLot: pseudoPopulationFieldValue("pseudoMinLot"),
+        maximumLot: pseudoPopulationFieldValue("pseudoMaxLot"),
+        averagePieces: pseudoPopulationFieldValue("pseudoAveragePieces"),
+        pieceVariation: pseudoPopulationFieldValue("pseudoPieceVariation"),
+        customerCount: pseudoPopulationFieldValue("pseudoCustomers"),
+        articleCount: pseudoPopulationFieldValue("pseudoArticles"),
+        orderCount: pseudoPopulationFieldValue("pseudoOrders"),
+        weighingRate: pseudoPopulationFieldValue("pseudoWeighingRate"),
+        seed: seedValue === "" ? (Date.now() >>> 0) : Number(seedValue) >>> 0,
+    };
+    const integerKeys = ["totalCrates", "totalPallets", "minimumLot", "maximumLot", "averagePieces", "pieceVariation", "customerCount", "articleCount", "orderCount", "weighingRate"];
+    if (integerKeys.some((key) => !Number.isInteger(options[key]))) return { error: "Inserisci soltanto numeri interi validi." };
+    if (options.totalCrates < 1 || options.totalPallets < 0) return { error: "Indica almeno un cassone e un numero di pallet non negativo." };
+    if (options.minimumLot < 1 || options.maximumLot < options.minimumLot) return { error: "Il massimo per lotto deve essere uguale o superiore al minimo." };
+    if (options.averagePieces < 1) return { error: "La media pezzi deve essere almeno 1." };
+    if (options.pieceVariation < 0 || options.pieceVariation > 95 || options.weighingRate < 0 || options.weighingRate > 100) {
+        return { error: "Variabilità e percentuale pesate devono rientrare nei limiti indicati." };
+    }
+    if (options.customerCount < 1 || options.articleCount < 1 || options.orderCount < 1) return { error: "Clienti, articoli e ordini diversi devono essere almeno 1." };
+    const minimumLots = Math.max(
+        Math.ceil(options.totalCrates / options.maximumLot),
+        options.customerCount,
+        options.articleCount,
+        options.orderCount,
+    );
+    const maximumLots = Math.floor(options.totalCrates / options.minimumLot);
+    if (minimumLots > maximumLots) {
+        return { error: `I parametri richiedono almeno ${minimumLots} lotti, ma con ${options.totalCrates} cassoni e il minimo scelto ne sono possibili al massimo ${maximumLots}.` };
+    }
+    if (options.customerCount * options.articleCount * options.orderCount < minimumLots) {
+        return { error: "Le combinazioni di clienti, articoli e ordini non bastano a creare lotti distinti: aumenta almeno una delle tre varietà." };
+    }
+    const occupiedSlots = options.totalCrates + options.totalPallets * 2;
+    if (occupiedSlots > totalSlots()) return { error: `Sono richiesti almeno ${occupiedSlots} slot fisici, ma il magazzino ne contiene ${totalSlots()}.` };
+    return { options: { ...options, lotCount: minimumLots, occupiedSlots } };
+}
+
+function renderPseudoPopulationSummary() {
+    const summary = document.getElementById("pseudoPopulateSummary");
+    if (!summary) return;
+    const result = readPseudoPopulationOptions();
+    summary.classList.toggle("is-invalid", Boolean(result.error));
+    summary.textContent = result.error || `${result.options.totalCrates} cassoni suddivisi in ${result.options.lotCount} lotti · ${result.options.totalPallets} pallet · almeno ${result.options.occupiedSlots} di ${totalSlots()} slot fisici occupati.`;
+}
+
+function openPseudoPopulateDialog() {
+    document.getElementById("pseudoPopulateStatus").textContent = "";
+    renderPseudoPopulationSummary();
+    openWarehouseDialog(document.getElementById("pseudoPopulateDialog"), document.getElementById("pseudoTotalCrates"), true);
+}
+
+function closePseudoPopulateDialog() {
+    closeWarehouseDialog(document.getElementById("pseudoPopulateDialog"));
+}
+
+function buildPseudoLotSizes(options, random) {
+    const sizes = Array(options.lotCount).fill(options.minimumLot);
+    let remaining = options.totalCrates - options.lotCount * options.minimumLot;
+    while (remaining > 0) {
+        const available = sizes.map((size, index) => size < options.maximumLot ? index : -1).filter((index) => index >= 0);
+        const index = available[pseudoRandomInteger(0, available.length - 1, random)];
+        sizes[index] += 1;
+        remaining -= 1;
+    }
+    return shufflePseudoRandom(sizes, random);
+}
+
+function buildPseudoLotDimensions(options, random) {
+    const dimensions = [];
+    const used = new Set();
+    for (let index = 0; index < options.lotCount; index += 1) {
+        let tuple = null;
+        for (let attempt = 0; attempt < 2000 && !tuple; attempt += 1) {
+            const candidate = index < Math.max(options.articleCount, options.customerCount, options.orderCount) && attempt === 0
+                ? [index % options.articleCount, index % options.customerCount, index % options.orderCount]
+                : [
+                    pseudoRandomInteger(0, options.articleCount - 1, random),
+                    pseudoRandomInteger(0, options.customerCount - 1, random),
+                    pseudoRandomInteger(0, options.orderCount - 1, random),
+                ];
+            if (!used.has(candidate.join("|"))) tuple = candidate;
+        }
+        if (!tuple) throw new Error("Impossibile generare combinazioni di lotto univoche con i parametri scelti.");
+        used.add(tuple.join("|"));
+        dimensions.push(tuple);
+    }
+    return shufflePseudoRandom(dimensions, random);
+}
+
+function buildPseudoRandomWarehouseState(options) {
+    const random = createSeededRandom(options.seed);
+    const standardCustomers = ["AGPRESS", "FANTINI", "CLIENTE DEMO", "TECNOSTAMPA", "ROSSI SPA"];
+    const customers = Array.from({ length: options.customerCount }, (_, index) => standardCustomers[index] || `CLIENTE TEST ${String(index + 1).padStart(2, "0")}`);
+    const articles = Array.from({ length: options.articleCount }, (_, index) => index % 3 === 0 ? `T${String(1500000 + index).padStart(7, "0")}A` : `ART-${String(index + 1).padStart(4, "0")}`);
+    const orders = Array.from({ length: options.orderCount }, (_, index) => `${24 + index % 3}/${String(10001 + index).padStart(5, "0")}${index % 13 === 12 ? "/C" : ""}`);
+    const lotSizes = buildPseudoLotSizes(options, random);
+    const dimensions = buildPseudoLotDimensions(options, random);
     const entries = [];
-    for (let index = 0; index < 4; index += 1) {
+    const pieceDelta = Math.round(options.averagePieces * options.pieceVariation / 100);
+    let weighingSequence = 1;
+    lotSizes.forEach((lotSize, lotIndex) => {
+        const [articleIndex, customerIndex, orderIndex] = dimensions[lotIndex];
+        for (let crateIndex = 0; crateIndex < lotSize; crateIndex += 1) {
+            const hasWeighingCode = random() * 100 < options.weighingRate;
+            entries.push({
+                article: articles[articleIndex],
+                customer: customers[customerIndex],
+                order: orders[orderIndex],
+                weighingCode: hasWeighingCode ? `PS-${String(options.seed).padStart(10, "0")}-${String(weighingSequence++).padStart(5, "0")}` : "",
+                pieceCount: pseudoRandomInteger(Math.max(1, options.averagePieces - pieceDelta), options.averagePieces + pieceDelta, random),
+                quantity: 1,
+                type: "crate",
+            });
+        }
+    });
+    for (let index = 0; index < options.totalPallets; index += 1) {
         entries.push({
             article: `PALLET-${String(index + 1).padStart(3, "0")}`,
-            customer: customers[pseudoRandomInteger(0, customers.length - 1)],
-            order: `${pseudoRandomInteger(25, 26)}/${String(pseudoRandomInteger(1, 99999)).padStart(5, "0")}`,
-            weighingCode: "",
-            pieceCount: pseudoRandomInteger(40, 450),
-            quantity: pseudoRandomInteger(1, 2),
+            customer: customers[pseudoRandomInteger(0, customers.length - 1, random)],
+            order: orders[pseudoRandomInteger(0, orders.length - 1, random)],
+            weighingCode: random() * 100 < options.weighingRate ? `PS-${String(options.seed).padStart(10, "0")}-P${String(index + 1).padStart(3, "0")}` : "",
+            pieceCount: pseudoRandomInteger(Math.max(1, options.averagePieces - pieceDelta), options.averagePieces + pieceDelta, random),
+            quantity: 1,
             type: "pallet",
-        });
-    }
-    for (let index = 0; index < 24; index += 1) {
-        entries.push({
-            article: index % 4 === 0 ? `T${pseudoRandomInteger(1000000, 9999999)}A` : String(pseudoRandomInteger(1100, 9900)),
-            customer: customers[pseudoRandomInteger(0, customers.length - 1)],
-            order: `${pseudoRandomInteger(24, 26)}/${String(pseudoRandomInteger(1, 99999)).padStart(5, "0")}${Math.random() < .08 ? "/C" : ""}`,
-            weighingCode: "",
-            pieceCount: pseudoRandomInteger(10, 600),
-            quantity: pseudoRandomInteger(1, 7),
-            type: "crate",
         });
     }
     const plan = planLoadOperation(entries, new Map());
@@ -6300,12 +6431,11 @@ function buildPseudoRandomWarehouseState() {
     const receivedDates = new Map();
     const tagOptions = ["preferito", "urgente", "controllo", "riserva"];
     plan.state.forEach((item) => {
-        if (!receivedDates.has(item.id)) {
-            receivedDates.set(item.id, new Date(Date.now() - pseudoRandomInteger(1, 540) * 86400000).toISOString());
-        }
+        if (!receivedDates.has(item.id)) receivedDates.set(item.id, new Date(Date.now() - pseudoRandomInteger(1, 540, random) * 86400000).toISOString());
         item.receivedAt = receivedDates.get(item.id);
-        item.tags = Math.random() < .18 ? [tagOptions[pseudoRandomInteger(0, tagOptions.length - 1)]] : [];
+        item.tags = random() < .18 ? [tagOptions[pseudoRandomInteger(0, tagOptions.length - 1, random)]] : [];
     });
+    plan.testPopulation = { ...options, entries: entries.length };
     return plan;
 }
 
@@ -6319,16 +6449,35 @@ function resetOperationDraftsAfterDatabaseChange() {
 }
 
 function setupTemporaryDatabaseActions() {
-    document.getElementById("populateWarehouseDatabase")?.addEventListener("click", async () => {
+    document.getElementById("populateWarehouseDatabase")?.addEventListener("click", openPseudoPopulateDialog);
+    document.getElementById("closePseudoPopulate")?.addEventListener("click", closePseudoPopulateDialog);
+    document.getElementById("cancelPseudoPopulate")?.addEventListener("click", closePseudoPopulateDialog);
+    document.querySelectorAll("#pseudoPopulateForm input").forEach((input) => input.addEventListener("input", () => {
+        document.getElementById("pseudoPopulateStatus").textContent = "";
+        renderPseudoPopulationSummary();
+    }));
+    document.getElementById("pseudoPopulateForm")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const result = readPseudoPopulationOptions();
+        const status = document.getElementById("pseudoPopulateStatus");
+        if (result.error) {
+            status.textContent = result.error;
+            renderPseudoPopulationSummary();
+            return;
+        }
         if ((inventory.size || movementHistory.length) && !await showWarehouseConfirm({
             title: "Sostituisci database di test",
-            message: `Tutte le giacenze, l'area ${STAGING_AREA_LABEL} e lo storico saranno sostituiti con nuovi dati pseudo-randomici.`,
+            message: `Tutte le giacenze, l'area ${STAGING_AREA_LABEL} e lo storico saranno sostituiti con ${result.options.totalCrates} cassoni e ${result.options.totalPallets} pallet pseudo-randomici.`,
             confirmLabel: "Sostituisci dati",
             danger: true,
         })) return;
         setTestDatabaseButtonsDisabled(true);
+        const submitButton = document.getElementById("confirmPseudoPopulate");
+        submitButton.disabled = true;
+        status.textContent = "Calcolo dell'allocazione in corso…";
         try {
-            const plan = buildPseudoRandomWarehouseState();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            const plan = buildPseudoRandomWarehouseState(result.options);
             if (plan.error) throw new Error(plan.error);
             inventory.clear();
             plan.state.forEach((item, location) => inventory.set(location, item));
@@ -6337,11 +6486,14 @@ function setupTemporaryDatabaseActions() {
             resetOperationDraftsAfterDatabaseChange();
             refreshWarehouseDataViews();
             await persistWarehouseData();
-            showWarehouseToast(`Database popolato con ${logicalInventoryUnits(inventory).length} unità logistiche di test.`);
+            closePseudoPopulateDialog();
+            showWarehouseToast(`Scenario creato: ${result.options.totalCrates} cassoni, ${result.options.totalPallets} pallet, ${result.options.lotCount} lotti · seed ${result.options.seed}.`);
         } catch (error) {
-            showWarehouseToast(`Popolamento non completato: ${error.message}`, true);
+            status.textContent = `Popolamento non completato: ${error.message}`;
+            showWarehouseToast(status.textContent, true);
         } finally {
             setTestDatabaseButtonsDisabled(false);
+            submitButton.disabled = false;
         }
     });
 

@@ -778,6 +778,73 @@
         </section>
     </div>
 
+    <div class="restriction-backdrop pseudo-populate-backdrop" id="pseudoPopulateDialog" aria-hidden="true" inert>
+        <section class="pseudo-populate-dialog" role="dialog" aria-modal="true" aria-labelledby="pseudoPopulateDialogTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">GENERATORE DATI DI TEST</span>
+                    <h2 id="pseudoPopulateDialogTitle">Popola il magazzino</h2>
+                    <p>Configura quantità e varietà dello scenario pseudo-randomico. I vincoli e l'algoritmo reale di carico restano attivi.</p>
+                </div>
+                <button id="closePseudoPopulate" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <form id="pseudoPopulateForm" class="pseudo-populate-form">
+                <div class="pseudo-populate-grid">
+                    <label>Cassoni totali
+                        <input id="pseudoTotalCrates" type="number" min="1" step="1" value="90" required>
+                        <small>Numero esatto di cassoni da collocare.</small>
+                    </label>
+                    <label>Pallet totali
+                        <input id="pseudoTotalPallets" type="number" min="0" step="1" value="4" required>
+                        <small>Ogni pallet occupa due slot a terra.</small>
+                    </label>
+                    <label>Cassoni minimi per lotto
+                        <input id="pseudoMinLot" type="number" min="1" step="1" value="1" required>
+                        <small>Un lotto condivide articolo, cliente e ordine.</small>
+                    </label>
+                    <label>Cassoni massimi per lotto
+                        <input id="pseudoMaxLot" type="number" min="1" step="1" value="8" required>
+                        <small>Limite massimo per ciascun lotto generato.</small>
+                    </label>
+                    <label>Pezzi medi per cassone
+                        <input id="pseudoAveragePieces" type="number" min="1" step="1" value="250" required>
+                        <small>Valore centrale usato per la quantità.</small>
+                    </label>
+                    <label>Variabilità pezzi
+                        <div class="pseudo-populate-suffix"><input id="pseudoPieceVariation" type="number" min="0" max="95" step="1" value="35" required><span>%</span></div>
+                        <small>Scostamento massimo rispetto alla media.</small>
+                    </label>
+                    <label>Clienti diversi
+                        <input id="pseudoCustomers" type="number" min="1" step="1" value="5" required>
+                        <small>Tutti compariranno almeno in un lotto.</small>
+                    </label>
+                    <label>Articoli diversi
+                        <input id="pseudoArticles" type="number" min="1" step="1" value="20" required>
+                        <small>Articoli distinti riferiti ai cassoni.</small>
+                    </label>
+                    <label>Riferimenti ordine diversi
+                        <input id="pseudoOrders" type="number" min="1" step="1" value="25" required>
+                        <small>Tutti compariranno almeno in un lotto.</small>
+                    </label>
+                    <label>Cassoni con codice pesata
+                        <div class="pseudo-populate-suffix"><input id="pseudoWeighingRate" type="number" min="0" max="100" step="1" value="75" required><span>%</span></div>
+                        <small>La pesata generata è univoca.</small>
+                    </label>
+                    <label>Seed ripetibile <span class="pseudo-optional">opzionale</span>
+                        <input id="pseudoSeed" type="number" min="0" step="1" placeholder="Generato automaticamente">
+                        <small>Riutilizzalo per ricreare lo stesso scenario.</small>
+                    </label>
+                </div>
+                <div class="pseudo-populate-summary" id="pseudoPopulateSummary" role="status"></div>
+                <div class="pseudo-populate-message" id="pseudoPopulateStatus" role="alert"></div>
+                <footer class="pseudo-populate-footer">
+                    <button id="cancelPseudoPopulate" type="button">Annulla</button>
+                    <button class="pseudo-populate-submit" id="confirmPseudoPopulate" type="submit">Genera e sostituisci i dati</button>
+                </footer>
+            </form>
+        </section>
+    </div>
+
     <div class="restriction-backdrop" id="restrictionDialog" aria-hidden="true">
         <section class="restriction-dialog" role="dialog" aria-modal="true" aria-labelledby="restrictionDialogTitle">
             <header class="restriction-dialog__header">

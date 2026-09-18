@@ -2321,6 +2321,88 @@ h1 {
     font-size: 22px;
     cursor: pointer;
 }
+.pseudo-populate-backdrop { z-index: 310; }
+.pseudo-populate-dialog {
+    width: min(900px, 96vw);
+    max-height: 92vh;
+    overflow: hidden;
+    border: 1px solid #aeb9c2;
+    border-radius: 9px;
+    background: #f4f6f8;
+    box-shadow: 0 24px 70px rgba(15, 27, 38, .38);
+}
+.pseudo-populate-form {
+    max-height: calc(92vh - 76px);
+    padding: 16px;
+    overflow: auto;
+}
+.pseudo-populate-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 13px 14px;
+}
+.pseudo-populate-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: #34495a;
+    font-size: 11px;
+    font-weight: 700;
+}
+.pseudo-populate-grid input {
+    width: 100%;
+    min-height: 36px;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border: 1px solid #bcc8d1;
+    border-radius: 5px;
+    color: #172b3b;
+    background: #fff;
+    font: inherit;
+    font-size: 12px;
+    outline: none;
+}
+.pseudo-populate-grid input:focus { border-color: #2f7fb8; box-shadow: 0 0 0 2px rgba(47, 127, 184, .14); }
+.pseudo-populate-grid small { min-height: 26px; color: #74818b; font-size: 9px; font-weight: 400; line-height: 1.35; }
+.pseudo-populate-suffix { position: relative; }
+.pseudo-populate-suffix input { padding-right: 32px; }
+.pseudo-populate-suffix span {
+    position: absolute;
+    top: 50%;
+    right: 11px;
+    color: #687985;
+    transform: translateY(-50%);
+}
+.pseudo-optional { color: #7a8790; font-size: 9px; font-weight: 500; }
+.pseudo-populate-summary {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border: 1px solid #b9d5e7;
+    border-radius: 5px;
+    color: #315870;
+    background: #edf7fd;
+    font-size: 10px;
+    line-height: 1.45;
+}
+.pseudo-populate-summary.is-invalid { border-color: #e0b0b0; color: #8b3434; background: #fff1f1; }
+.pseudo-populate-message { min-height: 18px; padding-top: 6px; color: #a03636; font-size: 10px; }
+.pseudo-populate-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+.pseudo-populate-footer button {
+    min-height: 34px;
+    padding: 7px 13px;
+    border: 1px solid #bcc7cf;
+    border-radius: 4px;
+    color: #40525f;
+    background: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.pseudo-populate-footer .pseudo-populate-submit { border-color: #174f80; color: #fff; background: #174f80; }
+.pseudo-populate-footer button:disabled { opacity: .58; cursor: wait; }
+@media (max-width: 760px) {
+    .pseudo-populate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .restriction-dialog__body {
     display: grid;
     grid-template-columns: 190px minmax(0, 1fr);
