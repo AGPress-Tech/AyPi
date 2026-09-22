@@ -233,6 +233,20 @@
     <div class="tools-drawer-scrim" id="toolsDrawerScrim" aria-hidden="true"></div>
     <aside class="tools-drawer" id="toolsDrawer" aria-label="Strumenti di visualizzazione">
         <div class="tools-drawer__panel" id="toolsDrawerPanel">
+            <section class="tools-drawer__section" aria-labelledby="mapGroupingTitle">
+                <div class="tools-drawer__section-heading">
+                    <span>VISUALIZZAZIONE 2D</span>
+                    <strong id="mapGroupingTitle">Raggruppamento mappa</strong>
+                </div>
+                <div class="map-grouping-options" role="group" aria-label="Raggruppamento della mappa 2D">
+                    <button class="map-grouping-option is-active" type="button" data-map-grouping="levels" aria-pressed="true">
+                        <strong>Per piano</strong><small>2 + 2 + 2, fronte e retro per livello</small>
+                    </button>
+                    <button class="map-grouping-option" type="button" data-map-grouping="sides" aria-pressed="false">
+                        <strong>Per lato</strong><small>3 + 3, tutti i livelli posteriori e anteriori</small>
+                    </button>
+                </div>
+            </section>
             <section class="tools-drawer__section" aria-labelledby="slotRangeTitle">
                 <div class="tools-drawer__section-heading">
                     <span>VISUALIZZAZIONE SLOT</span>

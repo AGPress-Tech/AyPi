@@ -47,6 +47,7 @@ const inventory = new Map();
 let selectedRow = "A";
 let selectedSlot = null;
 const displayFields = new Set(["location", "article", "pieces"]);
+let mapGroupingMode = localStorage.getItem("aypi-warehouse-map-grouping") === "sides" ? "sides" : "levels";
 let slotRangeMode = "all";
 let slotPage = 0;
 let slotPageDirection = null;
@@ -929,12 +930,14 @@ function createSlotButton(row, columnIndex, side, level) {
     return button;
 }
 
-function createSideRow(row, side, level) {
+function createSideRow(row, side, level, labelMode = "side") {
     const container = document.createElement("div");
     container.className = "side-row";
     const label = document.createElement("div");
     label.className = "side-label";
-    label.textContent = side === "rear" ? "Posteriore" : "Anteriore";
+    label.textContent = labelMode === "level"
+        ? `Livello ${level}`
+        : side === "rear" ? "Posteriore" : "Anteriore";
     container.appendChild(label);
     const columns = physicalColumnsForRow(row);
     const firstHalfColumns = Math.ceil(columns / 2);
@@ -1000,23 +1003,39 @@ function renderMap() {
     if (!levelsContainer || !rowTitle) return;
     rowTitle.textContent = `Fila ${selectedRow}`;
     levelsContainer.dataset.displayMode = "multi";
+    levelsContainer.dataset.mapGrouping = mapGroupingMode;
     levelsContainer.dataset.fieldCount = String(displayFields.size);
     levelsContainer.style.setProperty("--slot-content-height", `${Math.min(122, 42 + Math.max(0, displayFields.size - 1) * 16)}px`);
     levelsContainer.classList.remove("slide-next", "slide-previous");
     levelsContainer.replaceChildren();
 
-    LEVELS.forEach((level) => {
+    const createMapSection = (titleText, descriptionText) => {
         const section = document.createElement("section");
         section.className = "level";
-        section.dataset.level = level.code;
         const heading = document.createElement("div");
         heading.className = "level__heading";
         const title = document.createElement("strong");
-        title.textContent = `Livello ${level.code}`;
+        title.textContent = titleText;
         const description = document.createElement("span");
-        description.textContent = `${level.label} · piano ${level.order}`;
+        description.textContent = descriptionText;
         heading.append(title, description);
         section.appendChild(heading);
+        return section;
+    };
+    if (mapGroupingMode === "sides") {
+        [
+            { side: "rear", title: "Lato posteriore" },
+            { side: "front", title: "Lato anteriore" },
+        ].forEach(({ side, title }) => {
+            const section = createMapSection(title, "Livelli c, b, a · dall'alto verso il basso");
+            section.classList.add("level--side-group");
+            section.dataset.side = side;
+            LEVELS.forEach((level) => section.appendChild(createSideRow(selectedRow, side, level.code, "level")));
+            levelsContainer.appendChild(section);
+        });
+    } else LEVELS.forEach((level) => {
+        const section = createMapSection(`Livello ${level.code}`, `${level.label} · piano ${level.order}`);
+        section.dataset.level = level.code;
         section.appendChild(createSideRow(selectedRow, "rear", level.code));
         section.appendChild(createSideRow(selectedRow, "front", level.code));
         levelsContainer.appendChild(section);
@@ -1028,6 +1047,23 @@ function renderMap() {
     updateTabs();
     updateSlotPager();
     scheduleSlotLabelFit();
+}
+
+function setupMapGrouping() {
+    const sync = () => document.querySelectorAll("[data-map-grouping]").forEach((button) => {
+        const active = button.dataset.mapGrouping === mapGroupingMode;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll("[data-map-grouping]").forEach((button) => button.addEventListener("click", () => {
+        const nextMode = button.dataset.mapGrouping === "sides" ? "sides" : "levels";
+        if (nextMode === mapGroupingMode) return;
+        mapGroupingMode = nextMode;
+        localStorage.setItem("aypi-warehouse-map-grouping", mapGroupingMode);
+        sync();
+        renderMap();
+    }));
+    sync();
 }
 
 function rowContainsMatch(row) {
@@ -6594,6 +6630,7 @@ setupWarehouseSplash();
 setupWarehouseDialogFocus();
 renderTabs();
 renderMap();
+setupMapGrouping();
 setupDisplayMode();
 setupSlotPager();
 setupToolsDrawer();

@@ -4,12 +4,14 @@
     --line: #c9d5de;
     --muted: #687985;
     --surface: #f7f9fb;
-    --free: #cfeafa;
-    --occupied: #bfe6cf;
-    --pallet: #f3b9b9;
+    --free: #eaf5fd;
+    --occupied: #dff3e7;
+    --pallet: #f6cece;
     --blocked: #aeb7be;
     --match: #46b8ed;
     --selected: #123f70;
+    --selected-fill: #9fbfd9;
+    --related-fill: #d9f2fd;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -58,8 +60,8 @@ button, input { font: inherit; }
 .viewer-legend .is-occupied { background: var(--occupied); }
 .viewer-legend .is-pallet { background: var(--pallet); }
 .viewer-legend .is-blocked { background: var(--blocked); }
-.viewer-legend .is-selected { border: 3px solid var(--selected); background: transparent; }
-.viewer-legend .is-related { border: 3px solid var(--match); background: transparent; }
+.viewer-legend .is-selected { border: 3px solid var(--selected); background: var(--selected-fill); }
+.viewer-legend .is-related { border: 3px solid var(--match); background: var(--related-fill); }
 .viewer-legend .is-match { background: var(--match); }
 .viewer-help { position: absolute; z-index: 3; bottom: 14px; left: 14px; padding: 6px 9px; border-radius: 4px; color: #536773; background: rgba(255, 255, 255, .82); font-size: 9px; }
 .viewer-settings { position: absolute; z-index: 9; top: 58px; right: 14px; width: min(370px, calc(100% - 28px)); max-height: calc(100% - 76px); padding: 14px; overflow: auto; border: 1px solid #a8bac7; border-radius: 8px; background: rgba(248, 251, 253, .97); box-shadow: 0 18px 50px rgba(25, 48, 64, .28); backdrop-filter: blur(12px); }

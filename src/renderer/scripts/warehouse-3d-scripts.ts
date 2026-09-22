@@ -57,6 +57,7 @@ let cameraHasBeenFramed = false;
 let pointerDown = null;
 let layoutRows = [];
 let layoutRowZ = [];
+let layoutMaxColumns = 1;
 const surfaceLabelTextureCache = new Map();
 const usedSurfaceLabelTextureKeys = new Set();
 
@@ -302,12 +303,14 @@ function saveViewerSettings() {
 }
 
 const palette = {
-    free: 0xcfeafa,
-    occupied: 0xbfe6cf,
-    pallet: 0xf3b9b9,
+    free: 0xeaf5fd,
+    occupied: 0xdff3e7,
+    pallet: 0xf6cece,
     blocked: 0xaeb7be,
     selected: 0x123f70,
     related: 0x4cb8ef,
+    selectedFill: 0x9fbfd9,
+    relatedFill: 0xd9f2fd,
     match: 0x087fbd,
     searchFill: 0xcceeff,
 };
@@ -475,6 +478,7 @@ function itemLabelLines(location, item) {
 
 function addShelfStructure(row, rowIndex, columns, baseZ) {
     const width = columns * 1.28 + .35;
+    const horizontalCenter = (columns - layoutMaxColumns) * .64;
     const frameMaterial = new THREE.MeshStandardMaterial({
         color: 0x31566c,
         roughness: .48,
@@ -493,10 +497,10 @@ function addShelfStructure(row, rowIndex, columns, baseZ) {
         world.add(mesh);
     };
     for (let column = 0; column <= columns; column += 1) {
-        const x = (column - columns / 2) * 1.28;
+        const x = horizontalCenter + (column - columns / 2) * 1.28;
         addFrame(new THREE.BoxGeometry(.07, 3.55, 1.92), x, 1.76, baseZ);
     }
-    [0, 1.03, 2.06, 3.09].forEach((height) => addFrame(new THREE.BoxGeometry(width, .07, 1.92), 0, height, baseZ));
+    [0, 1.03, 2.06, 3.09].forEach((height) => addFrame(new THREE.BoxGeometry(width, .07, 1.92), horizontalCenter, height, baseZ));
     const oddSide = sideForPosition(row, 1);
     const oddDirection = sidePhysicalDirection(row, oddSide);
     const physicalIndex = currentSnapshot.rows.findIndex((entry) => entry.code === row.code);
@@ -505,7 +509,7 @@ function addShelfStructure(row, rowIndex, columns, baseZ) {
     const label = createTextSprite([`FILA ${row.code}`, orientationLabel], {
         background: "rgba(23,62,95,.96)", border: "rgba(255,255,255,.55)", title: "#ffffff", text: "#cfeafa",
     });
-    label.position.set(-width / 2 - 1.3, 3.25, baseZ);
+    label.position.set(horizontalCenter - width / 2 - 1.3, 3.25, baseZ);
     label.scale.set(2.25, .9, 1);
     label.visible = viewerSettings.showRacks;
     label.userData.sceneRole = "rack";
@@ -595,9 +599,8 @@ function applyViewerSettingsLive({ updateRows = true } = {}) {
 
 function slotPosition(rowIndex, column, side, level) {
     const baseZ = layoutRowZ[rowIndex] || 0;
-    const columns = physicalColumns(layoutRows[rowIndex]);
     return new THREE.Vector3(
-        (column - (columns + 1) / 2) * 1.28,
+        (column - (layoutMaxColumns + 1) / 2) * 1.28,
         .49 + ({ a: 0, b: 1, c: 2 }[level] || 0) * 1.03,
         baseZ + sidePhysicalDirection(layoutRows[rowIndex], side) * .49,
     );
@@ -665,6 +668,7 @@ function buildWarehouse() {
         layoutRows = [currentSnapshot.rows[0]];
         viewerSettings.hiddenRows = currentSnapshot.rows.slice(1).map((row) => row.code);
     }
+    layoutMaxColumns = Math.max(1, ...layoutRows.map(physicalColumns));
     layoutRowZ = calculateLayoutRowZ();
     const inventoryByLocation = new Map(currentSnapshot.inventory.map((item) => [item.location, item]));
     const palletModules = new Map();
@@ -722,7 +726,7 @@ function buildWarehouse() {
 }
 
 function addFloor() {
-    const maxColumns = Math.max(1, ...layoutRows.map(physicalColumns));
+    const maxColumns = layoutMaxColumns;
     const width = maxColumns * 1.28 + 10;
     const depth = Math.max(10, Math.max(layoutDepth(7), Math.max(1, currentSnapshot.rows.length - 1) * 14 + 12));
     const floor = new THREE.Mesh(
@@ -777,7 +781,7 @@ function renderSummary() {
 }
 
 function frameWarehouse() {
-    const maxColumns = Math.max(1, ...layoutRows.map(physicalColumns));
+    const maxColumns = layoutMaxColumns;
     const width = maxColumns * 1.28;
     const depth = layoutDepth();
     controls.target.set(0, 1.5, 0);
@@ -838,7 +842,14 @@ function applySelection() {
         const related = !selected && matchesSelectedContent(mesh.userData.item, selectedItem);
         mesh.userData.selected = selected;
         mesh.userData.related = related;
-        mesh.material.color.setHex(mesh.userData.matchesSearch ? palette.searchFill : mesh.userData.baseColor);
+        const fillColor = selected
+            ? palette.selectedFill
+            : mesh.userData.matchesSearch
+              ? palette.searchFill
+              : related
+                ? palette.relatedFill
+                : mesh.userData.baseColor;
+        mesh.material.color.setHex(fillColor);
         mesh.material.emissive.setHex(0x000000);
         mesh.material.emissiveIntensity = 0;
         const outline = mesh.userData.outline;
