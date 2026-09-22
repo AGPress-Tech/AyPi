@@ -42,6 +42,8 @@ scene.add(fillLight);
 
 const world = new THREE.Group();
 scene.add(world);
+const movementGhostLayer = new THREE.Group();
+scene.add(movementGhostLayer);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const movementTimer = new THREE.Timer();
@@ -58,6 +60,8 @@ let pointerDown = null;
 let layoutRows = [];
 let layoutRowZ = [];
 let layoutMaxColumns = 1;
+let movementPlaybackState = null;
+let lastMovementPlaybackId = "";
 const surfaceLabelTextureCache = new Map();
 const usedSurfaceLabelTextureKeys = new Set();
 
@@ -313,6 +317,10 @@ const palette = {
     relatedFill: 0xd9f2fd,
     match: 0x087fbd,
     searchFill: 0xcceeff,
+    movementLoad: 0xffd84d,
+    movementUnload: 0xff9b7d,
+    movementShift: 0xff9fbe,
+    movementCorridor: 0xb89ae8,
 };
 
 function physicalColumns(row) {
@@ -842,13 +850,20 @@ function applySelection() {
         const related = !selected && matchesSelectedContent(mesh.userData.item, selectedItem);
         mesh.userData.selected = selected;
         mesh.userData.related = related;
-        const fillColor = selected
+        const movementColor = mesh.userData.movementRole === "source"
+            ? palette.movementUnload
+            : mesh.userData.movementRole === "target"
+              ? palette.movementLoad
+              : mesh.userData.movementRole === "shift"
+                ? palette.movementShift
+                : null;
+        const fillColor = movementColor || (selected
             ? palette.selectedFill
             : mesh.userData.matchesSearch
               ? palette.searchFill
               : related
                 ? palette.relatedFill
-                : mesh.userData.baseColor;
+                : mesh.userData.baseColor);
         mesh.material.color.setHex(fillColor);
         mesh.material.emissive.setHex(0x000000);
         mesh.material.emissiveIntensity = 0;
@@ -867,6 +882,202 @@ function updateSurfaceLabels() {
             label.material.opacity = mesh.userData.selected || mesh.userData.related || mesh.userData.matchesSearch ? 1 : .92;
         });
     });
+}
+
+function movementSteps(movement) {
+    if (movement?.operationalSteps?.length) return movement.operationalSteps.map((step) => ({
+        ...step,
+        from: [...(step.from || [])],
+        to: [...(step.to || [])],
+        units: (step.units || []).map((unit) => ({ ...unit })),
+    }));
+    const changes = movement?.changes || {};
+    const itemFor = (id) => [...(movement?.afterState || []), ...(movement?.beforeState || [])].find((item) => item.id === id) || {};
+    return [
+        ...(changes.loaded || []).map((entry) => ({ kind: "load", from: [], to: [...(entry.to || [])], units: [{ ...itemFor(entry.id), id: entry.id, article: entry.article }] })),
+        ...(changes.unloaded || []).map((entry) => ({ kind: "unload", from: [...(entry.from || [])], to: ["In Attesa/Preparazione/Montaggio"], units: [{ ...itemFor(entry.id), id: entry.id, article: entry.article }] })),
+        ...(changes.shifted || []).map((entry) => ({ kind: "reinsert", from: [...(entry.from || [])], to: [...(entry.to || [])], units: [{ ...itemFor(entry.id), id: entry.id, article: entry.article }] })),
+    ];
+}
+
+function operationalLocations(values) {
+    return Array.from(new Set((values || []).flatMap((value) => String(value || "").match(/[A-Z]\d{1,3}[a-c]/gi) || [])
+        .map((value) => value[0].toUpperCase() + value.slice(1).toLowerCase())))
+        .filter((location) => parseLocation(location));
+}
+
+function locationScenePosition(location) {
+    const parsed = parseLocation(location);
+    if (!parsed) return null;
+    const rowIndex = layoutRows.findIndex((row) => row.code === parsed.row.code);
+    if (rowIndex < 0) return null;
+    return slotPosition(rowIndex, parsed.physicalColumn, parsed.side, parsed.level);
+}
+
+function movementExternalPosition(kind, referencePosition) {
+    const reference = referencePosition || new THREE.Vector3(0, .5, 0);
+    if (kind === "corridor") return new THREE.Vector3(reference.x, reference.y, reference.z + 2.35);
+    return new THREE.Vector3(-layoutMaxColumns * .64 - 4.2, reference.y, Math.min(...layoutRowZ, 0) - 3.2);
+}
+
+function movementStepDescription(step) {
+    const from = operationalLocations(step.from).join(", ");
+    const to = operationalLocations(step.to).join(", ");
+    const articles = Array.from(new Set((step.units || []).map((unit) => unit.article).filter(Boolean))).join(", ");
+    if (["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind)) return `Spostamento temporaneo ${from || articles || "unità"} → corridoio`;
+    if (["reinsert", "optimization-place"].includes(step.kind)) return `Riallocazione ${articles || "unità"} → ${to || "destinazione"}`;
+    if (step.kind === "unload") return `Prelievo ${from || articles || "unità"} → In Attesa/Preparazione/Montaggio`;
+    if (step.kind === "piece-pick") return `Prelievo ${step.pieceQuantity || 0} pezzi${articles ? ` · articolo ${articles}` : ""}`;
+    if (step.kind === "load") return `Carico ${articles || "unità"} → ${to || "destinazione"}`;
+    return `${from || "Corridoio"}${to ? ` → ${to}` : ""}${articles ? ` · ${articles}` : ""}`;
+}
+
+function movementStepColor(kind) {
+    if (kind === "load") return palette.movementLoad;
+    if (kind === "unload" || kind === "piece-pick") return palette.movementUnload;
+    if (["corridor", "optimization-corridor", "optimization-stage"].includes(kind)) return palette.movementCorridor;
+    return palette.movementShift;
+}
+
+function movementStepRoutes(step) {
+    const fromLocations = operationalLocations([
+        ...(step.from || []),
+        ...(step.units || []).map((unit) => unit.from),
+    ]);
+    const toLocations = operationalLocations([
+        ...(step.to || []),
+        ...(step.units || []).map((unit) => unit.to),
+    ]);
+    if (step.units?.length === 1 && step.units[0].type === "pallet") {
+        const averagePosition = (locations) => {
+            const positions = locations.map(locationScenePosition).filter(Boolean);
+            if (!positions.length) return null;
+            return positions.reduce((total, position) => total.add(position), new THREE.Vector3()).multiplyScalar(1 / positions.length);
+        };
+        const sourceSlot = averagePosition(fromLocations);
+        const targetSlot = averagePosition(toLocations);
+        const corridorMove = ["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind);
+        const fromCorridor = ["reinsert", "optimization-place"].includes(step.kind);
+        const source = fromCorridor ? movementExternalPosition("corridor", targetSlot || sourceSlot) : sourceSlot || movementExternalPosition("staging", targetSlot);
+        const target = targetSlot || movementExternalPosition(corridorMove ? "corridor" : "staging", sourceSlot);
+        return [{ source, target, unit: step.units[0] }];
+    }
+    const count = Math.max(1, fromLocations.length, toLocations.length, step.units?.length || 0);
+    return Array.from({ length: count }, (_, index) => {
+        const sourceLocation = fromLocations[index] || fromLocations[fromLocations.length - 1] || "";
+        const targetLocation = toLocations[index] || toLocations[toLocations.length - 1] || "";
+        const sourceSlot = locationScenePosition(sourceLocation);
+        const targetSlot = locationScenePosition(targetLocation);
+        const corridorMove = ["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind);
+        const fromCorridor = ["reinsert", "optimization-place"].includes(step.kind);
+        const source = fromCorridor
+            ? movementExternalPosition("corridor", targetSlot || sourceSlot)
+            : sourceSlot || movementExternalPosition("staging", targetSlot);
+        const target = step.kind === "piece-pick"
+            ? source.clone()
+            : targetSlot || movementExternalPosition(corridorMove ? "corridor" : "staging", sourceSlot);
+        return { source, target, unit: step.units?.[index] || step.units?.[0] || null };
+    });
+}
+
+function clearMovementGhosts() {
+    clearObject(movementGhostLayer);
+}
+
+function setMovementMeshRoles(step = null) {
+    const sources = new Set(operationalLocations([...(step?.from || []), ...(step?.units || []).map((unit) => unit.from)]));
+    const targets = new Set(operationalLocations([...(step?.to || []), ...(step?.units || []).map((unit) => unit.to)]));
+    pickables.forEach((mesh) => {
+        const locations = mesh.userData.locations || [mesh.userData.location];
+        mesh.userData.movementRole = locations.some((location) => sources.has(location))
+            ? "source"
+            : locations.some((location) => targets.has(location))
+              ? (["reinsert", "optimization-place"].includes(step?.kind) ? "shift" : "target")
+              : "";
+    });
+    applySelection();
+}
+
+function showMovement3dStep(index, restart = true) {
+    if (!movementPlaybackState?.steps.length) return;
+    const state = movementPlaybackState;
+    state.index = Math.max(0, Math.min(index, state.steps.length - 1));
+    state.progress = 0;
+    if (restart) state.stepStartedAt = performance.now();
+    const step = state.steps[state.index];
+    setMovementMeshRoles(step);
+    clearMovementGhosts();
+    const color = movementStepColor(step.kind);
+    movementStepRoutes(step).forEach((route) => {
+        const pallet = route.unit?.type === "pallet";
+        const ghost = createBox(pallet ? .98 : .8, pallet ? .68 : .7, pallet ? 1.62 : .7, color, {
+            transparent: true,
+            opacity: .9,
+            castShadow: true,
+        });
+        ghost.position.copy(route.source);
+        ghost.userData.route = route;
+        ghost.userData.sceneRole = "movement-ghost";
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(ghost.geometry), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .9 }));
+        ghost.add(edges);
+        movementGhostLayer.add(ghost);
+    });
+    document.getElementById("movement3dCounter").textContent = `${state.movement.id} · PASSAGGIO ${state.index + 1}/${state.steps.length}`;
+    document.getElementById("movement3dTitle").textContent = state.movement.type === "load" ? "Movimentazione di carico" : state.movement.optimization ? "Ottimizzazione magazzino" : "Movimentazione di scarico";
+    document.getElementById("movement3dDescription").textContent = movementStepDescription(step);
+    document.getElementById("movement3dPrevious").disabled = state.index === 0;
+    document.getElementById("movement3dNext").disabled = state.index === state.steps.length - 1;
+    document.getElementById("movement3dToggle").textContent = state.paused ? "Riprendi" : "Pausa";
+}
+
+function startMovement3dPlayback(movement) {
+    const steps = movementSteps(movement);
+    if (!steps.length) return;
+    movementPlaybackState = { movement, steps, index: 0, paused: false, progress: 0, stepStartedAt: performance.now(), duration: 1650, hold: 450 };
+    document.getElementById("movement3dPlayback").hidden = false;
+    showMovement3dStep(0);
+}
+
+function stopMovement3dPlayback() {
+    movementPlaybackState = null;
+    clearMovementGhosts();
+    setMovementMeshRoles();
+    document.getElementById("movement3dPlayback").hidden = true;
+}
+
+function updateMovement3dPlayback(timestamp) {
+    const state = movementPlaybackState;
+    if (!state || state.paused) return;
+    const elapsed = timestamp - state.stepStartedAt;
+    state.progress = Math.min(1, elapsed / state.duration);
+    const eased = state.progress < .5 ? 2 * state.progress * state.progress : 1 - Math.pow(-2 * state.progress + 2, 2) / 2;
+    movementGhostLayer.children.forEach((ghost) => {
+        const { source, target } = ghost.userData.route;
+        ghost.position.lerpVectors(source, target, eased);
+        ghost.position.y += Math.sin(Math.PI * eased) * .7;
+    });
+    if (elapsed < state.duration + state.hold) return;
+    if (state.index < state.steps.length - 1) showMovement3dStep(state.index + 1);
+    else {
+        state.paused = true;
+        state.progress = 1;
+        document.getElementById("movement3dToggle").textContent = "Completata";
+    }
+}
+
+function setupMovement3dPlayback() {
+    document.getElementById("movement3dPrevious")?.addEventListener("click", () => showMovement3dStep((movementPlaybackState?.index || 0) - 1));
+    document.getElementById("movement3dNext")?.addEventListener("click", () => showMovement3dStep((movementPlaybackState?.index || 0) + 1));
+    document.getElementById("movement3dToggle")?.addEventListener("click", () => {
+        if (!movementPlaybackState) return;
+        movementPlaybackState.paused = !movementPlaybackState.paused;
+        movementPlaybackState.stepStartedAt = performance.now() - movementPlaybackState.progress * movementPlaybackState.duration;
+        document.getElementById("movement3dToggle").textContent = movementPlaybackState.paused ? "Riprendi" : "Pausa";
+    });
+    document.getElementById("movement3dReplay")?.addEventListener("click", () => {
+        if (movementPlaybackState) startMovement3dPlayback(movementPlaybackState.movement);
+    });
+    document.getElementById("movement3dClose")?.addEventListener("click", stopMovement3dPlayback);
 }
 
 function detailsRows(mesh) {
@@ -1621,6 +1832,7 @@ window.addEventListener("resize", resize);
 setupViewSettings();
 setupPersonalViewPresets();
 setupCameraViews();
+setupMovement3dPlayback();
 
 ipcRenderer.on("warehouse-3d-data", (_event, payload) => {
     if (!payload || !Array.isArray(payload.rows) || !Array.isArray(payload.inventory)) return;
@@ -1630,6 +1842,14 @@ ipcRenderer.on("warehouse-3d-data", (_event, payload) => {
     renderRowSpacingControls();
     renderSceneRowVisibility();
     buildWarehouse();
+    const playback = payload.movementPlayback;
+    const playbackKey = payload.movementPlaybackKey || playback?.id || "";
+    if (playback?.id && playbackKey !== lastMovementPlaybackId) {
+        lastMovementPlaybackId = playbackKey;
+        startMovement3dPlayback(playback);
+    } else if (movementPlaybackState) {
+        showMovement3dStep(movementPlaybackState.index, false);
+    }
 });
 ipcRenderer.send("warehouse-3d-ready");
 
@@ -1638,6 +1858,7 @@ renderer.setAnimationLoop((timestamp) => {
     movementTimer.update(timestamp);
     updateCameraTransition(timestamp);
     updateKeyboardMovement(movementTimer.getDelta());
+    updateMovement3dPlayback(timestamp);
     controls.update();
     renderer.render(scene, camera);
 });

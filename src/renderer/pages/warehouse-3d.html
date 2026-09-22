@@ -52,7 +52,24 @@
                 <span><i class="is-selected"></i> Selezionato</span>
                 <span><i class="is-related"></i> Contenuto corrispondente</span>
                 <span><i class="is-match"></i> Risultato</span>
+                <span><i class="is-movement-load"></i> Caricato</span>
+                <span><i class="is-movement-unload"></i> Prelevato</span>
+                <span><i class="is-movement-shift"></i> Riallocato</span>
             </div>
+            <section class="movement-3d-playback" id="movement3dPlayback" aria-live="polite" hidden>
+                <div>
+                    <span id="movement3dCounter">MOVIMENTO</span>
+                    <strong id="movement3dTitle">Riproduzione movimentazione</strong>
+                    <p id="movement3dDescription"></p>
+                </div>
+                <nav aria-label="Controlli riproduzione movimento">
+                    <button id="movement3dPrevious" type="button" title="Passaggio precedente">&#x276E;</button>
+                    <button id="movement3dToggle" type="button">Pausa</button>
+                    <button id="movement3dNext" type="button" title="Passaggio successivo">&#x276F;</button>
+                    <button id="movement3dReplay" type="button">Ripeti</button>
+                    <button id="movement3dClose" type="button">Chiudi</button>
+                </nav>
+            </section>
             <div class="viewer-help">Trascina per ruotare · rotella per zoom · tasto destro per spostare · WASD per muoverti</div>
             <section class="viewer-settings" id="viewerSettings" hidden>
                 <header>

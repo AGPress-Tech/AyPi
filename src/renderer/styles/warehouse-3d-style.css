@@ -63,6 +63,17 @@ button, input { font: inherit; }
 .viewer-legend .is-selected { border: 3px solid var(--selected); background: var(--selected-fill); }
 .viewer-legend .is-related { border: 3px solid var(--match); background: var(--related-fill); }
 .viewer-legend .is-match { background: var(--match); }
+.viewer-legend .is-movement-load { background: #ffd84d; }
+.viewer-legend .is-movement-unload { background: #ff9b7d; }
+.viewer-legend .is-movement-shift { background: #ff9fbe; }
+.movement-3d-playback { position: absolute; z-index: 8; right: 18px; bottom: 48px; left: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 930px; margin: auto; padding: 10px 12px 10px 15px; border: 1px solid rgba(103,172,210,.9); border-radius: 8px; color: #eef9ff; background: rgba(19,52,75,.94); box-shadow: 0 14px 38px rgba(13,37,53,.28); backdrop-filter: blur(9px); }
+.movement-3d-playback > div { min-width: 0; }
+.movement-3d-playback span { display: block; color: #8edcff; font-size: 8px; font-weight: 900; letter-spacing: 1px; }
+.movement-3d-playback strong { display: block; margin-top: 2px; font-size: 12px; }
+.movement-3d-playback p { margin: 3px 0 0; overflow: hidden; color: #d1e4ef; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.movement-3d-playback nav { display: flex; flex: 0 0 auto; gap: 5px; }
+.movement-3d-playback button { min-width: 34px; height: 29px; padding: 4px 8px; border: 1px solid #80abc3; border-radius: 4px; color: #24465c; background: #f5fbff; font-size: 9px; font-weight: 800; cursor: pointer; }
+.movement-3d-playback button:hover { border-color: #71d2ff; color: #0b6793; background: #fff; }
 .viewer-help { position: absolute; z-index: 3; bottom: 14px; left: 14px; padding: 6px 9px; border-radius: 4px; color: #536773; background: rgba(255, 255, 255, .82); font-size: 9px; }
 .viewer-settings { position: absolute; z-index: 9; top: 58px; right: 14px; width: min(370px, calc(100% - 28px)); max-height: calc(100% - 76px); padding: 14px; overflow: auto; border: 1px solid #a8bac7; border-radius: 8px; background: rgba(248, 251, 253, .97); box-shadow: 0 18px 50px rgba(25, 48, 64, .28); backdrop-filter: blur(12px); }
 .viewer-settings > header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid #d4dfe6; }

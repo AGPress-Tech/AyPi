@@ -137,6 +137,9 @@
                     <span><i class="legend-box legend-box--match"></i> Contenuto corrispondente</span>
                     <span><i class="legend-box legend-box--search"></i> Risultato ricerca</span>
                     <span><i class="pallet-mark"></i> Pallet</span>
+                    <span><i class="legend-box legend-box--movement-load"></i> Caricato</span>
+                    <span><i class="legend-box legend-box--movement-unload"></i> Prelevato</span>
+                    <span><i class="legend-box legend-box--movement-shift"></i> Riallocato</span>
                 </div>
 
                 <div class="slot-pager" id="slotPager" data-range-mode="all">
@@ -655,6 +658,20 @@
             </section>
         </section>
     </div>
+
+    <section class="movement-playback" id="movementPlayback" aria-live="polite" hidden>
+        <div class="movement-playback__status">
+            <span id="movementPlaybackCounter">MOVIMENTO</span>
+            <strong id="movementPlaybackTitle">Riproduzione movimentazione</strong>
+            <p id="movementPlaybackDescription"></p>
+        </div>
+        <div class="movement-playback__controls">
+            <button id="movementPlaybackPrevious" type="button" title="Passaggio precedente">&#x276E;</button>
+            <button id="movementPlaybackToggle" type="button">Pausa</button>
+            <button id="movementPlaybackNext" type="button" title="Passaggio successivo">&#x276F;</button>
+            <button id="movementPlaybackClose" type="button">Chiudi</button>
+        </div>
+    </section>
 
     <div class="restriction-backdrop movement-history-backdrop" id="movementHistoryDialog" aria-hidden="true">
         <section class="movement-history-dialog" role="dialog" aria-modal="true" aria-labelledby="movementHistoryTitle">

@@ -72,6 +72,7 @@ let warehouseAdmins = [];
 let warehouseStorageUnavailable = true;
 let movementHighlight = null;
 let movementHighlightTimer = null;
+let movementPlaybackState = null;
 let contextMovementId = null;
 let contextUnloadZoneUnitId = null;
 let unloadZoneReloadPreview = null;
@@ -80,6 +81,7 @@ const selectedSlotCodes = new Set();
 let relocationSourceCode = null;
 let restrictionBatchTargets = null;
 let completedOperationMovement = null;
+let completedManualMovement = null;
 let operationPreviewPlan = null;
 let warehouseOptimizationPreview = null;
 let activeCrateSortingProfile = null;
@@ -454,20 +456,22 @@ function serializeWarehouseInventory() {
     }));
 }
 
-function warehouse3dStateSnapshot() {
+function warehouse3dStateSnapshot(movementPlayback = null) {
     return {
         rows: warehouseRows.map((row) => ({ ...row })),
         inventory: serializeWarehouseInventory(),
         actor: warehouseActorSnapshot(),
         selectedLocation: selectedSlot?.code || "",
         displayFields: Array.from(displayFields),
+        movementPlayback: movementPlayback ? cloneWarehouseMovement(movementPlayback) : null,
+        movementPlaybackKey: movementPlayback ? `${movementPlayback.id}:${Date.now()}` : "",
         revision: warehouseRevision,
         generatedAt: new Date().toISOString(),
     };
 }
 
-function broadcastWarehouse3dState() {
-    ipcRenderer.send("warehouse-3d-update", warehouse3dStateSnapshot());
+function broadcastWarehouse3dState(movementPlayback = null) {
+    ipcRenderer.send("warehouse-3d-update", warehouse3dStateSnapshot(movementPlayback));
 }
 
 function setupWarehouse3dViewer() {
@@ -903,6 +907,9 @@ function createSlotButton(row, columnIndex, side, level) {
     button.classList.toggle("is-movement-shifted", Boolean(movementHighlight && (
         movementHighlight.shiftedIds.has(highlightedUnitId) || movementHighlight.shiftedLocations.has(code)
     )));
+    button.classList.toggle("is-movement-unloaded", Boolean(movementHighlight?.unloadedLocations?.has(code)));
+    button.classList.toggle("is-movement-source", Boolean(movementHighlight?.currentSources?.has(code)));
+    button.classList.toggle("is-movement-target", Boolean(movementHighlight?.currentTargets?.has(code)));
     button.classList.toggle(
         "has-customer-conflict",
         Boolean(item && !evaluateCustomerForSlot(code, item.customer).allowed),
@@ -1083,11 +1090,22 @@ function updateTabs() {
         const active = row === selectedRow;
         const hasMatch = rowContainsMatch(row);
         const hasSearchMatch = rowContainsSearchMatch(row);
-        const hasMovementHighlight = Boolean(movementHighlight && Array.from(inventory.entries()).some(([location, item]) =>
+        const highlightedLocations = movementHighlight ? [
+            ...movementHighlight.loadedLocations,
+            ...movementHighlight.shiftedLocations,
+            ...(movementHighlight.unloadedLocations || []),
+            ...(movementHighlight.currentSources || []),
+            ...(movementHighlight.currentTargets || []),
+        ] : [];
+        const hasMovementHighlight = Boolean(movementHighlight && (highlightedLocations.some((location) => location.startsWith(row))
+            || Array.from(inventory.entries()).some(([location, item]) =>
             location.startsWith(row) && (movementHighlight.loadedIds.has(item.id)
                 || movementHighlight.shiftedIds.has(item.id)
                 || movementHighlight.loadedLocations.has(location)
-                || movementHighlight.shiftedLocations.has(location))));
+                || movementHighlight.shiftedLocations.has(location)
+                || movementHighlight.unloadedLocations?.has(location)
+                || movementHighlight.currentSources?.has(location)
+                || movementHighlight.currentTargets?.has(location)))));
         button.classList.toggle("is-active", active);
         button.classList.toggle("has-match", hasMatch);
         button.classList.toggle("has-search-match", hasSearchMatch);
@@ -3539,6 +3557,7 @@ async function applyWarehouseOptimization() {
         shiftedLocations: new Set(movement.changes.shifted.flatMap((entry) => entry.to || [])),
     };
     refreshWarehouseDataViews();
+    broadcastWarehouse3dState(movement);
     closeWarehouseOptimizer();
     showWarehouseToast(`${movement.id}: ottimizzazione completata e registrata.`);
 }
@@ -4310,6 +4329,7 @@ async function commitManualLoad() {
     inventory.clear();
     state.forEach((item, code) => inventory.set(code, item));
     movementHistory.unshift(movement);
+    broadcastWarehouse3dState(movement);
     return {
         lines,
         movement,
@@ -4359,6 +4379,7 @@ async function commitManualUnload() {
     plan.state.forEach((unit, code) => inventory.set(code, unit));
     unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
     movementHistory.unshift(movement);
+    broadcastWarehouse3dState(movement);
     return {
         lines: plan.lines,
         operationalSteps: plan.operationalSteps || [],
@@ -4378,14 +4399,21 @@ async function executeManualMovement() {
     document.getElementById("manualMovementResult").hidden = false;
     document.getElementById("manualMovementResultText").textContent = `${result.message} Il movimento è stato registrato come operazione manuale.`;
     appendMovementLines(document.getElementById("manualMovementResultLines"), result);
+    completedManualMovement = result.movement;
 }
 
 function setupManualMovement() {
     document.getElementById("openManualMovementButton")?.addEventListener("click", () => openManualMovementDialog("load"));
     document.getElementById("closeManualMovement")?.addEventListener("click", closeManualMovementDialog);
     document.getElementById("cancelManualMovement")?.addEventListener("click", closeManualMovementDialog);
-    document.getElementById("finishManualMovement")?.addEventListener("click", closeManualMovementDialog);
+    document.getElementById("finishManualMovement")?.addEventListener("click", () => {
+        const movement = completedManualMovement;
+        completedManualMovement = null;
+        closeManualMovementDialog();
+        if (movement) highlightMovementOnMap(movement, false);
+    });
     document.getElementById("newManualMovement")?.addEventListener("click", () => {
+        completedManualMovement = null;
         document.getElementById("manualMovementForm").reset();
         resetManualMovementResult();
         configureManualMovement(manualMovementMode);
@@ -4546,6 +4574,7 @@ async function commitOperationGroup() {
     updateSummary();
     renderUnloadZone();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+    broadcastWarehouse3dState(movement);
     return { movement };
 }
 
@@ -4775,8 +4804,82 @@ function openMovementContextMenu(movement, x, y) {
     menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
 }
 
-function highlightMovementOnMap(movement) {
+function movementPlaybackSteps(movement) {
+    if (movement.operationalSteps?.length) return movement.operationalSteps.map((step) => ({
+        ...step,
+        from: [...(step.from || [])],
+        to: [...(step.to || [])],
+        units: (step.units || []).map((unit) => ({ ...unit })),
+    }));
+    const changes = movement.changes || {};
+    return [
+        ...(changes.loaded || []).map((entry) => ({ kind: "load", from: [], to: [...(entry.to || [])], units: [{ id: entry.id, article: entry.article }] })),
+        ...(changes.unloaded || []).map((entry) => ({ kind: "unload", from: [...(entry.from || [])], to: [STAGING_AREA_LABEL], units: [{ id: entry.id, article: entry.article }] })),
+        ...(changes.shifted || []).map((entry) => ({ kind: "reinsert", from: [...(entry.from || [])], to: [...(entry.to || [])], units: [{ id: entry.id, article: entry.article }] })),
+        ...(changes.adjusted || []).map((entry) => ({ kind: "piece-pick", from: [], to: [], pieceQuantity: Math.max(0, entry.beforePieces - entry.afterPieces), remainingPieces: entry.afterPieces, units: [{ id: entry.id, article: entry.article }] })),
+    ];
+}
+
+function movementPlaybackDescription(step) {
+    const source = italianLocationList((step.from || []).filter((location) => parseSlotCode(location)));
+    const target = italianLocationList((step.to || []).filter((location) => parseSlotCode(location)));
+    const articles = Array.from(new Set((step.units || []).map((unit) => unit.article).filter(Boolean))).join(", ");
+    if (["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind)) return `Porta ${source || articles || "le unità indicate"} nel corridoio.`;
+    if (["reinsert", "optimization-place"].includes(step.kind)) return `Ricolloca ${articles || "le unità indicate"}${target ? ` in ${target}` : " dal corridoio"}.`;
+    if (step.kind === "unload") return `Preleva ${source || articles || "le unità indicate"} e portalo nell'area ${STAGING_AREA_LABEL}.`;
+    if (step.kind === "piece-pick") return `Preleva ${step.pieceQuantity || 0} pezzi${articles ? ` dall'articolo ${articles}` : ""}; residuo ${step.remainingPieces || 0} pezzi.`;
+    if (step.kind === "load") return `Carica ${articles || "le unità indicate"}${target ? ` in ${target}` : " nelle destinazioni indicate"}.`;
+    return `${source || "Corridoio"}${target ? ` → ${target}` : ""}${articles ? ` · articolo ${articles}` : ""}.`;
+}
+
+function stopMovementPlayback(clearHighlight = true) {
+    if (movementHighlightTimer) window.clearTimeout(movementHighlightTimer);
+    movementHighlightTimer = null;
+    movementPlaybackState = null;
+    document.getElementById("movementPlayback")?.setAttribute("hidden", "");
+    if (!clearHighlight) return;
+    movementHighlight = null;
+    renderTabs();
+    renderMap();
+}
+
+function showMovementPlaybackStep(index, restartTimer = true) {
+    if (!movementPlaybackState?.steps.length) return;
+    const state = movementPlaybackState;
+    state.index = Math.max(0, Math.min(index, state.steps.length - 1));
+    const step = state.steps[state.index];
+    movementHighlight.currentSources = new Set((step.from || []).filter((location) => parseSlotCode(location)));
+    movementHighlight.currentTargets = new Set((step.to || []).filter((location) => parseSlotCode(location)));
+    const visibleLocation = [...movementHighlight.currentSources, ...movementHighlight.currentTargets][0];
+    const parsed = parseSlotCode(visibleLocation);
+    if (parsed) {
+        selectedRow = parsed.row;
+        const half = Math.ceil(physicalColumnsForRow(parsed.row) / 2) * 2;
+        if (slotRangeMode === "paged") slotPage = parsed.number <= half ? 0 : 1;
+    }
+    document.getElementById("movementPlaybackCounter").textContent = `${state.movement.id} · PASSAGGIO ${state.index + 1}/${state.steps.length}`;
+    document.getElementById("movementPlaybackTitle").textContent = state.movement.type === "load" ? "Movimentazione di carico" : state.movement.optimization ? "Ottimizzazione magazzino" : "Movimentazione di scarico";
+    document.getElementById("movementPlaybackDescription").textContent = movementPlaybackDescription(step);
+    document.getElementById("movementPlaybackPrevious").disabled = state.index === 0;
+    document.getElementById("movementPlaybackNext").disabled = state.index === state.steps.length - 1;
+    document.getElementById("movementPlaybackToggle").textContent = state.paused ? "Riprendi" : "Pausa";
+    renderTabs();
+    renderMap();
+    if (!restartTimer || state.paused) return;
+    if (movementHighlightTimer) window.clearTimeout(movementHighlightTimer);
+    movementHighlightTimer = window.setTimeout(() => {
+        if (!movementPlaybackState || movementPlaybackState.paused) return;
+        if (movementPlaybackState.index < movementPlaybackState.steps.length - 1) showMovementPlaybackStep(movementPlaybackState.index + 1);
+        else {
+            movementPlaybackState.paused = true;
+            document.getElementById("movementPlaybackToggle").textContent = "Ripeti";
+        }
+    }, 2200);
+}
+
+function highlightMovementOnMap(movement, broadcast = true) {
     const loaded = movement.changes?.loaded || [];
+    const unloaded = movement.changes?.unloaded || [];
     const shifted = movement.changes?.shifted || [];
     const fallbackLocations = movement.type === "load" && !movement.changes
         ? movement.lines.flatMap((line) => line.locations || []).filter((location) => parseSlotCode(location))
@@ -4784,16 +4887,22 @@ function highlightMovementOnMap(movement) {
     movementHighlight = {
         loadedIds: new Set(loaded.map((entry) => entry.id)),
         loadedLocations: new Set([...loaded.flatMap((entry) => entry.to || []), ...fallbackLocations]),
+        unloadedIds: new Set(unloaded.map((entry) => entry.id)),
+        unloadedLocations: new Set(unloaded.flatMap((entry) => entry.from || [])),
         shiftedIds: new Set(shifted.map((entry) => entry.id)),
         shiftedLocations: new Set(shifted.flatMap((entry) => entry.to || [])),
+        currentSources: new Set(),
+        currentTargets: new Set(),
     };
+    const steps = movementPlaybackSteps(movement);
+    movementPlaybackState = { movement, steps, index: 0, paused: false };
     const currentLocations = [];
     inventory.forEach((item, location) => {
         if (movementHighlight.loadedIds.has(item.id) || movementHighlight.shiftedIds.has(item.id)
             || movementHighlight.loadedLocations.has(location) || movementHighlight.shiftedLocations.has(location)) currentLocations.push(location);
     });
     const first = currentLocations.sort((a, b) => a.localeCompare(b, "it", { numeric: true }))[0]
-        || [...movementHighlight.loadedLocations, ...movementHighlight.shiftedLocations][0];
+        || [...movementHighlight.loadedLocations, ...movementHighlight.shiftedLocations, ...movementHighlight.unloadedLocations][0];
     const parsed = parseSlotCode(first);
     if (parsed) {
         selectedRow = parsed.row;
@@ -4802,15 +4911,31 @@ function highlightMovementOnMap(movement) {
     }
     closeMovementHistoryDialog();
     setActiveView("warehouse");
-    renderTabs();
-    renderMap();
-    if (movementHighlightTimer) window.clearTimeout(movementHighlightTimer);
-    movementHighlightTimer = window.setTimeout(() => {
-        movementHighlight = null;
+    const playback = document.getElementById("movementPlayback");
+    if (playback) playback.hidden = !steps.length;
+    if (steps.length) showMovementPlaybackStep(0);
+    else {
         renderTabs();
         renderMap();
-    }, 8000);
-    showWarehouseToast(`${movement.id}: giallo = caricato, rosa = ricollocato. Evidenziazione attiva per 8 secondi.`);
+    }
+    if (broadcast) broadcastWarehouse3dState(movement);
+    showWarehouseToast(`${movement.id}: giallo = caricato, rosa = ricollocato, arancio = prelevato. Riproduzione operativa attiva.`);
+}
+
+function setupMovementPlayback() {
+    document.getElementById("movementPlaybackPrevious")?.addEventListener("click", () => showMovementPlaybackStep((movementPlaybackState?.index || 0) - 1));
+    document.getElementById("movementPlaybackNext")?.addEventListener("click", () => showMovementPlaybackStep((movementPlaybackState?.index || 0) + 1));
+    document.getElementById("movementPlaybackToggle")?.addEventListener("click", () => {
+        if (!movementPlaybackState) return;
+        if (movementPlaybackState.paused && movementPlaybackState.index === movementPlaybackState.steps.length - 1) {
+            movementPlaybackState.paused = false;
+            showMovementPlaybackStep(0);
+            return;
+        }
+        movementPlaybackState.paused = !movementPlaybackState.paused;
+        showMovementPlaybackStep(movementPlaybackState.index);
+    });
+    document.getElementById("movementPlaybackClose")?.addEventListener("click", () => stopMovementPlayback());
 }
 
 function openMovementHistoryDialog() {
@@ -5111,6 +5236,7 @@ async function reloadUnloadZoneUnit(unitId, overrides = {}) {
     renderDetails();
     updateSummary();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+    broadcastWarehouse3dState(movement);
     return { movement, destinations: prepared.destinations };
 }
 
@@ -5339,7 +5465,11 @@ function setupLoadDialog() {
         appendMovementLines(document.getElementById("operationReadyList"), result.movement);
     });
     document.getElementById("reviseConfirmedOperation")?.addEventListener("click", () => clearCompletedOperationGroup());
-    document.getElementById("finishOperationGroup")?.addEventListener("click", () => clearCompletedOperationGroup(true));
+    document.getElementById("finishOperationGroup")?.addEventListener("click", () => {
+        const movement = completedOperationMovement;
+        clearCompletedOperationGroup(true);
+        if (movement) highlightMovementOnMap(movement, false);
+    });
     document.getElementById("prepareUnloadButton")?.addEventListener("click", addSelectedResultsToUnloadGroup);
     document.getElementById("openMovementHistory")?.addEventListener("click", openMovementHistoryDialog);
     document.getElementById("closeMovementHistory")?.addEventListener("click", closeMovementHistoryDialog);
@@ -6647,6 +6777,7 @@ setupAnalysisView();
 setupRestrictionDialog();
 setupTemporaryDatabaseActions();
 setupWarehouse3dViewer();
+setupMovementPlayback();
 setupWarehouseLogin();
 updateSummary();
 void initializeWarehouseAuthentication();
