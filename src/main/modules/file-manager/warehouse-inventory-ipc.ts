@@ -151,11 +151,21 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         return window.isFocused();
     });
     ipcMain.on("open-warehouse-movement-details-window", (event, payload) => {
-        const owner = BrowserWindow.fromWebContents(event.sender);
-        if (!owner || owner.isDestroyed() || !payload?.id) return;
+        const senderOwner = BrowserWindow.fromWebContents(event.sender);
+        const owner = payload?.preferWarehouse3dOwner
+            && warehouse3dWindow
+            && !warehouse3dWindow.isDestroyed()
+            ? warehouse3dWindow
+            : senderOwner;
+        const movement = payload?.movement || payload;
+        if (!owner || owner.isDestroyed() || !movement?.id) return;
         movementDetailsOwner = owner;
-        movementDetailsPayload = payload;
+        movementDetailsPayload = {
+            movement,
+            initialView: payload?.movement ? payload.initialView || "comparison" : "comparison",
+        };
         if (movementDetailsWindow && !movementDetailsWindow.isDestroyed()) {
+            movementDetailsWindow.setParentWindow(owner);
             focusBrowserWindow(movementDetailsWindow);
             movementDetailsWindow.webContents.send("warehouse-movement-details-data", movementDetailsPayload);
             return;
@@ -215,11 +225,24 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
             warehouse3dWindow?.maximize();
             focusBrowserWindow(warehouse3dWindow);
         });
-        warehouse3dWindow.on("focus", () => warehouse3dWindow?.webContents.focus());
+        warehouse3dWindow.on("close", () => {
+            // Nasconde prima la superficie WebGL: il teardown del renderer non
+            // deve essere visibile sopra la finestra principale durante il
+            // passaggio di focus, soprattutto con una riproduzione in pausa.
+            if (warehouse3dWindow && !warehouse3dWindow.isDestroyed() && warehouse3dWindow.isVisible()) {
+                warehouse3dWindow.hide();
+            }
+        });
         warehouse3dWindow.on("closed", () => {
+            const owner = warehouse3dOwner;
             warehouse3dWindow = null;
-            focusBrowserWindow(warehouse3dOwner);
             warehouse3dOwner = null;
+            setTimeout(() => {
+                if (!owner || owner.isDestroyed()) return;
+                if (owner.isMinimized()) owner.restore();
+                if (!owner.isVisible()) owner.show();
+                if (!owner.isFocused()) owner.focus();
+            }, 80);
         });
         return true;
     });
@@ -230,6 +253,15 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         if (warehouse3dWindow && !warehouse3dWindow.isDestroyed()) {
             warehouse3dWindow.webContents.send("warehouse-3d-data", warehouse3dPayload);
         }
+    });
+    ipcMain.on("warehouse-3d-movement-action", (event, payload) => {
+        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
+            || warehouse3dWindow.webContents !== event.sender
+            || !warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
+        warehouse3dOwner.webContents.send("warehouse-3d-movement-action-request", {
+            movementId: String(payload?.movementId || ""),
+            view: payload?.view === "instructions" ? "instructions" : "comparison",
+        });
     });
     ipcMain.on("warehouse-3d-ready", (event) => {
         if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()

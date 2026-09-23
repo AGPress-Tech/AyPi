@@ -36,14 +36,19 @@ export type WarehouseInventoryItem = {
 export type WarehouseMovement = {
     id: string;
     timestamp: string;
-    type: "load" | "unload";
+    type: "load" | "unload" | "exit";
+    sourceArea?: string;
+    destinationArea?: string;
+    stagingUnitsBefore?: WarehouseUnloadZoneItem[];
     manual?: boolean;
     optimization?: boolean;
     optimizationOptions?: Record<string, unknown>;
     lines: Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>;
     operationalSteps?: Array<{
         order: number;
-        kind: "corridor" | "unload" | "reinsert" | "piece-pick";
+        kind: "corridor" | "unload" | "reinsert" | "piece-pick" | "load" | "staging-exit" | "optimization-corridor" | "optimization-stage" | "optimization-place";
+        sourceArea?: string;
+        destinationArea?: string;
         from: string[];
         to: string[];
         wholeStack?: boolean;
@@ -131,7 +136,7 @@ export function initializeWarehouseInventorySqliteStore() {
 
         CREATE TABLE IF NOT EXISTS ${MOVEMENTS_TABLE} (
             movement_id TEXT PRIMARY KEY,
-            movement_type TEXT NOT NULL CHECK (movement_type IN ('load', 'unload')),
+            movement_type TEXT NOT NULL CHECK (movement_type IN ('load', 'unload', 'exit')),
             occurred_at TEXT NOT NULL,
             details_json TEXT NOT NULL DEFAULT '{}'
         );
@@ -163,6 +168,46 @@ export function initializeWarehouseInventorySqliteStore() {
     const movementColumns = database.exec(`PRAGMA table_info(${MOVEMENTS_TABLE})`);
     const hasDetails = (movementColumns?.[0]?.values || []).some((row: unknown[]) => String(row[1]) === "details_json");
     if (!hasDetails) database.run(`ALTER TABLE ${MOVEMENTS_TABLE} ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}'`);
+    const movementSchema = String(database.exec(`
+        SELECT sql FROM sqlite_master WHERE type = 'table' AND name = '${MOVEMENTS_TABLE}'
+    `)?.[0]?.values?.[0]?.[0] || "");
+    if (movementSchema && !movementSchema.includes("'exit'")) {
+        database.exec(`PRAGMA foreign_keys = OFF`);
+        try {
+            database.exec(`
+                BEGIN IMMEDIATE TRANSACTION;
+                ALTER TABLE ${MOVEMENT_LINES_TABLE} RENAME TO warehouse_movement_lines_before_exit;
+                ALTER TABLE ${MOVEMENTS_TABLE} RENAME TO warehouse_movements_before_exit;
+                CREATE TABLE ${MOVEMENTS_TABLE} (
+                    movement_id TEXT PRIMARY KEY,
+                    movement_type TEXT NOT NULL CHECK (movement_type IN ('load', 'unload', 'exit')),
+                    occurred_at TEXT NOT NULL,
+                    details_json TEXT NOT NULL DEFAULT '{}'
+                );
+                CREATE TABLE ${MOVEMENT_LINES_TABLE} (
+                    movement_id TEXT NOT NULL,
+                    line_order INTEGER NOT NULL,
+                    article TEXT NOT NULL,
+                    locations_json TEXT NOT NULL,
+                    PRIMARY KEY (movement_id, line_order),
+                    FOREIGN KEY (movement_id) REFERENCES ${MOVEMENTS_TABLE}(movement_id) ON DELETE CASCADE
+                );
+                INSERT INTO ${MOVEMENTS_TABLE} (movement_id, movement_type, occurred_at, details_json)
+                    SELECT movement_id, movement_type, occurred_at, details_json FROM warehouse_movements_before_exit;
+                INSERT INTO ${MOVEMENT_LINES_TABLE} (movement_id, line_order, article, locations_json)
+                    SELECT movement_id, line_order, article, locations_json FROM warehouse_movement_lines_before_exit;
+                DROP TABLE warehouse_movement_lines_before_exit;
+                DROP TABLE warehouse_movements_before_exit;
+                COMMIT;
+            `);
+        } catch (error) {
+            try { database.exec(`ROLLBACK`); } catch { /* keep original error */ }
+            throw error;
+        } finally {
+            database.exec(`PRAGMA foreign_keys = ON`);
+        }
+        database.exec(`CREATE INDEX IF NOT EXISTS idx_${MOVEMENTS_TABLE}_occurred ON ${MOVEMENTS_TABLE}(occurred_at)`);
+    }
     const unitColumns = new Set((database.exec(`PRAGMA table_info(${UNITS_TABLE})`)?.[0]?.values || []).map((row: unknown[]) => String(row[1])));
     if (!unitColumns.has("weighing_code")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN weighing_code TEXT NOT NULL DEFAULT ''`);
     if (!unitColumns.has("piece_count")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN piece_count INTEGER NOT NULL DEFAULT 1`);
@@ -285,7 +330,7 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
         return {
             ...details,
             id: String(row[0] || ""),
-            type: row[1] === "unload" ? "unload" as const : "load" as const,
+            type: row[1] === "exit" ? "exit" as const : row[1] === "unload" ? "unload" as const : "load" as const,
             timestamp: String(row[2] || ""),
             lines,
         } as WarehouseMovement;
@@ -393,6 +438,9 @@ export function saveWarehouseSnapshot(
                 movement.timestamp,
                 serializeJson({
                     actor: movement.actor || null,
+                    sourceArea: movement.sourceArea || null,
+                    destinationArea: movement.destinationArea || null,
+                    stagingUnitsBefore: movement.stagingUnitsBefore || [],
                     beforeState: movement.beforeState || [],
                     afterState: movement.afterState || [],
                     changes: movement.changes || null,

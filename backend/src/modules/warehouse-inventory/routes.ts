@@ -42,7 +42,7 @@ function validateStatePayload(value: any) {
         }
     });
     value.movements.forEach((movement: any) => {
-        if (!movement || !movement.id || !movement.timestamp || !["load", "unload"].includes(movement.type) || !Array.isArray(movement.lines)) {
+        if (!movement || !movement.id || !movement.timestamp || !["load", "unload", "exit"].includes(movement.type) || !Array.isArray(movement.lines)) {
             throw badRequest("Movimento di magazzino non valido.");
         }
     });

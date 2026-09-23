@@ -11,14 +11,24 @@
     <main class="movement-audit-shell">
         <header class="movement-audit-header">
             <div><span>TRACCIABILITÀ MAGAZZINO</span><h1 id="movementTitle">Dettaglio movimento</h1><p id="movementMeta">Caricamento dati…</p></div>
-            <div class="movement-audit-legend"><span><i class="is-loaded"></i> Caricato</span><span><i class="is-shifted"></i> Ricollocato</span><span><i class="is-unloaded"></i> Prelevato</span></div>
+            <div class="movement-audit-header-tools">
+                <nav class="movement-view-switch" aria-label="Vista dettaglio movimento">
+                    <button id="showMovementComparison" class="is-active" type="button">Stato prima / dopo</button>
+                    <button id="showMovementInstructions" type="button">Istruzioni operative</button>
+                </nav>
+                <div class="movement-audit-legend"><span><i class="is-loaded"></i> Caricato</span><span><i class="is-shifted"></i> Ricollocato</span><span><i class="is-unloaded"></i> Prelevato</span></div>
+            </div>
         </header>
         <section class="movement-audit-summary" id="movementSummary"></section>
-        <section class="movement-audit-comparison">
+        <section class="movement-audit-comparison" id="movementComparisonView">
             <article><header><div><span>STATO PRECEDENTE</span><h2>Prima del movimento</h2></div><strong id="beforeCount">0 unità</strong></header><div class="movement-table-wrap"><table><thead><tr><th>Ubicazione</th><th>ID</th><th>Tipologia</th><th>Articolo</th><th>Cliente</th><th>Rif. ordine</th><th>Pesata</th><th>Pezzi</th><th>Stati</th></tr></thead><tbody id="beforeTable"></tbody></table></div></article>
             <article><header><div><span>STATO RISULTANTE</span><h2>Dopo il movimento</h2></div><strong id="afterCount">0 unità</strong></header><div class="movement-table-wrap"><table><thead><tr><th>Ubicazione</th><th>ID</th><th>Tipologia</th><th>Articolo</th><th>Cliente</th><th>Rif. ordine</th><th>Pesata</th><th>Pezzi</th><th>Stati</th></tr></thead><tbody id="afterTable"></tbody></table></div></article>
         </section>
-        <p class="movement-audit-note">Vista storica di sola lettura. Le giacenze non possono essere modificate da questa finestra.</p>
+        <section class="movement-instructions" id="movementInstructionsView" hidden>
+            <header><span>SEQUENZA OPERATIVA</span><h2>Movimenti da eseguire nell’ordine indicato</h2><p>Le unità raggruppate nella stessa istruzione possono essere movimentate insieme.</p></header>
+            <div id="movementInstructionsList"></div>
+        </section>
+        <p class="movement-audit-note" id="movementAuditNote">Vista storica di sola lettura. Le giacenze non possono essere modificate da questa finestra.</p>
     </main>
     <script src="../scripts/warehouse-movement-details-scripts.js"></script>
 </body>

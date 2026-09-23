@@ -1,8 +1,13 @@
 :root { color-scheme: light; --ink: #1d2e3b; --muted: #687784; --line: #d4dde4; --blue: #174f80; }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; min-width: 980px; height: 100vh; overflow: hidden; color: var(--ink); background: #eef2f5; font-family: Arial, sans-serif; }
 .movement-audit-shell { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; height: 100vh; padding: 18px; }
 .movement-audit-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.movement-audit-header-tools { display: grid; justify-items: end; gap: 9px; }
+.movement-view-switch { display: flex; gap: 5px; padding: 4px; border: 1px solid #c6d2da; border-radius: 6px; background: #e7edf1; }
+.movement-view-switch button { min-height: 29px; padding: 5px 10px; border: 1px solid transparent; border-radius: 4px; color: #49606f; background: transparent; font-size: 9px; font-weight: 800; cursor: pointer; }
+.movement-view-switch button.is-active { border-color: #174f80; color: #fff; background: #174f80; }
 .movement-audit-header span, .movement-audit-comparison article > header span { color: #966100; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
 h1 { margin: 3px 0 2px; font-size: 25px; } .movement-audit-header p { margin: 0; color: var(--muted); font-size: 12px; }
 .movement-audit-legend { display: flex; gap: 14px; padding-bottom: 3px; color: #52626f; font-size: 11px; }
@@ -20,3 +25,19 @@ h2 { margin: 2px 0 0; font-size: 15px; }.movement-audit-comparison article > hea
 th { position: sticky; top: 0; z-index: 1; padding: 7px 8px; border-right: 1px solid #dbe2e7; border-bottom: 1px solid #cbd5dc; color: #526471; background: #edf2f5; text-align: left; text-transform: uppercase; font-size: 8px; }
 td { padding: 6px 8px; border-right: 1px solid #e1e6e9; border-bottom: 1px solid #e7ebee; white-space: nowrap; } tr.is-loaded td { background: #fff6c8; } tr.is-shifted td { background: #ffe3eb; } tr.is-unloaded td { background: #ffe7e2; text-decoration: line-through; } tr.is-adjusted td { background: #e4f2ff; }
 .movement-audit-note { margin: 0; color: #74818b; font-size: 10px; text-align: right; }
+.movement-instructions { min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.movement-instructions > header { padding: 12px 15px; border-bottom: 1px solid var(--line); background: #f8fafb; }
+.movement-instructions > header span { color: #966100; font-size: 9px; font-weight: 850; letter-spacing: 1.1px; }
+.movement-instructions > header h2 { margin: 3px 0 2px; color: #203b4d; font-size: 16px; }
+.movement-instructions > header p { margin: 0; color: var(--muted); font-size: 10px; }
+#movementInstructionsList { height: calc(100% - 70px); padding: 12px; overflow: auto; }
+.movement-instruction { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; margin-bottom: 8px; padding: 11px; border: 1px solid #d2dde4; border-radius: 7px; background: #fbfcfd; }
+.movement-instruction.is-block { border-color: #9ebfd2; background: #f4f9fc; box-shadow: inset 4px 0 0 #4f9bc5; }
+.movement-instruction.is-block .movement-instruction__number { color: #fff; background: #2879a6; border-color: #2879a6; }
+.movement-instruction.is-block strong { font-size: 13px; }
+.movement-instruction__number { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #91bad2; border-radius: 50%; color: #175b86; background: #eaf6fc; font-size: 11px; font-weight: 900; }
+.movement-instruction strong { display: block; color: #24465c; font-size: 12px; line-height: 1.35; }
+.movement-instruction-unit { display: grid; grid-template-columns: minmax(100px, auto) minmax(0, 1fr); gap: 8px; margin-top: 7px; padding: 7px 9px; border-left: 3px solid #73accd; color: #526875; background: #edf5f9; font-size: 10px; }
+.movement-instruction-unit b { color: #174f80; }
+.movement-instruction-unit small { grid-column: 1 / -1; color: #71828d; }
+.movement-instructions-empty { margin: 60px 0; color: #71818c; font-size: 11px; text-align: center; }

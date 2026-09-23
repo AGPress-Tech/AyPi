@@ -274,7 +274,7 @@
                     <span>STRUTTURA FISICA</span>
                     <strong id="warehouseStructureTitle">File e capacità <em class="admin-only-badge">ADMIN</em></strong>
                 </div>
-                <p class="tools-drawer__description">Configura capacità e orientamento fronte/retro di ogni fila. La capacità deve essere un multiplo di 6.</p>
+                <p class="tools-drawer__description">Capacità (multipli di 6) e orientamento fronte/retro.</p>
                 <div class="warehouse-row-editor" id="warehouseRowsEditor"></div>
                 <div class="warehouse-structure-actions">
                     <button id="addWarehouseRow" type="button">+ Aggiungi fila</button>
@@ -288,7 +288,7 @@
                     <span>REGOLE DI ALLOCAZIONE</span>
                     <strong>Vincoli per cliente <em class="admin-only-badge">ADMIN</em></strong>
                 </div>
-                <p>Configura whitelist e blacklist per fila oppure per singola ubicazione.</p>
+                <p>Whitelist e blacklist per fila o singola ubicazione.</p>
                 <button class="tools-drawer__action" id="openRestrictionsButton" type="button">
                     <span><strong>Apri vincoli cliente</strong><small>Gestione priorità fila e slot</small></span>
                     <b aria-hidden="true">›</b>
@@ -300,7 +300,7 @@
                     <span>TRACCIABILITÀ</span>
                     <strong>Movimenti automatici</strong>
                 </div>
-                <p>Rivedi posizioni assegnate e unità prelevate nei gruppi completati.</p>
+                <p>Rivedi carichi, prelievi e posizioni assegnate.</p>
                 <button class="tools-drawer__action" id="openMovementHistory" type="button">
                     <span><strong>Apri storico movimenti</strong><small id="movementHistoryCount">Nessun movimento registrato</small></span>
                     <b aria-hidden="true">›</b>
@@ -679,11 +679,16 @@
                 <div>
                     <span class="section-label">TRACCIABILITÀ MAGAZZINO</span>
                     <h2 id="movementHistoryTitle">Storico movimenti automatici</h2>
-                    <p>Clic: evidenzia sulla mappa · Tasto destro: dettaglio prima/dopo. Le riallocazioni manuali non vengono registrate.</p>
+                    <p>Clic: evidenzia sulla mappa · Tasto destro: stato prima/dopo o istruzioni operative. Le riallocazioni manuali non vengono registrate.</p>
                 </div>
                 <button id="closeMovementHistory" type="button" aria-label="Chiudi">×</button>
             </header>
-            <div class="movement-history-list" id="movementHistoryList"></div>
+            <div class="movement-history-table-wrap">
+                <table class="movement-history-table">
+                    <thead><tr><th>Movimento</th><th>Tipo</th><th>Articoli</th><th>Clienti</th><th>Pezzi</th><th>Ubicazioni / passaggi</th><th>Operatore</th></tr></thead>
+                    <tbody id="movementHistoryList"></tbody>
+                </table>
+            </div>
         </section>
     </div>
 
@@ -752,6 +757,7 @@
     <div class="movement-context-menu" id="movementContextMenu" role="menu" aria-hidden="true">
         <strong id="movementContextTitle">Movimento</strong>
         <button id="openMovementDetails" type="button" role="menuitem">Dettagli prima / dopo</button>
+        <button id="openMovementInstructions" type="button" role="menuitem">Istruzioni operative in italiano</button>
     </div>
 
     <div class="restriction-backdrop warehouse-login-backdrop" id="warehouseLoginDialog" aria-hidden="true">

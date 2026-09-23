@@ -20,9 +20,10 @@
                 <button id="cameraTop" type="button">Dall'alto</button>
                 <button id="saveCameraView" type="button">＋ Salva POV</button>
                 <button id="openCameraViews" type="button" aria-expanded="false">POV salvati <b id="cameraViewCount">0</b></button>
+                <button id="openMovement3dHistory" type="button" aria-expanded="false">Movimenti <b id="movement3dHistoryCount">0</b></button>
                 <button id="toggleViewSettings" type="button" aria-expanded="false">Personalizza</button>
                 <button id="toggleLabels" class="is-active" type="button" aria-pressed="true" title="Mostra o nasconde le scritte sui cassoni">Scritte visibili</button>
-                <button id="toggleFreeSlots" class="is-active" type="button" aria-pressed="true">Slot liberi</button>
+                <button id="toggleFreeSlots" type="button" aria-pressed="false">Slot liberi</button>
             </div>
         </div>
         <div class="viewer-summary">
@@ -55,6 +56,8 @@
                 <span><i class="is-movement-load"></i> Caricato</span>
                 <span><i class="is-movement-unload"></i> Prelevato</span>
                 <span><i class="is-movement-shift"></i> Riallocato</span>
+                <span><i class="is-staging-ready"></i> In attesa</span>
+                <span><i class="is-staging-return"></i> Rientro necessario</span>
             </div>
             <section class="movement-3d-playback" id="movement3dPlayback" aria-live="polite" hidden>
                 <div>
@@ -66,6 +69,11 @@
                     <button id="movement3dPrevious" type="button" title="Passaggio precedente">&#x276E;</button>
                     <button id="movement3dToggle" type="button">Pausa</button>
                     <button id="movement3dNext" type="button" title="Passaggio successivo">&#x276F;</button>
+                    <span class="movement-playback-speed" title="Velocità animazione">
+                        <button id="movement3dSlower" type="button" aria-label="Rallenta animazione">−</button>
+                        <output id="movement3dSpeedValue">80%</output>
+                        <button id="movement3dFaster" type="button" aria-label="Accelera animazione">＋</button>
+                    </span>
                     <button id="movement3dReplay" type="button">Ripeti</button>
                     <button id="movement3dClose" type="button">Chiudi</button>
                 </nav>
@@ -99,7 +107,8 @@
                     <label><span>Opacità scaffalatura <output id="rackOpacityValue">22%</output></span><input id="rackOpacityControl" type="range" min="5" max="100" step="1" value="22"></label>
                     <label><span>Dimensione scritte <output id="labelScaleValue">105%</output></span><input id="labelScaleControl" type="range" min="75" max="120" step="1" value="105"></label>
                     <label><span>Ampiezza visuale <output id="cameraFovValue">42°</output></span><input id="cameraFovControl" type="range" min="28" max="65" step="1" value="42"></label>
-                    <label><span>Velocità movimento <output id="movementSpeedValue">100%</output></span><input id="movementSpeedControl" type="range" min="40" max="250" step="10" value="100"></label>
+                    <label><span>Velocità telecamera <output id="movementSpeedValue">200%</output></span><input id="movementSpeedControl" type="range" min="40" max="250" step="10" value="200"></label>
+                    <label><span>Velocità animazioni <output id="playbackSpeedValue">80%</output></span><input id="playbackSpeedControl" type="range" min="40" max="200" step="10" value="80"></label>
                 </div>
                 <div class="scene-spacing">
                     <strong>Distanza tra le file</strong>
@@ -132,24 +141,39 @@
                 <footer><button id="newCameraView" type="button">＋ Nuovo POV dalla posizione corrente</button></footer>
             </section>
             <div class="slot-tooltip" id="slotTooltip" hidden></div>
+            <aside class="movement-history-3d-tooltip" id="movementHistory3dTooltip" role="tooltip" hidden></aside>
+            <div class="movement-context-menu-3d" id="movementContextMenu3d" role="menu" aria-hidden="true">
+                <strong id="movementContextTitle3d">Movimento</strong>
+                <button id="openMovementComparison3d" type="button" role="menuitem">Stato prima / dopo</button>
+                <button id="openMovementInstructions3d" type="button" role="menuitem">Istruzioni operative in italiano</button>
+            </div>
             <div class="viewer-loading" id="viewerLoading"><span></span><strong>Preparazione modello 3D…</strong></div>
         </section>
 
         <aside class="viewer-details">
-            <div class="details-empty" id="detailsEmpty">
-                <div class="details-cube">◇</div>
-                <h2>Seleziona uno slot</h2>
-                <p>Clicca su un cassone o uno spazio libero per consultarne i dati.</p>
-            </div>
-            <div id="detailsContent" hidden>
-                <span class="eyebrow">DETTAGLIO POSIZIONE</span>
-                <div class="details-heading">
-                    <h2 id="detailLocation">—</h2>
-                    <span id="detailState">—</span>
+            <section class="movement-history-3d-panel" id="movement3dHistoryPanel">
+                <header>
+                    <div><span class="eyebrow">TRACCIABILITÀ MAGAZZINO</span><h2>Movimentazioni</h2><p>Clicca per riprodurre nel modello.</p></div>
+                </header>
+                <div class="movement-history-3d-list" id="movement3dHistoryList"></div>
+                <p class="movement-history-3d-empty" id="movement3dHistoryEmpty">Nessun movimento registrato.</p>
+            </section>
+            <section class="viewer-slot-details">
+                <div class="details-empty" id="detailsEmpty">
+                    <div class="details-cube">◇</div>
+                    <h2>Seleziona uno slot</h2>
+                    <p>Clicca su un cassone o uno spazio libero per consultarne i dati.</p>
                 </div>
-                <dl id="detailFields"></dl>
-                <button id="showOn2dMap" type="button">Evidenzia nella mappa 2D</button>
-            </div>
+                <div id="detailsContent" hidden>
+                    <span class="eyebrow">DETTAGLIO POSIZIONE</span>
+                    <div class="details-heading">
+                        <h2 id="detailLocation">—</h2>
+                        <span id="detailState">—</span>
+                    </div>
+                    <dl id="detailFields"></dl>
+                    <button id="showOn2dMap" type="button">Evidenzia nella mappa 2D</button>
+                </div>
+            </section>
         </aside>
     </main>
 

@@ -59,10 +59,13 @@ if (IS_DEV) {
     // Canali dei moduli caricati in finestre secondarie: possono essere registrati
     // dopo la prima lettura di dev-ipc-channels, ma sono comunque contratti noti.
     const knownChannels = new Set<string>([
+        "dev-ipc-channels",
         "warehouse-3d-open-window",
         "warehouse-3d-update",
         "warehouse-3d-ready",
         "warehouse-3d-select-slot",
+        "warehouse-3d-movement-action",
+        "warehouse-3d-movement-action-request",
         "warehouse-inventory-local-load",
         "warehouse-inventory-local-save",
         "warehouse-inventory-focus-window",

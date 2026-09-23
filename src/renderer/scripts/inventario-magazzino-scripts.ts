@@ -460,11 +460,27 @@ function warehouse3dStateSnapshot(movementPlayback = null) {
     return {
         rows: warehouseRows.map((row) => ({ ...row })),
         inventory: serializeWarehouseInventory(),
+        stagingUnits: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
         selectedLocation: selectedSlot?.code || "",
         displayFields: Array.from(displayFields),
-        movementPlayback: movementPlayback ? cloneWarehouseMovement(movementPlayback) : null,
+        movementPlayback: movementPlayback ? {
+            ...cloneWarehouseMovement(movementPlayback),
+            playbackSteps: movementPlaybackSteps(movementPlayback),
+        } : null,
         movementPlaybackKey: movementPlayback ? `${movementPlayback.id}:${Date.now()}` : "",
+        movementHistoryTotal: movementHistory.length,
+        movementHistory: movementHistory.slice(0, 100).map((movement) => ({
+            id: movement.id,
+            timestamp: movement.timestamp,
+            type: movement.type,
+            sourceArea: movement.sourceArea || "",
+            destinationArea: movement.destinationArea || "",
+            manual: Boolean(movement.manual),
+            optimization: Boolean(movement.optimization),
+            actor: movement.actor ? { ...movement.actor } : null,
+            playbackSteps: movementPlaybackSteps(movement),
+        })),
         revision: warehouseRevision,
         generatedAt: new Date().toISOString(),
     };
@@ -520,6 +536,7 @@ function cloneWarehouseMovement(movement) {
     return {
         ...movement,
         actor: movement.actor ? { ...movement.actor } : null,
+        stagingUnitsBefore: cloneUnloadZoneUnits(movement.stagingUnitsBefore || []),
         lines: (movement.lines || []).map((line) => ({ ...line, locations: [...(line.locations || [])] })),
         operationalSteps: (movement.operationalSteps || []).map((step) => ({
             ...step,
@@ -881,7 +898,14 @@ function scheduleSlotLabelFit() {
 
 function createSlotButton(row, columnIndex, side, level) {
     const code = slotCode(row, columnIndex, side, level);
-    const item = inventory.get(code);
+    const pendingMovementTarget = Boolean(movementHighlight?.pendingTargets?.has(code)
+        && !movementHighlight?.shownTargets?.has(code));
+    const playbackSourceItem = movementHighlight?.currentSourceItems?.get(code) || null;
+    // Durante la riproduzione la mappa parte dallo stato precedente: un cassone
+    // destinato qui non deve essere visibile finché il relativo passaggio non è
+    // terminato. Se lo slot è invece la sorgente corrente, usa l'identità
+    // operativa originale anziché l'eventuale occupante dello stato finale.
+    const item = playbackSourceItem || (pendingMovementTarget ? null : inventory.get(code));
     const blockingPalletId = !item ? palletBlockingSlot(code) : null;
     const button = document.createElement("button");
     button.type = "button";
@@ -910,6 +934,7 @@ function createSlotButton(row, columnIndex, side, level) {
     button.classList.toggle("is-movement-unloaded", Boolean(movementHighlight?.unloadedLocations?.has(code)));
     button.classList.toggle("is-movement-source", Boolean(movementHighlight?.currentSources?.has(code)));
     button.classList.toggle("is-movement-target", Boolean(movementHighlight?.currentTargets?.has(code)));
+    button.classList.toggle("is-movement-pending", pendingMovementTarget);
     button.classList.toggle(
         "has-customer-conflict",
         Boolean(item && !evaluateCustomerForSlot(code, item.customer).allowed),
@@ -1640,6 +1665,7 @@ function renderWarehouseStructureEditor() {
                 orientationText.textContent = orientationInput.checked
                     ? "Invertita · dispari dietro, pari davanti"
                     : "Standard · dispari davanti, pari dietro";
+                orientationLabel.title = orientationText.textContent;
             };
             updateOrientationText();
             orientationInput.addEventListener("change", () => {
@@ -2894,7 +2920,12 @@ function planLoadOperation(entries, initialState = inventory) {
             maxPieceCapacity: Math.max(1, Number(entry.pieceCount) || 1),
         });
     });
-    return { state, lines: summarizeMovementLines(actions), score: jointPlan.score };
+    return {
+        state,
+        lines: summarizeMovementLines(actions),
+        score: jointPlan.score,
+        operationalSteps: buildLoadOperationalSteps(initialState, state),
+    };
 }
 
 function logicalInventoryUnits(state) {
@@ -3950,6 +3981,87 @@ function operationalUnit(item, from, to = "") {
     };
 }
 
+function inventoryStateMap(state) {
+    if (state instanceof Map) return state;
+    return new Map((state || []).filter((item) => item?.location).map((item) => [item.location, item]));
+}
+
+function buildLoadOperationalSteps(beforeState, afterState, sourceArea = "dock") {
+    const before = inventoryStateMap(beforeState);
+    const after = inventoryStateMap(afterState);
+    const previousIds = new Set(Array.from(before.values(), (item) => item.id));
+    const loadedUnits = logicalInventoryUnits(after).filter((unit) => !previousIds.has(unit.item.id));
+    const blockedModules = new Map();
+    loadedUnits.forEach((unit) => unit.locations.forEach((location) => {
+        const parsed = parseSlotCode(location);
+        if (!parsed || parsed.side !== "rear") return;
+        const key = `${parsed.row}:${parsed.physicalColumn}`;
+        if (blockedModules.has(key)) return;
+        const frontNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "front", "a")).number;
+        const blockers = ["a", "b", "c"].map((level) => ({
+            location: `${parsed.row}${frontNumber}${level}`,
+            item: before.get(`${parsed.row}${frontNumber}${level}`),
+        })).filter((entry) => entry.item?.type === "crate");
+        if (blockers.length) blockedModules.set(key, blockers);
+    }));
+
+    const corridorSteps = Array.from(blockedModules.values()).map((blockers) => ({
+        kind: "corridor",
+        from: blockers.map((entry) => entry.location),
+        to: ["Corridoio"],
+        units: blockers.map(({ item, location }) => operationalUnit(item, location, location)),
+        wholeStack: blockers.length === 3,
+    }));
+
+    const loadGroups = new Map();
+    loadedUnits.forEach((unit) => {
+        const first = parseSlotCode(unit.locations[0]);
+        const key = unit.item.type === "pallet"
+            ? `pallet:${unit.item.id}`
+            : `${first?.row || ""}:${first?.number || unit.item.id}`;
+        if (!loadGroups.has(key)) loadGroups.set(key, []);
+        loadGroups.get(key).push(unit);
+    });
+    const loadSteps = Array.from(loadGroups.values()).sort((left, right) => {
+        const leftSlot = parseSlotCode(left[0]?.locations?.[0]);
+        const rightSlot = parseSlotCode(right[0]?.locations?.[0]);
+        if (!leftSlot || !rightSlot) return 0;
+        const rowDifference = rowCodes().indexOf(leftSlot.row) - rowCodes().indexOf(rightSlot.row);
+        if (rowDifference) return rowDifference;
+        if (leftSlot.physicalColumn !== rightSlot.physicalColumn) return leftSlot.physicalColumn - rightSlot.physicalColumn;
+        if (leftSlot.side !== rightSlot.side) return leftSlot.side === "rear" ? -1 : 1;
+        return 0;
+    }).map((units) => {
+        const ordered = units.slice().sort((left, right) => {
+            const leftLevel = parseSlotCode(left.locations[0])?.level || "a";
+            const rightLevel = parseSlotCode(right.locations[0])?.level || "a";
+            return ["a", "b", "c"].indexOf(leftLevel) - ["a", "b", "c"].indexOf(rightLevel);
+        });
+        const locations = ordered.flatMap((unit) => unit.locations);
+        return {
+            kind: "load",
+            sourceArea,
+            from: [sourceArea === "staging" ? STAGING_AREA_LABEL : "Zona carico/uscita"],
+            to: locations,
+            units: ordered.map((unit) => operationalUnit(
+                unit.item,
+                sourceArea === "staging" ? STAGING_AREA_LABEL : "Zona carico/uscita",
+                unit.locations.join(" + "),
+            )),
+            wholeStack: ordered.length > 1,
+        };
+    });
+
+    const reinsertionSteps = Array.from(blockedModules.values()).map((blockers) => ({
+        kind: "reinsert",
+        from: blockers.map((entry) => entry.location),
+        to: blockers.map((entry) => entry.location),
+        units: blockers.map(({ item, location }) => operationalUnit(item, location, location)),
+        wholeStack: blockers.length === 3,
+    }));
+    return [...corridorSteps, ...loadSteps, ...reinsertionSteps].map((step, index) => ({ ...step, order: index + 1 }));
+}
+
 function sameOperationalDestination(previous, next) {
     if (!previous?.to || !next?.to) return false;
     const left = parseSlotCode(previous.to);
@@ -4317,6 +4429,7 @@ async function commitManualLoad() {
         manual: true,
         actor: warehouseActorSnapshot(),
         lines,
+        operationalSteps: buildLoadOperationalSteps(beforeState, state),
         beforeState: cloneWarehouseRows(beforeState),
         afterState: cloneWarehouseRows(afterState),
         changes: buildMovementChanges(beforeState, afterState),
@@ -4533,7 +4646,10 @@ async function commitOperationGroup() {
           : planUnloadOperation(activeOperationGroup());
     if (plan.error) return plan;
     const now = new Date();
-    if (operationGroupMode === "load") plan = finalizeLoadPlanIdentity(plan, now);
+    if (operationGroupMode === "load") {
+        plan = finalizeLoadPlanIdentity(plan, now);
+        plan.operationalSteps = buildLoadOperationalSteps(beforeState, plan.state);
+    }
     else plan = {
         ...plan,
         unloadedUnits: (plan.unloadedUnits || []).map((item) => ({ ...item, stagedAt: now.toISOString() })),
@@ -4594,13 +4710,13 @@ function appendMovementLines(container, movement) {
                 title.textContent = optimizationStepTitle(step);
             } else if (step.kind === "corridor") {
                 title.textContent = step.wholeStack
-                    ? `Sposta temporaneamente l'intera pila ${source} nel corridoio`
-                    : `Sposta temporaneamente ${crateWording(step.from?.length || 0)} ${source} nel corridoio`;
+                    ? `Sposta temporaneamente dal fronte l'intera pila ${source} nel corridoio`
+                    : `Sposta temporaneamente dal fronte ${crateWording(step.from?.length || 0)} ${source} nel corridoio`;
             } else if (step.kind === "unload") {
                 const pallet = step.units?.length === 1 && step.units[0].type === "pallet";
                 title.textContent = pallet
-                    ? `Preleva il pallet ${source} e posizionalo in ${STAGING_AREA_LABEL}`
-                    : `Preleva ${crateWording(step.from?.length || 0)} ${source} e ${step.from?.length === 1 ? "posizionalo" : "posizionali"} in ${STAGING_AREA_LABEL}`;
+                    ? `Preleva frontalmente il pallet ${source} e posizionalo in ${STAGING_AREA_LABEL}`
+                    : `Preleva frontalmente ${crateWording(step.from?.length || 0)} ${source} e ${step.from?.length === 1 ? "posizionalo" : "posizionali"} in ${STAGING_AREA_LABEL}`;
             } else if (step.kind === "piece-pick") {
                 const origin = step.units?.[0]?.from || source;
                 title.textContent = source === STAGING_AREA_LABEL
@@ -4608,13 +4724,24 @@ function appendMovementLines(container, movement) {
                     : source === "Corridoio"
                     ? `Dal cassone proveniente da ${origin}, nel corridoio, preleva ${step.pieceQuantity} pezzi · residuo ${step.remainingPieces} pezzi`
                     : `Preleva ${step.pieceQuantity} pezzi dal cassone ${source} · residuo ${step.remainingPieces} pezzi`;
+            } else if (step.kind === "staging-exit") {
+                const pallet = step.units?.length === 1 && step.units[0].type === "pallet";
+                title.textContent = pallet
+                    ? `Porta il pallet da ${STAGING_AREA_LABEL} alla Zona carico/uscita`
+                    : `Porta ${crateWording(step.units?.length || 0)} da ${STAGING_AREA_LABEL} alla Zona carico/uscita`;
+            } else if (step.kind === "load") {
+                const pallet = step.units?.length === 1 && step.units[0].type === "pallet";
+                const origin = step.sourceArea === "staging" ? STAGING_AREA_LABEL : "Zona carico/uscita";
+                title.textContent = pallet
+                    ? `Preleva il pallet da ${origin} e depositalo frontalmente in ${destination}`
+                    : `Preleva ${crateWording(step.units?.length || 0)} da ${origin} e ${step.units?.length === 1 ? "depositalo" : "depositale"} frontalmente in ${destination}`;
             } else {
                 const origin = italianLocationList(step.units?.map((unit) => unit.from) || []);
                 title.textContent = step.wholeStack
-                    ? `Ricolloca insieme dal corridoio la pila proveniente da ${origin} in ${destination}`
+                    ? `Ricolloca insieme e frontalmente dal corridoio la pila proveniente da ${origin} in ${destination}`
                     : step.units?.length === 1
-                      ? `Ricolloca dal corridoio il cassone proveniente da ${origin} in ${destination}`
-                      : `Ricolloca dal corridoio ${crateWording(step.to?.length || 0)} in ${destination}`;
+                      ? `Ricolloca frontalmente dal corridoio il cassone proveniente da ${origin} in ${destination}`
+                      : `Ricolloca frontalmente dal corridoio ${crateWording(step.to?.length || 0)} in ${destination}`;
             }
             const details = operationalUnitsDetail(step);
             content.append(title, details);
@@ -4662,6 +4789,7 @@ function operationalUnitRoute(step, unit) {
         return `CORRIDOIO → ${unit.to || italianLocationList(step.to)}`;
     }
     if (step.kind === "unload") return `${unit.from || italianLocationList(step.from)} → ${STAGING_AREA_LABEL.toUpperCase()}`;
+    if (step.kind === "staging-exit") return `${STAGING_AREA_LABEL.toUpperCase()} → ZONA CARICO/USCITA`;
     if (step.kind === "piece-pick") {
         const source = step.from?.[0] === STAGING_AREA_LABEL
             ? STAGING_AREA_LABEL.toUpperCase()
@@ -4718,6 +4846,76 @@ function operationalUnitsDescription(units) {
     return units.map((unit) => `${unit.from}: ${describe(unit)}`).join("; ");
 }
 
+function movementHistoryUnits(movement) {
+    const actionKinds = movement.optimization
+        ? new Set(["optimization-place"])
+        : movement.type === "load"
+          ? new Set(["load"])
+          : movement.type === "exit"
+            ? new Set(["staging-exit"])
+            : new Set(["unload"]);
+    const units = (movement.operationalSteps || [])
+        .filter((step) => actionKinds.has(step.kind))
+        .flatMap((step) => step.units || []);
+    const unique = new Map();
+    units.forEach((unit, index) => unique.set(unit.id || `${unit.article}:${unit.weighingCode}:${index}`, unit));
+    if (unique.size) return Array.from(unique.values());
+
+    const changeKey = movement.type === "load" ? "loaded" : movement.optimization ? "shifted" : "unloaded";
+    const ids = new Set((movement.changes?.[changeKey] || []).map((entry) => entry.id));
+    const rows = movement.type === "load" ? movement.afterState : movement.beforeState;
+    (rows || []).forEach((item) => {
+        if (ids.has(item.id) && !unique.has(item.id)) unique.set(item.id, item);
+    });
+    return Array.from(unique.values());
+}
+
+function compactHistoryValues(values, maximum = 3) {
+    const unique = Array.from(new Set(values.filter(Boolean).map(String)));
+    if (!unique.length) return "—";
+    if (unique.length <= maximum) return unique.join(", ");
+    return `${unique.slice(0, maximum).join(", ")} +${unique.length - maximum}`;
+}
+
+function movementHistorySummary(movement) {
+    const units = movementHistoryUnits(movement);
+    const articleCounts = new Map();
+    units.forEach((unit) => {
+        if (!unit.article) return;
+        articleCounts.set(unit.article, (articleCounts.get(unit.article) || 0) + 1);
+    });
+    if (!articleCounts.size) (movement.lines || []).forEach((line) => {
+        if (line.article) articleCounts.set(line.article, Math.max(1, articleCounts.get(line.article) || 0));
+    });
+    const articles = Array.from(articleCounts, ([article, count]) => count > 1 ? `${article} ×${count}` : article);
+    const clients = compactHistoryValues(units.map((unit) => unit.customer));
+    const unitPieces = units.reduce((sum, unit) => sum + Math.max(0, Number(unit.pieceCount) || 0), 0);
+    const pieces = unitPieces || (movement.lines || []).reduce((sum, line) => sum + Math.max(0, Number(line.pieceCount) || 0), 0);
+    const locations = compactHistoryValues((movement.lines || []).flatMap((line) => line.locations || []), 4);
+    return {
+        articles: compactHistoryValues(articles, 4),
+        clients,
+        pieces: pieces || "—",
+        locations: movement.optimization
+            ? `${movement.changes?.shifted?.length || 0} unità · ${movement.operationalSteps?.length || 0} passaggi`
+            : locations,
+    };
+}
+
+function movementHistoryType(movement) {
+    if (movement.optimization) return "Ottimizzazione";
+    const label = movement.type === "load" ? "Carico" : movement.type === "exit" ? "Uscita" : "Scarico";
+    return `${label}${movement.manual ? " manuale" : ""}`;
+}
+
+function movementHistoryCell(value, className = "") {
+    const cell = document.createElement("td");
+    if (className) cell.className = className;
+    cell.textContent = String(value ?? "—");
+    cell.title = cell.textContent;
+    return cell;
+}
+
 function renderMovementHistory() {
     const count = document.getElementById("movementHistoryCount");
     if (count) count.textContent = movementHistory.length
@@ -4727,60 +4925,49 @@ function renderMovementHistory() {
     if (!list) return;
     list.replaceChildren();
     if (!movementHistory.length) {
-        const empty = document.createElement("p");
+        const emptyRow = document.createElement("tr");
+        const empty = document.createElement("td");
+        empty.colSpan = 7;
         empty.className = "movement-history-empty";
         empty.textContent = "Lo storico si popolerà completando un carico, uno scarico o un'ottimizzazione globale.";
-        list.appendChild(empty);
+        emptyRow.appendChild(empty);
+        list.appendChild(emptyRow);
         return;
     }
     movementHistory.forEach((movement) => {
-        const card = document.createElement("article");
-        card.className = "movement-history-card";
-        card.dataset.movementId = movement.id;
-        card.tabIndex = 0;
-        const header = document.createElement("header");
-        const heading = document.createElement("div");
+        const row = document.createElement("tr");
+        row.className = "movement-history-row";
+        row.dataset.movementId = movement.id;
+        row.tabIndex = 0;
+        const movementCell = document.createElement("td");
         const title = document.createElement("strong");
         title.textContent = movement.id;
         const date = document.createElement("small");
         date.textContent = new Date(movement.timestamp).toLocaleString("it-IT");
-        heading.append(title, date);
-        const badge = document.createElement("span");
-        badge.textContent = movement.optimization
-            ? "Ottimizzazione"
-            : `${movement.type === "load" ? "Carico" : "Scarico"}${movement.manual ? " manuale" : ""}`;
-        header.append(heading, badge);
-        const lines = document.createElement("div");
-        lines.className = "movement-history-card__lines";
-        if (movement.optimization) {
-            const summary = document.createElement("article");
-            summary.className = "movement-line";
-            const heading = document.createElement("strong");
-            heading.textContent = "Riassetto globale del magazzino";
-            const details = document.createElement("p");
-            details.textContent = `${movement.operationalSteps?.length || 0} spostamenti · ${movement.changes?.shifted?.length || 0} unità con nuova ubicazione`;
-            summary.append(heading, details);
-            lines.appendChild(summary);
-        } else {
-            appendMovementLines(lines, movement);
-        }
-        const actor = document.createElement("p");
-        actor.className = "movement-history-card__actor";
+        movementCell.append(title, date);
+        const summary = movementHistorySummary(movement);
         const actorName = movement.actor?.displayName || movement.actor?.employee || movement.actor?.adminName || "Operatore non registrato";
-        actor.textContent = `Operatore: ${actorName}${movement.actor?.department ? ` · ${movement.actor.department}` : ""}`;
-        card.append(header, actor, lines);
-        card.addEventListener("click", () => highlightMovementOnMap(movement));
-        card.addEventListener("keydown", (event) => {
+        row.append(
+            movementCell,
+            movementHistoryCell(movementHistoryType(movement), "movement-history-type"),
+            movementHistoryCell(summary.articles),
+            movementHistoryCell(summary.clients),
+            movementHistoryCell(summary.pieces, "movement-history-pieces"),
+            movementHistoryCell(summary.locations),
+            movementHistoryCell(actorName),
+        );
+        row.addEventListener("click", () => highlightMovementOnMap(movement));
+        row.addEventListener("keydown", (event) => {
             if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 highlightMovementOnMap(movement);
             }
         });
-        card.addEventListener("contextmenu", (event) => {
+        row.addEventListener("contextmenu", (event) => {
             event.preventDefault();
             openMovementContextMenu(movement, event.clientX, event.clientY);
         });
-        list.appendChild(card);
+        list.appendChild(row);
     });
 }
 
@@ -4795,28 +4982,79 @@ function openMovementContextMenu(movement, x, y) {
     contextMovementId = movement.id;
     const menu = document.getElementById("movementContextMenu");
     if (!menu) return;
+    menu.dataset.movementId = movement.id;
     document.getElementById("movementContextTitle").textContent = movement.id;
     menu.classList.add("is-open");
     menu.setAttribute("aria-hidden", "false");
     const width = 220;
-    const height = 78;
+    const height = 116;
     menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
+}
+
+function openMovementDetailWindow(movement, initialView = "comparison", preferWarehouse3dOwner = false) {
+    if (!movement) return;
+    ipcRenderer.send("open-warehouse-movement-details-window", {
+        movement: cloneWarehouseMovement(movement),
+        initialView: initialView === "instructions" ? "instructions" : "comparison",
+        preferWarehouse3dOwner,
+    });
 }
 
 function movementPlaybackSteps(movement) {
     if (movement.operationalSteps?.length) return movement.operationalSteps.map((step) => ({
         ...step,
+        sourceStagingUnits: cloneUnloadZoneUnits(movement.stagingUnitsBefore || []),
         from: [...(step.from || [])],
         to: [...(step.to || [])],
         units: (step.units || []).map((unit) => ({ ...unit })),
     }));
     const changes = movement.changes || {};
+    const itemFor = (id) => [...(movement.afterState || []), ...(movement.beforeState || [])].find((item) => item.id === id) || {};
+    const loadedGroups = new Map();
+    (changes.loaded || []).forEach((entry) => {
+        const item = itemFor(entry.id);
+        const locations = [...(entry.to || [])];
+        if (item.type === "pallet") {
+            loadedGroups.set(`pallet:${entry.id}`, [{ entry, item, locations }]);
+            return;
+        }
+        locations.forEach((location) => {
+            const parsed = parseSlotCode(location);
+            const key = parsed ? `stack:${parsed.row}:${parsed.number}` : `unit:${entry.id}:${location}`;
+            if (!loadedGroups.has(key)) loadedGroups.set(key, []);
+            loadedGroups.get(key).push({ entry, item, locations: [location] });
+        });
+    });
+    const loadedSteps = Array.from(loadedGroups.values()).flatMap((group) => {
+        const ordered = group.slice().sort((left, right) => {
+            const leftLevel = parseSlotCode(left.locations[0])?.level || "a";
+            const rightLevel = parseSlotCode(right.locations[0])?.level || "a";
+            return ["a", "b", "c"].indexOf(leftLevel) - ["a", "b", "c"].indexOf(rightLevel);
+        });
+        const chunks = [];
+        for (let index = 0; index < ordered.length; index += 3) chunks.push(ordered.slice(index, index + 3));
+        return chunks.map((chunk) => ({
+            kind: "load",
+            sourceArea: movement.sourceArea || "dock",
+            sourceStagingUnits: cloneUnloadZoneUnits(movement.stagingUnitsBefore || []),
+            from: [],
+            to: chunk.flatMap((unit) => unit.locations),
+            wholeStack: chunk.length > 1,
+            units: chunk.map(({ entry, item, locations }) => ({
+                ...item,
+                id: entry.id,
+                article: entry.article,
+                from: "Ingresso",
+                to: locations.join(" + "),
+            })),
+        }));
+    });
     return [
-        ...(changes.loaded || []).map((entry) => ({ kind: "load", from: [], to: [...(entry.to || [])], units: [{ id: entry.id, article: entry.article }] })),
-        ...(changes.unloaded || []).map((entry) => ({ kind: "unload", from: [...(entry.from || [])], to: [STAGING_AREA_LABEL], units: [{ id: entry.id, article: entry.article }] })),
-        ...(changes.shifted || []).map((entry) => ({ kind: "reinsert", from: [...(entry.from || [])], to: [...(entry.to || [])], units: [{ id: entry.id, article: entry.article }] })),
-        ...(changes.adjusted || []).map((entry) => ({ kind: "piece-pick", from: [], to: [], pieceQuantity: Math.max(0, entry.beforePieces - entry.afterPieces), remainingPieces: entry.afterPieces, units: [{ id: entry.id, article: entry.article }] })),
+        ...loadedSteps,
+        ...(changes.unloaded || []).map((entry) => ({ kind: "unload", from: [...(entry.from || [])], to: [STAGING_AREA_LABEL], units: [{ ...itemFor(entry.id), id: entry.id, article: entry.article }] })),
+        ...(changes.shifted || []).map((entry) => ({ kind: "reinsert", from: [...(entry.from || [])], to: [...(entry.to || [])], units: [{ ...itemFor(entry.id), id: entry.id, article: entry.article }] })),
+        ...(changes.adjusted || []).map((entry) => ({ kind: "piece-pick", from: [], to: [], pieceQuantity: Math.max(0, entry.beforePieces - entry.afterPieces), remainingPieces: entry.afterPieces, units: [{ ...itemFor(entry.id), id: entry.id, article: entry.article }] })),
     ];
 }
 
@@ -4828,6 +5066,7 @@ function movementPlaybackDescription(step) {
     if (["reinsert", "optimization-place"].includes(step.kind)) return `Ricolloca ${articles || "le unità indicate"}${target ? ` in ${target}` : " dal corridoio"}.`;
     if (step.kind === "unload") return `Preleva ${source || articles || "le unità indicate"} e portalo nell'area ${STAGING_AREA_LABEL}.`;
     if (step.kind === "piece-pick") return `Preleva ${step.pieceQuantity || 0} pezzi${articles ? ` dall'articolo ${articles}` : ""}; residuo ${step.remainingPieces || 0} pezzi.`;
+    if (step.kind === "staging-exit") return `Porta ${articles || "le unità indicate"} dall'area ${STAGING_AREA_LABEL} alla zona carico/uscita.`;
     if (step.kind === "load") return `Carica ${articles || "le unità indicate"}${target ? ` in ${target}` : " nelle destinazioni indicate"}.`;
     return `${source || "Corridoio"}${target ? ` → ${target}` : ""}${articles ? ` · articolo ${articles}` : ""}.`;
 }
@@ -4848,8 +5087,28 @@ function showMovementPlaybackStep(index, restartTimer = true) {
     const state = movementPlaybackState;
     state.index = Math.max(0, Math.min(index, state.steps.length - 1));
     const step = state.steps[state.index];
-    movementHighlight.currentSources = new Set((step.from || []).filter((location) => parseSlotCode(location)));
+    const sourceLocations = step.kind === "piece-pick"
+        ? []
+        : [...(step.from || []), ...(step.units || []).map((unit) => unit.from)];
+    movementHighlight.currentSources = new Set(sourceLocations.filter((location) => parseSlotCode(location)));
+    movementHighlight.currentSourceItems = new Map();
+    if (step.kind !== "piece-pick") (step.units || []).forEach((unit) => {
+        const source = parseSlotCode(unit.from);
+        if (!source) return;
+        movementHighlight.currentSourceItems.set(source.code, {
+            ...unit,
+            location: source.code,
+            tags: [...(unit.tags || [])],
+            inMovement: true,
+            pairedLocation: unit.pairedLocation || null,
+        });
+    });
     movementHighlight.currentTargets = new Set((step.to || []).filter((location) => parseSlotCode(location)));
+    movementHighlight.shownTargets = new Set(state.steps.slice(0, state.index + 1).flatMap((entry) => (
+        ["load", "reinsert", "optimization-place"].includes(entry.kind)
+            ? (entry.to || []).filter((location) => parseSlotCode(location))
+            : []
+    )));
     const visibleLocation = [...movementHighlight.currentSources, ...movementHighlight.currentTargets][0];
     const parsed = parseSlotCode(visibleLocation);
     if (parsed) {
@@ -4893,8 +5152,16 @@ function highlightMovementOnMap(movement, broadcast = true) {
         shiftedLocations: new Set(shifted.flatMap((entry) => entry.to || [])),
         currentSources: new Set(),
         currentTargets: new Set(),
+        currentSourceItems: new Map(),
     };
     const steps = movementPlaybackSteps(movement);
+    const pendingTargets = new Set(steps.flatMap((step) => (
+        ["load", "reinsert", "optimization-place"].includes(step.kind)
+            ? (step.to || []).filter((location) => parseSlotCode(location))
+            : []
+    )));
+    movementHighlight.pendingTargets = pendingTargets;
+    movementHighlight.shownTargets = new Set();
     movementPlaybackState = { movement, steps, index: 0, paused: false };
     const currentLocations = [];
     inventory.forEach((item, location) => {
@@ -5145,6 +5412,8 @@ function prepareUnloadZoneReload(unitId, overrides = {}) {
         id: movementIdentifier(now),
         timestamp: now.toISOString(),
         type: "load",
+        sourceArea: "staging",
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
         lines: [{
             article: staged.article,
@@ -5152,6 +5421,7 @@ function prepareUnloadZoneReload(unitId, overrides = {}) {
             weighingCode,
             pieceCount,
         }],
+        operationalSteps: buildLoadOperationalSteps(beforeState, plan.state, "staging"),
         beforeState: cloneWarehouseRows(beforeState),
         afterState: cloneWarehouseRows(afterState),
         changes: buildMovementChanges(beforeState, afterState),
@@ -5240,6 +5510,48 @@ async function reloadUnloadZoneUnit(unitId, overrides = {}) {
     return { movement, destinations: prepared.destinations };
 }
 
+function stagingExitMovement(items) {
+    const now = new Date();
+    const steps = [];
+    const byArticle = new Map();
+    items.forEach((item) => {
+        const key = `${item.article || ""}:${item.type || "crate"}`;
+        if (!byArticle.has(key)) byArticle.set(key, []);
+        byArticle.get(key).push(item);
+    });
+    byArticle.forEach((articleItems) => {
+        const chunkSize = articleItems[0]?.type === "pallet" ? 1 : 3;
+        for (let index = 0; index < articleItems.length; index += chunkSize) {
+            const chunk = articleItems.slice(index, index + chunkSize);
+            steps.push({
+                order: steps.length + 1,
+                kind: "staging-exit",
+                sourceArea: "staging",
+                destinationArea: "dock",
+                from: [STAGING_AREA_LABEL],
+                to: ["Zona carico/uscita"],
+                wholeStack: chunk.length > 1,
+                units: chunk.map((item) => operationalUnit(item, STAGING_AREA_LABEL, "Zona carico/uscita")),
+            });
+        }
+    });
+    const state = serializeWarehouseInventory();
+    return {
+        id: movementIdentifier(now),
+        timestamp: now.toISOString(),
+        type: "exit",
+        sourceArea: "staging",
+        destinationArea: "dock",
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
+        actor: warehouseActorSnapshot(),
+        lines: items.map((item) => ({ kind: "unloaded", article: item.article, locations: [STAGING_AREA_LABEL] })),
+        operationalSteps: steps,
+        beforeState: cloneWarehouseRows(state),
+        afterState: cloneWarehouseRows(state),
+        changes: { loaded: [], unloaded: [], shifted: [], adjusted: [] },
+    };
+}
+
 async function moveSingleUnitToUnloadArea(unitId) {
     const item = unloadZone.find((unit) => unit.id === unitId);
     if (!item) {
@@ -5262,10 +5574,14 @@ async function moveSingleUnitToUnloadArea(unitId) {
         danger: true,
     })) return;
     const nextUnloadZone = unloadZone.filter((unit) => unit.id !== unitId);
+    const movement = stagingExitMovement([item]);
     try {
-        await persistWarehouseData(serializeWarehouseInventory(), serializeWarehouseMovements(), cloneUnloadZoneUnits(nextUnloadZone));
+        await persistWarehouseData(serializeWarehouseInventory(), [movement, ...serializeWarehouseMovements()], cloneUnloadZoneUnits(nextUnloadZone));
         unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
+        movementHistory.unshift(movement);
+        renderMovementHistory();
         renderUnloadZone();
+        broadcastWarehouse3dState(movement);
         showWarehouseToast(`Articolo ${item.article}: uscita definitiva verso la Zona Scarico registrata.`);
     } catch (error) {
         showWarehouseToast(`Uscita non salvata: ${error.message}`, true);
@@ -5290,10 +5606,14 @@ async function confirmVehicleLoad() {
     })) return;
     const button = document.getElementById("confirmVehicleLoad");
     button.disabled = true;
+    const movement = stagingExitMovement(vehicleUnits);
     try {
-        await persistWarehouseData(serializeWarehouseInventory(), serializeWarehouseMovements(), cloneUnloadZoneUnits(returnUnits));
+        await persistWarehouseData(serializeWarehouseInventory(), [movement, ...serializeWarehouseMovements()], cloneUnloadZoneUnits(returnUnits));
         unloadZone.splice(0, unloadZone.length, ...returnUnits);
+        movementHistory.unshift(movement);
+        renderMovementHistory();
         renderUnloadZone();
+        broadcastWarehouse3dState(movement);
         showWarehouseToast(`Zona Scarico: ${quantity} ${quantity === 1 ? "unità uscita" : "unità uscite"} definitivamente.${returnUnits.length ? ` ${returnUnits.length} da rimettere a magazzino restano in lavorazione.` : ""}`);
     } catch (error) {
         showWarehouseToast(`Conferma non salvata: ${error.message}`, true);
@@ -5477,11 +5797,24 @@ function setupLoadDialog() {
         if (event.target === event.currentTarget) closeMovementHistoryDialog();
     });
     document.getElementById("openMovementDetails")?.addEventListener("click", () => {
-        const movement = movementHistory.find((entry) => entry.id === contextMovementId);
+        const movementId = contextMovementId || document.getElementById("movementContextMenu")?.dataset.movementId;
+        const movement = movementHistory.find((entry) => entry.id === movementId);
         if (!movement) return;
         closeMovementContextMenu();
-        ipcRenderer.send("open-warehouse-movement-details-window", cloneWarehouseMovement(movement));
+        openMovementDetailWindow(movement, "comparison");
     });
+    document.getElementById("openMovementInstructions")?.addEventListener("click", () => {
+        const movementId = contextMovementId || document.getElementById("movementContextMenu")?.dataset.movementId;
+        const movement = movementHistory.find((entry) => entry.id === movementId);
+        if (!movement) return;
+        closeMovementContextMenu();
+        openMovementDetailWindow(movement, "instructions");
+    });
+    ipcRenderer.on("warehouse-3d-movement-action-request", (_event, request) => {
+        const movement = movementHistory.find((entry) => entry.id === request?.movementId);
+        if (movement) openMovementDetailWindow(movement, request?.view, true);
+    });
+    document.getElementById("movementContextMenu")?.addEventListener("pointerdown", (event) => event.stopPropagation());
     document.addEventListener("pointerdown", (event) => {
         if (!event.target.closest?.("#movementContextMenu")) closeMovementContextMenu();
     });
