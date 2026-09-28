@@ -66,6 +66,7 @@ button, input { font: inherit; }
 .viewer-legend .is-movement-load { background: #ffd84d; }
 .viewer-legend .is-movement-unload { background: #ff9b7d; }
 .viewer-legend .is-movement-shift { background: #ff9fbe; }
+.viewer-legend .is-movement-corridor { background: #ffe27a; }
 .viewer-legend .is-staging-ready { background: #66aee0; }
 .viewer-legend .is-staging-return { background: #b666d2; }
 .movement-3d-playback { position: absolute; z-index: 8; right: 18px; bottom: 48px; left: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 930px; margin: auto; padding: 10px 12px 10px 15px; border: 1px solid rgba(103,172,210,.9); border-radius: 8px; color: #eef9ff; background: rgba(19,52,75,.94); box-shadow: 0 14px 38px rgba(13,37,53,.28); backdrop-filter: blur(9px); }

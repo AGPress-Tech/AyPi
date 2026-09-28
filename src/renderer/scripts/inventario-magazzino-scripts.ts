@@ -3,6 +3,7 @@ require("./shared/dev-guards");
 const { requestBackend } = require("./shared/backend-client");
 const { ipcRenderer } = require("electron");
 const WAREHOUSE_LOGIN_REQUIRED = new URLSearchParams(window.location.search).get("warehouseRequireLogin") === "1";
+const WAREHOUSE_DEVELOPMENT_MODE = !WAREHOUSE_LOGIN_REQUIRED;
 
 function defaultInvertedSides(code) {
     return (code.charCodeAt(0) - "A".charCodeAt(0) + 1) % 2 === 0;
@@ -44,6 +45,10 @@ function totalSlots() {
 // La sorgente effettiva viene caricata dalle tabelle SQLite del backend.
 const inventory = new Map();
 
+function visibleWarehouseInventory() {
+    return movementPlaybackState?.displayInventory || inventory;
+}
+
 let selectedRow = "A";
 let selectedSlot = null;
 const displayFields = new Set(["location", "article", "pieces"]);
@@ -71,8 +76,8 @@ let warehouseAssigneeGroups = {};
 let warehouseAdmins = [];
 let warehouseStorageUnavailable = true;
 let movementHighlight = null;
-let movementHighlightTimer = null;
 let movementPlaybackState = null;
+let movementPlaybackTimer = null;
 let contextMovementId = null;
 let contextUnloadZoneUnitId = null;
 let unloadZoneReloadPreview = null;
@@ -163,9 +168,8 @@ function isWarehouseAdmin() {
 }
 
 function isExclusiveTestDatabaseAdmin() {
-    return WAREHOUSE_LOGIN_REQUIRED
-        && warehouseSession.role === "admin"
-        && String(warehouseSession.adminName || "").trim().localeCompare("Ayrton Pizzi", "it", { sensitivity: "base" }) === 0;
+    return WAREHOUSE_DEVELOPMENT_MODE || (warehouseSession.role === "admin"
+        && String(warehouseSession.adminName || "").trim().localeCompare("Ayrton Pizzi", "it", { sensitivity: "base" }) === 0);
 }
 
 function warehouseActorSnapshot() {
@@ -814,7 +818,7 @@ function palletBlockingSlot(location) {
     const frontGround = `${parsed.row}${parsed.physicalColumn * 2 - 1}a`;
     const rearGround = `${parsed.row}${parsed.physicalColumn * 2}a`;
     const pallet = [frontGround, rearGround]
-        .map((code) => inventory.get(code))
+        .map((code) => visibleWarehouseInventory().get(code))
         .find((item) => item?.type === "pallet");
     return pallet?.id || null;
 }
@@ -825,7 +829,7 @@ function blockedSlotCount() {
 
 function itemMatchesSelection(item) {
     if (!selectedSlot || !item) return false;
-    const selectedItem = inventory.get(selectedSlot.code);
+    const selectedItem = visibleWarehouseInventory().get(selectedSlot.code);
     if (!selectedItem) return false;
     if (displayFields.has("article")) return item.article === selectedItem.article;
     if (displayFields.has("customer")) return item.customer === selectedItem.customer;
@@ -898,14 +902,7 @@ function scheduleSlotLabelFit() {
 
 function createSlotButton(row, columnIndex, side, level) {
     const code = slotCode(row, columnIndex, side, level);
-    const pendingMovementTarget = Boolean(movementHighlight?.pendingTargets?.has(code)
-        && !movementHighlight?.shownTargets?.has(code));
-    const playbackSourceItem = movementHighlight?.currentSourceItems?.get(code) || null;
-    // Durante la riproduzione la mappa parte dallo stato precedente: un cassone
-    // destinato qui non deve essere visibile finché il relativo passaggio non è
-    // terminato. Se lo slot è invece la sorgente corrente, usa l'identità
-    // operativa originale anziché l'eventuale occupante dello stato finale.
-    const item = playbackSourceItem || (pendingMovementTarget ? null : inventory.get(code));
+    const item = visibleWarehouseInventory().get(code);
     const blockingPalletId = !item ? palletBlockingSlot(code) : null;
     const button = document.createElement("button");
     button.type = "button";
@@ -932,9 +929,10 @@ function createSlotButton(row, columnIndex, side, level) {
         movementHighlight.shiftedIds.has(highlightedUnitId) || movementHighlight.shiftedLocations.has(code)
     )));
     button.classList.toggle("is-movement-unloaded", Boolean(movementHighlight?.unloadedLocations?.has(code)));
+    button.classList.toggle("is-movement-corridor", Boolean(movementHighlight?.corridorLocations?.has(code)));
     button.classList.toggle("is-movement-source", Boolean(movementHighlight?.currentSources?.has(code)));
     button.classList.toggle("is-movement-target", Boolean(movementHighlight?.currentTargets?.has(code)));
-    button.classList.toggle("is-movement-pending", pendingMovementTarget);
+    button.classList.toggle("is-movement-arrived", Boolean(movementHighlight?.arrivedTargets?.has(code)));
     button.classList.toggle(
         "has-customer-conflict",
         Boolean(item && !evaluateCustomerForSlot(code, item.customer).allowed),
@@ -1019,7 +1017,7 @@ function updateSlotPager() {
     previous.classList.remove("has-selected-target");
     next.classList.remove("has-selected-target");
 
-    const selectedItem = selectedSlot ? inventory.get(selectedSlot.code) : null;
+    const selectedItem = selectedSlot ? visibleWarehouseInventory().get(selectedSlot.code) : null;
     if (slotRangeMode !== "paged" || !selectedItem || selectedSlot.row !== selectedRow) return;
     const selectedPage = selectedSlot.number <= firstRangeEnd ? 0 : 1;
     if (selectedPage === slotPage) return;
@@ -1099,8 +1097,9 @@ function setupMapGrouping() {
 }
 
 function rowContainsMatch(row) {
-    if (!selectedSlot || !inventory.get(selectedSlot.code)) return false;
-    return Array.from(inventory.values()).some(
+    const displayedInventory = visibleWarehouseInventory();
+    if (!selectedSlot || !displayedInventory.get(selectedSlot.code)) return false;
+    return Array.from(displayedInventory.values()).some(
         (item) => item.location.startsWith(row) && item.location !== selectedSlot.code && itemMatchesSelection(item),
     );
 }
@@ -1169,7 +1168,7 @@ function setDetailRowVisibility(id, visible) {
 
 function renderDetails(detailSlot = selectedSlot) {
     if (!detailSlot) return;
-    const item = inventory.get(detailSlot.code);
+    const item = visibleWarehouseInventory().get(detailSlot.code);
     const blockingPalletId = !item ? palletBlockingSlot(detailSlot) : null;
     document.getElementById("detailCode").textContent = detailSlot.code;
     document.getElementById("detailRow").textContent = detailSlot.row;
@@ -1260,7 +1259,7 @@ function selectSlot(code, scroll = true) {
     selectedRow = parsed.row;
     renderMap();
     renderDetails();
-    broadcastWarehouse3dState();
+    if (!movementPlaybackState) broadcastWarehouse3dState();
     if (scroll) {
         document.querySelector(`[data-slot="${parsed.code}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
@@ -1274,7 +1273,7 @@ function toggleSlotSelection(code) {
         button.classList.toggle("is-multi-selected", selectedSlotCodes.has(button.dataset.slot));
     });
     renderDetails();
-    broadcastWarehouse3dState();
+    if (!movementPlaybackState) broadcastWarehouse3dState();
 }
 
 let warehouseToastTimer = null;
@@ -1306,6 +1305,10 @@ function closeContextMenu() {
 }
 
 function openContextMenu(code, x, y) {
+    if (movementPlaybackState) {
+        showWarehouseToast("La riproduzione storica è in sola lettura. Chiudila prima di modificare il magazzino.");
+        return;
+    }
     const menu = document.getElementById("slotContextMenu");
     const hint = document.getElementById("contextMenuHint");
     const item = inventory.get(code);
@@ -3559,6 +3562,7 @@ async function applyWarehouseOptimization() {
         timestamp: now.toISOString(),
         type: "load",
         optimization: true,
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
         optimizationOptions: { ...preview.plan.options },
         actor: warehouseActorSnapshot(),
         lines: preview.plan.lines,
@@ -4427,6 +4431,7 @@ async function commitManualLoad() {
         timestamp: now.toISOString(),
         type: "load",
         manual: true,
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
         lines,
         operationalSteps: buildLoadOperationalSteps(beforeState, state),
@@ -4476,6 +4481,7 @@ async function commitManualUnload() {
         timestamp: stagedAt,
         type: "unload",
         manual: true,
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
         lines: plan.lines,
         operationalSteps: plan.operationalSteps || [],
@@ -4659,6 +4665,7 @@ async function commitOperationGroup() {
         id: movementIdentifier(now),
         timestamp: now.toISOString(),
         type: operationGroupMode,
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
         lines: plan.lines,
         operationalSteps: plan.operationalSteps || [],
@@ -5071,44 +5078,129 @@ function movementPlaybackDescription(step) {
     return `${source || "Corridoio"}${target ? ` → ${target}` : ""}${articles ? ` · articolo ${articles}` : ""}.`;
 }
 
+function movementSlotLocations(values) {
+    return Array.from(new Set((values || []).flatMap((value) => String(value || "").match(/[A-Z]\d{1,3}[a-c]/gi) || [])
+        .map((value) => value[0].toUpperCase() + value.slice(1).toLowerCase())))
+        .filter((location) => parseSlotCode(location));
+}
+
+function movement2dUnitTargets(step, unit, index) {
+    const direct = movementSlotLocations([unit?.to]);
+    if (direct.length) return direct;
+    const targets = movementSlotLocations(step.to || []);
+    if (step.units?.length === 1) return targets;
+    return targets[index] ? [targets[index]] : [];
+}
+
+function movement2dInventoryAtStep(state, completedThroughIndex) {
+    const byLocation = new Map(cloneWarehouseRows(state.beforeState)
+        .map((item) => [item.location, item]));
+    state.steps.slice(0, Math.max(0, completedThroughIndex + 1)).forEach((step) => {
+        const unitIds = new Set((step.units || []).map((unit) => String(unit.id || "").trim()).filter(Boolean));
+        if (step.kind === "piece-pick") {
+            byLocation.forEach((item, location) => {
+                if (!unitIds.has(String(item.id || ""))) return;
+                byLocation.set(location, { ...item, pieceCount: Math.max(0, Number(step.remainingPieces) || 0) });
+            });
+            return;
+        }
+        if (step.kind === "staging-exit") return;
+        const sources = new Set(movementSlotLocations([
+            ...(step.from || []),
+            ...(step.units || []).map((unit) => unit.from),
+        ]));
+        if (["unload", "corridor", "optimization-corridor", "optimization-stage", "reinsert", "optimization-place", "load"].includes(step.kind)) {
+            Array.from(byLocation).forEach(([location, item]) => {
+                if (unitIds.has(String(item.id || "")) || sources.has(location)) byLocation.delete(location);
+            });
+        }
+        if (!["load", "reinsert", "optimization-place"].includes(step.kind)) return;
+        (step.units || []).forEach((unit, index) => {
+            const reference = state.itemById.get(String(unit.id || "")) || {};
+            const targets = movement2dUnitTargets(step, unit, index);
+            targets.forEach((location, targetIndex) => byLocation.set(location, {
+                ...reference,
+                ...unit,
+                location,
+                pairedLocation: unit.type === "pallet" ? targets[targetIndex === 0 ? 1 : 0] || null : null,
+                tags: [...(unit.tags || reference.tags || [])],
+                inMovement: false,
+            }));
+        });
+    });
+    return byLocation;
+}
+
+function setMovement2dStepHighlights(step, arrived) {
+    const sources = movementSlotLocations([
+        ...(step.from || []),
+        ...(step.units || []).map((unit) => unit.from),
+    ]);
+    const targets = movementSlotLocations([
+        ...(step.to || []),
+        ...(step.units || []).map((unit) => unit.to),
+    ]);
+    movementHighlight.loadedIds = new Set();
+    movementHighlight.shiftedIds = new Set();
+    movementHighlight.unloadedIds = new Set();
+    movementHighlight.loadedLocations = new Set(arrived && step.kind === "load" ? targets : []);
+    movementHighlight.shiftedLocations = new Set(arrived && step.kind === "optimization-place" ? targets : []);
+    movementHighlight.unloadedLocations = new Set(!arrived && step.kind === "unload" ? sources : []);
+    movementHighlight.corridorLocations = new Set(
+        !arrived && ["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind)
+            ? sources
+            : arrived && step.kind === "reinsert" ? targets : [],
+    );
+    movementHighlight.currentSources = new Set(arrived ? [] : sources);
+    movementHighlight.currentTargets = new Set(targets);
+    movementHighlight.arrivedTargets = new Set(arrived ? targets : []);
+}
+
+function clearMovement2dTimer() {
+    if (movementPlaybackTimer) window.clearTimeout(movementPlaybackTimer);
+    movementPlaybackTimer = null;
+}
+
 function stopMovementPlayback(clearHighlight = true) {
-    if (movementHighlightTimer) window.clearTimeout(movementHighlightTimer);
-    movementHighlightTimer = null;
+    clearMovement2dTimer();
     movementPlaybackState = null;
     document.getElementById("movementPlayback")?.setAttribute("hidden", "");
     if (!clearHighlight) return;
     movementHighlight = null;
     renderTabs();
     renderMap();
+    if (selectedSlot) renderDetails();
+}
+
+function completeMovementPlaybackStep() {
+    const state = movementPlaybackState;
+    if (!state?.steps.length) return;
+    clearMovement2dTimer();
+    const step = state.steps[state.index];
+    state.phase = "after";
+    state.displayInventory = movement2dInventoryAtStep(state, state.index);
+    setMovement2dStepHighlights(step, true);
+    renderTabs();
+    renderMap();
+    if (selectedSlot) renderDetails();
+    if (state.paused) return;
+    if (state.index < state.steps.length - 1) {
+        movementPlaybackTimer = window.setTimeout(() => showMovementPlaybackStep(state.index + 1), 850);
+    } else {
+        state.paused = true;
+        document.getElementById("movementPlaybackToggle").textContent = "Ripeti";
+    }
 }
 
 function showMovementPlaybackStep(index, restartTimer = true) {
     if (!movementPlaybackState?.steps.length) return;
+    clearMovement2dTimer();
     const state = movementPlaybackState;
     state.index = Math.max(0, Math.min(index, state.steps.length - 1));
+    state.phase = "before";
     const step = state.steps[state.index];
-    const sourceLocations = step.kind === "piece-pick"
-        ? []
-        : [...(step.from || []), ...(step.units || []).map((unit) => unit.from)];
-    movementHighlight.currentSources = new Set(sourceLocations.filter((location) => parseSlotCode(location)));
-    movementHighlight.currentSourceItems = new Map();
-    if (step.kind !== "piece-pick") (step.units || []).forEach((unit) => {
-        const source = parseSlotCode(unit.from);
-        if (!source) return;
-        movementHighlight.currentSourceItems.set(source.code, {
-            ...unit,
-            location: source.code,
-            tags: [...(unit.tags || [])],
-            inMovement: true,
-            pairedLocation: unit.pairedLocation || null,
-        });
-    });
-    movementHighlight.currentTargets = new Set((step.to || []).filter((location) => parseSlotCode(location)));
-    movementHighlight.shownTargets = new Set(state.steps.slice(0, state.index + 1).flatMap((entry) => (
-        ["load", "reinsert", "optimization-place"].includes(entry.kind)
-            ? (entry.to || []).filter((location) => parseSlotCode(location))
-            : []
-    )));
+    state.displayInventory = movement2dInventoryAtStep(state, state.index - 1);
+    setMovement2dStepHighlights(step, false);
     const visibleLocation = [...movementHighlight.currentSources, ...movementHighlight.currentTargets][0];
     const parsed = parseSlotCode(visibleLocation);
     if (parsed) {
@@ -5117,26 +5209,24 @@ function showMovementPlaybackStep(index, restartTimer = true) {
         if (slotRangeMode === "paged") slotPage = parsed.number <= half ? 0 : 1;
     }
     document.getElementById("movementPlaybackCounter").textContent = `${state.movement.id} · PASSAGGIO ${state.index + 1}/${state.steps.length}`;
-    document.getElementById("movementPlaybackTitle").textContent = state.movement.type === "load" ? "Movimentazione di carico" : state.movement.optimization ? "Ottimizzazione magazzino" : "Movimentazione di scarico";
+    const movementTitle = state.movement.type === "load"
+        ? "Movimentazione di carico"
+        : state.movement.type === "exit"
+          ? "Uscita verso la Zona Scarico"
+          : state.movement.optimization ? "Ottimizzazione magazzino" : "Movimentazione di scarico";
+    document.getElementById("movementPlaybackTitle").textContent = movementTitle;
     document.getElementById("movementPlaybackDescription").textContent = movementPlaybackDescription(step);
     document.getElementById("movementPlaybackPrevious").disabled = state.index === 0;
     document.getElementById("movementPlaybackNext").disabled = state.index === state.steps.length - 1;
     document.getElementById("movementPlaybackToggle").textContent = state.paused ? "Riprendi" : "Pausa";
     renderTabs();
     renderMap();
-    if (!restartTimer || state.paused) return;
-    if (movementHighlightTimer) window.clearTimeout(movementHighlightTimer);
-    movementHighlightTimer = window.setTimeout(() => {
-        if (!movementPlaybackState || movementPlaybackState.paused) return;
-        if (movementPlaybackState.index < movementPlaybackState.steps.length - 1) showMovementPlaybackStep(movementPlaybackState.index + 1);
-        else {
-            movementPlaybackState.paused = true;
-            document.getElementById("movementPlaybackToggle").textContent = "Ripeti";
-        }
-    }, 2200);
+    if (selectedSlot) renderDetails();
+    if (restartTimer && !state.paused) movementPlaybackTimer = window.setTimeout(completeMovementPlaybackStep, 1250);
 }
 
 function highlightMovementOnMap(movement, broadcast = true) {
+    clearMovement2dTimer();
     const loaded = movement.changes?.loaded || [];
     const unloaded = movement.changes?.unloaded || [];
     const shifted = movement.changes?.shifted || [];
@@ -5152,17 +5242,34 @@ function highlightMovementOnMap(movement, broadcast = true) {
         shiftedLocations: new Set(shifted.flatMap((entry) => entry.to || [])),
         currentSources: new Set(),
         currentTargets: new Set(),
-        currentSourceItems: new Map(),
+        corridorLocations: new Set(),
     };
     const steps = movementPlaybackSteps(movement);
-    const pendingTargets = new Set(steps.flatMap((step) => (
-        ["load", "reinsert", "optimization-place"].includes(step.kind)
-            ? (step.to || []).filter((location) => parseSlotCode(location))
-            : []
-    )));
-    movementHighlight.pendingTargets = pendingTargets;
-    movementHighlight.shownTargets = new Set();
-    movementPlaybackState = { movement, steps, index: 0, paused: false };
+    if (!steps.length) {
+        movementPlaybackState = null;
+        closeMovementHistoryDialog();
+        setActiveView("warehouse");
+        renderTabs();
+        renderMap();
+        if (broadcast) broadcastWarehouse3dState(movement);
+        showWarehouseToast(`${movement.id}: nessun passaggio operativo disponibile; è mostrato lo stato corrente.`);
+        return;
+    }
+    const beforeState = Array.isArray(movement.beforeState) && movement.beforeState.length
+        ? cloneWarehouseRows(movement.beforeState)
+        : serializeWarehouseInventory();
+    const itemById = new Map([...cloneWarehouseRows(movement.beforeState), ...cloneWarehouseRows(movement.afterState)]
+        .map((item) => [String(item.id || ""), item]));
+    movementPlaybackState = {
+        movement,
+        steps,
+        beforeState,
+        itemById,
+        displayInventory: new Map(beforeState.map((item) => [item.location, item])),
+        index: 0,
+        phase: "before",
+        paused: false,
+    };
     const currentLocations = [];
     inventory.forEach((item, location) => {
         if (movementHighlight.loadedIds.has(item.id) || movementHighlight.shiftedIds.has(item.id)
@@ -5186,21 +5293,31 @@ function highlightMovementOnMap(movement, broadcast = true) {
         renderMap();
     }
     if (broadcast) broadcastWarehouse3dState(movement);
-    showWarehouseToast(`${movement.id}: giallo = caricato, rosa = ricollocato, arancio = prelevato. Riproduzione operativa attiva.`);
+    showWarehouseToast(`${movement.id}: riproduzione 2D dallo stato storico precedente. Giallo = caricato, rosa = ricollocato, arancio = prelevato.`);
 }
 
 function setupMovementPlayback() {
     document.getElementById("movementPlaybackPrevious")?.addEventListener("click", () => showMovementPlaybackStep((movementPlaybackState?.index || 0) - 1));
     document.getElementById("movementPlaybackNext")?.addEventListener("click", () => showMovementPlaybackStep((movementPlaybackState?.index || 0) + 1));
     document.getElementById("movementPlaybackToggle")?.addEventListener("click", () => {
-        if (!movementPlaybackState) return;
-        if (movementPlaybackState.paused && movementPlaybackState.index === movementPlaybackState.steps.length - 1) {
-            movementPlaybackState.paused = false;
+        const state = movementPlaybackState;
+        if (!state) return;
+        if (state.paused && state.phase === "after" && state.index === state.steps.length - 1) {
+            state.paused = false;
             showMovementPlaybackStep(0);
             return;
         }
-        movementPlaybackState.paused = !movementPlaybackState.paused;
-        showMovementPlaybackStep(movementPlaybackState.index);
+        state.paused = !state.paused;
+        clearMovement2dTimer();
+        document.getElementById("movementPlaybackToggle").textContent = state.paused ? "Riprendi" : "Pausa";
+        if (!state.paused) {
+            movementPlaybackTimer = window.setTimeout(
+                state.phase === "after"
+                    ? () => state.index < state.steps.length - 1 ? showMovementPlaybackStep(state.index + 1) : null
+                    : completeMovementPlaybackStep,
+                state.phase === "after" ? 500 : 900,
+            );
+        }
     });
     document.getElementById("movementPlaybackClose")?.addEventListener("click", () => stopMovementPlayback());
 }
@@ -5812,7 +5929,12 @@ function setupLoadDialog() {
     });
     ipcRenderer.on("warehouse-3d-movement-action-request", (_event, request) => {
         const movement = movementHistory.find((entry) => entry.id === request?.movementId);
-        if (movement) openMovementDetailWindow(movement, request?.view, true);
+        if (!movement) return;
+        if (request?.view === "playback") {
+            ipcRenderer.send("warehouse-3d-playback-data", cloneWarehouseMovement(movement));
+            return;
+        }
+        openMovementDetailWindow(movement, request?.view, true);
     });
     document.getElementById("movementContextMenu")?.addEventListener("pointerdown", (event) => event.stopPropagation());
     document.addEventListener("pointerdown", (event) => {

@@ -751,12 +751,14 @@ h1 {
 .slot.is-movement-loaded { border-color: #d0a61c !important; background: #fff0a4 !important; box-shadow: inset 0 0 0 2px #e2bd3c, 0 0 0 2px rgba(208, 166, 28, .18) !important; }
 .slot.is-movement-shifted { border-color: #d47793 !important; background: #ffd7e2 !important; box-shadow: inset 0 0 0 2px #e49ab0, 0 0 0 2px rgba(212, 119, 147, .18) !important; }
 .slot.is-movement-unloaded { border-color: #dc765d !important; background: #ffe0d8 !important; box-shadow: inset 0 0 0 2px #ee9a85, 0 0 0 2px rgba(220, 118, 93, .18) !important; }
-.slot.is-movement-source { z-index: 5; outline: 3px solid rgba(195, 77, 48, .42); animation: warehouse-movement-pulse 1s ease-in-out infinite; }
-.slot.is-movement-target { z-index: 5; outline: 3px solid rgba(24, 132, 190, .42); animation: warehouse-movement-pulse 1s ease-in-out infinite; }
-.slot.is-movement-pending { border-color: var(--slot-border) !important; background: var(--slot) !important; box-shadow: none !important; }
-.slot.is-movement-pending .slot__line { visibility: hidden; }
-.slot.is-movement-pending::before, .slot.is-movement-pending::after { visibility: hidden; }
-@keyframes warehouse-movement-pulse { 50% { filter: brightness(1.08); transform: translateY(-2px); } }
+.slot.is-movement-corridor { border-color: #d1ac32 !important; background: #fff2b8 !important; box-shadow: inset 0 0 0 2px #e3c45f, 0 0 0 2px rgba(209, 172, 50, .18) !important; }
+.slot.is-movement-source { z-index: 5; outline: 3px solid rgba(195, 77, 48, .72); outline-offset: -3px; }
+.slot.is-movement-target { z-index: 5; outline: 3px solid rgba(24, 132, 190, .72); outline-offset: -3px; }
+.slot.is-movement-arrived { animation: warehouse-state-arrival .55s ease-out both; }
+@keyframes warehouse-state-arrival {
+    0% { filter: brightness(1.18); transform: scale(.96); }
+    100% { filter: brightness(1); transform: scale(1); }
+}
 .slot:hover { box-shadow: inset 0 0 0 1px var(--accent); }
 .slot.is-match { border: 3px solid var(--match); padding: 2px 0; }
 .slot.is-search-match {

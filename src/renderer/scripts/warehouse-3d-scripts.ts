@@ -46,6 +46,8 @@ const movementGhostLayer = new THREE.Group();
 scene.add(movementGhostLayer);
 const movementDepositLayer = new THREE.Group();
 scene.add(movementDepositLayer);
+const movementCorridorLayer = new THREE.Group();
+scene.add(movementCorridorLayer);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const movementTimer = new THREE.Timer();
@@ -53,6 +55,7 @@ movementTimer.connect(document);
 const pressedMovementKeys = new Set();
 let pickables = [];
 let currentSnapshot = { rows: [], inventory: [], stagingUnits: [], displayFields: [] };
+let liveSnapshot = currentSnapshot;
 let currentSelection = "";
 let hoveredObject = null;
 let showFreeSlots = false;
@@ -330,7 +333,7 @@ const palette = {
     movementLoad: 0xffd84d,
     movementUnload: 0xff9b7d,
     movementShift: 0xff9fbe,
-    movementCorridor: 0xb89ae8,
+    movementCorridor: 0xffe27a,
 };
 
 function physicalColumns(row) {
@@ -645,7 +648,10 @@ function stagingAreaGeometry() {
 }
 
 function stagingPositionForUnit(unit, stagingContext = []) {
-    const staged = stagingContext.length ? [...stagingContext] : [...(currentSnapshot.stagingUnits || [])];
+    const defaultContext = currentSnapshot.stagingLayoutUnits?.length
+        ? currentSnapshot.stagingLayoutUnits
+        : currentSnapshot.stagingUnits || [];
+    const staged = stagingContext.length ? [...stagingContext] : [...defaultContext];
     if (unit?.id && !staged.some((item) => item.id === unit.id)) staged.push(unit);
     const articleKeys = Array.from(new Set(staged.map((item) => String(item.article || "SENZA ARTICOLO")))).sort((left, right) => left.localeCompare(right, "it", { numeric: true }));
     const article = String(unit?.article || "SENZA ARTICOLO");
@@ -968,7 +974,13 @@ function renderSummary() {
         : `${layoutRows.length}/${currentSnapshot.rows.length}`;
     document.getElementById("viewerUnits").textContent = String(logicalUnits);
     document.getElementById("viewerFree").textContent = String(Math.max(0, capacity - currentSnapshot.inventory.length - palletBlocked));
-    document.getElementById("viewerStatus").textContent = `Revisione ${Number(currentSnapshot.revision) || 0} · aggiornato ${new Date(currentSnapshot.generatedAt || Date.now()).toLocaleTimeString("it-IT")}`;
+    const historicalMovement = currentSnapshot.historicalMovement;
+    document.getElementById("viewerStatus").textContent = historicalMovement
+        ? `Scenario al ${new Date(historicalMovement.timestamp).toLocaleString("it-IT")} · prima di ${historicalMovement.id}`
+        : `Revisione ${Number(currentSnapshot.revision) || 0} · aggiornato ${new Date(currentSnapshot.generatedAt || Date.now()).toLocaleTimeString("it-IT")}`;
+    const liveState = document.getElementById("viewerLiveState");
+    liveState.textContent = historicalMovement ? "STORICO" : "LIVE";
+    liveState.classList.toggle("is-stale", Boolean(historicalMovement));
 }
 
 function frameWarehouse() {
@@ -1037,9 +1049,11 @@ function applySelection() {
             ? palette.movementUnload
             : mesh.userData.movementRole === "target"
               ? palette.movementLoad
-              : mesh.userData.movementRole === "shift"
-                ? palette.movementShift
-                : null;
+              : mesh.userData.movementRole === "corridor-return"
+                ? palette.movementCorridor
+                : mesh.userData.movementRole === "shift"
+                  ? palette.movementShift
+                  : null;
         const fillColor = movementColor || (selected
             ? palette.selectedFill
             : mesh.userData.matchesSearch
@@ -1126,7 +1140,7 @@ function movementStepDescription(step) {
 function movementStepColor(kind) {
     if (kind === "load") return palette.movementLoad;
     if (kind === "unload" || kind === "piece-pick") return palette.movementUnload;
-    if (["corridor", "optimization-corridor", "optimization-stage"].includes(kind)) return palette.movementCorridor;
+    if (["corridor", "optimization-corridor", "optimization-stage", "reinsert", "optimization-place"].includes(kind)) return palette.movementCorridor;
     return palette.movementShift;
 }
 
@@ -1205,6 +1219,9 @@ function movementPathPoint(path, progress) {
 }
 
 function movementStepRoutes(step) {
+    const stagingLayoutUnits = movementPlaybackState?.stagingLayoutUnits?.length
+        ? movementPlaybackState.stagingLayoutUnits
+        : currentSnapshot.stagingLayoutUnits || currentSnapshot.stagingUnits || [];
     const fromLocations = operationalLocations([
         ...(step.from || []),
         ...(step.units || []).map((unit) => unit.from),
@@ -1226,13 +1243,13 @@ function movementStepRoutes(step) {
         const fromCorridor = ["reinsert", "optimization-place"].includes(step.kind);
         const sourceArea = step.kind === "staging-exit" || step.sourceArea === "staging" ? "staging" : "dock";
         const source = fromCorridor
-            ? aislePositionForLocation(toLocations[0]) || movementExternalPosition("corridor", targetSlot || sourceSlot)
+            ? corridorHoldingPosition(unit, toLocations[0]) || aislePositionForLocation(toLocations[0]) || movementExternalPosition("corridor", targetSlot || sourceSlot)
             : sourceSlot || movementAreaPosition(sourceArea, unit, 0, step.sourceStagingUnits || []);
         const target = step.kind === "staging-exit"
             ? movementAreaPosition("dock", unit, 0, step.units || [])
-            : targetSlot || (corridorMove
-                ? aislePositionForLocation(fromLocations[0]) || movementExternalPosition("corridor", sourceSlot)
-                : movementAreaPosition("staging", unit, 0));
+            : corridorMove
+              ? corridorHoldingPosition(unit, fromLocations[0]) || aislePositionForLocation(fromLocations[0]) || movementExternalPosition("corridor", sourceSlot)
+              : targetSlot || movementAreaPosition("staging", unit, 0, stagingLayoutUnits);
         const route = { source, target, unit, sourceLocation: fromLocations[0] || "", targetLocation: toLocations[0] || "" };
         route.path = movementRoutePath(route, step.kind);
         return [route];
@@ -1248,14 +1265,14 @@ function movementStepRoutes(step) {
         const unit = step.units?.[index] || step.units?.[0] || null;
         const sourceArea = step.kind === "staging-exit" || step.sourceArea === "staging" ? "staging" : "dock";
         const source = fromCorridor
-            ? aislePositionForLocation(targetLocation) || movementExternalPosition("corridor", targetSlot || sourceSlot)
+            ? corridorHoldingPosition(unit, targetLocation) || aislePositionForLocation(targetLocation) || movementExternalPosition("corridor", targetSlot || sourceSlot)
             : sourceSlot || movementAreaPosition(sourceArea, unit, index, step.sourceStagingUnits || []);
-        let target = targetSlot;
+        let target = corridorMove
+            ? corridorHoldingPosition(unit, sourceLocation) || aislePositionForLocation(sourceLocation) || movementExternalPosition("corridor", sourceSlot)
+            : targetSlot;
         if (step.kind === "piece-pick") target = source.clone();
         else if (step.kind === "staging-exit") target = movementAreaPosition("dock", unit, index);
-        else if (!target) target = corridorMove
-            ? aislePositionForLocation(sourceLocation) || movementExternalPosition("corridor", sourceSlot)
-            : movementAreaPosition("staging", unit, index);
+        else if (!target) target = movementAreaPosition("staging", unit, index, stagingLayoutUnits);
         return { source, target, unit, sourceLocation, targetLocation };
     });
     const groundStack = (endpoint) => {
@@ -1277,8 +1294,95 @@ function clearMovementDeposits() {
     clearObject(movementDepositLayer);
 }
 
+function clearMovementCorridorDeposits() {
+    clearObject(movementCorridorLayer);
+}
+
 function movementUnitKey(unit) {
     return String(unit?.id || "").trim();
+}
+
+function movementCorridorLayout(steps) {
+    const layout = new Map();
+    const occupiedByAisle = new Map();
+    steps.filter((step) => ["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind))
+        .forEach((step, stepIndex) => {
+            const stepSources = operationalLocations(step.from || []);
+            (step.units || []).forEach((unit, unitIndex) => {
+                const key = movementUnitKey(unit) || `corridor:${stepIndex}:${unitIndex}`;
+                if (layout.has(key)) return;
+                const sourceLocation = operationalLocations([unit.from])[0]
+                    || stepSources[unitIndex]
+                    || stepSources[stepSources.length - 1]
+                    || "";
+                const parsed = parseLocation(sourceLocation);
+                const aisleKey = parsed ? parsed.row.code : `generic:${stepIndex}`;
+                const slot = occupiedByAisle.get(aisleKey) || 0;
+                occupiedByAisle.set(aisleKey, slot + 1);
+                layout.set(key, { sourceLocation, aisleKey, slot });
+            });
+        });
+    return layout;
+}
+
+function corridorHoldingPosition(unit, fallbackLocation = "") {
+    const key = movementUnitKey(unit);
+    const parking = movementPlaybackState?.corridorLayout?.get(key);
+    if (!parking && !fallbackLocation) return null;
+    const sourceLocation = parking?.sourceLocation || fallbackLocation;
+    const aisle = aislePositionForLocation(sourceLocation);
+    if (!aisle) return null;
+    const parsed = parseLocation(sourceLocation);
+    const slot = parking?.slot || 0;
+    const column = slot % 4;
+    const lane = Math.floor(slot / 4);
+    const bounds = warehousePhysicalBounds();
+    const outward = parsed ? rowFrontDirection(parsed.row) : 1;
+    return new THREE.Vector3(
+        bounds.maxX - .62 - column * 1.02,
+        .49,
+        aisle.z + outward * lane * .88,
+    );
+}
+
+function createMovementCorridorDeposit(unit, position) {
+    const pallet = unit?.type === "pallet";
+    const mesh = createBox(pallet ? .98 : .82, pallet ? .68 : .72, pallet ? 1.62 : .72, palette.movementCorridor, { castShadow: true });
+    mesh.position.copy(position);
+    mesh.userData.sceneRole = "movement-corridor-deposit";
+    mesh.userData.unitId = movementUnitKey(unit);
+    mesh.userData.item = unit;
+    const lines = [
+        unit?.article || "Articolo —",
+        unit?.weighingCode ? `Pesata ${unit.weighingCode}` : "TEMP. CORRIDOIO",
+        `${Number(unit?.pieceCount) || 0} pezzi`,
+    ];
+    ["front", "rear"].forEach((face) => {
+        const label = createSurfaceLabel(lines, face, pallet);
+        label.position.set(0, 0, (face === "front" ? -1 : 1) * (pallet ? .816 : .366));
+        mesh.add(label);
+    });
+    movementCorridorLayer.add(mesh);
+}
+
+function syncMovementCorridorDeposits(completedThroughIndex) {
+    const state = movementPlaybackState;
+    clearMovementCorridorDeposits();
+    if (!state || completedThroughIndex < 0) return;
+    const waiting = new Map();
+    state.steps.slice(0, completedThroughIndex + 1).forEach((step) => {
+        if (["corridor", "optimization-corridor", "optimization-stage"].includes(step.kind)) {
+            (step.units || []).forEach((unit) => waiting.set(movementUnitKey(unit), unit));
+            return;
+        }
+        if (["reinsert", "optimization-place"].includes(step.kind)) {
+            (step.units || []).forEach((unit) => waiting.delete(movementUnitKey(unit)));
+        }
+    });
+    waiting.forEach((unit) => {
+        const position = corridorHoldingPosition(unit);
+        if (position) createMovementCorridorDeposit(unit, position);
+    });
 }
 
 function createMovementDeposit(unit, position, requiresReturn = false) {
@@ -1351,7 +1455,7 @@ function setMovementMeshRoles(step = null) {
         mesh.userData.movementRole = locations.some((location) => sources.has(location))
             ? "source"
             : locations.some((location) => targets.has(location))
-              ? (["reinsert", "optimization-place"].includes(step?.kind) ? "shift" : "target")
+              ? (["reinsert", "optimization-place"].includes(step?.kind) ? "corridor-return" : "target")
               : "";
     });
     applySelection();
@@ -1398,6 +1502,7 @@ function applyMovementDestinationVisibility(completedThroughIndex) {
         object.visible = false;
     });
     syncMovementDeposits(completedThroughIndex);
+    syncMovementCorridorDeposits(completedThroughIndex);
 }
 
 function showMovement3dStep(index, restart = true) {
@@ -1408,7 +1513,8 @@ function showMovement3dStep(index, restart = true) {
     state.currentDeposited = false;
     if (restart) state.stepStartedAt = performance.now();
     const step = state.steps[state.index];
-    applyMovementDestinationVisibility(state.index - 1);
+    if (state.sceneSnapshot) syncMovementScene(state.index - 1);
+    else applyMovementDestinationVisibility(state.index - 1);
     setMovementMeshRoles(step);
     setStagingMovementRoles(step);
     clearMovementGhosts();
@@ -1443,6 +1549,7 @@ function showMovement3dStep(index, restart = true) {
         }
         movementGhostLayer.add(ghost);
     });
+    hideMovementStepSources(step);
     document.getElementById("movement3dCounter").textContent = `${state.movement.id} · PASSAGGIO ${state.index + 1}/${state.steps.length}`;
     document.getElementById("movement3dTitle").textContent = state.movement.type === "load"
         ? "Movimentazione di carico"
@@ -1455,17 +1562,151 @@ function showMovement3dStep(index, restart = true) {
     document.getElementById("movement3dToggle").textContent = state.paused ? "Riprendi" : "Pausa";
 }
 
+function cloneMovementInventory(rows) {
+    return (rows || []).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+}
+
+function movementUnitTargetLocations(step, unit, index) {
+    const direct = operationalLocations([unit?.to]);
+    if (direct.length) return direct;
+    const targets = operationalLocations(step.to || []);
+    if (step.units?.length === 1) return targets;
+    return targets[index] ? [targets[index]] : [];
+}
+
+function movementInventoryAtStep(state, completedThroughIndex) {
+    const byLocation = new Map(cloneMovementInventory(state.sceneSnapshot.inventory)
+        .map((item) => [item.location, item]));
+    state.steps.slice(0, Math.max(0, completedThroughIndex + 1)).forEach((step) => {
+        if (step.kind === "piece-pick" || step.kind === "staging-exit") return;
+        const ids = new Set((step.units || []).map((unit) => movementUnitKey(unit)).filter(Boolean));
+        const sources = new Set(operationalLocations([
+            ...(step.from || []),
+            ...(step.units || []).map((unit) => unit.from),
+        ]));
+        if (["unload", "corridor", "optimization-corridor", "optimization-stage", "reinsert", "optimization-place", "load"].includes(step.kind)) {
+            Array.from(byLocation).forEach(([location, item]) => {
+                if (ids.has(String(item.id || "")) || sources.has(location)) byLocation.delete(location);
+            });
+        }
+        if (!["load", "reinsert", "optimization-place"].includes(step.kind)) return;
+        (step.units || []).forEach((unit, index) => {
+            const targets = movementUnitTargetLocations(step, unit, index);
+            targets.forEach((location, targetIndex) => byLocation.set(location, {
+                ...unit,
+                location,
+                pairedLocation: unit.type === "pallet" ? targets[targetIndex === 0 ? 1 : 0] || null : null,
+                tags: [...(unit.tags || [])],
+                inMovement: false,
+            }));
+        });
+    });
+    return Array.from(byLocation.values());
+}
+
+function movementStagingAtStep(state, completedThroughIndex) {
+    const units = new Map((state.sceneSnapshot.stagingUnits || []).map((item, index) => [
+        movementUnitKey(item) || `existing:${index}`,
+        { ...item, tags: [...(item.tags || [])], originalLocations: [...(item.originalLocations || [])] },
+    ]));
+    state.steps.slice(0, Math.max(0, completedThroughIndex + 1)).forEach((step) => {
+        if (step.kind !== "staging-exit" && !(step.kind === "load" && step.sourceArea === "staging")) return;
+        (step.units || []).forEach((unit) => units.delete(movementUnitKey(unit)));
+    });
+    return Array.from(units.values());
+}
+
+function syncMovementScene(completedThroughIndex) {
+    const state = movementPlaybackState;
+    if (!state?.sceneSnapshot) return;
+    currentSnapshot = {
+        ...state.sceneSnapshot,
+        inventory: movementInventoryAtStep(state, completedThroughIndex),
+        stagingUnits: movementStagingAtStep(state, completedThroughIndex),
+    };
+    buildWarehouse();
+    syncMovementDeposits(completedThroughIndex);
+    syncMovementCorridorDeposits(completedThroughIndex);
+}
+
+function hideMovementStepSources(step) {
+    if (!step || step.kind === "piece-pick" || step.kind === "load" && step.sourceArea !== "staging") return;
+    const ids = new Set((step.units || []).map((unit) => movementUnitKey(unit)).filter(Boolean));
+    const sources = new Set(operationalLocations([
+        ...(step.from || []),
+        ...(step.units || []).map((unit) => unit.from),
+    ]));
+    pickables.forEach((mesh) => {
+        const locations = mesh.userData.locations || [mesh.userData.location];
+        if (ids.has(String(mesh.userData.item?.id || "")) || locations.some((location) => sources.has(location))) mesh.visible = false;
+    });
+    if (step.sourceArea === "staging" || step.kind === "staging-exit") {
+        world.children.forEach((object) => {
+            if (object.userData?.sceneRole === "staging-unit" && ids.has(String(object.userData.stagingUnitId || ""))) object.visible = false;
+        });
+    }
+    if (["reinsert", "optimization-place"].includes(step.kind)) {
+        movementCorridorLayer.children.forEach((object) => {
+            if (ids.has(String(object.userData.unitId || ""))) object.visible = false;
+        });
+    }
+}
+
+function movementSceneSnapshot(movement) {
+    if (!Array.isArray(movement?.beforeState)) return null;
+    return {
+        ...liveSnapshot,
+        inventory: cloneMovementInventory(movement.beforeState),
+        stagingUnits: (movement.stagingUnitsBefore || []).map((item) => ({
+            ...item,
+            tags: [...(item.tags || [])],
+            originalLocations: [...(item.originalLocations || [])],
+        })),
+        selectedLocation: "",
+        historicalMovement: { id: movement.id, timestamp: movement.timestamp },
+        generatedAt: movement.timestamp,
+    };
+}
+
+function movementStagingLayoutUnits(movement, steps, sceneSnapshot) {
+    const units = [];
+    const known = new Set();
+    const append = (unit, fallbackKey) => {
+        if (!unit) return;
+        const key = movementUnitKey(unit) || fallbackKey;
+        if (known.has(key)) return;
+        known.add(key);
+        units.push({ ...unit, tags: [...(unit.tags || [])] });
+    };
+    (sceneSnapshot?.stagingUnits || currentSnapshot.stagingUnits || [])
+        .forEach((unit, index) => append(unit, `existing:${index}`));
+    steps.filter((step) => step.kind === "unload").forEach((step, stepIndex) => {
+        (step.units || []).forEach((unit, unitIndex) => append(unit, `unload:${stepIndex}:${unitIndex}`));
+    });
+    return units;
+}
+
 function startMovement3dPlayback(movement) {
     const steps = movementSteps(movement);
     if (!steps.length) return;
     if (movementPlaybackState) stopMovement3dPlayback();
     clearMovementDeposits();
-    movementPlaybackState = { movement, steps, index: 0, paused: false, progress: 0, stepStartedAt: performance.now(), duration: 1800, hold: 500 };
+    clearMovementCorridorDeposits();
+    const sceneSnapshot = movementSceneSnapshot(movement);
+    const stagingLayoutUnits = movementStagingLayoutUnits(movement, steps, sceneSnapshot);
+    const corridorLayout = movementCorridorLayout(steps);
+    if (sceneSnapshot) sceneSnapshot.stagingLayoutUnits = stagingLayoutUnits;
+    movementPlaybackState = { movement, steps, sceneSnapshot, stagingLayoutUnits, corridorLayout, index: 0, paused: false, progress: 0, stepStartedAt: performance.now(), duration: 1800, hold: 500 };
+    if (sceneSnapshot) {
+        currentSnapshot = sceneSnapshot;
+        currentSelection = "";
+    }
     document.getElementById("movement3dPlayback").hidden = false;
     showMovement3dStep(0);
 }
 
 function stopMovement3dPlayback() {
+    const restoreLiveScene = Boolean(movementPlaybackState?.sceneSnapshot);
     if (movementPlaybackState) {
         const allDestinations = movementDestinationLocations(movementPlaybackState.steps);
         pickables.forEach((mesh) => {
@@ -1480,9 +1721,15 @@ function stopMovement3dPlayback() {
     movementPlaybackState = null;
     clearMovementGhosts();
     clearMovementDeposits();
+    clearMovementCorridorDeposits();
     setMovementMeshRoles();
     setStagingMovementRoles();
     document.getElementById("movement3dPlayback").hidden = true;
+    if (restoreLiveScene) {
+        currentSnapshot = liveSnapshot;
+        currentSelection = liveSnapshot.selectedLocation || "";
+        buildWarehouse();
+    }
 }
 
 function updateMovement3dPlayback(timestamp) {
@@ -1504,14 +1751,19 @@ function updateMovement3dPlayback(timestamp) {
     }
     if (state.progress >= 1 && !state.currentDeposited) {
         state.currentDeposited = true;
-        applyMovementDestinationVisibility(state.index);
+        if (state.sceneSnapshot) syncMovementScene(state.index);
+        else applyMovementDestinationVisibility(state.index);
+        setMovementMeshRoles(state.steps[state.index]);
+        setStagingMovementRoles(state.steps[state.index]);
         movementGhostLayer.children.forEach((ghost) => { ghost.visible = false; });
     }
     if (state.currentDeposited) {
         const pulse = .18 + Math.abs(Math.sin(elapsed / 90)) * .48;
         pickables.forEach((mesh) => {
-            if (!mesh.visible || !["target", "shift"].includes(mesh.userData.movementRole)) return;
-            mesh.material.emissive.setHex(mesh.userData.movementRole === "shift" ? palette.movementShift : palette.movementLoad);
+            if (!mesh.visible || !["target", "shift", "corridor-return"].includes(mesh.userData.movementRole)) return;
+            mesh.material.emissive.setHex(mesh.userData.movementRole === "corridor-return"
+                ? palette.movementCorridor
+                : mesh.userData.movementRole === "shift" ? palette.movementShift : palette.movementLoad);
             mesh.material.emissiveIntensity = pulse;
         });
         world.children.forEach((object) => {
@@ -1701,7 +1953,8 @@ function renderMovement3dHistory() {
         card.append(content, badge);
         card.addEventListener("click", () => {
             hideMovement3dHistoryTooltip();
-            startMovement3dPlayback(movement);
+            if (Array.isArray(movement.beforeState)) startMovement3dPlayback(movement);
+            else ipcRenderer.send("warehouse-3d-movement-action", { movementId: movement.id, view: "playback" });
         });
         card.addEventListener("mouseenter", () => showMovement3dHistoryTooltip(movement, card));
         card.addEventListener("mouseleave", () => {
@@ -2560,10 +2813,12 @@ function disposeWarehouse3dViewer() {
     movementTimer.dispose();
     clearObject(movementGhostLayer);
     clearObject(movementDepositLayer);
+    clearObject(movementCorridorLayer);
     clearObject(world);
     surfaceLabelTextureCache.forEach((texture) => texture.dispose());
     surfaceLabelTextureCache.clear();
     ipcRenderer.removeAllListeners("warehouse-3d-data");
+    ipcRenderer.removeAllListeners("warehouse-3d-playback-data");
     renderer.dispose();
 }
 
@@ -2580,20 +2835,31 @@ ipcRenderer.on("warehouse-3d-data", (_event, payload) => {
     if (viewerDisposing) return;
     if (!payload || !Array.isArray(payload.rows) || !Array.isArray(payload.inventory)) return;
     applyCameraViewOwner(payload.actor);
+    liveSnapshot = payload;
+    const playback = payload.movementPlayback;
+    const playbackKey = payload.movementPlaybackKey || playback?.id || "";
+    if (playback?.id && playbackKey !== lastMovementPlaybackId) {
+        lastMovementPlaybackId = playbackKey;
+        if (movementPlaybackState) stopMovement3dPlayback();
+        currentSnapshot = payload;
+        currentSelection = payload.selectedLocation || currentSelection;
+        renderRowSpacingControls();
+        renderSceneRowVisibility();
+        renderMovement3dHistory();
+        startMovement3dPlayback(playback);
+        return;
+    }
+    if (movementPlaybackState) return;
     currentSnapshot = payload;
     currentSelection = payload.selectedLocation || currentSelection;
     renderRowSpacingControls();
     renderSceneRowVisibility();
     renderMovement3dHistory();
     buildWarehouse();
-    const playback = payload.movementPlayback;
-    const playbackKey = payload.movementPlaybackKey || playback?.id || "";
-    if (playback?.id && playbackKey !== lastMovementPlaybackId) {
-        lastMovementPlaybackId = playbackKey;
-        startMovement3dPlayback(playback);
-    } else if (movementPlaybackState) {
-        showMovement3dStep(movementPlaybackState.index, false);
-    }
+});
+ipcRenderer.on("warehouse-3d-playback-data", (_event, movement) => {
+    if (viewerDisposing || !movement?.id) return;
+    startMovement3dPlayback(movement);
 });
 ipcRenderer.send("warehouse-3d-ready");
 

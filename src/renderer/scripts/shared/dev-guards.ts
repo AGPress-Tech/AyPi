@@ -66,6 +66,7 @@ if (IS_DEV) {
         "warehouse-3d-select-slot",
         "warehouse-3d-movement-action",
         "warehouse-3d-movement-action-request",
+        "warehouse-3d-playback-data",
         "warehouse-inventory-local-load",
         "warehouse-inventory-local-save",
         "warehouse-inventory-focus-window",

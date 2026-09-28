@@ -260,8 +260,16 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
             || !warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
         warehouse3dOwner.webContents.send("warehouse-3d-movement-action-request", {
             movementId: String(payload?.movementId || ""),
-            view: payload?.view === "instructions" ? "instructions" : "comparison",
+            view: payload?.view === "playback"
+                ? "playback"
+                : payload?.view === "instructions" ? "instructions" : "comparison",
         });
+    });
+    ipcMain.on("warehouse-3d-playback-data", (event, payload) => {
+        if (!warehouse3dOwner || warehouse3dOwner.isDestroyed()
+            || warehouse3dOwner.webContents !== event.sender
+            || !warehouse3dWindow || warehouse3dWindow.isDestroyed()) return;
+        warehouse3dWindow.webContents.send("warehouse-3d-playback-data", payload);
     });
     ipcMain.on("warehouse-3d-ready", (event) => {
         if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
