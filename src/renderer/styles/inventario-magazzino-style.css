@@ -2202,16 +2202,141 @@ h1 {
 .unload-reload-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 13px; }
 .unload-reload-actions button { min-height: 32px; padding: 7px 11px; border: 1px solid #b8c5cf; border-radius: 4px; color: #394c5b; background: #fff; font-size: 10px; font-weight: 700; cursor: pointer; }
 
-.warehouse-login-dialog { width: min(620px, 94vw); overflow: hidden; border: 1px solid #aeb9c2; border-radius: 9px; background: #f4f6f8; box-shadow: 0 24px 70px rgba(15,27,38,.34); }
-.warehouse-login-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 10px 14px 0; background: #fff; }
-.warehouse-login-choice button { min-height: 38px; border: 1px solid #cad4dc; color: #5b6975; background: #f6f8f9; font-size: 12px; font-weight: 700; cursor: pointer; }
-.warehouse-login-choice button.is-active { border-color: #174f80; color: #fff; background: #174f80; }
-.warehouse-login-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; padding: 18px; }
-.warehouse-login-panel label { display: flex; flex-direction: column; gap: 6px; color: #46545f; font-size: 12px; font-weight: 700; }
-.warehouse-login-panel select, .warehouse-login-panel input { width: 100%; height: 40px; padding: 7px 9px; border: 1px solid #c5d0d8; border-radius: 5px; color: #202a32; background: #fff; font-size: 13px; outline: 0; }
-.warehouse-login-panel select:focus, .warehouse-login-panel input:focus { border-color: #087fbd; box-shadow: 0 0 0 2px rgba(8,127,189,.11); }
-.warehouse-login-confirm { grid-column: 1 / -1; justify-self: end; min-width: 120px; padding: 9px 14px; border: 1px solid #174f80; border-radius: 5px; color: #fff; background: #174f80; font-size: 12px; font-weight: 800; cursor: pointer; }
-.warehouse-login-error { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border: 1px solid #e0b5b5; border-radius: 4px; color: #9c3030; background: #fff2f2; font-size: 11px; }
+.warehouse-login-dialog {
+    width: min(440px, 92vw);
+    padding: 20px;
+    overflow: hidden;
+    border: 2px solid rgba(12, 94, 201, .37);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(60, 64, 67, .24);
+}
+.warehouse-login-identity-panel { display: none; }
+.warehouse-login-identity-content { display: grid; gap: 10px; }
+.warehouse-login-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 2px; }
+.warehouse-login-header .section-label { display: none; }
+.warehouse-login-header h2 { margin: 0; color: #1a73e8; font-size: 18px; }
+.warehouse-login-header p { margin: 5px 0 0; color: #65717c; font-size: 11px; line-height: 1.4; }
+.warehouse-login-header > button {
+    min-height: 32px;
+    padding: 6px 12px;
+    border: 1px solid #d4d9df;
+    border-radius: 8px;
+    color: #46545f;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.warehouse-login-header > button:hover { border-color: #9fb8d4; background: #f5f9fe; }
+.warehouse-login-choice { display: flex; gap: 10px; margin-bottom: 4px; }
+.warehouse-login-choice button {
+    min-height: 36px;
+    padding: 7px 14px;
+    border: 1px solid #d4d9df;
+    border-radius: 8px;
+    color: #4f5f6e;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.warehouse-login-choice button.is-active { border-color: #1a73e8; color: #fff; background: #1a73e8; }
+.warehouse-login-panel { display: flex; flex-direction: column; gap: 10px; }
+.warehouse-login-panel[hidden], .warehouse-login-error[hidden] { display: none !important; }
+.warehouse-login-panel label { display: flex; flex-direction: column; gap: 5px; color: #46545f; font-size: 12px; font-weight: 700; }
+.warehouse-login-panel select, .warehouse-login-panel input { width: 100%; min-height: 40px; padding: 7px 10px; border: 1px solid #d4d9df; border-radius: 8px; color: #202a32; background: #fff; font-size: 13px; outline: 0; }
+.warehouse-login-panel select:focus, .warehouse-login-panel input:focus { border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,.12); }
+.warehouse-login-confirm { align-self: flex-end; min-width: 120px; min-height: 38px; padding: 8px 14px; border: 1px solid #1a73e8; border-radius: 8px; color: #fff; background: #1a73e8; font-size: 12px; font-weight: 800; cursor: pointer; }
+.warehouse-login-confirm:hover { background: #1765cc; }
+.warehouse-login-error { margin: 0; padding: 8px 10px; border: 1px solid #e0b5b5; border-radius: 6px; color: #9c3030; background: #fff2f2; font-size: 11px; }
+
+/* Identity Gate: stessa variante Blue Archive usata da Acquisti e Calendar. */
+body.warehouse-bluearchive #warehouseLoginDialog {
+    padding: 22px;
+    background:
+        radial-gradient(circle at 20% 30%, rgba(49, 200, 243, .13), transparent 28%),
+        rgba(18, 39, 65, .48);
+}
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-dialog {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    width: min(780px, 94vw);
+    min-height: 440px;
+    padding: 0;
+    border: 1px solid rgba(74, 196, 239, .62);
+    border-radius: 8px 26px 8px 26px;
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 30px 90px rgba(12, 56, 89, .34), inset 0 0 0 1px rgba(255, 255, 255, .34);
+}
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 5px;
+    padding: 210px 28px 30px;
+    overflow: hidden;
+    color: rgba(255, 255, 255, .96);
+    background:
+        linear-gradient(145deg, transparent 0 62%, rgba(255, 255, 255, .09) 62% 63%, transparent 63%),
+        linear-gradient(32deg, transparent 0 72%, rgba(255, 255, 255, .12) 72% 73%, transparent 73%),
+        radial-gradient(circle at 24% 18%, rgba(106, 226, 255, .48), transparent 31%),
+        linear-gradient(145deg, #137bd8, #27bfeef2);
+    background-size: 180% 180%, 160% 160%, 130% 130%, 100% 100%;
+    animation: warehouse-login-panel-drift 11s ease-in-out infinite alternate;
+}
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-panel::after {
+    content: "";
+    position: absolute;
+    left: 72px;
+    top: 73px;
+    width: 154px;
+    height: 55px;
+    border: 4px solid rgba(255, 255, 255, .9);
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(16, 91, 158, .18), 42px 36px 0 -25px rgba(255, 255, 255, .32);
+    transform: rotate(-12deg);
+    animation: warehouse-login-halo-float 5.8s ease-in-out infinite;
+}
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-kicker { font: 800 9px/1.3 Consolas, monospace; letter-spacing: .13em; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-panel strong { margin: 8px 0 5px; font-size: 23px; letter-spacing: .04em; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-panel span:not(.warehouse-login-identity-kicker),
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-panel small { font-size: 11px; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-content { display: flex; flex-direction: column; gap: 10px; padding: 24px 26px 26px; color: #172b45; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-header { align-items: center; margin: 0 0 4px; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-header .section-label { display: none; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-header h2 { color: #172b45; font-size: 22px; font-weight: 750; letter-spacing: .01em; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-header h2::after { content: " // USER AUTH"; color: #168eea; font: 800 9px/1 Consolas, monospace; letter-spacing: .13em; vertical-align: middle; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-header p { color: #647d92; font-size: 11px; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-header > button { min-width: 66px; min-height: 30px; padding: 4px 10px; border-color: rgba(34,151,215,.25); border-radius: 5px 10px 5px 10px; color: #55758d; font-size: 12px; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 5px 0 8px; padding: 4px; border: 1px solid rgba(34, 151, 215, .22); border-radius: 6px 14px 6px 14px; background: #edf9fe; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-choice button { min-height: 36px; border: 0; border-radius: 4px 10px 4px 10px; color: #55758d; background: transparent; box-shadow: none; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-choice button:hover { color: #126f9f; background: rgba(255,255,255,.7); }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-choice button.is-active,
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-choice button.is-active:hover { color: #fff; background: linear-gradient(115deg, #147eda, #30c8f2); box-shadow: 0 4px 11px rgba(20,126,194,.21); }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-panel { gap: 10px; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-panel label { gap: 5px; color: #536c82; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-panel input,
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-panel select { min-height: 38px; padding: 7px 10px; border-color: rgba(34,151,215,.3); border-radius: 5px 11px 5px 11px; color: #172b45; background: #f9fdff; font-size: 13px; font-weight: 400; letter-spacing: normal; text-transform: none; }
+body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-confirm { align-self: stretch; width: 100%; min-height: 39px; margin-top: 5px; border: 0; border-radius: 5px 11px 5px 11px; background: linear-gradient(115deg, #147eda, #30c8f2); font-size: 12px; letter-spacing: .04em; }
+
+@keyframes warehouse-login-panel-drift {
+    0% { background-position: 12% 18%, 88% 76%, 0 0, 0 0; }
+    50% { background-position: 78% 54%, 24% 30%, 48% 22%, 0 0; }
+    100% { background-position: 34% 88%, 70% 18%, 100% 62%, 0 0; }
+}
+@keyframes warehouse-login-halo-float {
+    0%, 100% { opacity: .86; transform: translateY(0) rotate(-12deg) scale(1); filter: drop-shadow(0 0 0 rgba(122,228,255,0)); }
+    50% { opacity: 1; transform: translateY(-8px) rotate(-8deg) scale(1.035); filter: drop-shadow(0 8px 13px rgba(108,226,255,.28)); }
+}
+@media (max-width: 700px) {
+    body.warehouse-bluearchive #warehouseLoginDialog { padding: 12px; }
+    body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-dialog { grid-template-columns: 1fr; width: min(440px, 96vw); min-height: 0; max-height: 94vh; overflow-y: auto; }
+    body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-panel { min-height: 112px; padding: 66px 20px 13px; }
+    body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-panel::after { left: 28px; top: 21px; width: 76px; height: 27px; border-width: 3px; }
+    body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-identity-content { padding: 18px 20px 22px; }
+}
 
 .article-analysis-dialog {
     width: min(960px, 95vw);

@@ -1198,6 +1198,23 @@ async function loadHaasCardAndOpenForm(code) {
     return true;
 }
 
+async function copyHaasCardAndOpenForm(code) {
+    const loaded = await loadHaasCardAndOpenForm(code);
+    if (!loaded) return;
+
+    currentHaasCode = null;
+    currentHaasRecordId = crypto.randomUUID();
+    [
+        "haasCodiceArticolo",
+        "haasNumeroProgramma",
+        "haasMacchina",
+        "haasMetodo",
+    ].forEach((id) => setVal(id, ""));
+    haasFormOrigin = "list";
+    showView("haas-form");
+    document.getElementById("haasCodiceArticolo")?.focus();
+}
+
 async function loadHaasList() {
     const res = await ipcRenderer.invoke("haas-attrezzaggio-list");
     if (!res?.ok) {
@@ -1320,6 +1337,16 @@ function renderHaasListFiltered() {
             }),
         );
 
+        const copy = document.createElement("button");
+        copy.textContent = "Copia";
+        copy.title = "Crea una nuova scheda partendo da questa";
+        copy.addEventListener(
+            "click",
+            asyncGuard.wrap(async () =>
+                copyHaasCardAndOpenForm(item.recordId || item.code),
+            ),
+        );
+
         const print = document.createElement("button");
         print.textContent = "Stampa";
         print.addEventListener(
@@ -1360,6 +1387,7 @@ function renderHaasListFiltered() {
 
         li.appendChild(details);
         actions.appendChild(edit);
+        actions.appendChild(copy);
         actions.appendChild(print);
         actions.appendChild(del);
         li.appendChild(actions);

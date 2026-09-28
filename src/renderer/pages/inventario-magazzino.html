@@ -765,34 +765,43 @@
 
     <div class="restriction-backdrop warehouse-login-backdrop" id="warehouseLoginDialog" aria-hidden="true">
         <section class="warehouse-login-dialog" role="dialog" aria-modal="true" aria-labelledby="warehouseLoginTitle">
-            <header class="restriction-dialog__header">
-                <div>
-                    <span class="section-label">ACCESSO OPERATORE</span>
-                    <h2 id="warehouseLoginTitle">Accedi al magazzino</h2>
-                    <p>La sessione è condivisa con Calendar e Purchasing e verrà registrata nei movimenti.</p>
-                </div>
-                <button id="closeWarehouseLogin" type="button" aria-label="Chiudi">×</button>
-            </header>
-            <div class="warehouse-login-choice" role="tablist" aria-label="Tipo di accesso">
-                <button class="is-active" id="warehouseLoginEmployeeChoice" type="button">Dipendente</button>
-                <button id="warehouseLoginAdminChoice" type="button">Admin</button>
+            <div class="warehouse-login-identity-panel" aria-hidden="true">
+                <span class="warehouse-login-identity-kicker">AYPI // SECURE ACCESS</span>
+                <strong>IDENTITY GATE</strong>
+                <span>Autenticazione operatore</span>
+                <small>Schale authorization network</small>
             </div>
-            <section class="warehouse-login-panel" id="warehouseEmployeeLoginPanel">
-                <label>Reparto<select id="warehouseLoginDepartment"><option value="">Caricamento…</option></select></label>
-                <label>Dipendente<select id="warehouseLoginEmployee"><option value="">Seleziona reparto</option></select></label>
-                <button class="warehouse-login-confirm" id="warehouseEmployeeLoginConfirm" type="button">Entra</button>
-            </section>
-            <section class="warehouse-login-panel" id="warehouseAdminLoginPanel" hidden>
-                <label>Admin<select id="warehouseLoginAdmin"><option value="">Caricamento…</option></select></label>
-                <label>Password<input id="warehouseLoginPassword" type="password" autocomplete="current-password"></label>
-                <p class="warehouse-login-error" id="warehouseLoginError" role="alert" hidden>Password errata.</p>
-                <button class="warehouse-login-confirm" id="warehouseAdminLoginConfirm" type="button">Entra</button>
-            </section>
+            <div class="warehouse-login-identity-content">
+                <header class="warehouse-login-header">
+                    <div>
+                        <span class="section-label">ACCESSO OPERATORE</span>
+                        <h2 id="warehouseLoginTitle">Accedi al magazzino</h2>
+                        <p>La sessione è condivisa con Calendar e Purchasing e verrà registrata nei movimenti.</p>
+                    </div>
+                    <button id="closeWarehouseLogin" type="button" aria-label="Chiudi">Chiudi</button>
+                </header>
+                <div class="warehouse-login-choice" role="tablist" aria-label="Tipo di accesso">
+                    <button class="is-active" id="warehouseLoginEmployeeChoice" type="button">Dipendente</button>
+                    <button id="warehouseLoginAdminChoice" type="button">Admin</button>
+                </div>
+                <section class="warehouse-login-panel" id="warehouseEmployeeLoginPanel">
+                    <label><span>Reparto</span><select id="warehouseLoginDepartment"><option value="">Caricamento…</option></select></label>
+                    <label><span>Dipendente</span><select id="warehouseLoginEmployee"><option value="">Seleziona reparto</option></select></label>
+                    <button class="warehouse-login-confirm" id="warehouseEmployeeLoginConfirm" type="button">Entra</button>
+                </section>
+                <section class="warehouse-login-panel" id="warehouseAdminLoginPanel" hidden>
+                    <label><span>Admin</span><select id="warehouseLoginAdmin"><option value="">Caricamento…</option></select></label>
+                    <label><span>Password</span><input id="warehouseLoginPassword" type="password" autocomplete="current-password"></label>
+                    <p class="warehouse-login-error" id="warehouseLoginError" role="alert" hidden>Password errata.</p>
+                    <button class="warehouse-login-confirm" id="warehouseAdminLoginConfirm" type="button">Entra</button>
+                </section>
+            </div>
         </section>
     </div>
 
     <div class="slot-context-menu" id="slotContextMenu" role="menu" aria-hidden="true">
         <div class="slot-context-menu__title" id="contextSlotCode">A1a</div>
+        <button id="showSlotIn3dButton" type="button" role="menuitem">Mostra in 3D</button>
         <button id="startRelocationButton" type="button" role="menuitem">Rialloca</button>
         <button id="placeRelocationButton" type="button" role="menuitem" hidden>Inserisci qui</button>
         <button id="swapRelocationButton" type="button" role="menuitem" hidden>Scambia posizioni</button>

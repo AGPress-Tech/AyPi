@@ -495,18 +495,28 @@ function broadcastWarehouse3dState(movementPlayback = null) {
     ipcRenderer.send("warehouse-3d-update", warehouse3dStateSnapshot(movementPlayback));
 }
 
+async function openWarehouse3dViewer(focusLocation = "", triggerButton = null) {
+    const button = triggerButton || document.getElementById("openWarehouse3d");
+    if (button) button.disabled = true;
+    try {
+        const payload = {
+            ...warehouse3dStateSnapshot(),
+            focusLocation: parseSlotCode(focusLocation)?.code || "",
+        };
+        const opened = await ipcRenderer.invoke("warehouse-3d-open-window", payload);
+        if (!opened) throw new Error("Il processo principale non ha creato la finestra.");
+        return true;
+    } catch (error) {
+        showWarehouseToast(`Vista 3D non disponibile: ${error.message}. Chiudi completamente AyPi e riavvialo.`, true);
+        return false;
+    } finally {
+        if (button?.isConnected) button.disabled = false;
+    }
+}
+
 function setupWarehouse3dViewer() {
-    document.getElementById("openWarehouse3d")?.addEventListener("click", async () => {
-        const button = document.getElementById("openWarehouse3d");
-        button.disabled = true;
-        try {
-            const opened = await ipcRenderer.invoke("warehouse-3d-open-window", warehouse3dStateSnapshot());
-            if (!opened) throw new Error("Il processo principale non ha creato la finestra.");
-        } catch (error) {
-            showWarehouseToast(`Vista 3D non disponibile: ${error.message}. Chiudi completamente AyPi e riavvialo.`, true);
-        } finally {
-            button.disabled = false;
-        }
+    document.getElementById("openWarehouse3d")?.addEventListener("click", (event) => {
+        void openWarehouse3dViewer("", event.currentTarget);
     });
     ipcRenderer.on("warehouse-3d-slot-selected", (_event, location) => {
         const parsed = parseSlotCode(location);
@@ -1337,12 +1347,15 @@ function openContextMenu(code, x, y) {
     const relocate = document.getElementById("startRelocationButton");
     const place = document.getElementById("placeRelocationButton");
     const swap = document.getElementById("swapRelocationButton");
+    const showIn3d = document.getElementById("showSlotIn3dButton");
     const manualLoad = document.getElementById("manualLoadHereButton");
     const manualUnload = document.getElementById("manualUnloadHereButton");
     relocate.hidden = multiSelection || Boolean(relocationSourceCode);
     relocate.disabled = !item || item.type !== "crate";
     place.hidden = multiSelection || !relocationSourceCode || Boolean(item);
     swap.hidden = multiSelection || !relocationSourceCode || !item || code === relocationSourceCode;
+    showIn3d.hidden = multiSelection || item?.type !== "crate";
+    showIn3d.disabled = item?.type !== "crate";
     manualLoad.hidden = multiSelection || Boolean(relocationSourceCode) || Boolean(item);
     manualUnload.hidden = multiSelection || Boolean(relocationSourceCode) || !item;
     manualUnload.disabled = item?.type !== "crate";
@@ -1417,6 +1430,15 @@ function relocateCrate(sourceCode, targetCode, swap = false) {
 }
 
 function setupContextMenu() {
+    document.getElementById("showSlotIn3dButton")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const location = contextSlotCode;
+        const button = event.currentTarget;
+        closeContextMenu();
+        if (location && inventory.get(location)?.type === "crate") {
+            void openWarehouse3dViewer(location, button);
+        }
+    });
     document.getElementById("startRelocationButton")?.addEventListener("click", (event) => {
         event.stopPropagation();
         if (!contextSlotCode || inventory.get(contextSlotCode)?.type !== "crate") return;
@@ -2244,6 +2266,10 @@ function crateStackItems(state, parsed) {
     return ["a", "b", "c"].map((level) => state.get(`${parsed.row}${parsed.number}${level}`));
 }
 
+function isCompletelyEmptyRearCrateStack(state, parsed) {
+    return parsed?.side === "rear" && crateStackItems(state, parsed).every((item) => !item);
+}
+
 function generateCratePlacementMoves(state, maximumUnits, article, customer) {
     const levels = ["a", "b", "c"];
     const moves = [];
@@ -2268,7 +2294,24 @@ function generateCratePlacementMoves(state, maximumUnits, article, customer) {
             }
         }
     });
-    return moves;
+    // Una pila mista (per esempio 2 cassoni dell'articolo X + 1 dell'articolo
+    // corrente) resta valida, ma solamente dopo avere esaurito le pile rear
+    // completamente vuote e realmente utilizzabili. È una precedenza di
+    // ammissibilità, non un nuovo peso: gli altri criteri di score restano
+    // invariati e continuano a scegliere la migliore posizione tra le mosse.
+    const hasAvailableEmptyRearStack = moves.some((move) => {
+        const parsed = parseSlotCode(move.codes[0]);
+        return isCompletelyEmptyRearCrateStack(state, parsed);
+    });
+    if (!hasAvailableEmptyRearStack) return moves;
+    return moves.filter((move) => {
+        const parsed = parseSlotCode(move.codes[0]);
+        const existingItems = crateStackItems(state, parsed).filter(Boolean);
+        const createsMixedTwoPlusOne = existingItems.length === 2
+            && move.codes.length === 1
+            && existingItems.some((item) => item.article !== article);
+        return !createsMixedTwoPlusOne;
+    });
 }
 
 function cratePlanSignature(node) {
