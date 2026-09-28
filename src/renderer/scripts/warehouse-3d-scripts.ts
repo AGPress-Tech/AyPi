@@ -57,6 +57,8 @@ let pickables = [];
 let currentSnapshot = { rows: [], inventory: [], stagingUnits: [], displayFields: [] };
 let liveSnapshot = currentSnapshot;
 let currentSelection = "";
+let viewerSearchMatches = [];
+let viewerSearchIndex = -1;
 let hoveredObject = null;
 let showFreeSlots = false;
 let surfaceLabelsVisible = true;
@@ -73,6 +75,15 @@ const surfaceLabelTextureCache = new Map();
 const usedSurfaceLabelTextureKeys = new Set();
 
 const DEFAULT_VIEWER_SETTINGS_VERSION = 2;
+const VIEWER_LABEL_FIELDS = ["location", "article", "pieces", "customer", "order", "weighing", "type", "tags", "receivedAt"];
+const DEFAULT_VIEWER_LABEL_FIELDS = ["location", "article", "pieces"];
+
+function normalizedViewerLabelFields(fields) {
+    if (!Array.isArray(fields)) return [...DEFAULT_VIEWER_LABEL_FIELDS];
+    const normalized = Array.from(new Set(fields.filter((field) => VIEWER_LABEL_FIELDS.includes(field))));
+    return normalized.length ? normalized : [...DEFAULT_VIEWER_LABEL_FIELDS];
+}
+
 const defaultViewerSettings = {
     settingsVersion: DEFAULT_VIEWER_SETTINGS_VERSION,
     rowSpacing: 10,
@@ -86,6 +97,7 @@ const defaultViewerSettings = {
     showRacks: true,
     showGrid: true,
     hiddenRows: [],
+    labelFields: [...DEFAULT_VIEWER_LABEL_FIELDS],
 };
 function loadViewerSettings() {
     try {
@@ -96,6 +108,7 @@ function loadViewerSettings() {
             ...saved,
             rowSpacings: saved.rowSpacings && typeof saved.rowSpacings === "object" ? saved.rowSpacings : {},
             hiddenRows: Array.isArray(saved.hiddenRows) ? saved.hiddenRows : [],
+            labelFields: normalizedViewerLabelFields(saved.labelFields),
         };
     } catch {
         return { ...defaultViewerSettings, rowSpacings: {} };
@@ -434,7 +447,8 @@ function createTextSprite(lines, colors = {}) {
 }
 
 function surfaceLabelTexture(lines) {
-    const key = JSON.stringify(lines.slice(0, 3).map((line) => String(line).slice(0, 20)));
+    const visible = lines.map((line) => String(line).slice(0, 22));
+    const key = JSON.stringify(visible);
     usedSurfaceLabelTextureKeys.add(key);
     if (surfaceLabelTextureCache.has(key)) return surfaceLabelTextureCache.get(key);
     const surface = document.createElement("canvas");
@@ -444,14 +458,18 @@ function surfaceLabelTexture(lines) {
     context.clearRect(0, 0, surface.width, surface.height);
     context.textAlign = "center";
     context.textBaseline = "middle";
-    const visible = lines.slice(0, 3);
+    const count = Math.max(1, visible.length);
+    const titleSize = count <= 3 ? 72 : count <= 5 ? 54 : 42;
+    const textSize = count <= 3 ? 56 : count <= 5 ? 42 : 31;
+    const verticalStep = Math.min(87, 272 / count);
+    const firstY = 160 - verticalStep * (count - 1) / 2;
     visible.forEach((line, index) => {
-        context.font = `${index === 0 ? "900 72px" : "800 56px"} Segoe UI, Arial`;
+        context.font = `${index === 0 ? `900 ${titleSize}px` : `800 ${textSize}px`} Segoe UI, Arial`;
         context.lineWidth = 3;
         context.strokeStyle = "rgba(246,252,255,.98)";
-        context.strokeText(String(line).slice(0, 20), 256, 72 + index * 87, 478);
+        context.strokeText(line, 256, firstY + index * verticalStep, 478);
         context.fillStyle = index === 0 ? "#123f70" : "#203947";
-        context.fillText(String(line).slice(0, 20), 256, 72 + index * 87, 478);
+        context.fillText(line, 256, firstY + index * verticalStep, 478);
     });
     const texture = new THREE.CanvasTexture(surface);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -482,7 +500,7 @@ function createSurfaceLabel(lines, face = "rear", pallet = false) {
 }
 
 function itemLabelLines(location, item) {
-    const fields = currentSnapshot.displayFields?.length ? currentSnapshot.displayFields : ["location", "article", "pieces"];
+    const fields = normalizedViewerLabelFields(viewerSettings.labelFields);
     const values = {
         location,
         article: item.article || "Articolo —",
@@ -722,7 +740,7 @@ function addOperationalAreas() {
         mesh.position.copy(stagingPositionForUnit(item));
         mesh.userData.sceneRole = "staging-unit";
         mesh.userData.stagingUnitId = item.id;
-        const lines = [item.article || "Articolo —", item.requiresWarehouseReturn ? "RIENTRO" : "PRONTO USCITA", `${Number(item.pieceCount) || 0} pezzi`];
+        const lines = itemLabelLines(item.requiresWarehouseReturn ? "IN ATTESA · RIENTRO" : "IN ATTESA", item);
         ["front", "rear"].forEach((face) => {
             const label = createSurfaceLabel(lines, face, pallet);
             label.position.set(0, 0, (face === "front" ? -1 : 1) * (pallet ? .816 : .366));
@@ -756,8 +774,8 @@ function updateRackAppearanceLive() {
 }
 
 function updateLabelScaleLive() {
-    pickables.forEach((mesh) => (mesh.userData.labels || []).forEach((label) => {
-        label.scale.setScalar(viewerSettings.labelScale);
+    [world, movementGhostLayer, movementDepositLayer, movementCorridorLayer].forEach((group) => group.traverse((object) => {
+        if (object.material?.map?.userData?.warehouseSurfaceLabel) object.scale.setScalar(viewerSettings.labelScale);
     }));
 }
 
@@ -1016,13 +1034,102 @@ function applyFreeSlotVisibility() {
     });
 }
 
-function applySearch() {
+function updateViewerSearchNavigation() {
+    const count = viewerSearchMatches.length;
+    const output = document.getElementById("viewerSearchPosition");
+    if (output) output.textContent = count && viewerSearchIndex >= 0 ? `${viewerSearchIndex + 1}/${count}` : `0/${count}`;
+    ["viewerSearchPrevious", "viewerSearchNext"].forEach((id) => {
+        const button = document.getElementById(id);
+        if (button) button.disabled = count === 0;
+    });
+}
+
+function compareViewerSearchMeshes(left, right) {
+    return String(left.userData.location || "").localeCompare(String(right.userData.location || ""), "it", { numeric: true });
+}
+
+function selectedViewerSearchFields() {
+    return Array.from(document.querySelectorAll('input[name="viewerSearchField"]:checked'), (input) => input.value);
+}
+
+function viewerSearchValues(item, fields) {
+    const values = {
+        article: item?.article,
+        customer: item?.customer,
+        order: item?.orderReference,
+        weighing: item?.weighingCode || "",
+        pieces: `${Number(item?.pieceCount) || 0} pezzi capienza ${Number(item?.maxPieceCapacity) || Number(item?.pieceCount) || 0}`,
+        tags: Array.isArray(item?.tags) ? item.tags.join(" ") : "",
+        type: item?.type === "pallet" ? "pallet bancale" : "cassone",
+        movement: item?.inMovement ? "in movimento movimentazione spostamento scarico" : "",
+    };
+    return fields.map((field) => String(values[field] || "").toUpperCase());
+}
+
+function focusMeshFromCorridor(mesh) {
+    const aisle = aislePositionForLocation(mesh?.userData?.location);
+    if (!aisle) return;
+    const target = mesh.position.clone();
+    target.y = Math.max(.7, mesh.position.y);
+    const frontDirection = Math.sign(aisle.z - mesh.position.z) || 1;
+    const position = aisle.clone();
+    // Inquadra dal corridoio con sufficiente contesto attorno al risultato:
+    // il precedente offset ravvicinato riempiva lo schermo con un solo cassone.
+    // Ci spostiamo lungo il corridoio verso l'esterno della fila, così restano
+    // visibili anche la pila e i moduli adiacenti senza attraversare scaffali.
+    const corridorSide = target.x <= 0 ? -1 : 1;
+    position.x = target.x + corridorSide * 8;
+    position.y = Math.max(2.65, target.y + 1.35);
+    position.z += frontDirection * .6;
+    pressedMovementKeys.clear();
+    activeCameraViewId = "";
+    cameraTransition = {
+        startedAt: performance.now(),
+        duration: 680,
+        fromPosition: camera.position.clone(),
+        toPosition: position,
+        fromTarget: controls.target.clone(),
+        toTarget: target,
+        fromFov: camera.fov,
+        toFov: Math.max(44, Number(viewerSettings.cameraFov) || 44),
+    };
+    renderCameraViews();
+}
+
+function focusViewerSearchResult(index) {
+    const count = viewerSearchMatches.length;
+    if (!count) {
+        viewerSearchIndex = -1;
+        updateViewerSearchNavigation();
+        return;
+    }
+    viewerSearchIndex = ((Number(index) || 0) % count + count) % count;
+    const mesh = viewerSearchMatches[viewerSearchIndex];
+    selectMesh(mesh);
+    focusMeshFromCorridor(mesh);
+    updateViewerSearchNavigation();
+}
+
+function applySearch(focusFirst = false) {
     const query = document.getElementById("viewerSearch").value.trim().toUpperCase();
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const fields = selectedViewerSearchFields();
+    const previousLocation = viewerSearchMatches[viewerSearchIndex]?.userData?.location;
     pickables.forEach((mesh) => {
-        const matches = query && mesh.userData.searchable.includes(query);
+        const values = viewerSearchValues(mesh.userData.item, fields);
+        const matches = tokens.length && fields.length
+            && tokens.every((token) => values.some((value) => value.includes(token)));
         mesh.userData.matchesSearch = Boolean(matches);
     });
+    viewerSearchMatches = pickables
+        .filter((mesh) => mesh.userData.item && mesh.userData.matchesSearch)
+        .sort(compareViewerSearchMeshes);
+    viewerSearchIndex = previousLocation
+        ? viewerSearchMatches.findIndex((mesh) => mesh.userData.location === previousLocation)
+        : -1;
     applySelection();
+    updateViewerSearchNavigation();
+    if (focusFirst && viewerSearchMatches.length) focusViewerSearchResult(viewerSearchIndex >= 0 ? viewerSearchIndex : 0);
 }
 
 function matchesSelectedContent(candidate, selected) {
@@ -1073,12 +1180,12 @@ function applySelection() {
 }
 
 function updateSurfaceLabels() {
-    pickables.forEach((mesh) => {
-        (mesh.userData.labels || []).forEach((label) => {
-            label.visible = surfaceLabelsVisible;
-            label.material.opacity = mesh.userData.selected || mesh.userData.related || mesh.userData.matchesSearch ? 1 : .92;
-        });
-    });
+    [world, movementGhostLayer, movementDepositLayer, movementCorridorLayer].forEach((group) => group.traverse((object) => {
+        if (!object.material?.map?.userData?.warehouseSurfaceLabel) return;
+        object.visible = surfaceLabelsVisible;
+        const parent = object.userData.parentSlot;
+        object.material.opacity = parent?.userData.selected || parent?.userData.related || parent?.userData.matchesSearch ? 1 : .92;
+    }));
 }
 
 function movementSteps(movement) {
@@ -1157,6 +1264,25 @@ function movementAreaPosition(area, unit, index, stagingContext = []) {
     return dockAreaPosition(index);
 }
 
+function rackFrontClearancePosition(location, height) {
+    const parsed = parseLocation(location);
+    if (!parsed) return null;
+    const rowIndex = layoutRows.findIndex((row) => row.code === parsed.row.code);
+    const slot = locationScenePosition(location);
+    if (rowIndex < 0 || !slot) return null;
+    return new THREE.Vector3(
+        slot.x,
+        height,
+        (layoutRowZ[rowIndex] || 0) + rowFrontDirection(parsed.row) * 1.18,
+    );
+}
+
+function compactMovementPath(points) {
+    return points.filter(Boolean).filter((point, index, path) => (
+        !index || point.distanceToSquared(path[index - 1]) > .0001
+    ));
+}
+
 function movementRoutePath(route, kind) {
     const source = route.source.clone();
     const target = route.target.clone();
@@ -1164,13 +1290,32 @@ function movementRoutePath(route, kind) {
     const outerX = stagingAreaGeometry().outerX;
     const sourceAisle = route.sourceLocation ? aislePositionForLocation(route.sourceLocation) : null;
     const targetAisle = route.targetLocation ? aislePositionForLocation(route.targetLocation) : null;
+    if (["corridor", "optimization-corridor", "optimization-stage"].includes(kind) && sourceAisle) {
+        const frontClearance = rackFrontClearancePosition(route.sourceLocation, source.y);
+        return compactMovementPath([
+            source,
+            frontClearance,
+            new THREE.Vector3(sourceAisle.x, source.y, sourceAisle.z),
+            new THREE.Vector3(sourceAisle.x, target.y, sourceAisle.z),
+            new THREE.Vector3(target.x, target.y, sourceAisle.z),
+            target,
+        ]);
+    }
+    if (["reinsert", "optimization-place"].includes(kind) && targetAisle) {
+        const frontClearance = rackFrontClearancePosition(route.targetLocation, target.y);
+        const corridorEndX = bounds.maxX - .62;
+        return compactMovementPath([
+            source,
+            new THREE.Vector3(corridorEndX, source.y, source.z),
+            new THREE.Vector3(corridorEndX, source.y, targetAisle.z),
+            new THREE.Vector3(targetAisle.x, source.y, targetAisle.z),
+            new THREE.Vector3(targetAisle.x, target.y, targetAisle.z),
+            frontClearance,
+            target,
+        ]);
+    }
     const raw = [source];
-    if (["corridor", "optimization-corridor", "optimization-stage"].includes(kind)) {
-        if (sourceAisle) raw.push(sourceAisle);
-    } else if (["reinsert", "optimization-place"].includes(kind)) {
-        if (targetAisle) raw.push(targetAisle);
-        raw.push(target);
-    } else if (kind === "unload") {
+    if (kind === "unload") {
         if (sourceAisle) raw.push(sourceAisle);
         raw.push(new THREE.Vector3(outerX, source.y, sourceAisle?.z ?? source.z));
         raw.push(new THREE.Vector3(outerX, target.y, target.z), target);
@@ -1216,6 +1361,19 @@ function movementPathPoint(path, progress) {
         remaining -= lengths[index];
     }
     return path[path.length - 1].clone();
+}
+
+function movementPathLength(path) {
+    if (!path?.length) return 0;
+    return path.slice(1).reduce((total, point, index) => total + path[index].distanceTo(point), 0);
+}
+
+function movementStepDuration(routes, step) {
+    if (step?.kind === "piece-pick") return 1800;
+    const longestRoute = Math.max(0, ...routes.map((route) => movementPathLength(route.path)));
+    // Durata proporzionale alla distanza: tutte le tratte viaggiano alla stessa
+    // velocità percepita, indipendentemente dalla destinazione operativa.
+    return Math.min(6000, Math.max(1100, longestRoute / 7.5 * 1000));
 }
 
 function movementStepRoutes(step) {
@@ -1352,11 +1510,7 @@ function createMovementCorridorDeposit(unit, position) {
     mesh.userData.sceneRole = "movement-corridor-deposit";
     mesh.userData.unitId = movementUnitKey(unit);
     mesh.userData.item = unit;
-    const lines = [
-        unit?.article || "Articolo —",
-        unit?.weighingCode ? `Pesata ${unit.weighingCode}` : "TEMP. CORRIDOIO",
-        `${Number(unit?.pieceCount) || 0} pezzi`,
-    ];
+    const lines = itemLabelLines("CORRIDOIO", unit || {});
     ["front", "rear"].forEach((face) => {
         const label = createSurfaceLabel(lines, face, pallet);
         label.position.set(0, 0, (face === "front" ? -1 : 1) * (pallet ? .816 : .366));
@@ -1394,11 +1548,7 @@ function createMovementDeposit(unit, position, requiresReturn = false) {
     mesh.userData.stagingUnitId = movementUnitKey(unit);
     mesh.userData.item = unit;
     mesh.userData.movementRole = "";
-    const lines = [
-        unit?.article || "Articolo —",
-        requiresReturn ? "RIENTRO" : "PRONTO USCITA",
-        `${Number(unit?.pieceCount) || 0} pezzi`,
-    ];
+    const lines = itemLabelLines(requiresReturn ? "IN ATTESA · RIENTRO" : "IN ATTESA", unit || {});
     ["front", "rear"].forEach((face) => {
         const label = createSurfaceLabel(lines, face, pallet);
         label.position.set(0, 0, (face === "front" ? -1 : 1) * (pallet ? .816 : .366));
@@ -1452,11 +1602,14 @@ function setMovementMeshRoles(step = null) {
     const targets = new Set(operationalLocations([...(step?.to || []), ...(step?.units || []).map((unit) => unit.to)]));
     pickables.forEach((mesh) => {
         const locations = mesh.userData.locations || [mesh.userData.location];
-        mesh.userData.movementRole = locations.some((location) => sources.has(location))
-            ? "source"
-            : locations.some((location) => targets.has(location))
-              ? (["reinsert", "optimization-place"].includes(step?.kind) ? "corridor-return" : "target")
-              : "";
+        const returningFromCorridor = ["reinsert", "optimization-place"].includes(step?.kind);
+        const isTarget = locations.some((location) => targets.has(location));
+        const isSource = locations.some((location) => sources.has(location));
+        mesh.userData.movementRole = returningFromCorridor && isTarget
+            ? "corridor-return"
+            : isSource
+              ? "source"
+              : isTarget ? "target" : "";
     });
     applySelection();
 }
@@ -1522,9 +1675,13 @@ function showMovement3dStep(index, restart = true) {
     // Il prelievo parziale avviene sul cassone già arrivato nell'area di
     // preparazione: non creare un secondo fantasma dalla posizione originaria.
     const routes = step.kind === "piece-pick" ? [] : movementStepRoutes(step);
+    state.duration = movementStepDuration(routes, step);
     routes.forEach((route) => {
         const pallet = route.unit?.type === "pallet";
-        const unitColor = movementUnitRequiresReturn(route.unit, step) ? 0xb666d2 : color;
+        const corridorStep = ["corridor", "optimization-corridor", "optimization-stage", "reinsert", "optimization-place"].includes(step.kind);
+        const unitColor = corridorStep
+            ? palette.movementCorridor
+            : movementUnitRequiresReturn(route.unit, step) ? 0xb666d2 : color;
         const ghost = createBox(pallet ? .98 : .8, pallet ? .68 : .7, pallet ? 1.62 : .7, unitColor, {
             transparent: true,
             opacity: .9,
@@ -1536,11 +1693,7 @@ function showMovement3dStep(index, restart = true) {
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(ghost.geometry), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .9 }));
         ghost.add(edges);
         if (route.unit) {
-            const lines = [
-                route.unit.article || "Articolo —",
-                route.unit.weighingCode ? `Pesata ${route.unit.weighingCode}` : "",
-                route.unit.pieceCount ? `${route.unit.pieceCount} pezzi` : "",
-            ].filter(Boolean);
+            const lines = itemLabelLines(route.targetLocation || route.sourceLocation || "MOVIMENTO", route.unit);
             ["front", "rear"].forEach((face) => {
                 const label = createSurfaceLabel(lines, face, pallet);
                 label.position.set(0, 0, (face === "front" ? -1 : 1) * (pallet ? .816 : .356));
@@ -2448,17 +2601,20 @@ function captureViewerPresetSettings() {
         showRacks: viewerSettings.showRacks,
         showGrid: viewerSettings.showGrid,
         hiddenRows: [...(viewerSettings.hiddenRows || [])],
+        labelFields: normalizedViewerLabelFields(viewerSettings.labelFields),
     };
 }
 
 function applyPersonalViewPreset(preset) {
     const settings = preset?.settings || {};
     const previousHiddenRows = JSON.stringify([...(viewerSettings.hiddenRows || [])].sort());
+    const previousLabelFields = JSON.stringify(normalizedViewerLabelFields(viewerSettings.labelFields));
     viewerSettings = {
         ...defaultViewerSettings,
         ...settings,
         rowSpacings: settings.rowSpacings && typeof settings.rowSpacings === "object" ? { ...settings.rowSpacings } : {},
         hiddenRows: Array.isArray(settings.hiddenRows) ? [...settings.hiddenRows] : [],
+        labelFields: normalizedViewerLabelFields(settings.labelFields),
     };
     showFreeSlots = Boolean(viewerSettings.showFreeSlots);
     camera.fov = viewerSettings.cameraFov;
@@ -2466,7 +2622,8 @@ function applyPersonalViewPreset(preset) {
     document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
     syncViewSettingsUi();
     applyViewerSettingsLive();
-    if (previousHiddenRows !== JSON.stringify([...(viewerSettings.hiddenRows || [])].sort())) scheduleSceneRebuild();
+    if (previousHiddenRows !== JSON.stringify([...(viewerSettings.hiddenRows || [])].sort())
+        || previousLabelFields !== JSON.stringify(viewerSettings.labelFields)) scheduleSceneRebuild();
 }
 
 function syncPersonalViewPresetAccess() {
@@ -2629,6 +2786,10 @@ function syncViewSettingsUi() {
     applyFreeSlotVisibility();
     document.getElementById("showRacksControl").checked = viewerSettings.showRacks;
     document.getElementById("showGridControl").checked = viewerSettings.showGrid;
+    const selectedLabelFields = new Set(normalizedViewerLabelFields(viewerSettings.labelFields));
+    document.querySelectorAll('#labelFieldControls input[type="checkbox"]').forEach((input) => {
+        input.checked = selectedLabelFields.has(input.value);
+    });
     renderRowSpacingControls();
     renderSceneRowVisibility();
 }
@@ -2697,6 +2858,19 @@ function setupViewSettings() {
         setMovementPlaybackSpeed(Number(event.target.value) / 100);
         document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
     });
+    document.querySelectorAll('#labelFieldControls input[type="checkbox"]').forEach((input) => {
+        input.addEventListener("change", () => {
+            const selected = Array.from(document.querySelectorAll('#labelFieldControls input[type="checkbox"]:checked'), (control) => control.value);
+            if (!selected.length) {
+                input.checked = true;
+                return;
+            }
+            viewerSettings.labelFields = normalizedViewerLabelFields(selected);
+            document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.remove("is-active"));
+            saveViewerSettings();
+            scheduleSceneRebuild();
+        });
+    });
     document.getElementById("showRacksControl").addEventListener("change", (event) => {
         viewerSettings.showRacks = event.target.checked;
         updateRackAppearanceLive();
@@ -2714,6 +2888,7 @@ function setupViewSettings() {
     });
     document.getElementById("resetViewSettings").addEventListener("click", () => {
         const hadHiddenRows = Boolean(viewerSettings.hiddenRows?.length);
+        const hadCustomLabelFields = JSON.stringify(normalizedViewerLabelFields(viewerSettings.labelFields)) !== JSON.stringify(DEFAULT_VIEWER_LABEL_FIELDS);
         viewerSettings = { ...defaultViewerSettings, rowSpacings: {}, hiddenRows: [] };
         showFreeSlots = false;
         camera.fov = viewerSettings.cameraFov;
@@ -2721,7 +2896,7 @@ function setupViewSettings() {
         document.querySelectorAll("[data-scene-preset]").forEach((button) => button.classList.toggle("is-active", button.dataset.scenePreset === "operational"));
         syncViewSettingsUi();
         applyViewerSettingsLive();
-        if (hadHiddenRows) scheduleSceneRebuild();
+        if (hadHiddenRows || hadCustomLabelFields) scheduleSceneRebuild();
     });
     syncViewSettingsUi();
 }
@@ -2761,12 +2936,67 @@ document.getElementById("toggleFreeSlots").addEventListener("click", (event) => 
     applyFreeSlotVisibility();
     saveViewerSettings();
 });
-document.getElementById("viewerSearch").addEventListener("input", applySearch);
+const viewerSearchInput = document.getElementById("viewerSearch");
+const viewerSearchFilters = document.getElementById("viewerSearchFilters");
+const viewerSearchFilterToggle = document.getElementById("viewerSearchFilterToggle");
+
+function syncViewerSearchFilterUi() {
+    const fields = selectedViewerSearchFields();
+    const isDefault = fields.length === 1 && fields[0] === "article";
+    const isOpen = !viewerSearchFilters.hidden;
+    viewerSearchFilterToggle.setAttribute("aria-expanded", String(isOpen));
+    viewerSearchFilterToggle.classList.toggle("is-active", isOpen || !isDefault);
+    viewerSearchFilterToggle.title = isDefault
+        ? "Filtri ricerca · solo Articolo"
+        : `Filtri ricerca · ${fields.length} campi attivi`;
+    viewerSearchInput.placeholder = isDefault ? "Cerca per articolo…" : "Cerca nei campi selezionati…";
+}
+
+function closeViewerSearchFilters() {
+    viewerSearchFilters.hidden = true;
+    syncViewerSearchFilterUi();
+}
+
+viewerSearchFilters.addEventListener("submit", (event) => event.preventDefault());
+viewerSearchFilters.addEventListener("click", (event) => event.stopPropagation());
+viewerSearchFilterToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    viewerSearchFilters.hidden = !viewerSearchFilters.hidden;
+    syncViewerSearchFilterUi();
+});
+document.querySelectorAll('input[name="viewerSearchField"]').forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+        syncViewerSearchFilterUi();
+        applySearch(true);
+    });
+});
+document.addEventListener("click", (event) => {
+    if (viewerSearchFilters.hidden || viewerSearchFilters.contains(event.target)
+        || viewerSearchFilterToggle.contains(event.target)) return;
+    closeViewerSearchFilters();
+});
+syncViewerSearchFilterUi();
+viewerSearchInput.addEventListener("input", () => applySearch(true));
+viewerSearchInput.addEventListener("focus", () => {
+    if (viewerSearchMatches.length) focusViewerSearchResult(viewerSearchIndex >= 0 ? viewerSearchIndex : 0);
+});
+document.getElementById("viewerSearchPrevious").addEventListener("click", () => {
+    focusViewerSearchResult(viewerSearchIndex >= 0 ? viewerSearchIndex - 1 : viewerSearchMatches.length - 1);
+});
+document.getElementById("viewerSearchNext").addEventListener("click", () => {
+    focusViewerSearchResult(viewerSearchIndex >= 0 ? viewerSearchIndex + 1 : 0);
+});
 document.getElementById("showOn2dMap").addEventListener("click", () => {
     if (currentSelection) ipcRenderer.send("warehouse-3d-select-slot", currentSelection);
 });
 window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !viewerSearchFilters.hidden) closeViewerSearchFilters();
     if (event.target instanceof HTMLInputElement) {
+        if (event.target === viewerSearchInput && event.key === "Enter") {
+            event.preventDefault();
+            focusViewerSearchResult(viewerSearchIndex >= 0 ? viewerSearchIndex + 1 : 0);
+            return;
+        }
         if (event.key === "Escape") {
             event.target.value = "";
             applySearch();

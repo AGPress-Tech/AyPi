@@ -60,6 +60,7 @@ let slotPreviewTimer = null;
 let slotLabelFitFrame = null;
 let contextSlotCode = null;
 let currentSearchResults = [];
+let currentSearchResultIndex = -1;
 const selectedReportLocations = new Set();
 const rowRestrictions = new Map();
 const slotRestrictions = new Map();
@@ -871,25 +872,41 @@ function renderCellLabel(button, code, item) {
 }
 
 function fitSlotButtonLabel(button) {
-    const combined = Boolean(button.querySelector(".slot__line"));
-    const lineCount = button.querySelectorAll(".slot__line").length;
-    let size = slotRangeMode === "paged" ? (lineCount > 3 ? 12 : 14) : lineCount > 3 ? 10.5 : 12;
-    const minimum = slotRangeMode === "paged" ? 10 : 8.5;
-    button.style.fontSize = `${size}px`;
+    const lines = Array.from(button.querySelectorAll(".slot__line"));
+    const lineCount = lines.length;
+    const baseSize = slotRangeMode === "paged" ? (lineCount > 3 ? 13 : 15) : lineCount > 3 ? 11.5 : 13;
+    const minimum = slotRangeMode === "paged" ? 11 : 9.5;
+    button.style.fontSize = `${baseSize}px`;
+    lines.forEach((line) => { line.style.fontSize = ""; });
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-        const contentNodes = combined ? Array.from(button.querySelectorAll(".slot__line")) : [button];
-        const widthRatio = Math.max(...contentNodes.map((node) => {
-            const availableWidth = combined ? node.clientWidth : button.clientWidth;
-            return availableWidth > 0 ? node.scrollWidth / availableWidth : 1;
-        }));
-        const ratio = widthRatio;
-        if (ratio <= 1.01) break;
-        const nextSize = Math.max(minimum, Math.floor((size / ratio) * 10) / 10);
-        if (nextSize >= size) break;
-        size = nextSize;
-        button.style.fontSize = `${size}px`;
+    if (!lines.length) {
+        const widthRatio = button.clientWidth > 0 ? button.scrollWidth / button.clientWidth : 1;
+        if (widthRatio > 1.01) button.style.fontSize = `${Math.max(minimum, Math.floor((baseSize / widthRatio) * 10) / 10)}px`;
+        return;
     }
+
+    const minimumByLine = new Map();
+    lines.forEach((line) => {
+        const initialSize = parseFloat(window.getComputedStyle(line).fontSize) || baseSize;
+        const lineMinimum = minimum * initialSize / baseSize;
+        minimumByLine.set(line, lineMinimum);
+        const widthRatio = line.clientWidth > 0 ? line.scrollWidth / line.clientWidth : 1;
+        if (widthRatio <= 1.01) return;
+        line.style.fontSize = `${Math.max(lineMinimum, Math.floor((initialSize / widthRatio) * 10) / 10)}px`;
+    });
+
+    // Solo l'eventuale mancanza di spazio verticale riduce tutte le righe;
+    // una voce lunga orizzontalmente non influenza le altre informazioni.
+    const style = window.getComputedStyle(button);
+    const verticalPadding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+    const availableHeight = Math.max(1, button.clientHeight - verticalPadding);
+    const contentHeight = lines.reduce((total, line) => total + line.getBoundingClientRect().height, 0);
+    const heightRatio = contentHeight / availableHeight;
+    if (heightRatio <= 1.01) return;
+    lines.forEach((line) => {
+        const currentSize = parseFloat(window.getComputedStyle(line).fontSize) || baseSize;
+        line.style.fontSize = `${Math.max(minimumByLine.get(line), Math.floor((currentSize / heightRatio) * 10) / 10)}px`;
+    });
 }
 
 function scheduleSlotLabelFit() {
@@ -1035,7 +1052,7 @@ function renderMap() {
     levelsContainer.dataset.displayMode = "multi";
     levelsContainer.dataset.mapGrouping = mapGroupingMode;
     levelsContainer.dataset.fieldCount = String(displayFields.size);
-    levelsContainer.style.setProperty("--slot-content-height", `${Math.min(122, 42 + Math.max(0, displayFields.size - 1) * 16)}px`);
+    levelsContainer.style.setProperty("--slot-content-height", `${Math.min(98, 34 + Math.max(0, displayFields.size - 1) * 12)}px`);
     levelsContainer.classList.remove("slide-next", "slide-previous");
     levelsContainer.replaceChildren();
 
@@ -6079,6 +6096,44 @@ function updateSelectedResultCount() {
     document.getElementById("prepareUnloadButton").disabled = count === 0;
 }
 
+function updateQuickSearchNavigation() {
+    const count = currentSearchResults.length;
+    const output = document.getElementById("quickSearchPosition");
+    if (output) output.textContent = count && currentSearchResultIndex >= 0
+        ? `${currentSearchResultIndex + 1}/${count}` : `0/${count}`;
+    ["quickSearchPrevious", "quickSearchNext"].forEach((id) => {
+        const button = document.getElementById(id);
+        if (button) button.disabled = count === 0;
+    });
+    document.querySelectorAll(".search-result").forEach((row) => {
+        row.classList.toggle("is-current", row.dataset.location === currentSearchResults[currentSearchResultIndex]?.location);
+    });
+}
+
+function focusInventorySearchResult(index, closeDialog = false) {
+    const count = currentSearchResults.length;
+    if (!count) {
+        currentSearchResultIndex = -1;
+        updateQuickSearchNavigation();
+        return;
+    }
+    currentSearchResultIndex = ((Number(index) || 0) % count + count) % count;
+    const item = currentSearchResults[currentSearchResultIndex];
+    const parsed = parseSlotCode(item.location);
+    if (!parsed) return;
+    selectedRow = parsed.row;
+    const half = Math.ceil(physicalColumnsForRow(parsed.row) / 2) * 2;
+    if (slotRangeMode === "paged") slotPage = parsed.number <= half ? 0 : 1;
+    if (closeDialog) closeInventorySearchDialog();
+    setActiveView("warehouse");
+    selectSlot(parsed.code, false);
+    updateTabs();
+    updateQuickSearchNavigation();
+    requestAnimationFrame(() => {
+        document.querySelector(`[data-slot="${parsed.code}"]`)?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    });
+}
+
 function renderSearchReport(query) {
     const list = document.getElementById("searchReportList");
     const summary = document.getElementById("searchReportSummary");
@@ -6103,10 +6158,12 @@ function renderSearchReport(query) {
         return;
     }
 
-    currentSearchResults.forEach((item) => {
+    currentSearchResults.forEach((item, index) => {
         const row = document.createElement("div");
         row.className = "search-result";
+        row.dataset.location = item.location;
         row.classList.toggle("is-checked", selectedReportLocations.has(item.location));
+        row.classList.toggle("is-current", index === currentSearchResultIndex);
         row.tabIndex = 0;
         row.title = `Apri ${item.location}`;
         const checkbox = document.createElement("input");
@@ -6123,6 +6180,7 @@ function renderSearchReport(query) {
         const location = document.createElement("strong");
         location.textContent = item.location;
         const article = document.createElement("span");
+        article.className = "search-result__article";
         article.textContent = item.article;
         article.title = `Articolo: ${item.article}`;
         const customer = document.createElement("span");
@@ -6147,27 +6205,33 @@ function renderSearchReport(query) {
         if (item.inMovement) flags.appendChild(createResultFlag("Movimento", "result-flag--movement"));
         if (item.type === "pallet") flags.appendChild(createResultFlag("Pallet", "result-flag--pallet"));
         row.append(checkbox, location, article, customer, order, weighing, pieces, flags);
-        row.addEventListener("click", () => selectSlot(item.location));
+        row.addEventListener("click", () => focusInventorySearchResult(index, true));
         row.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") selectSlot(item.location);
+            if (event.key === "Enter") focusInventorySearchResult(index, true);
         });
         list.appendChild(row);
     });
     updateSelectedResultCount();
 }
 
-function refreshInventorySearch() {
+function refreshInventorySearch(focusFirst = false) {
     const query = document.getElementById("inventorySearchInput")?.value || "";
     const quickInput = document.getElementById("quickInventorySearchInput");
     if (quickInput && quickInput.value !== query) quickInput.value = query;
+    const previousLocation = currentSearchResults[currentSearchResultIndex]?.location;
     currentSearchResults = findInventoryMatches(query);
+    currentSearchResultIndex = previousLocation
+        ? currentSearchResults.findIndex((item) => item.location === previousLocation)
+        : -1;
     const visibleLocations = new Set(currentSearchResults.map((item) => item.location));
     Array.from(selectedReportLocations).forEach((location) => {
         if (!visibleLocations.has(location)) selectedReportLocations.delete(location);
     });
     renderSearchReport(query);
     renderMap();
+    updateQuickSearchNavigation();
     document.getElementById("openInventorySearchDialog")?.classList.toggle("has-active-search", Boolean(normalizeSearchText(query)));
+    if (focusFirst && currentSearchResults.length) focusInventorySearchResult(currentSearchResultIndex >= 0 ? currentSearchResultIndex : 0);
 }
 
 function openInventorySearchDialog() {
@@ -6189,10 +6253,21 @@ function setupInventorySearch() {
     });
     quickInput?.addEventListener("input", () => {
         if (input) input.value = quickInput.value;
-        refreshInventorySearch();
+        refreshInventorySearch(true);
+    });
+    quickInput?.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        focusInventorySearchResult(currentSearchResultIndex >= 0 ? currentSearchResultIndex + 1 : 0);
+    });
+    document.getElementById("quickSearchPrevious")?.addEventListener("click", () => {
+        focusInventorySearchResult(currentSearchResultIndex >= 0 ? currentSearchResultIndex - 1 : currentSearchResults.length - 1);
+    });
+    document.getElementById("quickSearchNext")?.addEventListener("click", () => {
+        focusInventorySearchResult(currentSearchResultIndex >= 0 ? currentSearchResultIndex + 1 : 0);
     });
     document.querySelectorAll('input[name="searchField"]').forEach((checkbox) => {
-        checkbox.addEventListener("change", refreshInventorySearch);
+        checkbox.addEventListener("change", () => refreshInventorySearch());
     });
     document.getElementById("clearInventorySearch")?.addEventListener("click", () => {
         if (input) input.value = "";

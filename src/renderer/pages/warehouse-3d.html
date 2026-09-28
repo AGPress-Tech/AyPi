@@ -40,11 +40,28 @@
             <div class="viewer-toolbar">
                 <div class="row-jump" id="viewerRowButtons" aria-label="Vai alla fila"></div>
             </div>
-            <label class="viewer-search">
+            <div class="viewer-search">
                 <span aria-hidden="true">⌕</span>
                 <input id="viewerSearch" type="search" autocomplete="off" placeholder="Ubicazione, articolo, cliente, ordine o pesata…">
-                <kbd>ESC</kbd>
-            </label>
+                <output id="viewerSearchPosition" aria-live="polite">0/0</output>
+                <button id="viewerSearchPrevious" type="button" title="Risultato precedente" aria-label="Risultato precedente" disabled>‹</button>
+                <button id="viewerSearchNext" type="button" title="Risultato successivo" aria-label="Risultato successivo" disabled>›</button>
+                <button class="viewer-search__filters" id="viewerSearchFilterToggle" type="button"
+                    title="Scegli i campi in cui cercare" aria-label="Filtri ricerca" aria-expanded="false">Filtri</button>
+            </div>
+            <form class="viewer-search-filters" id="viewerSearchFilters" hidden>
+                <div><strong>Cerca nei campi selezionati</strong><small>La ricerca predefinita usa solamente l'articolo.</small></div>
+                <fieldset>
+                    <label><input type="checkbox" name="viewerSearchField" value="article" checked> Articolo</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="customer"> Cliente</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="order"> Rif. ordine</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="weighing"> Pesata</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="pieces"> Pezzi</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="tags"> Tag</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="type"> Tipologia</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="movement"> In movimento</label>
+                </fieldset>
+            </form>
             <div class="viewer-legend" aria-label="Legenda">
                 <span><i class="is-free"></i> Libero</span>
                 <span><i class="is-occupied"></i> Cassone</span>
@@ -110,6 +127,20 @@
                     <label><span>Ampiezza visuale <output id="cameraFovValue">42°</output></span><input id="cameraFovControl" type="range" min="28" max="65" step="1" value="42"></label>
                     <label><span>Velocità telecamera <output id="movementSpeedValue">200%</output></span><input id="movementSpeedControl" type="range" min="40" max="250" step="10" value="200"></label>
                     <label><span>Velocità animazioni <output id="playbackSpeedValue">80%</output></span><input id="playbackSpeedControl" type="range" min="40" max="200" step="10" value="80"></label>
+                </div>
+                <div class="scene-label-fields">
+                    <div><strong>Informazioni sui cassoni</strong><small>Seleziona le righe stampate davanti e dietro.</small></div>
+                    <div id="labelFieldControls">
+                        <label><input type="checkbox" value="location" checked> Ubicazione</label>
+                        <label><input type="checkbox" value="article" checked> Articolo</label>
+                        <label><input type="checkbox" value="pieces" checked> N. pezzi</label>
+                        <label><input type="checkbox" value="customer"> Cliente</label>
+                        <label><input type="checkbox" value="order"> Rif. ordine</label>
+                        <label><input type="checkbox" value="weighing"> Codice pesata</label>
+                        <label><input type="checkbox" value="type"> Tipologia</label>
+                        <label><input type="checkbox" value="tags"> Tag</label>
+                        <label><input type="checkbox" value="receivedAt"> Data ingresso</label>
+                    </div>
                 </div>
                 <div class="scene-spacing">
                     <strong>Distanza tra le file</strong>

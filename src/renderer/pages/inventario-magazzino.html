@@ -118,11 +118,14 @@
                         </div>
                     </details>
                     <div class="toolbar-search-tools">
-                        <label class="quick-inventory-search" for="quickInventorySearchInput">
+                        <div class="quick-inventory-search">
                             <span aria-hidden="true">⌕</span>
                             <input id="quickInventorySearchInput" type="search" autocomplete="off"
                                 placeholder="Cerca ed evidenzia…" aria-label="Cerca ed evidenzia nel magazzino">
-                        </label>
+                            <output id="quickSearchPosition" aria-live="polite">0/0</output>
+                            <button id="quickSearchPrevious" type="button" title="Risultato precedente" aria-label="Risultato precedente" disabled>‹</button>
+                            <button id="quickSearchNext" type="button" title="Risultato successivo" aria-label="Risultato successivo" disabled>›</button>
+                        </div>
                         <button class="toolbar-search-launch" id="openInventorySearchDialog" type="button">
                             <span aria-hidden="true">⌕</span>
                             <span><strong>Ricerca e prelievo</strong><small>Filtri, risultati e selezione multipla</small></span>
@@ -467,13 +470,13 @@
                     <fieldset>
                         <legend>Cerca in</legend>
                         <label><input type="checkbox" name="searchField" value="article" checked> Articolo</label>
-                        <label><input type="checkbox" name="searchField" value="customer" checked> Cliente</label>
-                        <label><input type="checkbox" name="searchField" value="order" checked> Rif. ordine</label>
-                        <label><input type="checkbox" name="searchField" value="weighing" checked> Pesata</label>
-                        <label><input type="checkbox" name="searchField" value="pieces" checked> Pezzi</label>
-                        <label><input type="checkbox" name="searchField" value="tags" checked> Tag</label>
-                        <label><input type="checkbox" name="searchField" value="type" checked> Tipologia</label>
-                        <label><input type="checkbox" name="searchField" value="movement" checked> In movimento</label>
+                        <label><input type="checkbox" name="searchField" value="customer"> Cliente</label>
+                        <label><input type="checkbox" name="searchField" value="order"> Rif. ordine</label>
+                        <label><input type="checkbox" name="searchField" value="weighing"> Pesata</label>
+                        <label><input type="checkbox" name="searchField" value="pieces"> Pezzi</label>
+                        <label><input type="checkbox" name="searchField" value="tags"> Tag</label>
+                        <label><input type="checkbox" name="searchField" value="type"> Tipologia</label>
+                        <label><input type="checkbox" name="searchField" value="movement"> In movimento</label>
                     </fieldset>
                     <small>Puoi combinare più parole, per esempio “AGPRESS 25/00114”.</small>
                 </form>
