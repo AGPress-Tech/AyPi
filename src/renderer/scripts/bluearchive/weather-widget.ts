@@ -33,6 +33,17 @@ type WeatherCache = {
     data: WeatherApiData;
 };
 
+type WeatherAssistantContext = {
+    location: string;
+    condition: string;
+    icon: string;
+    temperature: number;
+    apparentTemperature: number;
+    minimumTemperature: number | null;
+    maximumTemperature: number | null;
+    rainProbability: number | null;
+};
+
 const WEATHER_CACHE_KEY = "aypi-bluearchive-weather-omegna-v2";
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const WEATHER_REQUEST_TIMEOUT_MS = 10000;
@@ -43,6 +54,7 @@ const WEATHER_URL =
     "&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,precipitation_probability,wind_speed_10m" +
     "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
     "&timezone=Europe%2FRome&forecast_days=16";
+let latestWeatherData: WeatherApiData | null = null;
 
 function byId<T extends HTMLElement>(id: string) {
     return document.getElementById(id) as T | null;
@@ -125,6 +137,32 @@ function isWeatherData(value: unknown): value is WeatherApiData {
         Array.isArray(data?.daily?.time) &&
         data.daily.time.length > 0
     );
+}
+
+function getWeatherAssistantContext(): WeatherAssistantContext | null {
+    const data = latestWeatherData;
+    if (!data) return null;
+    const current = data.current;
+    const info = weatherInfo(
+        Number(current.weather_code),
+        current.is_day !== 0,
+    );
+    const todayKey = current.time.slice(0, 10);
+    const dailyIndex = data.daily.time.indexOf(todayKey);
+    const dailyNumber = (values: Array<number | null>) => {
+        const value = dailyIndex >= 0 ? values[dailyIndex] : null;
+        return Number.isFinite(value) ? Number(value) : null;
+    };
+    return {
+        location: "Omegna",
+        condition: info.label,
+        icon: info.icon,
+        temperature: Number(current.temperature_2m),
+        apparentTemperature: Number(current.apparent_temperature),
+        minimumTemperature: dailyNumber(data.daily.temperature_2m_min),
+        maximumTemperature: dailyNumber(data.daily.temperature_2m_max),
+        rainProbability: dailyNumber(data.daily.precipitation_probability_max),
+    };
 }
 
 function setupWeatherWidget() {
@@ -343,6 +381,7 @@ function setupWeatherWidget() {
     }
 
     function renderWeather(data: WeatherApiData, fetchedAt: number) {
+        latestWeatherData = data;
         weatherData = data;
         lastFetchedAt = fetchedAt;
         const current = data.current;
@@ -601,4 +640,5 @@ function setupWeatherWidget() {
     window.setInterval(() => void loadWeather(), WEATHER_REFRESH_MS);
 }
 
-export { setupWeatherWidget };
+export { getWeatherAssistantContext, setupWeatherWidget };
+export type { WeatherAssistantContext };

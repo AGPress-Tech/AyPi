@@ -283,15 +283,97 @@ function renderMovementInstructions(movement) {
     });
 }
 
+function movementRequestRows(movement) {
+    if (movement.requests?.length) {
+        return movement.requests.map((request) => {
+            const quantity = Math.max(1, Number(request.quantity) || 1);
+            const unitLabel = request.type === "pallet"
+                ? "pallet"
+                : quantity === 1 ? "cassone" : "cassoni";
+            return {
+                operation: movement.type === "load" ? "Carico" : movement.type === "exit" ? "Uscita" : "Scarico",
+                article: request.article || "—",
+                customer: request.customer || "—",
+                order: request.order || "—",
+                weighingCode: request.weighingCode || "—",
+                request: Number(request.requestedPieces) > 0
+                    ? `${Number(request.requestedPieces)} pezzi`
+                    : `${quantity} ${unitLabel}${Number(request.pieceCount) > 0 ? ` · ${Number(request.pieceCount)} pezzi/cassone` : ""}`,
+                type: request.type === "pallet" ? "Pallet" : "Cassone",
+                units: request.sourceIds?.length
+                    ? `${request.sourceIds.length} unità selezionate`
+                    : "Determinazione automatica",
+            };
+        });
+    }
+    return (movement.lines || [])
+        .filter((line) => line.kind !== "relocated")
+        .map((line) => {
+            const quantity = Math.max(1, line.locations?.length || 0);
+            return {
+                operation: line.kind === "loaded" ? "Carico" : movement.type === "exit" ? "Uscita" : "Scarico",
+                article: line.article || "—",
+                customer: "—",
+                order: "—",
+                weighingCode: line.weighingCode || "—",
+                request: line.kind === "pieces"
+                    ? "Prelievo parziale di pezzi"
+                    : `${quantity} unità${Number(line.pieceCount) > 0 ? ` · ${Number(line.pieceCount)} pezzi/unità` : ""}`,
+                type: "—",
+                units: locationList(line.locations || []),
+            };
+        });
+}
+
+function renderMovementRequests(movement) {
+    const body = document.getElementById("movementRequestsList");
+    body.replaceChildren();
+    const requests = movementRequestRows(movement);
+    if (!requests.length) {
+        const row = document.createElement("tr");
+        row.className = "movement-request-empty";
+        const cell = document.createElement("td");
+        cell.colSpan = 9;
+        cell.textContent = "Questo movimento storico non contiene richieste ricostruibili.";
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+    }
+    requests.forEach((request, index) => {
+        const row = document.createElement("tr");
+        [
+            index + 1,
+            request.operation,
+            request.article,
+            request.customer,
+            request.order,
+            request.weighingCode,
+            request.request,
+            request.type,
+            request.units,
+        ].forEach((value) => {
+            const cell = document.createElement("td");
+            cell.textContent = String(value ?? "—");
+            row.appendChild(cell);
+        });
+        body.appendChild(row);
+    });
+}
+
 function setMovementView(view) {
     const instructions = view === "instructions";
-    document.getElementById("movementComparisonView").hidden = instructions;
+    const requests = view === "requests";
+    document.getElementById("movementComparisonView").hidden = instructions || requests;
     document.getElementById("movementInstructionsView").hidden = !instructions;
-    document.getElementById("showMovementComparison").classList.toggle("is-active", !instructions);
+    document.getElementById("movementRequestsView").hidden = !requests;
+    document.getElementById("showMovementComparison").classList.toggle("is-active", !instructions && !requests);
+    document.getElementById("showMovementRequests").classList.toggle("is-active", requests);
     document.getElementById("showMovementInstructions").classList.toggle("is-active", instructions);
     document.getElementById("movementAuditNote").textContent = instructions
         ? "Sequenza storica di sola lettura. Seguire l’ordine indicato per ricostruire l’operazione."
-        : "Vista storica di sola lettura. Le giacenze non possono essere modificate da questa finestra.";
+        : requests
+          ? "Richieste originarie del movimento, separate dalle movimentazioni tecniche calcolate dal magazzino."
+          : "Vista storica di sola lettura. Le giacenze non possono essere modificate da questa finestra.";
 }
 
 function renderMovement(movement) {
@@ -300,7 +382,11 @@ function renderMovement(movement) {
     document.getElementById("movementTitle").textContent = movement.id;
     const actor = movement.actor?.displayName || movement.actor?.employee || movement.actor?.adminName || "Operatore non registrato";
     const department = movement.actor?.department ? ` · ${movement.actor.department}` : "";
-    const movementType = movement.optimization
+    const movementType = movement.metadataEdit
+        ? "Modifica dati unità"
+        : movement.reversal
+        ? `Storno ${movement.reversalMode === "exact" ? "esatto" : "automatico"}`
+        : movement.optimization
         ? "Ottimizzazione globale"
         : movement.type === "load"
           ? "Carico"
@@ -327,10 +413,12 @@ function renderMovement(movement) {
     );
     appendStateTable("beforeTable", before, movement, "before");
     appendStateTable("afterTable", after, movement, "after");
+    renderMovementRequests(movement);
     renderMovementInstructions(movement);
 }
 
 document.getElementById("showMovementComparison").addEventListener("click", () => setMovementView("comparison"));
+document.getElementById("showMovementRequests").addEventListener("click", () => setMovementView("requests"));
 document.getElementById("showMovementInstructions").addEventListener("click", () => setMovementView("instructions"));
 ipcRenderer.on("warehouse-movement-details-data", (_event, payload) => {
     const movement = payload?.movement || payload;

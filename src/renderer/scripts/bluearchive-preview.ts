@@ -1,5 +1,8 @@
 import { installAddinFunction } from "../modules/utils";
-import { setupWeatherWidget } from "./bluearchive/weather-widget";
+import {
+    getWeatherAssistantContext,
+    setupWeatherWidget,
+} from "./bluearchive/weather-widget";
 
 type ActionItem = {
     label: string;
@@ -497,7 +500,10 @@ type AssistantAsset = {
     skel: string;
     atlas: string;
 };
-type AssistantReaction = { animation: string; text: string };
+type AssistantReaction = {
+    animation: string;
+    text: string | (() => string);
+};
 type AssistantConfig = AssistantAsset & {
     idle?: string;
     blink?: string;
@@ -550,6 +556,8 @@ let spineBones: null | {
 } = null;
 let assistantBlinkTimer: ReturnType<typeof setTimeout> | null = null;
 let assistantSpeaking = false;
+let lastAssistantReaction: AssistantReaction | null = null;
+let lastAssistantReactionAnimation = "";
 let assistantReactionTimer: ReturnType<typeof setTimeout> | null = null;
 let assistantIdleReactionTimer: ReturnType<typeof setTimeout> | null = null;
 let isPattingAssistant = false;
@@ -562,6 +570,7 @@ let personalName =
     (window.localStorage.getItem(PERSONAL_NAME_STORAGE_KEY) || "").trim() ||
     "Sensei";
 let pageTransitionToken = 0;
+let currentPageKey = "moduli";
 type TrailPoint = { x: number; y: number; time: number };
 const trailPoints: TrailPoint[] = [];
 const trailCanvas = document.createElement("canvas");
@@ -583,6 +592,62 @@ function resizeTrailCanvas() {
 
 resizeTrailCanvas();
 window.addEventListener("resize", resizeTrailCanvas);
+
+function assistantWeatherMessage(character: "arona" | "plana") {
+    const weather = getWeatherAssistantContext();
+    if (!weather) {
+        return character === "arona"
+            ? "Puoi controllare il meteo di Omegna dal riquadro in basso a destra, Sensei."
+            : "Dati meteo non ancora disponibili. Il pannello di Omegna si trova in basso a destra.";
+    }
+    const temperature = Math.round(weather.temperature);
+    const range =
+        weather.minimumTemperature !== null &&
+        weather.maximumTemperature !== null
+            ? ` Minima ${Math.round(weather.minimumTemperature)}°, massima ${Math.round(weather.maximumTemperature)}°.`
+            : "";
+    const rain =
+        weather.rainProbability !== null
+            ? ` Probabilità massima di pioggia ${Math.round(weather.rainProbability)}%.`
+            : "";
+    return character === "arona"
+        ? `${weather.icon} A ${weather.location} ci sono ${temperature}° e ${weather.condition.toLowerCase()}.${range}${rain}`
+        : `Meteo ${weather.location}: ${temperature}°, ${weather.condition.toLowerCase()}.${range}${rain}`;
+}
+
+function assistantPageHint(character: "arona" | "plana") {
+    const hints: Record<string, string> = {
+        moduli: "In Moduli trovi manutenzioni, stampi, morsetti, strumenti di misura e Ticket Support.",
+        programmi:
+            "In Programmi trovi la pianificazione di ogni reparto e il programma delle consegne.",
+        articoli:
+            "In Articoli trovi disegni, cicli, schede tecniche e Inventario magazzino.",
+        produzioni:
+            "In Produzioni trovi i registri di Stampaggio, Tranceria e Torneria.",
+        robot: "In Robot puoi consultare lo stato delle celle e verificarne la connessione.",
+        calcolatore:
+            "Il Calcolatore ricava numero di giri e avanzamento dai parametri di lavorazione.",
+        utilities:
+            "In Utilities trovi acquisti, calendario dipendenti, pianificazione e strumenti per file e QR.",
+    };
+    const hint = hints[currentPageKey] || hints.moduli;
+    return character === "arona" ? `${hint} Se vuoi, iniziamo da qui!` : hint;
+}
+
+function assistantTimeMessage(character: "arona" | "plana") {
+    const hour = new Date().getHours();
+    const period =
+        hour < 6
+            ? "È piuttosto tardi"
+            : hour < 12
+              ? "Buongiorno"
+              : hour < 18
+                ? "Buon pomeriggio"
+                : "Buonasera";
+    return character === "arona"
+        ? `${period}, Sensei! Ricordati di fare una pausa ogni tanto.`
+        : `${period}. Sessione operativa attiva; una breve pausa periodica aiuta a mantenere l'attenzione.`;
+}
 
 const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
     arona: {
@@ -633,6 +698,54 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
                 animation: "25",
                 text: "Per segnalare problemi informatici o per richiedere assistenza, usare Ticket Support nell'area Moduli.",
             },
+            {
+                animation: "03",
+                text: () => assistantWeatherMessage("arona"),
+            },
+            {
+                animation: "18",
+                text: () => assistantPageHint("arona"),
+            },
+            {
+                animation: "12",
+                text: () => assistantTimeMessage("arona"),
+            },
+            {
+                animation: "02",
+                text: "La mappa dei cassoni è in Articoli, dentro Inventario magazzino. Da lì puoi aprire anche la visualizzazione 3D.",
+            },
+            {
+                animation: "11",
+                text: "Per ferie, permessi, mutue e straordinari apri Utilities e poi Calendario Dipendenti.",
+            },
+            {
+                animation: "21",
+                text: "Le richieste di acquisto e intervento sono in Utilities, dentro Gestione Acquisti.",
+            },
+            {
+                animation: "25",
+                text: "Devi rinominare molti file? In Utilities trovi Batch Rinomina.",
+            },
+            {
+                animation: "03",
+                text: "Il Generatore QR si trova in Utilities.",
+            },
+            {
+                animation: "18",
+                text: "Per verificare la connettività dei robot, apri Robot: trovi stato e controllo connessioni nello stesso pannello.",
+            },
+            {
+                animation: "12",
+                text: "Se cerchi una lavorazione, in Articoli trovi sia i cicli sia le schede di attrezzaggio.",
+            },
+            {
+                animation: "11",
+                text: "La Pianificazione Produzione è in Utilities; i programmi specifici dei reparti sono invece nella sezione Programmi.",
+            },
+            {
+                animation: "02",
+                text: "Puoi cambiare assistente dal piccolo menu accanto al personaggio, Sensei.",
+            },
         ],
     },
     plana: {
@@ -675,6 +788,54 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
             {
                 animation: "13",
                 text: "Utilizza Ticket Support nell'area Moduli per segnalare problemi informatici.",
+            },
+            {
+                animation: "06",
+                text: () => assistantWeatherMessage("plana"),
+            },
+            {
+                animation: "17",
+                text: () => assistantPageHint("plana"),
+            },
+            {
+                animation: "15",
+                text: () => assistantTimeMessage("plana"),
+            },
+            {
+                animation: "99",
+                text: "Percorso Inventario magazzino: Articoli, quindi Inventario magazzino. La vista 3D è disponibile nella barra superiore.",
+            },
+            {
+                animation: "13",
+                text: "Calendario Dipendenti è disponibile in Utilities per ferie, permessi, mutue e straordinari.",
+            },
+            {
+                animation: "06",
+                text: "Gestione Acquisti si trova in Utilities e raccoglie richieste di acquisto e intervento.",
+            },
+            {
+                animation: "15",
+                text: "Batch Rinomina ed Elenca File sono disponibili in Utilities per le operazioni massive sui documenti.",
+            },
+            {
+                animation: "17",
+                text: "Per confrontare due directory utilizza Confronta Cartelle nella sezione Utilities.",
+            },
+            {
+                animation: "99",
+                text: "La diagnostica dei robot e la verifica connessioni sono raggruppate nella sezione Robot.",
+            },
+            {
+                animation: "13",
+                text: "Disegni, cicli, difetti e attrezzaggi sono raggruppati nella sezione Articoli.",
+            },
+            {
+                animation: "06",
+                text: "Pianificazione Produzione è in Utilities; i programmi dei singoli reparti sono nella sezione Programmi.",
+            },
+            {
+                animation: "15",
+                text: "Il meteo dettagliato di Omegna si apre dal comando in basso a destra.",
             },
         ],
     },
@@ -785,7 +946,11 @@ function scheduleAssistantBlink() {
                     scheduleAssistantBlink();
                     return;
                 }
-                spineAnimationState.setAnimation(1, assistantBlinkAnimation, false);
+                spineAnimationState.setAnimation(
+                    1,
+                    assistantBlinkAnimation,
+                    false,
+                );
                 if (Math.random() > 0.62) {
                     spineAnimationState.addAnimation(
                         1,
@@ -868,13 +1033,17 @@ function stopPattingAssistant(playEndAnimation = true) {
     }
     spineAnimationState.setAnimation(2, patEndAnimation, false);
     const endDuration =
-        availableAnimations.find((animation) => animation.name === patEndAnimation)
-            ?.duration || 1.25;
-    patEndTimer = setTimeout(() => {
-        spineAnimationState?.setEmptyAnimation(2, 0.2);
-        assistantSpeaking = false;
-        patEndTimer = null;
-    }, endDuration * 1000 + 160);
+        availableAnimations.find(
+            (animation) => animation.name === patEndAnimation,
+        )?.duration || 1.25;
+    patEndTimer = setTimeout(
+        () => {
+            spineAnimationState?.setEmptyAnimation(2, 0.2);
+            assistantSpeaking = false;
+            patEndTimer = null;
+        },
+        endDuration * 1000 + 160,
+    );
 }
 
 function initializeAssistant(character: string) {
@@ -887,18 +1056,14 @@ function initializeAssistant(character: string) {
     const config = getAssistantConfig(character);
     const displayName = assistantDisplayName(character);
     assistant.classList.remove("ready", "failed");
-    assistant.setAttribute(
-        "aria-label",
-        `Assistente ${displayName}`,
-    );
-    assistantPlayer.setAttribute(
-        "aria-label",
-        `Parla con ${displayName}`,
-    );
+    assistant.setAttribute("aria-label", `Assistente ${displayName}`);
+    assistantPlayer.setAttribute("aria-label", `Parla con ${displayName}`);
     if (assistantLabel)
         assistantLabel.textContent = `${displayName.toUpperCase()} // LOADING`;
     if (assistantBlinkTimer) clearTimeout(assistantBlinkTimer);
     assistantSpeaking = false;
+    lastAssistantReaction = null;
+    lastAssistantReactionAnimation = "";
     availableAnimations = [];
     assistantIdleAnimation = "";
     assistantBlinkAnimation = "";
@@ -965,7 +1130,9 @@ function initializeAssistant(character: string) {
                     "01_Normal",
                     "00_default",
                     "default",
-                ) || availableAnimations[0]?.name || "";
+                ) ||
+                availableAnimations[0]?.name ||
+                "";
             assistantBlinkAnimation = findAvailableAnimation(
                 config.blink,
                 "Eye_Close_01",
@@ -1022,9 +1189,15 @@ function initializeAssistant(character: string) {
 function playAssistantReaction() {
     if (assistantSpeaking || !spineAnimationState) return false;
     const config = getAssistantConfig(currentAssistant);
-    const compatibleReactions = config.reactions.filter((reaction) =>
-        availableAnimations.some(
-            (animation) => animation.name === reaction.animation,
+    const configuredAnimationNames = Array.from(
+        new Set(
+            config.reactions
+                .map((reaction) => reaction.animation)
+                .filter((name) =>
+                    availableAnimations.some(
+                        (animation) => animation.name === name,
+                    ),
+                ),
         ),
     );
     const fallbackAnimations = availableAnimations.filter(
@@ -1033,24 +1206,43 @@ function playAssistantReaction() {
             animation.name !== assistantBlinkAnimation &&
             !/^dev_pat/i.test(animation.name),
     );
-    const reaction =
-        compatibleReactions[
-            Math.floor(Math.random() * compatibleReactions.length)
-        ] ||
-        (fallbackAnimations.length
-            ? {
-                  animation:
-                      fallbackAnimations[
-                          Math.floor(Math.random() * fallbackAnimations.length)
-                      ].name,
-                  text: "Tutto pronto. Quale modulo apriamo?",
-              }
-            : null);
-    if (!reaction) return false;
+    const reactionCandidates =
+        config.reactions.length > 1
+            ? config.reactions.filter(
+                  (reaction) => reaction !== lastAssistantReaction,
+              )
+            : config.reactions;
+    const selectedReaction =
+        reactionCandidates[
+            Math.floor(Math.random() * reactionCandidates.length)
+        ] || null;
+    const animationPool = configuredAnimationNames.length
+        ? configuredAnimationNames
+        : fallbackAnimations.map((animation) => animation.name);
+    const differentAnimations =
+        animationPool.length > 1
+            ? animationPool.filter(
+                  (animation) => animation !== lastAssistantReactionAnimation,
+              )
+            : animationPool;
+    const reactionAnimation =
+        differentAnimations[
+            Math.floor(Math.random() * differentAnimations.length)
+        ];
+    if (!reactionAnimation) return false;
+    const reactionText = selectedReaction
+        ? typeof selectedReaction.text === "function"
+            ? selectedReaction.text()
+            : selectedReaction.text
+        : "Tutto pronto. Quale modulo apriamo?";
     const animationDuration =
-        availableAnimations.find((animation) => animation.name === reaction.animation)
-            ?.duration || 0;
-    const minimumVisibleDuration = 3600;
+        availableAnimations.find(
+            (animation) => animation.name === reactionAnimation,
+        )?.duration || 0;
+    const minimumVisibleDuration = Math.min(
+        9000,
+        Math.max(3600, 1800 + reactionText.length * 32),
+    );
     const animationDurationMs = animationDuration * 1000;
     const repetitions =
         animationDurationMs > 0 && animationDurationMs < minimumVisibleDuration
@@ -1065,11 +1257,13 @@ function playAssistantReaction() {
         naturalPlaybackDuration,
     );
     assistantSpeaking = true;
+    lastAssistantReaction = selectedReaction;
+    lastAssistantReactionAnimation = reactionAnimation;
     resetAssistantBones();
-    showBubble(reaction.text, visibleDuration);
-    spineAnimationState.setAnimation(2, reaction.animation, false);
+    showBubble(reactionText, visibleDuration);
+    spineAnimationState.setAnimation(2, reactionAnimation, false);
     for (let repetition = 1; repetition < repetitions; repetition += 1) {
-        spineAnimationState.addAnimation(2, reaction.animation, false, 0);
+        spineAnimationState.addAnimation(2, reactionAnimation, false, 0);
     }
 
     const finish = () => {
@@ -1099,27 +1293,30 @@ function canRunAssistantIdleReaction() {
 function scheduleAssistantIdleReaction(delay = ASSISTANT_IDLE_REACTION_DELAY) {
     clearAssistantIdleReactionTimer();
     if (!canRunAssistantIdleReaction()) return;
-    assistantIdleReactionTimer = setTimeout(() => {
-        assistantIdleReactionTimer = null;
-        if (!canRunAssistantIdleReaction()) return;
+    assistantIdleReactionTimer = setTimeout(
+        () => {
+            assistantIdleReactionTimer = null;
+            if (!canRunAssistantIdleReaction()) return;
 
-        const inactiveFor = performance.now() - lastAssistantInteractionAt;
-        if (inactiveFor < ASSISTANT_IDLE_REACTION_DELAY) {
-            scheduleAssistantIdleReaction(
-                ASSISTANT_IDLE_REACTION_DELAY - inactiveFor,
-            );
-            return;
-        }
+            const inactiveFor = performance.now() - lastAssistantInteractionAt;
+            if (inactiveFor < ASSISTANT_IDLE_REACTION_DELAY) {
+                scheduleAssistantIdleReaction(
+                    ASSISTANT_IDLE_REACTION_DELAY - inactiveFor,
+                );
+                return;
+            }
 
-        if (playAssistantReaction()) {
-            lastAssistantInteractionAt = performance.now();
-            scheduleAssistantIdleReaction();
-            return;
-        }
+            if (playAssistantReaction()) {
+                lastAssistantInteractionAt = performance.now();
+                scheduleAssistantIdleReaction();
+                return;
+            }
 
-        // Non interrompe pat-pat, dialoghi o altre animazioni già in corso.
-        scheduleAssistantIdleReaction(ASSISTANT_IDLE_RETRY_DELAY);
-    }, Math.max(0, delay));
+            // Non interrompe pat-pat, dialoghi o altre animazioni già in corso.
+            scheduleAssistantIdleReaction(ASSISTANT_IDLE_RETRY_DELAY);
+        },
+        Math.max(0, delay),
+    );
 }
 
 function registerAssistantInteraction() {
@@ -1245,21 +1442,22 @@ let robotConsoleRequest = 0;
 let robotConsoleReturnToSelector = false;
 
 function setRobotConsoleView(view: "selector" | "loading" | "result") {
-    if (robotConsoleSelector)
-        robotConsoleSelector.hidden = view !== "selector";
+    if (robotConsoleSelector) robotConsoleSelector.hidden = view !== "selector";
     if (robotConsoleLoading) robotConsoleLoading.hidden = view !== "loading";
     if (robotConsoleResult) robotConsoleResult.hidden = view !== "result";
     if (robotConsoleBack)
         robotConsoleBack.hidden =
             view !== "result" || !robotConsoleReturnToSelector;
     if (robotConsoleDone)
-        robotConsoleDone.textContent = view === "loading" ? "Annulla" : "Chiudi";
+        robotConsoleDone.textContent =
+            view === "loading" ? "Annulla" : "Chiudi";
 }
 
 function openRobotConsoleSelector() {
     robotConsoleRequest += 1;
     robotConsoleReturnToSelector = true;
-    if (robotConsoleTitle) robotConsoleTitle.textContent = "Verifica connessioni";
+    if (robotConsoleTitle)
+        robotConsoleTitle.textContent = "Verifica connessioni";
     if (robotConsoleSubtitle)
         robotConsoleSubtitle.textContent =
             "Seleziona la cella da raggiungere sulla rete di produzione.";
@@ -1316,7 +1514,10 @@ function renderRobotConsoleResult(
         }
         addRobotResultCard("PING SUMMARY", result.summary || "Nessun dato");
         addRobotResultCard("MAC ATTESO", result.expectedMac || "N/D");
-        addRobotResultCard("MAC RILEVATO", result.detectedMac || "Non rilevato");
+        addRobotResultCard(
+            "MAC RILEVATO",
+            result.detectedMac || "Non rilevato",
+        );
         if (result.macConflict && robotResultAlert) {
             robotResultStatus?.classList.remove("is-error");
             robotResultStatus?.classList.add("is-warning");
@@ -1329,8 +1530,7 @@ function renderRobotConsoleResult(
         if (statusLabel) statusLabel.textContent = "ONLINE";
         addRobotResultCard("PROGRAMMA ATTIVO", result.program || "Non trovato");
         addRobotResultCard("STATO MACCHINA", result.state || "Non trovato");
-        if (result.counter)
-            addRobotResultCard("CONTAPEZZI", result.counter);
+        if (result.counter) addRobotResultCard("CONTAPEZZI", result.counter);
         if (result.cycleTime)
             addRobotResultCard("TEMPO CICLO", `${result.cycleTime} secondi`);
         if (result.details) addRobotResultCard("DETTAGLI", result.details);
@@ -1405,15 +1605,14 @@ function openRobotStatus(action: ActionItem) {
     );
 }
 
-document.querySelectorAll<HTMLElement>("[data-robot-ping]").forEach((button) => {
-    button.addEventListener("click", () => {
-        robotConsoleReturnToSelector = true;
-        void runRobotConsoleRequest(
-            "ping",
-            button.dataset.robotPing || "",
-        );
+document
+    .querySelectorAll<HTMLElement>("[data-robot-ping]")
+    .forEach((button) => {
+        button.addEventListener("click", () => {
+            robotConsoleReturnToSelector = true;
+            void runRobotConsoleRequest("ping", button.dataset.robotPing || "");
+        });
     });
-});
 document
     .getElementById("robotConsoleClose")
     ?.addEventListener("click", closeRobotConsole);
@@ -1574,6 +1773,7 @@ function renderCalculator() {
 function applyPage(pageKey: string) {
     const page = pages[pageKey];
     if (!page) return;
+    currentPageKey = pageKey;
     heroTitle!.textContent = `${page.title}.`;
     heroDescription!.textContent = page.description;
     sectionTitle!.textContent = page.heading;
@@ -2340,13 +2540,16 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("DOMContentLoaded", () => {
     const appVersionElement = document.getElementById("appVersion");
     if (appVersionElement && typeof require === "function") {
-        require("electron").ipcRenderer
-            .invoke("get-app-version")
+        require("electron")
+            .ipcRenderer.invoke("get-app-version")
             .then((version: string) => {
                 appVersionElement.textContent = `AYPI v${version}`;
             })
             .catch((error: unknown) => {
-                console.error("Impossibile recuperare la versione di AyPi:", error);
+                console.error(
+                    "Impossibile recuperare la versione di AyPi:",
+                    error,
+                );
             });
     }
     applyPersonalName();

@@ -41,3 +41,9 @@ td { padding: 6px 8px; border-right: 1px solid #e1e6e9; border-bottom: 1px solid
 .movement-instruction-unit b { color: #174f80; }
 .movement-instruction-unit small { grid-column: 1 / -1; color: #71828d; }
 .movement-instructions-empty { margin: 60px 0; color: #71818c; font-size: 11px; text-align: center; }
+.movement-requests { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.movement-requests > header { padding: 12px 15px; border-bottom: 1px solid var(--line); background: #f8fafb; }
+.movement-requests > header span { color: #966100; font-size: 9px; font-weight: 850; letter-spacing: 1.1px; }
+.movement-requests > header h2 { margin: 3px 0 2px; color: #203b4d; font-size: 16px; }
+.movement-requests > header p { margin: 0; color: var(--muted); font-size: 10px; }
+.movement-request-empty td { height: 150px; color: #71818c; text-align: center; }

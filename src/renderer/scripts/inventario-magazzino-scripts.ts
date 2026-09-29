@@ -71,6 +71,12 @@ let operationGroupMode = "load";
 let editingOperationLineIndex = null;
 let nextOperationLineId = 1;
 const movementHistory = [];
+const MOVEMENT_HISTORY_RANGE_STORAGE_KEY = "aypi-warehouse-movement-history-range-v1";
+const MOVEMENT_HISTORY_RANGES = new Set(["today", "7", "30", "90", "365", "all"]);
+const storedMovementHistoryRange = localStorage.getItem(MOVEMENT_HISTORY_RANGE_STORAGE_KEY) || "30";
+let movementHistoryTimeRange = MOVEMENT_HISTORY_RANGES.has(storedMovementHistoryRange)
+    ? storedMovementHistoryRange
+    : "30";
 const unloadZone = [];
 const warehouseSession = { role: "guest", adminName: "", department: "", employee: "" };
 let warehouseAssigneeGroups = {};
@@ -80,6 +86,8 @@ let movementHighlight = null;
 let movementPlaybackState = null;
 let movementPlaybackTimer = null;
 let contextMovementId = null;
+let movementUndoTargetId = null;
+let editingInventoryUnitId = null;
 let contextUnloadZoneUnitId = null;
 let unloadZoneReloadPreview = null;
 let manualMovementMode = "load";
@@ -107,6 +115,22 @@ const warehouseDialogStack = [];
 let warehouseConfirmResolver = null;
 let warehouseFocusRecoveryPending = false;
 let queuedWarehouseFocus = null;
+const warehouseSimulation = {
+    running: false,
+    processing: false,
+    timer: null,
+    nextAt: 0,
+    sequence: 1,
+    sessionCode: "",
+    articleCatalog: [],
+    orders: [],
+    generated: 0,
+    accepted: 0,
+    rejected: 0,
+    errors: 0,
+    lastMessage: "",
+    messageIsError: false,
+};
 function warehouseStorageLabel() {
     return "SQLite server condiviso";
 }
@@ -223,7 +247,11 @@ function syncWarehouseSessionUi() {
     const canManageTestDatabase = isExclusiveTestDatabaseAdmin();
     if (testDatabaseActions) testDatabaseActions.hidden = !canManageTestDatabase;
     setTestDatabaseButtonsDisabled(warehouseStorageUnavailable);
-    if (!canManageTestDatabase) closePseudoPopulateDialog();
+    if (!canManageTestDatabase) {
+        closePseudoPopulateDialog();
+        stopWarehouseSimulation("Simulazione interrotta: autorizzazione non disponibile.");
+        closeWarehouseSimulationDialog();
+    }
     if (!isWarehouseAdmin()) {
         closeRestrictionDialog();
         closeWarehouseOptimizer();
@@ -363,13 +391,16 @@ function setupWarehouseDialogFocus() {
                 warehouseConfirmDialog: () => settleWarehouseConfirm(false),
                 operationGroupDialog: closeOperationDialog,
                 manualMovementDialog: closeManualMovementDialog,
+                inventoryItemEditDialog: closeInventoryItemEditDialog,
                 warehouseOptimizerDialog: closeWarehouseOptimizer,
                 movementHistoryDialog: closeMovementHistoryDialog,
+                movementUndoDialog: closeMovementUndoDialog,
                 unloadZoneDialog: closeUnloadZoneDialog,
                 unloadReloadDialog: closeUnloadReloadDialog,
                 inventorySearchDialog: closeInventorySearchDialog,
                 restrictionDialog: closeRestrictionDialog,
                 pseudoPopulateDialog: closePseudoPopulateDialog,
+                warehouseSimulationDialog: closeWarehouseSimulationDialog,
                 articleAnalysisDialog: closeArticleAnalysis,
                 warehouseLoginDialog: closeWarehouseLogin,
             };
@@ -483,6 +514,14 @@ function warehouse3dStateSnapshot(movementPlayback = null) {
             destinationArea: movement.destinationArea || "",
             manual: Boolean(movement.manual),
             optimization: Boolean(movement.optimization),
+            reversal: Boolean(movement.reversal),
+            reversalOf: movement.reversalOf || "",
+            reversalMode: movement.reversalMode || "",
+            metadataEdit: Boolean(movement.metadataEdit),
+            editedUnitId: movement.editedUnitId || "",
+            editedUnit: movement.metadataEdit
+                ? cloneWarehouseRows(movement.afterState).find((item) => item.id === movement.editedUnitId) || null
+                : null,
             actor: movement.actor ? { ...movement.actor } : null,
             playbackSteps: movementPlaybackSteps(movement),
         })),
@@ -547,11 +586,19 @@ function cloneWarehouseRows(rows) {
     return (rows || []).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
 }
 
+function cloneMovementRequests(requests) {
+    return (requests || []).map((request) => ({
+        ...request,
+        sourceIds: [...(request.sourceIds || [])],
+    }));
+}
+
 function cloneWarehouseMovement(movement) {
     return {
         ...movement,
         actor: movement.actor ? { ...movement.actor } : null,
         stagingUnitsBefore: cloneUnloadZoneUnits(movement.stagingUnitsBefore || []),
+        requests: cloneMovementRequests(movement.requests),
         lines: (movement.lines || []).map((line) => ({ ...line, locations: [...(line.locations || [])] })),
         operationalSteps: (movement.operationalSteps || []).map((step) => ({
             ...step,
@@ -689,6 +736,8 @@ function setTestDatabaseButtonsDisabled(disabled) {
     const inaccessible = !isExclusiveTestDatabaseAdmin();
     document.getElementById("populateWarehouseDatabase").disabled = disabled || inaccessible;
     document.getElementById("clearWarehouseDatabase").disabled = disabled || inaccessible;
+    document.getElementById("openWarehouseSimulation").disabled = disabled || inaccessible;
+    renderWarehouseSimulation();
 }
 
 function setWarehouseOperationsDisabled(disabled) {
@@ -720,6 +769,7 @@ function persistWarehouseData(
     inventorySnapshot = serializeWarehouseInventory(),
     movementSnapshot = serializeWarehouseMovements(),
     unloadZoneSnapshot = cloneUnloadZoneUnits(),
+    broadcastAfterSave = true,
 ) {
     const snapshot = {
         inventory: inventorySnapshot,
@@ -733,7 +783,7 @@ function persistWarehouseData(
             const saved = await savePersistedWarehouseData({ ...snapshot, baseRevision: warehouseRevision });
             warehouseRevision = Number(saved?.revision) || warehouseRevision + 1;
             setWarehouseDatabaseStatus("ready", `${warehouseStorageLabel()} salvato · ${snapshot.inventory.length} slot occupati`);
-            broadcastWarehouse3dState();
+            if (broadcastAfterSave) broadcastWarehouse3dState();
             return saved;
         } catch (error) {
             setWarehouseDatabaseStatus("error", "Salvataggio non riuscito");
@@ -1348,6 +1398,7 @@ function openContextMenu(code, x, y) {
     const place = document.getElementById("placeRelocationButton");
     const swap = document.getElementById("swapRelocationButton");
     const showIn3d = document.getElementById("showSlotIn3dButton");
+    const editItem = document.getElementById("editInventoryItemButton");
     const manualLoad = document.getElementById("manualLoadHereButton");
     const manualUnload = document.getElementById("manualUnloadHereButton");
     relocate.hidden = multiSelection || Boolean(relocationSourceCode);
@@ -1356,6 +1407,9 @@ function openContextMenu(code, x, y) {
     swap.hidden = multiSelection || !relocationSourceCode || !item || code === relocationSourceCode;
     showIn3d.hidden = multiSelection || item?.type !== "crate";
     showIn3d.disabled = item?.type !== "crate";
+    editItem.hidden = multiSelection || Boolean(relocationSourceCode) || !item;
+    editItem.disabled = !item;
+    editItem.textContent = item?.type === "pallet" ? "Modifica dati pallet" : "Modifica dati cassone";
     manualLoad.hidden = multiSelection || Boolean(relocationSourceCode) || Boolean(item);
     manualUnload.hidden = multiSelection || Boolean(relocationSourceCode) || !item;
     manualUnload.disabled = item?.type !== "crate";
@@ -1470,6 +1524,12 @@ function setupContextMenu() {
         const location = contextSlotCode;
         closeContextMenu();
         if (location) openManualMovementDialog("load", location);
+    });
+    document.getElementById("editInventoryItemButton")?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const location = contextSlotCode;
+        closeContextMenu();
+        if (location) openInventoryItemEditDialog(location);
     });
     document.getElementById("manualUnloadHereButton")?.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -2270,6 +2330,103 @@ function isCompletelyEmptyRearCrateStack(state, parsed) {
     return parsed?.side === "rear" && crateStackItems(state, parsed).every((item) => !item);
 }
 
+// La politica fisica di deposito è gerarchica: distanza e compattazione
+// possono ordinare due alternative equivalenti, non ribaltare retro/fronte.
+const CRATE_ALLOCATION_POLICY_CLASS = 1_000_000_000_000;
+const CRATE_ALLOCATION_POLICY_DETAIL = 1_000_000;
+const CRATE_ALLOCATION_FRONTIER_DETAIL = 10_000;
+
+function crateStackPhysicalIndex(parsed) {
+    if (!parsed) return Number.MAX_SAFE_INTEGER;
+    const rowIndex = rowCodes().indexOf(parsed.row);
+    const previousColumns = warehouseRows.slice(0, Math.max(0, rowIndex))
+        .reduce((sum, row) => sum + physicalColumnsForRow(row.code), 0);
+    return previousColumns + parsed.physicalColumn - 1;
+}
+
+function emptyRearStacksBefore(state, parsed) {
+    if (!parsed) return 0;
+    const targetIndex = crateStackPhysicalIndex(parsed);
+    let emptyBefore = 0;
+    rowCodes().forEach((row) => {
+        for (let column = 0; column < physicalColumnsForRow(row); column += 1) {
+            const rear = parseSlotCode(slotCode(row, column, "rear", "a"));
+            if (crateStackPhysicalIndex(rear) >= targetIndex) continue;
+            if (crateStackItems(state, rear).every((item) => !item)) emptyBefore += 1;
+        }
+    });
+    return emptyBefore;
+}
+
+function cratePlacementFrontierDetail(state, parsed, tier) {
+    if (!parsed || tier === 0) return 0;
+    // I buchi precedenti pesano più della semplice distanza della colonna:
+    // a parità di classe si avanza quindi come un fronte compatto A → E.
+    return emptyRearStacksBefore(state, parsed) * 100 + crateStackPhysicalIndex(parsed);
+}
+
+function rearStackIsFullOfArticle(state, parsed, article) {
+    if (!parsed) return false;
+    const rearGround = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a"));
+    return ["a", "b", "c"].every((level) => (
+        state.get(`${rearGround.row}${rearGround.number}${level}`)?.article === article
+    ));
+}
+
+function cratePlacementPolicyTier(state, move, article) {
+    const parsed = parseSlotCode(move.codes[0]);
+    if (!parsed) return 9;
+    const existingItems = crateStackItems(state, parsed).filter(Boolean);
+    const finalItems = [...existingItems, ...move.codes.map(() => ({ article }))];
+    const continuesSameArticle = existingItems.length > 0
+        && existingItems.every((item) => item.article === article);
+    const opensMatchingFront = parsed.side === "front" && rearStackIsFullOfArticle(state, parsed, article);
+    if (continuesSameArticle || opensMatchingFront) return 0;
+    if (parsed.side === "rear" && existingItems.length === 0) return 1;
+    if (parsed.side === "rear" && finalItems.length === 3) {
+        return new Set(finalItems.map((item) => item.article)).size <= 2 ? 2 : 3;
+    }
+    if (parsed.side === "rear") return 4;
+    return 5;
+}
+
+function cratePlanPolicyScore(initialState, state, locations, article) {
+    const touched = new Map();
+    locations.forEach((code) => {
+        const parsed = parseSlotCode(code);
+        if (parsed) touched.set(`${parsed.row}:${parsed.number}`, parsed);
+    });
+    const policies = [];
+    touched.forEach((parsed) => {
+        const initialItems = crateStackItems(initialState, parsed).filter(Boolean);
+        const finalItems = crateStackItems(state, parsed).filter(Boolean);
+        const continuesSameArticle = initialItems.length > 0
+            && initialItems.every((item) => item.article === article);
+        const opensMatchingFront = parsed.side === "front" && rearStackIsFullOfArticle(state, parsed, article);
+        if (continuesSameArticle || opensMatchingFront) {
+            policies.push({ tier: 0, detail: 0 });
+            return;
+        }
+        const finalArticles = new Set(finalItems.map((item) => item.article));
+        if (parsed.side === "rear" && initialItems.length === 0 && finalArticles.size === 1) {
+            const tier = 1;
+            policies.push({ tier, detail: cratePlacementFrontierDetail(initialState, parsed, tier) });
+            return;
+        }
+        if (parsed.side === "rear" && finalItems.length === 3) {
+            const tier = finalArticles.size <= 2 ? 2 : 3;
+            policies.push({ tier, detail: cratePlacementFrontierDetail(initialState, parsed, tier) });
+            return;
+        }
+        const tier = parsed.side === "rear" ? 4 : 5;
+        policies.push({ tier, detail: cratePlacementFrontierDetail(initialState, parsed, tier) });
+    });
+    if (!policies.length) return 0;
+    return Math.max(...policies.map((policy) => policy.tier)) * CRATE_ALLOCATION_POLICY_CLASS
+        + policies.reduce((sum, policy) => sum + policy.tier, 0) * CRATE_ALLOCATION_POLICY_DETAIL
+        + policies.reduce((sum, policy) => sum + policy.detail, 0) * CRATE_ALLOCATION_FRONTIER_DETAIL;
+}
+
 function generateCratePlacementMoves(state, maximumUnits, article, customer) {
     const levels = ["a", "b", "c"];
     const moves = [];
@@ -2294,11 +2451,8 @@ function generateCratePlacementMoves(state, maximumUnits, article, customer) {
             }
         }
     });
-    // Una pila mista (per esempio 2 cassoni dell'articolo X + 1 dell'articolo
-    // corrente) resta valida, ma solamente dopo avere esaurito le pile rear
-    // completamente vuote e realmente utilizzabili. È una precedenza di
-    // ammissibilità, non un nuovo peso: gli altri criteri di score restano
-    // invariati e continuano a scegliere la migliore posizione tra le mosse.
+    // Una pila mista 2+1 resta valida soltanto dopo le pile rear vuote. Se la
+    // pila contiene già lo stesso articolo, prevale invece il consolidamento.
     const hasAvailableEmptyRearStack = moves.some((move) => {
         const parsed = parseSlotCode(move.codes[0]);
         return isCompletelyEmptyRearCrateStack(state, parsed);
@@ -2309,7 +2463,8 @@ function generateCratePlacementMoves(state, maximumUnits, article, customer) {
         const existingItems = crateStackItems(state, parsed).filter(Boolean);
         const createsMixedTwoPlusOne = existingItems.length === 2
             && move.codes.length === 1
-            && existingItems.some((item) => item.article !== article);
+            && existingItems.some((item) => item.article !== article)
+            && !existingItems.every((item) => item.article === article);
         return !createsMixedTwoPlusOne;
     });
 }
@@ -2459,7 +2614,8 @@ function scoreCratePlan(initialState, state, locations, article, movements, scor
             }
         }
     });
-    return movements * sortingWeight("forkliftMovement")
+    return cratePlanPolicyScore(initialState, state, locations, article)
+        + movements * sortingWeight("forkliftMovement")
         + touchedStacks.size * sortingWeight("touchedStack")
         + newArticleDivisions * sortingWeight("newArticleDivision")
         + touchedModules.size * sortingWeight("touchedPhysicalModule")
@@ -2480,6 +2636,7 @@ function scoreCratePlan(initialState, state, locations, article, movements, scor
 
 function scoreCrateMoveCandidate(state, move, article, scoreContext, requestedQuantity, pieceCount = 0) {
     const parsed = parseSlotCode(move.codes[0]);
+    const policyTier = cratePlacementPolicyTier(state, move, article);
     const stack = crateStackItems(state, parsed).filter(Boolean);
     const finalHeight = stack.length + move.codes.length;
     const rearNumber = parseSlotCode(slotCode(parsed.row, parsed.physicalColumn - 1, "rear", "a")).number;
@@ -2501,7 +2658,9 @@ function scoreCrateMoveCandidate(state, move, article, scoreContext, requestedQu
         return item && item.article !== article;
     }));
     const distance = scoreContext.distance(parsed);
-    return sortingWeight("forkliftMovement")
+    return policyTier * CRATE_ALLOCATION_POLICY_CLASS
+        + cratePlacementFrontierDetail(state, parsed, policyTier) * CRATE_ALLOCATION_FRONTIER_DETAIL
+        + sortingWeight("forkliftMovement")
         + sortingWeight("touchedStack")
         + sortingWeight("touchedPhysicalModule")
         + (stack.some((item) => item.article !== article)
@@ -2989,6 +3148,62 @@ function planLoadOperation(entries, initialState = inventory) {
         score: jointPlan.score,
         operationalSteps: buildLoadOperationalSteps(initialState, state),
     };
+}
+
+function planExistingUnitAllocation(units, initialState) {
+    if (!units.length) return { state: cloneInventoryState(initialState), actions: [] };
+    const entries = units.map((unit) => ({
+        article: unit.item.article,
+        customer: unit.item.customer || "",
+        order: unit.item.orderReference || "",
+        weighingCode: unit.item.weighingCode || "",
+        pieceCount: warehouseItemPieces(unit.item),
+        quantity: 1,
+        type: unit.item.type || "crate",
+    }));
+    const planningGroups = createLoadPlanningGroups(entries);
+    const jointPlan = planJointLoadAllocation(
+        planningGroups.map((group) => group.entry),
+        initialState,
+    );
+    if (!jointPlan) {
+        return { error: "Spazio valido insufficiente per riallocare tutte le unità con l'algoritmo standard." };
+    }
+    const allocations = expandLoadPlanningAllocations(entries, planningGroups, jointPlan);
+    const state = cloneInventoryState(initialState);
+    const actions = [];
+    units.forEach((unit, index) => {
+        const allocation = allocations[index];
+        const locations = unit.item.type === "pallet"
+            ? [...(allocation?.pairs?.[0] || [])]
+            : [...(allocation?.locations || [])];
+        const expectedLocations = unit.item.type === "pallet" ? 2 : 1;
+        if (locations.length !== expectedLocations) return;
+        locations.forEach((location, locationIndex) => state.set(location, {
+            ...unit.item,
+            location,
+            tags: [...(unit.item.tags || [])],
+            pairedLocation: unit.item.type === "pallet"
+                ? locations[locationIndex === 0 ? 1 : 0] || null
+                : null,
+            inMovement: false,
+        }));
+        actions.push({
+            kind: "loaded",
+            article: unit.item.article,
+            locations: unit.item.type === "pallet" ? [locations.join(" + ")] : locations,
+            weighingCode: unit.item.weighingCode || "",
+            pieceCount: warehouseItemPieces(unit.item),
+            maxPieceCapacity: Math.max(
+                warehouseItemPieces(unit.item),
+                Number(unit.item.maxPieceCapacity) || warehouseItemPieces(unit.item),
+            ),
+        });
+    });
+    if (actions.length !== units.length) {
+        return { error: "L'algoritmo non ha prodotto una destinazione valida per tutte le unità." };
+    }
+    return { state, actions, score: jointPlan.score };
 }
 
 function logicalInventoryUnits(state) {
@@ -3645,12 +3860,11 @@ async function applyWarehouseOptimization() {
     preview.plan.state.forEach((item, location) => inventory.set(location, item));
     movementHistory.unshift(movement);
     warehouseOptimizationPreview = null;
-    movementHighlight = {
-        loadedIds: new Set(),
-        loadedLocations: new Set(),
-        shiftedIds: new Set(movement.changes.shifted.map((entry) => entry.id)),
-        shiftedLocations: new Set(movement.changes.shifted.flatMap((entry) => entry.to || [])),
-    };
+    // L'ottimizzazione puo coinvolgere gran parte del magazzino: lasciare
+    // evidenziati tutti i cassoni spostati rende la mappa quasi interamente
+    // rosa/rossa. Al termine ripristiniamo subito i normali colori della 2D;
+    // il dettaglio degli spostamenti resta consultabile nello storico.
+    movementHighlight = null;
     refreshWarehouseDataViews();
     broadcastWarehouse3dState(movement);
     closeWarehouseOptimizer();
@@ -4201,7 +4415,7 @@ function buildUnloadOperationalSteps(sourceState, selectedUnits, relocations) {
                     unit.location,
                     kind === "unload" ? STAGING_AREA_LABEL : relocationById.get(unit.item.id)?.to?.[0] || "",
                 )),
-                wholeStack: ordered.length === 3 && ordered.map((unit) => unit.parsed.level).join("") === "abc",
+                wholeStack: ordered.length > 1,
             };
             extractionSteps.push(step);
             if (kind === "corridor") corridorGroups.push(step);
@@ -4423,6 +4637,196 @@ function configureManualMovement(mode) {
     refreshManualUnloadSource();
 }
 
+function inventoryUnitLocations(unitId) {
+    return Array.from(inventory.entries())
+        .filter(([, item]) => item.id === unitId)
+        .map(([location]) => location)
+        .sort((left, right) => left.localeCompare(right, "it", { numeric: true }));
+}
+
+function setInventoryItemEditMessage(message, error = false) {
+    const output = document.getElementById("inventoryItemEditMessage");
+    if (!output) return;
+    output.textContent = message;
+    output.classList.toggle("is-error", error);
+}
+
+function openInventoryItemEditDialog(location) {
+    if (!isWarehouseLoggedIn()) {
+        openWarehouseLogin();
+        return;
+    }
+    if (!warehousePersistenceReady) {
+        showWarehouseToast("Database del magazzino non disponibile.", true);
+        return;
+    }
+    const parsed = parseSlotCode(location);
+    const item = parsed ? inventory.get(parsed.code) : null;
+    if (!item) {
+        showWarehouseToast("Lo slot selezionato non contiene alcuna unità.", true);
+        return;
+    }
+    editingInventoryUnitId = item.id;
+    const locations = inventoryUnitLocations(item.id);
+    document.getElementById("inventoryItemEditTitle").textContent = item.type === "pallet"
+        ? "Modifica dati pallet"
+        : "Modifica dati cassone";
+    document.getElementById("inventoryItemEditSummary").textContent = item.type === "pallet"
+        ? "La modifica verrà applicata a entrambe le ubicazioni occupate dal pallet."
+        : "Ubicazione e identità dell'unità resteranno invariate.";
+    document.getElementById("inventoryItemEditLocation").textContent = locations.join(" + ");
+    document.getElementById("inventoryItemEditType").textContent = item.type === "pallet" ? "Pallet" : "Cassone";
+    document.getElementById("inventoryItemEditId").textContent = item.id;
+    document.getElementById("inventoryItemEditArticle").value = item.article || "";
+    document.getElementById("inventoryItemEditCustomer").value = item.customer || "";
+    document.getElementById("inventoryItemEditOrder").value = item.orderReference || "";
+    document.getElementById("inventoryItemEditWeighing").value = item.weighingCode || "";
+    document.getElementById("inventoryItemEditPieces").value = String(warehouseItemPieces(item));
+    document.getElementById("inventoryItemEditCapacity").value = String(
+        Math.max(warehouseItemPieces(item), Number(item.maxPieceCapacity) || warehouseItemPieces(item)),
+    );
+    document.getElementById("inventoryItemEditTags").value = (item.tags || []).join(", ");
+    setInventoryItemEditMessage("La modifica sarà registrata nello storico senza creare una movimentazione fisica.");
+    openWarehouseDialog(
+        document.getElementById("inventoryItemEditDialog"),
+        document.getElementById("inventoryItemEditArticle"),
+        true,
+    );
+}
+
+function closeInventoryItemEditDialog() {
+    editingInventoryUnitId = null;
+    closeWarehouseDialog(document.getElementById("inventoryItemEditDialog"));
+}
+
+function inventoryItemEditValues() {
+    return {
+        article: document.getElementById("inventoryItemEditArticle").value.trim(),
+        customer: document.getElementById("inventoryItemEditCustomer").value.trim(),
+        orderReference: document.getElementById("inventoryItemEditOrder").value.trim(),
+        weighingCode: document.getElementById("inventoryItemEditWeighing").value.trim().toUpperCase(),
+        pieceCount: Number(document.getElementById("inventoryItemEditPieces").value),
+        maxPieceCapacity: Number(document.getElementById("inventoryItemEditCapacity").value),
+        tags: Array.from(new Set(
+            document.getElementById("inventoryItemEditTags").value
+                .split(/[,;\n]+/)
+                .map((tag) => tag.trim())
+                .filter(Boolean),
+        )),
+    };
+}
+
+async function saveInventoryItemEdit() {
+    const unitId = editingInventoryUnitId;
+    const currentUnit = logicalInventoryUnits(inventory).find((unit) => unit.item.id === unitId);
+    if (!unitId || !currentUnit) return { error: "L'unità non è più presente in magazzino." };
+    const values = inventoryItemEditValues();
+    if (!values.article) return { error: "L'articolo è obbligatorio." };
+    if (!Number.isInteger(values.pieceCount) || values.pieceCount < 1) {
+        return { error: "Il numero pezzi deve essere un intero positivo." };
+    }
+    if (!Number.isInteger(values.maxPieceCapacity) || values.maxPieceCapacity < values.pieceCount) {
+        return { error: "La capienza massima deve essere un intero uguale o superiore al numero di pezzi." };
+    }
+    const previousTags = Array.from(new Set(currentUnit.item.tags || [])).sort();
+    const nextTags = [...values.tags].sort();
+    const unchanged = currentUnit.item.article === values.article
+        && (currentUnit.item.customer || "") === values.customer
+        && (currentUnit.item.orderReference || "") === values.orderReference
+        && (currentUnit.item.weighingCode || "") === values.weighingCode
+        && warehouseItemPieces(currentUnit.item) === values.pieceCount
+        && Number(currentUnit.item.maxPieceCapacity) === values.maxPieceCapacity
+        && JSON.stringify(previousTags) === JSON.stringify(nextTags);
+    if (unchanged) return { error: "Non hai modificato alcun dato." };
+    const normalizedWeighing = normalizeCustomer(values.weighingCode);
+    const weighingAlreadyUsed = normalizedWeighing && (
+        logicalInventoryUnits(inventory).some((unit) =>
+            unit.item.id !== unitId && normalizeCustomer(unit.item.weighingCode) === normalizedWeighing)
+        || unloadZone.some((item) => item.id !== unitId && normalizeCustomer(item.weighingCode) === normalizedWeighing)
+    );
+    if (weighingAlreadyUsed) {
+        return { error: `Il codice pesata ${values.weighingCode} è già assegnato a un'altra unità.` };
+    }
+    const restrictedLocation = currentUnit.locations.find(
+        (location) => !evaluateCustomerForSlot(location, values.customer).allowed,
+    );
+    if (restrictedLocation) {
+        return { error: `Il cliente indicato non rispetta il vincolo configurato per ${restrictedLocation}.` };
+    }
+
+    const beforeState = serializeWarehouseInventory();
+    const state = cloneInventoryState();
+    currentUnit.locations.forEach((location) => {
+        const item = state.get(location);
+        state.set(location, {
+            ...item,
+            ...values,
+            location,
+            tags: [...values.tags],
+        });
+    });
+    const afterState = Array.from(state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+    const now = new Date();
+    const movement = {
+        id: movementIdentifier(now),
+        timestamp: now.toISOString(),
+        type: "load",
+        manual: true,
+        metadataEdit: true,
+        editedUnitId: unitId,
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
+        actor: warehouseActorSnapshot(),
+        lines: [{
+            kind: "relocated",
+            article: values.article,
+            locations: [...currentUnit.locations],
+            weighingCode: values.weighingCode,
+            pieceCount: values.pieceCount,
+            maxPieceCapacity: values.maxPieceCapacity,
+        }],
+        operationalSteps: [],
+        beforeState: cloneWarehouseRows(beforeState),
+        afterState: cloneWarehouseRows(afterState),
+        changes: buildMovementChanges(beforeState, afterState),
+    };
+    try {
+        await persistWarehouseData(
+            afterState,
+            [movement, ...serializeWarehouseMovements()],
+            cloneUnloadZoneUnits(),
+        );
+    } catch (error) {
+        return { error: `Modifica non salvata: ${error.message}` };
+    }
+    inventory.clear();
+    state.forEach((item, location) => inventory.set(location, item));
+    movementHistory.unshift(movement);
+    movementHighlight = null;
+    closeInventoryItemEditDialog();
+    refreshWarehouseDataViews();
+    // Una modifica anagrafica aggiorna il gemello 3D senza simulare uno spostamento.
+    broadcastWarehouse3dState();
+    showWarehouseToast(`${currentUnit.locations.join(" + ")}: dati dell'unità aggiornati.`);
+    return { movement };
+}
+
+function setupInventoryItemEdit() {
+    document.getElementById("closeInventoryItemEdit")?.addEventListener("click", closeInventoryItemEditDialog);
+    document.getElementById("cancelInventoryItemEdit")?.addEventListener("click", closeInventoryItemEditDialog);
+    document.getElementById("inventoryItemEditDialog")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) closeInventoryItemEditDialog();
+    });
+    document.getElementById("inventoryItemEditForm")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = document.getElementById("saveInventoryItemEdit");
+        button.disabled = true;
+        setInventoryItemEditMessage("Salvataggio della modifica in corso…");
+        const result = await saveInventoryItemEdit();
+        if (result?.error) setInventoryItemEditMessage(result.error, true);
+        if (button.isConnected) button.disabled = false;
+    });
+}
+
 function resetManualMovementResult() {
     document.getElementById("manualMovementForm").hidden = false;
     document.getElementById("manualMovementResult").hidden = true;
@@ -4493,6 +4897,15 @@ async function commitManualLoad() {
         manual: true,
         stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
+        requests: [{
+            article,
+            customer,
+            order: orderReference,
+            weighingCode,
+            pieceCount,
+            quantity: 1,
+            type: "crate",
+        }],
         lines,
         operationalSteps: buildLoadOperationalSteps(beforeState, state),
         beforeState: cloneWarehouseRows(beforeState),
@@ -4543,6 +4956,15 @@ async function commitManualUnload() {
         manual: true,
         stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
+        requests: [{
+            article: item.article,
+            customer: item.customer || "",
+            order: item.orderReference || "",
+            weighingCode: item.weighingCode || "",
+            quantity: 1,
+            type: "crate",
+            sourceIds: [item.id],
+        }],
         lines: plan.lines,
         operationalSteps: plan.operationalSteps || [],
         beforeState: cloneWarehouseRows(beforeState),
@@ -4727,6 +5149,7 @@ async function commitOperationGroup() {
         type: operationGroupMode,
         stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
+        requests: cloneMovementRequests(activeOperationGroup()),
         lines: plan.lines,
         operationalSteps: plan.operationalSteps || [],
         beforeState: cloneWarehouseRows(beforeState),
@@ -4914,6 +5337,11 @@ function operationalUnitsDescription(units) {
 }
 
 function movementHistoryUnits(movement) {
+    if (movement.metadataEdit) {
+        const edited = [...(movement.afterState || []), ...(movement.beforeState || [])]
+            .find((item) => item.id === movement.editedUnitId);
+        return edited ? [edited] : [];
+    }
     const actionKinds = movement.optimization
         ? new Set(["optimization-place"])
         : movement.type === "load"
@@ -4969,7 +5397,295 @@ function movementHistorySummary(movement) {
     };
 }
 
+function movementUndoChanges(movement) {
+    if (!Array.isArray(movement?.beforeState) || !Array.isArray(movement?.afterState)) {
+        return { loaded: [], unloaded: [], shifted: [], adjusted: [] };
+    }
+    return buildMovementChanges(movement.beforeState, movement.afterState);
+}
+
+function movementExitUnits(movement) {
+    if (movement?.type !== "exit") return [];
+    const ids = new Set(
+        (movement.operationalSteps || [])
+            .flatMap((step) => step.units || [])
+            .map((unit) => String(unit.id || ""))
+            .filter(Boolean),
+    );
+    const stagedById = new Map(
+        (movement.stagingUnitsBefore || []).map((item) => [String(item.id || ""), item]),
+    );
+    return Array.from(ids, (id) => stagedById.get(id))
+        .filter(Boolean)
+        .map((item) => ({ ...item, tags: [...(item.tags || [])], originalLocations: [...(item.originalLocations || [])] }));
+}
+
+function movementUndoAffectedIds(movement, changes = movementUndoChanges(movement)) {
+    const ids = new Set(
+        [changes.loaded, changes.unloaded, changes.shifted, changes.adjusted]
+            .flatMap((entries) => entries || [])
+            .map((entry) => String(entry.id || ""))
+            .filter(Boolean),
+    );
+    if (movement?.metadataEdit && movement.editedUnitId) ids.add(String(movement.editedUnitId));
+    movementExitUnits(movement).forEach((item) => ids.add(String(item.id || "")));
+    return ids;
+}
+
+function movementAlreadyReversed(movement) {
+    return Boolean(
+        movement?.reversal ||
+        movementHistory.some((entry) => entry.reversalOf === movement?.id),
+    );
+}
+
+function removeUnitsFromInventoryState(state, ids) {
+    Array.from(state.entries()).forEach(([location, item]) => {
+        if (ids.has(String(item.id || ""))) state.delete(location);
+    });
+}
+
+function movementUndoStateError(state) {
+    for (const [location, item] of state) {
+        const parsed = parseSlotCode(location);
+        if (!parsed) return `La posizione ${location} non esiste più nella struttura attuale.`;
+        if (item.type !== "crate") continue;
+        const lowerLevels = parsed.level === "c" ? ["a", "b"] : parsed.level === "b" ? ["a"] : [];
+        if (!lowerLevels.every((level) => state.has(`${parsed.row}${parsed.number}${level}`))) {
+            return `La rimozione lascerebbe ${location} senza i cassoni di appoggio sottostanti.`;
+        }
+        if (!validFrontRearModule(state, location)) {
+            return `La rimozione renderebbe inaccessibile o incompleta la coppia fronte/retro di ${location}.`;
+        }
+    }
+    return "";
+}
+
+function movementUndoStagingRestores(movement, changes) {
+    if (movement.type === "exit") return movementExitUnits(movement);
+    if (movement.type !== "load" || movement.sourceArea !== "staging") return [];
+    const loadedIds = new Set((changes.loaded || []).map((entry) => String(entry.id || "")));
+    return (movement.stagingUnitsBefore || [])
+        .filter((item) => loadedIds.has(String(item.id || "")))
+        .map((item) => ({
+            ...item,
+            location: null,
+            tags: [...(item.tags || [])],
+            originalLocations: [...(item.originalLocations || [])],
+        }));
+}
+
+function prepareMovementUndo(movement, mode) {
+    if (!movement) return { error: "Movimento non trovato." };
+    if (movementAlreadyReversed(movement)) {
+        return { error: movement.reversal
+            ? "Un movimento di storno non può essere annullato nuovamente."
+            : "Questo movimento è già stato annullato." };
+    }
+    const changes = movementUndoChanges(movement);
+    const affectedIds = movementUndoAffectedIds(movement, changes);
+    if (!affectedIds.size) return { error: "Il movimento non contiene unità ripristinabili." };
+
+    const currentState = cloneInventoryState(inventory);
+    const nextState = cloneInventoryState(inventory);
+    removeUnitsFromInventoryState(nextState, affectedIds);
+    const originalState = new Map(
+        cloneWarehouseRows(movement.beforeState || []).map((item) => [item.location, item]),
+    );
+    const desiredUnits = logicalInventoryUnits(originalState)
+        .filter((unit) => affectedIds.has(String(unit.item.id || "")));
+    let actions = [];
+
+    if (mode === "exact") {
+        for (const unit of desiredUnits) {
+            for (const location of unit.locations) {
+                if (!parseSlotCode(location)) {
+                    return { error: `La posizione originaria ${location} non esiste più nella struttura attuale.` };
+                }
+                const restriction = evaluateCustomerForSlot(location, unit.item.customer);
+                if (!restriction.allowed) {
+                    return { error: `${location} non accetta il cliente ${unit.item.customer || "non indicato"} per il vincolo della ${restriction.source}.` };
+                }
+                const occupant = nextState.get(location);
+                if (occupant && !affectedIds.has(String(occupant.id || ""))) {
+                    return { error: `${location} è ora occupata dall'articolo ${occupant.article}; usa la riallocazione automatica.` };
+                }
+            }
+        }
+        desiredUnits.forEach((unit) => unit.locations.forEach((location) => {
+            const source = originalState.get(location) || unit.item;
+            nextState.set(location, { ...source, tags: [...(source.tags || [])], inMovement: false });
+        }));
+    } else {
+        const allocation = planExistingUnitAllocation(desiredUnits, nextState);
+        if (allocation.error) return allocation;
+        allocation.state.forEach((item, location) => nextState.set(location, item));
+        actions = allocation.actions;
+    }
+
+    const stateError = movementUndoStateError(nextState);
+    if (stateError) return { error: `${stateError} Annulla prima i movimenti successivi che dipendono da questa disposizione.` };
+
+    const stagingRestores = movementUndoStagingRestores(movement, changes);
+    const nextUnloadZone = cloneUnloadZoneUnits().filter(
+        (item) => !affectedIds.has(String(item.id || "")),
+    );
+    stagingRestores.forEach((item) => nextUnloadZone.push(item));
+    return {
+        currentState,
+        state: nextState,
+        nextUnloadZone,
+        changes,
+        affectedIds,
+        desiredUnits,
+        stagingRestores,
+        actions,
+    };
+}
+
+function movementUndoLines(beforeState, afterState, stagingRestores) {
+    const changes = buildMovementChanges(beforeState, afterState);
+    const before = indexLogicalUnits(beforeState);
+    const after = indexLogicalUnits(afterState);
+    const lines = [];
+    changes.loaded.forEach((entry) => {
+        const unit = after.get(entry.id);
+        lines.push({
+            kind: "loaded",
+            article: entry.article,
+            locations: [...entry.to],
+            weighingCode: unit?.item?.weighingCode || "",
+            pieceCount: unit ? warehouseItemPieces(unit.item) : null,
+        });
+    });
+    changes.unloaded.forEach((entry) => {
+        const unit = before.get(entry.id);
+        lines.push({
+            kind: "unloaded",
+            article: entry.article,
+            locations: [...entry.from],
+            weighingCode: unit?.item?.weighingCode || "",
+            pieceCount: unit ? warehouseItemPieces(unit.item) : null,
+        });
+    });
+    changes.shifted.forEach((entry) => lines.push({
+        kind: "relocated",
+        article: entry.article,
+        locations: entry.to.map((location, index) => `${entry.from[index] || entry.from[0] || "—"} → ${location}`),
+    }));
+    changes.adjusted.forEach((entry) => lines.push({
+        kind: "pieces",
+        article: entry.article,
+        locations: [`${entry.beforePieces} → ${entry.afterPieces} pezzi`],
+        pieceCount: entry.afterPieces,
+    }));
+    stagingRestores.forEach((item) => lines.push({
+        kind: "loaded",
+        article: item.article,
+        locations: [STAGING_AREA_LABEL],
+        weighingCode: item.weighingCode || "",
+        pieceCount: warehouseItemPieces(item),
+    }));
+    return lines.length ? lines : [{ kind: "relocated", article: "Storno", locations: [] }];
+}
+
+function closeMovementUndoDialog() {
+    movementUndoTargetId = null;
+    closeWarehouseDialog(document.getElementById("movementUndoDialog"));
+}
+
+function openMovementUndoDialog(movement) {
+    if (!movement) return;
+    movementUndoTargetId = movement.id;
+    const summary = movementHistorySummary(movement);
+    const exactPlan = prepareMovementUndo(movement, "exact");
+    const exactButton = document.getElementById("undoMovementExact");
+    const automaticButton = document.getElementById("undoMovementAutomatic");
+    document.getElementById("movementUndoTitle").textContent = `Annulla ${movement.id}`;
+    document.getElementById("movementUndoSummary").textContent = `${summary.articles} · ${summary.pieces} pezzi. Scegli come applicare lo storno senza cancellare lo storico.`;
+    exactButton.disabled = Boolean(exactPlan.error);
+    exactButton.title = exactPlan.error || "Ripristina fedelmente ubicazioni, quantità e dati precedenti.";
+    automaticButton.disabled = movementAlreadyReversed(movement);
+    document.getElementById("undoMovementExactStatus").textContent = exactPlan.error
+        ? "Non disponibile nello stato attuale del magazzino. Vedi il motivo qui sotto."
+        : "Le posizioni originarie sono disponibili.";
+    const note = document.getElementById("movementUndoNote");
+    note.classList.toggle("is-error", Boolean(exactPlan.error));
+    note.textContent = exactPlan.error
+        ? `Ripristino esatto non disponibile: ${exactPlan.error}`
+        : "Lo storno sarà salvato come nuovo movimento e non eliminerà lo storico originale.";
+    openWarehouseDialog(document.getElementById("movementUndoDialog"), exactPlan.error ? automaticButton : exactButton, true);
+}
+
+async function executeMovementUndo(mode) {
+    const movement = movementHistory.find((entry) => entry.id === movementUndoTargetId);
+    if (!movement) return;
+    if (!isWarehouseLoggedIn()) {
+        closeMovementUndoDialog();
+        openWarehouseLogin();
+        return;
+    }
+    const plan = prepareMovementUndo(movement, mode);
+    if (plan.error) {
+        document.getElementById("movementUndoNote").textContent = plan.error;
+        document.getElementById("movementUndoNote").classList.add("is-error");
+        return;
+    }
+    const accepted = await showWarehouseConfirm({
+        title: mode === "exact" ? "Ripristinare le posizioni originali?" : "Riallocare automaticamente i cassoni?",
+        message: mode === "exact"
+            ? `Le ${plan.affectedIds.size} unità coinvolte torneranno allo stato precedente a ${movement.id}.`
+            : `Le ${plan.affectedIds.size} unità coinvolte verranno ricalcolate mantenendo invariato il resto del magazzino.`,
+        confirmLabel: "Conferma storno",
+        danger: mode === "exact",
+    });
+    if (!accepted) return;
+
+    const beforeState = serializeWarehouseInventory();
+    const afterState = Array.from(plan.state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+    const reversalChanges = buildMovementChanges(beforeState, afterState);
+    const now = new Date();
+    const reversal = {
+        id: movementIdentifier(now),
+        timestamp: now.toISOString(),
+        type: reversalChanges.loaded.length ? "load" : "unload",
+        reversal: true,
+        reversalOf: movement.id,
+        reversalMode: mode,
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
+        actor: warehouseActorSnapshot(),
+        lines: movementUndoLines(beforeState, afterState, plan.stagingRestores),
+        operationalSteps: [],
+        beforeState: cloneWarehouseRows(beforeState),
+        afterState: cloneWarehouseRows(afterState),
+        changes: reversalChanges,
+    };
+    try {
+        await persistWarehouseData(
+            afterState,
+            [reversal, ...serializeWarehouseMovements()],
+            plan.nextUnloadZone,
+        );
+    } catch (error) {
+        document.getElementById("movementUndoNote").textContent = `Storno non applicato: ${error.message}`;
+        document.getElementById("movementUndoNote").classList.add("is-error");
+        return;
+    }
+    inventory.clear();
+    plan.state.forEach((item, location) => inventory.set(location, item));
+    unloadZone.splice(0, unloadZone.length, ...plan.nextUnloadZone);
+    movementHistory.unshift(reversal);
+    movementHighlight = null;
+    closeMovementUndoDialog();
+    closeMovementHistoryDialog();
+    refreshWarehouseDataViews();
+    broadcastWarehouse3dState(reversal);
+    showWarehouseToast(`${movement.id} annullato con ${mode === "exact" ? "ripristino esatto" : "riallocazione automatica"}.`);
+}
+
 function movementHistoryType(movement) {
+    if (movement.metadataEdit) return "Modifica dati";
+    if (movement.reversal) return `Storno ${movement.reversalMode === "exact" ? "esatto" : "automatico"}`;
     if (movement.optimization) return "Ottimizzazione";
     const label = movement.type === "load" ? "Carico" : movement.type === "exit" ? "Uscita" : "Scarico";
     return `${label}${movement.manual ? " manuale" : ""}`;
@@ -4983,6 +5699,35 @@ function movementHistoryCell(value, className = "") {
     return cell;
 }
 
+function movementHistoryRangeStart(range, now = new Date()) {
+    if (range === "all") return null;
+    if (range === "today") {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        return start.getTime();
+    }
+    const days = Number(range);
+    return Number.isFinite(days) ? now.getTime() - days * 24 * 60 * 60 * 1000 : null;
+}
+
+function movementMatchesTimeRange(movement, range = movementHistoryTimeRange) {
+    const start = movementHistoryRangeStart(range);
+    if (start === null) return true;
+    const timestamp = Date.parse(movement?.timestamp || "");
+    return Number.isFinite(timestamp) && timestamp >= start;
+}
+
+function setupMovementHistoryFilter() {
+    const select = document.getElementById("movementHistoryTimeRange");
+    if (!select) return;
+    select.value = movementHistoryTimeRange;
+    select.addEventListener("change", () => {
+        movementHistoryTimeRange = MOVEMENT_HISTORY_RANGES.has(select.value) ? select.value : "30";
+        localStorage.setItem(MOVEMENT_HISTORY_RANGE_STORAGE_KEY, movementHistoryTimeRange);
+        renderMovementHistory();
+    });
+}
+
 function renderMovementHistory() {
     const count = document.getElementById("movementHistoryCount");
     if (count) count.textContent = movementHistory.length
@@ -4990,18 +5735,25 @@ function renderMovementHistory() {
         : "Nessun movimento registrato";
     const list = document.getElementById("movementHistoryList");
     if (!list) return;
+    const visibleMovements = movementHistory.filter((movement) => movementMatchesTimeRange(movement));
+    const filteredCount = document.getElementById("movementHistoryFilteredCount");
+    if (filteredCount) {
+        filteredCount.textContent = `${visibleMovements.length} ${visibleMovements.length === 1 ? "movimento" : "movimenti"} nel periodo · ${movementHistory.length} totali`;
+    }
     list.replaceChildren();
-    if (!movementHistory.length) {
+    if (!visibleMovements.length) {
         const emptyRow = document.createElement("tr");
         const empty = document.createElement("td");
         empty.colSpan = 7;
         empty.className = "movement-history-empty";
-        empty.textContent = "Lo storico si popolerà completando un carico, uno scarico o un'ottimizzazione globale.";
+        empty.textContent = movementHistory.length
+            ? "Nessun movimento registrato nel periodo selezionato. Scegli un intervallo più ampio."
+            : "Lo storico si popolerà completando un carico, uno scarico o un'ottimizzazione globale.";
         emptyRow.appendChild(empty);
         list.appendChild(emptyRow);
         return;
     }
-    movementHistory.forEach((movement) => {
+    visibleMovements.forEach((movement) => {
         const row = document.createElement("tr");
         row.className = "movement-history-row";
         row.dataset.movementId = movement.id;
@@ -5051,10 +5803,18 @@ function openMovementContextMenu(movement, x, y) {
     if (!menu) return;
     menu.dataset.movementId = movement.id;
     document.getElementById("movementContextTitle").textContent = movement.id;
+    const undoButton = document.getElementById("undoMovement");
+    const alreadyReversed = movementAlreadyReversed(movement);
+    undoButton.disabled = alreadyReversed;
+    undoButton.title = movement.reversal
+        ? "I movimenti di storno non possono essere annullati nuovamente."
+        : alreadyReversed
+          ? "Questo movimento è già stato annullato."
+          : "Crea un nuovo movimento di storno.";
     menu.classList.add("is-open");
     menu.setAttribute("aria-hidden", "false");
     const width = 220;
-    const height = 116;
+    const height = 194;
     menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
 }
@@ -5063,12 +5823,15 @@ function openMovementDetailWindow(movement, initialView = "comparison", preferWa
     if (!movement) return;
     ipcRenderer.send("open-warehouse-movement-details-window", {
         movement: cloneWarehouseMovement(movement),
-        initialView: initialView === "instructions" ? "instructions" : "comparison",
+        initialView: ["comparison", "requests", "instructions"].includes(initialView)
+            ? initialView
+            : "comparison",
         preferWarehouse3dOwner,
     });
 }
 
 function movementPlaybackSteps(movement) {
+    if (movement.metadataEdit) return [];
     if (movement.operationalSteps?.length) return movement.operationalSteps.map((step) => ({
         ...step,
         sourceStagingUnits: cloneUnloadZoneUnits(movement.stagingUnitsBefore || []),
@@ -5311,8 +6074,10 @@ function highlightMovementOnMap(movement, broadcast = true) {
         setActiveView("warehouse");
         renderTabs();
         renderMap();
-        if (broadcast) broadcastWarehouse3dState(movement);
-        showWarehouseToast(`${movement.id}: nessun passaggio operativo disponibile; è mostrato lo stato corrente.`);
+        if (broadcast) broadcastWarehouse3dState();
+        showWarehouseToast(movement.metadataEdit
+            ? `${movement.id}: modifica dati registrata; nessuno spostamento fisico da riprodurre.`
+            : `${movement.id}: nessun passaggio operativo disponibile; è mostrato lo stato corrente.`);
         return;
     }
     const beforeState = Array.isArray(movement.beforeState) && movement.beforeState.length
@@ -5592,6 +6357,16 @@ function prepareUnloadZoneReload(unitId, overrides = {}) {
         sourceArea: "staging",
         stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
+        requests: [{
+            article: staged.article,
+            customer: staged.customer || "",
+            order: staged.orderReference || "",
+            weighingCode,
+            pieceCount,
+            quantity: 1,
+            type: staged.type || "crate",
+            sourceIds: [staged.id],
+        }],
         lines: [{
             article: staged.article,
             locations: staged.type === "pallet" ? [destinations.join(" + ")] : destinations,
@@ -5721,6 +6496,16 @@ function stagingExitMovement(items) {
         destinationArea: "dock",
         stagingUnitsBefore: cloneUnloadZoneUnits(),
         actor: warehouseActorSnapshot(),
+        requests: items.map((item) => ({
+            article: item.article,
+            customer: item.customer || "",
+            order: item.orderReference || "",
+            weighingCode: item.weighingCode || "",
+            pieceCount: warehouseItemPieces(item),
+            quantity: 1,
+            type: item.type || "crate",
+            sourceIds: [item.id],
+        })),
         lines: items.map((item) => ({ kind: "unloaded", article: item.article, locations: [STAGING_AREA_LABEL] })),
         operationalSteps: steps,
         beforeState: cloneWarehouseRows(state),
@@ -5980,6 +6765,13 @@ function setupLoadDialog() {
         closeMovementContextMenu();
         openMovementDetailWindow(movement, "comparison");
     });
+    document.getElementById("openMovementRequests")?.addEventListener("click", () => {
+        const movementId = contextMovementId || document.getElementById("movementContextMenu")?.dataset.movementId;
+        const movement = movementHistory.find((entry) => entry.id === movementId);
+        if (!movement) return;
+        closeMovementContextMenu();
+        openMovementDetailWindow(movement, "requests");
+    });
     document.getElementById("openMovementInstructions")?.addEventListener("click", () => {
         const movementId = contextMovementId || document.getElementById("movementContextMenu")?.dataset.movementId;
         const movement = movementHistory.find((entry) => entry.id === movementId);
@@ -5987,11 +6779,29 @@ function setupLoadDialog() {
         closeMovementContextMenu();
         openMovementDetailWindow(movement, "instructions");
     });
+    document.getElementById("undoMovement")?.addEventListener("click", () => {
+        const movementId = contextMovementId || document.getElementById("movementContextMenu")?.dataset.movementId;
+        const movement = movementHistory.find((entry) => entry.id === movementId);
+        if (!movement || movementAlreadyReversed(movement)) return;
+        closeMovementContextMenu();
+        openMovementUndoDialog(movement);
+    });
+    document.getElementById("closeMovementUndo")?.addEventListener("click", closeMovementUndoDialog);
+    document.getElementById("cancelMovementUndo")?.addEventListener("click", closeMovementUndoDialog);
+    document.getElementById("movementUndoDialog")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) closeMovementUndoDialog();
+    });
+    document.getElementById("undoMovementExact")?.addEventListener("click", () => void executeMovementUndo("exact"));
+    document.getElementById("undoMovementAutomatic")?.addEventListener("click", () => void executeMovementUndo("automatic"));
     ipcRenderer.on("warehouse-3d-movement-action-request", (_event, request) => {
         const movement = movementHistory.find((entry) => entry.id === request?.movementId);
         if (!movement) return;
         if (request?.view === "playback") {
             ipcRenderer.send("warehouse-3d-playback-data", cloneWarehouseMovement(movement));
+            return;
+        }
+        if (request?.view === "undo") {
+            if (!movementAlreadyReversed(movement)) openMovementUndoDialog(movement);
             return;
         }
         openMovementDetailWindow(movement, request?.view, true);
@@ -7245,6 +8055,593 @@ function resetOperationDraftsAfterDatabaseChange() {
     operationGroupStages.unload = "compose";
     completedOperationMovement = null;
     operationPreviewPlan = null;
+    stopWarehouseSimulation("Linea azzerata dopo la sostituzione dei dati di magazzino.");
+    warehouseSimulation.orders = [];
+    warehouseSimulation.generated = 0;
+    warehouseSimulation.accepted = 0;
+    warehouseSimulation.rejected = 0;
+    warehouseSimulation.errors = 0;
+    renderWarehouseSimulation();
+}
+
+function warehouseSimulationFieldNumber(id, fallback) {
+    const value = Math.trunc(Number(document.getElementById(id)?.value));
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function readWarehouseSimulationOptions() {
+    const options = {
+        mode: document.getElementById("warehouseSimulationMode")?.value || "mixed",
+        intervalSeconds: warehouseSimulationFieldNumber("warehouseSimulationInterval", 10),
+        articleCount: warehouseSimulationFieldNumber("warehouseSimulationArticles", 2),
+        maximumCrates: warehouseSimulationFieldNumber("warehouseSimulationCrates", 3),
+        averagePieces: warehouseSimulationFieldNumber("warehouseSimulationPieces", 250),
+        pieceVariation: warehouseSimulationFieldNumber("warehouseSimulationVariation", 30),
+        customerCount: warehouseSimulationFieldNumber("warehouseSimulationCustomers", 5),
+        existingArticleRate: warehouseSimulationFieldNumber("warehouseSimulationExistingArticleRate", 65),
+        orderRate: warehouseSimulationFieldNumber("warehouseSimulationOrderRate", 55),
+        weighingRate: warehouseSimulationFieldNumber("warehouseSimulationWeighingRate", 65),
+        queueLimit: warehouseSimulationFieldNumber("warehouseSimulationQueueLimit", 12),
+    };
+    if (!['mixed', 'load', 'unload'].includes(options.mode)) return { error: "Tipo di flusso non valido." };
+    if (options.intervalSeconds < 1 || options.intervalSeconds > 3600) return { error: "L'intervallo deve essere compreso tra 1 e 3600 secondi." };
+    if (options.articleCount < 1 || options.articleCount > 20) return { error: "Gli articoli per ordine devono essere compresi tra 1 e 20." };
+    if (options.maximumCrates < 1 || options.maximumCrates > 20) return { error: "I cassoni per articolo devono essere compresi tra 1 e 20." };
+    if (options.averagePieces < 1 || options.averagePieces > 1000000) return { error: "Il numero medio di pezzi non è valido." };
+    if (options.pieceVariation < 0 || options.pieceVariation > 95) return { error: "La variabilità deve essere compresa tra 0% e 95%." };
+    if (options.customerCount < 1 || options.customerCount > 50) return { error: "Il numero di clienti deve essere compreso tra 1 e 50." };
+    if (options.existingArticleRate < 0 || options.existingArticleRate > 100
+        || options.orderRate < 0 || options.orderRate > 100
+        || options.weighingRate < 0 || options.weighingRate > 100) {
+        return { error: "Le percentuali devono essere comprese tra 0% e 100%." };
+    }
+    if (options.queueLimit < 1 || options.queueLimit > 100) return { error: "Il limite della coda deve essere compreso tra 1 e 100." };
+    return { options };
+}
+
+function shuffleWarehouseSimulation(values) {
+    const copy = [...values];
+    for (let index = copy.length - 1; index > 0; index -= 1) {
+        const target = pseudoRandomInteger(0, index);
+        [copy[index], copy[target]] = [copy[target], copy[index]];
+    }
+    return copy;
+}
+
+function ensureWarehouseSimulationCatalog(articleCount) {
+    const existing = Array.from(new Set(logicalInventoryUnits(inventory)
+        .filter((unit) => unit.item.type === "crate")
+        .map((unit) => String(unit.item.article || "").trim())
+        .filter(Boolean)));
+    const targetSize = Math.max(24, articleCount * 4);
+    const catalog = [...existing];
+    let index = 1;
+    let generatedArticles = 0;
+    while (generatedArticles < targetSize) {
+        const article = index % 3 === 0
+            ? `T${String(1500000 + index).padStart(7, "0")}A`
+            : `SIM-${String(index).padStart(4, "0")}`;
+        if (!catalog.includes(article)) {
+            catalog.push(article);
+            generatedArticles += 1;
+        }
+        index += 1;
+    }
+    warehouseSimulation.articleCatalog = catalog;
+}
+
+function warehouseSimulationPieces(options) {
+    const delta = Math.round(options.averagePieces * options.pieceVariation / 100);
+    return pseudoRandomInteger(Math.max(1, options.averagePieces - delta), options.averagePieces + delta);
+}
+
+function selectWarehouseSimulationLoadArticles(options) {
+    const existingArticles = shuffleWarehouseSimulation(Array.from(new Set(logicalInventoryUnits(inventory)
+        .filter((unit) => unit.item.type === "crate")
+        .map((unit) => String(unit.item.article || "").trim())
+        .filter(Boolean))));
+    const existingSet = new Set(existingArticles);
+    const newArticles = shuffleWarehouseSimulation(warehouseSimulation.articleCatalog
+        .filter((article) => !existingSet.has(article)));
+    const selected = [];
+    while (selected.length < options.articleCount && (existingArticles.length || newArticles.length)) {
+        const preferExisting = Math.random() * 100 < options.existingArticleRate;
+        const preferredPool = preferExisting ? existingArticles : newArticles;
+        const fallbackPool = preferExisting ? newArticles : existingArticles;
+        const article = (preferredPool.length ? preferredPool : fallbackPool).shift();
+        if (article && !selected.includes(article)) selected.push(article);
+    }
+    return selected;
+}
+
+function buildWarehouseSimulationLoadEntries(options, orderNumber) {
+    ensureWarehouseSimulationCatalog(options.articleCount);
+    const articles = selectWarehouseSimulationLoadArticles(options);
+    const standardCustomers = ["AGPRESS", "FANTINI", "CLIENTE DEMO", "TECNOSTAMPA", "ROSSI SPA"];
+    const customers = Array.from({ length: options.customerCount }, (_, index) => standardCustomers[index] || `CLIENTE SIM ${String(index + 1).padStart(2, "0")}`);
+    const entries = [];
+    articles.forEach((article, articleIndex) => {
+        const crateCount = pseudoRandomInteger(1, options.maximumCrates);
+        const customer = customers[pseudoRandomInteger(0, customers.length - 1)];
+        const order = Math.random() * 100 < options.orderRate
+            ? `SIM/${warehouseSimulation.sessionCode}/${String(orderNumber).padStart(4, "0")}-${articleIndex + 1}`
+            : "";
+        for (let crateIndex = 0; crateIndex < crateCount; crateIndex += 1) {
+            entries.push({
+                article,
+                customer,
+                order,
+                weighingCode: Math.random() * 100 < options.weighingRate
+                    ? `SIMW-${warehouseSimulation.sessionCode}-${String(orderNumber).padStart(4, "0")}-${articleIndex + 1}-${crateIndex + 1}`
+                    : "",
+                pieceCount: warehouseSimulationPieces(options),
+                requestedPieces: null,
+                quantity: 1,
+                type: "crate",
+                sourceIds: [],
+                sourceLocations: [],
+            });
+        }
+    });
+    return entries;
+}
+
+function buildWarehouseSimulationUnloadEntries(options) {
+    const unitsByArticle = new Map();
+    logicalInventoryUnits(inventory).forEach((unit) => {
+        if (unit.item.type !== "crate" || !unit.item.article) return;
+        if (!unitsByArticle.has(unit.item.article)) unitsByArticle.set(unit.item.article, []);
+        unitsByArticle.get(unit.item.article).push(unit);
+    });
+    const availableArticles = shuffleWarehouseSimulation(Array.from(unitsByArticle.keys()));
+    if (!availableArticles.length) return { error: "Nessun cassone disponibile: non è possibile generare uno scarico." };
+    const articles = availableArticles.slice(0, Math.min(options.articleCount, availableArticles.length));
+    const entries = [];
+    articles.forEach((article) => {
+        const availableUnits = shuffleWarehouseSimulation(unitsByArticle.get(article));
+        const crateCount = pseudoRandomInteger(1, Math.min(options.maximumCrates, availableUnits.length));
+        availableUnits.slice(0, crateCount).forEach((unit) => {
+            const useWeighing = Boolean(unit.item.weighingCode) && Math.random() * 100 < options.weighingRate;
+            const useOrder = !useWeighing && Boolean(unit.item.orderReference) && Math.random() * 100 < options.orderRate;
+            entries.push({
+                article,
+                customer: unit.item.customer || "",
+                order: useOrder ? unit.item.orderReference : "",
+                weighingCode: useWeighing ? unit.item.weighingCode : "",
+                pieceCount: null,
+                requestedPieces: null,
+                quantity: 1,
+                type: "crate",
+                sourceIds: [unit.item.id],
+                sourceLocations: [...unit.locations],
+            });
+        });
+    });
+    return { entries };
+}
+
+function warehouseSimulationOrderGroups(order) {
+    const groups = new Map();
+    order.entries.forEach((entry) => {
+        if (!groups.has(entry.article)) groups.set(entry.article, { article: entry.article, crates: 0, pieces: 0, identifiers: new Set() });
+        const group = groups.get(entry.article);
+        group.crates += Math.max(1, Number(entry.quantity) || 1);
+        group.pieces += order.mode === "load" ? Math.max(1, Number(entry.pieceCount) || 1) : 0;
+        if (entry.weighingCode) group.identifiers.add(`Pesata ${entry.weighingCode}`);
+        if (entry.order) group.identifiers.add(`Ordine ${entry.order}`);
+    });
+    return Array.from(groups.values());
+}
+
+function setWarehouseSimulationMessage(message, isError = false) {
+    warehouseSimulation.lastMessage = message;
+    warehouseSimulation.messageIsError = isError;
+    const element = document.getElementById("warehouseSimulationMessage");
+    if (!element) return;
+    element.textContent = message;
+    element.classList.toggle("is-error", isError);
+}
+
+function renderWarehouseSimulationClock() {
+    const countdown = document.getElementById("warehouseSimulationCountdown");
+    const note = document.getElementById("warehouseSimulationClockNote");
+    if (!countdown || !note) return;
+    if (!warehouseSimulation.running) {
+        countdown.textContent = "--:--";
+        note.textContent = warehouseSimulation.orders.some((order) => order.status === "pending")
+            ? "Linea ferma · gli ordini in coda restano convalidabili."
+            : "Configura la linea e premi Avvia.";
+        return;
+    }
+    const remaining = Math.max(0, warehouseSimulation.nextAt - Date.now());
+    const seconds = Math.ceil(remaining / 1000);
+    countdown.textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    note.textContent = "Linea attiva · in attesa del prossimo ordine";
+}
+
+function renderWarehouseSimulation() {
+    const allowed = isExclusiveTestDatabaseAdmin();
+    const pending = warehouseSimulation.orders.filter((order) => order.status === "pending").length;
+    const state = document.getElementById("warehouseSimulationState");
+    if (state) {
+        state.classList.toggle("is-running", warehouseSimulation.running);
+        document.getElementById("warehouseSimulationStateText").textContent = warehouseSimulation.running ? "IN ESECUZIONE" : "FERMA";
+    }
+    const launch = document.getElementById("openWarehouseSimulation");
+    if (launch) {
+        launch.classList.toggle("is-running", warehouseSimulation.running);
+        launch.textContent = warehouseSimulation.running || pending
+            ? `Simulazione · ${warehouseSimulation.running ? "LIVE" : "STOP"} · ${pending}`
+            : "Simulazione operativa";
+    }
+    const dialog = document.getElementById("warehouseSimulationDialog");
+    // Gli aggiornamenti generali del magazzino non devono ricostruire decine
+    // di schede del simulatore quando la sua finestra è chiusa.
+    if (!dialog?.classList.contains("is-open")) return;
+    ["populateWarehouseDatabase", "clearWarehouseDatabase"].forEach((id) => {
+        const control = document.getElementById(id);
+        if (control) control.disabled = warehouseStorageUnavailable || !allowed || warehouseSimulation.running || warehouseSimulation.processing;
+    });
+    document.querySelectorAll("#warehouseSimulationForm input, #warehouseSimulationForm select").forEach((control) => {
+        control.disabled = warehouseSimulation.running;
+    });
+    const start = document.getElementById("startWarehouseSimulation");
+    const stop = document.getElementById("stopWarehouseSimulation");
+    const generate = document.getElementById("generateWarehouseSimulationOrder");
+    if (start) start.disabled = warehouseSimulation.running || warehouseStorageUnavailable || !allowed;
+    if (stop) stop.disabled = !warehouseSimulation.running;
+    if (generate) generate.disabled = !warehouseSimulation.running || warehouseSimulation.processing;
+    document.getElementById("warehouseSimulationGenerated").textContent = String(warehouseSimulation.generated);
+    document.getElementById("warehouseSimulationAccepted").textContent = String(warehouseSimulation.accepted);
+    document.getElementById("warehouseSimulationRejected").textContent = String(warehouseSimulation.rejected);
+    document.getElementById("warehouseSimulationErrors").textContent = String(warehouseSimulation.errors);
+    document.getElementById("warehouseSimulationPendingCount").textContent = String(pending);
+    const message = document.getElementById("warehouseSimulationMessage");
+    if (message) {
+        message.textContent = warehouseSimulation.lastMessage;
+        message.classList.toggle("is-error", warehouseSimulation.messageIsError);
+    }
+    const list = document.getElementById("warehouseSimulationOrders");
+    if (!list) return;
+    list.replaceChildren();
+    if (!warehouseSimulation.orders.length) {
+        const empty = document.createElement("div");
+        empty.className = "warehouse-simulation-empty";
+        const title = document.createElement("strong");
+        title.textContent = "Linea in attesa";
+        const details = document.createElement("span");
+        details.textContent = "Gli ordini generati compariranno qui e richiederanno una decisione.";
+        empty.append(title, details);
+        list.appendChild(empty);
+        renderWarehouseSimulationClock();
+        return;
+    }
+    const fragment = document.createDocumentFragment();
+    warehouseSimulation.orders.forEach((order) => {
+        const card = document.createElement("article");
+        card.className = `warehouse-simulation-order is-${order.mode} is-${order.status}`;
+        card.dataset.orderId = order.id;
+        const identity = document.createElement("div");
+        identity.className = "warehouse-simulation-order__identity";
+        const kind = document.createElement("span");
+        kind.className = "warehouse-simulation-order__kind";
+        kind.textContent = order.mode === "load" ? "CARICO" : "SCARICO";
+        const id = document.createElement("strong");
+        id.textContent = order.id;
+        const time = document.createElement("time");
+        time.textContent = new Date(order.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        identity.append(kind, id, time);
+        const body = document.createElement("div");
+        body.className = "warehouse-simulation-order__body";
+        const groups = warehouseSimulationOrderGroups(order);
+        const totalCrates = groups.reduce((sum, group) => sum + group.crates, 0);
+        const totalPieces = groups.reduce((sum, group) => sum + group.pieces, 0);
+        const title = document.createElement("strong");
+        title.textContent = `${groups.length} ${groups.length === 1 ? "articolo" : "articoli"} · ${totalCrates} ${totalCrates === 1 ? "cassone" : "cassoni"}${order.mode === "load" ? ` · ${totalPieces} pezzi` : ""}`;
+        const lines = document.createElement("div");
+        lines.className = "warehouse-simulation-order__lines";
+        groups.forEach((group) => {
+            const line = document.createElement("div");
+            line.className = "warehouse-simulation-order__line";
+            const article = document.createElement("strong");
+            article.textContent = group.article;
+            article.title = group.article;
+            const quantity = document.createElement("b");
+            quantity.textContent = `${group.crates} ${group.crates === 1 ? "cassone" : "cassoni"}`;
+            const metadata = document.createElement("span");
+            const identifierText = group.identifiers.size
+                ? Array.from(group.identifiers).slice(0, 2).join(" · ") + (group.identifiers.size > 2 ? ` · +${group.identifiers.size - 2}` : "")
+                : order.mode === "load" ? `${group.pieces} pezzi complessivi` : "Selezione da disponibilità reale";
+            metadata.textContent = order.existingArticles?.includes(group.article)
+                ? `Già presente · ${identifierText}`
+                : identifierText;
+            metadata.title = Array.from(group.identifiers).join(" · ");
+            line.append(article, quantity, metadata);
+            lines.appendChild(line);
+        });
+        body.append(title, lines);
+        if (order.message) {
+            const result = document.createElement("p");
+            result.className = "warehouse-simulation-order__message";
+            result.textContent = order.message;
+            body.appendChild(result);
+        }
+        if (order.status === "pending") {
+            const actions = document.createElement("div");
+            actions.className = "warehouse-simulation-order__actions";
+            const accept = document.createElement("button");
+            accept.type = "button";
+            accept.className = "is-accept";
+            accept.dataset.simulationAction = "accept";
+            accept.textContent = "Convalida";
+            accept.disabled = warehouseSimulation.processing;
+            const reject = document.createElement("button");
+            reject.type = "button";
+            reject.className = "is-reject";
+            reject.dataset.simulationAction = "reject";
+            reject.textContent = "Rifiuta";
+            reject.disabled = warehouseSimulation.processing;
+            actions.append(accept, reject);
+            card.append(identity, body, actions);
+        } else {
+            const result = document.createElement("div");
+            result.className = "warehouse-simulation-order__result";
+            result.textContent = order.status === "accepted"
+                ? `Convalidato${order.movementId ? ` · ${order.movementId}` : ""}`
+                : order.status === "rejected" ? "Ordine rifiutato" : order.status === "processing" ? "Elaborazione…" : "Non eseguibile";
+            card.append(identity, body, result);
+        }
+        fragment.appendChild(card);
+    });
+    list.appendChild(fragment);
+    renderWarehouseSimulationClock();
+}
+
+function trimWarehouseSimulationOrders() {
+    while (warehouseSimulation.orders.length > 80) {
+        const removable = warehouseSimulation.orders.findLastIndex((order) => order.status !== "pending" && order.status !== "processing");
+        if (removable < 0) break;
+        warehouseSimulation.orders.splice(removable, 1);
+    }
+}
+
+function createWarehouseSimulationOrder(manual = false) {
+    if (!warehouseSimulation.running) return null;
+    const result = readWarehouseSimulationOptions();
+    if (result.error) {
+        setWarehouseSimulationMessage(result.error, true);
+        renderWarehouseSimulation();
+        return null;
+    }
+    const pending = warehouseSimulation.orders.filter((order) => order.status === "pending").length;
+    if (pending >= result.options.queueLimit) {
+        setWarehouseSimulationMessage(`Linea in attesa: raggiunto il limite di ${result.options.queueLimit} ordini non convalidati.`, true);
+        renderWarehouseSimulation();
+        return null;
+    }
+    let mode = result.options.mode;
+    if (mode === "mixed") mode = inventory.size && Math.random() < .5 ? "unload" : "load";
+    if (mode === "unload" && !logicalInventoryUnits(inventory).some((unit) => unit.item.type === "crate")) {
+        if (result.options.mode === "mixed") mode = "load";
+        else {
+            setWarehouseSimulationMessage("Generazione sospesa: il magazzino non contiene cassoni scaricabili.", true);
+            renderWarehouseSimulation();
+            return null;
+        }
+    }
+    const orderNumber = warehouseSimulation.sequence++;
+    let entries;
+    if (mode === "load") {
+        entries = buildWarehouseSimulationLoadEntries(result.options, orderNumber);
+    } else {
+        // La generazione dello scarico attinge comunque dalle disponibilità
+        // reali; la sequenza fisica viene calcolata solo alla convalida.
+        const unload = buildWarehouseSimulationUnloadEntries(result.options);
+        if (unload.error) {
+            setWarehouseSimulationMessage(unload.error, true);
+            renderWarehouseSimulation();
+            return null;
+        }
+        entries = unload.entries;
+    }
+    const storedArticleCodes = new Set(logicalInventoryUnits(inventory).map((unit) => unit.item.article));
+    const order = {
+        id: `SIM-${warehouseSimulation.sessionCode}-${String(orderNumber).padStart(4, "0")}`,
+        mode,
+        entries,
+        existingArticles: Array.from(new Set(entries
+            .map((entry) => entry.article)
+            .filter((article) => storedArticleCodes.has(article)))),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        message: manual ? "Generato manualmente dalla linea." : "In attesa di convalida operatore.",
+        movementId: "",
+    };
+    warehouseSimulation.orders.unshift(order);
+    warehouseSimulation.generated += 1;
+    trimWarehouseSimulationOrders();
+    setWarehouseSimulationMessage(`${order.id} ricevuto: scegli se convalidarlo o rifiutarlo.`);
+    renderWarehouseSimulation();
+    return order;
+}
+
+function warehouseSimulationTick() {
+    if (!warehouseSimulation.running) return;
+    if (Date.now() >= warehouseSimulation.nextAt) {
+        createWarehouseSimulationOrder();
+        const options = readWarehouseSimulationOptions().options;
+        warehouseSimulation.nextAt = Date.now() + Math.max(1, options?.intervalSeconds || 10) * 1000;
+    }
+    renderWarehouseSimulationClock();
+}
+
+function startWarehouseSimulation() {
+    if (!isExclusiveTestDatabaseAdmin()) {
+        showWarehouseToast("Funzione riservata all'admin Ayrton Pizzi e alla modalità sviluppatore.", true);
+        return;
+    }
+    if (warehouseStorageUnavailable) {
+        setWarehouseSimulationMessage("Database non disponibile: impossibile avviare la linea.", true);
+        renderWarehouseSimulation();
+        return;
+    }
+    const result = readWarehouseSimulationOptions();
+    if (result.error) {
+        setWarehouseSimulationMessage(result.error, true);
+        renderWarehouseSimulation();
+        return;
+    }
+    window.clearInterval(warehouseSimulation.timer);
+    warehouseSimulation.running = true;
+    warehouseSimulation.sessionCode = String(Date.now()).slice(-7);
+    ensureWarehouseSimulationCatalog(result.options.articleCount);
+    warehouseSimulation.nextAt = Date.now() + result.options.intervalSeconds * 1000;
+    warehouseSimulation.timer = window.setInterval(warehouseSimulationTick, 250);
+    setWarehouseSimulationMessage("Linea avviata. Generazione del primo ordine in corso…");
+    createWarehouseSimulationOrder();
+}
+
+function stopWarehouseSimulation(message = "Linea interrotta. Gli ordini già generati restano disponibili.") {
+    window.clearInterval(warehouseSimulation.timer);
+    warehouseSimulation.timer = null;
+    warehouseSimulation.running = false;
+    warehouseSimulation.nextAt = 0;
+    if (message) setWarehouseSimulationMessage(message);
+    renderWarehouseSimulation();
+}
+
+function openWarehouseSimulationDialog() {
+    if (!isExclusiveTestDatabaseAdmin()) {
+        showWarehouseToast("Funzione riservata all'admin Ayrton Pizzi e alla modalità sviluppatore.", true);
+        return;
+    }
+    openWarehouseDialog(document.getElementById("warehouseSimulationDialog"), document.getElementById("startWarehouseSimulation"));
+    renderWarehouseSimulation();
+}
+
+function closeWarehouseSimulationDialog() {
+    closeWarehouseDialog(document.getElementById("warehouseSimulationDialog"));
+}
+
+async function commitWarehouseSimulationOrder(order) {
+    if (!isExclusiveTestDatabaseAdmin()) return { error: "Autorizzazione alla simulazione non più disponibile." };
+    if (!warehousePersistenceReady || warehouseStorageUnavailable) return { error: "Database del magazzino non disponibile." };
+    const beforeState = serializeWarehouseInventory();
+    let plan = order.mode === "load"
+        ? planLoadOperation(order.entries)
+        : planUnloadOperation(order.entries);
+    if (plan.error) return plan;
+    const now = new Date();
+    if (order.mode === "load") {
+        plan = finalizeLoadPlanIdentity(plan, now);
+        plan.operationalSteps = buildLoadOperationalSteps(beforeState, plan.state);
+    } else {
+        plan = {
+            ...plan,
+            unloadedUnits: (plan.unloadedUnits || []).map((item) => ({ ...item, stagedAt: now.toISOString() })),
+        };
+    }
+    const afterState = Array.from(plan.state.values()).map((item) => ({ ...item, tags: [...(item.tags || [])] }));
+    const movement = {
+        id: movementIdentifier(now),
+        timestamp: now.toISOString(),
+        type: order.mode,
+        stagingUnitsBefore: cloneUnloadZoneUnits(),
+        actor: warehouseActorSnapshot(),
+        requests: cloneMovementRequests(order.entries),
+        lines: plan.lines,
+        operationalSteps: plan.operationalSteps || [],
+        beforeState: cloneWarehouseRows(beforeState),
+        afterState: cloneWarehouseRows(afterState),
+        changes: buildMovementChanges(beforeState, afterState),
+    };
+    const nextUnloadZone = order.mode === "unload"
+        ? [...cloneUnloadZoneUnits(), ...cloneUnloadZoneUnits(plan.unloadedUnits)]
+        : cloneUnloadZoneUnits();
+    try {
+        // La vista 3D viene aggiornata una sola volta, dopo aver applicato lo
+        // stato locale. In precedenza riceveva prima uno snapshot vecchio e
+        // subito dopo quello nuovo.
+        await persistWarehouseData(afterState, [movement, ...serializeWarehouseMovements()], nextUnloadZone, false);
+    } catch (error) {
+        return { error: `Operazione non applicata: ${error.message}` };
+    }
+    inventory.clear();
+    plan.state.forEach((item, location) => inventory.set(location, item));
+    movementHistory.unshift(movement);
+    unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
+    if (document.getElementById("movementHistoryDialog")?.classList.contains("is-open")) renderMovementHistory();
+    refreshInventorySearch();
+    renderDetails();
+    updateSummary();
+    renderUnloadZone();
+    if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
+    broadcastWarehouse3dState(movement);
+    return { movement };
+}
+
+async function acceptWarehouseSimulationOrder(orderId) {
+    if (warehouseSimulation.processing) return;
+    const order = warehouseSimulation.orders.find((candidate) => candidate.id === orderId);
+    if (!order || order.status !== "pending") return;
+    warehouseSimulation.processing = true;
+    order.status = "processing";
+    order.message = "Calcolo della disposizione sullo stato attuale del magazzino…";
+    renderWarehouseSimulation();
+    // Consente al renderer di mostrare subito lo stato "Elaborazione" prima
+    // di avviare il calcolo sincrono dell'allocazione.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const result = await commitWarehouseSimulationOrder(order);
+    warehouseSimulation.processing = false;
+    if (result.error) {
+        order.status = "error";
+        order.message = result.error;
+        warehouseSimulation.errors += 1;
+        setWarehouseSimulationMessage(`${order.id} non eseguibile: ${result.error}`, true);
+    } else {
+        order.status = "accepted";
+        order.movementId = result.movement.id;
+        order.message = `${result.movement.id} creato e inviato alla tracciabilità movimenti.`;
+        warehouseSimulation.accepted += 1;
+        setWarehouseSimulationMessage(`${order.id} convalidato: movimento ${result.movement.id} completato.`);
+        showWarehouseToast(`${order.id}: ${order.mode === "load" ? "carico" : "scarico"} completato con ${result.movement.id}.`);
+    }
+    renderWarehouseSimulation();
+}
+
+function rejectWarehouseSimulationOrder(orderId) {
+    const order = warehouseSimulation.orders.find((candidate) => candidate.id === orderId);
+    if (!order || order.status !== "pending" || warehouseSimulation.processing) return;
+    order.status = "rejected";
+    order.message = "Rifiutato dall'operatore: nessuna modifica applicata al magazzino.";
+    warehouseSimulation.rejected += 1;
+    setWarehouseSimulationMessage(`${order.id} rifiutato. Nessun movimento è stato creato.`);
+    renderWarehouseSimulation();
+}
+
+function setupWarehouseSimulation() {
+    document.getElementById("openWarehouseSimulation")?.addEventListener("click", openWarehouseSimulationDialog);
+    document.getElementById("closeWarehouseSimulation")?.addEventListener("click", closeWarehouseSimulationDialog);
+    document.getElementById("startWarehouseSimulation")?.addEventListener("click", startWarehouseSimulation);
+    document.getElementById("stopWarehouseSimulation")?.addEventListener("click", () => stopWarehouseSimulation());
+    document.getElementById("generateWarehouseSimulationOrder")?.addEventListener("click", () => {
+        createWarehouseSimulationOrder(true);
+        const options = readWarehouseSimulationOptions().options;
+        warehouseSimulation.nextAt = Date.now() + Math.max(1, options?.intervalSeconds || 10) * 1000;
+        renderWarehouseSimulationClock();
+    });
+    document.getElementById("warehouseSimulationOrders")?.addEventListener("click", (event) => {
+        const action = event.target.closest?.("[data-simulation-action]")?.dataset.simulationAction;
+        const orderId = event.target.closest?.(".warehouse-simulation-order")?.dataset.orderId;
+        if (!action || !orderId) return;
+        if (action === "accept") void acceptWarehouseSimulationOrder(orderId);
+        else if (action === "reject") rejectWarehouseSimulationOrder(orderId);
+    });
+    document.getElementById("clearWarehouseSimulationHistory")?.addEventListener("click", () => {
+        warehouseSimulation.orders = warehouseSimulation.orders.filter((order) => order.status === "pending" || order.status === "processing");
+        renderWarehouseSimulation();
+    });
+    renderWarehouseSimulation();
 }
 
 function setupTemporaryDatabaseActions() {
@@ -7338,8 +8735,10 @@ setupDisplayMode();
 setupSlotPager();
 setupToolsDrawer();
 setupWarehouseStructure();
+setupMovementHistoryFilter();
 setupLoadDialog();
 setupManualMovement();
+setupInventoryItemEdit();
 setupWarehouseOptimizer();
 setupUnloadZone();
 setupSlotPreview();
@@ -7349,6 +8748,7 @@ setupInventorySearch();
 setupAnalysisView();
 setupRestrictionDialog();
 setupTemporaryDatabaseActions();
+setupWarehouseSimulation();
 setupWarehouse3dViewer();
 setupMovementPlayback();
 setupWarehouseLogin();

@@ -67,6 +67,7 @@
                 <div class="test-database-actions" id="testDatabaseActions" aria-label="Strumenti database temporanei" hidden>
                     <span>TEST DB</span>
                     <button id="populateWarehouseDatabase" type="button">Popola pseudo-random</button>
+                    <button class="is-simulation" id="openWarehouseSimulation" type="button">Simulazione operativa</button>
                     <button class="is-danger" id="clearWarehouseDatabase" type="button">Svuota database</button>
                 </div>
                 <div class="status-pill" id="warehouseDatabaseStatus"><i></i> Connessione al database…</div>
@@ -662,6 +663,40 @@
         </section>
     </div>
 
+    <div class="restriction-backdrop inventory-item-edit-backdrop" id="inventoryItemEditDialog" aria-hidden="true" inert>
+        <section class="inventory-item-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="inventoryItemEditTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">MODIFICA CONTENUTO</span>
+                    <h2 id="inventoryItemEditTitle">Modifica dati cassone</h2>
+                    <p id="inventoryItemEditSummary">Aggiorna i dati senza cambiare ubicazione o identità dell'unità.</p>
+                </div>
+                <button id="closeInventoryItemEdit" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <form id="inventoryItemEditForm" class="inventory-item-edit-form">
+                <div class="inventory-item-edit-identity">
+                    <div><span>Ubicazione</span><strong id="inventoryItemEditLocation">—</strong></div>
+                    <div><span>Tipologia</span><strong id="inventoryItemEditType">—</strong></div>
+                    <div><span>ID unità</span><strong id="inventoryItemEditId">—</strong></div>
+                </div>
+                <div class="inventory-item-edit-grid">
+                    <label>Articolo<input id="inventoryItemEditArticle" required autocomplete="off"></label>
+                    <label>Cliente (opzionale)<input id="inventoryItemEditCustomer" autocomplete="off"></label>
+                    <label>Riferimento ordine (opzionale)<input id="inventoryItemEditOrder" placeholder="es. 25/00114 oppure riferimento interno"></label>
+                    <label>Codice pesata (opzionale)<input id="inventoryItemEditWeighing" autocomplete="off"></label>
+                    <label>Numero pezzi<input id="inventoryItemEditPieces" type="number" min="1" step="1" required></label>
+                    <label>Capienza massima<input id="inventoryItemEditCapacity" type="number" min="1" step="1" required></label>
+                    <label class="inventory-item-edit-tags">Tag (separati da virgola)<input id="inventoryItemEditTags" autocomplete="off" placeholder="es. urgente, controllo qualità"></label>
+                </div>
+                <p class="inventory-item-edit-message" id="inventoryItemEditMessage" role="status">La modifica sarà registrata nello storico senza creare una movimentazione fisica.</p>
+                <footer class="restriction-dialog__footer">
+                    <button id="cancelInventoryItemEdit" type="button">Annulla</button>
+                    <button class="operation-button--primary" id="saveInventoryItemEdit" type="submit">Salva modifiche</button>
+                </footer>
+            </form>
+        </section>
+    </div>
+
     <section class="movement-playback" id="movementPlayback" aria-live="polite" hidden>
         <div class="movement-playback__status">
             <span id="movementPlaybackCounter">MOVIMENTO</span>
@@ -682,16 +717,59 @@
                 <div>
                     <span class="section-label">TRACCIABILITÀ MAGAZZINO</span>
                     <h2 id="movementHistoryTitle">Storico movimenti automatici</h2>
-                    <p>Clic: evidenzia sulla mappa · Tasto destro: stato prima/dopo o istruzioni operative. Le riallocazioni manuali non vengono registrate.</p>
+                    <p>Clic: evidenzia sulla mappa · Tasto destro: dettagli, istruzioni operative o annullamento. Le riallocazioni manuali non vengono registrate.</p>
                 </div>
                 <button id="closeMovementHistory" type="button" aria-label="Chiudi">×</button>
             </header>
+            <div class="movement-history-filterbar">
+                <label for="movementHistoryTimeRange"><span>Periodo</span>
+                    <select id="movementHistoryTimeRange">
+                        <option value="today">Oggi</option>
+                        <option value="7">Ultimi 7 giorni</option>
+                        <option value="30" selected>Ultimi 30 giorni</option>
+                        <option value="90">Ultimi 90 giorni</option>
+                        <option value="365">Ultimo anno</option>
+                        <option value="all">Tutto lo storico</option>
+                    </select>
+                </label>
+                <span id="movementHistoryFilteredCount">0 movimenti nel periodo</span>
+            </div>
             <div class="movement-history-table-wrap">
                 <table class="movement-history-table">
                     <thead><tr><th>Movimento</th><th>Tipo</th><th>Articoli</th><th>Clienti</th><th>Pezzi</th><th>Ubicazioni / passaggi</th><th>Operatore</th></tr></thead>
                     <tbody id="movementHistoryList"></tbody>
                 </table>
             </div>
+        </section>
+    </div>
+
+    <div class="restriction-backdrop movement-undo-backdrop" id="movementUndoDialog" aria-hidden="true" inert>
+        <section class="movement-undo-dialog" role="dialog" aria-modal="true" aria-labelledby="movementUndoTitle">
+            <header class="restriction-dialog__header">
+                <div>
+                    <span class="section-label">STORNO MOVIMENTO</span>
+                    <h2 id="movementUndoTitle">Annulla movimento eseguito</h2>
+                    <p id="movementUndoSummary">Scegli come ripristinare le unità coinvolte.</p>
+                </div>
+                <button id="closeMovementUndo" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="movement-undo-body">
+                <button class="movement-undo-option movement-undo-option--exact" id="undoMovementExact" type="button" data-step="1">
+                    <strong>Ripristina le posizioni originali</strong>
+                    <span>Riporta i cassoni esattamente nello stato e negli slot precedenti al movimento.</span>
+                    <small id="undoMovementExactStatus">Disponibile se gli slot originari sono ancora liberi.</small>
+                </button>
+                <button class="movement-undo-option movement-undo-option--automatic" id="undoMovementAutomatic" type="button" data-step="2">
+                    <strong>Rialloca con l'algoritmo standard</strong>
+                    <span>Mantiene la disposizione attuale e calcola nuove posizioni soltanto per i cassoni da rimettere.</span>
+                    <small>Usa le stesse regole applicate a un normale carico.</small>
+                </button>
+                <p class="movement-undo-note" id="movementUndoNote">Lo storno sarà salvato come nuovo movimento e non eliminerà lo storico originale.</p>
+            </div>
+            <footer class="movement-undo-footer">
+                <span>Non verrà eliminata alcuna voce dallo storico.</span>
+                <button id="cancelMovementUndo" type="button">Chiudi senza annullare</button>
+            </footer>
         </section>
     </div>
 
@@ -759,8 +837,10 @@
 
     <div class="movement-context-menu" id="movementContextMenu" role="menu" aria-hidden="true">
         <strong id="movementContextTitle">Movimento</strong>
+        <button id="openMovementRequests" type="button" role="menuitem">Richieste del movimento</button>
         <button id="openMovementDetails" type="button" role="menuitem">Dettagli prima / dopo</button>
         <button id="openMovementInstructions" type="button" role="menuitem">Istruzioni operative in italiano</button>
+        <button id="undoMovement" type="button" role="menuitem">Annulla movimento…</button>
     </div>
 
     <div class="restriction-backdrop warehouse-login-backdrop" id="warehouseLoginDialog" aria-hidden="true">
@@ -802,6 +882,7 @@
     <div class="slot-context-menu" id="slotContextMenu" role="menu" aria-hidden="true">
         <div class="slot-context-menu__title" id="contextSlotCode">A1a</div>
         <button id="showSlotIn3dButton" type="button" role="menuitem">Mostra in 3D</button>
+        <button id="editInventoryItemButton" type="button" role="menuitem">Modifica dati cassone</button>
         <button id="startRelocationButton" type="button" role="menuitem">Rialloca</button>
         <button id="placeRelocationButton" type="button" role="menuitem" hidden>Inserisci qui</button>
         <button id="swapRelocationButton" type="button" role="menuitem" hidden>Scambia posizioni</button>
@@ -894,6 +975,97 @@
                     <button class="pseudo-populate-submit" id="confirmPseudoPopulate" type="submit">Genera e sostituisci i dati</button>
                 </footer>
             </form>
+        </section>
+    </div>
+
+    <div class="restriction-backdrop warehouse-simulation-backdrop" id="warehouseSimulationDialog" aria-hidden="true" inert>
+        <section class="warehouse-simulation-dialog" role="dialog" aria-modal="true" aria-labelledby="warehouseSimulationTitle">
+            <header class="warehouse-simulation-header">
+                <div>
+                    <span class="section-label">SIMULATORE FLUSSO OPERATIVO</span>
+                    <h2 id="warehouseSimulationTitle">Linea ordini magazzino</h2>
+                    <p>Gli ordini arrivano in tempo reale. Convalidandoli vengono eseguiti dagli algoritmi reali di carico e scarico.</p>
+                </div>
+                <div class="warehouse-simulation-header__actions">
+                    <span class="warehouse-simulation-state" id="warehouseSimulationState"><i></i><b id="warehouseSimulationStateText">FERMA</b></span>
+                    <button id="closeWarehouseSimulation" type="button" aria-label="Chiudi">×</button>
+                </div>
+            </header>
+            <div class="warehouse-simulation-layout">
+                <aside class="warehouse-simulation-control">
+                    <div class="warehouse-simulation-clock">
+                        <span>PROSSIMO ORDINE</span>
+                        <strong id="warehouseSimulationCountdown">--:--</strong>
+                        <small id="warehouseSimulationClockNote">Configura la linea e premi Avvia.</small>
+                    </div>
+                    <form id="warehouseSimulationForm" class="warehouse-simulation-form">
+                        <label>Tipo di flusso
+                            <select id="warehouseSimulationMode">
+                                <option value="mixed">Carico + scarico</option>
+                                <option value="load">Solo carico</option>
+                                <option value="unload">Solo scarico</option>
+                            </select>
+                        </label>
+                        <label>Intervallo ordini
+                            <span class="warehouse-simulation-input-suffix"><input id="warehouseSimulationInterval" type="number" min="1" max="3600" step="1" value="10" required><b>sec</b></span>
+                        </label>
+                        <label>Articoli per ordine
+                            <input id="warehouseSimulationArticles" type="number" min="1" max="20" step="1" value="2" required>
+                        </label>
+                        <label>Max cassoni per articolo
+                            <input id="warehouseSimulationCrates" type="number" min="1" max="20" step="1" value="3" required>
+                        </label>
+                        <label>Pezzi medi per cassone
+                            <input id="warehouseSimulationPieces" type="number" min="1" max="1000000" step="1" value="250" required>
+                        </label>
+                        <label>Variabilità quantità
+                            <span class="warehouse-simulation-input-suffix"><input id="warehouseSimulationVariation" type="number" min="0" max="95" step="1" value="30" required><b>%</b></span>
+                        </label>
+                        <label>Clienti nel catalogo
+                            <input id="warehouseSimulationCustomers" type="number" min="1" max="50" step="1" value="5" required>
+                        </label>
+                        <label>Articoli già in magazzino
+                            <span class="warehouse-simulation-input-suffix"><input id="warehouseSimulationExistingArticleRate" type="number" min="0" max="100" step="1" value="65" required><b>%</b></span>
+                        </label>
+                        <label>Con riferimento ordine
+                            <span class="warehouse-simulation-input-suffix"><input id="warehouseSimulationOrderRate" type="number" min="0" max="100" step="1" value="55" required><b>%</b></span>
+                        </label>
+                        <label>Con codice pesata
+                            <span class="warehouse-simulation-input-suffix"><input id="warehouseSimulationWeighingRate" type="number" min="0" max="100" step="1" value="65" required><b>%</b></span>
+                        </label>
+                        <label>Limite ordini in attesa
+                            <input id="warehouseSimulationQueueLimit" type="number" min="1" max="100" step="1" value="12" required>
+                        </label>
+                    </form>
+                    <div class="warehouse-simulation-controls">
+                        <button class="is-start" id="startWarehouseSimulation" type="button">▶ Avvia simulazione</button>
+                        <button class="is-stop" id="stopWarehouseSimulation" type="button" disabled>■ Interrompi</button>
+                        <button id="generateWarehouseSimulationOrder" type="button" disabled>+ Genera ora</button>
+                    </div>
+                    <p class="warehouse-simulation-message" id="warehouseSimulationMessage" role="status"></p>
+                    <dl class="warehouse-simulation-stats">
+                        <div><dt>Generati</dt><dd id="warehouseSimulationGenerated">0</dd></div>
+                        <div><dt>Convalidati</dt><dd id="warehouseSimulationAccepted">0</dd></div>
+                        <div><dt>Rifiutati</dt><dd id="warehouseSimulationRejected">0</dd></div>
+                        <div><dt>Errori</dt><dd id="warehouseSimulationErrors">0</dd></div>
+                    </dl>
+                </aside>
+                <section class="warehouse-simulation-feed">
+                    <header>
+                        <div>
+                            <span class="section-label">CODA LIVE</span>
+                            <h3>Ordini in arrivo <b id="warehouseSimulationPendingCount">0</b></h3>
+                        </div>
+                        <button id="clearWarehouseSimulationHistory" type="button">Pulisci completati</button>
+                    </header>
+                    <div class="warehouse-simulation-feed__list" id="warehouseSimulationOrders" aria-live="polite">
+                        <div class="warehouse-simulation-empty">
+                            <strong>Linea in attesa</strong>
+                            <span>Gli ordini generati compariranno qui e richiederanno una decisione.</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </section>
     </div>
 

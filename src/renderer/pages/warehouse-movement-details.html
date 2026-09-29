@@ -14,6 +14,7 @@
             <div class="movement-audit-header-tools">
                 <nav class="movement-view-switch" aria-label="Vista dettaglio movimento">
                     <button id="showMovementComparison" class="is-active" type="button">Stato prima / dopo</button>
+                    <button id="showMovementRequests" type="button">Richieste</button>
                     <button id="showMovementInstructions" type="button">Istruzioni operative</button>
                 </nav>
                 <div class="movement-audit-legend"><span><i class="is-loaded"></i> Caricato</span><span><i class="is-shifted"></i> Ricollocato</span><span><i class="is-unloaded"></i> Prelevato</span></div>
@@ -27,6 +28,15 @@
         <section class="movement-instructions" id="movementInstructionsView" hidden>
             <header><span>SEQUENZA OPERATIVA</span><h2>Movimenti da eseguire nell’ordine indicato</h2><p>Le unità raggruppate nella stessa istruzione possono essere movimentate insieme.</p></header>
             <div id="movementInstructionsList"></div>
+        </section>
+        <section class="movement-requests" id="movementRequestsView" hidden>
+            <header><span>RICHIESTE DEL MOVIMENTO</span><h2>Materiale richiesto dall’operatore</h2><p>Le movimentazioni tecniche necessarie per raggiungere i cassoni sono escluse da questa lista.</p></header>
+            <div class="movement-table-wrap">
+                <table>
+                    <thead><tr><th>#</th><th>Operazione</th><th>Articolo</th><th>Cliente</th><th>Rif. ordine</th><th>Codice pesata</th><th>Richiesta</th><th>Tipo</th><th>Unità individuate</th></tr></thead>
+                    <tbody id="movementRequestsList"></tbody>
+                </table>
+            </div>
         </section>
         <p class="movement-audit-note" id="movementAuditNote">Vista storica di sola lettura. Le giacenze non possono essere modificate da questa finestra.</p>
     </main>

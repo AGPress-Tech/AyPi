@@ -126,7 +126,7 @@
                     <label><span>Dimensione scritte <output id="labelScaleValue">105%</output></span><input id="labelScaleControl" type="range" min="75" max="120" step="1" value="105"></label>
                     <label><span>Ampiezza visuale <output id="cameraFovValue">42°</output></span><input id="cameraFovControl" type="range" min="28" max="65" step="1" value="42"></label>
                     <label><span>Velocità telecamera <output id="movementSpeedValue">200%</output></span><input id="movementSpeedControl" type="range" min="40" max="250" step="10" value="200"></label>
-                    <label><span>Velocità animazioni <output id="playbackSpeedValue">80%</output></span><input id="playbackSpeedControl" type="range" min="40" max="200" step="10" value="80"></label>
+                    <label><span>Velocità animazioni <output id="playbackSpeedValue">80%</output></span><input id="playbackSpeedControl" type="range" min="40" max="500" step="10" value="80"></label>
                 </div>
                 <div class="scene-label-fields">
                     <div><strong>Informazioni sui cassoni</strong><small>Seleziona le righe stampate davanti e dietro.</small></div>
@@ -176,8 +176,10 @@
             <aside class="movement-history-3d-tooltip" id="movementHistory3dTooltip" role="tooltip" hidden></aside>
             <div class="movement-context-menu-3d" id="movementContextMenu3d" role="menu" aria-hidden="true">
                 <strong id="movementContextTitle3d">Movimento</strong>
+                <button id="openMovementRequests3d" type="button" role="menuitem">Richieste del movimento</button>
                 <button id="openMovementComparison3d" type="button" role="menuitem">Stato prima / dopo</button>
                 <button id="openMovementInstructions3d" type="button" role="menuitem">Istruzioni operative in italiano</button>
+                <button id="undoMovement3d" type="button" role="menuitem">Annulla movimento…</button>
             </div>
             <div class="viewer-loading" id="viewerLoading"><span></span><strong>Preparazione modello 3D…</strong></div>
         </section>
@@ -187,6 +189,18 @@
                 <header>
                     <div><span class="eyebrow">TRACCIABILITÀ MAGAZZINO</span><h2>Movimentazioni</h2><p>Clicca per riprodurre nel modello.</p></div>
                 </header>
+                <div class="movement-history-3d-filter">
+                    <label for="movement3dTimeRange">Periodo</label>
+                    <select id="movement3dTimeRange">
+                        <option value="today">Oggi</option>
+                        <option value="7">7 giorni</option>
+                        <option value="30" selected>30 giorni</option>
+                        <option value="90">90 giorni</option>
+                        <option value="365">1 anno</option>
+                        <option value="all">Tutto</option>
+                    </select>
+                    <span id="movement3dFilteredCount">0 visibili</span>
+                </div>
                 <div class="movement-history-3d-list" id="movement3dHistoryList"></div>
                 <p class="movement-history-3d-empty" id="movement3dHistoryEmpty">Nessun movimento registrato.</p>
             </section>

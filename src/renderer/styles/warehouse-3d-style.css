@@ -187,6 +187,10 @@ button, input { font: inherit; }
 .movement-history-3d-panel > header { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; padding-bottom: 10px; border-bottom: 1px solid #d1dde5; }
 .movement-history-3d-panel h2 { margin: 2px 0 0; color: #203b4d; font-size: 19px; }
 .movement-history-3d-panel header p { margin: 2px 0 0; color: #71818c; font-size: 10px; }
+.movement-history-3d-filter { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 5px 8px; flex: 0 0 auto; padding: 9px 0 2px; }
+.movement-history-3d-filter label { color: #657985; font-size: 9px; font-weight: 850; text-transform: uppercase; letter-spacing: .35px; }
+.movement-history-3d-filter select { width: 100%; min-height: 30px; padding: 5px 7px; border: 1px solid #b5c7d2; border-radius: 4px; color: #23465e; background: #fff; font-size: 10px; font-weight: 750; }
+.movement-history-3d-filter span { grid-column: 1 / -1; color: #75858f; font-size: 9px; text-align: right; }
 .movement-history-3d-list { display: grid; flex: 1 1 auto; align-content: start; gap: 6px; min-height: 0; padding-top: 10px; overflow: auto; scrollbar-width: thin; }
 .movement-history-3d-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid #c7d5de; border-radius: 5px; color: #294353; background: #fff; text-align: left; cursor: pointer; }
 .movement-history-3d-card:hover { border-color: #4b9bc7; background: #edf8fe; }
@@ -216,6 +220,7 @@ button, input { font: inherit; }
 .movement-context-menu-3d strong { display: block; padding: 4px 6px 7px; overflow: hidden; color: #667581; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .movement-context-menu-3d button { width: 100%; min-height: 31px; padding: 7px 8px; border: 0; border-radius: 4px; color: #183a55; background: #eaf3f8; font-size: 10px; font-weight: 750; text-align: left; cursor: pointer; }
 .movement-context-menu-3d button:hover { color: #0e5782; background: #dceef8; }
+.movement-context-menu-3d button:disabled { color: #89959d; background: #eef1f3; cursor: not-allowed; }
 .viewer-loading { position: absolute; z-index: 8; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; color: #31546b; background: rgba(232, 240, 245, .82); font-size: 12px; transition: opacity .25s; }
 .viewer-loading.is-hidden { opacity: 0; pointer-events: none; }
 .viewer-loading span { width: 22px; height: 22px; border: 3px solid #b8d3e3; border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }

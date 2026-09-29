@@ -81,6 +81,12 @@ let movementPlaybackState = null;
 let lastMovementPlaybackId = "";
 let contextMovement3dId = "";
 let viewerDisposing = false;
+const MOVEMENT_HISTORY_RANGE_STORAGE_KEY = "aypi-warehouse-movement-history-range-v1";
+const MOVEMENT_HISTORY_RANGES = new Set(["today", "7", "30", "90", "365", "all"]);
+const storedMovementHistoryRange = localStorage.getItem(MOVEMENT_HISTORY_RANGE_STORAGE_KEY) || "30";
+let movement3dTimeRange = MOVEMENT_HISTORY_RANGES.has(storedMovementHistoryRange)
+    ? storedMovementHistoryRange
+    : "30";
 const surfaceLabelTextureCache = new Map();
 const usedSurfaceLabelTextureKeys = new Set();
 
@@ -99,6 +105,7 @@ const VIEWER_LABEL_FIELDS = [
 const DEFAULT_VIEWER_LABEL_FIELDS = ["location", "article", "pieces"];
 const SURFACE_LABEL_READABILITY_SCALE = 1.08;
 const SURFACE_LABEL_TEXTURE_VERSION = 2;
+const MAX_MOVEMENT_PLAYBACK_SPEED = 5;
 
 function normalizedViewerLabelFields(fields) {
     if (!Array.isArray(fields)) return [...DEFAULT_VIEWER_LABEL_FIELDS];
@@ -1709,28 +1716,187 @@ function updateSurfaceLabels() {
     );
 }
 
+function movementLoadStackDetails(step) {
+    if (step?.kind !== "load" || !(step.units || []).length) return null;
+    const stepTargets = operationalLocations(step.to || []);
+    const records = (step.units || []).map((unit, index) => {
+        if (unit?.type === "pallet") return null;
+        const target =
+            operationalLocations([unit?.to])[0] || stepTargets[index] || "";
+        const match = target.match(/^([A-Z])(\d{1,3})([a-c])$/i);
+        const article = String(unit?.article || "").trim().toUpperCase();
+        if (!match || !article) return null;
+        return {
+            unit,
+            target:
+                match[1].toUpperCase() +
+                match[2] +
+                match[3].toLowerCase(),
+            stack: `${match[1].toUpperCase()}:${Number(match[2])}`,
+            level: match[3].toLowerCase(),
+            article,
+        };
+    });
+    if (records.some((record) => !record)) return null;
+    const signature = `${step.sourceArea || "dock"}|${records[0].stack}|${records[0].article}`;
+    if (
+        records.some(
+            (record) =>
+                `${step.sourceArea || "dock"}|${record.stack}|${record.article}` !==
+                signature,
+        )
+    )
+        return null;
+    return { signature, records };
+}
+
+function mergeMovementLoadStackSteps(steps) {
+    const merged = [];
+    steps.forEach((step) => {
+        const details = movementLoadStackDetails(step);
+        const previous = merged[merged.length - 1];
+        const previousDetails = movementLoadStackDetails(previous);
+        if (
+            !details ||
+            !previousDetails ||
+            details.signature !== previousDetails.signature ||
+            previousDetails.records.length + details.records.length > 3
+        ) {
+            merged.push(step);
+            return;
+        }
+        const records = [...previousDetails.records, ...details.records].sort(
+            (left, right) =>
+                ["a", "b", "c"].indexOf(left.level) -
+                ["a", "b", "c"].indexOf(right.level),
+        );
+        merged[merged.length - 1] = {
+            ...previous,
+            from: Array.from(
+                new Set([...(previous.from || []), ...(step.from || [])]),
+            ),
+            to: records.map((record) => record.target),
+            units: records.map((record) => record.unit),
+            wholeStack: records.length > 1,
+        };
+    });
+    return merged.map((step, index) => ({ ...step, order: index + 1 }));
+}
+
+function movementCorridorStackDetails(step) {
+    if (!['corridor', 'reinsert'].includes(step?.kind) || !(step.units || []).length)
+        return null;
+    const useDestination = step.kind === 'reinsert';
+    const stepLocations = operationalLocations(
+        useDestination ? step.to || [] : step.from || [],
+    );
+    const records = (step.units || []).map((unit, index) => {
+        if (unit?.type === 'pallet') return null;
+        const location =
+            operationalLocations([useDestination ? unit?.to : unit?.from])[0] ||
+            stepLocations[index] ||
+            '';
+        const match = location.match(/^([A-Z])(\d{1,3})([a-c])$/i);
+        if (!match) return null;
+        return {
+            unit,
+            location:
+                match[1].toUpperCase() +
+                match[2] +
+                match[3].toLowerCase(),
+            stack: `${match[1].toUpperCase()}:${Number(match[2])}`,
+            level: match[3].toLowerCase(),
+        };
+    });
+    if (records.some((record) => !record)) return null;
+    const stack = records[0].stack;
+    if (records.some((record) => record.stack !== stack)) return null;
+    return { signature: `${step.kind}|${stack}`, records };
+}
+
+function mergeMovementCorridorStackSteps(steps) {
+    const merged = [];
+    steps.forEach((step) => {
+        const details = movementCorridorStackDetails(step);
+        const previous = merged[merged.length - 1];
+        const previousDetails = movementCorridorStackDetails(previous);
+        const records =
+            details && previousDetails
+                ? [...previousDetails.records, ...details.records].sort(
+                      (left, right) =>
+                          ['a', 'b', 'c'].indexOf(left.level) -
+                          ['a', 'b', 'c'].indexOf(right.level),
+                  )
+                : [];
+        const levels = records.map((record) =>
+            ['a', 'b', 'c'].indexOf(record.level),
+        );
+        const consecutive = levels.every(
+            (level, index) => index === 0 || level === levels[index - 1] + 1,
+        );
+        if (
+            !details ||
+            !previousDetails ||
+            details.signature !== previousDetails.signature ||
+            records.length > 3 ||
+            !consecutive
+        ) {
+            merged.push(step);
+            return;
+        }
+        const locations = records.map((record) => record.location);
+        merged[merged.length - 1] = {
+            ...previous,
+            from:
+                step.kind === 'corridor'
+                    ? locations
+                    : Array.from(
+                          new Set([
+                              ...(previous.from || []),
+                              ...(step.from || []),
+                          ]),
+                      ),
+            to:
+                step.kind === 'reinsert'
+                    ? locations
+                    : Array.from(
+                          new Set([...(previous.to || []), ...(step.to || [])]),
+                      ),
+            units: records.map((record) => record.unit),
+            wholeStack: records.length > 1,
+        };
+    });
+    return merged.map((step, index) => ({ ...step, order: index + 1 }));
+}
+
+function normalizeMovementStackSteps(steps) {
+    return mergeMovementCorridorStackSteps(
+        mergeMovementLoadStackSteps(steps),
+    );
+}
+
 function movementSteps(movement) {
     if (movement?.playbackSteps?.length)
-        return movement.playbackSteps.map((step) => ({
+        return normalizeMovementStackSteps(movement.playbackSteps.map((step) => ({
             ...step,
             from: [...(step.from || [])],
             to: [...(step.to || [])],
             units: (step.units || []).map((unit) => ({ ...unit })),
-        }));
+        })));
     if (movement?.operationalSteps?.length)
-        return movement.operationalSteps.map((step) => ({
+        return normalizeMovementStackSteps(movement.operationalSteps.map((step) => ({
             ...step,
             from: [...(step.from || [])],
             to: [...(step.to || [])],
             units: (step.units || []).map((unit) => ({ ...unit })),
-        }));
+        })));
     const changes = movement?.changes || {};
     const itemFor = (id) =>
         [
             ...(movement?.afterState || []),
             ...(movement?.beforeState || []),
         ].find((item) => item.id === id) || {};
-    return [
+    return normalizeMovementStackSteps([
         ...(changes.loaded || []).map((entry) => ({
             kind: "load",
             from: [],
@@ -1755,7 +1921,7 @@ function movementSteps(movement) {
                 { ...itemFor(entry.id), id: entry.id, article: entry.article },
             ],
         })),
-    ];
+    ]);
 }
 
 function operationalLocations(values) {
@@ -2587,7 +2753,9 @@ function showMovement3dStep(index, restart = true) {
     document.getElementById("movement3dCounter").textContent =
         `${state.movement.id} · PASSAGGIO ${state.index + 1}/${state.steps.length}`;
     document.getElementById("movement3dTitle").textContent =
-        state.movement.type === "load"
+        state.movement.reversal
+            ? "Storno movimento"
+            : state.movement.type === "load"
             ? "Movimentazione di carico"
             : state.movement.type === "exit"
               ? "Uscita verso la Zona Scarico"
@@ -2653,8 +2821,20 @@ function movementInventoryAtStep(state, completedThroughIndex) {
                     "load",
                 ].includes(step.kind)
             ) {
+                // Durante un rientro il cassone e gia stato rimosso dallo
+                // scaffale dal precedente passaggio verso il corridoio. La sua
+                // vecchia posizione puo nel frattempo essere diventata la
+                // destinazione di un altro cassone: cancellarla di nuovo
+                // renderebbe invisibile quest'ultimo nei rientri concatenati.
+                const removeBySourceLocation = ![
+                    "reinsert",
+                    "optimization-place",
+                ].includes(step.kind);
                 Array.from(byLocation).forEach(([location, item]) => {
-                    if (ids.has(String(item.id || "")) || sources.has(location))
+                    if (
+                        ids.has(String(item.id || "")) ||
+                        (removeBySourceLocation && sources.has(location))
+                    )
                         byLocation.delete(location);
                 });
             }
@@ -2734,11 +2914,19 @@ function hideMovementStepSources(step) {
             ...(step.units || []).map((unit) => unit.from),
         ]),
     );
+    // Nei passaggi di rientro la sorgente visiva e il deposito nel corridoio,
+    // non la vecchia ubicazione di magazzino. Quella posizione puo gia
+    // contenere un'altra unita ricollocata da un passaggio precedente.
+    const hideWarehouseSourceLocations = ![
+        "reinsert",
+        "optimization-place",
+    ].includes(step.kind);
     pickables.forEach((mesh) => {
         const locations = mesh.userData.locations || [mesh.userData.location];
         if (
             ids.has(String(mesh.userData.item?.id || "")) ||
-            locations.some((location) => sources.has(location))
+            (hideWarehouseSourceLocations &&
+                locations.some((location) => sources.has(location)))
         )
             mesh.visible = false;
     });
@@ -2950,7 +3138,7 @@ function updateMovement3dPlayback(timestamp) {
 function setMovementPlaybackSpeed(value) {
     const previousSpeed = viewerSettings.playbackSpeed;
     const nextSpeed = Math.min(
-        2,
+        MAX_MOVEMENT_PLAYBACK_SPEED,
         Math.max(0.4, Math.round(Number(value) * 10) / 10),
     );
     if (
@@ -3020,6 +3208,9 @@ function setupMovement3dPlayback() {
 }
 
 function movement3dHistoryType(movement) {
+    if (movement.metadataEdit) return "Modifica dati";
+    if (movement.reversal)
+        return `Storno ${movement.reversalMode === "exact" ? "esatto" : "automatico"}`;
     if (movement.optimization) return "Ottimizzazione";
     const type =
         movement.type === "load"
@@ -3031,7 +3222,10 @@ function movement3dHistoryType(movement) {
 }
 
 function movement3dHistoryUnits(movement) {
-    const actionKinds = movement.optimization
+    if (movement.metadataEdit && movement.editedUnit) return [movement.editedUnit];
+    const actionKinds = movement.reversal
+        ? new Set(["load", "unload", "reinsert", "piece-pick", "staging-exit"])
+        : movement.optimization
         ? new Set(["optimization-place"])
         : movement.type === "load"
           ? new Set(["load"])
@@ -3192,15 +3386,40 @@ function showMovement3dHistoryTooltip(movement, anchor) {
 }
 
 function renderMovement3dHistory() {
-    const movements = currentSnapshot.movementHistory || [];
+    const loadedMovements = currentSnapshot.movementHistory || [];
+    const rangeStart = (() => {
+        if (movement3dTimeRange === "all") return null;
+        const now = new Date();
+        if (movement3dTimeRange === "today") {
+            now.setHours(0, 0, 0, 0);
+            return now.getTime();
+        }
+        return Date.now() - Number(movement3dTimeRange) * 24 * 60 * 60 * 1000;
+    })();
+    const movements = loadedMovements.filter((movement) => {
+        if (rangeStart === null) return true;
+        const timestamp = Date.parse(movement?.timestamp || "");
+        return Number.isFinite(timestamp) && timestamp >= rangeStart;
+    });
+    const total = currentSnapshot.movementHistoryTotal ?? loadedMovements.length;
     document.getElementById("movement3dHistoryCount").textContent = String(
-        currentSnapshot.movementHistoryTotal ?? movements.length,
+        total,
     );
+    document.getElementById("movement3dHistoryCount").title = `${total} movimenti registrati`;
+    const filteredCount = document.getElementById("movement3dFilteredCount");
+    if (filteredCount) {
+        filteredCount.textContent = total > loadedMovements.length
+            ? `${movements.length} visibili · ultimi ${loadedMovements.length} caricati su ${total}`
+            : `${movements.length} nel periodo · ${total} totali`;
+    }
     const list = document.getElementById("movement3dHistoryList");
     const empty = document.getElementById("movement3dHistoryEmpty");
     hideMovement3dHistoryTooltip();
     list.replaceChildren();
     empty.hidden = movements.length > 0;
+    empty.textContent = total
+        ? "Nessun movimento nel periodo selezionato."
+        : "Nessun movimento registrato.";
     movements.forEach((movement) => {
         const card = document.createElement("button");
         card.type = "button";
@@ -3217,13 +3436,7 @@ function renderMovement3dHistory() {
         detail.textContent = `${new Date(movement.timestamp).toLocaleString("it-IT")} · ${movement.playbackSteps?.length || 0} passaggi · ${actor}`;
         content.append(title, detail);
         const badge = document.createElement("b");
-        badge.textContent = movement.optimization
-            ? "Ottimizzazione"
-            : movement.type === "load"
-              ? "Carico"
-              : movement.type === "exit"
-                ? "Uscita"
-                : "Scarico";
+        badge.textContent = movement3dHistoryType(movement);
         card.append(content, badge);
         card.addEventListener("click", () => {
             hideMovement3dHistoryTooltip();
@@ -3266,10 +3479,21 @@ function openMovementContextMenu3d(movement, x, y) {
     const menu = document.getElementById("movementContextMenu3d");
     menu.dataset.movementId = movement.id;
     document.getElementById("movementContextTitle3d").textContent = movement.id;
+    const alreadyReversed = Boolean(
+        movement.reversal ||
+        (currentSnapshot.movementHistory || []).some(
+            (entry) => entry.reversalOf === movement.id,
+        ),
+    );
+    const undoButton = document.getElementById("undoMovement3d");
+    undoButton.disabled = alreadyReversed;
+    undoButton.title = alreadyReversed
+        ? "Questo movimento non può essere annullato."
+        : "Apri le opzioni di storno nella finestra principale.";
     menu.classList.add("is-open");
     menu.setAttribute("aria-hidden", "false");
     const width = 238;
-    const height = 116;
+    const height = 194;
     menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
 }
@@ -3304,12 +3528,28 @@ function setMovement3dHistoryOpen(open) {
 }
 
 function setupMovement3dHistory() {
+    const rangeSelect = document.getElementById("movement3dTimeRange");
+    if (rangeSelect) {
+        rangeSelect.value = movement3dTimeRange;
+        rangeSelect.addEventListener("change", () => {
+            movement3dTimeRange = MOVEMENT_HISTORY_RANGES.has(rangeSelect.value)
+                ? rangeSelect.value
+                : "30";
+            localStorage.setItem(MOVEMENT_HISTORY_RANGE_STORAGE_KEY, movement3dTimeRange);
+            renderMovement3dHistory();
+        });
+    }
     document
         .getElementById("openMovement3dHistory")
         ?.addEventListener("click", () => setMovement3dHistoryOpen(true));
     document
         .getElementById("closeMovement3dHistory")
         ?.addEventListener("click", () => setMovement3dHistoryOpen(false));
+    document
+        .getElementById("openMovementRequests3d")
+        ?.addEventListener("click", () =>
+            requestMovementWindowFrom3d("requests"),
+        );
     document
         .getElementById("openMovementComparison3d")
         ?.addEventListener("click", () =>
@@ -3320,6 +3560,9 @@ function setupMovement3dHistory() {
         ?.addEventListener("click", () =>
             requestMovementWindowFrom3d("instructions"),
         );
+    document
+        .getElementById("undoMovement3d")
+        ?.addEventListener("click", () => requestMovementWindowFrom3d("undo"));
     document
         .getElementById("movementContextMenu3d")
         ?.addEventListener("pointerdown", (event) => event.stopPropagation());

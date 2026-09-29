@@ -42,7 +42,23 @@ export type WarehouseMovement = {
     stagingUnitsBefore?: WarehouseUnloadZoneItem[];
     manual?: boolean;
     optimization?: boolean;
+    reversal?: boolean;
+    reversalOf?: string;
+    reversalMode?: "exact" | "automatic";
+    metadataEdit?: boolean;
+    editedUnitId?: string;
     optimizationOptions?: Record<string, unknown>;
+    requests?: Array<{
+        article?: string;
+        customer?: string;
+        order?: string;
+        weighingCode?: string;
+        pieceCount?: number;
+        requestedPieces?: number;
+        quantity?: number;
+        type?: "crate" | "pallet";
+        sourceIds?: string[];
+    }>;
     lines: Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>;
     operationalSteps?: Array<{
         order: number;
@@ -447,6 +463,12 @@ export function saveWarehouseSnapshot(
                     manual: Boolean(movement.manual),
                     optimization: Boolean(movement.optimization),
                     optimizationOptions: movement.optimizationOptions || null,
+                    requests: movement.requests || [],
+                    reversal: Boolean(movement.reversal),
+                    reversalOf: movement.reversalOf || null,
+                    reversalMode: movement.reversalMode || null,
+                    metadataEdit: Boolean(movement.metadataEdit),
+                    editedUnitId: movement.editedUnitId || null,
                     operationalSteps: movement.operationalSteps || [],
                     lineDetails: movement.lines.map((line) => ({
                         kind: line.kind || null,
