@@ -1784,9 +1784,12 @@ function mergeMovementLoadStackSteps(steps) {
 }
 
 function movementCorridorStackDetails(step) {
-    if (!['corridor', 'reinsert'].includes(step?.kind) || !(step.units || []).length)
+    if (
+        !["corridor", "unload", "reinsert"].includes(step?.kind) ||
+        !(step.units || []).length
+    )
         return null;
-    const useDestination = step.kind === 'reinsert';
+    const useDestination = step.kind === "reinsert";
     const stepLocations = operationalLocations(
         useDestination ? step.to || [] : step.from || [],
     );
@@ -1848,7 +1851,7 @@ function mergeMovementCorridorStackSteps(steps) {
         merged[merged.length - 1] = {
             ...previous,
             from:
-                step.kind === 'corridor'
+                ["corridor", "unload"].includes(step.kind)
                     ? locations
                     : Array.from(
                           new Set([
@@ -1857,7 +1860,7 @@ function mergeMovementCorridorStackSteps(steps) {
                           ]),
                       ),
             to:
-                step.kind === 'reinsert'
+                step.kind === "reinsert"
                     ? locations
                     : Array.from(
                           new Set([...(previous.to || []), ...(step.to || [])]),

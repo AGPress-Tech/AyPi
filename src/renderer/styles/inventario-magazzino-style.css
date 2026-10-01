@@ -3183,6 +3183,22 @@ body.warehouse-bluearchive .warehouse-simulation-controls .is-start { border-col
 }
 .warehouse-toast.is-error { border-color: #dea8a8; color: #973737; background: #fff2f2; }
 
+.tools-drawer__section--guide { background: linear-gradient(135deg, rgba(183, 124, 9, .07), rgba(42, 133, 190, .07)); }
+.tools-drawer__action--guide b { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid #7dafcf; border-radius: 50%; color: #185d8d; background: #eef8ff; font-size: 13px; }
+.warehouse-guide-modal { position: fixed; z-index: 5000; inset: 0; display: none; padding: 18px; background: rgba(15, 29, 40, .68); backdrop-filter: blur(3px); }
+.warehouse-guide-modal.is-open { display: grid; place-items: center; }
+.warehouse-guide-modal__dialog { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(1500px, calc(100vw - 36px)); height: calc(100vh - 36px); overflow: hidden; border: 1px solid #9eb7c8; border-radius: 10px; background: #f7f9fb; box-shadow: 0 22px 70px rgba(5, 24, 37, .38); }
+.warehouse-guide-modal__header { display: grid; grid-template-columns: minmax(240px, auto) minmax(280px, 520px) 36px; align-items: center; gap: 14px; min-height: 62px; padding: 9px 12px 9px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+.warehouse-guide-modal__header strong { display: block; margin-top: 3px; color: #18364b; font-size: 16px; }
+.warehouse-guide-modal__search { display: flex; min-width: 0; }
+.warehouse-guide-modal__search input { min-width: 0; flex: 1; height: 34px; padding: 0 11px; border: 1px solid #b7c9d5; border-radius: 5px 0 0 5px; color: #18364b; background: #f9fcfe; outline: none; }
+.warehouse-guide-modal__search input:focus { border-color: #2185bd; box-shadow: 0 0 0 2px rgba(33, 133, 189, .14); }
+.warehouse-guide-modal__search button, .warehouse-guide-modal__close { border: 1px solid #9eb7c8; color: #214f6c; background: #f4f9fc; font-weight: 800; cursor: pointer; }
+.warehouse-guide-modal__search button { padding: 0 14px; border-left: 0; border-radius: 0 5px 5px 0; }
+.warehouse-guide-modal__close { width: 34px; height: 34px; border-radius: 5px; font-size: 20px; }
+.warehouse-guide-modal iframe { width: 100%; height: 100%; border: 0; background: #f7f8fb; }
+body.warehouse-guide-open { overflow: hidden; }
+
 @media (max-width: 1150px) {
     body { height: auto; overflow: auto; }
     .inventory-shell { height: auto; min-height: 100vh; overflow: visible; }

@@ -319,6 +319,20 @@ pre{
 }
 code{font-family:var(--mono); font-size: 13px}
 .small{font-size:13px; color:var(--muted)}
+.guide-table{width:100%; margin:14px 0; border-collapse:collapse; font-size:14px}
+.guide-table th,.guide-table td{padding:10px 12px; border:1px solid var(--border); text-align:left; vertical-align:top; line-height:1.45}
+.guide-table th{background:var(--panel2); color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em}
+.guide-table td:first-child{font-weight:700; white-space:nowrap}
+.procedure{counter-reset:guide-step; margin:14px 0; padding:0; list-style:none}
+.procedure>li{position:relative; min-height:38px; margin:10px 0; padding:8px 10px 8px 48px; border:1px solid var(--border); border-radius:12px; background:var(--panel2)}
+.procedure>li::before{counter-increment:guide-step; content:counter(guide-step); position:absolute; left:10px; top:8px; display:grid; width:25px; height:25px; place-items:center; border-radius:50%; color:#fff; background:var(--accent); font-size:12px; font-weight:800}
+.example{margin:14px 0; padding:13px 15px; border:1px dashed rgba(90,169,255,.65); border-radius:12px; background:rgba(90,169,255,.07)}
+.example strong:first-child{display:block; margin-bottom:5px; color:var(--accent)}
+.button-ref{display:grid; grid-template-columns:minmax(150px,.35fr) 1fr; gap:0; margin:14px 0; border:1px solid var(--border); border-radius:12px; overflow:hidden}
+.button-ref>*{padding:10px 12px; border-bottom:1px solid var(--border)}
+.button-ref>*:nth-last-child(-n+2){border-bottom:0}
+.button-ref>b{background:var(--panel2)}
+.pill{display:inline-block; padding:2px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); font-size:12px; font-weight:700}
 
 *{
   scrollbar-width: thin;

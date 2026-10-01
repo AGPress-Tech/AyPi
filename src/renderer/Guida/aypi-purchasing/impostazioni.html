@@ -21,20 +21,18 @@
       <div class="content-scroll"><div class="container">
         <section class="card">
           <h2>Impostazioni</h2>
-          <ul>
-            <li><b>Tema</b>: light, dark o AyPi.</li>
-            <li><b>Gestione dipendenti</b>: stessi dati del calendario AyPi.</li>
-            <li><b>Gestione admin</b>: aggiunta/modifica/rimozione admin con password.</li>
-            <li><b>Gestione categorie e tipologie</b>: categorie/tag e tipologie interventi (solo admin).</li>
-          </ul>
-
-          <h3>Dettagli utili</h3>
-          <ul>
-            <li>I dati dipendenti e admin sono condivisi con il calendario.</li>
-            <li>Le modifiche admin richiedono conferma password.</li>
-            <li>Nei popup password puoi usare <b>Invio</b> per confermare.</li>
-            <li>&Egrave; presente un solo pulsante per gestire categorie e tipologie.</li>
-          </ul>
+          <p>L'ingranaggio apre le preferenze grafiche e gli strumenti amministrativi. Le voci riservate vengono mostrate o abilitate soltanto dopo l'autenticazione richiesta.</p>
+          <table class="guide-table"><tr><th>Voce</th><th>Funzione</th></tr>
+            <tr><td>Tema</td><td>Sceglie Light, Dark o AyPi. È una preferenza dell'interfaccia e non modifica richieste o catalogo.</td></tr>
+            <tr><td>Gestione dipendenti</td><td>Apre reparti e nominativi condivisi con Calendar. Le modifiche influenzano i selettori di login e attribuzione.</td></tr>
+            <tr><td>Gestione admin</td><td>Crea, modifica o rimuove amministratori e credenziali. Richiede autorizzazione amministrativa.</td></tr>
+            <tr><td>Categorie e tipologie</td><td>Gestisce insieme tag/categorie del catalogo e tipologie degli interventi. I colori aiutano filtri e riconoscimento visivo.</td></tr>
+            <tr><td>Backup</td><td>Crea o ripristina una copia Purchasing sul backend. Il ripristino sostituisce il database corrente.</td></tr>
+          </table>
+          <h3>Gestione dipendenti condivisa</h3><p>Reparti e dipendenti sono comuni ai moduli AyPi che usano l'anagrafica centrale. Prima di rinominare o eliminare una persona, considera richieste storiche e accessi degli altri moduli. Dopo una modifica premi <b>Aggiorna</b> nelle finestre già aperte.</p>
+          <h3>Categorie e tipologie</h3><ol class="procedure"><li>Apri la gestione dedicata.</li><li>Inserisci il nuovo nome e premi <b>+</b> oppure <kbd>Invio</kbd>.</li><li>Per una categoria puoi scegliere il colore; <b>Default</b> ripristina quello standard.</li><li>Rimuovi una voce solo dopo aver verificato le richieste/catalogo che la utilizzano.</li></ol>
+          <h3>Sicurezza</h3><p>Le modifiche sensibili richiedono password o sessione admin. Nei popup password <kbd>Invio</kbd> conferma quando previsto. Il recupero usa OTP via email se il servizio mailing è configurato.</p>
+          <div class="callout admin"><div class="title">Dati condivisi</div>Dipendenti e admin non sono impostazioni locali del PC. Una modifica correttamente salvata viene utilizzata anche da Calendar e dagli altri client collegati.</div>
         </section>
       </div></div>
     </main>

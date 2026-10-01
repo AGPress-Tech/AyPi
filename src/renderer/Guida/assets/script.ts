@@ -1,9 +1,10 @@
 // @ts-nocheck
 function getGuidePrefix() {
     const path = window.location.pathname || "";
-    // current structure: root pages + /aypi-calendar/ + /aypi-purchasing/ subfolder
+    // current structure: root pages + module subfolders
     return path.includes("/aypi-calendar/") ||
-        path.includes("/aypi-purchasing/")
+        path.includes("/aypi-purchasing/") ||
+        path.includes("/aypi-warehouse/")
         ? "../"
         : "./";
 }
@@ -12,6 +13,8 @@ function getSidebarPath() {
     const path = window.location.pathname || "";
     if (path.includes("/aypi-purchasing/"))
         return "assets/sidebar-purchasing.html";
+    if (path.includes("/aypi-warehouse/"))
+        return "assets/sidebar-warehouse.html";
     return "assets/sidebar.html";
 }
 

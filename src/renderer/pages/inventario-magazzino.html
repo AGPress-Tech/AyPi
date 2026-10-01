@@ -90,7 +90,6 @@
             <button class="operation-button--active" id="openLoadButton" type="button">Carico</button>
             <button class="operation-button--active" id="openUnloadButton" type="button">Scarico</button>
             <button class="unload-zone-button" id="openUnloadZoneButton" type="button">In Attesa/Preparazione/Montaggio <b id="unloadZoneCount">0</b></button>
-            <button class="operation-button--active" id="openManualMovementButton" type="button">Spostamento manuale</button>
             <button class="operation-button--active operation-button--optimize" id="openWarehouseOptimizer" data-admin-only hidden type="button">Ottimizza</button>
             <button type="button" disabled>Gestione tag</button>
         </section>
@@ -240,6 +239,18 @@
     <div class="tools-drawer-scrim" id="toolsDrawerScrim" aria-hidden="true"></div>
     <aside class="tools-drawer" id="toolsDrawer" aria-label="Strumenti di visualizzazione">
         <div class="tools-drawer__panel" id="toolsDrawerPanel">
+            <section class="tools-drawer__section tools-drawer__section--guide">
+                <div class="tools-drawer__section-heading">
+                    <span>ASSISTENZA</span>
+                    <strong>Guida completa del modulo</strong>
+                </div>
+                <p>Manuale operativo con procedure, esempi, comandi rapidi e spiegazioni della vista 2D e 3D.</p>
+                <button class="tools-drawer__action tools-drawer__action--guide" id="openWarehouseGuide" type="button">
+                    <span><strong>Apri la guida utente</strong><small>Tutte le funzioni, passo dopo passo</small></span>
+                    <b aria-hidden="true">?</b>
+                </button>
+            </section>
+
             <section class="tools-drawer__section" aria-labelledby="mapGroupingTitle">
                 <div class="tools-drawer__section-heading">
                     <span>VISUALIZZAZIONE 2D</span>
@@ -310,8 +321,26 @@
                     <b aria-hidden="true">›</b>
                 </button>
             </section>
+
         </div>
     </aside>
+
+    <div class="warehouse-guide-modal" id="warehouseGuideModal" aria-hidden="true">
+        <section class="warehouse-guide-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="warehouseGuideTitle">
+            <header class="warehouse-guide-modal__header">
+                <div>
+                    <span class="section-label">MANUALE OPERATIVO</span>
+                    <strong id="warehouseGuideTitle">Guida Inventario magazzino</strong>
+                </div>
+                <div class="warehouse-guide-modal__search">
+                    <input id="warehouseGuideSearch" type="search" autocomplete="off" placeholder="Cerca nella guida…" aria-label="Cerca nella guida">
+                    <button id="warehouseGuideSearchButton" type="button">Cerca</button>
+                </div>
+                <button class="warehouse-guide-modal__close" id="closeWarehouseGuide" type="button" aria-label="Chiudi guida">×</button>
+            </header>
+            <iframe id="warehouseGuideFrame" title="Guida Inventario magazzino" src="about:blank"></iframe>
+        </section>
+    </div>
 
     <div class="restriction-backdrop load-backdrop" id="operationGroupDialog" aria-hidden="true">
         <section class="load-dialog operation-group-dialog" role="dialog" aria-modal="true" aria-labelledby="operationDialogTitle">
