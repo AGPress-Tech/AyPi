@@ -123,6 +123,11 @@ button, input { font: inherit; }
 .personal-view-preset__actions .is-danger { color: #963b3b; border-color: #dabbbb; background: #fff7f7; }
 .personal-view-presets__empty { margin: 8px 2px 0; color: #7a8992; font-size: 9px; text-align: center; }
 .scene-controls { display: grid; gap: 11px; }
+.scene-settings-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 0; padding: 4px; border-radius: 6px; background: #e7eef3; }
+.scene-settings-tabs button { min-height: 32px; border: 0; border-radius: 4px; color: #526877; background: transparent; font-size: 11px; font-weight: 800; cursor: pointer; }
+.scene-settings-tabs button.is-active { color: #fff; background: var(--blue); box-shadow: 0 2px 7px rgba(26, 102, 150, .2); }
+.scene-settings-page[hidden] { display: none; }
+.scene-switches--visibility { margin-top: 0; }
 .scene-controls label { display: grid; gap: 5px; color: #536775; font-size: 11px; font-weight: 650; }
 .scene-controls label > span { display: flex; justify-content: space-between; gap: 10px; }
 .scene-controls output { color: var(--navy); font-weight: 800; }

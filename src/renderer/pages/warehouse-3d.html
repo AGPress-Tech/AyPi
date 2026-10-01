@@ -121,10 +121,17 @@
                     <div id="personalViewPresetList"></div>
                     <p class="personal-view-presets__empty" id="personalViewPresetEmpty">Nessun preset personale salvato.</p>
                 </section>
+                <nav class="scene-settings-tabs" aria-label="Livello impostazioni">
+                    <button class="is-active" type="button" data-settings-page="base" aria-pressed="true">Base</button>
+                    <button type="button" data-settings-page="advanced" aria-pressed="false">Avanzate</button>
+                </nav>
+                <div class="scene-settings-page" data-settings-panel="base">
+                <div class="scene-switches scene-switches--visibility">
+                    <label><input id="showLabelsControl" type="checkbox" checked> Mostra scritte</label>
+                    <label><input id="showFreeSlotsControl" type="checkbox"> Mostra slot liberi</label>
+                </div>
                 <div class="scene-controls">
-                    <label><span>Opacità scaffalatura <output id="rackOpacityValue">22%</output></span><input id="rackOpacityControl" type="range" min="5" max="100" step="1" value="22"></label>
                     <label><span>Dimensione scritte <output id="labelScaleValue">105%</output></span><input id="labelScaleControl" type="range" min="75" max="120" step="1" value="105"></label>
-                    <label><span>Ampiezza visuale <output id="cameraFovValue">42°</output></span><input id="cameraFovControl" type="range" min="28" max="65" step="1" value="42"></label>
                     <label><span>Velocità telecamera <output id="movementSpeedValue">200%</output></span><input id="movementSpeedControl" type="range" min="40" max="250" step="10" value="200"></label>
                     <label><span>Velocità animazioni <output id="playbackSpeedValue">80%</output></span><input id="playbackSpeedControl" type="range" min="40" max="500" step="10" value="80"></label>
                 </div>
@@ -142,6 +149,12 @@
                         <label><input type="checkbox" value="receivedAt"> Data ingresso</label>
                     </div>
                 </div>
+                </div>
+                <div class="scene-settings-page" data-settings-panel="advanced" hidden>
+                <div class="scene-controls">
+                    <label><span>Opacità scaffalatura <output id="rackOpacityValue">22%</output></span><input id="rackOpacityControl" type="range" min="5" max="100" step="1" value="22"></label>
+                    <label><span>Ampiezza visuale <output id="cameraFovValue">42°</output></span><input id="cameraFovControl" type="range" min="28" max="65" step="1" value="42"></label>
+                </div>
                 <div class="scene-spacing">
                     <strong>Distanza tra le file</strong>
                     <div id="rowSpacingControls"></div>
@@ -153,6 +166,7 @@
                 <div class="scene-rows">
                     <div><strong>File visibili</strong><button id="showAllRows" type="button">Mostra tutte</button></div>
                     <div id="sceneRowVisibility"></div>
+                </div>
                 </div>
                 <footer><button id="resetViewSettings" type="button">Ripristina impostazioni</button></footer>
             </section>

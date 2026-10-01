@@ -6,6 +6,14 @@ import https from "https";
 import { withUploadedAttachments } from "../../../main/modules/file-manager/attachment-upload";
 
 let backendRootUrlCache = "";
+let backendIdentity = { role: "guest", actor: "" };
+
+function setBackendIdentity(identity?: { role?: string; actor?: string }) {
+    backendIdentity = {
+        role: String(identity?.role || "guest").trim().toLowerCase(),
+        actor: String(identity?.actor || "").trim(),
+    };
+}
 
 function resolveBackendRootUrl() {
     if (backendRootUrlCache) return backendRootUrlCache;
@@ -58,6 +66,8 @@ function requestBackendRaw(pathname: string, options?: {
         "x-aypi-user":
             process.env.USERNAME || process.env.USER || "Operatore AyPi",
         "x-aypi-client": "electron-renderer",
+        "x-aypi-role": backendIdentity.role,
+        "x-aypi-actor": backendIdentity.actor,
         ...(options?.headers || {}),
     };
     const hasBody = Object.prototype.hasOwnProperty.call(options || {}, "body");
@@ -122,7 +132,7 @@ function requestBackendRaw(pathname: string, options?: {
     });
 }
 
-export { resolveBackendRootUrl, requestBackend };
+export { resolveBackendRootUrl, requestBackend, setBackendIdentity };
 
 if (
     typeof module !== "undefined" &&
@@ -132,5 +142,6 @@ if (
     module.exports = {
         resolveBackendRootUrl,
         requestBackend,
+        setBackendIdentity,
     };
 }

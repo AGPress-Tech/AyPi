@@ -64,12 +64,6 @@
                 <button class="warehouse-3d-launch" id="openWarehouse3d" type="button" title="Apri il magazzino 3D in una finestra separata">
                     <span aria-hidden="true">◇</span> Vista 3D
                 </button>
-                <div class="test-database-actions" id="testDatabaseActions" aria-label="Strumenti database temporanei" hidden>
-                    <span>TEST DB</span>
-                    <button id="populateWarehouseDatabase" type="button">Popola pseudo-random</button>
-                    <button class="is-simulation" id="openWarehouseSimulation" type="button">Simulazione operativa</button>
-                    <button class="is-danger" id="clearWarehouseDatabase" type="button">Svuota database</button>
-                </div>
                 <div class="status-pill" id="warehouseDatabaseStatus"><i></i> Connessione al database…</div>
             </div>
         </header>
@@ -91,7 +85,6 @@
             <button class="operation-button--active" id="openUnloadButton" type="button">Scarico</button>
             <button class="unload-zone-button" id="openUnloadZoneButton" type="button">In Attesa/Preparazione/Montaggio <b id="unloadZoneCount">0</b></button>
             <button class="operation-button--active operation-button--optimize" id="openWarehouseOptimizer" data-admin-only hidden type="button">Ottimizza</button>
-            <button type="button" disabled>Gestione tag</button>
         </section>
 
         <section class="warehouse-layout">
@@ -172,6 +165,17 @@
                         <input id="analysisSearch" type="search" placeholder="Ubicazione, articolo, cliente, ordine, tag…">
                     </label>
                     <label class="analysis-check"><input id="analysisOccupiedOnly" type="checkbox"> Solo occupati</label>
+                    <details class="analysis-columns" id="analysisColumnsMenu">
+                        <summary>Colonne visibili</summary>
+                        <div class="analysis-columns__panel">
+                            <strong>Personalizza tabella</strong>
+                            <div id="analysisColumnChoices"></div>
+                            <label>Nome preset<input id="analysisPresetName" maxlength="42" placeholder="es. Operatività giornaliera"></label>
+                            <button id="saveAnalysisPreset" type="button">Salva come preset</button>
+                            <div id="analysisPresetList"></div>
+                            <small id="analysisColumnsMessage"></small>
+                        </div>
+                    </details>
                     <button id="openAnalysisSelection" type="button" disabled>Apri sulla mappa</button>
                     <button class="analysis-primary-action" id="analyzeAnalysisSelection" type="button" disabled>Analisi articolo</button>
                 </div>
@@ -320,6 +324,19 @@
                     <span><strong>Apri storico movimenti</strong><small id="movementHistoryCount">Nessun movimento registrato</small></span>
                     <b aria-hidden="true">›</b>
                 </button>
+            </section>
+
+            <section class="tools-drawer__section tools-drawer__section--test" id="testDatabaseActions" hidden>
+                <div class="tools-drawer__section-heading">
+                    <span>AMBIENTE TEST</span>
+                    <strong>Scenari e simulazione</strong>
+                </div>
+                <p>Area separata dai comandi produttivi: queste funzioni possono sostituire o cancellare i dati.</p>
+                <div class="test-database-actions" aria-label="Strumenti database temporanei">
+                    <button id="populateWarehouseDatabase" type="button">Popola pseudo-random</button>
+                    <button class="is-simulation" id="openWarehouseSimulation" type="button">Simulazione operativa</button>
+                    <button class="is-danger" id="clearWarehouseDatabase" type="button">Svuota database</button>
+                </div>
             </section>
 
         </div>
@@ -769,6 +786,10 @@
                     <tbody id="movementHistoryList"></tbody>
                 </table>
             </div>
+            <footer class="movement-history-pagination">
+                <button id="loadMoreMovementHistory" type="button">Carica altri movimenti</button>
+                <small id="movementHistoryPageStatus"></small>
+            </footer>
         </section>
     </div>
 

@@ -1,6 +1,6 @@
 // @ts-nocheck
 require("./shared/dev-guards");
-const { requestBackend } = require("./shared/backend-client");
+const { requestBackend, setBackendIdentity } = require("./shared/backend-client");
 const { ipcRenderer } = require("electron");
 const WAREHOUSE_LOGIN_REQUIRED =
     new URLSearchParams(window.location.search).get("warehouseRequireLogin") ===
@@ -76,6 +76,8 @@ let operationGroupMode = "load";
 let editingOperationLineIndex = null;
 let nextOperationLineId = 1;
 const movementHistory = [];
+let movementHistoryTotal = 0;
+let movementHistoryLoading = false;
 const MOVEMENT_HISTORY_RANGE_STORAGE_KEY =
     "aypi-warehouse-movement-history-range-v1";
 const MOVEMENT_HISTORY_RANGES = new Set([
@@ -320,6 +322,8 @@ function applyWarehouseSession(payload) {
         { role: "guest", adminName: "", department: "", employee: "" },
         payload && ["employee", "admin"].includes(payload.role) ? payload : {},
     );
+    const actor = warehouseActorSnapshot();
+    setBackendIdentity({ role: actor.role, actor: actor.displayName });
     syncWarehouseSessionUi();
     broadcastWarehouse3dState();
 }
@@ -327,6 +331,7 @@ function applyWarehouseSession(payload) {
 async function saveWarehouseSession(payload) {
     applyWarehouseSession(payload);
     await ipcRenderer.invoke("pm-session-set", warehouseSession);
+    await loadAnalysisColumnPreferences();
 }
 
 function fillWarehouseSelect(select, values, placeholder) {
@@ -591,6 +596,7 @@ async function initializeWarehouseAuthentication() {
     if (!WAREHOUSE_LOGIN_REQUIRED) {
         applyWarehouseSession(null);
         closeWarehouseLogin();
+        await loadAnalysisColumnPreferences();
         return;
     }
     try {
@@ -616,6 +622,7 @@ async function initializeWarehouseAuthentication() {
             .filter(Boolean);
     }
     renderWarehouseLoginSources();
+    await loadAnalysisColumnPreferences();
 }
 
 function loadPersistedWarehouseData() {
@@ -627,6 +634,41 @@ function savePersistedWarehouseData(snapshot) {
         method: "PUT",
         body: snapshot,
     });
+}
+
+function serializeRestrictionMap(map) {
+    return Array.from(map.entries()).map(([key, rule]) => ({
+        key,
+        whitelist: [...(rule?.whitelist || [])],
+        blacklist: [...(rule?.blacklist || [])],
+    }));
+}
+
+function warehouseConfigurationPayload() {
+    return {
+        rows: warehouseRows.map((row) => ({ ...row })),
+        rowRestrictions: serializeRestrictionMap(rowRestrictions),
+        slotRestrictions: serializeRestrictionMap(slotRestrictions),
+    };
+}
+
+async function persistWarehouseConfiguration() {
+    if (!warehousePersistenceReady) throw new Error("Database del magazzino non connesso.");
+    return requestBackend("/api/warehouse-inventory/configuration", {
+        method: "PUT",
+        body: warehouseConfigurationPayload(),
+    });
+}
+
+function hydrateWarehouseConfiguration(configuration) {
+    const rows = Array.isArray(configuration?.rows) ? configuration.rows : [];
+    if (rows.length) warehouseRows = rows.map((row) => ({ code: String(row.code).toUpperCase(), capacity: Number(row.capacity), invertedSides: Boolean(row.invertedSides) }));
+    rowRestrictions.clear();
+    slotRestrictions.clear();
+    (configuration?.rowRestrictions || []).forEach((rule) => storeRestriction(rowRestrictions, String(rule.key || "").toUpperCase(), rule));
+    (configuration?.slotRestrictions || []).forEach((rule) => storeRestriction(slotRestrictions, String(rule.key || "").toUpperCase(), rule));
+    warehouseStructureDraft = warehouseRows.map((row) => ({ ...row }));
+    renderWarehouseStructureEditor();
 }
 
 function setWarehouseDatabaseStatus(state, message) {
@@ -918,6 +960,7 @@ function backfillLegacyMovementSnapshots() {
 }
 
 function hydrateWarehouseSnapshot(snapshot) {
+    hydrateWarehouseConfiguration(snapshot?.configuration);
     inventory.clear();
     (snapshot?.inventory || []).forEach((item) => {
         if (!item?.location || !item?.id) return;
@@ -957,6 +1000,7 @@ function hydrateWarehouseSnapshot(snapshot) {
         movementHistory.length,
         ...(snapshot?.movements || []).map(cloneWarehouseMovement),
     );
+    movementHistoryTotal = Math.max(Number(snapshot?.movementsTotal) || movementHistory.length, movementHistory.length);
     backfillLegacyMovementSnapshots();
     warehouseRevision = Number(snapshot?.revision) || 0;
 }
@@ -1024,11 +1068,13 @@ function persistWarehouseData(
     movementSnapshot = serializeWarehouseMovements(),
     unloadZoneSnapshot = cloneUnloadZoneUnits(),
     broadcastAfterSave = true,
+    replaceMovements = false,
 ) {
     const snapshot = {
         inventory: inventorySnapshot,
         movements: movementSnapshot,
         unloadZone: unloadZoneSnapshot,
+        replaceMovements,
     };
     warehousePersistenceQueue = warehousePersistenceQueue
         .catch(() => undefined)
@@ -1043,6 +1089,7 @@ function persistWarehouseData(
                 });
                 warehouseRevision =
                     Number(saved?.revision) || warehouseRevision + 1;
+                movementHistoryTotal = Math.max(Number(saved?.movementsTotal) || 0, movementHistory.length);
                 setWarehouseDatabaseStatus(
                     "ready",
                     `${warehouseStorageLabel()} salvato · ${snapshot.inventory.length} slot occupati`,
@@ -2427,7 +2474,7 @@ function validateWarehouseStructure() {
     return "";
 }
 
-function applyWarehouseStructure() {
+async function applyWarehouseStructure() {
     if (!isWarehouseAdmin()) {
         showWarehouseToast(
             "Accesso amministratore richiesto per modificare la struttura fisica.",
@@ -2440,6 +2487,7 @@ function applyWarehouseStructure() {
         setWarehouseStructureMessage(error);
         return;
     }
+    const previousConfiguration = warehouseConfigurationPayload();
     warehouseRows = warehouseStructureDraft.map((row) => ({ ...row }));
     const validRows = new Set(rowCodes());
     Array.from(rowRestrictions.keys()).forEach((row) => {
@@ -2458,11 +2506,17 @@ function applyWarehouseStructure() {
     renderDetails();
     updateSummary();
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
-    setWarehouseStructureMessage(
-        "Struttura applicata. Le modifiche sono ancora solo dimostrative.",
-        true,
-    );
-    broadcastWarehouse3dState();
+    setWarehouseStructureMessage("Salvataggio sul server…");
+    try {
+        await persistWarehouseConfiguration();
+        setWarehouseStructureMessage("Struttura salvata sul server per tutte le postazioni.", true);
+        broadcastWarehouse3dState();
+    } catch (error) {
+        hydrateWarehouseConfiguration(previousConfiguration);
+        refreshWarehouseDataViews();
+        setWarehouseStructureMessage(`Salvataggio non riuscito: ${error.message}`);
+        showWarehouseToast(`Struttura non salvata: ${error.message}`, true);
+    }
 }
 
 function setupWarehouseStructure() {
@@ -8404,6 +8458,30 @@ function movementMatchesTimeRange(movement, range = movementHistoryTimeRange) {
     return Number.isFinite(timestamp) && timestamp >= start;
 }
 
+async function loadMovementHistoryPage(reset = false) {
+    if (movementHistoryLoading || !isWarehouseLoggedIn()) return;
+    movementHistoryLoading = true;
+    renderMovementHistory();
+    try {
+        const start = movementHistoryRangeStart(movementHistoryTimeRange);
+        const query = new URLSearchParams({ limit: "100", offset: reset ? "0" : String(movementHistory.length) });
+        if (start !== null) query.set("from", new Date(start).toISOString());
+        const page = await requestBackend(`/api/warehouse-inventory/movements?${query}`);
+        const entries = (page?.movements || []).map(cloneWarehouseMovement);
+        if (reset) movementHistory.splice(0, movementHistory.length, ...entries);
+        else {
+            const known = new Set(movementHistory.map((movement) => movement.id));
+            movementHistory.push(...entries.filter((movement) => !known.has(movement.id)));
+        }
+        movementHistoryTotal = Number(page?.total) || movementHistory.length;
+    } catch (error) {
+        showWarehouseToast(`Storico non caricato: ${error.message}`, true);
+    } finally {
+        movementHistoryLoading = false;
+        renderMovementHistory();
+    }
+}
+
 function setupMovementHistoryFilter() {
     const select = document.getElementById("movementHistoryTimeRange");
     if (!select) return;
@@ -8416,21 +8494,30 @@ function setupMovementHistoryFilter() {
             MOVEMENT_HISTORY_RANGE_STORAGE_KEY,
             movementHistoryTimeRange,
         );
-        renderMovementHistory();
+        void loadMovementHistoryPage(true);
     });
+    document.getElementById("loadMoreMovementHistory")?.addEventListener("click", () => void loadMovementHistoryPage(false));
 }
 
 function renderMovementHistory() {
     const count = document.getElementById("movementHistoryCount");
     if (count)
-        count.textContent = movementHistory.length
-            ? `${movementHistory.length} ${movementHistory.length === 1 ? "movimento registrato" : "movimenti registrati"}`
+        count.textContent = movementHistoryTotal
+            ? `${movementHistoryTotal} ${movementHistoryTotal === 1 ? "movimento registrato" : "movimenti registrati"}`
             : "Nessun movimento registrato";
     const list = document.getElementById("movementHistoryList");
     if (!list) return;
     const visibleMovements = movementHistory.filter((movement) =>
         movementMatchesTimeRange(movement),
     );
+    const loadMore = document.getElementById("loadMoreMovementHistory");
+    if (loadMore) {
+        loadMore.disabled = movementHistoryLoading || movementHistory.length >= movementHistoryTotal;
+        loadMore.hidden = movementHistory.length >= movementHistoryTotal;
+        loadMore.textContent = movementHistoryLoading ? "Caricamento…" : "Carica altri movimenti";
+    }
+    const pageStatus = document.getElementById("movementHistoryPageStatus");
+    if (pageStatus) pageStatus.textContent = `${movementHistory.length} caricati su ${movementHistoryTotal}`;
     const filteredCount = document.getElementById(
         "movementHistoryFilteredCount",
     );
@@ -9118,6 +9205,7 @@ function openMovementHistoryDialog() {
         document.getElementById("movementHistoryDialog"),
         document.getElementById("closeMovementHistory"),
     );
+    void loadMovementHistoryPage(true);
 }
 
 function closeMovementHistoryDialog() {
@@ -10921,6 +11009,23 @@ function refreshRestrictionViews() {
     if (!document.getElementById("analysisView")?.hidden) renderAnalysisTable();
 }
 
+async function saveRestrictionsToServer(messageId, successMessage) {
+    setRestrictionMessage(messageId, "Salvataggio sul server…");
+    try {
+        await persistWarehouseConfiguration();
+        setRestrictionMessage(messageId, successMessage, true);
+    } catch (error) {
+        try {
+            hydrateWarehouseConfiguration(await requestBackend("/api/warehouse-inventory/configuration"));
+            refreshRestrictionViews();
+        } catch (_) {
+            // Mantiene la modifica visibile per consentire un nuovo tentativo.
+        }
+        setRestrictionMessage(messageId, `Salvataggio non riuscito: ${error.message}`);
+        showWarehouseToast(`Vincoli non salvati: ${error.message}`, true);
+    }
+}
+
 function openRestrictionDialog(targets = null) {
     if (!isWarehouseAdmin()) {
         showWarehouseToast(
@@ -10989,7 +11094,7 @@ function setupRestrictionDialog() {
     });
     document
         .getElementById("saveRowRestriction")
-        ?.addEventListener("click", () => {
+        ?.addEventListener("click", async () => {
             commitPendingRestrictionCustomers("rowWhitelist", "rowBlacklist");
             const rule = restrictionFromInputs("rowWhitelist", "rowBlacklist");
             const error = validateRestriction(rule);
@@ -11003,15 +11108,11 @@ function setupRestrictionDialog() {
             storeRestriction(rowRestrictions, selectedRestrictionRow, rule);
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            setRestrictionMessage(
-                "rowRestrictionMessage",
-                "Regola della fila salvata.",
-                true,
-            );
+            await saveRestrictionsToServer("rowRestrictionMessage", "Regola della fila salvata sul server.");
         });
     document
         .getElementById("saveSlotRestriction")
-        ?.addEventListener("click", () => {
+        ?.addEventListener("click", async () => {
             commitPendingRestrictionCustomers("slotWhitelist", "slotBlacklist");
             const location = document.getElementById(
                 "restrictionSlotSelect",
@@ -11031,32 +11132,22 @@ function setupRestrictionDialog() {
             );
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            setRestrictionMessage(
-                "slotRestrictionMessage",
-                targets.length === 1
-                    ? "Regola dello slot salvata."
-                    : `Regola applicata a ${targets.length} slot.`,
-                true,
-            );
+            await saveRestrictionsToServer("slotRestrictionMessage", targets.length === 1 ? "Regola dello slot salvata sul server." : `Regola applicata a ${targets.length} slot e salvata sul server.`);
         });
     document
         .getElementById("clearRowRestriction")
-        ?.addEventListener("click", () => {
+        ?.addEventListener("click", async () => {
             const location = document.getElementById(
                 "restrictionSlotSelect",
             )?.value;
             rowRestrictions.delete(selectedRestrictionRow);
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            setRestrictionMessage(
-                "rowRestrictionMessage",
-                "Regola della fila rimossa.",
-                true,
-            );
+            await saveRestrictionsToServer("rowRestrictionMessage", "Regola della fila rimossa dal server.");
         });
     document
         .getElementById("clearSlotRestriction")
-        ?.addEventListener("click", () => {
+        ?.addEventListener("click", async () => {
             const location = document.getElementById(
                 "restrictionSlotSelect",
             )?.value;
@@ -11064,13 +11155,7 @@ function setupRestrictionDialog() {
             targets.forEach((target) => slotRestrictions.delete(target));
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            setRestrictionMessage(
-                "slotRestrictionMessage",
-                targets.length === 1
-                    ? "Regola dello slot rimossa."
-                    : `Regola rimossa da ${targets.length} slot.`,
-                true,
-            );
+            await saveRestrictionsToServer("slotRestrictionMessage", targets.length === 1 ? "Regola dello slot rimossa dal server." : `Regola rimossa da ${targets.length} slot sul server.`);
         });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") closeRestrictionDialog();
@@ -11100,6 +11185,92 @@ const ANALYSIS_SORT_KEYS = [
     "slotRestriction",
     "customerCompliance",
 ];
+const ANALYSIS_COLUMN_LABELS = ["Ubicazione", "Fila", "Colonna", "Lato", "Livello", "Stato slot", "ID cassone", "Tipologia", "Articolo", "Cliente", "Rif. ordine", "Codice pesata", "Pezzi", "Capienza iniziale", "Tag", "Stato operativo", "Vincolo fila", "Vincolo slot", "Verifica cliente"];
+let visibleAnalysisColumns = new Set(ANALYSIS_SORT_KEYS);
+let analysisColumnPresets = [];
+
+function analysisPreferenceOwner() {
+    const actor = warehouseActorSnapshot();
+    const name = String(actor.displayName || "").trim().toLocaleLowerCase("it");
+    if (actor.role === "test") return { key: "test:operatore-test", label: "Operatore test" };
+    if (actor.role === "admin") return { key: `admin:${name}`, label: actor.displayName };
+    return { key: `employee:${String(actor.department || "").trim().toLocaleLowerCase("it")}:${name}`, label: actor.displayName };
+}
+
+function applyAnalysisColumnVisibility() {
+    document.querySelectorAll(".analysis-table tr").forEach((row) => {
+        Array.from(row.children).forEach((cell, index) => {
+            const key = ANALYSIS_SORT_KEYS[index];
+            if (key) cell.hidden = !visibleAnalysisColumns.has(key);
+        });
+    });
+}
+
+async function saveAnalysisColumnPreferences() {
+    const owner = analysisPreferenceOwner();
+    return requestBackend("/api/warehouse-inventory/database-preferences", { method: "PUT", body: { ownerKey: owner.key, ownerLabel: owner.label, visibleColumns: [...visibleAnalysisColumns], presets: analysisColumnPresets } });
+}
+
+function renderAnalysisColumnControls() {
+    const choices = document.getElementById("analysisColumnChoices");
+    if (!choices) return;
+    choices.replaceChildren();
+    ANALYSIS_SORT_KEYS.forEach((key, index) => {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = visibleAnalysisColumns.has(key);
+        input.addEventListener("change", async () => {
+            if (input.checked) visibleAnalysisColumns.add(key);
+            else if (visibleAnalysisColumns.size > 1) visibleAnalysisColumns.delete(key);
+            else input.checked = true;
+            applyAnalysisColumnVisibility();
+            await saveAnalysisColumnPreferences().catch((error) => showWarehouseToast(`Colonne non salvate: ${error.message}`, true));
+        });
+        label.append(input, document.createTextNode(ANALYSIS_COLUMN_LABELS[index]));
+        choices.append(label);
+    });
+    const list = document.getElementById("analysisPresetList");
+    list.replaceChildren();
+    analysisColumnPresets.forEach((preset) => {
+        const row = document.createElement("div");
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.textContent = preset.name;
+        apply.addEventListener("click", () => {
+            visibleAnalysisColumns = new Set(preset.columns.filter((key) => ANALYSIS_SORT_KEYS.includes(key)));
+            renderAnalysisColumnControls();
+            applyAnalysisColumnVisibility();
+            void saveAnalysisColumnPreferences();
+        });
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.title = `Elimina ${preset.name}`;
+        remove.addEventListener("click", () => {
+            analysisColumnPresets = analysisColumnPresets.filter((entry) => entry.id !== preset.id);
+            renderAnalysisColumnControls();
+            void saveAnalysisColumnPreferences();
+        });
+        row.append(apply, remove);
+        list.append(row);
+    });
+}
+
+async function loadAnalysisColumnPreferences() {
+    if (!isWarehouseLoggedIn()) return;
+    const owner = analysisPreferenceOwner();
+    try {
+        const result = await requestBackend(`/api/warehouse-inventory/database-preferences?owner=${encodeURIComponent(owner.key)}`);
+        const columns = (result?.visibleColumns || []).filter((key) => ANALYSIS_SORT_KEYS.includes(key));
+        if (columns.length) visibleAnalysisColumns = new Set(columns);
+        analysisColumnPresets = Array.isArray(result?.presets) ? result.presets : [];
+        renderAnalysisColumnControls();
+        applyAnalysisColumnVisibility();
+    } catch (error) {
+        showWarehouseToast(`Preferenze colonne non disponibili: ${error.message}`, true);
+    }
+}
 const analysisCollator = new Intl.Collator("it", {
     numeric: true,
     sensitivity: "base",
@@ -11225,6 +11396,7 @@ function updateAnalysisSortHeaders() {
     document.querySelectorAll(".analysis-table th").forEach((header, index) => {
         const key = ANALYSIS_SORT_KEYS[index];
         header.dataset.sortKey = key;
+        header.hidden = !visibleAnalysisColumns.has(key);
         header.tabIndex = 0;
         const active = analysisSort.key === key;
         header.setAttribute(
@@ -11247,6 +11419,8 @@ function appendAnalysisCell(row, value, className = "") {
     cell.title = value || "";
     if (!value) cell.classList.add("table-empty");
     if (className) cell.classList.add(...className.split(" "));
+    const key = ANALYSIS_SORT_KEYS[row.children.length];
+    cell.hidden = key ? !visibleAnalysisColumns.has(key) : false;
     row.appendChild(cell);
 }
 
@@ -11503,6 +11677,27 @@ function setupAnalysisView() {
     document
         .getElementById("analysisOccupiedOnly")
         ?.addEventListener("change", renderAnalysisTable);
+    document.getElementById("saveAnalysisPreset")?.addEventListener("click", async () => {
+        const input = document.getElementById("analysisPresetName");
+        const name = String(input?.value || "").trim();
+        const message = document.getElementById("analysisColumnsMessage");
+        if (!name) {
+            message.textContent = "Inserisci un nome per il preset.";
+            input?.focus();
+            return;
+        }
+        const existing = analysisColumnPresets.find((preset) => String(preset.name).toLocaleLowerCase("it") === name.toLocaleLowerCase("it"));
+        const preset = { id: existing?.id || `columns-${Date.now()}`, name, columns: [...visibleAnalysisColumns], updatedAt: new Date().toISOString() };
+        analysisColumnPresets = existing ? analysisColumnPresets.map((entry) => entry.id === existing.id ? preset : entry) : [...analysisColumnPresets, preset].slice(-20);
+        try {
+            await saveAnalysisColumnPreferences();
+            input.value = "";
+            message.textContent = existing ? "Preset aggiornato." : "Preset salvato sul server.";
+            renderAnalysisColumnControls();
+        } catch (error) {
+            message.textContent = `Salvataggio non riuscito: ${error.message}`;
+        }
+    });
     document
         .getElementById("openAnalysisSelection")
         ?.addEventListener("click", () => {
@@ -11543,6 +11738,7 @@ function setupAnalysisView() {
         });
     });
     updateAnalysisSortHeaders();
+    renderAnalysisColumnControls();
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") closeArticleAnalysis();
     });
@@ -12830,7 +13026,7 @@ function setupTemporaryDatabaseActions() {
                 unloadZone.splice(0);
                 resetOperationDraftsAfterDatabaseChange();
                 refreshWarehouseDataViews();
-                await persistWarehouseData();
+                await persistWarehouseData(undefined, undefined, undefined, true, true);
                 closePseudoPopulateDialog();
                 showWarehouseToast(
                     `Scenario creato: ${result.options.totalCrates} cassoni, ${result.options.totalPallets} pallet, ${result.options.lotCount} lotti · seed ${result.options.seed}.`,
@@ -12870,7 +13066,7 @@ function setupTemporaryDatabaseActions() {
                 unloadZone.splice(0);
                 resetOperationDraftsAfterDatabaseChange();
                 refreshWarehouseDataViews();
-                await persistWarehouseData();
+                await persistWarehouseData(undefined, undefined, undefined, true, true);
                 showWarehouseToast(
                     "Database del magazzino svuotato completamente.",
                 );
@@ -12971,5 +13167,4 @@ setupMovementPlayback();
 setupWarehouseLogin();
 setupWarehouseGuide();
 updateSummary();
-void initializeWarehouseAuthentication();
-void initializeWarehousePersistence();
+void initializeWarehouseAuthentication().then(() => initializeWarehousePersistence());

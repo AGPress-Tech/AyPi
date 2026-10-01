@@ -4,6 +4,12 @@ import { logger } from "../../shared/logging/logger";
 import { createOperationQueue } from "../../shared/ops/queue";
 import {
     loadWarehouseSnapshot,
+    loadWarehouseMovements,
+    loadWarehouseMovement,
+    loadWarehouseConfiguration,
+    saveWarehouseConfiguration,
+    loadWarehouseDatabasePreferences,
+    saveWarehouseDatabasePreferences,
     loadWarehouseViewPreferences,
     saveWarehouseSnapshot,
     saveWarehouseViewPreferences,
@@ -15,7 +21,15 @@ import {
 const enqueue = createOperationQueue("warehouse-inventory");
 
 export function getWarehouseSnapshot() {
-    return loadWarehouseSnapshot();
+    return { ...loadWarehouseSnapshot(), configuration: loadWarehouseConfiguration() };
+}
+
+export function getWarehouseMovements(options: { limit: number; offset: number; from?: string }) {
+    return loadWarehouseMovements(options);
+}
+
+export function getWarehouseMovement(movementId: string) {
+    return loadWarehouseMovement(movementId);
 }
 
 export function saveWarehouseState(
@@ -24,6 +38,7 @@ export function saveWarehouseState(
         movements: WarehouseMovement[];
         unloadZone: WarehouseUnloadZoneItem[];
         baseRevision: number;
+        replaceMovements?: boolean;
     },
     context?: ActionContext,
 ) {
@@ -35,6 +50,7 @@ export function saveWarehouseState(
             payload.unloadZone,
             payload.baseRevision,
             meta.actor || "Operatore AyPi",
+            Boolean(payload.replaceMovements),
         );
         logger.info("Warehouse inventory saved", {
             ...meta,
@@ -42,12 +58,34 @@ export function saveWarehouseState(
             module: "warehouse",
             category: "data",
             revision: snapshot.revision,
-            occupiedSlots: snapshot.inventory.length,
-            movements: snapshot.movements.length,
-            unloadZoneUnits: snapshot.unloadZone.length,
+            occupiedSlots: snapshot.occupiedSlots,
+            movements: snapshot.movementsTotal,
+            unloadZoneUnits: snapshot.unloadZoneUnits,
         });
         return snapshot;
     });
+}
+
+export function getWarehouseConfiguration() {
+    return loadWarehouseConfiguration();
+}
+
+export function saveWarehouseServerConfiguration(payload: Parameters<typeof saveWarehouseConfiguration>[0], context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("saveConfiguration", () => {
+        const result = saveWarehouseConfiguration(payload, meta.actor || "Amministratore AyPi");
+        logger.info("Warehouse configuration saved", { ...meta, event: "warehouse_configuration_saved", module: "warehouse", category: "settings", rows: result.rows.length });
+        return result;
+    });
+}
+
+export function getWarehouseDatabasePreferences(ownerKey: string) {
+    return loadWarehouseDatabasePreferences(ownerKey);
+}
+
+export function saveWarehouseUserDatabasePreferences(payload: { ownerKey: string; ownerLabel: string; visibleColumns: string[]; presets: unknown[] }, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("saveDatabasePreferences", () => saveWarehouseDatabasePreferences(payload.ownerKey, payload.ownerLabel, payload.visibleColumns, payload.presets));
 }
 
 export function getWarehouseViewPreferences(ownerKey: string) {

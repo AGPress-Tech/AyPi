@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const { ipcRenderer } = require("electron");
-const { requestBackend } = require("./shared/backend-client");
+const { requestBackend, setBackendIdentity } = require("./shared/backend-client");
 
 const canvas = document.getElementById("warehouseCanvas");
 const stage = document.getElementById("viewerStage");
@@ -4314,6 +4314,8 @@ function syncViewSettingsUi() {
     const freeSlotsButton = document.getElementById("toggleFreeSlots");
     freeSlotsButton.classList.toggle("is-active", showFreeSlots);
     freeSlotsButton.setAttribute("aria-pressed", String(showFreeSlots));
+    document.getElementById("showFreeSlotsControl").checked = showFreeSlots;
+    document.getElementById("showLabelsControl").checked = surfaceLabelsVisible;
     applyFreeSlotVisibility();
     document.getElementById("showRacksControl").checked =
         viewerSettings.showRacks;
@@ -4410,6 +4412,25 @@ function setupViewSettings() {
                 applyScenePreset(button.dataset.scenePreset),
             ),
         );
+    document.querySelectorAll("[data-settings-page]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const page = button.dataset.settingsPage;
+            document.querySelectorAll("[data-settings-page]").forEach((entry) => {
+                const active = entry.dataset.settingsPage === page;
+                entry.classList.toggle("is-active", active);
+                entry.setAttribute("aria-pressed", String(active));
+            });
+            document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+                panel.hidden = panel.dataset.settingsPanel !== page;
+            });
+        });
+    });
+    document.getElementById("showLabelsControl").addEventListener("change", (event) => {
+        if (event.target.checked !== surfaceLabelsVisible) document.getElementById("toggleLabels").click();
+    });
+    document.getElementById("showFreeSlotsControl").addEventListener("change", (event) => {
+        if (event.target.checked !== showFreeSlots) document.getElementById("toggleFreeSlots").click();
+    });
     document
         .getElementById("rackOpacityControl")
         .addEventListener("input", (event) => {
@@ -4575,6 +4596,7 @@ document.getElementById("toggleLabels").addEventListener("click", (event) => {
         String(surfaceLabelsVisible),
     );
     updateSurfaceLabels();
+    document.getElementById("showLabelsControl").checked = surfaceLabelsVisible;
 });
 document
     .getElementById("toggleFreeSlots")
@@ -4583,6 +4605,7 @@ document
         viewerSettings.showFreeSlots = showFreeSlots;
         event.currentTarget.classList.toggle("is-active", showFreeSlots);
         event.currentTarget.setAttribute("aria-pressed", String(showFreeSlots));
+        document.getElementById("showFreeSlotsControl").checked = showFreeSlots;
         applyFreeSlotVisibility();
         saveViewerSettings();
     });
@@ -4775,6 +4798,7 @@ ipcRenderer.on("warehouse-3d-data", (_event, payload) => {
             ? `${focusMatch[1].toUpperCase()}${Number(focusMatch[2])}${focusMatch[3].toLowerCase()}`
             : "";
     if (requestedFocus && movementPlaybackState) stopMovement3dPlayback();
+    setBackendIdentity({ role: payload.actor?.role, actor: payload.actor?.displayName });
     applyCameraViewOwner(payload.actor);
     liveSnapshot = payload;
     const playback = payload.movementPlayback;
