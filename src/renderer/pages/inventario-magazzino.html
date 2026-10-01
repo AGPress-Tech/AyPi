@@ -255,6 +255,19 @@
                 </button>
             </section>
 
+            <section class="tools-drawer__section tools-drawer__section--test" id="testDatabaseActions" hidden>
+                <div class="tools-drawer__section-heading">
+                    <span>AMBIENTE SVILUPPATORE</span>
+                    <strong>Scenari e simulazione</strong>
+                </div>
+                <p>Area separata dai comandi produttivi: queste funzioni possono sostituire o cancellare i dati.</p>
+                <div class="test-database-actions" aria-label="Strumenti database temporanei">
+                    <button id="populateWarehouseDatabase" type="button">Popola pseudo-random</button>
+                    <button class="is-simulation" id="openWarehouseSimulation" type="button">Simulazione operativa</button>
+                    <button class="is-danger" id="clearWarehouseDatabase" type="button">Svuota database</button>
+                </div>
+            </section>
+
             <section class="tools-drawer__section" aria-labelledby="mapGroupingTitle">
                 <div class="tools-drawer__section-heading">
                     <span>VISUALIZZAZIONE 2D</span>
@@ -324,19 +337,6 @@
                     <span><strong>Apri storico movimenti</strong><small id="movementHistoryCount">Nessun movimento registrato</small></span>
                     <b aria-hidden="true">›</b>
                 </button>
-            </section>
-
-            <section class="tools-drawer__section tools-drawer__section--test" id="testDatabaseActions" hidden>
-                <div class="tools-drawer__section-heading">
-                    <span>AMBIENTE TEST</span>
-                    <strong>Scenari e simulazione</strong>
-                </div>
-                <p>Area separata dai comandi produttivi: queste funzioni possono sostituire o cancellare i dati.</p>
-                <div class="test-database-actions" aria-label="Strumenti database temporanei">
-                    <button id="populateWarehouseDatabase" type="button">Popola pseudo-random</button>
-                    <button class="is-simulation" id="openWarehouseSimulation" type="button">Simulazione operativa</button>
-                    <button class="is-danger" id="clearWarehouseDatabase" type="button">Svuota database</button>
-                </div>
             </section>
 
         </div>

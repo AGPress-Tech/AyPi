@@ -5,7 +5,10 @@ const { ipcRenderer } = require("electron");
 const WAREHOUSE_LOGIN_REQUIRED =
     new URLSearchParams(window.location.search).get("warehouseRequireLogin") ===
     "1";
-const WAREHOUSE_DEVELOPMENT_MODE = !WAREHOUSE_LOGIN_REQUIRED;
+const WAREHOUSE_DEVELOPMENT_MODE =
+    !WAREHOUSE_LOGIN_REQUIRED ||
+    process.env.AYPI_DEV === "1" ||
+    process.env.NODE_ENV === "development";
 
 function defaultInvertedSides(code) {
     return (code.charCodeAt(0) - "A".charCodeAt(0) + 1) % 2 === 0;
@@ -214,14 +217,14 @@ function setupWarehouseSplash() {
 
 function isWarehouseLoggedIn() {
     return (
-        !WAREHOUSE_LOGIN_REQUIRED ||
+        WAREHOUSE_DEVELOPMENT_MODE ||
         warehouseSession.role === "employee" ||
         warehouseSession.role === "admin"
     );
 }
 
 function isWarehouseAdmin() {
-    return !WAREHOUSE_LOGIN_REQUIRED || warehouseSession.role === "admin";
+    return WAREHOUSE_DEVELOPMENT_MODE || warehouseSession.role === "admin";
 }
 
 function isExclusiveTestDatabaseAdmin() {
@@ -237,7 +240,7 @@ function isExclusiveTestDatabaseAdmin() {
 }
 
 function warehouseActorSnapshot() {
-    if (!WAREHOUSE_LOGIN_REQUIRED) {
+    if (WAREHOUSE_DEVELOPMENT_MODE) {
         return {
             role: "test",
             adminName: "",
@@ -262,7 +265,7 @@ function warehouseActorSnapshot() {
 function syncWarehouseSessionUi() {
     const button = document.getElementById("warehouseLoginToggle");
     if (button) {
-        button.hidden = !WAREHOUSE_LOGIN_REQUIRED;
+        button.hidden = WAREHOUSE_DEVELOPMENT_MODE;
         const name =
             warehouseSession.role === "admin"
                 ? warehouseSession.adminName
@@ -593,7 +596,7 @@ function renderWarehouseLoginSources() {
 }
 
 async function initializeWarehouseAuthentication() {
-    if (!WAREHOUSE_LOGIN_REQUIRED) {
+    if (WAREHOUSE_DEVELOPMENT_MODE) {
         applyWarehouseSession(null);
         closeWarehouseLogin();
         await loadAnalysisColumnPreferences();
@@ -797,7 +800,9 @@ function cloneUnloadZoneUnits(units = unloadZone) {
 }
 
 function serializeWarehouseMovements() {
-    return movementHistory.map(cloneWarehouseMovement);
+    // Il backend esegue UPSERT: inviamo soltanto la finestra recente e non
+    // l'intero storico eventualmente caricato tramite paginazione.
+    return movementHistory.slice(0, 100).map(cloneWarehouseMovement);
 }
 
 function cloneWarehouseRows(rows) {
