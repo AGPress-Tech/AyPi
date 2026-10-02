@@ -2,6 +2,7 @@ import type { ActionContext } from "../../shared/logging/audit";
 import { buildContext } from "../../shared/logging/audit";
 import { logger } from "../../shared/logging/logger";
 import { createOperationQueue } from "../../shared/ops/queue";
+import { WAREHOUSE_FUTURE_CAPABILITIES } from "./future-capabilities";
 import {
     loadWarehouseSnapshot,
     loadWarehouseMovements,
@@ -19,6 +20,10 @@ import {
 } from "./repository";
 
 const enqueue = createOperationQueue("warehouse-inventory");
+
+export function getWarehouseCapabilities() {
+    return WAREHOUSE_FUTURE_CAPABILITIES;
+}
 
 export function getWarehouseSnapshot() {
     return { ...loadWarehouseSnapshot(), configuration: loadWarehouseConfiguration() };

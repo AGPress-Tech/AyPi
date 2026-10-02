@@ -7,6 +7,7 @@ import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
 import {
     getWarehouseSnapshot,
+    getWarehouseCapabilities,
     getWarehouseMovements,
     getWarehouseMovement,
     getWarehouseConfiguration,
@@ -124,6 +125,11 @@ function validateConfigurationPayload(value: any) {
 }
 
 export function registerWarehouseInventoryRoutes(router: Router) {
+    router.register("GET", "/api/warehouse-inventory/capabilities", async (req, res) => {
+        getWarehousePrincipal(req);
+        sendJson(res, 200, getWarehouseCapabilities());
+    });
+
     router.register("GET", "/api/warehouse-inventory/state", async (_req, res) => {
         sendJson(res, 200, getWarehouseSnapshot());
     });

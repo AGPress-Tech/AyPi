@@ -7,6 +7,10 @@ import {
     parseJson,
     serializeJson,
 } from "../../shared/storage/json-codec";
+import {
+    isValidWarehouseTrackingCode,
+    normalizeWarehouseTrackingCode,
+} from "./future-capabilities";
 
 const META_TABLE = "warehouse_meta";
 const UNITS_TABLE = "warehouse_units";
@@ -17,6 +21,10 @@ const UNLOAD_ZONE_TABLE = "warehouse_unload_zone";
 const VIEW_PREFERENCES_TABLE = "warehouse_view_preferences";
 const CONFIGURATION_TABLE = "warehouse_configuration";
 const DATABASE_PREFERENCES_TABLE = "warehouse_database_preferences";
+const PHYSICAL_INVENTORY_SESSIONS_TABLE = "warehouse_physical_inventory_sessions";
+const PHYSICAL_INVENTORY_SCANS_TABLE = "warehouse_physical_inventory_scans";
+const INVENTORY_ADJUSTMENTS_TABLE = "warehouse_inventory_adjustments";
+const LABEL_PRINT_JOBS_TABLE = "warehouse_label_print_jobs";
 const STORE_KEY = "main";
 
 export type WarehouseInventoryItem = {
@@ -33,6 +41,8 @@ export type WarehouseInventoryItem = {
     type: "crate" | "pallet";
     pairedLocation: string | null;
     receivedAt: string;
+    /** Identificativo futuro per barcode/QR. Vuoto finché la funzione è disattivata. */
+    trackingCode?: string;
 };
 
 export type WarehouseMovement = {
@@ -76,6 +86,7 @@ export type WarehouseMovement = {
             customer: string;
             orderReference: string;
             weighingCode?: string;
+            trackingCode?: string;
             pieceCount?: number;
             maxPieceCapacity?: number;
             type: "crate" | "pallet";
@@ -146,6 +157,7 @@ export function initializeWarehouseInventorySqliteStore() {
             customer TEXT NOT NULL,
             order_reference TEXT NOT NULL,
             weighing_code TEXT NOT NULL DEFAULT '',
+            tracking_code TEXT NOT NULL DEFAULT '',
             piece_count INTEGER NOT NULL DEFAULT 1 CHECK (piece_count > 0),
             max_piece_capacity INTEGER NOT NULL DEFAULT 1 CHECK (max_piece_capacity > 0),
             is_in_movement INTEGER NOT NULL DEFAULT 0,
@@ -217,6 +229,71 @@ export function initializeWarehouseInventorySqliteStore() {
             presets_json TEXT NOT NULL DEFAULT '[]',
             updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS ${PHYSICAL_INVENTORY_SESSIONS_TABLE} (
+            session_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL CHECK (status IN ('draft', 'counting', 'review', 'reconciled', 'cancelled')),
+            scope_json TEXT NOT NULL DEFAULT '{}',
+            summary_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS ${PHYSICAL_INVENTORY_SCANS_TABLE} (
+            scan_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            tracking_code TEXT NOT NULL,
+            expected_unit_id TEXT,
+            expected_location TEXT,
+            observed_location TEXT,
+            outcome TEXT NOT NULL CHECK (outcome IN ('matched', 'unexpected-unit', 'unexpected-location', 'unknown-code', 'duplicate-scan')),
+            scanned_at TEXT NOT NULL,
+            scanned_by TEXT NOT NULL,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY (session_id) REFERENCES ${PHYSICAL_INVENTORY_SESSIONS_TABLE}(session_id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_${PHYSICAL_INVENTORY_SCANS_TABLE}_session
+            ON ${PHYSICAL_INVENTORY_SCANS_TABLE}(session_id, scanned_at);
+        CREATE INDEX IF NOT EXISTS idx_${PHYSICAL_INVENTORY_SCANS_TABLE}_tracking
+            ON ${PHYSICAL_INVENTORY_SCANS_TABLE}(tracking_code);
+
+        CREATE TABLE IF NOT EXISTS ${INVENTORY_ADJUSTMENTS_TABLE} (
+            adjustment_id TEXT PRIMARY KEY,
+            session_id TEXT,
+            status TEXT NOT NULL CHECK (status IN ('draft', 'approved', 'applied', 'cancelled')),
+            reason TEXT NOT NULL,
+            differences_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            approved_at TEXT,
+            approved_by TEXT,
+            applied_at TEXT,
+            applied_by TEXT,
+            FOREIGN KEY (session_id) REFERENCES ${PHYSICAL_INVENTORY_SESSIONS_TABLE}(session_id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_${INVENTORY_ADJUSTMENTS_TABLE}_session
+            ON ${INVENTORY_ADJUSTMENTS_TABLE}(session_id, status);
+
+        CREATE TABLE IF NOT EXISTS ${LABEL_PRINT_JOBS_TABLE} (
+            job_id TEXT PRIMARY KEY,
+            unit_id TEXT NOT NULL,
+            tracking_code TEXT NOT NULL,
+            template_key TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (status IN ('pending', 'printing', 'printed', 'failed', 'cancelled')),
+            copies INTEGER NOT NULL DEFAULT 1 CHECK (copies > 0),
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            printed_at TEXT,
+            printer_name TEXT,
+            error_message TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_${LABEL_PRINT_JOBS_TABLE}_status
+            ON ${LABEL_PRINT_JOBS_TABLE}(status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_${LABEL_PRINT_JOBS_TABLE}_unit
+            ON ${LABEL_PRINT_JOBS_TABLE}(unit_id);
     `);
     const movementColumns = database.exec(`PRAGMA table_info(${MOVEMENTS_TABLE})`);
     const hasDetails = (movementColumns?.[0]?.values || []).some((row: unknown[]) => String(row[1]) === "details_json");
@@ -263,9 +340,11 @@ export function initializeWarehouseInventorySqliteStore() {
     }
     const unitColumns = new Set((database.exec(`PRAGMA table_info(${UNITS_TABLE})`)?.[0]?.values || []).map((row: unknown[]) => String(row[1])));
     if (!unitColumns.has("weighing_code")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN weighing_code TEXT NOT NULL DEFAULT ''`);
+    if (!unitColumns.has("tracking_code")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN tracking_code TEXT NOT NULL DEFAULT ''`);
     if (!unitColumns.has("piece_count")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN piece_count INTEGER NOT NULL DEFAULT 1`);
     if (!unitColumns.has("max_piece_capacity")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN max_piece_capacity INTEGER NOT NULL DEFAULT 1`);
     database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${UNITS_TABLE}_weighing ON ${UNITS_TABLE}(weighing_code) WHERE weighing_code <> ''`);
+    database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${UNITS_TABLE}_tracking ON ${UNITS_TABLE}(tracking_code) WHERE tracking_code <> ''`);
 }
 
 const DEFAULT_WAREHOUSE_ROWS = ["A", "B", "C", "D", "E"].map((code, index) => ({
@@ -393,7 +472,7 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
     const inventoryRows = database.exec(`
         SELECT
             o.location, u.unit_id, u.article, u.customer, u.order_reference,
-            u.weighing_code, u.piece_count, u.max_piece_capacity,
+            u.weighing_code, u.tracking_code, u.piece_count, u.max_piece_capacity,
             u.tags_json, u.is_in_movement, u.unit_type,
             o.paired_location, u.received_at
         FROM ${OCCUPANCIES_TABLE} o
@@ -407,13 +486,14 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
         customer: String(row[3] || ""),
         orderReference: String(row[4] || ""),
         weighingCode: String(row[5] || ""),
-        pieceCount: Math.max(1, Number(row[6]) || 1),
-        maxPieceCapacity: Math.max(1, Number(row[7]) || Number(row[6]) || 1),
-        tags: parseJson<string[]>(row[8], []),
-        inMovement: Boolean(row[9]),
-        type: row[10] === "pallet" ? "pallet" as const : "crate" as const,
-        pairedLocation: row[11] ? String(row[11]) : null,
-        receivedAt: String(row[12] || ""),
+        trackingCode: String(row[6] || ""),
+        pieceCount: Math.max(1, Number(row[7]) || 1),
+        maxPieceCapacity: Math.max(1, Number(row[8]) || Number(row[7]) || 1),
+        tags: parseJson<string[]>(row[9], []),
+        inMovement: Boolean(row[10]),
+        type: row[11] === "pallet" ? "pallet" as const : "crate" as const,
+        pairedLocation: row[12] ? String(row[12]) : null,
+        receivedAt: String(row[13] || ""),
     }));
 
     const movements = loadWarehouseMovements({ limit: 100, offset: 0 }).movements;
@@ -511,6 +591,24 @@ export function saveWarehouseSnapshot(
 ): WarehouseSaveResult {
     initializeWarehouseInventorySqliteStore();
     const weighingOwners = new Map<string, string>();
+    const trackingOwners = new Map<string, string>();
+    [...inventory, ...unloadZone].forEach((item) => {
+        const trackingCode = normalizeWarehouseTrackingCode(item.trackingCode);
+        if (!isValidWarehouseTrackingCode(trackingCode)) {
+            throw new HttpError(400, `Codice univoco non valido per il cassone ${item.id}.`, {
+                code: "WAREHOUSE_INVALID_TRACKING_CODE",
+                details: { unitId: item.id, trackingCode },
+            });
+        }
+        const owner = trackingOwners.get(trackingCode);
+        if (trackingCode && owner && owner !== item.id) {
+            throw new HttpError(400, `Il codice univoco ${trackingCode} è già assegnato a un altro cassone.`, {
+                code: "WAREHOUSE_DUPLICATE_TRACKING_CODE",
+                details: { trackingCode, unitIds: [owner, item.id] },
+            });
+        }
+        if (trackingCode) trackingOwners.set(trackingCode, item.id);
+    });
     inventory.forEach((item) => {
         const pieces = Math.max(1, Number(item.pieceCount) || 1);
         const capacity = Math.max(1, Number(item.maxPieceCapacity) || pieces);
@@ -550,9 +648,9 @@ export function saveWarehouseSnapshot(
         const unitStatement = database.prepare(`
             INSERT INTO ${UNITS_TABLE} (
                 unit_id, unit_type, article, customer, order_reference,
-                weighing_code, piece_count, max_piece_capacity,
+                weighing_code, tracking_code, piece_count, max_piece_capacity,
                 is_in_movement, received_at, tags_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const occupancyStatement = database.prepare(`
             INSERT INTO ${OCCUPANCIES_TABLE} (location, unit_id, paired_location)
@@ -568,6 +666,7 @@ export function saveWarehouseSnapshot(
                     item.customer,
                     item.orderReference,
                     String(item.weighingCode || "").trim(),
+                    normalizeWarehouseTrackingCode(item.trackingCode),
                     Math.max(1, Number(item.pieceCount) || 1),
                     Math.max(1, Number(item.maxPieceCapacity) || Number(item.pieceCount) || 1),
                     item.inMovement ? 1 : 0,
