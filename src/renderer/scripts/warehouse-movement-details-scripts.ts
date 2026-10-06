@@ -271,6 +271,7 @@ function renderMovementInstructions(movement) {
                 unitArticles.size > 1 && unit.article ? `articolo ${unit.article}` : "",
                 unit.weighingCode ? `codice pesata ${unit.weighingCode}` : "",
                 unit.orderReference ? `rif. ordine ${unit.orderReference}` : "",
+                unit.note ? `nota ${unit.note}` : "",
                 unit.customer ? `cliente ${unit.customer}` : "",
             ].filter(Boolean);
             metadata.textContent = optionalData.join(" · ");
@@ -296,9 +297,9 @@ function movementRequestRows(movement) {
                 customer: request.customer || "—",
                 order: request.order || "—",
                 weighingCode: request.weighingCode || "—",
-                request: Number(request.requestedPieces) > 0
+                request: `${Number(request.requestedPieces) > 0
                     ? `${Number(request.requestedPieces)} pezzi`
-                    : `${quantity} ${unitLabel}${Number(request.pieceCount) > 0 ? ` · ${Number(request.pieceCount)} pezzi/cassone` : ""}`,
+                    : `${quantity} ${unitLabel}${Number(request.pieceCount) > 0 ? ` · ${Number(request.pieceCount)} pezzi/cassone` : ""}`}${request.note ? ` · Nota: ${request.note}` : ""}`,
                 type: request.type === "pallet" ? "Pallet" : "Cassone",
                 units: request.sourceIds?.length
                     ? `${request.sourceIds.length} unità selezionate`

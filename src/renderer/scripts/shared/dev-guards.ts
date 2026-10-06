@@ -64,6 +64,8 @@ if (IS_DEV) {
         "warehouse-3d-update",
         "warehouse-3d-ready",
         "warehouse-3d-select-slot",
+        "warehouse-3d-edit-unit",
+        "warehouse-3d-edit-unit-request",
         "warehouse-3d-movement-action",
         "warehouse-3d-movement-action-request",
         "warehouse-3d-playback-data",

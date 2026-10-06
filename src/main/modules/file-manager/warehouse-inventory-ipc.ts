@@ -280,6 +280,16 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         if (!warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
         warehouse3dOwner.webContents.send("warehouse-3d-slot-selected", String(location || ""));
     });
+    ipcMain.on("warehouse-3d-edit-unit", (event, payload) => {
+        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
+            || warehouse3dWindow.webContents !== event.sender
+            || !warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
+        warehouse3dOwner.webContents.send("warehouse-3d-edit-unit-request", {
+            location: String(payload?.location || ""),
+            stagingUnitId: String(payload?.stagingUnitId || ""),
+        });
+        focusBrowserWindow(warehouse3dOwner);
+    });
     app.on("before-quit", () => {
         try { persistDatabase(app); } catch { /* a previous atomic save remains valid */ }
     });

@@ -223,6 +223,47 @@ textarea {
     font-size: 13px;
 }
 
+.folder-tree-native__list {
+    display: grid;
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.folder-tree-native__item > .folder-tree-native__list { margin-left: 14px; }
+.folder-tree-native__row {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: center;
+    min-height: 25px;
+}
+.folder-tree-native__toggle,
+.folder-tree-native__select {
+    min-width: 0;
+    min-height: 24px;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+.folder-tree-native__toggle { padding: 0; color: #aaa; }
+.folder-tree-native__toggle:disabled { cursor: default; }
+.folder-tree-native__select {
+    overflow: hidden;
+    padding: 3px 7px;
+    border-radius: 3px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.folder-tree-native__select:hover { background: rgba(255, 255, 255, .08); }
+.folder-tree-native__select.is-selected {
+    color: #fff;
+    background: rgba(52, 136, 202, .35);
+    box-shadow: inset 3px 0 #3488ca;
+}
+
 .preset-section {
     border-top: 1px solid #555;
     padding-top: 8px;

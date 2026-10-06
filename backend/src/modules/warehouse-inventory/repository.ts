@@ -33,6 +33,7 @@ export type WarehouseInventoryItem = {
     article: string;
     customer: string;
     orderReference: string;
+    note?: string;
     weighingCode: string;
     pieceCount: number;
     maxPieceCapacity: number;
@@ -64,6 +65,7 @@ export type WarehouseMovement = {
         article?: string;
         customer?: string;
         order?: string;
+        note?: string;
         weighingCode?: string;
         pieceCount?: number;
         requestedPieces?: number;
@@ -71,7 +73,7 @@ export type WarehouseMovement = {
         type?: "crate" | "pallet";
         sourceIds?: string[];
     }>;
-    lines: Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>;
+    lines: Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; note?: string; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>;
     operationalSteps?: Array<{
         order: number;
         kind: "corridor" | "unload" | "reinsert" | "piece-pick" | "load" | "staging-exit" | "optimization-corridor" | "optimization-stage" | "optimization-place";
@@ -85,6 +87,7 @@ export type WarehouseMovement = {
             article: string;
             customer: string;
             orderReference: string;
+            note?: string;
             weighingCode?: string;
             trackingCode?: string;
             pieceCount?: number;
@@ -156,6 +159,7 @@ export function initializeWarehouseInventorySqliteStore() {
             article TEXT NOT NULL,
             customer TEXT NOT NULL,
             order_reference TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
             weighing_code TEXT NOT NULL DEFAULT '',
             tracking_code TEXT NOT NULL DEFAULT '',
             piece_count INTEGER NOT NULL DEFAULT 1 CHECK (piece_count > 0),
@@ -340,6 +344,7 @@ export function initializeWarehouseInventorySqliteStore() {
     }
     const unitColumns = new Set((database.exec(`PRAGMA table_info(${UNITS_TABLE})`)?.[0]?.values || []).map((row: unknown[]) => String(row[1])));
     if (!unitColumns.has("weighing_code")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN weighing_code TEXT NOT NULL DEFAULT ''`);
+    if (!unitColumns.has("note")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN note TEXT NOT NULL DEFAULT ''`);
     if (!unitColumns.has("tracking_code")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN tracking_code TEXT NOT NULL DEFAULT ''`);
     if (!unitColumns.has("piece_count")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN piece_count INTEGER NOT NULL DEFAULT 1`);
     if (!unitColumns.has("max_piece_capacity")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN max_piece_capacity INTEGER NOT NULL DEFAULT 1`);
@@ -472,7 +477,7 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
     const inventoryRows = database.exec(`
         SELECT
             o.location, u.unit_id, u.article, u.customer, u.order_reference,
-            u.weighing_code, u.tracking_code, u.piece_count, u.max_piece_capacity,
+            u.note, u.weighing_code, u.tracking_code, u.piece_count, u.max_piece_capacity,
             u.tags_json, u.is_in_movement, u.unit_type,
             o.paired_location, u.received_at
         FROM ${OCCUPANCIES_TABLE} o
@@ -485,15 +490,16 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
         article: String(row[2] || ""),
         customer: String(row[3] || ""),
         orderReference: String(row[4] || ""),
-        weighingCode: String(row[5] || ""),
-        trackingCode: String(row[6] || ""),
-        pieceCount: Math.max(1, Number(row[7]) || 1),
-        maxPieceCapacity: Math.max(1, Number(row[8]) || Number(row[7]) || 1),
-        tags: parseJson<string[]>(row[9], []),
-        inMovement: Boolean(row[10]),
-        type: row[11] === "pallet" ? "pallet" as const : "crate" as const,
-        pairedLocation: row[12] ? String(row[12]) : null,
-        receivedAt: String(row[13] || ""),
+        note: String(row[5] || ""),
+        weighingCode: String(row[6] || ""),
+        trackingCode: String(row[7] || ""),
+        pieceCount: Math.max(1, Number(row[8]) || 1),
+        maxPieceCapacity: Math.max(1, Number(row[9]) || Number(row[8]) || 1),
+        tags: parseJson<string[]>(row[10], []),
+        inMovement: Boolean(row[11]),
+        type: row[12] === "pallet" ? "pallet" as const : "crate" as const,
+        pairedLocation: row[13] ? String(row[13]) : null,
+        receivedAt: String(row[14] || ""),
     }));
 
     const movements = loadWarehouseMovements({ limit: 100, offset: 0 }).movements;
@@ -537,7 +543,7 @@ export function loadWarehouseMovements(options: { limit: number; offset: number;
         WHERE movement_id IN (${placeholders})
         ORDER BY movement_id ASC, line_order ASC
     `, movementIds);
-    const linesByMovement = new Map<string, Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>>();
+    const linesByMovement = new Map<string, Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; note?: string; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>>();
     (lineRows?.[0]?.values || []).forEach((row: unknown[]) => {
         const movementId = String(row[0] || "");
         if (!linesByMovement.has(movementId)) linesByMovement.set(movementId, []);
@@ -548,7 +554,7 @@ export function loadWarehouseMovements(options: { limit: number; offset: number;
     });
     const movements = (movementRows?.[0]?.values || []).map((row: unknown[]) => {
         const details = parseJson<Record<string, unknown>>(row[3], {});
-        const lineDetails = Array.isArray(details.lineDetails) ? details.lineDetails as Array<{ kind?: "loaded" | "unloaded" | "relocated" | "pieces"; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }> : [];
+        const lineDetails = Array.isArray(details.lineDetails) ? details.lineDetails as Array<{ kind?: "loaded" | "unloaded" | "relocated" | "pieces"; note?: string; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }> : [];
         const lines = (linesByMovement.get(String(row[0] || "")) || []).map((line, index) => ({
             ...line,
             ...lineDetails[index],
@@ -648,9 +654,9 @@ export function saveWarehouseSnapshot(
         const unitStatement = database.prepare(`
             INSERT INTO ${UNITS_TABLE} (
                 unit_id, unit_type, article, customer, order_reference,
-                weighing_code, tracking_code, piece_count, max_piece_capacity,
+                note, weighing_code, tracking_code, piece_count, max_piece_capacity,
                 is_in_movement, received_at, tags_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const occupancyStatement = database.prepare(`
             INSERT INTO ${OCCUPANCIES_TABLE} (location, unit_id, paired_location)
@@ -665,6 +671,7 @@ export function saveWarehouseSnapshot(
                     item.article,
                     item.customer,
                     item.orderReference,
+                    String(item.note || "").trim().slice(0, 500),
                     String(item.weighingCode || "").trim(),
                     normalizeWarehouseTrackingCode(item.trackingCode),
                     Math.max(1, Number(item.pieceCount) || 1),
@@ -716,6 +723,7 @@ export function saveWarehouseSnapshot(
                     operationalSteps: movement.operationalSteps || [],
                     lineDetails: movement.lines.map((line) => ({
                         kind: line.kind || null,
+                        note: line.note || "",
                         weighingCode: line.weighingCode || "",
                         pieceCount: line.pieceCount || null,
                         maxPieceCapacity: line.maxPieceCapacity || null,

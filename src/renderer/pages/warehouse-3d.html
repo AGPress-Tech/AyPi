@@ -55,6 +55,7 @@
                     <label><input type="checkbox" name="viewerSearchField" value="article" checked> Articolo</label>
                     <label><input type="checkbox" name="viewerSearchField" value="customer"> Cliente</label>
                     <label><input type="checkbox" name="viewerSearchField" value="order"> Rif. ordine</label>
+                    <label><input type="checkbox" name="viewerSearchField" value="note"> Nota</label>
                     <label><input type="checkbox" name="viewerSearchField" value="weighing"> Pesata</label>
                     <label><input type="checkbox" name="viewerSearchField" value="pieces"> Pezzi</label>
                     <label><input type="checkbox" name="viewerSearchField" value="tags"> Tag</label>
@@ -96,7 +97,7 @@
                     <button id="movement3dClose" type="button">Chiudi</button>
                 </nav>
             </section>
-            <div class="viewer-help">Trascina per ruotare · rotella per zoom · tasto destro per spostare · WASD per muoverti</div>
+            <div class="viewer-help">Trascina per ruotare · rotella per zoom · trascina col destro per spostare · clic destro su un cassone per dati/nota · WASD per muoverti</div>
             <section class="viewer-settings" id="viewerSettings" hidden>
                 <header>
                     <div><span class="eyebrow">CONFIGURAZIONE SCENA</span><h2>Personalizza visuale</h2></div>
@@ -143,6 +144,7 @@
                         <label><input type="checkbox" value="pieces" checked> N. pezzi</label>
                         <label><input type="checkbox" value="customer"> Cliente</label>
                         <label><input type="checkbox" value="order"> Rif. ordine</label>
+                        <label><input type="checkbox" value="note"> Riferimento / nota</label>
                         <label><input type="checkbox" value="weighing"> Codice pesata</label>
                         <label><input type="checkbox" value="type"> Tipologia</label>
                         <label><input type="checkbox" value="tags"> Tag</label>

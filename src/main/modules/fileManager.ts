@@ -1078,16 +1078,19 @@ function openHierarchyWindow(
 ) {
     const requestedTheme =
         options.theme === "bluearchive" ? "bluearchive" : "standard";
+    const usesModernLayout =
+        requestedTheme === "bluearchive" ||
+        getScriptedSplashTheme() === "agpress";
     if (isWindowAlive(hierarchyWindow)) {
         if (hierarchyWindowTheme !== requestedTheme) {
             hierarchyWindowTheme = requestedTheme;
             hierarchyWindow.setMinimumSize(
-                requestedTheme === "bluearchive" ? 980 : 0,
-                requestedTheme === "bluearchive" ? 680 : 0,
+                usesModernLayout ? 980 : 0,
+                usesModernLayout ? 680 : 0,
             );
             hierarchyWindow.setSize(
-                requestedTheme === "bluearchive" ? 1320 : 1100,
-                requestedTheme === "bluearchive" ? 850 : 800,
+                usesModernLayout ? 1320 : 1100,
+                usesModernLayout ? 850 : 800,
             );
             hierarchyWindow.loadFile(
                 path.join(
@@ -1107,10 +1110,10 @@ function openHierarchyWindow(
 
     hierarchyWindowTheme = requestedTheme;
     hierarchyWindow = new BrowserWindow({
-        width: requestedTheme === "bluearchive" ? 1320 : 1100,
-        height: requestedTheme === "bluearchive" ? 850 : 800,
-        minWidth: requestedTheme === "bluearchive" ? 980 : undefined,
-        minHeight: requestedTheme === "bluearchive" ? 680 : undefined,
+        width: usesModernLayout ? 1320 : 1100,
+        height: usesModernLayout ? 850 : 800,
+        minWidth: usesModernLayout ? 980 : undefined,
+        minHeight: usesModernLayout ? 680 : undefined,
         parent: mainWindow,
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,

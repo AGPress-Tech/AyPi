@@ -51,46 +51,73 @@ function buildFolderTreeData(rootPath) {
 function refreshFolderTree() {
     const treeElement = document.getElementById("folderTree");
     if (!treeElement || typeof window === "undefined") return;
-
-    const $ = window.jQuery || window.$;
-    if (!$ || !$.fn || !$.fn.jstree) {
-        return;
-    }
-
-    const $tree = $(treeElement);
-
+    treeElement.replaceChildren();
     if (!state.rootFolder) {
-        try {
-            $tree.jstree("destroy").empty();
-        } catch (err) {
-            // ignore
-        }
         return;
     }
 
     const data = buildFolderTreeData(state.rootFolder);
+    const renderBranch = (nodes, depth = 0) => {
+        const list = document.createElement("ul");
+        list.className = "folder-tree-native__list";
+        list.setAttribute("role", depth ? "group" : "tree");
+        nodes.forEach((node) => {
+            const item = document.createElement("li");
+            item.className = "folder-tree-native__item";
+            item.setAttribute("role", "treeitem");
+            item.setAttribute("aria-level", String(depth + 1));
 
-    try {
-        $tree.jstree("destroy").empty();
-    } catch (err) {
-        // ignore
-    }
+            const row = document.createElement("div");
+            row.className = "folder-tree-native__row";
+            row.style.setProperty("--folder-depth", String(depth));
 
-    $tree.jstree({
-        core: {
-            data,
-            themes: {
-                stripes: true,
-            },
-        },
-    });
+            const children = Array.isArray(node.children) ? node.children : [];
+            const branch = children.length ? renderBranch(children, depth + 1) : null;
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "folder-tree-native__toggle";
+            toggle.disabled = !branch;
+            toggle.textContent = branch ? "▾" : "";
+            toggle.setAttribute("aria-label", branch ? `Comprimi ${node.text}` : "");
 
-    $tree.off("changed.jstree").on("changed.jstree", (e, dataEvent) => {
-        const selected = dataEvent.selected && dataEvent.selected[0];
-        if (!selected) return;
-        state.rootFolder = selected;
-        updateSelectedFolderLabel();
-    });
+            const select = document.createElement("button");
+            select.type = "button";
+            select.className = "folder-tree-native__select";
+            select.textContent = node.text;
+            select.title = node.id;
+            select.classList.toggle("is-selected", node.id === state.rootFolder);
+            select.addEventListener("click", () => {
+                state.rootFolder = node.id;
+                treeElement
+                    .querySelectorAll(".folder-tree-native__select")
+                    .forEach((button) =>
+                        button.classList.toggle("is-selected", button === select),
+                    );
+                updateSelectedFolderLabel();
+            });
+
+            if (branch) {
+                item.setAttribute("aria-expanded", "true");
+                toggle.addEventListener("click", () => {
+                    const expanded = item.getAttribute("aria-expanded") !== "false";
+                    item.setAttribute("aria-expanded", String(!expanded));
+                    branch.hidden = expanded;
+                    toggle.textContent = expanded ? "▸" : "▾";
+                    toggle.setAttribute(
+                        "aria-label",
+                        `${expanded ? "Espandi" : "Comprimi"} ${node.text}`,
+                    );
+                });
+            }
+            row.append(toggle, select);
+            item.appendChild(row);
+            if (branch) item.appendChild(branch);
+            list.appendChild(item);
+        });
+        return list;
+    };
+
+    treeElement.appendChild(renderBranch(data));
 }
 
 export { buildFolderTreeData, refreshFolderTree };

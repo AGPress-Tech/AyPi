@@ -97,6 +97,7 @@ const VIEWER_LABEL_FIELDS = [
     "pieces",
     "customer",
     "order",
+    "note",
     "weighing",
     "type",
     "tags",
@@ -700,6 +701,7 @@ function itemLabelLines(location, item) {
         pieces: `${Number(item.pieceCount) || 0} pezzi`,
         customer: item.customer || "Cliente —",
         order: item.orderReference || "Ordine —",
+        note: item.note ? `Nota ${item.note}` : "Nota —",
         weighing: item.weighingCode || "Pesata —",
         type: item.type === "pallet" ? "Pallet" : "Cassone",
         tags: (item.tags || []).join(", ") || "Tag —",
@@ -1058,6 +1060,38 @@ function addOperationalAreas() {
             mesh.position.copy(stagingPositionForUnit(item));
             mesh.userData.sceneRole = "staging-unit";
             mesh.userData.stagingUnitId = item.id;
+            mesh.userData.item = item;
+            mesh.userData.location = `STAGING:${item.id}`;
+            mesh.userData.locations = [];
+            mesh.userData.displayLocation = "IN ATTESA / PREPARAZIONE";
+            mesh.userData.state = item.type === "pallet" ? "pallet" : "occupied";
+            mesh.userData.baseColor = color;
+            mesh.userData.searchable = [
+                item.article,
+                item.customer,
+                item.orderReference,
+                item.note,
+                item.weighingCode,
+                ...(item.tags || []),
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toUpperCase();
+            const outline = new THREE.Mesh(
+                mesh.geometry,
+                new THREE.MeshBasicMaterial({
+                    color: palette.related,
+                    side: THREE.BackSide,
+                    transparent: true,
+                    opacity: 0.96,
+                }),
+            );
+            outline.name = "selection-outline";
+            outline.scale.set(1.075, 1.09, 1.075);
+            outline.visible = false;
+            outline.renderOrder = 2;
+            mesh.add(outline);
+            mesh.userData.outline = outline;
             const lines = itemLabelLines(
                 item.requiresWarehouseReturn
                     ? "IN ATTESA · RIENTRO"
@@ -1074,6 +1108,7 @@ function addOperationalAreas() {
                 mesh.add(label);
             });
             world.add(mesh);
+            pickables.push(mesh);
         }),
     );
 }
@@ -1144,6 +1179,8 @@ function refreshPhysicalAreasLive() {
     ]);
     world.children.slice().forEach((object) => {
         if (!removableRoles.has(object.userData?.sceneRole)) return;
+        const pickableIndex = pickables.indexOf(object);
+        if (pickableIndex >= 0) pickables.splice(pickableIndex, 1);
         object.traverse((child) => {
             child.geometry?.dispose?.();
             if (Array.isArray(child.material))
@@ -1205,6 +1242,7 @@ function addSlotMesh(location, item, state, position, locations = [location]) {
             item?.article,
             item?.customer,
             item?.orderReference,
+            item?.note,
             item?.weighingCode,
             ...(item?.tags || []),
         ]
@@ -1539,6 +1577,7 @@ function viewerSearchValues(item, fields) {
         article: item?.article,
         customer: item?.customer,
         order: item?.orderReference,
+        note: item?.note || "",
         weighing: item?.weighingCode || "",
         pieces: `${Number(item?.pieceCount) || 0} pezzi capienza ${Number(item?.maxPieceCapacity) || Number(item?.pieceCount) || 0}`,
         tags: Array.isArray(item?.tags) ? item.tags.join(" ") : "",
@@ -1634,6 +1673,12 @@ function matchesSelectedContent(candidate, selected) {
     if (fields.has("customer")) return candidate.customer === selected.customer;
     if (fields.has("order"))
         return candidate.orderReference === selected.orderReference;
+    if (fields.has("note"))
+        return (
+            Boolean(String(selected.note || "").trim()) &&
+            String(candidate.note || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it") ===
+                String(selected.note || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it")
+        );
     if (fields.has("weighing"))
         return (
             Boolean(selected.weighingCode) &&
@@ -3591,6 +3636,7 @@ function detailsRows(mesh) {
         ["Articolo", item.article || "—"],
         ["Cliente", item.customer || "—"],
         ["Rif. ordine", item.orderReference || "—"],
+        ["Riferimento / nota", item.note || "—"],
         ["Codice pesata", item.weighingCode || "—"],
         ["Pezzi", String(Number(item.pieceCount) || 0)],
         [
@@ -3610,9 +3656,10 @@ function selectMesh(mesh, notifyMain = false) {
     document.getElementById("detailsEmpty").hidden = true;
     document.getElementById("detailsContent").hidden = false;
     document.getElementById("detailLocation").textContent =
-        mesh.userData.locations?.length > 1
+        mesh.userData.displayLocation ||
+        (mesh.userData.locations?.length > 1
             ? mesh.userData.locations.join(" + ")
-            : mesh.userData.location;
+            : mesh.userData.location);
     const states = {
         free: "Libero",
         occupied: "Occupato",
@@ -3633,8 +3680,9 @@ function selectMesh(mesh, notifyMain = false) {
         fields.appendChild(row);
     });
     document.getElementById("showOn2dMap").disabled =
-        mesh.userData.state === "blocked";
-    if (notifyMain)
+        mesh.userData.state === "blocked" ||
+        mesh.userData.sceneRole === "staging-unit";
+    if (notifyMain && mesh.userData.sceneRole !== "staging-unit")
         ipcRenderer.send("warehouse-3d-select-slot", currentSelection);
 }
 
@@ -3662,7 +3710,7 @@ function updateTooltip(event) {
     }
     const item = mesh.userData.item;
     tooltip.textContent = item
-        ? `${mesh.userData.locations?.join(" + ") || mesh.userData.location}\n${item.type === "pallet" ? "Pallet" : "Cassone"} · ${item.article || "—"}\n${item.customer || "Cliente —"} · ${Number(item.pieceCount) || 0} pezzi\nOrdine ${item.orderReference || "—"} · Pesata ${item.weighingCode || "—"}`
+        ? `${mesh.userData.displayLocation || mesh.userData.locations?.join(" + ") || mesh.userData.location}\n${item.type === "pallet" ? "Pallet" : "Cassone"} · ${item.article || "—"}\n${item.customer || "Cliente —"} · ${Number(item.pieceCount) || 0} pezzi\nOrdine ${item.orderReference || "—"} · Pesata ${item.weighingCode || "—"}\nNota ${item.note || "—"}`
         : `${mesh.userData.location}\n${mesh.userData.state === "blocked" ? "Non utilizzabile: bloccato dal pallet sottostante" : "Slot libero"}`;
     tooltip.style.whiteSpace = "pre-line";
     tooltip.hidden = false;
@@ -4572,6 +4620,30 @@ canvas.addEventListener("pointerup", (event) => {
         return;
     const mesh = intersectAt(event.clientX, event.clientY);
     if (mesh) selectMesh(mesh, true);
+});
+canvas.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    if (
+        pointerDown &&
+        Math.hypot(
+            event.clientX - pointerDown.x,
+            event.clientY - pointerDown.y,
+        ) > 5
+    )
+        return;
+    const mesh = intersectAt(event.clientX, event.clientY);
+    const item = mesh?.userData?.item;
+    if (!mesh || !item) return;
+    if (mesh.userData.sceneRole === "staging-unit") {
+        ipcRenderer.send("warehouse-3d-edit-unit", {
+            stagingUnitId: String(mesh.userData.stagingUnitId || item.id || ""),
+        });
+        return;
+    }
+    if (!["occupied", "pallet"].includes(mesh.userData.state)) return;
+    ipcRenderer.send("warehouse-3d-edit-unit", {
+        location: String(mesh.userData.location || ""),
+    });
 });
 document.getElementById("cameraHome").addEventListener("click", () => {
     cameraTransition = null;

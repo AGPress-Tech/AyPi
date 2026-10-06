@@ -29,8 +29,12 @@ import {
 
 const IS_BLUE_ARCHIVE_BATCH_RENAME =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+const IS_AGPRESS_BATCH_RENAME =
+    new URLSearchParams(window.location.search).get("splashTheme") === "agpress";
 const SPLASH_MODE = createScriptedSplashMode(["bluearchive-batch-rename"]);
-if (IS_BLUE_ARCHIVE_BATCH_RENAME) document.body.classList.add("bluearchive-batch-rename");
+if (IS_BLUE_ARCHIVE_BATCH_RENAME || IS_AGPRESS_BATCH_RENAME) {
+    document.body.classList.add("bluearchive-batch-rename");
+}
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_BATCH_RENAME);
 
 function runBlueArchiveBatchSplash() {

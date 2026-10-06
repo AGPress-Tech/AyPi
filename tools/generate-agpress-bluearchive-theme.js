@@ -86,12 +86,19 @@ function transformRgb(match, redValue, greenValue, blueValue, alphaValue) {
     return `${alphaValue === undefined ? "rgb" : "rgba"}(${transformed.join(", ")}${suffix})`;
 }
 
-let css = fs.readFileSync(sourcePath, "utf8");
-css = css.replace(/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/g, transformHex);
-css = css.replace(
-    /rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+))?\s*\)/g,
-    transformRgb,
-);
+function transformCss(source) {
+    let output = source.replace(
+        /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/g,
+        transformHex,
+    );
+    output = output.replace(
+        /rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+))?\s*\)/g,
+        transformRgb,
+    );
+    return output;
+}
+
+let css = transformCss(fs.readFileSync(sourcePath, "utf8"));
 css += `
 
 /* AGPress excludes the Blue Archive identity and pointer effects. */
@@ -111,3 +118,5 @@ css += `
 `;
 css = `/* Generated from bluearchive-preview.css. Do not edit directly. */\n${css}`;
 fs.writeFileSync(destinationPath, css, "utf8");
+
+module.exports = { transformCss };

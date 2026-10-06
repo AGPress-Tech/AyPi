@@ -10,8 +10,12 @@ import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
 const IS_BLUE_ARCHIVE_FILE_LIST =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+const IS_AGPRESS_FILE_LIST =
+    new URLSearchParams(window.location.search).get("splashTheme") === "agpress";
 const SPLASH_MODE = createScriptedSplashMode(["bluearchive-file-list"]);
-if (IS_BLUE_ARCHIVE_FILE_LIST) document.body.classList.add("bluearchive-file-list");
+if (IS_BLUE_ARCHIVE_FILE_LIST || IS_AGPRESS_FILE_LIST) {
+    document.body.classList.add("bluearchive-file-list");
+}
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_FILE_LIST);
 
 type FileRow = {

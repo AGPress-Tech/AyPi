@@ -892,7 +892,7 @@ h1 {
 .search-report { padding: 9px 10px; }
 .inventory-search__form { border-bottom: 1px solid var(--line); }
 .search-report {
-    --report-columns: 24px 58px minmax(100px, 1.1fr) minmax(100px, 1fr) minmax(86px, .85fr) minmax(78px, .7fr) 58px minmax(78px, .65fr);
+    --report-columns: 24px 58px minmax(100px, 1.1fr) minmax(100px, 1fr) minmax(86px, .85fr) minmax(90px, .85fr) minmax(78px, .7fr) 58px minmax(78px, .65fr);
     display: grid;
     grid-template-rows: 26px 22px minmax(0, 1fr) 29px;
     gap: 4px;
@@ -2059,6 +2059,24 @@ h1 {
 .inventory-item-edit-tags { grid-column: 1 / -1; }
 .inventory-item-edit-message { min-height: 16px; margin: 0; color: #61727e; font-size: 10px; }
 .inventory-item-edit-message.is-error { color: #a43b32; font-weight: 700; }
+.inventory-note-edit-dialog { width: min(590px, 94vw); }
+.inventory-note-edit-field {
+    display: grid;
+    gap: 6px;
+    color: #455b69;
+    font-size: 10px;
+    font-weight: 750;
+}
+.inventory-note-edit-field input {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #b9c7d0;
+    border-radius: 4px;
+    color: #183a55;
+    background: #fff;
+    font: inherit;
+}
 .movement-history-dialog {
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
@@ -2550,7 +2568,7 @@ body.warehouse-bluearchive #warehouseLoginDialog .warehouse-login-confirm { alig
     border-radius: 0;
 }
 .inventory-search--dialog .search-report {
-    --report-columns: 28px 72px minmax(130px, 1.1fr) minmax(130px, 1fr) minmax(110px, .9fr) minmax(100px, .8fr) 70px minmax(110px, .7fr);
+    --report-columns: 28px 72px minmax(130px, 1.1fr) minmax(130px, 1fr) minmax(110px, .9fr) minmax(120px, .9fr) minmax(100px, .8fr) 70px minmax(110px, .7fr);
     grid-template-rows: 32px 24px minmax(0, 1fr) 34px;
     padding: 10px 14px 14px;
 }

@@ -17,8 +17,14 @@ import { scanFolderRecursively } from "./hierarchy/services/filesystem-scanner";
 
 const IS_BLUE_ARCHIVE_HIERARCHY =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
+const IS_AGPRESS_HIERARCHY =
+    new URLSearchParams(window.location.search).get("splashTheme") === "agpress";
+const USES_MODERN_HIERARCHY =
+    IS_BLUE_ARCHIVE_HIERARCHY || IS_AGPRESS_HIERARCHY;
 const SPLASH_MODE = createScriptedSplashMode(["bluearchive-hierarchy"]);
-if (IS_BLUE_ARCHIVE_HIERARCHY) document.body.classList.add("bluearchive-hierarchy");
+if (IS_BLUE_ARCHIVE_HIERARCHY || IS_AGPRESS_HIERARCHY) {
+    document.body.classList.add("bluearchive-hierarchy");
+}
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_HIERARCHY);
 
 function runBlueArchiveHierarchySplash() {
@@ -81,7 +87,20 @@ function destroyStatsCharts() {
     }
 }
 
-const hierarchyChartTheme = IS_BLUE_ARCHIVE_HIERARCHY
+const hierarchyChartTheme = IS_AGPRESS_HIERARCHY
+    ? {
+          text: "#71695e",
+          grid: "rgba(204, 147, 14, 0.14)",
+          border: "rgba(204, 147, 14, 0.25)",
+          primary: "#cc930e",
+          secondary: "#e4ab32",
+          fill: "rgba(228, 171, 50, 0.16)",
+          fillStrong: "rgba(228, 171, 50, 0.32)",
+          fillWeak: "rgba(228, 171, 50, 0.02)",
+          tooltipBackground: "rgba(51, 47, 43, 0.95)",
+          tooltipText: "#fff8e8",
+      }
+    : IS_BLUE_ARCHIVE_HIERARCHY
     ? {
           text: "#456b83",
           grid: "rgba(38, 148, 207, 0.14)",
@@ -89,6 +108,8 @@ const hierarchyChartTheme = IS_BLUE_ARCHIVE_HIERARCHY
           primary: "#168eea",
           secondary: "#2fc7f3",
           fill: "rgba(47, 199, 243, 0.16)",
+          fillStrong: "rgba(47, 199, 243, 0.32)",
+          fillWeak: "rgba(47, 199, 243, 0.02)",
           tooltipBackground: "rgba(23, 36, 61, 0.94)",
           tooltipText: "#eaf9ff",
       }
@@ -99,6 +120,8 @@ const hierarchyChartTheme = IS_BLUE_ARCHIVE_HIERARCHY
           primary: "#cc930e",
           secondary: "#e6b33d",
           fill: "rgba(204, 147, 14, 0.25)",
+          fillStrong: "rgba(204, 147, 14, 0.32)",
+          fillWeak: "rgba(204, 147, 14, 0.02)",
           tooltipBackground: "rgba(20, 20, 20, 0.92)",
           tooltipText: "#fff",
       };
@@ -1227,7 +1250,7 @@ function renderStatsPanelV2() {
                                     : "Dimensione (byte)",
                             data: dataExt,
                             backgroundColor(context) {
-                                if (!IS_BLUE_ARCHIVE_HIERARCHY) {
+                                if (!USES_MODERN_HIERARCHY) {
                                     return hierarchyChartTheme.primary;
                                 }
                                 const { ctx, chartArea } = context.chart;
@@ -1253,10 +1276,10 @@ function renderStatsPanelV2() {
                             hoverBackgroundColor:
                                 hierarchyChartTheme.secondary,
                             borderColor: hierarchyChartTheme.primary,
-                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 1 : 0,
-                            borderRadius: IS_BLUE_ARCHIVE_HIERARCHY ? 7 : 0,
+                            borderWidth: USES_MODERN_HIERARCHY ? 1 : 0,
+                            borderRadius: USES_MODERN_HIERARCHY ? 7 : 0,
                             borderSkipped: false,
-                            barPercentage: IS_BLUE_ARCHIVE_HIERARCHY ? 0.72 : 0.9,
+                            barPercentage: USES_MODERN_HIERARCHY ? 0.72 : 0.9,
                         },
                     ],
                 },
@@ -1309,7 +1332,7 @@ function renderStatsPanelV2() {
                             titleColor: "#ffffff",
                             bodyColor: hierarchyChartTheme.tooltipText,
                             borderColor: hierarchyChartTheme.secondary,
-                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 1 : 0,
+                            borderWidth: USES_MODERN_HIERARCHY ? 1 : 0,
                             cornerRadius: 8,
                             padding: 10,
                             displayColors: false,
@@ -1443,7 +1466,7 @@ function renderStatsPanelV2() {
                             data,
                             borderColor: hierarchyChartTheme.primary,
                             backgroundColor(context) {
-                                if (!IS_BLUE_ARCHIVE_HIERARCHY) {
+                                if (!USES_MODERN_HIERARCHY) {
                                     return hierarchyChartTheme.fill;
                                 }
                                 const { ctx, chartArea } = context.chart;
@@ -1458,18 +1481,18 @@ function renderStatsPanelV2() {
                                 );
                                 gradient.addColorStop(
                                     0,
-                                    "rgba(47, 199, 243, 0.32)",
+                                    hierarchyChartTheme.fillStrong,
                                 );
                                 gradient.addColorStop(
                                     1,
-                                    "rgba(47, 199, 243, 0.02)",
+                                    hierarchyChartTheme.fillWeak,
                                 );
                                 return gradient;
                             },
-                            fill: IS_BLUE_ARCHIVE_HIERARCHY,
-                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 3 : 2,
-                            tension: IS_BLUE_ARCHIVE_HIERARCHY ? 0.36 : 0.25,
-                            pointRadius: IS_BLUE_ARCHIVE_HIERARCHY ? 3 : 2,
+                            fill: USES_MODERN_HIERARCHY,
+                            borderWidth: USES_MODERN_HIERARCHY ? 3 : 2,
+                            tension: USES_MODERN_HIERARCHY ? 0.36 : 0.25,
+                            pointRadius: USES_MODERN_HIERARCHY ? 3 : 2,
                             pointHoverRadius: 6,
                             pointBackgroundColor: "#ffffff",
                             pointBorderColor: hierarchyChartTheme.primary,
@@ -1534,7 +1557,7 @@ function renderStatsPanelV2() {
                             titleColor: "#ffffff",
                             bodyColor: hierarchyChartTheme.tooltipText,
                             borderColor: hierarchyChartTheme.secondary,
-                            borderWidth: IS_BLUE_ARCHIVE_HIERARCHY ? 1 : 0,
+                            borderWidth: USES_MODERN_HIERARCHY ? 1 : 0,
                             cornerRadius: 8,
                             padding: 10,
                             displayColors: false,

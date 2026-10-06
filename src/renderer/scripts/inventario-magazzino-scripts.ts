@@ -117,6 +117,7 @@ let movementPlaybackTimer = null;
 let contextMovementId = null;
 let movementUndoTargetId = null;
 let editingInventoryUnitId = null;
+let editingUnloadZoneNoteUnitId = null;
 let contextUnloadZoneUnitId = null;
 let unloadZoneReloadPreview = null;
 let manualMovementMode = "load";
@@ -552,6 +553,7 @@ function setupWarehouseDialogFocus() {
                     operationGroupDialog: closeOperationDialog,
                     manualMovementDialog: closeManualMovementDialog,
                     inventoryItemEditDialog: closeInventoryItemEditDialog,
+                    inventoryNoteEditDialog: closeInventoryNoteEditDialog,
                     warehouseOptimizerDialog: closeWarehouseOptimizer,
                     movementHistoryDialog: closeMovementHistoryDialog,
                     movementUndoDialog: closeMovementUndoDialog,
@@ -835,6 +837,16 @@ function setupWarehouse3dViewer() {
         renderMap();
         renderDetails();
     });
+    ipcRenderer.on("warehouse-3d-edit-unit-request", (_event, payload) => {
+        const stagingUnitId = String(payload?.stagingUnitId || "").trim();
+        if (stagingUnitId) {
+            openUnloadZoneNoteEditDialog(stagingUnitId);
+            return;
+        }
+        const location = parseSlotCode(payload?.location)?.code;
+        if (location && inventory.has(location))
+            openInventoryItemEditDialog(location);
+    });
 }
 
 function cloneUnloadZoneUnits(units = unloadZone) {
@@ -1019,6 +1031,7 @@ function hydrateWarehouseSnapshot(snapshot) {
         const { partial: _legacyPartial, ...warehouseItem } = item;
         inventory.set(item.location, {
             ...warehouseItem,
+            note: String(item.note || "").trim(),
             weighingCode: String(item.weighingCode || "").trim(),
             pieceCount,
             maxPieceCapacity: Math.max(
@@ -1037,6 +1050,7 @@ function hydrateWarehouseSnapshot(snapshot) {
             const pieceCount = Math.max(1, Number(item.pieceCount) || 1);
             return {
                 ...warehouseItem,
+                note: String(item.note || "").trim(),
                 weighingCode: String(item.weighingCode || "").trim(),
                 pieceCount,
                 maxPieceCapacity: Math.max(
@@ -1171,6 +1185,13 @@ function normalizeCustomer(value) {
         .toUpperCase();
 }
 
+function normalizeWarehouseNote(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleUpperCase("it");
+}
+
 function parseCustomerList(value) {
     return Array.from(
         new Set(
@@ -1289,6 +1310,12 @@ function itemMatchesSelection(item) {
         return item.customer === selectedItem.customer;
     if (displayFields.has("order"))
         return item.orderReference === selectedItem.orderReference;
+    if (displayFields.has("note"))
+        return (
+            Boolean(normalizeWarehouseNote(selectedItem.note)) &&
+            normalizeWarehouseNote(item.note) ===
+                normalizeWarehouseNote(selectedItem.note)
+        );
     if (displayFields.has("weighing"))
         return (
             Boolean(selectedItem.weighingCode) &&
@@ -1305,6 +1332,7 @@ function slotDisplayLines(code, item) {
         pieces: [`${warehouseItemPieces(item)} pezzi`, "quantity"],
         customer: [item.customer || "Cliente —", "customer"],
         order: [item.orderReference || "Ordine —", "order"],
+        note: [item.note ? `Nota ${item.note}` : "Nota —", "note"],
         weighing: [
             item.weighingCode ? `Pesata ${item.weighingCode}` : "Pesata —",
             "weighing",
@@ -1817,6 +1845,7 @@ function renderDetails(detailSlot = selectedSlot) {
     setDetailRowVisibility("detailArticleRow", Boolean(item));
     setDetailRowVisibility("detailCustomerRow", Boolean(item));
     setDetailRowVisibility("detailOrderRow", Boolean(item));
+    setDetailRowVisibility("detailNoteReferenceRow", Boolean(item));
     setDetailRowVisibility("detailWeighingRow", Boolean(item));
     setDetailRowVisibility("detailPiecesRow", Boolean(item));
     setDetailRowVisibility("detailTagsRow", Boolean(item?.tags?.length));
@@ -1840,6 +1869,8 @@ function renderDetails(detailSlot = selectedSlot) {
         document.getElementById("detailCustomer").textContent = item.customer;
         document.getElementById("detailOrder").textContent =
             item.orderReference || "—";
+        document.getElementById("detailNoteReference").textContent =
+            item.note || "—";
         document.getElementById("detailWeighing").textContent =
             item.weighingCode || "—";
         document.getElementById("detailPieces").textContent =
@@ -2317,6 +2348,7 @@ function setupDisplayMode() {
         pieces: "N. pezzi",
         customer: "Cliente",
         order: "Rif. ordine",
+        note: "Riferimento / nota",
         weighing: "Codice pesata",
         type: "Tipologia",
         tags: "Tag",
@@ -2744,6 +2776,7 @@ function resetOperationLineForm() {
     document.getElementById("loadQuantity").value = "1";
     document.getElementById("loadPieceCount").value = "";
     document.getElementById("loadWeighingCode").value = "";
+    document.getElementById("loadNote").value = "";
     document.getElementById("loadBatchCount").value = "1";
     editingOperationLineIndex = null;
     document.getElementById("addOperationLine").textContent =
@@ -2762,8 +2795,8 @@ function configureOperationDialog() {
         ? "Componi il carico"
         : "Componi lo scarico";
     document.getElementById("operationDialogDescription").textContent = load
-        ? "Inserisci un singolo cassone oppure aggiungine più insieme condividendo articolo e, se indicati, cliente e ordine."
-        : "Preleva per articolo e pezzi, per riferimento ordine oppure mediante codice pesata esatto.";
+        ? "Inserisci un singolo cassone oppure aggiungine più insieme condividendo articolo, cliente, ordine e nota."
+        : "Preleva per articolo e pezzi, per ordine, per nota esatta oppure mediante codice pesata esatto.";
     document.getElementById("loadCustomer").required = false;
     document.getElementById("loadArticle").required = load;
     document.getElementById("loadOrderReference").required = false;
@@ -2777,6 +2810,12 @@ function configureOperationDialog() {
     document.getElementById("operationWeighingLabelText").textContent = load
         ? "Codice pesata (opzionale · univoco)"
         : "Codice pesata (opzionale · cassone esatto)";
+    document.getElementById("operationNoteLabelText").textContent = load
+        ? "Riferimento / nota (opzionale)"
+        : "Nota esatta (opzionale · tutti i corrispondenti)";
+    document.getElementById("loadNote").placeholder = load
+        ? "es. DICEMBRE, URGENTE, COMMESSA SPECIALE"
+        : "es. DICEMBRE";
     document.getElementById("operationPiecesLabelText").textContent = load
         ? "Numero pezzi nel cassone"
         : "Numero pezzi da prelevare (opzionale)";
@@ -2820,6 +2859,7 @@ function createOperationLineElement(entry, index, review = false) {
         entry.type === "pallet" ? "Pallet" : "Cassone",
     ];
     if (entry.weighingCode) details.push(`Pesata ${entry.weighingCode}`);
+    if (entry.note) details.push(`Nota ${entry.note}`);
     if (entry.pieceCount) details.push(`${entry.pieceCount} pezzi`);
     if (entry.availablePieces)
         details.push(`${entry.availablePieces} pezzi disponibili`);
@@ -2839,6 +2879,8 @@ function createOperationLineElement(entry, index, review = false) {
                 ? "1 cassone"
                 : entry.order
                   ? "Tutti ordine"
+                  : entry.note
+                    ? "Tutti nota"
                   : `${entry.quantity || 1} unità`;
     const actions = document.createElement("div");
     const edit = document.createElement("button");
@@ -2939,6 +2981,7 @@ function editOperationLine(index) {
     document.getElementById("loadArticle").value = entry.article;
     document.getElementById("loadCustomer").value = entry.customer || "";
     document.getElementById("loadOrderReference").value = entry.order;
+    document.getElementById("loadNote").value = entry.note || "";
     document.getElementById("loadQuantity").value = String(entry.quantity);
     document.getElementById("loadWeighingCode").value =
         entry.weighingCode || "";
@@ -3030,6 +3073,7 @@ function addSelectedResultsToUnloadGroup() {
             article: item.article,
             customer: item.customer,
             order: item.orderReference,
+            note: item.note || "",
             weighingCode: item.weighingCode || "",
             pieceCount: null,
             availablePieces: warehouseItemPieces(item),
@@ -4212,6 +4256,7 @@ function canonicalLoadEntryKey(entry) {
         entry.article,
         entry.customer,
         entry.order,
+        normalizeWarehouseNote(entry.note),
         entry.weighingCode || "",
         entry.pieceCount || "",
         entry.quantity,
@@ -4446,6 +4491,7 @@ function createLoadPlanningGroups(entries) {
                   entry.article,
                   normalizeCustomer(entry.customer),
                   entry.order || "",
+                  normalizeWarehouseNote(entry.note),
               ].join("|")
             : null;
         let group = key ? crateGroupsByKey.get(key) : null;
@@ -4533,6 +4579,7 @@ function planLoadOperation(entries, initialState = inventory) {
                 article: entry.article,
                 customer: entry.customer,
                 orderReference: entry.order,
+                note: String(entry.note || "").trim(),
                 weighingCode: entry.weighingCode || "",
                 pieceCount: entry.pieceCount,
                 maxPieceCapacity: entry.pieceCount,
@@ -4557,6 +4604,7 @@ function planLoadOperation(entries, initialState = inventory) {
                         article: entry.article,
                         customer: entry.customer,
                         orderReference: entry.order,
+                        note: String(entry.note || "").trim(),
                         weighingCode: entry.weighingCode || "",
                         pieceCount: entry.pieceCount,
                         maxPieceCapacity: entry.pieceCount,
@@ -4575,6 +4623,7 @@ function planLoadOperation(entries, initialState = inventory) {
         actions.push({
             article: entry.article,
             locations,
+            note: String(entry.note || "").trim(),
             weighingCode: entry.weighingCode || "",
             pieceCount: Math.max(1, Number(entry.pieceCount) || 1),
             maxPieceCapacity: Math.max(1, Number(entry.pieceCount) || 1),
@@ -4595,6 +4644,7 @@ function planExistingUnitAllocation(units, initialState) {
         article: unit.item.article,
         customer: unit.item.customer || "",
         order: unit.item.orderReference || "",
+        note: unit.item.note || "",
         weighingCode: unit.item.weighingCode || "",
         pieceCount: warehouseItemPieces(unit.item),
         quantity: 1,
@@ -4876,6 +4926,7 @@ function optimizationEntriesAndUnits(units) {
             article: group.item.article,
             customer: group.item.customer,
             order: group.item.orderReference,
+            note: group.item.note || "",
             pieceCount: Math.max(1, Number(group.item.pieceCount) || 1),
             type: group.item.type,
             quantity: group.units.length,
@@ -6442,6 +6493,7 @@ function operationalUnit(item, from, to = "") {
         article: item.article || "",
         customer: item.customer || "",
         orderReference: item.orderReference || "",
+        note: item.note || "",
         weighingCode: item.weighingCode || "",
         pieceCount: Math.max(1, Number(item.pieceCount) || 1),
         maxPieceCapacity: Math.max(
@@ -6788,12 +6840,14 @@ function planUnloadOperation(entries, initialState = inventory) {
     for (const entry of entries) {
         const requestedIds = new Set(entry.sourceIds || []);
         const weighingCode = normalizeCustomer(entry.weighingCode);
+        const note = normalizeWarehouseNote(entry.note);
         const candidates = logicalUnits.filter(
             ({ item }) =>
                 !touchedIds.has(item.id) &&
                 (!entry.article || item.article === entry.article) &&
                 (!entry.customer || item.customer === entry.customer) &&
                 (!entry.order || item.orderReference === entry.order) &&
+                (!note || normalizeWarehouseNote(item.note) === note) &&
                 (!weighingCode ||
                     normalizeCustomer(item.weighingCode) === weighingCode) &&
                 (!entry.type || item.type === entry.type) &&
@@ -6836,13 +6890,14 @@ function planUnloadOperation(entries, initialState = inventory) {
             continue;
         }
         const quantity =
-            entry.order && !weighingCode && !requestedIds.size
-                ? candidates.length
+            (entry.order || note) && !weighingCode && !requestedIds.size
+                ? Math.max(1, candidates.length)
                 : Math.max(1, Number(entry.quantity) || 1);
         if (candidates.length < quantity || quantity < 1) {
             const target =
                 entry.article ||
                 entry.order ||
+                entry.note ||
                 entry.weighingCode ||
                 "la selezione indicata";
             return {
@@ -7036,7 +7091,7 @@ function refreshManualUnloadSource() {
         return;
     }
     title.textContent = `${parsed.code} · ${item.article}`;
-    details.textContent = `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${item.customer || "Cliente non indicato"} · ${item.orderReference || "Rif. ordine non indicato"}${item.weighingCode ? ` · Pesata ${item.weighingCode}` : ""} · ${warehouseItemPieces(item)} pezzi`;
+    details.textContent = `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${item.customer || "Cliente non indicato"} · ${item.orderReference || "Rif. ordine non indicato"}${item.note ? ` · Nota ${item.note}` : ""}${item.weighingCode ? ` · Pesata ${item.weighingCode}` : ""} · ${warehouseItemPieces(item)} pezzi`;
 }
 
 function configureManualMovement(mode) {
@@ -7121,6 +7176,7 @@ function openInventoryItemEditDialog(location) {
         item.customer || "";
     document.getElementById("inventoryItemEditOrder").value =
         item.orderReference || "";
+    document.getElementById("inventoryItemEditNote").value = item.note || "";
     document.getElementById("inventoryItemEditWeighing").value =
         item.weighingCode || "";
     document.getElementById("inventoryItemEditPieces").value = String(
@@ -7161,6 +7217,7 @@ function inventoryItemEditValues() {
         orderReference: document
             .getElementById("inventoryItemEditOrder")
             .value.trim(),
+        note: document.getElementById("inventoryItemEditNote").value.trim(),
         weighingCode: document
             .getElementById("inventoryItemEditWeighing")
             .value.trim()
@@ -7211,6 +7268,7 @@ async function saveInventoryItemEdit() {
         currentUnit.item.article === values.article &&
         (currentUnit.item.customer || "") === values.customer &&
         (currentUnit.item.orderReference || "") === values.orderReference &&
+        (currentUnit.item.note || "") === values.note &&
         (currentUnit.item.weighingCode || "") === values.weighingCode &&
         warehouseItemPieces(currentUnit.item) === values.pieceCount &&
         Number(currentUnit.item.maxPieceCapacity) === values.maxPieceCapacity &&
@@ -7275,6 +7333,7 @@ async function saveInventoryItemEdit() {
                 kind: "relocated",
                 article: values.article,
                 locations: [...currentUnit.locations],
+                note: values.note,
                 weighingCode: values.weighingCode,
                 pieceCount: values.pieceCount,
                 maxPieceCapacity: values.maxPieceCapacity,
@@ -7333,6 +7392,114 @@ function setupInventoryItemEdit() {
         });
 }
 
+function setInventoryNoteEditMessage(message, error = false) {
+    const output = document.getElementById("inventoryNoteEditMessage");
+    if (!output) return;
+    output.textContent = message;
+    output.classList.toggle("is-error", error);
+}
+
+function openUnloadZoneNoteEditDialog(unitId) {
+    if (!isWarehouseLoggedIn()) {
+        openWarehouseLogin();
+        return;
+    }
+    if (!warehousePersistenceReady) {
+        showWarehouseToast("Database del magazzino non disponibile.", true);
+        return;
+    }
+    const item = unloadZone.find((unit) => unit.id === unitId);
+    if (!item) {
+        showWarehouseToast(
+            "Il cassone non è più presente nella zona di attesa.",
+            true,
+        );
+        return;
+    }
+    editingUnloadZoneNoteUnitId = item.id;
+    document.getElementById("inventoryNoteEditArticle").textContent =
+        item.article || "—";
+    document.getElementById("inventoryNoteEditId").textContent = item.id;
+    document.getElementById("inventoryNoteEditArea").textContent =
+        STAGING_AREA_LABEL;
+    document.getElementById("inventoryNoteEditSummary").textContent =
+        `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${warehouseItemPieces(item)} pezzi · ${STAGING_AREA_LABEL}`;
+    const input = document.getElementById("inventoryNoteEditValue");
+    input.value = item.note || "";
+    setInventoryNoteEditMessage(
+        "La nota resterà associata al cassone anche durante il rientro a magazzino.",
+    );
+    openWarehouseDialog(
+        document.getElementById("inventoryNoteEditDialog"),
+        input,
+        true,
+    );
+}
+
+function closeInventoryNoteEditDialog() {
+    editingUnloadZoneNoteUnitId = null;
+    closeWarehouseDialog(document.getElementById("inventoryNoteEditDialog"));
+}
+
+async function saveUnloadZoneNote() {
+    const unitId = editingUnloadZoneNoteUnitId;
+    const item = unloadZone.find((unit) => unit.id === unitId);
+    if (!unitId || !item)
+        return { error: "Il cassone non è più presente nella zona di attesa." };
+    const note = document.getElementById("inventoryNoteEditValue").value.trim();
+    if ((item.note || "") === note)
+        return { error: "La nota non è stata modificata." };
+    const nextUnloadZone = cloneUnloadZoneUnits().map((unit) =>
+        unit.id === unitId ? { ...unit, note } : unit,
+    );
+    try {
+        await persistWarehouseData(
+            serializeWarehouseInventory(),
+            serializeWarehouseMovements(),
+            nextUnloadZone,
+        );
+    } catch (error) {
+        return { error: `Nota non salvata: ${error.message}` };
+    }
+    unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
+    closeInventoryNoteEditDialog();
+    renderUnloadZone();
+    broadcastWarehouse3dState();
+    showWarehouseToast(
+        note
+            ? `${item.article}: nota aggiornata in “${note}”.`
+            : `${item.article}: nota rimossa.`,
+    );
+    return { item: unloadZone.find((unit) => unit.id === unitId) };
+}
+
+function setupInventoryNoteEdit() {
+    document
+        .getElementById("closeInventoryNoteEdit")
+        ?.addEventListener("click", closeInventoryNoteEditDialog);
+    document
+        .getElementById("cancelInventoryNoteEdit")
+        ?.addEventListener("click", closeInventoryNoteEditDialog);
+    document
+        .getElementById("inventoryNoteEditDialog")
+        ?.addEventListener("click", (event) => {
+            if (event.target === event.currentTarget)
+                closeInventoryNoteEditDialog();
+        });
+    document
+        .getElementById("inventoryNoteEditForm")
+        ?.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const button = document.getElementById("saveInventoryNoteEdit");
+            button.disabled = true;
+            setInventoryNoteEditMessage("Salvataggio della nota in corso…");
+            const result = await saveUnloadZoneNote();
+            if (result?.error)
+                setInventoryNoteEditMessage(result.error, true);
+            if (button.isConnected) button.disabled = false;
+        });
+}
+
 function resetManualMovementResult() {
     document.getElementById("manualMovementForm").hidden = false;
     document.getElementById("manualMovementResult").hidden = true;
@@ -7378,6 +7545,7 @@ async function commitManualLoad() {
     const orderReference = document
         .getElementById("manualLoadOrder")
         .value.trim();
+    const note = document.getElementById("manualLoadNote").value.trim();
     const weighingCode = document
         .getElementById("manualLoadWeighing")
         .value.trim()
@@ -7412,6 +7580,7 @@ async function commitManualLoad() {
         article,
         customer,
         orderReference,
+        note,
         weighingCode,
         pieceCount,
         maxPieceCapacity: pieceCount,
@@ -7438,6 +7607,7 @@ async function commitManualLoad() {
                 article,
                 customer,
                 order: orderReference,
+                note,
                 weighingCode,
                 pieceCount,
                 quantity: 1,
@@ -7495,6 +7665,7 @@ async function commitManualUnload() {
             article: item.article,
             customer: item.customer,
             order: item.orderReference,
+            note: item.note || "",
             quantity: 1,
             type: "crate",
             sourceIds: [item.id],
@@ -7527,6 +7698,7 @@ async function commitManualUnload() {
                 article: item.article,
                 customer: item.customer || "",
                 order: item.orderReference || "",
+                note: item.note || "",
                 weighingCode: item.weighingCode || "",
                 quantity: 1,
                 type: "crate",
@@ -7911,6 +8083,7 @@ function appendMovementLines(container, movement) {
         const locations = document.createElement("p");
         const logistics = [
             line.weighingCode ? `pesata ${line.weighingCode}` : "",
+            line.note ? `nota ${line.note}` : "",
             line.pieceCount ? `${line.pieceCount} pezzi` : "",
         ].filter(Boolean);
         locations.textContent = `${line.kind === "relocated" ? "Spostamenti" : line.kind === "unloaded" ? "Preleva da" : line.kind === "pieces" ? "Dettaglio" : line.kind === "loaded" ? "Carica in" : "Posizioni"} ${line.locations.join(", ")}${logistics.length ? ` · ${logistics.join(" · ")}` : ""}`;
@@ -7975,8 +8148,9 @@ function operationalUnitsDetail(step) {
             `articolo ${unit.article || "—"}`,
             `cliente ${unit.customer || "—"}`,
             `ordine ${unit.orderReference || "—"}`,
+            unit.note ? `nota ${unit.note}` : "",
             `${unit.pieceCount || 0} pezzi`,
-        ].join(" · ");
+        ].filter(Boolean).join(" · ");
         row.append(identity, route, metadata);
         list.appendChild(row);
     });
@@ -7991,7 +8165,7 @@ function operationalUnitsDetail(step) {
 function operationalUnitsDescription(units) {
     if (!units.length) return "";
     const signature = (unit) =>
-        `${unit.article}|${unit.customer}|${unit.orderReference}|${unit.weighingCode}|${unit.pieceCount}`;
+        `${unit.article}|${unit.customer}|${unit.orderReference}|${unit.note}|${unit.weighingCode}|${unit.pieceCount}`;
     const allEqual = units.every(
         (unit) => signature(unit) === signature(units[0]),
     );
@@ -8000,6 +8174,7 @@ function operationalUnitsDescription(units) {
             `articolo ${unit.article || "—"}`,
             `cliente ${unit.customer || "—"}`,
             `ordine ${unit.orderReference || "—"}`,
+            unit.note ? `nota ${unit.note}` : "",
             unit.weighingCode ? `pesata ${unit.weighingCode}` : "",
             `${unit.pieceCount || 0} pezzi`,
         ]
@@ -9325,11 +9500,14 @@ function openUnloadZoneContextMenu(item, x, y) {
     document.getElementById("unloadZoneContextTitle").textContent =
         `${item.article} · ${item.id}`;
     const reload = document.getElementById("reloadUnloadZoneUnit");
-    reload.disabled = warehouseStorageUnavailable || !isWarehouseLoggedIn();
+    const editNote = document.getElementById("editUnloadZoneNote");
+    const disabled = warehouseStorageUnavailable || !isWarehouseLoggedIn();
+    reload.disabled = disabled;
+    editNote.disabled = disabled;
     menu.classList.add("is-open");
     menu.setAttribute("aria-hidden", "false");
     const width = 230;
-    const height = 78;
+    const height = menu.offsetHeight || 112;
     menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
 }
@@ -9371,7 +9549,7 @@ function renderUnloadZone() {
             item.article || "—",
             item.customer || "—",
             item.orderReference || "—",
-            `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${warehouseItemPieces(item)} pezzi${item.weighingCode ? ` · ${item.weighingCode}` : ""}`,
+            `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${warehouseItemPieces(item)} pezzi${item.weighingCode ? ` · ${item.weighingCode}` : ""}${item.note ? ` · Nota: ${item.note}` : ""}`,
             (item.originalLocations || []).join(" + ") || "—",
             item.requiresWarehouseReturn
                 ? "Rientro necessario"
@@ -9496,6 +9674,7 @@ function prepareUnloadZoneReload(unitId, overrides = {}) {
         article: staged.article,
         customer: staged.customer,
         order: staged.orderReference,
+        note: staged.note || "",
         weighingCode,
         pieceCount,
         quantity: 1,
@@ -9560,6 +9739,7 @@ function prepareUnloadZoneReload(unitId, overrides = {}) {
                 article: staged.article,
                 customer: staged.customer || "",
                 order: staged.orderReference || "",
+                note: staged.note || "",
                 weighingCode,
                 pieceCount,
                 quantity: 1,
@@ -9750,6 +9930,7 @@ function stagingExitMovement(items) {
             article: item.article,
             customer: item.customer || "",
             order: item.orderReference || "",
+            note: item.note || "",
             weighingCode: item.weighingCode || "",
             pieceCount: warehouseItemPieces(item),
             quantity: 1,
@@ -9876,6 +10057,13 @@ function setupUnloadZone() {
         .getElementById("closeUnloadZone")
         ?.addEventListener("click", closeUnloadZoneDialog);
     document
+        .getElementById("editUnloadZoneNote")
+        ?.addEventListener("click", () => {
+            const unitId = contextUnloadZoneUnitId;
+            closeUnloadZoneContextMenu();
+            if (unitId) openUnloadZoneNoteEditDialog(unitId);
+        });
+    document
         .getElementById("reloadUnloadZoneUnit")
         ?.addEventListener("click", async () => {
             const unitId = contextUnloadZoneUnitId;
@@ -9976,6 +10164,7 @@ function setupLoadDialog() {
             const order = document
                 .getElementById("loadOrderReference")
                 .value.trim();
+            const note = document.getElementById("loadNote").value.trim();
             const batchValues = loadBatchValues();
             const weighingCode = batchValues[0]?.weighingCode || "";
             const enteredPieces = batchValues[0]?.pieceCount;
@@ -10033,10 +10222,16 @@ function setupLoadDialog() {
                 operationGroupMode === "unload" &&
                 !weighingCode &&
                 !order &&
+                !note &&
                 (!Number.isInteger(enteredPieces) || enteredPieces < 1)
             ) {
                 message.textContent =
-                    "Indica almeno un riferimento ordine, un codice pesata oppure il numero di pezzi da prelevare.";
+                    "Indica almeno una nota, un riferimento ordine, un codice pesata oppure il numero di pezzi da prelevare.";
+                return;
+            }
+            if (operationGroupMode === "unload" && note && !article) {
+                message.textContent =
+                    "Per il prelievo tramite nota indica anche l'articolo.";
                 return;
             }
             if (
@@ -10055,6 +10250,7 @@ function setupLoadDialog() {
                 article,
                 customer,
                 order,
+                note,
                 weighingCode,
                 pieceCount:
                     operationGroupMode === "load" ? enteredPieces : null,
@@ -10411,6 +10607,7 @@ function searchableValues(item, fields) {
         article: item.article,
         customer: item.customer,
         order: item.orderReference,
+        note: item.note || "",
         weighing: item.weighingCode || "",
         pieces: `${item.pieceCount || 0} pezzi capienza ${item.maxPieceCapacity || item.pieceCount || 0}`,
         tags: item.tags.join(" "),
@@ -10571,6 +10768,9 @@ function renderSearchReport(query) {
         const order = document.createElement("span");
         order.textContent = item.orderReference || "—";
         order.title = `Rif. ordine: ${item.orderReference}`;
+        const note = document.createElement("span");
+        note.textContent = item.note || "—";
+        note.title = `Riferimento / nota: ${item.note || "non indicata"}`;
         const weighing = document.createElement("span");
         weighing.textContent = item.weighingCode || "—";
         weighing.title = `Codice pesata: ${item.weighingCode || "non indicato"}`;
@@ -10598,6 +10798,7 @@ function renderSearchReport(query) {
             article,
             customer,
             order,
+            note,
             weighing,
             pieces,
             flags,
@@ -11280,6 +11481,7 @@ const ANALYSIS_SORT_KEYS = [
     "article",
     "customer",
     "orderReference",
+    "note",
     "weighingCode",
     "pieceCount",
     "maxPieceCapacity",
@@ -11301,6 +11503,7 @@ const ANALYSIS_COLUMN_LABELS = [
     "Articolo",
     "Cliente",
     "Rif. ordine",
+    "Riferimento / nota",
     "Codice pesata",
     "Pezzi",
     "Capienza iniziale",
@@ -11423,6 +11626,7 @@ async function loadAnalysisColumnPreferences() {
         const columns = (result?.visibleColumns || []).filter((key) =>
             ANALYSIS_SORT_KEYS.includes(key),
         );
+        if (columns.length && !columns.includes("note")) columns.push("note");
         if (columns.length) visibleAnalysisColumns = new Set(columns);
         analysisColumnPresets = Array.isArray(result?.presets)
             ? result.presets
@@ -11483,6 +11687,7 @@ function analysisSlotMatches(slot, query) {
             item?.article,
             item?.customer,
             item?.orderReference,
+            item?.note,
             item?.weighingCode,
             item?.pieceCount,
             item?.maxPieceCapacity,
@@ -11520,6 +11725,7 @@ function analysisSortValue(slot, key) {
         article: item?.article || "",
         customer: item?.customer || "",
         orderReference: item?.orderReference || "",
+        note: item?.note || "",
         weighingCode: item?.weighingCode || "",
         pieceCount: item ? Math.max(1, Number(item.pieceCount) || 1) : "",
         maxPieceCapacity: item
@@ -11639,6 +11845,7 @@ function renderAnalysisTable() {
         appendAnalysisCell(row, item?.article || "");
         appendAnalysisCell(row, item?.customer || "");
         appendAnalysisCell(row, item?.orderReference || "");
+        appendAnalysisCell(row, item?.note || "");
         appendAnalysisCell(row, item?.weighingCode || "");
         appendAnalysisCell(row, item ? String(item.pieceCount) : "");
         appendAnalysisCell(row, item ? String(item.maxPieceCapacity) : "");
@@ -11692,7 +11899,7 @@ function renderAnalysisTable() {
     if (!slots.length) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = 19;
+        cell.colSpan = 20;
         cell.className = "table-empty";
         cell.textContent =
             "Nessuna ubicazione corrisponde ai filtri impostati.";
@@ -13355,6 +13562,7 @@ setupMovementHistoryFilter();
 setupLoadDialog();
 setupManualMovement();
 setupInventoryItemEdit();
+setupInventoryNoteEdit();
 setupWarehouseOptimizer();
 setupUnloadZone();
 setupSlotPreview();
