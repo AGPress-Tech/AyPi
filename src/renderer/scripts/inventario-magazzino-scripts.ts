@@ -1,6 +1,9 @@
 // @ts-nocheck
 require("./shared/dev-guards");
-const { requestBackend, setBackendIdentity } = require("./shared/backend-client");
+const {
+    requestBackend,
+    setBackendIdentity,
+} = require("./shared/backend-client");
 const { ipcRenderer } = require("electron");
 const WAREHOUSE_LOGIN_REQUIRED =
     new URLSearchParams(window.location.search).get("warehouseRequireLogin") ===
@@ -656,7 +659,8 @@ function warehouseConfigurationPayload() {
 }
 
 async function persistWarehouseConfiguration() {
-    if (!warehousePersistenceReady) throw new Error("Database del magazzino non connesso.");
+    if (!warehousePersistenceReady)
+        throw new Error("Database del magazzino non connesso.");
     return requestBackend("/api/warehouse-inventory/configuration", {
         method: "PUT",
         body: warehouseConfigurationPayload(),
@@ -665,11 +669,28 @@ async function persistWarehouseConfiguration() {
 
 function hydrateWarehouseConfiguration(configuration) {
     const rows = Array.isArray(configuration?.rows) ? configuration.rows : [];
-    if (rows.length) warehouseRows = rows.map((row) => ({ code: String(row.code).toUpperCase(), capacity: Number(row.capacity), invertedSides: Boolean(row.invertedSides) }));
+    if (rows.length)
+        warehouseRows = rows.map((row) => ({
+            code: String(row.code).toUpperCase(),
+            capacity: Number(row.capacity),
+            invertedSides: Boolean(row.invertedSides),
+        }));
     rowRestrictions.clear();
     slotRestrictions.clear();
-    (configuration?.rowRestrictions || []).forEach((rule) => storeRestriction(rowRestrictions, String(rule.key || "").toUpperCase(), rule));
-    (configuration?.slotRestrictions || []).forEach((rule) => storeRestriction(slotRestrictions, String(rule.key || "").toUpperCase(), rule));
+    (configuration?.rowRestrictions || []).forEach((rule) =>
+        storeRestriction(
+            rowRestrictions,
+            String(rule.key || "").toUpperCase(),
+            rule,
+        ),
+    );
+    (configuration?.slotRestrictions || []).forEach((rule) =>
+        storeRestriction(
+            slotRestrictions,
+            String(rule.key || "").toUpperCase(),
+            rule,
+        ),
+    );
     warehouseStructureDraft = warehouseRows.map((row) => ({ ...row }));
     renderWarehouseStructureEditor();
 }
@@ -1005,7 +1026,10 @@ function hydrateWarehouseSnapshot(snapshot) {
         movementHistory.length,
         ...(snapshot?.movements || []).map(cloneWarehouseMovement),
     );
-    movementHistoryTotal = Math.max(Number(snapshot?.movementsTotal) || movementHistory.length, movementHistory.length);
+    movementHistoryTotal = Math.max(
+        Number(snapshot?.movementsTotal) || movementHistory.length,
+        movementHistory.length,
+    );
     backfillLegacyMovementSnapshots();
     warehouseRevision = Number(snapshot?.revision) || 0;
 }
@@ -1094,7 +1118,10 @@ function persistWarehouseData(
                 });
                 warehouseRevision =
                     Number(saved?.revision) || warehouseRevision + 1;
-                movementHistoryTotal = Math.max(Number(saved?.movementsTotal) || 0, movementHistory.length);
+                movementHistoryTotal = Math.max(
+                    Number(saved?.movementsTotal) || 0,
+                    movementHistory.length,
+                );
                 setWarehouseDatabaseStatus(
                     "ready",
                     `${warehouseStorageLabel()} salvato · ${snapshot.inventory.length} slot occupati`,
@@ -2514,12 +2541,17 @@ async function applyWarehouseStructure() {
     setWarehouseStructureMessage("Salvataggio sul server…");
     try {
         await persistWarehouseConfiguration();
-        setWarehouseStructureMessage("Struttura salvata sul server per tutte le postazioni.", true);
+        setWarehouseStructureMessage(
+            "Struttura salvata sul server per tutte le postazioni.",
+            true,
+        );
         broadcastWarehouse3dState();
     } catch (error) {
         hydrateWarehouseConfiguration(previousConfiguration);
         refreshWarehouseDataViews();
-        setWarehouseStructureMessage(`Salvataggio non riuscito: ${error.message}`);
+        setWarehouseStructureMessage(
+            `Salvataggio non riuscito: ${error.message}`,
+        );
         showWarehouseToast(`Struttura non salvata: ${error.message}`, true);
     }
 }
@@ -5947,7 +5979,9 @@ function pieceWithdrawalUnitPriority(state, unit, selectedIds) {
     const parsed = parseSlotCode(unit.locations[0]);
     const stackSize = parsed
         ? ["a", "b", "c"]
-              .map((level) => state.get(`${parsed.row}${parsed.number}${level}`))
+              .map((level) =>
+                  state.get(`${parsed.row}${parsed.number}${level}`),
+              )
               .filter((item) => item?.type === "crate").length
         : 0;
     const metrics = estimateUnloadSelection(
@@ -5971,11 +6005,7 @@ function comparePieceWithdrawalCandidates(
 ) {
     const leftPieces = warehouseItemPieces(left.item);
     const rightPieces = warehouseItemPieces(right.item);
-    const leftPriority = pieceWithdrawalUnitPriority(
-        state,
-        left,
-        selectedIds,
-    );
+    const leftPriority = pieceWithdrawalUnitPriority(state, left, selectedIds);
     const rightPriority = pieceWithdrawalUnitPriority(
         state,
         right,
@@ -5986,7 +6016,10 @@ function comparePieceWithdrawalCandidates(
     if (piecesFirst && leftPieces !== rightPieces)
         return leftPieces - rightPieces;
     // A quantità uguale viene sempre scelto prima il cassone più alto.
-    if (leftPieces === rightPieces && leftPriority.level !== rightPriority.level)
+    if (
+        leftPieces === rightPieces &&
+        leftPriority.level !== rightPriority.level
+    )
         return rightPriority.level - leftPriority.level;
     return (
         leftPriority.score - rightPriority.score ||
@@ -6007,15 +6040,17 @@ function exactPieceWithdrawalUnits(
     requestedPieces,
     selectedIds,
 ) {
-    const ordered = candidates.slice().sort((left, right) =>
-        comparePieceWithdrawalCandidates(
-            state,
-            left,
-            right,
-            selectedIds,
-            false,
-        ),
-    );
+    const ordered = candidates
+        .slice()
+        .sort((left, right) =>
+            comparePieceWithdrawalCandidates(
+                state,
+                left,
+                right,
+                selectedIds,
+                false,
+            ),
+        );
     const combinations = new Map([[0, []]]);
     for (const unit of ordered) {
         const pieces = warehouseItemPieces(unit.item);
@@ -6042,25 +6077,24 @@ function nearPieceWithdrawalUnits(
         1,
         Math.min(25, Math.floor(requestedPieces * 0.1)),
     );
-    const ordered = candidates.slice().sort((left, right) =>
-        comparePieceWithdrawalCandidates(
-            state,
-            left,
-            right,
-            selectedIds,
-            false,
-        ),
-    );
+    const ordered = candidates
+        .slice()
+        .sort((left, right) =>
+            comparePieceWithdrawalCandidates(
+                state,
+                left,
+                right,
+                selectedIds,
+                false,
+            ),
+        );
     const combinations = new Map([[0, []]]);
     for (const unit of ordered) {
         const pieces = warehouseItemPieces(unit.item);
         const existing = Array.from(combinations.entries());
         existing.forEach(([total, chosen]) => {
             const nextTotal = total + pieces;
-            if (
-                nextTotal >= requestedPieces ||
-                combinations.has(nextTotal)
-            )
+            if (nextTotal >= requestedPieces || combinations.has(nextTotal))
                 return;
             combinations.set(nextTotal, [...chosen, unit]);
         });
@@ -8469,14 +8503,24 @@ async function loadMovementHistoryPage(reset = false) {
     renderMovementHistory();
     try {
         const start = movementHistoryRangeStart(movementHistoryTimeRange);
-        const query = new URLSearchParams({ limit: "100", offset: reset ? "0" : String(movementHistory.length) });
+        const query = new URLSearchParams({
+            limit: "100",
+            offset: reset ? "0" : String(movementHistory.length),
+        });
         if (start !== null) query.set("from", new Date(start).toISOString());
-        const page = await requestBackend(`/api/warehouse-inventory/movements?${query}`);
+        const page = await requestBackend(
+            `/api/warehouse-inventory/movements?${query}`,
+        );
         const entries = (page?.movements || []).map(cloneWarehouseMovement);
-        if (reset) movementHistory.splice(0, movementHistory.length, ...entries);
+        if (reset)
+            movementHistory.splice(0, movementHistory.length, ...entries);
         else {
-            const known = new Set(movementHistory.map((movement) => movement.id));
-            movementHistory.push(...entries.filter((movement) => !known.has(movement.id)));
+            const known = new Set(
+                movementHistory.map((movement) => movement.id),
+            );
+            movementHistory.push(
+                ...entries.filter((movement) => !known.has(movement.id)),
+            );
         }
         movementHistoryTotal = Number(page?.total) || movementHistory.length;
     } catch (error) {
@@ -8501,7 +8545,9 @@ function setupMovementHistoryFilter() {
         );
         void loadMovementHistoryPage(true);
     });
-    document.getElementById("loadMoreMovementHistory")?.addEventListener("click", () => void loadMovementHistoryPage(false));
+    document
+        .getElementById("loadMoreMovementHistory")
+        ?.addEventListener("click", () => void loadMovementHistoryPage(false));
 }
 
 function renderMovementHistory() {
@@ -8517,12 +8563,17 @@ function renderMovementHistory() {
     );
     const loadMore = document.getElementById("loadMoreMovementHistory");
     if (loadMore) {
-        loadMore.disabled = movementHistoryLoading || movementHistory.length >= movementHistoryTotal;
+        loadMore.disabled =
+            movementHistoryLoading ||
+            movementHistory.length >= movementHistoryTotal;
         loadMore.hidden = movementHistory.length >= movementHistoryTotal;
-        loadMore.textContent = movementHistoryLoading ? "Caricamento…" : "Carica altri movimenti";
+        loadMore.textContent = movementHistoryLoading
+            ? "Caricamento…"
+            : "Carica altri movimenti";
     }
     const pageStatus = document.getElementById("movementHistoryPageStatus");
-    if (pageStatus) pageStatus.textContent = `${movementHistory.length} caricati su ${movementHistoryTotal}`;
+    if (pageStatus)
+        pageStatus.textContent = `${movementHistory.length} caricati su ${movementHistoryTotal}`;
     const filteredCount = document.getElementById(
         "movementHistoryFilteredCount",
     );
@@ -8700,15 +8751,17 @@ function mergeMovementUnloadStackSteps(steps) {
 function movementPlaybackSteps(movement) {
     if (movement.metadataEdit) return [];
     if (movement.operationalSteps?.length)
-        return mergeMovementUnloadStackSteps(movement.operationalSteps.map((step) => ({
-            ...step,
-            sourceStagingUnits: cloneUnloadZoneUnits(
-                movement.stagingUnitsBefore || [],
-            ),
-            from: [...(step.from || [])],
-            to: [...(step.to || [])],
-            units: (step.units || []).map((unit) => ({ ...unit })),
-        })));
+        return mergeMovementUnloadStackSteps(
+            movement.operationalSteps.map((step) => ({
+                ...step,
+                sourceStagingUnits: cloneUnloadZoneUnits(
+                    movement.stagingUnitsBefore || [],
+                ),
+                from: [...(step.from || [])],
+                to: [...(step.to || [])],
+                units: (step.units || []).map((unit) => ({ ...unit })),
+            })),
+        );
     const changes = movement.changes || {};
     const itemFor = (id) =>
         [...(movement.afterState || []), ...(movement.beforeState || [])].find(
@@ -11021,12 +11074,17 @@ async function saveRestrictionsToServer(messageId, successMessage) {
         setRestrictionMessage(messageId, successMessage, true);
     } catch (error) {
         try {
-            hydrateWarehouseConfiguration(await requestBackend("/api/warehouse-inventory/configuration"));
+            hydrateWarehouseConfiguration(
+                await requestBackend("/api/warehouse-inventory/configuration"),
+            );
             refreshRestrictionViews();
         } catch (_) {
             // Mantiene la modifica visibile per consentire un nuovo tentativo.
         }
-        setRestrictionMessage(messageId, `Salvataggio non riuscito: ${error.message}`);
+        setRestrictionMessage(
+            messageId,
+            `Salvataggio non riuscito: ${error.message}`,
+        );
         showWarehouseToast(`Vincoli non salvati: ${error.message}`, true);
     }
 }
@@ -11113,7 +11171,10 @@ function setupRestrictionDialog() {
             storeRestriction(rowRestrictions, selectedRestrictionRow, rule);
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            await saveRestrictionsToServer("rowRestrictionMessage", "Regola della fila salvata sul server.");
+            await saveRestrictionsToServer(
+                "rowRestrictionMessage",
+                "Regola della fila salvata sul server.",
+            );
         });
     document
         .getElementById("saveSlotRestriction")
@@ -11137,7 +11198,12 @@ function setupRestrictionDialog() {
             );
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            await saveRestrictionsToServer("slotRestrictionMessage", targets.length === 1 ? "Regola dello slot salvata sul server." : `Regola applicata a ${targets.length} slot e salvata sul server.`);
+            await saveRestrictionsToServer(
+                "slotRestrictionMessage",
+                targets.length === 1
+                    ? "Regola dello slot salvata sul server."
+                    : `Regola applicata a ${targets.length} slot e salvata sul server.`,
+            );
         });
     document
         .getElementById("clearRowRestriction")
@@ -11148,7 +11214,10 @@ function setupRestrictionDialog() {
             rowRestrictions.delete(selectedRestrictionRow);
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            await saveRestrictionsToServer("rowRestrictionMessage", "Regola della fila rimossa dal server.");
+            await saveRestrictionsToServer(
+                "rowRestrictionMessage",
+                "Regola della fila rimossa dal server.",
+            );
         });
     document
         .getElementById("clearSlotRestriction")
@@ -11160,7 +11229,12 @@ function setupRestrictionDialog() {
             targets.forEach((target) => slotRestrictions.delete(target));
             refreshRestrictionViews();
             renderRestrictionDialog(location);
-            await saveRestrictionsToServer("slotRestrictionMessage", targets.length === 1 ? "Regola dello slot rimossa dal server." : `Regola rimossa da ${targets.length} slot sul server.`);
+            await saveRestrictionsToServer(
+                "slotRestrictionMessage",
+                targets.length === 1
+                    ? "Regola dello slot rimossa dal server."
+                    : `Regola rimossa da ${targets.length} slot sul server.`,
+            );
         });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") closeRestrictionDialog();
@@ -11190,16 +11264,45 @@ const ANALYSIS_SORT_KEYS = [
     "slotRestriction",
     "customerCompliance",
 ];
-const ANALYSIS_COLUMN_LABELS = ["Ubicazione", "Fila", "Colonna", "Lato", "Livello", "Stato slot", "ID cassone", "Tipologia", "Articolo", "Cliente", "Rif. ordine", "Codice pesata", "Pezzi", "Capienza iniziale", "Tag", "Stato operativo", "Vincolo fila", "Vincolo slot", "Verifica cliente"];
+const ANALYSIS_COLUMN_LABELS = [
+    "Ubicazione",
+    "Fila",
+    "Colonna",
+    "Lato",
+    "Livello",
+    "Stato slot",
+    "ID cassone",
+    "Tipologia",
+    "Articolo",
+    "Cliente",
+    "Rif. ordine",
+    "Codice pesata",
+    "Pezzi",
+    "Capienza iniziale",
+    "Tag",
+    "Stato operativo",
+    "Vincolo fila",
+    "Vincolo slot",
+    "Verifica cliente",
+];
 let visibleAnalysisColumns = new Set(ANALYSIS_SORT_KEYS);
 let analysisColumnPresets = [];
 
 function analysisPreferenceOwner() {
     const actor = warehouseActorSnapshot();
-    const name = String(actor.displayName || "").trim().toLocaleLowerCase("it");
-    if (actor.role === "test") return { key: "test:operatore-test", label: "Operatore test" };
-    if (actor.role === "admin") return { key: `admin:${name}`, label: actor.displayName };
-    return { key: `employee:${String(actor.department || "").trim().toLocaleLowerCase("it")}:${name}`, label: actor.displayName };
+    const name = String(actor.displayName || "")
+        .trim()
+        .toLocaleLowerCase("it");
+    if (actor.role === "test")
+        return { key: "test:operatore-test", label: "Operatore test" };
+    if (actor.role === "admin")
+        return { key: `admin:${name}`, label: actor.displayName };
+    return {
+        key: `employee:${String(actor.department || "")
+            .trim()
+            .toLocaleLowerCase("it")}:${name}`,
+        label: actor.displayName,
+    };
 }
 
 function applyAnalysisColumnVisibility() {
@@ -11213,7 +11316,15 @@ function applyAnalysisColumnVisibility() {
 
 async function saveAnalysisColumnPreferences() {
     const owner = analysisPreferenceOwner();
-    return requestBackend("/api/warehouse-inventory/database-preferences", { method: "PUT", body: { ownerKey: owner.key, ownerLabel: owner.label, visibleColumns: [...visibleAnalysisColumns], presets: analysisColumnPresets } });
+    return requestBackend("/api/warehouse-inventory/database-preferences", {
+        method: "PUT",
+        body: {
+            ownerKey: owner.key,
+            ownerLabel: owner.label,
+            visibleColumns: [...visibleAnalysisColumns],
+            presets: analysisColumnPresets,
+        },
+    });
 }
 
 function renderAnalysisColumnControls() {
@@ -11227,12 +11338,21 @@ function renderAnalysisColumnControls() {
         input.checked = visibleAnalysisColumns.has(key);
         input.addEventListener("change", async () => {
             if (input.checked) visibleAnalysisColumns.add(key);
-            else if (visibleAnalysisColumns.size > 1) visibleAnalysisColumns.delete(key);
+            else if (visibleAnalysisColumns.size > 1)
+                visibleAnalysisColumns.delete(key);
             else input.checked = true;
             applyAnalysisColumnVisibility();
-            await saveAnalysisColumnPreferences().catch((error) => showWarehouseToast(`Colonne non salvate: ${error.message}`, true));
+            await saveAnalysisColumnPreferences().catch((error) =>
+                showWarehouseToast(
+                    `Colonne non salvate: ${error.message}`,
+                    true,
+                ),
+            );
         });
-        label.append(input, document.createTextNode(ANALYSIS_COLUMN_LABELS[index]));
+        label.append(
+            input,
+            document.createTextNode(ANALYSIS_COLUMN_LABELS[index]),
+        );
         choices.append(label);
     });
     const list = document.getElementById("analysisPresetList");
@@ -11243,7 +11363,11 @@ function renderAnalysisColumnControls() {
         apply.type = "button";
         apply.textContent = preset.name;
         apply.addEventListener("click", () => {
-            visibleAnalysisColumns = new Set(preset.columns.filter((key) => ANALYSIS_SORT_KEYS.includes(key)));
+            visibleAnalysisColumns = new Set(
+                preset.columns.filter((key) =>
+                    ANALYSIS_SORT_KEYS.includes(key),
+                ),
+            );
             renderAnalysisColumnControls();
             applyAnalysisColumnVisibility();
             void saveAnalysisColumnPreferences();
@@ -11253,7 +11377,9 @@ function renderAnalysisColumnControls() {
         remove.textContent = "×";
         remove.title = `Elimina ${preset.name}`;
         remove.addEventListener("click", () => {
-            analysisColumnPresets = analysisColumnPresets.filter((entry) => entry.id !== preset.id);
+            analysisColumnPresets = analysisColumnPresets.filter(
+                (entry) => entry.id !== preset.id,
+            );
             renderAnalysisColumnControls();
             void saveAnalysisColumnPreferences();
         });
@@ -11266,14 +11392,23 @@ async function loadAnalysisColumnPreferences() {
     if (!isWarehouseLoggedIn()) return;
     const owner = analysisPreferenceOwner();
     try {
-        const result = await requestBackend(`/api/warehouse-inventory/database-preferences?owner=${encodeURIComponent(owner.key)}`);
-        const columns = (result?.visibleColumns || []).filter((key) => ANALYSIS_SORT_KEYS.includes(key));
+        const result = await requestBackend(
+            `/api/warehouse-inventory/database-preferences?owner=${encodeURIComponent(owner.key)}`,
+        );
+        const columns = (result?.visibleColumns || []).filter((key) =>
+            ANALYSIS_SORT_KEYS.includes(key),
+        );
         if (columns.length) visibleAnalysisColumns = new Set(columns);
-        analysisColumnPresets = Array.isArray(result?.presets) ? result.presets : [];
+        analysisColumnPresets = Array.isArray(result?.presets)
+            ? result.presets
+            : [];
         renderAnalysisColumnControls();
         applyAnalysisColumnVisibility();
     } catch (error) {
-        showWarehouseToast(`Preferenze colonne non disponibili: ${error.message}`, true);
+        showWarehouseToast(
+            `Preferenze colonne non disponibili: ${error.message}`,
+            true,
+        );
     }
 }
 const analysisCollator = new Intl.Collator("it", {
@@ -11682,27 +11817,44 @@ function setupAnalysisView() {
     document
         .getElementById("analysisOccupiedOnly")
         ?.addEventListener("change", renderAnalysisTable);
-    document.getElementById("saveAnalysisPreset")?.addEventListener("click", async () => {
-        const input = document.getElementById("analysisPresetName");
-        const name = String(input?.value || "").trim();
-        const message = document.getElementById("analysisColumnsMessage");
-        if (!name) {
-            message.textContent = "Inserisci un nome per il preset.";
-            input?.focus();
-            return;
-        }
-        const existing = analysisColumnPresets.find((preset) => String(preset.name).toLocaleLowerCase("it") === name.toLocaleLowerCase("it"));
-        const preset = { id: existing?.id || `columns-${Date.now()}`, name, columns: [...visibleAnalysisColumns], updatedAt: new Date().toISOString() };
-        analysisColumnPresets = existing ? analysisColumnPresets.map((entry) => entry.id === existing.id ? preset : entry) : [...analysisColumnPresets, preset].slice(-20);
-        try {
-            await saveAnalysisColumnPreferences();
-            input.value = "";
-            message.textContent = existing ? "Preset aggiornato." : "Preset salvato sul server.";
-            renderAnalysisColumnControls();
-        } catch (error) {
-            message.textContent = `Salvataggio non riuscito: ${error.message}`;
-        }
-    });
+    document
+        .getElementById("saveAnalysisPreset")
+        ?.addEventListener("click", async () => {
+            const input = document.getElementById("analysisPresetName");
+            const name = String(input?.value || "").trim();
+            const message = document.getElementById("analysisColumnsMessage");
+            if (!name) {
+                message.textContent = "Inserisci un nome per il preset.";
+                input?.focus();
+                return;
+            }
+            const existing = analysisColumnPresets.find(
+                (preset) =>
+                    String(preset.name).toLocaleLowerCase("it") ===
+                    name.toLocaleLowerCase("it"),
+            );
+            const preset = {
+                id: existing?.id || `columns-${Date.now()}`,
+                name,
+                columns: [...visibleAnalysisColumns],
+                updatedAt: new Date().toISOString(),
+            };
+            analysisColumnPresets = existing
+                ? analysisColumnPresets.map((entry) =>
+                      entry.id === existing.id ? preset : entry,
+                  )
+                : [...analysisColumnPresets, preset].slice(-20);
+            try {
+                await saveAnalysisColumnPreferences();
+                input.value = "";
+                message.textContent = existing
+                    ? "Preset aggiornato."
+                    : "Preset salvato sul server.";
+                renderAnalysisColumnControls();
+            } catch (error) {
+                message.textContent = `Salvataggio non riuscito: ${error.message}`;
+            }
+        });
     document
         .getElementById("openAnalysisSelection")
         ?.addEventListener("click", () => {
@@ -13031,7 +13183,13 @@ function setupTemporaryDatabaseActions() {
                 unloadZone.splice(0);
                 resetOperationDraftsAfterDatabaseChange();
                 refreshWarehouseDataViews();
-                await persistWarehouseData(undefined, undefined, undefined, true, true);
+                await persistWarehouseData(
+                    undefined,
+                    undefined,
+                    undefined,
+                    true,
+                    true,
+                );
                 closePseudoPopulateDialog();
                 showWarehouseToast(
                     `Scenario creato: ${result.options.totalCrates} cassoni, ${result.options.totalPallets} pallet, ${result.options.lotCount} lotti · seed ${result.options.seed}.`,
@@ -13071,7 +13229,13 @@ function setupTemporaryDatabaseActions() {
                 unloadZone.splice(0);
                 resetOperationDraftsAfterDatabaseChange();
                 refreshWarehouseDataViews();
-                await persistWarehouseData(undefined, undefined, undefined, true, true);
+                await persistWarehouseData(
+                    undefined,
+                    undefined,
+                    undefined,
+                    true,
+                    true,
+                );
                 showWarehouseToast(
                     "Database del magazzino svuotato completamente.",
                 );
@@ -13101,7 +13265,10 @@ function setupWarehouseGuide() {
         return url;
     };
     const open = () => {
-        if (!frame.getAttribute("src") || frame.getAttribute("src") === "about:blank")
+        if (
+            !frame.getAttribute("src") ||
+            frame.getAttribute("src") === "about:blank"
+        )
             frame.setAttribute("src", guideUrl().href);
         modal.classList.add("is-open");
         modal.setAttribute("aria-hidden", "false");
@@ -13124,9 +13291,15 @@ function setupWarehouseGuide() {
         frame.setAttribute("src", url.href);
     };
 
-    document.getElementById("openWarehouseGuide")?.addEventListener("click", open);
-    document.getElementById("closeWarehouseGuide")?.addEventListener("click", close);
-    document.getElementById("warehouseGuideSearchButton")?.addEventListener("click", find);
+    document
+        .getElementById("openWarehouseGuide")
+        ?.addEventListener("click", open);
+    document
+        .getElementById("closeWarehouseGuide")
+        ?.addEventListener("click", close);
+    document
+        .getElementById("warehouseGuideSearchButton")
+        ?.addEventListener("click", find);
     search?.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
             event.preventDefault();
@@ -13172,4 +13345,6 @@ setupMovementPlayback();
 setupWarehouseLogin();
 setupWarehouseGuide();
 updateSummary();
-void initializeWarehouseAuthentication().then(() => initializeWarehousePersistence());
+void initializeWarehouseAuthentication().then(() =>
+    initializeWarehousePersistence(),
+);
