@@ -93,16 +93,13 @@ function usesBlueArchiveUi() {
 }
 
 async function loadMainInterface(win: BrowserWindow, useBlueArchive: boolean) {
-    win.setMinimumSize(useBlueArchive ? 1040 : 0, useBlueArchive ? 640 : 0);
-    win.setBackgroundColor(useBlueArchive ? "#eaf7ff" : "#ffffff");
-    win.setSize(useBlueArchive ? 1360 : 750, useBlueArchive ? 820 : 550, true);
+    win.setMinimumSize(1040, 640);
+    win.setBackgroundColor(useBlueArchive ? "#eaf7ff" : "#f6f1e7");
+    win.setSize(1360, 820, true);
     win.center();
     await win.loadFile(
-        path.join(
-            __dirname,
-            "pages",
-            useBlueArchive ? "bluearchive-preview.html" : "index.html",
-        ),
+        path.join(__dirname, "pages", "bluearchive-preview.html"),
+        { query: { theme: useBlueArchive ? "bluearchive" : "agpress" } },
     );
 }
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
@@ -259,11 +256,11 @@ app.whenReady().then(() => {
     const useBlueArchiveUi = usesBlueArchiveUi();
     setInterfaceIconTheme(useBlueArchiveUi ? "bluearchive" : "standard");
     mainWindow = new BrowserWindow({
-        width: useBlueArchiveUi ? 1360 : 750,
-        height: useBlueArchiveUi ? 820 : 550,
-        minWidth: useBlueArchiveUi ? 1040 : undefined,
-        minHeight: useBlueArchiveUi ? 640 : undefined,
-        backgroundColor: useBlueArchiveUi ? "#eaf7ff" : undefined,
+        width: 1360,
+        height: 820,
+        minWidth: 1040,
+        minHeight: 640,
+        backgroundColor: useBlueArchiveUi ? "#eaf7ff" : "#f6f1e7",
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -271,13 +268,9 @@ app.whenReady().then(() => {
         icon: getInterfaceIconPath(),
     });
 
-    mainWindow.loadFile(
-        path.join(
-            __dirname,
-            "pages",
-            useBlueArchiveUi ? "bluearchive-preview.html" : "index.html",
-        ),
-    );
+    mainWindow.loadFile(path.join(__dirname, "pages", "bluearchive-preview.html"), {
+        query: { theme: useBlueArchiveUi ? "bluearchive" : "agpress" },
+    });
     mainWindow.setMenu(null);
 
     mainWindow.on("close", (event) => {

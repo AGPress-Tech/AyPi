@@ -121,6 +121,10 @@ function setInterfaceIconTheme(theme: "standard" | "bluearchive") {
     APP_ICON_PATH = getInterfaceIconPath(false);
     BrowserWindow.getAllWindows().forEach(applyInterfaceIconToWindow);
 }
+
+function getScriptedSplashTheme() {
+    return interfaceIconTheme === "standard" ? "agpress" : "";
+}
 function handleServerUnavailableForModule(
     mainWindow: BrowserWindow,
     moduleWindow?: BrowserWindow | null,
@@ -935,7 +939,7 @@ function openFileListWindow(
                     "utilities",
                     "file-list.html",
                 ),
-                { query: { theme: fileListWindowTheme } },
+                { query: { theme: fileListWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
         }
         showWindow(fileListWindow);
@@ -955,7 +959,7 @@ function openFileListWindow(
     });
     fileListWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
-        { query: { theme: fileListWindowTheme } },
+        { query: { theme: fileListWindowTheme, splashTheme: getScriptedSplashTheme() } },
     );
     fileListWindow.setMenu(null);
     fileListWindow.center();
@@ -983,7 +987,7 @@ function openBatchRenameWindow(
                     "utilities",
                     "batch-rename.html",
                 ),
-                { query: { theme: batchRenameWindowTheme } },
+                { query: { theme: batchRenameWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
         }
         showWindow(batchRenameWindow);
@@ -1002,7 +1006,7 @@ function openBatchRenameWindow(
 
     batchRenameWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
-        { query: { theme: batchRenameWindowTheme } },
+        { query: { theme: batchRenameWindowTheme, splashTheme: getScriptedSplashTheme() } },
     );
     batchRenameWindow.setMenu(null);
 
@@ -1037,7 +1041,7 @@ function openQrGeneratorWindow(
                     "utilities",
                     "qr-generator.html",
                 ),
-                { query: { theme: qrGeneratorWindowTheme } },
+                { query: { theme: qrGeneratorWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
         }
         showWindow(qrGeneratorWindow);
@@ -1056,7 +1060,7 @@ function openQrGeneratorWindow(
 
     qrGeneratorWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
-        { query: { theme: qrGeneratorWindowTheme } },
+        { query: { theme: qrGeneratorWindowTheme, splashTheme: getScriptedSplashTheme() } },
     );
     qrGeneratorWindow.setMenu(null);
     qrGeneratorWindow.center();
@@ -1093,7 +1097,7 @@ function openHierarchyWindow(
                     "utilities",
                     "hierarchy.html",
                 ),
-                { query: { theme: hierarchyWindowTheme } },
+                { query: { theme: hierarchyWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
             hierarchyWindow.center();
         }
@@ -1115,7 +1119,7 @@ function openHierarchyWindow(
 
     hierarchyWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
-        { query: { theme: hierarchyWindowTheme } },
+        { query: { theme: hierarchyWindowTheme, splashTheme: getScriptedSplashTheme() } },
     );
     hierarchyWindow.setMenu(null);
     hierarchyWindow.center();
@@ -1274,7 +1278,9 @@ function openProductionPlannerWindow(
 
     productionPlannerWindow.maximize();
     const shouldShowSplash =
-        requestedTheme === "bluearchive" || !productionPlannerSplashShown;
+        requestedTheme === "bluearchive" ||
+        getScriptedSplashTheme() === "agpress" ||
+        !productionPlannerSplashShown;
     if (requestedTheme === "standard") {
         productionPlannerSplashShown = true;
     }
@@ -1290,6 +1296,7 @@ function openProductionPlannerWindow(
             query: {
                 plannerSplash: shouldShowSplash ? "1" : "0",
                 theme: requestedTheme,
+                splashTheme: getScriptedSplashTheme(),
             },
         },
     );
@@ -1413,10 +1420,12 @@ function openFeriePermessiWindow(
                 {
                     query: {
                         fpSplash:
-                            feriePermessiWindowTheme === "bluearchive"
+                            feriePermessiWindowTheme === "bluearchive" ||
+                            getScriptedSplashTheme() === "agpress"
                                 ? "1"
                                 : "0",
                         theme: feriePermessiWindowTheme,
+                        splashTheme: getScriptedSplashTheme(),
                     },
                 },
             );
@@ -1428,7 +1437,9 @@ function openFeriePermessiWindow(
     feriePermessiWindowTheme = nextTheme;
 
     const shouldShowSplash =
-        feriePermessiWindowTheme === "bluearchive" || !feriePermessiSplashShown;
+        feriePermessiWindowTheme === "bluearchive" ||
+        getScriptedSplashTheme() === "agpress" ||
+        !feriePermessiSplashShown;
     feriePermessiSplashShown = true;
 
     feriePermessiWindow = new BrowserWindow({
@@ -1448,6 +1459,7 @@ function openFeriePermessiWindow(
             query: {
                 fpSplash: shouldShowSplash ? "1" : "0",
                 theme: feriePermessiWindowTheme,
+                splashTheme: getScriptedSplashTheme(),
             },
         },
     );
@@ -1486,6 +1498,7 @@ function openProductManagerWindow(
                 query: {
                     pmSplash: "0",
                     theme: productManagerWindowTheme,
+                    splashTheme: getScriptedSplashTheme(),
                 },
             },
         );
@@ -1509,7 +1522,8 @@ function openProductManagerWindow(
 
     productManagerWindow.maximize();
     const shouldShowSplash =
-        productManagerWindowTheme === "standard" && !productManagerSplashShown;
+        getScriptedSplashTheme() === "agpress" ||
+        (productManagerWindowTheme === "standard" && !productManagerSplashShown);
     if (productManagerWindowTheme === "standard") {
         productManagerSplashShown = true;
     }
@@ -1525,6 +1539,7 @@ function openProductManagerWindow(
             query: {
                 pmSplash: shouldShowSplash ? "1" : "0",
                 theme: productManagerWindowTheme,
+                splashTheme: getScriptedSplashTheme(),
             },
         },
     );
@@ -1841,7 +1856,9 @@ function openTicketSupportWindow(
     const showSplash = options.showSplash !== false;
     const shouldShowSplash =
         showSplash &&
-        (requestedTheme === "bluearchive" || !ticketSupportSplashShown);
+        (requestedTheme === "bluearchive" ||
+            getScriptedSplashTheme() === "agpress" ||
+            !ticketSupportSplashShown);
     if (requestedTheme === "standard" && showSplash) {
         ticketSupportSplashShown = true;
     }
@@ -1859,6 +1876,7 @@ function openTicketSupportWindow(
                 query: {
                     theme: ticketSupportWindowTheme,
                     tsSplash: shouldShowSplash ? "1" : "0",
+                    splashTheme: getScriptedSplashTheme(),
                 },
             },
         );
@@ -1888,6 +1906,7 @@ function openTicketSupportWindow(
             query: {
                 theme: ticketSupportWindowTheme,
                 tsSplash: shouldShowSplash ? "1" : "0",
+                splashTheme: getScriptedSplashTheme(),
             },
         },
     );
@@ -2228,9 +2247,14 @@ function openInventarioMagazzinoWindow(
             inventarioMagazzinoWindow.loadFile(
                 path.join(__dirname, "..", "pages", "inventario-magazzino.html"),
                 { query: {
-                    warehouseSplash: requestedTheme === "bluearchive" ? "1" : "0",
+                    warehouseSplash:
+                        requestedTheme === "bluearchive" ||
+                        getScriptedSplashTheme() === "agpress"
+                            ? "1"
+                            : "0",
                     warehouseRequireLogin,
                     theme: requestedTheme,
+                    splashTheme: getScriptedSplashTheme(),
                 } },
             );
         }
@@ -2254,7 +2278,10 @@ function openInventarioMagazzinoWindow(
         backgroundColor: requestedTheme === "bluearchive" ? "#edf9ff" : "#f3f5f7",
     });
 
-    const showSplash = requestedTheme === "bluearchive" || !inventarioMagazzinoSplashShown;
+    const showSplash =
+        requestedTheme === "bluearchive" ||
+        getScriptedSplashTheme() === "agpress" ||
+        !inventarioMagazzinoSplashShown;
     if (requestedTheme === "standard") inventarioMagazzinoSplashShown = true;
     inventarioMagazzinoWindow.loadFile(
         path.join(__dirname, "..", "pages", "inventario-magazzino.html"),
@@ -2262,6 +2289,7 @@ function openInventarioMagazzinoWindow(
             warehouseSplash: showSplash ? "1" : "0",
             warehouseRequireLogin,
             theme: requestedTheme,
+            splashTheme: getScriptedSplashTheme(),
         } },
     );
     inventarioMagazzinoWindow.setMenu(null);
@@ -2315,7 +2343,7 @@ function openCompareFoldersWindow(
                 "utilities",
                 "compare-folders.html",
             ),
-            { query: { theme: compareFoldersWindowTheme } },
+            { query: { theme: compareFoldersWindowTheme, splashTheme: getScriptedSplashTheme() } },
         );
     };
     const createWindow = () => {

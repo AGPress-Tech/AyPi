@@ -7,26 +7,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi</title>
     <link rel="stylesheet" href="../styles/programmi-style.css">
+    <link rel="stylesheet" href="../styles/agpress-shell.css">
 </head>
 
-<body>
+<body class="agpress-shell agpress-launcher">
     <div id="main">
         <div id="sidebar-container"></div>
 
-        <span id="menuBtn">&#9776;</span>
+        <header class="ag-topbar">
+            <span id="menuBtn" class="ag-menu-button" role="button" tabindex="0" aria-label="Apri menu" aria-expanded="false">&#9776;</span>
+            <div class="ag-brand"><img src="../assets/app-icon.png" alt=""><div class="ag-brand__copy"><strong>AyPi</strong><small>AGPress workspace</small></div></div>
+            <div class="ag-topbar__actions"><span class="ag-topbar__status">Modalità AGPress</span><p id="appVersion">AyPi v...</p><img src="../assets/app-icon.png" alt="Apri repository AyPi" id="githubIcon"></div>
+        </header>
 
-        <h4>Seleziona il programma del reparto desiderato!</h4>
-        <button id="openTecnico">Ufficio Tecnico</button>
-        <button id="openOfficina">Officina Meccanica</button>
-        <button id="openStampaggio">Stampaggio</button>
-        <button id="openTranceria">Tranceria</button>
-        <button id="openTorneria">Torneria</button>
-        <button id="openMagazzino">Magazzino</button>
-        <button id="openConsegne">Consegne</button>
-
-        <p id="appVersion">AyPi v...</p>
-
-        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+        <main class="ag-content">
+            <header class="ag-page-heading">
+                <p class="ag-eyebrow">Pianificazione legacy</p>
+                <h1>Programmi di reparto</h1>
+                <p>Accedi ai fogli di pianificazione utilizzati dai reparti e dalla logistica.</p>
+            </header>
+            <section class="agpress-launch-grid" aria-label="Programmi disponibili">
+                <button id="openTecnico"><span class="ag-card__icon">UT</span><span class="ag-card__copy"><strong>Ufficio Tecnico</strong><small>Pianificazione attività tecniche</small></span></button>
+                <button id="openOfficina"><span class="ag-card__icon">OM</span><span class="ag-card__copy"><strong>Officina Meccanica</strong><small>Carichi e lavorazioni dell'officina</small></span></button>
+                <button id="openStampaggio"><span class="ag-card__icon">SP</span><span class="ag-card__copy"><strong>Stampaggio</strong><small>Pianificazione del reparto stampaggio</small></span></button>
+                <button id="openTranceria"><span class="ag-card__icon">TR</span><span class="ag-card__copy"><strong>Tranceria</strong><small>Pianificazione del reparto tranceria</small></span></button>
+                <button id="openTorneria"><span class="ag-card__icon">TO</span><span class="ag-card__copy"><strong>Torneria</strong><small>Pianificazione del reparto torneria</small></span></button>
+                <button id="openMagazzino"><span class="ag-card__icon">MG</span><span class="ag-card__copy"><strong>Magazzino</strong><small>Attività e movimentazioni pianificate</small></span></button>
+                <button id="openConsegne"><span class="ag-card__icon">CO</span><span class="ag-card__copy"><strong>Consegne</strong><small>Programmazione delle consegne</small></span></button>
+            </section>
+        </main>
 
         <script src="../scripts/programmi-scripts.js"></script>
 

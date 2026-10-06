@@ -5,14 +5,13 @@ import path from "path";
 import * as XLSX from "xlsx";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
 const IS_BLUE_ARCHIVE_FILE_LIST =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-
-if (IS_BLUE_ARCHIVE_FILE_LIST) {
-    document.body.classList.add("bluearchive-file-list");
-}
+const SPLASH_MODE = createScriptedSplashMode(["bluearchive-file-list"]);
+if (IS_BLUE_ARCHIVE_FILE_LIST) document.body.classList.add("bluearchive-file-list");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_FILE_LIST);
 
 type FileRow = {
@@ -39,12 +38,14 @@ function formatBytes(value: number) {
 }
 
 function runSplash() {
-    if (!IS_BLUE_ARCHIVE_FILE_LIST) return;
+    if (!SPLASH_MODE.enabled) return;
     const splash = document.getElementById("baFileListSplash");
     if (!splash) return;
+    SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     const splashController = makeSplashSkippable(splash, {
         fadeClass: "is-leaving",
+        onFinish: SPLASH_MODE.cleanup,
     });
     window.setTimeout(() => {
         if (!splashController.isFinished()) splash.classList.add("is-leaving");

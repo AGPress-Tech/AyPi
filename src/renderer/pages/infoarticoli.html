@@ -8,27 +8,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi</title>
     <link rel="stylesheet" href="../styles/infoarticoli-style.css">
+    <link rel="stylesheet" href="../styles/agpress-shell.css">
 </head>
 
-<body>
+<body class="agpress-shell agpress-launcher">
     <div id="main">
         <div id="sidebar-container"></div>
 
-        <span id="menuBtn">&#9776;</span>
+        <header class="ag-topbar">
+            <span id="menuBtn" class="ag-menu-button" role="button" tabindex="0" aria-label="Apri menu" aria-expanded="false">&#9776;</span>
+            <div class="ag-brand"><img src="../assets/app-icon.png" alt=""><div class="ag-brand__copy"><strong>AyPi</strong><small>AGPress workspace</small></div></div>
+            <div class="ag-topbar__actions"><span class="ag-topbar__status">Modalità AGPress</span><p id="appVersion">AyPi v...</p><img src="../assets/app-icon.png" alt="Apri repository AyPi" id="githubIcon"></div>
+        </header>
 
-        <h4>Seleziona le informazioni relative agli articoli!</h4>
-        <div class="infoarticoli-actions">
-            <button id="openTavole">Tavole e Disegni</button>
-            <button id="openCicli">Cicli di Lavorazione</button>
-            <button id="openMontaggioStampi">Schede Montaggio Stampi</button>
-            <button id="openDifettiProduzione">Schede Difetti di Produzione</button>
-            <button id="openSchedeAttrezzaggioTransfer">Schede Attrezzaggio</button>
-            <button id="openRegistrazioniProgettazione">Registrazioni Progettazione</button>
-            <button id="openInventarioMagazzino">Inventario magazzino</button>
-        </div>
-
-        <p id="appVersion">AyPi v...</p>
-        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+        <main class="ag-content">
+            <header class="ag-page-heading">
+                <p class="ag-eyebrow">Dati di prodotto</p>
+                <h1>Articoli e documentazione</h1>
+                <p>Consulta disegni, cicli, schede tecniche e registrazioni collegate agli articoli.</p>
+            </header>
+            <section class="infoarticoli-actions agpress-launch-grid" aria-label="Informazioni articoli">
+                <button id="openTavole"><span class="ag-card__icon">TD</span><span class="ag-card__copy"><strong>Tavole e Disegni</strong><small>Documentazione tecnica degli articoli</small></span></button>
+                <button id="openCicli"><span class="ag-card__icon">CL</span><span class="ag-card__copy"><strong>Cicli di Lavorazione</strong><small>Sequenze e parametri di produzione</small></span></button>
+                <button id="openMontaggioStampi"><span class="ag-card__icon">MS</span><span class="ag-card__copy"><strong>Schede Montaggio Stampi</strong><small>Istruzioni e riferimenti di montaggio</small></span></button>
+                <button id="openDifettiProduzione"><span class="ag-card__icon">DP</span><span class="ag-card__copy"><strong>Schede Difetti di Produzione</strong><small>Difetti noti e indicazioni operative</small></span></button>
+                <button id="openSchedeAttrezzaggioTransfer"><span class="ag-card__icon">SA</span><span class="ag-card__copy"><strong>Schede Attrezzaggio</strong><small>Metodi per transfer e centri di lavoro</small></span></button>
+                <button id="openRegistrazioniProgettazione"><span class="ag-card__icon">RP</span><span class="ag-card__copy"><strong>Registrazioni Progettazione</strong><small>Fasi e sviluppo dei progetti</small></span></button>
+                <button id="openInventarioMagazzino"><span class="ag-card__icon">IM</span><span class="ag-card__copy"><strong>Inventario Magazzino</strong><small>Ubicazioni, cassoni e movimentazioni</small></span></button>
+            </section>
+        </main>
 
         <script src="../scripts/infoarticoli-scripts.js"></script>
 

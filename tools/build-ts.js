@@ -31,6 +31,24 @@ function copyDir(src, dest, opts = {}) {
 
 rmDir(distDir);
 
+let result = spawnSync("node", [path.join(__dirname, "generate-agpress-bluearchive-theme.js")], {
+    stdio: "inherit",
+    shell: true,
+    cwd: rootDir,
+});
+if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+}
+
+result = spawnSync("node", [path.join(__dirname, "generate-agpress-scripted-splash-scopes.js")], {
+    stdio: "inherit",
+    shell: true,
+    cwd: rootDir,
+});
+if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+}
+
 // Copy non-JS/TS runtime assets
 copyDir(path.join(rootDir, "assets"), path.join(distDir, "assets"));
 copyDir(path.join(rootDir, "src", "renderer", "pages"), path.join(distDir, "pages"));
@@ -58,7 +76,7 @@ if (fs.existsSync(legacyUpdater)) {
     fs.copyFileSync(legacyUpdater, path.join(modulesDir, "updater.js"));
 }
 
-let result = spawnSync("npx", ["tsc", "-p", "tsconfig.json"], {
+result = spawnSync("npx", ["tsc", "-p", "tsconfig.json"], {
     stdio: "inherit",
     shell: true,
     cwd: rootDir,

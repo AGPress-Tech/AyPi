@@ -5,6 +5,7 @@ import { showInfo, showWarning, showError } from "../shared/dialogs";
 import { state } from "./batch-rename/state";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 import { parseExtensions } from "./batch-rename/utils";
 import { getFilterConfigFromUI } from "./batch-rename/filters";
 import { collectTargets } from "./batch-rename/collector";
@@ -28,19 +29,19 @@ import {
 
 const IS_BLUE_ARCHIVE_BATCH_RENAME =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-
-if (IS_BLUE_ARCHIVE_BATCH_RENAME) {
-    document.body.classList.add("bluearchive-batch-rename");
-}
+const SPLASH_MODE = createScriptedSplashMode(["bluearchive-batch-rename"]);
+if (IS_BLUE_ARCHIVE_BATCH_RENAME) document.body.classList.add("bluearchive-batch-rename");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_BATCH_RENAME);
 
 function runBlueArchiveBatchSplash() {
-    if (!IS_BLUE_ARCHIVE_BATCH_RENAME) return;
+    if (!SPLASH_MODE.enabled) return;
     const splash = document.getElementById("baBatchRenameSplash");
     if (!splash) return;
+    SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     const splashController = makeSplashSkippable(splash, {
         fadeClass: "is-leaving",
+        onFinish: SPLASH_MODE.cleanup,
     });
     window.setTimeout(() => {
         if (!splashController.isFinished()) splash.classList.add("is-leaving");

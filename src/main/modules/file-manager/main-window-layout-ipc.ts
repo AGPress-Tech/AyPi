@@ -19,13 +19,14 @@ export function registerMainWindowLayoutIpc({
     usesPersistentLayout,
 }: MainWindowLayoutDependencies) {
     ipcMain.on("resize-calcolatore", () => {
-        animateResize(mainWindow, 750, 750, 100);
+        animateResize(mainWindow, 1360, 820, 140);
     });
 
     ipcMain.on("resize-normale", () => {
-        // I moduli legacy ripristinano il vecchio menu; Blue Archive conserva
-        // invece bounds e stato della propria interfaccia.
+        // Entrambe le interfacce principali condividono ora le proporzioni
+        // della shell Blue Archive. Blue Archive conserva comunque i bounds
+        // scelti dall'utente quando la propria interfaccia è già attiva.
         if (usesPersistentLayout(mainWindow)) return;
-        animateResize(mainWindow, 750, 550, 100);
+        animateResize(mainWindow, 1360, 820, 140);
     });
 }

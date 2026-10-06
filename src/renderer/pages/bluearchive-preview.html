@@ -8,7 +8,9 @@
     <title>AyPi — Blue Archive Mode</title>
     <link rel="stylesheet" href="../assets/vendor/spine-player/spine-player.css">
     <link rel="stylesheet" href="../assets/vendor/spine-player-4.2/spine-player.min.css">
-    <link rel="stylesheet" href="../styles/bluearchive-preview.css">
+    <link id="blueArchiveStylesheet" rel="stylesheet" href="../styles/bluearchive-preview.css">
+    <link id="agpressStylesheet" rel="stylesheet" href="../styles/agpress-bluearchive.css" media="not all">
+    <script src="../scripts/interface-theme-bootstrap.js"></script>
 </head>
 <body>
     <div class="startup-sequence" id="startupSequence" role="status" aria-label="Avvio AyPi">
@@ -25,7 +27,7 @@
             </div>
             <div class="startup-rule" aria-hidden="true"><i></i></div>
             <div class="startup-kicker">PORTALE OPERATIVO AGPRESS</div>
-            <h1>Buongiorno, <strong><span id="startupUserName">Sensei</span>.</strong></h1>
+            <h1>Buongiorno<span class="startup-personal-greeting">, <strong><span id="startupUserName">Sensei</span>.</strong></span></h1>
             <p>Preparazione dell'interfaccia AyPi</p>
             <div class="startup-progress" aria-hidden="true"><i></i></div>
         </div>

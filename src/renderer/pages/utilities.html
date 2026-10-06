@@ -8,27 +8,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Utilities</title>
     <link rel="stylesheet" href="../styles/utilities-style.css">
+    <link rel="stylesheet" href="../styles/agpress-shell.css">
 </head>
 
-<body>
+<body class="agpress-shell agpress-launcher">
     <div id="main">
         <div id="sidebar-container"></div>
         <div id="aypi-admin-overlay" style="display:none"></div>
 
-        <span id="menuBtn">&#9776;</span>
+        <header class="ag-topbar">
+            <span id="menuBtn" class="ag-menu-button" role="button" tabindex="0" aria-label="Apri menu" aria-expanded="false">&#9776;</span>
+            <div class="ag-brand"><img src="../assets/app-icon.png" alt=""><div class="ag-brand__copy"><strong>AyPi</strong><small>AGPress workspace</small></div></div>
+            <div class="ag-topbar__actions"><span class="ag-topbar__status">Modalità AGPress</span><p id="appVersion">AyPi v...</p><img src="../assets/app-icon.png" alt="Apri repository AyPi" id="githubIcon"></div>
+        </header>
 
-        <h4>AyPi Utilities!</h4>
-        <button id="transcribeFileNames">Elenca File</button>
-        <button id="batchRenameFiles">Batch Rinomina</button>
-        <button id="qrGenerator">Generatore QR</button>
-        <button id="compareFolders">Confronta Cartelle</button>
-        <button id="hierarchyGenerator">Gerarchia</button>
-        <button id="productionPlanner">Pianificazione Produzione</button>
-        <button id="feriePermessi">Calendario Dipendenti</button>
-        <button id="purchaseRequests">Gestione Acquisti</button>
-
-        <p id="appVersion">AyPi v...</p>
-        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+        <main class="ag-content">
+            <header class="ag-page-heading">
+                <p class="ag-eyebrow">Strumenti di lavoro</p>
+                <h1>Utilities</h1>
+                <p>Strumenti rapidi per file, cartelle, codici, pianificazione e servizi aziendali.</p>
+            </header>
+            <section class="agpress-launch-grid" aria-label="Utilities disponibili">
+                <button id="transcribeFileNames"><span class="ag-card__icon">EF</span><span class="ag-card__copy"><strong>Elenca File</strong><small>Analizza una cartella ed esporta il contenuto</small></span></button>
+                <button id="batchRenameFiles"><span class="ag-card__icon">BR</span><span class="ag-card__copy"><strong>Batch Rinomina</strong><small>Rinomina file e cartelle con regole flessibili</small></span></button>
+                <button id="qrGenerator"><span class="ag-card__icon">QR</span><span class="ag-card__copy"><strong>Generatore QR</strong><small>Crea codici QR e barcode</small></span></button>
+                <button id="compareFolders"><span class="ag-card__icon">CC</span><span class="ag-card__copy"><strong>Confronta Cartelle</strong><small>Trova differenze tra due percorsi</small></span></button>
+                <button id="hierarchyGenerator"><span class="ag-card__icon">GH</span><span class="ag-card__copy"><strong>Gerarchia</strong><small>Esplora e analizza strutture di cartelle</small></span></button>
+                <button id="productionPlanner"><span class="ag-card__icon">PP</span><span class="ag-card__copy"><strong>Pianificazione Produzione</strong><small>Organizza reparti, macchine e lavorazioni</small></span></button>
+                <button id="feriePermessi"><span class="ag-card__icon">CA</span><span class="ag-card__copy"><strong>Calendario Dipendenti</strong><small>Ferie, permessi e chiusure aziendali</small></span></button>
+                <button id="purchaseRequests"><span class="ag-card__icon">GA</span><span class="ag-card__copy"><strong>Gestione Acquisti</strong><small>Richieste di acquisto e intervento</small></span></button>
+            </section>
+        </main>
 
         <script src="../scripts/utilities-scripts.js"></script>
     </div>

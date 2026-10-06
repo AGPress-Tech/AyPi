@@ -7,23 +7,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi</title>
     <link rel="stylesheet" href="../styles/robot-style.css">
+    <link rel="stylesheet" href="../styles/agpress-shell.css">
 </head>
 
-<body>
+<body class="agpress-shell agpress-launcher">
     <div id="main">
         <div id="sidebar-container"></div>
 
-        <span id="menuBtn">&#9776;</span>
+        <header class="ag-topbar">
+            <span id="menuBtn" class="ag-menu-button" role="button" tabindex="0" aria-label="Apri menu" aria-expanded="false">&#9776;</span>
+            <div class="ag-brand"><img src="../assets/app-icon.png" alt=""><div class="ag-brand__copy"><strong>AyPi</strong><small>AGPress workspace</small></div></div>
+            <div class="ag-topbar__actions"><span class="ag-topbar__status">Modalità AGPress</span><p id="appVersion">AyPi v...</p><img src="../assets/app-icon.png" alt="Apri repository AyPi" id="githubIcon"></div>
+        </header>
 
-        <h4>Visualizza lo stato e informazioni Robot!</h4>
-        <button id="show21D500">Stato Robot 21D500</button>
-        <button id="show21D600">Stato Robot 21D600</button>
-        <button id="show21D850">Stato Robot 21D850</button>
-        <button id="pingRobots">Verifica Connessioni</button>
-
-        <p id="appVersion">AyPi v...</p>
-
-        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+        <main class="ag-content">
+            <header class="ag-page-heading">
+                <p class="ag-eyebrow">Isole robotizzate</p>
+                <h1>Robot</h1>
+                <p>Controlla gli stati delle isole e verifica la raggiungibilità delle connessioni.</p>
+            </header>
+            <section class="agpress-launch-grid" aria-label="Robot disponibili">
+                <button id="show21D500"><span class="ag-card__icon">500</span><span class="ag-card__copy"><strong>Stato Robot 21D500</strong><small>Apri il pannello di stato dell'isola</small></span></button>
+                <button id="show21D600"><span class="ag-card__icon">600</span><span class="ag-card__copy"><strong>Stato Robot 21D600</strong><small>Apri il pannello di stato dell'isola</small></span></button>
+                <button id="show21D850"><span class="ag-card__icon">850</span><span class="ag-card__copy"><strong>Stato Robot 21D850</strong><small>Apri il pannello di stato dell'isola</small></span></button>
+                <button id="pingRobots"><span class="ag-card__icon">NET</span><span class="ag-card__copy"><strong>Verifica Connessioni</strong><small>Controlla rete, indirizzi e raggiungibilità</small></span></button>
+            </section>
+        </main>
 
         <script src="../scripts/robot-scripts.js"></script>
 

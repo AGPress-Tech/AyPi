@@ -14,6 +14,7 @@ import { requestBackend } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 import { isValidEmail } from "../shared/validation";
 import { normalizeAdminEntry } from "../shared/admin-data";
 
@@ -27,19 +28,17 @@ const params = new URLSearchParams(window.location.search || "");
 const currentView = (params.get("tsView") || "form").toLowerCase() === "admin" ? "admin" : "form";
 const IS_BLUE_ARCHIVE_TICKET_SUPPORT =
     params.get("theme") === "bluearchive";
-
-if (IS_BLUE_ARCHIVE_TICKET_SUPPORT) {
-    document.body.classList.add(
-        "fp-bluearchive",
-        "bluearchive-purchasing",
-        "bluearchive-ticket-support",
-    );
-}
+const SPLASH_MODE = createScriptedSplashMode([
+    "fp-bluearchive",
+    "bluearchive-purchasing",
+    "bluearchive-ticket-support",
+]);
+if (IS_BLUE_ARCHIVE_TICKET_SUPPORT) document.body.classList.add("fp-bluearchive", "bluearchive-purchasing", "bluearchive-ticket-support");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_TICKET_SUPPORT);
 
 function runBlueArchiveTicketSupportSplash() {
     if (
-        !IS_BLUE_ARCHIVE_TICKET_SUPPORT ||
+        !SPLASH_MODE.enabled ||
         currentView !== "form" ||
         params.get("tsSplash") !== "1"
     ) {
@@ -48,10 +47,12 @@ function runBlueArchiveTicketSupportSplash() {
     }
     const splash = document.getElementById("tsBlueArchiveSplash");
     if (!splash) return;
+    SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     splash.classList.add("is-visible");
     const splashController = makeSplashSkippable(splash, {
         onFinish: () => {
+            SPLASH_MODE.cleanup();
             window.dispatchEvent(new CustomEvent("ts-splash-finished"));
         },
     });

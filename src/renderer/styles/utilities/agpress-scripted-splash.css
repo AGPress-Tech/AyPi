@@ -1,0 +1,126 @@
+body.agpress-scripted-splash {
+    --ba-ink: #332f2b;
+    --ba-blue: #cc930e;
+    --ba-cyan: #e4ab32;
+    --ba-pale: #fff8e8;
+}
+
+body.agpress-scripted-splash .fp-calendar-splash__standard,
+body.agpress-scripted-splash .planner-splash__standard,
+body.agpress-scripted-splash .warehouse-splash__standard,
+body.agpress-scripted-splash #pm-splash,
+body.agpress-scripted-splash #ts-standard-splash {
+    display: none !important;
+}
+
+body.agpress-scripted-splash .fp-ba-calendar-boot,
+body.agpress-scripted-splash .planner-ba-boot,
+body.agpress-scripted-splash .warehouse-ba-boot {
+    display: grid !important;
+}
+
+.agpress-scripted-splash-scope {
+    position: fixed;
+    z-index: 3000;
+    inset: 0;
+    pointer-events: none;
+}
+
+.agpress-scripted-splash-scope > * {
+    pointer-events: auto;
+}
+
+body.agpress-scripted-splash .ba-utility-splash,
+body.agpress-scripted-splash .fp-calendar-splash--bluearchive,
+body.agpress-scripted-splash .planner-splash--bluearchive,
+body.agpress-scripted-splash .warehouse-splash,
+body.agpress-scripted-splash .ba-purchasing-splash,
+body.agpress-scripted-splash .ts-ba-splash {
+    color: #332f2b !important;
+    background: radial-gradient(circle at 50% 44%, rgba(228, 171, 50, .15), transparent 31%), #fffaf0 !important;
+}
+
+body.agpress-scripted-splash .ba-splash-grid,
+body.agpress-scripted-splash .fp-ba-boot-grid,
+body.agpress-scripted-splash .planner-ba-boot__grid,
+body.agpress-scripted-splash .warehouse-ba-boot__grid,
+body.agpress-scripted-splash .ba-purchasing-splash__grid {
+    background-image: linear-gradient(rgba(204, 147, 14, .09) 1px, transparent 1px), linear-gradient(90deg, rgba(204, 147, 14, .09) 1px, transparent 1px) !important;
+}
+
+body.agpress-scripted-splash .ba-splash-core small,
+body.agpress-scripted-splash .ba-splash-core p,
+body.agpress-scripted-splash .fp-ba-boot-center p,
+body.agpress-scripted-splash .planner-ba-boot p,
+body.agpress-scripted-splash .warehouse-ba-boot p,
+body.agpress-scripted-splash .ba-purchasing-splash p {
+    color: #827760 !important;
+}
+
+body.agpress-scripted-splash .ba-splash-core h1,
+body.agpress-scripted-splash .fp-ba-boot-center h1,
+body.agpress-scripted-splash .planner-ba-boot h1,
+body.agpress-scripted-splash .warehouse-ba-boot h1,
+body.agpress-scripted-splash .ba-purchasing-splash h1 {
+    color: #332f2b !important;
+}
+
+body.agpress-scripted-splash .ba-splash-core h1 strong,
+body.agpress-scripted-splash .fp-ba-boot-center h1 strong,
+body.agpress-scripted-splash .planner-ba-boot h1 strong,
+body.agpress-scripted-splash .warehouse-ba-boot h1 strong,
+body.agpress-scripted-splash .ba-purchasing-splash h1 strong {
+    color: #cc930e !important;
+}
+
+body.agpress-scripted-splash .ba-splash-progress,
+body.agpress-scripted-splash .fp-ba-boot-progress,
+body.agpress-scripted-splash .planner-ba-boot__progress,
+body.agpress-scripted-splash .warehouse-ba-boot__progress {
+    background: rgba(204, 147, 14, .15) !important;
+}
+
+body.agpress-scripted-splash .ba-splash-progress i,
+body.agpress-scripted-splash .fp-ba-boot-progress i,
+body.agpress-scripted-splash .planner-ba-boot__progress i,
+body.agpress-scripted-splash .warehouse-ba-boot__progress i {
+    background: linear-gradient(90deg, #cc930e, #e4ab32) !important;
+}
+
+body.agpress-scripted-splash .fp-ba-boot-ay,
+body.agpress-scripted-splash .planner-ba-boot__ay,
+body.agpress-scripted-splash .warehouse-ba-boot__ay,
+body.agpress-scripted-splash .fp-ba-boot-route,
+body.agpress-scripted-splash .planner-ba-boot__route,
+body.agpress-scripted-splash .warehouse-ba-boot__route,
+body.agpress-scripted-splash .fp-ba-boot-corner--right,
+body.agpress-scripted-splash .planner-ba-boot__corner--right,
+body.agpress-scripted-splash .warehouse-ba-boot__corner--right {
+    color: #cc930e !important;
+}
+
+body.agpress-scripted-splash .fp-ba-boot-pi,
+body.agpress-scripted-splash .planner-ba-boot__pi,
+body.agpress-scripted-splash .warehouse-ba-boot__pi {
+    color: #2b2824 !important;
+}
+
+body.agpress-scripted-splash .fp-ba-boot-halo,
+body.agpress-scripted-splash .planner-ba-boot__halo,
+body.agpress-scripted-splash .warehouse-ba-boot__halo {
+    border-color: #332f2b !important;
+}
+
+body.agpress-scripted-splash .fp-ba-boot-slash,
+body.agpress-scripted-splash .planner-ba-boot__slash,
+body.agpress-scripted-splash .warehouse-ba-boot__slash {
+    background: #cc930e !important;
+    box-shadow: 13px 0 0 rgba(228, 171, 50, .42) !important;
+}
+
+body.agpress-scripted-splash .fp-ba-boot-sweep,
+body.agpress-scripted-splash .planner-ba-boot__sweep,
+body.agpress-scripted-splash .warehouse-ba-boot__sweep,
+body.agpress-scripted-splash .ba-purchasing-splash__sweep {
+    background: linear-gradient(105deg, transparent 43%, rgba(228, 171, 50, .12) 48%, rgba(255, 255, 255, .92) 50%, transparent 55%) !important;
+}

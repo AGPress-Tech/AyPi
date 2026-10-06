@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="../../styles/utilities/product-manager-bluearchive-style.css">
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
+    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash-scopes.css">
+    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
@@ -51,6 +53,7 @@
             try {
                 var params = new URLSearchParams(window.location.search || "");
                 var shouldShow = params.get("pmSplash") === "1";
+                if (params.get("splashTheme") === "agpress") shouldShow = false;
                 var splashEl = document.getElementById("pm-splash");
                 var showModule = function () {
                     document.body.classList.add("pm-ready");

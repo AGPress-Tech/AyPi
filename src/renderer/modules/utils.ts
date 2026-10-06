@@ -510,41 +510,61 @@ function wireSidebarActions() {
         sidebarContainer.innerHTML =
             typeof html === "string" ? html : String(html || "");
 
-        const sidebar = document.getElementById("mySidebar");
-        const closeBtn = sidebar ? sidebar.querySelector(".closebtn") : null;
+        const quickMenu = document.getElementById("agQuickMenu");
         const menuBtn = document.getElementById("menuBtn");
+        const currentPage = window.location.pathname.split(/[\\/]/).pop();
 
-        // funzioni per aprire e chiudere la sidebar
-        function openNav() {
-            // se la sidebar ha già un larghezza, la lascio invariata altrimenti la setto a 30%
-            if (sidebar) (sidebar as HTMLElement).style.width = "30%";
-            const main = document.getElementById("main");
-            // se il main ha già un margin-left, lo lascio invariato altrimenti lo setto a 30%
-            if (main) (main as HTMLElement).style.marginLeft = "30%";
-        }
-        // funzione per chiudere la sidebar
-        function closeNav() {
-            // se la sidebar ha già un larghezza, la lascio invariata altrimenti la setto a 0
-            if (sidebar) (sidebar as HTMLElement).style.width = "0";
-            const main = document.getElementById("main");
-            // se il main ha già un margin-left, lo lascio invariato altrimenti lo setto a 0
-            if (main) (main as HTMLElement).style.marginLeft = "0";
+        const topbar = document.querySelector(".ag-topbar");
+        if (topbar && !topbar.querySelector(".ag-main-nav")) {
+            const navigation = document.createElement("nav");
+            navigation.className = "ag-main-nav";
+            navigation.setAttribute("aria-label", "Navigazione principale");
+            navigation.innerHTML = `
+                <a href="moduli.html" data-page="moduli.html">Moduli</a>
+                <a href="programmi.html" data-page="programmi.html">Programmi</a>
+                <a href="infoarticoli.html" data-page="infoarticoli.html">Articoli</a>
+                <a href="produzioni.html" data-page="produzioni.html">Produzioni</a>
+                <a href="robot.html" data-page="robot.html">Robot</a>
+                <a href="calcolatore.html" data-page="calcolatore.html">Calcolatore</a>
+                <a href="utilities.html" data-page="utilities.html">Utilities</a>
+            `;
+            const actions = topbar.querySelector(".ag-topbar__actions");
+            topbar.insertBefore(navigation, actions || menuBtn);
         }
 
-        // se il menuBtn esiste, aggiungo l'event listener per aprire la sidebar
-        if (menuBtn) {
-            menuBtn.addEventListener("mouseenter", openNav);
-            menuBtn.addEventListener("click", openNav);
-        }
-        // se la sidebar esiste, aggiungo l'event listener per chiudere la sidebar
-        if (sidebar) sidebar.addEventListener("mouseleave", closeNav);
-        if (closeBtn) closeBtn.addEventListener("click", closeNav);
+        document
+            .querySelectorAll<HTMLElement>(".ag-main-nav [data-page]")
+            .forEach((link) => {
+                const isActive = link.dataset.page === currentPage;
+                link.classList.toggle("is-active", isActive);
+                if (isActive) link.setAttribute("aria-current", "page");
+            });
 
-        // clockElement serve per aggiornare l'orario e per aprire la finestra del timer al click
+        function setQuickMenu(open: boolean) {
+            if (!quickMenu || !menuBtn) return;
+            quickMenu.classList.toggle("is-open", open);
+            quickMenu.setAttribute("aria-hidden", String(!open));
+            menuBtn.classList.toggle("is-open", open);
+            menuBtn.setAttribute("aria-expanded", String(open));
+        }
+
+        menuBtn?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setQuickMenu(!quickMenu?.classList.contains("is-open"));
+        });
+        menuBtn?.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            setQuickMenu(!quickMenu?.classList.contains("is-open"));
+        });
+        quickMenu?.addEventListener("click", (event) => event.stopPropagation());
+        document.addEventListener("click", () => setQuickMenu(false));
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") setQuickMenu(false);
+        });
+
         const clockElement = document.getElementById("clock");
-        // se il clockElement esiste,
         if (clockElement) {
-            // funzione per aggiornare l'orario
             function updateClock() {
                 const now = new Date();
                 const hours = now.getHours().toString().padStart(2, "0");
@@ -552,27 +572,26 @@ function wireSidebarActions() {
                 if (clockElement)
                     clockElement.textContent = `${hours}:${minutes}`;
             }
-            // aggiorno l'orario
             updateClock();
             setInterval(updateClock, 1000);
+        }
 
-            clockElement.addEventListener("click", () => {
+        document
+            .getElementById("openTimerShortcut")
+            ?.addEventListener("click", () => {
+                setQuickMenu(false);
                 ipcRenderer.send("open-timer-window");
             });
-        }
 
-        // funzione per installare l'addon excel
-        const installBtn = document.getElementById("install-addin");
-        if (installBtn) {
-            installBtn.addEventListener("click", installAddinFunction);
-        }
+        document
+            .getElementById("install-addin")
+            ?.addEventListener("click", installAddinFunction);
 
-        // se la sidebar o il menuBtn non esistono, mostro un messaggio di errore
-        if (!sidebar || !menuBtn) {
+        if (!quickMenu || !menuBtn) {
             ipcRenderer.invoke("show-message-box", {
                 type: "warning",
-                message: "Sidebar non inizializzata.",
-                detail: `sidebar: ${!!sidebar} | menuBtn: ${!!menuBtn}`,
+                message: "Menu superiore non inizializzato.",
+                detail: `menu: ${!!quickMenu} | pulsante: ${!!menuBtn}`,
             });
         }
     };

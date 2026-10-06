@@ -12,6 +12,30 @@
   durante operazioni molto lunghe, senza riscrivere inutilmente funzioni già
   esistenti.
 
+### Direzione visuale concordata
+
+La modalità AGPress usa **la stessa shell della modalità Blue Archive**, senza
+reinterpretazioni strutturali: markup, proporzioni, topbar, testi, disposizione
+dei pulsanti, dimensioni della finestra, transizioni di pagina e animazioni delle
+finestre devono restare identici. La differenza è affidata esclusivamente al tema
+cromatico antracite/ambra.
+
+Nella variante AGPress vengono rimossi soltanto Arona/Plana e gli effetti legati
+al puntatore (aura, scia, particelle e inclinazione delle card). La shell condivisa
+usa la finestra desktop 1360×820, la navigazione orizzontale nella topbar, lo
+stesso hero e gli accessi rapidi in quattro colonne della modalità Blue Archive.
+Il menu laterale legacy non fa più parte del flusso principale.
+
+Vincoli specifici:
+
+- Calendar e Purchasing non vengono restilizzati;
+- Inventario Magazzino conserva l'interfaccia e cambia soltanto il login;
+- Pianificazione conserva struttura e qualità della barra superiore, da
+  ricondurre alla palette AGPress;
+- Ticket Support viene riallineato nella tipografia e nei colori;
+- Schede Attrezzaggio può cambiare home, submenu ed elenco, mentre compilazione,
+  contenuti delle schede e anteprime di stampa rimangono invariati.
+
 ## 1. Sintesi esecutiva
 
 Il lavoro non va affrontato come una serie di ritocchi CSS separati. AyPi è una

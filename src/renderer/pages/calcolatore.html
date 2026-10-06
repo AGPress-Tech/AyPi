@@ -8,39 +8,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi</title>
     <link rel="stylesheet" href="../styles/calcolatore-style.css">
+    <link rel="stylesheet" href="../styles/agpress-shell.css">
 </head>
 
-<body>
+<body class="agpress-shell">
     <div id="main">
         <div id="sidebar-container"></div>
 
-        <span id="menuBtn">&#9776;</span>
+        <header class="ag-topbar">
+            <span id="menuBtn" class="ag-menu-button" role="button" tabindex="0" aria-label="Apri menu" aria-expanded="false">&#9776;</span>
+            <div class="ag-brand"><img src="../assets/app-icon.png" alt=""><div class="ag-brand__copy"><strong>AyPi</strong><small>AGPress workspace</small></div></div>
+            <div class="ag-topbar__actions"><span class="ag-topbar__status">Modalità AGPress</span><p id="appVersion">AyPi v...</p><img src="../assets/app-icon.png" alt="Apri repository AyPi" id="githubIcon"></div>
+        </header>
 
-        <h4>Calcolatore Parametri</h4>
+        <main class="ag-content">
+            <header class="ag-page-heading">
+                <p class="ag-eyebrow">Parametri utensile</p>
+                <h1>Calcolatore CNC</h1>
+                <p>Calcola numero di giri e avanzamento partendo dai dati utensile.</p>
+            </header>
 
-        <div class="calcolatore-container">
-            <label for="diametro">Diametro Utensile D (mm):</label>
-            <input type="number" id="diametro" step="0.01">
+            <div class="calcolatore-container ag-calculator">
+                <label class="ag-field" for="diametro">Diametro utensile D (mm)<input type="number" id="diametro" step="0.01"></label>
+                <label class="ag-field" for="taglienti">Numero taglienti z<input type="number" id="taglienti"></label>
+                <label class="ag-field" for="vc">Velocità di taglio Vc (m/min)<input type="number" id="vc" step="0.01"></label>
+                <label class="ag-field" for="f">Avanzamento per dente f (mm/g)<input type="number" id="f" step="0.001"></label>
+                <label class="ag-field" for="riduzione">Riduzione % (opzionale)<input type="number" id="riduzione" step="0.1" placeholder="0"></label>
 
-            <label for="taglienti">Numero Taglienti z:</label>
-            <input type="number" id="taglienti">
-
-            <label for="vc">Velocità di Taglio Vc (m/min):</label>
-            <input type="number" id="vc" step="0.01">
-
-            <label for="f">Avanzamento per Dente f (mm/g):</label>
-            <input type="number" id="f" step="0.001">
-
-            <label for="riduzione">Riduzione % (opzionale):</label>
-            <input type="number" id="riduzione" step="0.1" placeholder="0">
-
-            <button onclick="calcola()">Calcola</button>
-
-            <div class="result" id="risultato"></div>
-        </div>
-
-        <p id="appVersion">AyPi v...</p>
-        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+                <button onclick="calcola()">Calcola parametri</button>
+                <div class="result" id="risultato" aria-live="polite"></div>
+            </div>
+        </main>
 
         <script src="../scripts/calcolatore-scripts.js"></script>
 

@@ -1,19 +1,15 @@
-<div id="mySidebar" class="sidebar">
-    <a href="javascript:void(0)" class="closebtn">&times;</a>
-    <h2></h2>
-    <a href="moduli.html">Moduli</a>
-    <a href="programmi.html">Programmi</a>
-    <a href="infoarticoli.html">Articoli</a>
-    <a href="produzioni.html">Produzioni</a>
-    <a href="robot.html">Robot</a>
-    <a href="calcolatore.html">Calcolatore</a>
-    <a href="utilities.html">Utilities</a>
-
-    <div class="clock-container">
-        <span id="clock" class="clock-span">--:--</span>
+<aside id="agQuickMenu" class="ag-quick-menu" aria-hidden="true" aria-label="Strumenti rapidi">
+    <div class="ag-quick-menu__title">Strumenti AyPi</div>
+    <button id="openTimerShortcut" type="button">
+        <span class="ag-quick-menu__symbol">TM</span>
+        <span><strong>Timer e cronometri</strong><small>Apri gli strumenti tempo</small></span>
+    </button>
+    <button id="install-addin" type="button">
+        <img src="../assets/AyPi-icon.png" alt="">
+        <span><strong>AyPi Excel</strong><small>Installa o aggiorna l'add-in</small></span>
+    </button>
+    <div class="ag-quick-menu__clock">
+        <span>Ora locale</span>
+        <strong id="clock">--:--</strong>
     </div>
-    <div>
-        <img id="install-addin" src="../assets/AyPi-icon.png" style="cursor:pointer;width:70px;height:32px;"
-            title="Installa Add-in Excel">
-    </div>
-</div>
+</aside>

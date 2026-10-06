@@ -7,21 +7,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi</title>
     <link rel="stylesheet" href="../styles/produzioni-style.css">
+    <link rel="stylesheet" href="../styles/agpress-shell.css">
 </head>
 
-<body>
+<body class="agpress-shell agpress-launcher">
     <div id="main">
         <div id="sidebar-container"></div>
 
-        <span id="menuBtn">&#9776;</span>
+        <header class="ag-topbar">
+            <span id="menuBtn" class="ag-menu-button" role="button" tabindex="0" aria-label="Apri menu" aria-expanded="false">&#9776;</span>
+            <div class="ag-brand"><img src="../assets/app-icon.png" alt=""><div class="ag-brand__copy"><strong>AyPi</strong><small>AGPress workspace</small></div></div>
+            <div class="ag-topbar__actions"><span class="ag-topbar__status">Modalità AGPress</span><p id="appVersion">AyPi v...</p><img src="../assets/app-icon.png" alt="Apri repository AyPi" id="githubIcon"></div>
+        </header>
 
-        <h4>Seleziona la produzione del reparto desiderato!</h4>
-        <button id="openRegStampaggio">Registrazione Stampaggio</button>
-        <button id="openRegTranceria">Registrazione Tranceria</button>
-        <button id="openRegTorneria">Registrazione Torneria</button>
-
-        <p id="appVersion">AyPi v...</p>
-        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+        <main class="ag-content">
+            <header class="ag-page-heading">
+                <p class="ag-eyebrow">Registrazioni reparto</p>
+                <h1>Produzioni</h1>
+                <p>Registra e consulta le attività produttive dei reparti.</p>
+            </header>
+            <section class="agpress-launch-grid" aria-label="Registrazioni di produzione">
+                <button id="openRegStampaggio"><span class="ag-card__icon">SP</span><span class="ag-card__copy"><strong>Registrazione Stampaggio</strong><small>Dati produttivi del reparto stampaggio</small></span></button>
+                <button id="openRegTranceria"><span class="ag-card__icon">TR</span><span class="ag-card__copy"><strong>Registrazione Tranceria</strong><small>Dati produttivi del reparto tranceria</small></span></button>
+                <button id="openRegTorneria"><span class="ag-card__icon">TO</span><span class="ag-card__copy"><strong>Registrazione Torneria</strong><small>Dati produttivi del reparto torneria</small></span></button>
+            </section>
+        </main>
 
         <script src="../scripts/produzioni-scripts.js"></script>
 

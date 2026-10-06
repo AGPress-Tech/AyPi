@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-operations-bluearchive-style.css">
+    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash-scopes.css">
+    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
@@ -46,13 +48,23 @@
             try {
                 var params = new URLSearchParams(window.location.search || "");
                 var isBlueArchive = params.get("theme") === "bluearchive";
+                var isAgpressSplash = params.get("splashTheme") === "agpress";
+                var useScriptedSplash = isBlueArchive || isAgpressSplash;
                 if (isBlueArchive) {
                     document.body.classList.add("fp-bluearchive");
                 }
+                if (isAgpressSplash) document.body.classList.add("agpress-scripted-splash");
                 var splashEl = document.getElementById("fp-calendar-splash");
+                var splashScope = null;
+                if (isAgpressSplash && splashEl) {
+                    splashScope = document.createElement("div");
+                    splashScope.className = "agpress-scripted-splash-scope fp-bluearchive";
+                    splashEl.parentNode.insertBefore(splashScope, splashEl);
+                    splashScope.appendChild(splashEl);
+                }
                 if (params.get("fpSplash") === "1") {
                     if (splashEl) {
-                        if (isBlueArchive) {
+                        if (useScriptedSplash) {
                             splashEl.classList.add("fp-calendar-splash--bluearchive");
                         }
                         document.body.classList.add("fp-splash-active");
@@ -65,6 +77,14 @@
                             splashEl.setAttribute("aria-hidden", "true");
                             document.body.classList.add("fp-calendar-ready");
                             document.body.classList.remove("fp-splash-active");
+                            if (isAgpressSplash) {
+                                document.body.classList.remove("agpress-scripted-splash");
+                                if (splashScope && splashScope.parentNode) {
+                                    splashScope.parentNode.insertBefore(splashEl, splashScope);
+                                    splashScope.remove();
+                                    splashScope = null;
+                                }
+                            }
                         };
                         var skipSplash = function () {
                             if (
@@ -81,7 +101,7 @@
                         splashEl.setAttribute("aria-hidden", "false");
                         splashEl.setAttribute("aria-label", "Clicca per saltare la schermata iniziale");
                         splashEl.addEventListener("click", skipSplash);
-                        if (isBlueArchive) {
+                        if (useScriptedSplash) {
                             var exitStarted = false;
                             var beginBlueArchiveExit = function () {
                                 if (exitStarted) return;

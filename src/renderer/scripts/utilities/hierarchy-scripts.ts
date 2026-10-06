@@ -5,6 +5,7 @@ import path from "path";
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 import {
     buildFilteredTreeFromOptions,
     cloneTree,
@@ -16,19 +17,19 @@ import { scanFolderRecursively } from "./hierarchy/services/filesystem-scanner";
 
 const IS_BLUE_ARCHIVE_HIERARCHY =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-
-if (IS_BLUE_ARCHIVE_HIERARCHY) {
-    document.body.classList.add("bluearchive-hierarchy");
-}
+const SPLASH_MODE = createScriptedSplashMode(["bluearchive-hierarchy"]);
+if (IS_BLUE_ARCHIVE_HIERARCHY) document.body.classList.add("bluearchive-hierarchy");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_HIERARCHY);
 
 function runBlueArchiveHierarchySplash() {
-    if (!IS_BLUE_ARCHIVE_HIERARCHY) return;
+    if (!SPLASH_MODE.enabled) return;
     const splash = document.getElementById("baHierarchySplash");
     if (!splash) return;
+    SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     const splashController = makeSplashSkippable(splash, {
         fadeClass: "is-leaving",
+        onFinish: SPLASH_MODE.cleanup,
     });
     window.setTimeout(() => {
         if (!splashController.isFinished()) splash.classList.add("is-leaving");

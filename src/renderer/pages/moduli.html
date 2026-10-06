@@ -8,28 +8,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi</title>
     <link rel="stylesheet" href="../styles/moduli-style.css">
+    <link rel="stylesheet" href="../styles/agpress-shell.css">
 </head>
 
-<body>
+<body class="agpress-shell agpress-launcher">
     <div id="main">
         <div id="sidebar-container"></div>
         <div id="aypi-admin-overlay" style="display:none"></div>
 
-        <span id="menuBtn">&#9776;</span>
+        <header class="ag-topbar">
+            <span id="menuBtn" class="ag-menu-button" role="button" tabindex="0" aria-label="Apri menu" aria-expanded="false">&#9776;</span>
+            <div class="ag-brand">
+                <img src="../assets/app-icon.png" alt="">
+                <div class="ag-brand__copy"><strong>AyPi</strong><small>AGPress workspace</small></div>
+            </div>
+            <div class="ag-topbar__actions"><span class="ag-topbar__status">Modalità AGPress</span><p id="appVersion">AyPi v...</p><img src="../assets/app-icon.png" alt="Apri repository AyPi" id="githubIcon"></div>
+        </header>
 
-        <h4>Seleziona il modulo AyPi!</h4>
-        <button id="openFornitori">Valutazione Fornitori</button>
-        <button id="openDDT">DDT Fornitori</button>
-        <button id="openManutenzioni">Gestione Manutenzioni</button>
-        <button id="openTarature">Strumenti di Misura</button>
-        <button id="openModuloStampi">Gestione Stampi</button>
-        <button id="openMorsetti">Gestione Morsetti</button>
-        <button id="openUtensili">Utensili e Attrezzature</button>
-        <!-- <button id="openTicket">OLD ticket support</button> -->
-        <button id="openTicketV2">Ticket Support</button>
-
-        <p id="appVersion">AyPi v...</p>
-        <img src="../assets/app-icon.png" alt="GitHub" id="githubIcon">
+        <main class="ag-content">
+            <header class="ag-page-heading">
+                <p class="ag-eyebrow">Area gestionale</p>
+                <h1>Moduli AyPi</h1>
+                <p>Apri gli strumenti aziendali dedicati a qualità, manutenzione e produzione.</p>
+            </header>
+            <section class="agpress-launch-grid" aria-label="Moduli disponibili">
+                <button id="openFornitori"><span class="ag-card__icon">VF</span><span class="ag-card__copy"><strong>Valutazione Fornitori</strong><small>Qualità, puntualità e conformità delle forniture</small></span></button>
+                <button id="openDDT"><span class="ag-card__icon">DD</span><span class="ag-card__copy"><strong>DDT Fornitori</strong><small>Documenti di trasporto e gestione ordini</small></span></button>
+                <button id="openManutenzioni"><span class="ag-card__icon">MA</span><span class="ag-card__copy"><strong>Gestione Manutenzioni</strong><small>Macchine, interventi ordinari e straordinari</small></span></button>
+                <button id="openTarature"><span class="ag-card__icon">SM</span><span class="ag-card__copy"><strong>Strumenti di Misura</strong><small>Tarature, scadenze e informazioni strumenti</small></span></button>
+                <button id="openModuloStampi"><span class="ag-card__icon">ST</span><span class="ag-card__copy"><strong>Gestione Stampi</strong><small>Modifiche, ricostruzioni e indice di efficienza</small></span></button>
+                <button id="openMorsetti"><span class="ag-card__icon">MO</span><span class="ag-card__copy"><strong>Gestione Morsetti</strong><small>Informazioni e allegati di produzione</small></span></button>
+                <button id="openUtensili"><span class="ag-card__icon">UA</span><span class="ag-card__copy"><strong>Utensili e Attrezzature</strong><small>Dotazioni e strumenti dei reparti</small></span></button>
+                <button id="openTicketV2"><span class="ag-card__icon">TS</span><span class="ag-card__copy"><strong>Ticket Support</strong><small>Segnalazioni e assistenza informatica</small></span></button>
+            </section>
+        </main>
 
         <script src="../scripts/moduli-scripts.js"></script>
 

@@ -3,25 +3,26 @@ import "../shared/dev-guards";
 import { pickFolder, withButtonLock } from "./shared/folder-picker";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const IS_BLUE_ARCHIVE_COMPARE =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-
-if (IS_BLUE_ARCHIVE_COMPARE) {
-    document.body.classList.add("bluearchive-compare");
-}
+const SPLASH_MODE = createScriptedSplashMode(["bluearchive-compare"]);
+if (IS_BLUE_ARCHIVE_COMPARE) document.body.classList.add("bluearchive-compare");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_COMPARE);
 
 function runBlueArchiveCompareSplash() {
-    if (!IS_BLUE_ARCHIVE_COMPARE) return;
+    if (!SPLASH_MODE.enabled) return;
     const splash = document.getElementById("baCompareSplash");
     if (!splash) return;
+    SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     const splashController = makeSplashSkippable(splash, {
         fadeClass: "is-leaving",
+        onFinish: SPLASH_MODE.cleanup,
     });
     window.setTimeout(() => {
         if (!splashController.isFinished()) splash.classList.add("is-leaving");

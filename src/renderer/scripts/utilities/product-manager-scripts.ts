@@ -158,6 +158,7 @@ import {
 import { uiState } from "./product-manager/state/ui";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 import { requestBackend, resolveBackendRootUrl } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
 import {
@@ -190,19 +191,23 @@ import { applyRequestModeUi } from "./product-manager/ui/request-mode";
 
 const IS_BLUE_ARCHIVE_PURCHASING =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-
-if (IS_BLUE_ARCHIVE_PURCHASING) {
-    document.body.classList.add("bluearchive-purchasing", "fp-bluearchive");
-}
+const SPLASH_MODE = createScriptedSplashMode([
+    "bluearchive-purchasing",
+    "fp-bluearchive",
+]);
+if (IS_BLUE_ARCHIVE_PURCHASING) document.body.classList.add("bluearchive-purchasing", "fp-bluearchive");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_PURCHASING);
 
 function runBlueArchivePurchasingSplash() {
-    if (!IS_BLUE_ARCHIVE_PURCHASING) return;
+    if (!SPLASH_MODE.enabled) return;
     if (!document.body.hasAttribute("data-pm-form")) return;
     const splash = document.getElementById("baPurchasingSplash");
     if (!splash) return;
+    SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
-    const splashController = makeSplashSkippable(splash);
+    const splashController = makeSplashSkippable(splash, {
+        onFinish: SPLASH_MODE.cleanup,
+    });
     const statusSteps = splash.querySelectorAll(".fp-ba-boot-status span");
     window.setTimeout(() => {
         if (!splashController.isFinished()) {

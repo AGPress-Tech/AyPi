@@ -6,10 +6,13 @@ function setupProductionPlannerSplash() {
         const params = new URLSearchParams(window.location.search || "");
         const shouldShow = params.get("plannerSplash") === "1";
         const isBlueArchive = params.get("theme") === "bluearchive";
+        const isAgpressSplash = params.get("splashTheme") === "agpress";
+        const useScriptedSplash = isBlueArchive || isAgpressSplash;
         if (isBlueArchive) {
             document.body.classList.add("bluearchive-production-planner");
-            splash?.classList.add("planner-splash--bluearchive");
         }
+        if (useScriptedSplash) splash?.classList.add("planner-splash--bluearchive");
+        if (isAgpressSplash) document.body.classList.add("agpress-scripted-splash");
         initBlueArchivePointerEffects(isBlueArchive);
         const finish = () => {
             if (!splash || splash.dataset.hidden === "1") return;
@@ -19,11 +22,17 @@ function setupProductionPlannerSplash() {
             splash.setAttribute("aria-hidden", "true");
             document.body.classList.remove("planner-splash-active");
             document.body.classList.add("planner-ready");
+            if (isAgpressSplash) {
+                document.body.classList.remove("agpress-scripted-splash");
+            }
         };
 
         if (!splash || !shouldShow) {
             splash?.classList.add("is-hidden");
             if (splash) splash.dataset.hidden = "1";
+            if (isAgpressSplash) {
+                document.body.classList.remove("agpress-scripted-splash");
+            }
             document.body.classList.add("planner-ready");
             return;
         }
@@ -45,7 +54,7 @@ function setupProductionPlannerSplash() {
             },
             { once: true },
         );
-        if (isBlueArchive) {
+        if (useScriptedSplash) {
             const statusSteps = splash.querySelectorAll(
                 ".planner-ba-boot__status span",
             );

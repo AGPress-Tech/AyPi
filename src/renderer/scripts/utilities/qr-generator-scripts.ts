@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
+import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
 const QRCode = require("qrcode");
 const bwipjs = require("bwip-js");
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
@@ -11,19 +12,19 @@ const { showInfo, showWarning, showError } = require("../shared/dialogs");
 let lastPngBuffer: Buffer | null = null;
 const IS_BLUE_ARCHIVE_QR =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-
-if (IS_BLUE_ARCHIVE_QR) {
-    document.body.classList.add("bluearchive-qr");
-}
+const SPLASH_MODE = createScriptedSplashMode(["bluearchive-qr"]);
+if (IS_BLUE_ARCHIVE_QR) document.body.classList.add("bluearchive-qr");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_QR);
 
 function runBlueArchiveQrSplash() {
-    if (!IS_BLUE_ARCHIVE_QR) return;
+    if (!SPLASH_MODE.enabled) return;
     const splash = document.getElementById("baQrSplash");
     if (!splash) return;
+    SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     const splashController = makeSplashSkippable(splash, {
         fadeClass: "is-leaving",
+        onFinish: SPLASH_MODE.cleanup,
     });
     window.setTimeout(() => {
         if (!splashController.isFinished()) splash.classList.add("is-leaving");

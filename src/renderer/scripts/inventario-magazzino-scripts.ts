@@ -169,11 +169,26 @@ function setupWarehouseSplash() {
     const parameters = new URLSearchParams(window.location.search);
     const enabled = parameters.get("warehouseSplash") === "1";
     const blueArchive = parameters.get("theme") === "bluearchive";
+    const agpressScriptedSplash = parameters.get("splashTheme") === "agpress";
+    const scriptedSplash = blueArchive || agpressScriptedSplash;
     document.body.classList.toggle("warehouse-bluearchive", blueArchive);
+    document.body.classList.toggle(
+        "agpress-scripted-splash",
+        agpressScriptedSplash,
+    );
+    let splashScope = null;
     if (!enabled || !splash) {
+        document.body.classList.remove("agpress-scripted-splash");
         document.body.classList.add("warehouse-ready");
         splash?.remove();
         return;
+    }
+    if (agpressScriptedSplash && splash) {
+        splashScope = document.createElement("div");
+        splashScope.className =
+            "agpress-scripted-splash-scope warehouse-bluearchive";
+        splash.parentNode?.insertBefore(splashScope, splash);
+        splashScope.appendChild(splash);
     }
     document.body.classList.add("warehouse-splash-active");
     splash.setAttribute("aria-hidden", "false");
@@ -188,12 +203,22 @@ function setupWarehouseSplash() {
         splash.classList.add("is-leaving");
         splash.setAttribute("aria-hidden", "true");
         if (immediate) {
+            if (agpressScriptedSplash) {
+                document.body.classList.remove("agpress-scripted-splash");
+                splashScope?.remove();
+                splashScope = null;
+            }
             document.body.classList.remove("warehouse-splash-active");
             document.body.classList.add("warehouse-ready");
             splash.remove();
             return;
         }
         window.setTimeout(() => {
+            if (agpressScriptedSplash) {
+                document.body.classList.remove("agpress-scripted-splash");
+                splashScope?.remove();
+                splashScope = null;
+            }
             document.body.classList.remove("warehouse-splash-active");
             document.body.classList.add("warehouse-ready");
             splash.remove();
@@ -205,7 +230,7 @@ function setupWarehouseSplash() {
         event.preventDefault();
         finish(true);
     });
-    if (blueArchive) {
+    if (scriptedSplash) {
         const steps = splash.querySelectorAll(
             ".warehouse-ba-boot__status span",
         );

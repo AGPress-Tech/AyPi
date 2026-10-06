@@ -4,6 +4,13 @@ import {
     setupWeatherWidget,
 } from "./bluearchive/weather-widget";
 
+const INTERFACE_THEME =
+    document.documentElement.dataset.interfaceTheme === "agpress"
+        ? "agpress"
+        : "bluearchive";
+const IS_AGPRESS_INTERFACE = INTERFACE_THEME === "agpress";
+const MODULE_THEME = IS_AGPRESS_INTERFACE ? "standard" : "bluearchive";
+
 type ActionItem = {
     label: string;
     description: string;
@@ -72,7 +79,7 @@ const pages: Record<string, PageDefinition> = {
                 label: "Ticket Support",
                 description: "Richieste di assistenza interna",
                 channel: "open-ticket-support-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
         ],
     },
@@ -160,7 +167,7 @@ const pages: Record<string, PageDefinition> = {
                 label: "Inventario magazzino",
                 description: "Mappa e gestione dei cassoni",
                 channel: "open-inventario-magazzino-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
         ],
     },
@@ -243,49 +250,49 @@ const pages: Record<string, PageDefinition> = {
                 label: "Elenca File",
                 description: "Trascrizione nomi dei file",
                 channel: "open-file-list-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
             {
                 label: "Batch Rinomina",
                 description: "Rinomina multipla controllata",
                 channel: "open-batch-rename-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
             {
                 label: "Generatore QR",
                 description: "Crea codici QR personalizzati",
                 channel: "open-qr-generator-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
             {
                 label: "Confronta Cartelle",
                 description: "Confronto contenuti directory",
                 channel: "open-compare-folders-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
             {
                 label: "Gerarchia",
                 description: "Visualizzatore Directory Server Aziendale",
                 channel: "open-hierarchy-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
             {
                 label: "Pianificazione Produzione",
                 description: "Calendario macchine e lavorazioni",
                 channel: "open-production-planner-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
             {
                 label: "Calendario Dipendenti",
                 description: "Ferie, permessi, mutue e straordinari",
                 channel: "open-ferie-permessi-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
             {
                 label: "Gestione Acquisti",
                 description: "Richieste acquisti e interventi",
                 channel: "open-product-manager-window",
-                channelArgs: [{ theme: "bluearchive" }],
+                channelArgs: [{ theme: MODULE_THEME }],
             },
         ],
     },
@@ -579,7 +586,7 @@ let trailAnimationFrame = 0;
 
 trailCanvas.className = "mouse-trail-canvas";
 trailCanvas.setAttribute("aria-hidden", "true");
-clickLayer?.prepend(trailCanvas);
+if (!IS_AGPRESS_INTERFACE) clickLayer?.prepend(trailCanvas);
 
 function resizeTrailCanvas() {
     const ratio = Math.max(1, window.devicePixelRatio || 1);
@@ -590,8 +597,10 @@ function resizeTrailCanvas() {
     trailContext?.setTransform(ratio, 0, 0, ratio, 0, 0);
 }
 
-resizeTrailCanvas();
-window.addEventListener("resize", resizeTrailCanvas);
+if (!IS_AGPRESS_INTERFACE) {
+    resizeTrailCanvas();
+    window.addEventListener("resize", resizeTrailCanvas);
+}
 
 function assistantWeatherMessage(character: "arona" | "plana") {
     const weather = getWeatherAssistantContext();
@@ -1324,20 +1333,22 @@ function registerAssistantInteraction() {
     scheduleAssistantIdleReaction();
 }
 
-["pointerdown", "wheel", "keydown"].forEach((eventName) => {
-    document.addEventListener(eventName, registerAssistantInteraction, {
-        passive: true,
+if (!IS_AGPRESS_INTERFACE) {
+    ["pointerdown", "wheel", "keydown"].forEach((eventName) => {
+        document.addEventListener(eventName, registerAssistantInteraction, {
+            passive: true,
+        });
     });
-});
-window.addEventListener("focus", registerAssistantInteraction);
-window.addEventListener("blur", clearAssistantIdleReactionTimer);
-document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-        registerAssistantInteraction();
-    } else {
-        clearAssistantIdleReactionTimer();
-    }
-});
+    window.addEventListener("focus", registerAssistantInteraction);
+    window.addEventListener("blur", clearAssistantIdleReactionTimer);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            registerAssistantInteraction();
+        } else {
+            clearAssistantIdleReactionTimer();
+        }
+    });
+}
 
 function burst(x: number, y: number) {
     if (!clickLayer) return;
@@ -1406,6 +1417,7 @@ function drawCursorTrail(now: number) {
 }
 
 function bindCardInteractions() {
+    if (IS_AGPRESS_INTERFACE) return;
     document.querySelectorAll<HTMLElement>(".module-card").forEach((card) => {
         card.addEventListener("mousemove", (event) => {
             const rect = card.getBoundingClientRect();
@@ -1941,25 +1953,27 @@ function closeTimerPanel() {
     footerClock?.focus();
 }
 
-document.addEventListener("mousemove", (event) => {
-    if (aura) {
-        aura.style.transform = `translate(${event.clientX}px, ${event.clientY}px)`;
-    }
-    addCursorTrail(event.clientX, event.clientY);
-    updateAssistantGaze(event);
-});
+if (!IS_AGPRESS_INTERFACE) {
+    document.addEventListener("mousemove", (event) => {
+        if (aura) {
+            aura.style.transform = `translate(${event.clientX}px, ${event.clientY}px)`;
+        }
+        addCursorTrail(event.clientX, event.clientY);
+        updateAssistantGaze(event);
+    });
 
-document.addEventListener("mousedown", (event) => {
-    aura?.classList.add("active", "pressed");
-    burst(event.clientX, event.clientY);
-});
-document.addEventListener("mouseup", () => {
-    aura?.classList.remove("pressed");
-    setTimeout(() => aura?.classList.remove("active"), 140);
-});
-document.addEventListener("mouseleave", () =>
-    aura?.classList.remove("active", "pressed"),
-);
+    document.addEventListener("mousedown", (event) => {
+        aura?.classList.add("active", "pressed");
+        burst(event.clientX, event.clientY);
+    });
+    document.addEventListener("mouseup", () => {
+        aura?.classList.remove("pressed");
+        setTimeout(() => aura?.classList.remove("active"), 140);
+    });
+    document.addEventListener("mouseleave", () =>
+        aura?.classList.remove("active", "pressed"),
+    );
+}
 
 document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach((item) => {
     item.addEventListener("click", () =>
@@ -2219,7 +2233,7 @@ function savePersonalName(name: string) {
     if (!normalizedName) return false;
     personalName = normalizedName;
     window.localStorage.setItem(PERSONAL_NAME_STORAGE_KEY, personalName);
-    applyPersonalName();
+    if (!IS_AGPRESS_INTERFACE) applyPersonalName();
     closeNamePanel();
     showBubble(`Perfetto, ${personalName}. Da ora ti chiamerò così!`, 4200);
     return true;
@@ -2555,7 +2569,7 @@ window.addEventListener("DOMContentLoaded", () => {
     applyPersonalName();
     setupWeatherWidget();
     renderPage("moduli", false);
-    initializeAssistant(currentAssistant);
+    if (!IS_AGPRESS_INTERFACE) initializeAssistant(currentAssistant);
     updateClock();
     setInterval(updateClock, 1000);
     updateTimeTools();
@@ -2568,8 +2582,10 @@ window.addEventListener("DOMContentLoaded", () => {
         { duration: 500, easing: "ease-out" },
     );
     setTimeout(finishStartup, 2600);
-    setTimeout(() => showBubble(phrases[0], 3200), 3000);
-    registerAssistantInteraction();
+    if (!IS_AGPRESS_INTERFACE) {
+        setTimeout(() => showBubble(phrases[0], 3200), 3000);
+        registerAssistantInteraction();
+    }
 });
 
 export {};
