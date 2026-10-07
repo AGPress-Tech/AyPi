@@ -1770,7 +1770,7 @@ h1 {
 .load-batch > header label { flex-direction: row; align-items: center; white-space: nowrap; }
 .load-batch > header input { width: 72px; height: 29px; }
 .load-batch__columns,
-.load-batch__row { display: grid; grid-template-columns: 58px minmax(180px, 1fr) minmax(160px, 1fr); align-items: center; }
+.load-batch__row { display: grid; grid-template-columns: 58px minmax(150px, 1fr) minmax(150px, 1fr) minmax(130px, .9fr); align-items: center; }
 .load-batch__columns { min-height: 25px; border-bottom: 1px solid #d7e0e6; color: #657581; background: #f2f5f7; font-size: 8px; font-weight: 800; text-transform: uppercase; }
 .load-batch__columns span { padding: 0 9px; }
 .load-batch__row { min-height: 47px; border-bottom: 1px solid #e1e7eb; }
@@ -1780,7 +1780,7 @@ h1 {
 .load-batch__row > label > span { display: none; }
 .load-batch__rows { max-height: 190px; overflow-y: auto; scrollbar-gutter: stable; }
 .load-batch.is-single .load-batch__columns { display: none; }
-.load-batch.is-single .load-batch__row { grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr); }
+.load-batch.is-single .load-batch__row { grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(140px, .9fr); }
 .load-batch.is-single .load-batch__row > strong { display: none; }
 .load-batch.is-single .load-batch__row > label > span { display: block; }
 .load-type-note {
@@ -2060,6 +2060,13 @@ h1 {
 .inventory-item-edit-message { min-height: 16px; margin: 0; color: #61727e; font-size: 10px; }
 .inventory-item-edit-message.is-error { color: #a43b32; font-weight: 700; }
 .inventory-note-edit-dialog { width: min(590px, 94vw); }
+.restriction-backdrop.inventory-note-edit-backdrop { z-index: 540; }
+.inventory-note-edit-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(150px, 0.7fr);
+    gap: 10px;
+    align-items: start;
+}
 .inventory-note-edit-field {
     display: grid;
     gap: 6px;
@@ -2076,6 +2083,47 @@ h1 {
     color: #183a55;
     background: #fff;
     font: inherit;
+}
+.inventory-note-edit-field small {
+    color: #6a7d89;
+    font-size: 9px;
+    font-weight: 600;
+}
+.inventory-note-edit-dialog .restriction-dialog__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 2px;
+}
+.inventory-note-edit-dialog .restriction-dialog__footer button {
+    min-height: 34px;
+    padding: 7px 13px;
+    border: 1px solid #b8c5cf;
+    border-radius: 4px;
+    color: #394c5b;
+    background: #fff;
+    font-size: 10px;
+    font-weight: 750;
+    cursor: pointer;
+}
+.inventory-note-edit-dialog .restriction-dialog__footer button:hover {
+    border-color: #7e9aad;
+    background: #edf4f8;
+}
+.inventory-note-edit-dialog .restriction-dialog__footer .operation-button--primary {
+    border-color: #174f80;
+    color: #fff;
+    background: #174f80;
+}
+.inventory-note-edit-dialog .restriction-dialog__footer .operation-button--primary:hover {
+    border-color: #0f416c;
+    background: #0f416c;
+}
+.inventory-note-edit-dialog .restriction-dialog__footer button:disabled {
+    border-color: #cbd3d9;
+    color: #8b969e;
+    background: #edf0f2;
+    cursor: wait;
 }
 .movement-history-dialog {
     display: grid;

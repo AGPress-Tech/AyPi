@@ -2039,8 +2039,8 @@ function openContextMenu(code, x, y) {
     editItem.disabled = !item;
     editItem.textContent =
         item?.type === "pallet"
-            ? "Modifica dati pallet"
-            : "Modifica dati cassone";
+            ? "Modifica dati, nota e pezzi pallet"
+            : "Modifica dati, nota e pezzi cassone";
     manualLoad.hidden =
         multiSelection || Boolean(relocationSourceCode) || Boolean(item);
     manualUnload.hidden =
@@ -2683,6 +2683,13 @@ function createLoadBatchRow(index) {
     weighing.placeholder = `Pesata cassone ${index + 1} (opzionale)`;
     weighing.autocomplete = "off";
     weighingLabel.appendChild(weighing);
+    const noteLabel = document.createElement("label");
+    const note = document.createElement("input");
+    note.className = "load-batch-note";
+    note.maxLength = 500;
+    note.placeholder = `Nota cassone ${index + 1} (opzionale)`;
+    note.autocomplete = "off";
+    noteLabel.appendChild(note);
     const piecesLabel = document.createElement("label");
     const pieces = document.createElement("input");
     pieces.className = "load-batch-pieces";
@@ -2692,7 +2699,7 @@ function createLoadBatchRow(index) {
     pieces.required = true;
     pieces.placeholder = `Pezzi cassone ${index + 1}`;
     piecesLabel.appendChild(pieces);
-    row.append(number, weighingLabel, piecesLabel);
+    row.append(number, weighingLabel, noteLabel, piecesLabel);
     return row;
 }
 
@@ -2737,6 +2744,8 @@ function loadBatchValues() {
                     .querySelector(".load-batch-weighing")
                     ?.value.trim()
                     .toUpperCase() || "",
+            note:
+                row.querySelector(".load-batch-note")?.value.trim() || "",
             pieceCount: Number(row.querySelector(".load-batch-pieces")?.value),
         }),
     );
@@ -2776,7 +2785,6 @@ function resetOperationLineForm() {
     document.getElementById("loadQuantity").value = "1";
     document.getElementById("loadPieceCount").value = "";
     document.getElementById("loadWeighingCode").value = "";
-    document.getElementById("loadNote").value = "";
     document.getElementById("loadBatchCount").value = "1";
     editingOperationLineIndex = null;
     document.getElementById("addOperationLine").textContent =
@@ -2795,7 +2803,7 @@ function configureOperationDialog() {
         ? "Componi il carico"
         : "Componi lo scarico";
     document.getElementById("operationDialogDescription").textContent = load
-        ? "Inserisci un singolo cassone oppure aggiungine più insieme condividendo articolo, cliente, ordine e nota."
+        ? "Inserisci uno o più cassoni condividendo articolo, cliente e ordine; pesata, nota e pezzi restano specifici per ogni cassone."
         : "Preleva per articolo e pezzi, per ordine, per nota esatta oppure mediante codice pesata esatto.";
     document.getElementById("loadCustomer").required = false;
     document.getElementById("loadArticle").required = load;
@@ -2813,7 +2821,7 @@ function configureOperationDialog() {
     document.getElementById("operationNoteLabelText").textContent = load
         ? "Riferimento / nota (opzionale)"
         : "Nota esatta (opzionale · tutti i corrispondenti)";
-    document.getElementById("loadNote").placeholder = load
+    document.querySelector(".load-batch-note").placeholder = load
         ? "es. DICEMBRE, URGENTE, COMMESSA SPECIALE"
         : "es. DICEMBRE";
     document.getElementById("operationPiecesLabelText").textContent = load
@@ -2981,7 +2989,7 @@ function editOperationLine(index) {
     document.getElementById("loadArticle").value = entry.article;
     document.getElementById("loadCustomer").value = entry.customer || "";
     document.getElementById("loadOrderReference").value = entry.order;
-    document.getElementById("loadNote").value = entry.note || "";
+    document.querySelector(".load-batch-note").value = entry.note || "";
     document.getElementById("loadQuantity").value = String(entry.quantity);
     document.getElementById("loadWeighingCode").value =
         entry.weighingCode || "";
@@ -4491,7 +4499,6 @@ function createLoadPlanningGroups(entries) {
                   entry.article,
                   normalizeCustomer(entry.customer),
                   entry.order || "",
-                  normalizeWarehouseNote(entry.note),
               ].join("|")
             : null;
         let group = key ? crateGroupsByKey.get(key) : null;
@@ -7252,14 +7259,13 @@ async function saveInventoryItemEdit() {
     if (!Number.isInteger(values.pieceCount) || values.pieceCount < 1) {
         return { error: "Il numero pezzi deve essere un intero positivo." };
     }
-    if (
-        !Number.isInteger(values.maxPieceCapacity) ||
-        values.maxPieceCapacity < values.pieceCount
-    ) {
-        return {
-            error: "La capienza massima deve essere un intero uguale o superiore al numero di pezzi.",
-        };
-    }
+    values.maxPieceCapacity = Math.max(
+        values.pieceCount,
+        Number.isInteger(values.maxPieceCapacity) &&
+            values.maxPieceCapacity > 0
+            ? values.maxPieceCapacity
+            : values.pieceCount,
+    );
     const previousTags = Array.from(
         new Set(currentUnit.item.tags || []),
     ).sort();
@@ -7425,9 +7431,19 @@ function openUnloadZoneNoteEditDialog(unitId) {
     document.getElementById("inventoryNoteEditSummary").textContent =
         `${item.type === "pallet" ? "Pallet" : "Cassone"} · ${warehouseItemPieces(item)} pezzi · ${STAGING_AREA_LABEL}`;
     const input = document.getElementById("inventoryNoteEditValue");
+    const piecesInput = document.getElementById("inventoryNoteEditPieces");
+    const pieceCount = warehouseItemPieces(item);
+    const maximumPieceCapacity = Math.max(
+        pieceCount,
+        Number(item.maxPieceCapacity) || pieceCount,
+    );
     input.value = item.note || "";
+    piecesInput.value = String(pieceCount);
+    piecesInput.removeAttribute("max");
+    document.getElementById("inventoryNoteEditCapacity").textContent =
+        `Capienza registrata: ${maximumPieceCapacity} pezzi · si adegua automaticamente`;
     setInventoryNoteEditMessage(
-        "La nota resterà associata al cassone anche durante il rientro a magazzino.",
+        "Per bilanciare più cassoni, sottrai i pezzi dal cassone di origine e aggiungi la stessa quantità a quello di destinazione.",
     );
     openWarehouseDialog(
         document.getElementById("inventoryNoteEditDialog"),
@@ -7441,16 +7457,40 @@ function closeInventoryNoteEditDialog() {
     closeWarehouseDialog(document.getElementById("inventoryNoteEditDialog"));
 }
 
-async function saveUnloadZoneNote() {
+async function saveUnloadZoneItemEdit() {
     const unitId = editingUnloadZoneNoteUnitId;
     const item = unloadZone.find((unit) => unit.id === unitId);
     if (!unitId || !item)
         return { error: "Il cassone non è più presente nella zona di attesa." };
     const note = document.getElementById("inventoryNoteEditValue").value.trim();
-    if ((item.note || "") === note)
-        return { error: "La nota non è stata modificata." };
+    const pieceCount = Number(
+        document.getElementById("inventoryNoteEditPieces").value,
+    );
+    const currentPieceCount = warehouseItemPieces(item);
+    const maximumPieceCapacity = Math.max(
+        currentPieceCount,
+        Number(item.maxPieceCapacity) || currentPieceCount,
+    );
+    if (!Number.isInteger(pieceCount) || pieceCount < 1) {
+        return { error: "Il numero pezzi deve essere un intero positivo." };
+    }
+    const nextMaximumPieceCapacity = Math.max(
+        maximumPieceCapacity,
+        pieceCount,
+    );
+    const noteChanged = (item.note || "") !== note;
+    const piecesChanged = currentPieceCount !== pieceCount;
+    if (!noteChanged && !piecesChanged)
+        return { error: "Non hai modificato alcun dato." };
     const nextUnloadZone = cloneUnloadZoneUnits().map((unit) =>
-        unit.id === unitId ? { ...unit, note } : unit,
+        unit.id === unitId
+            ? {
+                  ...unit,
+                  note,
+                  pieceCount,
+                  maxPieceCapacity: nextMaximumPieceCapacity,
+              }
+            : unit,
     );
     try {
         await persistWarehouseData(
@@ -7459,17 +7499,17 @@ async function saveUnloadZoneNote() {
             nextUnloadZone,
         );
     } catch (error) {
-        return { error: `Nota non salvata: ${error.message}` };
+        return { error: `Modifica non salvata: ${error.message}` };
     }
     unloadZone.splice(0, unloadZone.length, ...nextUnloadZone);
     closeInventoryNoteEditDialog();
     renderUnloadZone();
     broadcastWarehouse3dState();
-    showWarehouseToast(
-        note
-            ? `${item.article}: nota aggiornata in “${note}”.`
-            : `${item.article}: nota rimossa.`,
-    );
+    const updates = [];
+    if (piecesChanged)
+        updates.push(`${currentPieceCount} → ${pieceCount} pezzi`);
+    if (noteChanged) updates.push(note ? `nota “${note}”` : "nota rimossa");
+    showWarehouseToast(`${item.article}: ${updates.join("; ")}.`);
     return { item: unloadZone.find((unit) => unit.id === unitId) };
 }
 
@@ -7492,8 +7532,8 @@ function setupInventoryNoteEdit() {
             event.preventDefault();
             const button = document.getElementById("saveInventoryNoteEdit");
             button.disabled = true;
-            setInventoryNoteEditMessage("Salvataggio della nota in corso…");
-            const result = await saveUnloadZoneNote();
+            setInventoryNoteEditMessage("Salvataggio delle modifiche in corso…");
+            const result = await saveUnloadZoneItemEdit();
             if (result?.error)
                 setInventoryNoteEditMessage(result.error, true);
             if (button.isConnected) button.disabled = false;
@@ -10164,9 +10204,9 @@ function setupLoadDialog() {
             const order = document
                 .getElementById("loadOrderReference")
                 .value.trim();
-            const note = document.getElementById("loadNote").value.trim();
             const batchValues = loadBatchValues();
             const weighingCode = batchValues[0]?.weighingCode || "";
+            const note = batchValues[0]?.note || "";
             const enteredPieces = batchValues[0]?.pieceCount;
             const type = document.getElementById("loadType").value;
             const previous =
@@ -10274,6 +10314,7 @@ function setupLoadDialog() {
                         ...entry,
                         id: unit.index === 0 ? entry.id : nextOperationLineId++,
                         weighingCode: unit.weighingCode,
+                        note: unit.note,
                         pieceCount: unit.pieceCount,
                     })),
                 );
