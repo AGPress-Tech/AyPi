@@ -4856,6 +4856,12 @@
     opacity: .88;
 }
 
+.agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card--status-new { border-left: 4px solid #4a8fc0; }
+.agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card--status-active { border-left: 4px solid #2ca99b; }
+.agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card--status-waiting { border-left: 4px solid #d7a12c; }
+.agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card--status-resolved { border-left: 4px solid #4bab6c; }
+.agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card--status-closed { border-left: 4px solid #758294; opacity: .9; }
+
 .agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card__head {
     margin-bottom: 9px;
 }
@@ -4873,6 +4879,12 @@
     background: #e8f8ff;
     font-size: 11px;
     font-weight: 700;
+}
+
+.agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card__status {
+    padding: 0;
+    border: 0;
+    background: transparent;
 }
 
 .agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ticket-card__meta,

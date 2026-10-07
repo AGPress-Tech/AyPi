@@ -502,6 +502,51 @@ function showWindow(win: BrowserWindow) {
     win.focus();
 }
 
+function showWindowAfterRendererSignal(
+    win: BrowserWindow,
+    channel: string,
+) {
+    if (!isWindowAlive(win) || win.webContents.isDestroyed()) return;
+    // Conserva il riferimento ai webContents: durante l'evento `closed`
+    // accedere di nuovo a win.webContents può sollevare "Object has been
+    // destroyed" prima che il cleanup abbia rimosso i listener.
+    const contents = win.webContents;
+    let settled = false;
+    let fallbackTimer: NodeJS.Timeout | null = null;
+    const cleanup = () => {
+        try {
+            if (!contents.isDestroyed()) {
+                contents.removeListener("ipc-message", onIpcMessage);
+                contents.removeListener("did-finish-load", onDidFinishLoad);
+            }
+        } catch {
+            // La distruzione nativa può completarsi tra il controllo e la
+            // rimozione dei listener: il cleanup deve restare sempre innocuo.
+        }
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+    };
+    const reveal = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        // Lascia a Chromium almeno un frame per comporre lo splash appena
+        // montato prima di rendere visibile la BrowserWindow.
+        setTimeout(() => showWindow(win), 34);
+    };
+    const onIpcMessage = (_event, receivedChannel: string) => {
+        if (receivedChannel === channel) reveal();
+    };
+    const onDidFinishLoad = () => {
+        // Fallback solo dopo il caricamento completo, mai tramite un timeout
+        // assoluto che sui PC lenti potrebbe mostrare un frame prematuro.
+        fallbackTimer = setTimeout(reveal, 100);
+    };
+    contents.on("ipc-message", onIpcMessage);
+    contents.once("did-finish-load", onDidFinishLoad);
+    win.once("closed", cleanup);
+}
+
 function hasAnyProductOrTicketWindow() {
     return [
         productManagerWindow,
@@ -1487,8 +1532,17 @@ function openProductManagerWindow(
 ) {
     const requestedTheme =
         options.theme === "bluearchive" ? "bluearchive" : "standard";
+    const waitForAgpressSplash =
+        requestedTheme === "standard" && getScriptedSplashTheme() === "agpress";
     if (isWindowAlive(productManagerWindow)) {
         productManagerWindowTheme = requestedTheme;
+        if (waitForAgpressSplash) {
+            productManagerWindow.hide();
+            showWindowAfterRendererSignal(
+                productManagerWindow,
+                "pm-purchasing-splash-ready",
+            );
+        }
         productManagerWindow.loadFile(
             path.join(
                 __dirname,
@@ -1505,7 +1559,7 @@ function openProductManagerWindow(
                 },
             },
         );
-        showWindow(productManagerWindow);
+        if (!waitForAgpressSplash) showWindow(productManagerWindow);
         return;
     }
     if (!hasAnyProductOrTicketWindow()) {
@@ -1530,6 +1584,12 @@ function openProductManagerWindow(
     if (productManagerWindowTheme === "standard") {
         productManagerSplashShown = true;
     }
+    if (waitForAgpressSplash) {
+        showWindowAfterRendererSignal(
+            productManagerWindow,
+            "pm-purchasing-splash-ready",
+        );
+    }
     productManagerWindow.loadFile(
         path.join(
             __dirname,
@@ -1548,11 +1608,13 @@ function openProductManagerWindow(
     );
     productManagerWindow.setMenu(null);
 
-    productManagerWindow.once("ready-to-show", () => {
-        if (!productManagerWindow.isDestroyed()) {
-            productManagerWindow.show();
-        }
-    });
+    if (!waitForAgpressSplash) {
+        productManagerWindow.once("ready-to-show", () => {
+            if (!productManagerWindow.isDestroyed()) {
+                productManagerWindow.show();
+            }
+        });
+    }
     productManagerWindow.webContents.once("did-finish-load", () => {
         if (!productManagerWindow.isDestroyed()) {
             productManagerWindow.webContents.send(
@@ -2168,6 +2230,7 @@ function openTransferAttrezzaggioWindow(mainWindow) {
 
     allowTransferAttrezzaggioWindowClose = false;
     transferAttrezzaggioClosePromptPending = false;
+    const deferUntilMaximized = interfaceIconTheme === "standard";
     transferAttrezzaggioWindow = new BrowserWindow({
         width: 1280,
         height: 860,
@@ -2175,15 +2238,17 @@ function openTransferAttrezzaggioWindow(mainWindow) {
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
+        show: !deferUntilMaximized,
     });
 
+    if (deferUntilMaximized) transferAttrezzaggioWindow.maximize();
     transferAttrezzaggioWindow.loadFile(
         path.join(__dirname, "..", "pages", "attrezzaggio.html"),
     );
     transferAttrezzaggioWindow.setMenu(null);
     transferAttrezzaggioWindow.once("ready-to-show", () => {
         if (!transferAttrezzaggioWindow?.isDestroyed()) {
-            transferAttrezzaggioWindow.maximize();
+            if (!deferUntilMaximized) transferAttrezzaggioWindow.maximize();
             showWindow(transferAttrezzaggioWindow);
         }
     });
@@ -3063,10 +3128,14 @@ function setupFileManager(mainWindow) {
             payload && payload.theme === "bluearchive"
                 ? "bluearchive"
                 : interfaceIconTheme;
-        await guardServerAndOpenModule(
-            mainWindow,
-            ticketSupportAdminWindow,
-            () => openTicketSupportAdminWindow(mainWindow, { theme }),
+        // La home Ticket e' gia connessa al backend: evitare un secondo probe
+        // di rete (fino a 5 s) quando si apre semplicemente la lista admin.
+        if (isWindowAlive(ticketSupportWindow)) {
+            openTicketSupportAdminWindow(mainWindow, { theme });
+            return;
+        }
+        await guardServerAndOpenModule(mainWindow, ticketSupportAdminWindow, () =>
+            openTicketSupportAdminWindow(mainWindow, { theme }),
         );
     });
 

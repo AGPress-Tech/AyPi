@@ -5,7 +5,14 @@ import { isMailerAvailable, getMailerError, sendMail } from "./ticket-support/se
 import { ipcRenderer } from "electron";
 import { createOtpModals } from "./ferie-permessi/ui/otp-modals";
 import { isHashingAvailable, hashPassword, getAuthenticator, otpState, resetOtpState } from "./ferie-permessi/config/security";
-import { isMailerAvailable as isOtpMailerAvailable, getMailerError as getOtpMailerError, sendOtpEmail } from "./ferie-permessi/services/otp-mail";
+import {
+    isMailerAvailable as isOtpMailerAvailable,
+    getMailerError as getOtpMailerError,
+    loadMailConfig,
+    saveMailConfig,
+    sendTestEmail,
+    sendOtpEmail,
+} from "./ferie-permessi/services/otp-mail";
 import { OTP_EXPIRY_MS, OTP_RESEND_MS } from "./ferie-permessi/config/constants";
 import { showDialog } from "./ferie-permessi/services/dialogs";
 import { session, setSession, saveSession, loadSession, clearSession, applySharedSessionData, isAdmin, isEmployee, isLoggedIn } from "./product-manager/state/session";
@@ -33,7 +40,11 @@ const SPLASH_MODE = createScriptedSplashMode([
     "bluearchive-purchasing",
     "bluearchive-ticket-support",
 ]);
-if (IS_BLUE_ARCHIVE_TICKET_SUPPORT) document.body.classList.add("fp-bluearchive", "bluearchive-purchasing", "bluearchive-ticket-support");
+// Ticket Support intentionally uses one shared, light-blue visual language in
+// both application modes. Keep the mode flag only for mode-specific behaviour
+// (pointer effects and child-window payloads), never for the module skin.
+document.body.classList.add("fp-bluearchive", "bluearchive-purchasing", "bluearchive-ticket-support");
+document.body.classList.toggle("agpress-login-ui", !IS_BLUE_ARCHIVE_TICKET_SUPPORT);
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_TICKET_SUPPORT);
 
 function runBlueArchiveTicketSupportSplash() {
@@ -51,6 +62,7 @@ function runBlueArchiveTicketSupportSplash() {
     splash.setAttribute("aria-hidden", "false");
     splash.classList.add("is-visible");
     const splashController = makeSplashSkippable(splash, {
+        fadeMs: SPLASH_MODE.isAgpress ? 0 : 340,
         onFinish: () => {
             SPLASH_MODE.cleanup();
             window.dispatchEvent(new CustomEvent("ts-splash-finished"));
@@ -85,7 +97,6 @@ let editMode = "";
 let adminLoginFailCount = 0;
 const adminFilters = { search: "", status: "", area: "", priority: "" };
 const operatorFilters = { search: "", status: "", area: "", priority: "" };
-const TS_THEME_KEY = "ts-theme";
 let ticketCategories = { issueTypes: [...DEFAULT_ISSUE_TYPES], areas: [...DEFAULT_AREAS] };
 const categoriesUiState = { issueTypesEditingName: null, areasEditingName: null };
 
@@ -190,23 +201,32 @@ function formatDateTime(value) {
     return new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "medium" }).format(date);
 }
 
-function setTheme(theme) {
-    const mode = theme === "dark" || theme === "aypi" ? theme : "light";
+function getStatusPresentation(status) {
+    const normalized = String(status || "").trim();
+    const presentations = {
+        "Da prendere in carico": { slug: "new", icon: "inbox" },
+        "Presa in carico": { slug: "active", icon: "engineering" },
+        "In Attesa": { slug: "waiting", icon: "schedule" },
+        Risolto: { slug: "resolved", icon: "task_alt" },
+        Chiuso: { slug: "closed", icon: "lock" },
+    };
+    return presentations[normalized] || { slug: "unknown", icon: "help_outline" };
+}
+
+function renderStatusBadge(status) {
+    const presentation = getStatusPresentation(status);
+    return `<span class="ts-status-badge ts-status-badge--${presentation.slug}"><span class="material-icons" aria-hidden="true">${presentation.icon}</span>${escapeHtml(status || "-")}</span>`;
+}
+
+function setTheme() {
+    // Il modulo ha una sola identità visiva condivisa: neutralizza anche
+    // eventuali preferenze salvate dalle versioni precedenti.
     document.body.classList.remove("fp-dark", "fp-aypi");
-    if (mode === "dark") document.body.classList.add("fp-dark");
-    if (mode === "aypi") document.body.classList.add("fp-aypi");
-    try {
-        window.localStorage.setItem(TS_THEME_KEY, mode);
-    } catch {}
 }
 
 function initTheme() {
-    try {
-        const saved = window.localStorage.getItem(TS_THEME_KEY);
-        setTheme(saved || "light");
-    } catch {
-        setTheme("light");
-    }
+    setTheme();
+    try { window.localStorage.removeItem("ts-theme"); } catch {}
 }
 
 function openSettingsModal() {
@@ -228,6 +248,94 @@ function openThemeModal() {
 
 function closeThemeModal() {
     closeModal("ts-theme-modal");
+}
+
+function ensureMailSettingsModal() {
+    let modal = document.getElementById("ts-mail-modal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "ts-mail-modal";
+    modal.className = "pm-modal is-hidden";
+    modal.setAttribute("aria-hidden", "true");
+    modal.innerHTML = `
+        <div class="pm-modal__card ts-mail-card" role="dialog" aria-modal="true" aria-labelledby="ts-mail-title">
+            <div class="pm-modal__header">
+                <h3 id="ts-mail-title">Configurazione email Ticket</h3>
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-mail-close">Chiudi</button>
+            </div>
+            <div class="ts-mail-grid">
+                <div class="pm-field"><label for="ts-mail-host">Host SMTP</label><input id="ts-mail-host" type="text" autocomplete="off"></div>
+                <div class="pm-field"><label for="ts-mail-port">Porta</label><input id="ts-mail-port" type="number" min="1" placeholder="587"></div>
+                <div class="pm-field ts-field-full"><label for="ts-mail-user">Utente</label><input id="ts-mail-user" type="text" autocomplete="off"></div>
+                <div class="pm-field ts-field-full"><label for="ts-mail-pass">Password / app password</label><input id="ts-mail-pass" type="password" autocomplete="new-password"></div>
+                <div class="pm-field ts-field-full"><label for="ts-mail-from">Mittente</label><input id="ts-mail-from" type="email" placeholder="Opzionale"></div>
+                <label class="pm-checkbox ts-field-full"><input id="ts-mail-secure" type="checkbox"> Connessione TLS diretta (tipicamente porta 465)</label>
+                <div class="pm-field ts-field-full"><label for="ts-mail-test-to">Destinatario test</label><input id="ts-mail-test-to" type="email" placeholder="nome@azienda.it"></div>
+            </div>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-mail-test-send">Invia test</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="ts-mail-save">Salva configurazione</button>
+            </div>
+            <div id="ts-mail-message" class="pm-message is-hidden"></div>
+        </div>`;
+    document.body.appendChild(modal);
+    return modal;
+}
+
+function readMailSettingsForm() {
+    return {
+        host: String(document.getElementById("ts-mail-host")?.value || "").trim(),
+        port: Number(document.getElementById("ts-mail-port")?.value || 587),
+        secure: !!document.getElementById("ts-mail-secure")?.checked,
+        user: String(document.getElementById("ts-mail-user")?.value || "").trim(),
+        pass: String(document.getElementById("ts-mail-pass")?.value || ""),
+        from: String(document.getElementById("ts-mail-from")?.value || "").trim(),
+    };
+}
+
+async function openMailSettingsModal() {
+    if (!isAdmin()) {
+        showWarning("Accesso admin richiesto.");
+        return;
+    }
+    ensureMailSettingsModal();
+    showInlineMessage("ts-mail-message", "");
+    try {
+        const config = (await loadMailConfig()) || {};
+        document.getElementById("ts-mail-host").value = config.host || "";
+        document.getElementById("ts-mail-port").value = String(config.port || 587);
+        document.getElementById("ts-mail-secure").checked = !!config.secure;
+        document.getElementById("ts-mail-user").value = config.user || "";
+        document.getElementById("ts-mail-pass").value = config.pass || "";
+        document.getElementById("ts-mail-from").value = config.from || "";
+        document.getElementById("ts-mail-test-to").value = config.from || config.user || "";
+    } catch (error) {
+        showInlineMessage("ts-mail-message", `Configurazione non caricata: ${error.message || error}`, "error");
+    }
+    openModal("ts-mail-modal");
+}
+
+async function saveTicketMailSettings() {
+    try {
+        await saveMailConfig(readMailSettingsForm());
+        showInlineMessage("ts-mail-message", "Configurazione email salvata.", "success");
+    } catch (error) {
+        showInlineMessage("ts-mail-message", `Salvataggio non riuscito: ${error.message || error}`, "error");
+    }
+}
+
+async function testTicketMailSettings() {
+    const recipient = String(document.getElementById("ts-mail-test-to")?.value || "").trim();
+    if (!isValidEmail(recipient)) {
+        showInlineMessage("ts-mail-message", "Inserisci un destinatario di test valido.", "error");
+        return;
+    }
+    try {
+        await sendTestEmail(readMailSettingsForm(), recipient);
+        showInlineMessage("ts-mail-message", "Email di test inviata correttamente.", "success");
+    } catch (error) {
+        showInlineMessage("ts-mail-message", `Invio test non riuscito: ${error.message || error}`, "error");
+    }
 }
 
 function setBackupMessage(text, isError = false) {
@@ -260,7 +368,12 @@ function createTicketBackup() {
 async function restoreTicketBackup() {
     try {
         setBackupMessage("");
-                const ok = window.confirm("Ripristinare un backup Ticket? Il database corrente verrà sostituito.");
+        const ok = await showTicketConfirm({
+            title: "Ripristina backup",
+            message: "Il database Ticket corrente verrà sostituito. Vuoi continuare?",
+            confirmLabel: "Ripristina",
+            danger: true,
+        });
         if (!ok) return;
         const list = await requestBackend("/api/ticket-support/backups");
         const items = Array.isArray(list?.items) ? list.items : [];
@@ -269,10 +382,12 @@ async function restoreTicketBackup() {
             return;
         }
         const names = items.map((item) => item.name).filter(Boolean);
-        const selectedName = window.prompt(
-            `Inserisci il nome del backup da ripristinare:\n${names.join("\n")}`,
-            names[0] || "",
-        );
+        const selectedName = await showTicketChoice({
+            title: "Seleziona backup",
+            message: "Scegli il backup da ripristinare.",
+            options: names,
+            confirmLabel: "Continua",
+        });
         if (!selectedName) return;
         await requestBackend(
             `/api/ticket-support/backups/${encodeURIComponent(selectedName)}/restore`,
@@ -578,8 +693,13 @@ function renderEditableList({
             removeBtn.type = "button";
             removeBtn.className = "fp-assignees-link fp-assignees-link--danger";
             removeBtn.textContent = "Rimuovi";
-            removeBtn.addEventListener("click", () => {
-                const ok = window.confirm(`Vuoi eliminare "${item}"?`);
+            removeBtn.addEventListener("click", async () => {
+                const ok = await showTicketConfirm({
+                    title: "Elimina categoria",
+                    message: `Vuoi eliminare "${item}"?`,
+                    confirmLabel: "Elimina",
+                    danger: true,
+                });
                 if (!ok) return;
                 onRemove(item);
             });
@@ -828,9 +948,9 @@ function getTicketById(ticketId) {
 }
 
 function canEmployeeEdit(ticket) {
-    if (!isEmployee()) return false;
+    if (!isLoggedIn()) return false;
     const me = getCurrentRequester();
-    return !!ticket && isTicketOwnedByRequester(ticket, me) && ticket.status === "Da prendere in carico";
+    return !!ticket && isTicketOwnedByRequester(ticket, me);
 }
 
 function canEmployeeDelete(ticket) {
@@ -1008,18 +1128,15 @@ function renderOperatorList() {
                 return `[${formatDateTime(item.at)}] ${item.event}${statusPart}${notePart}`;
             })
             .join("\n");
-        const statusClass = ticket.status === "Risolto"
-            ? " ts-ticket-card--resolved"
-            : ticket.status === "Chiuso"
-            ? " ts-ticket-card--closed"
-            : "";
+        const statusPresentation = getStatusPresentation(ticket.status);
+        const statusClass = ` ts-ticket-card--status-${statusPresentation.slug}`;
         return `
             <article class="ts-ticket-card${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
                 <div class="ts-ticket-card__head">
                     <div class="ts-ticket-card__title">
                         <button type="button" class="fp-link-btn ts-history-open" data-ticket-id="${escapeHtml(ticket.id)}">${escapeHtml(ticket.id)}</button>
                     </div>
-                    <div class="ts-ticket-card__status">${escapeHtml(ticket.status)}</div>
+                    <div class="ts-ticket-card__status">${renderStatusBadge(ticket.status)}</div>
                 </div>
                 <div class="ts-ticket-card__meta">
                     <div><strong>Tipo:</strong> ${escapeHtml(ticket.issueType || "-")}</div>
@@ -1114,11 +1231,8 @@ function renderAdminTable() {
         </div>
     `;
     const body = rows.map((ticket) => {
-        const statusClass = ticket.status === "Risolto"
-            ? " pm-table__row--confirmed"
-            : ticket.status === "Chiuso"
-            ? " pm-table__row--deleted"
-            : "";
+        const statusPresentation = getStatusPresentation(ticket.status);
+        const statusClass = ` ts-admin-row--${statusPresentation.slug}`;
         return `
         <div class="pm-table__row${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
             <div class="pm-table__cell">
@@ -1127,10 +1241,10 @@ function renderAdminTable() {
             <div class="pm-table__cell">${escapeHtml(ticket.requester?.name || "-")}</div>
             <div class="pm-table__cell">${escapeHtml(ticket.requester?.department || "-")}</div>
             <div class="pm-table__cell">${escapeHtml(formatDateTime(ticket.createdAt))}</div>
-            <div class="pm-table__cell">${escapeHtml(ticket.status)}</div>
+            <div class="pm-table__cell">${renderStatusBadge(ticket.status)}</div>
             <div class="pm-table__cell">${escapeHtml(ticket.area || "-")}</div>
             <div class="pm-table__cell">${escapeHtml(ticket.priority || "-")}</div>
-            <div class="pm-table__cell">${escapeHtml(String(ticket.description || "").slice(0, 90))}</div>
+            <div class="pm-table__cell ts-admin-description">${escapeHtml(ticket.description || "-")}</div>
             <div class="pm-table__cell pm-table__actions">
                 <div class="ts-table-actions">
                     <button type="button" class="pm-btn pm-btn--ghost ts-icon-btn ts-admin-edit" data-ticket-id="${escapeHtml(ticket.id)}" title="Modifica ticket" aria-label="Modifica ticket">
@@ -1216,7 +1330,7 @@ function updateRoleBadge() {
 
 function updateAdminButtonVisibility() {
     const isAdminUser = isAdmin();
-    ["ts-open-admin-list", "ts-clean-closed", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-categories-section", "ts-settings-backup-section"].forEach((id) => {
+    ["ts-open-admin-list", "ts-clean-closed", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-categories-section", "ts-settings-backup-section", "ts-settings-mail-section"].forEach((id) => {
         const node = document.getElementById(id);
         if (!node) return;
         node.classList.toggle("ts-hidden", !isAdminUser);
@@ -1245,6 +1359,90 @@ function closeModal(id) {
     if (!node) return;
     node.classList.add("is-hidden");
     node.setAttribute("aria-hidden", "true");
+}
+
+function ensureTicketDialog() {
+    let modal = document.getElementById("ts-confirm-modal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "ts-confirm-modal";
+    modal.className = "pm-modal is-hidden";
+    modal.setAttribute("aria-hidden", "true");
+    modal.innerHTML = `
+        <div class="pm-modal__card pm-confirm-card ts-confirm-card" role="dialog" aria-modal="true" aria-labelledby="ts-confirm-title">
+            <div class="ts-confirm-icon material-icons" aria-hidden="true">help_outline</div>
+            <h3 id="ts-confirm-title">Conferma operazione</h3>
+            <p id="ts-confirm-message"></p>
+            <select id="ts-confirm-choice" class="is-hidden" aria-label="Selezione"></select>
+            <div class="pm-actions">
+                <button type="button" class="pm-btn pm-btn--ghost" id="ts-confirm-cancel">Annulla</button>
+                <button type="button" class="pm-btn pm-btn--primary" id="ts-confirm-accept">Conferma</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    return modal;
+}
+
+function runTicketDialog({ title, message, confirmLabel, danger, options }) {
+    const modal = ensureTicketDialog();
+    const titleNode = modal.querySelector("#ts-confirm-title");
+    const messageNode = modal.querySelector("#ts-confirm-message");
+    const choice = modal.querySelector("#ts-confirm-choice");
+    const accept = modal.querySelector("#ts-confirm-accept");
+    const cancel = modal.querySelector("#ts-confirm-cancel");
+    const icon = modal.querySelector(".ts-confirm-icon");
+    if (titleNode) titleNode.textContent = title || "Conferma operazione";
+    if (messageNode) messageNode.textContent = message || "";
+    if (accept) {
+        accept.textContent = confirmLabel || "Conferma";
+        accept.classList.toggle("pm-btn--danger", !!danger);
+        accept.classList.toggle("pm-btn--primary", !danger);
+    }
+    if (icon) icon.textContent = danger ? "warning_amber" : "help_outline";
+    const values = Array.isArray(options) ? options : [];
+    if (choice) {
+        choice.innerHTML = values
+            .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+            .join("");
+        choice.classList.toggle("is-hidden", values.length === 0);
+    }
+    openModal(modal.id);
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            closeModal(modal.id);
+            accept?.removeEventListener("click", onAccept);
+            cancel?.removeEventListener("click", onCancel);
+            modal.removeEventListener("click", onBackdrop);
+            document.removeEventListener("keydown", onKeydown);
+            resolve(value);
+        };
+        const onAccept = () =>
+            finish(values.length ? String(choice?.value || "") : true);
+        const onCancel = () => finish(values.length ? "" : false);
+        const onBackdrop = (event) => {
+            if (event.target === modal) onCancel();
+        };
+        const onKeydown = (event) => {
+            if (event.key === "Escape") onCancel();
+            if (event.key === "Enter") onAccept();
+        };
+        accept?.addEventListener("click", onAccept);
+        cancel?.addEventListener("click", onCancel);
+        modal.addEventListener("click", onBackdrop);
+        document.addEventListener("keydown", onKeydown);
+        window.setTimeout(() => (values.length ? choice : accept)?.focus(), 0);
+    });
+}
+
+function showTicketConfirm(options) {
+    return runTicketDialog(options);
+}
+
+function showTicketChoice(options) {
+    return runTicketDialog({ ...options, danger: false });
 }
 
 function showModal(node) {
@@ -1527,7 +1725,9 @@ function saveTicketEdit() {
     ticket.updatedAt = nowIso();
     ticket.history.push(createHistory({
         event: editMode === "employee" ? "Modifica dipendente" : "Modifica admin",
-        actor: editMode === "employee" ? (session.employee || "Dipendente") : (session.adminName || "Admin"),
+        actor: editMode === "employee"
+            ? (getCurrentRequester().name || "Utente")
+            : (session.adminName || "Admin"),
         note: buildEditNote(before, after),
     }));
     saveAll();
@@ -1651,32 +1851,47 @@ function editTicketByAdmin(ticketId) {
     openEditModal(ticketId, "admin");
 }
 
-function deleteTicketByEmployee(ticketId) {
+async function deleteTicketByEmployee(ticketId) {
     const ticket = getTicketById(ticketId);
     if (!canEmployeeDelete(ticket)) return;
-    const ok = window.confirm(`Eliminare il ticket ${ticket.id}?`);
+    const ok = await showTicketConfirm({
+        title: "Elimina ticket",
+        message: `Eliminare definitivamente il ticket ${ticket.id}?`,
+        confirmLabel: "Elimina",
+        danger: true,
+    });
     if (!ok) return;
     store.tickets = store.tickets.filter((item) => item.id !== ticketId);
     saveAll();
     renderAll();
 }
 
-function deleteTicketByAdmin(ticketId) {
+async function deleteTicketByAdmin(ticketId) {
     const ticket = getTicketById(ticketId);
     if (!isAdmin() || !ticket) return;
-    const ok = window.confirm(`Eliminare il ticket ${ticket.id}?`);
+    const ok = await showTicketConfirm({
+        title: "Elimina ticket",
+        message: `Eliminare definitivamente il ticket ${ticket.id}?`,
+        confirmLabel: "Elimina",
+        danger: true,
+    });
     if (!ok) return;
     store.tickets = store.tickets.filter((item) => item.id !== ticketId);
     saveAll();
     renderAll();
 }
 
-function cleanClosedTickets() {
+async function cleanClosedTickets() {
     if (!isAdmin()) {
         showWarning("Accesso admin richiesto.");
         return;
     }
-    const ok = window.confirm("Vuoi rimuovere dal JSON tutti i ticket chiusi o risolti?");
+    const ok = await showTicketConfirm({
+        title: "Pulisci archivio",
+        message: "Rimuovere tutti i ticket chiusi o risolti dall'archivio?",
+        confirmLabel: "Rimuovi",
+        danger: true,
+    });
     if (!ok) return;
     const before = store.tickets.length;
     const remaining = store.tickets.filter((ticket) => !isFinalStatus(ticket.status));
@@ -1984,6 +2199,7 @@ function bindMainEvents() {
 }
 
 function bindSettingsEvents() {
+    ensureMailSettingsModal();
     document.getElementById("ts-settings")?.addEventListener("click", () => {
         openSettingsModal();
     });
@@ -2021,6 +2237,13 @@ function bindSettingsEvents() {
         closeSettingsModal();
         openBackupModal();
     });
+    document.getElementById("ts-settings-mail-open")?.addEventListener("click", () => {
+        closeSettingsModal();
+        void openMailSettingsModal();
+    });
+    document.getElementById("ts-mail-close")?.addEventListener("click", () => closeModal("ts-mail-modal"));
+    document.getElementById("ts-mail-save")?.addEventListener("click", asyncGuard.wrap(saveTicketMailSettings));
+    document.getElementById("ts-mail-test-send")?.addEventListener("click", asyncGuard.wrap(testTicketMailSettings));
     document.getElementById("ts-settings-categories-open")?.addEventListener("click", () => {
         closeSettingsModal();
         openCategoriesModal();
@@ -2095,10 +2318,16 @@ async function init() {
     document.body.classList.toggle("ts-view-form", currentView === "form");
     document.body.classList.toggle("ts-view-admin", currentView === "admin");
 
-    await hydrateStore();
+    // Ticket e sessione sono l'unico percorso critico per il primo render.
+    // Anagrafiche, admin e categorie proseguono in parallelo senza bloccare UI.
+    const secondaryHydration = Promise.allSettled([
+        hydrateAssignees(),
+        hydrateAdminCache(),
+        hydrateTicketCategories(),
+    ]);
+    await Promise.all([hydrateStore(), loadSession()]);
     store = loadStore();
-    await hydrateAssignees();
-    await hydrateAdminCache();
+    ticketCategories = loadTicketCategories();
     updateLoginSelectors();
     bindLoginEvents();
     bindLogoutEvents();
@@ -2111,10 +2340,12 @@ async function init() {
     bindCategoriesEvents();
     otpUi.initOtpModals();
 
-    await hydrateTicketCategories();
-    ticketCategories = loadTicketCategories();
-    await loadSession();
     renderAll();
+    void secondaryHydration.then(() => {
+        ticketCategories = loadTicketCategories();
+        updateLoginSelectors();
+        renderAll();
+    });
     if (!isLoggedIn()) {
         if (currentView === "admin") {
             showInlineMessage("ts-admin-message", "Accedi dalla home Ticket Support per usare questa finestra.", "error");

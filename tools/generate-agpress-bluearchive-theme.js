@@ -115,6 +115,81 @@ css += `
 .module-card.navy .card-arrow {
     --card-accent: #ffffff;
 }
+
+/* Performance profile for the AGPress renderer. The visual motion remains,
+   but avoids blur and animated clip paths that are expensive on older GPUs. */
+.startup-sequence {
+    clip-path: none;
+    opacity: 1;
+    transform: translateZ(0);
+    contain: strict;
+    transition: opacity .28s ease-out, transform .28s cubic-bezier(.4, 0, .2, 1), visibility 0s .28s;
+}
+
+.startup-sequence.is-leaving {
+    clip-path: none;
+    opacity: 0;
+    transform: translate3d(18px, 0, 0);
+}
+
+.hero-copy,
+.hero-art,
+.modules-section {
+    will-change: opacity, transform;
+}
+
+.page-leave {
+    animation-duration: .11s;
+}
+
+.page-enter {
+    animation-duration: .24s;
+}
+
+@keyframes pageLeave {
+    to {
+        opacity: 0;
+        transform: translate3d(-12px, 0, 0) skewX(-1deg);
+        filter: none;
+    }
+}
+
+@keyframes pageEnter {
+    from {
+        opacity: 0;
+        transform: translate3d(16px, 0, 0) skewX(1deg);
+        filter: none;
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+}
+
+/* Feedback più evidente solo per i controlli del contenuto. */
+.module-card:hover,
+.module-card:focus-visible {
+    border-color: rgba(183, 127, 0, .72);
+    box-shadow: 0 0 0 3px rgba(204, 147, 14, .2), 0 19px 35px rgba(91, 65, 15, .2);
+    outline: none;
+    transform: translate3d(0, -3px, 0) scale(1.01);
+}
+
+.module-card:active {
+    border-color: #8e6200;
+    box-shadow: inset 0 3px 8px rgba(71, 49, 0, .18), 0 0 0 3px rgba(204, 147, 14, .2);
+    transform: translate3d(0, 1px, 0) scale(.985);
+}
+
+.quick-menu button:focus-visible,
+.icon-button:focus-visible,
+.footer-clock:focus-visible,
+.footer-weather:focus-visible {
+    outline: 3px solid rgba(204, 147, 14, .72);
+    outline-offset: 3px;
+}
 `;
 css = `/* Generated from bluearchive-preview.css. Do not edit directly. */\n${css}`;
 fs.writeFileSync(destinationPath, css, "utf8");

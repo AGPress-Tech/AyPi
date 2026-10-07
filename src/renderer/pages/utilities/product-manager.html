@@ -7,6 +7,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Product Manager</title>
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search || "");
+            if (params.get("splashTheme") === "agpress") {
+                document.documentElement.classList.add("agpress-purchasing-boot");
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-bluearchive-style.css">
@@ -15,6 +23,7 @@
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
     <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash-scopes.css">
     <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css">
+    <link rel="stylesheet" href="../../styles/utilities/agpress-login-style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
@@ -206,7 +215,7 @@
         </main>
     </div>
 
-    <div class="pm-modal" id="pm-login-modal" aria-hidden="true">
+    <div class="pm-modal is-hidden" id="pm-login-modal" aria-hidden="true">
         <div class="pm-modal__card" role="dialog" aria-modal="true" aria-labelledby="pm-login-title">
             <div class="pm-modal__header">
                 <h3 id="pm-login-title">Accedi</h3>

@@ -173,6 +173,7 @@ function setupWarehouseSplash() {
     const agpressScriptedSplash = parameters.get("splashTheme") === "agpress";
     const scriptedSplash = blueArchive || agpressScriptedSplash;
     document.body.classList.toggle("warehouse-bluearchive", blueArchive);
+    document.body.classList.toggle("agpress-login-ui", !blueArchive);
     document.body.classList.toggle(
         "agpress-scripted-splash",
         agpressScriptedSplash,

@@ -26,6 +26,7 @@ import { createCalendarAccessPolicy } from "./ferie-permessi/services/access-pol
 const IS_BLUE_ARCHIVE_CALENDAR =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
 
+document.body.classList.toggle("agpress-login-ui", !IS_BLUE_ARCHIVE_CALENDAR);
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_CALENDAR);
 
 const fpBaseDir = path.join(

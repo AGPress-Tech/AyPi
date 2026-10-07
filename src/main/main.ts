@@ -266,12 +266,20 @@ app.whenReady().then(() => {
             contextIsolation: false,
         },
         icon: getInterfaceIconPath(),
+        show: useBlueArchiveUi,
     });
 
     mainWindow.loadFile(path.join(__dirname, "pages", "bluearchive-preview.html"), {
         query: { theme: useBlueArchiveUi ? "bluearchive" : "agpress" },
     });
     mainWindow.setMenu(null);
+    if (!useBlueArchiveUi) {
+        mainWindow.once("ready-to-show", () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            mainWindow.show();
+            mainWindow.focus();
+        });
+    }
 
     mainWindow.on("close", (event) => {
         if (IS_BLUE_ARCHIVE_PREVIEW) {

@@ -1824,22 +1824,29 @@ function renderPage(pageKey: string, animate = true) {
         target.classList.remove("page-enter");
         target.classList.add("page-leave");
     });
+    const leaveDuration = IS_AGPRESS_INTERFACE ? 105 : 165;
     setTimeout(() => {
         if (token !== pageTransitionToken) return;
         applyPage(pageKey);
         transitionTargets.forEach((target) => {
             target.classList.remove("page-leave");
-            void target.offsetWidth;
-            target.classList.add("page-enter");
+        });
+        // Un frame separato riavvia l'animazione senza una lettura sincrona
+        // di layout (offsetWidth), costosa soprattutto sui PC meno recenti.
+        requestAnimationFrame(() => {
+            if (token !== pageTransitionToken) return;
+            transitionTargets.forEach((target) =>
+                target.classList.add("page-enter"),
+            );
         });
         setTimeout(
             () =>
                 transitionTargets.forEach((target) =>
                     target.classList.remove("page-enter"),
                 ),
-            430,
+            IS_AGPRESS_INTERFACE ? 260 : 430,
         );
-    }, 165);
+    }, leaveDuration);
 }
 
 function updateClock() {
@@ -2573,14 +2580,16 @@ window.addEventListener("DOMContentLoaded", () => {
     updateClock();
     setInterval(updateClock, 1000);
     updateTimeTools();
-    setInterval(updateTimeTools, 33);
-    document.body.animate(
-        [
-            { opacity: 0, transform: "translateY(5px)" },
-            { opacity: 1, transform: "none" },
-        ],
-        { duration: 500, easing: "ease-out" },
-    );
+    setInterval(updateTimeTools, IS_AGPRESS_INTERFACE ? 100 : 33);
+    if (!IS_AGPRESS_INTERFACE) {
+        document.body.animate(
+            [
+                { opacity: 0, transform: "translateY(5px)" },
+                { opacity: 1, transform: "none" },
+            ],
+            { duration: 500, easing: "ease-out" },
+        );
+    }
     setTimeout(finishStartup, 2600);
     if (!IS_AGPRESS_INTERFACE) {
         setTimeout(() => showBubble(phrases[0], 3200), 3000);

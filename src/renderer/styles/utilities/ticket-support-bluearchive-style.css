@@ -289,6 +289,12 @@ body.bluearchive-ticket-support .ts-ticket-card--closed {
     opacity: .88;
 }
 
+body.bluearchive-ticket-support .ts-ticket-card--status-new { border-left: 4px solid #4a8fc0; }
+body.bluearchive-ticket-support .ts-ticket-card--status-active { border-left: 4px solid #2ca99b; }
+body.bluearchive-ticket-support .ts-ticket-card--status-waiting { border-left: 4px solid #d7a12c; }
+body.bluearchive-ticket-support .ts-ticket-card--status-resolved { border-left: 4px solid #4bab6c; }
+body.bluearchive-ticket-support .ts-ticket-card--status-closed { border-left: 4px solid #758294; opacity: .9; }
+
 body.bluearchive-ticket-support .ts-ticket-card__head {
     margin-bottom: 9px;
 }
@@ -306,6 +312,12 @@ body.bluearchive-ticket-support .ts-history-badge {
     background: #e8f8ff;
     font-size: 11px;
     font-weight: 700;
+}
+
+body.bluearchive-ticket-support .ts-ticket-card__status {
+    padding: 0;
+    border: 0;
+    background: transparent;
 }
 
 body.bluearchive-ticket-support .ts-ticket-card__meta,

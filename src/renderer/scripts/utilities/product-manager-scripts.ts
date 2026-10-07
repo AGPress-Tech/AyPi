@@ -196,18 +196,28 @@ const SPLASH_MODE = createScriptedSplashMode([
     "fp-bluearchive",
 ]);
 if (IS_BLUE_ARCHIVE_PURCHASING) document.body.classList.add("bluearchive-purchasing", "fp-bluearchive");
+else document.body.classList.add("agpress-purchasing", "agpress-login-ui");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_PURCHASING);
 
 function runBlueArchivePurchasingSplash() {
-    if (!SPLASH_MODE.enabled) return;
-    if (!document.body.hasAttribute("data-pm-form")) return;
+    if (!SPLASH_MODE.enabled || !document.body.hasAttribute("data-pm-form")) {
+        document.documentElement.classList.remove("agpress-purchasing-boot");
+        return;
+    }
     const splash = document.getElementById("baPurchasingSplash");
-    if (!splash) return;
+    if (!splash) {
+        document.documentElement.classList.remove("agpress-purchasing-boot");
+        return;
+    }
     SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     const splashController = makeSplashSkippable(splash, {
-        onFinish: SPLASH_MODE.cleanup,
+        onFinish: () => {
+            document.documentElement.classList.remove("agpress-purchasing-boot");
+            SPLASH_MODE.cleanup();
+        },
     });
+    ipcRenderer.send("pm-purchasing-splash-ready");
     const statusSteps = splash.querySelectorAll(".fp-ba-boot-status span");
     window.setTimeout(() => {
         if (!splashController.isFinished()) {

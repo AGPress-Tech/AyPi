@@ -38,12 +38,12 @@ function positionFloating(selectEl, list, wrapper) {
     if (!selectEl || !list || !wrapper) return;
     const rect = wrapper.getBoundingClientRect();
     const padding = 12;
-    const spaceBelow = Math.max(120, window.innerHeight - rect.bottom - padding);
+    const availableBelow = window.innerHeight - rect.bottom - padding;
     list.style.position = "fixed";
     list.style.left = `${rect.left}px`;
     list.style.top = `${rect.bottom + 6}px`;
     list.style.width = `${rect.width}px`;
-    list.style.maxHeight = `${spaceBelow}px`;
+    list.style.maxHeight = `${Math.max(120, availableBelow)}px`;
     list.dataset.pmFloating = "1";
 }
 

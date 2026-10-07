@@ -12,25 +12,59 @@
     <main class="container">
         <section id="homeView" class="view">
             <article class="home-card">
+                <div class="home-card__topline">
+                    <span>AYPI // TOOLING</span>
+                    <span class="home-card__status"><i></i>Sistema operativo</span>
+                </div>
                 <h1>Schede Attrezzaggio</h1>
                 <p class="home-subtitle">Seleziona la tipologia di scheda da gestire.</p>
                 <div class="home-actions">
-                    <button id="openTransferTypeBtn">Schede Attrezzaggio Transfer</button>
-                    <button id="openHaasTypeBtn">Schede Attrezzaggio Centri</button>
-                    <button id="closeWindowBtn">Chiudi</button>
+                    <button id="openTransferTypeBtn" class="home-action">
+                        <span class="home-action__code">01 // TRANSFER</span>
+                        <strong>Schede Transfer</strong>
+                        <small>Gestione metodi e utensili</small>
+                    </button>
+                    <button id="openHaasTypeBtn" class="home-action">
+                        <span class="home-action__code">02 // CENTRI</span>
+                        <strong>Schede Centri</strong>
+                        <small>Gestione lavorazioni CNC</small>
+                    </button>
+                    <button id="closeWindowBtn" class="home-action home-action--quiet">
+                        <span class="home-action__code">ESC // USCITA</span>
+                        <strong>Chiudi modulo</strong>
+                        <small>Torna alla schermata principale</small>
+                    </button>
                 </div>
+                <div class="home-card__footer"><span>ARCHIVIO ATTREZZAGGI</span><span>AG PRESS</span></div>
             </article>
         </section>
 
         <section id="transferHomeView" class="view hidden">
             <article class="home-card">
+                <div class="home-card__topline">
+                    <span>AYPI // TOOLING / TRANSFER</span>
+                    <span class="home-card__status"><i></i>Reparto Transfer</span>
+                </div>
                 <h1>Schede Attrezzaggio Transfer</h1>
                 <p class="home-subtitle">Gestione, modifica e stampa delle schede di attrezzaggio transfer.</p>
                 <div class="home-actions">
-                    <button id="showListBtn">Lista Schede Attrezzaggio</button>
-                    <button id="showCreateBtn">Crea Scheda Attrezzaggio</button>
-                    <button id="backToTypesBtn">Indietro</button>
+                    <button id="showListBtn" class="home-action">
+                        <span class="home-action__code">01 // ARCHIVIO</span>
+                        <strong>Lista schede</strong>
+                        <small>Cerca, consulta e modifica</small>
+                    </button>
+                    <button id="showCreateBtn" class="home-action">
+                        <span class="home-action__code">02 // NUOVO</span>
+                        <strong>Crea scheda</strong>
+                        <small>Avvia una nuova compilazione</small>
+                    </button>
+                    <button id="backToTypesBtn" class="home-action home-action--quiet">
+                        <span class="home-action__code">ESC // INDIETRO</span>
+                        <strong>Cambia tipologia macchina</strong>
+                        <small>Torna alla selezione iniziale</small>
+                    </button>
                 </div>
+                <div class="home-card__footer"><span>METODI DI ATTREZZAGGIO</span><span>TRANSFER</span></div>
             </article>
         </section>
 
@@ -159,13 +193,30 @@
 
         <section id="haasHomeView" class="view hidden">
             <article class="home-card">
+                <div class="home-card__topline">
+                    <span>AYPI // TOOLING / CENTRI</span>
+                    <span class="home-card__status"><i></i>Centri di lavoro</span>
+                </div>
                 <h1>Schede Attrezzaggio Centro</h1>
                 <p class="home-subtitle">Gestione, modifica e stampa delle schede attrezzaggio Centro.</p>
                 <div class="home-actions">
-                    <button id="showHaasListBtn">Lista Schede Attrezzaggio</button>
-                    <button id="showCreateHaasBtn">Crea Scheda Attrezzaggio</button>
-                    <button id="backFromHaasHomeBtn">Indietro</button>
+                    <button id="showHaasListBtn" class="home-action">
+                        <span class="home-action__code">01 // ARCHIVIO</span>
+                        <strong>Lista schede</strong>
+                        <small>Cerca, consulta e modifica</small>
+                    </button>
+                    <button id="showCreateHaasBtn" class="home-action">
+                        <span class="home-action__code">02 // NUOVO</span>
+                        <strong>Crea scheda</strong>
+                        <small>Avvia una nuova compilazione</small>
+                    </button>
+                    <button id="backFromHaasHomeBtn" class="home-action home-action--quiet">
+                        <span class="home-action__code">ESC // INDIETRO</span>
+                        <strong>Cambia tipologia macchina</strong>
+                        <small>Torna alla selezione iniziale</small>
+                    </button>
                 </div>
+                <div class="home-card__footer"><span>METODI DI ATTREZZAGGIO</span><span>CENTRI CNC</span></div>
             </article>
         </section>
 
@@ -189,7 +240,7 @@
                     <input id="haasFilterText" type="text" placeholder="Ciclo, utensile, note">
                 </label>
                 <label>Ordinamento
-                    <select id="haasListSortOrder">
+                    <select id="haasListSo rtOrder">
                         <option value="article-asc">Articolo crescente</option>
                         <option value="article-desc">Articolo decrescente</option>
                         <option value="machine-asc">Macchina crescente</option>

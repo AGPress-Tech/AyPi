@@ -291,9 +291,76 @@ body.fp-aypi .ts-history-to {
 
 .ts-ticket-card__status {
     font-size: 12px;
-    padding: 3px 8px;
+}
+
+.ts-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border: 1px solid transparent;
     border-radius: 999px;
-    background: rgba(80, 120, 165, 0.15);
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.ts-status-badge .material-icons {
+    font-size: 15px;
+}
+
+.ts-status-badge--new {
+    color: #315f91;
+    border-color: rgba(49, 95, 145, 0.25);
+    background: rgba(73, 126, 181, 0.12);
+}
+
+.ts-status-badge--active {
+    color: #136b64;
+    border-color: rgba(19, 107, 100, 0.25);
+    background: rgba(24, 148, 137, 0.12);
+}
+
+.ts-status-badge--waiting {
+    color: #8a5a00;
+    border-color: rgba(177, 116, 0, 0.28);
+    background: rgba(240, 173, 37, 0.16);
+}
+
+.ts-status-badge--resolved {
+    color: #24753d;
+    border-color: rgba(36, 117, 61, 0.26);
+    background: rgba(52, 168, 83, 0.13);
+}
+
+.ts-status-badge--closed {
+    color: #7a5050;
+    border-color: rgba(122, 80, 80, 0.22);
+    background: rgba(122, 80, 80, 0.1);
+}
+
+.ts-ticket-card--status-new {
+    border-left: 4px solid #527eaf;
+}
+
+.ts-ticket-card--status-active {
+    border-left: 4px solid #25988e;
+}
+
+.ts-ticket-card--status-waiting {
+    border-left: 4px solid #d39a24;
+}
+
+.ts-ticket-card--status-resolved {
+    border-left: 4px solid #34a853;
+    background: rgba(52, 168, 83, 0.08);
+}
+
+.ts-ticket-card--status-closed {
+    border-left: 4px solid #817171;
+    background: rgba(96, 82, 82, 0.07);
+    opacity: 0.9;
 }
 
 .ts-ticket-card__meta {
@@ -309,6 +376,80 @@ body.fp-aypi .ts-history-to {
     line-height: 1.4;
     margin-bottom: 8px;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ts-admin-description {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.45;
+}
+
+.ts-admin-row--new > .pm-table__cell {
+    background: rgba(73, 126, 181, 0.035);
+}
+
+.ts-admin-row--active > .pm-table__cell {
+    background: rgba(24, 148, 137, 0.055);
+}
+
+.ts-admin-row--waiting > .pm-table__cell {
+    background: rgba(240, 173, 37, 0.075);
+}
+
+.ts-admin-row--resolved > .pm-table__cell {
+    background: rgba(52, 168, 83, 0.075);
+}
+
+.ts-admin-row--closed > .pm-table__cell {
+    background: rgba(96, 82, 82, 0.06);
+}
+
+.ts-confirm-card {
+    width: min(460px, 92vw);
+    text-align: center;
+}
+
+.ts-confirm-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto;
+    display: grid;
+    place-items: center;
+    color: var(--pm-accent);
+    border: 1px solid var(--pm-border);
+    border-radius: 14px;
+    background: rgba(80, 120, 165, 0.09);
+    font-size: 27px;
+}
+
+.ts-confirm-card p {
+    margin: 0;
+    color: var(--pm-muted);
+    line-height: 1.5;
+}
+
+.ts-confirm-card .pm-actions {
+    justify-content: center;
+}
+
+.ts-mail-card {
+    width: min(680px, 94vw);
+    max-height: 90vh;
+    overflow: auto;
+}
+
+.ts-mail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 12px;
+}
+
+@media (max-width: 700px) {
+    .ts-mail-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 body.fp-dark .ts-ticket-card,

@@ -1,0 +1,326 @@
+/* Login condiviso dei moduli AGPress, con la palette azzurra comune ai moduli.
+   Blue Archive non riceve questa classe e conserva integralmente il suo layout. */
+body.agpress-login-ui {
+    --ag-login-ink: #172b45;
+    --ag-login-muted: #647d92;
+    --ag-login-line: rgba(34, 151, 215, .3);
+    --ag-login-accent: #168eea;
+    --ag-login-accent-dark: #087bbb;
+    --ag-login-accent-soft: #edf9fe;
+}
+
+body.agpress-login-ui :is(#pm-login-modal, #fp-approve-modal, #warehouseLoginDialog) {
+    padding: 20px;
+    background: rgba(18, 39, 65, .5);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-modal__card,
+body.agpress-login-ui #fp-approve-modal .fp-modal__card,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-dialog {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    width: min(420px, 92vw);
+    min-height: 0;
+    padding: 22px;
+    overflow: visible;
+    border: 1px solid var(--ag-login-line);
+    border-top: 4px solid #31c8f3;
+    border-radius: 6px 16px 6px 16px;
+    color: var(--ag-login-ink);
+    background:
+        linear-gradient(rgba(38, 169, 226, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(38, 169, 226, .035) 1px, transparent 1px),
+        linear-gradient(145deg, #fff 0 82%, #eaf8fe 82%);
+    background-size: 26px 26px, 26px 26px, auto;
+    box-shadow: 8px 10px 0 rgba(18, 142, 209, .09), 0 24px 58px rgba(12, 56, 89, .26);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-modal__card::before,
+body.agpress-login-ui #pm-login-modal .pm-modal__card::after {
+    content: none;
+    display: none;
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-login-identity-panel,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-identity-panel {
+    display: none;
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-login-identity-content,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-identity-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-modal__header,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-header {
+    display: flex;
+    grid-column: 1;
+    grid-row: auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 0 10px;
+    padding: 0;
+    border: 0;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-modal__header h3,
+body.agpress-login-ui #fp-approve-modal .fp-login-identity-heading h3,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-header h2 {
+    margin: 0;
+    color: var(--ag-login-ink);
+    font-size: 20px;
+    font-weight: 750;
+    letter-spacing: -.015em;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-modal__header h3::after,
+body.agpress-login-ui #fp-approve-modal .fp-login-identity-heading h3::after,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-header h2::after {
+    content: " // ACCESS";
+    color: var(--ag-login-accent);
+    font: 800 8px/1 Consolas, monospace;
+    letter-spacing: .12em;
+    vertical-align: middle;
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-login-identity-heading {
+    display: block;
+    margin-bottom: 4px;
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-login-identity-heading p,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-header p {
+    margin: 5px 0 0;
+    color: var(--ag-login-muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+body.agpress-login-ui #pm-login-modal #pm-login-close,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-header > button,
+body.agpress-login-ui #fp-approve-modal .fp-btn--ghost {
+    min-height: 32px;
+    padding: 6px 12px;
+    border: 1px solid var(--ag-login-line);
+    border-radius: 3px 3px 9px 3px;
+    color: #55758d;
+    background: rgba(255, 255, 255, .88);
+    box-shadow: none;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-choice,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-choice {
+    display: grid;
+    grid-column: 1;
+    grid-row: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    margin: 0 0 12px;
+    padding: 4px;
+    border: 1px solid rgba(34, 151, 215, .22);
+    border-radius: 5px 12px 5px 12px;
+    background: #edf9fe;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-choice .pm-btn,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-choice button {
+    min-height: 36px;
+    margin: 0;
+    border: 0;
+    border-radius: 4px 9px 4px 9px;
+    color: #55758d;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-choice .pm-btn:hover,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-choice button:hover {
+    color: #126f9f;
+    background: rgba(255, 255, 255, .78);
+    box-shadow: none;
+    transform: none;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-choice .pm-btn.is-active,
+body.agpress-login-ui #pm-login-modal .pm-login-choice .pm-btn.is-active:hover,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-choice button.is-active,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-choice button.is-active:hover {
+    border-color: transparent;
+    color: #fff;
+    background: linear-gradient(115deg, #147eda, #30c8f2);
+    box-shadow: 0 4px 10px rgba(20, 126, 194, .22);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-panel {
+    display: flex;
+    grid-column: 1;
+    grid-row: auto;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+    color: var(--ag-login-ink);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-custom-select__button {
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid rgba(34, 151, 215, .3);
+    border-radius: 5px 11px 5px 11px;
+    color: var(--ag-login-ink);
+    background: rgba(255, 255, 255, .94);
+    font-size: 13px;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-custom-select__button:focus {
+    border-color: var(--ag-login-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(22, 142, 234, .14);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-field label,
+body.agpress-login-ui #fp-approve-modal :is(.fp-login-admin-field, .fp-login-password-field),
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-panel label {
+    color: #536c82;
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+body.agpress-login-ui #fp-approve-modal :is(.fp-login-admin-field, .fp-login-password-field) {
+    display: grid;
+    gap: 5px;
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-login-admin-field.is-hidden {
+    display: none;
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-login-password-field > span {
+    display: inline;
+}
+
+body.agpress-login-ui #pm-login-modal :is(select, input),
+body.agpress-login-ui #fp-approve-modal :is(select, input),
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-panel :is(select, input) {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid rgba(34, 151, 215, .3);
+    border-radius: 5px 11px 5px 11px;
+    color: var(--ag-login-ink);
+    background: rgba(255, 255, 255, .94);
+    font-size: 13px;
+    outline: none;
+}
+
+body.agpress-login-ui #pm-login-modal :is(select, input):focus,
+body.agpress-login-ui #fp-approve-modal :is(select, input):focus,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-panel :is(select, input):focus {
+    border-color: var(--ag-login-accent);
+    box-shadow: 0 0 0 3px rgba(22, 142, 234, .14);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-panel .pm-btn--primary,
+body.agpress-login-ui #fp-approve-modal #fp-approve-confirm,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-confirm {
+    align-self: stretch;
+    width: 100%;
+    min-height: 40px;
+    margin: 4px 0 0;
+    border: 1px solid var(--ag-login-accent-dark);
+    border-radius: 5px 11px 5px 11px;
+    color: #fff;
+    background: linear-gradient(115deg, #147eda, #30c8f2);
+    box-shadow: 0 5px 12px rgba(20, 126, 194, .22);
+    font-weight: 750;
+    transform: none;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-panel .pm-btn--primary:hover,
+body.agpress-login-ui #pm-login-modal .pm-login-panel .pm-btn--primary:focus-visible,
+body.agpress-login-ui #fp-approve-modal #fp-approve-confirm:hover,
+body.agpress-login-ui #fp-approve-modal #fp-approve-confirm:focus-visible,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-confirm:hover,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-confirm:focus-visible {
+    border-color: #087bbb;
+    color: #fff;
+    background: linear-gradient(115deg, #0f71ca, #24b8e7);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(22, 142, 234, .15), 0 7px 15px rgba(20, 96, 145, .17);
+    transform: translateY(-1px);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-login-panel .pm-btn--primary:active,
+body.agpress-login-ui #fp-approve-modal #fp-approve-confirm:active,
+body.agpress-login-ui #warehouseLoginDialog .warehouse-login-confirm:active {
+    box-shadow: inset 0 2px 5px rgba(7, 72, 116, .22), 0 0 0 3px rgba(22, 142, 234, .12);
+    transform: translateY(1px);
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-modal__card {
+    position: relative;
+}
+
+body.agpress-login-ui #fp-approve-modal .fp-login-identity-heading {
+    padding-right: 78px;
+}
+
+/* Calendar ha solo la password: riusa comunque la stessa intestazione con
+   chiusura in alto e il pulsante primario a tutta larghezza. */
+body.agpress-login-ui #fp-approve-modal .fp-actions {
+    display: contents;
+}
+
+body.agpress-login-ui #fp-approve-modal #fp-approve-cancel {
+    position: absolute;
+    z-index: 2;
+    top: 19px;
+    right: 20px;
+}
+
+body.agpress-login-ui #fp-approve-modal #fp-approve-confirm {
+    margin-top: 5px;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-custom-select__list {
+    z-index: 2001;
+    max-height: 220px;
+    overflow-y: auto;
+    border-color: rgba(34, 151, 215, .28);
+    color: var(--ag-login-ink);
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(12, 56, 89, .2);
+}
+
+body.agpress-login-ui #pm-login-modal .pm-custom-select.is-open {
+    z-index: 2000;
+}
+
+body.agpress-login-ui #pm-login-modal .pm-custom-select__option:hover,
+body.agpress-login-ui #pm-login-modal .pm-custom-select__option.is-selected {
+    border-color: rgba(34, 151, 215, .28);
+    color: #126f9f;
+    background: #e9f7fd;
+}
+
+@media (max-width: 520px) {
+    body.agpress-login-ui :is(#pm-login-modal, #fp-approve-modal, #warehouseLoginDialog) {
+        padding: 12px;
+    }
+
+    body.agpress-login-ui #pm-login-modal .pm-modal__card,
+    body.agpress-login-ui #fp-approve-modal .fp-modal__card,
+    body.agpress-login-ui #warehouseLoginDialog .warehouse-login-dialog {
+        width: min(420px, 96vw);
+        padding: 18px;
+    }
+}
