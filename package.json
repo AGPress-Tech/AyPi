@@ -90,5 +90,9 @@
     "directories": {
       "output": "dist"
     }
+  },
+  "allowScripts": {
+    "electron@34.3.0": true,
+    "esbuild@0.24.2": true
   }
 }
