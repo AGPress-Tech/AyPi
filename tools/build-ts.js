@@ -49,15 +49,6 @@ if (result.status !== 0) {
     process.exit(result.status ?? 1);
 }
 
-result = spawnSync("node", [path.join(__dirname, "generate-agpress-utility-themes.js")], {
-    stdio: "inherit",
-    shell: true,
-    cwd: rootDir,
-});
-if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-}
-
 // Copy non-JS/TS runtime assets
 copyDir(path.join(rootDir, "assets"), path.join(distDir, "assets"));
 copyDir(path.join(rootDir, "src", "renderer", "pages"), path.join(distDir, "pages"));

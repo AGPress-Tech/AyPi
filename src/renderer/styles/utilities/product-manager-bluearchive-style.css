@@ -47,7 +47,7 @@ body.bluearchive-purchasing .pm-page {
 
 body.bluearchive-purchasing.pm-ready .pm-page {
     opacity: 1;
-    animation: ba-purchasing-page-in 0.48s 4.5s both;
+    animation: ba-purchasing-page-in 0.48s both;
 }
 
 body.bluearchive-purchasing .pm-header {

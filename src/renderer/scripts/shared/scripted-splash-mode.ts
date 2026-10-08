@@ -15,6 +15,16 @@ function createScriptedSplashMode(blueArchiveBodyClasses: string[]) {
         isAgpress,
         attach(splash: HTMLElement) {
             if (!isAgpress || scope) return;
+            // Se il layout definitivo usa gia le stesse classi, lo splash e'
+            // gia correttamente stilizzato. Spostarlo nel DOM riavvierebbe le
+            // animazioni CSS, producendo un secondo lampo visibile.
+            if (
+                blueArchiveBodyClasses.every((className) =>
+                    document.body.classList.contains(className),
+                )
+            ) {
+                return;
+            }
             scope = document.createElement("div");
             scope.classList.add(
                 "agpress-scripted-splash-scope",

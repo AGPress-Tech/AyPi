@@ -25,7 +25,7 @@ body.bluearchive-file-list {
 .bluearchive-file-list .container {
     gap: 11px;
     padding: 23px 27px 19px;
-    animation: baFileInterfaceIn .42s 1.85s ease-out both;
+    animation: baFileInterfaceIn .42s ease-out both;
 }
 .bluearchive-file-list .utility-header {
     position: relative;

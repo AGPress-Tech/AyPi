@@ -28,7 +28,7 @@ body.bluearchive-hierarchy {
 .bluearchive-hierarchy .container {
     gap: 11px;
     padding: 21px 25px 22px;
-    animation: baHierarchyInterfaceIn .43s 2.05s ease-out both;
+    animation: baHierarchyInterfaceIn .43s ease-out both;
 }
 .bluearchive-hierarchy .utility-header {
     position: relative;

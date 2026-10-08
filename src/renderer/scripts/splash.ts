@@ -19,7 +19,7 @@ window.addEventListener("DOMContentLoaded", () => {
             "click",
             () => {
                 splash.classList.add("is-splash-skipping");
-                window.setTimeout(openModules, 340);
+                openModules();
             },
             { once: true },
         );

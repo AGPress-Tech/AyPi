@@ -1,6 +1,5 @@
 type SkippableSplashOptions = {
     fadeClass?: string;
-    fadeMs?: number;
     onFinish?: () => void;
 };
 
@@ -14,7 +13,6 @@ function makeSplashSkippable(
     options: SkippableSplashOptions = {},
 ): SkippableSplashController {
     const fadeClass = options.fadeClass || "is-fading";
-    const fadeMs = options.fadeMs ?? 340;
     let finished = false;
     let skipRequested = false;
 
@@ -33,7 +31,7 @@ function makeSplashSkippable(
         skipRequested = true;
         splash.classList.add("is-splash-skipping", fadeClass);
         splash.setAttribute("aria-hidden", "true");
-        window.setTimeout(finish, fadeMs);
+        finish();
     };
 
     splash.classList.add("is-splash-skippable");

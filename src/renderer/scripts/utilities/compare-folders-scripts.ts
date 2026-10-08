@@ -10,12 +10,7 @@ const path = require("path");
 const crypto = require("crypto");
 const IS_BLUE_ARCHIVE_COMPARE =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-const IS_AGPRESS_COMPARE =
-    new URLSearchParams(window.location.search).get("splashTheme") === "agpress";
 const SPLASH_MODE = createScriptedSplashMode(["bluearchive-compare"]);
-if (IS_BLUE_ARCHIVE_COMPARE || IS_AGPRESS_COMPARE) {
-    document.body.classList.add("bluearchive-compare");
-}
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_COMPARE);
 
 function runBlueArchiveCompareSplash() {

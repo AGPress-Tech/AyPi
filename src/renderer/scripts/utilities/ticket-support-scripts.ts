@@ -62,7 +62,6 @@ function runBlueArchiveTicketSupportSplash() {
     splash.setAttribute("aria-hidden", "false");
     splash.classList.add("is-visible");
     const splashController = makeSplashSkippable(splash, {
-        fadeMs: SPLASH_MODE.isAgpress ? 0 : 340,
         onFinish: () => {
             SPLASH_MODE.cleanup();
             window.dispatchEvent(new CustomEvent("ts-splash-finished"));

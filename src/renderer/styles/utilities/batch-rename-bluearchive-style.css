@@ -27,7 +27,7 @@ body.bluearchive-batch-rename {
 .bluearchive-batch-rename .container {
     gap: 12px;
     padding: 22px 26px 20px;
-    animation: baBatchInterfaceIn .44s 2.1s ease-out both;
+    animation: baBatchInterfaceIn .44s ease-out both;
 }
 .bluearchive-batch-rename .utility-header {
     position: relative;

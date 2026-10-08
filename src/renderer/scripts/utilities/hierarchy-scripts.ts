@@ -17,14 +17,8 @@ import { scanFolderRecursively } from "./hierarchy/services/filesystem-scanner";
 
 const IS_BLUE_ARCHIVE_HIERARCHY =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-const IS_AGPRESS_HIERARCHY =
-    new URLSearchParams(window.location.search).get("splashTheme") === "agpress";
-const USES_MODERN_HIERARCHY =
-    IS_BLUE_ARCHIVE_HIERARCHY || IS_AGPRESS_HIERARCHY;
+const USES_MODERN_HIERARCHY = true;
 const SPLASH_MODE = createScriptedSplashMode(["bluearchive-hierarchy"]);
-if (IS_BLUE_ARCHIVE_HIERARCHY || IS_AGPRESS_HIERARCHY) {
-    document.body.classList.add("bluearchive-hierarchy");
-}
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_HIERARCHY);
 
 function runBlueArchiveHierarchySplash() {
@@ -87,44 +81,18 @@ function destroyStatsCharts() {
     }
 }
 
-const hierarchyChartTheme = IS_AGPRESS_HIERARCHY
-    ? {
-          text: "#71695e",
-          grid: "rgba(204, 147, 14, 0.14)",
-          border: "rgba(204, 147, 14, 0.25)",
-          primary: "#cc930e",
-          secondary: "#e4ab32",
-          fill: "rgba(228, 171, 50, 0.16)",
-          fillStrong: "rgba(228, 171, 50, 0.32)",
-          fillWeak: "rgba(228, 171, 50, 0.02)",
-          tooltipBackground: "rgba(51, 47, 43, 0.95)",
-          tooltipText: "#fff8e8",
-      }
-    : IS_BLUE_ARCHIVE_HIERARCHY
-    ? {
-          text: "#456b83",
-          grid: "rgba(38, 148, 207, 0.14)",
-          border: "rgba(38, 148, 207, 0.24)",
-          primary: "#168eea",
-          secondary: "#2fc7f3",
-          fill: "rgba(47, 199, 243, 0.16)",
-          fillStrong: "rgba(47, 199, 243, 0.32)",
-          fillWeak: "rgba(47, 199, 243, 0.02)",
-          tooltipBackground: "rgba(23, 36, 61, 0.94)",
-          tooltipText: "#eaf9ff",
-      }
-    : {
-          text: "#eee",
-          grid: "#444",
-          border: "#555",
-          primary: "#cc930e",
-          secondary: "#e6b33d",
-          fill: "rgba(204, 147, 14, 0.25)",
-          fillStrong: "rgba(204, 147, 14, 0.32)",
-          fillWeak: "rgba(204, 147, 14, 0.02)",
-          tooltipBackground: "rgba(20, 20, 20, 0.92)",
-          tooltipText: "#fff",
-      };
+const hierarchyChartTheme = {
+    text: "#456b83",
+    grid: "rgba(38, 148, 207, 0.14)",
+    border: "rgba(38, 148, 207, 0.24)",
+    primary: "#168eea",
+    secondary: "#2fc7f3",
+    fill: "rgba(47, 199, 243, 0.16)",
+    fillStrong: "rgba(47, 199, 243, 0.32)",
+    fillWeak: "rgba(47, 199, 243, 0.02)",
+    tooltipBackground: "rgba(23, 36, 61, 0.94)",
+    tooltipText: "#eaf9ff",
+};
 try {
     Chart = require("chart.js/auto");
 } catch (err) {

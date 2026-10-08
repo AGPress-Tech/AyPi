@@ -12,12 +12,7 @@ const { showInfo, showWarning, showError } = require("../shared/dialogs");
 let lastPngBuffer: Buffer | null = null;
 const IS_BLUE_ARCHIVE_QR =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
-const IS_AGPRESS_QR =
-    new URLSearchParams(window.location.search).get("splashTheme") === "agpress";
 const SPLASH_MODE = createScriptedSplashMode(["bluearchive-qr"]);
-if (IS_BLUE_ARCHIVE_QR || IS_AGPRESS_QR) {
-    document.body.classList.add("bluearchive-qr");
-}
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_QR);
 
 function runBlueArchiveQrSplash() {

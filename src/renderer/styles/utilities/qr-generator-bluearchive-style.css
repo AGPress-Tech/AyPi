@@ -39,7 +39,7 @@ body.bluearchive-qr::before {
     width: 100%;
     height: 100vh;
     padding: 24px 28px 26px;
-    animation: baQrInterfaceIn .42s 1.9s ease-out both;
+    animation: baQrInterfaceIn .42s ease-out both;
 }
 
 .bluearchive-qr .utility-header {

@@ -2156,7 +2156,7 @@
 
 .agpress-scripted-splash-scope.bluearchive-purchasing.pm-ready .pm-page {
     opacity: 1;
-    animation: ba-purchasing-page-in 0.48s 4.5s both;
+    animation: ba-purchasing-page-in 0.48s both;
 }
 
 .agpress-scripted-splash-scope.bluearchive-purchasing .pm-header {

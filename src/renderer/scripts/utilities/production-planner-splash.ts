@@ -50,7 +50,7 @@ function setupProductionPlannerSplash() {
                 if (splash.dataset.skipRequested === "1") return;
                 splash.dataset.skipRequested = "1";
                 splash.classList.add("is-splash-skipping", "is-fading");
-                window.setTimeout(finish, 340);
+                finish();
             },
             { once: true },
         );

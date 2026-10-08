@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi - Ticket Support</title>
+    <script src="../../scripts/utility-layout-bootstrap.js"></script>
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="../../styles/utilities/product-manager-style.css">
     <link rel="stylesheet" href="../../styles/utilities/ticket-support-style.css">
@@ -20,7 +21,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body class="pm-ready">
+<body class="pm-ready fp-bluearchive bluearchive-purchasing bluearchive-ticket-support">
     <div class="ts-ba-splash fp-calendar-splash fp-calendar-splash--bluearchive"
         id="tsBlueArchiveSplash" aria-hidden="true">
         <div class="fp-ba-calendar-boot">
@@ -80,7 +81,7 @@
                     if (splashEl.dataset.skipRequested === "1") return;
                     splashEl.dataset.skipRequested = "1";
                     splashEl.classList.add("is-splash-skipping", "is-fading");
-                    window.setTimeout(finishSplash, 340);
+                    finishSplash();
                 }, { once: true });
                 window.setTimeout(function () {
                     if (splashEl.dataset.hidden === "1") return;

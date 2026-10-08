@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AyPi Calendar</title>
+    <script src="../../scripts/utility-layout-bootstrap.js"></script>
     <!-- FullCalendar CSS: CDN removed due to incorrect MIME type -->
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
     <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-bluearchive-style.css">
@@ -96,7 +97,7 @@
                             }
                             splashEl.dataset.skipRequested = "1";
                             splashEl.classList.add("is-splash-skipping", "is-fading");
-                            setTimeout(finishSplash, 340);
+                            finishSplash();
                         };
                         splashEl.classList.add("is-splash-skippable");
                         splashEl.setAttribute("aria-hidden", "false");
