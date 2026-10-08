@@ -2,6 +2,16 @@
     display: none;
 }
 
+html.ticket-splash-boot .pm-page,
+html.ticket-splash-boot .pm-modal {
+    visibility: hidden !important;
+}
+
+html.ticket-splash-boot .ts-ba-splash {
+    display: flex !important;
+    visibility: visible !important;
+}
+
 body.bluearchive-ticket-support .ts-ba-splash {
     display: flex;
     z-index: 5000;

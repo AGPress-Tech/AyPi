@@ -25,6 +25,13 @@
         bodyClasses.add("bluearchive-purchasing");
         bodyClasses.add("bluearchive-ticket-support");
         if (!isBlueArchive) bodyClasses.add("agpress-login-ui");
+        if (
+            page === "ticket-support.html" &&
+            params.get("tsSplash") === "1" &&
+            (isBlueArchive || isAgpressSplash)
+        ) {
+            document.documentElement.classList.add("ticket-splash-boot");
+        }
     }
 
     if (

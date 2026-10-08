@@ -1331,12 +1331,12 @@ function saveAssignees() {
     });
 }
 
-function syncAssignees() {
+function syncAssignees(warnIfMissing = true) {
     const payload = loadAssignees();
     assigneeGroups = payload.groups || {};
     assigneeOptions = payload.options || [];
     assigneeEmails = payload.emails || {};
-    if (!Object.keys(assigneeGroups).length) {
+    if (warnIfMissing && !Object.keys(assigneeGroups).length) {
         showWarning(
             "Elenco dipendenti non disponibile.",
             "Impossibile caricare l'elenco dipendenti dal backend.",
@@ -2274,8 +2274,8 @@ function initGuideModal() {
     initGuideModalUi({ document, guideUi });
 }
 
-function refreshProductManagerDataViews() {
-    syncAssignees();
+function refreshProductManagerDataViews(warnIfMissingAssignees = false) {
+    syncAssignees(warnIfMissingAssignees);
     renderLoginSelectors();
     renderAdminSelect();
     catalogItems = loadCatalog();
@@ -2358,7 +2358,7 @@ async function init() {
                 );
             }
         });
-        refreshProductManagerDataViews();
+        refreshProductManagerDataViews(true);
     });
 }
 

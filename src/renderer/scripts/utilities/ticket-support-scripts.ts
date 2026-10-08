@@ -53,17 +53,22 @@ function runBlueArchiveTicketSupportSplash() {
         currentView !== "form" ||
         params.get("tsSplash") !== "1"
     ) {
+        document.documentElement.classList.remove("ticket-splash-boot");
         document.getElementById("tsBlueArchiveSplash")?.remove();
         return;
     }
     const splash = document.getElementById("tsBlueArchiveSplash");
-    if (!splash) return;
+    if (!splash) {
+        document.documentElement.classList.remove("ticket-splash-boot");
+        return;
+    }
     SPLASH_MODE.attach(splash);
     splash.setAttribute("aria-hidden", "false");
     splash.classList.add("is-visible");
     const splashController = makeSplashSkippable(splash, {
         onFinish: () => {
             SPLASH_MODE.cleanup();
+            document.documentElement.classList.remove("ticket-splash-boot");
             window.dispatchEvent(new CustomEvent("ts-splash-finished"));
         },
     });

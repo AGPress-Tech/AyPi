@@ -53,28 +53,6 @@ function collectRendererFiles() {
     return files;
 }
 
-function isRendererEntryPoint(filePath) {
-    const rel = path.relative(rendererRoot, filePath);
-    const parts = rel.split(path.sep);
-
-    // Only scripts loaded directly by an HTML page are entry points. Nested
-    // files are implementation modules and are already bundled into these
-    // page-level scripts; emitting them again only duplicates code in dist.
-    if (parts[0] === "scripts" && parts.length === 2) return true;
-    if (
-        parts[0] === "scripts" &&
-        parts[1] === "utilities" &&
-        parts.length === 3
-    ) {
-        return true;
-    }
-
-    return (
-        rel === path.join("templates", "hierarchy-report.ts") ||
-        rel === path.join("Guida", "assets", "script.ts")
-    );
-}
-
 async function buildRenderer() {
     const files = collectRendererFiles();
     const entryPoints = [];
@@ -89,8 +67,7 @@ async function buildRenderer() {
         }
 
         if (ext === ".ts") {
-            if (isRendererEntryPoint(filePath)) entryPoints.push(filePath);
-            continue;
+            entryPoints.push(filePath);
         } else if (ext === ".js") {
             copyFile(filePath, path.join(distDir, rel));
         } else {

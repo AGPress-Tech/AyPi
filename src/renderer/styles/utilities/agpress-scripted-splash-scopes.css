@@ -558,6 +558,11 @@
     display: none;
 }
 
+html.ticket-splash-boot .ts-ba-splash {
+    display: flex !important;
+    visibility: visible !important;
+}
+
 .agpress-scripted-splash-scope.bluearchive-ticket-support .ts-ba-splash {
     display: flex;
     z-index: 5000;

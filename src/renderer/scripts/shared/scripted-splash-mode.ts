@@ -7,41 +7,25 @@ function createScriptedSplashMode(blueArchiveBodyClasses: string[]) {
     if (isBlueArchive) document.body.classList.add(...blueArchiveBodyClasses);
     if (isAgpress) document.body.classList.add("agpress-scripted-splash");
 
-    let scope: HTMLElement | null = null;
+    let temporaryBodyClasses: string[] = [];
 
     return {
         enabled,
         isBlueArchive,
         isAgpress,
         attach(splash: HTMLElement) {
-            if (!isAgpress || scope) return;
-            // Se il layout definitivo usa gia le stesse classi, lo splash e'
-            // gia correttamente stilizzato. Spostarlo nel DOM riavvierebbe le
-            // animazioni CSS, producendo un secondo lampo visibile.
-            if (
-                blueArchiveBodyClasses.every((className) =>
-                    document.body.classList.contains(className),
-                )
-            ) {
-                return;
-            }
-            scope = document.createElement("div");
-            scope.classList.add(
-                "agpress-scripted-splash-scope",
-                ...blueArchiveBodyClasses,
+            if (!isAgpress || temporaryBodyClasses.length) return;
+            // Applicare temporaneamente il tema al body evita di spostare lo
+            // splash nel DOM, operazione che riavviava le animazioni CSS.
+            temporaryBodyClasses = blueArchiveBodyClasses.filter(
+                (className) => !document.body.classList.contains(className),
             );
-            splash.parentNode?.insertBefore(scope, splash);
-            scope.appendChild(splash);
+            document.body.classList.add(...temporaryBodyClasses);
         },
         cleanup() {
             if (!isAgpress) return;
-            if (scope?.parentNode) {
-                while (scope.firstChild) {
-                    scope.parentNode.insertBefore(scope.firstChild, scope);
-                }
-                scope.remove();
-            }
-            scope = null;
+            document.body.classList.remove(...temporaryBodyClasses);
+            temporaryBodyClasses = [];
             document.body.classList.remove("agpress-scripted-splash");
         },
     };

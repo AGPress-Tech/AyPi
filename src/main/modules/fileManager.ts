@@ -2294,6 +2294,7 @@ function openTransferAttrezzaggioWindow(mainWindow) {
 
 function openRegistrazioniProgettazioneWindow(mainWindow: BrowserWindow) {
     if (isWindowAlive(registrazioniProgettazioneWindow)) {
+        registrazioniProgettazioneWindow.maximize();
         showWindow(registrazioniProgettazioneWindow);
         return;
     }
@@ -2305,15 +2306,16 @@ function openRegistrazioniProgettazioneWindow(mainWindow: BrowserWindow) {
         modal: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
+        show: false,
     });
 
+    registrazioniProgettazioneWindow.maximize();
     registrazioniProgettazioneWindow.loadFile(
         path.join(__dirname, "..", "pages", "registrazioni-progettazione.html"),
     );
     registrazioniProgettazioneWindow.setMenu(null);
     registrazioniProgettazioneWindow.once("ready-to-show", () => {
         if (!registrazioniProgettazioneWindow?.isDestroyed()) {
-            registrazioniProgettazioneWindow.maximize();
             showWindow(registrazioniProgettazioneWindow);
         }
     });
