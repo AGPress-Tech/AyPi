@@ -44,7 +44,6 @@ body:not(.warehouse-ready) .inventory-shell { opacity: 0; }
 body.warehouse-splash-active .warehouse-splash { display: flex; }
 body.warehouse-splash-active .warehouse-splash { cursor: pointer; }
 .warehouse-splash.is-leaving { opacity: 0; pointer-events: none; }
-.warehouse-splash__standard { width: 100%; height: 100%; object-fit: cover; }
 .warehouse-ba-boot { display: none; }
 .warehouse-bluearchive .warehouse-splash {
     color: #17243d;
@@ -53,7 +52,6 @@ body.warehouse-splash-active .warehouse-splash { cursor: pointer; }
     clip-path: polygon(0 0,100% 0,100% 100%,0 100%);
 }
 .warehouse-bluearchive .warehouse-splash.is-leaving { opacity: 0; clip-path: polygon(104% 0,104% 0,100% 100%,62% 100%); }
-.warehouse-bluearchive .warehouse-splash__standard { display: none; }
 .warehouse-bluearchive .warehouse-ba-boot { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; }
 .warehouse-ba-boot::before, .warehouse-ba-boot::after { content: ""; position: absolute; pointer-events: none; }
 .warehouse-ba-boot::before { left: -7vw; top: 16vh; width: 44vw; height: 1px; background: rgba(36,146,213,.3); box-shadow: 0 60vh 0 rgba(36,146,213,.14); transform: rotate(-34deg); transform-origin: left; animation: warehouseBaLine .55s .08s both; }

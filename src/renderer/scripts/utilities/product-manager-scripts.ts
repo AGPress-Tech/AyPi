@@ -2274,23 +2274,7 @@ function initGuideModal() {
     initGuideModalUi({ document, guideUi });
 }
 
-async function init() {
-    runBlueArchivePurchasingSplash();
-    try {
-        validateModuleBindings();
-    } catch (err) {
-        const detail = err && err.message ? err.message : String(err);
-        showError("Errore caricamento moduli Product Manager.", detail);
-        throw err;
-    }
-    const warning = document.getElementById("pm-js-warning");
-    if (warning) warning.classList.add("is-hidden");
-    await loadSession();
-    const retentionSettings = loadRetentionSettings();
-    cartState.retentionConfirmedDays = retentionSettings.confirmedDays;
-    cartState.retentionDeletedDays = retentionSettings.deletedDays;
-    await hydrateAdminCacheRemote();
-    await hydrateProductManagerData();
+function refreshProductManagerDataViews() {
     syncAssignees();
     renderLoginSelectors();
     renderAdminSelect();
@@ -2305,16 +2289,40 @@ async function init() {
     renderCartTagFilterOptions();
     renderCartUrgencyFilterOptions();
     renderCartStatusFilterOptions();
+    renderCartTable();
+    updateGreeting();
+    updateLoginButton();
+    updateAdminControls();
+}
+
+async function init() {
+    runBlueArchivePurchasingSplash();
+    try {
+        validateModuleBindings();
+    } catch (err) {
+        const detail = err && err.message ? err.message : String(err);
+        showError("Errore caricamento moduli Product Manager.", detail);
+        throw err;
+    }
+    const warning = document.getElementById("pm-js-warning");
+    if (warning) warning.classList.add("is-hidden");
+    const remoteHydration = Promise.allSettled([
+        hydrateAdminCacheRemote(),
+        hydrateProductManagerData(),
+    ]);
+    await loadSession();
+    const retentionSettings = loadRetentionSettings();
+    cartState.retentionConfirmedDays = retentionSettings.confirmedDays;
+    cartState.retentionDeletedDays = retentionSettings.deletedDays;
+    refreshProductManagerDataViews();
     if (isFormPage()) {
         currentRequestMode = REQUEST_MODES.PURCHASE;
         storeRequestMode(REQUEST_MODES.PURCHASE);
         applyRequestModeUI();
-        renderCatalog();
         initRequestModeToggle();
     }
     requestLines = [];
     renderLines();
-    renderCartTable();
     initCartFilters();
     initEditModal();
     initInterventionEditModal();
@@ -2337,12 +2345,21 @@ async function init() {
     initGuideModal();
     otpUi.initOtpModals();
     initCustomSelectsUi({ document, selector: "select" });
-    updateGreeting();
-    updateLoginButton();
-    updateAdminControls();
     if (document.getElementById("pm-request-form") && !isLoggedIn()) {
         openLoginModal();
     }
+
+    void remoteHydration.then((results) => {
+        results.forEach((result) => {
+            if (result.status === "rejected") {
+                console.error(
+                    "[product-manager] aggiornamento iniziale fallito:",
+                    result.reason,
+                );
+            }
+        });
+        refreshProductManagerDataViews();
+    });
 }
 
 window.addEventListener(

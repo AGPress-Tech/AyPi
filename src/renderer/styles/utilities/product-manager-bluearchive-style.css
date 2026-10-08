@@ -34,7 +34,6 @@ body.bluearchive-purchasing::before {
         linear-gradient(125deg, transparent 0 86%, rgba(37,163,226,.08) 86% 94%, transparent 94%);
 }
 
-body.bluearchive-purchasing .pm-splash,
 body.bluearchive-purchasing #pm-theme-open,
 body.bluearchive-purchasing #pm-theme-modal {
     display: none !important;

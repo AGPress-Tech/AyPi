@@ -1692,10 +1692,6 @@ body.fp-bluearchive .fp-calendar-splash--bluearchive.is-hidden {
     clip-path: polygon(104% 0, 104% 0, 100% 100%, 62% 100%);
 }
 
-body.fp-bluearchive .fp-calendar-splash--bluearchive .fp-calendar-splash__standard {
-    display: none;
-}
-
 .fp-ba-calendar-boot {
     display: none;
 }

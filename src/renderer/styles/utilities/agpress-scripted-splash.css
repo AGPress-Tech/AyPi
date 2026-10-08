@@ -5,14 +5,6 @@ body.agpress-scripted-splash {
     --ba-pale: #fff8e8;
 }
 
-body.agpress-scripted-splash .fp-calendar-splash__standard,
-body.agpress-scripted-splash .planner-splash__standard,
-body.agpress-scripted-splash .warehouse-splash__standard,
-body.agpress-scripted-splash #pm-splash,
-body.agpress-scripted-splash #ts-standard-splash {
-    display: none !important;
-}
-
 body.agpress-scripted-splash .fp-ba-calendar-boot,
 body.agpress-scripted-splash .planner-ba-boot,
 body.agpress-scripted-splash .warehouse-ba-boot {

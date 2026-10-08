@@ -1,17 +1,19 @@
 // @ts-nocheck
 require("../../shared/dev-guards");
 import path from "path";
+import fs from "fs";
 import { state } from "./state";
 import { updateSelectedFolderLabel } from "./ui/status";
+import { mapWithConcurrency } from "../../shared/async-pool";
 
-function buildFolderTreeData(rootPath) {
+async function buildFolderTreeData(rootPath) {
     const rootNameRaw = rootPath.replace(/[\\/]+$/, "");
     const rootName = path.basename(rootNameRaw) || rootPath;
 
-    function walkDir(currentPath) {
+    async function walkDir(currentPath) {
         let entries;
         try {
-            entries = require("fs").readdirSync(currentPath, {
+            entries = await fs.promises.readdir(currentPath, {
                 withFileTypes: true,
             });
         } catch (err) {
@@ -28,12 +30,12 @@ function buildFolderTreeData(rootPath) {
             a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
         );
 
-        return dirs.map((dirEntry) => {
+        return mapWithConcurrency(dirs, 12, async (dirEntry) => {
             const full = path.join(currentPath, dirEntry.name);
             return {
                 id: full,
                 text: dirEntry.name,
-                children: walkDir(full),
+                children: await walkDir(full),
             };
         });
     }
@@ -43,12 +45,12 @@ function buildFolderTreeData(rootPath) {
             id: rootPath,
             text: rootName,
             state: { opened: true, selected: true },
-            children: walkDir(rootPath),
+            children: await walkDir(rootPath),
         },
     ];
 }
 
-function refreshFolderTree() {
+async function refreshFolderTree() {
     const treeElement = document.getElementById("folderTree");
     if (!treeElement || typeof window === "undefined") return;
     treeElement.replaceChildren();
@@ -56,7 +58,7 @@ function refreshFolderTree() {
         return;
     }
 
-    const data = buildFolderTreeData(state.rootFolder);
+    const data = await buildFolderTreeData(state.rootFolder);
     const renderBranch = (nodes, depth = 0) => {
         const list = document.createElement("ul");
         list.className = "folder-tree-native__list";

@@ -1336,7 +1336,7 @@ function updateAdminButtonVisibility() {
     });
 }
 
-function renderAll() {
+function performRenderAll() {
     updateLoginButton();
     updateRoleBadge();
     updateRequesterFields();
@@ -1344,6 +1344,16 @@ function renderAll() {
     renderCategorySelects();
     renderOperatorList();
     renderAdminTable();
+}
+
+let renderAllFrame = 0;
+
+function renderAll() {
+    if (renderAllFrame) return;
+    renderAllFrame = window.requestAnimationFrame(() => {
+        renderAllFrame = 0;
+        performRenderAll();
+    });
 }
 
 function openModal(id) {
@@ -1561,10 +1571,8 @@ function openLoginModal() {
 }
 
 function openLoginModalAfterSplash() {
-    const standardSplash = document.getElementById("ts-standard-splash");
     const blueArchiveSplash = document.getElementById("tsBlueArchiveSplash");
     const splashIsActive =
-        standardSplash?.getAttribute("aria-hidden") === "false" ||
         blueArchiveSplash?.getAttribute("aria-hidden") === "false";
 
     if (!splashIsActive) {

@@ -7,6 +7,15 @@ import { state } from "./state";
 import { getTransformsConfigFromUI } from "./transforms";
 import { setStatus } from "./ui/status";
 
+async function pathExists(target) {
+    try {
+        await fs.promises.access(target);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function handleApply(showInfo, showWarning) {
     const toRename = state.previewData.filter((x) => x.status === "rename");
     if (toRename.length === 0) {
@@ -35,7 +44,7 @@ async function handleApply(showInfo, showWarning) {
 
     const logDir = path.join(state.rootFolder, "AyPi_BatchRename_Logs");
     try {
-        fs.mkdirSync(logDir, { recursive: true });
+        await fs.promises.mkdir(logDir, { recursive: true });
     } catch (err) {
         console.error("Impossibile creare la cartella di log:", logDir, err);
     }
@@ -89,19 +98,17 @@ async function handleApply(showInfo, showWarning) {
     for (const op of allOps) {
         try {
             const parentDir = path.dirname(op.target);
-            if (!fs.existsSync(parentDir)) {
-                fs.mkdirSync(parentDir, { recursive: true });
-            }
+            await fs.promises.mkdir(parentDir, { recursive: true });
 
             if (op.kind === "copy" && !op.isDirectory) {
-                fs.copyFileSync(op.source, op.target);
+                await fs.promises.copyFile(op.source, op.target);
             } else {
-                fs.renameSync(op.source, op.target);
+                await fs.promises.rename(op.source, op.target);
             }
 
             if (specialCfg.enabled && !op.isDirectory) {
                 try {
-                    const stats = fs.statSync(op.target);
+                    const stats = await fs.promises.stat(op.target);
                     let atime = stats.atime;
                     let mtime = stats.mtime;
 
@@ -113,12 +120,12 @@ async function handleApply(showInfo, showWarning) {
                     }
 
                     if (specialCfg.setAtimeNow || specialCfg.setMtimeNow) {
-                        fs.utimesSync(op.target, atime, mtime);
+                        await fs.promises.utimes(op.target, atime, mtime);
                     }
 
                     if (specialCfg.attrReadOnly) {
                         const newMode = stats.mode & ~0o222;
-                        fs.chmodSync(op.target, newMode);
+                        await fs.promises.chmod(op.target, newMode);
                     }
 
                     if (specialCfg.attrHidden && process.platform === "win32") {
@@ -178,7 +185,11 @@ async function handleApply(showInfo, showWarning) {
                 `${fromEsc},${toEsc},${op.isDirectory ? "1" : "0"},${op.kind}`,
             );
         }
-        fs.writeFileSync(logCsvPath, lines.join("\r\n"), "utf8");
+        await fs.promises.writeFile(
+            logCsvPath,
+            lines.join("\r\n"),
+            "utf8",
+        );
     } catch (err) {
         console.error("Errore scrivendo il log CSV:", err);
     }
@@ -202,7 +213,11 @@ async function handleApply(showInfo, showWarning) {
             }
         }
 
-        fs.writeFileSync(undoScriptPath, batLines.join("\r\n"), "utf8");
+        await fs.promises.writeFile(
+            undoScriptPath,
+            batLines.join("\r\n"),
+            "utf8",
+        );
     } catch (err) {
         console.error("Errore scrivendo il file di undo:", err);
     }
@@ -275,8 +290,8 @@ async function handleUndoLast(showInfo, showWarning) {
 
     for (const op of copyOps) {
         try {
-            if (fs.existsSync(op.to)) {
-                fs.unlinkSync(op.to);
+            if (await pathExists(op.to)) {
+                await fs.promises.unlink(op.to);
                 ok++;
             }
         } catch (err) {
@@ -290,8 +305,8 @@ async function handleUndoLast(showInfo, showWarning) {
         const dst = op.from;
 
         try {
-            if (fs.existsSync(src)) {
-                fs.renameSync(src, dst);
+            if (await pathExists(src)) {
+                await fs.promises.rename(src, dst);
                 ok++;
             } else {
                 console.warn("Percorso non trovato durante l'undo:", src);

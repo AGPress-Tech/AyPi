@@ -192,11 +192,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
         try {
             const dirOut = path.dirname(outputPath);
-            if (!fs.existsSync(dirOut)) {
-                fs.mkdirSync(dirOut, { recursive: true });
-            }
-
-            fs.writeFileSync(outputPath, lastPngBuffer);
+            await fs.promises.mkdir(dirOut, { recursive: true });
+            await fs.promises.writeFile(outputPath, lastPngBuffer);
             await showInfo("Immagine salvata con successo.", outputPath);
         } catch (err) {
             console.error("Errore nel salvataggio dell'immagine:", err);

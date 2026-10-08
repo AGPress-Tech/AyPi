@@ -93,7 +93,7 @@ async function handlePreview() {
 
     setStatus("Scansione in corso...");
 
-    const items = collectTargets(state.rootFolder, {
+    const items = await collectTargets(state.rootFolder, {
         includeSubfolders,
         extFilterList: extList,
         scope,
@@ -263,7 +263,7 @@ window.addEventListener("DOMContentLoaded", () => {
             if (!folder) return;
             state.rootFolder = folder;
             updateSelectedFolderLabel();
-            refreshFolderTree();
+            await refreshFolderTree();
         } catch (err) {
             console.error("Errore selezione cartella:", err);
             await showError(
@@ -389,16 +389,16 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     syncRemoveAllState();
 
-    ipcRenderer.on("batch-rename-set-root", (event, folderPath) => {
+    ipcRenderer.on("batch-rename-set-root", async (event, folderPath) => {
         if (folderPath) {
             state.rootFolder = folderPath;
             updateSelectedFolderLabel();
-            refreshFolderTree();
+            await refreshFolderTree();
         }
     });
 
     updateSelectedFolderLabel();
-    refreshFolderTree();
+    void refreshFolderTree();
     if (presetSelect) {
         loadPresetsIntoUI("");
     }

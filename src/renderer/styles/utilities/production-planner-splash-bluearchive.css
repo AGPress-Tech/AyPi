@@ -19,10 +19,6 @@
     clip-path: polygon(104% 0, 104% 0, 100% 100%, 62% 100%);
 }
 
-.planner-splash--bluearchive .planner-splash__standard {
-    display: none;
-}
-
 .planner-splash--bluearchive .planner-ba-boot {
     position: absolute;
     inset: 0;

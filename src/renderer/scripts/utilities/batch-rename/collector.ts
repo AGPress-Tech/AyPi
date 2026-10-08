@@ -3,28 +3,30 @@ require("../../shared/dev-guards");
 import fs from "fs";
 import path from "path";
 import { applyFiltersToItem } from "./filters";
+import { mapWithConcurrency } from "../../shared/async-pool";
 
-function collectTargets(rootPath, options) {
+async function collectTargets(rootPath, options) {
     const results = [];
     const { includeSubfolders, extFilterList, scope, filterConfig } = options;
 
-    function walk(currentPath) {
+    async function walk(currentPath) {
         let entries;
         try {
-            entries = fs.readdirSync(currentPath, { withFileTypes: true });
+            entries = await fs.promises.readdir(currentPath, {
+                withFileTypes: true,
+            });
         } catch (err) {
             console.error("Impossibile leggere la cartella:", currentPath, err);
             return;
         }
 
-        for (const entry of entries) {
+        const directories = [];
+        await mapWithConcurrency(entries, 24, async (entry) => {
             const fullPath = path.join(currentPath, entry.name);
             const isDir = entry.isDirectory();
             const isFile = entry.isFile();
 
-            if (isDir && includeSubfolders) {
-                walk(fullPath);
-            }
+            if (isDir && includeSubfolders) directories.push(fullPath);
 
             const ext = path.extname(entry.name).toLowerCase();
             const dir = path.dirname(fullPath);
@@ -34,22 +36,22 @@ function collectTargets(rootPath, options) {
                 (scope === "folders" && isDir) ||
                 (scope === "both" && (isFile || isDir));
 
-            if (!inScope) continue;
+            if (!inScope) return;
 
             if (isFile && extFilterList && extFilterList.length > 0) {
-                if (!extFilterList.includes(ext)) continue;
+                if (!extFilterList.includes(ext)) return;
             }
 
             let stats = null;
             try {
-                stats = fs.statSync(fullPath);
+                stats = await fs.promises.stat(fullPath);
             } catch (err) {
                 console.error(
                     "Impossibile leggere gli attributi di:",
                     fullPath,
                     err,
                 );
-                continue;
+                return;
             }
 
             const item = {
@@ -63,14 +65,17 @@ function collectTargets(rootPath, options) {
             };
 
             if (!applyFiltersToItem(item, filterConfig)) {
-                continue;
+                return;
             }
 
             results.push(item);
+        });
+        for (const directory of directories) {
+            await walk(directory);
         }
     }
 
-    walk(rootPath);
+    await walk(rootPath);
     return results;
 }
 

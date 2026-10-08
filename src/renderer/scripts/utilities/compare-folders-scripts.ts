@@ -4,6 +4,7 @@ import { pickFolder, withButtonLock } from "./shared/folder-picker";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
 import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
+import { mapWithConcurrency } from "../shared/async-pool";
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");
@@ -119,75 +120,78 @@ function formatMeta(info) {
     return `${sizeStr} | ${dateStr}`;
 }
 
-function collectFiles(rootPath, includeSubfolders) {
+async function collectFiles(rootPath, includeSubfolders) {
     const res = [];
 
-    function walk(currentPath) {
+    async function walk(currentPath) {
         let entries;
         try {
-            entries = fs.readdirSync(currentPath, { withFileTypes: true });
+            entries = await fs.promises.readdir(currentPath, {
+                withFileTypes: true,
+            });
         } catch (err) {
             console.error("Impossibile leggere cartella:", currentPath, err);
             return;
         }
 
-        for (const entry of entries) {
+        const directories = [];
+        await mapWithConcurrency(entries, 24, async (entry) => {
             const full = path.join(currentPath, entry.name);
 
             let stat;
             try {
-                stat = fs.statSync(full);
+                stat = await fs.promises.stat(full);
             } catch (err) {
                 console.error(
                     "Impossibile determinare tipo elemento:",
                     full,
                     err,
                 );
-                continue;
+                return;
             }
 
             const isDir = stat.isDirectory();
             const isFile = stat.isFile();
 
             if (isDir) {
-                if (includeSubfolders) {
-                    walk(full);
-                }
+                if (includeSubfolders) directories.push(full);
             } else if (isFile) {
                 const rel = path.relative(rootPath, full);
-                let st = null;
-                try {
-                    st = fs.statSync(full);
-                } catch {}
                 res.push({
                     fullPath: full,
                     relPath: rel.replace(/\\/g, "/"),
-                    size: st ? st.size : null,
-                    mtime: st ? st.mtimeMs : null,
+                    size: stat.size,
+                    mtime: stat.mtimeMs,
                 });
             }
+        });
+        for (const directory of directories) {
+            await walk(directory);
         }
     }
 
-    walk(rootPath);
+    await walk(rootPath);
     return res;
 }
 
-function computeHash(fullPath) {
-    try {
-        const data = fs.readFileSync(fullPath);
+async function computeHash(fullPath) {
+    return new Promise((resolve) => {
         const hash = crypto.createHash("sha1");
-        hash.update(data);
-        return hash.digest("hex");
-    } catch (err) {
-        console.error("Errore nel calcolo hash per:", fullPath, err);
-        return null;
-    }
+        const input = fs.createReadStream(fullPath);
+        input.on("data", (chunk) => hash.update(chunk));
+        input.on("end", () => resolve(hash.digest("hex")));
+        input.on("error", (err) => {
+            console.error("Errore nel calcolo hash per:", fullPath, err);
+            resolve(null);
+        });
+    });
 }
 
-function buildComparison(includeSubfolders, mode) {
-    const filesA = collectFiles(folderA, includeSubfolders);
-    const filesB = collectFiles(folderB, includeSubfolders);
+async function buildComparison(includeSubfolders, mode) {
+    const [filesA, filesB] = await Promise.all([
+        collectFiles(folderA, includeSubfolders),
+        collectFiles(folderB, includeSubfolders),
+    ]);
 
     const mapA = new Map();
     const mapB = new Map();
@@ -237,8 +241,10 @@ function buildComparison(includeSubfolders, mode) {
                 ) {
                     status = "same";
                 } else {
-                    const hashA = computeHash(metaA.fullPath);
-                    const hashB = computeHash(metaB.fullPath);
+                    const [hashA, hashB] = await Promise.all([
+                        computeHash(metaA.fullPath),
+                        computeHash(metaB.fullPath),
+                    ]);
                     if (hashA && hashB && hashA === hashB) {
                         status = "same";
                     } else {
@@ -281,6 +287,7 @@ function renderTable() {
     selectedIndex = null;
 
     const filtered = applyFilters();
+    const fragment = document.createDocumentFragment();
 
     const btnOpenA = document.getElementById("btnOpenInA");
     const btnOpenB = document.getElementById("btnOpenInB");
@@ -313,7 +320,7 @@ function renderTable() {
         tr.appendChild(tdStatus);
         tr.appendChild(tdInfoA);
         tr.appendChild(tdInfoB);
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
 
         tr.addEventListener("click", () => {
             const rows = tbody.querySelectorAll("tr");
@@ -329,6 +336,7 @@ function renderTable() {
             if (btnOpenB) btnOpenB.disabled = !item.metaB;
         });
     });
+    tbody.appendChild(fragment);
 }
 
 async function handleCompare() {
@@ -348,7 +356,7 @@ async function handleCompare() {
     }
 
     try {
-        const res = buildComparison(includeSub, mode);
+        const res = await buildComparison(includeSub, mode);
         results = res;
 
         const total = results.length;

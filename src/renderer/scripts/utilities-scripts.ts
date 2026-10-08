@@ -63,13 +63,15 @@ try {
 
 initCommonUI();
 
-function scanFolder(rootPath) {
+async function scanFolder(rootPath) {
     const results = [];
 
-    function walk(currentPath) {
+    async function walk(currentPath) {
         let entries;
         try {
-            entries = fs.readdirSync(currentPath, { withFileTypes: true });
+            entries = await fs.promises.readdir(currentPath, {
+                withFileTypes: true,
+            });
         } catch (err) {
             console.error(
                 `Impossibile leggere la cartella: ${currentPath}`,
@@ -82,7 +84,7 @@ function scanFolder(rootPath) {
             const fullPath = path.join(currentPath, entry.name);
 
             if (entry.isDirectory()) {
-                walk(fullPath);
+                await walk(fullPath);
             } else if (entry.isFile()) {
                 results.push({
                     "Nome file": entry.name,
@@ -93,7 +95,7 @@ function scanFolder(rootPath) {
         }
     }
 
-    walk(rootPath);
+    await walk(rootPath);
     return results;
 }
 
@@ -158,7 +160,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
             console.log("Scansione in corso su:", rootFolder);
 
-            const rows = scanFolder(rootFolder);
+            const rows = await scanFolder(rootFolder);
 
             if (rows.length === 0) {
                 await showWarning(

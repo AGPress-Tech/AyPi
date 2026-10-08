@@ -961,7 +961,6 @@ let transferAttrezzaggioClosePromptPending = false;
 const productManagerSessionState = createProductManagerSessionState();
 let suppressTicketWindowChaining = false;
 let feriePermessiSplashShown = false;
-let productManagerSplashShown = false;
 let ticketSupportSplashShown = false;
 let productionPlannerSplashShown = false;
 let inventarioMagazzinoSplashShown = false;
@@ -1573,7 +1572,6 @@ function openProductManagerWindow(
             ),
             {
                 query: {
-                    pmSplash: "0",
                     theme: productManagerWindowTheme,
                     splashTheme: getScriptedSplashTheme(),
                 },
@@ -1598,12 +1596,6 @@ function openProductManagerWindow(
     });
 
     productManagerWindow.maximize();
-    const shouldShowSplash =
-        getScriptedSplashTheme() === "agpress" ||
-        (productManagerWindowTheme === "standard" && !productManagerSplashShown);
-    if (productManagerWindowTheme === "standard") {
-        productManagerSplashShown = true;
-    }
     if (waitForAgpressSplash) {
         showWindowAfterRendererSignal(
             productManagerWindow,
@@ -1620,7 +1612,6 @@ function openProductManagerWindow(
         ),
         {
             query: {
-                pmSplash: shouldShowSplash ? "1" : "0",
                 theme: productManagerWindowTheme,
                 splashTheme: getScriptedSplashTheme(),
             },

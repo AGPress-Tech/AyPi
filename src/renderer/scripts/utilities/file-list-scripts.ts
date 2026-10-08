@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
 import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
+import { mapWithConcurrency } from "../shared/async-pool";
 
 const { showInfo, showWarning, showError } = require("../shared/dialogs");
 const IS_BLUE_ARCHIVE_FILE_LIST =
@@ -99,6 +100,7 @@ window.addEventListener("DOMContentLoaded", () => {
     function renderRows() {
         if (!tbody || !table) return;
         tbody.innerHTML = "";
+        const fragment = document.createDocumentFragment();
         rows.forEach((item) => {
             const tr = document.createElement("tr");
             [
@@ -111,38 +113,47 @@ window.addEventListener("DOMContentLoaded", () => {
                 td.textContent = value;
                 tr.appendChild(td);
             });
-            tbody.appendChild(tr);
+            fragment.appendChild(tr);
         });
+        tbody.appendChild(fragment);
         table.hidden = rows.length === 0;
         if (emptyState) emptyState.hidden = rows.length > 0;
         if (btnExport) btnExport.disabled = rows.length === 0;
     }
 
-    function scanFolder() {
+    let scanGeneration = 0;
+
+    async function scanFolder() {
         if (!selectedRoot) return;
+        const generation = ++scanGeneration;
         const nextRows: FileRow[] = [];
         let folderCount = 0;
         let errorCount = 0;
         const recursive = includeSubfolders?.checked !== false;
 
-        function walk(currentPath: string) {
+        async function walk(currentPath: string) {
             folderCount += 1;
             let entries: fs.Dirent[];
             try {
-                entries = fs.readdirSync(currentPath, { withFileTypes: true });
+                entries = await fs.promises.readdir(currentPath, {
+                    withFileTypes: true,
+                });
             } catch {
                 errorCount += 1;
                 return;
             }
-            entries.forEach((entry) => {
+
+            const directories: string[] = [];
+            await mapWithConcurrency(entries, 24, async (entry) => {
+                if (generation !== scanGeneration) return;
                 const fullPath = path.join(currentPath, entry.name);
                 if (entry.isDirectory()) {
-                    if (recursive) walk(fullPath);
+                    if (recursive) directories.push(fullPath);
                     return;
                 }
                 if (!entry.isFile()) return;
                 try {
-                    const stat = fs.statSync(fullPath);
+                    const stat = await fs.promises.stat(fullPath);
                     nextRows.push({
                         name: entry.name,
                         relativePath: path.relative(selectedRoot, fullPath),
@@ -154,10 +165,15 @@ window.addEventListener("DOMContentLoaded", () => {
                     errorCount += 1;
                 }
             });
+            for (const directory of directories) {
+                await walk(directory);
+            }
         }
 
         setStatus("Analisi in corso...");
-        walk(selectedRoot);
+        if (btnScan) btnScan.disabled = true;
+        await walk(selectedRoot);
+        if (generation !== scanGeneration) return;
         rows = nextRows.sort((left, right) =>
             left.relativePath.localeCompare(right.relativePath, "it", {
                 numeric: true,
@@ -171,6 +187,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 ? `Indice completato: ${rows.length} file`
                 : "Nessun file trovato",
         );
+        if (btnScan) btnScan.disabled = false;
     }
 
     btnSelectFolder?.addEventListener("click", async () => {
@@ -185,12 +202,12 @@ window.addEventListener("DOMContentLoaded", () => {
         if (btnScan) btnScan.disabled = false;
         if (btnExport) btnExport.disabled = true;
         setStatus("Cartella selezionata");
-        scanFolder();
+        void scanFolder();
     });
 
-    btnScan?.addEventListener("click", scanFolder);
+    btnScan?.addEventListener("click", () => void scanFolder());
     includeSubfolders?.addEventListener("change", () => {
-        if (selectedRoot) scanFolder();
+        if (selectedRoot) void scanFolder();
     });
 
     btnExport?.addEventListener("click", async () => {
