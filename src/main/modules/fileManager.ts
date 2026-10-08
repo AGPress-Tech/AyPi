@@ -987,6 +987,7 @@ function openFileListWindow(
                 { query: { theme: fileListWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
         }
+        fileListWindow.maximize();
         showWindow(fileListWindow);
         return;
     }
@@ -999,15 +1000,21 @@ function openFileListWindow(
         minHeight: requestedTheme === "bluearchive" ? 620 : 520,
         parent: mainWindow,
         modal: false,
+        show: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
+    fileListWindow.maximize();
     fileListWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
         { query: { theme: fileListWindowTheme, splashTheme: getScriptedSplashTheme() } },
     );
     fileListWindow.setMenu(null);
-    fileListWindow.center();
+    fileListWindow.once("ready-to-show", () => {
+        if (isWindowAlive(fileListWindow)) {
+            showWindow(fileListWindow);
+        }
+    });
     fileListWindow.on("closed", () => {
         fileListWindow = null;
         fileListWindowTheme = "standard";
@@ -1035,6 +1042,7 @@ function openBatchRenameWindow(
                 { query: { theme: batchRenameWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
         }
+        batchRenameWindow.maximize();
         showWindow(batchRenameWindow);
         return;
     }
@@ -1045,10 +1053,12 @@ function openBatchRenameWindow(
         height: 800,
         parent: mainWindow,
         modal: false,
+        show: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
 
+    batchRenameWindow.maximize();
     batchRenameWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
         { query: { theme: batchRenameWindowTheme, splashTheme: getScriptedSplashTheme() } },
@@ -1057,8 +1067,8 @@ function openBatchRenameWindow(
 
     // Apertura in modalità "fullscreen windowed" (massimizzata)
     batchRenameWindow.once("ready-to-show", () => {
-        if (!batchRenameWindow.isDestroyed()) {
-            batchRenameWindow.maximize();
+        if (isWindowAlive(batchRenameWindow)) {
+            showWindow(batchRenameWindow);
         }
     });
 
@@ -1089,6 +1099,7 @@ function openQrGeneratorWindow(
                 { query: { theme: qrGeneratorWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
         }
+        qrGeneratorWindow.maximize();
         showWindow(qrGeneratorWindow);
         return;
     }
@@ -1099,16 +1110,22 @@ function openQrGeneratorWindow(
         height: 800,
         parent: mainWindow,
         modal: false,
+        show: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
 
+    qrGeneratorWindow.maximize();
     qrGeneratorWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
         { query: { theme: qrGeneratorWindowTheme, splashTheme: getScriptedSplashTheme() } },
     );
     qrGeneratorWindow.setMenu(null);
-    qrGeneratorWindow.center();
+    qrGeneratorWindow.once("ready-to-show", () => {
+        if (isWindowAlive(qrGeneratorWindow)) {
+            showWindow(qrGeneratorWindow);
+        }
+    });
 
     qrGeneratorWindow.on("closed", () => {
         qrGeneratorWindow = null;
@@ -1133,10 +1150,6 @@ function openHierarchyWindow(
                 usesModernLayout ? 980 : 0,
                 usesModernLayout ? 680 : 0,
             );
-            hierarchyWindow.setSize(
-                usesModernLayout ? 1320 : 1100,
-                usesModernLayout ? 850 : 800,
-            );
             hierarchyWindow.loadFile(
                 path.join(
                     __dirname,
@@ -1147,8 +1160,8 @@ function openHierarchyWindow(
                 ),
                 { query: { theme: hierarchyWindowTheme, splashTheme: getScriptedSplashTheme() } },
             );
-            hierarchyWindow.center();
         }
+        hierarchyWindow.maximize();
         showWindow(hierarchyWindow);
         return;
     }
@@ -1161,16 +1174,23 @@ function openHierarchyWindow(
         minHeight: usesModernLayout ? 680 : undefined,
         parent: mainWindow,
         modal: false,
+        show: false,
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
 
+    hierarchyWindow.maximize();
     hierarchyWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
         { query: { theme: hierarchyWindowTheme, splashTheme: getScriptedSplashTheme() } },
     );
     hierarchyWindow.setMenu(null);
-    hierarchyWindow.center();
+
+    hierarchyWindow.once("ready-to-show", () => {
+        if (isWindowAlive(hierarchyWindow)) {
+            showWindow(hierarchyWindow);
+        }
+    });
 
     hierarchyWindow.on("closed", () => {
         hierarchyWindow = null;
@@ -1928,6 +1948,10 @@ function openTicketSupportWindow(
         ticketSupportSplashShown = true;
     }
     if (isWindowAlive(ticketSupportWindow)) {
+        if (ticketSupportWindowTheme === requestedTheme) {
+            showWindow(ticketSupportWindow);
+            return;
+        }
         ticketSupportWindowTheme = requestedTheme;
         ticketSupportWindow.loadFile(
             path.join(
@@ -2012,6 +2036,11 @@ function openTicketSupportAdminWindow(
     const requestedTheme =
         options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(ticketSupportAdminWindow)) {
+        if (ticketSupportAdminWindowTheme === requestedTheme) {
+            ticketSupportAdminWindow.maximize();
+            showWindow(ticketSupportAdminWindow);
+            return;
+        }
         ticketSupportAdminWindowTheme = requestedTheme;
         ticketSupportAdminWindow.loadFile(
             path.join(
@@ -2028,6 +2057,7 @@ function openTicketSupportAdminWindow(
                 },
             },
         );
+        ticketSupportAdminWindow.maximize();
         showWindow(ticketSupportAdminWindow);
         return;
     }
@@ -2419,13 +2449,20 @@ function openCompareFoldersWindow(
         compareFoldersWindow = new BrowserWindow({
             width: 900,
             height: 800,
+            show: false,
             webPreferences: WINDOW_WEB_PREFERENCES,
             icon: APP_ICON_PATH,
         });
 
+        compareFoldersWindow.maximize();
         loadCompareInterface();
         compareFoldersWindow.setMenu(null);
-        compareFoldersWindow.center();
+
+        compareFoldersWindow.once("ready-to-show", () => {
+            if (isWindowAlive(compareFoldersWindow)) {
+                showWindow(compareFoldersWindow);
+            }
+        });
 
         compareFoldersWindow.on("closed", () => {
             compareFoldersWindow = null;
@@ -2442,6 +2479,7 @@ function openCompareFoldersWindow(
         } else {
             sendPendingFolder();
         }
+        compareFoldersWindow.maximize();
         showWindow(compareFoldersWindow);
     }
 }
@@ -3110,17 +3148,23 @@ function setupFileManager(mainWindow) {
         return { ok: true };
     });
 
-    ipcMain.on("open-ticket-support-window", async (_event, payload) => {
+    ipcMain.on("open-ticket-support-window", (_event, payload) => {
         const theme =
             payload && payload.theme === "bluearchive"
                 ? "bluearchive"
                 : interfaceIconTheme;
-        await guardServerAndOpenModule(mainWindow, ticketSupportWindow, () =>
-            openTicketSupportWindow(mainWindow, {
-                theme,
-                showSplash: true,
-            }),
-        );
+        // Il controllo della share può richiedere fino a 5 secondi: Ticket
+        // Support apre subito dalla cache e verifica il server in background.
+        openTicketSupportWindow(mainWindow, {
+            theme,
+            showSplash: true,
+        });
+        const openedWindow = ticketSupportWindow;
+        void isDl360ServerReachable().then((reachable) => {
+            if (!reachable) {
+                handleServerUnavailableForModule(mainWindow, openedWindow);
+            }
+        });
     });
 
     ipcMain.on("open-ticket-support-admin-window", async (_event, payload) => {

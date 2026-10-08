@@ -42,7 +42,23 @@ const EMPTY_STORE: TicketStore = {
     tickets: [],
 };
 
-let storeCache: TicketStore = { ...EMPTY_STORE, tickets: [] };
+const STORE_CACHE_KEY = "aypi-ticket-support-cache-v1";
+
+function readCachedStore(): TicketStore {
+    try {
+        const raw = window.localStorage.getItem(STORE_CACHE_KEY);
+        if (raw) return normalizeStore(JSON.parse(raw));
+    } catch {}
+    return { ...EMPTY_STORE, tickets: [] };
+}
+
+function persistCachedStore(store: TicketStore) {
+    try {
+        window.localStorage.setItem(STORE_CACHE_KEY, JSON.stringify(store));
+    } catch {}
+}
+
+let storeCache: TicketStore = readCachedStore();
 
 function normalizeTicket(input: any): Ticket {
     const ticket = input && typeof input === "object" ? input : {};
@@ -96,11 +112,13 @@ function loadStore() {
 async function hydrateStore() {
     const payload = await requestBackend("/api/ticket-support/store");
     storeCache = normalizeStore(payload);
+    persistCachedStore(storeCache);
     return loadStore();
 }
 
 function saveStore(store: TicketStore) {
     storeCache = normalizeStore(store);
+    persistCachedStore(storeCache);
     requestBackend("/api/ticket-support/store", {
         method: "PUT",
         body: storeCache,

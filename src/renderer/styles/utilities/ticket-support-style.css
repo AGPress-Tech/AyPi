@@ -507,6 +507,11 @@ body.fp-aypi .ts-ticket-card--closed {
     overflow: auto;
 }
 
+.ts-admin-list-card #ts-admin-table {
+    min-height: 180px;
+    max-height: 62vh;
+}
+
 #ts-admin-table.pm-table--interventions {
     grid-template-columns: 0.8fr 1.3fr 1fr 1.1fr 1fr 0.9fr 0.9fr 1.8fr 1.4fr;
 }

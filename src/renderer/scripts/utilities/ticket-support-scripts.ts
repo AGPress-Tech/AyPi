@@ -2318,14 +2318,15 @@ async function init() {
     document.body.classList.toggle("ts-view-form", currentView === "form");
     document.body.classList.toggle("ts-view-admin", currentView === "admin");
 
-    // Ticket e sessione sono l'unico percorso critico per il primo render.
-    // Anagrafiche, admin e categorie proseguono in parallelo senza bloccare UI.
+    // Nessuna richiesta HTTP trattiene il primo render: si mostra subito la
+    // cache locale e il backend la aggiorna in background.
+    const storeHydration = hydrateStore();
     const secondaryHydration = Promise.allSettled([
         hydrateAssignees(),
         hydrateAdminCache(),
         hydrateTicketCategories(),
     ]);
-    await Promise.all([hydrateStore(), loadSession()]);
+    await loadSession();
     store = loadStore();
     ticketCategories = loadTicketCategories();
     updateLoginSelectors();
@@ -2341,6 +2342,12 @@ async function init() {
     otpUi.initOtpModals();
 
     renderAll();
+    void storeHydration.then(() => {
+        store = loadStore();
+        renderAll();
+    }).catch((error) => {
+        console.error("[ticket-support] aggiornamento ticket in background fallito:", error);
+    });
     void secondaryHydration.then(() => {
         ticketCategories = loadTicketCategories();
         updateLoginSelectors();

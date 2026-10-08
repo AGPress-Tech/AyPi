@@ -392,7 +392,7 @@ body.bluearchive-ticket-support #ts-admin-table {
         minmax(150px, 1.2fr)
         118px
         138px
-        122px
+        158px
         110px
         92px
         minmax(250px, 1.8fr)
@@ -407,6 +407,10 @@ body.bluearchive-ticket-support #ts-admin-table .pm-table__row > .pm-table__cell
     padding: 10px 7px;
     overflow: hidden;
     overflow-wrap: anywhere;
+}
+
+body.bluearchive-ticket-support #ts-admin-table .pm-table__row > .pm-table__cell:nth-child(5) {
+    overflow: visible;
 }
 
 body.bluearchive-ticket-support #ts-admin-table .pm-table__row--header > .pm-table__cell {
