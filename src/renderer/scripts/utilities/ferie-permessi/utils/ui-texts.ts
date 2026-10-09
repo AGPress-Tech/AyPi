@@ -141,7 +141,7 @@ export const UI_TEXTS = {
     mailModuleMissing: "Modulo 'nodemailer' non disponibile.",
     adminLoginTitle: "Modalita admin",
     adminLoginDescription:
-        "Inserisci la password admin per attivare la modalita admin.",
+        "Seleziona l'amministratore e inserisci la password per attivare la modalita admin.",
     adminLoginSuccess: (name: string) =>
         `Modalita admin attiva${name ? ` (${name})` : ""}.`,
     adminLogoffSuccess: "Modalita admin disattivata.",

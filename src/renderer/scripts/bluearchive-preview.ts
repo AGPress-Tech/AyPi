@@ -2308,9 +2308,6 @@ document.getElementById("nameReset")?.addEventListener("click", () => {
     closeNamePanel();
     showBubble("Va bene, Sensei!", 3000);
 });
-nameBackdrop?.addEventListener("click", (event) => {
-    if (event.target === nameBackdrop) closeNamePanel();
-});
 document.getElementById("nameForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!savePersonalName(personalNameInput?.value || "")) {
@@ -2537,12 +2534,6 @@ document.addEventListener("keydown", (event) => {
         adminBackdrop?.getAttribute("aria-hidden") === "false"
     ) {
         closeAdminPanel();
-    }
-    if (
-        event.key === "Escape" &&
-        nameBackdrop?.getAttribute("aria-hidden") === "false"
-    ) {
-        closeNamePanel();
     }
     if (
         event.key === "Escape" &&

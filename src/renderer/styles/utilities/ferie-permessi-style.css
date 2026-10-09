@@ -1511,6 +1511,11 @@ body.fp-aypi .fp-switch input:checked + .fp-switch__track::after {
     display: none;
 }
 
+.fp-login-admin-field:not(.is-hidden) {
+    display: grid;
+    gap: 6px;
+}
+
 #fp-employees-list .fp-assignees-row--employee {
     grid-template-columns: minmax(240px, 1.6fr) minmax(150px, 1fr) auto;
 }

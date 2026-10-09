@@ -568,9 +568,11 @@ function createApprovalModal(options: ApprovalModalOptions) {
             !!action?.type &&
             IDENTITY_GATE_ACTIONS.has(action.type) &&
             document.body.classList.contains("fp-bluearchive");
+        const requireAdminSelection =
+            action?.type === "admin-login" || useIdentityGate;
         setPendingAction(action);
         modal.classList.toggle("fp-identity-gate", useIdentityGate);
-        adminField?.classList.toggle("is-hidden", !useIdentityGate);
+        adminField?.classList.toggle("is-hidden", !requireAdminSelection);
         if (adminSelect) {
             adminSelect.innerHTML = "";
             const admins = loadAdminCredentials()
@@ -607,8 +609,12 @@ function createApprovalModal(options: ApprovalModalOptions) {
         input.style.userSelect = "text";
         input.tabIndex = 0;
         setTimeout(() => {
-            input.focus();
-            input.select?.();
+            if (requireAdminSelection) {
+                adminSelect?.focus();
+            } else {
+                input.focus();
+                input.select?.();
+            }
         }, 0);
     }
 
@@ -671,10 +677,14 @@ function createApprovalModal(options: ApprovalModalOptions) {
                 return;
             }
         }
-        const targetName = modal?.classList.contains("fp-identity-gate")
+        const pendingAction = getPendingAction();
+        const requireAdminSelection =
+            pendingAction?.type === "admin-login" ||
+            modal?.classList.contains("fp-identity-gate");
+        const targetName = requireAdminSelection
             ? adminSelect?.value || null
             : null;
-        if (modal?.classList.contains("fp-identity-gate") && !targetName) {
+        if (requireAdminSelection && !targetName) {
             if (error) {
                 error.textContent = "Seleziona un amministratore.";
                 error.classList.remove("is-hidden");
@@ -697,7 +707,6 @@ function createApprovalModal(options: ApprovalModalOptions) {
         }
         setPasswordFailCount(0);
         if (recoverBtn) recoverBtn.classList.add("is-hidden");
-        const pendingAction = getPendingAction();
         await handleAction(admin, pendingAction);
     }
 

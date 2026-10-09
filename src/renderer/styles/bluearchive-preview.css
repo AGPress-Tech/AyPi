@@ -3209,7 +3209,39 @@ footer {
 }
 
 .admin-actions button {
-    min-width: 96px;
+    min-width: 104px;
+    min-height: 36px;
+    padding: 0 16px;
+    border-radius: 4px 10px 4px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: .01em;
+    transition: color .16s ease, background .16s ease, border-color .16s ease,
+        box-shadow .16s ease, transform .16s ease;
+}
+
+.admin-actions .time-secondary {
+    background: rgba(255, 255, 255, .82);
+    box-shadow: 0 2px 8px rgba(28, 91, 130, .07);
+}
+
+.admin-actions .time-primary {
+    box-shadow: 0 4px 12px rgba(10, 126, 202, .22);
+}
+
+.admin-actions button:hover {
+    transform: translateY(-1px);
+}
+
+.admin-actions button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(28, 91, 130, .12);
+}
+
+.admin-actions button:focus-visible {
+    outline: 2px solid rgba(31, 137, 205, .38);
+    outline-offset: 2px;
 }
 
 .name-backdrop {
