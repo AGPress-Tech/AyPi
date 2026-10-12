@@ -290,6 +290,25 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         });
         focusBrowserWindow(warehouse3dOwner);
     });
+    ipcMain.on("warehouse-3d-analyze-article", (event, payload) => {
+        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
+            || warehouse3dWindow.webContents !== event.sender
+            || !warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
+        const location = String(payload?.location || "");
+        if (!location) return;
+        warehouse3dWindow.hide();
+        warehouse3dOwner.webContents.send(
+            "warehouse-3d-analyze-article-request",
+            { location },
+        );
+        focusBrowserWindow(warehouse3dOwner);
+    });
+    ipcMain.on("warehouse-3d-article-analysis-closed", (event) => {
+        if (!warehouse3dOwner || warehouse3dOwner.isDestroyed()
+            || warehouse3dOwner.webContents !== event.sender
+            || !warehouse3dWindow || warehouse3dWindow.isDestroyed()) return;
+        focusBrowserWindow(warehouse3dWindow);
+    });
     app.on("before-quit", () => {
         try { persistDatabase(app); } catch { /* a previous atomic save remains valid */ }
     });

@@ -97,7 +97,7 @@
                     <button id="movement3dClose" type="button">Chiudi</button>
                 </nav>
             </section>
-            <div class="viewer-help">Trascina per ruotare · rotella per zoom · trascina col destro per spostare · clic destro su un cassone per dati/nota · WASD per muoverti</div>
+            <div class="viewer-help">Trascina per ruotare · rotella per zoom · trascina col destro per spostare · clic destro su un cassone per analisi/dati · WASD per muoverti</div>
             <section class="viewer-settings" id="viewerSettings" hidden>
                 <header>
                     <div><span class="eyebrow">CONFIGURAZIONE SCENA</span><h2>Personalizza visuale</h2></div>
@@ -196,6 +196,11 @@
                 <button id="openMovementComparison3d" type="button" role="menuitem">Stato prima / dopo</button>
                 <button id="openMovementInstructions3d" type="button" role="menuitem">Istruzioni operative in italiano</button>
                 <button id="undoMovement3d" type="button" role="menuitem">Annulla movimento…</button>
+            </div>
+            <div class="movement-context-menu-3d slot-context-menu-3d" id="slotContextMenu3d" role="menu" aria-hidden="true">
+                <strong id="slotContextTitle3d">Cassone</strong>
+                <button id="analyzeSlotArticle3d" type="button" role="menuitem">Analisi articolo</button>
+                <button id="editSlotItem3d" type="button" role="menuitem">Modifica dati / nota cassone</button>
             </div>
             <div class="viewer-loading" id="viewerLoading"><span></span><strong>Preparazione modello 3D…</strong></div>
         </section>

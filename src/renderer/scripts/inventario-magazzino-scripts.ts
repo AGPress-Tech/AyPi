@@ -848,6 +848,18 @@ function setupWarehouse3dViewer() {
         if (location && inventory.has(location))
             openInventoryItemEditDialog(location);
     });
+    ipcRenderer.on(
+        "warehouse-3d-analyze-article-request",
+        (_event, payload) => {
+            const location = parseSlotCode(payload?.location)?.code;
+            if (!location || !inventory.has(location)) {
+                ipcRenderer.send("warehouse-3d-article-analysis-closed");
+                return;
+            }
+            articleAnalysisReturnTo3d = true;
+            openArticleAnalysisForLocation(location);
+        },
+    );
 }
 
 function cloneUnloadZoneUnits(units = unloadZone) {
@@ -2023,6 +2035,7 @@ function openContextMenu(code, x, y) {
     const place = document.getElementById("placeRelocationButton");
     const swap = document.getElementById("swapRelocationButton");
     const showIn3d = document.getElementById("showSlotIn3dButton");
+    const analyzeArticle = document.getElementById("analyzeSlotArticleButton");
     const editItem = document.getElementById("editInventoryItemButton");
     const manualLoad = document.getElementById("manualLoadHereButton");
     const manualUnload = document.getElementById("manualUnloadHereButton");
@@ -2036,6 +2049,8 @@ function openContextMenu(code, x, y) {
         code === relocationSourceCode;
     showIn3d.hidden = multiSelection || item?.type !== "crate";
     showIn3d.disabled = item?.type !== "crate";
+    analyzeArticle.hidden = multiSelection || !item?.article;
+    analyzeArticle.disabled = !item?.article;
     editItem.hidden = multiSelection || Boolean(relocationSourceCode) || !item;
     editItem.disabled = !item;
     editItem.textContent =
@@ -2162,6 +2177,14 @@ function setupContextMenu() {
             if (location && inventory.get(location)?.type === "crate") {
                 void openWarehouse3dViewer(location, button);
             }
+        });
+    document
+        .getElementById("analyzeSlotArticleButton")
+        ?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const location = contextSlotCode;
+            closeContextMenu();
+            if (location) openArticleAnalysisForLocation(location);
         });
     document
         .getElementById("startRelocationButton")
@@ -11510,6 +11533,7 @@ function setupRestrictionDialog() {
 }
 
 let selectedAnalysisLocation = null;
+let articleAnalysisReturnTo3d = false;
 let analysisSort = { key: "location", direction: "asc" };
 const ANALYSIS_SORT_KEYS = [
     "location",
@@ -11969,11 +11993,13 @@ function setArticleMetric(id, value) {
     document.getElementById(id).textContent = String(value);
 }
 
-function openArticleAnalysis() {
-    const selectedItem = selectedAnalysisLocation
-        ? inventory.get(selectedAnalysisLocation)
+function openArticleAnalysisForLocation(location) {
+    const normalizedLocation = parseSlotCode(location)?.code;
+    const selectedItem = normalizedLocation
+        ? inventory.get(normalizedLocation)
         : null;
     if (!selectedItem) return;
+    selectedAnalysisLocation = normalizedLocation;
     const units = articleUnits(selectedItem.article);
     const occupiedSlots = units.flatMap((unit) => unit.locations);
     const orders = new Map();
@@ -12053,8 +12079,18 @@ function openArticleAnalysis() {
     );
 }
 
+function openArticleAnalysis() {
+    if (selectedAnalysisLocation) {
+        openArticleAnalysisForLocation(selectedAnalysisLocation);
+    }
+}
+
 function closeArticleAnalysis() {
     closeWarehouseDialog(document.getElementById("articleAnalysisDialog"));
+    if (articleAnalysisReturnTo3d) {
+        articleAnalysisReturnTo3d = false;
+        ipcRenderer.send("warehouse-3d-article-analysis-closed");
+    }
 }
 
 function setActiveView(view) {

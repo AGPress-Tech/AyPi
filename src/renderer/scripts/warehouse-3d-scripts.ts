@@ -80,6 +80,7 @@ let layoutMaxColumns = 1;
 let movementPlaybackState = null;
 let lastMovementPlaybackId = "";
 let contextMovement3dId = "";
+let contextSlot3dLocation = "";
 let viewerDisposing = false;
 const MOVEMENT_HISTORY_RANGE_STORAGE_KEY = "aypi-warehouse-movement-history-range-v1";
 const MOVEMENT_HISTORY_RANGES = new Set(["today", "7", "30", "90", "365", "all"]);
@@ -3523,6 +3524,7 @@ function closeMovementContextMenu3d() {
 }
 
 function openMovementContextMenu3d(movement, x, y) {
+    closeSlotContextMenu3d();
     contextMovement3dId = movement.id;
     const menu = document.getElementById("movementContextMenu3d");
     menu.dataset.movementId = movement.id;
@@ -3618,6 +3620,69 @@ function setupMovement3dHistory() {
         if (!event.target.closest?.("#movementContextMenu3d"))
             closeMovementContextMenu3d();
     });
+}
+
+function closeSlotContextMenu3d() {
+    contextSlot3dLocation = "";
+    const menu = document.getElementById("slotContextMenu3d");
+    menu?.classList.remove("is-open");
+    menu?.setAttribute("aria-hidden", "true");
+}
+
+function openSlotContextMenu3d(mesh, x, y) {
+    const item = mesh?.userData?.item;
+    const location = String(mesh?.userData?.location || "");
+    if (!item || !location) return;
+    closeMovementContextMenu3d();
+    contextSlot3dLocation = location;
+    const menu = document.getElementById("slotContextMenu3d");
+    document.getElementById("slotContextTitle3d").textContent =
+        `${mesh.userData.displayLocation || location} · ${item.article || "Articolo —"}`;
+    const analyze = document.getElementById("analyzeSlotArticle3d");
+    analyze.disabled = !item.article;
+    const edit = document.getElementById("editSlotItem3d");
+    edit.textContent =
+        item.type === "pallet"
+            ? "Modifica dati / nota pallet"
+            : "Modifica dati / nota cassone";
+    menu.classList.add("is-open");
+    menu.setAttribute("aria-hidden", "false");
+    const bounds = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - bounds.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - bounds.height - 8))}px`;
+}
+
+function setupSlotContextMenu3d() {
+    document
+        .getElementById("analyzeSlotArticle3d")
+        ?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const location = contextSlot3dLocation;
+            closeSlotContextMenu3d();
+            if (location) {
+                ipcRenderer.send("warehouse-3d-analyze-article", { location });
+            }
+        });
+    document
+        .getElementById("editSlotItem3d")
+        ?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const location = contextSlot3dLocation;
+            closeSlotContextMenu3d();
+            if (location) {
+                ipcRenderer.send("warehouse-3d-edit-unit", { location });
+            }
+        });
+    document
+        .getElementById("slotContextMenu3d")
+        ?.addEventListener("pointerdown", (event) => event.stopPropagation());
+    document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest?.("#slotContextMenu3d")) {
+            closeSlotContextMenu3d();
+        }
+    });
+    window.addEventListener("blur", closeSlotContextMenu3d);
+    window.addEventListener("resize", closeSlotContextMenu3d);
 }
 
 function detailsRows(mesh) {
@@ -4641,9 +4706,8 @@ canvas.addEventListener("contextmenu", (event) => {
         return;
     }
     if (!["occupied", "pallet"].includes(mesh.userData.state)) return;
-    ipcRenderer.send("warehouse-3d-edit-unit", {
-        location: String(mesh.userData.location || ""),
-    });
+    selectMesh(mesh, true);
+    openSlotContextMenu3d(mesh, event.clientX, event.clientY);
 });
 document.getElementById("cameraHome").addEventListener("click", () => {
     cameraTransition = null;
@@ -4761,6 +4825,7 @@ document.getElementById("showOn2dMap").addEventListener("click", () => {
         ipcRenderer.send("warehouse-3d-select-slot", currentSelection);
 });
 window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeSlotContextMenu3d();
     if (event.key === "Escape" && viewerSearchFollowMode) {
         setViewerSearchFollowMode(false);
         closeViewerSearchFilters();
@@ -4852,6 +4917,7 @@ setupPersonalViewPresets();
 setupCameraViews();
 setupMovement3dPlayback();
 setupMovement3dHistory();
+setupSlotContextMenu3d();
 
 ipcRenderer.on("warehouse-3d-data", (_event, payload) => {
     if (viewerDisposing) return;
