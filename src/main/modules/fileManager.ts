@@ -1906,6 +1906,34 @@ function openFeriePermessiAnalysisWindow(mainWindow) {
         { query: { theme: feriePermessiAnalysisWindowTheme } },
     );
     feriePermessiAnalysisWindow.setMenu(null);
+    feriePermessiAnalysisWindow.webContents.on(
+        "console-message",
+        (_event, level, message, line, sourceId) => {
+            if (level < 2) return;
+            log.error("[calendar-analysis:renderer] Console error.", {
+                level,
+                message,
+                line,
+                source: sourceId,
+            });
+        },
+    );
+    feriePermessiAnalysisWindow.webContents.on(
+        "did-fail-load",
+        (_event, errorCode, errorDescription, validatedURL) => {
+            log.error("[calendar-analysis:renderer] Caricamento pagina fallito.", {
+                errorCode,
+                errorDescription,
+                url: validatedURL,
+            });
+        },
+    );
+    feriePermessiAnalysisWindow.webContents.on(
+        "render-process-gone",
+        (_event, details) => {
+            log.error("[calendar-analysis:renderer] Processo terminato.", details);
+        },
+    );
 
     feriePermessiAnalysisWindow.once("ready-to-show", () => {
         if (!feriePermessiAnalysisWindow.isDestroyed()) {

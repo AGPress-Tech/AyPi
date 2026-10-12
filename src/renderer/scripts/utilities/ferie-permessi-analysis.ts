@@ -36,7 +36,7 @@ const fpBaseDir = path.join(
     "utilities",
     "ferie-permessi",
 );
-const { getRequestDates } = bootRequire(
+const { getRequestDates, calculateHours } = bootRequire(
     path.join(fpBaseDir, "utils", "requests"),
 );
 const { getTypeLabel } = bootRequire(path.join(fpBaseDir, "utils", "labels"));
@@ -56,6 +56,7 @@ const TYPE_KEYS = [
     "retribuito",
 ];
 const DEPT_FALLBACK = "Senza reparto";
+const MAX_ANALYSIS_RANGE_DAYS = 3660;
 const LINE_COLORS = [
     "#1d4ed8",
     "#0f766e",
@@ -79,7 +80,16 @@ const state = {
     },
     tooltipPositionerReady: false,
     payload: { requests: [], balances: {}, holidays: [], closures: [] },
+    datasetSignature: "",
 };
+
+let isUnloading = false;
+let dashboardRenderFrame: number | null = null;
+let refreshInFlight: Promise<void> | null = null;
+let refreshQueued = false;
+let refreshQueuedForceRender = false;
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let resizeRenderTimer: ReturnType<typeof setTimeout> | null = null;
 
 function byId(id) {
     return document.getElementById(id);
@@ -207,6 +217,46 @@ function addDays(date, days) {
     return next;
 }
 
+function toLocalDateTimeValue(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const min = String(date.getMinutes()).padStart(2, "0");
+    const sec = String(date.getSeconds()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}:${sec}`;
+}
+
+function calculateHoursForDay(req, dates, dateKey, payload) {
+    if (req.allDay) {
+        return calculateHours(
+            { ...req, start: dateKey, end: dateKey },
+            payload.holidays,
+            payload.closures,
+        );
+    }
+
+    const dayStart = new Date(`${dateKey}T00:00:00`);
+    const dayEnd = new Date(`${dateKey}T23:59:59.999`);
+    const overlapStart = new Date(
+        Math.max(dates.start.getTime(), dayStart.getTime()),
+    );
+    const overlapEnd = new Date(
+        Math.min(dates.end.getTime(), dayEnd.getTime()),
+    );
+    if (overlapEnd <= overlapStart) return 0;
+    return calculateHours(
+        {
+            ...req,
+            allDay: false,
+            start: toLocalDateTimeValue(overlapStart),
+            end: toLocalDateTimeValue(overlapEnd),
+        },
+        payload.holidays,
+        payload.closures,
+    );
+}
+
 function buildDateRange(start, end) {
     const rows = [];
     let cursor = toDay(start);
@@ -216,6 +266,16 @@ function buildDateRange(start, end) {
         cursor = addDays(cursor, 1);
     }
     return rows;
+}
+
+function getRangeDayCount(start, end) {
+    const startUtc = Date.UTC(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate(),
+    );
+    const endUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+    return Math.floor((endUtc - startUtc) / 86400000) + 1;
 }
 
 function getRangeMode() {
@@ -271,9 +331,19 @@ async function hydrateDataset() {
         requestBackend("/api/shared/assignees"),
         requestBackend("/api/ferie-permessi/payload"),
     ]);
-    state.assigneeGroups = assigneesData?.groups || {};
-    state.payload = payload || { requests: [], balances: {}, holidays: [], closures: [] };
-    return state.payload;
+    const nextGroups = assigneesData?.groups || {};
+    const nextPayload = payload || {
+        requests: [],
+        balances: {},
+        holidays: [],
+        closures: [],
+    };
+    const signature = JSON.stringify([nextGroups, nextPayload]);
+    const changed = signature !== state.datasetSignature;
+    state.assigneeGroups = nextGroups;
+    state.payload = nextPayload;
+    state.datasetSignature = signature;
+    return { payload: state.payload, changed };
 }
 
 function loadDataset() {
@@ -350,6 +420,12 @@ function renderDepartmentSelectedCount() {
 function buildAnalysis(payload) {
     const range = resolveRange();
     if (!range) return { error: "Periodo non valido." };
+    const rangeDayCount = getRangeDayCount(range.start, range.end);
+    if (rangeDayCount > MAX_ANALYSIS_RANGE_DAYS) {
+        return {
+            error: "Intervallo troppo ampio. Seleziona un periodo massimo di 10 anni.",
+        };
+    }
     const selectedTypes = getSelectedTypes();
     if (!selectedTypes.length)
         return { error: "Seleziona almeno un tipo assenza." };
@@ -400,37 +476,24 @@ function buildAnalysis(payload) {
             const key = toDateKey(current);
             const row = dayMap.get(key);
             if (row) {
-                const wasPresent = row.people.has(employeeKey);
-                row.people.add(employeeKey);
-                if (!wasPresent) {
-                    personDays += 1;
-                    peopleSet.add(employeeKey);
-                }
-                if (!row.byDept.has(department))
-                    row.byDept.set(department, new Set());
-                row.byDept.get(department).add(employeeKey);
-                if (!row.byType.has(type)) row.byType.set(type, new Set());
-                row.byType.get(type).add(employeeKey);
-                const dayStart = new Date(`${key}T00:00:00`);
-                const dayEnd = new Date(`${key}T23:59:59.999`);
-                let hoursForDay = 0;
-                if (req.allDay) {
-                    hoursForDay = 8;
-                } else {
-                    const overlapStart = new Date(
-                        Math.max(dates.start.getTime(), dayStart.getTime()),
-                    );
-                    const overlapEnd = new Date(
-                        Math.min(dates.end.getTime(), dayEnd.getTime()),
-                    );
-                    if (overlapEnd > overlapStart) {
-                        hoursForDay =
-                            (overlapEnd.getTime() - overlapStart.getTime()) /
-                            3600000;
-                    }
-                }
-                hoursForDay = roundHours(hoursForDay);
+                const hoursForDay = roundHours(
+                    calculateHoursForDay(req, dates, key, payload),
+                );
                 if (hoursForDay > 0) {
+                    const wasPresent = row.people.has(employeeKey);
+                    row.people.add(employeeKey);
+                    if (!wasPresent) {
+                        personDays += 1;
+                        peopleSet.add(employeeKey);
+                    }
+                    if (!row.byDept.has(department)) {
+                        row.byDept.set(department, new Set());
+                    }
+                    row.byDept.get(department).add(employeeKey);
+                    if (!row.byType.has(type)) {
+                        row.byType.set(type, new Set());
+                    }
+                    row.byType.get(type).add(employeeKey);
                     if (!employeeMap.has(employeeKey)) {
                         employeeMap.set(employeeKey, {
                             employee,
@@ -677,12 +740,12 @@ function renderLineChart(data) {
         host.innerHTML = "Nessun dato nel periodo selezionato.";
         return;
     }
-    const canvas = ensureChartCanvas(host, "fpa-line-canvas", 0, 260);
-    if (!canvas) return;
     if (state.charts.line) {
         state.charts.line.destroy();
         state.charts.line = null;
     }
+    const canvas = ensureChartCanvas(host, "fpa-line-canvas", 0, 260);
+    if (!canvas) return;
     if (!state.tooltipPositionerReady && Chart?.Tooltip?.positioners) {
         Chart.Tooltip.positioners.cursorOffset = function (
             _items,
@@ -696,6 +759,45 @@ function renderLineChart(data) {
         state.tooltipPositionerReady = true;
     }
     const theme = getChartTheme();
+    const lineAnimationOptions =
+        view.labels.length <= 90
+            ? {
+                  animations: {
+                      x: {
+                          type: "number",
+                          easing: "easeInQuad",
+                          duration: 600,
+                          from: NaN,
+                          delay(ctx) {
+                              if (ctx.type !== "data" || ctx.xStarted) return 0;
+                              ctx.xStarted = true;
+                              return ctx.dataIndex * 60;
+                          },
+                      },
+                      y: {
+                          type: "number",
+                          easing: "easeInQuad",
+                          duration: 600,
+                          from(ctx) {
+                              const yScale = ctx.chart.scales.y;
+                              return yScale
+                                  ? yScale.getPixelForValue(0)
+                                  : 0;
+                          },
+                          delay(ctx) {
+                              if (ctx.type !== "data" || ctx.yStarted) return 0;
+                              ctx.yStarted = true;
+                              return ctx.dataIndex * 60;
+                          },
+                      },
+                  },
+              }
+            : {
+                  animation: {
+                      duration: 350,
+                      easing: "easeOutQuart",
+                  },
+              };
     state.charts.line = new Chart(canvas.getContext("2d"), {
         type: "line",
         data: {
@@ -715,37 +817,7 @@ function renderLineChart(data) {
         options: {
             responsive: false,
             maintainAspectRatio: false,
-            animations: {
-                x: {
-                    type: "number",
-                    easing: "easeInQuad",
-                    duration: 600,
-                    from: NaN,
-                    delay(ctx) {
-                        if (ctx.type !== "data" || ctx.xStarted) {
-                            return 0;
-                        }
-                        ctx.xStarted = true;
-                        return ctx.dataIndex * 60;
-                    },
-                },
-                y: {
-                    type: "number",
-                    easing: "easeInQuad",
-                    duration: 600,
-                    from(ctx) {
-                        const yScale = ctx.chart.scales.y;
-                        return yScale ? yScale.getPixelForValue(0) : 0;
-                    },
-                    delay(ctx) {
-                        if (ctx.type !== "data" || ctx.yStarted) {
-                            return 0;
-                        }
-                        ctx.yStarted = true;
-                        return ctx.dataIndex * 60;
-                    },
-                },
-            },
+            ...lineAnimationOptions,
             interaction: {
                 mode: "index",
                 intersect: false,
@@ -872,12 +944,12 @@ function renderBarsChart(data) {
     }
     const labels = rows.map((row) => `${row.employee} (${row.department})`);
     const chartHeight = Math.max(290, rows.length * 32);
-    const canvas = ensureChartCanvas(host, "fpa-bars-canvas", 0, chartHeight);
-    if (!canvas) return;
     if (state.charts.bars) {
         state.charts.bars.destroy();
         state.charts.bars = null;
     }
+    const canvas = ensureChartCanvas(host, "fpa-bars-canvas", 0, chartHeight);
+    if (!canvas) return;
     const theme = getChartTheme();
     state.charts.bars = new Chart(canvas.getContext("2d"), {
         type: "bar",
@@ -1018,6 +1090,7 @@ function destroyCharts() {
 }
 
 function renderDashboard() {
+    if (isUnloading) return;
     const payload = loadDataset();
     const analysis = buildAnalysis(payload);
     if (analysis.error) {
@@ -1031,6 +1104,14 @@ function renderDashboard() {
     renderDailyTable(analysis);
     renderBarsChart(analysis);
     renderEmployeeTable(analysis);
+}
+
+function scheduleDashboardRender() {
+    if (isUnloading || dashboardRenderFrame !== null) return;
+    dashboardRenderFrame = window.requestAnimationFrame(() => {
+        dashboardRenderFrame = null;
+        renderDashboard();
+    });
 }
 
 function resetFilters() {
@@ -1063,22 +1144,43 @@ function resetFilters() {
     state.selectedDepartments.clear();
 }
 
-async function refreshAnalysisData() {
-    try {
-        const payload = await hydrateDataset();
-        renderDepartments(payload);
-        renderDashboard();
-        requestAnimationFrame(() => renderDashboard());
-        setMessage("");
-    } catch (err) {
-        setMessage(
-            `Errore caricamento dati: ${(err as Error)?.message || String(err)}`,
-            true,
-        );
+function refreshAnalysisData(forceRender = false) {
+    if (isUnloading) return Promise.resolve();
+    if (refreshInFlight) {
+        refreshQueued = true;
+        refreshQueuedForceRender ||= forceRender;
+        return refreshInFlight;
     }
+
+    refreshInFlight = (async () => {
+        try {
+            const result = await hydrateDataset();
+            if (isUnloading) return;
+            if (result.changed || forceRender) {
+                renderDepartments(result.payload);
+                scheduleDashboardRender();
+            }
+            setMessage("");
+        } catch (err) {
+            if (isUnloading) return;
+            setMessage(
+                `Errore caricamento dati: ${(err as Error)?.message || String(err)}`,
+                true,
+            );
+        } finally {
+            refreshInFlight = null;
+            if (refreshQueued && !isUnloading) {
+                const forceQueuedRender = refreshQueuedForceRender;
+                refreshQueued = false;
+                refreshQueuedForceRender = false;
+                void refreshAnalysisData(forceQueuedRender);
+            }
+        }
+    })();
+
+    return refreshInFlight;
 }
 
-let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
     if (
         realtimeEvent?.module !== "calendar" &&
@@ -1100,7 +1202,7 @@ async function init() {
     await refreshAnalysisData();
 
     byId("fpa-refresh")?.addEventListener("click", () => {
-        void refreshAnalysisData();
+        void refreshAnalysisData(true);
     });
     byId("fpa-close")?.addEventListener("click", () => {
         window.close();
@@ -1152,10 +1254,21 @@ async function init() {
     });
 
     window.addEventListener("resize", () => {
-        renderDashboard();
+        if (resizeRenderTimer) clearTimeout(resizeRenderTimer);
+        resizeRenderTimer = setTimeout(() => {
+            resizeRenderTimer = null;
+            scheduleDashboardRender();
+        }, 120);
     });
 
     window.addEventListener("beforeunload", () => {
+        isUnloading = true;
+        if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+        if (resizeRenderTimer) clearTimeout(resizeRenderTimer);
+        if (dashboardRenderFrame !== null) {
+            window.cancelAnimationFrame(dashboardRenderFrame);
+            dashboardRenderFrame = null;
+        }
         destroyCharts();
     });
 }
