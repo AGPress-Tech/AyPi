@@ -201,6 +201,11 @@ const pages: Record<string, PageDefinition> = {
             "Visualizza rapidamente stato e informazioni delle celle robotizzate.",
         code: "RBT",
         actions: [
+            ...(!IS_AGPRESS_INTERFACE ? [{
+                label: "PLC reader",
+                description: "Monitor macchine, robot e segnali di produzione",
+                channel: "open-plc-reader-window",
+            }] : []),
             {
                 label: "Stato Robot 21D500",
                 description: "Diagnostica 21D500",

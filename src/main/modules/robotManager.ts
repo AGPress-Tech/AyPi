@@ -315,4 +315,4 @@ function setupRobotManager() {
     );
 }
 
-export { setupRobotManager };
+export { setupRobotManager, getRobotStatus };

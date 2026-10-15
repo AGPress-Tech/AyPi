@@ -9,6 +9,7 @@ import {
     setInterfaceIconTheme,
 } from "./modules/fileManager";
 import { setupRobotManager } from "./modules/robotManager";
+import { setupPlcReader } from "./modules/plcReader";
 
 let mainWindow: BrowserWindow | null;
 let tray: Tray | null = null;
@@ -273,6 +274,7 @@ app.whenReady().then(() => {
         query: { theme: useBlueArchiveUi ? "bluearchive" : "agpress" },
     });
     mainWindow.setMenu(null);
+    setupPlcReader(mainWindow);
     if (!useBlueArchiveUi) {
         mainWindow.once("ready-to-show", () => {
             if (!mainWindow || mainWindow.isDestroyed()) return;

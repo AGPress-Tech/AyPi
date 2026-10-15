@@ -1,0 +1,20 @@
+AyPi PLC reader
+
+Aprire AyPi in modalità Blue Archive, sezione Robot, pulsante PLC reader.
+I robot vengono letti automaticamente dalle pagine HTML configurate.
+
+La sessione PLC usa un processo Python locale. In sviluppo viene riconosciuto
+anche l'ambiente .venv del progetto AyPiPLCReader adiacente ad AyPi.
+Su un altro PC installare Python, Scapy (python -m pip install scapy) e Npcap.
+Dal pulsante Sessione di lettura si può specificare l'interprete Python e
+rilevare la scheda di acquisizione. Npcap non è necessario per la Demo.
+
+LIVE: ascolto passivo dei pacchetti PROFINET sulla scheda selezionata.
+DEMO: segnali PLC simulati; le letture dei robot restano reali.
+I conteggi dei robot appartengono al controllore e non vengono sommati ai
+conteggi di sessione PROFINET.
+
+Configurazione dei segnali e dei robot: macchine.json in questa cartella.
+Impostazioni e CSV vengono salvati in AyPiUserData/plc-reader, con una
+cartella di registrazione separata per ciascuna sessione.
+La chiusura della finestra arresta l'acquisizione e chiude i CSV.

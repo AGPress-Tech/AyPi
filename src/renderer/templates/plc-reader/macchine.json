@@ -1,0 +1,158 @@
+{
+  "macchine": [
+    {
+      "codice": "21A400",
+      "nome": "Maspe A.M.A.TR 06-B",
+      "mes_nodo": 4,
+      "mes_etichetta": "IP69M05",
+      "pezzi_per_impulso": 1,
+      "stato": "validata_live",
+      "segnale": {
+        "mac": "ec:1c:5d:0b:83:e7",
+        "frame_id": "0x8004",
+        "byte": 4,
+        "bit": 1
+      }
+    },
+    {
+      "codice": "21D450",
+      "nome": "Mazak FH-4800",
+      "mes_nodo": 1,
+      "mes_etichetta": "IP69M02",
+      "pezzi_per_impulso": 2,
+      "stato": "validata_live",
+      "segnale": {
+        "mac": "ec:1c:5d:0b:84:7b",
+        "frame_id": "0x8001",
+        "byte": 4,
+        "bit": 1
+      }
+    },
+    {
+      "codice": "21D400",
+      "nome": "Mazak FH-4800",
+      "mes_nodo": 0,
+      "mes_etichetta": "IP69M01",
+      "pezzi_per_impulso": 2,
+      "stato": "da_identificare",
+      "segnale": null
+    },
+    {
+      "codice": "21F400",
+      "nome": "Biglia SMART TURN 1200S",
+      "mes_nodo": 2,
+      "mes_etichetta": "IP69M03",
+      "pezzi_per_impulso": 1,
+      "stato": "da_identificare",
+      "segnale": null
+    },
+    {
+      "codice": "21A500",
+      "nome": "Maspe TROB-B",
+      "mes_nodo": 5,
+      "mes_etichetta": "IP69M06",
+      "pezzi_per_impulso": 1,
+      "stato": "validata_7_pezzi",
+      "segnale": {
+        "mac": "ec:1c:5d:0b:83:58",
+        "frame_id": "0x8005",
+        "byte": 4,
+        "bit": 1
+      }
+    },
+    {
+      "codice": "21D300",
+      "nome": "Macchina 21D300",
+      "mes_nodo": null,
+      "mes_etichetta": null,
+      "pezzi_per_impulso": null,
+      "stato": "sirena_validata_2_eventi",
+      "segnale": null,
+      "segnali_stato": [
+        {
+          "tipo": "sirena",
+          "etichetta": "Attivazione sirena",
+          "mac": "ec:1c:5d:0b:84:6d",
+          "frame_id": "0x8008",
+          "byte": 4,
+          "bit": 1,
+          "fronte_attivazione": "salita",
+          "stato": "verificata_2_eventi"
+        }
+      ]
+    }
+  ],
+  "robots": [
+    {
+      "codice": "21D500",
+      "nome": "NEXUS 4000-II Orizzontale pallettizzato Mazak",
+      "ip": "192.168.1.153",
+      "mac": "00:03:1d:12:0f:71",
+      "url": "http://192.168.1.153/index1.html",
+      "chiave_stato": "STATO ROBOT P21160",
+      "isola": "P21160"
+    },
+    {
+      "codice": "21D600",
+      "nome": "PFH-4800 Orizzontale pallettizzato Mazak",
+      "ip": "192.168.1.152",
+      "mac": "00:03:1d:11:62:da",
+      "url": "http://192.168.1.152/index1.html",
+      "chiave_stato": "STATO ROBOT P17259",
+      "isola": "P17259"
+    },
+    {
+      "codice": "21D850",
+      "nome": "Variaxis 5 assi robotizzato C600 Mazak",
+      "ip": "192.168.1.92",
+      "mac": "00:03:1d:14:13:38",
+      "url": "http://192.168.1.92/index1.html",
+      "chiave_stato": "STATO ROBOT P22022",
+      "isola": "P22022"
+    }
+  ],
+  "flussi_et200sp": [
+    {
+      "mac": "ec:1c:5d:0b:84:7b",
+      "frame_id": "0x8001",
+      "ip": "192.168.1.61",
+      "nodo": "n02",
+      "nome_profinet": "et200sp-conc01-n02"
+    },
+    {
+      "mac": "ec:1c:5d:0b:83:e7",
+      "frame_id": "0x8004",
+      "ip": "192.168.1.64",
+      "nodo": "n05",
+      "nome_profinet": "et200sp-conc01-n05"
+    },
+    {
+      "mac": "ec:1c:5d:0b:84:0d",
+      "frame_id": "0x8003",
+      "ip": "192.168.1.63",
+      "nodo": "n04",
+      "nome_profinet": "et200sp-conc01-n04"
+    },
+    {
+      "mac": "ec:1c:5d:0b:83:58",
+      "frame_id": "0x8005",
+      "ip": "192.168.1.65",
+      "nodo": "n06",
+      "nome_profinet": "et200sp-conc01-n06"
+    },
+    {
+      "mac": "ec:1c:5d:0b:84:f7",
+      "frame_id": "0x8006",
+      "ip": "192.168.1.66",
+      "nodo": "n07",
+      "nome_profinet": "et200sp-conc01-n07"
+    },
+    {
+      "mac": "ec:1c:5d:0b:84:6d",
+      "frame_id": "0x8008",
+      "ip": "192.168.1.68",
+      "nodo": "n09",
+      "nome_profinet": "et200sp-conc01-n09"
+    }
+  ]
+}
