@@ -27,12 +27,22 @@ function config() {
 
 function emptySnapshot() {
     const cfg = config();
+    const mappings = new Map<string,string>();
+    for (const machine of cfg.macchine) {
+        const signals = [...(machine.segnale ? [machine.segnale] : []), ...(machine.segnali_stato || [])];
+        if (machine.dispositivo_profinet) signals.push(machine.dispositivo_profinet);
+        for (const signal of signals) mappings.set(`${signal.mac.toLowerCase()}|${signal.frame_id}`, machine.codice);
+    }
+    const configuredFlows = [...cfg.flussi_et200sp, ...(cfg.dispositivi_profinet_aggiuntivi || [])];
     return { mode: 'IDLE', now: Date.now()/1000, since: Date.now()/1000, bits: [],
         machines: cfg.macchine.map((m: any) => ({asset_type:'machine', code:m.codice,
-            name:m.nome, mapping:m.stato, signal:m.segnale, multiplier:m.pezzi_per_impulso,
+            name:m.nome, mapping:m.stato, signal:m.segnale, device:m.dispositivo_profinet,
+            multiplier:m.pezzi_per_impulso,
             pulses:0, pieces:0, hour:0, siren:0, frame_time:null})),
-        flows: cfg.flussi_et200sp.map((f: any) => ({node:f.nodo, ip:f.ip,
-            mac:f.mac.toUpperCase(), fid:f.frame_id, machine:'Da identificare', frames:0, last:null})) };
+        flows: configuredFlows.map((f: any) => ({node:f.nodo, ip:f.ip,
+            mac:f.mac.toUpperCase(), fid:f.frame_id || '—',
+            machine:f.frame_id ? mappings.get(`${f.mac.toLowerCase()}|${f.frame_id}`) || 'Da identificare' : 'Da identificare',
+            frames:0, last:null})) };
 }
 
 async function refreshRobots() {
@@ -60,7 +70,7 @@ function pythonCommand() {
     const candidates = [
         path.join(dataFolder(), 'runtime', process.platform === 'win32' ? 'Scripts' : 'bin', process.platform === 'win32' ? 'python.exe' : 'python'),
         path.join(app.getAppPath(), '.venv', 'Scripts', 'python.exe'),
-        path.join(app.getAppPath(), '..', 'AyPiPLCReader', 'AyPiPLCReader_APP_v3_6_5', '.venv', 'Scripts', 'python.exe'),
+        path.join(app.getAppPath(), '..', 'AyPiPLCReader', 'AyPiPLCReader_APP_v3_7_3', '.venv', 'Scripts', 'python.exe'),
     ];
     const found = candidates.find(p => fs.existsSync(p));
     return found ? {command:found, prefix:[]} : {command:process.platform==='win32'?'py':'python3', prefix:process.platform==='win32'?['-3']:[]};

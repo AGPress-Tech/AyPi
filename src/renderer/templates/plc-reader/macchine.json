@@ -80,6 +80,23 @@
           "stato": "verificata_2_eventi"
         }
       ]
+    },
+    {
+      "codice": "21D700",
+      "nome": "Macchina 21D700",
+      "mes_nodo": null,
+      "mes_etichetta": null,
+      "pezzi_per_impulso": null,
+      "stato": "associazione_da_confermare_eventi_bit",
+      "segnale": null,
+      "dispositivo_profinet": {
+        "nodo": "n04",
+        "ip": "192.168.1.63",
+        "mac": "ec:1c:5d:0b:84:0d",
+        "frame_id": "0x8003",
+        "tipo_monitoraggio": "solo_transizioni_bit",
+        "evidenza": "variazioni osservate in fase di accensione"
+      }
     }
   ],
   "robots": [
@@ -153,6 +170,22 @@
       "ip": "192.168.1.68",
       "nodo": "n09",
       "nome_profinet": "et200sp-conc01-n09"
+    }
+  ],
+  "dispositivi_profinet_aggiuntivi": [
+    {
+      "mac": "ec:1c:5d:0b:85:07",
+      "ip": "192.168.1.60",
+      "nodo": "n01",
+      "nome_profinet": "et200sp-conc01-n01",
+      "frame_id": null
+    },
+    {
+      "mac": "ec:1c:5d:0b:83:69",
+      "ip": "192.168.1.62",
+      "nodo": "n03",
+      "nome_profinet": "et200sp-conc01-n03",
+      "frame_id": null
     }
   ]
 }

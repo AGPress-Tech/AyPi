@@ -60,12 +60,16 @@ try:
                 pulses=pulses, pieces=pieces, hour=hour, last=last, cycle=cycle,
                 frame_time=frame_time, frames=frames, invalid=invalid, gap=gap,
                 multiplier=m.get('pezzi_per_impulso'), signal=m.get('segnale'),
+                device=m.get('dispositivo_profinet'),
                 siren=aux[code]['sirena_attivazioni'], siren_last=aux[code]['sirena_ultimo']))
         by_flow = {}
         for m in reader.machines.values():
             signals = ([m['segnale']] if m.get('segnale') else []) + m.get('segnali_stato', [])
             for sig in signals:
                 by_flow[(sig['mac'].lower(), int(sig['frame_id'], 16))] = m['codice']
+            device = m.get('dispositivo_profinet')
+            if device:
+                by_flow[(device['mac'].lower(), int(device['frame_id'], 16))] = m['codice']
         events = []
         for _ in range(2000):
             try:
@@ -85,10 +89,14 @@ try:
                 _, mac, fid, off, bit, rise, ts = e
                 events.append(dict(kind='BIT', machine=by_flow.get((mac, fid), mac.upper()),
                     text=f'0x{fid:04X} · byte {off} · bit {bit} → {int(rise)}', ts=ts))
+        flow_rows = []
+        for node, ip, mac, fid, frames, last in flows:
+            flow_key = (mac, int(fid, 16)) if fid.startswith('0x') else None
+            flow_rows.append(dict(node=node, ip=ip, mac=mac.upper(), fid=fid,
+                machine=by_flow.get(flow_key, 'Da identificare') if flow_key else 'Da identificare',
+                frames=frames, last=last))
         emit(dict(mode=args.mode, now=time.time(), since=started, machines=machines,
-            flows=[dict(node=node, ip=ip, mac=mac.upper(), fid=fid,
-                machine=by_flow.get((mac, int(fid, 16)), 'Da identificare'), frames=frames, last=last)
-                for node, ip, mac, fid, frames, last in flows],
+            flows=flow_rows,
             bits=[dict(mac=mac.upper(), fid=fid, offset=off, bit=bit, changes=changes, rises=rises, last=last)
                 for mac, fid, off, bit, changes, rises, last in bits[:250]], events=events))
         stop.wait(1)

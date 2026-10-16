@@ -18,3 +18,17 @@ Configurazione dei segnali e dei robot: macchine.json in questa cartella.
 Impostazioni e CSV vengono salvati in AyPiUserData/plc-reader, con una
 cartella di registrazione separata per ciascuna sessione.
 La chiusura della finestra arresta l'acquisizione e chiude i CSV.
+
+Allineamento AyPiPLCReader v3.7.3
+
+- 21D700 e associata provvisoriamente a n04 / 192.168.1.63 /
+  EC:1C:5D:0B:84:0D / FrameID 0x8003. Sono monitorati solo gli eventi BIT:
+  nessun contapezzi, allarme, stato macchina o moltiplicatore finche
+  l'associazione non viene validata indipendentemente.
+- I nodi PRONETA n01 (192.168.1.60 / EC:1C:5D:0B:85:07) e n03
+  (192.168.1.62 / EC:1C:5D:0B:83:69) compaiono nell'inventario anche se
+  non e ancora stato osservato il relativo FrameID.
+- I nuovi flussi PROFINET RT vengono scoperti passivamente e registrati in
+  flussi_scoperti.csv, senza inviare pacchetti al PLC.
+- Il MAC sorgente della CPU centrale AC:64:17:F8:9A:70 e escluso da
+  discovery, eventi e transizioni.

@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import Any, TypedDict, TextIO
 
 
+# CPU centrale S7-1500: esclusa dal discovery e dagli eventi.
+# Il filtro riguarda solo il MAC sorgente, non gli ET200SP.
+CENTRAL_CPU_MAC = 'ac:64:17:f8:9a:70'
+
+
 class MachineState(TypedDict):
     impulsi: int
     pezzi: int
@@ -74,7 +79,13 @@ class Reader:
         self.lock = threading.RLock()
         self.messages: queue.Queue[tuple[Any, ...]] = queue.Queue()
         self.machines = {m['codice']: m for m in cfg['macchine']}
-        self.flows = {(f['mac'].lower(), int(f['frame_id'], 16)): f for f in cfg['flussi_et200sp']}
+        self.flows = {(f['mac'].lower(), int(f['frame_id'], 16)): dict(f) for f in cfg['flussi_et200sp']}
+        # Inventario da snapshot PRONETA in sola lettura: l'IP non e deducibile dai frame PN-RT.
+        self.device_inventory = {f['mac'].lower(): dict(f) for f in cfg['flussi_et200sp']}
+        self.device_inventory.update({f['mac'].lower(): dict(f) for f in cfg.get('dispositivi_profinet_aggiuntivi', [])})
+        self.dynamic_flow_limit = 128
+        self.discovery_byte_limit = 128
+        self.dynamic_flow_count = 0
         self.by_signal = {}
         for m in cfg['macchine']:
             sig = m['segnale']
@@ -109,6 +120,14 @@ class Reader:
                 w.writerow(header)
             setattr(self, 'w_' + name.split('.')[0], w)
             self._files.append(fp)
+        # I flussi scoperti non sovrascrivono mai i mapping macchina gia validati.
+        discovery_path = folder / 'flussi_scoperti.csv'
+        discovery_empty = not discovery_path.exists() or discovery_path.stat().st_size == 0
+        self.discovery_file = discovery_path.open('a', newline='', encoding='utf-8-sig', buffering=1)
+        self._files.append(self.discovery_file)
+        self.w_discovery = csv.writer(self.discovery_file, delimiter=';')
+        if discovery_empty:
+            self.w_discovery.writerow(['prima_osservazione', 'mac', 'frame_id', 'nodo_noto', 'ip_noto', 'origine'])
         self.last_error = None
 
     def receive(self, raw, ts=None):
@@ -116,12 +135,25 @@ class Reader:
         if packet is None:
             return
         mac, fid, sdu, status, transfer = packet
-        key = (mac, fid)
-        if key not in self.flows:
+        if mac == CENTRAL_CPU_MAC:
             return
+        key = (mac, fid)
         ts = time.time() if ts is None else float(ts)
         valid = bool(status & 0x04) and transfer == 0
         with self.lock:
+            if key not in self.flows:
+                if self.dynamic_flow_count >= self.dynamic_flow_limit:
+                    return
+                known = self.device_inventory.get(mac, {})
+                flow_desc = dict(mac=mac, frame_id=f'0x{fid:04X}',
+                                 nodo=known.get('nodo', 'Sconosciuto'),
+                                 ip=known.get('ip', 'Non determinato'),
+                                 nome_profinet=known.get('nome_profinet', ''))
+                self.flows[key] = flow_desc
+                self.flow_state[key] = FlowState(frames=0, last_frame=None, previous=None, last_good_before=None)
+                self.dynamic_flow_count += 1
+                self.w_discovery.writerow([stamp(ts), mac, f'0x{fid:04X}',
+                    flow_desc['nodo'], flow_desc['ip'], 'osservato_passivamente'])
             flow = self.flow_state[key]
             flow['frames'] += 1
             flow['last_frame'] = ts
@@ -144,7 +176,7 @@ class Reader:
                 return
             prev = flow['previous']
             if prev is not None and len(prev) == len(sdu):
-                for idx, (old, new) in enumerate(zip(prev, sdu)):
+                for idx, (old, new) in enumerate(zip(prev[:self.discovery_byte_limit], sdu[:self.discovery_byte_limit])):
                     mask = old ^ new
                     if not mask:
                         continue
@@ -215,6 +247,10 @@ class Reader:
             aux = {code: st.copy() for code, st in self.aux_state.items()}
             flows = [(f['nodo'], f['ip'], mac, f'0x{fid:04X}', self.flow_state[(mac,fid)]['frames'], self.flow_state[(mac,fid)]['last_frame'])
                      for (mac, fid), f in self.flows.items()]
+            for mac, device in self.device_inventory.items():
+                if not any(row[2] == mac for row in flows):
+                    flows.append((device['nodo'], device['ip'], mac, '—', 0, None))
+            flows.sort(key=lambda r: (r[0] == 'Sconosciuto', r[0], r[3]))
             bits = [(mac, f'0x{fid:04X}', off, bit, v['transizioni'], v['salite'], v['last'])
                     for (mac, fid, off, bit), v in self.bits.items()]
             bits.sort(key=lambda t: (-t[4], t[0], t[2], t[3]))

@@ -21,12 +21,18 @@ app.whenReady().then(async()=>{
         reader.webContents.setBackgroundThrottling(false);
         let errors=[];
         reader.webContents.on('console-message',(_e,level,message)=>{if(level===3)errors.push(message)});
-        await pause(1500);
         const evaluate=source=>reader.webContents.executeJavaScript(source);
-        let snap=await evaluate("require('electron').ipcRenderer.invoke('plc-reader-snapshot')");
-        assert(snap.machines.length===9,'Expected nine assets');
+        let snap;
+        for(let i=0;i<80;i++){
+            snap=await evaluate("require('electron').ipcRenderer.invoke('plc-reader-snapshot')");
+            if(snap.machines.length===10)break;
+            await pause(200);
+        }
+        assert(snap.machines.length===10,'Expected ten assets');
+        assert(snap.machines.some(m=>m.code==='21D700'&&m.device?.frame_id==='0x8003'),'21D700 provisional mapping missing');
+        assert(snap.flows.some(f=>f.machine==='21D700'&&f.fid==='0x8003'),'21D700 flow label missing');
         console.log('ROBOTS',JSON.stringify(snap.machines.filter(m=>m.asset_type==='robot').map(m=>({code:m.code,online:m.online,program:m.program}))));
-        const pythonPath=process.env.AYPI_PLC_TEST_PYTHON||path.resolve(__dirname,'..','..','AyPiPLCReader','AyPiPLCReader_APP_v3_6_5','.venv','Scripts','python.exe');
+        const pythonPath=process.env.AYPI_PLC_TEST_PYTHON||path.resolve(__dirname,'..','..','AyPiPLCReader','AyPiPLCReader_APP_v3_7_3','.venv','Scripts','python.exe');
         if(!process.env.AYPI_PLC_SKIP_INTERFACES){
             const interfaces=await evaluate(`require('electron').ipcRenderer.invoke('plc-reader-interfaces',{python:${JSON.stringify(pythonPath)}})`);
             assert(interfaces.length>0,'No acquisition interface detected');console.log('INTERFACES',interfaces.length);
@@ -43,7 +49,7 @@ app.whenReady().then(async()=>{
             reader.setSize(width,height);await pause(400);
             const layout=await evaluate(`(()=>{const strip=document.getElementById('overview-cards');return {cards:strip.querySelectorAll('.machine-card').length,clipped:[...document.querySelectorAll('.machine-card')].filter(c=>c.getClientRects().length&&c.lastElementChild?.getBoundingClientRect().bottom>c.getBoundingClientRect().bottom-4).length,horizontalOverflow:document.documentElement.scrollWidth>innerWidth+2,canScroll:strip.scrollWidth>strip.clientWidth,errors:document.getElementById('session-banner').textContent}})()`);
             if(layout.clipped){console.log('CLIPPED',width,await evaluate("[...document.querySelectorAll('.machine-card')].filter(c=>c.scrollHeight>c.clientHeight+2).map(c=>({code:c.querySelector('.mc-code').textContent,scroll:c.scrollHeight,height:c.clientHeight}))"));fs.writeFileSync(path.join(output,'failure.png'),(await reader.webContents.capturePage()).toPNG());console.log('FAILURE IMAGE',output);}
-            assert(layout.cards===9,'Missing rendered cards');assert(!layout.clipped,'Card content clipped');assert(!layout.horizontalOverflow,'Page overflows horizontally');assert(layout.canScroll,'Carousel does not scroll');
+            assert(layout.cards===10,'Missing rendered cards');assert(!layout.clipped,'Card content clipped');assert(!layout.horizontalOverflow,'Page overflows horizontally');assert(layout.canScroll,'Carousel does not scroll');
             for(const view of ['overview','machines','signals','events']){
                 await evaluate(`document.querySelector('[data-view=${view}]').click()`);
                 const geometry=await evaluate(`(()=>{const page=document.getElementById('view-${view}');const panel=page.querySelector('.bottom-grid')||page.querySelector('.full-panel:last-child')||page.querySelector('.cards-interior');return {overflow:page.scrollHeight-page.clientHeight,bottom:panel?.getBoundingClientRect().bottom,limit:page.getBoundingClientRect().bottom};})()`);
@@ -84,10 +90,10 @@ app.whenReady().then(async()=>{
         console.log('DRAG PASS',JSON.stringify(dragEnd));
         fs.writeFileSync(path.join(output,'dashboard.png'),(await reader.webContents.capturePage()).toPNG());
         await evaluate("document.querySelector('[data-view=machines]').click()");await pause(200);
-        const count=await evaluate("document.querySelectorAll('#all-machines .machine-card').length");assert(count===9,'Full list missing assets');
+        const count=await evaluate("document.querySelectorAll('#all-machines .machine-card').length");assert(count===10,'Full list missing assets');
         fs.writeFileSync(path.join(output,'machines.png'),(await reader.webContents.capturePage()).toPNG());
         await evaluate("document.querySelector('[data-view=signals]').click()");await pause(100);
-        assert(await evaluate("document.querySelectorAll('#flow-body tr').length===6"),'Flow view missing nodes');
+        assert(await evaluate("document.querySelectorAll('#flow-body tr').length===8"),'Flow view missing nodes');
         await evaluate("document.querySelector('[data-view=events]').click()");await pause(100);
         fs.writeFileSync(path.join(output,'events.png'),(await reader.webContents.capturePage()).toPNG());
         await evaluate("require('electron').ipcRenderer.invoke('plc-reader-control',{action:'stop'})");
