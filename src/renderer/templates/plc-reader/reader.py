@@ -288,7 +288,12 @@ def demo(reader, stop):
             elif elapsed >= 0.20:
                 level[key] = 1
             data = bytearray(40)
-            data[4] = level[key] << 1
+            machine = reader.by_signal.get(key)
+            if machine:
+                signal = machine['segnale']
+                data[signal['byte']] |= level[key] << signal['bit']
+            else:
+                data[4] = level[key] << 1
             # Static fake destination MAC and PN-RT data for local UI tests.
             raw = bytes.fromhex('ac6417f89a70') + bytes.fromhex(mac.replace(':','')) + b'\x88\x92' + struct.pack('!H', fid) + data + struct.pack('!HBB', 0, 0x35, 0)
             reader.receive(raw, now)

@@ -1,15 +1,16 @@
+export {};
 const { ipcRenderer } = require('electron');
 'use strict';
-const $ = id => document.getElementById(id);
+const $ = (id: string): any => document.getElementById(id);
 const fmt = n => Number(n || 0).toLocaleString('it-IT');
 const clock = ts => ts ? new Date(ts*1000).toLocaleTimeString('it-IT',{hour12:false}) : '—';
 const safe = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const isRecent = (ts,now) => Boolean(ts && (now||Date.now()/1000)-ts<5);
 const names = {overview:'Dashboard',machines:'Macchine & Robot',signals:'Signal Discovery',events:'Eventi'};
 let latest = null, activeView='overview';
-function showView(view){if(!names[view])return;activeView=view;document.querySelectorAll('.nav-link').forEach(el=>el.classList.toggle('active',el.dataset.view===view));document.querySelectorAll('.page').forEach(el=>el.classList.toggle('hidden',el.id!==`view-${view}`));location.hash=view;if(view==='overview')updateCarouselPosition();}
-document.querySelectorAll('[data-view]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();showView(el.dataset.view);}));
-document.querySelectorAll('[data-goto]').forEach(el=>el.addEventListener('click',()=>showView(el.dataset.goto)));
+function showView(view){if(!names[view])return;activeView=view;document.querySelectorAll<HTMLElement>('.nav-link').forEach(el=>el.classList.toggle('active',el.dataset.view===view));document.querySelectorAll<HTMLElement>('.page').forEach(el=>el.classList.toggle('hidden',el.id!==`view-${view}`));location.hash=view;if(view==='overview')updateCarouselPosition();}
+document.querySelectorAll<HTMLElement>('[data-view]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();showView(el.dataset.view);}));
+document.querySelectorAll<HTMLElement>('[data-goto]').forEach(el=>el.addEventListener('click',()=>showView(el.dataset.goto)));
 const kind=m=>m.asset_type==='robot'?'robot':m.signal?'production':m.code==='21D300'?'siren':m.device?'provisional':'unmapped';
 function machineCard(m,s){const k=kind(m),up=k==='robot'?Boolean(m.online):k==='provisional'?s.flows.some(f=>f.machine===m.code&&isRecent(f.last,s.now)):isRecent(m.frame_time,s.now),unmapped=k==='unmapped';let icon=k==='robot'?'R':k==='siren'?'♬':k==='provisional'?'P':unmapped?'⌁':'▥';let status=k==='robot'?(up?'PAGINA ONLINE':'PAGINA OFFLINE'):(up?'FLUSSO PRESENTE':'FLUSSO ASSENTE');let content='';
 if(k==='production'){content=`<div class="mc-metrics"><div class="mc-metric"><label>IMPULSI · SESSIONE</label><strong>${fmt(m.pulses)}</strong></div><div class="mc-metric"><label>PEZZI · SESSIONE</label><strong>${fmt(m.pieces)}</strong></div><div class="mc-metric"><label>PEZZI · ULTIMI 60 MIN</label><strong>${fmt(m.hour)}</strong></div><div class="mc-metric"><label>ULTIMO CONTEGGIO</label><strong class="smaller">${clock(m.last)}</strong></div></div><div class="mc-hint">${m.multiplier} ${m.multiplier===1?'pezzo':'pezzi'} per impulso · Produzione non deducibile dal link</div>`;}
@@ -29,11 +30,11 @@ function patchCardNode(current,next){
   previous.slice(incoming.length).forEach(node=>node.remove());
 }
 function renderCards(container,assets,s){
-  const existing=new Map([...container.querySelectorAll(':scope > .machine-card')].map(card=>[card.dataset.code,card]));
+  const existing=new Map(Array.from((container as HTMLElement).querySelectorAll<HTMLElement>(':scope > .machine-card')).map(card=>[card.dataset.code,card]));
   if(!existing.size)container.replaceChildren();
   assets.forEach((m,index)=>{
     const temp=document.createElement('template');temp.innerHTML=machineCard(m,s);
-    const next=temp.content.firstElementChild;next.dataset.code=m.code;
+    const next=temp.content.firstElementChild as HTMLElement;next.dataset.code=m.code;
     const current=existing.get(m.code)||next;
     if(existing.has(m.code)){patchCardNode(current,next);existing.delete(m.code);}
     if(container.children[index]!==current)container.insertBefore(current,container.children[index]||null);
@@ -55,7 +56,7 @@ assetStrip.addEventListener('pointerdown',event=>{
   if(event.button!==0||event.pointerType==='touch')return;
   const bounds=assetStrip.getBoundingClientRect();
   if(event.clientY>=bounds.top+assetStrip.clientHeight)return;
-  if(event.target.closest('button,a,input,select,textarea'))return;
+  if((event.target as Element | null)?.closest('button,a,input,select,textarea'))return;
   event.preventDefault();
   assetStrip.focus({preventScroll:true});
   assetDrag={id:event.pointerId,x:event.clientX,scroll:assetStrip.scrollLeft};
@@ -154,15 +155,18 @@ let busy=false;
 async function refresh(){if(busy)return;busy=true;try{const [sr,er]=await Promise.all([localRequest('plc-reader-snapshot'),localRequest('plc-reader-events')]);if(!sr.ok||!er.ok)throw Error('Server locale non disponibile');renderSnapshot(await sr.json());renderEvents(await er.json());}catch(err){$('header-connection').textContent='SERVER NON DISPONIBILE';$('link-dot').classList.add('off');$('last-sync').textContent='CONNESSIONE PERSA';}finally{busy=false;}}
 $('marker-form').addEventListener('submit',async e=>{e.preventDefault();const machine=$('marker-machine').value,note=$('marker-note').value.trim();if(!note)return;try{const r=await localRequest('plc-reader-marker',{machine,note});if(!r.ok)throw Error('Errore');$('marker-note').value='';$('marker-result').textContent='Marcatore salvato nel CSV locale.';refresh();}catch(err){$('marker-result').textContent=err.message||'Impossibile salvare il marcatore.';}});
 const hash=location.hash.slice(1);if(names[hash])showView(hash);refresh();setInterval(refresh,1000);
-async function localRequest(channel,payload){const data=await ipcRenderer.invoke(channel,payload);return {ok:true,json:async()=>data};}
+async function localRequest(channel,payload?){const data=await ipcRenderer.invoke(channel,payload);return {ok:true,json:async()=>data};}
 let sessionInitialized=false;
 function updateSession(session){
   if(!session)return;
   if(!sessionInitialized){$('session-adapter').value=session.adapter||'';$('session-python').value=session.python||'';sessionInitialized=true;}
   $('session-start').disabled=session.running;
   $('session-stop').disabled=!session.running;
-  $('session-banner').textContent=session.error|| (session.running?(latest.mode==='DEMO'?'Sessione DEMO · Segnali PLC simulati · Robot reali':'Sessione LIVE · Acquisizione PROFINET attiva'):'Acquisizione PLC arrestata · Robot in aggiornamento automatico');
-  $('session-banner').classList.toggle('has-error',Boolean(session.error));
+  const mes=session.mesImport;
+  const mesStatus=mes?.error?' · MES non sincronizzato':mes?.lastImportedAt?` · MES ${fmt(mes.importedEvents)} eventi`:' · MES in attesa';
+  $('session-banner').textContent=session.error|| (session.running?(latest.mode==='DEMO'?'Sessione DEMO · Segnali PLC simulati · Robot reali':'Sessione LIVE · Acquisizione PROFINET attiva')+mesStatus:'Acquisizione PLC arrestata · Robot in aggiornamento automatico'+mesStatus);
+  $('session-banner').title=mes?.error||'';
+  $('session-banner').classList.toggle('has-error',Boolean(session.error||mes?.error));
   $('session-banner').classList.toggle('is-demo',session.running&&latest.mode==='DEMO');
   $('marker-form').querySelector('button').disabled=!session.running;
 }

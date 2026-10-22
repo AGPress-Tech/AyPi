@@ -4,6 +4,7 @@ import fs from 'fs';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { createInterface } from 'readline';
 import { getRobotStatus } from './robotManager';
+import { requestAypiBackend } from './file-manager/backend-client';
 
 const resources = () => path.join(__dirname, '..', 'templates', 'plc-reader').replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
 const dataFolder = () => path.join(app.getPath('userData'), 'plc-reader');
@@ -20,6 +21,24 @@ let adapter = defaultInterface;
 let robotRows: any[] = [];
 let robotPending = false;
 let robotTimer: ReturnType<typeof setInterval> | null = null;
+type CsvImportState = {
+    filePath: string;
+    sourceSessionId: string;
+    header: string;
+    offset: number;
+    dataRows: number;
+    importedRows: number;
+    importedEvents: number;
+    duplicateEvents: number;
+    rejectedRows: number;
+    lastImportedAt: string;
+    error: string;
+    busy: boolean;
+};
+const csvImportStates = new Map<string,CsvImportState>();
+let activeCsvImportPath = '';
+let csvImportTimer: ReturnType<typeof setInterval> | null = null;
+const CSV_IMPORT_CHUNK_BYTES = 512 * 1024;
 
 function config() {
     return JSON.parse(fs.readFileSync(path.join(resources(), 'macchine.json'), 'utf8'));
@@ -76,6 +95,92 @@ function pythonCommand() {
     return found ? {command:found, prefix:[]} : {command:process.platform==='win32'?'py':'python3', prefix:process.platform==='win32'?['-3']:[]};
 }
 
+function registerCsvAutoImport(folder: string) {
+    const filePath = path.join(folder,'impulsi.csv');
+    if(!csvImportStates.has(filePath))csvImportStates.set(filePath,{
+        filePath,
+        sourceSessionId:path.basename(folder),
+        header:'',offset:0,dataRows:0,importedRows:0,importedEvents:0,
+        duplicateEvents:0,rejectedRows:0,lastImportedAt:'',error:'',busy:false,
+    });
+    activeCsvImportPath=filePath;
+    if(!csvImportTimer){
+        csvImportTimer=setInterval(()=>{
+            csvImportStates.forEach(item=>void flushCsvAutoImport(item));
+        },1000);
+        csvImportTimer.unref?.();
+    }
+    void flushCsvAutoImport(csvImportStates.get(filePath)!);
+}
+
+async function flushCsvAutoImport(item: CsvImportState) {
+    if(item.busy||!fs.existsSync(item.filePath))return;
+    item.busy=true;
+    try{
+        const size=fs.statSync(item.filePath).size;
+        if(size<item.offset){item.header='';item.offset=0;item.dataRows=0;}
+        if(!item.header){
+            if(!size)return;
+            const headerSize=Math.min(size,64*1024);
+            const headerBuffer=Buffer.alloc(headerSize);
+            const descriptor=fs.openSync(item.filePath,'r');
+            try{fs.readSync(descriptor,headerBuffer,0,headerSize,0);}finally{fs.closeSync(descriptor);}
+            const newline=headerBuffer.indexOf(10);
+            if(newline<0)return;
+            item.header=headerBuffer.subarray(0,newline).toString('utf8').replace(/^\uFEFF/,'').replace(/\r$/,'');
+            item.offset=newline+1;
+        }
+        if(size<=item.offset)return;
+        const readSize=Math.min(size-item.offset,CSV_IMPORT_CHUNK_BYTES);
+        const buffer=Buffer.alloc(readSize);
+        const descriptor=fs.openSync(item.filePath,'r');
+        let bytesRead=0;
+        try{bytesRead=fs.readSync(descriptor,buffer,0,readSize,item.offset);}finally{fs.closeSync(descriptor);}
+        const chunk=buffer.subarray(0,bytesRead);
+        const lastNewline=chunk.lastIndexOf(10);
+        if(lastNewline<0)return;
+        const complete=chunk.subarray(0,lastNewline+1);
+        let physicalRows=0;
+        for(const byte of complete)if(byte===10)physicalRows+=1;
+        const csv=`${item.header}\n${complete.toString('utf8')}`;
+        const result=await requestAypiBackend('/api/mes/imports/plc-csv',{
+            method:'POST',
+            body:{
+                sourceSessionId:item.sourceSessionId,
+                sourceFile:path.basename(item.filePath),
+                firstDataRow:item.dataRows+2,
+                csv,
+            },
+            headers:{'x-aypi-client':'plc-reader-csv-auto-import'},
+        });
+        item.offset+=complete.length;
+        item.dataRows+=physicalRows;
+        item.importedRows+=Number(result.totalRows||0);
+        item.importedEvents+=Number(result.insertedEvents||0);
+        item.duplicateEvents+=Number(result.duplicateEvents||0);
+        item.rejectedRows+=Number(result.rejectedRows||0);
+        item.lastImportedAt=new Date().toISOString();
+        item.error='';
+    }catch(importError){
+        item.error=importError instanceof Error?importError.message:String(importError);
+    }finally{item.busy=false;}
+}
+
+function activeCsvImportSnapshot() {
+    const item=csvImportStates.get(activeCsvImportPath);
+    if(!item)return null;
+    return {
+        sourceSessionId:item.sourceSessionId,
+        importedRows:item.importedRows,
+        importedEvents:item.importedEvents,
+        duplicateEvents:item.duplicateEvents,
+        rejectedRows:item.rejectedRows,
+        lastImportedAt:item.lastImportedAt,
+        error:item.error,
+        pending:item.busy,
+    };
+}
+
 function stopWorker() {
     const child = processWorker;
     processWorker = null;
@@ -95,6 +200,7 @@ function startWorker(nextMode: string) {
     fs.writeFileSync(path.join(dataFolder(), 'settings.json'), JSON.stringify({python, adapter}));
     error = ''; mode = nextMode; state = null; events = [];
     const folder = path.join(dataFolder(), 'registrazioni', new Date().toISOString().replace(/[:.]/g,'-'));
+    registerCsvAutoImport(folder);
     const child = spawn(cmd.command, [...cmd.prefix, path.join(resources(),'worker.py'),
         '--folder',folder, '--mode',nextMode, '--iface',adapter], {windowsHide:true, env:{...process.env, PYTHONIOENCODING:'utf-8', PYTHONUNBUFFERED:'1'}});
     processWorker = child; running = true;
@@ -143,7 +249,7 @@ export function setupPlcReader(mainWindow: BrowserWindow) {
         if(!authorized(event))throw new Error('Finestra non autorizzata');
         const snapshot=state||emptySnapshot();
         return {...snapshot,now:Date.now()/1000,mode,machines:[...snapshot.machines,...robotRows],
-            session:{running,error,python,adapter,folder:dataFolder()},warnings:[]};
+            session:{running,error,python,adapter,folder:dataFolder(),mesImport:activeCsvImportSnapshot()},warnings:[]};
     });
     ipcMain.handle('plc-reader-events', event => { if(!authorized(event))return [];return events.slice(0,100); });
     ipcMain.handle('plc-reader-interfaces', (event,payload) => {

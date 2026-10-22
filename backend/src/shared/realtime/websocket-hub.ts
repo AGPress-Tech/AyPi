@@ -11,6 +11,7 @@ export type RealtimeModule =
     | "attrezzaggio"
     | "production-planner"
     | "warehouse"
+    | "mes"
     | "shared"
     | "core";
 

@@ -10,6 +10,7 @@ import { registerProductionPlannerRoutes } from "../modules/production-planner/r
 import { registerRegistrazioniProgettazioneStampiRoutes } from "../modules/registrazioni-progettazione-stampi/routes";
 import { registerRegistrazioniProgettiSpecialiRoutes } from "../modules/registrazioni-progetti-speciali/routes";
 import { registerWarehouseInventoryRoutes } from "../modules/warehouse-inventory/routes";
+import { registerMesRoutes } from "../modules/mes/routes";
 import { sendJson } from "../shared/http/response";
 import { backendConfig } from "../config";
 import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
@@ -32,6 +33,7 @@ export function registerRoutes(router: Router) {
                 "registrazioni-progetti-speciali",
                 "telegram-bot",
                 "warehouse-inventory",
+                "mes",
             ],
             host: backendConfig.advertisedHost,
             port: backendConfig.port,
@@ -60,4 +62,5 @@ export function registerRoutes(router: Router) {
     registerRegistrazioniProgettazioneStampiRoutes(router);
     registerRegistrazioniProgettiSpecialiRoutes(router);
     registerWarehouseInventoryRoutes(router);
+    registerMesRoutes(router);
 }

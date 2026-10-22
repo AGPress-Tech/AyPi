@@ -19,6 +19,7 @@ const SUBSCRIBED_MODULES = [
     "transfer",
     "attrezzaggio",
     "production-planner",
+    "mes",
     "shared",
 ];
 const CONNECTION_READY_TIMEOUT_MS = 15000;

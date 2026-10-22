@@ -13,6 +13,7 @@ import { initializeTransferSqliteStore } from "./modules/transfer-attrezzaggio/r
 import { initializeHaasSqliteStore } from "./modules/haas-attrezzaggio/repository";
 import { initializeProductionPlannerSqliteStore } from "./modules/production-planner/repository";
 import { initializeWarehouseInventorySqliteStore } from "./modules/warehouse-inventory/repository";
+import { initializeMesSqliteStore } from "./modules/mes/repository";
 import { releaseProductionPlannerWaiters } from "./modules/production-planner/service";
 import {
     startTelegramBotService,
@@ -64,6 +65,7 @@ function inferRequestModule(requestUrl: string): RealtimeModule {
     if (normalizedUrl.includes("/api/haas-attrezzaggio/")) return "attrezzaggio";
     if (normalizedUrl.includes("/api/production-planner/")) return "production-planner";
     if (normalizedUrl.includes("/api/warehouse-inventory/")) return "warehouse";
+    if (normalizedUrl.includes("/api/mes/")) return "mes";
     if (normalizedUrl.includes("/api/shared/")) return "shared";
     return "core";
 }
@@ -214,6 +216,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 initializeHaasSqliteStore();
                 initializeProductionPlannerSqliteStore();
                 initializeWarehouseInventorySqliteStore();
+                initializeMesSqliteStore();
                 try {
                     mobileGateway = await startMobileGatewayServer();
                 } catch (error) {

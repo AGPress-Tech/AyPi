@@ -43,8 +43,13 @@
       "mes_nodo": 2,
       "mes_etichetta": "IP69M03",
       "pezzi_per_impulso": 1,
-      "stato": "da_identificare",
-      "segnale": null
+      "stato": "validata_live_sirena_contapezzi",
+      "segnale": {
+        "mac": "ec:1c:5d:0b:83:69",
+        "frame_id": "0x8002",
+        "byte": 4,
+        "bit": 6
+      }
     },
     {
       "codice": "21A500",
@@ -151,6 +156,13 @@
       "nome_profinet": "et200sp-conc01-n04"
     },
     {
+      "mac": "ec:1c:5d:0b:83:69",
+      "frame_id": "0x8002",
+      "ip": "192.168.1.62",
+      "nodo": "n03",
+      "nome_profinet": "et200sp-conc01-n03"
+    },
+    {
       "mac": "ec:1c:5d:0b:83:58",
       "frame_id": "0x8005",
       "ip": "192.168.1.65",
@@ -178,13 +190,6 @@
       "ip": "192.168.1.60",
       "nodo": "n01",
       "nome_profinet": "et200sp-conc01-n01",
-      "frame_id": null
-    },
-    {
-      "mac": "ec:1c:5d:0b:83:69",
-      "ip": "192.168.1.62",
-      "nodo": "n03",
-      "nome_profinet": "et200sp-conc01-n03",
       "frame_id": null
     }
   ]
