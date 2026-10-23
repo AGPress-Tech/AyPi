@@ -9,6 +9,7 @@ import {
     loadMachineEvents,
     loadMesEventSummary,
     loadMesImports,
+    loadUnassignedPieces,
     storeMachineEvents,
 } from "./repository";
 import type { PlcCsvImportPayload } from "./types";
@@ -66,5 +67,9 @@ export function getMesEventSummary() {
 
 export function getMesImports(limit?: number) {
     return loadMesImports(limit);
+}
+
+export function getMesUnassignedPieces() {
+    return loadUnassignedPieces();
 }
 

@@ -1,14 +1,39 @@
 import type { Router } from "../../shared/http/router";
 import { getRequestId, getRequestUser } from "../../shared/http/context";
-import { badRequest } from "../../shared/http/errors";
+import { badRequest, notFound } from "../../shared/http/errors";
 import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
 import {
     getMesEventSummary,
     getMesImports,
     getMesMachineEvents,
+    getMesUnassignedPieces,
     importPlcCsv,
 } from "./service";
+import {
+    addMesOrder,
+    addMesPhase,
+    editMesOrder,
+    editMesPhase,
+    getMesOrder,
+    getMesOrders,
+} from "./production-service";
+import {
+    activateMesPhase,
+    getMesActivationPreview,
+    getMesMachineSessions,
+    reconcileMesSetup,
+    transitionMesSession,
+} from "./session-service";
+import type {
+    MesExecutionStatus,
+    MesOrderDraft,
+    MesOrderStatus,
+    MesPhaseDraft,
+    MesPlanningStatus,
+    MesPriority,
+    MesUnit,
+} from "./types";
 
 function requiredText(value: unknown, label: string, maxLength: number) {
     const normalized = String(value || "").trim();
@@ -23,6 +48,129 @@ function optionalIsoDate(value: string | null, label: string) {
     const timestamp = Date.parse(value);
     if (!Number.isFinite(timestamp)) throw badRequest(`${label} non valida.`);
     return new Date(timestamp).toISOString();
+}
+
+function optionalText(value: unknown, maxLength: number) {
+    const normalized = String(value || "").trim();
+    if (normalized.length > maxLength) throw badRequest("Testo troppo lungo.");
+    return normalized;
+}
+
+function positiveNumber(value: unknown, label: string) {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+        throw badRequest(`${label} deve essere maggiore di zero.`);
+    }
+    return normalized;
+}
+
+function nonNegativeInteger(value: unknown, label: string) {
+    const normalized = Number(value);
+    if (!Number.isInteger(normalized) || normalized < 0) {
+        throw badRequest(`${label} deve essere un intero maggiore o uguale a zero.`);
+    }
+    return normalized;
+}
+
+function enumValue<T extends string>(value: unknown, allowed: readonly T[], label: string): T {
+    if (!allowed.includes(value as T)) throw badRequest(`${label} non valido.`);
+    return value as T;
+}
+
+function isoDate(value: unknown, label: string, required = false) {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+        if (required) throw badRequest(`${label} obbligatoria.`);
+        return "";
+    }
+    const timestamp = Date.parse(normalized);
+    if (!Number.isFinite(timestamp)) throw badRequest(`${label} non valida.`);
+    return new Date(timestamp).toISOString();
+}
+
+const UNITS = ["pz", "kg"] as const;
+const PRIORITIES = ["NORMAL", "HIGH", "URGENT"] as const;
+const ORDER_STATUSES = ["OPEN", "COMPLETED", "CANCELLED"] as const;
+const PLANNING_STATUSES = ["BACKLOG", "SCHEDULED", "ARCHIVED"] as const;
+const EXECUTION_STATUSES = ["NOT_STARTED", "SETUP", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED"] as const;
+const SESSION_MODES = ["PRODUCTION", "SETUP"] as const;
+const UNASSIGNED_CHOICES = ["ATTRIBUTE_ALL", "EXCLUDE_ALL", "PARTIAL"] as const;
+const SESSION_ACTIONS = ["PAUSE", "RESUME", "COMPLETE", "CANCEL"] as const;
+
+function parseOrderDraft(value: any): MesOrderDraft {
+    const unit = enumValue(value?.unit, UNITS, "Unità di misura") as MesUnit;
+    const targetQuantity = positiveNumber(value?.targetQuantity, "Quantità ordine");
+    if (unit === "pz" && !Number.isInteger(targetQuantity)) {
+        throw badRequest("La quantità in pezzi deve essere intera.");
+    }
+    const firstDeliveryAt = isoDate(value?.firstDeliveryAt, "Prima consegna");
+    const dueAt = isoDate(value?.dueAt, "Scadenza");
+    if (firstDeliveryAt && dueAt && firstDeliveryAt > dueAt) {
+        throw badRequest("La prima consegna non può essere successiva alla scadenza.");
+    }
+    return {
+        orderNumber: requiredText(value?.orderNumber, "Numero ordine", 100),
+        customer: optionalText(value?.customer, 200),
+        articleCode: requiredText(value?.articleCode, "Codice articolo", 120),
+        targetQuantity,
+        unit,
+        firstDeliveryAt,
+        dueAt,
+        priority: enumValue(value?.priority || "NORMAL", PRIORITIES, "Priorità") as MesPriority,
+        notes: optionalText(value?.notes, 4000),
+        status: enumValue(value?.status || "OPEN", ORDER_STATUSES, "Stato ordine") as MesOrderStatus,
+    };
+}
+
+function parsePhaseDraft(value: any, fallback?: Pick<MesOrderDraft, "articleCode" | "targetQuantity" | "unit">): MesPhaseDraft {
+    const unit = enumValue(value?.unit || fallback?.unit, UNITS, "Unità di misura fase") as MesUnit;
+    const targetQuantity = positiveNumber(value?.targetQuantity ?? fallback?.targetQuantity, "Quantità fase");
+    if (unit === "pz" && !Number.isInteger(targetQuantity)) {
+        throw badRequest("La quantità della fase in pezzi deve essere intera.");
+    }
+    const sequence = nonNegativeInteger(value?.sequence, "Sequenza fase");
+    if (sequence < 1) throw badRequest("La sequenza fase deve essere maggiore di zero.");
+    const planningStatus = enumValue(value?.planningStatus || "BACKLOG", PLANNING_STATUSES, "Stato pianificazione") as MesPlanningStatus;
+    const standardCycleSeconds = positiveNumber(value?.standardCycleSeconds, "Tempo ciclo standard");
+    const plannedSetupSeconds = nonNegativeInteger(value?.plannedSetupSeconds, "Tempo attrezzaggio");
+    const scheduledStart = isoDate(value?.scheduledStart, "Inizio pianificato");
+    let scheduledEnd = isoDate(value?.scheduledEnd, "Fine pianificata");
+    if (scheduledStart && !scheduledEnd) {
+        scheduledEnd = new Date(
+            Date.parse(scheduledStart) + (plannedSetupSeconds + targetQuantity * standardCycleSeconds) * 1000,
+        ).toISOString();
+    }
+    if (scheduledStart && scheduledEnd && scheduledStart >= scheduledEnd) {
+        throw badRequest("La fine pianificata deve essere successiva all'inizio.");
+    }
+    const plannedMachineId = optionalText(value?.plannedMachineId, 120);
+    if (planningStatus === "SCHEDULED" && (!plannedMachineId || !scheduledStart)) {
+        throw badRequest("Una fase pianificata richiede macchina e data di inizio.");
+    }
+    return {
+        phaseCode: requiredText(value?.phaseCode, "Codice fase", 100),
+        sequence,
+        articleCode: requiredText(value?.articleCode || fallback?.articleCode, "Codice articolo fase", 120),
+        targetQuantity,
+        unit,
+        standardCycleSeconds,
+        plannedSetupSeconds,
+        plannedMachineId,
+        scheduledStart,
+        scheduledEnd,
+        planningStatus,
+        executionStatus: enumValue(value?.executionStatus || "NOT_STARTED", EXECUTION_STATUSES, "Stato esecuzione") as MesExecutionStatus,
+    };
+}
+
+function revision(value: unknown) {
+    const normalized = Number(value);
+    if (!Number.isInteger(normalized) || normalized < 1) throw badRequest("Revisione non valida.");
+    return normalized;
+}
+
+function actionContext(req: Parameters<typeof getRequestUser>[0]) {
+    return { actor: getRequestUser(req), requestId: getRequestId(req) };
 }
 
 export function registerMesRoutes(router: Router) {
@@ -67,6 +215,128 @@ export function registerMesRoutes(router: Router) {
         const url = new URL(req.url || "/", "http://localhost");
         const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit")) || 50));
         sendJson(res, 200, getMesImports(limit));
+    });
+
+    router.register("GET", "/api/mes/machines/unassigned", async (_req, res) => {
+        sendJson(res, 200, getMesUnassignedPieces());
+    });
+
+    router.register("GET", "/api/mes/machines/activation-preview", async (req, res) => {
+        const url = new URL(req.url || "/", "http://localhost");
+        sendJson(res, 200, getMesActivationPreview(
+            requiredText(url.searchParams.get("machineId"), "ID macchina", 120),
+            requiredText(url.searchParams.get("phaseId"), "ID fase", 100),
+        ));
+    });
+
+    router.register("GET", "/api/mes/sessions", async (req, res) => {
+        const url = new URL(req.url || "/", "http://localhost");
+        sendJson(res, 200, getMesMachineSessions(
+            String(url.searchParams.get("machineId") || "").trim() || undefined,
+        ));
+    });
+
+    router.register("POST", "/api/mes/sessions", async (req, res) => {
+        const body: any = (await readJsonBody(req)) || {};
+        const choice = body.unassignedChoice
+            ? enumValue(body.unassignedChoice, UNASSIGNED_CHOICES, "Scelta pezzi non attribuiti")
+            : undefined;
+        let attributedPieces: number | undefined;
+        if (choice === "PARTIAL") {
+            attributedPieces = nonNegativeInteger(body.attributedPieces, "Pezzi da attribuire");
+        }
+        sendJson(res, 201, await activateMesPhase({
+            machineId: requiredText(body.machineId, "ID macchina", 120),
+            phaseId: requiredText(body.phaseId, "ID fase", 100),
+            mode: enumValue(body.mode || "PRODUCTION", SESSION_MODES, "Modalità sessione"),
+            choice,
+            attributedPieces,
+            reasonCode: optionalText(body.reasonCode, 120),
+            note: optionalText(body.note, 1000),
+        }, actionContext(req)));
+    });
+
+    router.register("POST", "/api/mes/sessions/:sessionId/actions", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await transitionMesSession({
+            sessionId: requiredText(params.sessionId, "ID sessione", 100),
+            action: enumValue(body.action, SESSION_ACTIONS, "Azione sessione"),
+            baseRevision: revision(body.baseRevision),
+            note: optionalText(body.note, 1000),
+        }, actionContext(req)));
+    });
+
+    router.register("POST", "/api/mes/sessions/:sessionId/setup-reconciliation", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await reconcileMesSetup({
+            sessionId: requiredText(params.sessionId, "ID sessione", 100),
+            baseRevision: revision(body.baseRevision),
+            goodPieces: nonNegativeInteger(body.goodPieces, "Pezzi buoni"),
+            scrapPieces: nonNegativeInteger(body.scrapPieces, "Scarti o prove"),
+            excludedPieces: nonNegativeInteger(body.excludedPieces, "Pezzi esclusi"),
+            startProduction: body.startProduction !== false,
+            note: optionalText(body.note, 1000),
+        }, actionContext(req)));
+    });
+
+    router.register("GET", "/api/mes/orders", async (req, res) => {
+        const url = new URL(req.url || "/", "http://localhost");
+        const statusValue = String(url.searchParams.get("status") || "").trim();
+        const status = statusValue
+            ? enumValue(statusValue, ORDER_STATUSES, "Stato ordine")
+            : undefined;
+        sendJson(res, 200, getMesOrders({
+            search: String(url.searchParams.get("search") || "").trim() || undefined,
+            status,
+            limit: Math.max(1, Math.min(500, Number(url.searchParams.get("limit")) || 100)),
+            offset: Math.max(0, Number(url.searchParams.get("offset")) || 0),
+        }));
+    });
+
+    router.register("POST", "/api/mes/orders", async (req, res) => {
+        const body: any = (await readJsonBody(req)) || {};
+        const order = parseOrderDraft(body.order || body);
+        const phaseValues = Array.isArray(body.phases) ? body.phases : [];
+        if (!phaseValues.length || phaseValues.length > 100) {
+            throw badRequest("Un ordine deve contenere da 1 a 100 fasi.");
+        }
+        const phases = phaseValues.map((phase: unknown) => parsePhaseDraft(phase, order));
+        sendJson(res, 201, await addMesOrder(order, phases, actionContext(req)));
+    });
+
+    router.register("GET", "/api/mes/orders/:orderId", async (_req, res, params) => {
+        const order = getMesOrder(requiredText(params.orderId, "ID ordine", 100));
+        if (!order) throw notFound("Ordine MES non trovato.");
+        sendJson(res, 200, order);
+    });
+
+    router.register("PUT", "/api/mes/orders/:orderId", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await editMesOrder(
+            requiredText(params.orderId, "ID ordine", 100),
+            parseOrderDraft(body.order || body),
+            revision(body.baseRevision),
+            actionContext(req),
+        ));
+    });
+
+    router.register("POST", "/api/mes/orders/:orderId/phases", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 201, await addMesPhase(
+            requiredText(params.orderId, "ID ordine", 100),
+            parsePhaseDraft(body.phase || body),
+            actionContext(req),
+        ));
+    });
+
+    router.register("PUT", "/api/mes/phases/:phaseId", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await editMesPhase(
+            requiredText(params.phaseId, "ID fase", 100),
+            parsePhaseDraft(body.phase || body),
+            revision(body.baseRevision),
+            actionContext(req),
+        ));
     });
 }
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
 import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 import type { MachineCounterEvent, MesImportResult } from "./types";
@@ -47,6 +48,156 @@ export function initializeMesSqliteStore() {
         );
         CREATE INDEX IF NOT EXISTS idx_mes_imports_time
             ON ${IMPORTS_TABLE} (imported_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_orders (
+            order_id TEXT PRIMARY KEY,
+            order_number TEXT NOT NULL UNIQUE,
+            customer TEXT NOT NULL DEFAULT '',
+            article_code TEXT NOT NULL,
+            target_quantity REAL NOT NULL,
+            unit TEXT NOT NULL,
+            first_delivery_at TEXT NOT NULL DEFAULT '',
+            due_at TEXT NOT NULL DEFAULT '',
+            priority TEXT NOT NULL,
+            notes TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_orders_article ON mes_orders (article_code);
+        CREATE INDEX IF NOT EXISTS idx_mes_orders_status ON mes_orders (status, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_phases (
+            phase_id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL REFERENCES mes_orders(order_id) ON DELETE RESTRICT,
+            phase_code TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            article_code TEXT NOT NULL,
+            target_quantity REAL NOT NULL,
+            unit TEXT NOT NULL,
+            standard_cycle_seconds REAL NOT NULL,
+            planned_setup_seconds INTEGER NOT NULL,
+            planned_machine_id TEXT NOT NULL DEFAULT '',
+            scheduled_start TEXT NOT NULL DEFAULT '',
+            scheduled_end TEXT NOT NULL DEFAULT '',
+            planning_status TEXT NOT NULL,
+            execution_status TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT NOT NULL,
+            UNIQUE (order_id, phase_code),
+            UNIQUE (order_id, sequence)
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_phases_machine ON mes_phases (planned_machine_id, planning_status);
+        CREATE INDEX IF NOT EXISTS idx_mes_phases_execution ON mes_phases (execution_status, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_machine_sessions (
+            session_id TEXT PRIMARY KEY,
+            phase_id TEXT NOT NULL REFERENCES mes_phases(phase_id) ON DELETE RESTRICT,
+            machine_id TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT NOT NULL DEFAULT '',
+            started_by TEXT NOT NULL,
+            ended_by TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            revision INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_active_session_machine
+            ON mes_machine_sessions (machine_id) WHERE status IN ('ACTIVE', 'PAUSED');
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_active_session_phase
+            ON mes_machine_sessions (phase_id) WHERE status IN ('ACTIVE', 'PAUSED');
+        CREATE INDEX IF NOT EXISTS idx_mes_sessions_phase_time
+            ON mes_machine_sessions (phase_id, started_at);
+
+        CREATE TABLE IF NOT EXISTS mes_session_transitions (
+            transition_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES mes_machine_sessions(session_id) ON DELETE RESTRICT,
+            state TEXT NOT NULL,
+            occurred_at TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_session_transitions_time
+            ON mes_session_transitions (session_id, occurred_at);
+
+        CREATE TABLE IF NOT EXISTS mes_event_allocations (
+            allocation_id TEXT PRIMARY KEY,
+            event_id TEXT NOT NULL REFERENCES mes_machine_events(event_id) ON DELETE RESTRICT,
+            session_id TEXT REFERENCES mes_machine_sessions(session_id) ON DELETE RESTRICT,
+            resolution_id TEXT,
+            allocation_kind TEXT NOT NULL,
+            piece_quantity REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_allocations_event ON mes_event_allocations (event_id);
+        CREATE INDEX IF NOT EXISTS idx_mes_allocations_session ON mes_event_allocations (session_id);
+
+        CREATE TABLE IF NOT EXISTS mes_unassigned_resolutions (
+            resolution_id TEXT PRIMARY KEY,
+            machine_id TEXT NOT NULL,
+            phase_id TEXT NOT NULL REFERENCES mes_phases(phase_id) ON DELETE RESTRICT,
+            session_id TEXT NOT NULL REFERENCES mes_machine_sessions(session_id) ON DELETE RESTRICT,
+            detected_pieces REAL NOT NULL,
+            attributed_pieces REAL NOT NULL,
+            excluded_pieces REAL NOT NULL,
+            reason_code TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            resolved_at TEXT NOT NULL,
+            actor TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_resolutions_machine_time
+            ON mes_unassigned_resolutions (machine_id, resolved_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_production_adjustments (
+            adjustment_id TEXT PRIMARY KEY,
+            machine_id TEXT NOT NULL,
+            phase_id TEXT NOT NULL REFERENCES mes_phases(phase_id) ON DELETE RESTRICT,
+            session_id TEXT REFERENCES mes_machine_sessions(session_id) ON DELETE RESTRICT,
+            kind TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            reason_code TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            actor TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_adjustments_phase_time
+            ON mes_production_adjustments (phase_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_setup_reconciliations (
+            reconciliation_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL UNIQUE REFERENCES mes_machine_sessions(session_id) ON DELETE RESTRICT,
+            phase_id TEXT NOT NULL REFERENCES mes_phases(phase_id) ON DELETE RESTRICT,
+            machine_id TEXT NOT NULL,
+            detected_pieces REAL NOT NULL,
+            good_pieces REAL NOT NULL,
+            scrap_pieces REAL NOT NULL,
+            excluded_pieces REAL NOT NULL,
+            start_production INTEGER NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            reconciled_at TEXT NOT NULL,
+            actor TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS mes_audit_log (
+            audit_id TEXT PRIMARY KEY,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            occurred_at TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            request_id TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_audit_entity_time
+            ON mes_audit_log (entity_type, entity_id, occurred_at DESC);
     `);
 }
 
@@ -86,7 +237,9 @@ export function storeMachineEvents(
                     actor,
                 ],
             );
-            insertedEvents += database.getRowsModified();
+            const inserted = database.getRowsModified();
+            insertedEvents += inserted;
+            if (inserted) allocateEventToSession(database, event, importResult.importedAt, actor);
         });
 
         const completed: MesImportResult = {
@@ -117,6 +270,45 @@ export function storeMachineEvents(
         );
         return completed;
     });
+}
+
+function allocateEventToSession(database: any, event: MachineCounterEvent, createdAt: string, actor: string) {
+    const session = resultRows(database.exec(
+        `SELECT sessions.session_id, sessions.mode, sessions.status,
+                COALESCE((
+                    SELECT transitions.state
+                    FROM mes_session_transitions AS transitions
+                    WHERE transitions.session_id = sessions.session_id
+                      AND transitions.occurred_at <= ?
+                    ORDER BY transitions.occurred_at DESC, transitions.rowid DESC
+                    LIMIT 1
+                ), sessions.status) AS state_at_event
+         FROM mes_machine_sessions AS sessions
+         JOIN mes_phases AS phases ON phases.phase_id = sessions.phase_id
+         WHERE sessions.machine_id = ?
+           AND sessions.started_at <= ?
+           AND (sessions.ended_at = '' OR sessions.ended_at >= ?)
+           AND phases.unit = 'pz'
+         ORDER BY sessions.started_at DESC
+         LIMIT 1`,
+        [event.occurredAt, event.machineId, event.occurredAt, event.occurredAt],
+    ))[0];
+    if (!session) return;
+    const state = String(session.state_at_event || "");
+    const allocationKind = state === "ACTIVE"
+        ? (session.mode === "SETUP" ? "SETUP_PENDING" : "PRODUCTION")
+        : state === "PAUSED"
+            ? "PAUSED_EXCLUSION"
+            : "";
+    if (!allocationKind) return;
+    database.run(
+        `INSERT INTO mes_event_allocations
+         (allocation_id, event_id, session_id, resolution_id, allocation_kind,
+          piece_quantity, created_at, created_by)
+         VALUES (?, ?, ?, '', ?, ?, ?, ?)`,
+        [randomUUID(), event.eventId, session.session_id, allocationKind,
+            event.pieceDelta, createdAt, actor],
+    );
 }
 
 function resultRows(result: any) {
@@ -246,6 +438,33 @@ export function loadMesImports(limit = 50) {
         issues: parseJson(row.issues_json, []),
         importedAt: row.imported_at,
         importedBy: row.imported_by,
+    }));
+}
+
+export function loadUnassignedPieces() {
+    initializeMesSqliteStore();
+    return resultRows(getSqliteDatabase().exec(`
+        SELECT pending.machine_id,
+               SUM(pending.remaining_pieces) AS pieces,
+               COUNT(*) AS events,
+               MIN(pending.occurred_at) AS first_event_at,
+               MAX(pending.occurred_at) AS last_event_at
+        FROM (
+            SELECT events.event_id, events.machine_id, events.occurred_at,
+                   events.piece_delta - COALESCE(SUM(allocations.piece_quantity), 0) AS remaining_pieces
+            FROM mes_machine_events AS events
+            LEFT JOIN mes_event_allocations AS allocations ON allocations.event_id = events.event_id
+            GROUP BY events.event_id
+        ) AS pending
+        WHERE pending.remaining_pieces > 0
+        GROUP BY pending.machine_id
+        ORDER BY pending.machine_id
+    `)).map((row: any) => ({
+        machineId: row.machine_id,
+        pieces: Number(row.pieces) || 0,
+        events: Number(row.events) || 0,
+        firstEventAt: row.first_event_at || "",
+        lastEventAt: row.last_event_at || "",
     }));
 }
 

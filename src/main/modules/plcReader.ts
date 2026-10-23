@@ -34,6 +34,7 @@ type CsvImportState = {
     lastImportedAt: string;
     error: string;
     busy: boolean;
+    nextRetryAt: number;
 };
 const csvImportStates = new Map<string,CsvImportState>();
 let activeCsvImportPath = '';
@@ -101,7 +102,7 @@ function registerCsvAutoImport(folder: string) {
         filePath,
         sourceSessionId:path.basename(folder),
         header:'',offset:0,dataRows:0,importedRows:0,importedEvents:0,
-        duplicateEvents:0,rejectedRows:0,lastImportedAt:'',error:'',busy:false,
+        duplicateEvents:0,rejectedRows:0,lastImportedAt:'',error:'',busy:false,nextRetryAt:0,
     });
     activeCsvImportPath=filePath;
     if(!csvImportTimer){
@@ -114,7 +115,7 @@ function registerCsvAutoImport(folder: string) {
 }
 
 async function flushCsvAutoImport(item: CsvImportState) {
-    if(item.busy||!fs.existsSync(item.filePath))return;
+    if(item.busy||Date.now()<item.nextRetryAt||!fs.existsSync(item.filePath))return;
     item.busy=true;
     try{
         const size=fs.statSync(item.filePath).size;
@@ -161,8 +162,10 @@ async function flushCsvAutoImport(item: CsvImportState) {
         item.rejectedRows+=Number(result.rejectedRows||0);
         item.lastImportedAt=new Date().toISOString();
         item.error='';
+        item.nextRetryAt=0;
     }catch(importError){
         item.error=importError instanceof Error?importError.message:String(importError);
+        item.nextRetryAt=Date.now()+30000;
     }finally{item.busy=false;}
 }
 
@@ -178,6 +181,8 @@ function activeCsvImportSnapshot() {
         lastImportedAt:item.lastImportedAt,
         error:item.error,
         pending:item.busy,
+        localFile:item.filePath,
+        nextRetryAt:item.nextRetryAt ? new Date(item.nextRetryAt).toISOString() : '',
     };
 }
 
@@ -231,7 +236,14 @@ function startWorker(nextMode: string) {
 
 export function setupPlcReader(mainWindow: BrowserWindow) {
     try { const saved=JSON.parse(fs.readFileSync(path.join(dataFolder(),'settings.json'),'utf8')); python=saved.python||''; adapter=saved.adapter||defaultInterface; } catch {}
-    const authorized = (event: Electron.IpcMainInvokeEvent) => window && !window.isDestroyed() && event.sender === window.webContents;
+    const authorized = (event: Electron.IpcMainInvokeEvent) => {
+        if (window && !window.isDestroyed() && event.sender === window.webContents) return true;
+        try {
+            return /\/production-planner\.html(?:\?|$)/i.test(new URL(event.sender.getURL()).pathname);
+        } catch {
+            return false;
+        }
+    };
     ipcMain.on('open-plc-reader-window', (event) => {
         if (event.sender !== mainWindow.webContents) return;
         if (window && !window.isDestroyed()) { if(window.isMinimized())window.restore(); window.show(); window.focus(); return; }

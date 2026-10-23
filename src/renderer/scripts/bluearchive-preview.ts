@@ -202,9 +202,9 @@ const pages: Record<string, PageDefinition> = {
         code: "RBT",
         actions: [
             ...(!IS_AGPRESS_INTERFACE ? [{
-                label: "PLC reader",
-                description: "Monitor macchine, robot e segnali di produzione",
-                channel: "open-plc-reader-window",
+                label: "MES e Pianificatore",
+                description: "Ordini, avanzamento macchine e acquisizione PLC",
+                channel: "open-production-planner-window",
             }] : []),
             {
                 label: "Stato Robot 21D500",

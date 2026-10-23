@@ -3,10 +3,10 @@
 
 <head>
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; object-src 'none'">
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; frame-src 'self' file:; object-src 'none'">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AyPi - Pianificazione Produzione</title>
+    <title>AyPi - MES e Pianificatore</title>
     <script src="../../scripts/utility-layout-bootstrap.js"></script>
     <link rel="stylesheet" href="../../styles/utilities/production-planner-style.css">
     <link rel="stylesheet" href="../../styles/utilities/production-planner-splash-bluearchive.css">
@@ -20,7 +20,7 @@
             <div class="planner-ba-boot__grid"></div>
             <div class="planner-ba-boot__sweep"></div>
             <div class="planner-ba-boot__corner planner-ba-boot__corner--left">AGP // SYSTEM ROUTE 04</div>
-            <div class="planner-ba-boot__corner planner-ba-boot__corner--right">AYPI PLANNING</div>
+            <div class="planner-ba-boot__corner planner-ba-boot__corner--right">AYPI MES</div>
             <div class="planner-ba-boot__center">
                 <div class="planner-ba-boot__emblem">
                     <span class="planner-ba-boot__halo"></span>
@@ -28,10 +28,10 @@
                     <span class="planner-ba-boot__slash"></span>
                 </div>
                 <div class="planner-ba-boot__route">
-                    <i></i><span>PRODUCTION PLANNER</span><i></i>
+                    <i></i><span>MES &amp; PRODUCTION PLANNER</span><i></i>
                 </div>
-                <h1>Accesso al modulo <strong>Pianificazione.</strong></h1>
-                <p>Sincronizzazione macchine, lavorazioni e reparti</p>
+                <h1>Accesso al modulo <strong>MES e Pianificazione.</strong></h1>
+                <p>Ordini, macchine, conteggi PLC e reparti</p>
                 <div class="planner-ba-boot__progress"><i></i></div>
                 <div class="planner-ba-boot__status">
                     <span class="is-complete">01&nbsp; DATI</span>
@@ -52,12 +52,12 @@
                     <span class="planner-aypi-logo__slash" aria-hidden="true"></span>
                 </div>
                 <div>
-                    <div class="eyebrow">AYPI · PRODUZIONE</div>
-                    <h1>Pianificazione reparti</h1>
+                    <div class="eyebrow">AYPI · MES E PRODUZIONE</div>
+                    <h1>MES e Pianificatore</h1>
                 </div>
             </div>
 
-            <div class="topbar__actions">
+            <div class="topbar__actions topbar__actions--system">
                 <div class="sync-status" id="sync-status" data-status="connecting" title="Stato sincronizzazione">
                     <i></i>
                     <span id="sync-status-text">Connessione…</span>
@@ -65,17 +65,52 @@
                 <button class="button button--ghost refresh-button" id="refresh-planner" type="button" title="Carica subito gli ultimi dati">
                     <span>↻</span> Aggiorna
                 </button>
-                <button class="button button--ghost undo-button" id="undo-planner" type="button"
-                    title="Nessuna modifica da annullare" disabled>
-                    <span>↶</span> Annulla
-                </button>
-                <button class="button button--ghost" id="open-production-analysis" type="button">Analisi</button>
-                <button class="button button--ghost" id="manage-unavailability" type="button">Fermi macchina</button>
-                <button class="button button--ghost" id="manage-closures" type="button">Chiusure / Ferie</button>
-                <button class="button button--ghost" id="manage-machines" type="button">Macchine</button>
-                <button class="button button--primary" id="new-job" type="button">+ Nuova lavorazione</button>
             </div>
         </header>
+
+        <nav class="mes-navigation" aria-label="Navigazione MES">
+            <button class="mes-navigation__item is-active" data-mes-page="production" type="button">Produzione</button>
+            <button class="mes-navigation__item" data-mes-page="orders" type="button">Ordini</button>
+            <button class="mes-navigation__item" data-mes-page="scheduler" type="button">Schedulatore</button>
+            <span class="mes-navigation__separator"></span>
+            <button class="mes-navigation__item" data-mes-plc-view="overview" type="button">Dashboard</button>
+            <button class="mes-navigation__item" data-mes-plc-view="machines" type="button">Macchine &amp; Robot</button>
+            <button class="mes-navigation__item" data-mes-plc-view="signals" type="button">Signal Discovery</button>
+            <button class="mes-navigation__item" data-mes-plc-view="events" type="button">Eventi</button>
+            <span class="mes-navigation__spacer"></span>
+            <details class="mes-navigation__menu">
+                <summary>Calendario e fermi</summary>
+                <div>
+                    <button id="manage-unavailability" type="button">Fermi macchina</button>
+                    <button id="manage-closures" type="button">Chiusure e ferie</button>
+                </div>
+            </details>
+            <button class="mes-navigation__icon" id="manage-machines" type="button">Risorse</button>
+        </nav>
+
+        <section class="mes-work-page is-active" id="mes-page-production" data-page="production">
+            <header class="mes-page-heading">
+                <div><span class="eyebrow">MES · CONTROLLO OPERATIVO</span><h2>Stato macchine e produzioni</h2><p>Il MES comanda l'esecuzione. Gli ordini vengono attivati manualmente sulla macchina.</p></div>
+                <div class="mes-page-heading__actions"><button class="button button--ghost" id="mes-reader-settings" type="button">Acquisizione PLC</button><button class="button button--ghost" id="mes-console-refresh" type="button">Aggiorna</button></div>
+            </header>
+            <div class="mes-reader-strip" id="mes-reader-strip">Lettore PLC in verifica…</div>
+            <div class="mes-machine-grid mes-machine-grid--page" id="mes-machine-grid"></div>
+        </section>
+
+        <section class="mes-work-page" id="mes-page-orders" data-page="orders" hidden>
+            <header class="mes-page-heading">
+                <div><span class="eyebrow">MES · PORTAFOGLIO LAVORI</span><h2>Ordini e fasi di produzione</h2><p id="mes-orders-context">Gli ordini possono essere pianificati, ma si attivano solo dalla pagina Produzione.</p></div>
+                <div class="mes-page-heading__actions"><label class="mes-order-search">Cerca <input id="mes-orders-search" type="search" placeholder="Ordine, articolo, fase…"></label><button class="button button--primary" id="new-job" type="button">+ Nuovo ordine / fase</button></div>
+            </header>
+            <div class="mes-order-grid" id="mes-orders-body"></div>
+        </section>
+
+        <section class="mes-work-page mes-work-page--plc" id="mes-page-plc" data-page="plc" hidden>
+            <iframe id="mes-plc-frame" title="Monitoraggio PLC" loading="eager"></iframe>
+        </section>
+
+        <section class="mes-work-page mes-work-page--scheduler" id="mes-page-scheduler" data-page="scheduler" hidden>
+            <div class="scheduler-page-toolbar"><div><strong>Schedulatore</strong><span>Si adegua agli avanzamenti e agli stati del MES; non attiva produzioni.</span></div><div><button class="button button--ghost undo-button" id="undo-planner" type="button" title="Nessuna modifica da annullare" disabled>↶ Annulla</button><button class="button button--ghost" id="open-production-analysis" type="button">Analisi</button></div></div>
 
         <section class="summary" aria-label="Riepilogo pianificazione">
             <article class="summary-card">
@@ -187,25 +222,27 @@
         </main>
 
         <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        </section>
     </div>
 
     <div class="dialog-backdrop" id="job-dialog" aria-hidden="true">
         <form class="dialog" id="job-form">
             <header class="dialog__header">
                 <div>
-                    <span class="eyebrow">LAVORAZIONE</span>
-                    <h2 id="job-dialog-title">Nuova lavorazione</h2>
+                    <span class="eyebrow">ORDINE E FASE MES</span>
+                    <h2 id="job-dialog-title">Nuovo ordine / fase</h2>
                 </div>
                 <button class="dialog__close" data-close-dialog type="button" aria-label="Chiudi">×</button>
             </header>
 
             <input id="job-id" type="hidden">
             <div class="form-grid">
+                <label>Numero ordine<input id="job-order-number" required maxlength="100" placeholder="Es. OP-2026-00125"></label>
                 <label>Codice articolo<input id="job-article" required maxlength="80"></label>
                 <label>Cliente<input id="job-customer" required maxlength="80"></label>
-                <label>Fase di lavorazione <span class="optional-label">Opzionale</span><input id="job-phase" maxlength="120"></label>
+                <label>Fase di lavorazione<input id="job-phase" required maxlength="120" placeholder="Es. Tornitura OP10"></label>
                 <label>Materiale / Lega <span class="optional-label">Opzionale</span><input id="job-material-alloy" maxlength="120" placeholder="Es. AISI 304, C45, alluminio"></label>
-                <label>Quantità<input id="job-quantity" type="number" min="0" step="1"></label>
+                <label>Quantità<input id="job-quantity" type="number" min="1" step="1" required></label>
                 <label>Unità
                     <select id="job-unit">
                         <option value="pz">pezzi</option>
@@ -236,11 +273,24 @@
                     <input id="job-start" type="date">
                     <small class="field-hint" id="job-start-hint">Disponibile dopo aver scelto una macchina.</small>
                 </label>
-                <label>Durata produzione
+                <label>Tempo standard per pezzo
                     <span class="field-with-suffix">
-                        <input id="job-duration" type="number" min="1" step="1" value="1" required>
+                        <input id="job-cycle-seconds" type="number" min="0.001" step="0.001" required>
+                        <span>secondi</span>
+                    </span>
+                </label>
+                <label>Attrezzaggio previsto
+                    <span class="field-with-suffix">
+                        <input id="job-setup-hours" type="number" min="0" step="0.01" value="0" required>
+                        <span>ore</span>
+                    </span>
+                </label>
+                <label>Durata calcolata
+                    <span class="field-with-suffix">
+                        <input id="job-duration" type="number" min="1" step="1" value="1" readonly>
                         <span>giorni lavorativi</span>
                     </span>
+                    <small class="field-hint" id="job-duration-hint">Calcolata su 8 ore produttive al giorno.</small>
                 </label>
                 <label>Consegna finale <span class="optional-label">Opzionale</span><input id="job-due" type="date"></label>
                 <label>Prima consegna<input id="job-first-delivery" type="date"></label>
@@ -254,7 +304,7 @@
                         <option value="verification">Da verificare</option>
                     </select>
                 </label>
-                <label>Stato lavorazione
+                <label hidden>Stato lavorazione
                     <select id="job-status">
                         <option value="not_started">Non ancora iniziato</option>
                         <option value="running">In corso</option>
@@ -269,6 +319,84 @@
                 <span class="dialog__spacer"></span>
                 <button class="button button--ghost" data-close-dialog type="button">Annulla</button>
                 <button class="button button--primary" type="submit">Salva lavorazione</button>
+            </footer>
+        </form>
+    </div>
+
+    <div class="dialog-backdrop" id="mes-activation-dialog" aria-hidden="true">
+        <form class="dialog dialog--compact" id="mes-activation-form">
+            <header class="dialog__header">
+                <div><span class="eyebrow">AVVIO PRODUZIONE</span><h2 id="mes-activation-title">Attiva fase</h2></div>
+                <button class="dialog__close" data-close-mes-activation type="button" aria-label="Chiudi">×</button>
+            </header>
+            <input id="mes-activation-machine" type="hidden">
+            <input id="mes-activation-phase" type="hidden">
+            <div class="mes-activation-body">
+                <p id="mes-activation-preview"></p>
+                <label>Modalità
+                    <select id="mes-activation-mode"><option value="PRODUCTION">Produzione</option><option value="SETUP">Attrezzaggio</option></select>
+                </label>
+                <fieldset id="mes-unassigned-options">
+                    <legend>Come trattare i pezzi già rilevati?</legend>
+                    <label><input type="radio" name="mes-unassigned-choice" value="ATTRIBUTE_ALL"> Attribuisci tutti all'ordine</label>
+                    <label><input type="radio" name="mes-unassigned-choice" value="EXCLUDE_ALL"> Azzera logicamente e parti da zero</label>
+                    <label><input type="radio" name="mes-unassigned-choice" value="PARTIAL"> Attribuisci solo una parte</label>
+                    <input id="mes-attributed-pieces" type="number" min="0" step="1" placeholder="Pezzi da attribuire" disabled>
+                </fieldset>
+                <label>Causale<input id="mes-activation-reason" maxlength="120" value="AVVIO_ORDINE"></label>
+                <label>Nota <span class="optional-label">Opzionale</span><textarea id="mes-activation-note" rows="2" maxlength="1000"></textarea></label>
+                <p class="form-error" id="mes-activation-error"></p>
+            </div>
+            <footer class="dialog__footer">
+                <span class="dialog__spacer"></span>
+                <button class="button button--ghost" data-close-mes-activation type="button">Annulla</button>
+                <button class="button button--primary" type="submit">Attiva sulla macchina</button>
+            </footer>
+        </form>
+    </div>
+
+    <div class="dialog-backdrop" id="mes-reader-dialog" aria-hidden="true">
+        <form class="dialog dialog--compact" id="mes-reader-form">
+            <header class="dialog__header">
+                <div><span class="eyebrow">ACQUISIZIONE PASSIVA</span><h2>PLC Reader</h2></div>
+                <button class="dialog__close" data-close-mes-reader type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="mes-activation-body">
+                <label>Modalità<select id="mes-reader-mode"><option value="LIVE">LIVE · Rete reale</option><option value="DEMO">DEMO · Simulazione</option></select></label>
+                <label>Scheda Npcap<input id="mes-reader-adapter" spellcheck="false"></label>
+                <label>Python <span class="optional-label">Rilevamento automatico</span><input id="mes-reader-python" spellcheck="false"></label>
+                <p class="field-hint">Il lettore resta passivo: non invia comandi alle macchine.</p>
+                <p class="form-error" id="mes-reader-error"></p>
+            </div>
+            <footer class="dialog__footer">
+                <button class="button button--danger" id="mes-reader-stop" type="button">Arresta</button>
+                <span class="dialog__spacer"></span>
+                <button class="button button--ghost" data-close-mes-reader type="button">Annulla</button>
+                <button class="button button--primary" type="submit">Avvia acquisizione</button>
+            </footer>
+        </form>
+    </div>
+
+    <div class="dialog-backdrop" id="mes-setup-dialog" aria-hidden="true">
+        <form class="dialog dialog--compact" id="mes-setup-form">
+            <header class="dialog__header">
+                <div><span class="eyebrow">FINE ATTREZZAGGIO</span><h2 id="mes-setup-title">Riconcilia pezzi</h2></div>
+                <button class="dialog__close" data-close-mes-setup type="button" aria-label="Chiudi">×</button>
+            </header>
+            <input id="mes-setup-session" type="hidden">
+            <div class="mes-activation-body">
+                <p id="mes-setup-detected"></p>
+                <label>Pezzi buoni<input id="mes-setup-good" type="number" min="0" step="1" value="0" required></label>
+                <label>Scarti / prove<input id="mes-setup-scrap" type="number" min="0" step="1" value="0" required></label>
+                <label>Pezzi esclusi<input id="mes-setup-excluded" type="number" min="0" step="1" value="0" required></label>
+                <label class="mes-setup-start"><input id="mes-setup-start-production" type="checkbox" checked> Avvia immediatamente la produzione</label>
+                <label>Nota <span class="optional-label">Opzionale</span><textarea id="mes-setup-note" rows="2" maxlength="1000"></textarea></label>
+                <p class="form-error" id="mes-setup-error"></p>
+            </div>
+            <footer class="dialog__footer">
+                <span class="dialog__spacer"></span>
+                <button class="button button--ghost" data-close-mes-setup type="button">Annulla</button>
+                <button class="button button--primary" type="submit">Conferma conteggi</button>
             </footer>
         </form>
     </div>

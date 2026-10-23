@@ -18,6 +18,17 @@ export function registerProductionPlannerIpc(
     ipcMain: IpcMain,
     request: BackendRequest,
 ) {
+    const mesRequest = async (
+        pathname: string,
+        options?: Parameters<BackendRequest>[1],
+    ) => {
+        try {
+            return { ok: true, data: await request(pathname, options) };
+        } catch (error) {
+            return { ok: false, error: errorMessage(error) };
+        }
+    };
+
     ipcMain.handle("production-planner-load", async () => {
         log.info("[production-planner] Caricamento stato richiesto dal renderer.");
         try {
@@ -93,4 +104,61 @@ export function registerProductionPlannerIpc(
             };
         }
     });
+
+    ipcMain.handle("mes-orders-list", (_event, payload) => {
+        const search = String(payload?.search || "").trim();
+        const query = search ? `?search=${encodeURIComponent(search)}&limit=100` : "?limit=500";
+        return mesRequest(`/api/mes/orders${query}`);
+    });
+
+    ipcMain.handle("mes-order-get", (_event, payload) =>
+        mesRequest(`/api/mes/orders/${encodeURIComponent(String(payload?.orderId || ""))}`));
+
+    ipcMain.handle("mes-order-create", (_event, payload) =>
+        mesRequest("/api/mes/orders", { method: "POST", body: payload }));
+
+    ipcMain.handle("mes-order-update", (_event, payload) =>
+        mesRequest(`/api/mes/orders/${encodeURIComponent(String(payload?.orderId || ""))}`, {
+            method: "PUT",
+            body: payload?.body,
+        }));
+
+    ipcMain.handle("mes-phase-create", (_event, payload) =>
+        mesRequest(`/api/mes/orders/${encodeURIComponent(String(payload?.orderId || ""))}/phases`, {
+            method: "POST",
+            body: payload?.body,
+        }));
+
+    ipcMain.handle("mes-phase-update", (_event, payload) =>
+        mesRequest(`/api/mes/phases/${encodeURIComponent(String(payload?.phaseId || ""))}`, {
+            method: "PUT",
+            body: payload?.body,
+        }));
+
+    ipcMain.handle("mes-activation-preview", (_event, payload) => {
+        const machineId = encodeURIComponent(String(payload?.machineId || ""));
+        const phaseId = encodeURIComponent(String(payload?.phaseId || ""));
+        return mesRequest(`/api/mes/machines/activation-preview?machineId=${machineId}&phaseId=${phaseId}`);
+    });
+
+    ipcMain.handle("mes-sessions-list", (_event, payload) => {
+        const machineId = String(payload?.machineId || "").trim();
+        const query = machineId ? `?machineId=${encodeURIComponent(machineId)}` : "";
+        return mesRequest(`/api/mes/sessions${query}`);
+    });
+
+    ipcMain.handle("mes-session-start", (_event, payload) =>
+        mesRequest("/api/mes/sessions", { method: "POST", body: payload }));
+
+    ipcMain.handle("mes-session-action", (_event, payload) =>
+        mesRequest(`/api/mes/sessions/${encodeURIComponent(String(payload?.sessionId || ""))}/actions`, {
+            method: "POST",
+            body: payload?.body,
+        }));
+
+    ipcMain.handle("mes-setup-reconcile", (_event, payload) =>
+        mesRequest(`/api/mes/sessions/${encodeURIComponent(String(payload?.sessionId || ""))}/setup-reconciliation`, {
+            method: "POST",
+            body: payload?.body,
+        }));
 }

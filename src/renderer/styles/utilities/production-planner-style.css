@@ -3444,6 +3444,313 @@ body.is-calendar-panning * {
     opacity: 1;
 }
 
+.dialog--mes-console {
+    width: min(1180px, calc(100vw - 36px));
+    max-width: none;
+    max-height: 90vh;
+    overflow: hidden;
+}
+
+.mes-console__header-actions,
+.mes-machine-card header,
+.mes-machine-card__signals,
+.mes-machine-card__actions,
+.mes-machine-card__idle,
+.mes-machine-card__production p {
+    display: flex;
+    align-items: center;
+}
+
+.mes-console__header-actions {
+    gap: 8px;
+}
+
+.mes-reader-strip {
+    padding: 10px 22px;
+    border-bottom: 1px solid var(--line);
+    background: #fff5e8;
+    color: #98611f;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.mes-reader-strip.is-running {
+    background: #eaf9f1;
+    color: #247548;
+}
+
+.mes-machine-grid {
+    display: grid;
+    max-height: calc(90vh - 130px);
+    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+    gap: 12px;
+    padding: 16px 20px 22px;
+    overflow: auto;
+    background: #eef3f8;
+}
+
+.mes-machine-card {
+    overflow: hidden;
+    border: 1px solid #ccd8e4;
+    border-radius: 12px;
+    background: white;
+    box-shadow: 0 5px 16px rgba(31, 57, 82, 0.08);
+}
+
+.mes-machine-card.is-active {
+    border-color: color-mix(in srgb, var(--machine-color) 55%, #b9c8d7);
+}
+
+.mes-machine-card header {
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e1e8ef;
+}
+
+.mes-machine-card header > i {
+    width: 5px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--machine-color);
+}
+
+.mes-machine-card header div {
+    min-width: 0;
+    flex: 1;
+}
+
+.mes-machine-card header strong,
+.mes-machine-card header small {
+    display: block;
+}
+
+.mes-machine-card header small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.mes-machine-card header b {
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: #edf3f8;
+    color: #52677b;
+    font-size: 8px;
+    letter-spacing: 0.06em;
+}
+
+.mes-machine-card.is-active header b {
+    background: #def5e8;
+    color: #197346;
+}
+
+.mes-machine-card__signals {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-bottom: 1px solid #e8edf2;
+}
+
+.mes-machine-card__signals span {
+    padding: 9px 10px;
+    border-right: 1px solid #e8edf2;
+    color: var(--muted);
+    font-size: 8px;
+    text-transform: uppercase;
+}
+
+.mes-machine-card__signals span:last-child {
+    border-right: 0;
+}
+
+.mes-machine-card__signals strong {
+    display: block;
+    margin-top: 3px;
+    color: #283e53;
+    font-size: 11px;
+}
+
+.mes-machine-card__production,
+.mes-machine-card__idle {
+    padding: 12px 14px 14px;
+}
+
+.mes-machine-card__production > div:first-child span,
+.mes-machine-card__production > div:first-child strong {
+    display: block;
+}
+
+.mes-machine-card__production > div:first-child span {
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.mes-machine-card__production > div:first-child strong {
+    margin-top: 3px;
+}
+
+.mes-progress {
+    height: 7px;
+    margin: 10px 0 6px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: #e6edf3;
+}
+
+.mes-progress i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2ca96d, #65cf94);
+}
+
+.mes-machine-card__production p {
+    justify-content: space-between;
+    margin: 0 0 11px;
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.mes-machine-card__production p strong {
+    color: #243b50;
+    font-size: 12px;
+}
+
+.mes-machine-card__actions {
+    gap: 6px;
+}
+
+.mes-cycle-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin: 0 0 11px;
+}
+
+.mes-cycle-metrics span {
+    padding: 7px;
+    border-radius: 7px;
+    background: #f1f5f8;
+    color: var(--muted);
+    font-size: 8px;
+    text-transform: uppercase;
+}
+
+.mes-cycle-metrics strong {
+    display: block;
+    margin-top: 3px;
+    color: #284158;
+    font-size: 11px;
+    text-transform: none;
+}
+
+.mes-machine-card__actions button,
+.mes-machine-card__idle button {
+    min-height: 31px;
+    padding: 0 10px;
+    border: 1px solid #bfcddd;
+    border-radius: 7px;
+    background: #f7fafc;
+    color: #304b65;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.mes-machine-card__actions button.is-danger {
+    margin-left: auto;
+    border-color: #efc0c4;
+    color: #ac3c45;
+}
+
+.mes-machine-card__idle {
+    gap: 8px;
+}
+
+.mes-machine-card__idle select {
+    min-width: 0;
+    min-height: 34px;
+    flex: 1;
+    border: 1px solid #c8d4df;
+    border-radius: 7px;
+    background: white;
+    font-size: 10px;
+}
+
+.mes-activation-body {
+    display: grid;
+    gap: 12px;
+    padding: 18px 22px;
+}
+
+.mes-activation-body > p {
+    margin: 0;
+    color: #536779;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.mes-activation-body label,
+.mes-activation-body legend {
+    color: #435168;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.mes-activation-body input,
+.mes-activation-body select,
+.mes-activation-body textarea {
+    width: 100%;
+    margin-top: 5px;
+    padding: 8px 9px;
+    border: 1px solid #ccd5df;
+    border-radius: 7px;
+    background: white;
+}
+
+#mes-unassigned-options {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid #d6e0e8;
+    border-radius: 8px;
+}
+
+#mes-unassigned-options[hidden] {
+    display: none;
+}
+
+#mes-unassigned-options label {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#mes-unassigned-options input[type="radio"] {
+    width: auto;
+    margin: 0;
+}
+
+.mes-activation-body .mes-setup-start {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 8px;
+    background: #eef8f3;
+}
+
+.mes-activation-body .mes-setup-start input {
+    width: auto;
+    margin: 0;
+}
+
+@media (max-width: 760px) {
+    .mes-machine-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 1100px) {
     .topbar {
         gap: 12px;
@@ -3543,4 +3850,96 @@ body.is-calendar-panning * {
         max-height: 94vh;
         overflow: auto;
     }
+}
+
+/* Unified MES shell */
+.planner-app { min-height: 100vh; grid-template-rows: auto auto minmax(0, 1fr); }
+.topbar__actions--system { margin-left: auto; }
+.mes-navigation { position: relative; z-index: 30; display: flex; align-items: stretch; gap: 2px; min-height: 48px; padding: 0 24px; background: #f8fbfd; border-bottom: 1px solid #cfe0e9; box-shadow: 0 3px 12px rgba(38, 83, 108, .06); }
+.mes-navigation__item, .mes-navigation__icon, .mes-navigation__menu > summary { appearance: none; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #557186; padding: 0 13px; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; display: flex; align-items: center; list-style: none; }
+.mes-navigation__item:hover, .mes-navigation__icon:hover, .mes-navigation__menu > summary:hover { color: #1389bf; background: #eaf7fd; }
+.mes-navigation__item.is-active { color: #087cb3; border-bottom-color: #19b6ec; background: #edf9fe; }
+.mes-navigation__separator { width: 1px; height: 24px; margin: auto 8px; background: #d4e3eb; }
+.mes-navigation__spacer { flex: 1; }
+.mes-navigation__icon { white-space: nowrap; }
+.mes-navigation__menu { position: relative; display: flex; }
+.mes-navigation__menu > summary::-webkit-details-marker { display: none; }
+.mes-navigation__menu > summary::after { content: "⌄"; margin-left: 7px; }
+.mes-navigation__menu > div { position: absolute; z-index: 100; top: calc(100% - 1px); right: 0; width: 210px; padding: 7px; border: 1px solid #cbdfe9; border-radius: 0 0 10px 10px; background: white; box-shadow: 0 12px 30px rgba(32, 75, 99, .16); }
+.mes-navigation__menu > div button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 7px; background: transparent; color: #35566b; text-align: left; cursor: pointer; }
+.mes-navigation__menu > div button:hover { background: #eaf7fd; color: #087cb3; }
+.mes-work-page { flex: 1; min-height: 0; background: #f3f7f9; }
+.mes-work-page[hidden] { display: none !important; }
+.mes-work-page--scheduler { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+.mes-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 26px 16px; background: white; border-bottom: 1px solid #d6e4eb; }
+.mes-page-heading h2 { margin: 4px 0 2px; color: #173b51; font-size: 21px; }
+.mes-page-heading p { margin: 0; color: #6c8798; font-size: 11px; }
+.mes-page-heading__actions { display: flex; align-items: center; gap: 9px; }
+.mes-reader-strip { margin: 12px 26px 0; }
+.mes-machine-grid--page { max-height: calc(100vh - 235px); margin: 12px 26px 26px; padding: 0 0 20px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); background: transparent; }
+.mes-machine-grid--page .mes-machine-card { box-shadow: 0 10px 28px rgba(24, 71, 98, .08); }
+.mes-machine-card header .mes-local-link { flex: none; padding: 4px 7px; border-radius: 999px; background: #f0f3f6; color: #8799a5; font-size: 8px; font-weight: 800; }
+.mes-machine-card header .mes-local-link.is-online { background: #e0f7ed; color: #16805a; }
+.mes-machine-card__idle { justify-content: space-between; min-height: 88px; }
+.mes-machine-card__idle > div { min-width: 0; }
+.mes-machine-card__idle strong, .mes-machine-card__idle small { display: block; }
+.mes-machine-card__idle strong { color: #39566a; font-size: 11px; }
+.mes-machine-card__idle small { margin-top: 5px; color: #8095a3; font-size: 9px; }
+.mes-order-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(325px, 1fr)); align-content: start; gap: 13px; max-height: calc(100vh - 210px); margin: 14px 26px 26px; padding-bottom: 20px; overflow: auto; }
+.mes-order-card { overflow: hidden; border: 1px solid #ccdce5; border-radius: 7px 17px 7px 17px; background: white; box-shadow: 0 7px 22px rgba(26, 74, 100, .07); }
+.mes-order-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 15px 16px 12px; border-bottom: 1px solid #e5edf2; }
+.mes-order-card > header div { min-width: 0; }
+.mes-order-card > header div > span, .mes-order-card > header strong, .mes-order-card > header small { display: block; }
+.mes-order-card > header div > span { color: #1689bf; font-size: 9px; font-weight: 850; letter-spacing: .7px; }
+.mes-order-card > header strong { margin-top: 4px; color: #173e56; font-size: 16px; }
+.mes-order-card > header small { margin-top: 4px; overflow: hidden; color: #738d9d; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.mes-order-card__phase { padding: 12px 16px 3px; }
+.mes-order-card__phase span, .mes-order-card__phase strong { display: block; }
+.mes-order-card__phase span { color: #7894a4; font-size: 8px; font-weight: 800; letter-spacing: .6px; }
+.mes-order-card__phase strong { margin-top: 3px; color: #365b70; font-size: 11px; }
+.mes-order-card > .mes-progress { margin: 10px 16px; }
+.mes-order-card__metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 16px 13px; overflow: hidden; border: 1px solid #e2ebf0; border-radius: 8px; background: #f6fafc; }
+.mes-order-card__metrics span { padding: 9px 7px; border-right: 1px solid #e2ebf0; color: #78909f; font-size: 8px; text-transform: uppercase; }
+.mes-order-card__metrics span:last-child { border-right: 0; }
+.mes-order-card__metrics strong { display: block; margin-top: 4px; color: #294d62; font-size: 11px; text-transform: none; }
+.mes-order-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 51px; padding: 9px 16px; background: #f8fbfd; border-top: 1px solid #e1ebf0; }
+.mes-order-card > footer > span { color: #668497; font-size: 9px; }
+.mes-empty-card { grid-column: 1 / -1; padding: 50px; border: 1px dashed #bfd4df; border-radius: 10px; color: #7894a4; background: rgba(255,255,255,.65); text-align: center; }
+.mes-production-table-wrap, .mes-orders-table-wrap { margin: 12px 26px 26px; overflow: auto; max-height: calc(100vh - 235px); border: 1px solid #cbdde7; border-radius: 8px; background: white; box-shadow: 0 5px 18px rgba(28, 78, 104, .06); }
+.mes-production-table, .mes-orders-table { width: 100%; min-width: 1450px; border-collapse: separate; border-spacing: 0; color: #284d63; font-size: 11px; }
+.mes-production-table th, .mes-orders-table th { position: sticky; z-index: 3; top: 0; padding: 11px 9px; background: #edf6fa; border-right: 1px solid #d5e2e9; border-bottom: 1px solid #c7dae4; color: #4f748a; font-size: 9px; text-transform: uppercase; letter-spacing: .35px; white-space: nowrap; }
+.mes-production-table td, .mes-orders-table td { padding: 10px 9px; border-right: 1px solid #e1eaef; border-bottom: 1px solid #e1eaef; vertical-align: middle; }
+.mes-production-table tbody tr:hover, .mes-orders-table tbody tr:hover { background: #f2faff; }
+.mes-production-table tbody tr.is-active { background: #fbfeff; }
+.mes-production-table td small { display: block; max-width: 250px; margin-top: 3px; color: #7791a1; }
+.mes-production-table .is-number, .mes-orders-table .is-number { text-align: right; font-variant-numeric: tabular-nums; }
+.mes-production-table .is-good, .mes-orders-table .is-good { color: #03a842; font-weight: 800; }
+.mes-machine-light { display: block; width: 17px; height: 42px; border-radius: 10px; background: #89969e; box-shadow: inset 0 0 0 3px #33434c, 0 1px 4px #789; }
+.mes-machine-light--running { background: #2bd657; box-shadow: inset 0 0 0 3px #284f32, 0 0 11px #37db68; }
+.mes-machine-light--paused { background: #ffbf2e; box-shadow: inset 0 0 0 3px #62501f, 0 0 11px #ffbf2e; }
+.mes-machine-light--offline { background: #ef3f45; box-shadow: inset 0 0 0 3px #5b272a, 0 0 8px #ef3f45; }
+.mes-inline-progress { width: 190px; height: 5px; margin-top: 6px; overflow: hidden; border-radius: 5px; background: #e3edf2; }
+.mes-inline-progress i { display: block; height: 100%; background: linear-gradient(90deg, #20b9ec, #2bcf8b); }
+.mes-row-actions { display: flex; gap: 5px; white-space: nowrap; }
+.mes-row-actions button { border: 1px solid #b8d4e1; border-radius: 5px; padding: 6px 8px; background: white; color: #23769b; font-size: 9px; font-weight: 700; cursor: pointer; }
+.mes-row-actions button.is-danger { color: #bc4252; border-color: #edc2c8; }
+.mes-order-search { display: flex; align-items: center; gap: 7px; color: #607e91; font-size: 10px; font-weight: 700; }
+.mes-order-search input { width: 250px; padding: 9px 11px; border: 1px solid #bcd5e1; border-radius: 7px; }
+.mes-order-status { display: inline-block; min-width: 82px; padding: 5px 7px; border-radius: 4px; background: #fff5a8; color: #6e6110; font-size: 9px; font-weight: 800; text-align: center; }
+.mes-order-status--running, .mes-order-status--setup { background: #dff6ff; color: #087ba8; }
+.mes-order-status--completed { background: #dcf7e9; color: #178156; }
+.mes-order-status--paused { background: #fff0ca; color: #936600; }
+.mes-order-activate { white-space: nowrap; }
+.mes-empty-row { padding: 40px !important; color: #7894a4; text-align: center; }
+.mes-work-page--plc { height: calc(100vh - 123px); background: white; }
+#mes-plc-frame { display: block; width: 100%; height: 100%; border: 0; background: white; }
+.scheduler-page-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 10px 24px; background: #f8fbfd; border-bottom: 1px solid #d4e2e9; }
+.scheduler-page-toolbar > div { display: flex; align-items: center; gap: 10px; }
+.scheduler-page-toolbar strong { color: #244c64; }
+.scheduler-page-toolbar span { color: #78909e; font-size: 10px; }
+
+@media (max-width: 1300px) {
+    .mes-navigation { padding: 0 12px; overflow-x: auto; }
+    .mes-navigation__item, .mes-navigation__icon, .mes-navigation__menu > summary { padding: 0 9px; font-size: 10px; white-space: nowrap; }
+    .mes-navigation__separator { margin-inline: 3px; }
 }
