@@ -4,11 +4,14 @@ import { buildContext } from "../../shared/logging/audit";
 import { logger } from "../../shared/logging/logger";
 import { createOperationQueue } from "../../shared/ops/queue";
 import {
+    adjustMachineSessionProduction,
+    beginSetupForMachineSession,
     changeMachineSessionState,
     listMachineSessions,
     loadActivationPreview,
     reconcileSetupSession,
     startMachineSession,
+    updateMachineSessionOperator,
 } from "./session-repository";
 import type { MesSessionMode, MesUnassignedChoice } from "./types";
 
@@ -54,7 +57,7 @@ export function activateMesPhase(input: {
 
 export function transitionMesSession(input: {
     sessionId: string;
-    action: "PAUSE" | "RESUME" | "COMPLETE" | "CANCEL";
+    action: "PAUSE" | "COMPLETE";
     baseRevision: number;
     note: string;
 }, context?: ActionContext) {
@@ -77,6 +80,52 @@ export function transitionMesSession(input: {
     });
 }
 
+export function adjustMesProduction(input: {
+    sessionId: string;
+    baseRevision: number;
+    kind: "GOOD_PIECES_ADD" | "GOOD_PIECES_REMOVE" | "SCRAP_PIECES_ADD" | "SCRAP_PIECES_REMOVE";
+    quantity: number;
+    reasonCode: string;
+    note: string;
+}, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("adjustProduction", () => adjustMachineSessionProduction({
+        ...input, adjustmentId: randomUUID(), auditId: randomUUID(),
+        now: new Date().toISOString(), actor: meta.actor, requestId: meta.requestId,
+    }));
+}
+
+export function setMesSessionOperator(input: {
+    sessionId: string;
+    baseRevision: number;
+    operatorNames: string[];
+    note: string;
+}, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("setOperator", () => updateMachineSessionOperator({
+        ...input, auditId: randomUUID(), now: new Date().toISOString(),
+        actor: meta.actor, requestId: meta.requestId,
+    }));
+}
+
+export function beginMesSetup(input: {
+    sessionId: string;
+    baseRevision: number;
+    note: string;
+}, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("beginSetup", () => beginSetupForMachineSession({
+        ...input,
+        setupSessionId: randomUUID(),
+        closeTransitionId: randomUUID(),
+        startTransitionId: randomUUID(),
+        auditId: randomUUID(),
+        now: new Date().toISOString(),
+        actor: meta.actor,
+        requestId: meta.requestId,
+    }));
+}
+
 export function reconcileMesSetup(input: {
     sessionId: string;
     baseRevision: number;
@@ -84,6 +133,7 @@ export function reconcileMesSetup(input: {
     scrapPieces: number;
     excludedPieces: number;
     startProduction: boolean;
+    closeOrder: boolean;
     note: string;
 }, context?: ActionContext) {
     const meta = buildContext(context);

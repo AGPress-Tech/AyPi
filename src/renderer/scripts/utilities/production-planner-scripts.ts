@@ -24,6 +24,7 @@ window.addEventListener("unhandledrejection", (event) => {
 type MaterialStatus = "available" | "partial" | "incoming" | "missing" | "verification";
 type WorkStatus = "not_started" | "running" | "done";
 type Priority = "normal" | "high" | "urgent";
+type MachineWorkInterval = { start: string; end: string };
 
 type Machine = {
     id: string;
@@ -31,7 +32,8 @@ type Machine = {
     department: string;
     category: string;
     color: string;
-    closedWeekdays?: number[];
+    closedWeekdays?: number[]; // Solo migrazione dai vecchi calendari; non è più una sorgente di pianificazione.
+    workingHours?: Record<string, MachineWorkInterval[]>;
 };
 
 type ProductionJob = {
@@ -95,6 +97,7 @@ type PlannerState = {
 const STORAGE_KEY = "aypi-production-planner-v1";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_CLOSED_WEEKDAYS = [0, 6];
+const DEFAULT_WORK_INTERVAL: MachineWorkInterval = { start: "08:00", end: "16:00" };
 const WEEKDAY_OPTIONS = [
     { value: 1, short: "Lun", label: "Lunedì" },
     { value: 2, short: "Mar", label: "Martedì" },
@@ -147,7 +150,10 @@ let visibleStart = startOfWeek(new Date());
 let visibleDays = 14;
 let draggedJobId = "";
 let draggedMachineId = "";
-let openMachineCalendarId = "";
+let scheduleEditorMachineId = "";
+let scheduleClipboard: Record<string, MachineWorkInterval[]> | null = null;
+let scheduleEditorDraft: Record<string, MachineWorkInterval[]> | null = null;
+let calendarTimePickerTarget: HTMLInputElement | null = null;
 let machineAutoScrollFrame: number | null = null;
 let machineAutoScrollVelocity = 0;
 let jobDragAutoScrollFrame: number | null = null;
@@ -188,6 +194,7 @@ let linkPickerProductionFrom = "";
 let linkPickerProductionTo = "";
 let suppressJobClickUntil = 0;
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let calendarCopyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 let resizeRenderTimer: ReturnType<typeof setTimeout> | null = null;
 let remoteSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let remotePollTimer: ReturnType<typeof setInterval> | null = null;
@@ -204,6 +211,14 @@ let mesBackendAvailable = false;
 let mesRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let mesActivationPreview: any = null;
 let mesActivationMachineId = "";
+let mesActivationMachineName = "";
+let mesActivationMode: "PRODUCTION" | "SETUP" = "PRODUCTION";
+let mesOrderPickerPhaseId = "";
+let mesOrderSortKey = "orderNumber";
+let mesOrderSortDirection: 1 | -1 = 1;
+let mesOrderContextPhaseId = "";
+let mesMachineContextId = "";
+let mesAssigneeGroups: Record<string, string[]> = {};
 const mesScheduleSignatures = new Map<string, string>();
 const pendingMesScheduleJobs = new Set<string>();
 let mesScheduleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -219,6 +234,7 @@ let machinePickerDepartment = "";
 let machinePickerCategory = "";
 let machinePickerSearch = "";
 let nativeFocusRequest = 0;
+let aypiMessageQueue: Promise<unknown> = Promise.resolve();
 let calendarPanSession: null | {
     originX: number;
     originStart: Date;
@@ -274,13 +290,44 @@ function normalizeClosedWeekdays(value: unknown) {
     return normalized.length < 7 ? normalized : [...DEFAULT_CLOSED_WEEKDAYS];
 }
 
-function machineClosedWeekdays(machineId: string) {
+function timeToMinutes(value: unknown) {
+    const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+    if (!match) return -1;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours === 24 && minutes === 0) return 1440;
+    if (hours > 23 || minutes > 59) return -1;
+    return hours * 60 + minutes;
+}
+
+function normalizeWorkIntervals(value: unknown): MachineWorkInterval[] {
+    if (!Array.isArray(value)) return [];
+    return value.map((entry: any) => ({ start: String(entry?.start || ""), end: String(entry?.end || "") }))
+        .filter((entry) => timeToMinutes(entry.start) >= 0 && timeToMinutes(entry.end) > timeToMinutes(entry.start))
+        .sort((left, right) => timeToMinutes(left.start) - timeToMinutes(right.start));
+}
+
+function defaultWorkingHours(closedWeekdays: number[] = DEFAULT_CLOSED_WEEKDAYS) {
+    return Object.fromEntries(Array.from({ length: 7 }, (_, day) => [
+        String(day), closedWeekdays.includes(day) ? [] : [{ ...DEFAULT_WORK_INTERVAL }],
+    ])) as Record<string, MachineWorkInterval[]>;
+}
+
+function normalizeMachineWorkingHours(value: unknown, closedWeekdays?: number[]) {
+    const source = value && typeof value === "object" ? value as Record<string, unknown> : null;
+    const fallback = defaultWorkingHours(normalizeClosedWeekdays(closedWeekdays));
+    return Object.fromEntries(Array.from({ length: 7 }, (_, day) => [
+        String(day), source ? normalizeWorkIntervals(source[String(day)]) : fallback[String(day)],
+    ])) as Record<string, MachineWorkInterval[]>;
+}
+
+function machineWorkingHours(machineId: string) {
     const machine = state.machines.find((item) => item.id === machineId);
-    return normalizeClosedWeekdays(machine?.closedWeekdays);
+    return normalizeMachineWorkingHours(machine?.workingHours);
 }
 
 function isMachineStandardClosure(machineId: string, value: string | Date) {
-    return machineClosedWeekdays(machineId).includes(parseDate(value).getDay());
+    return (machineWorkingHours(machineId)[String(parseDate(value).getDay())] || []).length === 0;
 }
 
 function nextMachineStandardOpenDay(value: string | Date, machineId: string) {
@@ -324,6 +371,13 @@ function isMachineUnavailable(machineId: string, value: string | Date) {
     );
 }
 
+function machineWorkingSeconds(machineId: string, value: string | Date) {
+    if (isMachineUnavailable(machineId, value)) return 0;
+    return (machineWorkingHours(machineId)[String(parseDate(value).getDay())] || [])
+        .reduce((total, interval) => total
+            + Math.max(0, timeToMinutes(interval.end) - timeToMinutes(interval.start)) * 60, 0);
+}
+
 function newlyBlockedProductionDates(
     machineId: string,
     start: string,
@@ -351,15 +405,28 @@ function nextAvailableProductionDay(value: string | Date, machineId: string) {
 }
 
 function endForProductionDuration(start: string | Date, durationDays: number, machineId: string) {
-    const duration = Math.max(1, Math.round(durationDays || 1));
+    return endForProductionSeconds(start, Math.max(1, Number(durationDays) || 1) * 8 * 3600, machineId);
+}
+
+function endForProductionSeconds(start: string | Date, requiredSeconds: number, machineId: string) {
+    let remaining = Math.max(1, Number(requiredSeconds) || 1);
     let date = nextMachineStandardOpenDay(start, machineId);
-    let producedDays = 0;
     for (let guard = 0; guard < 3660; guard += 1) {
-        if (!isMachineStandardClosure(machineId, date) && !isMachineUnavailable(machineId, date)) producedDays += 1;
-        if (producedDays >= duration) return date;
+        remaining -= machineWorkingSeconds(machineId, date);
+        if (remaining <= 0) return date;
         date = addDays(date, 1);
     }
     return date;
+}
+
+function jobRequiredSeconds(job: Pick<ProductionJob, "quantity" | "cycleSeconds" | "setupHours" | "durationDays">) {
+    const calculated = Math.max(0, Number(job.setupHours) || 0) * 3600
+        + Math.max(0, Number(job.quantity) || 0) * Math.max(0, Number(job.cycleSeconds) || 0);
+    return calculated > 0 ? calculated : Math.max(1, Number(job.durationDays) || 1) * 8 * 3600;
+}
+
+function endForJobDuration(job: ProductionJob, start: string | Date, machineId = job.machineId) {
+    return endForProductionSeconds(start, jobRequiredSeconds(job), machineId);
 }
 
 function shiftByProductionDays(
@@ -384,7 +451,8 @@ function recalculateMachineSchedule(machineId: string) {
     state.jobs.forEach((job) => {
         if (job.machineId !== machineId || !job.start || job.workStatus === "done") return;
         job.start = dateKey(nextMachineStandardOpenDay(job.start, machineId));
-        job.end = dateKey(endForProductionDuration(job.start, job.durationDays || 1, machineId));
+        job.end = dateKey(endForJobDuration(job, job.start, machineId));
+        job.durationDays = Math.max(1, countProductionDays(job.start, job.end, machineId));
         job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
     });
 }
@@ -409,7 +477,8 @@ function insertMachineDowntime(machineId: string, blockedDates: Date[]) {
             if (parseDate(job.start) > blockedDate) {
                 job.start = dateKey(nextAvailableProductionDay(job.start, machineId));
             }
-            job.end = dateKey(endForProductionDuration(job.start, job.durationDays || 1, machineId));
+            job.end = dateKey(endForJobDuration(job, job.start, machineId));
+            job.durationDays = Math.max(1, countProductionDays(job.start, job.end, machineId));
             job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
         });
     });
@@ -560,12 +629,12 @@ function loadState(): PlannerState {
             const initialState: PlannerState = {
                 version: 1,
                 machineColorSchemeVersion: 2,
-                machineCalendarSchemeVersion: 1,
+                machineCalendarSchemeVersion: 3,
                 machineCatalogSchemeVersion: 1,
                 machines: normalizeMachineGroupColors(
                     defaultMachines.map((machine) => ({
                         ...machine,
-                        closedWeekdays: [...DEFAULT_CLOSED_WEEKDAYS],
+                        workingHours: defaultWorkingHours(),
                     })),
                     true,
                 ),
@@ -648,19 +717,22 @@ function loadState(): PlannerState {
         const shouldRegenerateMachineColors =
             Number(parsed.machineColorSchemeVersion) < 2;
         const shouldMigrateMachineCalendars =
-            Number(parsed.machineCalendarSchemeVersion) < 1;
+            Number(parsed.machineCalendarSchemeVersion) < 3;
         const shouldMigrateMachineCatalog =
             Number(parsed.machineCatalogSchemeVersion) < 1;
-        const parsedMachines = parsed.machines.map((machine: Machine) => ({
-            ...machine,
-            category: String(machine.category || "").trim() || "Senza categoria",
-            closedWeekdays: normalizeClosedWeekdays(machine.closedWeekdays),
-        }));
+        const parsedMachines = parsed.machines.map((machine: Machine) => {
+            const { closedWeekdays, ...currentMachine } = machine;
+            return {
+                ...currentMachine,
+                category: String(machine.category || "").trim() || "Senza categoria",
+                workingHours: normalizeMachineWorkingHours(machine.workingHours, closedWeekdays),
+            };
+        });
         if (shouldMigrateMachineCatalog) {
             const existingIds = new Set(parsedMachines.map((machine: Machine) => normalizedMachineId(machine.id)));
             defaultMachines.forEach((machine) => {
                 if (!existingIds.has(normalizedMachineId(machine.id))) {
-                    parsedMachines.push({ ...machine, closedWeekdays: [...DEFAULT_CLOSED_WEEKDAYS] });
+                    parsedMachines.push({ ...machine, workingHours: defaultWorkingHours() });
                 }
             });
         }
@@ -671,7 +743,7 @@ function loadState(): PlannerState {
         const normalizedState: PlannerState = {
             version: 1,
             machineColorSchemeVersion: 2,
-            machineCalendarSchemeVersion: 1,
+            machineCalendarSchemeVersion: 3,
             machineCatalogSchemeVersion: 1,
             machines,
             jobs,
@@ -686,12 +758,12 @@ function loadState(): PlannerState {
         const fallbackState: PlannerState = {
             version: 1,
             machineColorSchemeVersion: 2,
-            machineCalendarSchemeVersion: 1,
+                machineCalendarSchemeVersion: 3,
             machineCatalogSchemeVersion: 1,
             machines: normalizeMachineGroupColors(
                 defaultMachines.map((machine) => ({
                     ...machine,
-                    closedWeekdays: [...DEFAULT_CLOSED_WEEKDAYS],
+                    workingHours: defaultWorkingHours(),
                 })),
                 true,
             ),
@@ -707,6 +779,8 @@ function loadState(): PlannerState {
 // Inizializziamo lo stato solo dopo che palette e helper sono stati definiti,
 // evitando la temporal dead zone dei const nelle build appena avviate.
 state = loadState();
+state.machines.forEach((machine) => recalculateMachineSchedule(machine.id));
+localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 stateCheckpoint = JSON.stringify(state);
 captureMesScheduleBaseline();
 
@@ -816,11 +890,13 @@ function applyRemoteSnapshot(snapshot: any, announce = false) {
     const needsMachineColorMigration =
         Number(snapshot.state.machineColorSchemeVersion) < 2;
     const needsMachineCalendarMigration =
-        Number(snapshot.state.machineCalendarSchemeVersion) < 1;
+        Number(snapshot.state.machineCalendarSchemeVersion) < 2;
     const needsMachineCatalogMigration =
         Number(snapshot.state.machineCatalogSchemeVersion) < 1;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot.state));
     state = loadState();
+    state.machines.forEach((machine) => recalculateMachineSchedule(machine.id));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     captureMesScheduleBaseline();
     remoteRevision = Number(snapshot.revision) || 0;
     localDirty = false;
@@ -1609,9 +1685,12 @@ function renderTimeline() {
                 : processedDays > 0
                 ? `<span>${processedDays}/${job.durationDays || 1} gg · ${progressPercent}%</span>`
                 : "";
-            const renderedWorkStatus = mesSession && ["ACTIVE", "PAUSED"].includes(mesSession.status)
+            const mesPhase = job.mesPhaseId ? mesPhaseForId(job.mesPhaseId)?.phase : null;
+            const mesBusinessStatus = mesPhase ? mesPhaseBusinessStatus(mesPhase) : null;
+            const renderedWorkStatus = mesBusinessStatus === "ACTIVE"
                 ? "running"
-                : mesSession?.status === "COMPLETED" ? "done" : job.workStatus;
+                : mesBusinessStatus === "COMPLETED" ? "done"
+                    : mesBusinessStatus === "SUSPENDED" ? "not_started" : job.workStatus;
             return `<article class="job-bar material-${job.materialStatus} ${isLate(job) ? "is-late" : ""} ${continuesBefore ? "continues-before" : ""} ${continuesAfter ? "continues-after" : ""}"
                 draggable="true" tabindex="0" data-job-id="${escapeHtml(job.id)}" data-status="${renderedWorkStatus}"
                 style="left:${clippedStart * dayWidth + 3}px;width:${Math.max(10, widthDays * dayWidth - 6)}px;top:${track * 62 + 12}px;--job-progress:${progressPercent}%"
@@ -1730,14 +1809,8 @@ function renderStats() {
 function renderMachinesDialog() {
     const list = byId("machine-list");
     if (!list) return;
-    list.innerHTML = state.machines.map((machine) => {
-        const closedWeekdays = normalizeClosedWeekdays(machine.closedWeekdays);
-        const weeklySummary = WEEKDAY_OPTIONS
-            .filter((day) => closedWeekdays.includes(day.value))
-            .map((day) => day.short)
-            .join(", ") || "Nessuno";
-        return `
-        <div class="machine-item ${openMachineCalendarId === machine.id ? "is-calendar-open" : ""}" data-machine-id="${escapeHtml(machine.id)}" style="--machine-color:${escapeHtml(machine.color)}">
+    list.innerHTML = state.machines.map((machine) => `
+        <div class="machine-item" data-machine-id="${escapeHtml(machine.id)}" style="--machine-color:${escapeHtml(machine.color)}">
             <button class="machine-drag-handle" draggable="true" type="button"
                 aria-label="Trascina per riordinare ${escapeHtml(machine.name)}"
                 title="Trascina per riordinare"><span></span><span></span><span></span><span></span><span></span><span></span></button>
@@ -1745,22 +1818,216 @@ function renderMachinesDialog() {
             <input data-machine-field="name" value="${escapeHtml(machine.name)}" aria-label="Nome macchina">
             <input data-machine-field="department" value="${escapeHtml(machine.department)}" aria-label="Reparto">
             <input data-machine-field="category" value="${escapeHtml(machine.category)}" aria-label="Categoria">
-            <button class="machine-calendar-trigger" data-toggle-machine-calendar type="button"
-                aria-expanded="${openMachineCalendarId === machine.id}" title="Configura giorni di chiusura standard">
-                <span>Giorni chiusi</span><small>${escapeHtml(weeklySummary)}</small>
-            </button>
             <button class="machine-remove" data-remove-machine type="button">Rimuovi</button>
-            <div class="machine-weekly-calendar" aria-label="Giorni di chiusura standard di ${escapeHtml(machine.name)}">
-                <div><strong>Chiusura settimanale</strong><small>I giorni selezionati vengono saltati nella pianificazione.</small></div>
-                <div class="machine-weekday-buttons">
-                    ${WEEKDAY_OPTIONS.map((day) => `
-                        <button class="${closedWeekdays.includes(day.value) ? "is-selected" : ""}"
-                            data-machine-closed-weekday="${day.value}" type="button"
-                            aria-pressed="${closedWeekdays.includes(day.value)}" title="${day.label}">${day.short}</button>`).join("")}
-                </div>
             </div>
-        </div>`;
+        `).join("");
+}
+
+function cloneWorkingHours(value: Record<string, MachineWorkInterval[]>) {
+    return Object.fromEntries(Object.entries(value).map(([day, intervals]) => [
+        day, intervals.map((interval) => ({ ...interval })),
+    ])) as Record<string, MachineWorkInterval[]>;
+}
+
+function workIntervalsLabel(intervals: MachineWorkInterval[]) {
+    return intervals.length ? intervals.map((interval) => `${interval.start}–${interval.end}`).join(" · ") : "Non lavora";
+}
+
+function machineCalendarPreview(machine: Machine) {
+    const hours = normalizeMachineWorkingHours(machine.workingHours);
+    return WEEKDAY_OPTIONS.map((day) => `<span><b>${day.short}</b>${escapeHtml(workIntervalsLabel(hours[String(day.value)] || []))}</span>`).join("");
+}
+
+function renderMachineCalendarWeek() {
+    const host = byId("machine-calendar-week");
+    if (!host || !scheduleEditorDraft) return;
+    closeCalendarTimePicker();
+    host.innerHTML = WEEKDAY_OPTIONS.map((day) => {
+        const intervals = scheduleEditorDraft?.[String(day.value)] || [];
+        return `<section class="machine-calendar-day" data-calendar-day="${day.value}">
+            <div class="machine-calendar-day__label"><strong>${day.label}</strong><small>${intervals.length ? `${intervals.length} ${intervals.length === 1 ? "fascia" : "fasce"}` : "Macchina ferma"}</small></div>
+            <div class="machine-calendar-ranges">${intervals.map((interval, index) => `<div class="machine-calendar-range" data-calendar-range="${index}"><span class="machine-calendar-time-field"><input data-calendar-start value="${escapeHtml(interval.start)}" inputmode="numeric" aria-label="Inizio fascia ${day.label}"><button data-calendar-open-time type="button" title="Seleziona ora di inizio" aria-label="Seleziona ora di inizio">◷</button></span><span>—</span><span class="machine-calendar-time-field"><input data-calendar-end value="${escapeHtml(interval.end)}" inputmode="numeric" aria-label="Fine fascia ${day.label}"><button data-calendar-open-time type="button" title="Seleziona ora di fine" aria-label="Seleziona ora di fine">◷</button></span><button data-calendar-remove-range type="button" title="Rimuovi fascia">×</button></div>`).join("")}</div>
+            <div class="machine-calendar-day__actions"><button data-calendar-add-range type="button">+ Fascia</button><button data-calendar-full-day type="button">24 ore</button></div>
+        </section>`;
     }).join("");
+}
+
+function closeCalendarTimePicker() {
+    const picker = byId("machine-calendar-time-picker");
+    if (picker) picker.hidden = true;
+    calendarTimePickerTarget = null;
+}
+
+function updateCalendarTimePicker() {
+    const hour = byId("machine-calendar-time-hour") as HTMLInputElement | null;
+    const minute = byId("machine-calendar-time-minute") as HTMLInputElement | null;
+    const output = byId("machine-calendar-time-value") as HTMLOutputElement | null;
+    if (!hour || !minute || !output) return;
+    const isEndOfDay = Number(hour.value) === 24;
+    if (isEndOfDay) minute.value = "0";
+    minute.disabled = isEndOfDay;
+    output.value = `${String(hour.value).padStart(2, "0")}:${String(minute.value).padStart(2, "0")}`;
+}
+
+function openCalendarTimePicker(input: HTMLInputElement) {
+    const picker = byId("machine-calendar-time-picker");
+    const hour = byId("machine-calendar-time-hour") as HTMLInputElement | null;
+    const minute = byId("machine-calendar-time-minute") as HTMLInputElement | null;
+    if (!picker || !hour || !minute) return;
+    calendarTimePickerTarget = input;
+    const parsedMinutes = timeToMinutes(input.value);
+    const fallbackMinutes = input.hasAttribute("data-calendar-end") ? 16 * 60 : 8 * 60;
+    const totalMinutes = parsedMinutes >= 0 ? parsedMinutes : fallbackMinutes;
+    const permitsEndOfDay = input.hasAttribute("data-calendar-end");
+    hour.max = permitsEndOfDay ? "24" : "23";
+    hour.value = String(Math.min(permitsEndOfDay ? 24 : 23, Math.floor(totalMinutes / 60)));
+    minute.value = String(totalMinutes >= 1440 ? 0 : totalMinutes % 60);
+    const title = byId("machine-calendar-time-title");
+    if (title) title.textContent = permitsEndOfDay ? "Ora di fine" : "Ora di inizio";
+    document.querySelectorAll<HTMLButtonElement>("[data-calendar-quick-time='24:00']").forEach((button) => {
+        button.disabled = !permitsEndOfDay;
+    });
+    picker.hidden = false;
+    updateCalendarTimePicker();
+    const inputRect = input.getBoundingClientRect();
+    const pickerRect = picker.getBoundingClientRect();
+    const margin = 12;
+    let left = inputRect.left;
+    let top = inputRect.bottom + 8;
+    if (left + pickerRect.width + margin > window.innerWidth) left = window.innerWidth - pickerRect.width - margin;
+    if (top + pickerRect.height + margin > window.innerHeight) top = inputRect.top - pickerRect.height - 8;
+    picker.style.left = `${Math.max(margin, left)}px`;
+    picker.style.top = `${Math.max(margin, top)}px`;
+}
+
+function selectMachineCalendarMachine(machineId: string) {
+    const machine = state.machines.find((item) => item.id === machineId) || state.machines[0];
+    if (!machine) return;
+    scheduleEditorMachineId = machine.id;
+    scheduleEditorDraft = cloneWorkingHours(normalizeMachineWorkingHours(machine.workingHours));
+    renderMachineCalendarDialog();
+    setMachineCalendarFeedback(`Stai modificando il calendario di ${machine.name}.`, "info");
+}
+
+function renderMachineCalendarDialog() {
+    const selected = state.machines.find((machine) => machine.id === scheduleEditorMachineId) || state.machines[0];
+    if (!selected) return;
+    if (!scheduleEditorMachineId) {
+        scheduleEditorMachineId = selected.id;
+        scheduleEditorDraft = cloneWorkingHours(normalizeMachineWorkingHours(selected.workingHours));
+    }
+    const query = inputValue("machine-calendar-search").trim().toLocaleLowerCase("it-IT");
+    const visible = state.machines.filter((machine) => !query || `${machine.name} ${machine.department} ${machine.category}`.toLocaleLowerCase("it-IT").includes(query));
+    const list = byId("machine-calendar-machine-list");
+    if (list) list.innerHTML = visible.map((machine) => `<button class="machine-calendar-machine ${machine.id === scheduleEditorMachineId ? "is-selected" : ""}" data-calendar-machine="${escapeHtml(machine.id)}" type="button"><i style="background:${escapeHtml(machine.color)}"></i><span><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.department)} · ${escapeHtml(machine.category)}</small></span><div class="machine-calendar-preview">${machineCalendarPreview(machine)}</div></button>`).join("") || `<p class="machine-calendar-empty">Nessuna macchina trovata.</p>`;
+    const title = byId("machine-calendar-machine-title");
+    if (title) title.textContent = selected.name;
+    const source = byId("machine-calendar-source") as HTMLSelectElement | null;
+    if (source) source.innerHTML = state.machines.filter((machine) => machine.id !== scheduleEditorMachineId).map((machine) => `<option value="${escapeHtml(machine.id)}">${escapeHtml(machine.name)}</option>`).join("") || `<option value="">Nessun'altra macchina</option>`;
+    const targets = byId("machine-calendar-targets");
+    const targetMachines = state.machines.filter((machine) => machine.id !== scheduleEditorMachineId);
+    if (targets) targets.innerHTML = targetMachines.map((machine) => `<label data-target-department="${escapeHtml(machine.department)}"><input type="checkbox" value="${escapeHtml(machine.id)}"><span>${escapeHtml(machine.department)} - ${escapeHtml(machine.name)}</span></label>`).join("");
+    const departments = [...new Set(targetMachines.map((machine) => machine.department).filter(Boolean))].sort((left, right) => left.localeCompare(right, "it"));
+    const departmentTargets = byId("machine-calendar-target-departments");
+    if (departmentTargets) departmentTargets.innerHTML = departments.map((department) => `<label><input type="checkbox" value="${escapeHtml(department)}"><span>${escapeHtml(department)}</span></label>`).join("");
+    renderMachineCalendarWeek();
+    if (byId("machine-calendar-error")) byId("machine-calendar-error")!.textContent = "";
+    updateMachineCalendarBulkState();
+}
+
+function setMachineCalendarFeedback(message: string, status: "info" | "success" | "error" = "info") {
+    const feedbackId = byId("machine-calendar-bulk-dialog")?.classList.contains("is-open")
+        ? "machine-calendar-bulk-feedback"
+        : "machine-calendar-feedback";
+    const feedback = byId(feedbackId);
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.dataset.status = status;
+    feedback.hidden = !message;
+}
+
+function updateMachineCalendarBulkState() {
+    const selected = document.querySelectorAll<HTMLInputElement>("#machine-calendar-targets input:checked").length;
+    document.querySelectorAll<HTMLInputElement>("#machine-calendar-target-departments input").forEach((departmentInput) => {
+        const machines = [...document.querySelectorAll<HTMLElement>("#machine-calendar-targets [data-target-department]")]
+            .filter((label) => label.dataset.targetDepartment === departmentInput.value)
+            .map((label) => label.querySelector<HTMLInputElement>("input"))
+            .filter((input): input is HTMLInputElement => !!input);
+        const checked = machines.filter((input) => input.checked).length;
+        departmentInput.checked = machines.length > 0 && checked === machines.length;
+        departmentInput.indeterminate = checked > 0 && checked < machines.length;
+    });
+    const count = byId("machine-calendar-selection-count");
+    if (count) count.textContent = !scheduleClipboard
+        ? "Copia prima il preset della macchina corrente"
+        : selected
+            ? `${selected} ${selected === 1 ? "macchina selezionata" : "macchine selezionate"}`
+            : "Nessuna macchina selezionata";
+    const paste = byId("machine-calendar-paste") as HTMLButtonElement | null;
+    if (paste) {
+        paste.disabled = !scheduleClipboard || selected === 0;
+        paste.title = !scheduleClipboard ? "Copia prima un preset" : selected === 0 ? "Seleziona almeno una macchina" : "Applica il preset";
+    }
+}
+
+function showMachineCalendarCopyConfirmation() {
+    const copy = byId("machine-calendar-copy") as HTMLButtonElement | null;
+    if (!copy) return;
+    if (calendarCopyFeedbackTimer) clearTimeout(calendarCopyFeedbackTimer);
+    copy.classList.add("is-success");
+    copy.textContent = "Preset copiato ✓";
+    calendarCopyFeedbackTimer = setTimeout(() => {
+        copy.classList.remove("is-success");
+        copy.textContent = "Copia preset";
+        calendarCopyFeedbackTimer = null;
+    }, 2600);
+}
+
+function readMachineCalendarDraft(requireWeeklyRange = true) {
+    const result: Record<string, MachineWorkInterval[]> = {};
+    document.querySelectorAll<HTMLElement>("#machine-calendar-week [data-calendar-day]").forEach((dayRow) => {
+        const day = String(dayRow.dataset.calendarDay);
+        const intervals = [...dayRow.querySelectorAll<HTMLElement>("[data-calendar-range]")].map((row) => ({
+            start: (row.querySelector("[data-calendar-start]") as HTMLInputElement).value.trim(),
+            end: (row.querySelector("[data-calendar-end]") as HTMLInputElement).value.trim(),
+        })).sort((left, right) => timeToMinutes(left.start) - timeToMinutes(right.start));
+        intervals.forEach((interval, index) => {
+            const start = timeToMinutes(interval.start);
+            const end = timeToMinutes(interval.end);
+            if (start < 0 || end <= start) throw new Error(`Fascia non valida per ${WEEKDAY_OPTIONS.find((item) => String(item.value) === day)?.label}. Usa il formato HH:MM; per fine giornata puoi usare 24:00.`);
+            if (index > 0 && start < timeToMinutes(intervals[index - 1].end)) throw new Error(`Le fasce di ${WEEKDAY_OPTIONS.find((item) => String(item.value) === day)?.label} si sovrappongono.`);
+        });
+        result[day] = intervals;
+    });
+    if (requireWeeklyRange && !Object.values(result).some((intervals) => intervals.length)) {
+        throw new Error("Configura almeno una fascia produttiva nella settimana.");
+    }
+    return result;
+}
+
+function applyWorkingHours(machine: Machine, hours: Record<string, MachineWorkInterval[]>) {
+    machine.workingHours = cloneWorkingHours(hours);
+    delete machine.closedWeekdays;
+    recalculateMachineSchedule(machine.id);
+}
+
+function saveMachineCalendar() {
+    const machine = state.machines.find((item) => item.id === scheduleEditorMachineId);
+    if (!machine) return;
+    try {
+        const hours = readMachineCalendarDraft();
+        applyWorkingHours(machine, hours);
+        scheduleEditorDraft = cloneWorkingHours(hours);
+        saveState();
+        renderAll();
+        renderMachineCalendarDialog();
+        setMachineCalendarFeedback(`Calendario di ${machine.name} salvato correttamente.`, "success");
+        notify(`Calendario produttivo salvato · ${machine.name}`);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Calendario non valido.";
+        byId("machine-calendar-error")!.textContent = message;
+        setMachineCalendarFeedback(message, "error");
+    }
 }
 
 function clearMachineDropIndicators() {
@@ -2108,16 +2375,45 @@ function normalizedMachineId(value: unknown) {
     return String(value || "").trim().toUpperCase();
 }
 
+function mesMachineDisplayName(machineId: unknown) {
+    const normalizedId = normalizedMachineId(machineId);
+    if (!normalizedId) return "Macchina";
+    const configured = state.machines.find((machine) => normalizedMachineId(machine.id) === normalizedId);
+    if (configured?.name) return configured.name;
+    const detected = Array.isArray(mesReaderSnapshot?.machines)
+        ? mesReaderSnapshot.machines.find((machine: any) => normalizedMachineId(machine.code) === normalizedId)
+        : null;
+    return String(detected?.name || normalizedId);
+}
+
 function mesSessionForJob(job: ProductionJob) {
     if (!job.mesPhaseId) return null;
     return mesSessions.find((session) =>
-        session.phaseId === job.mesPhaseId && ["ACTIVE", "PAUSED"].includes(session.status),
+        session.phaseId === job.mesPhaseId && session.status === "ACTIVE",
     ) || mesSessions.find((session) => session.phaseId === job.mesPhaseId) || null;
+}
+
+type MesBusinessStatus = "AVAILABLE" | "ACTIVE" | "SUSPENDED" | "COMPLETED";
+
+function mesPhaseBusinessStatus(phase: any): MesBusinessStatus {
+    if (String(phase?.executionStatus) === "COMPLETED") return "COMPLETED";
+    const sessions = mesSessions.filter((session) => session.phaseId === phase?.phaseId);
+    if (sessions.some((session) => session.status === "ACTIVE")) return "ACTIVE";
+    return sessions.length ? "SUSPENDED" : "AVAILABLE";
+}
+
+function mesBusinessStatusLabel(status: MesBusinessStatus) {
+    return ({
+        AVAILABLE: "Disponibile",
+        ACTIVE: "Attivo",
+        SUSPENDED: "Sospeso",
+        COMPLETED: "Terminato",
+    } as Record<MesBusinessStatus, string>)[status];
 }
 
 function applyMesSessionsToPlanner() {
     let changed = false;
-    mesSessions.filter((session) => ["ACTIVE", "PAUSED"].includes(session.status)).forEach((session) => {
+    mesSessions.filter((session) => session.status === "ACTIVE").forEach((session) => {
         let machine = state.machines.find((item) => normalizedMachineId(item.id) === normalizedMachineId(session.machineId));
         if (!machine) {
             machine = { id: String(session.machineId).toLowerCase(), name: String(session.machineId), department: "MES", category: "Rilevata dal PLC", color: "#298fc2" };
@@ -2128,16 +2424,18 @@ function applyMesSessionsToPlanner() {
         const selection = mesPhaseForId(session.phaseId);
         if (!selection) return;
         const { order, phase } = selection;
-        const durationDays = calculateMesDuration(phase.targetQuantity, phase.standardCycleSeconds, phase.plannedSetupSeconds / 3600).days;
+        const calculatedDuration = calculateMesDuration(phase.targetQuantity, phase.standardCycleSeconds, phase.plannedSetupSeconds / 3600);
         const start = dateKey(new Date());
+        const end = machine ? dateKey(endForProductionSeconds(start, calculatedDuration.totalSeconds, machine.id)) : "";
+        const durationDays = machine ? Math.max(1, countProductionDays(start, end, machine.id)) : calculatedDuration.days;
         state.jobs.push({
             id: uid("job"), orderNumber: order.orderNumber, customer: order.customer || "MES",
             article: phase.articleCode || order.articleCode, phase: phase.phaseCode,
             materialAlloy: "", quantity: phase.targetQuantity, unit: phase.unit,
             barKgBundles: "", materialOwner: "", machineId: machine?.id || "",
-            start, end: machine ? dateKey(endForProductionDuration(start, durationDays, machine.id)) : "",
+            start, end,
             durationDays, cycleSeconds: phase.standardCycleSeconds,
-            setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: durationDays,
+            setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: Math.max(1, diffDays(end, start) + 1),
             dueDate: String(order.dueAt || "").slice(0, 10),
             firstDeliveryDate: String(order.firstDeliveryAt || order.dueAt || start).slice(0, 10),
             firstDeliveryQuantity: 0, materialStatus: "verification", workStatus: "running",
@@ -2152,18 +2450,26 @@ function applyMesSessionsToPlanner() {
         const session = mesSessionForJob(job);
         if (!session) return;
         const actualMachine = state.machines.find((machine) => normalizedMachineId(machine.id) === normalizedMachineId(session.machineId));
-        if (["ACTIVE", "PAUSED"].includes(session.status) && actualMachine && job.machineId !== actualMachine.id) {
+        const phase = mesPhaseForId(job.mesPhaseId || "")?.phase;
+        const businessStatus = phase ? mesPhaseBusinessStatus(phase) : null;
+        if (businessStatus === "ACTIVE" && actualMachine && job.machineId !== actualMachine.id) {
             job.machineId = actualMachine.id;
             job.start = dateKey(new Date());
-            job.end = dateKey(endForProductionDuration(job.start, job.durationDays || 1, actualMachine.id));
+            job.end = dateKey(endForJobDuration(job, job.start, actualMachine.id));
+            job.durationDays = Math.max(1, countProductionDays(job.start, job.end, actualMachine.id));
             changed = true;
         }
-        if (["ACTIVE", "PAUSED"].includes(session.status) && job.workStatus !== "running") {
+        if (businessStatus === "ACTIVE" && job.workStatus !== "running") {
             job.workStatus = "running";
             job.completedAt = "";
             changed = true;
         }
-        if (session.status === "COMPLETED" && job.workStatus !== "done") {
+        if (businessStatus === "SUSPENDED" && job.workStatus !== "not_started") {
+            job.workStatus = "not_started";
+            job.completedAt = "";
+            changed = true;
+        }
+        if (businessStatus === "COMPLETED" && job.workStatus !== "done") {
             job.workStatus = "done";
             job.progressDays = job.durationDays;
             job.completedAt = session.endedAt || new Date().toISOString();
@@ -2175,10 +2481,11 @@ function applyMesSessionsToPlanner() {
 
 async function refreshMesRuntime(options: { quiet?: boolean } = {}) {
     try {
-        const [sessionsResult, ordersResult, readerResult] = await Promise.all([
+        const [sessionsResult, ordersResult, readerResult, assigneesResult] = await Promise.all([
             ipcRenderer.invoke("mes-sessions-list", {}),
             ipcRenderer.invoke("mes-orders-list", {}),
             ipcRenderer.invoke("plc-reader-snapshot").catch(() => null),
+            ipcRenderer.invoke("mes-assignees-list").catch(() => null),
         ]);
         mesReaderSnapshot = readerResult;
         const mesAvailable = !!sessionsResult?.ok && !!ordersResult?.ok;
@@ -2188,6 +2495,9 @@ async function refreshMesRuntime(options: { quiet?: boolean } = {}) {
         const sessionsChanged = JSON.stringify(nextSessions) !== JSON.stringify(mesSessions);
         mesSessions = nextSessions;
         mesOrders = orderDetails;
+        if (assigneesResult?.ok && assigneesResult.data?.groups) {
+            mesAssigneeGroups = assigneesResult.data.groups;
+        }
         if (mesAvailable) applyMesSessionsToPlanner();
         if (sessionsChanged && !draggedJobId && !resizeSession) renderAll();
         else {
@@ -2247,7 +2557,7 @@ function mesPhaseRows() {
             firstDeliveryAt: job.firstDeliveryDate,
             priority: job.priority.toUpperCase(),
             notes: job.notes,
-            status: job.workStatus === "done" ? "COMPLETED" : "OPEN",
+            status: "OPEN",
             revision: job.mesOrderRevision,
         },
         phase: {
@@ -2262,7 +2572,7 @@ function mesPhaseRows() {
             plannedMachineId: normalizedMachineId(job.machineId),
             scheduledStart: job.start,
             planningStatus: job.machineId && job.start ? "SCHEDULED" : "BACKLOG",
-            executionStatus: job.workStatus === "done" ? "COMPLETED" : job.workStatus === "running" ? "RUNNING" : "NOT_STARTED",
+            executionStatus: "NOT_STARTED",
             revision: job.mesPhaseRevision,
         },
     }));
@@ -2274,17 +2584,19 @@ function mesPhaseForId(phaseId: string) {
 }
 
 function createMesPlannerProjection(order: any, phase: any) {
-    const durationDays = calculateMesDuration(phase.targetQuantity, phase.standardCycleSeconds, phase.plannedSetupSeconds / 3600).days;
+    const calculatedDuration = calculateMesDuration(phase.targetQuantity, phase.standardCycleSeconds, phase.plannedSetupSeconds / 3600);
     const plannedMachine = state.machines.find((machine) => normalizedMachineId(machine.id) === normalizedMachineId(phase.plannedMachineId));
     const start = plannedMachine && phase.scheduledStart ? String(phase.scheduledStart).slice(0, 10) : "";
+    const end = start && plannedMachine ? dateKey(endForProductionSeconds(start, calculatedDuration.totalSeconds, plannedMachine.id)) : "";
+    const durationDays = start && plannedMachine ? Math.max(1, countProductionDays(start, end, plannedMachine.id)) : calculatedDuration.days;
     const job: ProductionJob = {
         id: uid("job"), orderNumber: order.orderNumber, customer: order.customer || "MES",
         article: phase.articleCode || order.articleCode, phase: phase.phaseCode,
         materialAlloy: "", quantity: phase.targetQuantity, unit: phase.unit,
         barKgBundles: "", materialOwner: "", machineId: plannedMachine?.id || "", start,
-        end: start && plannedMachine ? dateKey(endForProductionDuration(start, durationDays, plannedMachine.id)) : "",
+        end,
         durationDays, cycleSeconds: phase.standardCycleSeconds,
-        setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: durationDays,
+        setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: start && end ? Math.max(1, diffDays(end, start) + 1) : durationDays,
         dueDate: String(order.dueAt || "").slice(0, 10),
         firstDeliveryDate: String(order.firstDeliveryAt || order.dueAt || "").slice(0, 10),
         firstDeliveryQuantity: 0, materialStatus: "verification", workStatus: "not_started",
@@ -2300,6 +2612,8 @@ function createMesPlannerProjection(order: any, phase: any) {
 }
 
 function showMesPage(page: "production" | "orders" | "scheduler" | "plc", plcView = "") {
+    closeMesOrderContextMenu();
+    closeMesMachineContextMenu();
     document.querySelectorAll<HTMLElement>(".mes-work-page").forEach((element) => {
         const active = element.dataset.page === page;
         element.hidden = !active;
@@ -2316,46 +2630,141 @@ function showMesPage(page: "production" | "orders" | "scheduler" | "plc", plcVie
     if (page === "plc") {
         const frame = byId("mes-plc-frame") as HTMLIFrameElement | null;
         if (frame) {
-            const next = `plc-reader.html?embedded=1#${plcView || "overview"}`;
-            if (!frame.src || !frame.src.endsWith(next)) frame.src = next;
+            const view = plcView || "overview";
+            frame.dataset.plcView = view;
+            if (!frame.getAttribute("src")) frame.src = `plc-reader.html?embedded=1#${view}`;
+            else frame.contentWindow?.postMessage({ type: "aypi-plc-view", view }, "*");
         }
     }
 }
 
-function selectOrderForMachine(machineId: string) {
+function selectOrderForMachine(machineId: string, machineName: string, mode: "PRODUCTION" | "SETUP" = "PRODUCTION") {
     mesActivationMachineId = normalizedMachineId(machineId);
-    const context = byId("mes-orders-context");
-    if (context) context.textContent = `Seleziona manualmente una fase da attivare sulla macchina ${mesActivationMachineId}. La pianificazione non avvierà la produzione.`;
-    showMesPage("orders");
+    mesActivationMachineName = machineName.trim() || mesMachineDisplayName(machineId);
+    mesActivationMode = mode;
+    const search = byId("mes-order-picker-search") as HTMLInputElement | null;
+    const status = byId("mes-order-picker-status") as HTMLSelectElement | null;
+    if (search) search.value = "";
+    if (status) status.value = "";
+    mesOrderPickerPhaseId = "";
+    const action = mode === "SETUP" ? "Avvia attrezzaggio" : "Attiva ordine";
+    if (byId("mes-order-picker-title")) byId("mes-order-picker-title")!.textContent = action;
+    if (byId("mes-order-picker-subtitle")) byId("mes-order-picker-subtitle")!.textContent = "Scegli una fase disponibile, controlla i dati e continua con la conferma operativa.";
+    if (byId("mes-order-picker-machine")) byId("mes-order-picker-machine")!.textContent = mesActivationMachineName;
+    renderMesOrderPicker();
+    openDialog("mes-order-picker-dialog");
+}
+
+function renderMesOrderPicker() {
+    const body = byId("mes-order-picker-body");
+    if (!body) return;
+    const query = inputValue("mes-order-picker-search").trim().toLocaleLowerCase("it-IT");
+    const status = inputValue("mes-order-picker-status");
+    const rows = mesPhaseRows().filter(({ order, phase }) => {
+        const businessStatus = mesPhaseBusinessStatus(phase);
+        const haystack = `${order.orderNumber} ${order.customer} ${order.articleCode} ${phase.phaseCode} ${phase.articleCode}`.toLocaleLowerCase("it-IT");
+        return businessStatus !== "ACTIVE"
+            && businessStatus !== "COMPLETED"
+            && (!query || haystack.includes(query))
+            && (!status || businessStatus === status);
+    }).sort((left, right) => String(left.order.orderNumber || "").localeCompare(String(right.order.orderNumber || ""), "it", { numeric: true }));
+    if (!rows.some(({ phase }) => phase.phaseId === mesOrderPickerPhaseId)) mesOrderPickerPhaseId = "";
+    const result = byId("mes-order-picker-results");
+    if (result) result.textContent = `${rows.length} ${rows.length === 1 ? "fase disponibile" : "fasi disponibili"}`;
+    const selected = rows.find(({ phase }) => phase.phaseId === mesOrderPickerPhaseId);
+    const selectedLabel = byId("mes-order-picker-selection");
+    if (selectedLabel) selectedLabel.textContent = selected
+        ? `${selected.order.orderNumber || "Ordine senza numero"} · ${selected.phase.articleCode || selected.order.articleCode || "Articolo non indicato"}`
+        : "Nessun ordine selezionato";
+    const confirm = byId("mes-order-picker-confirm") as HTMLButtonElement | null;
+    if (confirm) {
+        confirm.disabled = !selected;
+        confirm.textContent = mesActivationMode === "SETUP" ? "Continua con l’attrezzaggio" : "Continua con l’attivazione";
+    }
+    body.innerHTML = rows.length ? rows.map(({ order, phase }) => {
+        const businessStatus = mesPhaseBusinessStatus(phase);
+        return `<tr data-picker-phase="${escapeHtml(phase.phaseId)}" tabindex="0" aria-selected="${phase.phaseId === mesOrderPickerPhaseId}" class="${phase.phaseId === mesOrderPickerPhaseId ? "is-selected" : ""}">
+        <td class="mes-order-picker__select-column"><i aria-hidden="true"></i></td>
+        <td><strong>${escapeHtml(order.orderNumber || "—")}</strong></td>
+        <td>${escapeHtml(phase.phaseCode || "—")}</td>
+        <td><strong>${escapeHtml(phase.articleCode || order.articleCode || "—")}</strong></td>
+        <td>${escapeHtml(order.customer || "—")}</td>
+        <td class="is-number">${Number(phase.targetQuantity) || 0} ${escapeHtml(phase.unit || "pz")}</td>
+        <td><span class="mes-order-status mes-order-status--${businessStatus.toLowerCase()}">${escapeHtml(mesBusinessStatusLabel(businessStatus))}</span></td>
+    </tr>`;
+    }).join("") : `<tr><td colspan="7" class="mes-empty-row">Nessun ordine disponibile corrisponde ai filtri.</td></tr>`;
+}
+
+function continueMesOrderPicker() {
+    if (!mesOrderPickerPhaseId || !mesActivationMachineId) return;
+    if (!mesBackendAvailable) {
+        notify("Ordine selezionato, ma l'attivazione richiede le API MES sul backend. La lettura PLC locale resta attiva.");
+        return;
+    }
+    closeDialog("mes-order-picker-dialog");
+    void openMesActivation(mesActivationMachineId, mesOrderPickerPhaseId);
 }
 
 function renderMesOrders() {
     const body = byId("mes-orders-body");
     if (!body) return;
     const query = inputValue("mes-orders-search").trim().toLocaleLowerCase("it-IT");
-    const activePhaseIds = new Set(mesSessions.filter((session) => ["ACTIVE", "PAUSED"].includes(session.status)).map((session) => session.phaseId));
-    const rows = mesPhaseRows().filter(({ order, phase }) => {
-        const haystack = `${order.orderNumber} ${order.customer} ${order.articleCode} ${phase.phaseCode} ${phase.articleCode}`.toLocaleLowerCase("it-IT");
-        return (!query || haystack.includes(query)) && order.status !== "CANCELLED";
-    });
-    body.innerHTML = rows.length ? rows.map(({ order, phase }) => {
+    const statusFilter = inputValue("mes-orders-status");
+    const planningFilter = inputValue("mes-orders-planning");
+    const machineFilter = inputValue("mes-orders-machine");
+    const unitFilter = inputValue("mes-orders-unit");
+    const priorityFilter = inputValue("mes-orders-priority");
+    const dueFrom = inputValue("mes-orders-due-from");
+    const dueTo = inputValue("mes-orders-due-to");
+    const machineSelect = byId("mes-orders-machine") as HTMLSelectElement | null;
+    const currentMachine = machineSelect?.value || "";
+    const machineOptions = [...new Set(mesPhaseRows().map(({ phase }) => normalizedMachineId(phase.plannedMachineId)).filter(Boolean))].sort();
+    if (machineSelect) machineSelect.innerHTML = `<option value="">Tutte le macchine</option>${machineOptions.map((value) => `<option value="${escapeHtml(value)}" ${value === currentMachine ? "selected" : ""}>${escapeHtml(mesMachineDisplayName(value))}</option>`).join("")}`;
+    const rows = mesPhaseRows().map(({ order, phase }) => {
         const session = mesSessions.find((item) => item.phaseId === phase.phaseId);
         const produced = Number(session?.goodPieces) || 0;
-        const remaining = Math.max(0, Number(phase.targetQuantity) - produced);
+        const businessStatus = mesPhaseBusinessStatus(phase);
+        return { order, phase, session, produced, remaining: Number(phase.targetQuantity) - produced, businessStatus };
+    }).filter(({ order, phase, businessStatus }) => {
+        const haystack = `${order.orderNumber} ${order.customer} ${order.articleCode} ${phase.phaseCode} ${phase.articleCode}`.toLocaleLowerCase("it-IT");
+        const due = String(order.dueAt || "").slice(0, 10);
+        return (!query || haystack.includes(query))
+            && (!statusFilter || businessStatus === statusFilter)
+            && (!planningFilter || phase.planningStatus === planningFilter)
+            && (!machineFilter || normalizedMachineId(phase.plannedMachineId) === machineFilter)
+            && (!unitFilter || phase.unit === unitFilter)
+            && (!priorityFilter || order.priority === priorityFilter)
+            && (!dueFrom || (!!due && due >= dueFrom))
+            && (!dueTo || (!!due && due <= dueTo));
+    }).sort((left, right) => {
+        const values = (item: any) => ({
+            orderNumber: item.order.orderNumber, phaseCode: item.phase.phaseCode,
+            articleCode: item.phase.articleCode || item.order.articleCode,
+            customer: item.order.customer, targetQuantity: Number(item.phase.targetQuantity) || 0,
+            produced: item.produced, remaining: item.remaining,
+            standardCycleSeconds: Number(item.phase.standardCycleSeconds) || 0,
+            executionStatus: item.businessStatus,
+            plannedMachineId: item.phase.plannedMachineId,
+        } as Record<string, string | number>)[mesOrderSortKey];
+        const a = values(left); const b = values(right);
+        return (typeof a === "number" && typeof b === "number" ? a - b : String(a || "").localeCompare(String(b || ""), "it", { numeric: true })) * mesOrderSortDirection;
+    });
+    const resultLabel = byId("mes-orders-results");
+    if (resultLabel) resultLabel.textContent = `${rows.length} righe`;
+    document.querySelectorAll<HTMLElement>("[data-order-sort]").forEach((button) => {
+        const active = button.dataset.orderSort === mesOrderSortKey;
+        button.classList.toggle("is-active", active);
+        button.dataset.direction = active ? (mesOrderSortDirection === 1 ? "asc" : "desc") : "";
+    });
+    body.innerHTML = rows.length ? rows.map(({ order, phase, produced, remaining, businessStatus }) => {
         const scheduled = phase.planningStatus === "SCHEDULED";
-        const busy = activePhaseIds.has(phase.phaseId);
-        const command = mesActivationMachineId
-            ? `<button class="button button--primary mes-order-activate" data-activate-phase="${escapeHtml(phase.phaseId)}" type="button" ${busy || phase.executionStatus === "COMPLETED" || !mesBackendAvailable ? "disabled" : ""} title="${mesBackendAvailable ? "Attiva manualmente la fase" : "Attivazione disponibile quando il backend MES sarà aggiornato"}">Attiva su ${escapeHtml(mesActivationMachineId)}</button>`
-            : `<button class="button button--ghost" data-plan-phase="${escapeHtml(phase.phaseId)}" type="button">${scheduled ? "Apri nel Gantt" : "Pianifica"}</button>`;
-        const progress = Number(phase.targetQuantity) > 0 ? Math.min(100, Math.round(produced / Number(phase.targetQuantity) * 100)) : 0;
-        return `<article class="mes-order-card">
-            <header><div><span>${escapeHtml(order.orderNumber)}</span><strong>${escapeHtml(phase.articleCode || order.articleCode)}</strong><small>${escapeHtml(order.customer || "Nessun cliente indicato")}</small></div><span class="mes-order-status mes-order-status--${String(phase.executionStatus).toLowerCase()}">${escapeHtml(phase.executionStatus)}</span></header>
-            <div class="mes-order-card__phase"><span>FASE ${escapeHtml(phase.phaseCode)}</span><strong>${escapeHtml(phase.phaseCode)}</strong></div>
-            <div class="mes-progress"><i style="width:${progress}%"></i></div>
-            <div class="mes-order-card__metrics"><span>Richiesti<strong>${Number(phase.targetQuantity) || 0}</strong></span><span>Prodotti<strong>${produced}</strong></span><span>Rimanenti<strong>${remaining}</strong></span><span>Ciclo<strong>${mesSeconds(phase.standardCycleSeconds)}</strong></span></div>
-            <footer><span>${scheduled ? `${escapeHtml(phase.plannedMachineId || "—")} · ${escapeHtml(String(phase.scheduledStart || "").slice(0, 10))}` : "Da pianificare"}</span>${command}</footer>
-        </article>`;
-    }).join("") : `<div class="mes-empty-card">Nessuna fase MES corrisponde ai filtri.</div>`;
+        return `<tr data-mes-order-phase="${escapeHtml(phase.phaseId)}" tabindex="0" title="Tasto destro per modificare o eliminare">
+            <td><strong>${escapeHtml(order.orderNumber)}</strong></td><td>${escapeHtml(phase.phaseCode)}</td><td><strong>${escapeHtml(phase.articleCode || order.articleCode)}</strong></td><td>${escapeHtml(order.customer || "—")}</td>
+            <td class="is-number">${Number(phase.targetQuantity) || 0}</td><td class="is-number is-good">${produced}</td><td class="is-number">${remaining}</td><td>${mesSeconds(phase.standardCycleSeconds)}</td>
+            <td><span class="mes-order-status mes-order-status--${businessStatus.toLowerCase()}">${escapeHtml(mesBusinessStatusLabel(businessStatus))}</span></td>
+            <td>${scheduled ? `${escapeHtml(mesMachineDisplayName(phase.plannedMachineId))}<small>${escapeHtml(String(phase.scheduledStart || "").slice(0, 10))}</small>` : "Da pianificare"}</td>
+        </tr>`;
+    }).join("") : `<tr><td colspan="10" class="mes-empty-row">Nessun ordine corrisponde ai filtri.</td></tr>`;
 }
 
 function renderMesConsole() {
@@ -2377,34 +2786,81 @@ function renderMesConsole() {
     const detectedMachines = snapshotMachines
         .filter((item: any) => item.asset_type !== "robot" && item.code && !known.has(normalizedMachineId(item.code)))
         .map((item: any) => ({ id: String(item.code).toLowerCase(), name: String(item.name || item.code), department: "PLC", category: "Rilevata", color: "#298fc2" }));
-    grid.innerHTML = [...state.machines, ...detectedMachines].map((machine) => {
+    const detectedRobots = snapshotMachines
+        .filter((item: any) => item.asset_type === "robot" && item.code)
+        .map((item: any) => ({ id: `robot:${String(item.code).toLowerCase()}`, sourceCode: item.code, name: String(item.name || item.code), department: String(item.island || "Robot"), category: "Robot", color: "#25a5d8", assetType: "robot", robot: item }));
+    const allMachines: any[] = [...state.machines, ...detectedMachines, ...detectedRobots];
+    const departmentSelect = byId("mes-machine-department") as HTMLSelectElement | null;
+    const categorySelect = byId("mes-machine-category") as HTMLSelectElement | null;
+    const currentDepartment = departmentSelect?.value || "";
+    const currentCategory = categorySelect?.value || "";
+    if (departmentSelect) departmentSelect.innerHTML = `<option value="">Tutti i reparti</option>${[...new Set(allMachines.map((machine) => machine.department).filter(Boolean))].sort().map((value) => `<option value="${escapeHtml(value)}" ${value === currentDepartment ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
+    if (categorySelect) categorySelect.innerHTML = `<option value="">Tutti i tipi</option>${[...new Set(allMachines.map((machine) => machine.category).filter(Boolean))].sort().map((value) => `<option value="${escapeHtml(value)}" ${value === currentCategory ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
+    const search = inputValue("mes-machine-search").trim().toLocaleLowerCase("it-IT");
+    const statusFilter = inputValue("mes-machine-status");
+    const visibleMachines = allMachines.filter((machine) => {
+        const machineId = normalizedMachineId(machine.id);
+        const session = mesSessions.find((item) => normalizedMachineId(item.machineId) === machineId && item.status === "ACTIVE");
+        const signal = snapshotMachines.find((item: any) => normalizedMachineId(item.code) === machineId && item.asset_type !== "robot");
+        const online = machine.assetType === "robot" ? !!machine.robot?.online : !!signal?.frame_time;
+        if (search && !`${machineId} ${machine.sourceCode || ""} ${machine.name}`.toLocaleLowerCase("it-IT").includes(search)) return false;
+        if (currentDepartment && machine.department !== currentDepartment) return false;
+        if (currentCategory && machine.category !== currentCategory) return false;
+        if (statusFilter === "online" && !online) return false;
+        if (statusFilter === "offline" && online) return false;
+        if (statusFilter === "active" && !session) return false;
+        if (statusFilter === "idle" && session) return false;
+        return true;
+    });
+    const results = byId("mes-machine-results");
+    if (results) results.textContent = `${visibleMachines.length} di ${allMachines.length} macchine`;
+    grid.innerHTML = visibleMachines.map((machine) => {
+        if (machine.assetType === "robot") {
+            const robot = machine.robot || {};
+            return `<article class="mes-machine-card mes-machine-card--robot ${robot.online ? "is-active" : ""}" style="--machine-color:${escapeHtml(machine.color)}">
+                <header><i></i><div><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.category)} · ${escapeHtml(machine.department)}</small></div><span class="mes-local-link ${robot.online ? "is-online" : ""}">${robot.online ? "ROBOT ONLINE" : "NON RILEVATO"}</span><b>ROBOT</b></header>
+                <div class="mes-machine-card__signals"><span>Contatore<strong>${Number(robot.counter) || 0}</strong></span><span>Tempo ciclo<strong>${mesSeconds(robot.cycle_time)}</strong></span><span>Stato<strong>${escapeHtml(robot.robot_state || "—")}</strong></span></div>
+                <div class="mes-machine-card__production"><div><span>Programma attivo</span><strong>${escapeHtml(robot.program || "Nessun programma rilevato")}</strong></div><p class="mes-robot-detail">${escapeHtml(robot.details || robot.error || "Monitoraggio robot integrato nella pagina Produzione.")}</p></div>
+            </article>`;
+        }
         const machineId = normalizedMachineId(machine.id);
         const session = mesSessions.find((item) =>
             normalizedMachineId(item.machineId) === machineId
-            && ["ACTIVE", "PAUSED"].includes(item.status),
+            && item.status === "ACTIVE",
         );
         const signal = snapshotMachines.find((item: any) =>
             normalizedMachineId(item.code) === machineId && item.asset_type !== "robot",
         );
         const progress = session ? Math.round(Number(session.progressPercent) || 0) : 0;
+        const goodPieces = Number(session?.goodPieces) || 0;
+        const scrapPieces = Number(session?.scrapPieces) || 0;
         const remaining = session ? Math.max(0, Number(session.targetQuantity) - Number(session.goodPieces)) : 0;
         const remainingSeconds = session ? remaining * Number(session.standardCycleSeconds || 0) : 0;
         const online = !!signal?.frame_time;
-        const actions = session ? `<div class="mes-machine-card__actions">
-            ${session.status === "ACTIVE" ? `<button data-mes-action="PAUSE" data-session-id="${escapeHtml(session.sessionId)}" type="button">Pausa</button>` : `<button data-mes-action="RESUME" data-session-id="${escapeHtml(session.sessionId)}" type="button">Riprendi</button>`}
-            ${session.mode === "SETUP" ? `<button data-mes-setup="${escapeHtml(session.sessionId)}" type="button">Fine attrezzaggio</button>` : `<button data-mes-action="COMPLETE" data-session-id="${escapeHtml(session.sessionId)}" type="button">Completa</button>`}
-            <button class="is-danger" data-mes-action="CANCEL" data-session-id="${escapeHtml(session.sessionId)}" type="button">Annulla</button></div>`
-            : `<button class="button button--primary" data-mes-select-order="${escapeHtml(machineId)}" type="button" ${mesBackendAvailable ? "" : "disabled"} title="${mesBackendAvailable ? "Seleziona un ordine" : "Acquisizione locale attiva; attivazione MES disponibile dopo l'aggiornamento backend"}">Attiva ordine</button>`;
-        return `<article class="mes-machine-card ${session ? "is-active" : ""}" style="--machine-color:${escapeHtml(machine.color)}">
-            <header><i></i><div><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machineId)} · ${escapeHtml(machine.department)}</small></div><span class="mes-local-link ${online ? "is-online" : ""}">${online ? "PLC ONLINE" : "NON RILEVATO"}</span><b>${mesStatusLabel(session)}</b></header>
-            <div class="mes-machine-card__signals"><span>Sessione locale<strong>${Number(signal?.pieces) || 0} pz</strong></span><span>Ultimi 60 min<strong>${Number(signal?.hour) || 0} pz</strong></span><span>Operatore<strong>${escapeHtml(session?.startedBy || "—")}</strong></span></div>
-            ${session ? `<div class="mes-machine-card__production">
-                <div><span>${escapeHtml(session.orderNumber)} · ${escapeHtml(session.phaseCode)}</span><strong>${escapeHtml(session.articleCode)}</strong></div>
-                <div class="mes-progress"><i style="width:${progress}%"></i></div>
-                <p><strong>${Number(session.goodPieces) || 0}/${Number(session.targetQuantity) || 0} pz</strong><span>${progress}% · rimanenti ${remaining} · ${mesDuration(remainingSeconds)}</span></p>
-                <div class="mes-cycle-metrics"><span>Da scheda<strong>${mesSeconds(session.standardCycleSeconds)}</strong></span><span>Media reale<strong>${mesSeconds(session.averageCycleSeconds)}</strong></span><span>Ultimo ciclo<strong>${mesSeconds(session.lastCycleSeconds)}</strong></span></div>
-                ${actions}
-            </div>` : `<div class="mes-machine-card__idle"><div><strong>Nessuna produzione attiva</strong><small>${online ? "La lettura PLC locale continua regolarmente." : "In attesa del segnale PLC locale."}</small></div>${actions}</div>`}
+        const visualState = session?.status !== "ACTIVE" ? "stopped" : session.mode === "SETUP" ? "setup" : "production";
+        const stateLabel = visualState === "setup" ? "IN ATTREZZAGGIO" : visualState === "production" ? "IN PRODUZIONE" : "FERMA";
+        const operators = Array.isArray(session?.operatorNames) && session.operatorNames.length
+            ? session.operatorNames.join(", ") : session?.startedBy || "—";
+        const wrenchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a5 5 0 0 0-6.4 6.4L3 18l3 3 5.3-5.3a5 5 0 0 0 6.4-6.4l-3 3-3-3 3-3Z"/></svg>`;
+        const userIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>`;
+        return `<article class="mes-machine-card mes-machine-card--${visualState}" data-mes-machine-card="${escapeHtml(machineId)}" data-mes-machine-name="${escapeHtml(machine.name)}" style="--machine-color:${escapeHtml(machine.color)}">
+            <header><i></i><div><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.category)} · ${escapeHtml(machine.department)}</small></div><span class="mes-local-link ${online ? "is-online" : ""}">${online ? "PLC ONLINE" : "NON RILEVATO"}</span><b>${stateLabel}</b></header>
+            <div class="mes-machine-card__toolbar">
+                <button class="mes-icon-action ${session?.mode === "SETUP" ? "is-active" : ""}" data-mes-setup-toggle="${escapeHtml(session?.sessionId || "")}" type="button" ${session ? "" : "disabled"} title="${session?.mode === "SETUP" ? "Termina attrezzaggio" : "Inizia attrezzaggio"}">${wrenchIcon}</button>
+                <button class="mes-icon-action" data-mes-operator="${escapeHtml(session?.sessionId || "")}" type="button" ${session ? "" : "disabled"} title="Operatori sulla macchina">${userIcon}<span>${Array.isArray(session?.operatorNames) ? session.operatorNames.length : session ? 1 : 0}</span></button>
+                ${!session ? `<button class="button button--primary mes-machine-activate" data-mes-select-order="${escapeHtml(machineId)}" data-mes-machine-name="${escapeHtml(machine.name)}" data-mes-start-mode="PRODUCTION" type="button">Attiva ordine</button>` : ""}
+            </div>
+            <div class="mes-machine-card__data">
+                <span>Codice macchina<strong>${escapeHtml(machine.name)}</strong></span>
+                <span>Operatore<strong title="${escapeHtml(operators)}">${escapeHtml(operators)}</strong></span>
+                <span>Ordine di produzione<strong>${escapeHtml(session?.orderNumber || "—")}</strong></span>
+                <span>Articolo<strong>${escapeHtml(session?.articleCode || "—")}</strong></span>
+                <span>Quantità buoni<strong>${goodPieces}</strong></span>
+                <span>Quantità scarto<strong>${scrapPieces}</strong></span>
+                <span>Quantità rimanente<strong>${session ? remaining : "—"}</strong></span>
+                <span>Tempo rimanente<strong>${session ? mesDuration(remainingSeconds) : "00:00:00"}</strong></span>
+            </div>
+            ${session ? `<div class="mes-machine-card__footer"><div class="mes-progress"><i style="width:${progress}%"></i></div><span>${progress}% · ${mesSeconds(session.standardCycleSeconds)} da scheda · ${mesSeconds(session.averageCycleSeconds)} media reale</span></div>` : `<div class="mes-machine-card__footer"><span>${online ? "Lettura PLC locale attiva" : "In attesa del segnale PLC locale"}</span></div>`}
         </article>`;
     }).join("");
 }
@@ -2421,7 +2877,9 @@ async function openMesActivation(machineId: string, phaseId: string) {
         mesActivationPreview = preview;
         (byId("mes-activation-machine") as HTMLInputElement).value = machineId;
         (byId("mes-activation-phase") as HTMLInputElement).value = phaseId;
-        byId("mes-activation-title")!.textContent = `${machineId} · ${order.orderNumber} · ${phase.phaseCode}`;
+        (byId("mes-activation-mode") as HTMLSelectElement).value = mesActivationMode;
+        (byId("mes-activation-operator") as HTMLInputElement).value = "";
+        byId("mes-activation-title")!.textContent = `${mesActivationMachineName || mesMachineDisplayName(machineId)} · ${order.orderNumber} · ${phase.phaseCode}`;
         byId("mes-activation-preview")!.textContent = preview.unassignedPieces > 0
             ? `Sono presenti ${preview.unassignedPieces} pezzi non attribuiti (${preview.unassignedEvents} eventi, dal ${formatLongDate(String(preview.firstUnassignedAt).slice(0, 10))}). Prima dell'avvio devi decidere come trattarli.`
             : "Nessun pezzo precedente da risolvere. Il contatore logico partirà da zero.";
@@ -2445,6 +2903,11 @@ async function submitMesActivation(event: SubmitEvent) {
     if (!mesPhaseForId(phaseId)) return;
     const choice = document.querySelector<HTMLInputElement>('input[name="mes-unassigned-choice"]:checked')?.value;
     const error = byId("mes-activation-error")!;
+    const operatorName = inputValue("mes-activation-operator").trim();
+    if (!operatorName) {
+        error.textContent = "Indica l'operatore che sta lavorando sulla macchina.";
+        return;
+    }
     if (mesActivationPreview?.unassignedPieces > 0 && !choice) {
         error.textContent = "Scegli come trattare i pezzi già rilevati.";
         return;
@@ -2458,14 +2921,17 @@ async function submitMesActivation(event: SubmitEvent) {
             attributedPieces: choice === "PARTIAL" ? Number(inputValue("mes-attributed-pieces")) : undefined,
             reasonCode: inputValue("mes-activation-reason").trim(),
             note: inputValue("mes-activation-note").trim(),
+            operatorName,
         });
         closeDialog("mes-activation-dialog");
+        const activatedMachineName = mesActivationMachineName || mesMachineDisplayName(inputValue("mes-activation-machine"));
         mesActivationMachineId = "";
+        mesActivationMachineName = "";
         const context = byId("mes-orders-context");
         if (context) context.textContent = "Gli ordini possono essere pianificati, ma si attivano solo dalla pagina Produzione.";
         await refreshMesRuntime();
         showMesPage("production");
-        notify(`Fase attivata sulla macchina ${inputValue("mes-activation-machine")}`);
+        notify(`Fase attivata sulla macchina ${activatedMachineName}`);
     } catch (activationError) {
         error.textContent = activationError instanceof Error ? activationError.message : "Attivazione non riuscita.";
     }
@@ -2474,13 +2940,13 @@ async function submitMesActivation(event: SubmitEvent) {
 async function runMesSessionAction(sessionId: string, action: string) {
     const session = mesSessions.find((item) => item.sessionId === sessionId);
     if (!session) return;
-    if (["COMPLETE", "CANCEL"].includes(action)) {
+    if (["PAUSE", "COMPLETE"].includes(action)) {
         const confirmed = await nativeConfirm(
             action === "COMPLETE"
-                ? `Confermi la chiusura della produzione ${session.orderNumber} sulla ${session.machineId}?`
-                : `Confermi l'annullamento della sessione ${session.orderNumber} sulla ${session.machineId}?`,
-            action === "COMPLETE" ? "Completa" : "Annulla sessione",
-            action === "CANCEL",
+                ? `Chiudere definitivamente ${session.orderNumber} sulla ${mesMachineDisplayName(session.machineId)}? L'ordine non potrà più essere riaperto.`
+                : `Sospendere ${session.orderNumber} sulla ${mesMachineDisplayName(session.machineId)}? La macchina verrà liberata e l'ordine potrà essere riattivato.`,
+            action === "COMPLETE" ? "Chiudi definitivamente" : "Sospendi ordine",
+            action === "COMPLETE",
         );
         if (!confirmed) return;
     }
@@ -2490,21 +2956,114 @@ async function runMesSessionAction(sessionId: string, action: string) {
             body: { action, baseRevision: session.revision, note: "" },
         });
         await refreshMesRuntime();
+        notify(action === "COMPLETE" ? "Ordine chiuso definitivamente" : action === "PAUSE" ? "Ordine sospeso" : "Stato ordine aggiornato");
     } catch (error) {
         notify(error instanceof Error ? error.message : "Comando MES non riuscito");
     }
 }
 
-function openMesSetupReconciliation(sessionId: string) {
+function openMesAdjustment(sessionId: string, preferredKind = "GOOD_PIECES_ADD") {
     const session = mesSessions.find((item) => item.sessionId === sessionId);
     if (!session) return;
+    (byId("mes-adjustment-session") as HTMLInputElement).value = sessionId;
+    byId("mes-adjustment-title")!.textContent = `${mesMachineDisplayName(session.machineId)} · ${session.orderNumber} · ${session.goodPieces} pezzi buoni`;
+    (byId("mes-adjustment-kind") as HTMLSelectElement).value = preferredKind;
+    (byId("mes-adjustment-quantity") as HTMLInputElement).value = "";
+    (byId("mes-adjustment-reason") as HTMLInputElement).value = "";
+    (byId("mes-adjustment-note") as HTMLTextAreaElement).value = "";
+    byId("mes-adjustment-error")!.textContent = "";
+    openDialog("mes-adjustment-dialog");
+}
+
+async function submitMesAdjustment(event: SubmitEvent) {
+    event.preventDefault();
+    const sessionId = inputValue("mes-adjustment-session");
+    const session = mesSessions.find((item) => item.sessionId === sessionId);
+    if (!session) return;
+    const quantity = Number(inputValue("mes-adjustment-quantity"));
+    const error = byId("mes-adjustment-error")!;
+    if (!Number.isInteger(quantity) || quantity <= 0 || !inputValue("mes-adjustment-reason").trim()) {
+        error.textContent = "Inserisci una quantità intera positiva e una causale.";
+        return;
+    }
+    try {
+        await mesInvoke("mes-session-adjustment", { sessionId, body: {
+            baseRevision: session.revision, kind: inputValue("mes-adjustment-kind"), quantity,
+            reasonCode: inputValue("mes-adjustment-reason").trim(), note: inputValue("mes-adjustment-note").trim(),
+        } });
+        closeDialog("mes-adjustment-dialog");
+        await refreshMesRuntime();
+        notify("Rettifica contapezzi registrata");
+    } catch (adjustmentError) {
+        error.textContent = adjustmentError instanceof Error ? adjustmentError.message : "Rettifica non riuscita.";
+    }
+}
+
+function openMesOperator(sessionId: string) {
+    const session = mesSessions.find((item) => item.sessionId === sessionId);
+    if (!session) return;
+    (byId("mes-operator-session") as HTMLInputElement).value = sessionId;
+    (byId("mes-operator-note") as HTMLTextAreaElement).value = "";
+    byId("mes-operator-title")!.textContent = `${mesMachineDisplayName(session.machineId)} · operatori`;
+    byId("mes-operator-error")!.textContent = "";
+    const selected = new Set(Array.isArray(session.operatorNames) && session.operatorNames.length
+        ? session.operatorNames : String(session.startedBy || "").split(",").map((name) => name.trim()).filter(Boolean));
+    const list = byId("mes-operator-list")!;
+    const departments = Object.entries(mesAssigneeGroups).sort(([left], [right]) => left.localeCompare(right, "it"));
+    list.innerHTML = departments.length ? departments.map(([department, names]) => `<fieldset><legend>${escapeHtml(department)}</legend>${[...names].sort((a, b) => a.localeCompare(b, "it")).map((name) => `<label><input type="checkbox" value="${escapeHtml(name)}" ${selected.has(name) ? "checked" : ""}> <span>${escapeHtml(name)}</span></label>`).join("")}</fieldset>`).join("")
+        : `<p class="mes-operator-empty">Anagrafica dipendenti non disponibile. Verifica il collegamento al backend condiviso.</p>`;
+    openDialog("mes-operator-dialog");
+}
+
+async function submitMesOperator(event: SubmitEvent) {
+    event.preventDefault();
+    const sessionId = inputValue("mes-operator-session");
+    const session = mesSessions.find((item) => item.sessionId === sessionId);
+    if (!session) return;
+    const operatorNames = [...document.querySelectorAll<HTMLInputElement>("#mes-operator-list input:checked")].map((input) => input.value);
+    try {
+        await mesInvoke("mes-session-operator", { sessionId, body: {
+            baseRevision: session.revision, operatorNames, note: inputValue("mes-operator-note").trim(),
+        } });
+        closeDialog("mes-operator-dialog");
+        await refreshMesRuntime();
+        notify(operatorNames.length ? `Operatori aggiornati: ${operatorNames.join(", ")}` : "Nessun operatore assegnato alla macchina");
+    } catch (operatorError) {
+        byId("mes-operator-error")!.textContent = operatorError instanceof Error ? operatorError.message : "Aggiornamento operatore non riuscito.";
+    }
+}
+
+async function beginMesSetup(sessionId: string) {
+    const session = mesSessions.find((item) => item.sessionId === sessionId);
+    if (!session || session.mode === "SETUP") return;
+    try {
+        await mesInvoke("mes-session-setup-start", {
+            sessionId,
+            body: { baseRevision: session.revision, note: "Attrezzaggio avviato dalla console macchina" },
+        });
+        await refreshMesRuntime();
+        notify(`Attrezzaggio avviato su ${mesMachineDisplayName(session.machineId)}`);
+    } catch (error) {
+        notify(error instanceof Error ? error.message : "Avvio attrezzaggio non riuscito");
+    }
+}
+
+function openMesSetupReconciliation(sessionId: string, outcome: "continue" | "suspend" | "complete" = "continue") {
+    const session = mesSessions.find((item) => item.sessionId === sessionId);
+    if (!session) return;
+    const closeOrder = outcome === "complete";
+    const continueProduction = outcome === "continue";
     (byId("mes-setup-session") as HTMLInputElement).value = sessionId;
-    byId("mes-setup-title")!.textContent = `${session.machineId} · ${session.orderNumber} · ${session.phaseCode}`;
+    (byId("mes-setup-close-order") as HTMLInputElement).value = closeOrder ? "1" : "0";
+    byId("mes-setup-title")!.textContent = `${mesMachineDisplayName(session.machineId)} · ${session.orderNumber} · ${closeOrder ? "chiusura definitiva" : outcome === "suspend" ? "sospensione ordine" : session.phaseCode}`;
     byId("mes-setup-detected")!.textContent = `Durante l'attrezzaggio sono stati rilevati ${session.setupPieces || 0} pezzi. Classificali interamente prima di proseguire.`;
     (byId("mes-setup-good") as HTMLInputElement).value = "0";
     (byId("mes-setup-scrap") as HTMLInputElement).value = "0";
     (byId("mes-setup-excluded") as HTMLInputElement).value = String(session.setupPieces || 0);
-    (byId("mes-setup-start-production") as HTMLInputElement).checked = true;
+    (byId("mes-setup-start-production") as HTMLInputElement).checked = continueProduction;
+    (byId("mes-setup-start-production") as HTMLInputElement).disabled = !continueProduction;
+    const startProductionLabel = byId("mes-setup-start-production")?.closest<HTMLElement>("label");
+    if (startProductionLabel) startProductionLabel.hidden = !continueProduction;
     (byId("mes-setup-note") as HTMLTextAreaElement).value = "";
     byId("mes-setup-error")!.textContent = "";
     openDialog("mes-setup-dialog");
@@ -2518,6 +3077,7 @@ async function submitMesSetupReconciliation(event: SubmitEvent) {
     const goodPieces = Number(inputValue("mes-setup-good")) || 0;
     const scrapPieces = Number(inputValue("mes-setup-scrap")) || 0;
     const excludedPieces = Number(inputValue("mes-setup-excluded")) || 0;
+    const closeOrder = inputValue("mes-setup-close-order") === "1";
     const error = byId("mes-setup-error")!;
     if (goodPieces + scrapPieces + excludedPieces !== Number(session.setupPieces || 0)) {
         error.textContent = `La somma deve essere esattamente ${session.setupPieces || 0} pezzi.`;
@@ -2531,13 +3091,15 @@ async function submitMesSetupReconciliation(event: SubmitEvent) {
                 goodPieces,
                 scrapPieces,
                 excludedPieces,
-                startProduction: (byId("mes-setup-start-production") as HTMLInputElement).checked,
+                startProduction: !closeOrder && (byId("mes-setup-start-production") as HTMLInputElement).checked,
+                closeOrder,
                 note: inputValue("mes-setup-note").trim(),
             },
         });
         closeDialog("mes-setup-dialog");
         await refreshMesRuntime();
-        notify("Attrezzaggio riconciliato");
+        const startedProduction = !closeOrder && (byId("mes-setup-start-production") as HTMLInputElement).checked;
+        notify(closeOrder ? "Attrezzaggio chiuso e ordine terminato" : startedProduction ? "Attrezzaggio riconciliato; produzione avviata" : "Attrezzaggio chiuso e ordine sospeso");
     } catch (setupError) {
         error.textContent = setupError instanceof Error ? setupError.message : "Riconciliazione non riuscita.";
     }
@@ -2583,7 +3145,7 @@ async function focusNativePlannerWindow() {
     return document.hasFocus();
 }
 
-async function nativeMessage(
+function nativeMessage(
     message: string,
     options: {
         detail?: string;
@@ -2592,18 +3154,89 @@ async function nativeMessage(
         destructive?: boolean;
     } = {},
 ) {
+    const task = aypiMessageQueue.then(() => showAypiMessage(message, options));
+    aypiMessageQueue = task.then(() => undefined, () => undefined);
+    return task;
+}
+
+async function showAypiMessage(
+    message: string,
+    options: {
+        detail?: string;
+        type?: "none" | "info" | "warning" | "error" | "question";
+        confirmLabel?: string;
+        destructive?: boolean;
+    },
+) {
     const [primary, ...detailParts] = String(message).split(/\n\s*\n/);
     await focusNativePlannerWindow();
-    const result = await ipcRenderer.invoke("show-message-box", {
-        type: options.type || "question",
-        message: primary,
-        detail: options.detail || detailParts.join("\n\n"),
-        buttons: options.confirmLabel
-            ? ["Annulla", options.confirmLabel]
-            : ["OK"],
-        defaultId: options.confirmLabel && !options.destructive ? 1 : 0,
-        cancelId: 0,
-        noLink: true,
+    const backdrop = byId("aypi-message-dialog");
+    const dialog = backdrop?.querySelector<HTMLElement>(".dialog--aypi-message");
+    const confirm = byId("aypi-message-confirm") as HTMLButtonElement | null;
+    const cancel = byId("aypi-message-cancel") as HTMLButtonElement | null;
+    const close = byId("aypi-message-close") as HTMLButtonElement | null;
+    if (!backdrop || !dialog || !confirm || !cancel || !close) {
+        console.error("[production-planner] Dialogo AyPi di conferma non disponibile");
+        return { response: 0 };
+    }
+
+    const type = options.type || "question";
+    const descriptions = {
+        none: { eyebrow: "AYPI · MESSAGGIO", title: "Messaggio", icon: "i" },
+        info: { eyebrow: "AYPI · INFORMAZIONE", title: "Informazione", icon: "i" },
+        warning: { eyebrow: "AYPI · ATTENZIONE", title: "Conferma operazione", icon: "!" },
+        error: { eyebrow: "AYPI · ERRORE", title: "Operazione non riuscita", icon: "×" },
+        question: { eyebrow: "AYPI · CONFERMA", title: "Conferma operazione", icon: "?" },
+    } as const;
+    const description = descriptions[type];
+    const detail = options.detail || detailParts.join("\n\n");
+    byId("aypi-message-eyebrow")!.textContent = description.eyebrow;
+    byId("aypi-message-title")!.textContent = description.title;
+    byId("aypi-message-icon")!.textContent = description.icon;
+    byId("aypi-message-copy")!.textContent = primary;
+    byId("aypi-message-detail")!.textContent = detail;
+    byId("aypi-message-detail")!.hidden = !detail;
+    confirm.textContent = options.confirmLabel || "OK";
+    cancel.hidden = !options.confirmLabel;
+    dialog.classList.toggle("is-warning", type === "warning");
+    dialog.classList.toggle("is-error", type === "error");
+    dialog.classList.toggle("is-destructive", !!options.destructive);
+    backdrop.classList.add("is-open");
+    backdrop.setAttribute("aria-hidden", "false");
+
+    const previousFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const result = await new Promise<{ response: number }>((resolve) => {
+        const finish = (response: number) => {
+            backdrop.classList.remove("is-open");
+            backdrop.setAttribute("aria-hidden", "true");
+            confirm.removeEventListener("click", confirmAction);
+            cancel.removeEventListener("click", cancelAction);
+            close.removeEventListener("click", cancelAction);
+            backdrop.removeEventListener("click", backdropAction);
+            document.removeEventListener("keydown", keyAction, true);
+            requestAnimationFrame(() => previousFocus?.focus());
+            resolve({ response });
+        };
+        const confirmAction = () => finish(options.confirmLabel ? 1 : 0);
+        const cancelAction = () => finish(0);
+        const backdropAction = (event: MouseEvent) => {
+            if (event.target === backdrop) cancelAction();
+        };
+        const keyAction = (event: KeyboardEvent) => {
+            if (event.key !== "Escape" && event.key !== "Enter") return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (event.key === "Escape") cancelAction();
+            else confirmAction();
+        };
+        confirm.addEventListener("click", confirmAction);
+        cancel.addEventListener("click", cancelAction);
+        close.addEventListener("click", cancelAction);
+        backdrop.addEventListener("click", backdropAction);
+        document.addEventListener("keydown", keyAction, true);
+        requestAnimationFrame(() => (options.destructive && options.confirmLabel ? cancel : confirm).focus());
     });
     await focusNativePlannerWindow();
     return result;
@@ -2631,6 +3264,8 @@ function openDialog(id: string) {
     if (!dialog) return;
     cancelActivePointerInteractions({ render: false });
     closeContextMenu();
+    closeMesOrderContextMenu();
+    closeMesMachineContextMenu();
     hideJobTooltip();
     dialog.classList.add("is-open");
     dialog.setAttribute("aria-hidden", "false");
@@ -2644,7 +3279,6 @@ function closeDialog(id: string) {
     if (id === "machines-dialog") {
         stopMachineListAutoScroll();
         draggedMachineId = "";
-        openMachineCalendarId = "";
         clearMachineDropIndicators();
     }
     dialog.classList.remove("is-open");
@@ -2683,6 +3317,7 @@ function cancelActivePointerInteractions(
     }
     resizeSession = null;
     calendarPanSession = null;
+    stopJobDragAutoScroll();
     draggedJobId = "";
     if (draggedMachineId) {
         stopMachineListAutoScroll();
@@ -2711,6 +3346,7 @@ function updateJobStartAvailability() {
             : "Disponibile dopo aver scelto una macchina.";
     }
     updateJobMachinePickerTrigger();
+    updateCalculatedJobDuration();
 }
 
 function restoreJobFormInteractivity(focusFirstField = true) {
@@ -2768,12 +3404,16 @@ function updateCalculatedJobDuration() {
     const cycleSeconds = Number(inputValue("job-cycle-seconds")) || 0;
     const setupHours = Number(inputValue("job-setup-hours")) || 0;
     const duration = calculateMesDuration(quantity, cycleSeconds, setupHours);
+    const machineId = inputValue("job-machine");
+    const start = inputValue("job-start");
+    const scheduledEnd = machineId && start ? endForProductionSeconds(start, duration.totalSeconds, machineId) : null;
+    const scheduledDays = scheduledEnd ? Math.max(1, countProductionDays(start, scheduledEnd, machineId)) : duration.days;
     const input = byId("job-duration") as HTMLInputElement | null;
-    if (input) input.value = String(duration.days);
+    if (input) input.value = String(scheduledDays);
     const hint = byId("job-duration-hint");
     if (hint) {
         const hours = duration.totalSeconds / 3600;
-        hint.textContent = `${hours.toLocaleString("it-IT", { maximumFractionDigits: 2 })} ore totali · ${duration.days} ${duration.days === 1 ? "giorno" : "giorni"} da 8 ore.`;
+        hint.textContent = `${hours.toLocaleString("it-IT", { maximumFractionDigits: 2 })} ore totali · ${scheduledDays} ${scheduledDays === 1 ? "giorno produttivo" : "giorni produttivi"}${scheduledEnd ? ` · fine ${formatLongDate(scheduledEnd)}` : ""}.`;
     }
 }
 
@@ -3007,7 +3647,7 @@ async function saveJobFromForm(event: SubmitEvent) {
     const quantity = Number(inputValue("job-quantity")) || 0;
     const cycleSeconds = Number(inputValue("job-cycle-seconds")) || 0;
     const setupHours = Number(inputValue("job-setup-hours")) || 0;
-    const durationDays = calculateMesDuration(quantity, cycleSeconds, setupHours).days;
+    const duration = calculateMesDuration(quantity, cycleSeconds, setupHours);
     const error = byId("job-form-error")!;
     if (!inputValue("job-order-number").trim() || !inputValue("job-phase").trim()) {
         error.textContent = "Numero ordine e fase di lavorazione sono obbligatori.";
@@ -3025,14 +3665,19 @@ async function saveJobFromForm(event: SubmitEvent) {
     const id = inputValue("job-id") || uid("job");
     const previous = state.jobs.find((item) => item.id === id);
     const scheduleChanged = !previous
-        || previous.durationDays !== durationDays
+        || previous.quantity !== quantity
+        || previous.cycleSeconds !== cycleSeconds
+        || previous.setupHours !== setupHours
         || previous.start !== start
         || previous.machineId !== machineId;
     const end = start
         ? scheduleChanged
-            ? dateKey(endForProductionDuration(start, durationDays, machineId))
+            ? dateKey(endForProductionSeconds(start, duration.totalSeconds, machineId))
             : previous.end
         : "";
+    const durationDays = start && end && machineId
+        ? Math.max(1, countProductionDays(start, end, machineId))
+        : duration.days;
     const baseSpanDays = start && end ? Math.max(1, diffDays(end, start) + 1) : 1;
     const workStatus = previous?.mesPhaseId ? previous.workStatus : inputValue("job-status") as WorkStatus;
     const progressDays = workStatus === "done"
@@ -3164,6 +3809,63 @@ function closeContextMenu() {
     menu.setAttribute("aria-hidden", "true");
     contextJobId = "";
     contextMachineId = "";
+}
+
+function closeMesOrderContextMenu() {
+    const menu = byId("mes-order-context-menu");
+    if (!menu) return;
+    menu.classList.remove("is-open");
+    menu.setAttribute("aria-hidden", "true");
+    mesOrderContextPhaseId = "";
+}
+
+function openMesOrderContextMenu(phaseId: string, event: MouseEvent) {
+    const menu = byId("mes-order-context-menu");
+    if (!menu || !phaseId) return;
+    closeContextMenu();
+    mesOrderContextPhaseId = phaseId;
+    menu.style.left = `${event.clientX}px`;
+    menu.style.top = `${event.clientY}px`;
+    menu.classList.add("is-open");
+    menu.setAttribute("aria-hidden", "false");
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - rect.height - 8))}px`;
+}
+
+function closeMesMachineContextMenu() {
+    const menu = byId("mes-machine-context-menu");
+    if (!menu) return;
+    menu.classList.remove("is-open");
+    menu.setAttribute("aria-hidden", "true");
+    mesMachineContextId = "";
+}
+
+function openMesMachineContextMenu(machineId: string, event: MouseEvent) {
+    const menu = byId("mes-machine-context-menu");
+    if (!menu || !machineId) return;
+    closeContextMenu();
+    closeMesOrderContextMenu();
+    mesMachineContextId = normalizedMachineId(machineId);
+    const session = mesSessions.find((item) => normalizedMachineId(item.machineId) === mesMachineContextId && item.status === "ACTIVE");
+    if (byId("mes-machine-context-title")) byId("mes-machine-context-title")!.textContent = mesMachineDisplayName(machineId);
+    const activate = menu.querySelector<HTMLElement>('[data-mes-machine-context="activate"]');
+    const suspend = menu.querySelector<HTMLElement>('[data-mes-machine-context="suspend"]');
+    const complete = menu.querySelector<HTMLElement>('[data-mes-machine-context="complete"]');
+    const scrap = menu.querySelector<HTMLElement>('[data-mes-machine-context="scrap"]');
+    const adjust = menu.querySelector<HTMLElement>('[data-mes-machine-context="adjust"]');
+    if (activate) activate.hidden = !!session;
+    if (suspend) suspend.hidden = !session;
+    if (complete) complete.hidden = !session;
+    if (scrap) scrap.hidden = !session;
+    if (adjust) adjust.hidden = !session;
+    menu.style.left = `${event.clientX}px`;
+    menu.style.top = `${event.clientY}px`;
+    menu.classList.add("is-open");
+    menu.setAttribute("aria-hidden", "false");
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - rect.height - 8))}px`;
 }
 
 function keepContextMenuInViewport() {
@@ -3370,7 +4072,7 @@ function renderContextMenu(view: "main" | "material" | "work" | "progress" | "li
                     ).join("")}
                 </div>
             </div>
-            <div class="context-menu__entry" data-context-section="work">
+            <div class="context-menu__entry" data-context-section="work" hidden>
                 <button type="button" data-context-toggle="work" role="menuitem">
                     <span>◷</span>
                     <div><strong>Lavorazione</strong><small>${escapeHtml(workLabels[job.workStatus])}</small></div>
@@ -3586,7 +4288,7 @@ function shiftMachineJobs(machineId: string, deltaDays: number) {
         const shiftedStart = shiftByProductionDays(job.start, deltaDays, machineId);
         job.start = dateKey(shiftedStart);
         job.end = dateKey(
-            endForProductionDuration(shiftedStart, job.durationDays || 1, machineId),
+            endForJobDuration(job, shiftedStart, machineId),
         );
         job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
     });
@@ -3602,7 +4304,8 @@ function scheduleJob(jobId: string, machineId: string, startDate: Date) {
     const scheduledStart = nextMachineStandardOpenDay(startDate, machineId);
     job.machineId = machineId;
     job.start = dateKey(scheduledStart);
-    job.end = dateKey(endForProductionDuration(scheduledStart, job.durationDays || 1, machineId));
+    job.end = dateKey(endForJobDuration(job, scheduledStart, machineId));
+    job.durationDays = Math.max(1, countProductionDays(job.start, job.end, machineId));
     job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
     saveState();
     renderAll();
@@ -3777,7 +4480,7 @@ function stopJobDragAutoScroll() {
 
 function runJobDragAutoScroll(timestamp: number) {
     const timelineScroll = byId("timeline-scroll");
-    if (!timelineScroll || !draggedJobId) {
+    if (!timelineScroll || !draggedJobId || document.hidden || !document.hasFocus()) {
         stopJobDragAutoScroll();
         return;
     }
@@ -3889,7 +4592,7 @@ function showDragPreview(lane: HTMLElement, clientX: number) {
     const dayIndex = Math.max(0, Math.min(visibleDays - 1, Math.floor((clientX - rect.left) / dayWidth)));
     const requestedDate = addDays(visibleStart, dayIndex);
     const scheduledStart = nextMachineStandardOpenDay(requestedDate, machineId);
-    const scheduledEnd = endForProductionDuration(scheduledStart, job.durationDays || 1, machineId);
+    const scheduledEnd = endForJobDuration(job, scheduledStart, machineId);
     const rawStartIndex = diffDays(scheduledStart, visibleStart);
     const rawEndIndex = diffDays(scheduledEnd, visibleStart);
     const clippedStart = Math.max(0, Math.min(visibleDays - 1, rawStartIndex));
@@ -4037,6 +4740,7 @@ function bindGlobalEvents() {
     }, true);
 
     byId("new-job")?.addEventListener("click", () => openJob());
+    byId("new-job-scheduler")?.addEventListener("click", () => openJob());
     byId("refresh-planner")?.addEventListener("click", () => {
         void loadLatestPlanner({ manual: true }).then(() => refreshMesRuntime());
     });
@@ -4053,12 +4757,29 @@ function bindGlobalEvents() {
     document.querySelectorAll<HTMLElement>("[data-mes-plc-view]").forEach((button) => {
         button.addEventListener("click", () => showMesPage("plc", button.dataset.mesPlcView || "overview"));
     });
-    byId("mes-console-refresh")?.addEventListener("click", () => void refreshMesRuntime());
+    byId("mes-plc-frame")?.addEventListener("load", (event) => {
+        const frame = event.currentTarget as HTMLIFrameElement;
+        frame.contentWindow?.postMessage({ type: "aypi-plc-view", view: frame.dataset.plcView || "overview" }, "*");
+    });
     byId("mes-reader-settings")?.addEventListener("click", openMesReaderSettings);
+    ["mes-machine-search", "mes-machine-department", "mes-machine-category", "mes-machine-status"].forEach((id) => {
+        byId(id)?.addEventListener(id === "mes-machine-search" ? "input" : "change", renderMesConsole);
+    });
+    byId("mes-machine-filters-reset")?.addEventListener("click", () => {
+        ["mes-machine-search", "mes-machine-department", "mes-machine-category", "mes-machine-status"].forEach((id) => {
+            const field = byId(id) as HTMLInputElement | HTMLSelectElement | null;
+            if (field) field.value = "";
+        });
+        renderMesConsole();
+    });
     byId("mes-machine-grid")?.addEventListener("click", (event) => {
         const target = event.target as HTMLElement;
         const selector = target.closest<HTMLElement>("[data-mes-select-order]");
-        if (selector) selectOrderForMachine(selector.dataset.mesSelectOrder || "");
+        if (selector) selectOrderForMachine(
+            selector.dataset.mesSelectOrder || "",
+            selector.dataset.mesMachineName || "",
+            selector.dataset.mesStartMode === "SETUP" ? "SETUP" : "PRODUCTION",
+        );
         const action = target.closest<HTMLElement>("[data-mes-action]");
         if (action) void runMesSessionAction(
             action.dataset.sessionId || "",
@@ -4066,27 +4787,121 @@ function bindGlobalEvents() {
         );
         const setup = target.closest<HTMLElement>("[data-mes-setup]");
         if (setup) openMesSetupReconciliation(setup.dataset.mesSetup || "");
+        const setupToggle = target.closest<HTMLElement>("[data-mes-setup-toggle]");
+        if (setupToggle?.dataset.mesSetupToggle) {
+            const session = mesSessions.find((item) => item.sessionId === setupToggle.dataset.mesSetupToggle);
+            if (session?.mode === "SETUP") openMesSetupReconciliation(session.sessionId);
+            else void beginMesSetup(setupToggle.dataset.mesSetupToggle);
+        }
+        const adjustment = target.closest<HTMLElement>("[data-mes-adjust]");
+        if (adjustment) openMesAdjustment(adjustment.dataset.mesAdjust || "");
+        const operator = target.closest<HTMLElement>("[data-mes-operator]");
+        if (operator) openMesOperator(operator.dataset.mesOperator || "");
+        const editOrder = target.closest<HTMLElement>("[data-mes-edit-order]");
+        if (editOrder) {
+            const phaseId = editOrder.dataset.mesEditOrder || "";
+            const selection = mesPhaseForId(phaseId);
+            if (selection) {
+                const job = state.jobs.find((item) => item.mesPhaseId === phaseId)
+                    || createMesPlannerProjection(selection.order, selection.phase);
+                openJob(job);
+            }
+        }
     });
-    byId("mes-orders-search")?.addEventListener("input", renderMesOrders);
-    byId("mes-orders-body")?.addEventListener("click", (event) => {
-        const target = event.target as HTMLElement;
-        const activation = target.closest<HTMLElement>("[data-activate-phase]");
-        if (activation && mesActivationMachineId) {
-            void openMesActivation(mesActivationMachineId, activation.dataset.activatePhase || "");
+    byId("mes-machine-grid")?.addEventListener("contextmenu", (event) => {
+        const card = (event.target as HTMLElement).closest<HTMLElement>("[data-mes-machine-card]");
+        if (!card?.dataset.mesMachineCard) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openMesMachineContextMenu(card.dataset.mesMachineCard, event as MouseEvent);
+    });
+    byId("mes-machine-context-menu")?.addEventListener("click", (event) => {
+        const command = (event.target as HTMLElement).closest<HTMLElement>("[data-mes-machine-context]")?.dataset.mesMachineContext;
+        const machineId = mesMachineContextId;
+        const session = mesSessions.find((item) => normalizedMachineId(item.machineId) === machineId && item.status === "ACTIVE");
+        if (!command || !machineId) return;
+        closeMesMachineContextMenu();
+        if (command === "activate") {
+            selectOrderForMachine(machineId, mesMachineDisplayName(machineId), "PRODUCTION");
             return;
         }
-        const planning = target.closest<HTMLElement>("[data-plan-phase]");
-        if (planning) {
-            const selection = mesPhaseForId(planning.dataset.planPhase || "");
-            let job = state.jobs.find((item) => item.mesPhaseId === planning.dataset.planPhase)
-                || state.jobs.find((item) => item.id === selection?.phase?.plannerJobId);
-            if (!job) {
-                if (selection) job = createMesPlannerProjection(selection.order, selection.phase);
-            }
-            showMesPage("scheduler");
-            if (job) setTimeout(() => navigateToFilteredJob(job.id), 0);
-            else notify("Impossibile creare la proiezione nello schedulatore.");
+        if (!session) return;
+        if (command === "suspend") {
+            if (session.mode === "SETUP") openMesSetupReconciliation(session.sessionId, "suspend");
+            else void runMesSessionAction(session.sessionId, "PAUSE");
         }
+        if (command === "complete") {
+            if (session.mode === "SETUP") openMesSetupReconciliation(session.sessionId, "complete");
+            else void runMesSessionAction(session.sessionId, "COMPLETE");
+        }
+        if (command === "scrap") openMesAdjustment(session.sessionId, "SCRAP_PIECES_ADD");
+        if (command === "adjust") openMesAdjustment(session.sessionId);
+    });
+    byId("mes-orders-search")?.addEventListener("input", renderMesOrders);
+    ["mes-orders-status", "mes-orders-planning", "mes-orders-machine", "mes-orders-unit", "mes-orders-priority", "mes-orders-due-from", "mes-orders-due-to"].forEach((id) => byId(id)?.addEventListener("change", renderMesOrders));
+    byId("mes-orders-filters-reset")?.addEventListener("click", () => {
+        (byId("mes-orders-search") as HTMLInputElement | null)!.value = "";
+        ["mes-orders-status", "mes-orders-planning", "mes-orders-machine", "mes-orders-unit", "mes-orders-priority", "mes-orders-due-from", "mes-orders-due-to"].forEach((id) => {
+            const field = byId(id) as HTMLInputElement | HTMLSelectElement | null;
+            if (field) field.value = "";
+        });
+        renderMesOrders();
+    });
+    document.querySelector(".mes-orders-table thead")?.addEventListener("click", (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-order-sort]");
+        if (!button?.dataset.orderSort) return;
+        if (mesOrderSortKey === button.dataset.orderSort) mesOrderSortDirection = mesOrderSortDirection === 1 ? -1 : 1;
+        else { mesOrderSortKey = button.dataset.orderSort; mesOrderSortDirection = 1; }
+        renderMesOrders();
+    });
+    byId("mes-orders-body")?.addEventListener("contextmenu", (event) => {
+        const row = (event.target as HTMLElement).closest<HTMLElement>("[data-mes-order-phase]");
+        if (!row?.dataset.mesOrderPhase) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openMesOrderContextMenu(row.dataset.mesOrderPhase, event as MouseEvent);
+    });
+    byId("mes-order-context-menu")?.addEventListener("click", (event) => {
+        const command = (event.target as HTMLElement).closest<HTMLElement>("[data-mes-order-context]")?.dataset.mesOrderContext;
+        const selection = mesPhaseForId(mesOrderContextPhaseId);
+        if (!command || !selection) return;
+        const job = state.jobs.find((item) => item.mesPhaseId === selection.phase.phaseId || item.id === selection.phase.plannerJobId);
+        closeMesOrderContextMenu();
+        if (command === "edit") {
+            openJob(job || createMesPlannerProjection(selection.order, selection.phase));
+            return;
+        }
+        if (command === "delete") {
+            if (job) void deleteJobWithConfirmation(job.id);
+            else notify("Questo ordine proviene dal MES e non può ancora essere eliminato dal pianificatore.");
+        }
+    });
+    byId("mes-order-picker-search")?.addEventListener("input", renderMesOrderPicker);
+    byId("mes-order-picker-status")?.addEventListener("change", renderMesOrderPicker);
+    byId("mes-order-picker-body")?.addEventListener("click", (event) => {
+        const row = (event.target as HTMLElement).closest<HTMLElement>("[data-picker-phase]");
+        if (!row) return;
+        mesOrderPickerPhaseId = row.dataset.pickerPhase || "";
+        renderMesOrderPicker();
+    });
+    byId("mes-order-picker-body")?.addEventListener("dblclick", (event) => {
+        const row = (event.target as HTMLElement).closest<HTMLElement>("[data-picker-phase]");
+        if (!row) return;
+        mesOrderPickerPhaseId = row.dataset.pickerPhase || "";
+        continueMesOrderPicker();
+    });
+    byId("mes-order-picker-body")?.addEventListener("keydown", (event) => {
+        if (!(event instanceof KeyboardEvent) || !["Enter", " "].includes(event.key)) return;
+        const row = (event.target as HTMLElement).closest<HTMLElement>("[data-picker-phase]");
+        if (!row) return;
+        event.preventDefault();
+        mesOrderPickerPhaseId = row.dataset.pickerPhase || "";
+        if (event.key === "Enter") continueMesOrderPicker();
+        else renderMesOrderPicker();
+    });
+    byId("mes-order-picker-confirm")?.addEventListener("click", continueMesOrderPicker);
+    document.querySelectorAll("[data-close-mes-order-picker]").forEach((button) => {
+        button.addEventListener("click", () => closeDialog("mes-order-picker-dialog"));
     });
     document.querySelectorAll("[data-close-mes-activation]").forEach((button) => {
         button.addEventListener("click", () => closeDialog("mes-activation-dialog"));
@@ -4097,8 +4912,12 @@ function bindGlobalEvents() {
     document.querySelectorAll("[data-close-mes-setup]").forEach((button) => {
         button.addEventListener("click", () => closeDialog("mes-setup-dialog"));
     });
+    document.querySelectorAll("[data-close-mes-adjustment]").forEach((button) => button.addEventListener("click", () => closeDialog("mes-adjustment-dialog")));
+    document.querySelectorAll("[data-close-mes-operator]").forEach((button) => button.addEventListener("click", () => closeDialog("mes-operator-dialog")));
     byId("mes-activation-form")?.addEventListener("submit", submitMesActivation);
     byId("mes-setup-form")?.addEventListener("submit", submitMesSetupReconciliation);
+    byId("mes-adjustment-form")?.addEventListener("submit", submitMesAdjustment);
+    byId("mes-operator-form")?.addEventListener("submit", submitMesOperator);
     byId("mes-reader-form")?.addEventListener("submit", submitMesReader);
     byId("mes-reader-stop")?.addEventListener("click", async () => {
         try {
@@ -4117,6 +4936,7 @@ function bindGlobalEvents() {
     ["job-quantity", "job-cycle-seconds", "job-setup-hours"].forEach((id) => {
         byId(id)?.addEventListener("input", updateCalculatedJobDuration);
     });
+    byId("job-start")?.addEventListener("change", updateCalculatedJobDuration);
     document.querySelector(".backlog-view-switch")?.addEventListener("click", (event) => {
         const button = (event.target as HTMLElement).closest<HTMLElement>("[data-backlog-view]");
         if (!button) return;
@@ -4212,6 +5032,204 @@ function bindGlobalEvents() {
         (byId("unavailability-start") as HTMLInputElement).value = today;
         (byId("unavailability-end") as HTMLInputElement).value = today;
         openDialog("unavailability-dialog");
+    });
+
+    byId("manage-machine-calendar")?.addEventListener("click", () => {
+        const initial = state.machines.find((machine) => machine.id === scheduleEditorMachineId) || state.machines[0];
+        if (!initial) return;
+        scheduleEditorMachineId = initial.id;
+        scheduleEditorDraft = cloneWorkingHours(normalizeMachineWorkingHours(initial.workingHours));
+        (byId("machine-calendar-search") as HTMLInputElement).value = "";
+        renderMachineCalendarDialog();
+        setMachineCalendarFeedback("", "info");
+        openDialog("machine-calendar-dialog");
+    });
+    document.querySelectorAll("[data-close-machine-calendar]").forEach((button) => button.addEventListener("click", () => {
+        closeCalendarTimePicker();
+        closeDialog("machine-calendar-bulk-dialog");
+        closeDialog("machine-calendar-dialog");
+    }));
+    byId("machine-calendar-open-bulk")?.addEventListener("click", () => {
+        updateMachineCalendarBulkState();
+        const feedback = byId("machine-calendar-bulk-feedback");
+        if (feedback) feedback.hidden = true;
+        openDialog("machine-calendar-bulk-dialog");
+        setMachineCalendarFeedback(
+            scheduleClipboard ? "Preset pronto: scegli le macchine di destinazione." : "Puoi caricare gli orari da un’altra macchina. Per applicarli in blocco, copia prima un preset.",
+            "info",
+        );
+    });
+    document.querySelectorAll("[data-close-machine-calendar-bulk]").forEach((button) => {
+        button.addEventListener("click", () => closeDialog("machine-calendar-bulk-dialog"));
+    });
+    byId("machine-calendar-search")?.addEventListener("input", () => {
+        try { scheduleEditorDraft = readMachineCalendarDraft(); } catch { /* mantiene l'ultimo draft valido */ }
+        renderMachineCalendarDialog();
+    });
+    byId("machine-calendar-machine-list")?.addEventListener("click", (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-calendar-machine]");
+        if (button?.dataset.calendarMachine) selectMachineCalendarMachine(button.dataset.calendarMachine);
+    });
+    byId("machine-calendar-machine-list")?.addEventListener("pointermove", (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-calendar-machine]");
+        const preview = button?.querySelector<HTMLElement>(".machine-calendar-preview");
+        if (!preview) return;
+        preview.classList.add("is-positioned");
+        const margin = 12;
+        const offset = 16;
+        const previewRect = preview.getBoundingClientRect();
+        const width = previewRect.width || 300;
+        const height = previewRect.height || 190;
+        let left = event.clientX + offset;
+        let top = event.clientY + offset;
+        if (left + width + margin > window.innerWidth) left = event.clientX - width - offset;
+        if (top + height + margin > window.innerHeight) top = event.clientY - height - offset;
+        preview.style.left = `${Math.max(margin, left)}px`;
+        preview.style.top = `${Math.max(margin, top)}px`;
+    });
+    byId("machine-calendar-machine-list")?.addEventListener("pointerleave", () => {
+        document.querySelectorAll("#machine-calendar-machine-list .machine-calendar-preview.is-positioned")
+            .forEach((preview) => preview.classList.remove("is-positioned"));
+    });
+    byId("machine-calendar-week")?.addEventListener("input", () => {
+        try {
+            scheduleEditorDraft = readMachineCalendarDraft();
+            byId("machine-calendar-error")!.textContent = "";
+            setMachineCalendarFeedback("Modifiche non ancora salvate.", "info");
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Fascia non valida.";
+            byId("machine-calendar-error")!.textContent = message;
+            setMachineCalendarFeedback(message, "error");
+        }
+    });
+    byId("machine-calendar-week")?.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement;
+        const dayRow = target.closest<HTMLElement>("[data-calendar-day]");
+        if (!dayRow || !scheduleEditorDraft) return;
+        const timePickerButton = target.closest<HTMLElement>("[data-calendar-open-time]");
+        if (timePickerButton) {
+            const input = timePickerButton.parentElement?.querySelector<HTMLInputElement>("input");
+            if (input) openCalendarTimePicker(input);
+            return;
+        }
+        const addRange = target.closest("[data-calendar-add-range]");
+        const fullDay = target.closest("[data-calendar-full-day]");
+        const remove = target.closest<HTMLElement>("[data-calendar-remove-range]");
+        if (!addRange && !fullDay && !remove) return;
+        const day = String(dayRow.dataset.calendarDay);
+        try { scheduleEditorDraft = readMachineCalendarDraft(false); } catch { return; }
+        if (addRange) {
+            const intervals = scheduleEditorDraft[day] || [];
+            const previousEnd = intervals.at(-1)?.end || "08:00";
+            const startMinutes = timeToMinutes(previousEnd);
+            const endMinutes = Math.min(1440, Math.max(startMinutes + 60, 16 * 60));
+            if (startMinutes >= 1440) return;
+            intervals.push({ start: previousEnd, end: endMinutes === 1440 ? "24:00" : `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}` });
+            scheduleEditorDraft[day] = intervals;
+        }
+        if (fullDay) scheduleEditorDraft[day] = [{ start: "00:00", end: "24:00" }];
+        if (remove) {
+            const index = Number(remove.closest<HTMLElement>("[data-calendar-range]")?.dataset.calendarRange);
+            scheduleEditorDraft[day] = (scheduleEditorDraft[day] || []).filter((_interval, current) => current !== index);
+        }
+        renderMachineCalendarWeek();
+        setMachineCalendarFeedback("Modifiche non ancora salvate.", "info");
+    });
+    ["machine-calendar-time-hour", "machine-calendar-time-minute"].forEach((id) => {
+        byId(id)?.addEventListener("input", updateCalendarTimePicker);
+    });
+    document.querySelectorAll("[data-close-calendar-time]").forEach((button) => {
+        button.addEventListener("click", closeCalendarTimePicker);
+    });
+    byId("machine-calendar-time-picker")?.addEventListener("click", (event) => {
+        const quick = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-calendar-quick-time]");
+        if (!quick || quick.disabled) return;
+        const minutes = timeToMinutes(quick.dataset.calendarQuickTime);
+        const hour = byId("machine-calendar-time-hour") as HTMLInputElement;
+        const minute = byId("machine-calendar-time-minute") as HTMLInputElement;
+        hour.value = String(Math.floor(minutes / 60));
+        minute.value = String(minutes >= 1440 ? 0 : minutes % 60);
+        updateCalendarTimePicker();
+    });
+    byId("machine-calendar-time-apply")?.addEventListener("click", () => {
+        if (!calendarTimePickerTarget) return;
+        const value = (byId("machine-calendar-time-value") as HTMLOutputElement | null)?.value || "";
+        calendarTimePickerTarget.value = value;
+        calendarTimePickerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+        calendarTimePickerTarget.focus();
+        calendarTimePickerTarget.select();
+        closeCalendarTimePicker();
+    });
+    byId("machine-calendar-save")?.addEventListener("click", saveMachineCalendar);
+    byId("machine-calendar-copy")?.addEventListener("click", () => {
+        try {
+            scheduleClipboard = cloneWorkingHours(readMachineCalendarDraft());
+            updateMachineCalendarBulkState();
+            showMachineCalendarCopyConfirmation();
+            setMachineCalendarFeedback("Preset copiato. Usa “Copia e applica…” per assegnarlo ad altre macchine.", "success");
+            notify("Preset orario copiato");
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Preset non valido.";
+            byId("machine-calendar-error")!.textContent = message;
+            setMachineCalendarFeedback(message, "error");
+        }
+    });
+    byId("machine-calendar-import")?.addEventListener("click", () => {
+        const source = state.machines.find((machine) => machine.id === inputValue("machine-calendar-source"));
+        if (!source) {
+            setMachineCalendarFeedback("Seleziona la macchina da cui caricare gli orari.", "error");
+            return;
+        }
+        scheduleEditorDraft = cloneWorkingHours(normalizeMachineWorkingHours(source.workingHours));
+        renderMachineCalendarWeek();
+        closeDialog("machine-calendar-bulk-dialog");
+        setMachineCalendarFeedback(`Orari di ${source.name} caricati. Premi “Salva calendario” per confermare.`, "info");
+        notify(`Orari caricati da ${source.name}; premi Salva calendario per confermare.`);
+    });
+    byId("machine-calendar-targets")?.addEventListener("change", updateMachineCalendarBulkState);
+    byId("machine-calendar-select-all")?.addEventListener("click", () => {
+        document.querySelectorAll<HTMLInputElement>("#machine-calendar-targets input").forEach((input) => { input.checked = true; });
+        updateMachineCalendarBulkState();
+        setMachineCalendarFeedback("Selezionate tutte le macchine disponibili.", "info");
+    });
+    byId("machine-calendar-select-none")?.addEventListener("click", () => {
+        document.querySelectorAll<HTMLInputElement>("#machine-calendar-targets input").forEach((input) => { input.checked = false; });
+        updateMachineCalendarBulkState();
+        setMachineCalendarFeedback("Selezione macchine azzerata.", "info");
+    });
+    byId("machine-calendar-target-departments")?.addEventListener("change", (event) => {
+        const departmentInput = event.target as HTMLInputElement;
+        if (departmentInput.type !== "checkbox") return;
+        const department = departmentInput.value;
+        document.querySelectorAll<HTMLElement>("#machine-calendar-targets [data-target-department]").forEach((label) => {
+            const input = label.querySelector<HTMLInputElement>("input");
+            if (input && label.dataset.targetDepartment === department) input.checked = departmentInput.checked;
+        });
+        updateMachineCalendarBulkState();
+        setMachineCalendarFeedback(
+            departmentInput.checked ? `Aggiunte le macchine del reparto ${department}.` : `Rimosse le macchine del reparto ${department}.`,
+            "info",
+        );
+    });
+    byId("machine-calendar-paste")?.addEventListener("click", async () => {
+        if (!scheduleClipboard) {
+            setMachineCalendarFeedback("Copia prima il preset della macchina corrente.", "error");
+            notify("Copia prima un preset orario.");
+            return;
+        }
+        const targetIds = [...document.querySelectorAll<HTMLInputElement>("#machine-calendar-targets input:checked")].map((input) => input.value);
+        if (!targetIds.length) {
+            setMachineCalendarFeedback("Seleziona almeno una macchina di destinazione.", "error");
+            notify("Seleziona almeno una macchina di destinazione.");
+            return;
+        }
+        if (!await nativeConfirm(`Applicare il preset orario a ${targetIds.length} ${targetIds.length === 1 ? "macchina" : "macchine"}?`, "Applica")) return;
+        state.machines.filter((machine) => targetIds.includes(machine.id)).forEach((machine) => applyWorkingHours(machine, scheduleClipboard!));
+        saveState();
+        renderAll();
+        renderMachineCalendarDialog();
+        setMachineCalendarFeedback(`Preset applicato correttamente a ${targetIds.length} ${targetIds.length === 1 ? "macchina" : "macchine"}.`, "success");
+        notify(`Preset applicato a ${targetIds.length} ${targetIds.length === 1 ? "macchina" : "macchine"}`);
     });
 
     byId("unavailability-filter-from")?.addEventListener("change", renderUnavailabilityList);
@@ -4398,6 +5416,11 @@ function bindGlobalEvents() {
         if (toggle) {
             event.preventDefault();
             event.stopPropagation();
+            if (["work", "progress"].includes(toggle.dataset.contextToggle || "")) {
+                closeContextMenu();
+                notify("Lo stato produttivo è comandato esclusivamente dalle sessioni MES.");
+                return;
+            }
             if (toggle.dataset.contextToggle === "progress" && contextJobId) {
                 const job = state.jobs.find((item) => item.id === contextJobId);
                 if (job) {
@@ -4485,52 +5508,17 @@ function bindGlobalEvents() {
             renderAll();
             notify(`Materiale: ${materialLabels[job.materialStatus]}`);
         } else if (actionName === "work:running" || actionName === "progress-view") {
-            if (job.mesPhaseId) {
-                closeContextMenu();
-                notify("Lo stato produttivo è comandato dalla sessione MES.");
-                return;
-            }
-            renderContextMenu("progress");
+            closeContextMenu();
+            notify("Lo stato produttivo è comandato esclusivamente dalle sessioni MES.");
         } else if (actionName === "work:not_started") {
-            if (job.mesPhaseId) {
-                closeContextMenu();
-                notify("Lo stato produttivo è comandato dalla sessione MES.");
-                return;
-            }
-            job.workStatus = "not_started";
-            job.progressDays = 0;
-            job.completedAt = "";
-            saveState();
             closeContextMenu();
-            renderAll();
-            notify("Lavorazione non ancora iniziata");
+            notify("Lo stato produttivo è comandato esclusivamente dalle sessioni MES.");
         } else if (actionName === "work:done") {
-            if (job.mesPhaseId) {
-                closeContextMenu();
-                notify("Completa la produzione dalla pagina MES Produzione.");
-                return;
-            }
-            job.workStatus = "done";
-            job.progressDays = job.durationDays || 1;
-            job.completedAt = job.completedAt || new Date().toISOString();
-            saveState();
             closeContextMenu();
-            renderAll();
-            notify("Lavorazione terminata");
+            notify("Lo stato produttivo è comandato esclusivamente dalle sessioni MES.");
         } else if (actionName.startsWith("progress:")) {
-            if (job.mesPhaseId) {
-                closeContextMenu();
-                notify("L'avanzamento viene aggiornato dai conteggi MES.");
-                return;
-            }
-            const days = Number(actionName.split(":")[1]) || 1;
-            job.workStatus = "running";
-            job.progressDays = Math.min(job.durationDays || 1, Math.max(1, days));
-            job.completedAt = "";
-            saveState();
             closeContextMenu();
-            renderAll();
-            notify(`${job.progressDays}/${job.durationDays || 1} giorni processati`);
+            notify("L'avanzamento viene aggiornato esclusivamente dai conteggi MES.");
         }
     });
 
@@ -4612,7 +5600,7 @@ function bindGlobalEvents() {
             department,
             category,
             color: "",
-            closedWeekdays: [...DEFAULT_CLOSED_WEEKDAYS],
+            workingHours: defaultWorkingHours(),
         };
         assignColorForMachineGroup(machine);
         state.machines.push(machine);
@@ -4729,40 +5717,6 @@ function bindGlobalEvents() {
 
     byId("machine-list")?.addEventListener("click", async (event) => {
         const target = event.target as HTMLElement;
-        const calendarToggle = target.closest("[data-toggle-machine-calendar]");
-        const weekdayButton = target.closest<HTMLElement>("[data-machine-closed-weekday]");
-        const calendarRow = (calendarToggle || weekdayButton)?.closest("[data-machine-id]") as HTMLElement | null;
-        const calendarMachine = state.machines.find((item) => item.id === calendarRow?.dataset.machineId);
-        if (calendarToggle && calendarMachine) {
-            event.preventDefault();
-            event.stopPropagation();
-            openMachineCalendarId = openMachineCalendarId === calendarMachine.id
-                ? ""
-                : calendarMachine.id;
-            renderMachinesDialog();
-            return;
-        }
-        if (weekdayButton && calendarMachine) {
-            event.preventDefault();
-            event.stopPropagation();
-            const weekday = Number(weekdayButton.dataset.machineClosedWeekday);
-            const closed = new Set(normalizeClosedWeekdays(calendarMachine.closedWeekdays));
-            if (closed.has(weekday)) closed.delete(weekday);
-            else {
-                if (closed.size >= 6) {
-                    notify("Lascia almeno un giorno produttivo alla settimana");
-                    return;
-                }
-                closed.add(weekday);
-            }
-            calendarMachine.closedWeekdays = [...closed].sort((left, right) => left - right);
-            recalculateMachineSchedule(calendarMachine.id);
-            saveState();
-            renderMachinesDialog();
-            renderAll();
-            notify(`Calendario settimanale aggiornato · ${calendarMachine.name}`);
-            return;
-        }
         const button = target.closest("[data-remove-machine]");
         if (!button) return;
         event.preventDefault();
@@ -4874,6 +5828,8 @@ function bindGlobalEvents() {
             });
         }
         if (!(event.target as HTMLElement).closest("#job-context-menu")) closeContextMenu();
+        if (!(event.target as HTMLElement).closest("#mes-order-context-menu")) closeMesOrderContextMenu();
+        if (!(event.target as HTMLElement).closest("#mes-machine-context-menu")) closeMesMachineContextMenu();
         const card = (event.target as HTMLElement).closest("[data-job-id]") as HTMLElement | null;
         if (!card || draggedJobId || Date.now() < suppressJobClickUntil) return;
         if ((event.target as HTMLElement).closest("[data-resize-edge]")) return;
@@ -4940,6 +5896,14 @@ function bindGlobalEvents() {
             return;
         }
         if (event.key === "Escape") {
+            if (byId("mes-machine-context-menu")?.classList.contains("is-open")) {
+                closeMesMachineContextMenu();
+                return;
+            }
+            if (byId("mes-order-context-menu")?.classList.contains("is-open")) {
+                closeMesOrderContextMenu();
+                return;
+            }
             if (byId("job-context-menu")?.classList.contains("is-open")) {
                 closeContextMenu();
                 return;
@@ -4948,8 +5912,13 @@ function bindGlobalEvents() {
                 closeMachinePicker();
                 return;
             }
+            if (byId("machine-calendar-bulk-dialog")?.classList.contains("is-open")) {
+                closeDialog("machine-calendar-bulk-dialog");
+                return;
+            }
             requestCloseJobDialog();
             closeDialog("machines-dialog");
+            closeDialog("machine-calendar-dialog");
             closeDialog("unavailability-dialog");
             closeDialog("closures-dialog");
             closeMachineShiftPrompt();
@@ -5037,6 +6006,16 @@ function bindGlobalEvents() {
         draggedJobId = card.dataset.jobId || "";
         event.dataTransfer?.setData("text/plain", draggedJobId);
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    });
+    document.addEventListener("dragleave", (event) => {
+        if (!draggedJobId || event.relatedTarget) return;
+        const leftWindow = event.clientX <= 0
+            || event.clientY <= 0
+            || event.clientX >= window.innerWidth - 1
+            || event.clientY >= window.innerHeight - 1;
+        if (!leftWindow) return;
+        cancelActivePointerInteractions();
+        document.querySelectorAll(".is-drop-target").forEach((node) => node.classList.remove("is-drop-target"));
     });
     document.addEventListener("dragend", () => {
         stopJobDragAutoScroll();
@@ -5136,7 +6115,8 @@ document.addEventListener("DOMContentLoaded", () => {
         realtimeConnected = realtimeStatus?.state === "connected";
     });
     document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) void checkForRemoteUpdates();
+        if (document.hidden) cancelActivePointerInteractions();
+        else void checkForRemoteUpdates();
     });
     window.addEventListener("beforeunload", () => {
         if (remotePollTimer) clearInterval(remotePollTimer);

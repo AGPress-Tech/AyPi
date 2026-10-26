@@ -20,9 +20,12 @@ import {
 } from "./production-service";
 import {
     activateMesPhase,
+    beginMesSetup,
+    adjustMesProduction,
     getMesActivationPreview,
     getMesMachineSessions,
     reconcileMesSetup,
+    setMesSessionOperator,
     transitionMesSession,
 } from "./session-service";
 import type {
@@ -95,7 +98,8 @@ const PLANNING_STATUSES = ["BACKLOG", "SCHEDULED", "ARCHIVED"] as const;
 const EXECUTION_STATUSES = ["NOT_STARTED", "SETUP", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED"] as const;
 const SESSION_MODES = ["PRODUCTION", "SETUP"] as const;
 const UNASSIGNED_CHOICES = ["ATTRIBUTE_ALL", "EXCLUDE_ALL", "PARTIAL"] as const;
-const SESSION_ACTIONS = ["PAUSE", "RESUME", "COMPLETE", "CANCEL"] as const;
+const SESSION_ACTIONS = ["PAUSE", "COMPLETE"] as const;
+const ADJUSTMENT_KINDS = ["GOOD_PIECES_ADD", "GOOD_PIECES_REMOVE", "SCRAP_PIECES_ADD", "SCRAP_PIECES_REMOVE"] as const;
 
 function parseOrderDraft(value: any): MesOrderDraft {
     const unit = enumValue(value?.unit, UNITS, "Unità di misura") as MesUnit;
@@ -266,6 +270,38 @@ export function registerMesRoutes(router: Router) {
         }, actionContext(req)));
     });
 
+    router.register("POST", "/api/mes/sessions/:sessionId/adjustments", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await adjustMesProduction({
+            sessionId: requiredText(params.sessionId, "ID sessione", 100),
+            baseRevision: revision(body.baseRevision),
+            kind: enumValue(body.kind, ADJUSTMENT_KINDS, "Tipo rettifica"),
+            quantity: positiveNumber(body.quantity, "Quantità"),
+            reasonCode: requiredText(body.reasonCode, "Causale", 120),
+            note: optionalText(body.note, 1000),
+        }, actionContext(req)));
+    });
+
+    router.register("POST", "/api/mes/sessions/:sessionId/operator", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await setMesSessionOperator({
+            sessionId: requiredText(params.sessionId, "ID sessione", 100),
+            baseRevision: revision(body.baseRevision),
+            operatorNames: (Array.isArray(body.operatorNames) ? body.operatorNames : [body.operatorName])
+                .map((value: unknown) => requiredText(value, "Operatore", 120)),
+            note: optionalText(body.note, 1000),
+        }, actionContext(req)));
+    });
+
+    router.register("POST", "/api/mes/sessions/:sessionId/setup", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 201, await beginMesSetup({
+            sessionId: requiredText(params.sessionId, "ID sessione", 100),
+            baseRevision: revision(body.baseRevision),
+            note: optionalText(body.note, 1000),
+        }, actionContext(req)));
+    });
+
     router.register("POST", "/api/mes/sessions/:sessionId/setup-reconciliation", async (req, res, params) => {
         const body: any = (await readJsonBody(req)) || {};
         sendJson(res, 200, await reconcileMesSetup({
@@ -275,6 +311,7 @@ export function registerMesRoutes(router: Router) {
             scrapPieces: nonNegativeInteger(body.scrapPieces, "Scarti o prove"),
             excludedPieces: nonNegativeInteger(body.excludedPieces, "Pezzi esclusi"),
             startProduction: body.startProduction !== false,
+            closeOrder: body.closeOrder === true,
             note: optionalText(body.note, 1000),
         }, actionContext(req)));
     });

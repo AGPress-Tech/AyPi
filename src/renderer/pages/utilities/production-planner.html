@@ -74,15 +74,16 @@
             <button class="mes-navigation__item" data-mes-page="scheduler" type="button">Schedulatore</button>
             <span class="mes-navigation__separator"></span>
             <button class="mes-navigation__item" data-mes-plc-view="overview" type="button">Dashboard</button>
-            <button class="mes-navigation__item" data-mes-plc-view="machines" type="button">Macchine &amp; Robot</button>
             <button class="mes-navigation__item" data-mes-plc-view="signals" type="button">Signal Discovery</button>
             <button class="mes-navigation__item" data-mes-plc-view="events" type="button">Eventi</button>
             <span class="mes-navigation__spacer"></span>
+            <button class="mes-navigation__item" id="mes-reader-settings" type="button">Acquisizione PLC</button>
             <details class="mes-navigation__menu">
                 <summary>Calendario e fermi</summary>
                 <div>
                     <button id="manage-unavailability" type="button">Fermi macchina</button>
                     <button id="manage-closures" type="button">Chiusure e ferie</button>
+                    <button id="manage-machine-calendar" type="button">Configura calendario macchina</button>
                 </div>
             </details>
             <button class="mes-navigation__icon" id="manage-machines" type="button">Risorse</button>
@@ -91,9 +92,16 @@
         <section class="mes-work-page is-active" id="mes-page-production" data-page="production">
             <header class="mes-page-heading">
                 <div><span class="eyebrow">MES · CONTROLLO OPERATIVO</span><h2>Stato macchine e produzioni</h2><p>Il MES comanda l'esecuzione. Gli ordini vengono attivati manualmente sulla macchina.</p></div>
-                <div class="mes-page-heading__actions"><button class="button button--ghost" id="mes-reader-settings" type="button">Acquisizione PLC</button><button class="button button--ghost" id="mes-console-refresh" type="button">Aggiorna</button></div>
             </header>
             <div class="mes-reader-strip" id="mes-reader-strip">Lettore PLC in verifica…</div>
+            <div class="mes-machine-filters" aria-label="Filtri macchine">
+                <label><span>Cerca</span><input id="mes-machine-search" type="search" placeholder="Codice o nome macchina"></label>
+                <label><span>Reparto</span><select id="mes-machine-department"><option value="">Tutti i reparti</option></select></label>
+                <label><span>Tipo macchina</span><select id="mes-machine-category"><option value="">Tutti i tipi</option></select></label>
+                <label><span>Stato</span><select id="mes-machine-status"><option value="">Tutti gli stati</option><option value="online">PLC online</option><option value="offline">Non rilevato</option><option value="active">Produzione attiva</option><option value="idle">Senza ordine</option></select></label>
+                <button class="button button--ghost" id="mes-machine-filters-reset" type="button">Azzera filtri</button>
+                <span class="mes-machine-results" id="mes-machine-results"></span>
+            </div>
             <div class="mes-machine-grid mes-machine-grid--page" id="mes-machine-grid"></div>
         </section>
 
@@ -102,7 +110,18 @@
                 <div><span class="eyebrow">MES · PORTAFOGLIO LAVORI</span><h2>Ordini e fasi di produzione</h2><p id="mes-orders-context">Gli ordini possono essere pianificati, ma si attivano solo dalla pagina Produzione.</p></div>
                 <div class="mes-page-heading__actions"><label class="mes-order-search">Cerca <input id="mes-orders-search" type="search" placeholder="Ordine, articolo, fase…"></label><button class="button button--primary" id="new-job" type="button">+ Nuovo ordine / fase</button></div>
             </header>
-            <div class="mes-order-grid" id="mes-orders-body"></div>
+            <div class="mes-orders-filters">
+                <label>Stato<select id="mes-orders-status"><option value="">Tutti</option><option value="AVAILABLE">Disponibili</option><option value="ACTIVE">Attivi</option><option value="SUSPENDED">Sospesi</option><option value="COMPLETED">Terminati</option></select></label>
+                <label>Pianificazione<select id="mes-orders-planning"><option value="">Tutte</option><option value="BACKLOG">Da pianificare</option><option value="SCHEDULED">Pianificate</option></select></label>
+                <label>Macchina<select id="mes-orders-machine"><option value="">Tutte le macchine</option></select></label>
+                <label>Unità<select id="mes-orders-unit"><option value="">Tutte</option><option value="pz">Pezzi</option><option value="kg">Kg</option></select></label>
+                <label>Priorità<select id="mes-orders-priority"><option value="">Tutte</option><option value="URGENT">Urgente</option><option value="HIGH">Alta</option><option value="NORMAL">Normale</option></select></label>
+                <label>Consegna da<input id="mes-orders-due-from" type="date"></label>
+                <label>Consegna a<input id="mes-orders-due-to" type="date"></label>
+                <button class="button button--ghost" id="mes-orders-filters-reset" type="button">Azzera</button>
+                <span id="mes-orders-results"></span>
+            </div>
+            <div class="mes-orders-table-wrap"><table class="mes-orders-table"><thead><tr><th><button data-order-sort="orderNumber">Ordine</button></th><th><button data-order-sort="phaseCode">Fase</button></th><th><button data-order-sort="articleCode">Articolo</button></th><th><button data-order-sort="customer">Cliente</button></th><th><button data-order-sort="targetQuantity">Qtà richiesta</button></th><th><button data-order-sort="produced">Qtà prodotta</button></th><th><button data-order-sort="remaining">Rimanenti</button></th><th><button data-order-sort="standardCycleSeconds">Tempo ciclo</button></th><th><button data-order-sort="executionStatus">Stato</button></th><th><button data-order-sort="plannedMachineId">Schedulazione</button></th></tr></thead><tbody id="mes-orders-body"></tbody></table></div>
         </section>
 
         <section class="mes-work-page mes-work-page--plc" id="mes-page-plc" data-page="plc" hidden>
@@ -110,7 +129,7 @@
         </section>
 
         <section class="mes-work-page mes-work-page--scheduler" id="mes-page-scheduler" data-page="scheduler" hidden>
-            <div class="scheduler-page-toolbar"><div><strong>Schedulatore</strong><span>Si adegua agli avanzamenti e agli stati del MES; non attiva produzioni.</span></div><div><button class="button button--ghost undo-button" id="undo-planner" type="button" title="Nessuna modifica da annullare" disabled>↶ Annulla</button><button class="button button--ghost" id="open-production-analysis" type="button">Analisi</button></div></div>
+            <div class="scheduler-page-toolbar"><div><strong>Schedulatore</strong><span>Si adegua agli avanzamenti e agli stati del MES; non attiva produzioni.</span></div><div><button class="button button--primary" id="new-job-scheduler" type="button">+ Nuovo ordine / fase</button><button class="button button--ghost undo-button" id="undo-planner" type="button" title="Nessuna modifica da annullare" disabled>↶ Annulla</button><button class="button button--ghost" id="open-production-analysis" type="button">Analisi</button></div></div>
 
         <section class="summary" aria-label="Riepilogo pianificazione">
             <article class="summary-card">
@@ -333,9 +352,8 @@
             <input id="mes-activation-phase" type="hidden">
             <div class="mes-activation-body">
                 <p id="mes-activation-preview"></p>
-                <label>Modalità
-                    <select id="mes-activation-mode"><option value="PRODUCTION">Produzione</option><option value="SETUP">Attrezzaggio</option></select>
-                </label>
+                <input id="mes-activation-mode" type="hidden" value="PRODUCTION">
+                <label>Operatore<input id="mes-activation-operator" maxlength="120" placeholder="Nome operatore" required></label>
                 <fieldset id="mes-unassigned-options">
                     <legend>Come trattare i pezzi già rilevati?</legend>
                     <label><input type="radio" name="mes-unassigned-choice" value="ATTRIBUTE_ALL"> Attribuisci tutti all'ordine</label>
@@ -352,6 +370,40 @@
                 <button class="button button--ghost" data-close-mes-activation type="button">Annulla</button>
                 <button class="button button--primary" type="submit">Attiva sulla macchina</button>
             </footer>
+        </form>
+    </div>
+
+    <div class="dialog-backdrop" id="mes-order-picker-dialog" aria-hidden="true">
+        <section class="dialog dialog--mes-order-picker">
+            <header class="dialog__header"><div><span class="eyebrow">SELEZIONE ORDINE MES</span><h2 id="mes-order-picker-title">Seleziona l’ordine da attivare</h2><p id="mes-order-picker-subtitle"></p></div><button class="dialog__close" data-close-mes-order-picker type="button" aria-label="Chiudi">×</button></header>
+            <div class="mes-order-picker__machine"><span>DESTINAZIONE</span><strong id="mes-order-picker-machine">Macchina</strong><small>L’ordine verrà caricato manualmente; lo schedulatore non avvia la produzione.</small></div>
+            <div class="mes-order-picker__filters"><label>Cerca ordine, articolo o cliente<input id="mes-order-picker-search" type="search" placeholder="Digita per filtrare…"></label><label>Stato<select id="mes-order-picker-status"><option value="">Tutti gli ordini attivabili</option><option value="AVAILABLE">Disponibili</option><option value="SUSPENDED">Sospesi</option></select></label></div>
+            <div class="mes-order-picker__table"><table><thead><tr><th class="mes-order-picker__select-column"><span class="sr-only">Selezione</span></th><th>Ordine</th><th>Fase</th><th>Articolo</th><th>Cliente</th><th>Quantità</th><th>Stato</th></tr></thead><tbody id="mes-order-picker-body"></tbody></table></div>
+            <footer class="dialog__footer mes-order-picker__footer"><div><strong id="mes-order-picker-selection">Nessun ordine selezionato</strong><small id="mes-order-picker-results"></small></div><span class="dialog__spacer"></span><button class="button button--ghost" data-close-mes-order-picker type="button">Annulla</button><button class="button button--primary" id="mes-order-picker-confirm" type="button" disabled>Continua</button></footer>
+        </section>
+    </div>
+
+    <div class="dialog-backdrop" id="mes-adjustment-dialog" aria-hidden="true">
+        <form class="dialog dialog--compact" id="mes-adjustment-form">
+            <header class="dialog__header"><div><span class="eyebrow">RETTIFICA PRODUZIONE</span><h2 id="mes-adjustment-title">Modifica contapezzi</h2></div><button class="dialog__close" data-close-mes-adjustment type="button" aria-label="Chiudi">×</button></header>
+            <input id="mes-adjustment-session" type="hidden">
+            <div class="mes-activation-body">
+                <label>Operazione<select id="mes-adjustment-kind"><option value="GOOD_PIECES_ADD">Aggiungi pezzi buoni</option><option value="GOOD_PIECES_REMOVE">Rimuovi pezzi buoni</option><option value="SCRAP_PIECES_ADD">Aggiungi pezzi di scarto</option><option value="SCRAP_PIECES_REMOVE">Rimuovi pezzi di scarto</option></select></label>
+                <label>Quantità<input id="mes-adjustment-quantity" type="number" min="1" step="1" required></label>
+                <label>Causale<input id="mes-adjustment-reason" maxlength="120" placeholder="Es. ordine aperto in ritardo" required></label>
+                <label>Nota<textarea id="mes-adjustment-note" rows="3" maxlength="1000"></textarea></label>
+                <p class="form-error" id="mes-adjustment-error"></p>
+            </div>
+            <footer class="dialog__footer"><span class="dialog__spacer"></span><button class="button button--ghost" data-close-mes-adjustment type="button">Annulla</button><button class="button button--primary" type="submit">Registra rettifica</button></footer>
+        </form>
+    </div>
+
+    <div class="dialog-backdrop" id="mes-operator-dialog" aria-hidden="true">
+        <form class="dialog dialog--compact" id="mes-operator-form">
+            <header class="dialog__header"><div><span class="eyebrow">PRESIDIO MACCHINA</span><h2 id="mes-operator-title">Cambia operatore</h2></div><button class="dialog__close" data-close-mes-operator type="button" aria-label="Chiudi">×</button></header>
+            <input id="mes-operator-session" type="hidden">
+            <div class="mes-activation-body"><p>Seleziona uno o più dipendenti presenti sulla macchina. Deseleziona un nome per terminare il relativo presidio.</p><div class="mes-operator-list" id="mes-operator-list"></div><label>Nota<textarea id="mes-operator-note" rows="2" maxlength="1000"></textarea></label><p class="form-error" id="mes-operator-error"></p></div>
+            <footer class="dialog__footer"><span class="dialog__spacer"></span><button class="button button--ghost" data-close-mes-operator type="button">Annulla</button><button class="button button--primary" type="submit">Conferma operatori</button></footer>
         </form>
     </div>
 
@@ -384,6 +436,7 @@
                 <button class="dialog__close" data-close-mes-setup type="button" aria-label="Chiudi">×</button>
             </header>
             <input id="mes-setup-session" type="hidden">
+            <input id="mes-setup-close-order" type="hidden" value="0">
             <div class="mes-activation-body">
                 <p id="mes-setup-detected"></p>
                 <label>Pezzi buoni<input id="mes-setup-good" type="number" min="0" step="1" value="0" required></label>
@@ -451,6 +504,57 @@
                 </label>
                 <button class="button button--primary unavailability-form__wide" type="submit">Aggiungi indisponibilità</button>
             </form>
+        </section>
+    </div>
+
+    <div class="dialog-backdrop" id="machine-calendar-dialog" aria-hidden="true">
+        <section class="dialog dialog--machine-calendar">
+            <header class="dialog__header">
+                <div><span class="eyebrow">CALENDARIO PRODUTTIVO</span><h2>Orari settimanali delle macchine</h2><p>Le fasce determinano la durata effettiva degli ordini nello schedulatore.</p></div>
+                <button class="dialog__close" data-close-machine-calendar type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="machine-calendar-layout">
+                <aside class="machine-calendar-machines">
+                    <label>Cerca macchina<input id="machine-calendar-search" type="search" placeholder="Codice, reparto o tipo…"></label>
+                    <div id="machine-calendar-machine-list"></div>
+                </aside>
+                <main class="machine-calendar-editor">
+                    <header><div><span>MACCHINA SELEZIONATA</span><h3 id="machine-calendar-machine-title">Seleziona una macchina</h3></div><div class="machine-calendar-header-actions"><button class="button button--ghost" id="machine-calendar-copy" type="button">Copia preset</button><button class="button button--ghost" id="machine-calendar-open-bulk" type="button">Copia e applica…</button></div></header>
+                    <div class="machine-calendar-week" id="machine-calendar-week"></div>
+                    <p class="form-error" id="machine-calendar-error"></p>
+                </main>
+            </div>
+            <aside class="machine-time-picker" id="machine-calendar-time-picker" hidden>
+                <header><div><span>SELEZIONE ORARIO</span><strong id="machine-calendar-time-title">Imposta ora</strong></div><button data-close-calendar-time type="button" aria-label="Chiudi selettore">×</button></header>
+                <output id="machine-calendar-time-value">08:00</output>
+                <label><span>Ore</span><input id="machine-calendar-time-hour" type="range" min="0" max="24" step="1" value="8"></label>
+                <label><span>Minuti</span><input id="machine-calendar-time-minute" type="range" min="0" max="59" step="1" value="0"></label>
+                <div class="machine-time-picker__quick" aria-label="Orari rapidi">
+                    <button data-calendar-quick-time="06:00" type="button">06:00</button><button data-calendar-quick-time="08:00" type="button">08:00</button><button data-calendar-quick-time="12:00" type="button">12:00</button><button data-calendar-quick-time="13:30" type="button">13:30</button><button data-calendar-quick-time="19:00" type="button">19:00</button><button data-calendar-quick-time="24:00" type="button">24:00</button>
+                </div>
+                <footer><button class="button button--ghost" data-close-calendar-time type="button">Annulla</button><button class="button button--primary" id="machine-calendar-time-apply" type="button">Applica</button></footer>
+            </aside>
+            <footer class="dialog__footer machine-calendar-footer"><div class="machine-calendar-feedback" id="machine-calendar-feedback" role="status" aria-live="polite" hidden></div><span class="dialog__spacer"></span><button class="button button--ghost" data-close-machine-calendar type="button">Chiudi</button><button class="button button--primary" id="machine-calendar-save" type="button">Salva calendario</button></footer>
+        </section>
+    </div>
+
+    <div class="dialog-backdrop" id="machine-calendar-bulk-dialog" aria-hidden="true">
+        <section class="dialog dialog--machine-calendar-bulk">
+            <header class="dialog__header"><div><span class="eyebrow">GESTIONE PRESET</span><h2>Copia e applica orari</h2><p>Riutilizza un calendario senza modificare una macchina alla volta.</p></div><button class="dialog__close" data-close-machine-calendar-bulk type="button" aria-label="Chiudi">×</button></header>
+            <div class="machine-calendar-bulk-content">
+                <section class="machine-calendar-tool-card">
+                    <div><div><span class="machine-calendar-tool-card__eyebrow">PRESET SORGENTE</span><strong>Carica da un’altra macchina</strong><small>Sostituisce l’editor corrente; dovrai poi premere Salva calendario.</small></div></div>
+                    <div class="machine-calendar-import-row"><select id="machine-calendar-source"></select><button class="button button--ghost" id="machine-calendar-import" type="button">Carica orari</button></div>
+                </section>
+                <section class="machine-calendar-tool-card">
+                    <div class="machine-calendar-bulk__heading"><span><span class="machine-calendar-tool-card__eyebrow">DESTINAZIONI</span><strong>Applica il preset copiato</strong><small id="machine-calendar-selection-count">Nessuna macchina selezionata</small></span><div><button id="machine-calendar-select-all" type="button">Tutte</button><button id="machine-calendar-select-none" type="button">Nessuna</button></div></div>
+                    <div class="machine-calendar-target-layout">
+                        <section><header>Reparti</header><div class="machine-calendar-departments" id="machine-calendar-target-departments"></div></section>
+                        <section><header>Macchine</header><div class="machine-calendar-targets" id="machine-calendar-targets"></div></section>
+                    </div>
+                </section>
+            </div>
+            <footer class="dialog__footer"><div class="machine-calendar-feedback" id="machine-calendar-bulk-feedback" role="status" aria-live="polite" hidden></div><span class="dialog__spacer"></span><button class="button button--ghost" data-close-machine-calendar-bulk type="button">Chiudi</button><button class="button button--primary" id="machine-calendar-paste" type="button">Applica alle macchine selezionate</button></footer>
         </section>
     </div>
 
@@ -584,8 +688,35 @@
         </form>
     </div>
 
+    <div class="dialog-backdrop aypi-message-backdrop" id="aypi-message-dialog" aria-hidden="true">
+        <section class="dialog dialog--aypi-message" role="alertdialog" aria-modal="true" aria-labelledby="aypi-message-title" aria-describedby="aypi-message-copy">
+            <header class="dialog__header">
+                <div><span class="eyebrow" id="aypi-message-eyebrow">AYPI · CONFERMA</span><h2 id="aypi-message-title">Conferma operazione</h2></div>
+                <button class="dialog__close" id="aypi-message-close" type="button" aria-label="Chiudi">×</button>
+            </header>
+            <div class="aypi-message-body">
+                <div class="aypi-message-icon" id="aypi-message-icon" aria-hidden="true">?</div>
+                <div><strong id="aypi-message-copy"></strong><p id="aypi-message-detail" hidden></p></div>
+            </div>
+            <footer class="dialog__footer">
+                <span class="dialog__spacer"></span>
+                <button class="button button--ghost" id="aypi-message-cancel" type="button">Annulla</button>
+                <button class="button button--primary" id="aypi-message-confirm" type="button">Conferma</button>
+            </footer>
+        </section>
+    </div>
+
     <div class="job-tooltip" id="job-tooltip" role="tooltip"></div>
     <div class="context-menu" id="job-context-menu" role="menu" aria-hidden="true"></div>
+    <div class="mes-order-context-menu" id="mes-order-context-menu" role="menu" aria-hidden="true"><button data-mes-order-context="edit" type="button">Modifica ordine / fase</button><button class="is-danger" data-mes-order-context="delete" type="button">Elimina</button></div>
+    <div class="mes-machine-context-menu" id="mes-machine-context-menu" role="menu" aria-hidden="true">
+        <strong id="mes-machine-context-title">Macchina</strong>
+        <button data-mes-machine-context="activate" type="button">Attiva ordine</button>
+        <button data-mes-machine-context="suspend" type="button">Sospendi ordine</button>
+        <button class="is-danger" data-mes-machine-context="complete" type="button">Chiudi ordine definitivamente</button>
+        <button data-mes-machine-context="scrap" type="button">Registra pezzi di scarto</button>
+        <button data-mes-machine-context="adjust" type="button">Modifica quantità / scarti</button>
+    </div>
 
     <script src="../../scripts/utilities/production-planner-scripts.js"></script>
 </body>

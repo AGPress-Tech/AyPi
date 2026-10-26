@@ -111,6 +111,8 @@ export function registerProductionPlannerIpc(
         return mesRequest(`/api/mes/orders${query}`);
     });
 
+    ipcMain.handle("mes-assignees-list", () => mesRequest("/api/shared/assignees"));
+
     ipcMain.handle("mes-order-get", (_event, payload) =>
         mesRequest(`/api/mes/orders/${encodeURIComponent(String(payload?.orderId || ""))}`));
 
@@ -148,12 +150,32 @@ export function registerProductionPlannerIpc(
     });
 
     ipcMain.handle("mes-session-start", (_event, payload) =>
-        mesRequest("/api/mes/sessions", { method: "POST", body: payload }));
+        mesRequest("/api/mes/sessions", {
+            method: "POST", body: payload,
+            headers: payload?.operatorName ? { "x-aypi-user": String(payload.operatorName) } : undefined,
+        }));
 
     ipcMain.handle("mes-session-action", (_event, payload) =>
         mesRequest(`/api/mes/sessions/${encodeURIComponent(String(payload?.sessionId || ""))}/actions`, {
             method: "POST",
             body: payload?.body,
+        }));
+
+    ipcMain.handle("mes-session-setup-start", (_event, payload) =>
+        mesRequest(`/api/mes/sessions/${encodeURIComponent(String(payload?.sessionId || ""))}/setup`, {
+            method: "POST",
+            body: payload?.body,
+        }));
+
+    ipcMain.handle("mes-session-adjustment", (_event, payload) =>
+        mesRequest(`/api/mes/sessions/${encodeURIComponent(String(payload?.sessionId || ""))}/adjustments`, {
+            method: "POST", body: payload?.body,
+        }));
+
+    ipcMain.handle("mes-session-operator", (_event, payload) =>
+        mesRequest(`/api/mes/sessions/${encodeURIComponent(String(payload?.sessionId || ""))}/operator`, {
+            method: "POST", body: payload?.body,
+            headers: payload?.body?.operatorNames?.[0] ? { "x-aypi-user": String(payload.body.operatorNames[0]) } : undefined,
         }));
 
     ipcMain.handle("mes-setup-reconcile", (_event, payload) =>

@@ -136,6 +136,7 @@ export type MesMachineSession = {
     startedAt: string;
     endedAt: string;
     startedBy: string;
+    operatorNames: string[];
     endedBy: string;
     notes: string;
     revision: number;
@@ -143,6 +144,7 @@ export type MesMachineSession = {
     openingPieces: number;
     setupPieces: number;
     goodPieces: number;
+    scrapPieces: number;
     targetQuantity: number;
     progressPercent: number;
     standardCycleSeconds: number;

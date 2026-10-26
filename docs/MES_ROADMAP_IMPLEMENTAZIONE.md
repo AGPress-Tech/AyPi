@@ -77,6 +77,8 @@ Aggiornato al 23 ottobre 2026.
 | `GET` | `/api/mes/sessions` | Elenca le sessioni di tutte le macchine o di una macchina specifica |
 | `POST` | `/api/mes/sessions` | Attiva una fase e risolve gli eventuali pezzi precedenti |
 | `POST` | `/api/mes/sessions/:sessionId/actions` | Mette in pausa, riprende, completa o annulla una sessione |
+| `POST` | `/api/mes/sessions/:sessionId/adjustments` | Aggiunge o rimuove pezzi con causale e audit |
+| `POST` | `/api/mes/sessions/:sessionId/operator` | Registra o cambia l'operatore della macchina |
 | `POST` | `/api/mes/sessions/:sessionId/setup-reconciliation` | Classifica i conteggi di attrezzaggio e opzionalmente avvia la produzione |
 
 ## Prossimo incremento

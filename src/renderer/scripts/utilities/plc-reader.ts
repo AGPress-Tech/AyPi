@@ -3,6 +3,7 @@ const { ipcRenderer } = require("electron");
 ("use strict");
 const embeddedInMes = new URLSearchParams(location.search).get("embedded") === "1";
 document.body.classList.toggle("is-mes-embedded", embeddedInMes);
+if (embeddedInMes) document.documentElement.dataset.mesEmbedded = "true";
 const $ = (id: string): any => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString("it-IT");
 const clock = (ts) =>
@@ -47,6 +48,11 @@ function showView(view) {
     location.hash = view;
     if (view === "overview") updateCarouselPosition();
 }
+window.addEventListener("message", (event) => {
+    if (event.data?.type === "aypi-plc-view" && typeof event.data.view === "string") {
+        showView(event.data.view);
+    }
+});
 document.querySelectorAll<HTMLElement>("[data-view]").forEach((el) =>
     el.addEventListener("click", (e) => {
         e.preventDefault();

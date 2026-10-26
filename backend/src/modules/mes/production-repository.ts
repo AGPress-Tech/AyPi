@@ -119,7 +119,7 @@ export function createMesOrder(input: {
             `INSERT INTO mes_orders (${ORDER_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
             [order.orderId, order.orderNumber, order.customer, order.articleCode,
                 order.targetQuantity, order.unit, order.firstDeliveryAt, order.dueAt,
-                order.priority, order.notes, order.status, input.now, input.actor,
+                order.priority, order.notes, "OPEN", input.now, input.actor,
                 input.now, input.actor],
         );
         input.phases.forEach((phase, index) => {
@@ -130,7 +130,7 @@ export function createMesOrder(input: {
                     phase.articleCode, phase.targetQuantity, phase.unit,
                     phase.standardCycleSeconds, phase.plannedSetupSeconds,
                     phase.plannedMachineId, phase.scheduledStart, phase.scheduledEnd,
-                    phase.planningStatus, phase.executionStatus, input.now, input.actor,
+                    phase.planningStatus, "NOT_STARTED", input.now, input.actor,
                     input.now, input.actor],
             );
             insertAudit(database, {
@@ -240,7 +240,7 @@ export function updateMesOrder(input: {
             [input.draft.orderNumber, input.draft.customer, input.draft.articleCode,
                 input.draft.targetQuantity, input.draft.unit, input.draft.firstDeliveryAt,
                 input.draft.dueAt, input.draft.priority, input.draft.notes,
-                input.draft.status, nextRevision, input.now, input.actor, input.orderId],
+                before.status, nextRevision, input.now, input.actor, input.orderId],
         );
         insertAudit(database, {
             auditId: input.auditId, entityType: "ORDER", entityId: input.orderId,
@@ -273,7 +273,7 @@ export function createMesPhase(input: {
                     phase.articleCode, phase.targetQuantity, phase.unit,
                     phase.standardCycleSeconds, phase.plannedSetupSeconds,
                     phase.plannedMachineId, phase.scheduledStart, phase.scheduledEnd,
-                    phase.planningStatus, phase.executionStatus, input.now, input.actor,
+                    phase.planningStatus, "NOT_STARTED", input.now, input.actor,
                     input.now, input.actor],
             );
         } catch (error) {
@@ -325,7 +325,7 @@ export function updateMesPhase(input: {
                     input.draft.standardCycleSeconds, input.draft.plannedSetupSeconds,
                     input.draft.plannedMachineId, input.draft.scheduledStart,
                     input.draft.scheduledEnd, input.draft.planningStatus,
-                    input.draft.executionStatus, nextRevision, input.now, input.actor,
+                    before.executionStatus, nextRevision, input.now, input.actor,
                     input.phaseId],
             );
         } catch (error) {

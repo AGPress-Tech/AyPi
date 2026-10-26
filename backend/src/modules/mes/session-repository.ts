@@ -24,6 +24,11 @@ const SESSION_SELECT = `
            sessions.machine_id, sessions.mode, sessions.status,
            sessions.started_at, sessions.ended_at, sessions.started_by,
            sessions.ended_by, sessions.notes, sessions.revision,
+           COALESCE((
+               SELECT GROUP_CONCAT(operator_name, char(31))
+               FROM mes_session_operator_intervals AS operators
+               WHERE operators.session_id = sessions.session_id AND operators.ended_at = ''
+           ), '') AS operator_names,
            phases.target_quantity, phases.standard_cycle_seconds,
            COALESCE((
                SELECT SUM(allocations.piece_quantity)
@@ -61,6 +66,18 @@ const SESSION_SELECT = `
                FROM mes_production_adjustments AS adjustments
                WHERE adjustments.phase_id = phases.phase_id
            ), 0) AS good_pieces,
+           COALESCE((
+               SELECT SUM(reconciliations.scrap_pieces)
+               FROM mes_setup_reconciliations AS reconciliations
+               WHERE reconciliations.phase_id = phases.phase_id
+           ), 0) + COALESCE((
+               SELECT SUM(CASE
+                   WHEN adjustments.kind = 'SCRAP_PIECES_ADD' THEN adjustments.quantity
+                   WHEN adjustments.kind = 'SCRAP_PIECES_REMOVE' THEN -adjustments.quantity
+                   ELSE 0 END)
+               FROM mes_production_adjustments AS adjustments
+               WHERE adjustments.phase_id = phases.phase_id
+           ), 0) AS scrap_pieces,
            (SELECT MIN(events.occurred_at)
               FROM mes_event_allocations AS allocations
               JOIN mes_machine_events AS events ON events.event_id = allocations.event_id
@@ -126,6 +143,8 @@ function sessionFromRow(row: any): MesMachineSession {
         startedAt: row.started_at,
         endedAt: row.ended_at,
         startedBy: row.started_by,
+        operatorNames: String(row.operator_names || row.started_by || "")
+            .split(String.fromCharCode(31)).map((value) => value.trim()).filter(Boolean),
         endedBy: row.ended_by,
         notes: row.notes,
         revision: Number(row.revision) || 1,
@@ -133,6 +152,7 @@ function sessionFromRow(row: any): MesMachineSession {
         openingPieces: Number(row.opening_pieces) || 0,
         setupPieces: Number(row.setup_pieces) || 0,
         goodPieces,
+        scrapPieces: Math.max(0, Number(row.scrap_pieces) || 0),
         targetQuantity,
         progressPercent: targetQuantity > 0 ? Math.min(100, goodPieces / targetQuantity * 100) : 0,
         standardCycleSeconds: Number(row.standard_cycle_seconds) || 0,
@@ -191,6 +211,30 @@ function insertAudit(database: any, input: {
     );
 }
 
+function activeOperatorNames(database: any, sessionId: string) {
+    return rows(database.exec(
+        `SELECT operator_name FROM mes_session_operator_intervals
+         WHERE session_id = ? AND ended_at = '' ORDER BY started_at, operator_name`,
+        [sessionId],
+    )).map((row: any) => String(row.operator_name || "").trim()).filter(Boolean);
+}
+
+function closeOperatorIntervals(database: any, sessionId: string, now: string) {
+    database.run(
+        "UPDATE mes_session_operator_intervals SET ended_at = ? WHERE session_id = ? AND ended_at = ''",
+        [now, sessionId],
+    );
+}
+
+function addOperatorIntervals(database: any, sessionId: string, names: string[], now: string, actor: string) {
+    names.forEach((name) => database.run(
+        `INSERT INTO mes_session_operator_intervals
+         (interval_id, session_id, operator_name, started_at, ended_at, actor)
+         VALUES (?, ?, ?, ?, '', ?)`,
+        [randomUUID(), sessionId, name, now, actor],
+    ));
+}
+
 export function loadActivationPreview(machineId: string, phaseId: string): MesActivationPreview {
     initializeMesSqliteStore();
     const database = getSqliteDatabase();
@@ -206,12 +250,12 @@ export function loadActivationPreview(machineId: string, phaseId: string): MesAc
         lastUnassignedAt: pending[pending.length - 1]?.occurredAt || "",
         activeSession: loadSession(
             database,
-            "sessions.machine_id = ? AND sessions.status IN ('ACTIVE', 'PAUSED')",
+            "sessions.machine_id = ? AND sessions.status = 'ACTIVE'",
             [machineId],
         ),
         lastClosedSession: loadSession(
             database,
-            "sessions.machine_id = ? AND sessions.status IN ('COMPLETED', 'CANCELLED') ORDER BY sessions.ended_at DESC",
+            "sessions.machine_id = ? AND sessions.status IN ('PAUSED', 'COMPLETED', 'CANCELLED') ORDER BY sessions.ended_at DESC",
             [machineId],
         ),
     };
@@ -223,7 +267,7 @@ export function listMachineSessions(machineId?: string) {
     const where = machineId ? "WHERE sessions.machine_id = ?" : "";
     return rows(database.exec(
         `${SESSION_SELECT} ${where}
-         ORDER BY CASE WHEN sessions.status IN ('ACTIVE', 'PAUSED') THEN 0 ELSE 1 END,
+         ORDER BY CASE WHEN sessions.status = 'ACTIVE' THEN 0 ELSE 1 END,
                   sessions.started_at DESC`,
         machineId ? [machineId] : [],
     )).map(sessionFromRow);
@@ -264,7 +308,7 @@ export function startMachineSession(input: {
         }
         const activeMachine = loadSession(
             database,
-            "sessions.machine_id = ? AND sessions.status IN ('ACTIVE', 'PAUSED')",
+            "sessions.machine_id = ? AND sessions.status = 'ACTIVE'",
             [input.machineId],
         );
         if (activeMachine) {
@@ -274,7 +318,7 @@ export function startMachineSession(input: {
         }
         const activePhase = loadSession(
             database,
-            "sessions.phase_id = ? AND sessions.status IN ('ACTIVE', 'PAUSED')",
+            "sessions.phase_id = ? AND sessions.status = 'ACTIVE'",
             [input.phaseId],
         );
         if (activePhase) {
@@ -318,6 +362,7 @@ export function startMachineSession(input: {
              VALUES (?, ?, 'ACTIVE', ?, ?, ?)`,
             [input.transitionId, input.sessionId, input.now, input.actor, input.note],
         );
+        if (input.actor) addOperatorIntervals(database, input.sessionId, [input.actor], input.now, input.actor);
 
         if (detectedPieces > 0) {
             database.run(
@@ -382,7 +427,7 @@ export function startMachineSession(input: {
 
 export function changeMachineSessionState(input: {
     sessionId: string;
-    action: "PAUSE" | "RESUME" | "COMPLETE" | "CANCEL";
+    action: "PAUSE" | "COMPLETE";
     baseRevision: number;
     transitionId: string;
     auditId: string;
@@ -406,17 +451,11 @@ export function changeMachineSessionState(input: {
                 code: "MES_SETUP_RECONCILIATION_REQUIRED",
             });
         }
-        const allowed = input.action === "PAUSE"
-            ? current.status === "ACTIVE"
-            : input.action === "RESUME"
-                ? current.status === "PAUSED"
-                : ["ACTIVE", "PAUSED"].includes(current.status);
+        const allowed = current.status === "ACTIVE";
         if (!allowed) throw new HttpError(409, "Transizione di sessione non consentita.");
 
-        const nextStatus = input.action === "PAUSE" ? "PAUSED"
-            : input.action === "RESUME" ? "ACTIVE"
-                : input.action === "COMPLETE" ? "COMPLETED" : "CANCELLED";
-        const closes = ["COMPLETED", "CANCELLED"].includes(nextStatus);
+        const nextStatus = input.action === "PAUSE" ? "PAUSED" : "COMPLETED";
+        const closes = ["PAUSED", "COMPLETED"].includes(nextStatus);
         database.run(
             `UPDATE mes_machine_sessions SET status = ?, ended_at = ?, ended_by = ?,
              notes = CASE WHEN ? = '' THEN notes ELSE ? END, revision = revision + 1
@@ -430,9 +469,8 @@ export function changeMachineSessionState(input: {
              VALUES (?, ?, ?, ?, ?, ?)`,
             [input.transitionId, input.sessionId, nextStatus, input.now, input.actor, input.note],
         );
-        const phaseStatus = input.action === "PAUSE" ? "PAUSED"
-            : input.action === "RESUME" ? (current.mode === "SETUP" ? "SETUP" : "RUNNING")
-                : input.action === "COMPLETE" ? "COMPLETED" : "CANCELLED";
+        if (closes) closeOperatorIntervals(database, input.sessionId, input.now);
+        const phaseStatus = input.action === "PAUSE" ? "PAUSED" : "COMPLETED";
         database.run(
             `UPDATE mes_phases SET execution_status = ?, revision = revision + 1,
              updated_at = ?, updated_by = ? WHERE phase_id = ?`,
@@ -453,10 +491,158 @@ export function changeMachineSessionState(input: {
         }
         insertAudit(database, {
             auditId: input.auditId, entityType: "SESSION", entityId: input.sessionId,
-            action: input.action, payload: { before: current.status, after: nextStatus, note: input.note },
+            action: input.action,
+            payload: { before: current.status, after: nextStatus, note: input.note },
             now: input.now, actor: input.actor, requestId: input.requestId,
         });
         return loadSession(database, "sessions.session_id = ?", [input.sessionId])!;
+    });
+}
+
+export function adjustMachineSessionProduction(input: {
+    sessionId: string;
+    baseRevision: number;
+    kind: "GOOD_PIECES_ADD" | "GOOD_PIECES_REMOVE" | "SCRAP_PIECES_ADD" | "SCRAP_PIECES_REMOVE";
+    quantity: number;
+    reasonCode: string;
+    note: string;
+    adjustmentId: string;
+    auditId: string;
+    now: string;
+    actor: string;
+    requestId: string;
+}) {
+    initializeMesSqliteStore();
+    return runSqliteTransaction((database) => {
+        const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
+        if (!current) throw new HttpError(404, "Sessione MES non trovata.");
+        if (current.revision !== input.baseRevision) throw new HttpError(409, "La sessione è stata aggiornata da un altro operatore.");
+        if (current.status !== "ACTIVE") throw new HttpError(409, "La sessione non è più modificabile.");
+        if (!Number.isInteger(input.quantity) || input.quantity <= 0) throw new HttpError(400, "La quantità deve essere un intero positivo.");
+        if (input.kind === "GOOD_PIECES_REMOVE" && input.quantity > current.goodPieces) {
+            throw new HttpError(409, "Non puoi rimuovere più pezzi di quelli prodotti.");
+        }
+        if (input.kind === "SCRAP_PIECES_REMOVE" && input.quantity > current.scrapPieces) {
+            throw new HttpError(409, "Non puoi rimuovere più scarti di quelli registrati.");
+        }
+        database.run(
+            `INSERT INTO mes_production_adjustments
+             (adjustment_id, machine_id, phase_id, session_id, kind, quantity,
+              reason_code, note, created_at, actor)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [input.adjustmentId, current.machineId, current.phaseId, input.sessionId,
+                input.kind, input.quantity, input.reasonCode, input.note, input.now, input.actor],
+        );
+        database.run("UPDATE mes_machine_sessions SET revision = revision + 1 WHERE session_id = ?", [input.sessionId]);
+        insertAudit(database, {
+            auditId: input.auditId, entityType: "SESSION", entityId: input.sessionId,
+            action: "ADJUST_PIECES", payload: { kind: input.kind, quantity: input.quantity, reasonCode: input.reasonCode, note: input.note },
+            now: input.now, actor: input.actor, requestId: input.requestId,
+        });
+        return loadSession(database, "sessions.session_id = ?", [input.sessionId])!;
+    });
+}
+
+export function updateMachineSessionOperator(input: {
+    sessionId: string;
+    baseRevision: number;
+    operatorNames: string[];
+    note: string;
+    auditId: string;
+    now: string;
+    actor: string;
+    requestId: string;
+}) {
+    initializeMesSqliteStore();
+    return runSqliteTransaction((database) => {
+        const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
+        if (!current) throw new HttpError(404, "Sessione MES non trovata.");
+        if (current.revision !== input.baseRevision) throw new HttpError(409, "La sessione è stata aggiornata da un altro operatore.");
+        if (current.status !== "ACTIVE") throw new HttpError(409, "La sessione non è più modificabile.");
+        const before = activeOperatorNames(database, input.sessionId);
+        const next = [...new Set(input.operatorNames.map((name) => name.trim()).filter(Boolean))];
+        const removed = before.filter((name) => !next.includes(name));
+        const added = next.filter((name) => !before.includes(name));
+        removed.forEach((name) => database.run(
+            `UPDATE mes_session_operator_intervals SET ended_at = ?
+             WHERE session_id = ? AND operator_name = ? AND ended_at = ''`,
+            [input.now, input.sessionId, name],
+        ));
+        addOperatorIntervals(database, input.sessionId, added, input.now, input.actor);
+        database.run(
+            `UPDATE mes_machine_sessions SET started_by = ?,
+             notes = CASE WHEN ? = '' THEN notes ELSE ? END, revision = revision + 1
+             WHERE session_id = ?`,
+            [next.join(", "), input.note, input.note, input.sessionId],
+        );
+        insertAudit(database, {
+            auditId: input.auditId, entityType: "SESSION", entityId: input.sessionId,
+            action: "SET_OPERATORS", payload: { before, after: next, note: input.note },
+            now: input.now, actor: input.actor, requestId: input.requestId,
+        });
+        return loadSession(database, "sessions.session_id = ?", [input.sessionId])!;
+    });
+}
+
+export function beginSetupForMachineSession(input: {
+    sessionId: string;
+    baseRevision: number;
+    setupSessionId: string;
+    closeTransitionId: string;
+    startTransitionId: string;
+    auditId: string;
+    note: string;
+    now: string;
+    actor: string;
+    requestId: string;
+}) {
+    initializeMesSqliteStore();
+    return runSqliteTransaction((database) => {
+        const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
+        if (!current) throw new HttpError(404, "Sessione MES non trovata.");
+        if (current.revision !== input.baseRevision) throw new HttpError(409, "La sessione è stata aggiornata da un altro operatore.");
+        if (current.mode !== "PRODUCTION" || current.status !== "ACTIVE") {
+            throw new HttpError(409, "Per iniziare l'attrezzaggio serve un ordine attivo in produzione.");
+        }
+        const operators = activeOperatorNames(database, input.sessionId);
+        database.run(
+            `UPDATE mes_machine_sessions SET status = 'COMPLETED', ended_at = ?, ended_by = ?, revision = revision + 1
+             WHERE session_id = ?`,
+            [input.now, input.actor, input.sessionId],
+        );
+        closeOperatorIntervals(database, input.sessionId, input.now);
+        database.run(
+            `INSERT INTO mes_session_transitions
+             (transition_id, session_id, state, occurred_at, actor, note)
+             VALUES (?, ?, 'COMPLETED', ?, ?, ?)`,
+            [input.closeTransitionId, input.sessionId, input.now, input.actor, input.note],
+        );
+        database.run(
+            `INSERT INTO mes_machine_sessions
+             (session_id, phase_id, machine_id, mode, status, started_at, ended_at,
+              started_by, ended_by, notes, revision)
+             VALUES (?, ?, ?, 'SETUP', 'ACTIVE', ?, '', ?, '', ?, 1)`,
+            [input.setupSessionId, current.phaseId, current.machineId, input.now,
+                operators.join(", "), input.note],
+        );
+        addOperatorIntervals(database, input.setupSessionId, operators, input.now, input.actor);
+        database.run(
+            `INSERT INTO mes_session_transitions
+             (transition_id, session_id, state, occurred_at, actor, note)
+             VALUES (?, ?, 'ACTIVE', ?, ?, ?)`,
+            [input.startTransitionId, input.setupSessionId, input.now, input.actor, input.note],
+        );
+        database.run(
+            `UPDATE mes_phases SET execution_status = 'SETUP', revision = revision + 1,
+             updated_at = ?, updated_by = ? WHERE phase_id = ?`,
+            [input.now, input.actor, current.phaseId],
+        );
+        insertAudit(database, {
+            auditId: input.auditId, entityType: "SESSION", entityId: input.setupSessionId,
+            action: "BEGIN_SETUP", payload: { previousSessionId: input.sessionId, machineId: current.machineId, phaseId: current.phaseId },
+            now: input.now, actor: input.actor, requestId: input.requestId,
+        });
+        return loadSession(database, "sessions.session_id = ?", [input.setupSessionId])!;
     });
 }
 
@@ -467,6 +653,7 @@ export function reconcileSetupSession(input: {
     scrapPieces: number;
     excludedPieces: number;
     startProduction: boolean;
+    closeOrder: boolean;
     note: string;
     reconciliationId: string;
     adjustmentId: string;
@@ -482,7 +669,7 @@ export function reconcileSetupSession(input: {
     return runSqliteTransaction((database) => {
         const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
         if (!current) throw new HttpError(404, "Sessione MES non trovata.");
-        if (current.mode !== "SETUP" || !["ACTIVE", "PAUSED"].includes(current.status)) {
+        if (current.mode !== "SETUP" || current.status !== "ACTIVE") {
             throw new HttpError(409, "La sessione non è un attrezzaggio aperto.");
         }
         if (current.revision !== input.baseRevision) {
@@ -526,11 +713,13 @@ export function reconcileSetupSession(input: {
                     input.goodPieces, input.note, input.now, input.actor],
             );
         }
+        const operators = activeOperatorNames(database, input.sessionId);
         database.run(
             `UPDATE mes_machine_sessions SET status = 'COMPLETED', ended_at = ?, ended_by = ?,
              revision = revision + 1 WHERE session_id = ?`,
             [input.now, input.actor, input.sessionId],
         );
+        closeOperatorIntervals(database, input.sessionId, input.now);
         database.run(
             `INSERT INTO mes_session_transitions
              (transition_id, session_id, state, occurred_at, actor, note)
@@ -539,14 +728,14 @@ export function reconcileSetupSession(input: {
         );
 
         let productionSession: MesMachineSession | null = null;
-        if (input.startProduction) {
+        if (input.startProduction && !input.closeOrder) {
             database.run(
                 `INSERT INTO mes_machine_sessions
                  (session_id, phase_id, machine_id, mode, status, started_at, ended_at,
                   started_by, ended_by, notes, revision)
                  VALUES (?, ?, ?, 'PRODUCTION', 'ACTIVE', ?, '', ?, '', ?, 1)`,
                 [input.productionSessionId, current.phaseId, current.machineId,
-                    input.now, input.actor, input.note],
+                    input.now, current.startedBy, input.note],
             );
             database.run(
                 `INSERT INTO mes_session_transitions
@@ -557,18 +746,34 @@ export function reconcileSetupSession(input: {
             productionSession = loadSession(
                 database, "sessions.session_id = ?", [input.productionSessionId],
             );
+            addOperatorIntervals(database, input.productionSessionId, operators, input.now, input.actor);
+            productionSession = loadSession(database, "sessions.session_id = ?", [input.productionSessionId]);
         }
         database.run(
             `UPDATE mes_phases SET execution_status = ?, revision = revision + 1,
              updated_at = ?, updated_by = ? WHERE phase_id = ?`,
-            [input.startProduction ? "RUNNING" : "NOT_STARTED", input.now, input.actor, current.phaseId],
+            [input.closeOrder ? "COMPLETED" : input.startProduction ? "RUNNING" : "PAUSED", input.now, input.actor, current.phaseId],
         );
+        if (input.closeOrder) {
+            database.run(
+                `UPDATE mes_orders SET status = 'COMPLETED', revision = revision + 1,
+                 updated_at = ?, updated_by = ?
+                 WHERE order_id = ?
+                   AND NOT EXISTS (
+                       SELECT 1 FROM mes_phases AS pending
+                       WHERE pending.order_id = mes_orders.order_id
+                         AND pending.execution_status <> 'COMPLETED'
+                   )`,
+                [input.now, input.actor, current.orderId],
+            );
+        }
         insertAudit(database, {
             auditId: input.auditId, entityType: "SETUP_RECONCILIATION",
             entityId: input.reconciliationId, action: "RECONCILE",
             payload: { sessionId: input.sessionId, machineId: current.machineId,
                 detectedPieces, goodPieces: input.goodPieces, scrapPieces: input.scrapPieces,
-                excludedPieces: input.excludedPieces, startProduction: input.startProduction },
+                excludedPieces: input.excludedPieces, startProduction: input.startProduction,
+                closeOrder: input.closeOrder },
             now: input.now, actor: input.actor, requestId: input.requestId,
         });
         return {

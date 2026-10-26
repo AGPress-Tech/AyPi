@@ -109,12 +109,27 @@ export function initializeMesSqliteStore() {
             notes TEXT NOT NULL DEFAULT '',
             revision INTEGER NOT NULL DEFAULT 1
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_active_session_machine
-            ON mes_machine_sessions (machine_id) WHERE status IN ('ACTIVE', 'PAUSED');
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_active_session_phase
-            ON mes_machine_sessions (phase_id) WHERE status IN ('ACTIVE', 'PAUSED');
+        DROP INDEX IF EXISTS idx_mes_active_session_machine;
+        DROP INDEX IF EXISTS idx_mes_active_session_phase;
+        CREATE UNIQUE INDEX idx_mes_active_session_machine
+            ON mes_machine_sessions (machine_id) WHERE status = 'ACTIVE';
+        CREATE UNIQUE INDEX idx_mes_active_session_phase
+            ON mes_machine_sessions (phase_id) WHERE status = 'ACTIVE';
         CREATE INDEX IF NOT EXISTS idx_mes_sessions_phase_time
             ON mes_machine_sessions (phase_id, started_at);
+
+        CREATE TABLE IF NOT EXISTS mes_session_operator_intervals (
+            interval_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES mes_machine_sessions(session_id) ON DELETE RESTRICT,
+            operator_name TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT NOT NULL DEFAULT '',
+            actor TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_operator_intervals_active
+            ON mes_session_operator_intervals (session_id, ended_at);
+        CREATE INDEX IF NOT EXISTS idx_mes_operator_intervals_name_time
+            ON mes_session_operator_intervals (operator_name, started_at DESC);
 
         CREATE TABLE IF NOT EXISTS mes_session_transitions (
             transition_id TEXT PRIMARY KEY,
@@ -198,6 +213,34 @@ export function initializeMesSqliteStore() {
         );
         CREATE INDEX IF NOT EXISTS idx_mes_audit_entity_time
             ON mes_audit_log (entity_type, entity_id, occurred_at DESC);
+
+        UPDATE mes_machine_sessions
+           SET status = 'PAUSED',
+               ended_at = CASE WHEN ended_at = '' THEN started_at ELSE ended_at END
+         WHERE status = 'CANCELLED';
+        UPDATE mes_machine_sessions
+           SET ended_at = CASE WHEN ended_at = '' THEN started_at ELSE ended_at END
+         WHERE status = 'PAUSED';
+        UPDATE mes_phases SET execution_status = 'PAUSED'
+         WHERE execution_status = 'CANCELLED';
+        UPDATE mes_phases SET execution_status = 'NOT_STARTED'
+         WHERE execution_status = 'COMPLETED'
+           AND NOT EXISTS (
+               SELECT 1 FROM mes_machine_sessions AS sessions
+               WHERE sessions.phase_id = mes_phases.phase_id
+           );
+        UPDATE mes_orders
+           SET status = CASE
+               WHEN EXISTS (
+                   SELECT 1 FROM mes_phases AS phases
+                   WHERE phases.order_id = mes_orders.order_id
+               ) AND NOT EXISTS (
+                   SELECT 1 FROM mes_phases AS phases
+                   WHERE phases.order_id = mes_orders.order_id
+                     AND phases.execution_status <> 'COMPLETED'
+               ) THEN 'COMPLETED'
+               ELSE 'OPEN'
+           END;
     `);
 }
 

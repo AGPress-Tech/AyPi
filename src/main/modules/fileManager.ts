@@ -1337,7 +1337,10 @@ function openProductionPlannerWindow(
         width: 1200,
         height: 800,
         modal: false,
-        webPreferences: WINDOW_WEB_PREFERENCES,
+        webPreferences: {
+            ...WINDOW_WEB_PREFERENCES,
+            nodeIntegrationInSubFrames: true,
+        },
         icon: APP_ICON_PATH,
         show: false,
         backgroundColor: "#f4f7fb",
