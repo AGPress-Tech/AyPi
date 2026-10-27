@@ -5,9 +5,11 @@ import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
 import {
     getMesEventSummary,
+    getMesAcquisitionStatus,
     getMesImports,
     getMesMachineEvents,
     getMesUnassignedPieces,
+    ingestMesCollectorBatch,
     importPlcCsv,
 } from "./service";
 import {
@@ -30,6 +32,7 @@ import {
 } from "./session-service";
 import type {
     MesExecutionStatus,
+    MesCollectorBatch,
     MesOrderDraft,
     MesOrderStatus,
     MesOrderType,
@@ -111,6 +114,45 @@ const SESSION_MODES = ["PRODUCTION", "SETUP"] as const;
 const UNASSIGNED_CHOICES = ["ATTRIBUTE_ALL", "EXCLUDE_ALL", "PARTIAL"] as const;
 const SESSION_ACTIONS = ["PAUSE", "COMPLETE"] as const;
 const ADJUSTMENT_KINDS = ["GOOD_PIECES_ADD", "GOOD_PIECES_REMOVE", "SCRAP_PIECES_ADD", "SCRAP_PIECES_REMOVE"] as const;
+
+function parseCollectorBatch(value: any): MesCollectorBatch {
+    const sentAt = isoDate(value?.sentAt, "Invio pacchetto", true);
+    const startedAt = isoDate(value?.startedAt, "Inizio acquisizione", true);
+    const stoppedAt = isoDate(value?.stoppedAt, "Fine acquisizione");
+    const machineValues = Array.isArray(value?.machines) ? value.machines : [];
+    if (machineValues.length > 500) throw badRequest("Il pacchetto contiene troppe macchine.");
+    return {
+        collectorId: requiredText(value?.collectorId, "Identificativo raccoglitore", 120),
+        sourceSessionId: requiredText(value?.sourceSessionId, "Sessione acquisizione", 160),
+        batchId: requiredText(value?.batchId, "Identificativo pacchetto", 160),
+        mode: enumValue(value?.mode, ["LIVE", "DEMO"] as const, "Modalità acquisizione"),
+        startedAt,
+        sentAt,
+        stoppedAt,
+        machines: machineValues.map((machine: any, index: number) => {
+            const label = `Macchina ${index + 1}`;
+            const cycleValue = machine?.lastCycleSeconds;
+            const lastCycleSeconds = cycleValue === null || cycleValue === "" || cycleValue === undefined
+                ? null
+                : nonNegativeNumber(cycleValue, `${label}: ultimo ciclo`);
+            return {
+                machineId: requiredText(machine?.machineId, `${label}: codice`, 120),
+                machineName: optionalText(machine?.machineName, 200),
+                observedAt: isoDate(machine?.observedAt || sentAt, `${label}: osservazione`, true),
+                frameAt: isoDate(machine?.frameAt, `${label}: ultimo frame`),
+                detected: machine?.detected === true,
+                pulses: nonNegativeInteger(machine?.pulses, `${label}: impulsi`),
+                pieces: nonNegativeNumber(machine?.pieces, `${label}: pezzi`),
+                piecesLastHour: nonNegativeNumber(machine?.piecesLastHour, `${label}: pezzi ultima ora`),
+                lastPieceAt: isoDate(machine?.lastPieceAt, `${label}: ultimo pezzo`),
+                lastCycleSeconds,
+                multiplier: Math.max(1, nonNegativeInteger(machine?.multiplier || 1, `${label}: moltiplicatore`)),
+                frameCount: nonNegativeInteger(machine?.frameCount, `${label}: frame`),
+                invalidFrames: nonNegativeInteger(machine?.invalidFrames, `${label}: frame non validi`),
+            };
+        }),
+    };
+}
 
 function parseOrderDraft(value: any): MesOrderDraft {
     const unit = enumValue(value?.unit, UNITS, "Unità di misura") as MesUnit;
@@ -200,6 +242,18 @@ function actionContext(req: Parameters<typeof getRequestUser>[0]) {
 }
 
 export function registerMesRoutes(router: Router) {
+    router.register("POST", "/api/mes/ingest/batches", async (req, res) => {
+        const body: any = (await readJsonBody(req)) || {};
+        const result = await ingestMesCollectorBatch(parseCollectorBatch(body), actionContext(req));
+        sendJson(res, 200, result);
+    });
+
+    router.register("GET", "/api/mes/acquisition/status", async (req, res) => {
+        const url = new URL(req.url || "/", "http://localhost");
+        const staleAfterSeconds = Math.max(5, Math.min(300, Number(url.searchParams.get("staleAfterSeconds")) || 15));
+        sendJson(res, 200, getMesAcquisitionStatus(staleAfterSeconds));
+    });
+
     router.register("POST", "/api/mes/imports/plc-csv", async (req, res) => {
         const body: any = (await readJsonBody(req)) || {};
         const csv = typeof body.csv === "string" ? body.csv : "";

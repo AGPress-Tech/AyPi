@@ -33,6 +33,7 @@ Configurazione runtime opzionale:
   - `AYPI_FP_CALENDAR_DIR`
   - `AYPI_FP_GENERAL_DIR`
   - `AYPI_LOG_DIR`
+  - `AYPI_MES_DB_PATH` (archivio separato dedicato al MES)
   - `AYPI_MOBILE_GATEWAY_ENABLED` (`true` di default)
   - `AYPI_MOBILE_GATEWAY_HOST` (`127.0.0.1` di default)
   - `AYPI_MOBILE_GATEWAY_PORT` (`3010` di default)

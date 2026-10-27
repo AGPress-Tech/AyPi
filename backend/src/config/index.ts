@@ -61,6 +61,10 @@ const databasePath = getEnvString(
     "AYPI_DB_PATH",
     path.join(feriePermessiGeneralDir, "data", "aypi.db"),
 );
+const mesDatabasePath = getEnvString(
+    "AYPI_MES_DB_PATH",
+    path.join(path.dirname(databasePath), "mes.db"),
+);
 
 export const backendConfig = {
     profile: isDevProfile ? "dev" : "server",
@@ -75,6 +79,9 @@ export const backendConfig = {
     },
     database: {
         path: databasePath,
+    },
+    mesDatabase: {
+        path: mesDatabasePath,
     },
     mobileGateway: {
         enabled: getEnvBoolean("AYPI_MOBILE_GATEWAY_ENABLED", true),

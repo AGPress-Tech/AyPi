@@ -5,6 +5,7 @@ import { logger } from "./shared/logging/logger";
 import { Router } from "./shared/http/router";
 import { sendError } from "./shared/http/response";
 import { initializeSqliteDatabase, closeSqliteDatabase } from "./shared/db/sqlite";
+import { initializeMesSqliteDatabase, closeMesSqliteDatabase } from "./shared/db/mes-sqlite";
 import { initializeFeriePermessiSqliteStore } from "./modules/ferie-permessi/repository";
 import { initializeSharedSqliteStore } from "./modules/shared/repository";
 import { initializeProductManagerSqliteStore } from "./modules/product-manager/repository";
@@ -14,6 +15,7 @@ import { initializeHaasSqliteStore } from "./modules/haas-attrezzaggio/repositor
 import { initializeProductionPlannerSqliteStore } from "./modules/production-planner/repository";
 import { initializeWarehouseInventorySqliteStore } from "./modules/warehouse-inventory/repository";
 import { initializeMesSqliteStore } from "./modules/mes/repository";
+import { migrateLegacyMesStorage } from "./modules/mes/legacy-migration";
 import { releaseProductionPlannerWaiters } from "./modules/production-planner/service";
 import {
     startTelegramBotService,
@@ -208,6 +210,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 // shared database until this process has acquired it.
                 normalizeAgpressLayout();
                 await initializeSqliteDatabase();
+                await initializeMesSqliteDatabase();
                 initializeSharedSqliteStore();
                 initializeFeriePermessiSqliteStore();
                 initializeProductManagerSqliteStore();
@@ -217,6 +220,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 initializeProductionPlannerSqliteStore();
                 initializeWarehouseInventorySqliteStore();
                 initializeMesSqliteStore();
+                migrateLegacyMesStorage();
                 try {
                     mobileGateway = await startMobileGatewayServer();
                 } catch (error) {
@@ -246,6 +250,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                     generalDir: backendConfig.modules.feriePermessi.generalDir,
                     logDir: backendConfig.logging.dir,
                     dbPath: backendConfig.database.path,
+                    mesDbPath: backendConfig.mesDatabase.path,
                 });
                 if (!process.env.AYPI_BACKEND_URL) {
                     process.env.AYPI_BACKEND_URL = url;
@@ -279,6 +284,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                                     port,
                                 });
                                 try {
+                                    closeMesSqliteDatabase();
                                     closeSqliteDatabase();
                                 } catch {
                                     // ignore sqlite shutdown issues
@@ -296,6 +302,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 }
                 server.close(() => {});
                 try {
+                    closeMesSqliteDatabase();
                     closeSqliteDatabase();
                 } catch {
                     // ignore sqlite cleanup issues after failed startup

@@ -8,6 +8,7 @@ export type BackendRuntimeConfig = {
     port: number;
     generalDir: string;
     logDir: string;
+    mesDatabasePath: string;
     mobileGateway: {
         enabled: boolean;
         host: string;
@@ -24,6 +25,7 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           port: 3000,
           generalDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General",
           logDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\log",
+          mesDatabasePath: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\data\\mes.db",
           mobileGateway: {
               enabled: true,
               host: "127.0.0.1",
@@ -37,6 +39,7 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           port: 3000,
           generalDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General",
           logDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\log",
+          mesDatabasePath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\mes.db",
           mobileGateway: {
               enabled: true,
               host: "127.0.0.1",
@@ -124,6 +127,10 @@ export function loadBackendRuntimeConfig() {
         port: getNumber(process.env.AYPI_BACKEND_PORT, getNumber(payload.port, DEFAULT_CONFIG.port)),
         generalDir,
         logDir: rawLogDir,
+        mesDatabasePath: getString(
+            process.env.AYPI_MES_DB_PATH,
+            getString(payload.mesDatabasePath, path.join(generalDir, "data", "mes.db")),
+        ),
         mobileGateway: {
             enabled: getBoolean(
                 process.env.AYPI_MOBILE_GATEWAY_ENABLED,

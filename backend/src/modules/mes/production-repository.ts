@@ -1,4 +1,4 @@
-import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
+import { getMesSqliteDatabase, runMesSqliteTransaction } from "../../shared/db/mes-sqlite";
 import { HttpError } from "../../shared/http/errors";
 import { serializeJson } from "../../shared/storage/json-codec";
 import { initializeMesSqliteStore } from "./repository";
@@ -113,7 +113,7 @@ export function createMesOrder(input: {
             code: "MES_PHASE_CONFLICT",
         });
     }
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const duplicate = database.exec(
             "SELECT order_id FROM mes_orders WHERE order_number = ?",
             [input.order.orderNumber],
@@ -174,7 +174,7 @@ function loadMesOrderDetailFromDatabase(database: any, orderId: string) {
 
 export function loadMesOrderDetail(orderId: string): MesOrderDetail | null {
     initializeMesSqliteStore();
-    return loadMesOrderDetailFromDatabase(getSqliteDatabase(), orderId);
+    return loadMesOrderDetailFromDatabase(getMesSqliteDatabase(), orderId);
 }
 
 export function listMesOrders(options: { search?: string; status?: string; limit: number; offset: number }) {
@@ -191,7 +191,7 @@ export function listMesOrders(options: { search?: string; status?: string; limit
         params.push(options.status);
     }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     const total = Number(database.exec(`SELECT COUNT(*) FROM mes_orders ${where}`, params)?.[0]?.values?.[0]?.[0]) || 0;
     const items = rows(database.exec(
         `SELECT ${ORDER_COLUMNS} FROM mes_orders ${where}
@@ -230,7 +230,7 @@ export function updateMesOrder(input: {
     auditId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const before = loadMesOrderDetailFromDatabase(database, input.orderId);
         if (!before) throw new HttpError(404, "Ordine MES non trovato.");
         if (before.revision !== input.baseRevision) {
@@ -277,7 +277,7 @@ export function createMesPhase(input: {
     auditId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         if (!loadMesOrderDetailFromDatabase(database, input.orderId)) {
             throw new HttpError(404, "Ordine MES non trovato.");
         }
@@ -318,7 +318,7 @@ export function updateMesPhase(input: {
     auditId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const phaseRow = rows(database.exec(
             `SELECT ${PHASE_COLUMNS} FROM mes_phases WHERE phase_id = ?`, [input.phaseId],
         ))[0];

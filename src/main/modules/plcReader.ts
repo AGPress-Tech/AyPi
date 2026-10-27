@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { createInterface } from 'readline';
 import { getRobotStatus } from './robotManager';
@@ -40,6 +41,30 @@ const csvImportStates = new Map<string,CsvImportState>();
 let activeCsvImportPath = '';
 let csvImportTimer: ReturnType<typeof setInterval> | null = null;
 const CSV_IMPORT_CHUNK_BYTES = 512 * 1024;
+const MES_SYNC_INTERVAL_MS = 5000;
+let persistedCsvOffsets: Record<string,{offset:number;dataRows:number;header:string}> = {};
+let collectorSessionId = '';
+let collectorStartedAt = '';
+let collectorBatchSequence = 0;
+let collectorSyncBusy = false;
+let collectorSyncTimer: ReturnType<typeof setInterval> | null = null;
+let collectorNextRetryAt = 0;
+let collectorSyncError = '';
+let collectorLastSentAt = '';
+let collectorLastAckAt = '';
+
+const collectorId = () => `aypi-plc-${os.hostname()}`.toLowerCase().replace(/[^a-z0-9._-]+/g,'-').slice(0,120);
+const csvOffsetFile = () => path.join(dataFolder(),'mes-upload-state.json');
+
+function loadCsvOffsets() {
+    try { persistedCsvOffsets=JSON.parse(fs.readFileSync(csvOffsetFile(),'utf8'))||{}; }
+    catch { persistedCsvOffsets={}; }
+}
+
+function persistCsvOffsets() {
+    fs.mkdirSync(dataFolder(),{recursive:true});
+    fs.writeFileSync(csvOffsetFile(),JSON.stringify(persistedCsvOffsets,null,2),'utf8');
+}
 
 function config() {
     return JSON.parse(fs.readFileSync(path.join(resources(), 'macchine.json'), 'utf8'));
@@ -98,17 +123,18 @@ function pythonCommand() {
 
 function registerCsvAutoImport(folder: string) {
     const filePath = path.join(folder,'impulsi.csv');
+    const persisted=persistedCsvOffsets[filePath];
     if(!csvImportStates.has(filePath))csvImportStates.set(filePath,{
         filePath,
         sourceSessionId:path.basename(folder),
-        header:'',offset:0,dataRows:0,importedRows:0,importedEvents:0,
+        header:persisted?.header||'',offset:Number(persisted?.offset)||0,dataRows:Number(persisted?.dataRows)||0,importedRows:0,importedEvents:0,
         duplicateEvents:0,rejectedRows:0,lastImportedAt:'',error:'',busy:false,nextRetryAt:0,
     });
     activeCsvImportPath=filePath;
     if(!csvImportTimer){
         csvImportTimer=setInterval(()=>{
             csvImportStates.forEach(item=>void flushCsvAutoImport(item));
-        },1000);
+        },MES_SYNC_INTERVAL_MS);
         csvImportTimer.unref?.();
     }
     void flushCsvAutoImport(csvImportStates.get(filePath)!);
@@ -163,10 +189,62 @@ async function flushCsvAutoImport(item: CsvImportState) {
         item.lastImportedAt=new Date().toISOString();
         item.error='';
         item.nextRetryAt=0;
+        persistedCsvOffsets[item.filePath]={offset:item.offset,dataRows:item.dataRows,header:item.header};
+        persistCsvOffsets();
     }catch(importError){
         item.error=importError instanceof Error?importError.message:String(importError);
         item.nextRetryAt=Date.now()+30000;
     }finally{item.busy=false;}
+}
+
+function registerExistingCsvImports() {
+    const root=path.join(dataFolder(),'registrazioni');
+    if(!fs.existsSync(root))return;
+    fs.readdirSync(root,{withFileTypes:true})
+        .filter(entry=>entry.isDirectory())
+        .map(entry=>path.join(root,entry.name))
+        .filter(folder=>fs.existsSync(path.join(folder,'impulsi.csv')))
+        .sort()
+        .forEach(registerCsvAutoImport);
+}
+
+function isoFromEpochSeconds(value: unknown) {
+    const seconds=Number(value);
+    return Number.isFinite(seconds)&&seconds>0?new Date(seconds*1000).toISOString():'';
+}
+
+async function flushCollectorSnapshot(stoppedAt='') {
+    if(collectorSyncBusy||!collectorSessionId||(!stoppedAt&&(!running||Date.now()<collectorNextRetryAt)))return;
+    collectorSyncBusy=true;
+    const sentAt=new Date().toISOString();
+    const snapshot=state||emptySnapshot();
+    const nowSeconds=Number(snapshot.now)||Date.now()/1000;
+    const batchId=`${collectorSessionId}:${++collectorBatchSequence}`;
+    try{
+        await requestAypiBackend('/api/mes/ingest/batches',{
+            method:'POST',
+            body:{
+                collectorId:collectorId(),sourceSessionId:collectorSessionId,batchId,
+                mode:mode==='DEMO'?'DEMO':'LIVE',startedAt:collectorStartedAt,sentAt,stoppedAt,
+                machines:(snapshot.machines||[]).filter((machine:any)=>machine.asset_type!=='robot').map((machine:any)=>{
+                    const frameAt=isoFromEpochSeconds(machine.frame_time);
+                    const detected=!stoppedAt&&!!frameAt&&nowSeconds-Number(machine.frame_time)<=10;
+                    return {machineId:String(machine.code||''),machineName:String(machine.name||''),
+                        observedAt:sentAt,frameAt,detected,pulses:Math.max(0,Number(machine.pulses)||0),
+                        pieces:Math.max(0,Number(machine.pieces)||0),piecesLastHour:Math.max(0,Number(machine.hour)||0),
+                        lastPieceAt:isoFromEpochSeconds(machine.last),
+                        lastCycleSeconds:Number.isFinite(Number(machine.cycle))?Math.max(0,Number(machine.cycle)):null,
+                        multiplier:Math.max(1,Number(machine.multiplier)||1),frameCount:Math.max(0,Number(machine.frames)||0),
+                        invalidFrames:Math.max(0,Number(machine.invalid)||0)};
+                }),
+            },
+            headers:{'x-aypi-client':'plc-reader-edge-collector'},
+        });
+        collectorLastSentAt=sentAt;collectorLastAckAt=new Date().toISOString();collectorSyncError='';collectorNextRetryAt=0;
+    }catch(syncError){
+        collectorSyncError=syncError instanceof Error?syncError.message:String(syncError);
+        collectorNextRetryAt=Date.now()+15000;
+    }finally{collectorSyncBusy=false;}
 }
 
 function activeCsvImportSnapshot() {
@@ -188,6 +266,8 @@ function activeCsvImportSnapshot() {
 
 function stopWorker() {
     const child = processWorker;
+    const stoppedAt=collectorSessionId?new Date().toISOString():'';
+    if(stoppedAt)void flushCollectorSnapshot(stoppedAt);
     processWorker = null;
     running = false;
     if (child) {
@@ -205,6 +285,11 @@ function startWorker(nextMode: string) {
     fs.writeFileSync(path.join(dataFolder(), 'settings.json'), JSON.stringify({python, adapter}));
     error = ''; mode = nextMode; state = null; events = [];
     const folder = path.join(dataFolder(), 'registrazioni', new Date().toISOString().replace(/[:.]/g,'-'));
+    collectorSessionId=path.basename(folder);
+    collectorStartedAt=new Date().toISOString();
+    collectorBatchSequence=0;
+    collectorNextRetryAt=0;
+    collectorSyncError='';
     registerCsvAutoImport(folder);
     const child = spawn(cmd.command, [...cmd.prefix, path.join(resources(),'worker.py'),
         '--folder',folder, '--mode',nextMode, '--iface',adapter], {windowsHide:true, env:{...process.env, PYTHONIOENCODING:'utf-8', PYTHONUNBUFFERED:'1'}});
@@ -229,12 +314,19 @@ function startWorker(nextMode: string) {
     });
     child.on('close', code => {
         if (processWorker !== child) return;
+        void flushCollectorSnapshot(new Date().toISOString());
         processWorker = null; running = false;
         if (code) error = stderr.includes('scapy') ? 'Scapy non installato nel Python selezionato. Installa scapy e Npcap per la lettura LIVE.' : stderr || `Lettore terminato (codice ${code}).`;
     });
 }
 
 export function setupPlcReader(mainWindow: BrowserWindow) {
+    loadCsvOffsets();
+    registerExistingCsvImports();
+    if(!collectorSyncTimer){
+        collectorSyncTimer=setInterval(()=>void flushCollectorSnapshot(),MES_SYNC_INTERVAL_MS);
+        collectorSyncTimer.unref?.();
+    }
     try { const saved=JSON.parse(fs.readFileSync(path.join(dataFolder(),'settings.json'),'utf8')); python=saved.python||''; adapter=saved.adapter||defaultInterface; } catch {}
     const authorized = (event: Electron.IpcMainInvokeEvent) => {
         if (window && !window.isDestroyed() && event.sender === window.webContents) return true;
@@ -261,7 +353,10 @@ export function setupPlcReader(mainWindow: BrowserWindow) {
         if(!authorized(event))throw new Error('Finestra non autorizzata');
         const snapshot=state||emptySnapshot();
         return {...snapshot,now:Date.now()/1000,mode,machines:[...snapshot.machines,...robotRows],
-            session:{running,error,python,adapter,folder:dataFolder(),mesImport:activeCsvImportSnapshot()},warnings:[]};
+            session:{running,error,python,adapter,folder:dataFolder(),mesImport:activeCsvImportSnapshot(),
+                mesCollector:{collectorId:collectorId(),sourceSessionId:collectorSessionId,lastSentAt:collectorLastSentAt,
+                    lastAckAt:collectorLastAckAt,error:collectorSyncError,pending:collectorSyncBusy,
+                    nextRetryAt:collectorNextRetryAt?new Date(collectorNextRetryAt).toISOString():''}},warnings:[]};
     });
     ipcMain.handle('plc-reader-events', event => { if(!authorized(event))return [];return events.slice(0,100); });
     ipcMain.handle('plc-reader-interfaces', (event,payload) => {
@@ -305,5 +400,9 @@ export function setupPlcReader(mainWindow: BrowserWindow) {
         processWorker.stdin.write(JSON.stringify({kind:'marker',machine:payload.machine,note})+'\n');
         return {ok:true};
     });
-    app.on('before-quit',stopWorker);
+    app.on('before-quit',()=>{
+        if(collectorSyncTimer)clearInterval(collectorSyncTimer);
+        collectorSyncTimer=null;
+        stopWorker();
+    });
 }

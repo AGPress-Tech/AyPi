@@ -67,6 +67,7 @@ function applyRuntimeConfig() {
     process.env.AYPI_BACKEND_PORT = String(loaded.config.port);
     process.env.AYPI_FP_GENERAL_DIR = loaded.config.generalDir;
     process.env.AYPI_LOG_DIR = loaded.config.logDir;
+    process.env.AYPI_MES_DB_PATH = loaded.config.mesDatabasePath;
     process.env.AYPI_MOBILE_GATEWAY_ENABLED = loaded.config.mobileGateway.enabled
         ? "1"
         : "0";

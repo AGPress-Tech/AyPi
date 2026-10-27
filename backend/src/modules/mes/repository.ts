@@ -1,13 +1,20 @@
 import { randomUUID } from "crypto";
-import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
+import { getMesSqliteDatabase, runMesSqliteTransaction } from "../../shared/db/mes-sqlite";
 import { parseJson, serializeJson } from "../../shared/storage/json-codec";
-import type { MachineCounterEvent, MesImportResult } from "./types";
+import type {
+    MachineCounterEvent,
+    MesCollectorBatch,
+    MesCollectorIngestResult,
+    MesImportResult,
+} from "./types";
 
 const EVENTS_TABLE = "mes_machine_events";
 const IMPORTS_TABLE = "mes_import_runs";
+let mesStoreInitialized = false;
 
 export function initializeMesSqliteStore() {
-    const database = getSqliteDatabase();
+    if (mesStoreInitialized) return;
+    const database = getMesSqliteDatabase();
     database.exec(`
         CREATE TABLE IF NOT EXISTS ${EVENTS_TABLE} (
             event_id TEXT PRIMARY KEY,
@@ -49,6 +56,70 @@ export function initializeMesSqliteStore() {
         );
         CREATE INDEX IF NOT EXISTS idx_mes_imports_time
             ON ${IMPORTS_TABLE} (imported_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_collector_sessions (
+            collector_id TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            ended_at TEXT NOT NULL DEFAULT '',
+            first_received_at TEXT NOT NULL,
+            last_received_at TEXT NOT NULL,
+            batch_count INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (collector_id, source_session_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_collector_sessions_seen
+            ON mes_collector_sessions (last_seen_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_ingest_batches (
+            collector_id TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            batch_id TEXT NOT NULL,
+            sent_at TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            machine_count INTEGER NOT NULL,
+            PRIMARY KEY (collector_id, source_session_id, batch_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_ingest_batches_received
+            ON mes_ingest_batches (received_at DESC);
+
+        CREATE TABLE IF NOT EXISTS mes_machine_current (
+            machine_id TEXT PRIMARY KEY,
+            machine_name TEXT NOT NULL DEFAULT '',
+            collector_id TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            acquisition_status TEXT NOT NULL,
+            detected INTEGER NOT NULL,
+            pulses INTEGER NOT NULL,
+            pieces REAL NOT NULL,
+            pieces_last_hour REAL NOT NULL,
+            last_piece_at TEXT NOT NULL DEFAULT '',
+            last_cycle_seconds REAL,
+            multiplier INTEGER NOT NULL,
+            frame_count INTEGER NOT NULL,
+            invalid_frames INTEGER NOT NULL,
+            frame_at TEXT NOT NULL DEFAULT '',
+            observed_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_machine_current_collector
+            ON mes_machine_current (collector_id, source_session_id);
+
+        CREATE TABLE IF NOT EXISTS mes_machine_state_intervals (
+            interval_id TEXT PRIMARY KEY,
+            machine_id TEXT NOT NULL,
+            collector_id TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            state TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_machine_intervals_machine_time
+            ON mes_machine_state_intervals (machine_id, started_at DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_machine_interval_open
+            ON mes_machine_state_intervals (machine_id) WHERE ended_at = '';
 
         CREATE TABLE IF NOT EXISTS mes_orders (
             order_id TEXT PRIMARY KEY,
@@ -271,6 +342,206 @@ export function initializeMesSqliteStore() {
             database.exec(`ALTER TABLE mes_orders ADD COLUMN ${column} ${definition}`);
         }
     });
+    mesStoreInitialized = true;
+}
+
+function updateMachineAcquisitionInterval(
+    database: any,
+    input: {
+        machineId: string;
+        collectorId: string;
+        sourceSessionId: string;
+        state: string;
+        occurredAt: string;
+    },
+) {
+    const current = resultRows(database.exec(
+        `SELECT interval_id, state
+         FROM mes_machine_state_intervals
+         WHERE machine_id = ? AND ended_at = ''
+         LIMIT 1`,
+        [input.machineId],
+    ))[0];
+    if (current?.state === input.state) return;
+    if (current) {
+        database.run(
+            `UPDATE mes_machine_state_intervals SET ended_at = ? WHERE interval_id = ?`,
+            [input.occurredAt, current.interval_id],
+        );
+    }
+    database.run(
+        `INSERT INTO mes_machine_state_intervals
+         (interval_id, machine_id, collector_id, source_session_id, state, started_at, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, '')`,
+        [randomUUID(), input.machineId, input.collectorId, input.sourceSessionId,
+            input.state, input.occurredAt],
+    );
+}
+
+export function storeCollectorBatch(
+    batch: MesCollectorBatch,
+    receivedAt: string,
+): MesCollectorIngestResult {
+    initializeMesSqliteStore();
+    return runMesSqliteTransaction((database) => {
+        const duplicate = !!resultRows(database.exec(
+            `SELECT batch_id FROM mes_ingest_batches
+             WHERE collector_id = ? AND source_session_id = ? AND batch_id = ?`,
+            [batch.collectorId, batch.sourceSessionId, batch.batchId],
+        ))[0];
+        if (duplicate) {
+            return {
+                collectorId: batch.collectorId,
+                sourceSessionId: batch.sourceSessionId,
+                batchId: batch.batchId,
+                duplicate: true,
+                machinesUpdated: 0,
+                receivedAt,
+            };
+        }
+
+        const status = batch.stoppedAt ? "STOPPED" : "ACTIVE";
+        database.run(
+            `INSERT INTO mes_collector_sessions
+             (collector_id, source_session_id, mode, status, started_at,
+              last_seen_at, ended_at, first_received_at, last_received_at, batch_count)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             ON CONFLICT(collector_id, source_session_id) DO UPDATE SET
+                mode = excluded.mode,
+                status = excluded.status,
+                last_seen_at = excluded.last_seen_at,
+                ended_at = excluded.ended_at,
+                last_received_at = excluded.last_received_at,
+                batch_count = mes_collector_sessions.batch_count + 1`,
+            [batch.collectorId, batch.sourceSessionId, batch.mode, status,
+                batch.startedAt, receivedAt, batch.stoppedAt,
+                receivedAt, receivedAt],
+        );
+        database.run(
+            `INSERT INTO mes_ingest_batches
+             (collector_id, source_session_id, batch_id, sent_at, received_at, machine_count)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [batch.collectorId, batch.sourceSessionId, batch.batchId,
+                batch.sentAt, receivedAt, batch.machines.length],
+        );
+
+        batch.machines.forEach((machine) => {
+            const acquisitionState = batch.stoppedAt
+                ? "ACQUISITION_STOPPED"
+                : machine.detected ? "ONLINE" : "NOT_DETECTED";
+            updateMachineAcquisitionInterval(database, {
+                machineId: machine.machineId,
+                collectorId: batch.collectorId,
+                sourceSessionId: batch.sourceSessionId,
+                state: acquisitionState,
+                occurredAt: machine.observedAt || batch.sentAt,
+            });
+            database.run(
+                `INSERT INTO mes_machine_current
+                 (machine_id, machine_name, collector_id, source_session_id,
+                  acquisition_status, detected, pulses, pieces, pieces_last_hour,
+                  last_piece_at, last_cycle_seconds, multiplier, frame_count,
+                  invalid_frames, frame_at, observed_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(machine_id) DO UPDATE SET
+                    machine_name = excluded.machine_name,
+                    collector_id = excluded.collector_id,
+                    source_session_id = excluded.source_session_id,
+                    acquisition_status = excluded.acquisition_status,
+                    detected = excluded.detected,
+                    pulses = excluded.pulses,
+                    pieces = excluded.pieces,
+                    pieces_last_hour = excluded.pieces_last_hour,
+                    last_piece_at = excluded.last_piece_at,
+                    last_cycle_seconds = excluded.last_cycle_seconds,
+                    multiplier = excluded.multiplier,
+                    frame_count = excluded.frame_count,
+                    invalid_frames = excluded.invalid_frames,
+                    frame_at = excluded.frame_at,
+                    observed_at = excluded.observed_at,
+                    updated_at = excluded.updated_at`,
+                [machine.machineId, machine.machineName, batch.collectorId,
+                    batch.sourceSessionId, status, machine.detected ? 1 : 0,
+                    machine.pulses, machine.pieces, machine.piecesLastHour,
+                    machine.lastPieceAt, machine.lastCycleSeconds, machine.multiplier,
+                    machine.frameCount, machine.invalidFrames, machine.frameAt,
+                    machine.observedAt, receivedAt],
+            );
+        });
+
+        // The batch ledger is only needed for retry deduplication. Historical
+        // production data lives in the event and interval tables.
+        const batchRetentionBoundary = new Date(Date.parse(receivedAt) - 7 * 86400000).toISOString();
+        database.run(
+            `DELETE FROM mes_ingest_batches WHERE received_at < ?`,
+            [batchRetentionBoundary],
+        );
+        return {
+            collectorId: batch.collectorId,
+            sourceSessionId: batch.sourceSessionId,
+            batchId: batch.batchId,
+            duplicate: false,
+            machinesUpdated: batch.machines.length,
+            receivedAt,
+        };
+    });
+}
+
+export function loadAcquisitionStatus(staleAfterSeconds = 15) {
+    initializeMesSqliteStore();
+    const now = Date.now();
+    const database = getMesSqliteDatabase();
+    const sessions = resultRows(database.exec(
+        `SELECT collector_id, source_session_id, mode, status, started_at,
+                last_seen_at, ended_at, first_received_at, last_received_at, batch_count
+         FROM mes_collector_sessions
+         ORDER BY last_seen_at DESC
+         LIMIT 50`,
+    )).map((row: any) => ({
+        collectorId: row.collector_id,
+        sourceSessionId: row.source_session_id,
+        mode: row.mode,
+        status: row.status === "ACTIVE" && now - Date.parse(row.last_seen_at) > staleAfterSeconds * 1000
+            ? "STALE"
+            : row.status,
+        startedAt: row.started_at,
+        lastSeenAt: row.last_seen_at,
+        endedAt: row.ended_at,
+        firstReceivedAt: row.first_received_at,
+        lastReceivedAt: row.last_received_at,
+        batchCount: Number(row.batch_count) || 0,
+    }));
+    const machines = resultRows(database.exec(
+        `SELECT machine_id, machine_name, collector_id, source_session_id,
+                acquisition_status, detected, pulses, pieces, pieces_last_hour,
+                last_piece_at, last_cycle_seconds, multiplier, frame_count,
+                invalid_frames, frame_at, observed_at, updated_at
+         FROM mes_machine_current
+         ORDER BY machine_id`,
+    )).map((row: any) => {
+        const stale = row.acquisition_status === "ACTIVE"
+            && now - Date.parse(row.updated_at) > staleAfterSeconds * 1000;
+        return {
+            machineId: row.machine_id,
+            machineName: row.machine_name,
+            collectorId: row.collector_id,
+            sourceSessionId: row.source_session_id,
+            acquisitionStatus: stale ? "STALE" : row.acquisition_status,
+            detected: !stale && !!row.detected,
+            pulses: Number(row.pulses) || 0,
+            pieces: Number(row.pieces) || 0,
+            piecesLastHour: Number(row.pieces_last_hour) || 0,
+            lastPieceAt: row.last_piece_at,
+            lastCycleSeconds: row.last_cycle_seconds === null ? null : Number(row.last_cycle_seconds),
+            multiplier: Number(row.multiplier) || 1,
+            frameCount: Number(row.frame_count) || 0,
+            invalidFrames: Number(row.invalid_frames) || 0,
+            frameAt: row.frame_at,
+            observedAt: row.observed_at,
+            updatedAt: row.updated_at,
+        };
+    });
+    return { staleAfterSeconds, sessions, machines };
 }
 
 export function storeMachineEvents(
@@ -279,7 +550,7 @@ export function storeMachineEvents(
     actor: string,
 ) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         let insertedEvents = 0;
         events.forEach((event) => {
             database.run(
@@ -414,7 +685,7 @@ export function loadMachineEvents(options: {
         params.push(options.to);
     }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     const countResult = database.exec(
         `SELECT COUNT(*) AS total FROM ${EVENTS_TABLE} ${where}`,
         params,
@@ -456,7 +727,7 @@ export function loadMachineEvents(options: {
 
 export function loadMesEventSummary() {
     initializeMesSqliteStore();
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     const totals = database.exec(`
         SELECT COUNT(*) AS events,
                COALESCE(SUM(piece_delta), 0) AS pieces,
@@ -489,7 +760,7 @@ export function loadMesEventSummary() {
 
 export function loadMesImports(limit = 50) {
     initializeMesSqliteStore();
-    return resultRows(getSqliteDatabase().exec(
+    return resultRows(getMesSqliteDatabase().exec(
         `SELECT import_id, source, source_session_id, source_file, total_rows,
                 valid_rows, inserted_events, duplicate_events, rejected_rows,
                 issues_json, imported_at, imported_by
@@ -515,7 +786,7 @@ export function loadMesImports(limit = 50) {
 
 export function loadUnassignedPieces() {
     initializeMesSqliteStore();
-    return resultRows(getSqliteDatabase().exec(`
+    return resultRows(getMesSqliteDatabase().exec(`
         SELECT pending.machine_id,
                SUM(pending.remaining_pieces) AS pieces,
                COUNT(*) AS events,

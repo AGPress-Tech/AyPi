@@ -86,6 +86,8 @@ class Reader:
         self.dynamic_flow_limit = 128
         self.discovery_byte_limit = 128
         self.dynamic_flow_count = 0
+        self.transition_log_rows = 0
+        self.transition_log_limit = 100_000
         self.by_signal = {}
         for m in cfg['macchine']:
             sig = m['segnale']
@@ -190,7 +192,9 @@ class Reader:
                         if rise:
                             info['salite'] += 1
                         info['last'] = ts
-                        self.w_transizioni.writerow([stamp(ts), mac, f'0x{fid:04X}', idx, bit, int(bool(old & (1<<bit))), int(rise)])
+                        if self.transition_log_rows < self.transition_log_limit:
+                            self.w_transizioni.writerow([stamp(ts), mac, f'0x{fid:04X}', idx, bit, int(bool(old & (1<<bit))), int(rise)])
+                            self.transition_log_rows += 1
                         self.messages.put(('transition', mac, fid, idx, bit, rise, ts))
             flow['previous'] = bytes(sdu)
             for (amac, afid, off, bit), (code, sig) in self.aux_signals.items():

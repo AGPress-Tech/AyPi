@@ -6,15 +6,40 @@ import { logger } from "../../shared/logging/logger";
 import { createOperationQueue } from "../../shared/ops/queue";
 import { parsePlcImpulseCsv } from "./plc-csv";
 import {
+    loadAcquisitionStatus,
     loadMachineEvents,
     loadMesEventSummary,
     loadMesImports,
     loadUnassignedPieces,
+    storeCollectorBatch,
     storeMachineEvents,
 } from "./repository";
-import type { PlcCsvImportPayload } from "./types";
+import type { MesCollectorBatch, PlcCsvImportPayload } from "./types";
 
 const enqueue = createOperationQueue("mes");
+
+export function ingestMesCollectorBatch(batch: MesCollectorBatch, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("ingestCollectorBatch", () => {
+        const result = storeCollectorBatch(batch, new Date().toISOString());
+        logger.info("MES collector batch ingested", {
+            ...meta,
+            event: "mes_collector_batch_ingested",
+            category: "data",
+            module: "mes",
+            collectorId: batch.collectorId,
+            sourceSessionId: batch.sourceSessionId,
+            batchId: batch.batchId,
+            duplicate: result.duplicate,
+            machinesUpdated: result.machinesUpdated,
+        });
+        return result;
+    });
+}
+
+export function getMesAcquisitionStatus(staleAfterSeconds?: number) {
+    return loadAcquisitionStatus(staleAfterSeconds);
+}
 
 export function importPlcCsv(payload: PlcCsvImportPayload, context?: ActionContext) {
     const meta = buildContext(context);

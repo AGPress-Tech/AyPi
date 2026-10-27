@@ -371,7 +371,10 @@
             <div class="mes-activation-body">
                 <p id="mes-activation-preview"></p>
                 <input id="mes-activation-mode" type="hidden" value="PRODUCTION">
-                <label>Operatore<input id="mes-activation-operator" maxlength="120" placeholder="Nome operatore" required></label>
+                <div class="mes-operator-picker">
+                    <label>Reparto<select id="mes-activation-department" required><option value="">Seleziona reparto…</option></select></label>
+                    <label>Operatore<select id="mes-activation-operator" required disabled><option value="">Prima seleziona il reparto</option></select></label>
+                </div>
                 <fieldset id="mes-unassigned-options">
                     <legend>Come trattare i pezzi già rilevati?</legend>
                     <label><input type="radio" name="mes-unassigned-choice" value="ATTRIBUTE_ALL"> Attribuisci tutti all'ordine</label>
@@ -420,7 +423,7 @@
         <form class="dialog dialog--compact" id="mes-operator-form">
             <header class="dialog__header"><div><span class="eyebrow">PRESIDIO MACCHINA</span><h2 id="mes-operator-title">Cambia operatore</h2></div><button class="dialog__close" data-close-mes-operator type="button" aria-label="Chiudi">×</button></header>
             <input id="mes-operator-session" type="hidden">
-            <div class="mes-activation-body"><p>Seleziona uno o più dipendenti presenti sulla macchina. Deseleziona un nome per terminare il relativo presidio.</p><div class="mes-operator-list" id="mes-operator-list"></div><label>Nota<textarea id="mes-operator-note" rows="2" maxlength="1000"></textarea></label><p class="form-error" id="mes-operator-error"></p></div>
+            <div class="mes-activation-body"><p>Filtra prima il reparto, quindi seleziona uno o più dipendenti presenti sulla macchina.</p><label>Reparto<select id="mes-operator-department"><option value="">Seleziona reparto…</option></select></label><div class="mes-operator-selected" id="mes-operator-selected"></div><div class="mes-operator-list" id="mes-operator-list"></div><label>Nota<textarea id="mes-operator-note" rows="2" maxlength="1000"></textarea></label><p class="form-error" id="mes-operator-error"></p></div>
             <footer class="dialog__footer"><span class="dialog__spacer"></span><button class="button button--ghost" data-close-mes-operator type="button">Annulla</button><button class="button button--primary" type="submit">Conferma operatori</button></footer>
         </form>
     </div>

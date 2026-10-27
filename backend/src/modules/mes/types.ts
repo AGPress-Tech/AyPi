@@ -1,5 +1,44 @@
 export type MesEventSource = "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO";
 
+export type MesAcquisitionMode = "LIVE" | "DEMO";
+export type MesAcquisitionStatus = "ACTIVE" | "STOPPED" | "STALE";
+
+export type MesMachineObservation = {
+    machineId: string;
+    machineName: string;
+    observedAt: string;
+    frameAt: string;
+    detected: boolean;
+    pulses: number;
+    pieces: number;
+    piecesLastHour: number;
+    lastPieceAt: string;
+    lastCycleSeconds: number | null;
+    multiplier: number;
+    frameCount: number;
+    invalidFrames: number;
+};
+
+export type MesCollectorBatch = {
+    collectorId: string;
+    sourceSessionId: string;
+    batchId: string;
+    mode: MesAcquisitionMode;
+    startedAt: string;
+    sentAt: string;
+    stoppedAt: string;
+    machines: MesMachineObservation[];
+};
+
+export type MesCollectorIngestResult = {
+    collectorId: string;
+    sourceSessionId: string;
+    batchId: string;
+    duplicate: boolean;
+    machinesUpdated: number;
+    receivedAt: string;
+};
+
 export type MachineCounterEvent = {
     eventId: string;
     source: MesEventSource;

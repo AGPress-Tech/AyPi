@@ -1,7 +1,7 @@
 import {
-    getSqliteDatabase,
-    runSqliteTransaction,
-} from "../../shared/db/sqlite";
+    getMesSqliteDatabase,
+    runMesSqliteTransaction,
+} from "../../shared/db/mes-sqlite";
 import {
     parseJson,
     serializeJson,
@@ -19,7 +19,7 @@ export type ProductionPlannerSnapshot = {
 };
 
 export function initializeProductionPlannerSqliteStore() {
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     database.exec(`
         CREATE TABLE IF NOT EXISTS ${TABLE} (
             store_key TEXT PRIMARY KEY,
@@ -33,7 +33,7 @@ export function initializeProductionPlannerSqliteStore() {
 
 export function loadProductionPlannerSnapshot(): ProductionPlannerSnapshot {
     initializeProductionPlannerSqliteStore();
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     const rows = database.exec(
         `SELECT revision, updated_at, updated_by, payload_json
          FROM ${TABLE}
@@ -59,7 +59,7 @@ export function loadProductionPlannerSnapshot(): ProductionPlannerSnapshot {
 
 export function loadProductionPlannerRevision() {
     initializeProductionPlannerSqliteStore();
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     const rows = database.exec(
         `SELECT revision, updated_at, updated_by
          FROM ${TABLE}
@@ -80,7 +80,7 @@ export function saveProductionPlannerSnapshot(
     updatedBy: string,
 ): ProductionPlannerSnapshot {
     initializeProductionPlannerSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const rows = database.exec(
             `SELECT revision FROM ${TABLE} WHERE store_key = ?`,
             [STORE_KEY],

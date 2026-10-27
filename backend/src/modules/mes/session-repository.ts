@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
+import { getMesSqliteDatabase, runMesSqliteTransaction } from "../../shared/db/mes-sqlite";
 import { HttpError } from "../../shared/http/errors";
 import { serializeJson } from "../../shared/storage/json-codec";
 import { initializeMesSqliteStore } from "./repository";
@@ -237,7 +237,7 @@ function addOperatorIntervals(database: any, sessionId: string, names: string[],
 
 export function loadActivationPreview(machineId: string, phaseId: string): MesActivationPreview {
     initializeMesSqliteStore();
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     const phaseExists = database.exec("SELECT phase_id FROM mes_phases WHERE phase_id = ?", [phaseId]);
     if (!phaseExists?.[0]?.values?.length) throw new HttpError(404, "Fase MES non trovata.");
     const pending = loadPendingEventRows(database, machineId);
@@ -263,7 +263,7 @@ export function loadActivationPreview(machineId: string, phaseId: string): MesAc
 
 export function listMachineSessions(machineId?: string) {
     initializeMesSqliteStore();
-    const database = getSqliteDatabase();
+    const database = getMesSqliteDatabase();
     const where = machineId ? "WHERE sessions.machine_id = ?" : "";
     return rows(database.exec(
         `${SESSION_SELECT} ${where}
@@ -290,7 +290,7 @@ export function startMachineSession(input: {
     requestId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const phase = rows(database.exec(
             "SELECT phase_id, unit, execution_status FROM mes_phases WHERE phase_id = ?",
             [input.phaseId],
@@ -437,7 +437,7 @@ export function changeMachineSessionState(input: {
     requestId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
         if (!current) throw new HttpError(404, "Sessione MES non trovata.");
         if (current.revision !== input.baseRevision) {
@@ -513,7 +513,7 @@ export function adjustMachineSessionProduction(input: {
     requestId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
         if (!current) throw new HttpError(404, "Sessione MES non trovata.");
         if (current.revision !== input.baseRevision) throw new HttpError(409, "La sessione è stata aggiornata da un altro operatore.");
@@ -554,7 +554,7 @@ export function updateMachineSessionOperator(input: {
     requestId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
         if (!current) throw new HttpError(404, "Sessione MES non trovata.");
         if (current.revision !== input.baseRevision) throw new HttpError(409, "La sessione è stata aggiornata da un altro operatore.");
@@ -597,7 +597,7 @@ export function beginSetupForMachineSession(input: {
     requestId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
         if (!current) throw new HttpError(404, "Sessione MES non trovata.");
         if (current.revision !== input.baseRevision) throw new HttpError(409, "La sessione è stata aggiornata da un altro operatore.");
@@ -666,7 +666,7 @@ export function reconcileSetupSession(input: {
     requestId: string;
 }) {
     initializeMesSqliteStore();
-    return runSqliteTransaction((database) => {
+    return runMesSqliteTransaction((database) => {
         const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
         if (!current) throw new HttpError(404, "Sessione MES non trovata.");
         if (current.mode !== "SETUP" || current.status !== "ACTIVE") {

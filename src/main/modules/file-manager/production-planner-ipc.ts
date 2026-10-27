@@ -149,6 +149,9 @@ export function registerProductionPlannerIpc(
         return mesRequest(`/api/mes/sessions${query}`);
     });
 
+    ipcMain.handle("mes-acquisition-status", () =>
+        mesRequest("/api/mes/acquisition/status"));
+
     ipcMain.handle("mes-session-start", (_event, payload) =>
         mesRequest("/api/mes/sessions", {
             method: "POST", body: payload,

@@ -121,10 +121,6 @@ export function parsePlcImpulseCsv(options: {
             return;
         }
 
-        const raw: Record<string, string> = {};
-        headers.forEach((header, index) => {
-            raw[header] = String(columns[index] ?? "");
-        });
         const normalizedTimestamp = new Date(occurredAtMs).toISOString();
         const id = eventId([
             "PLC_CSV",
@@ -160,7 +156,9 @@ export function parsePlcImpulseCsv(options: {
                 byte: byte!,
                 bit: bit!,
             },
-            raw,
+            // Keep only the source cumulative counters. Machine, timestamp and
+            // signal coordinates already have compact dedicated columns.
+            raw: { sourcePulse, sourcePieces },
         });
     });
 

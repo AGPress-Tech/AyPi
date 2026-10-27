@@ -238,6 +238,7 @@ let mesOrderSortDirection: 1 | -1 = 1;
 let mesOrderContextPhaseId = "";
 let mesMachineContextId = "";
 let mesAssigneeGroups: Record<string, string[]> = {};
+let mesOperatorDraftNames = new Set<string>();
 const mesScheduleSignatures = new Map<string, string>();
 const pendingMesScheduleJobs = new Set<string>();
 let mesScheduleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2508,13 +2509,47 @@ function applyMesSessionsToPlanner() {
 
 async function refreshMesRuntime(options: { quiet?: boolean } = {}) {
     try {
-        const [sessionsResult, ordersResult, readerResult, assigneesResult] = await Promise.all([
+        const [sessionsResult, ordersResult, readerResult, assigneesResult, acquisitionResult] = await Promise.all([
             ipcRenderer.invoke("mes-sessions-list", {}),
             ipcRenderer.invoke("mes-orders-list", {}),
             ipcRenderer.invoke("plc-reader-snapshot").catch(() => null),
             ipcRenderer.invoke("mes-assignees-list").catch(() => null),
+            ipcRenderer.invoke("mes-acquisition-status").catch(() => null),
         ]);
-        mesReaderSnapshot = readerResult;
+        const remoteMachines = acquisitionResult?.ok && Array.isArray(acquisitionResult.data?.machines)
+            ? acquisitionResult.data.machines
+            : [];
+        const remoteSessions = acquisitionResult?.ok && Array.isArray(acquisitionResult.data?.sessions)
+            ? acquisitionResult.data.sessions
+            : [];
+        const remoteSnapshot = {
+            mode: "REMOTE",
+            machines: remoteMachines.map((machine: any) => ({
+                asset_type: "machine",
+                code: machine.machineId,
+                name: machine.machineName || machine.machineId,
+                pulses: Number(machine.pulses) || 0,
+                pieces: Number(machine.pieces) || 0,
+                hour: Number(machine.piecesLastHour) || 0,
+                last: machine.lastPieceAt ? Date.parse(machine.lastPieceAt) / 1000 : null,
+                cycle: machine.lastCycleSeconds,
+                frame_time: machine.detected && machine.frameAt ? Date.parse(machine.frameAt) / 1000 : null,
+                frames: Number(machine.frameCount) || 0,
+                invalid: Number(machine.invalidFrames) || 0,
+                multiplier: Number(machine.multiplier) || 1,
+                acquisition_status: machine.acquisitionStatus,
+            })),
+            session: {
+                running: remoteSessions.some((session: any) => session.status === "ACTIVE"),
+                remote: true,
+                acquisitionStatus: remoteSessions[0]?.status || "STOPPED",
+                lastSeenAt: remoteSessions[0]?.lastSeenAt || "",
+                error: "",
+            },
+        };
+        mesReaderSnapshot = readerResult?.session?.running || !remoteMachines.length
+            ? readerResult
+            : remoteSnapshot;
         const mesAvailable = !!sessionsResult?.ok && !!ordersResult?.ok;
         mesBackendAvailable = mesAvailable;
         const nextSessions = sessionsResult?.ok && Array.isArray(sessionsResult.data) ? sessionsResult.data : mesSessions;
@@ -2860,7 +2895,9 @@ function renderMesConsole() {
     const strip = byId("mes-reader-strip");
     if (strip) {
         strip.classList.toggle("is-running", !!reader.running);
-        strip.textContent = reader.running
+        strip.textContent = reader.remote
+            ? `${reader.acquisitionStatus === "STALE" ? "Collegamento con il raccoglitore PLC interrotto" : reader.running ? "Acquisizione PLC remota attiva" : "Ultima acquisizione PLC remota terminata"}${reader.lastSeenAt ? ` · ultimo aggiornamento ${new Date(reader.lastSeenAt).toLocaleTimeString("it-IT")}` : ""}`
+            : reader.running
             ? `Acquisizione PLC locale ${mesReaderSnapshot?.mode || "LIVE"} attiva · CSV salvato sul PC${importState?.error ? " · sincronizzazione MES in attesa" : ` · ${importState?.importedEvents || 0} eventi sincronizzati`}`
             : `Acquisizione PLC locale ferma${reader.error ? ` · ${reader.error}` : ""}`;
     }
@@ -2950,6 +2987,58 @@ function renderMesConsole() {
     }).join("");
 }
 
+function sortedMesAssigneeDepartments() {
+    return Object.keys(mesAssigneeGroups)
+        .filter((department) => Array.isArray(mesAssigneeGroups[department]) && mesAssigneeGroups[department].length)
+        .sort((left, right) => left.localeCompare(right, "it"));
+}
+
+function fillMesDepartmentSelect(selectId: string, preferred = "") {
+    const select = byId(selectId) as HTMLSelectElement | null;
+    if (!select) return "";
+    const departments = sortedMesAssigneeDepartments();
+    const selected = departments.includes(preferred) ? preferred : "";
+    select.innerHTML = `<option value="">Seleziona reparto…</option>${departments.map((department) => `<option value="${escapeHtml(department)}" ${department === selected ? "selected" : ""}>${escapeHtml(department)}</option>`).join("")}`;
+    select.value = selected;
+    return selected;
+}
+
+function renderMesActivationOperators() {
+    const department = inputValue("mes-activation-department");
+    const select = byId("mes-activation-operator") as HTMLSelectElement | null;
+    if (!select) return;
+    const names = [...(mesAssigneeGroups[department] || [])].sort((left, right) => left.localeCompare(right, "it"));
+    select.disabled = !department || !names.length;
+    select.innerHTML = names.length
+        ? `<option value="">Seleziona operatore…</option>${names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`
+        : `<option value="">${department ? "Nessun dipendente nel reparto" : "Prima seleziona il reparto"}</option>`;
+}
+
+function departmentForMesOperator(operatorName: string) {
+    return sortedMesAssigneeDepartments().find((department) =>
+        (mesAssigneeGroups[department] || []).includes(operatorName),
+    ) || "";
+}
+
+function renderMesOperatorSelection() {
+    const department = inputValue("mes-operator-department");
+    const list = byId("mes-operator-list");
+    const summary = byId("mes-operator-selected");
+    if (summary) {
+        const selected = [...mesOperatorDraftNames].sort((left, right) => left.localeCompare(right, "it"));
+        summary.innerHTML = selected.length
+            ? `<strong>${selected.length} ${selected.length === 1 ? "operatore selezionato" : "operatori selezionati"}</strong><span>${selected.map(escapeHtml).join(" · ")}</span>`
+            : `<span>Nessun operatore selezionato</span>`;
+    }
+    if (!list) return;
+    const names = [...(mesAssigneeGroups[department] || [])].sort((left, right) => left.localeCompare(right, "it"));
+    list.innerHTML = !department
+        ? `<p class="mes-operator-empty">Seleziona prima un reparto.</p>`
+        : names.length
+            ? `<fieldset><legend>${escapeHtml(department)}</legend>${names.map((name) => `<label><input type="checkbox" value="${escapeHtml(name)}" ${mesOperatorDraftNames.has(name) ? "checked" : ""}> <span>${escapeHtml(name)}</span></label>`).join("")}</fieldset>`
+            : `<p class="mes-operator-empty">Nessun dipendente presente in questo reparto.</p>`;
+}
+
 async function openMesActivation(machineId: string, phaseId: string) {
     const selection = mesPhaseForId(phaseId);
     if (!selection) throw new Error("Ordine MES non trovato dopo la sincronizzazione.");
@@ -2963,7 +3052,8 @@ async function openMesActivation(machineId: string, phaseId: string) {
         (byId("mes-activation-machine") as HTMLInputElement).value = machineId;
         (byId("mes-activation-phase") as HTMLInputElement).value = phaseId;
         (byId("mes-activation-mode") as HTMLSelectElement).value = mesActivationMode;
-        (byId("mes-activation-operator") as HTMLInputElement).value = "";
+        fillMesDepartmentSelect("mes-activation-department");
+        renderMesActivationOperators();
         byId("mes-activation-title")!.textContent = `${mesActivationMachineName || mesMachineDisplayName(machineId)} · ${order.orderNumber} · ${phase.phaseCode}`;
         byId("mes-activation-preview")!.textContent = preview.unassignedPieces > 0
             ? `Sono presenti ${preview.unassignedPieces} pezzi non attribuiti (${preview.unassignedEvents} eventi, dal ${formatLongDate(String(preview.firstUnassignedAt).slice(0, 10))}). Prima dell'avvio devi decidere come trattarli.`
@@ -3094,10 +3184,10 @@ function openMesOperator(sessionId: string) {
     byId("mes-operator-error")!.textContent = "";
     const selected = new Set(Array.isArray(session.operatorNames) && session.operatorNames.length
         ? session.operatorNames : String(session.startedBy || "").split(",").map((name) => name.trim()).filter(Boolean));
-    const list = byId("mes-operator-list")!;
-    const departments = Object.entries(mesAssigneeGroups).sort(([left], [right]) => left.localeCompare(right, "it"));
-    list.innerHTML = departments.length ? departments.map(([department, names]) => `<fieldset><legend>${escapeHtml(department)}</legend>${[...names].sort((a, b) => a.localeCompare(b, "it")).map((name) => `<label><input type="checkbox" value="${escapeHtml(name)}" ${selected.has(name) ? "checked" : ""}> <span>${escapeHtml(name)}</span></label>`).join("")}</fieldset>`).join("")
-        : `<p class="mes-operator-empty">Anagrafica dipendenti non disponibile. Verifica il collegamento al backend condiviso.</p>`;
+    mesOperatorDraftNames = selected;
+    const preferredDepartment = [...selected].map(departmentForMesOperator).find(Boolean) || "";
+    fillMesDepartmentSelect("mes-operator-department", preferredDepartment);
+    renderMesOperatorSelection();
     openDialog("mes-operator-dialog");
 }
 
@@ -3106,7 +3196,7 @@ async function submitMesOperator(event: SubmitEvent) {
     const sessionId = inputValue("mes-operator-session");
     const session = mesSessions.find((item) => item.sessionId === sessionId);
     if (!session) return;
-    const operatorNames = [...document.querySelectorAll<HTMLInputElement>("#mes-operator-list input:checked")].map((input) => input.value);
+    const operatorNames = [...mesOperatorDraftNames];
     try {
         await mesInvoke("mes-session-operator", { sessionId, body: {
             baseRevision: session.revision, operatorNames, note: inputValue("mes-operator-note").trim(),
