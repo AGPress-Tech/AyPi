@@ -24,6 +24,7 @@ window.addEventListener("unhandledrejection", (event) => {
 type MaterialStatus = "available" | "partial" | "incoming" | "missing" | "verification";
 type WorkStatus = "not_started" | "running" | "done";
 type Priority = "normal" | "high" | "urgent";
+type OrderType = "STAMPING" | "MACHINING" | "BLANKING";
 type MachineWorkInterval = { start: string; end: string };
 
 type Machine = {
@@ -42,7 +43,12 @@ type ProductionJob = {
     customer: string;
     article: string;
     phase: string;
+    orderType: OrderType;
     materialAlloy: string;
+    grossWeight: number;
+    netWeight: number;
+    kilogramsToStamp: number;
+    barSize: string;
     quantity: number;
     unit: "pz" | "kg";
     barKgBundles: string;
@@ -130,6 +136,18 @@ const unavailabilityLabels: Record<UnavailabilityType, string> = {
     closure: "Chiusura",
 };
 
+const orderTypeLabels: Record<OrderType, string> = {
+    STAMPING: "Ordine di stampaggio",
+    MACHINING: "Lavorazione meccanica",
+    BLANKING: "Ordine di tranciatura",
+};
+
+const orderTypeDefaultPhases: Record<OrderType, string> = {
+    STAMPING: "Stampaggio",
+    MACHINING: "Lavorazione meccanica",
+    BLANKING: "Tranciatura",
+};
+
 const defaultMachines: Machine[] = [
     { id: "trapano", name: "TRAPANO", department: "Foratura", category: "Trapani", color: "#00aa55" },
     { id: "21b100", name: "21B100 (Ofmec)", department: "Fresatura", category: "Fresatrici", color: "#dfb900" },
@@ -214,6 +232,7 @@ let mesActivationMachineId = "";
 let mesActivationMachineName = "";
 let mesActivationMode: "PRODUCTION" | "SETUP" = "PRODUCTION";
 let mesOrderPickerPhaseId = "";
+let mesOrderPickerBusy = false;
 let mesOrderSortKey = "orderNumber";
 let mesOrderSortDirection: 1 | -1 = 1;
 let mesOrderContextPhaseId = "";
@@ -679,7 +698,12 @@ function loadState(): PlannerState {
             return {
                 ...normalizedJob,
                 orderNumber: String(job.orderNumber || ""),
+                orderType: (["STAMPING", "MACHINING", "BLANKING"].includes(job.orderType) ? job.orderType : "MACHINING") as OrderType,
                 materialAlloy: String(job.materialAlloy || ""),
+                grossWeight: Math.max(0, Number(job.grossWeight) || 0),
+                netWeight: Math.max(0, Number(job.netWeight) || 0),
+                kilogramsToStamp: Math.max(0, Number(job.kilogramsToStamp) || 0),
+                barSize: String(job.barSize || ""),
                 barKgBundles: String(job.barKgBundles || ""),
                 materialOwner: String(job.materialOwner || ""),
                 durationDays,
@@ -2431,8 +2455,11 @@ function applyMesSessionsToPlanner() {
         state.jobs.push({
             id: uid("job"), orderNumber: order.orderNumber, customer: order.customer || "MES",
             article: phase.articleCode || order.articleCode, phase: phase.phaseCode,
-            materialAlloy: "", quantity: phase.targetQuantity, unit: phase.unit,
-            barKgBundles: "", materialOwner: "", machineId: machine?.id || "",
+            orderType: order.orderType || "MACHINING", materialAlloy: order.materialAlloy || "",
+            grossWeight: Number(order.grossWeight) || 0, netWeight: Number(order.netWeight) || 0,
+            kilogramsToStamp: Number(order.kilogramsToStamp) || 0, barSize: order.barSize || "",
+            quantity: phase.targetQuantity, unit: phase.unit,
+            barKgBundles: order.barBundles || "", materialOwner: order.materialOwner || "", machineId: machine?.id || "",
             start, end,
             durationDays, cycleSeconds: phase.standardCycleSeconds,
             setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: Math.max(1, diffDays(end, start) + 1),
@@ -2553,6 +2580,14 @@ function mesPhaseRows() {
             orderNumber: job.orderNumber,
             customer: job.customer,
             articleCode: job.article,
+            orderType: job.orderType,
+            materialAlloy: job.materialAlloy,
+            grossWeight: job.grossWeight,
+            netWeight: job.netWeight,
+            kilogramsToStamp: job.kilogramsToStamp,
+            barBundles: job.barKgBundles,
+            materialOwner: job.materialOwner,
+            barSize: job.barSize,
             dueAt: job.dueDate,
             firstDeliveryAt: job.firstDeliveryDate,
             priority: job.priority.toUpperCase(),
@@ -2583,7 +2618,7 @@ function mesPhaseForId(phaseId: string) {
     return mesPhaseRows().find((item) => item.phase.phaseId === phaseId) || null;
 }
 
-function createMesPlannerProjection(order: any, phase: any) {
+function createMesPlannerProjection(order: any, phase: any, persist = true) {
     const calculatedDuration = calculateMesDuration(phase.targetQuantity, phase.standardCycleSeconds, phase.plannedSetupSeconds / 3600);
     const plannedMachine = state.machines.find((machine) => normalizedMachineId(machine.id) === normalizedMachineId(phase.plannedMachineId));
     const start = plannedMachine && phase.scheduledStart ? String(phase.scheduledStart).slice(0, 10) : "";
@@ -2592,8 +2627,11 @@ function createMesPlannerProjection(order: any, phase: any) {
     const job: ProductionJob = {
         id: uid("job"), orderNumber: order.orderNumber, customer: order.customer || "MES",
         article: phase.articleCode || order.articleCode, phase: phase.phaseCode,
-        materialAlloy: "", quantity: phase.targetQuantity, unit: phase.unit,
-        barKgBundles: "", materialOwner: "", machineId: plannedMachine?.id || "", start,
+        orderType: order.orderType || "MACHINING", materialAlloy: order.materialAlloy || "",
+        grossWeight: Number(order.grossWeight) || 0, netWeight: Number(order.netWeight) || 0,
+        kilogramsToStamp: Number(order.kilogramsToStamp) || 0, barSize: order.barSize || "",
+        quantity: phase.targetQuantity, unit: phase.unit,
+        barKgBundles: order.barBundles || "", materialOwner: order.materialOwner || "", machineId: plannedMachine?.id || "", start,
         end,
         durationDays, cycleSeconds: phase.standardCycleSeconds,
         setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: start && end ? Math.max(1, diffDays(end, start) + 1) : durationDays,
@@ -2605,9 +2643,11 @@ function createMesPlannerProjection(order: any, phase: any) {
         mesOrderId: order.orderId, mesPhaseId: phase.phaseId,
         mesOrderRevision: order.revision, mesPhaseRevision: phase.revision,
     };
-    state.jobs.push(job);
-    saveState();
-    renderAll();
+    if (persist) {
+        state.jobs.push(job);
+        saveState();
+        renderAll();
+    }
     return job;
 }
 
@@ -2647,6 +2687,8 @@ function selectOrderForMachine(machineId: string, machineName: string, mode: "PR
     if (search) search.value = "";
     if (status) status.value = "";
     mesOrderPickerPhaseId = "";
+    mesOrderPickerBusy = false;
+    setMesOrderPickerFeedback("");
     const action = mode === "SETUP" ? "Avvia attrezzaggio" : "Attiva ordine";
     if (byId("mes-order-picker-title")) byId("mes-order-picker-title")!.textContent = action;
     if (byId("mes-order-picker-subtitle")) byId("mes-order-picker-subtitle")!.textContent = "Scegli una fase disponibile, controlla i dati e continua con la conferma operativa.";
@@ -2678,8 +2720,11 @@ function renderMesOrderPicker() {
         : "Nessun ordine selezionato";
     const confirm = byId("mes-order-picker-confirm") as HTMLButtonElement | null;
     if (confirm) {
-        confirm.disabled = !selected;
-        confirm.textContent = mesActivationMode === "SETUP" ? "Continua con l’attrezzaggio" : "Continua con l’attivazione";
+        confirm.disabled = !selected || mesOrderPickerBusy;
+        confirm.classList.toggle("is-loading", mesOrderPickerBusy);
+        confirm.textContent = mesOrderPickerBusy
+            ? "Preparazione in corso…"
+            : mesActivationMode === "SETUP" ? "Continua con l’attrezzaggio" : "Continua con l’attivazione";
     }
     body.innerHTML = rows.length ? rows.map(({ order, phase }) => {
         const businessStatus = mesPhaseBusinessStatus(phase);
@@ -2695,14 +2740,54 @@ function renderMesOrderPicker() {
     }).join("") : `<tr><td colspan="7" class="mes-empty-row">Nessun ordine disponibile corrisponde ai filtri.</td></tr>`;
 }
 
-function continueMesOrderPicker() {
-    if (!mesOrderPickerPhaseId || !mesActivationMachineId) return;
-    if (!mesBackendAvailable) {
-        notify("Ordine selezionato, ma l'attivazione richiede le API MES sul backend. La lettura PLC locale resta attiva.");
+function setMesOrderPickerFeedback(message: string) {
+    const feedback = byId("mes-order-picker-feedback");
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.hidden = !message;
+}
+
+async function continueMesOrderPicker() {
+    if (mesOrderPickerBusy) return;
+    if (!mesOrderPickerPhaseId || !mesActivationMachineId) {
+        setMesOrderPickerFeedback("Seleziona un ordine e riprova.");
         return;
     }
-    closeDialog("mes-order-picker-dialog");
-    void openMesActivation(mesActivationMachineId, mesOrderPickerPhaseId);
+    if (!mesBackendAvailable) {
+        setMesOrderPickerFeedback("Backend MES non raggiungibile: l’acquisizione PLC locale può continuare, ma l’ordine non può essere attivato finché il servizio MES non torna disponibile.");
+        return;
+    }
+    const selection = mesPhaseForId(mesOrderPickerPhaseId);
+    if (!selection) {
+        setMesOrderPickerFeedback("L’ordine selezionato non è più disponibile. Aggiorna la lista e riprova.");
+        return;
+    }
+    mesOrderPickerBusy = true;
+    setMesOrderPickerFeedback("");
+    renderMesOrderPicker();
+    try {
+        let phaseId = selection.phase.phaseId;
+        const plannerJobId = selection.phase.plannerJobId;
+        if (plannerJobId || String(phaseId).startsWith("planner-phase:")) {
+            const job = state.jobs.find((item) => item.id === plannerJobId)
+                || state.jobs.find((item) => item.mesPhaseId === phaseId);
+            if (!job) throw new Error("La lavorazione locale collegata non è stata trovata.");
+            if (!job.orderNumber.trim() || !job.phase.trim()) {
+                throw new Error("Questo vecchio ordine locale non ha numero ordine o fase. Aprilo dalla pagina Ordini, completa i dati e salvalo prima di attivarlo.");
+            }
+            Object.assign(job, await synchronizeJobWithMes(job));
+            phaseId = job.mesPhaseId;
+            mesOrderPickerPhaseId = phaseId;
+            saveState();
+        }
+        const opened = await openMesActivation(mesActivationMachineId, phaseId);
+        if (opened) closeDialog("mes-order-picker-dialog");
+    } catch (error) {
+        setMesOrderPickerFeedback(error instanceof Error ? error.message : "Impossibile preparare l’attivazione.");
+    } finally {
+        mesOrderPickerBusy = false;
+        renderMesOrderPicker();
+    }
 }
 
 function renderMesOrders() {
@@ -2758,7 +2843,7 @@ function renderMesOrders() {
     });
     body.innerHTML = rows.length ? rows.map(({ order, phase, produced, remaining, businessStatus }) => {
         const scheduled = phase.planningStatus === "SCHEDULED";
-        return `<tr data-mes-order-phase="${escapeHtml(phase.phaseId)}" tabindex="0" title="Tasto destro per modificare o eliminare">
+        return `<tr data-mes-order-phase="${escapeHtml(phase.phaseId)}" tabindex="0" title="Tasto destro per modificare, copiare o eliminare">
             <td><strong>${escapeHtml(order.orderNumber)}</strong></td><td>${escapeHtml(phase.phaseCode)}</td><td><strong>${escapeHtml(phase.articleCode || order.articleCode)}</strong></td><td>${escapeHtml(order.customer || "—")}</td>
             <td class="is-number">${Number(phase.targetQuantity) || 0}</td><td class="is-number is-good">${produced}</td><td class="is-number">${remaining}</td><td>${mesSeconds(phase.standardCycleSeconds)}</td>
             <td><span class="mes-order-status mes-order-status--${businessStatus.toLowerCase()}">${escapeHtml(mesBusinessStatusLabel(businessStatus))}</span></td>
@@ -2867,7 +2952,7 @@ function renderMesConsole() {
 
 async function openMesActivation(machineId: string, phaseId: string) {
     const selection = mesPhaseForId(phaseId);
-    if (!selection) return;
+    if (!selection) throw new Error("Ordine MES non trovato dopo la sincronizzazione.");
     const { order, phase } = selection;
     try {
         const preview = await mesInvoke("mes-activation-preview", {
@@ -2892,8 +2977,9 @@ async function openMesActivation(machineId: string, phaseId: string) {
         (byId("mes-attributed-pieces") as HTMLInputElement).disabled = true;
         byId("mes-activation-error")!.textContent = "";
         openDialog("mes-activation-dialog");
+        return true;
     } catch (error) {
-        notify(error instanceof Error ? error.message : "Impossibile preparare l'attivazione");
+        throw error instanceof Error ? error : new Error("Impossibile preparare l'attivazione");
     }
 }
 
@@ -3409,11 +3495,15 @@ function updateCalculatedJobDuration() {
     const scheduledEnd = machineId && start ? endForProductionSeconds(start, duration.totalSeconds, machineId) : null;
     const scheduledDays = scheduledEnd ? Math.max(1, countProductionDays(start, scheduledEnd, machineId)) : duration.days;
     const input = byId("job-duration") as HTMLInputElement | null;
-    if (input) input.value = String(scheduledDays);
+    if (input) input.value = mesDuration(duration.totalSeconds);
+    const grossWeight = Math.max(0, Number(inputValue("job-gross-weight")) || 0);
+    const kilograms = byId("job-kilograms-to-stamp") as HTMLInputElement | null;
+    if (kilograms) kilograms.value = (quantity * grossWeight).toLocaleString("it-IT", { maximumFractionDigits: 3 });
     const hint = byId("job-duration-hint");
     if (hint) {
-        const hours = duration.totalSeconds / 3600;
-        hint.textContent = `${hours.toLocaleString("it-IT", { maximumFractionDigits: 2 })} ore totali · ${scheduledDays} ${scheduledDays === 1 ? "giorno produttivo" : "giorni produttivi"}${scheduledEnd ? ` · fine ${formatLongDate(scheduledEnd)}` : ""}.`;
+        hint.textContent = scheduledEnd
+            ? `${scheduledDays} ${scheduledDays === 1 ? "giorno produttivo" : "giorni produttivi"} sul calendario della macchina · fine ${formatLongDate(scheduledEnd)}.`
+            : "Tempo produttivo totale: attrezzaggio + quantità × tempo standard.";
     }
 }
 
@@ -3429,6 +3519,14 @@ function mesOrderDraft(job: ProductionJob, current?: any) {
         articleCode: job.article,
         targetQuantity: job.quantity,
         unit: job.unit,
+        orderType: current?.orderType || job.orderType,
+        materialAlloy: job.materialAlloy,
+        grossWeight: job.orderType === "STAMPING" ? job.grossWeight : 0,
+        netWeight: job.orderType === "STAMPING" ? job.netWeight : 0,
+        kilogramsToStamp: job.orderType === "STAMPING" ? job.quantity * job.grossWeight : 0,
+        barBundles: job.orderType === "STAMPING" ? job.barKgBundles : "",
+        materialOwner: job.orderType === "BLANKING" ? "" : job.materialOwner,
+        barSize: job.orderType === "MACHINING" ? job.barSize : "",
         firstDeliveryAt: mesIsoDate(job.firstDeliveryDate),
         dueAt: mesIsoDate(job.dueDate),
         priority: job.priority.toUpperCase(),
@@ -3591,37 +3689,70 @@ async function synchronizeJobWithMes(job: ProductionJob) {
     };
 }
 
-function openJob(job?: ProductionJob, asCopy = false) {
+function openNewOrderTypeChooser() {
+    cancelActivePointerInteractions();
+    closeContextMenu();
+    closeMesOrderContextMenu();
+    openDialog("order-type-dialog");
+}
+
+function applyOrderTypeForm(orderType: OrderType) {
+    (byId("job-order-type") as HTMLInputElement).value = orderType;
+    byId("job-order-type-label")!.textContent = orderTypeLabels[orderType].toUpperCase();
+    document.querySelectorAll<HTMLElement>("#job-form [data-order-types]").forEach((field) => {
+        const visible = String(field.dataset.orderTypes || "").split(/\s+/).includes(orderType);
+        field.hidden = !visible;
+        field.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea")
+            .forEach((input) => { input.disabled = !visible; });
+    });
+    const gross = byId("job-gross-weight") as HTMLInputElement | null;
+    const net = byId("job-net-weight") as HTMLInputElement | null;
+    if (gross) gross.required = orderType === "STAMPING";
+    if (net) net.required = orderType === "STAMPING";
+    const phase = byId("job-phase") as HTMLInputElement | null;
+    if (phase && !phase.value.trim()) phase.value = orderTypeDefaultPhases[orderType];
+    updateCalculatedJobDuration();
+}
+
+function openJob(job?: ProductionJob, asCopy = false, selectedType?: OrderType) {
+    if (!job && !selectedType) {
+        openNewOrderTypeChooser();
+        return;
+    }
     cancelActivePointerInteractions();
     closeContextMenu();
     (byId("job-form") as HTMLFormElement | null)?.reset();
     const today = dateKey(new Date());
     jobFormRevision = remoteRevision;
+    const orderType = selectedType || job?.orderType || "MACHINING";
     (byId("job-id") as HTMLInputElement).value = asCopy ? uid("job") : job?.id || "";
     (byId("job-order-number") as HTMLInputElement).value = asCopy ? "" : job?.orderNumber || "";
     (byId("job-customer") as HTMLInputElement).value = job?.customer || "";
     (byId("job-article") as HTMLInputElement).value = job?.article || "";
-    (byId("job-phase") as HTMLInputElement).value = job?.phase || "";
+    (byId("job-phase") as HTMLInputElement).value = job?.phase || orderTypeDefaultPhases[orderType];
     (byId("job-material-alloy") as HTMLInputElement).value = job?.materialAlloy || "";
-    (byId("job-quantity") as HTMLInputElement).value = job?.quantity ? String(job.quantity) : "";
+    (byId("job-quantity") as HTMLInputElement).value = !asCopy && job?.quantity ? String(job.quantity) : "";
     (byId("job-unit") as HTMLSelectElement).value = job?.unit || "pz";
     (byId("job-bar-kg-bundles") as HTMLInputElement).value = job?.barKgBundles || "";
     (byId("job-material-owner") as HTMLInputElement).value = job?.materialOwner || "";
-    (byId("job-machine") as HTMLSelectElement).value = job?.machineId || "";
+    (byId("job-gross-weight") as HTMLInputElement).value = job?.grossWeight ? String(job.grossWeight) : "";
+    (byId("job-net-weight") as HTMLInputElement).value = job?.netWeight ? String(job.netWeight) : "";
+    (byId("job-bar-size") as HTMLInputElement).value = job?.barSize || "";
+    (byId("job-machine") as HTMLSelectElement).value = asCopy ? "" : job?.machineId || "";
     (byId("job-priority") as HTMLSelectElement).value = job?.priority || "normal";
-    (byId("job-start") as HTMLInputElement).value = job ? job.start : today;
-    (byId("job-duration") as HTMLInputElement).value = String(job?.durationDays || 1);
+    (byId("job-start") as HTMLInputElement).value = asCopy ? "" : job ? job.start : today;
+    (byId("job-duration") as HTMLInputElement).value = "00:00:00";
     (byId("job-cycle-seconds") as HTMLInputElement).value = job?.cycleSeconds ? String(job.cycleSeconds) : "";
     (byId("job-setup-hours") as HTMLInputElement).value = String(job?.setupHours || 0);
-    (byId("job-due") as HTMLInputElement).value = job?.dueDate || "";
-    (byId("job-first-delivery") as HTMLInputElement).value = job?.firstDeliveryDate || "";
-    (byId("job-first-delivery-quantity") as HTMLInputElement).value = job?.firstDeliveryQuantity ? String(job.firstDeliveryQuantity) : "";
+    (byId("job-due") as HTMLInputElement).value = asCopy ? "" : job?.dueDate || "";
+    (byId("job-first-delivery") as HTMLInputElement).value = asCopy ? "" : job?.firstDeliveryDate || "";
+    (byId("job-first-delivery-quantity") as HTMLInputElement).value = !asCopy && job?.firstDeliveryQuantity ? String(job.firstDeliveryQuantity) : "";
     (byId("job-material") as HTMLSelectElement).value = job?.materialStatus || "available";
     (byId("job-status") as HTMLSelectElement).value = job?.workStatus || "not_started";
     (byId("job-notes") as HTMLTextAreaElement).value = job?.notes || "";
-    updateCalculatedJobDuration();
+    applyOrderTypeForm(orderType);
     updateJobStartAvailability();
-    byId("job-dialog-title")!.textContent = asCopy ? "Copia ordine / fase" : job ? "Modifica ordine / fase" : "Nuovo ordine / fase";
+    byId("job-dialog-title")!.textContent = asCopy ? "Copia ordine" : job ? "Modifica ordine" : "Nuovo ordine";
     byId("job-form-error")!.textContent = "";
     byId("delete-job")!.classList.toggle("button--hidden", !job || asCopy);
     openDialog("job-dialog");
@@ -3647,6 +3778,13 @@ async function saveJobFromForm(event: SubmitEvent) {
     const quantity = Number(inputValue("job-quantity")) || 0;
     const cycleSeconds = Number(inputValue("job-cycle-seconds")) || 0;
     const setupHours = Number(inputValue("job-setup-hours")) || 0;
+    const orderType = (inputValue("job-order-type") || "MACHINING") as OrderType;
+    const grossWeight = orderType === "STAMPING"
+        ? Math.max(0, Number(inputValue("job-gross-weight")) || 0)
+        : 0;
+    const netWeight = orderType === "STAMPING"
+        ? Math.max(0, Number(inputValue("job-net-weight")) || 0)
+        : 0;
     const duration = calculateMesDuration(quantity, cycleSeconds, setupHours);
     const error = byId("job-form-error")!;
     if (!inputValue("job-order-number").trim() || !inputValue("job-phase").trim()) {
@@ -3655,6 +3793,10 @@ async function saveJobFromForm(event: SubmitEvent) {
     }
     if (quantity <= 0 || cycleSeconds <= 0 || setupHours < 0) {
         error.textContent = "Indica quantità, tempo standard per pezzo e attrezzaggio validi.";
+        return;
+    }
+    if (orderType === "STAMPING" && (grossWeight <= 0 || netWeight < 0)) {
+        error.textContent = "Per lo stampaggio indica peso lordo e peso netto validi.";
         return;
     }
     if (machineId && !start) {
@@ -3696,11 +3838,16 @@ async function saveJobFromForm(event: SubmitEvent) {
         customer: inputValue("job-customer").trim(),
         article: inputValue("job-article").trim(),
         phase: inputValue("job-phase").trim(),
+        orderType: previous?.orderType || orderType,
         materialAlloy: inputValue("job-material-alloy").trim(),
+        grossWeight,
+        netWeight,
+        kilogramsToStamp: orderType === "STAMPING" ? quantity * grossWeight : 0,
+        barSize: orderType === "MACHINING" ? inputValue("job-bar-size").trim() : "",
         quantity,
         unit: inputValue("job-unit") as "pz" | "kg",
-        barKgBundles: inputValue("job-bar-kg-bundles").trim(),
-        materialOwner: inputValue("job-material-owner").trim(),
+        barKgBundles: orderType === "STAMPING" ? inputValue("job-bar-kg-bundles").trim() : "",
+        materialOwner: orderType === "BLANKING" ? "" : inputValue("job-material-owner").trim(),
         machineId,
         start,
         end,
@@ -4741,6 +4888,16 @@ function bindGlobalEvents() {
 
     byId("new-job")?.addEventListener("click", () => openJob());
     byId("new-job-scheduler")?.addEventListener("click", () => openJob());
+    document.querySelectorAll("[data-close-order-type]").forEach((button) => {
+        button.addEventListener("click", () => closeDialog("order-type-dialog"));
+    });
+    byId("order-type-dialog")?.addEventListener("click", (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-order-type]");
+        const orderType = button?.dataset.orderType as OrderType | undefined;
+        if (!orderType || !orderTypeLabels[orderType]) return;
+        closeDialog("order-type-dialog");
+        openJob(undefined, false, orderType);
+    });
     byId("refresh-planner")?.addEventListener("click", () => {
         void loadLatestPlanner({ manual: true }).then(() => refreshMesRuntime());
     });
@@ -4871,6 +5028,10 @@ function bindGlobalEvents() {
             openJob(job || createMesPlannerProjection(selection.order, selection.phase));
             return;
         }
+        if (command === "copy") {
+            openJob(job || createMesPlannerProjection(selection.order, selection.phase, false), true);
+            return;
+        }
         if (command === "delete") {
             if (job) void deleteJobWithConfirmation(job.id);
             else notify("Questo ordine proviene dal MES e non può ancora essere eliminato dal pianificatore.");
@@ -4882,13 +5043,15 @@ function bindGlobalEvents() {
         const row = (event.target as HTMLElement).closest<HTMLElement>("[data-picker-phase]");
         if (!row) return;
         mesOrderPickerPhaseId = row.dataset.pickerPhase || "";
+        setMesOrderPickerFeedback("");
         renderMesOrderPicker();
     });
     byId("mes-order-picker-body")?.addEventListener("dblclick", (event) => {
         const row = (event.target as HTMLElement).closest<HTMLElement>("[data-picker-phase]");
         if (!row) return;
         mesOrderPickerPhaseId = row.dataset.pickerPhase || "";
-        continueMesOrderPicker();
+        setMesOrderPickerFeedback("");
+        void continueMesOrderPicker();
     });
     byId("mes-order-picker-body")?.addEventListener("keydown", (event) => {
         if (!(event instanceof KeyboardEvent) || !["Enter", " "].includes(event.key)) return;
@@ -4896,10 +5059,15 @@ function bindGlobalEvents() {
         if (!row) return;
         event.preventDefault();
         mesOrderPickerPhaseId = row.dataset.pickerPhase || "";
-        if (event.key === "Enter") continueMesOrderPicker();
+        setMesOrderPickerFeedback("");
+        if (event.key === "Enter") void continueMesOrderPicker();
         else renderMesOrderPicker();
     });
-    byId("mes-order-picker-confirm")?.addEventListener("click", continueMesOrderPicker);
+    byId("mes-order-picker-confirm")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void continueMesOrderPicker();
+    });
     document.querySelectorAll("[data-close-mes-order-picker]").forEach((button) => {
         button.addEventListener("click", () => closeDialog("mes-order-picker-dialog"));
     });
@@ -4933,7 +5101,7 @@ function bindGlobalEvents() {
             (byId("mes-attributed-pieces") as HTMLInputElement).disabled = input.value !== "PARTIAL" || !input.checked;
         });
     });
-    ["job-quantity", "job-cycle-seconds", "job-setup-hours"].forEach((id) => {
+    ["job-quantity", "job-cycle-seconds", "job-setup-hours", "job-gross-weight"].forEach((id) => {
         byId(id)?.addEventListener("input", updateCalculatedJobDuration);
     });
     byId("job-start")?.addEventListener("change", updateCalculatedJobDuration);

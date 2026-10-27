@@ -32,6 +32,7 @@ import type {
     MesExecutionStatus,
     MesOrderDraft,
     MesOrderStatus,
+    MesOrderType,
     MesPhaseDraft,
     MesPlanningStatus,
     MesPriority,
@@ -67,6 +68,15 @@ function positiveNumber(value: unknown, label: string) {
     return normalized;
 }
 
+function nonNegativeNumber(value: unknown, label: string) {
+    if (value === "" || value === null || value === undefined) return 0;
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized) || normalized < 0) {
+        throw badRequest(`${label} deve essere un numero maggiore o uguale a zero.`);
+    }
+    return normalized;
+}
+
 function nonNegativeInteger(value: unknown, label: string) {
     const normalized = Number(value);
     if (!Number.isInteger(normalized) || normalized < 0) {
@@ -94,6 +104,7 @@ function isoDate(value: unknown, label: string, required = false) {
 const UNITS = ["pz", "kg"] as const;
 const PRIORITIES = ["NORMAL", "HIGH", "URGENT"] as const;
 const ORDER_STATUSES = ["OPEN", "COMPLETED", "CANCELLED"] as const;
+const ORDER_TYPES = ["STAMPING", "MACHINING", "BLANKING"] as const;
 const PLANNING_STATUSES = ["BACKLOG", "SCHEDULED", "ARCHIVED"] as const;
 const EXECUTION_STATUSES = ["NOT_STARTED", "SETUP", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED"] as const;
 const SESSION_MODES = ["PRODUCTION", "SETUP"] as const;
@@ -112,12 +123,23 @@ function parseOrderDraft(value: any): MesOrderDraft {
     if (firstDeliveryAt && dueAt && firstDeliveryAt > dueAt) {
         throw badRequest("La prima consegna non può essere successiva alla scadenza.");
     }
+    const orderType = enumValue(value?.orderType || "MACHINING", ORDER_TYPES, "Tipo ordine") as MesOrderType;
+    const grossWeight = nonNegativeNumber(value?.grossWeight, "Peso lordo");
+    const netWeight = nonNegativeNumber(value?.netWeight, "Peso netto");
     return {
         orderNumber: requiredText(value?.orderNumber, "Numero ordine", 100),
         customer: optionalText(value?.customer, 200),
         articleCode: requiredText(value?.articleCode, "Codice articolo", 120),
         targetQuantity,
         unit,
+        orderType,
+        materialAlloy: optionalText(value?.materialAlloy, 120),
+        grossWeight,
+        netWeight,
+        kilogramsToStamp: orderType === "STAMPING" ? targetQuantity * grossWeight : 0,
+        barBundles: optionalText(value?.barBundles, 120),
+        materialOwner: optionalText(value?.materialOwner, 120),
+        barSize: optionalText(value?.barSize, 120),
         firstDeliveryAt,
         dueAt,
         priority: enumValue(value?.priority || "NORMAL", PRIORITIES, "Priorità") as MesPriority,

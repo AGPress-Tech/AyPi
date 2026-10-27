@@ -20,6 +20,14 @@ function orderFromRow(row: any): MesOrder {
         articleCode: row.article_code,
         targetQuantity: Number(row.target_quantity) || 0,
         unit: row.unit,
+        orderType: row.order_type || "MACHINING",
+        materialAlloy: row.material_alloy || "",
+        grossWeight: Number(row.gross_weight) || 0,
+        netWeight: Number(row.net_weight) || 0,
+        kilogramsToStamp: Number(row.kilograms_to_stamp) || 0,
+        barBundles: row.bar_bundles || "",
+        materialOwner: row.material_owner || "",
+        barSize: row.bar_size || "",
         firstDeliveryAt: row.first_delivery_at,
         dueAt: row.due_at,
         priority: row.priority,
@@ -62,7 +70,8 @@ function phaseFromRow(row: any): MesPhase {
 }
 
 const ORDER_COLUMNS = `order_id, order_number, customer, article_code, target_quantity,
-    unit, first_delivery_at, due_at, priority, notes, status, revision,
+    unit, order_type, material_alloy, gross_weight, net_weight, kilograms_to_stamp,
+    bar_bundles, material_owner, bar_size, first_delivery_at, due_at, priority, notes, status, revision,
     created_at, created_by, updated_at, updated_by`;
 const PHASE_COLUMNS = `phase_id, order_id, phase_code, sequence, article_code,
     target_quantity, unit, standard_cycle_seconds, planned_setup_seconds,
@@ -116,9 +125,12 @@ export function createMesOrder(input: {
         }
         const order = input.order;
         database.run(
-            `INSERT INTO mes_orders (${ORDER_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+            `INSERT INTO mes_orders (${ORDER_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
             [order.orderId, order.orderNumber, order.customer, order.articleCode,
-                order.targetQuantity, order.unit, order.firstDeliveryAt, order.dueAt,
+                order.targetQuantity, order.unit, order.orderType, order.materialAlloy,
+                order.grossWeight, order.netWeight, order.kilogramsToStamp,
+                order.barBundles, order.materialOwner, order.barSize,
+                order.firstDeliveryAt, order.dueAt,
                 order.priority, order.notes, "OPEN", input.now, input.actor,
                 input.now, input.actor],
         );
@@ -234,11 +246,16 @@ export function updateMesOrder(input: {
         const nextRevision = before.revision + 1;
         database.run(
             `UPDATE mes_orders SET order_number = ?, customer = ?, article_code = ?,
-             target_quantity = ?, unit = ?, first_delivery_at = ?, due_at = ?,
+             target_quantity = ?, unit = ?, order_type = ?, material_alloy = ?,
+             gross_weight = ?, net_weight = ?, kilograms_to_stamp = ?, bar_bundles = ?,
+             material_owner = ?, bar_size = ?, first_delivery_at = ?, due_at = ?,
              priority = ?, notes = ?, status = ?, revision = ?, updated_at = ?, updated_by = ?
              WHERE order_id = ?`,
             [input.draft.orderNumber, input.draft.customer, input.draft.articleCode,
-                input.draft.targetQuantity, input.draft.unit, input.draft.firstDeliveryAt,
+                input.draft.targetQuantity, input.draft.unit, before.orderType,
+                input.draft.materialAlloy, input.draft.grossWeight, input.draft.netWeight,
+                input.draft.kilogramsToStamp, input.draft.barBundles,
+                input.draft.materialOwner, input.draft.barSize, input.draft.firstDeliveryAt,
                 input.draft.dueAt, input.draft.priority, input.draft.notes,
                 before.status, nextRevision, input.now, input.actor, input.orderId],
         );

@@ -54,6 +54,7 @@ export type MesImportResult = {
 };
 
 export type MesUnit = "pz" | "kg";
+export type MesOrderType = "STAMPING" | "MACHINING" | "BLANKING";
 export type MesPriority = "NORMAL" | "HIGH" | "URGENT";
 export type MesOrderStatus = "OPEN" | "COMPLETED" | "CANCELLED";
 export type MesPlanningStatus = "BACKLOG" | "SCHEDULED" | "ARCHIVED";
@@ -72,6 +73,14 @@ export type MesOrder = {
     articleCode: string;
     targetQuantity: number;
     unit: MesUnit;
+    orderType: MesOrderType;
+    materialAlloy: string;
+    grossWeight: number;
+    netWeight: number;
+    kilogramsToStamp: number;
+    barBundles: string;
+    materialOwner: string;
+    barSize: string;
     firstDeliveryAt: string;
     dueAt: string;
     priority: MesPriority;

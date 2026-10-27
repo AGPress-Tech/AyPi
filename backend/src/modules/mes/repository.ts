@@ -7,7 +7,8 @@ const EVENTS_TABLE = "mes_machine_events";
 const IMPORTS_TABLE = "mes_import_runs";
 
 export function initializeMesSqliteStore() {
-    getSqliteDatabase().exec(`
+    const database = getSqliteDatabase();
+    database.exec(`
         CREATE TABLE IF NOT EXISTS ${EVENTS_TABLE} (
             event_id TEXT PRIMARY KEY,
             source TEXT NOT NULL,
@@ -56,6 +57,14 @@ export function initializeMesSqliteStore() {
             article_code TEXT NOT NULL,
             target_quantity REAL NOT NULL,
             unit TEXT NOT NULL,
+            order_type TEXT NOT NULL DEFAULT 'MACHINING',
+            material_alloy TEXT NOT NULL DEFAULT '',
+            gross_weight REAL NOT NULL DEFAULT 0,
+            net_weight REAL NOT NULL DEFAULT 0,
+            kilograms_to_stamp REAL NOT NULL DEFAULT 0,
+            bar_bundles TEXT NOT NULL DEFAULT '',
+            material_owner TEXT NOT NULL DEFAULT '',
+            bar_size TEXT NOT NULL DEFAULT '',
             first_delivery_at TEXT NOT NULL DEFAULT '',
             due_at TEXT NOT NULL DEFAULT '',
             priority TEXT NOT NULL,
@@ -242,6 +251,26 @@ export function initializeMesSqliteStore() {
                ELSE 'OPEN'
            END;
     `);
+
+    const existingOrderColumns = new Set(
+        (database.exec("PRAGMA table_info(mes_orders)")?.[0]?.values || [])
+            .map((row: unknown[]) => String(row[1])),
+    );
+    const orderColumnMigrations: Array<[string, string]> = [
+        ["order_type", "TEXT NOT NULL DEFAULT 'MACHINING'"],
+        ["material_alloy", "TEXT NOT NULL DEFAULT ''"],
+        ["gross_weight", "REAL NOT NULL DEFAULT 0"],
+        ["net_weight", "REAL NOT NULL DEFAULT 0"],
+        ["kilograms_to_stamp", "REAL NOT NULL DEFAULT 0"],
+        ["bar_bundles", "TEXT NOT NULL DEFAULT ''"],
+        ["material_owner", "TEXT NOT NULL DEFAULT ''"],
+        ["bar_size", "TEXT NOT NULL DEFAULT ''"],
+    ];
+    orderColumnMigrations.forEach(([column, definition]) => {
+        if (!existingOrderColumns.has(column)) {
+            database.exec(`ALTER TABLE mes_orders ADD COLUMN ${column} ${definition}`);
+        }
+    });
 }
 
 export function storeMachineEvents(

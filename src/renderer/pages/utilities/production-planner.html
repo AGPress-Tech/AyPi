@@ -244,22 +244,36 @@
         </section>
     </div>
 
+    <div class="dialog-backdrop" id="order-type-dialog" aria-hidden="true">
+        <section class="dialog dialog--order-type">
+            <header class="dialog__header"><div><span class="eyebrow">NUOVO ORDINE MES</span><h2>Scegli il tipo di ordine</h2></div><button class="dialog__close" data-close-order-type type="button" aria-label="Chiudi">×</button></header>
+            <p class="dialog__intro">Il tipo determina le informazioni produttive richieste e non potrà essere cambiato dopo il salvataggio.</p>
+            <div class="order-type-grid">
+                <button data-order-type="STAMPING" type="button"><i>ST</i><span><strong>Ordine di stampaggio</strong><small>Pesi, kg da stampare e fasci di barra.</small></span></button>
+                <button data-order-type="MACHINING" type="button"><i>LM</i><span><strong>Lavorazione meccanica</strong><small>Proprietario materiale e dimensione barra.</small></span></button>
+                <button data-order-type="BLANKING" type="button"><i>TR</i><span><strong>Ordine di tranciatura</strong><small>Modulo essenziale per le produzioni di tranciatura.</small></span></button>
+            </div>
+            <footer class="dialog__footer"><span class="dialog__spacer"></span><button class="button button--ghost" data-close-order-type type="button">Annulla</button></footer>
+        </section>
+    </div>
+
     <div class="dialog-backdrop" id="job-dialog" aria-hidden="true">
         <form class="dialog" id="job-form">
             <header class="dialog__header">
                 <div>
-                    <span class="eyebrow">ORDINE E FASE MES</span>
+                    <span class="eyebrow" id="job-order-type-label">ORDINE MES</span>
                     <h2 id="job-dialog-title">Nuovo ordine / fase</h2>
                 </div>
                 <button class="dialog__close" data-close-dialog type="button" aria-label="Chiudi">×</button>
             </header>
 
             <input id="job-id" type="hidden">
+            <input id="job-order-type" type="hidden" value="MACHINING">
             <div class="form-grid">
                 <label>Numero ordine<input id="job-order-number" required maxlength="100" placeholder="Es. OP-2026-00125"></label>
                 <label>Codice articolo<input id="job-article" required maxlength="80"></label>
                 <label>Cliente<input id="job-customer" required maxlength="80"></label>
-                <label>Fase di lavorazione<input id="job-phase" required maxlength="120" placeholder="Es. Tornitura OP10"></label>
+                <label hidden>Fase di lavorazione<input id="job-phase" required maxlength="120"></label>
                 <label>Materiale / Lega <span class="optional-label">Opzionale</span><input id="job-material-alloy" maxlength="120" placeholder="Es. AISI 304, C45, alluminio"></label>
                 <label>Quantità<input id="job-quantity" type="number" min="1" step="1" required></label>
                 <label>Unità
@@ -268,8 +282,12 @@
                         <option value="kg">kg</option>
                     </select>
                 </label>
-                <label>Kg / Fasci di barra <span class="optional-label">Opzionale</span><input id="job-bar-kg-bundles" maxlength="80" placeholder="Es. 1.200 kg / 3 fasci"></label>
-                <label>Proprietario barra / materiale <span class="optional-label">Opzionale</span><input id="job-material-owner" maxlength="120" placeholder="Es. Cliente, AGPress, fornitore"></label>
+                <label data-order-types="STAMPING">Peso lordo<input id="job-gross-weight" type="number" min="0" step="0.001" placeholder="kg per pezzo"></label>
+                <label data-order-types="STAMPING">Peso netto<input id="job-net-weight" type="number" min="0" step="0.001" placeholder="kg per pezzo"></label>
+                <label data-order-types="STAMPING">Kg da stampare<input id="job-kilograms-to-stamp" type="text" readonly></label>
+                <label data-order-types="STAMPING">Fasci di barra <span class="optional-label">Opzionale</span><input id="job-bar-kg-bundles" maxlength="120" placeholder="Es. 3 fasci"></label>
+                <label data-order-types="STAMPING MACHINING">Proprietario barra / materiale <span class="optional-label">Opzionale</span><input id="job-material-owner" maxlength="120" placeholder="Es. Cliente, AGPress, fornitore"></label>
+                <label data-order-types="MACHINING">Dimensione barra <span class="optional-label">Opzionale</span><input id="job-bar-size" maxlength="120" placeholder="Es. Ø60 mm, 80×40 mm"></label>
                 <div class="form-field">
                     <span class="form-field__label">Macchina</span>
                     <select id="job-machine" class="machine-picker__native" aria-hidden="true" tabindex="-1">
@@ -306,10 +324,10 @@
                 </label>
                 <label>Durata calcolata
                     <span class="field-with-suffix">
-                        <input id="job-duration" type="number" min="1" step="1" value="1" readonly>
-                        <span>giorni lavorativi</span>
+                        <input id="job-duration" type="text" value="00:00:00" readonly>
+                        <span>hh:mm:ss</span>
                     </span>
-                    <small class="field-hint" id="job-duration-hint">Calcolata su 8 ore produttive al giorno.</small>
+                    <small class="field-hint" id="job-duration-hint">Tempo produttivo totale calcolato.</small>
                 </label>
                 <label>Consegna finale <span class="optional-label">Opzionale</span><input id="job-due" type="date"></label>
                 <label>Prima consegna<input id="job-first-delivery" type="date"></label>
@@ -379,7 +397,7 @@
             <div class="mes-order-picker__machine"><span>DESTINAZIONE</span><strong id="mes-order-picker-machine">Macchina</strong><small>L’ordine verrà caricato manualmente; lo schedulatore non avvia la produzione.</small></div>
             <div class="mes-order-picker__filters"><label>Cerca ordine, articolo o cliente<input id="mes-order-picker-search" type="search" placeholder="Digita per filtrare…"></label><label>Stato<select id="mes-order-picker-status"><option value="">Tutti gli ordini attivabili</option><option value="AVAILABLE">Disponibili</option><option value="SUSPENDED">Sospesi</option></select></label></div>
             <div class="mes-order-picker__table"><table><thead><tr><th class="mes-order-picker__select-column"><span class="sr-only">Selezione</span></th><th>Ordine</th><th>Fase</th><th>Articolo</th><th>Cliente</th><th>Quantità</th><th>Stato</th></tr></thead><tbody id="mes-order-picker-body"></tbody></table></div>
-            <footer class="dialog__footer mes-order-picker__footer"><div><strong id="mes-order-picker-selection">Nessun ordine selezionato</strong><small id="mes-order-picker-results"></small></div><span class="dialog__spacer"></span><button class="button button--ghost" data-close-mes-order-picker type="button">Annulla</button><button class="button button--primary" id="mes-order-picker-confirm" type="button" disabled>Continua</button></footer>
+            <footer class="dialog__footer mes-order-picker__footer"><div><strong id="mes-order-picker-selection">Nessun ordine selezionato</strong><small id="mes-order-picker-results"></small><small class="mes-order-picker__feedback" id="mes-order-picker-feedback" role="alert" hidden></small></div><span class="dialog__spacer"></span><button class="button button--ghost" data-close-mes-order-picker type="button">Annulla</button><button class="button button--primary" id="mes-order-picker-confirm" type="button" disabled>Continua</button></footer>
         </section>
     </div>
 
@@ -708,7 +726,7 @@
 
     <div class="job-tooltip" id="job-tooltip" role="tooltip"></div>
     <div class="context-menu" id="job-context-menu" role="menu" aria-hidden="true"></div>
-    <div class="mes-order-context-menu" id="mes-order-context-menu" role="menu" aria-hidden="true"><button data-mes-order-context="edit" type="button">Modifica ordine / fase</button><button class="is-danger" data-mes-order-context="delete" type="button">Elimina</button></div>
+    <div class="mes-order-context-menu" id="mes-order-context-menu" role="menu" aria-hidden="true"><button data-mes-order-context="edit" type="button">Modifica ordine</button><button data-mes-order-context="copy" type="button">Copia ordine</button><button class="is-danger" data-mes-order-context="delete" type="button">Elimina</button></div>
     <div class="mes-machine-context-menu" id="mes-machine-context-menu" role="menu" aria-hidden="true">
         <strong id="mes-machine-context-title">Macchina</strong>
         <button data-mes-machine-context="activate" type="button">Attiva ordine</button>
