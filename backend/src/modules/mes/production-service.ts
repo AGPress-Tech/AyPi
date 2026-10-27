@@ -10,10 +10,38 @@ import {
     loadMesOrderDetail,
     updateMesOrder,
     updateMesPhase,
+    archiveMesPhase,
 } from "./production-repository";
+import { runMesSqliteTransaction } from "../../shared/db/mes-sqlite";
 import type { MesOrderDraft, MesPhaseDraft } from "./types";
 
 const enqueue = createOperationQueue("mes-production");
+
+export function saveMesOrderAndPhase(input: {
+    orderId: string; order: MesOrderDraft; baseRevision: number;
+    phaseId: string; phase: MesPhaseDraft; phaseRevision: number;
+}, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("saveOrderAndPhase", () => {
+        const detail = loadMesOrderDetail(input.orderId);
+        if (!detail?.phases.some((phase) => phase.phaseId === input.phaseId)) {
+            throw new Error("La fase non appartiene all'ordine indicato.");
+        }
+        return runMesSqliteTransaction(() => {
+            const common = { actor: meta.actor, requestId: meta.requestId, now: new Date().toISOString() };
+            updateMesOrder({ ...common, orderId: input.orderId, draft: input.order,
+                baseRevision: input.baseRevision, auditId: randomUUID() });
+            return updateMesPhase({ ...common, phaseId: input.phaseId, draft: input.phase,
+                baseRevision: input.phaseRevision, auditId: randomUUID() });
+        });
+    });
+}
+
+export function removeMesPhase(phaseId: string, baseRevision: number, context?: ActionContext) {
+    const meta = buildContext(context);
+    return enqueue("archivePhase", () => archiveMesPhase({ phaseId, baseRevision,
+        actor: meta.actor, requestId: meta.requestId, now: new Date().toISOString(), auditId: randomUUID() }));
+}
 
 export function getMesOrders(options: Parameters<typeof listMesOrders>[0]) {
     return listMesOrders(options);

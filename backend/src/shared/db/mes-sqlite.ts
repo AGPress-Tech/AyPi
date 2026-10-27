@@ -1,13 +1,15 @@
 import fs from "fs";
+import { randomUUID } from "crypto";
 import initSqlJs from "sql.js";
 import { backendConfig } from "../../config";
 import { logger } from "../logging/logger";
-import { ensureFolderFor, replaceFileAtomic } from "../storage/json-files";
+import { ensureFolderFor } from "../storage/json-files";
 
 type SqlJsDatabase = any;
 
 let sqliteModule: any = null;
 let database: SqlJsDatabase | null = null;
+let transactionDepth = 0;
 
 export async function initializeMesSqliteDatabase() {
     if (database) return database;
@@ -39,7 +41,22 @@ export function getMesSqliteDatabase() {
 export function persistMesSqliteDatabase() {
     const dbPath = backendConfig.mesDatabase.path;
     ensureFolderFor(dbPath);
-    replaceFileAtomic(dbPath, Buffer.from(getMesSqliteDatabase().export()));
+    const temporaryPath = `${dbPath}.${randomUUID()}.tmp`;
+    let descriptor: number | undefined;
+    try {
+        const data = Buffer.from(getMesSqliteDatabase().export());
+        // sql.js reopens its connection on export; restore connection pragmas.
+        getMesSqliteDatabase().exec("PRAGMA foreign_keys = ON;");
+        descriptor = fs.openSync(temporaryPath, "wx");
+        fs.writeFileSync(descriptor, data);
+        fs.fsyncSync(descriptor);
+        fs.closeSync(descriptor);
+        descriptor = undefined;
+        fs.renameSync(temporaryPath, dbPath);
+    } finally {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+        if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
+    }
 }
 
 export function closeMesSqliteDatabase() {
@@ -52,18 +69,34 @@ export function closeMesSqliteDatabase() {
 
 export function runMesSqliteTransaction<T>(run: (db: SqlJsDatabase) => T): T {
     const db = getMesSqliteDatabase();
-    db.exec("BEGIN IMMEDIATE TRANSACTION;");
+    const depth = transactionDepth;
+    const savepoint = `mes_nested_${depth}`;
+    if (!depth && !fs.existsSync(backendConfig.mesDatabase.path)) persistMesSqliteDatabase();
+    db.exec(depth ? `SAVEPOINT ${savepoint}` : "BEGIN IMMEDIATE TRANSACTION;");
+    transactionDepth++;
+    let committed = false;
     try {
         const result = run(db);
-        db.exec("COMMIT;");
-        persistMesSqliteDatabase();
+        db.exec(depth ? `RELEASE SAVEPOINT ${savepoint}` : "COMMIT;");
+        committed = true;
+        if (!depth) persistMesSqliteDatabase();
         return result;
     } catch (error) {
+        if (!depth && committed) {
+            // A failed atomic replacement leaves the last durable snapshot intact.
+            // Restore it so subsequent reads cannot report an unsaved success.
+            db.close();
+            database = new sqliteModule.Database(fs.readFileSync(backendConfig.mesDatabase.path));
+            database.exec("PRAGMA foreign_keys = ON;");
+            throw error;
+        }
         try {
-            db.exec("ROLLBACK;");
+            db.exec(depth ? `ROLLBACK TO SAVEPOINT ${savepoint}; RELEASE SAVEPOINT ${savepoint};` : "ROLLBACK;");
         } catch {
             // Ignore rollback failures and preserve the original error.
         }
         throw error;
+    } finally {
+        transactionDepth--;
     }
 }

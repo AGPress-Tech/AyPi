@@ -179,7 +179,7 @@ export function loadMesOrderDetail(orderId: string): MesOrderDetail | null {
 
 export function listMesOrders(options: { search?: string; status?: string; limit: number; offset: number }) {
     initializeMesSqliteStore();
-    const conditions: string[] = [];
+    const conditions: string[] = ["EXISTS (SELECT 1 FROM mes_phases p WHERE p.order_id = mes_orders.order_id AND p.archived_at = '')"];
     const params: unknown[] = [];
     if (options.search) {
         conditions.push("(order_number LIKE ? OR article_code LIKE ? OR customer LIKE ?)");
@@ -202,7 +202,7 @@ export function listMesOrders(options: { search?: string; status?: string; limit
     const placeholders = items.map(() => "?").join(", ");
     const phases = rows(database.exec(
         `SELECT ${PHASE_COLUMNS} FROM mes_phases
-         WHERE order_id IN (${placeholders})
+         WHERE archived_at = '' AND order_id IN (${placeholders})
          ORDER BY order_id, sequence, phase_id`,
         items.map((item) => item.orderId),
     )).map(phaseFromRow);
@@ -218,6 +218,25 @@ export function listMesOrders(options: { search?: string; status?: string; limit
         offset: options.offset,
         rows: items.map((item) => ({ ...item, phases: phasesByOrder.get(item.orderId) || [] })),
     };
+}
+
+export function archiveMesPhase(input: {
+    phaseId: string; baseRevision: number; actor: string; requestId: string; now: string; auditId: string;
+}) {
+    initializeMesSqliteStore();
+    return runMesSqliteTransaction((database) => {
+        const phase = rows(database.exec("SELECT * FROM mes_phases WHERE phase_id = ?", [input.phaseId]))[0];
+        if (!phase) throw new HttpError(404, "Fase MES non trovata.");
+        if (phase.archived_at) return { phaseId: input.phaseId, archived: true };
+        if (Number(phase.revision) !== input.baseRevision) throw new HttpError(409, "La fase è stata modificata. Aggiorna e riprova.");
+        const active = database.exec("SELECT 1 FROM mes_machine_sessions WHERE phase_id = ? AND status = 'ACTIVE'", [input.phaseId]);
+        if (active?.[0]?.values?.length) throw new HttpError(409, "Sospendi o chiudi l'ordine sulla macchina prima di eliminarlo.");
+        database.run("UPDATE mes_phases SET archived_at = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE phase_id = ?",
+            [input.now, input.now, input.actor, input.phaseId]);
+        insertAudit(database, { ...input, entityType: "PHASE", entityId: input.phaseId,
+            action: "ARCHIVE", payload: phase, occurredAt: input.now });
+        return { phaseId: input.phaseId, archived: true };
+    });
 }
 
 export function updateMesOrder(input: {
@@ -320,7 +339,7 @@ export function updateMesPhase(input: {
     initializeMesSqliteStore();
     return runMesSqliteTransaction((database) => {
         const phaseRow = rows(database.exec(
-            `SELECT ${PHASE_COLUMNS} FROM mes_phases WHERE phase_id = ?`, [input.phaseId],
+            `SELECT ${PHASE_COLUMNS} FROM mes_phases WHERE phase_id = ? AND archived_at = ''`, [input.phaseId],
         ))[0];
         if (!phaseRow) throw new HttpError(404, "Fase MES non trovata.");
         const before = phaseFromRow(phaseRow);

@@ -11,7 +11,7 @@ import {
 } from "../../shared/db/sqlite";
 import { logger } from "../../shared/logging/logger";
 import { initializeProductionPlannerSqliteStore } from "../production-planner/repository";
-import { initializeMesSqliteStore } from "./repository";
+import { initializeMesSqliteStore, backfillMesActivationIds } from "./repository";
 
 type LegacyTable = {
     name: string;
@@ -25,6 +25,7 @@ const LEGACY_TABLES: LegacyTable[] = [
     { name: "mes_ingest_batches" },
     { name: "mes_machine_current" },
     { name: "mes_machine_state_intervals" },
+    { name: "mes_machine_operating_intervals" },
     { name: "mes_orders" },
     { name: "mes_phases" },
     { name: "mes_machine_sessions" },
@@ -125,6 +126,7 @@ export function migrateLegacyMesStorage() {
             }
             copiedCounts.set(descriptor.name, copyTableRows(primary, target, descriptor));
         });
+        backfillMesActivationIds(target);
     });
 
     present.forEach((descriptor) => {

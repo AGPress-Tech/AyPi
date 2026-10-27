@@ -218,7 +218,7 @@ async function flushCollectorSnapshot(stoppedAt='') {
     collectorSyncBusy=true;
     const sentAt=new Date().toISOString();
     const snapshot=state||emptySnapshot();
-    const nowSeconds=Number(snapshot.now)||Date.now()/1000;
+    const nowSeconds=Date.now()/1000;
     const batchId=`${collectorSessionId}:${++collectorBatchSequence}`;
     try{
         await requestAypiBackend('/api/mes/ingest/batches',{

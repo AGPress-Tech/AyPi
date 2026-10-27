@@ -1,3 +1,4 @@
+import "./modules/stdio-errors";
 import { app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut } from "electron";
 import path from "path";
 import fs from "fs";

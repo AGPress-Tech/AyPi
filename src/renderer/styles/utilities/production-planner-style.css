@@ -3827,10 +3827,15 @@ body.is-calendar-panning * {
 .mes-machine-card--production { border-color: #a8d9bd; background: #effaf3; }
 .mes-machine-card--setup { border-color: #e5cf83; background: #fff9df; }
 .mes-machine-card--stopped { border-color: #e5b9ba; background: #fff2f2; }
+.mes-machine-card--unmonitored { border-color: #cedae2; background: #f5f7f9; }
+.mes-machine-card--unmonitored header b { color: #617584; background: #e7edf1; }
 .mes-machine-card--production header b { color: #187346; background: #d9f3e4; }
 .mes-machine-card--setup header b { color: #866610; background: #ffedab; }
 .mes-machine-card--stopped header b { color: #a44249; background: #f8dede; }
 .mes-machine-card__toolbar { display: flex; align-items: center; gap: 7px; padding: 9px 12px; border-bottom: 1px solid rgba(115, 145, 160, .18); }
+.mes-machine-card__toolbar { flex-wrap: wrap; }
+.mes-machine-card__toolbar [data-mes-late-setup] { order: 3; width: 100%; color: #866610; background: #fff9df; }
+[aria-busy="true"] button[type="submit"] { cursor: progress; }
 .mes-icon-action { position: relative; display: grid; width: 34px; height: 32px; place-items: center; padding: 0; border: 1px solid #b9ced9; border-radius: 7px; background: rgba(255,255,255,.78); color: #356078; cursor: pointer; }
 .mes-icon-action svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .mes-icon-action > span { position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 9px; background: #168fc6; color: white; font-size: 8px; line-height: 15px; text-align: center; }
@@ -3843,6 +3848,7 @@ body.is-calendar-panning * {
 .mes-machine-card__data strong { display: block; margin-top: 5px; overflow: hidden; color: #263f50; font-size: 11px; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
 .mes-machine-card__footer { padding: 9px 12px 11px; color: #688292; font-size: 8px; }
 .mes-machine-card__footer .mes-progress { margin: 0 0 6px; background: rgba(108, 135, 148, .18); }
+.mes-machine-cycle-summary { display: block; margin-top: 4px; line-height: 1.5; }
 .mes-machine-card header .mes-local-link { flex: none; padding: 4px 7px; border-radius: 999px; background: #f0f3f6; color: #8799a5; font-size: 8px; font-weight: 800; }
 .mes-machine-card header .mes-local-link.is-online { background: #e0f7ed; color: #16805a; }
 .mes-machine-card__idle { justify-content: space-between; min-height: 88px; }
@@ -3956,6 +3962,10 @@ body.is-calendar-panning * {
 .mes-order-context-menu button.is-danger:hover, .mes-machine-context-menu button.is-danger:hover { background: #ffe4e7; }
 .mes-machine-context-menu > strong { padding: 6px 9px 8px; overflow: hidden; color: #507188; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .mes-operator-list { display: grid; max-height: 330px; gap: 9px; overflow: auto; }
+.mes-operator-picker { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 10px; }
+.mes-operator-selected { display: grid; gap: 4px; padding: 9px 11px; border: 1px solid #c9dce6; border-radius: 7px; background: #f1f8fb; color: #426579; }
+.mes-operator-selected strong { font-size: 10px; }
+.mes-operator-selected span { overflow: hidden; font-size: 9px; line-height: 1.45; text-overflow: ellipsis; }
 .mes-operator-list fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; margin: 0; padding: 10px; border: 1px solid #d4e2e9; border-radius: 8px; }
 .mes-operator-list legend { padding: 0 5px; color: #52748a; }
 .mes-operator-list label { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 6px; border-radius: 5px; background: #f4f9fb; }

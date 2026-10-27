@@ -371,6 +371,8 @@
             <div class="mes-activation-body">
                 <p id="mes-activation-preview"></p>
                 <input id="mes-activation-mode" type="hidden" value="PRODUCTION">
+                <label>Pezzi per battito<input id="mes-activation-pieces-per-pulse" type="number" min="1" step="1" required placeholder="Es. 1, 2, 4…" inputmode="numeric" aria-describedby="mes-activation-pieces-help"></label>
+                <p id="mes-activation-pieces-help">Quanti pezzi produce la macchina a ogni colpo PLC? Indicalo a ogni attivazione dell'ordine, anche dopo una sospensione.</p>
                 <div class="mes-operator-picker">
                     <label>Reparto<select id="mes-activation-department" required><option value="">Seleziona reparto…</option></select></label>
                     <label>Operatore<select id="mes-activation-operator" required disabled><option value="">Prima seleziona il reparto</option></select></label>

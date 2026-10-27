@@ -19,6 +19,8 @@ import {
     editMesPhase,
     getMesOrder,
     getMesOrders,
+    saveMesOrderAndPhase,
+    removeMesPhase,
 } from "./production-service";
 import {
     activateMesPhase,
@@ -329,6 +331,11 @@ export function registerMesRoutes(router: Router) {
             machineId: requiredText(body.machineId, "ID macchina", 120),
             phaseId: requiredText(body.phaseId, "ID fase", 100),
             mode: enumValue(body.mode || "PRODUCTION", SESSION_MODES, "Modalità sessione"),
+            piecesPerPulse: (() => {
+                const value = Number(body.piecesPerPulse);
+                if (!Number.isSafeInteger(value) || value < 1) throw badRequest("Indica un numero intero positivo di pezzi per battito.");
+                return value;
+            })(),
             choice,
             attributedPieces,
             reasonCode: optionalText(body.reasonCode, 120),
@@ -415,6 +422,22 @@ export function registerMesRoutes(router: Router) {
         }
         const phases = phaseValues.map((phase: unknown) => parsePhaseDraft(phase, order));
         sendJson(res, 201, await addMesOrder(order, phases, actionContext(req)));
+    });
+
+    router.register("PUT", "/api/mes/orders/:orderId/editor", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await saveMesOrderAndPhase({
+            orderId: requiredText(params.orderId, "ID ordine", 100),
+            order: parseOrderDraft(body.order), baseRevision: revision(body.baseRevision),
+            phaseId: requiredText(body.phaseId, "ID fase", 100),
+            phase: parsePhaseDraft(body.phase), phaseRevision: revision(body.phaseRevision),
+        }, actionContext(req)));
+    });
+
+    router.register("DELETE", "/api/mes/phases/:phaseId", async (req, res, params) => {
+        const body: any = (await readJsonBody(req)) || {};
+        sendJson(res, 200, await removeMesPhase(requiredText(params.phaseId, "ID fase", 100),
+            revision(body.baseRevision), actionContext(req)));
     });
 
     router.register("GET", "/api/mes/orders/:orderId", async (_req, res, params) => {

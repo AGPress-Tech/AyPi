@@ -193,6 +193,9 @@ export type MesMachineSession = {
     setupPieces: number;
     goodPieces: number;
     scrapPieces: number;
+    sessionGoodPieces: number;
+    sessionScrapPieces: number;
+    piecesPerPulse: number | null;
     targetQuantity: number;
     progressPercent: number;
     standardCycleSeconds: number;
@@ -204,6 +207,7 @@ export type MesActivationPreview = {
     machineId: string;
     phaseId: string;
     unassignedPieces: number;
+    unassignedPulses: number;
     unassignedEvents: number;
     firstUnassignedAt: string;
     lastUnassignedAt: string;

@@ -29,6 +29,7 @@ export function activateMesPhase(input: {
     machineId: string;
     phaseId: string;
     mode: MesSessionMode;
+    piecesPerPulse: number;
     choice?: MesUnassignedChoice;
     attributedPieces?: number;
     reasonCode?: string;

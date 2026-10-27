@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { getMesSqliteDatabase, runMesSqliteTransaction } from "../../shared/db/mes-sqlite";
+import { getMesSqliteDatabase, runMesSqliteTransaction, persistMesSqliteDatabase } from "../../shared/db/mes-sqlite";
 import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 import type {
     MachineCounterEvent,
@@ -91,6 +91,7 @@ export function initializeMesSqliteStore() {
             collector_id TEXT NOT NULL,
             source_session_id TEXT NOT NULL,
             acquisition_status TEXT NOT NULL,
+            operating_state TEXT NOT NULL DEFAULT 'UNMONITORED',
             detected INTEGER NOT NULL,
             pulses INTEGER NOT NULL,
             pieces REAL NOT NULL,
@@ -120,6 +121,20 @@ export function initializeMesSqliteStore() {
             ON mes_machine_state_intervals (machine_id, started_at DESC);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_machine_interval_open
             ON mes_machine_state_intervals (machine_id) WHERE ended_at = '';
+
+        CREATE TABLE IF NOT EXISTS mes_machine_operating_intervals (
+            interval_id TEXT PRIMARY KEY,
+            machine_id TEXT NOT NULL,
+            session_id TEXT NOT NULL DEFAULT '',
+            state TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT NOT NULL DEFAULT '',
+            source_session_id TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_operating_intervals_machine_time
+            ON mes_machine_operating_intervals (machine_id, started_at DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_operating_interval_open
+            ON mes_machine_operating_intervals (machine_id) WHERE ended_at = '';
 
         CREATE TABLE IF NOT EXISTS mes_orders (
             order_id TEXT PRIMARY KEY,
@@ -342,7 +357,45 @@ export function initializeMesSqliteStore() {
             database.exec(`ALTER TABLE mes_orders ADD COLUMN ${column} ${definition}`);
         }
     });
+    const existingMachineColumns = new Set(
+        (database.exec("PRAGMA table_info(mes_machine_current)")?.[0]?.values || [])
+            .map((row: unknown[]) => String(row[1])),
+    );
+    if (!existingMachineColumns.has("operating_state")) {
+        database.exec("ALTER TABLE mes_machine_current ADD COLUMN operating_state TEXT NOT NULL DEFAULT 'UNMONITORED'");
+    }
+    const sessionColumns = database.exec("PRAGMA table_info(mes_machine_sessions)")?.[0]?.values || [];
+    if (!sessionColumns.some((row: unknown[]) => row[1] === "activation_id")) {
+        database.exec("ALTER TABLE mes_machine_sessions ADD COLUMN activation_id TEXT NOT NULL DEFAULT ''");
+        backfillMesActivationIds(database);
+    }
+    if (!sessionColumns.some((row: unknown[]) => row[1] === "pieces_per_pulse")) {
+        database.exec("ALTER TABLE mes_machine_sessions ADD COLUMN pieces_per_pulse INTEGER");
+    }
+    const allocationColumns = database.exec("PRAGMA table_info(mes_event_allocations)")?.[0]?.values || [];
+    if (!allocationColumns.some((row: unknown[]) => row[1] === "source_piece_quantity")) {
+        database.exec("ALTER TABLE mes_event_allocations ADD COLUMN source_piece_quantity REAL");
+    }
+    const phaseColumns = database.exec("PRAGMA table_info(mes_phases)")?.[0]?.values || [];
+    if (!phaseColumns.some((row: unknown[]) => row[1] === "archived_at")) {
+        database.exec("ALTER TABLE mes_phases ADD COLUMN archived_at TEXT NOT NULL DEFAULT ''");
+    }
+    database.exec("CREATE INDEX IF NOT EXISTS idx_mes_sessions_activation ON mes_machine_sessions (activation_id)");
+    persistMesSqliteDatabase();
     mesStoreInitialized = true;
+}
+
+export function backfillMesActivationIds(database: any) {
+    const entries = resultRows(database.exec(`SELECT session_id, phase_id, machine_id, started_at, ended_at,
+        status, activation_id FROM mes_machine_sessions ORDER BY started_at, rowid`));
+    const predecessors = new Map<string, string>();
+    for (const entry of entries) {
+        const key = `${entry.machine_id}\u001f${entry.phase_id}\u001f`;
+        const activationId = entry.activation_id || predecessors.get(key + entry.started_at) || entry.session_id;
+        if (!entry.activation_id) database.run("UPDATE mes_machine_sessions SET activation_id = ? WHERE session_id = ?",
+            [activationId, entry.session_id]);
+        if (entry.status === "COMPLETED" && entry.ended_at) predecessors.set(key + entry.ended_at, activationId);
+    }
 }
 
 function updateMachineAcquisitionInterval(
@@ -378,6 +431,150 @@ function updateMachineAcquisitionInterval(
     );
 }
 
+function resolveMachineOperatingState(database: any, batch: MesCollectorBatch, machine: MesCollectorBatch["machines"][number]) {
+    if (batch.stoppedAt || !machine.detected) {
+        return { state: "UNMONITORED", sessionId: "", occurredAt: machine.observedAt || batch.sentAt };
+    }
+    const session = resultRows(database.exec(
+        `SELECT sessions.session_id, sessions.mode, sessions.started_at, sessions.pieces_per_pulse,
+                phases.standard_cycle_seconds
+         FROM mes_machine_sessions AS sessions
+         JOIN mes_phases AS phases ON phases.phase_id = sessions.phase_id
+         WHERE sessions.machine_id = ? AND sessions.status = 'ACTIVE'
+         ORDER BY sessions.started_at DESC
+         LIMIT 1`,
+        [machine.machineId],
+    ))[0];
+    if (!session) return { state: "IDLE", sessionId: "", occurredAt: machine.observedAt || batch.sentAt };
+    if (session.mode === "SETUP") {
+        return { state: "SETUP", sessionId: String(session.session_id), occurredAt: machine.observedAt || batch.sentAt };
+    }
+    const standardCycleSeconds = (Number(session.standard_cycle_seconds) || 0) * (Number(session.pieces_per_pulse) || 1);
+    const startedAtMs = Date.parse(String(session.started_at || ""));
+    const lastPieceAtMs = Date.parse(machine.lastPieceAt || "");
+    const observedAtMs = Date.parse(machine.observedAt || batch.sentAt);
+    const hasPieceInSession = standardCycleSeconds > 0
+        && Number.isFinite(lastPieceAtMs)
+        && Number.isFinite(startedAtMs)
+        && lastPieceAtMs >= startedAtMs;
+    const productionUntilMs = hasPieceInSession
+        ? lastPieceAtMs + standardCycleSeconds * 2000
+        : 0;
+    if (hasPieceInSession && Number.isFinite(observedAtMs) && observedAtMs <= productionUntilMs) {
+        return {
+            state: "PRODUCTION",
+            sessionId: String(session.session_id),
+            occurredAt: new Date(lastPieceAtMs).toISOString(),
+        };
+    }
+    return {
+        state: "STOPPED",
+        sessionId: String(session.session_id),
+        occurredAt: productionUntilMs > 0 && productionUntilMs <= observedAtMs
+            ? new Date(productionUntilMs).toISOString()
+            : machine.observedAt || batch.sentAt,
+    };
+}
+
+function updateMachineOperatingInterval(
+    database: any,
+    input: {
+        machineId: string;
+        sessionId: string;
+        sourceSessionId: string;
+        state: string;
+        occurredAt: string;
+    },
+) {
+    const current = resultRows(database.exec(
+        `SELECT interval_id, session_id, state, started_at
+         FROM mes_machine_operating_intervals
+         WHERE machine_id = ? AND ended_at = ''
+         LIMIT 1`,
+        [input.machineId],
+    ))[0];
+    if (current && input.occurredAt < current.started_at) input.occurredAt = current.started_at;
+    if (current?.state === input.state && String(current?.session_id || "") === input.sessionId) return;
+    if (current) {
+        database.run(
+            `UPDATE mes_machine_operating_intervals SET ended_at = ? WHERE interval_id = ?`,
+            [input.occurredAt, current.interval_id],
+        );
+    }
+    database.run(
+        `INSERT INTO mes_machine_operating_intervals
+         (interval_id, machine_id, session_id, state, started_at, ended_at, source_session_id)
+         VALUES (?, ?, ?, ?, ?, '', ?)`,
+        [randomUUID(), input.machineId, input.sessionId, input.state,
+            input.occurredAt, input.sourceSessionId],
+    );
+}
+
+// Rebuild only the affected tail. Pulse windows, rather than sampling frequency,
+// determine production time, including events delivered after a network outage.
+function rebuildOperatingTail(database: any, machineId: string, from: string, until: string) {
+    const start = Date.parse(from), end = Date.parse(until);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return;
+    const sessions = resultRows(database.exec(`SELECT s.*, p.standard_cycle_seconds FROM mes_machine_sessions s
+        JOIN mes_phases p ON p.phase_id = s.phase_id
+        WHERE s.machine_id = ? AND s.started_at <= ? AND (s.ended_at = '' OR s.ended_at >= ?)
+        ORDER BY s.started_at`, [machineId, until, from]));
+    const maxWindow = Math.max(0, ...sessions.map((s: any) => Number(s.standard_cycle_seconds) * (Number(s.pieces_per_pulse) || 1) * 2000));
+    const pulses = resultRows(database.exec(`SELECT occurred_at FROM mes_machine_events
+        WHERE machine_id = ? AND occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at`,
+        [machineId, new Date(start - maxWindow).toISOString(), until])).map((r: any) => Date.parse(r.occurred_at));
+    const snapshot = resultRows(database.exec("SELECT last_piece_at, source_session_id FROM mes_machine_current WHERE machine_id = ?", [machineId]))[0];
+    const snapshotPulse = Date.parse(snapshot?.last_piece_at || "");
+    if (Number.isFinite(snapshotPulse) && snapshotPulse <= end) pulses.push(snapshotPulse);
+    pulses.sort((a: number, b: number) => a - b);
+    const acquisition = resultRows(database.exec(`SELECT * FROM mes_machine_state_intervals
+        WHERE machine_id = ? AND started_at <= ? AND (ended_at = '' OR ended_at >= ?)
+        ORDER BY started_at`, [machineId, until, from]));
+    const points = new Set<number>([start, end]);
+    const add = (time: number) => { if (Number.isFinite(time) && time >= start && time <= end) points.add(time); };
+    for (const s of sessions) {
+        add(Date.parse(s.started_at)); add(Date.parse(s.ended_at));
+        for (const pulse of pulses) {
+            if (pulse >= Date.parse(s.started_at) && (!s.ended_at || pulse < Date.parse(s.ended_at))) {
+                add(pulse); add(pulse + Number(s.standard_cycle_seconds) * (Number(s.pieces_per_pulse) || 1) * 2000);
+            }
+        }
+    }
+    for (const a of acquisition) { add(Date.parse(a.started_at)); add(Date.parse(a.ended_at)); }
+    database.run("DELETE FROM mes_machine_operating_intervals WHERE machine_id = ? AND started_at >= ?", [machineId, from]);
+    database.run("UPDATE mes_machine_operating_intervals SET ended_at = '' WHERE machine_id = ? AND started_at < ? AND (ended_at = '' OR ended_at > ?)",
+        [machineId, from, from]);
+    const ordered = [...points].sort((a, b) => a - b);
+    let lastState = "UNMONITORED";
+    for (let i = 0; i < ordered.length; i++) {
+        const at = ordered[i];
+        const iso = new Date(at).toISOString();
+        const monitored = acquisition.find((a: any) => a.started_at <= iso && (!a.ended_at || a.ended_at > iso));
+        const session = sessions.find((s: any) => s.started_at <= iso && (!s.ended_at || s.ended_at > iso));
+        let state = "UNMONITORED";
+        if (monitored?.state === "ONLINE") {
+            if (!session) state = "IDLE";
+            else if (session.mode === "SETUP") state = "SETUP";
+            else {
+                let left = 0, right = pulses.length;
+                while (left < right) {
+                    const middle = (left + right) >>> 1;
+                    if (pulses[middle] <= at) left = middle + 1; else right = middle;
+                }
+                const candidate = left > 0 ? pulses[left - 1] : undefined;
+                const lastPulse = candidate !== undefined && candidate >= Date.parse(session.started_at) ? candidate : undefined;
+                state = lastPulse !== undefined && Number(session.standard_cycle_seconds) > 0
+                    && at < lastPulse + Number(session.standard_cycle_seconds) * (Number(session.pieces_per_pulse) || 1) * 2000 ? "PRODUCTION" : "STOPPED";
+            }
+        }
+        updateMachineOperatingInterval(database, { machineId, sessionId: session?.session_id || "",
+            sourceSessionId: monitored?.source_session_id || snapshot?.source_session_id || "",
+            state, occurredAt: iso });
+        lastState = state;
+    }
+    database.run("UPDATE mes_machine_current SET operating_state = ? WHERE machine_id = ?", [lastState, machineId]);
+}
+
 export function storeCollectorBatch(
     batch: MesCollectorBatch,
     receivedAt: string,
@@ -401,7 +598,9 @@ export function storeCollectorBatch(
         }
 
         const status = batch.stoppedAt ? "STOPPED" : "ACTIVE";
-        database.run(
+        const latestSentAt = database.exec(`SELECT MAX(sent_at) FROM mes_ingest_batches
+            WHERE collector_id = ? AND source_session_id = ?`, [batch.collectorId, batch.sourceSessionId])?.[0]?.values?.[0]?.[0];
+        if (!latestSentAt || batch.sentAt >= String(latestSentAt)) database.run(
             `INSERT INTO mes_collector_sessions
              (collector_id, source_session_id, mode, status, started_at,
               last_seen_at, ended_at, first_received_at, last_received_at, batch_count)
@@ -425,7 +624,18 @@ export function storeCollectorBatch(
                 batch.sentAt, receivedAt, batch.machines.length],
         );
 
+        let machinesUpdated = 0;
         batch.machines.forEach((machine) => {
+            const previous = resultRows(database.exec("SELECT * FROM mes_machine_current WHERE machine_id = ?", [machine.machineId]))[0];
+            const observedAt = machine.observedAt || batch.sentAt;
+            if (previous && observedAt <= previous.observed_at) return;
+            machinesUpdated++;
+            if (previous?.acquisition_status === "ACTIVE"
+                && Date.parse(observedAt) - Date.parse(previous.observed_at) > 15000) {
+                updateMachineAcquisitionInterval(database, { machineId: machine.machineId,
+                    collectorId: previous.collector_id, sourceSessionId: previous.source_session_id,
+                    state: "UNMONITORED", occurredAt: new Date(Date.parse(previous.observed_at) + 15000).toISOString() });
+            }
             const acquisitionState = batch.stoppedAt
                 ? "ACQUISITION_STOPPED"
                 : machine.detected ? "ONLINE" : "NOT_DETECTED";
@@ -436,18 +646,27 @@ export function storeCollectorBatch(
                 state: acquisitionState,
                 occurredAt: machine.observedAt || batch.sentAt,
             });
+            const operating = resolveMachineOperatingState(database, batch, machine);
+            updateMachineOperatingInterval(database, {
+                machineId: machine.machineId,
+                sessionId: operating.sessionId,
+                sourceSessionId: batch.sourceSessionId,
+                state: operating.state,
+                occurredAt: operating.occurredAt,
+            });
             database.run(
                 `INSERT INTO mes_machine_current
                  (machine_id, machine_name, collector_id, source_session_id,
-                  acquisition_status, detected, pulses, pieces, pieces_last_hour,
+                  acquisition_status, operating_state, detected, pulses, pieces, pieces_last_hour,
                   last_piece_at, last_cycle_seconds, multiplier, frame_count,
                   invalid_frames, frame_at, observed_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(machine_id) DO UPDATE SET
                     machine_name = excluded.machine_name,
                     collector_id = excluded.collector_id,
                     source_session_id = excluded.source_session_id,
                     acquisition_status = excluded.acquisition_status,
+                    operating_state = excluded.operating_state,
                     detected = excluded.detected,
                     pulses = excluded.pulses,
                     pieces = excluded.pieces,
@@ -461,12 +680,13 @@ export function storeCollectorBatch(
                     observed_at = excluded.observed_at,
                     updated_at = excluded.updated_at`,
                 [machine.machineId, machine.machineName, batch.collectorId,
-                    batch.sourceSessionId, status, machine.detected ? 1 : 0,
+                    batch.sourceSessionId, status, operating.state, machine.detected ? 1 : 0,
                     machine.pulses, machine.pieces, machine.piecesLastHour,
                     machine.lastPieceAt, machine.lastCycleSeconds, machine.multiplier,
                     machine.frameCount, machine.invalidFrames, machine.frameAt,
                     machine.observedAt, receivedAt],
             );
+            rebuildOperatingTail(database, machine.machineId, previous?.observed_at || observedAt, observedAt);
         });
 
         // The batch ledger is only needed for retry deduplication. Historical
@@ -481,7 +701,7 @@ export function storeCollectorBatch(
             sourceSessionId: batch.sourceSessionId,
             batchId: batch.batchId,
             duplicate: false,
-            machinesUpdated: batch.machines.length,
+            machinesUpdated,
             receivedAt,
         };
     });
@@ -491,6 +711,18 @@ export function loadAcquisitionStatus(staleAfterSeconds = 15) {
     initializeMesSqliteStore();
     const now = Date.now();
     const database = getMesSqliteDatabase();
+    const staleMachines = resultRows(database.exec(`SELECT * FROM mes_machine_current
+        WHERE acquisition_status = 'ACTIVE' AND updated_at < ?`, [new Date(now - staleAfterSeconds * 1000).toISOString()]));
+    if (staleMachines.length) runMesSqliteTransaction(() => {
+        for (const machine of staleMachines) {
+            const expiredAt = new Date(Date.parse(machine.observed_at) + staleAfterSeconds * 1000).toISOString();
+            updateMachineAcquisitionInterval(database, { machineId: machine.machine_id,
+                collectorId: machine.collector_id, sourceSessionId: machine.source_session_id,
+                state: "UNMONITORED", occurredAt: expiredAt });
+            database.run("UPDATE mes_machine_current SET acquisition_status = 'STALE', detected = 0 WHERE machine_id = ?", [machine.machine_id]);
+            rebuildOperatingTail(database, machine.machine_id, machine.observed_at, new Date(now).toISOString());
+        }
+    });
     const sessions = resultRows(database.exec(
         `SELECT collector_id, source_session_id, mode, status, started_at,
                 last_seen_at, ended_at, first_received_at, last_received_at, batch_count
@@ -513,7 +745,7 @@ export function loadAcquisitionStatus(staleAfterSeconds = 15) {
     }));
     const machines = resultRows(database.exec(
         `SELECT machine_id, machine_name, collector_id, source_session_id,
-                acquisition_status, detected, pulses, pieces, pieces_last_hour,
+                acquisition_status, operating_state, detected, pulses, pieces, pieces_last_hour,
                 last_piece_at, last_cycle_seconds, multiplier, frame_count,
                 invalid_frames, frame_at, observed_at, updated_at
          FROM mes_machine_current
@@ -527,6 +759,7 @@ export function loadAcquisitionStatus(staleAfterSeconds = 15) {
             collectorId: row.collector_id,
             sourceSessionId: row.source_session_id,
             acquisitionStatus: stale ? "STALE" : row.acquisition_status,
+            operatingState: stale ? "UNMONITORED" : row.operating_state,
             detected: !stale && !!row.detected,
             pulses: Number(row.pulses) || 0,
             pieces: Number(row.pieces) || 0,
@@ -552,6 +785,7 @@ export function storeMachineEvents(
     initializeMesSqliteStore();
     return runMesSqliteTransaction((database) => {
         let insertedEvents = 0;
+        const affectedMachines = new Map<string, string>();
         events.forEach((event) => {
             database.run(
                 `INSERT OR IGNORE INTO ${EVENTS_TABLE} (
@@ -582,7 +816,16 @@ export function storeMachineEvents(
             );
             const inserted = database.getRowsModified();
             insertedEvents += inserted;
-            if (inserted) allocateEventToSession(database, event, importResult.importedAt, actor);
+            if (inserted) {
+                allocateEventToSession(database, event, importResult.importedAt, actor);
+                const earliest = affectedMachines.get(event.machineId);
+                if (!earliest || event.occurredAt < earliest) affectedMachines.set(event.machineId, event.occurredAt);
+            }
+        });
+        affectedMachines.forEach((from, machineId) => {
+            const current = resultRows(database.exec("SELECT observed_at FROM mes_machine_current WHERE machine_id = ?", [machineId]))[0];
+            if (current?.observed_at) rebuildOperatingTail(database, machineId, from,
+                [current.observed_at, from, importResult.importedAt].sort().pop()!);
         });
 
         const completed: MesImportResult = {
@@ -617,7 +860,7 @@ export function storeMachineEvents(
 
 function allocateEventToSession(database: any, event: MachineCounterEvent, createdAt: string, actor: string) {
     const session = resultRows(database.exec(
-        `SELECT sessions.session_id, sessions.mode, sessions.status,
+        `SELECT sessions.session_id, sessions.mode, sessions.status, sessions.pieces_per_pulse,
                 COALESCE((
                     SELECT transitions.state
                     FROM mes_session_transitions AS transitions
@@ -647,9 +890,10 @@ function allocateEventToSession(database: any, event: MachineCounterEvent, creat
     database.run(
         `INSERT INTO mes_event_allocations
          (allocation_id, event_id, session_id, resolution_id, allocation_kind,
-          piece_quantity, created_at, created_by)
-         VALUES (?, ?, ?, '', ?, ?, ?, ?)`,
+          piece_quantity, source_piece_quantity, created_at, created_by)
+         VALUES (?, ?, ?, '', ?, ?, ?, ?, ?)`,
         [randomUUID(), event.eventId, session.session_id, allocationKind,
+            session.pieces_per_pulse == null ? event.pieceDelta : event.pulseDelta * Number(session.pieces_per_pulse),
             event.pieceDelta, createdAt, actor],
     );
 }
@@ -794,12 +1038,12 @@ export function loadUnassignedPieces() {
                MAX(pending.occurred_at) AS last_event_at
         FROM (
             SELECT events.event_id, events.machine_id, events.occurred_at,
-                   events.piece_delta - COALESCE(SUM(allocations.piece_quantity), 0) AS remaining_pieces
+                   events.piece_delta - COALESCE(SUM(COALESCE(allocations.source_piece_quantity, allocations.piece_quantity)), 0) AS remaining_pieces
             FROM mes_machine_events AS events
             LEFT JOIN mes_event_allocations AS allocations ON allocations.event_id = events.event_id
             GROUP BY events.event_id
         ) AS pending
-        WHERE pending.remaining_pieces > 0
+        WHERE pending.remaining_pieces > 0.000001
         GROUP BY pending.machine_id
         ORDER BY pending.machine_id
     `)).map((row: any) => ({

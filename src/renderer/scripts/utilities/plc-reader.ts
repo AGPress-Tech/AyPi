@@ -115,7 +115,7 @@ function machineCard(m, s) {
             m.last,
         )}</strong></div></div><div class="mc-hint">${m.multiplier} ${
             m.multiplier === 1 ? "pezzo" : "pezzi"
-        } per impulso · Produzione non deducibile dal link</div>`;
+        } per ${m.signal?.tipo === "sirena" ? "attivazione sirena" : "impulso"} · Produzione non deducibile dal link</div>`;
     } else if (k === "siren") {
         content = `<div class="mc-metrics"><div class="mc-metric"><label>ATTIVAZIONI · SESSIONE</label><strong>${fmt(
             m.siren,

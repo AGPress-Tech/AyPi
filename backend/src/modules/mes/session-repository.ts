@@ -21,7 +21,7 @@ function rows(result: any) {
 const SESSION_SELECT = `
     SELECT sessions.session_id, sessions.phase_id, phases.order_id,
            orders.order_number, phases.phase_code, phases.article_code,
-           sessions.machine_id, sessions.mode, sessions.status,
+           sessions.machine_id, sessions.mode, sessions.status, sessions.activation_id, sessions.pieces_per_pulse,
            sessions.started_at, sessions.ended_at, sessions.started_by,
            sessions.ended_by, sessions.notes, sessions.revision,
            COALESCE((
@@ -30,6 +30,22 @@ const SESSION_SELECT = `
                WHERE operators.session_id = sessions.session_id AND operators.ended_at = ''
            ), '') AS operator_names,
            phases.target_quantity, phases.standard_cycle_seconds,
+           COALESCE((SELECT SUM(a.piece_quantity) FROM mes_event_allocations a
+               WHERE a.session_id IN (SELECT s.session_id FROM mes_machine_sessions s
+                   WHERE s.activation_id = sessions.activation_id)
+                 AND a.allocation_kind IN ('PRODUCTION', 'OPENING_CREDIT', 'SETUP_GOOD')), 0)
+           + COALESCE((SELECT SUM(CASE
+                 WHEN a.kind IN ('GOOD_PIECES_ADD', 'SETUP_RECONCILIATION') THEN a.quantity
+                 WHEN a.kind = 'GOOD_PIECES_REMOVE' THEN -a.quantity ELSE 0 END)
+               FROM mes_production_adjustments a WHERE a.session_id IN
+                   (SELECT s.session_id FROM mes_machine_sessions s WHERE s.activation_id = sessions.activation_id)), 0) AS session_good_pieces,
+           COALESCE((SELECT SUM(r.scrap_pieces) FROM mes_setup_reconciliations r
+               WHERE r.session_id IN (SELECT s.session_id FROM mes_machine_sessions s
+                   WHERE s.activation_id = sessions.activation_id)), 0)
+           + COALESCE((SELECT SUM(CASE WHEN a.kind = 'SCRAP_PIECES_ADD' THEN a.quantity
+                 WHEN a.kind = 'SCRAP_PIECES_REMOVE' THEN -a.quantity ELSE 0 END)
+               FROM mes_production_adjustments a WHERE a.session_id IN
+                   (SELECT s.session_id FROM mes_machine_sessions s WHERE s.activation_id = sessions.activation_id)), 0) AS session_scrap_pieces,
            COALESCE((
                SELECT SUM(allocations.piece_quantity)
                FROM mes_event_allocations AS allocations
@@ -47,7 +63,8 @@ const SESSION_SELECT = `
                FROM mes_event_allocations AS allocations
                WHERE allocations.session_id = sessions.session_id
                  AND allocations.allocation_kind = 'SETUP_PENDING'
-           ), 0) AS setup_pieces,
+           ), 0) - COALESCE((SELECT r.detected_pieces FROM mes_setup_reconciliations r
+               WHERE r.session_id = sessions.session_id), 0) AS setup_pieces,
            COALESCE((
                SELECT SUM(CASE
                    WHEN allocations.allocation_kind IN ('PRODUCTION', 'OPENING_CREDIT', 'SETUP_GOOD')
@@ -153,6 +170,9 @@ function sessionFromRow(row: any): MesMachineSession {
         setupPieces: Number(row.setup_pieces) || 0,
         goodPieces,
         scrapPieces: Math.max(0, Number(row.scrap_pieces) || 0),
+        sessionGoodPieces: Math.max(0, Number(row.session_good_pieces) || 0),
+        sessionScrapPieces: Math.max(0, Number(row.session_scrap_pieces) || 0),
+        piecesPerPulse: row.pieces_per_pulse == null ? null : Number(row.pieces_per_pulse),
         targetQuantity,
         progressPercent: targetQuantity > 0 ? Math.min(100, goodPieces / targetQuantity * 100) : 0,
         standardCycleSeconds: Number(row.standard_cycle_seconds) || 0,
@@ -172,23 +192,27 @@ function loadSession(database: any, clause: string, params: unknown[]) {
     return row ? sessionFromRow(row) : null;
 }
 
-function loadPendingEventRows(database: any, machineId: string, until?: string) {
+function loadPendingEventRows(database: any, machineId: string, until?: string, piecesPerPulse?: number) {
     const untilClause = until ? "AND events.occurred_at <= ?" : "";
     const params = until ? [machineId, until] : [machineId];
     return rows(database.exec(
-        `SELECT events.event_id, events.occurred_at,
-                events.piece_delta - COALESCE(SUM(allocations.piece_quantity), 0) AS remaining_pieces
+        `SELECT events.event_id, events.occurred_at, events.pulse_delta, events.piece_delta,
+                events.piece_delta - COALESCE(SUM(COALESCE(allocations.source_piece_quantity, allocations.piece_quantity)), 0) AS remaining_pieces
          FROM mes_machine_events AS events
          LEFT JOIN mes_event_allocations AS allocations ON allocations.event_id = events.event_id
          WHERE events.machine_id = ? ${untilClause}
          GROUP BY events.event_id
-         HAVING remaining_pieces > 0
+         HAVING remaining_pieces > 0.000001
          ORDER BY events.occurred_at, events.event_id`,
         params,
     )).map((row: any) => ({
         eventId: row.event_id,
         occurredAt: row.occurred_at,
-        remainingPieces: Number(row.remaining_pieces) || 0,
+        remainingSourcePieces: Number(row.remaining_pieces) || 0,
+        remainingPulses: Number(row.piece_delta) > 0
+            ? Number(row.remaining_pieces) * Number(row.pulse_delta) / Number(row.piece_delta) : 0,
+        remainingPieces: piecesPerPulse === undefined ? Number(row.remaining_pieces) || 0
+            : Number(row.remaining_pieces) * Number(row.pulse_delta) / Number(row.piece_delta) * piecesPerPulse,
     }));
 }
 
@@ -245,6 +269,7 @@ export function loadActivationPreview(machineId: string, phaseId: string): MesAc
         machineId,
         phaseId,
         unassignedPieces: pending.reduce((sum, event) => sum + event.remainingPieces, 0),
+        unassignedPulses: pending.reduce((sum, event) => sum + event.remainingPulses, 0),
         unassignedEvents: pending.length,
         firstUnassignedAt: pending[0]?.occurredAt || "",
         lastUnassignedAt: pending[pending.length - 1]?.occurredAt || "",
@@ -281,6 +306,7 @@ export function startMachineSession(input: {
     machineId: string;
     phaseId: string;
     mode: MesSessionMode;
+    piecesPerPulse?: number;
     choice?: MesUnassignedChoice;
     attributedPieces?: number;
     reasonCode?: string;
@@ -291,8 +317,11 @@ export function startMachineSession(input: {
 }) {
     initializeMesSqliteStore();
     return runMesSqliteTransaction((database) => {
+        if (input.piecesPerPulse !== undefined && (!Number.isSafeInteger(input.piecesPerPulse) || input.piecesPerPulse < 1)) {
+            throw new HttpError(400, "Indica un numero intero positivo di pezzi per battito.");
+        }
         const phase = rows(database.exec(
-            "SELECT phase_id, unit, execution_status FROM mes_phases WHERE phase_id = ?",
+            "SELECT phase_id, unit, execution_status FROM mes_phases WHERE phase_id = ? AND archived_at = ''",
             [input.phaseId],
         ))[0];
         if (!phase) throw new HttpError(404, "Fase MES non trovata.");
@@ -327,8 +356,8 @@ export function startMachineSession(input: {
             });
         }
 
-        const pending = loadPendingEventRows(database, input.machineId, input.now);
-        const detectedPieces = pending.reduce((sum, event) => sum + event.remainingPieces, 0);
+        const pending = loadPendingEventRows(database, input.machineId, input.now, input.piecesPerPulse);
+        const detectedPieces = Math.round(pending.reduce((sum, event) => sum + event.remainingPieces, 0));
         let attributedPieces = 0;
         if (detectedPieces > 0) {
             if (!input.choice) {
@@ -363,6 +392,8 @@ export function startMachineSession(input: {
             [input.transitionId, input.sessionId, input.now, input.actor, input.note],
         );
         if (input.actor) addOperatorIntervals(database, input.sessionId, [input.actor], input.now, input.actor);
+        database.run("UPDATE mes_machine_sessions SET activation_id = session_id WHERE session_id = ?", [input.sessionId]);
+        database.run("UPDATE mes_machine_sessions SET pieces_per_pulse = ? WHERE session_id = ?", [input.piecesPerPulse ?? null, input.sessionId]);
 
         if (detectedPieces > 0) {
             database.run(
@@ -382,10 +413,10 @@ export function startMachineSession(input: {
                     database.run(
                         `INSERT INTO mes_event_allocations
                          (allocation_id, event_id, session_id, resolution_id, allocation_kind,
-                          piece_quantity, created_at, created_by)
-                         VALUES (?, ?, ?, ?, 'OPENING_CREDIT', ?, ?, ?)`,
+                          piece_quantity, source_piece_quantity, created_at, created_by)
+                         VALUES (?, ?, ?, ?, 'OPENING_CREDIT', ?, ?, ?, ?)`,
                         [randomUUID(), event.eventId, input.sessionId,
-                            input.resolutionId, credited, input.now, input.actor],
+                            input.resolutionId, credited, credited * event.remainingSourcePieces / event.remainingPieces, input.now, input.actor],
                     );
                     creditRemaining -= credited;
                 }
@@ -393,10 +424,10 @@ export function startMachineSession(input: {
                     database.run(
                         `INSERT INTO mes_event_allocations
                          (allocation_id, event_id, session_id, resolution_id, allocation_kind,
-                          piece_quantity, created_at, created_by)
-                         VALUES (?, ?, ?, ?, 'UNASSIGNED_EXCLUSION', ?, ?, ?)`,
+                          piece_quantity, source_piece_quantity, created_at, created_by)
+                         VALUES (?, ?, ?, ?, 'UNASSIGNED_EXCLUSION', ?, ?, ?, ?)`,
                         [randomUUID(), event.eventId, input.sessionId,
-                            input.resolutionId, excluded, input.now, input.actor],
+                            input.resolutionId, excluded, excluded * event.remainingSourcePieces / event.remainingPieces, input.now, input.actor],
                     );
                 }
             });
@@ -418,7 +449,7 @@ export function startMachineSession(input: {
         insertAudit(database, {
             auditId: input.auditIds[0], entityType: "SESSION", entityId: input.sessionId,
             action: "START", payload: { machineId: input.machineId, phaseId: input.phaseId,
-                mode: input.mode, detectedPieces, attributedPieces, excludedPieces },
+                mode: input.mode, piecesPerPulse: input.piecesPerPulse ?? null, detectedPieces, attributedPieces, excludedPieces },
             now: input.now, actor: input.actor, requestId: input.requestId,
         });
         return loadSession(database, "sessions.session_id = ?", [input.sessionId])!;
@@ -446,7 +477,7 @@ export function changeMachineSessionState(input: {
                 details: { currentRevision: current.revision },
             });
         }
-        if (current.mode === "SETUP" && input.action === "COMPLETE") {
+        if (current.mode === "SETUP") {
             throw new HttpError(409, "L'attrezzaggio deve essere riconciliato prima della chiusura.", {
                 code: "MES_SETUP_RECONCILIATION_REQUIRED",
             });
@@ -519,10 +550,10 @@ export function adjustMachineSessionProduction(input: {
         if (current.revision !== input.baseRevision) throw new HttpError(409, "La sessione è stata aggiornata da un altro operatore.");
         if (current.status !== "ACTIVE") throw new HttpError(409, "La sessione non è più modificabile.");
         if (!Number.isInteger(input.quantity) || input.quantity <= 0) throw new HttpError(400, "La quantità deve essere un intero positivo.");
-        if (input.kind === "GOOD_PIECES_REMOVE" && input.quantity > current.goodPieces) {
+        if (input.kind === "GOOD_PIECES_REMOVE" && input.quantity > current.sessionGoodPieces) {
             throw new HttpError(409, "Non puoi rimuovere più pezzi di quelli prodotti.");
         }
-        if (input.kind === "SCRAP_PIECES_REMOVE" && input.quantity > current.scrapPieces) {
+        if (input.kind === "SCRAP_PIECES_REMOVE" && input.quantity > current.sessionScrapPieces) {
             throw new HttpError(409, "Non puoi rimuovere più scarti di quelli registrati.");
         }
         database.run(
@@ -626,6 +657,9 @@ export function beginSetupForMachineSession(input: {
                 operators.join(", "), input.note],
         );
         addOperatorIntervals(database, input.setupSessionId, operators, input.now, input.actor);
+        database.run(`UPDATE mes_machine_sessions SET (activation_id, pieces_per_pulse) =
+            (SELECT activation_id, pieces_per_pulse FROM mes_machine_sessions WHERE session_id = ?) WHERE session_id = ?`,
+            [input.sessionId, input.setupSessionId]);
         database.run(
             `INSERT INTO mes_session_transitions
              (transition_id, session_id, state, occurred_at, actor, note)
@@ -669,7 +703,10 @@ export function reconcileSetupSession(input: {
     return runMesSqliteTransaction((database) => {
         const current = loadSession(database, "sessions.session_id = ?", [input.sessionId]);
         if (!current) throw new HttpError(404, "Sessione MES non trovata.");
-        if (current.mode !== "SETUP" || current.status !== "ACTIVE") {
+        const previousReconciliation = rows(database.exec(
+            "SELECT * FROM mes_setup_reconciliations WHERE session_id = ?", [input.sessionId],
+        ))[0];
+        if (current.mode !== "SETUP" || (current.status !== "ACTIVE" && !previousReconciliation)) {
             throw new HttpError(409, "La sessione non è un attrezzaggio aperto.");
         }
         if (current.revision !== input.baseRevision) {
@@ -678,12 +715,13 @@ export function reconcileSetupSession(input: {
                 details: { currentRevision: current.revision },
             });
         }
-        const detectedPieces = Number(database.exec(
+        const totalDetectedPieces = Number(database.exec(
             `SELECT COALESCE(SUM(piece_quantity), 0)
              FROM mes_event_allocations
              WHERE session_id = ? AND allocation_kind = 'SETUP_PENDING'`,
             [input.sessionId],
         )?.[0]?.values?.[0]?.[0]) || 0;
+        const detectedPieces = totalDetectedPieces - Number(previousReconciliation?.detected_pieces || 0);
         const classified = input.goodPieces + input.scrapPieces + input.excludedPieces;
         if ([input.goodPieces, input.scrapPieces, input.excludedPieces].some(
             (value) => !Number.isFinite(value) || value < 0,
@@ -692,6 +730,27 @@ export function reconcileSetupSession(input: {
                 code: "MES_SETUP_RECONCILIATION_MISMATCH",
                 details: { detectedPieces, classifiedPieces: classified },
             });
+        }
+        if (previousReconciliation) {
+            if (detectedPieces <= 0) throw new HttpError(409, "Non ci sono nuovi pezzi da classificare.");
+            database.run(`UPDATE mes_setup_reconciliations SET detected_pieces = ?,
+                good_pieces = good_pieces + ?, scrap_pieces = scrap_pieces + ?,
+                excluded_pieces = excluded_pieces + ? WHERE session_id = ?`,
+                [totalDetectedPieces, input.goodPieces, input.scrapPieces, input.excludedPieces, input.sessionId]);
+            if (input.goodPieces > 0) database.run(`INSERT INTO mes_production_adjustments
+                (adjustment_id, machine_id, phase_id, session_id, kind, quantity, reason_code, note, created_at, actor)
+                VALUES (?, ?, ?, ?, 'SETUP_RECONCILIATION', ?, 'ATTREZZAGGIO_DATI_TARDIVI', ?, ?, ?)`,
+                [input.adjustmentId, current.machineId, current.phaseId, input.sessionId,
+                    input.goodPieces, input.note, input.now, input.actor]);
+            database.run("UPDATE mes_machine_sessions SET revision = revision + 1 WHERE session_id = ?", [input.sessionId]);
+            insertAudit(database, { auditId: input.auditId, entityType: "SESSION", entityId: input.sessionId,
+                action: "RECONCILE_LATE_SETUP", payload: { detectedPieces, goodPieces: input.goodPieces,
+                    scrapPieces: input.scrapPieces, excludedPieces: input.excludedPieces },
+                now: input.now, actor: input.actor, requestId: input.requestId });
+            return { setupSession: loadSession(database, "sessions.session_id = ?", [input.sessionId])!,
+                productionSession: null, reconciliation: { reconciliationId: previousReconciliation.reconciliation_id,
+                    detectedPieces, goodPieces: input.goodPieces, scrapPieces: input.scrapPieces,
+                    excludedPieces: input.excludedPieces, startProduction: false } };
         }
         database.run(
             `INSERT INTO mes_setup_reconciliations
@@ -746,6 +805,9 @@ export function reconcileSetupSession(input: {
             productionSession = loadSession(
                 database, "sessions.session_id = ?", [input.productionSessionId],
             );
+            database.run(`UPDATE mes_machine_sessions SET (activation_id, pieces_per_pulse) =
+                (SELECT activation_id, pieces_per_pulse FROM mes_machine_sessions WHERE session_id = ?) WHERE session_id = ?`,
+                [input.sessionId, input.productionSessionId]);
             addOperatorIntervals(database, input.productionSessionId, operators, input.now, input.actor);
             productionSession = loadSession(database, "sessions.session_id = ?", [input.productionSessionId]);
         }

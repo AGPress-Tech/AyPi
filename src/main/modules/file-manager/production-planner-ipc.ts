@@ -105,11 +105,29 @@ export function registerProductionPlannerIpc(
         }
     });
 
-    ipcMain.handle("mes-orders-list", (_event, payload) => {
+    ipcMain.handle("mes-orders-list", async (_event, payload) => {
         const search = String(payload?.search || "").trim();
-        const query = search ? `?search=${encodeURIComponent(search)}&limit=100` : "?limit=500";
-        return mesRequest(`/api/mes/orders${query}`);
+        const query = `?search=${encodeURIComponent(search)}&limit=500`;
+        const first = await mesRequest(`/api/mes/orders${query}&offset=0`);
+        if (!first.ok) return first;
+        const rows = [...first.data.rows];
+        for (let offset = rows.length; offset < first.data.total; offset = rows.length) {
+            const page = await mesRequest(`/api/mes/orders${query}&offset=${offset}`);
+            if (!page.ok) return page;
+            if (!page.data.rows.length) break;
+            rows.push(...page.data.rows);
+        }
+        return { ...first, data: { ...first.data, rows } };
     });
+
+    ipcMain.handle("mes-order-save", (_event, payload) =>
+        mesRequest(`/api/mes/orders/${encodeURIComponent(String(payload?.orderId || ""))}/editor`, {
+            method: "PUT", body: payload?.body,
+        }));
+    ipcMain.handle("mes-phase-delete", (_event, payload) =>
+        mesRequest(`/api/mes/phases/${encodeURIComponent(String(payload?.phaseId || ""))}`, {
+            method: "DELETE", body: { baseRevision: payload?.baseRevision },
+        }));
 
     ipcMain.handle("mes-assignees-list", () => mesRequest("/api/shared/assignees"));
 

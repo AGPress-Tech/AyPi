@@ -45,6 +45,7 @@
       "pezzi_per_impulso": 1,
       "stato": "validata_live_sirena_contapezzi",
       "segnale": {
+        "tipo": "sirena",
         "mac": "ec:1c:5d:0b:83:69",
         "frame_id": "0x8002",
         "byte": 4,
@@ -70,9 +71,15 @@
       "nome": "Macchina 21D300",
       "mes_nodo": null,
       "mes_etichetta": null,
-      "pezzi_per_impulso": null,
-      "stato": "sirena_validata_2_eventi",
-      "segnale": null,
+      "pezzi_per_impulso": 1,
+      "stato": "validata_live_sirena_contapezzi",
+      "segnale": {
+        "tipo": "sirena",
+        "mac": "ec:1c:5d:0b:84:6d",
+        "frame_id": "0x8008",
+        "byte": 4,
+        "bit": 1
+      },
       "segnali_stato": [
         {
           "tipo": "sirena",
