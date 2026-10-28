@@ -1,4 +1,4 @@
-/* Integration QA: real Electron IPC, Python lifecycle and layout at three widths. */
+/* Integration QA: real Electron IPC, Node collector lifecycle and layout at three widths. */
 const {app,BrowserWindow}=require('electron');
 const path=require('path');
 const fs=require('fs');
@@ -8,6 +8,10 @@ app.setPath('userData',output);
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const assert=(condition,message)=>{if(!condition)throw new Error(message)};
 app.whenReady().then(async()=>{
+    // Nessun dato DEMO deve raggiungere il backend aziendale durante i test.
+    const backend=require('http').createServer((req,res)=>{req.resume();res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:true,totalRows:0,insertedEvents:0}));});
+    await new Promise(resolve=>backend.listen(0,'127.0.0.1',resolve));
+    process.env.AYPI_FP_BACKEND_URL='http://127.0.0.1:'+backend.address().port+'/api/ferie-permessi';
     BrowserWindow.prototype.show=function(){};
     BrowserWindow.prototype.maximize=function(){};
     let main,reader;
@@ -32,12 +36,11 @@ app.whenReady().then(async()=>{
         assert(snap.machines.some(m=>m.code==='21D700'&&m.device?.frame_id==='0x8003'),'21D700 provisional mapping missing');
         assert(snap.flows.some(f=>f.machine==='21D700'&&f.fid==='0x8003'),'21D700 flow label missing');
         console.log('ROBOTS',JSON.stringify(snap.machines.filter(m=>m.asset_type==='robot').map(m=>({code:m.code,online:m.online,program:m.program}))));
-        const pythonPath=process.env.AYPI_PLC_TEST_PYTHON||path.resolve(__dirname,'..','..','AyPiPLCReader','AyPiPLCReader_APP_v3_7_3','.venv','Scripts','python.exe');
         if(!process.env.AYPI_PLC_SKIP_INTERFACES){
-            const interfaces=await evaluate(`require('electron').ipcRenderer.invoke('plc-reader-interfaces',{python:${JSON.stringify(pythonPath)}})`);
+            const interfaces=await evaluate(`require('electron').ipcRenderer.invoke('plc-reader-interfaces')`);
             assert(interfaces.length>0,'No acquisition interface detected');console.log('INTERFACES',interfaces.length);
         }
-        await evaluate(`require('electron').ipcRenderer.invoke('plc-reader-control',{action:'start',mode:'DEMO',python:${JSON.stringify(pythonPath)},adapter:''})`);
+        await evaluate(`require('electron').ipcRenderer.invoke('plc-reader-control',{action:'start',mode:'DEMO',adapter:''})`);
         for(let i=0;i<50;i++){snap=await evaluate("require('electron').ipcRenderer.invoke('plc-reader-snapshot')");if(snap.machines.some(m=>m.pulses>0))break;await pause(200);}
         assert(!snap.session.error,snap.session.error);
         assert(snap.machines.some(m=>m.pulses>0),'Demo has not produced pulses');

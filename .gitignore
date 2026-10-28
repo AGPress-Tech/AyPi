@@ -69,3 +69,6 @@ config/otp-mail.json
 # local bot knowledge files
 docs/bot/ticket-support-bot-checklist.txt
 Piani_Futuri.md
+
+# SQLite Electron prebuilt assets (generated during build)
+/backend/resources/forno/native/

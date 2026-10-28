@@ -1,0 +1,63 @@
+﻿import fs from 'fs';
+import { performance } from 'perf_hooks';
+import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
+import { openDatabase } from './archive';
+import { MultiChannelArchive, historyChannels } from './multi-archive';
+import { ModbusReader, qualityLabel } from './modbus';
+
+async function main() {
+    if (!isMainThread) {
+        const db = openDatabase(workerData.dbPath, { readonly: true, fileMustExist: true });
+        db.pragma('query_only = ON');
+        parentPort!.on('message', request => {
+            try { parentPort!.postMessage({ id: request.id, result: historyChannels(db, request.fromMs, request.toMs, request.intervalMs, request.maxPoints) }); }
+            catch (error) { parentPort!.postMessage({ id: request.id, error: String((error as Error).message || error) }); }
+        });
+        return;
+    }
+    const config = JSON.parse(process.env.AYPI_FORNO_CONFIG || '{}');
+    if (!Number.isInteger(config.intervalMs) || config.intervalMs < 500 || config.intervalMs > 300000) throw new Error('Intervallo forno non valido');
+    const archive = new MultiChannelArchive(config.dbPath, { host: config.host, port: config.port, unit: config.unit, address: config.address, scale: 0.1 });
+    const reader = new ModbusReader(config.host, config.port, config.unit, config.address);
+    const queries = new Worker(__filename, { workerData: { dbPath: config.dbPath } });
+    const send = (value: unknown) => { if (process.connected) process.send!(value); };
+    queries.on('message', send);
+    queries.on('error', error => { state.error = `Archivio storico: ${error.message}`; send({ type: 'fatal', error: state.error }); void stop(); });
+    let stopping = false, timer: NodeJS.Timeout | null = null, active: Promise<void> = Promise.resolve();
+    let deadline = performance.now();
+    const state: any = { running: true, lastSample: null, error: '', intervalMs: config.intervalMs, dbPath: config.dbPath,channelCount:4,migrationBackup:archive.migrationBackup };
+    async function collect() {
+        try {
+            const t = Date.now(), results = await reader.readChannels();
+            archive.appendFrame(results.map(result=>({t,...result})));
+            const channels=results.map((result,index)=>({id:index+1,name:'Canale '+(index+1),address:config.address+index*4,timestampMs:t,temperature:result.v===null?null:result.v/10,quality:qualityLabel(result.q)}));
+            state.channels=channels;
+            state.lastSample={...channels[0],channels};
+        } catch (error) { state.error = String((error as Error).message || error); state.running = false; }
+        if (!stopping && state.running) {
+            deadline = Math.max(deadline + config.intervalMs, performance.now());
+            timer = setTimeout(() => { active = collect(); }, Math.max(0, deadline - performance.now()));
+        }
+    }
+    async function stop(id?: number) {
+        if (stopping) return;
+        stopping = true; state.running = false;
+        if (timer) clearTimeout(timer);
+        await active;
+        reader.close(); await queries.terminate(); archive.close();
+        if (id !== undefined) send({ id, result: { stopped: true } });
+        if (process.connected) process.disconnect();
+    }
+    process.on('message', (request: any) => {
+        if (stopping) return;
+        if (request.command === 'stop') { void stop(request.id).catch(error => { send({ type: 'fatal', error: String(error) }); process.exitCode = 1; }); return; }
+        if (request.command === 'history') { queries.postMessage(request); return; }
+        if (request.command === 'status') {
+            send({ id: request.id, result: { ...state, databaseBytes: fs.statSync(config.dbPath).size, walBytes: fs.existsSync(config.dbPath + '-wal') ? fs.statSync(config.dbPath + '-wal').size : 0 } });
+        } else send({ id: request.id, error: 'Comando non valido' });
+    });
+    process.once('disconnect', () => { void stop(); });
+    send({ type: 'ready' });
+    active = collect();
+}
+void main().catch(error => { if (process.connected) process.send!({ type: 'fatal', error: String(error.message || error) }); process.exitCode = 1; if (process.connected) process.disconnect(); });

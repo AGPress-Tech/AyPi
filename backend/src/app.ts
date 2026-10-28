@@ -1,3 +1,4 @@
+import { startFornoService, stopFornoService } from './modules/forno/service';
 import http from "http";
 import { backendConfig } from "./config";
 import { registerRoutes } from "./routes";
@@ -237,6 +238,9 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                                 : String(error),
                     });
                 }
+                void startFornoService().catch(error => {
+                    logger.error('Forno acquisition unavailable', { module: 'core', detail: String(error) });
+                });
                 resolveReady();
 
                 logger.info("AyPi backend listening", {
@@ -269,6 +273,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                             releaseProductionPlannerWaiters();
                             closeRealtimeHub(server);
                             void Promise.allSettled([
+                                stopFornoService(),
                                 stopTelegramBotService(),
                                 mobileGateway?.stop() || Promise.resolve(),
                             ]).finally(() => server.close((closeErr) => {
@@ -295,6 +300,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 });
             } catch (error) {
                 rejectReady(error);
+                void stopFornoService();
                 closeRealtimeHub(server);
                 if (mobileGateway) {
                     void mobileGateway.stop().catch(() => {});

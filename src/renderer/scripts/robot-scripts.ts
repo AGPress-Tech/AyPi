@@ -48,3 +48,7 @@ if (pingBtn) {
 window.addEventListener("DOMContentLoaded", () => {
     ipcRenderer.send("resize-normale");
 });
+
+document.getElementById('showForno')?.addEventListener('click', () => {
+    ipcRenderer.send('open-forno-window');
+});

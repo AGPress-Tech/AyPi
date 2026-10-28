@@ -25,7 +25,7 @@ Aggiornato al 23 ottobre 2026.
 - filtro eventi per macchina e intervallo temporale;
 - riepilogo eventi e pezzi per macchina;
 - lettura automatica incrementale del file `impulsi.csv` della sessione attiva;
-- acquisizione Python/Npcap e salvataggio CSV eseguiti sempre sul PC collegato alle macchine, senza richiedere accesso alla rete PLC dal server;
+- acquisizione TypeScript/Npcap (senza interprete esterno) e salvataggio CSV eseguiti sempre sul PC collegato alle macchine, senza richiedere accesso alla rete PLC dal server;
 - funzionamento locale indipendente dal backend MES: in caso di API non disponibili il CSV continua a crescere e la sincronizzazione riprova con attesa controllata;
 - invio dei nuovi record al MES senza intervento dell'operatore;
 - nuovo tentativo automatico senza avanzare il cursore se il backend non è disponibile;

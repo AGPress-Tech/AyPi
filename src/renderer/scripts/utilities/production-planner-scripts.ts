@@ -3607,7 +3607,6 @@ function openMesReaderSettings() {
     const session = mesReaderSnapshot?.session || {};
     (byId("mes-reader-mode") as HTMLSelectElement).value = mesReaderSnapshot?.mode === "DEMO" ? "DEMO" : "LIVE";
     (byId("mes-reader-adapter") as HTMLInputElement).value = session.adapter || "";
-    (byId("mes-reader-python") as HTMLInputElement).value = session.python || "";
     byId("mes-reader-error")!.textContent = "";
     openDialog("mes-reader-dialog");
 }
@@ -3619,7 +3618,6 @@ async function submitMesReader(event: SubmitEvent) {
             action: "start",
             mode: inputValue("mes-reader-mode"),
             adapter: inputValue("mes-reader-adapter"),
-            python: inputValue("mes-reader-python"),
         });
         closeDialog("mes-reader-dialog");
         await refreshMesRuntime();

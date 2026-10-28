@@ -10,12 +10,19 @@
     "bot-backend/src/**/*",
     "bot-backend/assets/**/*",
     "assets/**/*",
-    "package.json"
+    "package.json",
+    "!**/*.py",
+    "!**/__pycache__/**/*"
   ],
   "extraResources": [
     {
       "from": "backend/resources",
-      "to": "backend-resources"
+      "to": "backend-resources",
+      "filter": [
+        "**/*",
+        "!**/*.py",
+        "!**/__pycache__/**/*"
+      ]
     },
     {
       "from": "backend/scripts",
@@ -38,5 +45,10 @@
     "runAfterFinish": false,
     "include": "backend/scripts/backend-installer.nsh"
   },
-  "publish": null
+  "publish": null,
+  "asarUnpack": [
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/koffi/**/*",
+    "node_modules/@koromix/**/*"
+  ]
 }

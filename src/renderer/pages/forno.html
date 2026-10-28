@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html lang="it" data-theme="classic">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; connect-src 'self' file:; object-src 'none'; base-uri 'self'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AyPi — Forno</title>
+<link rel="stylesheet" href="../styles/utilities/production-planner-splash-bluearchive.css">
+<link rel="stylesheet" href="../styles/utilities/agpress-scripted-splash.css">
+<link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
+<link rel="stylesheet" href="../styles/forno.css">
+</head>
+<body class="module-splash-active agpress-scripted-splash">
+<div id="forno-splash" class="planner-splash planner-splash--bluearchive is-visible" role="status" aria-label="Apertura del modulo Forno" aria-hidden="false">
+    <div class="planner-ba-boot">
+        <div class="planner-ba-boot__grid"></div><div class="planner-ba-boot__sweep"></div>
+        <div class="planner-ba-boot__corner planner-ba-boot__corner--left">AGP // THERMAL MONITORING</div>
+        <div class="planner-ba-boot__corner planner-ba-boot__corner--right">AYPI FORNO</div>
+        <div class="planner-ba-boot__center">
+            <div class="planner-ba-boot__emblem" role="img" aria-label="AyPi">
+                <span class="planner-ba-boot__halo"></span><span class="planner-ba-boot__ay">Ay</span><span class="planner-ba-boot__pi">Pi</span><span class="planner-ba-boot__slash"></span>
+            </div>
+            <div class="planner-ba-boot__route"><i></i><span>FORNO / TEMPERATURE E CICLI</span><i></i></div>
+            <h1>Accesso al modulo <strong>Forno.</strong></h1>
+            <p>Caricamento della vista, stato acquisizione e archivio termico</p>
+            <div class="planner-ba-boot__progress"><i></i></div>
+            <div class="planner-ba-boot__status"><span data-boot-stage="interface">01&nbsp; INTERFACCIA</span><span data-boot-stage="server">02&nbsp; SERVER</span><span data-boot-stage="archive">03&nbsp; ARCHIVIO</span><span data-boot-stage="chart">04&nbsp; GRAFICO</span></div>
+        </div>
+    </div>
+    <button id="skip-forno-splash" class="splash-skip" type="button">Salta animazione <span>Esc</span></button>
+</div>
+<header class="topbar">
+    <div class="brand"><div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo" aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash" aria-hidden="true"></span></div><div><span class="eyebrow">AYPI · PRODUZIONE</span><h1>Forno <span>/ Temperature e cicli</span></h1></div></div>
+    <div class="topbar-actions">
+    <div id="module-state" class="module-state" data-state="connecting" role="status"><i></i><span>Connessione...</span></div>
+    <div class="temperature-card"><span class="eyebrow">CANALE 1 · LIVE</span><strong id="temperature">— °C</strong></div>
+    <button id="refresh-view" class="button secondary" type="button">↻ Aggiorna</button>
+    <button id="open-options" class="button secondary">Opzioni grafico</button>
+    </div>
+</header>
+<main class="workspace">
+    <section class="toolbar" aria-label="Vista temperatura">
+        <label>Risoluzione vista<select id="resolution"><option value="500">0,5 secondi</option><option value="1000" selected>1 secondo</option><option value="2000">2 secondi</option><option value="5000">5 secondi</option><option value="10000">10 secondi</option><option value="30000">30 secondi</option><option value="60000">1 minuto</option><option value="300000">5 minuti</option><option value="3600000">1 ora</option></select></label>
+        <label class="live-toggle"><input type="checkbox" id="live" checked><span class="live-dot"></span>Segui live</label>
+        <button id="select-date" class="button secondary">Seleziona data</button>
+        <div class="scale-control" role="group" aria-label="Scala temperatura"><span class="eyebrow">SCALA °C</span><div class="segmented"><button id="scale-auto" type="button" aria-pressed="true">Automatica</button><button id="scale-zero" type="button" aria-pressed="false">0 → Max + 50 °C</button></div></div>
+    </section>
+    <section class="chart-panel">
+        <div class="chart-heading"><div><span class="eyebrow">ANDAMENTO TERMICO</span><p id="range-label">Caricamento intervallo…</p></div><p id="status" role="status">Connessione al backend…</p></div>
+        <div id="channel-controls" class="channel-controls" role="group" aria-label="Canali visualizzati"></div>
+        <div class="plot"><canvas id="chart" aria-label="Grafico dei quattro canali di temperatura nel tempo" role="img"></canvas></div>
+        <footer class="chart-footer"><span>Rotella: zoom temporale <i>·</i> Trascina: scorri <i>·</i> Ctrl + trascina: analisi</span><span id="grid-summary">8 divisioni temporali</span></footer>
+    </section>
+    <details id="diagnostics" class="diagnostics"><summary>Diagnostica acquisizione</summary><p id="collector-status" role="status">Verifica acquisizione e archivio sul server…</p></details>
+</main>
+<dialog id="date-dialog" class="compact-dialog">
+    <form id="date-form"><div class="dialog-heading"><div><span class="eyebrow">ARCHIVIO FORNO</span><h2>Seleziona data</h2></div><button class="icon-close" type="button" data-close="date-dialog" aria-label="Chiudi">×</button></div>
+    <p>Apri il giorno selezionato, da mezzanotte alla fine della giornata.</p><label>Giorno<input type="date" id="selected-date" required></label><p id="date-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="button secondary" data-close="date-dialog">Annulla</button><button type="submit" class="button primary">Conferma</button></div></form>
+</dialog>
+<dialog id="options-dialog">
+    <form id="options-form"><div class="dialog-heading"><div><span class="eyebrow">PREFERENZE DELLA POSTAZIONE</span><h2>Opzioni grafico</h2></div><button class="icon-close" type="button" data-close="options-dialog" aria-label="Chiudi">×</button></div>
+    <p class="dialog-intro">Griglia e stile restano uguali a ogni apertura, solo su questo PC. Non modificano il campionamento del forno.</p>
+    <fieldset><legend>Griglia e assi</legend><div class="settings-grid">
+        <label>Divisioni temporali<input id="opt-x-divisions" type="number" min="2" max="40" required><small>Numero di intervalli sull'asse orizzontale.</small></label>
+        <label>Data scritta ogni N linee<input id="opt-x-every" type="number" min="1" max="40" required><small>Prima e ultima sono sempre scritte.</small></label>
+        <label>Divisioni temperatura<input id="opt-y-divisions" type="number" min="2" max="30" required></label>
+        <label>Gradi scritti ogni N linee<input id="opt-y-every" type="number" min="1" max="30" required></label>
+        <label>Formato etichette data<select id="opt-date-labels"><option value="datetime">Data e ora</option><option value="time">Ora · data completa agli estremi</option></select></label>
+        <label>Decimali temperatura<select id="opt-decimals"><option value="0">0 decimali</option><option value="1">1 decimale</option><option value="2">2 decimali</option><option value="3">3 decimali</option></select></label>
+    </div><p class="settings-note" id="division-preview">8 divisioni = 8 intervalli e 9 linee.</p></fieldset>
+    <fieldset><legend>Aspetto</legend><div class="settings-grid">
+        <label>Tema<select id="opt-theme"><option value="classic">AyPi classico · ambra</option><option value="blue">AyPi · blu</option><option value="dark">Scuro</option></select></label>
+        <label>Spessore curva<select id="opt-line-width"><option value="1">Sottile</option><option value="2">Normale</option><option value="3">Marcato</option><option value="4">Spesso</option><option value="5">Molto spesso</option></select></label>
+        <label>Intensità griglia (%)<input id="opt-grid-opacity" type="number" min="5" max="60" required></label>
+        <div class="checkboxes"><label><input id="opt-legend" type="checkbox">Mostra legenda delle curve</label><label><input id="opt-envelope" type="checkbox">Mostra intervallo minima / massima</label><label><input id="opt-points" type="checkbox">Mostra punti della curva</label><label><input id="opt-diagnostics" type="checkbox">Diagnostica aperta all'avvio</label></div>
+    </div></fieldset>
+    <p id="preferences-status" class="settings-note" role="status">Preferenze salvate localmente.</p>
+    <div class="dialog-actions"><button id="reset-options" type="button" class="button subtle">Ripristina valori iniziali</button><span></span><button type="button" class="button secondary" data-close="options-dialog">Annulla</button><button type="submit" class="button primary">Salva preferenze</button></div></form>
+</dialog>
+<dialog id="report"><div class="dialog-heading"><div><span class="eyebrow">CAMPIONI ORIGINALI</span><h2>Analisi intervallo</h2></div><button class="icon-close" data-close="report" aria-label="Chiudi">×</button></div><div id="report-content"></div><form method="dialog" class="dialog-actions"><button class="button primary">Chiudi</button></form></dialog>
+<script src="../scripts/forno-scripts.js"></script>
+</body>
+</html>

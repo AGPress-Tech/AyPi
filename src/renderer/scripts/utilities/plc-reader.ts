@@ -570,7 +570,6 @@ function updateSession(session) {
     if (!session) return;
     if (!sessionInitialized) {
         $("session-adapter").value = session.adapter || "";
-        $("session-python").value = session.python || "";
         sessionInitialized = true;
     }
     $("session-start").disabled = session.running;
@@ -612,7 +611,6 @@ $("session-form").addEventListener("submit", async (event) => {
             action: "start",
             mode: $("session-mode").value,
             adapter: $("session-adapter").value,
-            python: $("session-python").value,
         });
         $("session-feedback").textContent = "";
         $("session-dialog").close();
@@ -644,7 +642,6 @@ detectButton.addEventListener("click", async () => {
     $("session-feedback").textContent = "Rilevamento schede…";
     try {
         const interfaces = await ipcRenderer.invoke("plc-reader-interfaces", {
-            python: $("session-python").value,
         });
         adapterSelect.replaceChildren(
             ...interfaces.map((item) => new Option(item.name, item.id)),

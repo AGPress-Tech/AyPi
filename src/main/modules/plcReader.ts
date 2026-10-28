@@ -2,8 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
-import { createInterface } from 'readline';
+import { fork, ChildProcess, ForkOptions } from 'child_process';
 import { getRobotStatus } from './robotManager';
 import { requestAypiBackend } from './file-manager/backend-client';
 
@@ -11,13 +10,12 @@ const resources = () => path.join(__dirname, '..', 'templates', 'plc-reader').re
 const dataFolder = () => path.join(app.getPath('userData'), 'plc-reader');
 const defaultInterface = '\\Device\\NPF_{71BC7015-44BB-42D0-A6EA-6DE32C878BAE}';
 let window: BrowserWindow | null = null;
-let processWorker: ChildProcessWithoutNullStreams | null = null;
+let processWorker: ChildProcess | null = null;
 let state: any = null;
 let events: any[] = [];
 let error = '';
 let running = false;
 let mode = 'IDLE';
-let python = '';
 let adapter = defaultInterface;
 let robotRows: any[] = [];
 let robotPending = false;
@@ -108,18 +106,7 @@ async function refreshRobots() {
     } finally { robotPending = false; }
 }
 
-function pythonCommand() {
-    const configured = python.trim().replace(/^"(.*)"$/, '$1');
-    const isPath = path.isAbsolute(configured) || /[\\/]/.test(configured);
-    if (configured && (!isPath || fs.existsSync(configured))) return {command:configured, prefix:[]};
-    const candidates = [
-        path.join(dataFolder(), 'runtime', process.platform === 'win32' ? 'Scripts' : 'bin', process.platform === 'win32' ? 'python.exe' : 'python'),
-        path.join(app.getAppPath(), '.venv', 'Scripts', 'python.exe'),
-        path.join(app.getAppPath(), '..', 'AyPiPLCReader', 'AyPiPLCReader_APP_v3_7_3', '.venv', 'Scripts', 'python.exe'),
-    ];
-    const found = candidates.find(p => fs.existsSync(p));
-    return found ? {command:found, prefix:[]} : {command:process.platform==='win32'?'py':'python3', prefix:process.platform==='win32'?['-3']:[]};
-}
+const collectorPath = () => path.join(__dirname, 'plc-reader', 'worker.js');
 
 function registerCsvAutoImport(folder: string) {
     const filePath = path.join(folder,'impulsi.csv');
@@ -271,7 +258,7 @@ function stopWorker() {
     processWorker = null;
     running = false;
     if (child) {
-        child.stdin.write(JSON.stringify({kind:'stop'})+'\n', () => {});
+        child.send({kind:'stop'}, () => {});
         const fallback = setTimeout(() => { if (child.exitCode === null) child.kill(); }, 3500);
         fallback.unref();
     }
@@ -279,10 +266,8 @@ function stopWorker() {
 
 function startWorker(nextMode: string) {
     if (processWorker) throw new Error('Arresta la sessione corrente prima di avviarne una nuova.');
-    const cmd = pythonCommand();
-    if (!cmd.prefix.length) python = cmd.command;
     fs.mkdirSync(dataFolder(), {recursive:true});
-    fs.writeFileSync(path.join(dataFolder(), 'settings.json'), JSON.stringify({python, adapter}));
+    fs.writeFileSync(path.join(dataFolder(), 'settings.json'), JSON.stringify({adapter}));
     error = ''; mode = nextMode; state = null; events = [];
     const folder = path.join(dataFolder(), 'registrazioni', new Date().toISOString().replace(/[:.]/g,'-'));
     collectorSessionId=path.basename(folder);
@@ -291,32 +276,29 @@ function startWorker(nextMode: string) {
     collectorNextRetryAt=0;
     collectorSyncError='';
     registerCsvAutoImport(folder);
-    const child = spawn(cmd.command, [...cmd.prefix, path.join(resources(),'worker.py'),
-        '--folder',folder, '--mode',nextMode, '--iface',adapter], {windowsHide:true, env:{...process.env, PYTHONIOENCODING:'utf-8', PYTHONUNBUFFERED:'1'}});
+    const child = fork(collectorPath(), [], {
+        windowsHide:true, stdio:['ignore','pipe','pipe','ipc'],
+        env:{...process.env,ELECTRON_RUN_AS_NODE:'1',AYPI_PLC_CONFIG:JSON.stringify({folder,mode:nextMode,adapter,configPath:path.join(resources(),'macchine.json')})},
+    } as ForkOptions & {windowsHide:boolean});
     processWorker = child; running = true;
-    child.stdin.on('error', () => {});
     let stderr = '';
-    const lines = createInterface({input:child.stdout});
-    lines.on('line', line => {
+    child.on('message', (value:any) => {
         if (processWorker !== child) return;
-        try {
-            const value = JSON.parse(line);
-            if (value.error) { error = value.error; stopWorker(); return; }
-            state = value;
-            events = [...(value.events || []).reverse(), ...events].slice(0,500);
-        } catch { /* Ignore non-protocol diagnostic lines. */ }
+        if (value.error) { error = value.error; stopWorker(); return; }
+        state = value;
+        events = [...(value.events || []).reverse(), ...events].slice(0,500);
     });
     child.stderr.on('data', data => { stderr = (stderr + data.toString()).slice(-4000); });
     child.on('error', () => {
         if (processWorker !== child) return;
-        error = 'Python non disponibile. Indica il percorso di Python nelle impostazioni della sessione.';
+        error = 'Impossibile avviare il collector incluso in AyPi.';
         processWorker = null; running = false;
     });
     child.on('close', code => {
         if (processWorker !== child) return;
         void flushCollectorSnapshot(new Date().toISOString());
         processWorker = null; running = false;
-        if (code) error = stderr.includes('scapy') ? 'Scapy non installato nel Python selezionato. Installa scapy e Npcap per la lettura LIVE.' : stderr || `Lettore terminato (codice ${code}).`;
+        if (code) error = stderr || `Lettore terminato (codice ${code}).`;
     });
 }
 
@@ -327,7 +309,7 @@ export function setupPlcReader(mainWindow: BrowserWindow) {
         collectorSyncTimer=setInterval(()=>void flushCollectorSnapshot(),MES_SYNC_INTERVAL_MS);
         collectorSyncTimer.unref?.();
     }
-    try { const saved=JSON.parse(fs.readFileSync(path.join(dataFolder(),'settings.json'),'utf8')); python=saved.python||''; adapter=saved.adapter||defaultInterface; } catch {}
+    try { const saved=JSON.parse(fs.readFileSync(path.join(dataFolder(),'settings.json'),'utf8')); adapter=saved.adapter||defaultInterface; } catch {}
     const authorized = (event: Electron.IpcMainInvokeEvent) => {
         if (window && !window.isDestroyed() && event.sender === window.webContents) return true;
         try {
@@ -353,29 +335,23 @@ export function setupPlcReader(mainWindow: BrowserWindow) {
         if(!authorized(event))throw new Error('Finestra non autorizzata');
         const snapshot=state||emptySnapshot();
         return {...snapshot,now:Date.now()/1000,mode,machines:[...snapshot.machines,...robotRows],
-            session:{running,error,python,adapter,folder:dataFolder(),mesImport:activeCsvImportSnapshot(),
+            session:{running,error,adapter,folder:dataFolder(),mesImport:activeCsvImportSnapshot(),
                 mesCollector:{collectorId:collectorId(),sourceSessionId:collectorSessionId,lastSentAt:collectorLastSentAt,
                     lastAckAt:collectorLastAckAt,error:collectorSyncError,pending:collectorSyncBusy,
                     nextRetryAt:collectorNextRetryAt?new Date(collectorNextRetryAt).toISOString():''}},warnings:[]};
     });
     ipcMain.handle('plc-reader-events', event => { if(!authorized(event))return [];return events.slice(0,100); });
-    ipcMain.handle('plc-reader-interfaces', (event,payload) => {
+    ipcMain.handle('plc-reader-interfaces', (event) => {
         if(!authorized(event))throw new Error('Finestra non autorizzata');
-        const previousPython=python;
-        if(typeof payload?.python==='string')python=payload.python.trim().slice(0,1000);
-        const cmd=pythonCommand();python=previousPython;
         return new Promise((resolve,reject)=>{
-            const child=spawn(cmd.command,[...cmd.prefix,path.join(resources(),'worker.py'),'--folder',dataFolder(),'--interfaces'],{windowsHide:true,env:{...process.env,PYTHONIOENCODING:'utf-8'}});
-            let stdout='',stderr='';
-            const timeout=setTimeout(()=>{child.kill();reject(new Error('Rilevamento schede scaduto. Verifica Python, Scapy e Npcap.'));},8000);
-            child.stdout.on('data',data=>stdout+=data.toString());
-            child.stderr.on('data',data=>stderr+=data.toString());
-            child.on('error',()=>{clearTimeout(timeout);reject(new Error('Python non disponibile. Indica il percorso dell’interprete.'));});
-            child.on('close',code=>{
-                clearTimeout(timeout);
-                if(code){reject(new Error(stderr||'Impossibile rilevare le schede. Verifica Scapy e Npcap.'));return;}
-                try{resolve(JSON.parse(stdout.trim()).interfaces);}catch{reject(new Error('Nessuna scheda rilevata.'));}
-            });
+            const child=fork(collectorPath(),[],{windowsHide:true,stdio:['ignore','pipe','pipe','ipc'],
+                env:{...process.env,ELECTRON_RUN_AS_NODE:'1',AYPI_PLC_CONFIG:JSON.stringify({interfaces:true})}} as ForkOptions & {windowsHide:boolean});
+            let stderr='',received=false;
+            const timeout=setTimeout(()=>{child.kill();reject(new Error('Rilevamento schede scaduto. Verificare Npcap e i permessi.'));},8000);
+            child.stderr?.on('data',data=>stderr=(stderr+data.toString()).slice(-4000));
+            child.on('message',(value:any)=>{clearTimeout(timeout);received=true;if(value.error)reject(new Error(value.error));else resolve(value.interfaces||[]);});
+            child.on('error',error=>{clearTimeout(timeout);reject(error);});
+            child.on('close',()=>{clearTimeout(timeout);if(!received)reject(new Error(stderr||'Nessuna scheda rilevata. Verificare Npcap.'));});
         });
     });
     ipcMain.handle('plc-reader-control', (event,payload) => {
@@ -385,7 +361,6 @@ export function setupPlcReader(mainWindow: BrowserWindow) {
         if(payload?.action==='start') {
             if(payload.mode!=='LIVE'&&payload.mode!=='DEMO')throw new Error('Modalità non valida');
             if(typeof payload.adapter==='string')adapter=payload.adapter.trim().slice(0,500);
-            if(typeof payload.python==='string')python=payload.python.trim().slice(0,1000);
             if(payload.mode==='LIVE'&&!adapter)throw new Error('Indica la scheda di acquisizione Npcap.');
             startWorker(payload.mode);return {ok:true};
         }
@@ -397,7 +372,7 @@ export function setupPlcReader(mainWindow: BrowserWindow) {
         const note=typeof payload?.note==='string'?payload.note.trim():'';
         if(!valid||!note||note.length>250)throw new Error('Marcatore non valido');
         if(!processWorker)throw new Error('Avvia una sessione prima di registrare un marcatore.');
-        processWorker.stdin.write(JSON.stringify({kind:'marker',machine:payload.machine,note})+'\n');
+        processWorker.send({kind:'marker',machine:payload.machine,note});
         return {ok:true};
     });
     app.on('before-quit',()=>{

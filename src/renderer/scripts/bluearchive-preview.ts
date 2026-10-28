@@ -207,6 +207,11 @@ const pages: Record<string, PageDefinition> = {
                 channel: "open-production-planner-window",
             }] : []),
             {
+                label: "Forno — Temperature e cicli",
+                description: "Grafico live, storico e analisi delle temperature",
+                channel: "open-forno-window",
+            },
+            {
                 label: "Stato Robot 21D500",
                 description: "Diagnostica 21D500",
                 robotAction: "status",

@@ -1,0 +1,61 @@
+/* Geometria del marchio AyPi usata dal MES / Production Planner. */
+.aypi-module-logo {
+    --aypi-logo-size: clamp(29px, 2.25vw, 36px);
+    position: relative;
+    display: inline-flex;
+    width: max-content;
+    flex: 0 0 auto;
+    align-items: baseline;
+    margin: 5px 4px 0 1px;
+    color: white;
+    font-size: var(--aypi-logo-size);
+    font-style: italic;
+    font-weight: 900;
+    letter-spacing: -0.079545em;
+    filter: drop-shadow(0 3px 5px rgba(2, 18, 38, 0.34));
+    transform: skewX(-8deg);
+}
+
+.aypi-module-logo__ay,
+.aypi-module-logo__pi {
+    font-size: 1em;
+    line-height: 0.9;
+}
+
+.aypi-module-logo__ay {
+    color: #67caff;
+}
+
+.aypi-module-logo__pi {
+    color: #f7fbff;
+}
+
+.aypi-module-logo__halo {
+    position: absolute;
+    top: -0.272727em;
+    left: 46%;
+    width: 1.022727em;
+    height: 0.340909em;
+    transform: translateX(-50%) rotate(17deg);
+    border: 0.045455em solid #dff5ff;
+    border-radius: 50%;
+    opacity: 0.86;
+}
+
+.aypi-module-logo__slash {
+    position: absolute;
+    top: -0.295455em;
+    left: 57%;
+    width: 0.056818em;
+    height: 1.318182em;
+    transform: rotate(27deg);
+    background: #67caff;
+    box-shadow: 0.147727em 0 0 rgba(103, 202, 255, 0.36);
+}
+
+
+.aypi-module-logo { filter: drop-shadow(0 2px 3px rgba(30,35,42,.12)); margin-right: 12px; }
+.aypi-module-logo__ay { color: var(--accent, #1689ed); }
+.aypi-module-logo__pi { color: var(--ink, #202936); }
+.aypi-module-logo__halo { border-color: var(--ink, #17243d); }
+.aypi-module-logo__slash { background: var(--accent, #1689ed); box-shadow: .147727em 0 0 color-mix(in srgb, var(--accent, #1689ed) 36%, transparent); }
