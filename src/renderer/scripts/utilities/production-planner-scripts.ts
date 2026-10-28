@@ -55,6 +55,7 @@ type ProductionJob = {
     materialOwner: string;
     machineId: string;
     start: string;
+    plannedStartAt?: string;
     end: string;
     durationDays: number;
     cycleSeconds: number;
@@ -114,6 +115,8 @@ const WEEKDAY_OPTIONS = [
     { value: 0, short: "Dom", label: "Domenica" },
 ];
 let dayWidth = 92;
+let timelineZoom = "days";
+const scheduleForecasts = new Map<string, any>();
 
 const materialLabels: Record<MaterialStatus, string> = {
     available: "Disponibile",
@@ -227,6 +230,8 @@ let mesOrders: any[] = [];
 let mesReaderSnapshot: any = null;
 let mesBackendAvailable = false;
 let mesRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let schedulerClockTimer: ReturnType<typeof setInterval> | null = null;
+let mesOperations: any = null;
 let mesActivationPreview: any = null;
 let mesActivationMachineId = "";
 let mesActivationMachineName = "";
@@ -258,6 +263,7 @@ let aypiMessageQueue: Promise<unknown> = Promise.resolve();
 let calendarPanSession: null | {
     originX: number;
     originStart: Date;
+    originScrollLeft: number;
     lastDeltaDays: number;
     pointerId: number;
     captureTarget: HTMLElement;
@@ -281,7 +287,7 @@ function uid(prefix: string) {
 
 function parseDate(value: string | Date) {
     if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-    const [year, month, day] = String(value).split("-").map(Number);
+    const [year, month, day] = String(value).slice(0, 10).split("-").map(Number);
     return new Date(year, (month || 1) - 1, day || 1);
 }
 
@@ -429,13 +435,117 @@ function endForProductionDuration(start: string | Date, durationDays: number, ma
 }
 
 function endForProductionSeconds(start: string | Date, requiredSeconds: number, machineId: string) {
-    let remaining = Math.max(1, Number(requiredSeconds) || 1);
-    let date = nextMachineStandardOpenDay(start, machineId);
-    for (let guard = 0; guard < 3660; guard += 1) {
-        remaining -= machineWorkingSeconds(machineId, date);
-        if (remaining <= 0) return date;
-        date = addDays(date, 1);
+    return finishInMachineCalendar(start, requiredSeconds, machineId) || parseDate(start);
+}
+
+function scheduleInstant(value: string | Date) {
+    return value instanceof Date ? new Date(value) : String(value).includes("T") ? new Date(value) : parseDate(value);
+}
+
+function machineWorkWindows(machineId: string, date: Date): Array<[Date, Date]> {
+    if (isMachineUnavailable(machineId, date)) return [];
+    const ranges: Array<[number, number]> = [];
+    for (const interval of machineWorkingHours(machineId)[String(date.getDay())] || []) {
+        const start = timeToMinutes(interval.start), end = timeToMinutes(interval.end);
+        const last = ranges[ranges.length - 1];
+        if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+        else ranges.push([start, end]);
     }
+    return ranges.map(([start, end]) => {
+        const left = parseDate(date), right = parseDate(date);
+        left.setMinutes(start); right.setMinutes(end);
+        return [left, right];
+    });
+}
+
+function finishInMachineCalendar(start: string | Date, requiredSeconds: number, machineId: string): Date | null {
+    let cursor = scheduleInstant(start);
+    let remaining = Math.max(0, Number(requiredSeconds) || 0) * 1000;
+    if (!Number.isFinite(cursor.getTime())) return null;
+    if (remaining === 0) return cursor;
+    if (!Object.values(machineWorkingHours(machineId)).some((ranges) => ranges.length)) return null;
+    for (let guard = 0; guard < 3660; guard++) {
+        for (const [left, right] of machineWorkWindows(machineId, cursor)) {
+            const from = Math.max(cursor.getTime(), left.getTime());
+            const available = Math.max(0, right.getTime() - from);
+            if (available && remaining <= available) return new Date(from + remaining);
+            remaining -= available;
+        }
+        cursor = addDays(cursor, 1);
+    }
+    return null;
+}
+
+function firstMachineWorkInstant(start: string | Date, machineId: string) {
+    const end = finishInMachineCalendar(start, 1, machineId);
+    return end ? new Date(end.getTime() - 1000) : null;
+}
+
+function formatScheduleInstant(value: Date | null, seconds = false) {
+    return value && Number.isFinite(value.getTime()) ? new Intl.DateTimeFormat("it-IT", {
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+        ...(seconds ? { second: "2-digit" } : {}),
+    }).format(value) : "Nessuna fascia di lavoro disponibile";
+}
+
+function jobScheduleForecast(job: ProductionJob, now = new Date()) {
+    const explicit = job.plannedStartAt && dateKey(new Date(job.plannedStartAt)) === job.start ? job.plannedStartAt : job.start;
+    const plannedStart = firstMachineWorkInstant(explicit || now, job.machineId) || scheduleInstant(explicit || now);
+    const plannedEnd = finishInMachineCalendar(plannedStart, jobRequiredSeconds(job), job.machineId);
+    const session = mesSessionForJob(job);
+    if (job.workStatus === "done" && session?.endedAt) {
+        const ended = new Date(session.endedAt);
+        return { start: new Date(session.startedAt), end: ended, plannedEnd, live: false, remainingSeconds: 0, cycleSeconds: job.cycleSeconds };
+    }
+    const live = session?.status === "ACTIVE" && normalizedMachineId(session.machineId) === normalizedMachineId(job.machineId);
+    if (!live) return { start: plannedStart, end: plannedEnd, plannedEnd, live: false, remainingSeconds: jobRequiredSeconds(job), cycleSeconds: job.cycleSeconds };
+    const signal = (mesReaderSnapshot?.machines || []).find((item: any) => normalizedMachineId(item.code) === normalizedMachineId(job.machineId));
+    const remaining = Math.max(0, Number(session.targetQuantity) - Number(session.goodPieces));
+    const realCycle = session.forecastCycleSeconds === undefined ? session.averageCycleSeconds : session.forecastCycleSeconds;
+    const cycleSeconds = Number(realCycle) > 0 ? Number(realCycle) : Number(session.standardCycleSeconds || job.cycleSeconds);
+    const setupElapsed = mesSessions.filter((item) => item.phaseId === session.phaseId && item.mode === "SETUP")
+        .reduce((sum, item) => sum + Math.max(0, ((item.endedAt ? Date.parse(item.endedAt) : now.getTime()) - Date.parse(item.startedAt)) / 1000), 0);
+    const setupRemaining = session.mode === "SETUP" ? Math.max(0, Number(job.setupHours) * 3600 - setupElapsed) : 0;
+    const lastPulse = Number(signal?.last) * 1000;
+    const monitored = !!signal?.frame_time && now.getTime() / 1000 - Number(signal.frame_time) <= 15;
+    const producing = session.mode === "PRODUCTION" && monitored && lastPulse >= Date.parse(session.startedAt)
+        && now.getTime() - lastPulse <= Number(session.standardCycleSeconds) * (Number(session.piecesPerPulse) || 1) * 2000;
+    const cycleCredit = producing ? Math.min(Math.max(0, (now.getTime() - lastPulse) / 1000),
+        cycleSeconds * (Number(session.piecesPerPulse) || 1), remaining * cycleSeconds) : 0;
+    const remainingSeconds = setupRemaining + Math.max(0, remaining * cycleSeconds - cycleCredit);
+    const actualStart = mesActivationStartedAt(session);
+    return { start: actualStart, end: finishInMachineCalendar(now, remainingSeconds, job.machineId), plannedEnd,
+        live: true, remainingSeconds, cycleSeconds, monitored, producing, setupRemaining,
+        realCycle: Number(realCycle) > 0,
+        efficiency: cycleSeconds > 0 ? Number(session.standardCycleSeconds) / cycleSeconds * 100 : null };
+}
+
+function displayedJobSchedule(job: ProductionJob) {
+    let forecast = scheduleForecasts.get(job.id);
+    if (!forecast) { forecast = jobScheduleForecast(job); scheduleForecasts.set(job.id, forecast); }
+    return forecast;
+}
+
+function timelinePosition(value: Date) {
+    return diffDays(value, visibleStart) + (value.getHours() * 3600 + value.getMinutes() * 60 + value.getSeconds()) / 86400;
+}
+
+function setTimelineZoom(value: string) {
+    if (!["days", "shifts", "hours"].includes(value)) return;
+    cancelActivePointerInteractions();
+    const scroll = byId("timeline-scroll");
+    const midpoint = scroll ? (scroll.scrollLeft + (scroll.clientWidth - 220) / 2) / dayWidth : 0;
+    timelineZoom = value;
+    const select = byId("timeline-zoom") as HTMLSelectElement;
+    if (select) select.value = value;
+    renderTimeline();
+    if (scroll) scroll.scrollLeft = Math.max(0, midpoint * dayWidth - (scroll.clientWidth - 220) / 2);
+}
+
+function requestedScheduleTime(lane: HTMLElement, clientX: number) {
+    const offset = Math.max(0, Math.min(visibleDays - 1 / 96, (clientX - lane.getBoundingClientRect().left) / dayWidth));
+    const date = addDays(visibleStart, Math.floor(offset));
+    if (timelineZoom !== "days") date.setMinutes(Math.floor((offset % 1) * 96 + 1e-7) * 15);
     return date;
 }
 
@@ -446,7 +556,8 @@ function jobRequiredSeconds(job: Pick<ProductionJob, "quantity" | "cycleSeconds"
 }
 
 function endForJobDuration(job: ProductionJob, start: string | Date, machineId = job.machineId) {
-    return endForProductionSeconds(start, jobRequiredSeconds(job), machineId);
+    const exact = job.plannedStartAt && dateKey(new Date(job.plannedStartAt)) === dateKey(start) ? job.plannedStartAt : start;
+    return endForProductionSeconds(exact, jobRequiredSeconds(job), machineId);
 }
 
 function shiftByProductionDays(
@@ -470,6 +581,7 @@ function shiftByProductionDays(
 function recalculateMachineSchedule(machineId: string) {
     state.jobs.forEach((job) => {
         if (job.machineId !== machineId || !job.start || job.workStatus === "done") return;
+        if (activeMesSessionForJob(job)) return;
         job.start = dateKey(nextMachineStandardOpenDay(job.start, machineId));
         job.end = dateKey(endForJobDuration(job, job.start, machineId));
         job.durationDays = Math.max(1, countProductionDays(job.start, job.end, machineId));
@@ -484,7 +596,7 @@ function insertMachineDowntime(machineId: string, blockedDates: Date[]) {
     }
     const dates = [...blockedDates].sort((left, right) => left.getTime() - right.getTime());
     const jobs = state.jobs.filter(
-        (job) => job.machineId === machineId && !!job.start && job.workStatus !== "done",
+        (job) => job.machineId === machineId && !!job.start && job.workStatus !== "done" && !activeMesSessionForJob(job),
     );
 
     dates.forEach((blockedDate) => {
@@ -826,6 +938,7 @@ function resetUndoHistory() {
 }
 
 function saveState() {
+    pinActivePlannerJobs(stateCheckpoint ? JSON.parse(stateCheckpoint) : undefined);
     const serializedState = JSON.stringify(state);
     if (!applyingUndo && stateCheckpoint && serializedState !== stateCheckpoint) {
         undoStack.push(JSON.parse(stateCheckpoint));
@@ -1138,14 +1251,15 @@ function jobMatches(job: ProductionJob) {
 function isVisible(job: ProductionJob) {
     if (!job.machineId || !job.start || !job.end) return false;
     const rangeEnd = addDays(visibleStart, visibleDays);
-    return parseDate(job.end) >= visibleStart && parseDate(job.start) < rangeEnd;
+    const schedule = displayedJobSchedule(job);
+    return (schedule.end || schedule.start) >= visibleStart && schedule.start < rangeEnd;
 }
 
 function isLate(job: ProductionJob) {
     if (!job.firstDeliveryDate || job.workStatus === "done") return false;
     const firstDelivery = parseDate(job.firstDeliveryDate);
     const today = parseDate(new Date());
-    const plannedEnd = job.end ? parseDate(job.end) : today;
+    const plannedEnd = displayedJobSchedule(job).end || today;
     const effectiveCompletion =
         plannedEnd.getTime() > today.getTime() ? plannedEnd : today;
     return effectiveCompletion.getTime() > firstDelivery.getTime();
@@ -1156,12 +1270,13 @@ function assignTracks(jobs: ProductionJob[]) {
     const result = new Map<string, number>();
     jobs
         .slice()
-        .sort((a, b) => parseDate(a.start).getTime() - parseDate(b.start).getTime())
+        .sort((a, b) => displayedJobSchedule(a).start.getTime() - displayedJobSchedule(b).start.getTime())
         .forEach((job) => {
-            const start = parseDate(job.start);
-            let track = trackEnds.findIndex((end) => end < start);
+            const schedule = displayedJobSchedule(job);
+            const start = schedule.start;
+            let track = trackEnds.findIndex((end) => end <= start);
             if (track < 0) track = trackEnds.length;
-            trackEnds[track] = parseDate(job.end);
+            trackEnds[track] = schedule.end || start;
             result.set(job.id, track);
         });
     return { tracks: result, count: Math.max(1, trackEnds.length) };
@@ -1625,13 +1740,20 @@ function renderBacklog() {
 }
 
 function renderTimeline() {
+    scheduleForecasts.clear();
     const timeline = byId("timeline");
     if (!timeline) return;
     const timelineScroll = byId("timeline-scroll");
     const labelWidth = 220;
     const availableDaysWidth = Math.max(1, (timelineScroll?.clientWidth || labelWidth + visibleDays * 92) - labelWidth);
-    dayWidth = Math.max(16, availableDaysWidth / visibleDays);
+    dayWidth = timelineZoom === "hours" ? 960 : timelineZoom === "shifts" ? 288 : Math.max(16, availableDaysWidth / visibleDays);
     timeline.dataset.range = String(visibleDays);
+    timeline.dataset.zoom = timelineZoom;
+    if (timelineScroll) timelineScroll.dataset.zoom = timelineZoom;
+    const zoomOut = byId("timeline-zoom-out") as HTMLButtonElement;
+    const zoomIn = byId("timeline-zoom-in") as HTMLButtonElement;
+    if (zoomOut) zoomOut.disabled = timelineZoom === "days";
+    if (zoomIn) zoomIn.disabled = timelineZoom === "hours";
     document.documentElement.style.setProperty("--days", String(visibleDays));
     document.documentElement.style.setProperty("--day-width", `${dayWidth}px`);
     byId("period-label")!.textContent = formatPeriod(visibleStart, visibleDays);
@@ -1640,10 +1762,13 @@ function renderTimeline() {
     const dayHeadings = Array.from({ length: visibleDays }, (_, index) => {
         const date = addDays(visibleStart, index);
         const day = date.getDay();
+        const hourStep = timelineZoom === "hours" ? 1 : 6;
+        const hours = timelineZoom !== "days" ? `<div class="day-heading__hours">${Array.from({ length: 24 / hourStep }, (_, i) => `<span style="left:${i * hourStep / 24 * 100}%">${String(i * hourStep).padStart(2, "0")}:00</span>`).join("")}</div>` : "";
         return `<div class="day-heading ${day === 0 || day === 6 ? "is-weekend" : ""} ${dateKey(date) === today ? "is-today" : ""}">
             <span>${new Intl.DateTimeFormat("it-IT", { weekday: "short" }).format(date).replace(".", "")}</span>
             <strong>${date.getDate()}</strong>
             <span>${new Intl.DateTimeFormat("it-IT", { month: "short" }).format(date).replace(".", "")}</span>
+            ${hours}
         </div>`;
     }).join("");
     const todayOffset = diffDays(new Date(), visibleStart);
@@ -1667,7 +1792,17 @@ function renderTimeline() {
     const rows = machines.map((machine) => {
         const dayGridCells = Array.from({ length: visibleDays }, (_, index) => {
             const date = addDays(visibleStart, index);
-            return `<i class="day-grid-cell${isMachineStandardClosure(machine.id, date) ? " is-weekend" : ""}"></i>`;
+            let minute = 0;
+            const closed: string[] = [];
+            const windows = machineWorkWindows(machine.id, date);
+            const shade = (left: number, right: number) => { if (right > left) closed.push(`<span class="off-shift" style="left:${left / 1440 * 100}%;width:${(right - left) / 1440 * 100}%"></span>`); };
+            for (const [left, right] of windows) {
+                const start = left.getHours() * 60 + left.getMinutes();
+                const end = dateKey(right) !== dateKey(date) ? 1440 : right.getHours() * 60 + right.getMinutes();
+                shade(minute, start); minute = end;
+            }
+            shade(minute, 1440);
+            return `<i class="day-grid-cell${isMachineStandardClosure(machine.id, date) ? " is-weekend" : ""}">${closed.join("")}</i>`;
         }).join("");
         const jobs = state.jobs.filter((job) => job.machineId === machine.id && isVisible(job) && jobMatches(job));
         const trackData = assignTracks(jobs);
@@ -1687,13 +1822,16 @@ function renderTimeline() {
                 </div>`;
             }).join("");
         const bars = jobs.map((job) => {
-            const rawStart = diffDays(job.start, visibleStart);
-            const rawEnd = diffDays(job.end, visibleStart);
+            const forecast = displayedJobSchedule(job);
+            const finish = forecast.end || forecast.start;
+            const rawStart = timelineZoom === "days" ? diffDays(forecast.start, visibleStart) : timelinePosition(forecast.start);
+            const midnightEnd = finish.getHours() === 0 && finish.getMinutes() === 0 && finish > forecast.start;
+            const rawEnd = timelineZoom === "days" ? diffDays(finish, visibleStart) + (midnightEnd ? 0 : 1) : timelinePosition(finish);
             const continuesBefore = rawStart < 0;
             const continuesAfter = rawEnd >= visibleDays;
             const clippedStart = Math.max(0, rawStart);
-            const clippedEnd = Math.min(visibleDays - 1, rawEnd);
-            const widthDays = Math.max(1, clippedEnd - clippedStart + 1);
+            const clippedEnd = Math.min(visibleDays, rawEnd);
+            const widthDays = Math.max(timelineZoom === "days" ? 1 : 1 / 96, clippedEnd - clippedStart);
             const track = trackData.tracks.get(job.id) || 0;
             const firstDelivery = job.firstDeliveryDate
                 ? `<span>1ª cons. ${formatShortDate(job.firstDeliveryDate)}${job.firstDeliveryQuantity ? ` · ${job.firstDeliveryQuantity} ${escapeHtml(job.unit)}` : ""}</span>`
@@ -1717,16 +1855,16 @@ function renderTimeline() {
                 : mesBusinessStatus === "COMPLETED" ? "done"
                     : mesBusinessStatus === "SUSPENDED" ? "not_started" : job.workStatus;
             return `<article class="job-bar material-${job.materialStatus} ${isLate(job) ? "is-late" : ""} ${continuesBefore ? "continues-before" : ""} ${continuesAfter ? "continues-after" : ""}"
-                draggable="true" tabindex="0" data-job-id="${escapeHtml(job.id)}" data-status="${renderedWorkStatus}"
+                draggable="${!activeMesSessionForJob(job)}" tabindex="0" data-job-id="${escapeHtml(job.id)}" data-status="${renderedWorkStatus}" data-live-forecast="${forecast.live}" data-schedule-locked="${!!activeMesSessionForJob(job)}"
                 style="left:${clippedStart * dayWidth + 3}px;width:${Math.max(10, widthDays * dayWidth - 6)}px;top:${track * 62 + 12}px;--job-progress:${progressPercent}%"
-                aria-label="${escapeHtml(job.customer)} · ${escapeHtml(jobTitle(job))}">
+                aria-label="${escapeHtml(job.customer)} · ${escapeHtml(jobTitle(job))} · fine ${escapeHtml(formatScheduleInstant(forecast.end))}">
                 <i class="job-bar__progress"></i>
                 ${continuesBefore ? '<i class="job-bar__continuation job-bar__continuation--before" aria-hidden="true">‹‹</i>' : ""}
                 ${continuesAfter ? '<i class="job-bar__continuation job-bar__continuation--after" aria-hidden="true">››</i>' : ""}
                 ${job.mesPhaseId ? "" : '<i class="job-resize job-resize--start" data-resize-edge="start"></i>'}
                 ${job.previousJobId ? `<button class="job-link-point job-link-point--previous" draggable="false" data-link-navigate="${escapeHtml(job.previousJobId)}" type="button" title="Vai alla lavorazione precedente" aria-label="Vai alla lavorazione precedente"></button>` : ""}
                 <strong>${escapeHtml(jobTitle(job))}</strong>
-                <small>${escapeHtml(job.customer)} · ${job.durationDays || 1} gg lav. · ${job.quantity || 0} ${escapeHtml(job.unit)}</small>
+                <small>${escapeHtml(job.customer)} · ${forecast.live ? "Fine prevista" : "Fine pianificata"} ${escapeHtml(formatScheduleInstant(forecast.end))}</small>
                 <em class="job-bar__meta">${progressLabel}${firstDelivery}</em>
                 ${job.mesPhaseId ? "" : '<i class="job-resize job-resize--end" data-resize-edge="end"></i>'}
                 ${job.nextJobId ? `<button class="job-link-point job-link-point--next" draggable="false" data-link-navigate="${escapeHtml(job.nextJobId)}" type="button" title="Vai alla lavorazione successiva" aria-label="Vai alla lavorazione successiva"></button>` : ""}
@@ -1734,9 +1872,9 @@ function renderTimeline() {
             </article>`;
         }).join("");
         const todayLine = todayOffset >= 0 && todayOffset < visibleDays
-            ? `<i class="today-line" style="left:${todayOffset * dayWidth + dayWidth / 2}px"></i>`
+            ? `<i class="today-line" style="left:${timelinePosition(new Date()) * dayWidth}px"></i>`
             : "";
-        return `<div class="machine-row" style="min-height:${rowHeight}px">
+        return `<div class="machine-row" data-schedule-machine="${escapeHtml(machine.id)}" style="min-height:${rowHeight}px">
             <div class="machine-label" style="--machine-color:${escapeHtml(machine.color)}">
                 <i class="machine-label__color"></i>
                 <div><strong>${escapeHtml(machine.name)}</strong><span>${escapeHtml(machine.department)} · ${escapeHtml(machine.category)}</span></div>
@@ -1745,12 +1883,22 @@ function renderTimeline() {
         </div>`;
     }).join("");
 
-    timeline.innerHTML = `
+    updateMesContent(timeline, `
         <div class="timeline-header">
             <div class="timeline-header__label">MACCHINA / REPARTO / CATEGORIA</div>
             <div class="days-header">${dayHeadings}</div>
         </div>
-        ${rows || `<div class="backlog-empty">Nessuna macchina corrisponde ai filtri.</div>`}`;
+        ${rows || `<div class="backlog-empty">Nessuna macchina corrisponde ai filtri.</div>`}`);
+    const liveLabel = byId("scheduler-live-status");
+    if (liveLabel) liveLabel.textContent = `Previsioni MES · ${formatSyncClock()} · calendario macchina`;
+    const tooltip = byId("job-tooltip");
+    if (tooltip?.classList.contains("is-visible")) {
+        const hovered = state.jobs.find((job) => job.id === tooltip.dataset.jobId);
+        if (hovered) {
+            tooltip.innerHTML = tooltipMarkup(hovered);
+            positionTooltip({ clientX: Number(tooltip.dataset.mouseX), clientY: Number(tooltip.dataset.mouseY) } as MouseEvent);
+        }
+    }
     requestAnimationFrame(renderJobLinks);
 }
 
@@ -2418,6 +2566,57 @@ function mesSessionForJob(job: ProductionJob) {
     ) || mesSessions.find((session) => session.phaseId === job.mesPhaseId) || null;
 }
 
+function activeMesSessionForJob(job?: ProductionJob) {
+    return job?.mesPhaseId ? mesSessions.find((session) => session.phaseId === job.mesPhaseId && session.status === "ACTIVE") || null : null;
+}
+
+function mesActivationStartedAt(session: any) {
+    const group = session.activationId ? mesSessions.filter((item) => item.activationId === session.activationId
+        && item.phaseId === session.phaseId && normalizedMachineId(item.machineId) === normalizedMachineId(session.machineId)) : [session];
+    return new Date(Math.min(...group.map((item) => Date.parse(item.startedAt))));
+}
+
+function denyActivePlannerChange(job?: ProductionJob) {
+    if (!activeMesSessionForJob(job)) return false;
+    notify("Ordine attivo: macchina e inizio effettivo sono vincolati al MES. Sospendi o chiudi l'ordine dalla pagina Produzione prima di spostarlo o rimuoverlo.");
+    return true;
+}
+
+function pinActivePlannerJobs(previous?: PlannerState) {
+    let changed = false;
+    for (const session of mesSessions.filter((item) => item.status === "ACTIVE")) {
+        let job = state.jobs.find((item) => item.mesPhaseId === session.phaseId);
+        if (!job) {
+            const saved = previous?.jobs?.find((item) => item.mesPhaseId === session.phaseId && item.machineId && item.start);
+            if (!saved) continue;
+            job = JSON.parse(JSON.stringify(saved));
+            state.jobs.push(job);
+            changed = true;
+        }
+        let machine = state.machines.find((item) => normalizedMachineId(item.id) === normalizedMachineId(session.machineId));
+        if (!machine) {
+            const saved = previous?.machines?.find((item) => normalizedMachineId(item.id) === normalizedMachineId(session.machineId));
+            if (!saved) continue;
+            machine = JSON.parse(JSON.stringify(saved));
+            state.machines.push(machine);
+            changed = true;
+        }
+        const startedAt = mesActivationStartedAt(session);
+        if (!Number.isFinite(startedAt.getTime())) continue;
+        const anchor = startedAt.toISOString();
+        if (job.machineId !== machine.id || job.start !== dateKey(startedAt) || job.plannedStartAt !== anchor) {
+            job.machineId = machine.id;
+            job.start = dateKey(startedAt);
+            job.plannedStartAt = anchor;
+            job.end = dateKey(endForJobDuration(job, startedAt, machine.id));
+            job.durationDays = Math.max(1, countProductionDays(job.start, job.end, machine.id));
+            changed = true;
+        }
+    }
+    if (changed) scheduleForecasts.clear();
+    return changed;
+}
+
 type MesBusinessStatus = "AVAILABLE" | "ACTIVE" | "SUSPENDED" | "COMPLETED";
 
 function mesPhaseBusinessStatus(phase: any): MesBusinessStatus {
@@ -2460,7 +2659,7 @@ function applyMesSessionsToPlanner() {
         if (!selection) return;
         const { order, phase } = selection;
         const calculatedDuration = calculateMesDuration(phase.targetQuantity, phase.standardCycleSeconds, phase.plannedSetupSeconds / 3600);
-        const start = dateKey(new Date());
+        const start = dateKey(mesActivationStartedAt(session));
         const end = machine ? dateKey(endForProductionSeconds(start, calculatedDuration.totalSeconds, machine.id)) : "";
         const durationDays = machine ? Math.max(1, countProductionDays(start, end, machine.id)) : calculatedDuration.days;
         state.jobs.push({
@@ -2471,7 +2670,7 @@ function applyMesSessionsToPlanner() {
             kilogramsToStamp: Number(order.kilogramsToStamp) || 0, barSize: order.barSize || "",
             quantity: phase.targetQuantity, unit: phase.unit,
             barKgBundles: order.barBundles || "", materialOwner: order.materialOwner || "", machineId: machine?.id || "",
-            start, end,
+            start, end, plannedStartAt: mesActivationStartedAt(session).toISOString(),
             durationDays, cycleSeconds: phase.standardCycleSeconds,
             setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: Math.max(1, diffDays(end, start) + 1),
             dueDate: String(order.dueAt || "").slice(0, 10),
@@ -2492,7 +2691,8 @@ function applyMesSessionsToPlanner() {
         const businessStatus = phase ? mesPhaseBusinessStatus(phase) : null;
         if (businessStatus === "ACTIVE" && actualMachine && job.machineId !== actualMachine.id) {
             job.machineId = actualMachine.id;
-            job.start = dateKey(new Date());
+            job.start = dateKey(mesActivationStartedAt(session));
+            job.plannedStartAt = mesActivationStartedAt(session).toISOString();
             job.end = dateKey(endForJobDuration(job, job.start, actualMachine.id));
             job.durationDays = Math.max(1, countProductionDays(job.start, job.end, actualMachine.id));
             changed = true;
@@ -2514,6 +2714,7 @@ function applyMesSessionsToPlanner() {
             changed = true;
         }
     });
+    if (pinActivePlannerJobs()) changed = true;
     if (changed) saveState();
 }
 
@@ -2579,7 +2780,9 @@ async function performMesRuntimeRefresh(options: { quiet?: boolean } = {}) {
             mesAssigneeGroups = assigneesResult.data.groups;
         }
         if (mesAvailable) applyMesSessionsToPlanner();
-        if (sessionsChanged && !draggedJobId && !resizeSession) renderAll();
+        if (sessionsChanged && byId("job-dialog")?.classList.contains("is-open")) updateJobStartAvailability();
+        scheduleForecasts.clear();
+        if (sessionsChanged && !draggedJobId && !resizeSession && !calendarPanSession) renderAll();
         else {
             renderMesConsole();
             renderMesOrders();
@@ -2674,8 +2877,9 @@ function mesPhaseForId(phaseId: string) {
 function createMesPlannerProjection(order: any, phase: any, persist = true) {
     const calculatedDuration = calculateMesDuration(phase.targetQuantity, phase.standardCycleSeconds, phase.plannedSetupSeconds / 3600);
     const plannedMachine = state.machines.find((machine) => normalizedMachineId(machine.id) === normalizedMachineId(phase.plannedMachineId));
-    const start = plannedMachine && phase.scheduledStart ? String(phase.scheduledStart).slice(0, 10) : "";
-    const end = start && plannedMachine ? dateKey(endForProductionSeconds(start, calculatedDuration.totalSeconds, plannedMachine.id)) : "";
+    const plannedStartAt = plannedMachine && phase.scheduledStart ? String(phase.scheduledStart) : "";
+    const start = plannedStartAt ? dateKey(new Date(plannedStartAt)) : "";
+    const end = start && plannedMachine ? dateKey(endForProductionSeconds(plannedStartAt, calculatedDuration.totalSeconds, plannedMachine.id)) : "";
     const durationDays = start && plannedMachine ? Math.max(1, countProductionDays(start, end, plannedMachine.id)) : calculatedDuration.days;
     const job: ProductionJob = {
         id: uid("job"), orderNumber: order.orderNumber, customer: order.customer || "MES",
@@ -2685,7 +2889,7 @@ function createMesPlannerProjection(order: any, phase: any, persist = true) {
         kilogramsToStamp: Number(order.kilogramsToStamp) || 0, barSize: order.barSize || "",
         quantity: phase.targetQuantity, unit: phase.unit,
         barKgBundles: order.barBundles || "", materialOwner: order.materialOwner || "", machineId: plannedMachine?.id || "", start,
-        end,
+        end, plannedStartAt,
         durationDays, cycleSeconds: phase.standardCycleSeconds,
         setupHours: phase.plannedSetupSeconds / 3600, baseSpanDays: start && end ? Math.max(1, diffDays(end, start) + 1) : durationDays,
         dueDate: String(order.dueAt || "").slice(0, 10),
@@ -2704,7 +2908,7 @@ function createMesPlannerProjection(order: any, phase: any, persist = true) {
     return job;
 }
 
-function showMesPage(page: "production" | "orders" | "scheduler" | "plc", plcView = "") {
+function showMesPage(page: "production" | "orders" | "scheduler" | "plc" | "analysis", plcView = "") {
     closeMesOrderContextMenu();
     closeMesMachineContextMenu();
     document.querySelectorAll<HTMLElement>(".mes-work-page").forEach((element) => {
@@ -2720,6 +2924,10 @@ function showMesPage(page: "production" | "orders" | "scheduler" | "plc", plcVie
     });
     if (page === "production") renderMesConsole();
     if (page === "orders") renderMesOrders();
+    if (page === 'analysis') {
+        const frame=byId('mes-analysis-frame') as HTMLIFrameElement;
+        if(frame&&!frame.getAttribute('src'))frame.src='mes-analysis.html';
+    }
     if (page === "plc") {
         const frame = byId("mes-plc-frame") as HTMLIFrameElement | null;
         if (frame) {
@@ -2909,7 +3117,7 @@ function updateMesContent(container: HTMLElement, markup: string) {
     const next = container.cloneNode(false) as HTMLElement;
     next.innerHTML = markup;
     const key = (node: Node) => node instanceof HTMLElement
-        ? node.dataset.mesMachineCard || node.dataset.mesOrderPhase || "" : "";
+        ? node.dataset.mesMachineCard || node.dataset.mesOrderPhase || node.dataset.scheduleMachine || node.dataset.jobId || "" : "";
     const patch = (current: Node, desired: Node): Node => {
         if (current.nodeType !== desired.nodeType || current.nodeName !== desired.nodeName) {
             const replacement = desired.cloneNode(true);
@@ -2943,6 +3151,7 @@ function updateMesContent(container: HTMLElement, markup: string) {
 }
 
 function mesMachineVisualState(session: any, signal: any): "production" | "setup" | "stopped" | "unmonitored" {
+    if(session?.collectionMode==='MANUAL'&&session.status==='ACTIVE')return session.mode==='SETUP'?'setup':session.manualState==='PRODUCTION'?'production':'stopped';
     if (!signal?.frame_time || Date.now() / 1000 - Number(signal.frame_time) > 15) return "unmonitored";
     if (!session || session.status !== "ACTIVE") return "stopped";
     if (session.mode === "SETUP") return "setup";
@@ -3041,11 +3250,13 @@ function renderMesConsole() {
         const wrenchIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a5 5 0 0 0-6.4 6.4L3 18l3 3 5.3-5.3a5 5 0 0 0 6.4-6.4l-3 3-3-3 3-3Z"/></svg>`;
         const userIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>`;
         return `<article class="mes-machine-card mes-machine-card--${visualState}" data-mes-machine-card="${escapeHtml(machineId)}" data-mes-machine-name="${escapeHtml(machine.name)}" style="--machine-color:${escapeHtml(machine.color)}">
-            <header><i></i><div><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.category)} · ${escapeHtml(machine.department)}</small></div><span class="mes-local-link ${online ? "is-online" : ""}">${online ? "PLC ONLINE" : "NON RILEVATO"}</span><b>${stateLabel}</b></header>
+            <header><i></i><div><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.category)} · ${escapeHtml(machine.department)}</small></div><span class="mes-local-link ${online ? "is-online" : ""}">${session?.collectionMode==='MANUAL'?'DICHIARAZIONI MANUALI':online ? "PLC ONLINE" : "NON RILEVATO"}</span><b>${stateLabel}</b></header>
             <div class="mes-machine-card__toolbar">
                 ${lateSetup ? `<button class="button button--ghost" type="button" data-mes-late-setup="${escapeHtml(lateSetup.sessionId)}">${lateSetup.setupPieces} pezzi da classificare</button>` : ""}
                 <button class="mes-icon-action ${session?.mode === "SETUP" ? "is-active" : ""}" data-mes-setup-toggle="${escapeHtml(session?.sessionId || "")}" type="button" ${session ? "" : "disabled"} title="${session?.mode === "SETUP" ? "Termina attrezzaggio" : "Inizia attrezzaggio"}">${wrenchIcon}</button>
                 <button class="mes-icon-action" data-mes-operator="${escapeHtml(session?.sessionId || "")}" type="button" ${session ? "" : "disabled"} title="Operatori sulla macchina">${userIcon}<span>${Array.isArray(session?.operatorNames) ? session.operatorNames.length : session ? 1 : 0}</span></button>
+                ${session?`<button class="button button--ghost" type="button" data-mes-sheets="${escapeHtml(session.phaseId)}">Schede attrezzaggio</button>`:''}
+                ${session?.collectionMode==='MANUAL'?`<button class="button button--ghost" type="button" data-mes-manual="${session.manualState==='PRODUCTION'?'STOP':'START'}" data-manual-session="${escapeHtml(session.sessionId)}" ${session.mode==='SETUP'?'disabled':''}>${session.manualState==='PRODUCTION'?'Ferma macchina':'Avvia macchina'}</button><button class="button button--primary" type="button" data-mes-manual="PIECES" data-manual-session="${escapeHtml(session.sessionId)}">Dichiara pezzi</button>`:''}
                 ${!session ? `<button class="button button--primary mes-machine-activate" data-mes-select-order="${escapeHtml(machineId)}" data-mes-machine-name="${escapeHtml(machine.name)}" data-mes-start-mode="PRODUCTION" type="button">Attiva ordine</button>` : ""}
             </div>
             <div class="mes-machine-card__data">
@@ -3132,6 +3343,15 @@ function renderMesActivationPiecePreview() {
     if (valid) partial.max = String(pieces); else partial.removeAttribute("max");
 }
 
+function updateMesActivationSource(){
+    const manual=inputValue('mes-activation-source')==='MANUAL';
+    const field=byId('mes-activation-pieces-per-pulse') as HTMLInputElement;
+    const previousDisabled=field.disabled;field.disabled=manual;
+    if(manual)field.value='1';else if(previousDisabled)field.value='';
+    byId('mes-activation-pieces-help')!.textContent=manual?'Le quantità saranno dichiarate direttamente in pezzi. Nessun conteggio automatico PLC verrà aggiunto a questa attivazione.':"Quanti pezzi produce la macchina a ogni colpo PLC? Indicalo a ogni attivazione dell'ordine, anche dopo una sospensione.";
+    renderMesActivationPiecePreview();
+}
+
 async function openMesActivation(machineId: string, phaseId: string) {
     const selection = mesPhaseForId(phaseId);
     if (!selection) throw new Error("Ordine MES non trovato dopo la sincronizzazione.");
@@ -3146,10 +3366,13 @@ async function openMesActivation(machineId: string, phaseId: string) {
         (byId("mes-activation-phase") as HTMLInputElement).value = phaseId;
         (byId("mes-activation-mode") as HTMLSelectElement).value = mesActivationMode;
         (byId("mes-activation-pieces-per-pulse") as HTMLInputElement).value = "";
+        const signal=(mesReaderSnapshot?.machines||[]).find((m:any)=>normalizedMachineId(m.code)===normalizedMachineId(machineId));
+        (byId('mes-activation-source') as HTMLSelectElement).value=signal?.signal||Number(signal?.frames)>0||Number(signal?.pulses)>0?'PLC':'MANUAL';
         fillMesDepartmentSelect("mes-activation-department");
         renderMesActivationOperators();
         byId("mes-activation-title")!.textContent = `${mesActivationMachineName || mesMachineDisplayName(machineId)} · ${order.orderNumber} · ${phase.phaseCode}`;
         renderMesActivationPiecePreview();
+        updateMesActivationSource();
         const options = byId("mes-unassigned-options") as HTMLElement;
         options.hidden = preview.unassignedPieces <= 0;
         document.querySelectorAll<HTMLInputElement>('input[name="mes-unassigned-choice"]').forEach((input) => {
@@ -3191,6 +3414,7 @@ async function submitMesActivation(event: SubmitEvent) {
             phaseId,
             mode: inputValue("mes-activation-mode"),
             piecesPerPulse,
+            collectionMode:inputValue('mes-activation-source'),
             unassignedChoice: choice || undefined,
             attributedPieces: choice === "PARTIAL" ? Number(inputValue("mes-attributed-pieces")) : undefined,
             reasonCode: inputValue("mes-activation-reason").trim(),
@@ -3609,13 +3833,25 @@ function updateJobStartAvailability() {
     const field = byId("job-start-field");
     const hint = byId("job-start-hint");
     if (!machine || !start) return;
+    const active = activeMesSessionForJob(state.jobs.find((job) => job.id === inputValue("job-id")));
+    const locked = !!active;
+    if (active) {
+        const actualMachine = state.machines.find((item) => normalizedMachineId(item.id) === normalizedMachineId(active.machineId));
+        if (actualMachine) machine.value = actualMachine.id;
+        start.value = dateKey(mesActivationStartedAt(active));
+    }
     const isPlanned = !!machine.value;
-    start.disabled = !isPlanned;
-    field?.classList.toggle("is-disabled", !isPlanned);
+    machine.disabled = locked;
+    const picker = byId("job-machine-picker") as HTMLButtonElement;
+    if (picker) picker.disabled = locked;
+    const remove = byId("delete-job") as HTMLButtonElement;
+    if (remove) remove.disabled = locked;
+    start.disabled = !isPlanned || locked;
+    field?.classList.toggle("is-disabled", !isPlanned || locked);
     if (!isPlanned) start.value = "";
     else if (!start.value) start.value = dateKey(new Date());
     if (hint) {
-        hint.textContent = isPlanned
+        hint.textContent = active ? `Inizio effettivo MES: ${formatScheduleInstant(mesActivationStartedAt(active), true)}. Vincolato finché l'ordine è attivo.` : isPlanned
             ? "Data prevista di avvio produzione."
             : "Disponibile dopo aver scelto una macchina.";
     }
@@ -3680,7 +3916,9 @@ function updateCalculatedJobDuration() {
     const duration = calculateMesDuration(quantity, cycleSeconds, setupHours);
     const machineId = inputValue("job-machine");
     const start = inputValue("job-start");
-    const scheduledEnd = machineId && start ? endForProductionSeconds(start, duration.totalSeconds, machineId) : null;
+    const existing = state.jobs.find((job) => job.id === inputValue("job-id"));
+    const preciseStart = existing?.machineId === machineId && existing?.start === start && existing.plannedStartAt ? existing.plannedStartAt : start;
+    const scheduledEnd = machineId && start ? finishInMachineCalendar(preciseStart, duration.totalSeconds, machineId) : null;
     const scheduledDays = scheduledEnd ? Math.max(1, countProductionDays(start, scheduledEnd, machineId)) : duration.days;
     const input = byId("job-duration") as HTMLInputElement | null;
     if (input) input.value = mesDuration(duration.totalSeconds);
@@ -3690,7 +3928,7 @@ function updateCalculatedJobDuration() {
     const hint = byId("job-duration-hint");
     if (hint) {
         hint.textContent = scheduledEnd
-            ? `${scheduledDays} ${scheduledDays === 1 ? "giorno produttivo" : "giorni produttivi"} sul calendario della macchina · fine ${formatLongDate(scheduledEnd)}.`
+            ? `${scheduledDays} ${scheduledDays === 1 ? "giorno produttivo" : "giorni produttivi"} sul calendario della macchina · fine ${formatScheduleInstant(scheduledEnd)}.`
             : "Tempo produttivo totale: attrezzaggio + quantità × tempo standard.";
     }
 }
@@ -3724,6 +3962,10 @@ function mesOrderDraft(job: ProductionJob, current?: any) {
 }
 
 function mesPhaseDraft(job: ProductionJob, sequence: number, current?: any) {
+    const active = activeMesSessionForJob(job);
+    const anchor = active ? mesActivationStartedAt(active) : null;
+    const requested = job.plannedStartAt && dateKey(new Date(job.plannedStartAt)) === job.start ? job.plannedStartAt : job.start;
+    const startAt = job.machineId && job.start ? anchor || firstMachineWorkInstant(requested, job.machineId) : null;
     return {
         phaseCode: job.phase || `FASE-${sequence}`,
         sequence,
@@ -3733,8 +3975,8 @@ function mesPhaseDraft(job: ProductionJob, sequence: number, current?: any) {
         standardCycleSeconds: job.cycleSeconds,
         plannedSetupSeconds: Math.round(job.setupHours * 3600),
         plannedMachineId: job.machineId ? job.machineId.toUpperCase() : "",
-        scheduledStart: job.machineId && job.start ? mesIsoDate(job.start, true) : "",
-        scheduledEnd: "",
+        scheduledStart: startAt?.toISOString() || "",
+        scheduledEnd: startAt ? (finishInMachineCalendar(startAt, jobRequiredSeconds(job), job.machineId)?.toISOString() || "") : "",
         planningStatus: job.machineId && job.start ? "SCHEDULED" : "BACKLOG",
         executionStatus: current?.executionStatus || "NOT_STARTED",
     };
@@ -3744,6 +3986,7 @@ function mesScheduleSignature(job: ProductionJob) {
     return JSON.stringify({
         machineId: normalizedMachineId(job.machineId),
         start: job.start,
+        plannedStartAt: job.plannedStartAt || "",
         quantity: job.quantity,
         unit: job.unit,
         cycleSeconds: job.cycleSeconds,
@@ -3941,6 +4184,7 @@ function openJob(job?: ProductionJob, asCopy = false, selectedType?: OrderType) 
     byId("job-dialog-title")!.textContent = asCopy ? "Copia ordine" : job ? "Modifica ordine" : "Nuovo ordine";
     byId("job-form-error")!.textContent = "";
     byId("delete-job")!.classList.toggle("button--hidden", !job || asCopy);
+    mesOperations?.resetOrderSheet(asCopy?'':job?.mesPhaseId||'');
     openDialog("job-dialog");
     restoreJobFormInteractivity();
 }
@@ -3958,8 +4202,15 @@ async function saveJobFromForm(event: SubmitEvent) {
     }
     const machineId = inputValue("job-machine");
     const rawStart = inputValue("job-start");
+    const editingJob = state.jobs.find((job) => job.id === editingId);
+    const active = activeMesSessionForJob(editingJob);
+    if (active && (normalizedMachineId(machineId) !== normalizedMachineId(active.machineId)
+        || rawStart !== dateKey(mesActivationStartedAt(active)))) {
+        byId("job-form-error")!.textContent = "L'ordine è attivo: macchina e inizio effettivo non possono essere modificati dal pianificatore.";
+        return;
+    }
     const start = rawStart
-        ? dateKey(nextMachineStandardOpenDay(rawStart, machineId))
+        ? active ? dateKey(mesActivationStartedAt(active)) : dateKey(nextMachineStandardOpenDay(rawStart, machineId))
         : "";
     const quantity = Number(inputValue("job-quantity")) || 0;
     const cycleSeconds = Number(inputValue("job-cycle-seconds")) || 0;
@@ -4036,6 +4287,7 @@ async function saveJobFromForm(event: SubmitEvent) {
         materialOwner: orderType === "BLANKING" ? "" : inputValue("job-material-owner").trim(),
         machineId,
         start,
+        plannedStartAt: previous?.machineId === machineId && previous?.start === start ? previous.plannedStartAt : "",
         end,
         durationDays,
         cycleSeconds,
@@ -4078,7 +4330,14 @@ async function saveJobFromForm(event: SubmitEvent) {
     }
     if (index >= 0) state.jobs[index] = job;
     else state.jobs.push(job);
+    (byId('job-id') as HTMLInputElement).value=job.id;
     saveState();
+    try { await mesOperations?.saveOrderSheet(job.mesPhaseId); }
+    catch(sheetError) {
+        error.textContent='Ordine salvato, ma scheda non collegata: '+(sheetError instanceof Error?sheetError.message:String(sheetError))+'. Riprova con Salva.';
+        restoreJobFormInteractivity();
+        return;
+    }
     closeDialog("job-dialog");
     restorePlannerWindowFocus();
     renderAll();
@@ -4096,6 +4355,7 @@ async function deleteCurrentJob() {
 async function deleteJobWithConfirmation(id: string, sourceJob?: ProductionJob) {
     const job = state.jobs.find((item) => item.id === id) || sourceJob;
     if (!job) return false;
+    if (denyActivePlannerChange(job)) return false;
     const confirmed = await nativeConfirm(
         `Eliminare la lavorazione "${jobTitle(job)}" dall'elenco ordini e dal pianificatore?\n\nLo storico di produzione rimane conservato per le analisi.`,
         "Elimina",
@@ -4452,7 +4712,7 @@ function renderContextMenu(view: "main" | "material" | "work" | "progress" | "li
                     ${menuButton("work:done", job.workStatus === "done" ? "✓" : "·", "Terminato", `${job.durationDays || 1}/${job.durationDays || 1} giorni processati`)}
                 </div>
             </div>
-            ${menuButton("delete", "×", "Elimina", "Rimuovi definitivamente", true)}`;
+            ${activeMesSessionForJob(job) ? '<div class="context-menu__heading">Ordine attivo · posizione vincolata al MES</div>' : menuButton("delete", "×", "Elimina", "Rimuovi definitivamente", true)}`;
     } else if (view === "links") {
         const candidates = linkCandidates(job, linkPickerDirection);
         const customers = [...new Set(candidates.map((candidate) => candidate.customer).filter(Boolean))]
@@ -4627,7 +4887,7 @@ function closeMachineShiftPrompt() {
 
 function shiftMachineJobs(machineId: string, deltaDays: number) {
     const jobs = state.jobs.filter(
-        (job) => job.machineId === machineId && !!job.start && !!job.end,
+        (job) => job.machineId === machineId && !!job.start && !!job.end && !activeMesSessionForJob(job),
     );
     jobs.forEach((job) => {
         const shiftedStart = shiftByProductionDays(job.start, deltaDays, machineId);
@@ -4646,9 +4906,17 @@ function shiftMachineJobs(machineId: string, deltaDays: number) {
 function scheduleJob(jobId: string, machineId: string, startDate: Date) {
     const job = state.jobs.find((item) => item.id === jobId);
     if (!job) return;
-    const scheduledStart = nextMachineStandardOpenDay(startDate, machineId);
+    const active = activeMesSessionForJob(job);
+    if (active && job.machineId && job.start && denyActivePlannerChange(job)) return;
+    if (active) {
+        if (normalizedMachineId(machineId) !== normalizedMachineId(active.machineId)) { denyActivePlannerChange(job); return; }
+        startDate = mesActivationStartedAt(active);
+    }
+    const scheduledStart = active ? startDate : firstMachineWorkInstant(startDate, machineId);
+    if (!scheduledStart) { notify("Configura almeno una fascia di lavoro disponibile per questa macchina."); return; }
     job.machineId = machineId;
     job.start = dateKey(scheduledStart);
+    job.plannedStartAt = scheduledStart.toISOString();
     job.end = dateKey(endForJobDuration(job, scheduledStart, machineId));
     job.durationDays = Math.max(1, countProductionDays(job.start, job.end, machineId));
     job.baseSpanDays = Math.max(1, diffDays(job.end, job.start) + 1);
@@ -4660,6 +4928,7 @@ function scheduleJob(jobId: string, machineId: string, startDate: Date) {
 function unscheduleJob(jobId: string) {
     const job = state.jobs.find((item) => item.id === jobId);
     if (!job) return;
+    if (denyActivePlannerChange(job)) return;
     job.machineId = "";
     saveState();
     renderAll();
@@ -4668,6 +4937,8 @@ function unscheduleJob(jobId: string) {
 
 function tooltipMarkup(job: ProductionJob) {
     const machine = state.machines.find((item) => item.id === job.machineId);
+    const forecast = displayedJobSchedule(job);
+    const deliveryDelta = forecast.end && forecast.plannedEnd ? (forecast.plannedEnd.getTime() - forecast.end.getTime()) / 1000 : null;
     const previous = state.jobs.find((item) => item.id === job.previousJobId);
     const next = state.jobs.find((item) => item.id === job.nextJobId);
     const firstDelivery = job.firstDeliveryDate
@@ -4683,8 +4954,12 @@ function tooltipMarkup(job: ProductionJob) {
             <dt>Fase</dt><dd>${escapeHtml(job.phase || "—")}</dd>
             <dt>Materiale / Lega</dt><dd>${escapeHtml(job.materialAlloy || "—")}</dd>
             <dt>Macchina</dt><dd>${escapeHtml(machine?.name || "Da pianificare")}</dd>
-            <dt>Periodo</dt><dd>${formatLongDate(job.start)} — ${formatLongDate(job.end)}</dd>
-            <dt>Durata</dt><dd>${job.durationDays || 1} giorni lavorativi</dd>
+            <dt>Inizio</dt><dd>${formatScheduleInstant(forecast.start, true)}</dd>
+            <dt>${forecast.live ? "Fine prevista MES" : "Fine pianificata"}</dt><dd>${formatScheduleInstant(forecast.end, true)}</dd>
+            <dt>Durata teorica</dt><dd>${mesDuration(jobRequiredSeconds(job))}</dd>
+            ${forecast.live ? "<dt>Posizione</dt><dd>Vincolata all'inizio effettivo e alla macchina MES</dd>" : ""}
+            ${forecast.live && deliveryDelta !== null ? `<dt>Scostamento fine</dt><dd>${Math.abs(deliveryDelta) < 1 ? "In linea con il piano" : `${deliveryDelta > 0 ? "Anticipo" : "Ritardo"} ${mesDuration(Math.abs(deliveryDelta))} rispetto al piano`}</dd>` : ""}
+            ${forecast.live ? `<dt>Lavoro rimanente</dt><dd>${mesDuration(forecast.remainingSeconds)}</dd><dt>Tempo pezzo usato</dt><dd>${mesSeconds(forecast.cycleSeconds)} ${forecast.realCycle ? "medio reale, esclusi i fermi" : "da scheda"}</dd><dt>Rendimento ciclo</dt><dd>${forecast.efficiency == null ? "—" : `${Math.round(forecast.efficiency)}%`}</dd><dt>Fine teorica</dt><dd>${formatScheduleInstant(forecast.plannedEnd, true)}</dd><dt>Ipotesi previsione</dt><dd>${!forecast.monitored ? "Segnale non disponibile; stima da confermare" : forecast.producing ? "Produzione rilevata" : "Ripartenza dal momento attuale, secondo calendario"}</dd>` : ""}
             <dt>Progresso</dt><dd>${job.progressDays || 0}/${job.durationDays || 1} giorni · ${Math.round(((job.progressDays || 0) / Math.max(1, job.durationDays || 1)) * 100)}%</dd>
             <dt>Quantità</dt><dd>${job.quantity || 0} ${escapeHtml(job.unit)}</dd>
             ${job.barKgBundles ? `<dt>Kg / Fasci di barra</dt><dd>${escapeHtml(job.barKgBundles)}</dd>` : ""}
@@ -4707,6 +4982,8 @@ function tooltipMarkup(job: ProductionJob) {
 function positionTooltip(event: MouseEvent) {
     const tooltip = byId("job-tooltip");
     if (!tooltip || !tooltip.classList.contains("is-visible")) return;
+    tooltip.dataset.mouseX = String(event.clientX);
+    tooltip.dataset.mouseY = String(event.clientY);
     const gap = 14;
     const rect = tooltip.getBoundingClientRect();
     let left = event.clientX + gap;
@@ -4722,6 +4999,7 @@ function showJobTooltip(jobId: string, event: MouseEvent) {
     const job = state.jobs.find((item) => item.id === jobId);
     const tooltip = byId("job-tooltip");
     if (!job || !tooltip) return;
+    tooltip.dataset.jobId = jobId;
     tooltip.innerHTML = tooltipMarkup(job);
     tooltip.classList.add("is-visible");
     positionTooltip(event);
@@ -4736,6 +5014,7 @@ function startJobResize(event: PointerEvent, handle: HTMLElement) {
     const edge = handle.dataset.resizeEdge as "start" | "end" | undefined;
     const job = state.jobs.find((item) => item.id === bar?.dataset.jobId);
     if (!bar || !edge || !job) return;
+    if (denyActivePlannerChange(job)) { event.preventDefault(); return; }
     event.preventDefault();
     event.stopPropagation();
     hideJobTooltip();
@@ -4843,8 +5122,10 @@ function runJobDragAutoScroll(timestamp: number) {
         const interval = 360 - jobDragHorizontalIntensity * 250;
         if (!jobDragLastHorizontalStep || timestamp - jobDragLastHorizontalStep >= interval) {
             const scrollTop = timelineScroll.scrollTop;
-            visibleStart = addDays(visibleStart, jobDragHorizontalDirection);
-            renderTimeline();
+            if (timelineZoom === "days") {
+                visibleStart = addDays(visibleStart, jobDragHorizontalDirection);
+                renderTimeline();
+            } else timelineScroll.scrollLeft += jobDragHorizontalDirection * Math.max(24, dayWidth / 24);
             timelineScroll.scrollTop = scrollTop;
             const lane = document.querySelector<HTMLElement>(
                 `.machine-days[data-machine-id="${CSS.escape(jobDragMachineId)}"]`,
@@ -4934,15 +5215,15 @@ function showDragPreview(lane: HTMLElement, clientX: number) {
     });
 
     const rect = lane.getBoundingClientRect();
-    const dayIndex = Math.max(0, Math.min(visibleDays - 1, Math.floor((clientX - rect.left) / dayWidth)));
-    const requestedDate = addDays(visibleStart, dayIndex);
-    const scheduledStart = nextMachineStandardOpenDay(requestedDate, machineId);
+    const requestedDate = requestedScheduleTime(lane, clientX);
+    const scheduledStart = firstMachineWorkInstant(requestedDate, machineId);
+    if (!scheduledStart) { clearDragPreview(); return; }
     const scheduledEnd = endForJobDuration(job, scheduledStart, machineId);
-    const rawStartIndex = diffDays(scheduledStart, visibleStart);
-    const rawEndIndex = diffDays(scheduledEnd, visibleStart);
-    const clippedStart = Math.max(0, Math.min(visibleDays - 1, rawStartIndex));
-    const clippedEnd = Math.max(clippedStart, Math.min(visibleDays - 1, rawEndIndex));
-    const widthDays = Math.max(1, clippedEnd - clippedStart + 1);
+    const rawStartIndex = timelineZoom === "days" ? diffDays(scheduledStart, visibleStart) : timelinePosition(scheduledStart);
+    const rawEndIndex = timelineZoom === "days" ? diffDays(scheduledEnd, visibleStart) + 1 : timelinePosition(scheduledEnd);
+    const clippedStart = Math.max(0, Math.min(visibleDays, rawStartIndex));
+    const clippedEnd = Math.max(clippedStart, Math.min(visibleDays, rawEndIndex));
+    const widthDays = Math.max(1 / 96, clippedEnd - clippedStart);
 
     let preview = lane.querySelector(".drag-preview") as HTMLElement | null;
     if (!preview) {
@@ -4955,7 +5236,7 @@ function showDragPreview(lane: HTMLElement, clientX: number) {
     preview.style.top = "12px";
     preview.innerHTML = `
         <strong>${escapeHtml(jobTitle(job))}</strong>
-        <small>${formatLongDate(scheduledStart)} — ${formatLongDate(scheduledEnd)} · ${job.durationDays || 1} gg lav.</small>`;
+        <small>${formatScheduleInstant(scheduledStart)} — ${formatScheduleInstant(scheduledEnd)}</small>`;
     lane.classList.add("is-drop-target");
 }
 
@@ -4969,6 +5250,7 @@ function startCalendarPan(event: PointerEvent) {
     calendarPanSession = {
         originX: event.clientX,
         originStart: parseDate(visibleStart),
+        originScrollLeft: byId("timeline-scroll")?.scrollLeft || 0,
         lastDeltaDays: 0,
         pointerId: event.pointerId,
         captureTarget,
@@ -4980,6 +5262,11 @@ function startCalendarPan(event: PointerEvent) {
 function updateCalendarPan(event: PointerEvent) {
     if (!calendarPanSession) return;
     event.preventDefault();
+    if (timelineZoom !== "days") {
+        const scroll = byId("timeline-scroll");
+        if (scroll) scroll.scrollLeft = calendarPanSession.originScrollLeft + calendarPanSession.originX - event.clientX;
+        return;
+    }
     const deltaDays = Math.round((calendarPanSession.originX - event.clientX) / Math.max(1, dayWidth));
     if (deltaDays === calendarPanSession.lastDeltaDays) return;
     calendarPanSession.lastDeltaDays = deltaDays;
@@ -5090,6 +5377,10 @@ function bindMesSubmit(formId: string, action: (event: SubmitEvent) => Promise<v
 }
 
 function bindGlobalEvents() {
+    mesOperations=require('./production-planner/mes-operations').createMesOperations({
+        invoke:mesInvoke,sessions:()=>mesSessions,groups:()=>mesAssigneeGroups,phase:mesPhaseForId,
+        machineName:mesMachineDisplayName,openDialog,closeDialog,refresh:refreshMesRuntime,notify,confirm:nativeConfirm,
+    });
     document.addEventListener("pointerdown", (event) => {
         const openDialog = (event.target as HTMLElement).closest(
             ".dialog-backdrop.is-open",
@@ -5125,7 +5416,7 @@ function bindGlobalEvents() {
         undoLastPlannerChange();
     });
     byId("open-production-analysis")?.addEventListener("click", () => {
-        ipcRenderer.send("open-production-planner-analysis-window");
+        showMesPage('analysis');
     });
     document.querySelectorAll<HTMLElement>("[data-mes-page]").forEach((button) => {
         button.addEventListener("click", () => showMesPage((button.dataset.mesPage || "production") as any));
@@ -5150,6 +5441,10 @@ function bindGlobalEvents() {
     });
     byId("mes-machine-grid")?.addEventListener("click", (event) => {
         const target = event.target as HTMLElement;
+        const manual=target.closest<HTMLElement>('[data-mes-manual]');
+        if(manual){mesOperations.openManual(manual.dataset.manualSession,manual.dataset.mesManual);return;}
+        const sheets=target.closest<HTMLElement>('[data-mes-sheets]');
+        if(sheets){mesOperations.openSheets(sheets.dataset.mesSheets);return;}
         const lateSetup = target.closest<HTMLElement>("[data-mes-late-setup]");
         if (lateSetup) { openMesSetupReconciliation(lateSetup.dataset.mesLateSetup || ""); return; }
         const selector = target.closest<HTMLElement>("[data-mes-select-order]");
@@ -5243,6 +5538,7 @@ function bindGlobalEvents() {
         const command = (event.target as HTMLElement).closest<HTMLElement>("[data-mes-order-context]")?.dataset.mesOrderContext;
         const selection = mesPhaseForId(mesOrderContextPhaseId);
         if (!command || !selection) return;
+        if(command==='sheets'){closeMesOrderContextMenu();mesOperations.openSheets(selection.phase.phaseId);return;}
         const job = state.jobs.find((item) => item.mesPhaseId === selection.phase.phaseId || item.id === selection.phase.plannerJobId);
         closeMesOrderContextMenu();
         if (command === "edit") {
@@ -5309,6 +5605,10 @@ function bindGlobalEvents() {
     bindMesSubmit("mes-operator-form", submitMesOperator);
     byId("mes-activation-department")?.addEventListener("change", renderMesActivationOperators);
     byId("mes-activation-pieces-per-pulse")?.addEventListener("input", renderMesActivationPiecePreview);
+    byId('mes-activation-source')?.addEventListener('change',updateMesActivationSource);
+    byId('job-setup-sheets')?.addEventListener('click',()=>{
+        mesOperations.openOrderSheetPicker(inputValue('job-article'));
+    });
     byId("mes-operator-department")?.addEventListener("change", renderMesOperatorSelection);
     byId("mes-operator-list")?.addEventListener("change", (event) => {
         const input = (event.target as HTMLElement).closest<HTMLInputElement>('input[type="checkbox"]');
@@ -6123,6 +6423,10 @@ function bindGlobalEvents() {
         const row = button.closest("[data-machine-id]") as HTMLElement | null;
         const machine = state.machines.find((item) => item.id === row?.dataset.machineId);
         if (!machine) return;
+        if (mesSessions.some((session) => session.status === "ACTIVE" && normalizedMachineId(session.machineId) === normalizedMachineId(machine.id))) {
+            notify("La macchina ha un ordine attivo nel MES e non può essere rimossa.");
+            return;
+        }
         const assigned = state.jobs.filter((job) => job.machineId === machine.id).length;
         const detail = assigned ? ` Le ${assigned} lavorazioni assegnate torneranno nella coda.` : "";
         if (!await nativeConfirm(
@@ -6183,6 +6487,15 @@ function bindGlobalEvents() {
     byId("range-select")?.addEventListener("change", () => {
         visibleDays = Number(inputValue("range-select")) || 14;
         renderAll();
+    });
+    byId("timeline-zoom")?.addEventListener("change", () => setTimelineZoom(inputValue("timeline-zoom")));
+    byId("timeline-zoom-in")?.addEventListener("click", () => {
+        const levels = ["days", "shifts", "hours"];
+        setTimelineZoom(levels[Math.min(2, levels.indexOf(timelineZoom) + 1)]);
+    });
+    byId("timeline-zoom-out")?.addEventListener("click", () => {
+        const levels = ["days", "shifts", "hours"];
+        setTimelineZoom(levels[Math.max(0, levels.indexOf(timelineZoom) - 1)]);
     });
     byId("previous-period")?.addEventListener("click", () => {
         visibleStart = addDays(visibleStart, -1);
@@ -6400,6 +6713,8 @@ function bindGlobalEvents() {
         }
         const card = (event.target as HTMLElement).closest("[data-job-id]") as HTMLElement | null;
         if (!card) return;
+        const job = state.jobs.find((item) => item.id === card.dataset.jobId);
+        if (job?.machineId && job.start && denyActivePlannerChange(job)) { event.preventDefault(); return; }
         hideJobTooltip();
         stopJobDragAutoScroll();
         draggedJobId = card.dataset.jobId || "";
@@ -6444,9 +6759,9 @@ function bindGlobalEvents() {
         stopJobDragAutoScroll();
         clearDragPreview();
         const rect = lane.getBoundingClientRect();
-        const dayIndex = Math.max(0, Math.min(visibleDays - 1, Math.floor((event.clientX - rect.left) / dayWidth)));
+        const requested = requestedScheduleTime(lane, event.clientX);
         draggedJobId = "";
-        scheduleJob(jobId, lane.dataset.machineId || "", addDays(visibleStart, dayIndex));
+        scheduleJob(jobId, lane.dataset.machineId || "", requested);
     });
 
     const backlog = byId("backlog-dropzone");
@@ -6480,6 +6795,11 @@ document.addEventListener("DOMContentLoaded", () => {
             void refreshMesRuntime({ quiet: true });
         }
     }, 5000);
+    schedulerClockTimer = setInterval(() => {
+        if (document.hidden || byId("mes-page-scheduler")?.hidden || draggedJobId || resizeSession || calendarPanSession
+            || document.querySelector(".dialog-backdrop.is-open")) return;
+        if (mesSessions.some((session) => session.status === "ACTIVE")) renderTimeline();
+    }, 1000);
     remotePollTimer = setInterval(() => {
         if (!realtimeConnected) void checkForRemoteUpdates();
     }, 10000);
@@ -6520,6 +6840,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("beforeunload", () => {
         if (remotePollTimer) clearInterval(remotePollTimer);
         if (mesRefreshTimer) clearInterval(mesRefreshTimer);
+        if (schedulerClockTimer) clearInterval(schedulerClockTimer);
         if (mesScheduleTimer) clearTimeout(mesScheduleTimer);
         if (remoteSaveTimer) clearTimeout(remoteSaveTimer);
     });

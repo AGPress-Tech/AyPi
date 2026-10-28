@@ -1,0 +1,23 @@
+<!doctype html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' file:;script-src 'self' file:;style-src 'self' 'unsafe-inline' file:;img-src 'self' data: file:;object-src 'none'">
+<title>AyPi · Analisi MES e ordini</title><link rel="stylesheet" href="../../styles/utilities/mes-analysis.css"></head>
+<body><main class="mes-analysis">
+<header><div><small>CONSUNTIVI DI PRODUZIONE</small><h1>Analisi MES e ordini</h1><p>Quantità e tempi registrati, distinti tra PLC e dichiarazioni manuali.</p></div><div class="actions"><span id="report-status" role="status">Caricamento…</span><button id="report-refresh">Aggiorna</button><button id="report-export" class="primary">Esporta Excel</button></div></header>
+<section class="filters" aria-label="Filtri analisi">
+<label>Dal<input id="report-from" type="date"></label><label>Al<input id="report-to" type="date"></label>
+<label>Reparto<select id="report-department"><option value="">Tutti i reparti</option></select></label>
+<label>Articolo<input id="report-article" placeholder="Codice o parte del codice"></label>
+<label>Ordine<input id="report-order" placeholder="Numero OdP"></label>
+<label>Sessioni con operatore<select id="report-operator"><option value="">Tutti gli operatori</option></select></label>
+<details class="machine-filter"><summary id="report-machine-summary">Tutte le macchine</summary><div><input id="report-machine-search" placeholder="Cerca macchina"><div class="actions"><button id="report-machines-all" type="button">Tutte</button><button id="report-machines-none" type="button">Azzera</button></div><div id="report-machines"></div></div></details>
+<button id="report-apply" class="primary">Applica filtri</button><button id="report-reset">Azzera filtri</button>
+</section>
+<div class="view-tools"><label>Vista salvata <select id="report-presets"><option value="">Seleziona…</option></select></label><button id="report-save-view">Salva vista</button><button id="report-delete-view">Rimuovi vista</button><span id="report-range"></span></div>
+<div id="report-message" role="status"></div><section class="kpis" id="report-kpis" aria-label="Riepilogo MES"></section>
+<section class="card"><div class="card-heading"><h2>Tempi registrati per macchina</h2><div class="legend"><span class="production">Produzione</span><span class="setup">Attrezzaggio</span><span class="stopped">Fermo</span><span class="unknown">Non monitorato</span></div></div><div id="report-chart"></div></section>
+<section class="card report-data"><div class="card-heading"><nav aria-label="Raggruppamento analisi" id="report-tabs"><button data-report-tab="activations" class="selected">Attivazioni</button><button data-report-tab="byMachine">Macchine</button><button data-report-tab="byOrder">Ordini / fasi</button><button data-report-tab="byArticle">Articoli</button><button data-report-tab="intervals">Cronologia stati</button><button data-report-tab="declarations">Dichiarazioni manuali</button></nav><div class="actions"><input id="report-table-search" placeholder="Cerca nella tabella"><details id="report-columns"><summary>Colonne</summary><div id="report-column-options"></div></details><button id="report-copy">Copia tabella</button></div></div>
+<div class="table-wrap"><table><thead id="report-head"></thead><tbody id="report-body"></tbody><tfoot id="report-foot"></tfoot></table></div><p id="report-results"></p></section>
+<p class="explanation">I pezzi contabilizzati comprendono contatori, dichiarazioni e rettifiche; gli scarti sono riportati separatamente. La copertura si riferisce al tempo di attivazione degli ordini. I periodi senza acquisizione non sono classificati come fermi. Il filtro operatore seleziona le sessioni in cui ha lavorato, senza ripartire arbitrariamente i pezzi tra persone.</p>
+</main>
+<dialog id="report-save-dialog"><form method="dialog"><h2>Salva questa vista</h2><label>Nome<input id="report-view-name" required maxlength="80" placeholder="Es. Torneria · consuntivi mensili"></label><footer><button value="cancel" formnovalidate>Annulla</button><button value="save" class="primary">Salva</button></footer></form></dialog>
+<script src="../../scripts/utilities/mes-analysis.js"></script></body></html>

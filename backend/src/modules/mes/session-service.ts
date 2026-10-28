@@ -30,6 +30,7 @@ export function activateMesPhase(input: {
     phaseId: string;
     mode: MesSessionMode;
     piecesPerPulse: number;
+    collectionMode?: "PLC" | "MANUAL";
     choice?: MesUnassignedChoice;
     attributedPieces?: number;
     reasonCode?: string;

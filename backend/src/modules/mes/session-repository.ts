@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { getMesSqliteDatabase, runMesSqliteTransaction } from "../../shared/db/mes-sqlite";
 import { HttpError } from "../../shared/http/errors";
 import { serializeJson } from "../../shared/storage/json-codec";
-import { initializeMesSqliteStore } from "./repository";
+import { initializeMesSqliteStore, rebuildOperatingTail } from "./repository";
 import type {
     MesActivationPreview,
     MesMachineSession,
@@ -22,6 +22,7 @@ const SESSION_SELECT = `
     SELECT sessions.session_id, sessions.phase_id, phases.order_id,
            orders.order_number, phases.phase_code, phases.article_code,
            sessions.machine_id, sessions.mode, sessions.status, sessions.activation_id, sessions.pieces_per_pulse,
+           sessions.collection_mode, sessions.manual_state,
            sessions.started_at, sessions.ended_at, sessions.started_by,
            sessions.ended_by, sessions.notes, sessions.revision,
            COALESCE((
@@ -29,7 +30,22 @@ const SESSION_SELECT = `
                FROM mes_session_operator_intervals AS operators
                WHERE operators.session_id = sessions.session_id AND operators.ended_at = ''
            ), '') AS operator_names,
-           phases.target_quantity, phases.standard_cycle_seconds,
+           phases.target_quantity, COALESCE(sessions.standard_cycle_snapshot, phases.standard_cycle_seconds) AS standard_cycle_seconds,
+           (SELECT SUM(cycles.elapsed_seconds) / SUM(cycles.pieces)
+              FROM (
+                  SELECT (julianday(recent.occurred_at) - julianday(LAG(recent.occurred_at)
+                      OVER (ORDER BY recent.occurred_at, recent.event_id))) * 86400 AS elapsed_seconds,
+                      recent.pieces
+                  FROM (
+                      SELECT e.event_id, e.occurred_at, a.piece_quantity AS pieces
+                      FROM mes_event_allocations a JOIN mes_machine_events e ON e.event_id = a.event_id
+                      WHERE a.session_id = sessions.session_id AND a.allocation_kind = 'PRODUCTION'
+                      ORDER BY e.occurred_at DESC, e.event_id DESC LIMIT 61
+                  ) recent
+              ) cycles
+              WHERE cycles.elapsed_seconds > 0 AND cycles.pieces > 0
+                AND cycles.elapsed_seconds <= COALESCE(sessions.standard_cycle_snapshot, phases.standard_cycle_seconds) * cycles.pieces * 2
+           ) AS forecast_cycle_seconds,
            COALESCE((SELECT SUM(a.piece_quantity) FROM mes_event_allocations a
                WHERE a.session_id IN (SELECT s.session_id FROM mes_machine_sessions s
                    WHERE s.activation_id = sessions.activation_id)
@@ -173,6 +189,9 @@ function sessionFromRow(row: any): MesMachineSession {
         sessionGoodPieces: Math.max(0, Number(row.session_good_pieces) || 0),
         sessionScrapPieces: Math.max(0, Number(row.session_scrap_pieces) || 0),
         piecesPerPulse: row.pieces_per_pulse == null ? null : Number(row.pieces_per_pulse),
+        activationId: String(row.activation_id || row.session_id),
+        collectionMode: row.collection_mode === 'MANUAL' ? 'MANUAL' : 'PLC',
+        manualState: String(row.manual_state || 'STOPPED'),
         targetQuantity,
         progressPercent: targetQuantity > 0 ? Math.min(100, goodPieces / targetQuantity * 100) : 0,
         standardCycleSeconds: Number(row.standard_cycle_seconds) || 0,
@@ -180,6 +199,7 @@ function sessionFromRow(row: any): MesMachineSession {
             && Number.isFinite(firstProductionAt) && Number.isFinite(lastProductionAt)
             ? (lastProductionAt - firstProductionAt) / 1000 / averageDenominator
             : null,
+        forecastCycleSeconds: row.collection_mode === 'MANUAL' || row.forecast_cycle_seconds == null ? null : Number(row.forecast_cycle_seconds),
         lastCycleSeconds: productionEvents > 1
             && Number.isFinite(lastProductionAt) && Number.isFinite(previousProductionAt)
             ? (lastProductionAt - previousProductionAt) / 1000 / lastEventPieces
@@ -307,6 +327,7 @@ export function startMachineSession(input: {
     phaseId: string;
     mode: MesSessionMode;
     piecesPerPulse?: number;
+    collectionMode?: "PLC" | "MANUAL";
     choice?: MesUnassignedChoice;
     attributedPieces?: number;
     reasonCode?: string;
@@ -321,7 +342,7 @@ export function startMachineSession(input: {
             throw new HttpError(400, "Indica un numero intero positivo di pezzi per battito.");
         }
         const phase = rows(database.exec(
-            "SELECT phase_id, unit, execution_status FROM mes_phases WHERE phase_id = ? AND archived_at = ''",
+            "SELECT phase_id, unit, execution_status, standard_cycle_seconds FROM mes_phases WHERE phase_id = ? AND archived_at = ''",
             [input.phaseId],
         ))[0];
         if (!phase) throw new HttpError(404, "Fase MES non trovata.");
@@ -394,6 +415,8 @@ export function startMachineSession(input: {
         if (input.actor) addOperatorIntervals(database, input.sessionId, [input.actor], input.now, input.actor);
         database.run("UPDATE mes_machine_sessions SET activation_id = session_id WHERE session_id = ?", [input.sessionId]);
         database.run("UPDATE mes_machine_sessions SET pieces_per_pulse = ? WHERE session_id = ?", [input.piecesPerPulse ?? null, input.sessionId]);
+        database.run("UPDATE mes_machine_sessions SET collection_mode = ?, standard_cycle_snapshot = ? WHERE session_id = ?",
+            [input.collectionMode === 'MANUAL' ? 'MANUAL' : 'PLC', phase.standard_cycle_seconds, input.sessionId]);
 
         if (detectedPieces > 0) {
             database.run(
@@ -449,9 +472,10 @@ export function startMachineSession(input: {
         insertAudit(database, {
             auditId: input.auditIds[0], entityType: "SESSION", entityId: input.sessionId,
             action: "START", payload: { machineId: input.machineId, phaseId: input.phaseId,
-                mode: input.mode, piecesPerPulse: input.piecesPerPulse ?? null, detectedPieces, attributedPieces, excludedPieces },
+                mode: input.mode, collectionMode: input.collectionMode || 'PLC', piecesPerPulse: input.piecesPerPulse ?? null, detectedPieces, attributedPieces, excludedPieces },
             now: input.now, actor: input.actor, requestId: input.requestId,
         });
+        if (input.collectionMode === 'MANUAL') rebuildOperatingTail(database, input.machineId, input.now, input.now);
         return loadSession(database, "sessions.session_id = ?", [input.sessionId])!;
     });
 }
@@ -526,6 +550,7 @@ export function changeMachineSessionState(input: {
             payload: { before: current.status, after: nextStatus, note: input.note },
             now: input.now, actor: input.actor, requestId: input.requestId,
         });
+        if (current.collectionMode === 'MANUAL') rebuildOperatingTail(database, current.machineId, current.startedAt, input.now);
         return loadSession(database, "sessions.session_id = ?", [input.sessionId])!;
     });
 }
@@ -657,8 +682,8 @@ export function beginSetupForMachineSession(input: {
                 operators.join(", "), input.note],
         );
         addOperatorIntervals(database, input.setupSessionId, operators, input.now, input.actor);
-        database.run(`UPDATE mes_machine_sessions SET (activation_id, pieces_per_pulse) =
-            (SELECT activation_id, pieces_per_pulse FROM mes_machine_sessions WHERE session_id = ?) WHERE session_id = ?`,
+        database.run(`UPDATE mes_machine_sessions SET (activation_id, pieces_per_pulse, collection_mode, standard_cycle_snapshot) =
+            (SELECT activation_id, pieces_per_pulse, collection_mode, standard_cycle_snapshot FROM mes_machine_sessions WHERE session_id = ?) WHERE session_id = ?`,
             [input.sessionId, input.setupSessionId]);
         database.run(
             `INSERT INTO mes_session_transitions
@@ -676,6 +701,7 @@ export function beginSetupForMachineSession(input: {
             action: "BEGIN_SETUP", payload: { previousSessionId: input.sessionId, machineId: current.machineId, phaseId: current.phaseId },
             now: input.now, actor: input.actor, requestId: input.requestId,
         });
+        if (current.collectionMode === 'MANUAL') rebuildOperatingTail(database, current.machineId, current.startedAt, input.now);
         return loadSession(database, "sessions.session_id = ?", [input.setupSessionId])!;
     });
 }
@@ -805,8 +831,8 @@ export function reconcileSetupSession(input: {
             productionSession = loadSession(
                 database, "sessions.session_id = ?", [input.productionSessionId],
             );
-            database.run(`UPDATE mes_machine_sessions SET (activation_id, pieces_per_pulse) =
-                (SELECT activation_id, pieces_per_pulse FROM mes_machine_sessions WHERE session_id = ?) WHERE session_id = ?`,
+            database.run(`UPDATE mes_machine_sessions SET (activation_id, pieces_per_pulse, collection_mode, standard_cycle_snapshot) =
+                (SELECT activation_id, pieces_per_pulse, collection_mode, standard_cycle_snapshot FROM mes_machine_sessions WHERE session_id = ?) WHERE session_id = ?`,
                 [input.sessionId, input.productionSessionId]);
             addOperatorIntervals(database, input.productionSessionId, operators, input.now, input.actor);
             productionSession = loadSession(database, "sessions.session_id = ?", [input.productionSessionId]);
@@ -838,6 +864,7 @@ export function reconcileSetupSession(input: {
                 closeOrder: input.closeOrder },
             now: input.now, actor: input.actor, requestId: input.requestId,
         });
+        if (current.collectionMode === 'MANUAL') rebuildOperatingTail(database, current.machineId, current.startedAt, input.now);
         return {
             setupSession: loadSession(database, "sessions.session_id = ?", [input.sessionId])!,
             productionSession,

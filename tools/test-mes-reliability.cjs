@@ -14,6 +14,7 @@ const repo = require('../backend-dist/modules/mes/repository');
 const production = require('../backend-dist/modules/mes/production-repository');
 const sessions = require('../backend-dist/modules/mes/session-repository');
 const service = require('../backend-dist/modules/mes/production-service');
+const planner = require('../backend-dist/modules/production-planner/repository');
 const base = Date.now() - 3600000;
 const time = (seconds) => new Date(base + seconds * 1000).toISOString();
 const common = (seconds) => ({ actor: 'Operatore test', requestId: id(), now: time(seconds), auditId: id() });
@@ -81,6 +82,36 @@ const sqlRows = (sql, params = []) => db.getMesSqliteDatabase().exec(sql, params
         assert.equal(production.loadMesOrderDetail(orderId).revision, created.revision);
 
         let active = start('M1', 1);
+        const actualStart = active.startedAt;
+        const actualDay = new Intl.DateTimeFormat('sv-SE', { timeZone:'Europe/Rome' }).format(new Date(actualStart));
+        const scheduled = { machines:[{id:'M1',name:'Test'}], jobs:[{
+            id:'scheduled-job',mesPhaseId:phaseId,machineId:'M1',start:actualDay,end:actualDay,plannedStartAt:actualStart,
+        }] };
+        const snapshot = planner.saveProductionPlannerSnapshot(scheduled, 0, 'Test');
+        for (const mutation of [
+            (s) => { s.jobs=[]; },
+            (s) => { s.jobs[0].machineId=''; },
+            (s) => { s.jobs[0].machineId='M2'; s.machines.push({id:'M2'}); },
+            (s) => { s.jobs[0].start='2000-01-01'; },
+            (s) => { s.jobs[0].start='2099-01-01'; },
+            (s) => { s.jobs[0].plannedStartAt=time(2); },
+            (s) => { s.machines=[]; },
+            (s) => { s.jobs.push({...s.jobs[0],id:'duplicate'}); },
+        ]) {
+            const changed = JSON.parse(JSON.stringify(scheduled)); mutation(changed);
+            assert.throws(() => planner.saveProductionPlannerSnapshot(changed,snapshot.revision,'Test'), /Ordine attivo/);
+        }
+        assert.equal(planner.loadProductionPlannerRevision().revision, snapshot.revision);
+        const currentPhase = production.loadMesOrderDetail(orderId).phases[0];
+        const pinnedPhase = { ...phaseDraft, plannedMachineId:'M1', scheduledStart:actualStart,
+            scheduledEnd:time(1000),planningStatus:'SCHEDULED' };
+        const pinned = production.updateMesPhase({ ...common(1),phaseId,draft:pinnedPhase,baseRevision:currentPhase.revision });
+        const pinnedRevision = pinned.phases[0].revision;
+        assert.throws(() => production.updateMesPhase({ ...common(1),phaseId,
+            draft:{...pinnedPhase,planningStatus:'BACKLOG',plannedMachineId:'',scheduledStart:'',scheduledEnd:''},
+            baseRevision:pinnedRevision }), /Ordine attivo/);
+        assert.throws(() => production.updateMesPhase({ ...common(1),phaseId,
+            draft:{...pinnedPhase,scheduledStart:time(2)},baseRevision:pinnedRevision }), /Ordine attivo/);
         batch(2, null);
         assert.equal(sqlRows('SELECT operating_state FROM mes_machine_current')[0][0], 'STOPPED');
         events('M1', [3, 4]);
@@ -95,6 +126,9 @@ const sqlRows = (sql, params = []) => db.getMesSqliteDatabase().exec(sql, params
         events('M1', [6]);
         let setup = get(setupId);
         assert.equal(setup.sessionGoodPieces, 2);
+        const duringSetup = production.loadMesOrderDetail(orderId).phases[0];
+        production.updateMesPhase({ ...common(6),phaseId,draft:pinnedPhase,baseRevision:duringSetup.revision });
+        planner.saveProductionPlannerSnapshot(scheduled, snapshot.revision, 'Test');
         const productionId = id();
         sessions.reconcileSetupSession({ ...common(8), sessionId: setupId, baseRevision: setup.revision,
             goodPieces: 1, scrapPieces: 0, excludedPieces: 0, startProduction: true, closeOrder: false,
@@ -117,6 +151,8 @@ const sqlRows = (sql, params = []) => db.getMesSqliteDatabase().exec(sql, params
         // A production gap can occur entirely between snapshots.
         batch(11, 11); batch(21, 11); batch(31, 11); batch(41, 40);
         events('M1', [11, 40], 42);
+        assert.equal(get(productionId).forecastCycleSeconds, null,
+            'Long stops must not be treated as production cycle time');
         const stopped = sqlRows(`SELECT started_at, ended_at FROM mes_machine_operating_intervals
             WHERE machine_id = 'M1' AND state = 'STOPPED'`);
         assert.ok(stopped.some(([from, to]) => from === time(31) && to === time(40)), JSON.stringify(stopped));
@@ -126,6 +162,9 @@ const sqlRows = (sql, params = []) => db.getMesSqliteDatabase().exec(sql, params
         active = get(productionId);
         sessions.changeMachineSessionState({ ...common(45), sessionId: active.sessionId,
             baseRevision: active.revision, action: 'PAUSE', transitionId: id(), note: '' });
+        const released = planner.saveProductionPlannerSnapshot({machines:scheduled.machines,jobs:[]},
+            planner.loadProductionPlannerRevision().revision,'Test');
+        assert.equal(released.state.jobs.length,0,'Suspended orders can be unscheduled again');
         const next = start('M2', 46);
         assert.equal(next.sessionGoodPieces, 0);
         assert.equal(next.sessionScrapPieces, 0);
@@ -162,6 +201,8 @@ const sqlRows = (sql, params = []) => db.getMesSqliteDatabase().exec(sql, params
         assert.equal(multiplied.automaticPieces, 6, 'Session multiplier overrides raw collector multiplier');
         assert.equal(multiplied.sessionGoodPieces, 10);
         assert.equal(multiplied.lastCycleSeconds, 1 / 3);
+        assert.ok(Math.abs(multiplied.forecastCycleSeconds - 1 / 3) < 0.0001,
+            'Forecast cycle time must account for pieces per pulse');
         const multipliedSetupId = id();
         sessions.beginSetupForMachineSession({ ...common(65), sessionId: multiplied.sessionId,
             baseRevision: multiplied.revision, setupSessionId: multipliedSetupId,

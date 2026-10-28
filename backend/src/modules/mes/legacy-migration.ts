@@ -36,6 +36,8 @@ const LEGACY_TABLES: LegacyTable[] = [
     { name: "mes_production_adjustments" },
     { name: "mes_setup_reconciliations" },
     { name: "mes_audit_log" },
+    { name: "mes_manual_declarations" },
+    { name: "mes_setup_sheet_links" },
     { name: "production_planner_state", revisionColumn: "revision" },
 ];
 

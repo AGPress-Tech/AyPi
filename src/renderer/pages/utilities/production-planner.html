@@ -72,6 +72,7 @@
             <button class="mes-navigation__item is-active" data-mes-page="production" type="button">Produzione</button>
             <button class="mes-navigation__item" data-mes-page="orders" type="button">Ordini</button>
             <button class="mes-navigation__item" data-mes-page="scheduler" type="button">Schedulatore</button>
+            <button class="mes-navigation__item" data-mes-page="analysis" type="button">Analisi MES</button>
             <span class="mes-navigation__separator"></span>
             <button class="mes-navigation__item" data-mes-plc-view="overview" type="button">Dashboard</button>
             <button class="mes-navigation__item" data-mes-plc-view="signals" type="button">Signal Discovery</button>
@@ -126,6 +127,9 @@
 
         <section class="mes-work-page mes-work-page--plc" id="mes-page-plc" data-page="plc" hidden>
             <iframe id="mes-plc-frame" title="Monitoraggio PLC" loading="eager"></iframe>
+        </section>
+        <section class="mes-work-page mes-work-page--plc" id="mes-page-analysis" data-page="analysis" hidden>
+            <iframe id="mes-analysis-frame" title="Analisi MES e ordini"></iframe>
         </section>
 
         <section class="mes-work-page mes-work-page--scheduler" id="mes-page-scheduler" data-page="scheduler" hidden>
@@ -196,6 +200,15 @@
                     <option value="14" selected>14 giorni</option>
                     <option value="28">28 giorni</option>
                 </select>
+                <div class="timeline-zoom-controls" role="group" aria-label="Precisione del pianificatore">
+                    <button id="timeline-zoom-out" type="button" aria-label="Riduci dettaglio">−</button>
+                    <select id="timeline-zoom" aria-label="Dettaglio temporale">
+                        <option value="days">Giorni</option>
+                        <option value="shifts">Turni · 6 ore</option>
+                        <option value="hours">Ore</option>
+                    </select>
+                    <button id="timeline-zoom-in" type="button" aria-label="Aumenta dettaglio">+</button>
+                </div>
             </div>
         </section>
 
@@ -231,6 +244,8 @@
                         <span><i class="status-mark status-mark--running"></i>In corso</span>
                         <span><i class="status-mark status-mark--done"></i>Terminato</span>
                         <span><i class="status-mark status-mark--unavailable"></i>Fermo macchina</span>
+                        <span><i class="off-shift-mark"></i>Fuori turno</span>
+                        <span id="scheduler-live-status" role="status">Fine prevista aggiornata dal MES</span>
                     </div>
                 </div>
 
@@ -348,6 +363,7 @@
                         <option value="done">Terminato</option>
                     </select>
                 </label>
+                <div class="form-grid__wide job-sheet-field"><label for="job-setup-sheets">Scheda attrezzaggio <span class="optional-label">Opzionale</span></label><button class="job-sheet-selector" id="job-setup-sheets" type="button" aria-haspopup="dialog">Seleziona una scheda attrezzaggio…</button><small class="field-hint" id="job-sheet-description"></small></div>
                 <label class="form-grid__wide">Note<textarea id="job-notes" rows="3" maxlength="600"></textarea></label>
             </div>
             <div class="form-error" id="job-form-error"></div>
@@ -371,6 +387,7 @@
             <div class="mes-activation-body">
                 <p id="mes-activation-preview"></p>
                 <input id="mes-activation-mode" type="hidden" value="PRODUCTION">
+                <label>Rilevazione produzione<select id="mes-activation-source"><option value="PLC">Automatica · PLC</option><option value="MANUAL">Manuale · avvio, fermo e quantità dichiarati dall'operatore</option></select></label>
                 <label>Pezzi per battito<input id="mes-activation-pieces-per-pulse" type="number" min="1" step="1" required placeholder="Es. 1, 2, 4…" inputmode="numeric" aria-describedby="mes-activation-pieces-help"></label>
                 <p id="mes-activation-pieces-help">Quanti pezzi produce la macchina a ogni colpo PLC? Indicalo a ogni attivazione dell'ordine, anche dopo una sospensione.</p>
                 <div class="mes-operator-picker">
@@ -731,7 +748,7 @@
 
     <div class="job-tooltip" id="job-tooltip" role="tooltip"></div>
     <div class="context-menu" id="job-context-menu" role="menu" aria-hidden="true"></div>
-    <div class="mes-order-context-menu" id="mes-order-context-menu" role="menu" aria-hidden="true"><button data-mes-order-context="edit" type="button">Modifica ordine</button><button data-mes-order-context="copy" type="button">Copia ordine</button><button class="is-danger" data-mes-order-context="delete" type="button">Elimina</button></div>
+    <div class="mes-order-context-menu" id="mes-order-context-menu" role="menu" aria-hidden="true"><button data-mes-order-context="edit" type="button">Modifica ordine</button><button data-mes-order-context="copy" type="button">Copia ordine</button><button data-mes-order-context="sheets" type="button">Schede attrezzaggio</button><button class="is-danger" data-mes-order-context="delete" type="button">Elimina</button></div>
     <div class="mes-machine-context-menu" id="mes-machine-context-menu" role="menu" aria-hidden="true">
         <strong id="mes-machine-context-title">Macchina</strong>
         <button data-mes-machine-context="activate" type="button">Attiva ordine</button>

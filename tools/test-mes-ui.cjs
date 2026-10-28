@@ -15,6 +15,10 @@ for (const [channel, result] of Object.entries({
     'mes-assignees-list': { ok: true, data: { groups: { Torneria: ['Ada', 'Bruno'], Stampaggio: ['Carla'] } } },
     'mes-acquisition-status': { ok: true, data: { machines: [], sessions: [] } },
     'mes-activation-preview': { ok: true, data: { unassignedPulses: 2, unassignedPieces: 2, unassignedEvents: 2 } },
+    'mes-setup-links': {ok:true,data:[]},
+    'mes-setup-catalog': {ok:true,data:{rows:[{type:'TRANSFER',recordId:'sheet1',label:'ART Transfer',article:'ART'}]}},
+    'mes-setup-preview': {ok:true,data:{type:'TRANSFER',recordId:'sheet1',label:'ART Transfer',sheet:{codiceArticolo:'ART',note:'Anteprima variante',utensili:[],attachments:[]}}},
+    'mes-manual-declare': {ok:true,data:{duplicate:false}},
 })) ipcMain.handle(channel, () => result);
 app.whenReady().then(async () => {
     const win = new BrowserWindow({ show: false, width: 1280, height: 720,
@@ -39,12 +43,14 @@ app.whenReady().then(async () => {
             mesOrders = [{ orderId:'qa-order',orderNumber:'QA', phases:[{phaseId:'qa-phase',phaseCode:'01'}] }];
             try {
                 await openMesActivation('M1','qa-phase');
+                document.getElementById('mes-activation-source').value='PLC'; updateMesActivationSource();
                 const field = document.getElementById('mes-activation-pieces-per-pulse');
                 let ok = field.required && field.value === '' && !field.checkValidity();
                 field.value = '3'; field.dispatchEvent(new Event('input', {bubbles:true}));
                 ok = ok && document.getElementById('mes-attributed-pieces').max === '6'
                     && document.getElementById('mes-activation-preview').textContent.includes('6 pezzi');
                 closeDialog('mes-activation-dialog'); await openMesActivation('M1','qa-phase');
+                document.getElementById('mes-activation-source').value='PLC'; updateMesActivationSource();
                 ok = ok && field.value === ''; closeDialog('mes-activation-dialog'); return ok;
             } finally { mesOrders = previousOrders; }
         })()`), 'Every activation must ask for its own pieces-per-beat value');
@@ -75,6 +81,109 @@ app.whenReady().then(async () => {
             renderMesActivationOperators();
             return [...document.getElementById('mes-activation-operator').options].map(o=>o.value).join(',') === ',Ada,Bruno';
         })()`), 'Operator choices must be filtered by department');
+        assert.ok(await run(`(async()=>{
+            const oldOrders=mesOrders,oldSessions=mesSessions;
+            mesOrders=[{orderId:'manual-order',orderNumber:'OP',phases:[{phaseId:'manual-phase',articleCode:'ART',phaseCode:'01'}]}];
+            await mesOperations.openSheets('manual-phase');
+            let ok=document.getElementById('mes-sheet-catalog').textContent.includes('ART Transfer');
+            closeDialog('mes-sheets-dialog');
+            mesSessions=[{sessionId:'manual-session',machineId:'M1',orderNumber:'OP',articleCode:'ART',operatorNames:['Ada'],revision:1,collectionMode:'MANUAL',status:'ACTIVE',manualState:'STOPPED'}];
+            ok=ok&&mesMachineVisualState(mesSessions[0],null)==='stopped';
+            mesSessions[0].manualState='PRODUCTION';ok=ok&&mesMachineVisualState(mesSessions[0],null)==='production';
+            mesOperations.openManual('manual-session','PIECES');
+            ok=ok&&document.getElementById('mes-manual-department').value==='Torneria'
+                &&document.getElementById('mes-manual-operator').value==='Ada';
+            document.getElementById('mes-manual-quantity').value='10';
+            await document.getElementById('mes-manual-form').onsubmit({preventDefault(){}});
+            ok=ok&&!document.getElementById('mes-manual-dialog').classList.contains('is-open');
+            mesOrders=oldOrders;mesSessions=oldSessions;return ok;
+        })()`),'Setup catalog and manual declarations must work in the existing module');
+        assert.ok(await run(`(async()=>{
+            openJob(undefined,false,'MACHINING');
+            const field=document.getElementById('job-setup-sheets');
+            let ok=!!(field.compareDocumentPosition(document.getElementById('job-notes'))&Node.DOCUMENT_POSITION_FOLLOWING);
+            document.getElementById('job-article').value='ART';
+            await mesOperations.openOrderSheetPicker('ART');
+            const context=()=>document.querySelector('[data-catalog-sheet]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:300}));
+            ok=ok&&!document.querySelector('#mes-sheet-catalog button');
+            context();document.querySelector('[data-sheet-menu="preview"]').click();
+            await new Promise(resolve=>setTimeout(resolve,40));
+            ok=ok&&!document.getElementById('mes-sheet-preview').hidden&&document.getElementById('mes-sheet-preview').textContent.includes('Anteprima variante');
+            const full=document.querySelector('.dialog--sheet-document').getBoundingClientRect();
+            ok=ok&&full.width>=innerWidth-2&&full.height>=innerHeight-2;
+            ok=ok&&!field.textContent.includes('sheet1');
+            document.querySelector('[data-close-sheet-preview]').click();
+            ok=ok&&document.getElementById('mes-sheets-dialog').classList.contains('is-open')&&!field.textContent.includes('sheet1');
+            context();document.querySelector('[data-sheet-menu="preview"]').click();
+            await new Promise(resolve=>setTimeout(resolve,40));
+            document.getElementById('mes-sheet-preview-attach').click();
+            ok=ok&&field.textContent==='sheet1'&&document.getElementById('job-dialog').classList.contains('is-open');
+            await mesOperations.openOrderSheetPicker('ART');
+            context();document.querySelector('[data-sheet-menu="attach"]').click();
+            ok=ok&&!document.getElementById('mes-sheets-dialog').classList.contains('is-open')&&field.textContent==='sheet1';
+            await mesOperations.openOrderSheetPicker('ART');
+            document.querySelector('#mes-sheets-dialog [data-close-sheets]').click();
+            ok=ok&&field.textContent==='sheet1';
+            closeDialog('job-dialog');return ok;
+        })()`),'Sheet context menu must open fullscreen preview, cancel without attaching and attach directly');
+        const scheduler = await run(`(() => {
+            if(mesRefreshTimer) { clearInterval(mesRefreshTimer); mesRefreshTimer=null; }
+            const machine = state.machines[0];
+            const day = dateKey(new Date()); visibleStart = parseDate(day);
+            const order = {orderId:'qa-order',orderNumber:'QA-16H',customer:'Test',articleCode:'ART',orderType:'MACHINING',priority:'NORMAL',revision:1};
+            const phase = {phaseId:'qa-live',phaseCode:'01',targetQuantity:960,unit:'pz',standardCycleSeconds:60,
+                plannedSetupSeconds:0,plannedMachineId:machine.id,scheduledStart:day+'T08:12:00',revision:1};
+            const job = createMesPlannerProjection(order,phase,false);
+            state.jobs = [job];
+            mesOrders = [{...order,phases:[phase]}];
+            mesSessions = [{sessionId:'qa-session',activationId:'qa-session',phaseId:phase.phaseId,machineId:machine.id,
+                startedAt:day+'T08:12:00',status:'ACTIVE',mode:'PRODUCTION',targetQuantity:960,goodPieces:0,
+                standardCycleSeconds:60,piecesPerPulse:1,forecastCycleSeconds:null,progressPercent:0}];
+            showMesPage('scheduler'); setTimelineZoom('hours');
+            const timeline = document.getElementById('timeline'), scroll = document.getElementById('timeline-scroll');
+            const bar = timeline.querySelector('[data-job-id]');
+            const before = parseFloat(bar.style.width), originalEnd = job.end;
+            mesSessions[0].forecastCycleSeconds = 60/0.9; renderTimeline();
+            const extended = parseFloat(timeline.querySelector('[data-job-id]').style.width) > before;
+            bar.focus(); scroll.scrollLeft = 200; renderTimeline();
+            const stable = document.activeElement === bar && scroll.scrollLeft === 200 && job.end === originalEnd;
+            calendarPanSession = {originX:500,originStart:parseDate(visibleStart),originScrollLeft:200,lastDeltaDays:0,pointerId:1,captureTarget:timeline};
+            updateCalendarPan({clientX:400,preventDefault(){}});
+            const panned = scroll.scrollLeft === 300; finishCalendarPan();
+            const lane = timeline.querySelector('.machine-days');
+            const requested = requestedScheduleTime(lane,lane.getBoundingClientRect().left+dayWidth*10.25/24);
+            return {extended,stable,panned,preciseDrop:requested.getHours()===10&&requested.getMinutes()===15,
+                hours:timeline.querySelectorAll('.day-heading__hours span').length,
+                expectedHours:visibleDays*24,shading:timeline.querySelectorAll('.off-shift').length,
+                horizontal:scroll.scrollWidth>scroll.clientWidth};
+        })()`);
+        assert.ok(scheduler.extended, 'Slower actual cycles must extend the visible Gantt bar');
+        assert.ok(scheduler.stable, 'Forecast updates must preserve focus, horizontal scroll and theoretical schedule');
+        assert.ok(scheduler.panned, 'Grab-to-scroll must work at hourly zoom');
+        assert.ok(scheduler.preciseDrop, 'Detailed placement must resolve quarter-hour boundaries');
+        assert.equal(scheduler.hours,scheduler.expectedHours);
+        assert.ok(scheduler.shading>0 && scheduler.horizontal);
+        assert.ok(await run(`(async () => {
+            const job=state.jobs[0], before={machineId:job.machineId,start:job.start};
+            const bar=document.querySelector('#timeline [data-job-id]');
+            let ok=bar.draggable===false && bar.dataset.scheduleLocked==='true';
+            unscheduleJob(job.id); scheduleJob(job.id,job.machineId,addDays(job.start,10));
+            ok=ok && job.machineId===before.machineId && job.start===before.start;
+            ok=ok && await deleteJobWithConfirmation(job.id)===false;
+            openJob(job);
+            ok=ok && document.getElementById('job-machine-picker').disabled && document.getElementById('job-start').disabled
+                && document.getElementById('delete-job').disabled;
+            restoreJobFormInteractivity(false);
+            ok=ok && document.getElementById('job-machine-picker').disabled && document.getElementById('job-start').disabled;
+            closeDialog('job-dialog'); return ok;
+        })()`),'Active orders must stay pinned across drag, removal, deletion and form editing');
+        await run(`showMesPage('scheduler'); setTimelineZoom('hours');`);
+        const previousTick = await run(`document.getElementById('scheduler-live-status').textContent`);
+        await new Promise(resolve => setTimeout(resolve, 1300));
+        assert.notEqual(await run(`document.getElementById('scheduler-live-status').textContent`),previousTick,
+            'Live forecasts must refresh while the scheduler is open');
+        fs.writeFileSync(path.join(os.tmpdir(),'aypi-scheduler-hours.png'),(await win.webContents.capturePage()).toPNG());
+        await run(`setTimelineZoom('days'); mesSessions=[]; mesOrders=[]; state.jobs=[]; showMesPage('production');`);
         for (const [width, height] of [[1280,720], [1920,1080], [1024,600]]) {
             win.setSize(width, height);
             await new Promise(resolve => setTimeout(resolve, 80));
@@ -94,6 +203,11 @@ app.whenReady().then(async () => {
                 closeDialog('job-dialog'); return ok;
             })()`);
             assert.ok(modal, `Order dialog must fit at ${width}x${height}`);
+            await run(`mesOperations.resetOrderSheet(''); mesOperations.openOrderSheetPicker('ART')`);
+            const sheets=await run(`(()=>{const dialog=document.querySelector('.dialog--mes-sheets').getBoundingClientRect();const button=document.querySelector('#mes-sheets-dialog footer [data-close-sheets]').getBoundingClientRect();return dialog.top>=0&&dialog.bottom<=innerHeight&&button.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth+2;})()`);
+            assert.ok(sheets,`Setup sheet selector and confirmation must fit at ${width}x${height}`);
+            if(width===1280)fs.writeFileSync(path.join(os.tmpdir(),'aypi-setup-sheet-picker.png'),(await win.webContents.capturePage()).toPNG());
+            await run(`closeDialog('mes-sheets-dialog')`);
         }
         console.log('MES UI scenarios: OK');
     } catch (error) { console.error(error); process.exitCode = 1; }

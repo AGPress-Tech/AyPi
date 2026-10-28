@@ -1,4 +1,4 @@
-export type MesEventSource = "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO";
+export type MesEventSource = "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO" | "MANUAL";
 
 export type MesAcquisitionMode = "LIVE" | "DEMO";
 export type MesAcquisitionStatus = "ACTIVE" | "STOPPED" | "STALE";
@@ -196,10 +196,14 @@ export type MesMachineSession = {
     sessionGoodPieces: number;
     sessionScrapPieces: number;
     piecesPerPulse: number | null;
+    activationId: string;
+    collectionMode: "PLC" | "MANUAL";
+    manualState: string;
     targetQuantity: number;
     progressPercent: number;
     standardCycleSeconds: number;
     averageCycleSeconds: number | null;
+    forecastCycleSeconds: number | null;
     lastCycleSeconds: number | null;
 };
 

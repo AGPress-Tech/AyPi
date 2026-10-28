@@ -3,6 +3,9 @@ import { getRequestId, getRequestUser } from "../../shared/http/context";
 import { badRequest, notFound } from "../../shared/http/errors";
 import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
+import { declareManualProduction } from './manual-production';
+import { setupSheetCatalog, setupSheetPreview, phaseSetupSheets, linkSetupSheet, unlinkSetupSheet, setupSheetAttachment } from './setup-sheets';
+import { mesAnalysis } from './analysis';
 import {
     getMesEventSummary,
     getMesAcquisitionStatus,
@@ -244,6 +247,34 @@ function actionContext(req: Parameters<typeof getRequestUser>[0]) {
 }
 
 export function registerMesRoutes(router: Router) {
+    router.register('GET','/api/mes/analysis',async(req,res)=>{
+        const url=new URL(req.url||'/','http://localhost');
+        const to=optionalIsoDate(url.searchParams.get('to'),'Data finale')||new Date().toISOString();
+        const from=optionalIsoDate(url.searchParams.get('from'),'Data iniziale')||new Date(Date.parse(to)-30*86400000).toISOString();
+        if(Date.parse(from)>=Date.parse(to)||Date.parse(to)-Date.parse(from)>3660*86400000)throw badRequest('Seleziona un intervallo valido, fino a 10 anni.');
+        sendJson(res,200,mesAnalysis({from,to,machineIds:url.searchParams.getAll('machineId'),
+            department:optionalText(url.searchParams.get('department'),120),article:optionalText(url.searchParams.get('article'),120),
+            order:optionalText(url.searchParams.get('order'),120),operator:optionalText(url.searchParams.get('operator'),120)}));
+    });
+    router.register('POST','/api/mes/sessions/:sessionId/manual',async(req,res,params)=>{
+        const body:any=await readJsonBody(req)||{};
+        sendJson(res,200,await declareManualProduction({
+            declarationId:requiredText(body.declarationId,'Identificativo dichiarazione',120),sessionId:requiredText(params.sessionId,'Sessione',120),
+            baseRevision:revision(body.baseRevision),kind:enumValue(body.kind,['START','STOP','PIECES'],'Dichiarazione'),
+            quantity:nonNegativeInteger(body.quantity,'Quantità'),reasonCode:optionalText(body.reasonCode,120),note:optionalText(body.note,1000),
+            actor:requiredText(getRequestUser(req),'Operatore',120)}));
+    });
+    router.register('GET','/api/mes/setup-sheets',async(req,res)=>{
+        const url=new URL(req.url||'/','http://localhost');sendJson(res,200,{rows:setupSheetCatalog(optionalText(url.searchParams.get('search'),120))});
+    });
+    router.register('GET','/api/mes/setup-sheets/:type/:recordId',async(_req,res,params)=>sendJson(res,200,setupSheetPreview(params.type,params.recordId)));
+    router.register('GET','/api/mes/phases/:phaseId/setup-sheets',async(_req,res,params)=>sendJson(res,200,phaseSetupSheets(params.phaseId)));
+    router.register('POST','/api/mes/phases/:phaseId/setup-sheets',async(req,res,params)=>{
+        const body:any=await readJsonBody(req)||{};
+        sendJson(res,200,linkSetupSheet(params.phaseId,enumValue(body.type,['TRANSFER','CENTRI'],'Tipo scheda'),requiredText(body.recordId,'Scheda',120),getRequestUser(req)));
+    });
+    router.register('DELETE','/api/mes/phases/:phaseId/setup-sheets/:linkId',async(req,res,params)=>sendJson(res,200,unlinkSetupSheet(params.phaseId,params.linkId,getRequestUser(req))));
+    router.register('GET','/api/mes/setup-sheet-links/:linkId/attachments/:attachmentId',async(_req,res,params)=>sendJson(res,200,setupSheetAttachment(params.linkId,params.attachmentId)));
     router.register("POST", "/api/mes/ingest/batches", async (req, res) => {
         const body: any = (await readJsonBody(req)) || {};
         const result = await ingestMesCollectorBatch(parseCollectorBatch(body), actionContext(req));
@@ -331,6 +362,7 @@ export function registerMesRoutes(router: Router) {
             machineId: requiredText(body.machineId, "ID macchina", 120),
             phaseId: requiredText(body.phaseId, "ID fase", 100),
             mode: enumValue(body.mode || "PRODUCTION", SESSION_MODES, "Modalità sessione"),
+            collectionMode: enumValue(body.collectionMode || "PLC", ["PLC", "MANUAL"], "Rilevazione"),
             piecesPerPulse: (() => {
                 const value = Number(body.piecesPerPulse);
                 if (!Number.isSafeInteger(value) || value < 1) throw badRequest("Indica un numero intero positivo di pezzi per battito.");

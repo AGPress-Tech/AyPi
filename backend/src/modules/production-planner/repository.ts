@@ -7,6 +7,8 @@ import {
     serializeJson,
 } from "../../shared/storage/json-codec";
 import { HttpError } from "../../shared/http/errors";
+import { initializeMesSqliteStore } from "../mes/repository";
+import { validateActivePlannerSchedules } from "../mes/schedule-lock";
 
 const TABLE = "production_planner_state";
 const STORE_KEY = "main";
@@ -80,6 +82,7 @@ export function saveProductionPlannerSnapshot(
     updatedBy: string,
 ): ProductionPlannerSnapshot {
     initializeProductionPlannerSqliteStore();
+    initializeMesSqliteStore();
     return runMesSqliteTransaction((database) => {
         const rows = database.exec(
             `SELECT revision FROM ${TABLE} WHERE store_key = ?`,
@@ -92,6 +95,8 @@ export function saveProductionPlannerSnapshot(
                 details: { currentRevision },
             });
         }
+        const previous = database.exec(`SELECT payload_json FROM ${TABLE} WHERE store_key = ?`, [STORE_KEY])?.[0]?.values?.[0]?.[0];
+        validateActivePlannerSchedules(database, state, parseJson(previous, null));
         const revision = currentRevision + 1;
         const updatedAt = new Date().toISOString();
         const actor = String(updatedBy || "").trim() || "Operatore AyPi";

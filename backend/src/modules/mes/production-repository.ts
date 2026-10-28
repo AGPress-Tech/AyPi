@@ -3,6 +3,7 @@ import { HttpError } from "../../shared/http/errors";
 import { serializeJson } from "../../shared/storage/json-codec";
 import { initializeMesSqliteStore } from "./repository";
 import type { MesOrder, MesOrderDetail, MesOrderDraft, MesPhase, MesPhaseDraft } from "./types";
+import { activeScheduleLocks, activeScheduleLocked } from "./schedule-lock";
 
 function rows(result: any) {
     if (!Array.isArray(result) || !result.length) return [];
@@ -343,6 +344,12 @@ export function updateMesPhase(input: {
         ))[0];
         if (!phaseRow) throw new HttpError(404, "Fase MES non trovata.");
         const before = phaseFromRow(phaseRow);
+        const active = activeScheduleLocks(database).find((lock) => lock.phaseId === input.phaseId);
+        if (active && (before.planningStatus === "SCHEDULED" || input.draft.planningStatus === "SCHEDULED")) {
+            if (input.draft.planningStatus !== "SCHEDULED"
+                || input.draft.plannedMachineId.toUpperCase() !== active.machineId.toUpperCase()
+                || Date.parse(input.draft.scheduledStart) !== Date.parse(active.startedAt)) activeScheduleLocked(input.phaseId);
+        }
         if (before.revision !== input.baseRevision) {
             throw new HttpError(409, "La fase è stata aggiornata da un altro operatore.", {
                 code: "MES_PHASE_REVISION_CONFLICT", details: { currentRevision: before.revision },

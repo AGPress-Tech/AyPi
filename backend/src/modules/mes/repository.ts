@@ -372,6 +372,30 @@ export function initializeMesSqliteStore() {
     if (!sessionColumns.some((row: unknown[]) => row[1] === "pieces_per_pulse")) {
         database.exec("ALTER TABLE mes_machine_sessions ADD COLUMN pieces_per_pulse INTEGER");
     }
+    for (const [column, definition] of [
+        ["collection_mode", "TEXT NOT NULL DEFAULT 'PLC'"],
+        ["manual_state", "TEXT NOT NULL DEFAULT 'STOPPED'"],
+        ["standard_cycle_snapshot", "REAL"],
+    ]) {
+        if (!sessionColumns.some((row: unknown[]) => row[1] === column)) database.exec(`ALTER TABLE mes_machine_sessions ADD COLUMN ${column} ${definition}`);
+    }
+    database.exec(`UPDATE mes_machine_sessions SET standard_cycle_snapshot =
+        (SELECT standard_cycle_seconds FROM mes_phases WHERE mes_phases.phase_id = mes_machine_sessions.phase_id)
+        WHERE standard_cycle_snapshot IS NULL;
+        CREATE TABLE IF NOT EXISTS mes_manual_declarations (
+            declaration_id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES mes_machine_sessions(session_id),
+            machine_id TEXT NOT NULL, kind TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0,
+            occurred_at TEXT NOT NULL, actor TEXT NOT NULL, reason_code TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_mes_manual_session_time ON mes_manual_declarations(session_id, occurred_at);
+        CREATE TABLE IF NOT EXISTS mes_setup_sheet_links (
+            link_id TEXT PRIMARY KEY, phase_id TEXT NOT NULL REFERENCES mes_phases(phase_id),
+            sheet_type TEXT NOT NULL, record_id TEXT NOT NULL, label TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL, linked_at TEXT NOT NULL, linked_by TEXT NOT NULL,
+            removed_at TEXT NOT NULL DEFAULT ''
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mes_setup_sheet_active ON mes_setup_sheet_links(phase_id, sheet_type, record_id) WHERE removed_at = '';
+    `);
     const allocationColumns = database.exec("PRAGMA table_info(mes_event_allocations)")?.[0]?.values || [];
     if (!allocationColumns.some((row: unknown[]) => row[1] === "source_piece_quantity")) {
         database.exec("ALTER TABLE mes_event_allocations ADD COLUMN source_piece_quantity REAL");
@@ -437,7 +461,7 @@ function resolveMachineOperatingState(database: any, batch: MesCollectorBatch, m
     }
     const session = resultRows(database.exec(
         `SELECT sessions.session_id, sessions.mode, sessions.started_at, sessions.pieces_per_pulse,
-                phases.standard_cycle_seconds
+                COALESCE(sessions.standard_cycle_snapshot, phases.standard_cycle_seconds) AS standard_cycle_seconds
          FROM mes_machine_sessions AS sessions
          JOIN mes_phases AS phases ON phases.phase_id = sessions.phase_id
          WHERE sessions.machine_id = ? AND sessions.status = 'ACTIVE'
@@ -512,10 +536,10 @@ function updateMachineOperatingInterval(
 
 // Rebuild only the affected tail. Pulse windows, rather than sampling frequency,
 // determine production time, including events delivered after a network outage.
-function rebuildOperatingTail(database: any, machineId: string, from: string, until: string) {
+export function rebuildOperatingTail(database: any, machineId: string, from: string, until: string) {
     const start = Date.parse(from), end = Date.parse(until);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return;
-    const sessions = resultRows(database.exec(`SELECT s.*, p.standard_cycle_seconds FROM mes_machine_sessions s
+    const sessions = resultRows(database.exec(`SELECT s.*, COALESCE(s.standard_cycle_snapshot,p.standard_cycle_seconds) AS standard_cycle_seconds FROM mes_machine_sessions s
         JOIN mes_phases p ON p.phase_id = s.phase_id
         WHERE s.machine_id = ? AND s.started_at <= ? AND (s.ended_at = '' OR s.ended_at >= ?)
         ORDER BY s.started_at`, [machineId, until, from]));
@@ -531,6 +555,8 @@ function rebuildOperatingTail(database: any, machineId: string, from: string, un
         WHERE machine_id = ? AND started_at <= ? AND (ended_at = '' OR ended_at >= ?)
         ORDER BY started_at`, [machineId, until, from]));
     const points = new Set<number>([start, end]);
+    const manual = resultRows(database.exec(`SELECT * FROM mes_manual_declarations WHERE machine_id = ?
+        AND occurred_at <= ? AND kind IN ('START', 'STOP') ORDER BY occurred_at, rowid`, [machineId, until]));
     const add = (time: number) => { if (Number.isFinite(time) && time >= start && time <= end) points.add(time); };
     for (const s of sessions) {
         add(Date.parse(s.started_at)); add(Date.parse(s.ended_at));
@@ -541,6 +567,7 @@ function rebuildOperatingTail(database: any, machineId: string, from: string, un
         }
     }
     for (const a of acquisition) { add(Date.parse(a.started_at)); add(Date.parse(a.ended_at)); }
+    for (const declaration of manual) add(Date.parse(declaration.occurred_at));
     database.run("DELETE FROM mes_machine_operating_intervals WHERE machine_id = ? AND started_at >= ?", [machineId, from]);
     database.run("UPDATE mes_machine_operating_intervals SET ended_at = '' WHERE machine_id = ? AND started_at < ? AND (ended_at = '' OR ended_at > ?)",
         [machineId, from, from]);
@@ -552,7 +579,10 @@ function rebuildOperatingTail(database: any, machineId: string, from: string, un
         const monitored = acquisition.find((a: any) => a.started_at <= iso && (!a.ended_at || a.ended_at > iso));
         const session = sessions.find((s: any) => s.started_at <= iso && (!s.ended_at || s.ended_at > iso));
         let state = "UNMONITORED";
-        if (monitored?.state === "ONLINE") {
+        if (session?.collection_mode === "MANUAL") {
+            const declarations = manual.filter((d: any) => d.session_id === session.session_id && d.occurred_at <= iso);
+            state = session.mode === 'SETUP' ? 'SETUP' : declarations[declarations.length - 1]?.kind === 'START' ? 'PRODUCTION' : 'STOPPED';
+        } else if (monitored?.state === "ONLINE") {
             if (!session) state = "IDLE";
             else if (session.mode === "SETUP") state = "SETUP";
             else {
@@ -568,7 +598,7 @@ function rebuildOperatingTail(database: any, machineId: string, from: string, un
             }
         }
         updateMachineOperatingInterval(database, { machineId, sessionId: session?.session_id || "",
-            sourceSessionId: monitored?.source_session_id || snapshot?.source_session_id || "",
+            sourceSessionId: session?.collection_mode === 'MANUAL' ? 'MANUAL' : monitored?.source_session_id || snapshot?.source_session_id || "",
             state, occurredAt: iso });
         lastState = state;
     }
@@ -860,7 +890,7 @@ export function storeMachineEvents(
 
 function allocateEventToSession(database: any, event: MachineCounterEvent, createdAt: string, actor: string) {
     const session = resultRows(database.exec(
-        `SELECT sessions.session_id, sessions.mode, sessions.status, sessions.pieces_per_pulse,
+        `SELECT sessions.session_id, sessions.mode, sessions.status, sessions.pieces_per_pulse, sessions.collection_mode,
                 COALESCE((
                     SELECT transitions.state
                     FROM mes_session_transitions AS transitions
@@ -881,7 +911,8 @@ function allocateEventToSession(database: any, event: MachineCounterEvent, creat
     ))[0];
     if (!session) return;
     const state = String(session.state_at_event || "");
-    const allocationKind = state === "ACTIVE"
+    const ignoredPlc = session.collection_mode === 'MANUAL' && event.source !== 'MANUAL';
+    const allocationKind = ignoredPlc ? 'MANUAL_MODE_EXCLUSION' : state === "ACTIVE"
         ? (session.mode === "SETUP" ? "SETUP_PENDING" : "PRODUCTION")
         : state === "PAUSED"
             ? "PAUSED_EXCLUSION"
@@ -893,7 +924,7 @@ function allocateEventToSession(database: any, event: MachineCounterEvent, creat
           piece_quantity, source_piece_quantity, created_at, created_by)
          VALUES (?, ?, ?, '', ?, ?, ?, ?, ?)`,
         [randomUUID(), event.eventId, session.session_id, allocationKind,
-            session.pieces_per_pulse == null ? event.pieceDelta : event.pulseDelta * Number(session.pieces_per_pulse),
+            ignoredPlc ? 0 : event.source === 'MANUAL' || session.pieces_per_pulse == null ? event.pieceDelta : event.pulseDelta * Number(session.pieces_per_pulse),
             event.pieceDelta, createdAt, actor],
     );
 }
