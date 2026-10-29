@@ -33,9 +33,9 @@
     <div class="brand"><div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo" aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash" aria-hidden="true"></span></div><div><span class="eyebrow">AYPI · PRODUZIONE</span><h1>Scada Forno</h1></div></div>
     <div class="topbar-actions">
     <div id="module-state" class="module-state" data-state="connecting" role="status"><i></i><span>Connessione...</span></div>
-    <div class="temperature-card"><span class="eyebrow">CANALE 1 · LIVE</span><strong id="temperature">— °C</strong></div>
+    <div class="live-channels" role="group" aria-label="Temperature live dei quattro canali"><span class="eyebrow">CANALI · LIVE</span><div id="live-channel-values" class="live-channel-values"></div></div>
     <button id="refresh-view" class="button secondary" type="button">↻ Aggiorna</button>
-    <button id="open-options" class="button secondary">Opzioni grafico</button>
+    <button id="open-options" class="button secondary">Impostazioni</button>
     </div>
 </header>
 <main class="workspace">
@@ -47,8 +47,7 @@
         <div class="scale-control" role="group" aria-label="Scala temperatura"><span class="eyebrow">SCALA °C</span><div class="segmented"><button id="scale-auto" type="button" aria-pressed="true">Automatica</button><button id="scale-zero" type="button" aria-pressed="false">0 → Max + 50 °C</button><button id="scale-manual" type="button" aria-pressed="false">Min / Max</button><button id="scale-in" type="button" title="Aumenta dettaglio della scala temperatura" aria-label="Aumenta dettaglio gradi">+</button><button id="scale-out" type="button" title="Allarga la scala temperatura" aria-label="Allarga scala gradi">−</button></div></div>
     </section>
     <section class="chart-panel">
-        <div class="chart-heading"><div><span class="eyebrow">ANDAMENTO TERMICO</span><p id="range-label">Caricamento intervallo…</p></div><p id="status" role="status">Connessione al backend…</p></div>
-        <div id="channel-controls" class="channel-controls" role="group" aria-label="Canali visualizzati"></div>
+        <div class="chart-heading"><div class="chart-heading-range"><span class="eyebrow">ANDAMENTO TERMICO</span><p id="range-label">Caricamento intervallo…</p></div><div id="channel-controls" class="channel-controls" role="group" aria-label="Canali visualizzati"></div><p id="status" role="status">Connessione al backend…</p></div>
         <div class="plot"><canvas id="chart" aria-label="Grafico dei quattro canali di temperatura nel tempo" role="img" tabindex="0" aria-haspopup="menu" aria-controls="chart-context-menu" aria-expanded="false"></canvas>
             <div id="annotation-layer" class="annotation-layer" aria-label="Note ed eventi del forno"></div><div id="annotation-popup" class="annotation-popup" hidden></div><div id="annotation-notice" class="annotation-notice" role="status" hidden></div>
             <aside id="continuous-tooltip" class="continuous-tooltip" aria-label="Temperature al cursore" hidden><div class="cursor-title"><span>Temperature al cursore</span><span class="cursor-mode">CONTINUO</span></div><time id="cursor-time"></time><p id="cursor-kind"></p><div id="cursor-readings"></div><div class="cursor-average"><span>Media complessiva</span><strong id="cursor-mean">—</strong></div></aside>
@@ -78,8 +77,9 @@
     <p id="scale-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close="scale-dialog">Annulla</button><button type="submit" class="button primary">Applica scala</button></div>
 </form></dialog>
 <dialog id="options-dialog">
-    <form id="options-form"><div class="dialog-heading"><div><span class="eyebrow">PREFERENZE DELLA POSTAZIONE</span><h2>Opzioni grafico</h2></div><button class="icon-close" type="button" data-close="options-dialog" aria-label="Chiudi">×</button></div>
+    <form id="options-form"><div class="dialog-heading"><div><span class="eyebrow">PREFERENZE DELLA POSTAZIONE</span><h2>Impostazioni</h2></div><button class="icon-close" type="button" data-close="options-dialog" aria-label="Chiudi">×</button></div>
     <p class="dialog-intro">Griglia e stile restano uguali a ogni apertura, solo su questo PC. Non modificano il campionamento del forno.</p>
+    <fieldset><legend>Tooltip continuo</legend><label for="opt-tooltip-opacity" class="opacity-control"><span>Opacità <output id="tooltip-opacity-value" for="opt-tooltip-opacity">100%</output></span><input id="opt-tooltip-opacity" type="range" min="0" max="100" step="1" value="100"><small>0% trasparente · 100% opaco. Anteprima immediata sul grafico.</small></label></fieldset>
     <fieldset><legend>Griglia e assi</legend><div class="settings-grid">
         <label>Divisioni temporali<input id="opt-x-divisions" type="number" min="2" max="40" required><small>Numero di intervalli sull'asse orizzontale.</small></label>
         <label>Data scritta ogni N linee<input id="opt-x-every" type="number" min="1" max="40" required><small>Prima e ultima sono sempre scritte.</small></label>

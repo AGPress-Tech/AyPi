@@ -45,8 +45,11 @@ const shown: Bucket[][] = [[],[],[],[]];
 const channelControls = element('channel-controls');
 for (let id=1;id<=4;id++) {
     const label=document.createElement('label');label.className='channel-card';label.style.setProperty('--channel-color',channelColors[id-1]);
-    label.innerHTML='<input type="checkbox" data-channel="'+id+'" checked><span class="channel-name">Canale '+id+'</span><strong id="channel-value-'+id+'">\u2014 \u00b0C</strong><small id="channel-state-'+id+'">In attesa</small>';
+    label.innerHTML='<input type="checkbox" data-channel="'+id+'" aria-label="Mostra canale '+id+'" aria-describedby="channel-state-'+id+'" checked><span class="channel-name">CH'+id+'</span><strong id="channel-value-'+id+'">\u2014 \u00b0C</strong><small id="channel-state-'+id+'" hidden>In attesa</small>';
     channelControls.append(label);
+    const reading=document.createElement('div');reading.className='live-channel';reading.style.setProperty('--channel-color',channelColors[id-1]);
+    reading.innerHTML='<span>CH'+id+'</span><strong id="'+(id===1?'temperature':'live-temperature-'+id)+'">\u2014 \u00b0C</strong>';
+    element('live-channel-values').append(reading);
 }
 function toggleChannel(id:number) {
     preferences.visibleChannels=preferences.visibleChannels.includes(id)?preferences.visibleChannels.filter(n=>n!==id):[...preferences.visibleChannels,id].sort();
@@ -57,19 +60,20 @@ function channelsOf(result:any) { return result.channels || [{id:1,name:'Canale 
 function clearSeries() { for(const channel of series)channel.length=0;buckets=[];coverage=null;loadedInterval=0; }
 function updateChannelCards() {
     const now=Date.now()+clockOffset;
-    const current=backendState?.channels?.[0] || backendState?.lastSample;
-    const last=series[0][series[0].length-1];
-    const headerValue=current?.quality==='good' && now-current.timestampMs<15000 ? current.temperature : live.checked && last?.valid && last.lastTime!==null && now-last.lastTime<5000 ? last.last : null;
-    element('temperature').textContent=headerValue===null?'\u2014 \u00b0C':headerValue.toFixed(1)+' \u00b0C';
     for(let i=0;i<4;i++) {
         const latest=backendState?.channels?.[i] || backendState?.lastSample?.channels?.[i] || (i===0?backendState?.lastSample:null);
         const rows=series[i].filter(b=>b.toMs>=start&&b.fromMs<=end), tail=rows[rows.length-1];
         const recent=latest && now-latest.timestampMs<15000;
         const freshHistory=tail?.valid && tail.lastTime!==null && now-tail.lastTime<5000;
+        const header=element(i===0?'temperature':'live-temperature-'+(i+1));
+        const headerValue=recent?(latest.quality==='good'?latest.temperature:null):freshHistory?tail!.last:null;
+        header.textContent=recent&&latest.quality==='off'?'Off':headerValue===null?'\u2014 \u00b0C':headerValue.toFixed(1)+' \u00b0C';
+        header.parentElement!.title='Canale '+(i+1)+' · '+(recent?latest.quality==='off'?'Off · disattivato':latest.quality==='good'?'Live · '+formatTime(latest.timestampMs):'Lettura non disponibile':headerValue!==null?'Live · '+formatTime(tail!.lastTime!):'Nessuna lettura recente');
         const fromStatus=recent && latest.quality==='good' && (!freshHistory || latest.timestampMs>tail.lastTime!);
         const value=live.checked?(fromStatus?latest.temperature:freshHistory?tail!.last:null):(tail?.last??null);
         element('channel-value-'+(i+1)).textContent=value===null?'\u2014 \u00b0C':value.toFixed(1)+' \u00b0C';
         element('channel-state-'+(i+1)).textContent=live.checked?(value!==null?'Live':recent?(latest.quality==='off'?'Off \u00b7 disattivato':latest.quality==='good'?'Nessuna lettura recente':latest.quality):'Nessuna lettura recente'):(tail?.valid?'Ultimo nel periodo':tail?.samples?'Nessun campione valido':'Nessun dato nel periodo');
+        element('channel-value-'+(i+1)).closest('label')!.title='Canale '+(i+1)+' · '+element('channel-state-'+(i+1)).textContent;
     }
 }
 let effective = Number(resolution.value);
@@ -107,6 +111,7 @@ const receiveLive=(_event:any,frame:LiveFrame)=>{
     if(frame.resync){streamFrames=[];streamNeedsSync=true;}
     streamFrames.push(frame);if(streamFrames.length>20000)streamFrames.splice(0,streamFrames.length-20000);
     if(backendState){backendState.channels=frame.values.map((value,i)=>({id:i+1,name:'Canale '+(i+1),timestampMs:frame.timestampMs,temperature:value===null?null:value/10,quality:frame.qualities[i]===0?'good':frame.qualities[i]===9?'off':'unavailable'}));backendState.lastSample={...backendState.channels[0],channels:backendState.channels};}
+    updateChannelCards();
     if(streamNeedsSync&&live.checked&&!busy)void refresh(true);else applyStreamFrames();
 };
 ipcRenderer.on('forno-live-frame',receiveLive);
@@ -193,6 +198,7 @@ function showRange() {
     chart.options.scales!.x!.max = end;
 }
 function applyAppearance() {
+    document.documentElement.style.setProperty('--continuous-tooltip-opacity',String((optionsDialog.open?Number(element<HTMLInputElement>('opt-tooltip-opacity').value):preferences.continuousTooltipOpacity)/100));
     document.documentElement.dataset.theme = preferences.theme;
     const splash=document.getElementById('forno-splash');
     if(splash && !splash.hidden) document.body.classList.toggle('agpress-scripted-splash',preferences.theme==='classic');
@@ -300,12 +306,11 @@ async function refresh(full = false,prefetch=false,animate=full) {
         const received:Bucket[]=responseChannels.flatMap((c:any)=>c.buckets);
         watermark=received.length?Math.max(...received.map(b=>b.fromMs)):alignedStart;
         const tail = buckets[buckets.length-1];
-        if (live.checked) element('temperature').textContent = tail?.valid && tail.lastTime !== null && serverNow-tail.lastTime<5000 ? `${tail.last!.toFixed(1)} °C` : '— °C';
         statusElement.textContent = `${live.checked ? 'Live' : 'Storico'} · Risoluzione visualizzata: ${effective/1000} s` + (effective>requested ? ' (adattata al periodo per contenere il traffico)' : '') + (series.some(rows=>rows.some(b=>b.samples>0&&b.toMs>=start&&b.fromMs<=end)) ? '' : ' · Nessun campione nel periodo');
         render(animate);
     } catch(error) {
         statusElement.textContent = `Dati non aggiornati: ${error instanceof Error ? error.message : String(error)}`;
-        if (live.checked) element('temperature').textContent = '— °C';
+        updateChannelCards();
     } finally {
         busy = false;
         if (pendingFull && !disposed) { const prefetch=pendingPrefetch,animate=pendingAnimate;pendingFull=false;pendingPrefetch=false;void refresh(true,prefetch,animate); }
@@ -395,6 +400,7 @@ const optionFields: Record<string,keyof FornoViewSettings> = {
     'opt-decimals':'temperatureDecimals','opt-date-labels':'dateLabels','opt-theme':'theme','opt-line-width':'lineWidth',
     'opt-y-fixed':'yFixedStep','opt-y-step':'yDegreeStep','opt-y-subdivisions':'ySubdivisions',
     'opt-notes':'showNotes','opt-events':'showEvents',
+    'opt-tooltip-opacity':'continuousTooltipOpacity',
     'opt-grid-opacity':'gridOpacity','opt-legend':'showLegend','opt-envelope':'showEnvelope','opt-points':'showPoints','opt-diagnostics':'showDiagnostics',
 };
 function previewDivisions(){const n=Number(element<HTMLInputElement>('opt-x-divisions').value);element('division-preview').textContent=n+' divisioni = '+n+' intervalli e '+(n+1)+' linee. Prima e ultima etichetta sempre visibili.';}
@@ -402,8 +408,15 @@ function fillOptions(settings:FornoViewSettings){
     for(const [id,key] of Object.entries(optionFields)) {const field=element<HTMLInputElement>(id);if(typeof settings[key]==='boolean')field.checked=settings[key] as boolean;else field.value=String(settings[key]);}
     for(const field of document.querySelectorAll<HTMLInputElement>('[data-event-type]'))field.checked=settings.eventTypes.includes(field.dataset.eventType!);
     element<HTMLFieldSetElement>('event-filters').disabled=!settings.showEvents;
-    previewDivisions();syncDegreeControls();
+    previewDivisions();syncDegreeControls();previewTooltipOpacity();
 }
+function previewTooltipOpacity(){
+    const value=Number(element<HTMLInputElement>('opt-tooltip-opacity').value);
+    element('tooltip-opacity-value').textContent=value+'%';
+    document.documentElement.style.setProperty('--continuous-tooltip-opacity',String(value/100));
+}
+element('opt-tooltip-opacity').addEventListener('input',previewTooltipOpacity);
+optionsDialog.addEventListener('close',()=>document.documentElement.style.setProperty('--continuous-tooltip-opacity',String(preferences.continuousTooltipOpacity/100)));
 for(const [type,label]of Object.entries(EVENT_LABELS)){
     const wrapper=document.createElement('label'),field=document.createElement('input');field.type='checkbox';field.dataset.eventType=type;wrapper.append(field,document.createTextNode(label));element('event-type-options').append(wrapper);
 }

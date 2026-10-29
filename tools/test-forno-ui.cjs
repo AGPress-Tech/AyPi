@@ -84,6 +84,10 @@ app.whenReady().then(async()=>{
     assert(diagnostics.includes('Ultimo tentativo salvato'),diagnostics);
     assert(diagnostics.includes('Database: D:'),diagnostics);
     assert.equal(await win.webContents.executeJavaScript("document.getElementById('temperature').textContent"),'418.0 °C');
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-2').textContent"),'420.0 °C');
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-3').textContent"),'425.0 °C');
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-4').textContent"),'Off');
+    assert(await win.webContents.executeJavaScript("document.getElementById('channel-controls').parentElement.classList.contains('chart-heading')&&document.querySelector('.channel-card').getBoundingClientRect().height<36"));
     assert(requests.length>=1);
     const initial=requests.length;
     await win.webContents.executeJavaScript("document.getElementById('resolution').value='5000';document.getElementById('resolution').dispatchEvent(new Event('change'));");
@@ -292,6 +296,24 @@ app.whenReady().then(async()=>{
     win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:6,resync:true});await new Promise(r=>setTimeout(r,180));
     assert(requests.length>streamRequests,'Riconnessione senza recupero dello storico');
     console.log('OK: live locale senza polling storico e recupero dopo riconnessione');
+    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-tooltip-opacity').value='35';document.getElementById('opt-tooltip-opacity').dispatchEvent(new Event('input'))");
+    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('continuous-tooltip')).opacity"),'0.35');
+    fs.writeFileSync(path.join(folder,'settings.png'),(await win.webContents.capturePage()).toPNG());
+    await win.webContents.executeJavaScript("document.getElementById('options-dialog').close()");await new Promise(r=>setTimeout(r,60));
+    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('continuous-tooltip')).opacity"),'1');
+    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-tooltip-opacity').value='35';document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,120));
+    assert.equal(JSON.parse(fs.readFileSync(settingsFile,'utf8')).continuousTooltipOpacity,35);
+    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('continuous-tooltip')).opacity"),'0.35');
+    // The header remains live while the operator examines history.
+    await win.webContents.executeJavaScript("document.getElementById('live').checked=false;document.getElementById('live').dispatchEvent(new Event('change'))");await new Promise(r=>setTimeout(r,120));
+    win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:7,values:[6010,6110,6210,null],resync:false});await new Promise(r=>setTimeout(r,100));
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-2').textContent"),'611.0 °C');
+    for(const width of [900,1200,1920]){
+        win.setSize(width,850);await new Promise(r=>setTimeout(r,120));
+        const layout=await win.webContents.executeJavaScript("(()=>{const h=document.querySelector('.chart-heading').getBoundingClientRect(),c=document.getElementById('channel-controls').getBoundingClientRect(),b=document.getElementById('open-options').getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,button:b.right,controls:c.right,heading:h.right}})()");
+        assert(layout.scroll<=layout.width&&layout.button<=layout.width&&layout.controls<=layout.heading,JSON.stringify(layout));
+        if(width===900)fs.writeFileSync(path.join(folder,'compact-900.png'),(await win.webContents.capturePage()).toPNG());
+    }
     assert.deepEqual(errors,[]);
     const screenshot=await win.webContents.capturePage();
     const screenshotPath=path.join(folder,'forno.png');fs.writeFileSync(screenshotPath,screenshot.toPNG());

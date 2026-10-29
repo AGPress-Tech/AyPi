@@ -349,9 +349,13 @@ con Python e Node rimossi dal PATH.
 ## Preferenze locali del pannello forno
 
 Il pannello usa il tema AyPi classico (ambra) come impostazione iniziale.
-In **Opzioni grafico** si possono scegliere anche il tema blu e quello scuro,
+In **Impostazioni** si possono scegliere anche il tema blu e quello scuro,
 divisioni X/Y, frequenza delle etichette, decimali dei gradi, intensita della griglia,
 spessore curva, punti, legenda, intervallo min/max e apertura della diagnostica.
+L'opacità del tooltip continuo è regolabile da 0% a 100%, con default 100% e
+anteprima immediata; chiudendo senza salvare si ripristina il valore precedente.
+I quattro valori live restano nell'intestazione anche consultando lo storico;
+i selettori compatti delle curve si trovano al centro della barra Andamento termico.
 Le preferenze sono salvate in `<userData AyPi>/forno/view-settings.json`, sul PC
 client/profilo Windows corrente, mediante il processo principale Electron.
 Non transitano sul server e non cambiano la raccolta. Anche risoluzione, periodo

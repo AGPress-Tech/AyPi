@@ -8,6 +8,7 @@ export type FornoViewSettings = {
     yFixedStep:boolean; yDegreeStep:number; ySubdivisions:number;
     analysisWindowSeconds:number;
     continuousTooltip:boolean;
+    continuousTooltipOpacity:number;
     showNotes:boolean;showEvents:boolean;eventTypes:string[];
     xDivisions: number; yDivisions: number;
     xLabelEvery: number; yLabelEvery: number;
@@ -25,7 +26,7 @@ export const DEFAULT_VIEW_SETTINGS: FornoViewSettings = {
     lineWidth: 2, gridOpacity: 18, resolutionMs: 1000, periodMs: 600000,
     visibleChannels: [1, 2, 3, 4],
     yMin:0,yMax:1000,yFixedStep:false,yDegreeStep:10,ySubdivisions:5,analysisWindowSeconds:60,
-    continuousTooltip:false,
+    continuousTooltip:false,continuousTooltipOpacity:100,
     showNotes:true,showEvents:false,eventTypes:Object.keys(EVENT_LABELS),
 };
 export const RESOLUTIONS = [500, 1000, 2000, 5000, 10000, 30000, 60000, 300000, 3600000];
@@ -40,7 +41,7 @@ export function normalizeViewSettings(input: unknown): FornoViewSettings {
     if(Number.isFinite(value.yDegreeStep)&&value.yDegreeStep>=0.01&&value.yDegreeStep<=1000)result.yDegreeStep=value.yDegreeStep;
     if(Number.isInteger(value.ySubdivisions)&&value.ySubdivisions>=1&&value.ySubdivisions<=10)result.ySubdivisions=value.ySubdivisions;
     if(Number.isFinite(value.analysisWindowSeconds)&&value.analysisWindowSeconds>=0.5&&value.analysisWindowSeconds<=86400&&Number.isSafeInteger(value.analysisWindowSeconds*1000))result.analysisWindowSeconds=value.analysisWindowSeconds;
-    for (const [key, min, max] of [['xDivisions', 2, 40], ['yDivisions', 2, 30], ['xLabelEvery', 1, 40], ['yLabelEvery', 1, 30], ['temperatureDecimals', 0, 3], ['lineWidth', 1, 5], ['gridOpacity', 5, 60]] as const) {
+    for (const [key, min, max] of [['xDivisions', 2, 40], ['yDivisions', 2, 30], ['xLabelEvery', 1, 40], ['yLabelEvery', 1, 30], ['temperatureDecimals', 0, 3], ['lineWidth', 1, 5], ['gridOpacity', 5, 60], ['continuousTooltipOpacity',0,100]] as const) {
         if (Number.isInteger(value[key]) && value[key] >= min && value[key] <= max) result[key] = value[key];
     }
     if (['classic', 'blue', 'dark'].includes(value.theme)) result.theme = value.theme;

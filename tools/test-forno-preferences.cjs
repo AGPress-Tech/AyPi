@@ -22,11 +22,12 @@ test('canali visibili: normalizzazione, nessun alias dei default e persistenza l
  writeViewSettings(file,{visibleChannels:[1,3]});assert.deepEqual(readViewSettings(file).settings.visibleChannels,[1,3]);
 });
 test('nuove preferenze: scala manuale, passo in gradi, suddivisioni e finestra analisi',()=>{
- const settings={scaleMode:'manual',yMin:400,yMax:600,yFixedStep:true,yDegreeStep:0.5,ySubdivisions:4,analysisWindowSeconds:2.5,continuousTooltip:true};
+ const settings={scaleMode:'manual',yMin:400,yMax:600,yFixedStep:true,yDegreeStep:0.5,ySubdivisions:4,analysisWindowSeconds:2.5,continuousTooltip:true,continuousTooltipOpacity:35};
  const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'aypi-axis-prefs-')),'settings.json');writeViewSettings(file,settings);
  const actual=readViewSettings(file).settings;for(const [key,value]of Object.entries(settings))assert.equal(actual[key],value);
  const invalid=normalizeViewSettings({yMin:10,yMax:-10,yDegreeStep:0,ySubdivisions:500,analysisWindowSeconds:0});
  assert.equal(invalid.yMin,0);assert.equal(invalid.yMax,1000);assert.equal(invalid.yDegreeStep,10);assert.equal(invalid.ySubdivisions,5);assert.equal(invalid.analysisWindowSeconds,60);
+ assert.equal(normalizeViewSettings({}).continuousTooltipOpacity,100);assert.equal(normalizeViewSettings({continuousTooltipOpacity:0}).continuousTooltipOpacity,0);assert.equal(normalizeViewSettings({continuousTooltipOpacity:101}).continuousTooltipOpacity,100);
 });
 test('note/eventi: default nascosti per gli eventi, filtro valido e stesso catalogo del backend',()=>{
  const {EVENT_LABELS}=require('../dist-ts/modules/forno/preferences'),{EVENT_TYPES}=require('../backend-dist/modules/forno/messages');
