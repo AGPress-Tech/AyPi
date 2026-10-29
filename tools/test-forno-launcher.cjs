@@ -24,7 +24,7 @@ app.whenReady().then(async()=>{
   await main.loadFile(path.resolve('dist-ts/pages/bluearchive-preview.html'),{query:{theme}});
   await main.webContents.executeJavaScript("document.querySelector('[data-page=robot]').click()");
   await delay(450);
-  const selector='.module-card[data-label="Forno — Temperature e cicli"]';
+  const selector='.module-card[data-label="Scada Forno"]';
   assert(await main.webContents.executeJavaScript(`(()=>{const b=document.querySelector(${JSON.stringify(selector)});return !!b&&b.getClientRects().length>0&&getComputedStyle(b).display!=='none'})()`),`Pulsante forno assente in ${theme}`);
   await main.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
   let forno;

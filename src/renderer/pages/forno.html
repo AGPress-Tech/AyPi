@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; connect-src 'self' file:; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AyPi — Forno</title>
+<title>AyPi — Scada Forno</title>
 <link rel="stylesheet" href="../styles/utilities/production-planner-splash-bluearchive.css">
 <link rel="stylesheet" href="../styles/utilities/agpress-scripted-splash.css">
 <link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
 <link rel="stylesheet" href="../styles/forno.css">
 </head>
 <body class="module-splash-active agpress-scripted-splash">
-<div id="forno-splash" class="planner-splash planner-splash--bluearchive is-visible" role="status" aria-label="Apertura del modulo Forno" aria-hidden="false">
+<div id="forno-splash" class="planner-splash planner-splash--bluearchive is-visible" role="status" aria-label="Apertura del modulo Scada Forno" aria-hidden="false">
     <div class="planner-ba-boot">
         <div class="planner-ba-boot__grid"></div><div class="planner-ba-boot__sweep"></div>
         <div class="planner-ba-boot__corner planner-ba-boot__corner--left">AGP // THERMAL MONITORING</div>
@@ -21,7 +21,7 @@
                 <span class="planner-ba-boot__halo"></span><span class="planner-ba-boot__ay">Ay</span><span class="planner-ba-boot__pi">Pi</span><span class="planner-ba-boot__slash"></span>
             </div>
             <div class="planner-ba-boot__route"><i></i><span>FORNO / TEMPERATURE E CICLI</span><i></i></div>
-            <h1>Accesso al modulo <strong>Forno.</strong></h1>
+            <h1>Accesso al modulo <strong>Scada Forno.</strong></h1>
             <p>Caricamento della vista, stato acquisizione e archivio termico</p>
             <div class="planner-ba-boot__progress"><i></i></div>
             <div class="planner-ba-boot__status"><span data-boot-stage="interface">01&nbsp; INTERFACCIA</span><span data-boot-stage="server">02&nbsp; SERVER</span><span data-boot-stage="archive">03&nbsp; ARCHIVIO</span><span data-boot-stage="chart">04&nbsp; GRAFICO</span></div>
@@ -30,7 +30,7 @@
     <button id="skip-forno-splash" class="splash-skip" type="button">Salta animazione <span>Esc</span></button>
 </div>
 <header class="topbar">
-    <div class="brand"><div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo" aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash" aria-hidden="true"></span></div><div><span class="eyebrow">AYPI · PRODUZIONE</span><h1>Forno <span>/ Temperature e cicli</span></h1></div></div>
+    <div class="brand"><div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo" aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash" aria-hidden="true"></span></div><div><span class="eyebrow">AYPI · PRODUZIONE</span><h1>Scada Forno</h1></div></div>
     <div class="topbar-actions">
     <div id="module-state" class="module-state" data-state="connecting" role="status"><i></i><span>Connessione...</span></div>
     <div class="temperature-card"><span class="eyebrow">CANALE 1 · LIVE</span><strong id="temperature">— °C</strong></div>

@@ -13,6 +13,7 @@ const {app,BrowserWindow,ipcMain}=electron;
 app.disableHardwareAcceleration();
 let folder;
 app.whenReady().then(async()=>{
+    ipcMain.handle('forno-live-start',()=>({started:true}));
     folder=fs.mkdtempSync(path.join(os.tmpdir(),'aypi-forno-ui-'));
     for(const name of ['pages','styles','scripts','styles/utilities']) fs.mkdirSync(path.join(folder,name));
     fs.writeFileSync(path.join(folder,'pages/forno.html'),fs.readFileSync('src/renderer/pages/forno.html','utf8').replace('<body>',`<body><script>window.addEventListener('error',e=>console.error(e.error?.stack||e.message));</script>`));
@@ -277,6 +278,20 @@ app.whenReady().then(async()=>{
     }
     const dataUrl=await win.webContents.executeJavaScript("document.getElementById('chart').toDataURL('image/png')");
     assert(dataUrl.length>2000);
+    // Real-time frames append locally; a reconnect performs one history catch-up.
+    await win.webContents.executeJavaScript("document.getElementById('live').checked=true;document.getElementById('live').dispatchEvent(new Event('change'))");await new Promise(r=>setTimeout(r,150));
+    const liveFrame={timestampMs:Date.now(),values:[6000,6100,6200,null],qualities:[0,0,0,9],epoch:'ui-test',sequence:1,intervalMs:500,resync:true};
+    win.webContents.send('forno-live-frame',liveFrame);await new Promise(r=>setTimeout(r,180));
+    const streamRequests=requests.length;
+    for(let i=2;i<=4;i++){await new Promise(r=>setTimeout(r,300));win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:i,resync:false});}
+    await new Promise(r=>setTimeout(r,300));
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('channel-value-1').textContent"),'600.0 \u00b0C');
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('channel-state-4').textContent"),'Off \u00b7 disattivato');
+    assert.equal(requests.length,streamRequests,'Il live WebSocket non deve interrogare lo storico periodicamente');
+    win.webContents.send('forno-live-state',{online:false});
+    win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:6,resync:true});await new Promise(r=>setTimeout(r,180));
+    assert(requests.length>streamRequests,'Riconnessione senza recupero dello storico');
+    console.log('OK: live locale senza polling storico e recupero dopo riconnessione');
     assert.deepEqual(errors,[]);
     const screenshot=await win.webContents.capturePage();
     const screenshotPath=path.join(folder,'forno.png');fs.writeFileSync(screenshotPath,screenshot.toPNG());

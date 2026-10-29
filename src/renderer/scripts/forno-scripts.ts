@@ -7,6 +7,7 @@ import { attachChartInteractions } from './forno/chart-interactions';
 import { createChartReveal } from './forno/chart-reveal';
 import { channelAverage } from './forno/channel-average';
 import { setupFornoSplash } from './forno/splash';
+import { appendLiveFrame,type LiveFrame } from './forno/live-series';
 import { DEFAULT_VIEW_SETTINGS, normalizeViewSettings, divisionTicks, shouldLabel, dayRange, EVENT_LABELS, type FornoViewSettings } from '../../main/modules/forno/preferences';
 const { ipcRenderer } = require('electron');
 
@@ -86,6 +87,31 @@ let annotations:ReturnType<typeof setupAnnotations>|undefined;
 const reveal=createChartReveal();
 let loadedInterval=0;
 let currentDegreeStep=10;
+let streamOnline=false,streamReceivedAt=0,liveAppliedThrough=0;
+let streamNeedsSync=true;
+let streamStaleAfter=10000;
+let streamFrames:LiveFrame[]=[];
+function applyStreamFrames(){
+    if(!live.checked||!streamOnline||streamNeedsSync||loadedInterval!==effective||busy||interactions?.busy)return;
+    const now=Date.now()+clockOffset,span=end-start;end=now;start=end-span;
+    for(const frame of streamFrames){
+        if(frame.timestampMs<=liveAppliedThrough)continue;
+        appendLiveFrame(series,frame,effective,start,end);liveAppliedThrough=frame.timestampMs;
+    }
+    buckets=series[0];watermark=buckets[buckets.length-1]?.fromMs||start;
+    statusElement.textContent='Live · Risoluzione visualizzata: '+effective/1000+' s';render(false);
+}
+const receiveLive=(_event:any,frame:LiveFrame)=>{
+    if(disposed)return;
+    streamOnline=true;streamReceivedAt=Date.now();streamStaleAfter=Math.max(10000,frame.intervalMs*3);
+    if(frame.resync){streamFrames=[];streamNeedsSync=true;}
+    streamFrames.push(frame);if(streamFrames.length>20000)streamFrames.splice(0,streamFrames.length-20000);
+    if(backendState){backendState.channels=frame.values.map((value,i)=>({id:i+1,name:'Canale '+(i+1),timestampMs:frame.timestampMs,temperature:value===null?null:value/10,quality:frame.qualities[i]===0?'good':frame.qualities[i]===9?'off':'unavailable'}));backendState.lastSample={...backendState.channels[0],channels:backendState.channels};}
+    if(streamNeedsSync&&live.checked&&!busy)void refresh(true);else applyStreamFrames();
+};
+ipcRenderer.on('forno-live-frame',receiveLive);
+const receiveLiveState=(_event:any,state:{online:boolean})=>{if(!state.online&&streamOnline)streamNeedsSync=true;streamOnline=state.online;};
+ipcRenderer.on('forno-live-state',receiveLiveState);
 
 const chart = new Chart<'line'>(canvas, {
     type: 'line',
@@ -268,6 +294,8 @@ async function refresh(full = false,prefetch=false,animate=full) {
         const canMerge=keepCache&&coverage&&coverage.to>=fromMs&&coverage.from<=queryEnd;
         coverage={from:Math.max(retainedFrom,canMerge?Math.min(coverage!.from,fromMs):fromMs),to:Math.min(retainedTo,canMerge?Math.max(coverage!.to,queryEnd):queryEnd),interval:effective};
         loadedInterval=effective;
+        liveAppliedThrough=result.snapshotMs??Math.floor(end);
+        if(live.checked)streamNeedsSync=false;
         buckets=series[0];
         const received:Bucket[]=responseChannels.flatMap((c:any)=>c.buckets);
         watermark=received.length?Math.max(...received.map(b=>b.fromMs)):alignedStart;
@@ -281,6 +309,7 @@ async function refresh(full = false,prefetch=false,animate=full) {
     } finally {
         busy = false;
         if (pendingFull && !disposed) { const prefetch=pendingPrefetch,animate=pendingAnimate;pendingFull=false;pendingPrefetch=false;void refresh(true,prefetch,animate); }
+        else if(streamOnline&&live.checked)applyStreamFrames();
     }
 }
 function updateView(lo: number, hi: number) {
@@ -438,9 +467,13 @@ async function checkStatus() {
 }
 async function tick() {
     if(disposed) return;
-    if(!report.open&&!interactions?.busy && live.checked) await refresh(false);
+    if(!report.open&&!interactions?.busy && live.checked) {
+        const span=end-start,requested=Number(resolution.value),target=requested*Math.max(1,Math.ceil((span+1)/(1800*requested)));
+        if(!streamOnline||Date.now()-streamReceivedAt>streamStaleAfter||loadedInterval!==target||streamNeedsSync)await refresh(streamNeedsSync);
+        else applyStreamFrames();
+    }
     if(Date.now()-lastStatusCheck>10000) {lastStatusCheck=Date.now();await checkStatus();}
     if(!disposed) setTimeout(tick,Math.max(1000,Math.min(5000,Number(resolution.value))));
 }
-window.addEventListener('beforeunload',()=>{bootSplash.dispose();disposed=true;annotations?.dispose();continuous?.dispose();interactions?.dispose();reveal.stop();chart.destroy();});
-void (async()=>{try{await loadPreferences();bootSplash.mark('interface');await checkStatus();showRange();await refresh(true);}finally{bootSplash.ready();}void tick();})();
+window.addEventListener('beforeunload',()=>{bootSplash.dispose();disposed=true;ipcRenderer.send('forno-live-stop');ipcRenderer.removeListener('forno-live-frame',receiveLive);ipcRenderer.removeListener('forno-live-state',receiveLiveState);annotations?.dispose();continuous?.dispose();interactions?.dispose();reveal.stop();chart.destroy();});
+void (async()=>{try{await loadPreferences();bootSplash.mark('interface');await checkStatus();showRange();await refresh(true);void ipcRenderer.invoke('forno-live-start').catch(()=>{});}finally{bootSplash.ready();}void tick();})();

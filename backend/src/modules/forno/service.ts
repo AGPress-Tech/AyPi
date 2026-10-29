@@ -11,6 +11,9 @@ let stopping = false;
 let lastError = '';
 let restartTimer: NodeJS.Timeout | null = null;
 const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
+const frameListeners=new Set<(frame:any)=>void>();
+let latestFrame:any=null;
+export function subscribeFornoFrames(listener:(frame:any)=>void){frameListeners.add(listener);if(latestFrame)listener(latestFrame);return ()=>{frameListeners.delete(listener);};}
 
 function unavailable(message: string) {
     return new HttpError(503, message, { code: 'FORNO_UNAVAILABLE' });
@@ -51,7 +54,7 @@ export async function startFornoService(): Promise<void> {
     if (!config.enabled) return;
     stopping = false;
     const target = fork(path.join(__dirname, 'worker.js'), [], {
-        windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        windowsHide: true, serialization:'advanced', stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AYPI_FORNO_CONFIG: JSON.stringify(config),
             AYPI_FORNO_RESOURCES: (process as any).resourcesPath ? path.join((process as any).resourcesPath, 'backend-resources/forno') : '' },
     } as ForkOptions & { windowsHide: boolean });
@@ -67,7 +70,9 @@ export async function startFornoService(): Promise<void> {
         }, 10000);
         target.on('message', (message: any) => {
             try {
-                if (message.type === 'ready') {
+                if(message.type==='frame'){
+                    latestFrame=message.frame;for(const listener of frameListeners){try{listener(latestFrame);}catch{}}
+                } else if (message.type === 'ready') {
                     clearTimeout(timer);
                     hadReady = true;
                     ready = true;
@@ -95,6 +100,7 @@ export async function startFornoService(): Promise<void> {
         target.once('close', code => {
             clearTimeout(timer);
             ready = false;
+            latestFrame=null;
             if (child === target) child = null;
             if (!stopping) lastError = lastError || `Worker forno terminato (${code}): ${stderr}`;
             for (const request of pending.values()) {

@@ -11,7 +11,7 @@ if(!process.versions.electron){
  Object.assign(process.env,{AYPI_BACKEND_PROFILE:'dev',AYPI_FP_GENERAL_DIR:directory,AYPI_LOG_DIR:directory,AYPI_DB_PATH:path.join(directory,'aypi.db'),AYPI_FORNO_ENABLED:'1',AYPI_FORNO_HOST:'127.0.0.1',AYPI_FORNO_DB_PATH:path.join(directory,'forno.db')});
  process.resourcesPath=resources;
  const packed=path.join(resources,'app.asar/backend-dist');
- const sockets=new Set();let phase=-1,service,httpServer;
+ const sockets=new Set();let phase=-1,service,httpServer,liveSocket,genericSocket,stopClient;
  const mock=require('net').createServer(socket=>{
   sockets.add(socket);socket.on('close',()=>sockets.delete(socket));let pending=Buffer.alloc(0);
   socket.on('data',data=>{pending=Buffer.concat([pending,data]);while(pending.length>=12){
@@ -33,10 +33,37 @@ if(!process.versions.electron){
   const {Router}=require(path.join(packed,'shared/http/router')),{sendError}=require(path.join(packed,'shared/http/response'));
   const router=new Router();require(path.join(packed,'modules/forno/routes')).registerFornoRoutes(router);
   httpServer=require('http').createServer((req,res)=>router.handle(req,res).catch(e=>sendError(res,e)));
+  require(path.join(packed,'shared/realtime/websocket-hub')).attachRealtimeHub(httpServer);
+  require(path.join(packed,'modules/forno/live')).attachFornoLive(httpServer);
   await new Promise(r=>httpServer.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+httpServer.address().port;
   const api=async(url,method='GET',body,actor='Alice',expected=200)=>{const response=await fetch(base+url,{method,headers:{'content-type':'application/json','x-aypi-user':actor},body:body===undefined?undefined:JSON.stringify(body)});const value=await response.json();assert.equal(response.status,expected,JSON.stringify(value));return value;};
   await service.startFornoService();await delay(3200);
   const status=await api('/api/forno/status');assert.equal(status.running,true);assert.equal(status.events.error,'');assert(status.events.lastReadMs);assert.equal(status.channels.length,4);
+  const {decodeHistory,decodeFrame,HISTORY_MIME}=require(path.join(root,'dist-ts/modules/forno/transport'));
+  const historyQuery=`fromMs=${status.lastSample.timestampMs-10000}&toMs=${status.lastSample.timestampMs}&intervalMs=500&maxPoints=3000`;
+  const jsonHistory=await api('/api/forno/history?'+historyQuery);
+  const binaryResponse=await fetch(base+'/api/forno/history?'+historyQuery,{headers:{Accept:HISTORY_MIME,'Accept-Encoding':'gzip'}});
+  assert.equal(binaryResponse.headers.get('content-encoding'),'gzip');assert(binaryResponse.headers.get('content-type').startsWith(HISTORY_MIME));
+  const decoded=decodeHistory(Buffer.from(await binaryResponse.arrayBuffer()));assert.deepEqual(decoded.channels,jsonHistory.channels);
+  assert.equal(decoded.snapshotMs,jsonHistory.snapshotMs);
+  process.env.AYPI_FP_BACKEND_URL=base+'/api/ferie-permessi';
+  const clientNetwork=require(path.join(root,'dist-ts/modules/forno/network'));
+  assert.deepEqual((await clientNetwork.requestFornoHistory(new URLSearchParams(historyQuery))).channels,jsonHistory.channels);
+  const clientEvents=[];stopClient=clientNetwork.openFornoLive((channel,value)=>clientEvents.push({channel,value}));
+  genericSocket=new(require('ws'))(base.replace('http:','ws:')+'/ws');
+  const genericReady=new Promise((resolve,reject)=>{genericSocket.once('message',raw=>resolve(JSON.parse(raw)));genericSocket.once('error',reject);});
+  assert.equal((await genericReady).type,'connection.ready');
+  liveSocket=new(require('ws'))(base.replace('http:','ws:')+'/api/forno/live');
+  const frames=[];liveSocket.on('message',(raw,binary)=>{assert(binary);frames.push(decodeFrame(raw));});
+  await delay(1100);assert(frames.length>=2);assert.deepEqual(frames.at(-1).values,[4175,4200,4250,null]);assert.equal(frames.at(-1).qualities[3],9);
+  assert(frames.at(-1).sequence>frames[0].sequence);
+  assert(clientEvents.filter(e=>e.channel==='forno-live-frame').length>=2);
+  const resets=clientEvents.filter(e=>e.channel==='forno-live-frame'&&e.value.resync).length;
+  require(path.join(packed,'modules/forno/live')).closeFornoLive(httpServer);
+  await delay(200);assert(clientEvents.some(e=>e.channel==='forno-live-state'&&!e.value.online));
+  require(path.join(packed,'modules/forno/live')).attachFornoLive(httpServer);
+  await delay(2100);assert(clientEvents.filter(e=>e.channel==='forno-live-frame'&&e.value.resync).length>resets,'Il client non recupera la disconnessione');
+  const savedSample=await api('/api/forno/sample?timestampMs='+frames.at(-1).timestampMs);assert.equal(savedSample.timestampMs,frames.at(-1).timestampMs);
   const range=`fromMs=${Date.now()-15000}&toMs=${Date.now()+15000}&showNotes=1&eventTypes=program_run,program_hold,program_resume,segment_start,program_complete`;
   let messages=await api('/api/forno/messages?'+range);for(const type of ['program_run','program_hold','program_resume','segment_start','program_complete'])assert(messages.events.some(e=>e.type===type),type);
   const input={timestampMs:status.lastSample.timestampMs,text:'Nota condivisa',clientToken:require('crypto').randomUUID()};
@@ -48,5 +75,5 @@ if(!process.versions.electron){
   await api('/api/forno/notes/'+note.id,'DELETE',{revision:2},'Bob');messages=await api('/api/forno/messages?'+range);assert.equal(messages.notes.length,0);
   assert.equal((await api('/api/forno/messages?'+range+'&revision='+messages.revision)).unchanged,true);
   console.log('OK: backend impacchettato senza Node/Python nel PATH; 4 canali, eventi, note condivise, conflitto HTTP 409, eliminazione e revisione condizionale. DB temporaneo: '+directory);
- }finally{if(service)await service.stopFornoService();if(httpServer)await new Promise(r=>httpServer.close(r));for(const socket of sockets)socket.destroy();await new Promise(r=>mock.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;});
+ }finally{stopClient?.();liveSocket?.terminate();genericSocket?.terminate();if(service)await service.stopFornoService();if(httpServer){require(path.join(packed,'modules/forno/live')).closeFornoLive(httpServer);require(path.join(packed,'shared/realtime/websocket-hub')).closeRealtimeHub(httpServer);await new Promise(r=>httpServer.close(r));}for(const socket of sockets)socket.destroy();await new Promise(r=>mock.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;});
 }

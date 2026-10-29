@@ -16,7 +16,8 @@
     "prepare:forno": "node tools\\prepare-forno-native.cjs",
     "test:forno": "node --test tools/test-forno.cjs tools/test-forno-multichannel.cjs tools/test-forno-startup.cjs tools/test-forno-analysis.cjs tools/test-forno-sample.cjs tools/test-forno-messages.cjs",
     "test:plc-engine": "node --test tools/test-plc-engine.cjs",
-    "test:forno:view": "node --test tools/test-forno-preferences.cjs tools/test-forno-reveal.cjs tools/test-forno-average.cjs tools/test-forno-axes.cjs"
+    "test:forno:view": "node --test tools/test-forno-preferences.cjs tools/test-forno-reveal.cjs tools/test-forno-average.cjs tools/test-forno-axes.cjs",
+    "test:forno:transport": "node --test tools/test-forno-transport.cjs"
   },
   "author": "Ayrton Pizzi",
   "license": "ISC",
@@ -42,6 +43,7 @@
     "koffi": "3.3.5",
     "nodemailer": "^7.0.12",
     "otplib": "^12.0.1",
+    "protobufjs": "^8.8.1",
     "qrcode": "^1.5.4",
     "sql.js": "^1.14.1",
     "telegraf": "^4.16.3",

@@ -112,6 +112,7 @@ export class RealtimeHub {
             return;
         }
         if (pathname !== "/ws") {
+            if(pathname==='/api/forno/live')return;
             socket.destroy();
             return;
         }

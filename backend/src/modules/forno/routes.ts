@@ -5,6 +5,7 @@ import { fornoRequest, getFornoStatus } from './service';
 import { readJsonBody } from '../../shared/http/request';
 import { HttpError } from '../../shared/http/errors';
 import { EVENT_TYPES } from './messages';
+import { HISTORY_MIME,sendHistory } from './transport';
 
 /** Consultazione archivio e note operatore: il campionamento resta centrale. */
 export function registerFornoRoutes(router: Router) {
@@ -50,6 +51,8 @@ export function registerFornoRoutes(router: Router) {
             !Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 4000) {
             throw badRequest('Intervallo forno non valido: fromMs/toMs UTC, massimo 366 giorni, intervalMs >= 500, maxPoints 1–4000');
         }
-        sendJson(response, 200, await fornoRequest('history', { fromMs, toMs, intervalMs, maxPoints }));
+        const binary=String(request.headers.accept||'').includes(HISTORY_MIME);
+        const result=await fornoRequest(binary?'history_binary':'history', { fromMs, toMs, intervalMs, maxPoints });
+        if(binary)await sendHistory(request,response,result);else sendJson(response,200,result);
     });
 }

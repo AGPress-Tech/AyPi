@@ -1,4 +1,5 @@
 import { startFornoService, stopFornoService } from './modules/forno/service';
+import { attachFornoLive,closeFornoLive } from './modules/forno/live';
 import http from "http";
 import { backendConfig } from "./config";
 import { registerRoutes } from "./routes";
@@ -176,6 +177,7 @@ export function createBackendServer(
         }
     });
     realtimeHub = attachRealtimeHub(server);
+    attachFornoLive(server);
     return server;
 }
 
@@ -272,6 +274,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                         new Promise<void>((stopResolve, stopReject) => {
                             releaseProductionPlannerWaiters();
                             closeRealtimeHub(server);
+                            closeFornoLive(server);
                             void Promise.allSettled([
                                 stopFornoService(),
                                 stopTelegramBotService(),
@@ -302,6 +305,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 rejectReady(error);
                 void stopFornoService();
                 closeRealtimeHub(server);
+                closeFornoLive(server);
                 if (mobileGateway) {
                     void mobileGateway.stop().catch(() => {});
                     mobileGateway = null;

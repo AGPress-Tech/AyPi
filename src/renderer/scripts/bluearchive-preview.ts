@@ -195,7 +195,7 @@ const pages: Record<string, PageDefinition> = {
         ],
     },
     robot: {
-        title: "Robot",
+        title: "MES - SCADA",
         heading: "Stato e connessioni robot",
         description:
             "Visualizza rapidamente stato e informazioni delle celle robotizzate.",
@@ -207,7 +207,7 @@ const pages: Record<string, PageDefinition> = {
                 channel: "open-production-planner-window",
             }] : []),
             {
-                label: "Forno — Temperature e cicli",
+                label: "Scada Forno",
                 description: "Grafico live, storico e analisi delle temperature",
                 channel: "open-forno-window",
             },
@@ -643,7 +643,7 @@ function assistantPageHint(character: "arona" | "plana") {
             "In Articoli trovi disegni, cicli, schede tecniche e Inventario magazzino.",
         produzioni:
             "In Produzioni trovi i registri di Stampaggio, Tranceria e Torneria.",
-        robot: "In Robot puoi consultare lo stato delle celle e verificarne la connessione.",
+        robot: "In MES - SCADA puoi consultare lo stato delle celle, verificarne la connessione e aprire Scada Forno.",
         calcolatore:
             "Il Calcolatore ricava numero di giri e avanzamento dai parametri di lavorazione.",
         utilities:
@@ -751,7 +751,7 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
             },
             {
                 animation: "18",
-                text: "Per verificare la connettività dei robot, apri Robot: trovi stato e controllo connessioni nello stesso pannello.",
+                text: "Per verificare la connettività dei robot, apri MES - SCADA: trovi stato e controllo connessioni nello stesso pannello.",
             },
             {
                 animation: "12",
@@ -842,7 +842,7 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
             },
             {
                 animation: "99",
-                text: "La diagnostica dei robot e la verifica connessioni sono raggruppate nella sezione Robot.",
+                text: "La diagnostica dei robot e la verifica connessioni sono raggruppate nella sezione MES - SCADA.",
             },
             {
                 animation: "13",

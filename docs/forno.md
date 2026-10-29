@@ -128,9 +128,9 @@ La risoluzione della vista è personale e non modifica il campionamento del serv
 - Risoluzione da 0.5 s a 1 ora; intervallo navigabile con zoom, trascinamento
   e selezione del giorno o del range esatto (data/ora, millisecondi inclusi),
   senza selettore Periodo. A ogni apertura "Segui live" è attivo.
-- Live incrementale: si richiedono solo gli intervalli nuovi e l'ultimo incompleto,
-  con aggiornamento ogni 1–5 secondi in funzione della risoluzione scelta.
-  Con vista 0.5 s si vedono entrambi i campioni nel refresh di circa un secondo.
+- Live tramite WebSocket: ogni campione originale viene inviato dopo il commit,
+  normalmente ogni 0,5 s, e aggregato localmente alla risoluzione scelta.
+  Senza WebSocket resta disponibile il recupero HTTP incrementale ogni 1–5 s.
 - Storico e viste lunghe: normalmente massimo 2000 bucket per richiesta; la risoluzione può
   essere aumentata automaticamente, con indicazione visibile nel pannello.
 - Ogni bucket conserva min, max, media e conteggi. I picchi restano visibili.
@@ -230,6 +230,49 @@ L'evento "Avvio raccolta" riguarda il backend, non attesta un'accensione del for
 I precedenti messaggi UHH/Review, i messaggi di sistema completi e le note
 inserite sullo strumento non vengono importati automaticamente.
 Raccolta eventi e relativi errori sono consultabili nella diagnostica acquisizione.
+
+## Trasporto dello storico e del live
+
+Lo storico usa lo stesso endpoint HTTP, con negoziazione
+`Accept: application/vnd.aypi.forno.v1+protobuf` e `Accept-Encoding: gzip`.
+Il formato è Protocol Buffers, versione 1, definito una sola volta in
+`assets/forno-transport.proto`, incluso in entrambi i pacchetti. I campi numerici
+dello storico restano float64; i null sono codificati come NaN e ripristinati
+prima di arrivare al grafico. Si conservano statistiche, timestamp e qualità
+implicita nei conteggi validi/mancanti. La risposta è limitata a 4000 bucket
+per canale, senza duplicare CH1 al livello superiore nel trasferimento binario.
+Il thread delle query esegue la codifica; gzip livello 1 usa il pool asincrono
+di Node. L'IPC del collector usa serializzazione binaria avanzata.
+
+`/api/forno/live` è un WebSocket sullo stesso host e porta del backend.
+Il collector pubblica ogni frame solo dopo il commit SQLite. Il server codifica
+una sola volta quattro temperature originali in decimi interi, quattro qualità,
+timestamp, identificativo del processo collector e contatore di sequenza;
+poi trasmette lo stesso messaggio a tutti i client collegati. Non si effettuano
+query SQLite per ogni client o campione live. La compressione per messaggio è
+disattivata perché i frame sono già molto piccoli. Heartbeat e limite di coda
+disconnettono connessioni interrotte/client troppo lenti, senza code illimitate.
+
+Il client aggrega i frame alla risoluzione di visualizzazione, esclusi Off/errori.
+Identificativo/sequenza rilevano riavvii, duplicati e salti. Dopo una riconnessione
+si recupera lo storico; `snapshotMs`, calcolato nella stessa transazione di
+lettura, evita di ricontare i campioni inclusi nella risposta. Durante il recupero
+i nuovi frame sono accodati in memoria con un limite. Senza WebSocket il client
+continua con HTTP incrementale. Un client precedente continua a ricevere JSON;
+un client nuovo funziona anche con il precedente backend JSON, in attesa
+dell'aggiornamento. Note, eventi e impostazioni mantengono le API JSON.
+
+Non cambiano file SQLite, schema dell'archivio, campioni o frequenza Modbus.
+Installare prima il backend aggiornato e poi il client. Verifiche:
+`npm run test:forno:transport`, `node tools/test-forno-ui.cjs` e
+`node tools/test-forno-packaged-messages.cjs` dopo il packaging.
+Quest'ultimo verifica anche gzip, decodifica del vero client, WebSocket comune
+e forno contemporanei, frame già persistiti e riconnessione automatica.
+`node tools/benchmark-forno-transport.cjs http://server:3000` misura in sola
+lettura il peso dei formati sulle ultime 24 ore del backend indicato.
+Il confronto del 29/10/2026 su dati reali ha dato 5.330.598 byte JSON,
+647.261 byte JSON+gzip e 294.245 byte Protobuf+gzip (94,5% in meno del JSON
+precedente); sono dimensioni del corpo HTTP, non una misura della latenza totale.
 
 ## API forno
 

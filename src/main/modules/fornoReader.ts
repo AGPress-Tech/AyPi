@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { readViewSettings, writeViewSettings } from './forno/preferences-store';
 import { requestAypiBackend } from './file-manager/backend-client';
+import { requestFornoHistory,openFornoLive } from './forno/network';
 
 let registered = false;
 let fornoWindow: BrowserWindow | null = null;
@@ -10,6 +11,17 @@ export function setupFornoReader() {
     if (registered) return;
     registered = true;
     const preferencesPath = () => path.join(app.getPath('userData'), 'forno', 'view-settings.json');
+    const streams=new Map<number,()=>void>();
+    ipcMain.handle('forno-live-start',event=>{
+        const sender=event.sender;
+        if(!sender.getURL().startsWith('file:')||!/\/forno\.html$/i.test(new URL(sender.getURL()).pathname))throw new Error('Richiesta live non valida');
+        if(!streams.has(sender.id)){
+            const stop=openFornoLive((channel,value)=>{if(!sender.isDestroyed())sender.send(channel,value);});streams.set(sender.id,stop);
+            sender.once('destroyed',()=>{streams.get(sender.id)?.();streams.delete(sender.id);});
+        }
+        return {started:true};
+    });
+    ipcMain.on('forno-live-stop',event=>{streams.get(event.sender.id)?.();streams.delete(event.sender.id);});
     ipcMain.handle('forno-view-settings-load', () => readViewSettings(preferencesPath()));
     ipcMain.handle('forno-view-settings-save', (_event, input) => writeViewSettings(preferencesPath(), input));
     ipcMain.on('open-forno-window', event => {
@@ -23,7 +35,7 @@ export function setupFornoReader() {
         fornoWindow = new BrowserWindow({
             width: 1250, height: 820, minWidth: 900, minHeight: 650,
             icon: path.join(__dirname, '..', 'assets', 'app-icon.png'),
-            show: false, autoHideMenuBar: true, title: 'AyPi — Forno', backgroundColor: '#f3f1eb',
+            show: false, autoHideMenuBar: true, title: 'AyPi — Scada Forno', backgroundColor: '#f3f1eb',
             parent: BrowserWindow.fromWebContents(event.sender) || undefined,
             webPreferences: { nodeIntegration: true, contextIsolation: false },
         });
@@ -64,6 +76,6 @@ export function setupFornoReader() {
             if (!Number.isSafeInteger(input?.[key])) throw new Error('Parametri forno non validi');
             query.set(key, String(input[key]));
         }
-        return requestAypiBackend(`/api/forno/history?${query}`, { timeoutMs: 18000 });
+        return requestFornoHistory(query);
     });
 }

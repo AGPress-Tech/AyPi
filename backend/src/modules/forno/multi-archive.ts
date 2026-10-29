@@ -59,6 +59,7 @@ export function historyChannels(db:any,start:number,end:number,interval=500,maxP
     db.exec('BEGIN');
     try{
         const channels=[1,2,3,4].map(id=>({id,name:'Canale '+id,...history(db,start,end,interval,maxPoints,id,false)}));
-        return {...channels[0],channels};
+        const latest=db.prepare('SELECT MAX(t) t FROM pending').get().t??db.prepare('SELECT MAX(end) t FROM blocks').get().t??0;
+        return {...channels[0],channels,snapshotMs:Math.min(end,latest)};
     }finally{db.exec('ROLLBACK');}
 }

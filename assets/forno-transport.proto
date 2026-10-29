@@ -1,0 +1,27 @@
+syntax = "proto3";
+package aypi.forno;
+// Version 1: float64 preserves the existing JSON numeric precision.
+// Stats order: samples,valid,missing,min,max,mean,delta,first,last,
+// firstTime,lastTime,minTime,maxTime. Null numeric values use NaN on the wire.
+message Stats { repeated double values = 1 [packed=true]; }
+// Buckets are packed rows: fromMs,toMs followed by the 13 Stats values.
+message Channel { uint32 id = 1; Stats stats = 2; repeated double buckets = 3 [packed=true]; }
+message History {
+  uint32 version = 1;
+  double fromMs = 2;
+  double toMs = 3;
+  double requestedIntervalMs = 4;
+  double effectiveIntervalMs = 5;
+  repeated Channel channels = 6;
+  double snapshotMs = 7;
+}
+// Values are original signed Modbus tenths of a degree. INT32_MIN means null.
+message Frame {
+  uint32 version = 1;
+  double timestampMs = 2;
+  repeated sint32 values = 3 [packed=true];
+  repeated uint32 qualities = 4 [packed=true];
+  string epoch = 5;
+  uint32 sequence = 6;
+  uint32 intervalMs = 7;
+}
