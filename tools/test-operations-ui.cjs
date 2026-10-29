@@ -21,7 +21,20 @@ app.whenReady().then(async()=>{
   for(let i=0;i<40;i++){if(await win.webContents.executeJavaScript("document.getElementById('forge-splash').hidden"))break;await delay(100);}
   assert(await win.webContents.executeJavaScript("document.getElementById('forge-splash').hidden&&!document.querySelector('.forge-workspace').inert"));
   assert(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.aypi-module-logo')).fontFamily.includes('Trebuchet')"));
+  // Let the compositor paint the first frame after the splash unlocks.
+  await delay(100);
   fs.writeFileSync(path.join(output,theme+'-hub.png'),(await win.webContents.capturePage()).toPNG());
+  for(const width of [900,1920]){
+   win.setSize(width,1000);await delay(100);
+   assert(await win.webContents.executeJavaScript("document.documentElement.scrollWidth<=window.innerWidth&&[...document.querySelectorAll('#forge-overview .forge-module')].every(card=>card.scrollWidth<=card.clientWidth)"),'Hub must fit at '+width+'px');
+   fs.writeFileSync(path.join(output,theme+'-hub-'+width+'.png'),(await win.webContents.capturePage()).toPNG());
+  }
+  win.setSize(1400,900);await delay(50);
+  win.webContents.debugger.attach('1.3');
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  assert(await win.webContents.executeJavaScript("[...document.querySelectorAll('.forge-model-lift,.forge-flow-line,.forge-node-pulse,.forge-ambient-orbit')].every(node=>getComputedStyle(node).animationName==='none')"),'Decorative motion must respect reduced motion');
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]});
+  win.webContents.debugger.detach();
   await win.webContents.executeJavaScript("document.getElementById('forge-open-robots').click();document.getElementById('show21D500').click()");await delay(200);
   assert(await win.webContents.executeJavaScript("!document.getElementById('robotConsoleLoading').hidden&&getComputedStyle(document.querySelector('.robot-radar-ring:nth-child(2)')).animationName==='slowSpin'"));
   fs.writeFileSync(path.join(output,theme+'-robot-loading.png'),(await win.webContents.capturePage()).toPNG());

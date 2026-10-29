@@ -1,0 +1,259 @@
+/* Decorative SVG models and slow ambient motion; no live data or render loop. */
+.forge-ambient {
+    position: fixed;
+    inset: 100px 0 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: var(--forge-accent);
+    z-index: 0;
+}
+
+.forge-ambient-grid {
+    position: absolute;
+    inset: 0;
+    opacity: .13;
+    background-image:
+        linear-gradient(var(--forge-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--forge-line) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse at 80% 20%, #000, transparent 72%);
+}
+
+.forge-ambient-orbit {
+    position: absolute;
+    width: 350px;
+    height: 350px;
+    right: -220px;
+    top: 80px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    opacity: .1;
+    animation: forge-ambient-drift 32s ease-in-out infinite;
+}
+
+.forge-ambient-orbit::before,
+.forge-ambient-orbit::after {
+    content: "";
+    position: absolute;
+    inset: 24px;
+    border: 1px dashed currentColor;
+    border-radius: inherit;
+}
+
+.forge-ambient-orbit::after { inset: 60px; border-style: solid; }
+.forge-ambient-orbit--two { left: -270px; right: auto; top: 500px; animation-delay: -15s; }
+
+/* Elliptical sky halos echo the home page, behind all interactive content. */
+.forge-sky-halo {
+    --halo-angle: -18deg;
+    position: absolute;
+    width: 440px;
+    height: 145px;
+    left: 36%;
+    top: 35px;
+    opacity: .14;
+    transform: rotate(var(--halo-angle));
+    animation: forge-sky-float 26s ease-in-out infinite;
+}
+
+.forge-sky-halo i,
+.forge-sky-halo span,
+.forge-sky-halo i::before {
+    position: absolute;
+    inset: 0;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+}
+.forge-sky-halo i::before { content: ""; inset: 9px 24px; opacity: .55; }
+.forge-sky-halo span {
+    inset: -22px 45px;
+    border-style: dashed;
+    opacity: .6;
+    transform: rotate(12deg);
+    animation: forge-sky-tilt 34s ease-in-out infinite;
+}
+.forge-sky-halo i::after {
+    content: "";
+    position: absolute;
+    top: 10%;
+    right: 18%;
+    width: 5px;
+    height: 5px;
+    border: 1px solid currentColor;
+    background: var(--forge-bg);
+    transform: rotate(45deg);
+}
+.forge-sky-halo--two {
+    --halo-angle: 16deg;
+    width: 510px;
+    height: 170px;
+    left: 43%;
+    top: auto;
+    bottom: 4%;
+    opacity: .11;
+    animation-delay: -11s;
+    animation-duration: 32s;
+}
+.forge-sky-halo--three {
+    --halo-angle: -28deg;
+    width: 290px;
+    height: 100px;
+    left: -80px;
+    top: 40%;
+    opacity: .12;
+    animation-delay: -19s;
+    animation-duration: 30s;
+}
+.forge-sky-cross {
+    position: absolute;
+    width: 70px;
+    height: 1px;
+    background: currentColor;
+    opacity: .13;
+    transform: rotate(-18deg);
+    animation: forge-sky-marker 24s ease-in-out infinite;
+}
+.forge-sky-cross::after { content: ""; position: absolute; width: 1px; height: 30px; left: 50%; top: -15px; background: currentColor; }
+.forge-sky-cross--one { left: 24%; top: 19%; }
+.forge-sky-cross--two { right: 12%; bottom: 9%; width: 42px; animation-delay: -12s; }
+
+.forge-ambient-rail {
+    position: absolute;
+    top: 18%;
+    bottom: 12%;
+    width: 1px;
+    background: linear-gradient(transparent, var(--forge-line), transparent);
+}
+
+.forge-ambient-rail--left { left: max(24px, calc((100vw - 1540px) / 2)); }
+.forge-ambient-rail--right { right: max(24px, calc((100vw - 1540px) / 2)); }
+.forge-ambient-rail i {
+    position: absolute;
+    top: 12%;
+    left: -1px;
+    width: 3px;
+    height: 36px;
+    border-radius: 3px;
+    background: currentColor;
+    opacity: .2;
+    animation: forge-rail-travel 28s ease-in-out infinite;
+}
+.forge-ambient-rail--right i { animation-delay: -13s; }
+
+.forge-window .forge-workspace { position: relative; z-index: 1; }
+.forge-window .forge-header { z-index: 2; }
+
+.forge-hub-signature {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.forge-hub-network {
+    width: 250px;
+    height: 112px;
+    color: var(--forge-accent);
+    opacity: .65;
+}
+
+#forge-overview > .forge-overview { min-height: 116px; }
+#forge-overview .forge-module {
+    background: linear-gradient(150deg, #fff 60%, var(--forge-soft));
+}
+
+.forge-hub-illustration {
+    display: block;
+    position: relative;
+    isolation: isolate;
+    height: 154px;
+    margin: 16px 0 20px;
+    color: var(--forge-accent);
+}
+
+.forge-hub-illustration::before {
+    content: "";
+    position: absolute;
+    inset: 0 -8px;
+    z-index: -1;
+    background-image:
+        linear-gradient(var(--forge-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--forge-line) 1px, transparent 1px);
+    background-size: 25px 25px;
+    opacity: .38;
+    mask-image: radial-gradient(ellipse, #0002, transparent 70%);
+}
+
+.forge-hub-illustration svg {
+    display: block;
+    width: 100%;
+    max-width: 380px;
+    height: 100%;
+    overflow: visible;
+}
+
+.forge-model-floor { fill: currentColor; fill-opacity: .025; stroke-opacity: .26; }
+.forge-model-lift { animation: forge-model-float 12s ease-in-out infinite; }
+.forge-panel-drift { animation: forge-panel-float 15s ease-in-out infinite; }
+.forge-flow-line { animation: forge-flow-travel 24s linear infinite; }
+.forge-node-pulse { animation: forge-node-breathe 7s ease-in-out infinite; }
+.forge-robot-wrist {
+    transform-box: view-box;
+    transform-origin: 125px 26px;
+    animation: forge-wrist-adjust 16s ease-in-out infinite;
+}
+.forge-timeline-cursor { animation: forge-timeline-shift 20s ease-in-out infinite; }
+.forge-motion-delay { animation-delay: -5s; }
+
+@keyframes forge-model-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+@keyframes forge-panel-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(2px); }
+}
+@keyframes forge-flow-travel { to { stroke-dashoffset: -48; } }
+@keyframes forge-node-breathe { 50% { opacity: .4; } }
+@keyframes forge-wrist-adjust { 50% { transform: rotate(-3deg); } }
+@keyframes forge-timeline-shift { 50% { transform: translateX(10px); } }
+@keyframes forge-ambient-drift { 50% { transform: translateY(15px) rotate(8deg); } }
+@keyframes forge-rail-travel { 50% { transform: translateY(160px); opacity: .07; } }
+@keyframes forge-sky-float { 50% { transform: translateY(-10px) rotate(calc(var(--halo-angle) + 4deg)); } }
+@keyframes forge-sky-tilt { 50% { transform: rotate(5deg); } }
+@keyframes forge-sky-marker { 50% { transform: translateY(7px) rotate(-12deg); opacity: .07; } }
+
+/* Pause while hidden or behind the entry splash. */
+body:is(.forge-motion-paused, .module-splash-active) :is(
+    .forge-ambient, .forge-hub-illustration, .forge-hub-network
+) *,
+#forge-overview[hidden] :is(.forge-hub-illustration, .forge-hub-network) * {
+    animation-play-state: paused !important;
+}
+
+@media (max-width: 1200px) {
+    .forge-hub-network { width: 175px; }
+    .forge-hub-signature { gap: 12px; }
+    .forge-hub-illustration { height: 132px; }
+}
+
+@media (max-width: 960px) {
+    .forge-hub-network { display: none; }
+    .forge-hub-illustration { height: 114px; }
+    .forge-ambient-orbit { display: none; }
+    .forge-sky-halo--one { left: 40%; width: 320px; height: 110px; opacity: .1; }
+    .forge-sky-halo--two { left: 25%; width: 350px; height: 120px; }
+    .forge-sky-halo--three, .forge-sky-cross { display: none; }
+}
+
+@media (max-width: 760px) {
+    .forge-hub-signature { display: none; }
+    .forge-hub-illustration { height: 145px; max-width: 360px; margin: 12px 0; }
+    #forge-overview > .forge-overview { min-height: 0; }
+    .forge-ambient-rail { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :is(.forge-ambient, .forge-hub-illustration, .forge-hub-network) * {
+        animation: none !important;
+    }
+}

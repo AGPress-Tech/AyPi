@@ -945,6 +945,20 @@ body:not(.fp-dark):not(.fp-aypi) .pm-multiselect__button:focus {
     background: #f6f8fe;
 }
 
+#pm-add-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    line-height: 1.2;
+}
+
+#pm-add-line .material-icons {
+    flex-shrink: 0;
+    font-size: 17px;
+    line-height: 1;
+}
+
 body.agpress-purchasing .pm-btn:hover:not(:disabled),
 body.agpress-purchasing .pm-btn:focus-visible:not(:disabled) {
     border-color: #168eea;

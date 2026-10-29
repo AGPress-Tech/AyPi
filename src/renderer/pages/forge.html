@@ -15,27 +15,33 @@
     <link rel="stylesheet" href="../styles/forge/boot-animation.css">
     <link rel="stylesheet" href="../styles/utilities/agpress-scripted-splash.css">
     <link rel="stylesheet" href="../styles/forge/splash.css">
+    <link rel="stylesheet" href="../styles/forge/control-hub.css">
 </head>
 
 <body class="forge-window aypi-operations module-splash-active">
-<div id="forge-splash" class="forge-splash forge-splash--bluearchive is-visible" role="status" aria-label="Apertura del modulo FORGE" aria-hidden="false">
-    <div class="forge-boot">
-        <div class="forge-boot__grid"></div><div class="forge-boot__sweep"></div>
-        <div class="forge-boot__corner forge-boot__corner--left">AGP // MANUFACTURING WORKSPACE</div>
-        <div class="forge-boot__corner forge-boot__corner--right">AYPI FORGE</div>
-        <div class="forge-boot__center">
-            <div class="forge-boot__emblem" role="img" aria-label="AyPi">
-                <span class="forge-boot__halo"></span><span class="forge-boot__ay">Ay</span><span class="forge-boot__pi">Pi</span><span class="forge-boot__slash"></span>
+    <div id="forge-splash" class="forge-splash forge-splash--bluearchive is-visible" role="status"
+        aria-label="Apertura del modulo FORGE" aria-hidden="false">
+        <div class="forge-boot">
+            <div class="forge-boot__grid"></div>
+            <div class="forge-boot__sweep"></div>
+            <div class="forge-boot__corner forge-boot__corner--left">AGP // MANUFACTURING WORKSPACE</div>
+            <div class="forge-boot__corner forge-boot__corner--right">AYPI FORGE</div>
+            <div class="forge-boot__center">
+                <div class="forge-boot__emblem" role="img" aria-label="AyPi">
+                    <span class="forge-boot__halo"></span><span class="forge-boot__ay">Ay</span><span
+                        class="forge-boot__pi">Pi</span><span class="forge-boot__slash"></span>
+                </div>
+                <div class="forge-boot__route"><i></i><span>FORGE / MES + SCADA</span><i></i></div>
+                <h1>Accesso al modulo <strong>FORGE.</strong></h1>
+                <p>Preparazione della centrale operativa e degli strumenti di produzione</p>
+                <div class="forge-boot__progress"><i></i></div>
+                <div class="forge-boot__status"><span data-boot-stage="interface">01&nbsp; INTERFACCIA</span><span
+                        data-boot-stage="theme">02&nbsp; TEMA</span><span data-boot-stage="modules">03&nbsp;
+                        MODULI</span><span data-boot-stage="ready">04&nbsp; PRONTO</span></div>
             </div>
-            <div class="forge-boot__route"><i></i><span>FORGE / MES + SCADA</span><i></i></div>
-            <h1>Accesso al modulo <strong>FORGE.</strong></h1>
-            <p>Preparazione della centrale operativa e degli strumenti di produzione</p>
-            <div class="forge-boot__progress"><i></i></div>
-            <div class="forge-boot__status"><span data-boot-stage="interface">01&nbsp; INTERFACCIA</span><span data-boot-stage="theme">02&nbsp; TEMA</span><span data-boot-stage="modules">03&nbsp; MODULI</span><span data-boot-stage="ready">04&nbsp; PRONTO</span></div>
         </div>
+        <button id="skip-forge-splash" class="splash-skip" type="button">Salta animazione <span>Esc</span></button>
     </div>
-    <button id="skip-forge-splash" class="splash-skip" type="button">Salta animazione <span>Esc</span></button>
-</div>
 
     <header class="forge-header">
         <div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo"
@@ -48,6 +54,18 @@
         <div class="forge-header-meta"><span>AYPI MANUFACTURING WORKSPACE</span><b id="forge-edition">AGPRESS</b><time
                 id="forge-clock" class="forge-clock"></time></div>
     </header>
+    <div class="forge-ambient" aria-hidden="true">
+        <div class="forge-ambient-grid"></div>
+        <div class="forge-ambient-orbit forge-ambient-orbit--one"></div>
+        <div class="forge-ambient-orbit forge-ambient-orbit--two"></div>
+        <div class="forge-sky-halo forge-sky-halo--one"><i></i><span></span></div>
+        <div class="forge-sky-halo forge-sky-halo--two"><i></i><span></span></div>
+        <div class="forge-sky-halo forge-sky-halo--three"><i></i><span></span></div>
+        <div class="forge-sky-cross forge-sky-cross--one"></div>
+        <div class="forge-sky-cross forge-sky-cross--two"></div>
+        <div class="forge-ambient-rail forge-ambient-rail--left"><i></i></div>
+        <div class="forge-ambient-rail forge-ambient-rail--right"><i></i></div>
+    </div>
     <main class="forge-workspace">
         <nav class="forge-breadcrumb" aria-label="Navigazione FORGE"><button id="forge-home"
                 type="button">FORGE</button><span aria-hidden="true">/</span><span id="forge-section-label">Centrale
@@ -55,45 +73,124 @@
         <section id="forge-overview">
             <div class="forge-overview">
                 <div><span class="forge-kicker">01 / CENTRALE OPERATIVA</span>
-                    <h2>Control Hub.</h2>
+                    <h2>Control Hub</h2>
                     <p>Seleziona il controllo interessato.</p>
                 </div>
-                <div class="forge-overview-code"><span>OPERATIONS WORKSPACE</span><strong>MES + SCADA</strong></div>
+                <div class="forge-hub-signature">
+                    <svg class="forge-hub-network" viewBox="0 0 260 112" fill="none" aria-hidden="true">
+                        <g stroke="currentColor" stroke-linejoin="round">
+                            <path d="m12 74 112-58 124 63-111 28z" opacity=".18" />
+                            <path d="m38 75 100 51m-67-68 100 51M57 93l109-57m-61 81 109-57" opacity=".1" />
+                            <g class="forge-model-lift">
+                                <path d="m80 46 42-22 58 30-42 22z" fill="var(--forge-art-top)" />
+                                <path d="m80 46 58 30v24L80 70z" fill="var(--forge-art-side)" />
+                                <path d="m138 76 42-22v24l-42 22z" fill="var(--forge-art-front)" />
+                                <path d="m91 58 35 18m-35-9 35 18m22-5 22-12m-22 20 22-12" opacity=".5" />
+                                <path d="m102 44 17-9 20 10-17 9z" fill="currentColor" fill-opacity=".09" />
+                            </g>
+                            <path class="forge-flow-line" d="m44 53 23-12 24 12m80 32 24 13 26-14" stroke-dasharray="3 6" opacity=".55" />
+                            <circle class="forge-node-pulse" cx="44" cy="53" r="3" fill="currentColor" />
+                            <circle class="forge-node-pulse forge-motion-delay" cx="221" cy="84" r="3" fill="currentColor" />
+                            <path d="M22 27v-9h15m191 82h11v-9" opacity=".35" />
+                        </g>
+                    </svg>
+                    <div class="forge-overview-code"><span>OPERATIONS WORKSPACE</span><strong>MES + SCADA</strong></div>
+                </div>
             </div>
             <div class="forge-modules">
                 <button class="forge-module" id="forge-open-mes" type="button"><span class="forge-module-code">01 /
-                        PRODUZIONE <span>MES</span></span><span class="forge-module-icon" aria-hidden="true"><svg
-                            viewBox="0 0 220 85" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="1" y="7" width="211" height="70" rx="4" />
-                            <path d="M1 27h211M45 27v50M87 27v50m42-50v50m42-50v50" opacity=".4" />
-                            <path d="M56 39h63v9H56zm43 18h90v9H99z" fill="currentColor" fill-opacity=".15" />
-                            <path d="M14 40h17m-17 20h17" />
-                        </svg></span>
+                        PRODUZIONE <span>MES</span></span>
+                    <span class="forge-hub-illustration" aria-hidden="true">
+                        <svg viewBox="0 0 360 154" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+                            <path class="forge-model-floor" d="m22 109 117-60 188 62-116 34z" />
+                            <path d="m39 116 118-58m-80 70 119-58m-80 70 119-58" opacity=".13" />
+                            <g class="forge-model-lift">
+                                <path d="m49 66 46-25 53 27-46 25z" fill="var(--forge-art-top)" />
+                                <path d="m49 66 53 27v44l-53-27z" fill="var(--forge-art-side)" />
+                                <path d="m102 93 46-25v44l-46 25z" fill="var(--forge-art-front)" />
+                                <path d="m59 77 31 16v26l-31-16z" fill="var(--forge-art-top)" />
+                                <path d="m64 87 21 11v12l-21-11z" fill="currentColor" fill-opacity=".1" />
+                                <path d="m115 95 20-11v7l-20 11z" fill="currentColor" fill-opacity=".14" />
+                                <path d="m115 111 20-11m-20 16 20-11" opacity=".5" />
+                                <path d="m77 63 17-9 24 12-17 9z" fill="currentColor" fill-opacity=".08" />
+                            </g>
+                            <path class="forge-flow-line" d="m145 118 29 13 39-20" stroke-dasharray="3 5" opacity=".55" />
+                            <g class="forge-panel-drift">
+                                <rect x="178" y="21" width="142" height="82" rx="5" fill="var(--forge-art-top)" fill-opacity=".8" />
+                                <path d="M178 39h142m-113 0v64m28-64v64m28-64v64m28-64v64" opacity=".28" />
+                                <path d="M187 30h24m-24 22h10m-10 20h10m-10 20h10" opacity=".65" />
+                                <rect x="218" y="48" width="46" height="8" rx="1" fill="currentColor" fill-opacity=".16" />
+                                <rect x="245" y="67" width="60" height="8" rx="1" fill="currentColor" fill-opacity=".09" />
+                                <rect x="216" y="86" width="32" height="8" rx="1" fill="currentColor" fill-opacity=".16" />
+                                <path class="forge-timeline-cursor" d="M274 41v58" stroke-dasharray="2 3" opacity=".55" />
+                            </g>
+                            <path d="M21 39v-9h16m283 107h15v-9" opacity=".35" />
+                        </svg>
+                    </span>
                     <h3>MES e Pianificatore</h3>
                     <p>Produzioni, ordini, schedulazione e analisi delle macchine.</p><span
                         class="forge-module-link">Apri produzione <i aria-hidden="true">↗</i></span>
                 </button>
                 <button class="forge-module" id="forge-open-forno" type="button"><span class="forge-module-code">02 /
-                        PROCESSI TERMICI <span>SCADA</span></span><span class="forge-module-icon"
-                        aria-hidden="true"><svg viewBox="0 0 220 85" fill="none" stroke="currentColor"
-                            stroke-width="1.5">
-                            <path d="M9 5v69h204M9 28h204M9 51h204M57 5v69m53-69v69m53-69v69" opacity=".25" />
-                            <path d="m10 66 26-3 20-7 24-36 19 3 19-2 18 5 28 27 24 6 25 4" />
-                            <path d="m10 70 26-4 20-8 24-31 19 1 19-2 18 5 28 25 24 6 25 4" opacity=".45" />
-                        </svg></span>
+                        PROCESSI TERMICI <span>SCADA</span></span>
+                    <span class="forge-hub-illustration" aria-hidden="true">
+                        <svg viewBox="0 0 360 154" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+                            <path class="forge-model-floor" d="m28 112 85-44 105 54-85 28z" />
+                            <g class="forge-model-lift forge-motion-delay">
+                                <path d="m53 57 58-30 63 32-58 31z" fill="var(--forge-art-top)" />
+                                <path d="m53 57 63 33v54l-63-33z" fill="var(--forge-art-side)" />
+                                <path d="m116 90 58-31v54l-58 31z" fill="var(--forge-art-front)" />
+                                <path d="m125 94 39-21v32l-39 21z" fill="var(--forge-art-top)" />
+                                <path d="m131 96 26-14v20l-26 14z" fill="currentColor" fill-opacity=".1" />
+                                <path d="M154 93v11" stroke-width="2" />
+                                <path d="m64 76 24 12v14l-24-12z" fill="currentColor" fill-opacity=".13" />
+                                <path d="m93 110 15 8m-15-2 15 8m-15-2 15 8" opacity=".6" />
+                                <path d="m84 56 26-13 32 16-26 14z" opacity=".35" />
+                            </g>
+                            <g class="forge-panel-drift forge-motion-delay">
+                                <path d="M207 37v74h125M207 87h125M207 62h125m-96-25v74m33-74v74m33-74v74" opacity=".2" />
+                                <path d="m209 103 17-4 13-13 20-35h22l16 29 15 13 18 6" stroke-width="1.6" />
+                                <path d="m209 107 17-5 13-12 20-33h22l16 29 15 11 18 6" opacity=".45" />
+                                <circle class="forge-node-pulse" cx="281" cy="51" r="3" fill="var(--forge-art-top)" />
+                            </g>
+                            <path class="forge-flow-line" d="m168 129 24-12 14 7" stroke-dasharray="3 5" opacity=".5" />
+                            <path d="M29 38v-9h15m276 103h15v-9" opacity=".35" />
+                        </svg>
+                    </span>
                     <h3>SCADA Forno</h3>
                     <p>Multichannel support, temperature live, storico e analisi dei cicli.</p><span
                         class="forge-module-link">Apri supervisione <i aria-hidden="true">↗</i></span>
                 </button>
                 <button class="forge-module" id="forge-open-robots" type="button"><span class="forge-module-code">03 /
-                        IMPIANTI <span>DIAGNOSTICA</span></span><span class="forge-module-icon" aria-hidden="true"><svg
-                            viewBox="0 0 220 85" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path
-                                d="M30 75h125m-97-2V51l44-25 32 13 23-20m-91 52V55l38-21 32 13 29-25M52 74V60h20v14" />
-                            <circle cx="104" cy="29" r="8" fill="var(--forge-soft)" />
-                            <circle cx="135" cy="43" r="7" fill="var(--forge-soft)" />
-                            <path d="m154 16 13 9 13-17m-13 17 16 9 8-15M190 49v9m-10-5 6 6m14-6-6 6" />
-                        </svg></span>
+                        IMPIANTI <span>DIAGNOSTICA</span></span>
+                    <span class="forge-hub-illustration" aria-hidden="true">
+                        <svg viewBox="0 0 360 154" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+                            <path class="forge-model-floor" d="m33 113 96-48 128 65-95 21z" />
+                            <path d="m61 124 96-48m-58 59 96-48m-59 60 96-48" opacity=".12" />
+                            <g class="forge-model-lift">
+                                <path d="m95 109 25-13 30 15-25 14z" fill="var(--forge-art-top)" />
+                                <path d="m95 109 30 16v22l-30-15z" fill="var(--forge-art-side)" />
+                                <path d="m125 125 25-14v22l-25 14z" fill="var(--forge-art-front)" />
+                                <path d="m135 127 8-4m-8 9 8-4" opacity=".55" />
+                                <ellipse cx="120" cy="106" rx="18" ry="8" fill="var(--forge-art-side)" />
+                                <path d="M111 107c-15-15-8-29 4-43l8-13c6-12-1-22-5-30l11-5c22 27 26 58 8 83l-10 12z" fill="var(--forge-art-front)" />
+                                <path d="M126 99c13-20 14-39 3-62" opacity=".55" />
+                                <circle cx="121" cy="83" r="10" fill="var(--forge-art-top)" />
+                                <circle cx="121" cy="83" r="4" opacity=".7" />
+                                <g class="forge-robot-wrist">
+                                    <path d="m124 19 55 17-4 16-58-18c-9-3-4-18 7-15z" fill="var(--forge-art-top)" />
+                                    <path d="m129 25 39 12" opacity=".45" />
+                                    <path d="m178 39 12 4-3 12-12-4z" fill="var(--forge-art-side)" />
+                                    <path d="m188 48 9 3m-1-5 5 2-3 9-5-2" />
+                                </g>
+                                <path d="M128 20c23-10 57 7 55 20" stroke="var(--forge-muted)" opacity=".65" />
+                            </g>
+                            <path class="forge-flow-line" d="m171 114 30 15 36-18V77" stroke-dasharray="3 5" opacity=".5" />
+                            <path d="m224 58 24-12 26 13-24 13zm0 0v23l26 13 24-13V59m-24 13v22" fill="var(--forge-art-top)" fill-opacity=".7" />
+                            <circle class="forge-node-pulse" cx="250" cy="72" r="3" fill="currentColor" />
+                            <path d="M292 51h30m-30 10h18m-18 10h26M31 39v-9h15m274 101h15v-9" opacity=".35" />
+                        </svg>
+                    </span>
                     <h3>Verifica robot</h3>
                     <p>Stato delle celle 21D500, 21D600 e 21D850 e verifica connessioni.</p><span
                         class="forge-module-link">Apri diagnostica <i aria-hidden="true">→</i></span>

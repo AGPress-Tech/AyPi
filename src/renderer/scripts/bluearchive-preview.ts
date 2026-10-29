@@ -243,12 +243,6 @@ const pages: Record<string, PageDefinition> = {
                 channelArgs: [{ theme: MODULE_THEME }],
             },
             {
-                label: "Pianificazione Produzione",
-                description: "Calendario macchine e lavorazioni",
-                channel: "open-production-planner-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-            {
                 label: "Calendario Dipendenti",
                 description: "Ferie, permessi, mutue e straordinari",
                 channel: "open-ferie-permessi-window",
@@ -671,7 +665,7 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
             },
             {
                 animation: "11",
-                text: "La Pianificazione Produzione è in Utilities; i programmi specifici dei reparti sono invece nella sezione Programmi.",
+                text: "La pianificazione della produzione si trova in MES - SCADA, dentro FORGE: apri MES e Pianificatore. I programmi specifici dei reparti sono nella sezione Programmi.",
             },
             {
                 animation: "02",
@@ -762,7 +756,7 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
             },
             {
                 animation: "06",
-                text: "Pianificazione Produzione è in Utilities; i programmi dei singoli reparti sono nella sezione Programmi.",
+                text: "Per pianificare la produzione apri MES - SCADA, poi FORGE e MES e Pianificatore. I programmi dei singoli reparti sono nella sezione Programmi.",
             },
             {
                 animation: "15",

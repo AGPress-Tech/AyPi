@@ -12,6 +12,10 @@ Percorso: **MES - SCADA → Apri FORGE → Centrale operativa**.
 
 - Presentazione condivisa nei colori ambra AGPress e azzurro Blue Archive.
 - Finestra FORGE dedicata, massimizzata e riutilizzata alla riapertura.
+- Control Hub con modellini SVG di produzione, forno e robot; fondale tecnico
+  tenue, movimenti CSS lenti e temi condivisi. Animazioni sospese a finestra
+  nascosta o durante lo splash e disabilitate con `prefers-reduced-motion`.
+  La grafica è decorativa, senza richieste dati aggiuntive.
 - Splash di ingresso FORGE nei due temi, con logo e animazioni condivisi con
   Calendar/Purchasing. Compare al caricamento della finestra, non al semplice
   richiamo di una finestra già aperta. Click/Invio/Esc lo saltano; termina

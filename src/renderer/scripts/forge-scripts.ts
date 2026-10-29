@@ -64,6 +64,13 @@ const clock = () =>
     ));
 clock();
 const timer = setInterval(clock, 30000);
+const syncMotion = () => document.body.classList.toggle('forge-motion-paused', document.hidden);
+document.addEventListener('visibilitychange', syncMotion);
+syncMotion();
 bootSplash.mark('modules');bootSplash.mark('ready');bootSplash.ready();
-window.addEventListener("beforeunload", () => {clearInterval(timer);bootSplash.dispose();});
+window.addEventListener("beforeunload", () => {
+    clearInterval(timer);
+    document.removeEventListener('visibilitychange', syncMotion);
+    bootSplash.dispose();
+});
 export {};
