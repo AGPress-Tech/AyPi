@@ -1,0 +1,129 @@
+<!-- Presentazione FORGE condivisa dagli ingressi AGPress e Blue Archive. -->
+<section class="forge-landing" aria-label="AyPi FORGE">
+    <div class="forge-landing-grid" aria-hidden="true"></div>
+
+    <div class="forge-landing-copy">
+        <span class="forge-kicker">AYPI // INDUSTRIAL OPERATIONS</span>
+
+        <!-- Marchio FORGE: i colori sono definiti in forge.css. -->
+        <div class="forge-wordmark">
+            <svg viewBox="0 0 100 100" fill="none" aria-hidden="true">
+                <path d="M19 17h69L74 34H43l-7 14h34L57 64H29L17 85H1z" fill="currentColor" />
+                <path d="m86 44-23 41H37l9-16h8l14-25z" fill="currentColor" opacity=".4" />
+            </svg>
+            <strong>FORGE<span>MES + SCADA</span></strong>
+        </div>
+
+        <h2>Full Scale SCADA System.</h2>
+        <p>Produzione, pianificazione e supervisione.</p>
+
+        <button class="forge-enter" id="open-forge" data-label="Apri FORGE" type="button">
+            <span>Apri FORGE<small>Control Hub</small></span>
+            <span aria-hidden="true">↗</span>
+        </button>
+
+        <div class="forge-domains">
+            <span>01 / MES &amp; Pianificazione</span>
+            <span>02 / SCADA Forno</span>
+            <span>03 / Diagnostica Robot</span>
+        </div>
+    </div>
+
+    <!-- Illustrazione decorativa. Variante precedente: variants/forge-plant-cuboids.svg. -->
+    <div class="forge-landing-art">
+        <svg class="forge-plant" viewBox="0 0 640 420" fill="none" aria-hidden="true">
+            <defs>
+                <pattern id="forge-grid" width="42" height="24" patternUnits="userSpaceOnUse"
+                    patternTransform="matrix(1 .5 -1 .5 320 -10)">
+                    <path d="M42 0H0v24" stroke="currentColor" stroke-opacity=".16" />
+                </pattern>
+            </defs>
+            <path fill="url(#forge-grid)" d="M5 95h630v300H5z" />
+            <g stroke="currentColor" stroke-linejoin="round">
+                <path d="m22 235 280-146 308 159-274 146z" fill="currentColor" fill-opacity=".04" />
+                <path d="m42 237 294 151 254-137M97 274l271-145M165 309l271-145M234 345l271-145" opacity=".22" />
+
+                <!-- Edificio produttivo: volumi originali con lucernari e dettagli di facciata. -->
+                <g class="forge-plant-block" transform="translate(130 -55)">
+                    <path d="m126 217 109-58 116 59-109 59z" fill="var(--forge-art-top)" />
+                    <path d="m126 217 116 60v67l-116-60z" fill="var(--forge-art-side)" />
+                    <path d="m242 277 109-59v66l-109 60z" fill="var(--forge-art-front)" />
+                    <path d="m143 225 84 43m-84-27 84 43m-84-27 84 43m32-21 74-40m-74 56 74-40m-74 56 74-40"
+                        opacity=".6" />
+                    <path d="m160 210 28-15 22 11-28 15zm45-24 28-15 22 11-28 15z"
+                        fill="currentColor" fill-opacity=".12" />
+                    <path d="m266 276 19-10v25l-19 10zm31-16 19-10v25l-19 10z"
+                        fill="currentColor" fill-opacity=".1" />
+                    <path d="m137 275 12 6m0-4-12-6" opacity=".4" />
+                </g>
+
+                <!-- Forno: pannello operatore, sportello e feritoie. -->
+                <g class="forge-plant-block small" transform="translate(75 14)">
+                    <path d="m360 233 66-35 72 37-66 36z" fill="var(--forge-art-top)" />
+                    <path d="m360 233 72 38v42l-72-37z" fill="var(--forge-art-side)" />
+                    <path d="m432 271 66-36v42l-66 36z" fill="var(--forge-art-front)" />
+                    <path d="m443 275 43-23v27l-43 23z" fill="var(--forge-art-top)" />
+                    <path d="m447 275 35-19v19l-35 19z" opacity=".4" />
+                    <path d="m477 263 0 10" stroke-width="2.5" />
+                    <path d="m374 251 19 10v12l-19-10z" fill="currentColor" fill-opacity=".2" />
+                    <path d="m399 282 16 8m-16-3 16 8m-16-3 16 8" opacity=".55" />
+                    <path d="m395 224 29-15 38 20-29 15z" opacity=".35" />
+                </g>
+
+                <!-- Cella robot: piedistallo scuro, corpo curvo, giunti e avambraccio orizzontale. -->
+                <g class="forge-plant-robot" stroke-width="1.5">
+                    <path d="m172 311 44-24 63 33-45 25z" fill="var(--forge-art-side)" />
+                    <path d="m200 276 28-15 27 15-28 15z" fill="var(--forge-art-side)" />
+                    <path d="m200 276 27 15v40l-27-14z" fill="var(--forge-ink)" fill-opacity=".86" />
+                    <path d="m227 291 28-15v40l-28 15z" fill="var(--forge-ink)" fill-opacity=".72" />
+                    <path d="m237 296 10-5m-10 10 10-5m-10 10 10-5" opacity=".6" />
+                    <path d="m207 288 0 20m6-17v20" opacity=".55" />
+                    <ellipse cx="222" cy="274" rx="19" ry="9" fill="var(--forge-art-side)" />
+
+                    <path d="M214 278c-16-10-19-30-4-46l14-16c6-11 4-26-6-35l-10-16c-3-12 5-23 14-20 19 8 40 49 40 73 0 25-15 45-33 61z"
+                        fill="var(--forge-art-front)" />
+                    <path d="M227 271c17-17 26-35 25-53-1-22-13-44-24-58"
+                        stroke="var(--forge-art-top)" stroke-width="4" opacity=".85" />
+                    <path d="M214 278c15 4 31 1 37-10 4-8 0-13-10-12"
+                        stroke="var(--forge-ink)" stroke-width="4" stroke-linecap="round" />
+                    <circle cx="218" cy="251" r="18" fill="var(--forge-art-side)" />
+                    <circle cx="215" cy="250" r="12" fill="var(--forge-art-top)" />
+                    <circle cx="215" cy="250" r="6" fill="currentColor" fill-opacity=".2" />
+                    <path d="M215 234v3m0 26v3m-16-16h3m26 0h3" stroke-width="2" />
+
+                    <path d="m216 146-66 11c-9 2-11 9-7 16 3 6 8 6 13 4l69-12c10-2 10-16-1-19z"
+                        fill="var(--forge-art-front)" />
+                    <path d="m155 163 51-9" stroke="var(--forge-art-top)" stroke-width="3" />
+                    <circle cx="220" cy="157" r="12" fill="var(--forge-art-side)" />
+                    <circle cx="218" cy="156" r="6" fill="var(--forge-art-top)" />
+                    <path d="M229 147c1-12 2-18-7-18l-46 10"
+                        stroke="var(--forge-ink)" stroke-width="4" stroke-linecap="round" />
+                    <path d="M229 147c1-12 2-18-7-18l-46 10" opacity=".45" />
+                    <path d="m143 164-11 5 8 16 12-6z" fill="var(--forge-ink)" fill-opacity=".8" />
+                    <path d="m134 181-7 6 3 7m12-10-5 8 4 6" stroke-width="3" stroke-linecap="round" />
+                    <circle cx="140" cy="174" r="4" fill="var(--forge-art-side)" />
+                </g>
+
+                <!-- Collegamenti alle tre aree, senza valori o stati simulati. -->
+                <path d="M364 104V84h-79M530 218v-54h-40M58 139h42v24l31 13"
+                    stroke-dasharray="5 5" opacity=".65" />
+                <circle cx="285" cy="84" r="4" fill="currentColor" />
+                <circle cx="490" cy="164" r="4" fill="currentColor" />
+                <circle cx="58" cy="139" r="4" fill="currentColor" />
+                <path d="M44 67V43h25m509 24V43h-25M44 346v25h25m509-25v25h-25" opacity=".5" />
+            </g>
+            <g fill="currentColor" font-family="Segoe UI,sans-serif" font-size="12" letter-spacing="2">
+                <text x="295" y="74">MES / PRODUZIONE</text>
+                <text x="500" y="154">SCADA</text>
+                <text x="46" y="125">ROBOT</text>
+                <text x="210" y="409" font-size="10">FACTORY OPERATIONS NETWORK</text>
+            </g>
+        </svg>
+        <span class="forge-art-caption">PRODUZIONE · PROCESSI · IMPIANTI</span>
+    </div>
+
+    <footer class="forge-landing-footer">
+        <span>FORGE / MANUFACTURING WORKSPACE</span>
+        <span>Prossima espansione <b>FORGE Spatial</b> · Fabbrica 3D</span>
+    </footer>
+</section>

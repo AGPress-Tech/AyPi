@@ -26,7 +26,7 @@ export function setupFornoReader() {
     ipcMain.handle('forno-view-settings-save', (_event, input) => writeViewSettings(preferencesPath(), input));
     ipcMain.on('open-forno-window', event => {
         const senderUrl = event.sender.getURL();
-        if (!senderUrl.startsWith('file:') || !/\/(bluearchive-preview|robot)\.html$/i.test(new URL(senderUrl).pathname)) return;
+        if (!senderUrl.startsWith('file:') || !/\/(bluearchive-preview|robot|mes-scada|forge)\.html$/i.test(new URL(senderUrl).pathname)) return;
         if (fornoWindow && !fornoWindow.isDestroyed()) {
             if (fornoWindow.isMinimized()) fornoWindow.restore();
             fornoWindow.maximize();
@@ -36,7 +36,7 @@ export function setupFornoReader() {
             width: 1250, height: 820, minWidth: 900, minHeight: 650,
             icon: path.join(__dirname, '..', 'assets', 'app-icon.png'),
             show: false, autoHideMenuBar: true, title: 'AyPi — Scada Forno', backgroundColor: '#f3f1eb',
-            parent: BrowserWindow.fromWebContents(event.sender) || undefined,
+            parent: /\/forge\.html$/i.test(new URL(senderUrl).pathname)?undefined:BrowserWindow.fromWebContents(event.sender) || undefined,
             webPreferences: { nodeIntegration: true, contextIsolation: false },
         });
         fornoWindow.setMenu(null);

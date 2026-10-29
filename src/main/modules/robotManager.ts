@@ -1,4 +1,5 @@
 import { setupFornoReader } from './fornoReader';
+import { setupForgeHub } from './forgeHub';
 // Importa moduli necessari
 import { ipcMain, dialog } from "electron";
 import { exec, execFile } from "child_process";
@@ -260,6 +261,7 @@ async function pingRobot(robotId: string): Promise<RobotPingResult> {
 
 function setupRobotManager() {
     setupFornoReader();
+    setupForgeHub();
     ipcMain.on("mostra-robot-popup", async (_event, robotId: string, url: string, chiaveStato: string) => {
         await mostraPopup(robotId, url, chiaveStato);
     });

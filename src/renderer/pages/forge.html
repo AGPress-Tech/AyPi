@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; connect-src 'self' file:; object-src 'none'">
+    <title>AyPi — FORGE</title>
+    <link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
+    <link rel="stylesheet" href="../styles/forge.css">
+</head>
+
+<body class="forge-window">
+    <header class="forge-header">
+        <div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo"
+                aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span
+                class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash" aria-hidden="true"></span>
+        </div>
+        <div><span class="forge-kicker">MES · SCADA · PRODUZIONE</span>
+            <h1>FORGE <small>/ Centrale operativa</small></h1>
+        </div>
+        <div class="forge-header-meta"><span>AYPI MANUFACTURING WORKSPACE</span><b id="forge-edition">AGPRESS</b><time
+                id="forge-clock" class="forge-clock"></time></div>
+    </header>
+    <main class="forge-workspace">
+        <nav class="forge-breadcrumb" aria-label="Navigazione FORGE"><button id="forge-home"
+                type="button">FORGE</button><span aria-hidden="true">/</span><span id="forge-section-label">Centrale
+                operativa</span></nav>
+        <section id="forge-overview">
+            <div class="forge-overview">
+                <div><span class="forge-kicker">01 / CENTRALE OPERATIVA</span>
+                    <h2>Il reparto, sotto un'unica regia.</h2>
+                    <p>Scegli il tuo spazio di lavoro: organizza la produzione, analizza i processi termici o verifica
+                        le isole robotizzate.</p>
+                </div>
+                <div class="forge-overview-code"><span>OPERATIONS WORKSPACE</span><strong>MES + SCADA</strong></div>
+            </div>
+            <div class="forge-modules">
+                <button class="forge-module" id="forge-open-mes" type="button"><span class="forge-module-code">01 /
+                        PRODUZIONE <span>MES</span></span><span class="forge-module-icon" aria-hidden="true"><svg
+                            viewBox="0 0 220 85" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="1" y="7" width="211" height="70" rx="4" />
+                            <path d="M1 27h211M45 27v50M87 27v50m42-50v50m42-50v50" opacity=".4" />
+                            <path d="M56 39h63v9H56zm43 18h90v9H99z" fill="currentColor" fill-opacity=".15" />
+                            <path d="M14 40h17m-17 20h17" />
+                        </svg></span>
+                    <h3>MES e Pianificatore</h3>
+                    <p>Produzioni, ordini, schedulazione e analisi delle macchine.</p><span
+                        class="forge-module-link">Apri produzione <i aria-hidden="true">↗</i></span>
+                </button>
+                <button class="forge-module" id="forge-open-forno" type="button"><span class="forge-module-code">02 /
+                        PROCESSI TERMICI <span>SCADA</span></span><span class="forge-module-icon"
+                        aria-hidden="true"><svg viewBox="0 0 220 85" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <path d="M9 5v69h204M9 28h204M9 51h204M57 5v69m53-69v69m53-69v69" opacity=".25" />
+                            <path d="m10 66 26-3 20-7 24-36 19 3 19-2 18 5 28 27 24 6 25 4" />
+                            <path d="m10 70 26-4 20-8 24-31 19 1 19-2 18 5 28 25 24 6 25 4" opacity=".45" />
+                        </svg></span>
+                    <h3>Scada Forno</h3>
+                    <p>Quattro canali, temperature live, storico e analisi dei cicli.</p><span
+                        class="forge-module-link">Apri supervisione <i aria-hidden="true">↗</i></span>
+                </button>
+                <button class="forge-module" id="forge-open-robots" type="button"><span class="forge-module-code">03 /
+                        IMPIANTI <span>DIAGNOSTICA</span></span><span class="forge-module-icon" aria-hidden="true"><svg
+                            viewBox="0 0 220 85" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path
+                                d="M30 75h125m-97-2V51l44-25 32 13 23-20m-91 52V55l38-21 32 13 29-25M52 74V60h20v14" />
+                            <circle cx="104" cy="29" r="8" fill="var(--forge-soft)" />
+                            <circle cx="135" cy="43" r="7" fill="var(--forge-soft)" />
+                            <path d="m154 16 13 9 13-17m-13 17 16 9 8-15M190 49v9m-10-5 6 6m14-6-6 6" />
+                        </svg></span>
+                    <h3>Verifica robot</h3>
+                    <p>Stato delle celle 21D500, 21D600 e 21D850 e verifica connessioni.</p><span
+                        class="forge-module-link">Apri diagnostica <i aria-hidden="true">→</i></span>
+                </button>
+            </div>
+            <aside class="forge-future" aria-label="Sviluppi futuri">
+                <div><span class="forge-kicker">PROSSIMA EVOLUZIONE / IN PROGETTAZIONE</span><strong>FORGE
+                        Spatial</strong>
+                    <p>La fabbrica in 3D, con macchine e dati nello stesso ambiente.</p>
+                </div>
+                <div id="forge-future-editor" hidden><span class="forge-kicker">BLUE ARCHIVE / IN
+                        PROGETTAZIONE</span><strong>Editor impianto</strong>
+                    <p>Layout, oggetti e collegamenti alle macchine. Disponibile in una fase futura.</p>
+                </div>
+            </aside>
+        </section>
+        <section id="forge-robots" hidden>
+            <div class="forge-overview">
+                <div><span class="forge-kicker">03 / DIAGNOSTICA IMPIANTI</span>
+                    <h2>Verifica robot.</h2>
+                    <p>Consulta le informazioni delle isole o avvia la verifica di connessione. Le letture vengono
+                        richieste solo quando scegli un controllo.</p>
+                </div>
+            </div>
+            <p id="forge-error" role="alert" hidden></p>
+            <div class="forge-robot-grid">
+                <button id="show21D500" class="forge-module" type="button"><span class="forge-module-code">CELLA /
+                        01</span><span class="forge-robot-id">21D500</span>
+                    <h3>Stato Robot</h3>
+                    <p>Informazioni della cella robotizzata.</p><span class="forge-module-link">Leggi stato <i
+                            aria-hidden="true">↗</i></span>
+                </button>
+                <button id="show21D600" class="forge-module" type="button"><span class="forge-module-code">CELLA /
+                        02</span><span class="forge-robot-id">21D600</span>
+                    <h3>Stato Robot</h3>
+                    <p>Informazioni della cella robotizzata.</p><span class="forge-module-link">Leggi stato <i
+                            aria-hidden="true">↗</i></span>
+                </button>
+                <button id="show21D850" class="forge-module" type="button"><span class="forge-module-code">CELLA /
+                        03</span><span class="forge-robot-id">21D850</span>
+                    <h3>Stato Robot</h3>
+                    <p>Informazioni della cella robotizzata.</p><span class="forge-module-link">Leggi stato <i
+                            aria-hidden="true">↗</i></span>
+                </button>
+                <button id="pingRobots" class="forge-module" type="button"><span class="forge-module-code">RETE /
+                        DIAGNOSTICA</span><span class="forge-robot-id">NET</span>
+                    <h3>Verifica connessioni</h3>
+                    <p>Scegli un robot e verifica la raggiungibilità.</p><span class="forge-module-link">Seleziona robot
+                        <i aria-hidden="true">↗</i></span>
+                </button>
+            </div>
+        </section>
+        <footer class="forge-footer"><span>AYPI FORGE // MANUFACTURING OPERATIONS</span><span>PRODUZIONE · PROCESSI ·
+                IMPIANTI</span></footer>
+    </main>
+    <script src="../scripts/forge-scripts.js"></script>
+</body>
+
+</html>

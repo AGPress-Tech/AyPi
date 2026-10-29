@@ -122,7 +122,7 @@ Un errore di persistenza arresta la raccolta e viene esposto nello stato.
 
 ## Vista operatore
 
-Scheda Robot → **Forno — Temperature e cicli**.
+Scheda **MES - SCADA → Apri FORGE → Scada Forno**.
 La risoluzione della vista è personale e non modifica il campionamento del server.
 
 - Risoluzione da 0.5 s a 1 ora; intervallo navigabile con zoom, trascinamento
@@ -381,7 +381,7 @@ e aggiornamenti condizionali. Non contatta il forno reale o gli archivi aziendal
 ## Apertura e identita del modulo
 
 La finestra Forno viene massimizzata sia alla prima apertura sia quando viene
-richiamata da Robot dopo essere stata ripristinata a dimensioni normali.
+richiamata da FORGE dopo essere stata ripristinata a dimensioni normali.
 Il marchio nell'intestazione usa la geometria Ay/Pi con alone e barra obliqua
 gia presente nel MES. Lo splash Forno riutilizza direttamente il foglio animato
 del Production Planner e la variante AGPress condivisa con Calendar/Purchasing.

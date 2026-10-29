@@ -1,4 +1,5 @@
 import { installAddinFunction } from "../modules/utils";
+import { mountForgeLanding } from "./forge/landing";
 import {
     getWeatherAssistantContext,
     setupWeatherWidget,
@@ -194,53 +195,12 @@ const pages: Record<string, PageDefinition> = {
             },
         ],
     },
-    robot: {
+    "mes-scada": {
         title: "MES - SCADA",
-        heading: "Stato e connessioni robot",
-        description:
-            "Visualizza rapidamente stato e informazioni delle celle robotizzate.",
-        code: "RBT",
-        actions: [
-            ...(!IS_AGPRESS_INTERFACE ? [{
-                label: "MES e Pianificatore",
-                description: "Ordini, avanzamento macchine e acquisizione PLC",
-                channel: "open-production-planner-window",
-            }] : []),
-            {
-                label: "Scada Forno",
-                description: "Grafico live, storico e analisi delle temperature",
-                channel: "open-forno-window",
-            },
-            {
-                label: "Stato Robot 21D500",
-                description: "Diagnostica 21D500",
-                robotAction: "status",
-                robotId: "21D500",
-                robotUrl: "http://192.168.1.153/index1.html",
-                robotStateKey: "STATO ROBOT P21160",
-            },
-            {
-                label: "Stato Robot 21D600",
-                description: "Diagnostica 21D600",
-                robotAction: "status",
-                robotId: "21D600",
-                robotUrl: "http://192.168.1.152/index1.html",
-                robotStateKey: "STATO ROBOT P17259",
-            },
-            {
-                label: "Stato Robot 21D850",
-                description: "Diagnostica 21D850",
-                robotAction: "status",
-                robotId: "21D850",
-                robotUrl: "http://192.168.1.92/index1.html",
-                robotStateKey: "STATO ROBOT P22022",
-            },
-            {
-                label: "Verifica Connessioni",
-                description: "Controllo raggiungibilità robot",
-                robotAction: "ping",
-            },
-        ],
+        heading:
+            "Supervisory Control and Data Acquisition - Manufacturing Execution System",
+        description: "Produzione, supervisione e impianti in AyPi FORGE.",
+        code: "FRG",
     },
     calcolatore: {
         title: "Calcolatore",
@@ -643,7 +603,8 @@ function assistantPageHint(character: "arona" | "plana") {
             "In Articoli trovi disegni, cicli, schede tecniche e Inventario magazzino.",
         produzioni:
             "In Produzioni trovi i registri di Stampaggio, Tranceria e Torneria.",
-        robot: "In MES - SCADA puoi consultare lo stato delle celle, verificarne la connessione e aprire Scada Forno.",
+        "mes-scada":
+            "In MES - SCADA trovi FORGE: la centrale per MES, pianificazione, Scada Forno e verifica robot.",
         calcolatore:
             "Il Calcolatore ricava numero di giri e avanzamento dai parametri di lavorazione.",
         utilities:
@@ -1796,6 +1757,10 @@ function applyPage(pageKey: string) {
     const page = pages[pageKey];
     if (!page) return;
     currentPageKey = pageKey;
+    document.body.classList.toggle(
+        "forge-landing-page",
+        pageKey === "mes-scada",
+    );
     heroTitle!.textContent = `${page.title}.`;
     heroDescription!.textContent = page.description;
     sectionTitle!.textContent = page.heading;
@@ -1811,7 +1776,10 @@ function applyPage(pageKey: string) {
             item.classList.toggle("active", item.dataset.page === pageKey);
         });
 
-    if (page.calculator) renderCalculator();
+    if (pageKey === "mes-scada") {
+        pageContent!.className = "forge-landing-root";
+        mountForgeLanding(pageContent!, MODULE_THEME);
+    } else if (page.calculator) renderCalculator();
     else renderActions(page);
 
     document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });

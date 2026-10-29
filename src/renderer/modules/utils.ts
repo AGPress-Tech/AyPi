@@ -524,7 +524,7 @@ function wireSidebarActions() {
                 <a href="programmi.html" data-page="programmi.html">Programmi</a>
                 <a href="infoarticoli.html" data-page="infoarticoli.html">Articoli</a>
                 <a href="produzioni.html" data-page="produzioni.html">Produzioni</a>
-                <a href="robot.html" data-page="robot.html">MES - SCADA</a>
+                <a href="mes-scada.html" data-page="mes-scada.html">MES - SCADA</a>
                 <a href="calcolatore.html" data-page="calcolatore.html">Calcolatore</a>
                 <a href="utilities.html" data-page="utilities.html">Utilities</a>
             `;

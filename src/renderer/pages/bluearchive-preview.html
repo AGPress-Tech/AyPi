@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +12,9 @@
     <link id="blueArchiveStylesheet" rel="stylesheet" href="../styles/bluearchive-preview.css">
     <link id="agpressStylesheet" rel="stylesheet" href="../styles/agpress-bluearchive.css" media="not all">
     <script src="../scripts/interface-theme-bootstrap.js"></script>
+    <link rel="stylesheet" href="../styles/forge.css">
 </head>
+
 <body>
     <div class="startup-sequence" id="startupSequence" role="status" aria-label="Avvio AyPi">
         <div class="startup-grid" aria-hidden="true"></div>
@@ -27,7 +30,8 @@
             </div>
             <div class="startup-rule" aria-hidden="true"><i></i></div>
             <div class="startup-kicker">PORTALE OPERATIVO AGPRESS</div>
-            <h1>Buongiorno<span class="startup-personal-greeting">, <strong><span id="startupUserName">Sensei</span>.</strong></span></h1>
+            <h1>Buongiorno<span class="startup-personal-greeting">, <strong><span
+                            id="startupUserName">Sensei</span>.</strong></span></h1>
             <p>Preparazione dell'interfaccia AyPi</p>
             <div class="startup-progress" aria-hidden="true"><i></i></div>
         </div>
@@ -53,7 +57,7 @@
                 <button class="nav-item" data-page="programmi">Programmi</button>
                 <button class="nav-item" data-page="articoli">Articoli</button>
                 <button class="nav-item" data-page="produzioni">Produzioni</button>
-                <button class="nav-item" data-page="robot">MES - SCADA</button>
+                <button class="nav-item" data-page="mes-scada">MES - SCADA</button>
                 <button class="nav-item" data-page="calcolatore">Calcolatore</button>
                 <button class="nav-item" data-page="utilities">Utilities</button>
             </nav>
@@ -68,9 +72,12 @@
 
         <aside class="quick-menu" id="quickMenu" aria-hidden="true">
             <div class="quick-menu-title">AyPi</div>
-            <button id="menuExcel"><img src="../assets/AyPi-icon.png" alt=""> <span>AyPi Excel<small>Installa o aggiorna l'add-in</small></span></button>
-            <button id="menuWebsite"><span class="menu-symbol">↗</span> <span>AyPi Website<small>Apri il portale AGPress</small></span></button>
-            <button class="menu-quit" id="menuQuit"><span class="menu-symbol">×</span> <span>Termina<small>Chiudi completamente AyPi</small></span></button>
+            <button id="menuExcel"><img src="../assets/AyPi-icon.png" alt=""> <span>AyPi Excel<small>Installa o aggiorna
+                        l'add-in</small></span></button>
+            <button id="menuWebsite"><span class="menu-symbol">↗</span> <span>AyPi Website<small>Apri il portale
+                        AGPress</small></span></button>
+            <button class="menu-quit" id="menuQuit"><span class="menu-symbol">×</span> <span>Termina<small>Chiudi
+                        completamente AyPi</small></span></button>
         </aside>
 
         <main>
@@ -116,9 +123,8 @@
             <div class="assistant-loading" id="assistantLoading">
                 <i></i><span>ARONA SYSTEM</span>
             </div>
-            <button class="assistant-switch" id="assistantSwitch" type="button"
-                title="Scegli assistente" aria-label="Scegli assistente" aria-expanded="false"
-                aria-controls="assistantPicker">☰</button>
+            <button class="assistant-switch" id="assistantSwitch" type="button" title="Scegli assistente"
+                aria-label="Scegli assistente" aria-expanded="false" aria-controls="assistantPicker">☰</button>
             <section class="assistant-picker" id="assistantPicker" aria-hidden="true"
                 aria-label="Scegli il personaggio">
                 <header>
@@ -147,7 +153,8 @@
                 </header>
 
                 <div class="timer-tabs" role="tablist">
-                    <button class="timer-tab active" type="button" data-time-view="stopwatch" role="tab">Cronometro</button>
+                    <button class="timer-tab active" type="button" data-time-view="stopwatch"
+                        role="tab">Cronometro</button>
                     <button class="timer-tab" type="button" data-time-view="countdown" role="tab">Timer</button>
                 </div>
 
@@ -196,8 +203,8 @@
                         <p>Omegna, Piemonte · previsioni locali</p>
                     </div>
                     <div class="weather-panel-actions">
-                        <button class="weather-refresh" id="weatherRefresh" type="button"
-                            title="Aggiorna previsioni" aria-label="Aggiorna previsioni">↻</button>
+                        <button class="weather-refresh" id="weatherRefresh" type="button" title="Aggiorna previsioni"
+                            aria-label="Aggiorna previsioni">↻</button>
                         <button class="weather-close" id="weatherClose" type="button"
                             aria-label="Chiudi pannello">×</button>
                     </div>
@@ -217,12 +224,12 @@
                 </div>
 
                 <div class="weather-tabs" role="tablist" aria-label="Periodo previsioni">
-                    <button class="weather-tab active" type="button" data-weather-view="today"
-                        role="tab" aria-selected="true">Oggi</button>
-                    <button class="weather-tab" type="button" data-weather-view="week"
-                        role="tab" aria-selected="false">Questa settimana</button>
-                    <button class="weather-tab" type="button" data-weather-view="next"
-                        role="tab" aria-selected="false">Prossima settimana</button>
+                    <button class="weather-tab active" type="button" data-weather-view="today" role="tab"
+                        aria-selected="true">Oggi</button>
+                    <button class="weather-tab" type="button" data-weather-view="week" role="tab"
+                        aria-selected="false">Questa settimana</button>
+                    <button class="weather-tab" type="button" data-weather-view="next" role="tab"
+                        aria-selected="false">Prossima settimana</button>
                 </div>
 
                 <div class="weather-views">
@@ -359,8 +366,10 @@
                 <footer class="robot-console-actions">
                     <span><i></i> SECURE DIAGNOSTIC CHANNEL // AGPRESS</span>
                     <div>
-                        <button class="robot-button robot-button-secondary" id="robotConsoleBack" type="button" hidden>Indietro</button>
-                        <button class="robot-button robot-button-primary" id="robotConsoleDone" type="button">Chiudi</button>
+                        <button class="robot-button robot-button-secondary" id="robotConsoleBack" type="button"
+                            hidden>Indietro</button>
+                        <button class="robot-button robot-button-primary" id="robotConsoleDone"
+                            type="button">Chiudi</button>
                     </div>
                 </footer>
             </section>
@@ -375,7 +384,8 @@
                 <p>Abilita la modifica dei percorsi. Dopo l'accesso usa il tasto destro su una scheda configurabile.</p>
                 <form id="adminForm">
                     <label for="adminPassword">Password</label>
-                    <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Inserisci la password">
+                    <input id="adminPassword" type="password" autocomplete="current-password"
+                        placeholder="Inserisci la password">
                     <div class="admin-error" id="adminError" aria-live="polite"></div>
                     <div class="admin-actions">
                         <button class="time-secondary" id="adminCancel" type="button">Annulla</button>
@@ -391,10 +401,12 @@
                 <div class="admin-halo" aria-hidden="true"></div>
                 <div class="eyebrow"><span>ID</span> PERSONALIZZAZIONE ASSISTENTE</div>
                 <h2 id="namePanelTitle">Come desideri essere chiamato?</h2>
-                <p><span id="nameAssistantLabel">Arona</span> userà questo nome nei saluti e in tutti i suoi messaggi.</p>
+                <p><span id="nameAssistantLabel">Arona</span> userà questo nome nei saluti e in tutti i suoi messaggi.
+                </p>
                 <form id="nameForm">
                     <label for="personalName">Il tuo nome</label>
-                    <input id="personalName" type="text" maxlength="32" autocomplete="name" placeholder="es. Alessandro">
+                    <input id="personalName" type="text" maxlength="32" autocomplete="name"
+                        placeholder="es. Alessandro">
                     <div class="admin-error" id="nameError" aria-live="polite"></div>
                     <div class="admin-actions name-actions">
                         <button class="time-secondary" id="nameReset" type="button">Usa Sensei</button>
@@ -433,7 +445,8 @@
                     <p>Inserisci la password per accedere alle animazioni del personaggio selezionato.</p>
                     <form id="animationLabAuthForm">
                         <label for="animationLabPassword">Password</label>
-                        <input id="animationLabPassword" type="password" autocomplete="off" placeholder="Inserisci la password">
+                        <input id="animationLabPassword" type="password" autocomplete="off"
+                            placeholder="Inserisci la password">
                         <div class="admin-error" id="animationLabError" aria-live="polite"></div>
                         <div class="admin-actions">
                             <button class="time-secondary" id="animationLabCancel" type="button">Annulla</button>
@@ -460,8 +473,8 @@
         <footer>
             <span id="appVersion">AYPI v...</span>
             <div class="footer-tools">
-                <button class="footer-weather" id="footerWeather" type="button"
-                    aria-label="Apri meteo di Omegna" aria-expanded="false" title="Meteo Omegna">
+                <button class="footer-weather" id="footerWeather" type="button" aria-label="Apri meteo di Omegna"
+                    aria-expanded="false" title="Meteo Omegna">
                     <span class="footer-weather-icon" id="footerWeatherIcon" aria-hidden="true">·</span>
                     <span class="footer-weather-location">OMEGNA</span>
                     <strong id="footerWeatherTemperature">--°</strong>
@@ -480,4 +493,5 @@
     <script src="../assets/bluearchive/spine/characters/characters.js"></script>
     <script src="../scripts/bluearchive-preview.js"></script>
 </body>
+
 </html>
