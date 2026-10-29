@@ -82,7 +82,7 @@ export async function startFornoService(): Promise<void> {
                     if (!request) return;
                     pending.delete(message.id);
                     clearTimeout(request.timer);
-                    if (message.error) request.reject(new Error(String(message.error)));
+                    if (message.error) request.reject(Object.assign(new Error(String(message.error)),{code:message.errorCode}));
                     else request.resolve(message.result);
                 }
             } catch { /* messaggi non JSON non sono dati validi */ }

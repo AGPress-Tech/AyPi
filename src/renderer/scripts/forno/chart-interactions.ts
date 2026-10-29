@@ -4,8 +4,9 @@ type Range = { start: number; end: number };
 type Callbacks = {
     range(): Range;
     move(start: number, end: number): void;
-    commit(): void;
+    commit(kind:'pan'|'zoom'): void;
     select(start: number, end: number): void;
+    continuous?():boolean;
 };
 
 /** Camera locale: nessuna richiesta di rete durante il movimento del mouse. */
@@ -85,6 +86,7 @@ export function attachChartInteractions(chart: Chart<'line'>, callbacks: Callbac
         chart.tooltip!.setActiveElements(active,p);chart.draw();
     }
     function onMove(event: PointerEvent) {
+        if(!drag&&callbacks.continuous?.()){hideTooltip();canvas.style.cursor=inside(point(event))?event.ctrlKey?'crosshair':'grab':'default';return;}
         if(!drag&&hoverPosition?.clientX===event.clientX&&hoverPosition?.clientY===event.clientY)return;
         const p=point(event);hideTooltip();
         if(drag) {
@@ -117,7 +119,7 @@ export function attachChartInteractions(chart: Chart<'line'>, callbacks: Callbac
         if(p.select) {
             const at=(x:number)=>p.start+(x-p.left)/p.width*(p.end-p.start);
             callbacks.select(Math.round(Math.min(at(p.x),at(p.current))),Math.round(Math.max(at(p.x),at(p.current))));
-        }else callbacks.commit();
+        }else callbacks.commit('pan');
     }
     function onCancel(event: PointerEvent) {
         if(!drag)return;
@@ -134,7 +136,7 @@ export function attachChartInteractions(chart: Chart<'line'>, callbacks: Callbac
         const anchor=range.start+ratio*(range.end-range.start),start=Math.max(0,anchor-ratio*span);
         if(reducedMotion.matches)callbacks.move(start,start+span);
         else {zoom={start,end:start+span,from:callbacks.range(),at:performance.now()};requestPaint();}
-        clearTimeout(wheelTimer);wheelTimer=setTimeout(()=>{wheelTimer=undefined;callbacks.commit();},240);
+        clearTimeout(wheelTimer);wheelTimer=setTimeout(()=>{wheelTimer=undefined;callbacks.commit('zoom');},180);
     }
     function onClick(event:MouseEvent) {
         // Chart.js usa il click anche per attivare i punti: nel plot serve solo
@@ -152,7 +154,7 @@ export function attachChartInteractions(chart: Chart<'line'>, callbacks: Callbac
         // Rimuove gli indici prima che cambino i dataset, senza perdere lo stato
         // del cursore. Il tooltip viene ricostruito nello stesso aggiornamento.
         beforeChartUpdate(){clearTooltip(false);},
-        afterChartUpdate(){if(hoverPosition&&settled)showTooltip(point(hoverPosition));},
+        afterChartUpdate(){if(!callbacks.continuous?.()&&hoverPosition&&settled)showTooltip(point(hoverPosition));},
         get busy(){return !!(drag||zoom||wheelTimer);},
         drawSelection() {
             if(!drag?.select)return;

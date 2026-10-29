@@ -8,7 +8,11 @@ export class ModbusReader {
     private transaction = 0;
     constructor(private host: string, private port: number, private unit: number, private address: number) {}
     close() { this.socket?.destroy(); this.socket = null; }
-    private readRegisters(count: number): Promise<{ words: number[] | null; q: number }> {
+    async readWords(address:number,count:number){
+        if(!Number.isInteger(address)||!Number.isInteger(count)||address<0||count<1||count>125||address+count>65536)throw new Error('Lettura Modbus non valida');
+        return this.readRegisters(count,address);
+    }
+    private readRegisters(count: number,address=this.address): Promise<{ words: number[] | null; q: number }> {
         return new Promise(resolve => {
             const fresh = !this.socket || this.socket.destroyed;
             const socket = fresh ? new net.Socket() : this.socket!;
@@ -36,7 +40,7 @@ export class ModbusReader {
             const send = () => {
                 const request = Buffer.alloc(12);
                 request.writeUInt16BE(tid, 0); request.writeUInt16BE(6, 4); request[6] = this.unit; request[7] = 3;
-                request.writeUInt16BE(this.address, 8); request.writeUInt16BE(count, 10);
+                request.writeUInt16BE(address, 8); request.writeUInt16BE(count, 10);
                 socket.write(request, err => { if (err) error(); });
             };
             const timer = setTimeout(() => done(null, 1), 400);

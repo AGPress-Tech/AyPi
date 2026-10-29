@@ -34,6 +34,30 @@ export function setupFornoReader() {
         void fornoWindow.loadFile(path.join(__dirname, '..', 'pages', 'forno.html'), { query: { standalone: '1' } });
     });
     ipcMain.handle('forno-status', () => requestAypiBackend('/api/forno/status', { timeoutMs: 18000 }));
+    ipcMain.handle('forno-messages',(_event,input:any)=>{
+        if(!Number.isSafeInteger(input?.fromMs)||!Number.isSafeInteger(input?.toMs)||!Array.isArray(input?.eventTypes))throw new Error('Intervallo messaggi non valido');
+        const query=new URLSearchParams({fromMs:String(input.fromMs),toMs:String(input.toMs),showNotes:input.showNotes?'1':'0',eventTypes:input.eventTypes.join(',')});
+        if(Number.isSafeInteger(input.revision))query.set('revision',String(input.revision));
+        return requestAypiBackend(`/api/forno/messages?${query}`,{timeoutMs:18000});
+    });
+    ipcMain.handle('forno-note-save',(_event,input:any)=>{
+        if(typeof input?.text!=='string'||input.text.length>4000)throw new Error('Testo nota non valido');
+        if(input.id&&typeof input.id!=='string')throw new Error('Nota non valida');
+        return requestAypiBackend(input.id?`/api/forno/notes/${encodeURIComponent(input.id)}`:'/api/forno/notes',{method:input.id?'PUT':'POST',body:input,timeoutMs:18000});
+    });
+    ipcMain.handle('forno-note-delete',(_event,input:any)=>{
+        if(typeof input?.id!=='string'||!Number.isInteger(input.revision))throw new Error('Nota non valida');
+        return requestAypiBackend(`/api/forno/notes/${encodeURIComponent(input.id)}`,{method:'DELETE',body:{revision:input.revision},timeoutMs:18000});
+    });
+    ipcMain.handle('forno-sample',(_event,input:{timestampMs:number})=>{
+        if(!Number.isSafeInteger(input?.timestampMs)||input.timestampMs<0)throw new Error('Istante campione non valido');
+        return requestAypiBackend(`/api/forno/sample?timestampMs=${input.timestampMs}`,{timeoutMs:10000});
+    });
+    ipcMain.handle('forno-analysis',(_event,input:Record<string,number>)=>{
+        if(!Number.isSafeInteger(input?.fromMs)||!Number.isSafeInteger(input?.toMs)||!Number.isFinite(input?.windowSeconds)||input.windowSeconds<0.5||input.windowSeconds>86400)throw new Error('Parametri analisi non validi');
+        const query=new URLSearchParams({fromMs:String(input.fromMs),toMs:String(input.toMs),windowSeconds:String(input.windowSeconds)});
+        return requestAypiBackend(`/api/forno/analysis?${query}`,{timeoutMs:18000});
+    });
     ipcMain.handle('forno-history', (_event, input: Record<string, number>) => {
         const query = new URLSearchParams();
         for (const key of ['fromMs', 'toMs', 'intervalMs', 'maxPoints']) {

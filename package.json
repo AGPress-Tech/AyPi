@@ -14,9 +14,9 @@
     "build": "npm run build:ts && electron-builder",
     "release": "npm run build:ts && electron-builder --publish always",
     "prepare:forno": "node tools\\prepare-forno-native.cjs",
-    "test:forno": "node --test tools/test-forno.cjs tools/test-forno-multichannel.cjs tools/test-forno-startup.cjs",
+    "test:forno": "node --test tools/test-forno.cjs tools/test-forno-multichannel.cjs tools/test-forno-startup.cjs tools/test-forno-analysis.cjs tools/test-forno-sample.cjs tools/test-forno-messages.cjs",
     "test:plc-engine": "node --test tools/test-plc-engine.cjs",
-    "test:forno:view": "node --test tools/test-forno-preferences.cjs tools/test-forno-reveal.cjs tools/test-forno-average.cjs"
+    "test:forno:view": "node --test tools/test-forno-preferences.cjs tools/test-forno-reveal.cjs tools/test-forno-average.cjs tools/test-forno-axes.cjs"
   },
   "author": "Ayrton Pizzi",
   "license": "ISC",

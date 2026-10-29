@@ -43,29 +43,51 @@
         <label>Risoluzione vista<select id="resolution"><option value="500">0,5 secondi</option><option value="1000" selected>1 secondo</option><option value="2000">2 secondi</option><option value="5000">5 secondi</option><option value="10000">10 secondi</option><option value="30000">30 secondi</option><option value="60000">1 minuto</option><option value="300000">5 minuti</option><option value="3600000">1 ora</option></select></label>
         <label class="live-toggle"><input type="checkbox" id="live" checked><span class="live-dot"></span>Segui live</label>
         <button id="select-date" class="button secondary">Seleziona data</button>
-        <div class="scale-control" role="group" aria-label="Scala temperatura"><span class="eyebrow">SCALA °C</span><div class="segmented"><button id="scale-auto" type="button" aria-pressed="true">Automatica</button><button id="scale-zero" type="button" aria-pressed="false">0 → Max + 50 °C</button></div></div>
+        <button id="select-range" class="button secondary">Seleziona range</button>
+        <div class="scale-control" role="group" aria-label="Scala temperatura"><span class="eyebrow">SCALA °C</span><div class="segmented"><button id="scale-auto" type="button" aria-pressed="true">Automatica</button><button id="scale-zero" type="button" aria-pressed="false">0 → Max + 50 °C</button><button id="scale-manual" type="button" aria-pressed="false">Min / Max</button><button id="scale-in" type="button" title="Aumenta dettaglio della scala temperatura" aria-label="Aumenta dettaglio gradi">+</button><button id="scale-out" type="button" title="Allarga la scala temperatura" aria-label="Allarga scala gradi">−</button></div></div>
     </section>
     <section class="chart-panel">
         <div class="chart-heading"><div><span class="eyebrow">ANDAMENTO TERMICO</span><p id="range-label">Caricamento intervallo…</p></div><p id="status" role="status">Connessione al backend…</p></div>
         <div id="channel-controls" class="channel-controls" role="group" aria-label="Canali visualizzati"></div>
-        <div class="plot"><canvas id="chart" aria-label="Grafico dei quattro canali di temperatura nel tempo" role="img"></canvas></div>
+        <div class="plot"><canvas id="chart" aria-label="Grafico dei quattro canali di temperatura nel tempo" role="img" tabindex="0" aria-haspopup="menu" aria-controls="chart-context-menu" aria-expanded="false"></canvas>
+            <div id="annotation-layer" class="annotation-layer" aria-label="Note ed eventi del forno"></div><div id="annotation-popup" class="annotation-popup" hidden></div><div id="annotation-notice" class="annotation-notice" role="status" hidden></div>
+            <aside id="continuous-tooltip" class="continuous-tooltip" aria-label="Temperature al cursore" hidden><div class="cursor-title"><span>Temperature al cursore</span><span class="cursor-mode">CONTINUO</span></div><time id="cursor-time"></time><p id="cursor-kind"></p><div id="cursor-readings"></div><div class="cursor-average"><span>Media complessiva</span><strong id="cursor-mean">—</strong></div></aside>
+        </div>
         <footer class="chart-footer"><span>Rotella: zoom temporale <i>·</i> Trascina: scorri <i>·</i> Ctrl + trascina: analisi</span><span id="grid-summary">8 divisioni temporali</span></footer>
     </section>
     <details id="diagnostics" class="diagnostics"><summary>Diagnostica acquisizione</summary><p id="collector-status" role="status">Verifica acquisizione e archivio sul server…</p></details>
 </main>
+<div id="chart-context-menu" class="chart-context-menu" role="menu" aria-label="Opzioni cursore grafico" hidden><button id="toggle-continuous-tooltip" type="button" role="menuitemcheckbox" aria-checked="false"><span class="context-check" aria-hidden="true"></span><span>Tooltip continuo<small>Linea verticale e temperature al passaggio</small></span></button><button id="add-chart-note" type="button"><span class="note-menu-symbol" aria-hidden="true">✎</span><span>Aggiungi nota qui<small>Collega una nota al campione registrato</small></span></button></div>
+<div id="note-context-menu" class="chart-context-menu" role="menu" aria-label="Gestione nota" hidden><button id="note-context-open" type="button" role="menuitem">Apri messaggi</button><button id="note-context-edit" type="button" role="menuitem">Modifica nota</button><button id="note-context-delete" class="danger" type="button" role="menuitem">Elimina nota</button></div>
+<dialog id="note-editor" class="compact-dialog"><form id="note-form"><div class="dialog-heading"><div><span class="eyebrow">NOTE OPERATORE</span><h2 id="note-editor-title">Nuova nota</h2></div><button type="button" class="icon-close" data-close="note-editor" aria-label="Chiudi">×</button></div><p id="note-time" class="settings-note"></p><label>Nota<textarea id="note-text" rows="5" maxlength="4000" required placeholder="Scrivi un’osservazione per questo istante…"></textarea></label><p id="note-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close="note-editor">Annulla</button><button id="note-save" type="submit" class="button primary">Salva nota</button></div></form></dialog>
+<dialog id="note-delete-dialog" class="compact-dialog"><form id="note-delete-form"><div class="dialog-heading"><div><span class="eyebrow">NOTE OPERATORE</span><h2>Eliminare la nota?</h2></div><button type="button" class="icon-close" data-close="note-delete-dialog" aria-label="Chiudi">×</button></div><p id="note-delete-preview" class="note-delete-preview"></p><p id="note-delete-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close="note-delete-dialog">Annulla</button><button id="note-delete-confirm" type="submit" class="button primary danger">Elimina nota</button></div></form></dialog>
 <dialog id="date-dialog" class="compact-dialog">
     <form id="date-form"><div class="dialog-heading"><div><span class="eyebrow">ARCHIVIO FORNO</span><h2>Seleziona data</h2></div><button class="icon-close" type="button" data-close="date-dialog" aria-label="Chiudi">×</button></div>
     <p>Apri il giorno selezionato, da mezzanotte alla fine della giornata.</p><label>Giorno<input type="date" id="selected-date" required></label><p id="date-error" class="form-error" role="alert"></p>
     <div class="dialog-actions"><button type="button" class="button secondary" data-close="date-dialog">Annulla</button><button type="submit" class="button primary">Conferma</button></div></form>
 </dialog>
+<dialog id="range-dialog" class="compact-dialog"><form id="range-form">
+    <div class="dialog-heading"><div><span class="eyebrow">ARCHIVIO FORNO</span><h2>Seleziona range</h2></div><button class="icon-close" type="button" data-close="range-dialog" aria-label="Chiudi">×</button></div>
+    <label>Data e ora di inizio<input type="datetime-local" id="range-start" step="0.001" required></label>
+    <label>Data e ora di fine<input type="datetime-local" id="range-end" step="0.001" required></label>
+    <p id="range-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close="range-dialog">Annulla</button><button type="submit" class="button primary">Apri range</button></div>
+</form></dialog>
+<dialog id="scale-dialog" class="compact-dialog"><form id="scale-form">
+    <div class="dialog-heading"><div><span class="eyebrow">ASSE TEMPERATURA</span><h2>Scala personalizzata</h2></div><button class="icon-close" type="button" data-close="scale-dialog" aria-label="Chiudi">×</button></div>
+    <div class="settings-grid"><label>Minimo (°C)<input type="number" id="scale-min" min="-10000" max="9999.99" step="0.01" required></label><label>Massimo (°C)<input type="number" id="scale-max" min="-9999.99" max="10000" step="0.01" required></label></div>
+    <p id="scale-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close="scale-dialog">Annulla</button><button type="submit" class="button primary">Applica scala</button></div>
+</form></dialog>
 <dialog id="options-dialog">
     <form id="options-form"><div class="dialog-heading"><div><span class="eyebrow">PREFERENZE DELLA POSTAZIONE</span><h2>Opzioni grafico</h2></div><button class="icon-close" type="button" data-close="options-dialog" aria-label="Chiudi">×</button></div>
     <p class="dialog-intro">Griglia e stile restano uguali a ogni apertura, solo su questo PC. Non modificano il campionamento del forno.</p>
     <fieldset><legend>Griglia e assi</legend><div class="settings-grid">
         <label>Divisioni temporali<input id="opt-x-divisions" type="number" min="2" max="40" required><small>Numero di intervalli sull'asse orizzontale.</small></label>
         <label>Data scritta ogni N linee<input id="opt-x-every" type="number" min="1" max="40" required><small>Prima e ultima sono sempre scritte.</small></label>
-        <label>Divisioni temperatura<input id="opt-y-divisions" type="number" min="2" max="30" required></label>
+        <label id="y-divisions-control">Divisioni temperatura<input id="opt-y-divisions" type="number" min="2" max="30" required></label>
         <label>Gradi scritti ogni N linee<input id="opt-y-every" type="number" min="1" max="30" required></label>
+        <label class="inline-check"><input id="opt-y-fixed" type="checkbox">Linee temperatura ogni X gradi</label><span></span>
+        <label id="y-step-control">Linea principale ogni (°C)<input id="opt-y-step" type="number" min="0.01" max="1000" step="0.01" required><small>Nei range molto ampi la griglia viene diradata per mantenerla leggibile.</small></label>
+        <label id="y-subdivisions-control">Suddivisioni tra linee principali<input id="opt-y-subdivisions" type="number" min="1" max="10" required><small>1 = nessuna linea intermedia; 5 = cinque intervalli.</small></label>
         <label>Formato etichette data<select id="opt-date-labels"><option value="datetime">Data e ora</option><option value="time">Ora · data completa agli estremi</option></select></label>
         <label>Decimali temperatura<select id="opt-decimals"><option value="0">0 decimali</option><option value="1">1 decimale</option><option value="2">2 decimali</option><option value="3">3 decimali</option></select></label>
     </div><p class="settings-note" id="division-preview">8 divisioni = 8 intervalli e 9 linee.</p></fieldset>
@@ -75,10 +97,15 @@
         <label>Intensità griglia (%)<input id="opt-grid-opacity" type="number" min="5" max="60" required></label>
         <div class="checkboxes"><label><input id="opt-legend" type="checkbox">Mostra legenda delle curve</label><label><input id="opt-envelope" type="checkbox">Mostra intervallo minima / massima</label><label><input id="opt-points" type="checkbox">Mostra punti della curva</label><label><input id="opt-diagnostics" type="checkbox">Diagnostica aperta all'avvio</label></div>
     </div></fieldset>
+    <fieldset><legend>Note ed eventi sul grafico</legend><div class="checkboxes"><label><input id="opt-notes" type="checkbox">Mostra note degli operatori</label><label><input id="opt-events" type="checkbox">Mostra eventi automatici del forno</label></div><p class="settings-note">Gli eventi vengono raccolti anche quando sono nascosti. Le note sono condivise tra le postazioni.</p><fieldset id="event-filters"><legend>Tipi di evento visibili</legend><div class="event-filter-actions"><button id="events-all" type="button" class="button subtle">Seleziona tutti</button><button id="events-none" type="button" class="button subtle">Nessuno</button></div><div id="event-type-options" class="event-type-options"></div></fieldset></fieldset>
     <p id="preferences-status" class="settings-note" role="status">Preferenze salvate localmente.</p>
     <div class="dialog-actions"><button id="reset-options" type="button" class="button subtle">Ripristina valori iniziali</button><span></span><button type="button" class="button secondary" data-close="options-dialog">Annulla</button><button type="submit" class="button primary">Salva preferenze</button></div></form>
 </dialog>
-<dialog id="report"><div class="dialog-heading"><div><span class="eyebrow">CAMPIONI ORIGINALI</span><h2>Analisi intervallo</h2></div><button class="icon-close" data-close="report" aria-label="Chiudi">×</button></div><div id="report-content"></div><form method="dialog" class="dialog-actions"><button class="button primary">Chiudi</button></form></dialog>
+<dialog id="report" class="analysis-dialog"><div class="dialog-heading"><div><span class="eyebrow">CAMPIONI ORIGINALI</span><h2>Analisi intervallo</h2></div><button class="icon-close" data-close="report" aria-label="Chiudi">×</button></div>
+    <p id="analysis-range" class="analysis-range"></p>
+    <form id="analysis-form" class="analysis-toolbar"><label>Finestra di confronto (secondi)<input id="analysis-seconds" type="number" min="0.5" max="86400" step="0.5" value="60" required></label><button id="analysis-recalculate" class="button secondary" type="submit">Ricalcola</button></form>
+    <p id="analysis-message" class="analysis-note" role="status"></p><div id="report-content" aria-live="polite"></div><form method="dialog" class="dialog-actions"><button class="button primary">Chiudi</button></form>
+</dialog>
 <script src="../scripts/forno-scripts.js"></script>
 </body>
 </html>

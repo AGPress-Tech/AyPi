@@ -64,8 +64,9 @@ Si possono nascondere/mostrare canali dai riquadri o dalla legenda: la scelta
 forniscono i dati distinti per canale.
 Entrambi mostrano anche la temperatura media complessiva dei canali validi,
 incluse le curve nascoste. Nel tooltip è la media aritmetica delle medie dei
-canali nel bucket visualizzato; nel resoconto è la media aritmetica delle medie
-dei canali nell'intervallo selezionato, con lo stesso peso per ogni canale.
+canali nel bucket visualizzato. Nel nuovo resoconto "Tutti i canali" si calcola
+prima la media dei canali validi a ogni istante, poi le statistiche di questa
+temperatura media nell'intervallo selezionato.
 I canali Off, senza campioni validi o con valori non finiti non contribuiscono;
 se nessun canale è valido viene mostrato un trattino. I canali inclusi sono
 indicati accanto alla media. Temperature zero o negative valide restano incluse.
@@ -125,17 +126,28 @@ Scheda Robot → **Forno — Temperature e cicli**.
 La risoluzione della vista è personale e non modifica il campionamento del server.
 
 - Risoluzione da 0.5 s a 1 ora; intervallo navigabile con zoom, trascinamento
-  e selezione del giorno, senza selettore Periodo.
+  e selezione del giorno o del range esatto (data/ora, millisecondi inclusi),
+  senza selettore Periodo. A ogni apertura "Segui live" è attivo.
 - Live incrementale: si richiedono solo gli intervalli nuovi e l'ultimo incompleto,
   con aggiornamento ogni 1–5 secondi in funzione della risoluzione scelta.
   Con vista 0.5 s si vedono entrambi i campioni nel refresh di circa un secondo.
-- Storico e viste lunghe: massimo 2000 bucket per richiesta; la risoluzione può
+- Storico e viste lunghe: normalmente massimo 2000 bucket per richiesta; la risoluzione può
   essere aumentata automaticamente, con indicazione visibile nel pannello.
 - Ogni bucket conserva min, max, media e conteggi. I picchi restano visibili.
 - Tooltip dopo 500 ms a mouse fermo, entro 24 pixel da una curva visibile;
   il controllo della distanza include gli estremi orizzontali della traccia.
   Una volta aperto, resta visibile con il cursore fermo e aggiorna il campione
   sotto il cursore quando il live scorre, anche se la temperatura cambia.
+- Tasto destro nel plot → "Tooltip continuo": abilita/disabilita un riquadro
+  flottante nell'angolo superiore destro e una guida verticale. Nessuna attesa
+  di 500 ms né vincolo di vicinanza alla curva. Mostra i quattro canali, lo stato
+  Off e la media dei canali validi. La scelta resta salvata sulla postazione.
+  Durante il caricamento sono indicate le medie della vista, poi sostituite dal
+  campione originale più vicino con il suo timestamp effettivo, senza interpolazione.
+  Se ci sono buchi nell'archivio non viene inventata una lettura. Il campione
+  preciso si legge via API, con al massimo quattro richieste al secondo, una
+  richiesta in corso per client e una piccola cache locale. Il grafico mantiene
+  tutta la sua larghezza; drag, zoom e Ctrl+selezione restano disponibili.
 - Rotella: zoom temporale con transizione breve; trascinamento: scorrimento
   aggiornato a ogni frame, senza attendere il rilascio; Ctrl + trascinamento:
   analisi sui campioni originali (non sulla curva ridotta).
@@ -152,9 +164,91 @@ La risoluzione della vista è personale e non modifica il campionamento del serv
   locale limitato a 4000 bucket per canale. Le preferenze di movimento ridotto
   del sistema disattivano queste transizioni.
 - Il caricamento avviene al termine dello zoom/trascinamento, raggruppando gli
-  eventi della rotella per evitare richieste continue alla rete.
+  eventi della rotella per evitare richieste continue alla rete. La navigazione
+  precarica un quarto di vista ai lati (max 3000 bucket per richiesta): un pan
+  dentro la cache non richiede la rete. Al rilascio del pan non si attende
+  l'animazione di ridisegno.
+- Scala temperatura automatica, 0–Max+50 oppure manuale con minimo/massimo;
+  i pulsanti +/− restringono/allargano la scala verticale.
+- Opzioni asse gradi: divisioni fisse oppure linee ogni X °C, ancorate ai
+  multipli di X, con 1–10 suddivisioni per intervallo. Passo troppo fitto su
+  range ampi: griglia diradata con indicazione visibile. Preferenze locali.
 
-## API sola lettura
+### Analisi intervallo
+
+Ctrl + trascinamento apre schede per "Tutti i canali" (curva media per istante)
+e per ciascun canale: T max, T min, Delta T e media campioni. La finestra X,
+in secondi (0,5–86400), resta salvata sulla postazione.
+Il server analizza i campioni originali in finestre mobili chiuse [t−X,t],
+avanzate a ogni campione registrato. Considera solo finestre interamente
+interne ai campioni selezionati; Delta T = massima − minima nella finestra,
+non differenza tra i soli estremi. Mostra media dei Delta T e finestra con il
+Delta T massimo, con date/ore, minimo, massimo e istanti dei due estremi.
+In caso di parità viene mostrata la prima finestra. Campioni non validi/Off
+esclusi e nessuna interpolazione dei periodi scoperti; una finestra può quindi
+contenere meno campioni del previsto. Nessuna finestra completa: valori assenti.
+Il calcolo avviene nel worker di consultazione, con code monotone, senza
+trasferire dati raw ai client. Oltre due milioni di istanti o circa nove secondi
+di calcolo, viene richiesto di selezionare un intervallo più breve.
+Per questa funzione occorrono backend e client aggiornati.
+
+## Note degli operatori e messaggi automatici
+
+Tasto destro nel plot → **Aggiungi nota qui**. La nota viene collegata al campione
+originale più vicino; il suo orario effettivo è mostrato prima del salvataggio.
+Senza un campione vicino non si può creare la nota. Il testo resta in `forno.db`,
+con autore (utente Windows della postazione), data di creazione e modifiche.
+Click sull'icona: apre/chiude il riquadro sul grafico. Tasto destro sull'icona
+o sul testo aperto: modifica/elimina, con conferma prima dell'eliminazione.
+Le note vicine sono raggruppate con un contatore; nel gruppo si può fare tasto
+destro sulla singola nota. Le modifiche usano una revisione per evitare che
+due postazioni si sovrascrivano. Eliminazione logica e cronologia delle versioni.
+Il testo è visualizzato come testo semplice, mai come HTML.
+
+Opzioni → **Note ed eventi sul grafico**: note visibili per default, eventi
+automatici nascosti per default. Il filtro generale e i singoli tipi sono
+preferenze locali; non interrompono la raccolta. Note condivise aggiornate
+circa ogni 5 secondi anche nello storico, con risposta leggera se la revisione
+non cambia. Risultati limitati a 1000 note/2000 eventi per intervallo; in caso
+di troncamento compare l'indicazione di aumentare lo zoom.
+
+La raccolta eventi parte con il backend, su una connessione Modbus di sola
+lettura distinta da quella delle temperature, ogni 500 ms. Legge modo/stato,
+tipo e tempo del segmento, uscite/eventi PV, nomi di programma e segmento,
+revisione configurazione. Sono stati verificati sul forno i registri 14928–14959,
+27302–27343 e 4256, secondo HA030554.
+Riferimento: [manuale nanodac, tabella parametri programmatore](https://eurothermonline.com/media/instrument-manuals/nanodac%20Recorder%20%20Controller%20User%20Guide%20%28HA030554%20issue%205%29%20%289.38MB%29.pdf#page=220).
+
+Registra i cambi osservati: Run, Hold, Resume, Reset, completamento, inizio/uscita
+segmento, Holdback, attesa, eventi PV/digitali e revisione configurazione.
+Avvio raccolta e ripristino connessione producono una fotografia dello stato,
+senza inventare transizioni avvenute mentre il collector era fermo.
+I timestamp indicano quando il backend ha rilevato il cambiamento: non sono
+un'importazione del registro messaggi interno del nanodac. Transizioni più
+rapide del polling o durante disconnessioni possono non essere rilevate.
+L'evento "Avvio raccolta" riguarda il backend, non attesta un'accensione del forno.
+I precedenti messaggi UHH/Review, i messaggi di sistema completi e le note
+inserite sullo strumento non vengono importati automaticamente.
+Raccolta eventi e relativi errori sono consultabili nella diagnostica acquisizione.
+
+## API forno
+
+`GET /api/forno/messages?fromMs=...&toMs=...&showNotes=1&eventTypes=program_run,...`
+restituisce note/eventi selezionati. `revision` opzionale permette una risposta
+`unchanged:true` se il client possiede già lo stesso intervallo/filtro.
+`POST /api/forno/notes` crea una nota con `timestampMs`, `text`, `clientToken` UUID;
+`PUT /api/forno/notes/:id` aggiorna con `text` e `revision`;
+`DELETE /api/forno/notes/:id` elimina con `revision`. Conflitto: HTTP 409.
+L'identità proviene dall'header LAN AyPi `x-aypi-user`, non è una firma certificata.
+Gli eventi automatici non sono modificabili o eliminabili tramite queste API.
+
+`GET /api/forno/sample?timestampMs=...`: campione originale più vicino entro
+un periodo di acquisizione (almeno 500 ms), quattro letture coerenti allo stesso
+timestamp, qualità e media dei valori validi. Usa snapshot e ricerche indicizzate
+su due blocchi vicini, evitando scansioni dell'archivio. Serve il backend aggiornato.
+
+`GET /api/forno/analysis?fromMs=...&toMs=...&windowSeconds=60`: riepiloghi e
+analisi delle finestre per canale e media complessiva. Snapshot SQLite coerente.
 
 `GET /api/forno/status`: salute del collector, ultimo campione, periodo effettivo
 configurato, errore di persistenza e dimensione dei file.
@@ -232,6 +326,10 @@ ore. Il live viene disattivato quando si apre un giorno storico.
 
 Verifiche aggiuntive: `node --test tools/test-forno-preferences.cjs`,
 `node tools/test-forno-ui.cjs` e `node tools/test-forno-launcher.cjs`.
+Il test `node tools/test-forno-packaged-messages.cjs`, dopo la distribuzione del
+backend, verifica il pacchetto Windows con un nanodac TCP simulato e un database
+temporaneo: quattro canali, eventi, API note, conflitti HTTP 409, eliminazione
+e aggiornamenti condizionali. Non contatta il forno reale o gli archivi aziendali.
 
 ## Apertura e identita del modulo
 

@@ -1,9 +1,13 @@
 import Chart from 'chart.js/auto';
+import { degreeTicks, parseLocalDateTime, formatLocalInput } from './forno/axes';
+import { setupAnalysisPanel } from './forno/analysis-panel';
+import { setupContinuousTooltip } from './forno/continuous-tooltip';
+import { setupAnnotations } from './forno/annotations';
 import { attachChartInteractions } from './forno/chart-interactions';
 import { createChartReveal } from './forno/chart-reveal';
 import { channelAverage } from './forno/channel-average';
 import { setupFornoSplash } from './forno/splash';
-import { DEFAULT_VIEW_SETTINGS, normalizeViewSettings, divisionTicks, shouldLabel, dayRange, type FornoViewSettings } from '../../main/modules/forno/preferences';
+import { DEFAULT_VIEW_SETTINGS, normalizeViewSettings, divisionTicks, shouldLabel, dayRange, EVENT_LABELS, type FornoViewSettings } from '../../main/modules/forno/preferences';
 const { ipcRenderer } = require('electron');
 
 type Bucket = { fromMs: number; toMs: number; samples: number; valid: number; missing: number; min: number | null; max: number | null; mean: number | null; first: number | null; last: number | null; firstTime: number | null; lastTime: number | null };
@@ -22,6 +26,7 @@ const diagnostics = element<HTMLDetailsElement>('diagnostics');
 let preferences: FornoViewSettings = { ...DEFAULT_VIEW_SETTINGS };
 let preferencesFile = '';
 let settingsWrites: Promise<unknown> = Promise.resolve();
+const analysisPanel=setupAnalysisPanel({request:input=>ipcRenderer.invoke('forno-analysis',input),getSeconds:()=>preferences.analysisWindowSeconds,saveSeconds:seconds=>{preferences.analysisWindowSeconds=seconds;void savePreferences().catch(()=>{});},formatTime:t=>formatTime(t)});
 const color = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 function axisTime(value: number, endpoint: boolean) {
     const d = new Date(value);
@@ -48,7 +53,7 @@ function toggleChannel(id:number) {
 }
 channelControls.addEventListener('change',event=>{const id=Number((event.target as HTMLInputElement).dataset.channel);if(id)toggleChannel(id);});
 function channelsOf(result:any) { return result.channels || [{id:1,name:'Canale 1',buckets:result.buckets,stats:result.stats}]; }
-function clearSeries() { for(const channel of series)channel.length=0;buckets=[]; }
+function clearSeries() { for(const channel of series)channel.length=0;buckets=[];coverage=null;loadedInterval=0; }
 function updateChannelCards() {
     const now=Date.now()+clockOffset;
     const current=backendState?.channels?.[0] || backendState?.lastSample;
@@ -70,12 +75,17 @@ let effective = Number(resolution.value);
 let watermark = start;
 let busy = false;
 let pendingFull = false;
+let pendingPrefetch=false,pendingAnimate=true;
+let coverage:{from:number;to:number;interval:number}|null=null;
 let revision = 0;
 let disposed = false;
 let lastStatusCheck = 0;
 let interactions: ReturnType<typeof attachChartInteractions> | undefined;
+let continuous:ReturnType<typeof setupContinuousTooltip>|undefined;
+let annotations:ReturnType<typeof setupAnnotations>|undefined;
 const reveal=createChartReveal();
 let loadedInterval=0;
+let currentDegreeStep=10;
 
 const chart = new Chart<'line'>(canvas, {
     type: 'line',
@@ -95,10 +105,10 @@ const chart = new Chart<'line'>(canvas, {
                     callback: (value, index, ticks) => shouldLabel(index, ticks.length, preferences.xLabelEvery) ? axisTime(Number(value), index === 0 || index === ticks.length-1) : '' },
                 title: { display: true, text: 'Data e ora', color: color('--muted'), font: { size: 11 } }, grid: { color: 'rgba('+color('--chart-grid')+',0.18)' } },
             y: { min: 0, max: 100,
-                afterBuildTicks: axis => { axis.ticks = divisionTicks(axis.min, axis.max, preferences.yDivisions); },
+                afterBuildTicks: axis => {if(preferences.yFixedStep){const grid=degreeTicks(axis.min,axis.max,preferences.yDegreeStep,preferences.ySubdivisions);currentDegreeStep=grid.effectiveStep;axis.ticks=grid.ticks;}else axis.ticks=divisionTicks(axis.min,axis.max,preferences.yDivisions);},
                 title: { display: true, text: 'Temperatura (\u00b0C)', color: color('--muted'), font: { size: 11 } },
                 ticks: { color: color('--muted'), autoSkip: false, padding: 8, font: { size: 10 },
-                    callback: (value, index, ticks) => shouldLabel(index, ticks.length, preferences.yLabelEvery) ? Number(value).toLocaleString('it-IT', {minimumFractionDigits:preferences.temperatureDecimals,maximumFractionDigits:preferences.temperatureDecimals}) : '' },
+                    callback: (value, index, ticks) => (preferences.yFixedStep?(index===0||index===ticks.length-1||Boolean(ticks[index].major)&&Math.abs(Math.round(Number(value)/currentDegreeStep)%preferences.yLabelEvery)===0):shouldLabel(index,ticks.length,preferences.yLabelEvery)) ? Number(value).toLocaleString('it-IT', {minimumFractionDigits:preferences.temperatureDecimals,maximumFractionDigits:preferences.temperatureDecimals}) : '' },
                 grid: { color: 'rgba('+color('--chart-grid')+',0.18)' } },
         },
         plugins: {
@@ -125,11 +135,28 @@ const chart = new Chart<'line'>(canvas, {
             } },
         },
     },
-    plugins: [reveal.plugin,{id:'forno-selection',afterDraw(){interactions?.drawSelection();}}],
+    plugins: [reveal.plugin,{id:'forno-selection',afterDraw(){interactions?.drawSelection();continuous?.drawGuide();annotations?.draw();}}],
+});
+annotations=setupAnnotations(chart,{settings:()=>preferences,range:()=>({start,end}),formatTime,
+    list:input=>ipcRenderer.invoke('forno-messages',input),sample:timestampMs=>ipcRenderer.invoke('forno-sample',{timestampMs}),
+    save:input=>ipcRenderer.invoke('forno-note-save',input),remove:input=>ipcRenderer.invoke('forno-note-delete',input)});
+continuous=setupContinuousTooltip(chart,{
+    request:timestampMs=>ipcRenderer.invoke('forno-sample',{timestampMs}),
+    formatTime,now:()=>Date.now()+clockOffset,colors:channelColors,
+    changed:enabled=>{preferences.continuousTooltip=enabled;interactions?.hideTooltip();void savePreferences().catch(()=>{});},
+    addNote:timestampMs=>{void annotations?.createAt(timestampMs);},
+    preview:t=>{
+        const index=shown[0].findIndex(b=>b.fromMs<=t&&b.toMs>=t);
+        if(index<0||!shown[0][index].samples)return null;
+        const channels=shown.map((rows,i)=>({id:i+1,name:'Canale '+(i+1),temperature:rows[index]?.valid?rows[index].mean:null,quality:rows[index]?.valid?(rows[index].valid===1?'good':'aggregate'):'unavailable'}));
+        const valid=channels.filter(c=>c.temperature!==null);
+        return {fromMs:shown[0][index].fromMs,toMs:shown[0][index].toMs,channels,mean:valid.length?valid.reduce((sum,c)=>sum+c.temperature!,0)/valid.length:null};
+    },
 });
 interactions=attachChartInteractions(chart,{
-    range:()=>({start,end}),move:updateView,commit:()=>{void refresh(true);},
+    range:()=>({start,end}),move:updateView,commit:kind=>{void refresh(true,true,kind!=='pan');},
     select:(lo,hi)=>{void analyzeSelection(lo,hi);},
+    continuous:()=>continuous?.enabled||false,
 });
 
 bootSplash.mark('chart');
@@ -165,9 +192,13 @@ function applyAppearance() {
     const pad=Math.max(1,(hi-lo)*0.1);
     chart.options.scales!.y!.min=preferences.scaleMode==='zeroMax'?0:(values.length?lo-pad:0);
     chart.options.scales!.y!.max=preferences.scaleMode==='zeroMax'?Math.max(50,(values.length?hi:0)+50):(values.length?hi+pad:100);
+    if(preferences.scaleMode==='manual'){chart.options.scales!.y!.min=preferences.yMin;chart.options.scales!.y!.max=preferences.yMax;}
+    chart.options.scales!.y!.grid!.lineWidth=context=>preferences.yFixedStep&&context.tick&&!context.tick.major?0.5:1;
+    element('scale-manual').setAttribute('aria-pressed',String(preferences.scaleMode==='manual'));
     element('scale-auto').setAttribute('aria-pressed',String(preferences.scaleMode==='auto'));
     element('scale-zero').setAttribute('aria-pressed',String(preferences.scaleMode==='zeroMax'));
     element('grid-summary').textContent=preferences.xDivisions+' divisioni temporali \u00b7 etichetta ogni '+preferences.xLabelEvery;
+    if(preferences.yFixedStep){const grid=degreeTicks(Number(chart.options.scales!.y!.min),Number(chart.options.scales!.y!.max),preferences.yDegreeStep,preferences.ySubdivisions);element('grid-summary').textContent+=' · Linee ogni '+grid.effectiveStep+' °C'+(grid.adapted?' (griglia diradata)':'');}
 }
 function render(animate=false) {
     interactions?.beforeChartUpdate();
@@ -192,15 +223,20 @@ function render(animate=false) {
     if(animate)reveal.start(chart,previousRange);
     chart.update('none');
     interactions?.afterChartUpdate();
+    continuous?.afterChartUpdate();
+    void annotations?.refresh();
 }
-async function refresh(full = false) {
+async function refresh(full = false,prefetch=false,animate=full) {
     if (disposed) return;
     if (backendState?.enabled === false) {
         statusElement.textContent = 'Raccolta forno disabilitata sul server: verificare forno.autoStart e riavviare il backend.';
         return;
     }
     if (full) revision++;
-    if (busy) { pendingFull ||= full; return; }
+    const span=end-start,requested=Number(resolution.value);
+    const targetInterval=requested*Math.max(1,Math.ceil((span+1)/(1800*requested)));
+    if(prefetch&&!live.checked&&coverage&&coverage.interval===targetInterval&&coverage.from<=start&&coverage.to>=end){effective=targetInterval;render(false);return;}
+    if (busy) { pendingFull ||= full;pendingPrefetch ||= prefetch;pendingAnimate=animate; return; }
     busy = true;
     const version = revision;
     try {
@@ -211,8 +247,10 @@ async function refresh(full = false) {
         // Nel live mantieni i bucket allineati per gli aggiornamenti incrementali.
         // Nello storico rispetta esattamente il giorno/intervallo selezionato.
         const alignedStart = live.checked ? Math.floor(start/effective)*effective : Math.floor(start);
-        const fromMs = full || !buckets.length ? alignedStart : Math.max(alignedStart,watermark);
-        const result = await ipcRenderer.invoke('forno-history', { fromMs, toMs: Math.floor(end), intervalMs: effective, maxPoints: 2000 });
+        const margin=prefetch?Math.max(0,Math.min((end-start)*0.25,(366*86400000-(end-start))/2)):0;
+        const fromMs = margin?Math.max(0,Math.floor(alignedStart-margin)):full||!buckets.length?alignedStart:Math.max(alignedStart,watermark);
+        const queryEnd=Math.ceil(end+margin);
+        const result = await ipcRenderer.invoke('forno-history', { fromMs, toMs: margin?queryEnd:Math.floor(end), intervalMs: effective, maxPoints: margin?3000:2000 });
         bootSplash.mark('archive');
         if (disposed || version !== revision) return;
         const responseChannels=channelsOf(result);
@@ -222,10 +260,13 @@ async function refresh(full = false) {
             const incoming:Bucket[]=responseChannels.find((c:any)=>c.id===i+1)?.buckets||[];
             // Conserva un margine locale per tornare indietro senza svuotare la curva.
             // Elimina prima la copertura sostituita, anche se la risposta e vuota.
-            const existing=new Map<number,Bucket>((keepCache?series[i].filter(b=>b.toMs<fromMs||b.fromMs>end):[]).map(b=>[b.fromMs,b]));
+            const existing=new Map<number,Bucket>((keepCache?series[i].filter(b=>b.toMs<fromMs||b.fromMs>queryEnd):[]).map(b=>[b.fromMs,b]));
             for(const b of incoming)existing.set(b.fromMs,b);
             series[i]=[...existing.values()].filter(b=>b.toMs>=start-span/2&&b.fromMs<=end+span/2).sort((a,b)=>a.fromMs-b.fromMs).slice(-4000);
         }
+        const retainedFrom=start-span/2,retainedTo=end+span/2;
+        const canMerge=keepCache&&coverage&&coverage.to>=fromMs&&coverage.from<=queryEnd;
+        coverage={from:Math.max(retainedFrom,canMerge?Math.min(coverage!.from,fromMs):fromMs),to:Math.min(retainedTo,canMerge?Math.max(coverage!.to,queryEnd):queryEnd),interval:effective};
         loadedInterval=effective;
         buckets=series[0];
         const received:Bucket[]=responseChannels.flatMap((c:any)=>c.buckets);
@@ -233,39 +274,23 @@ async function refresh(full = false) {
         const tail = buckets[buckets.length-1];
         if (live.checked) element('temperature').textContent = tail?.valid && tail.lastTime !== null && serverNow-tail.lastTime<5000 ? `${tail.last!.toFixed(1)} °C` : '— °C';
         statusElement.textContent = `${live.checked ? 'Live' : 'Storico'} · Risoluzione visualizzata: ${effective/1000} s` + (effective>requested ? ' (adattata al periodo per contenere il traffico)' : '') + (series.some(rows=>rows.some(b=>b.samples>0&&b.toMs>=start&&b.fromMs<=end)) ? '' : ' · Nessun campione nel periodo');
-        render(full);
+        render(animate);
     } catch(error) {
         statusElement.textContent = `Dati non aggiornati: ${error instanceof Error ? error.message : String(error)}`;
         if (live.checked) element('temperature').textContent = '— °C';
     } finally {
         busy = false;
-        if (pendingFull && !disposed) { pendingFull=false; void refresh(true); }
+        if (pendingFull && !disposed) { const prefetch=pendingPrefetch,animate=pendingAnimate;pendingFull=false;pendingPrefetch=false;void refresh(true,prefetch,animate); }
     }
 }
 function updateView(lo: number, hi: number) {
     revision++;
-    const span = Math.max(1000,Math.min(365*86400000,hi-lo));
+    const span = Math.max(500,Math.min(366*86400000,hi-lo));
     start=Math.max(0,lo); end=start+span; live.checked=false;
     reveal.stop();interactions?.hideTooltip();showRange();chart.update('none');
+    continuous?.afterChartUpdate();
 }
-async function analyzeSelection(lo:number,hi:number) {
-        element('report-content').textContent='Calcolo sui campioni originali…'; report.showModal();
-        try {
-            const result=await ipcRenderer.invoke('forno-history',{fromMs:lo,toMs:hi,intervalMs:Math.max(500,hi-lo+1),maxPoints:1});
-            const temperature=(v:number|null)=>v===null?'\u2014':v.toFixed(2)+' \u00b0C';
-            const lines=[`Da: ${formatTime(lo)}`,`A: ${formatTime(hi)}`,`Durata: ${((hi-lo)/1000).toFixed(1)} s`];
-            const average=channelAverage(channelsOf(result).map((channel:any)=>({id:channel.id,name:channel.name,valid:channel.stats.valid,mean:channel.stats.mean})));
-            lines.push('','TEMPERATURA MEDIA COMPLESSIVA',temperature(average.temperature));
-            if(average.channels.length)lines.push('Canali inclusi: '+average.channels.map(c=>c.name).join(', '),'Media aritmetica delle medie dei canali nel periodo. Campioni Off o non validi esclusi; incluse anche le curve nascoste.');
-            else lines.push('Nessun canale con dati validi nel periodo selezionato.');
-            for(const channel of channelsOf(result)) {
-                const s=channel.stats;
-                lines.push('',channel.name||'Canale '+channel.id,`Campioni validi: ${s.valid} · Non validi / disattivati: ${s.missing}`,`Minima: ${temperature(s.min)}`,`Massima: ${temperature(s.max)}`,`Delta (max − min): ${temperature(s.delta)}`,`Media campioni: ${temperature(s.mean)}`,`Primo / ultimo: ${temperature(s.first)} / ${temperature(s.last)}`);
-            }
-            element('report-content').textContent=lines.join('\n');
-        } catch(error) { element('report-content').textContent=String(error); }
-
-}
+function analyzeSelection(lo:number,hi:number) {analysisPanel.open(lo,hi);}
 function savePreferences() {
     const snapshot={...preferences};
     settingsWrites=settingsWrites.catch(()=>{}).then(()=>ipcRenderer.invoke('forno-view-settings-save',snapshot));
@@ -284,6 +309,8 @@ async function loadPreferences() {
         preferences=normalizeViewSettings(result.settings); preferencesFile=result.path||'';
         element('preferences-status').textContent='Preferenze locali'+(preferencesFile?' \u00b7 '+preferencesFile:'');
     } catch(error) { element('preferences-status').textContent='Preferenze non caricate: '+String(error); }
+    live.checked=true;
+    continuous?.setEnabled(preferences.continuousTooltip);
     resolution.value=String(preferences.resolutionMs);
     end=Date.now()+clockOffset;start=end-preferences.periodMs;
     diagnostics.open=preferences.showDiagnostics;
@@ -305,24 +332,71 @@ element<HTMLFormElement>('date-form').addEventListener('submit',event=>{
         dateDialog.close();void refresh(true);
     } catch(error) {element('date-error').textContent=String((error as Error).message||error);}
 });
+element('select-range').addEventListener('click',()=>{
+    element<HTMLInputElement>('range-start').value=formatLocalInput(start);
+    element<HTMLInputElement>('range-end').value=formatLocalInput(end);
+    element('range-error').textContent='';element<HTMLDialogElement>('range-dialog').showModal();
+});
+element<HTMLFormElement>('range-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    try {
+        const from=parseLocalDateTime(element<HTMLInputElement>('range-start').value),to=parseLocalDateTime(element<HTMLInputElement>('range-end').value);
+        if(to-from<500||to-from>366*86400000)throw new Error('La fine deve seguire l’inizio: intervallo da 0,5 secondi a 366 giorni.');
+        updateView(from,to);clearSeries();element<HTMLDialogElement>('range-dialog').close();void refresh(true);
+    }catch(error){element('range-error').textContent=String((error as Error).message||error);}
+});
+function setManualScale(min:number,max:number) {
+    if(!Number.isFinite(min)||!Number.isFinite(max)||min>=max||min< -10000||max>10000)throw new Error('Specificare minimo e massimo crescenti, tra -10000 e 10000 °C.');
+    preferences.scaleMode='manual';preferences.yMin=min;preferences.yMax=max;render();void savePreferences().catch(()=>{});
+}
+element('scale-manual').addEventListener('click',()=>{
+    element<HTMLInputElement>('scale-min').value=chart.scales.y.min.toFixed(2);element<HTMLInputElement>('scale-max').value=chart.scales.y.max.toFixed(2);
+    element('scale-error').textContent='';element<HTMLDialogElement>('scale-dialog').showModal();
+});
+element<HTMLFormElement>('scale-form').addEventListener('submit',event=>{
+    event.preventDefault();try{setManualScale(Number(element<HTMLInputElement>('scale-min').value),Number(element<HTMLInputElement>('scale-max').value));element<HTMLDialogElement>('scale-dialog').close();}
+    catch(error){element('scale-error').textContent=String((error as Error).message||error);}
+});
+for(const [id,factor]of [['scale-in',0.8],['scale-out',1.25]] as const)element(id).addEventListener('click',()=>{
+    const center=(chart.scales.y.min+chart.scales.y.max)/2,half=Math.max(0.005,Math.min(10000,(chart.scales.y.max-chart.scales.y.min)*factor/2));
+    setManualScale(Math.max(-10000,center-half),Math.min(10000,center+half));
+});
 const optionFields: Record<string,keyof FornoViewSettings> = {
     'opt-x-divisions':'xDivisions','opt-y-divisions':'yDivisions','opt-x-every':'xLabelEvery','opt-y-every':'yLabelEvery',
     'opt-decimals':'temperatureDecimals','opt-date-labels':'dateLabels','opt-theme':'theme','opt-line-width':'lineWidth',
+    'opt-y-fixed':'yFixedStep','opt-y-step':'yDegreeStep','opt-y-subdivisions':'ySubdivisions',
+    'opt-notes':'showNotes','opt-events':'showEvents',
     'opt-grid-opacity':'gridOpacity','opt-legend':'showLegend','opt-envelope':'showEnvelope','opt-points':'showPoints','opt-diagnostics':'showDiagnostics',
 };
 function previewDivisions(){const n=Number(element<HTMLInputElement>('opt-x-divisions').value);element('division-preview').textContent=n+' divisioni = '+n+' intervalli e '+(n+1)+' linee. Prima e ultima etichetta sempre visibili.';}
 function fillOptions(settings:FornoViewSettings){
     for(const [id,key] of Object.entries(optionFields)) {const field=element<HTMLInputElement>(id);if(typeof settings[key]==='boolean')field.checked=settings[key] as boolean;else field.value=String(settings[key]);}
-    previewDivisions();
+    for(const field of document.querySelectorAll<HTMLInputElement>('[data-event-type]'))field.checked=settings.eventTypes.includes(field.dataset.eventType!);
+    element<HTMLFieldSetElement>('event-filters').disabled=!settings.showEvents;
+    previewDivisions();syncDegreeControls();
 }
+for(const [type,label]of Object.entries(EVENT_LABELS)){
+    const wrapper=document.createElement('label'),field=document.createElement('input');field.type='checkbox';field.dataset.eventType=type;wrapper.append(field,document.createTextNode(label));element('event-type-options').append(wrapper);
+}
+element('opt-events').addEventListener('change',()=>{element<HTMLFieldSetElement>('event-filters').disabled=!element<HTMLInputElement>('opt-events').checked;});
+for(const [id,checked]of [['events-all',true],['events-none',false]] as const)element(id).addEventListener('click',()=>{document.querySelectorAll<HTMLInputElement>('[data-event-type]').forEach(field=>field.checked=checked);});
+function syncDegreeControls(){
+    const fixed=element<HTMLInputElement>('opt-y-fixed').checked;
+    element('y-divisions-control').hidden=fixed;element<HTMLInputElement>('opt-y-divisions').disabled=fixed;
+    for(const id of ['y-step-control','y-subdivisions-control'])element(id).hidden=!fixed;
+    for(const id of ['opt-y-step','opt-y-subdivisions'])element<HTMLInputElement>(id).disabled=!fixed;
+}
+element('opt-y-fixed').addEventListener('change',syncDegreeControls);
 element('opt-x-divisions').addEventListener('input',previewDivisions);
 element('open-options').addEventListener('click',()=>{fillOptions(preferences);optionsDialog.showModal();});
 element('reset-options').addEventListener('click',()=>fillOptions({...DEFAULT_VIEW_SETTINGS}));
 element<HTMLFormElement>('options-form').addEventListener('submit',async event=>{
     event.preventDefault();
     const next:any={...preferences};
+    next.eventTypes=[...document.querySelectorAll<HTMLInputElement>('[data-event-type]')].filter(field=>field.checked).map(field=>field.dataset.eventType!);
     for(const [id,key] of Object.entries(optionFields)){const field=element<HTMLInputElement>(id);next[key]=typeof DEFAULT_VIEW_SETTINGS[key]==='boolean'?field.checked:typeof DEFAULT_VIEW_SETTINGS[key]==='number'?Number(field.value):field.value;}
     preferences=normalizeViewSettings(next);diagnostics.open=preferences.showDiagnostics;render();
+    void annotations?.refresh(true);
     try{await savePreferences();optionsDialog.close();}catch{/* errore visibile nel pannello */}
 });
 function setModuleState(state:string,label:string) {
@@ -330,7 +404,7 @@ function setModuleState(state:string,label:string) {
 }
 element('refresh-view').addEventListener('click',async()=>{
     const button=element<HTMLButtonElement>('refresh-view');button.disabled=true;
-    try{await checkStatus();await refresh(true);}finally{button.disabled=false;}
+    try{await checkStatus();await refresh(true);await annotations?.refresh(true);}finally{button.disabled=false;}
 });
 async function checkStatus() {
     try {
@@ -351,6 +425,7 @@ async function checkStatus() {
             details.push(sample.quality==='good' ? 'Temperatura: '+sample.temperature.toFixed(1)+' \u00b0C' : 'Lettura: '+sample.quality+' (temperatura non disponibile)');
         } else details.push('In attesa del primo campione salvato');
         if(s.channels) details.push(s.channels.map((c:any)=>c.name+': '+(c.quality==='good'?c.temperature.toFixed(1)+' \u00b0C':c.quality)).join(' \u00b7 '));
+        if(s.events)details.push('Raccolta eventi: '+(s.events.running?'attiva':'arrestata')+(s.events.error?' · '+s.events.error:''));
         if(s.dbPath) details.push('Database: '+s.dbPath);
         if(Number.isFinite(s.databaseBytes)) details.push('DB: '+(s.databaseBytes/1048576).toFixed(2)+' MiB | WAL: '+((s.walBytes||0)/1048576).toFixed(2)+' MiB');
         collectorStatus.textContent=details.join(' | ');
@@ -363,9 +438,9 @@ async function checkStatus() {
 }
 async function tick() {
     if(disposed) return;
-    if(!interactions?.busy && live.checked) await refresh(false);
+    if(!report.open&&!interactions?.busy && live.checked) await refresh(false);
     if(Date.now()-lastStatusCheck>10000) {lastStatusCheck=Date.now();await checkStatus();}
     if(!disposed) setTimeout(tick,Math.max(1000,Math.min(5000,Number(resolution.value))));
 }
-window.addEventListener('beforeunload',()=>{bootSplash.dispose();disposed=true;interactions?.dispose();reveal.stop();chart.destroy();});
+window.addEventListener('beforeunload',()=>{bootSplash.dispose();disposed=true;annotations?.dispose();continuous?.dispose();interactions?.dispose();reveal.stop();chart.destroy();});
 void (async()=>{try{await loadPreferences();bootSplash.mark('interface');await checkStatus();showRange();await refresh(true);}finally{bootSplash.ready();}void tick();})();

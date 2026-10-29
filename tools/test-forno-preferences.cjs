@@ -21,6 +21,21 @@ test('canali visibili: normalizzazione, nessun alias dei default e persistenza l
  const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'aypi-ch-prefs-')),'settings.json');
  writeViewSettings(file,{visibleChannels:[1,3]});assert.deepEqual(readViewSettings(file).settings.visibleChannels,[1,3]);
 });
+test('nuove preferenze: scala manuale, passo in gradi, suddivisioni e finestra analisi',()=>{
+ const settings={scaleMode:'manual',yMin:400,yMax:600,yFixedStep:true,yDegreeStep:0.5,ySubdivisions:4,analysisWindowSeconds:2.5,continuousTooltip:true};
+ const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'aypi-axis-prefs-')),'settings.json');writeViewSettings(file,settings);
+ const actual=readViewSettings(file).settings;for(const [key,value]of Object.entries(settings))assert.equal(actual[key],value);
+ const invalid=normalizeViewSettings({yMin:10,yMax:-10,yDegreeStep:0,ySubdivisions:500,analysisWindowSeconds:0});
+ assert.equal(invalid.yMin,0);assert.equal(invalid.yMax,1000);assert.equal(invalid.yDegreeStep,10);assert.equal(invalid.ySubdivisions,5);assert.equal(invalid.analysisWindowSeconds,60);
+});
+test('note/eventi: default nascosti per gli eventi, filtro valido e stesso catalogo del backend',()=>{
+ const {EVENT_LABELS}=require('../dist-ts/modules/forno/preferences'),{EVENT_TYPES}=require('../backend-dist/modules/forno/messages');
+ assert.deepEqual(Object.keys(EVENT_LABELS).sort(),[...EVENT_TYPES].sort());
+ const a=normalizeViewSettings({});assert.equal(a.showNotes,true);assert.equal(a.showEvents,false);
+ const b=normalizeViewSettings({showNotes:false,showEvents:true,eventTypes:['program_run','program_run']});assert.deepEqual(b.eventTypes,['program_run']);assert.equal(b.showNotes,false);
+ a.eventTypes.pop();assert.equal(DEFAULT_VIEW_SETTINGS.eventTypes.length,EVENT_TYPES.length);
+ assert.deepEqual(normalizeViewSettings({eventTypes:[]}).eventTypes,[]);
+});
 test('preferenze: persistenza su disco, riapertura e isolamento delle postazioni',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aypi-forno-settings-'));const a=path.join(root,'pc-a','view-settings.json'),b=path.join(root,'pc-b','view-settings.json');
  assert.deepEqual(readViewSettings(a).settings,DEFAULT_VIEW_SETTINGS);

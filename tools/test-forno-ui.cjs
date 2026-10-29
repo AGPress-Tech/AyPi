@@ -26,6 +26,18 @@ app.whenReady().then(async()=>{
     ipcMain.handle('forno-view-settings-load',()=>settingsStore.readViewSettings(settingsFile));
     ipcMain.handle('forno-view-settings-save',(_event,value)=>settingsStore.writeViewSettings(settingsFile,value));
     const requests=[];
+    const analysisRequests=[];
+    const sampleRequests=[];
+    const messageRequests=[],noteSaves=[];let notes=[],testEvents=[];
+    ipcMain.handle('forno-messages',(_event,p)=>{messageRequests.push(p);return {notes:p.showNotes?notes.filter(n=>n.timestampMs>=p.fromMs&&n.timestampMs<=p.toMs):[],events:testEvents.filter(e=>p.eventTypes.includes(e.type)&&e.timestampMs>=p.fromMs&&e.timestampMs<=p.toMs),truncated:false};});
+    ipcMain.handle('forno-note-save',(_event,p)=>{
+        noteSaves.push(p);const previous=notes.find(n=>n.id===p.id);
+        if(p.id&&(!previous||previous.revision!==p.revision))throw new Error('Nota modificata da un’altra postazione');
+        const note=previous?{...previous,text:p.text,revision:previous.revision+1,editedBy:'Operatore test',updatedAt:Date.now()}:{id:'note-'+(notes.length+1),timestampMs:p.timestampMs,text:p.text,author:'Operatore test',createdAt:Date.now(),updatedAt:Date.now(),editedBy:'Operatore test',revision:1};
+        notes=notes.filter(n=>n.id!==note.id);notes.push(note);return note;
+    });
+    ipcMain.handle('forno-note-delete',(_event,p)=>{const previous=notes.find(n=>n.id===p.id);if(!previous||previous.revision!==p.revision)throw new Error('Nota modificata da un’altra postazione');notes=notes.filter(n=>n.id!==p.id);return {deleted:true};});
+    ipcMain.handle('forno-sample',(_event,p)=>{sampleRequests.push(p);return {requestedMs:p.timestampMs,timestampMs:Math.round(p.timestampMs/500)*500,channels:[530.9,530.1,536.7,null].map((temperature,i)=>({id:i+1,name:'Canale '+(i+1),temperature,quality:i===3?'off':'good'})),mean:(530.9+530.1+536.7)/3};});
     let historyDelay=0;
     let readingOffset=0;
     const disabled = process.env.AYPI_FORNO_TEST_DISABLED === '1';
@@ -34,7 +46,7 @@ app.whenReady().then(async()=>{
     ipcMain.handle('forno-history',(_e,p)=>{
         requests.push(p);
         const buckets=[];
-        const count=process.env.AYPI_FORNO_TEST_DENSE==='1'?1800:20;
+        const count=process.env.AYPI_FORNO_TEST_DENSE==='1'||p.maxPoints===3000?3000:20;
         for(let t=Math.max(p.fromMs,Math.floor(p.toMs/p.intervalMs)*p.intervalMs-count*p.intervalMs);t<=p.toMs;t+=p.intervalMs){
             buckets.push({fromMs:t,toMs:Math.min(t+p.intervalMs-1,p.toMs),samples:2,valid:2,missing:0,min:417.5+readingOffset,max:418+readingOffset,mean:417.75+readingOffset,first:417.5+readingOffset,last:418+readingOffset,firstTime:t,lastTime:Math.min(t+500,p.toMs)});
         }
@@ -42,6 +54,11 @@ app.whenReady().then(async()=>{
         const channels=[0,2,7,null].map((offset,i)=>({id:i+1,name:'Canale '+(i+1),buckets:buckets.map(b=>({...b,valid:offset===null?0:b.valid,missing:offset===null?b.samples:0,...Object.fromEntries(['min','max','mean','first','last'].map(key=>[key,offset===null?null:b[key]+offset]))})),stats:{...stats,valid:offset===null?0:stats.valid,missing:offset===null?stats.samples:0,...Object.fromEntries(['min','max','mean','first','last'].map(key=>[key,offset===null?null:stats[key]+offset]))}}));
         const response={buckets,effectiveIntervalMs:p.intervalMs,stats,channels};
         return historyDelay?new Promise(resolve=>setTimeout(()=>resolve(response),historyDelay)):response;
+    });
+    ipcMain.handle('forno-analysis',(_e,p)=>{
+        analysisRequests.push(p);
+        const one=(id,offset)=>({id,name:id?'Canale '+id:'Tutti i canali',stats:{samples:40,valid:offset===null?0:40,missing:offset===null?40:0,min:offset===null?null:417.5+offset,max:offset===null?null:418+offset,delta:offset===null?null:0.5,mean:offset===null?null:417.75+offset},windows:{count:offset===null?0:20,meanDelta:offset===null?null:0.2,maxDelta:offset===null?null:{fromMs:p.fromMs,toMs:p.fromMs+p.windowSeconds*1000,min:417.5+offset,max:418+offset,delta:0.5,minTime:p.fromMs,maxTime:p.fromMs+p.windowSeconds*1000}}});
+        return {...p,combined:one(0,3),channels:[one(1,0),one(2,2),one(3,7),one(4,null)]};
     });
     const win=new BrowserWindow({show:false,width:1200,height:800,webPreferences:{nodeIntegration:true,contextIsolation:false,offscreen:true}});
     const errors=[];
@@ -80,6 +97,57 @@ app.whenReady().then(async()=>{
     const hoverState=()=>win.webContents.executeJavaScript(`(()=>{const c=${chartExpression};return {active:c.tooltip.getActiveElements().length,opacity:c.tooltip.opacity}})()`);
     const near=await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression},points=c.getDatasetMeta(2).data,p=points[points.length-3],r=c.canvas.getBoundingClientRect();return {x:r.left+p.x,y:r.top+p.y,farX:r.left+points[0].x-35}})()`);
     const move=async(x,y)=>win.webContents.executeJavaScript(`document.getElementById('chart').dispatchEvent(new PointerEvent('pointermove',{clientX:${x},clientY:${y},bubbles:true}))`);
+    const floatPoint=await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression},r=c.canvas.getBoundingClientRect();window.cursorGuides=0;window.originalCursorStroke=c.ctx.stroke;c.ctx.stroke=function(...a){if(this.getLineDash().join(',')==='4,4')window.cursorGuides++;return window.originalCursorStroke.apply(this,a)};return {x:r.left+c.chartArea.left+c.chartArea.width/2,y:r.top+c.chartArea.top+c.chartArea.height/2,width:r.width}})()`);
+    const context=()=>win.webContents.executeJavaScript(`document.getElementById('chart').dispatchEvent(new MouseEvent('contextmenu',{clientX:${floatPoint.x},clientY:${floatPoint.y},button:2,bubbles:true,cancelable:true}))`);
+    await context();assert(await win.webContents.executeJavaScript("!document.getElementById('chart-context-menu').hidden"));
+    await win.webContents.executeJavaScript("document.getElementById('toggle-continuous-tooltip').click()");
+    await new Promise(r=>setTimeout(r,100));
+    assert(await win.webContents.executeJavaScript("!document.getElementById('continuous-tooltip').hidden"),'Tooltip continuo non immediato');
+    assert((await win.webContents.executeJavaScript("document.querySelector('#cursor-readings [data-channel=\"1\"] strong').textContent")).includes('530,9'));
+    assert((await win.webContents.executeJavaScript("document.getElementById('cursor-mean').textContent")).includes('532,57'));
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('#cursor-readings [data-channel=\"4\"] small').textContent"),'Off');
+    assert(await win.webContents.executeJavaScript('window.cursorGuides>0'),'Linea verticale non disegnata');
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('chart').getBoundingClientRect().width"),floatPoint.width,'Il riquadro sottrae spazio al grafico');
+    assert.equal(JSON.parse(fs.readFileSync(settingsFile,'utf8')).continuousTooltip,true);
+    const burstStart=sampleRequests.length;
+    await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('chart');for(let i=0;i<80;i++)c.dispatchEvent(new PointerEvent('pointermove',{clientX:${floatPoint.x}+i/8,clientY:${floatPoint.y},bubbles:true}));})()`);
+    await new Promise(r=>setTimeout(r,650));assert(sampleRequests.length-burstStart<=4,'Richieste campione non limitate');
+    assert.equal((await hoverState()).active,0,'Tooltip normale sovrapposto al continuo');
+    fs.writeFileSync(path.join(folder,'continuous.png'),(await win.webContents.capturePage()).toPNG());
+    await context();assert.equal(await win.webContents.executeJavaScript("document.getElementById('toggle-continuous-tooltip').getAttribute('aria-checked')"),'true');
+    await win.webContents.executeJavaScript("document.getElementById('toggle-continuous-tooltip').click()");await new Promise(r=>setTimeout(r,100));
+    assert(await win.webContents.executeJavaScript("document.getElementById('continuous-tooltip').hidden"));
+    assert.equal(JSON.parse(fs.readFileSync(settingsFile,'utf8')).continuousTooltip,false);
+    await win.webContents.executeJavaScript(`(${chartExpression}).ctx.stroke=window.originalCursorStroke;void 0`);
+    // Note condivise: creazione al campione, popup, modifica e cancellazione.
+    await context();await win.webContents.executeJavaScript("document.getElementById('add-chart-note').click()");await new Promise(r=>setTimeout(r,120));
+    assert(await win.webContents.executeJavaScript("document.getElementById('note-editor').open&&!document.getElementById('note-save').disabled"));
+    const noteText='Controllo operatore <img src=x onerror="window.noteXss=true">\nSeconda riga';
+    await win.webContents.executeJavaScript(`document.getElementById('note-text').value=${JSON.stringify(noteText)};document.getElementById('note-form').requestSubmit()`);await new Promise(r=>setTimeout(r,160));
+    assert.equal(notes.length,1);assert.equal(notes[0].timestampMs,Math.round(sampleRequests.at(-1).timestampMs/500)*500);
+    assert(await win.webContents.executeJavaScript("!!document.querySelector('.message-marker.note')"));
+    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').click()");
+    assert(await win.webContents.executeJavaScript("!document.getElementById('annotation-popup').hidden&&!document.querySelector('#annotation-popup img')&&!window.noteXss"));
+    assert((await win.webContents.executeJavaScript("document.getElementById('annotation-popup').textContent")).includes(noteText));
+    fs.writeFileSync(path.join(folder,'note.png'),(await win.webContents.capturePage()).toPNG());
+    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').click()");assert(await win.webContents.executeJavaScript("document.getElementById('annotation-popup').hidden"));
+    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').dispatchEvent(new MouseEvent('contextmenu',{clientX:650,clientY:400,bubbles:true,cancelable:true}));document.getElementById('note-context-edit').click()");
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('note-text').value"),noteText);
+    await win.webContents.executeJavaScript("document.getElementById('note-text').value='Nota aggiornata';document.getElementById('note-form').requestSubmit()");await new Promise(r=>setTimeout(r,140));assert.equal(notes[0].revision,2);
+    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').click();document.querySelector('.annotation-entry[data-note-id]').dispatchEvent(new MouseEvent('contextmenu',{clientX:650,clientY:400,bubbles:true,cancelable:true}));document.getElementById('note-context-delete').click();document.getElementById('note-delete-form').requestSubmit()");
+    await new Promise(r=>setTimeout(r,150));assert.equal(notes.length,0);assert(await win.webContents.executeJavaScript("!document.querySelector('.message-marker.note')"));
+    // Arrivo da un'altra postazione e filtro locale degli eventi.
+    const sharedTime=noteSaves[0].timestampMs;
+    notes.push({id:'shared-note',timestampMs:sharedTime,text:'Nota da seconda postazione',author:'Collega',createdAt:Date.now(),updatedAt:Date.now(),editedBy:'Collega',revision:1});
+    testEvents=[{id:'e1',timestampMs:sharedTime,type:'program_run',message:'Ciclo prova: Run',detail:{}},{id:'e2',timestampMs:sharedTime+1000,type:'program_reset',message:'Ciclo prova: Reset',detail:{}}];
+    await win.webContents.executeJavaScript("document.getElementById('refresh-view').click()");await new Promise(r=>setTimeout(r,180));
+    assert(await win.webContents.executeJavaScript("!!document.querySelector('.message-marker.note')&&!document.querySelector('.message-marker.event')"),'Eventi non nascosti di default');
+    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-notes').checked=false;document.getElementById('opt-events').checked=true;document.getElementById('opt-events').dispatchEvent(new Event('change'));document.getElementById('events-none').click();document.querySelector('[data-event-type=program_run]').checked=true;document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,170));
+    assert(await win.webContents.executeJavaScript("!document.querySelector('.message-marker.note')&&document.querySelectorAll('.message-marker.event').length===1"));
+    assert.deepEqual(messageRequests.at(-1).eventTypes,['program_run']);
+    await win.webContents.executeJavaScript("document.querySelector('.message-marker.event').click()");assert((await win.webContents.executeJavaScript("document.getElementById('annotation-popup').textContent")).includes('Ciclo prova: Run'));
+    const notePrefs=JSON.parse(fs.readFileSync(settingsFile,'utf8'));assert.equal(notePrefs.showNotes,false);assert.equal(notePrefs.showEvents,true);assert.deepEqual(notePrefs.eventTypes,['program_run']);
+    await win.webContents.executeJavaScript("document.querySelector('.annotation-popup-heading button').click();document.getElementById('open-options').click();document.getElementById('opt-notes').checked=true;document.getElementById('opt-events').checked=false;document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,170));
     win.webContents.sendInputEvent({type:'mouseDown',x:Math.round(near.x),y:Math.round(near.y),button:'left',clickCount:1});
     win.webContents.sendInputEvent({type:'mouseUp',x:Math.round(near.x),y:Math.round(near.y),button:'left',clickCount:1});
     await new Promise(r=>setTimeout(r,100));
@@ -129,6 +197,12 @@ app.whenReady().then(async()=>{
     assert(Math.abs(afterPan-duringPan.min)<2,'Salto aggiuntivo al rilascio del mouse');
     assert.equal(await win.webContents.executeJavaScript(`(${chartExpression}).getActiveElements().length`),0,'Pallino rimasto dopo il drag');
     assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('chart')).cursor"),'grab');
+    const cachedRequests=requests.length;
+    win.webContents.sendInputEvent({type:'mouseDown',x:600,y:450,button:'left',clickCount:1});
+    win.webContents.sendInputEvent({type:'mouseMove',x:570,y:450,modifiers:['leftButtonDown']});
+    await new Promise(r=>setTimeout(r,80));
+    win.webContents.sendInputEvent({type:'mouseUp',x:570,y:450,button:'left',clickCount:1});
+    await new Promise(r=>setTimeout(r,100));assert.equal(requests.length,cachedRequests,'Il pan dentro la cache deve terminare senza attendere la rete');
     const beforeZoom=requests[requests.length-1];
     historyDelay=300;
     const beforeZoomRequests=requests.length;
@@ -141,7 +215,7 @@ app.whenReady().then(async()=>{
     assert(await win.webContents.executeJavaScript(`(${chartExpression}).data.datasets[2].data.length>0`),'Curva svuotata durante il caricamento');
     historyDelay=0;await new Promise(r=>setTimeout(r,300));
     const afterZoom=requests[requests.length-1];
-    assert(afterZoom.toMs-afterZoom.fromMs<beforeZoom.toMs-beforeZoom.fromMs);
+    assert(await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression};return c.scales.x.max-c.scales.x.min<${duringPan.max-duringPan.min}})()`));
     win.webContents.sendInputEvent({type:'mouseDown',x:500,y:450,button:'left',clickCount:1,modifiers:['control']});
     await new Promise(r=>setTimeout(r,50));
     win.webContents.sendInputEvent({type:'mouseMove',x:700,y:450,modifiers:['control','leftButtonDown']});
@@ -151,8 +225,12 @@ app.whenReady().then(async()=>{
     assert((await win.webContents.executeJavaScript("document.getElementById('report-content').textContent")).includes('Delta'));
     assert((await win.webContents.executeJavaScript("document.getElementById('report-content').textContent")).includes('Canale 4'));
     const selectionReport=await win.webContents.executeJavaScript("document.getElementById('report-content').textContent");
-    assert(selectionReport.includes('TEMPERATURA MEDIA COMPLESSIVA\n420.75'),selectionReport);
-    assert(selectionReport.includes('Canali inclusi: Canale 1, Canale 2, Canale 3\n'),selectionReport);
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('.analysis-card[data-channel=\"0\"] [data-metric=\"mean\"] strong').textContent"),'420,75 \u00b0C');
+    assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.analysis-card').length"),5);
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('.analysis-card[data-channel=\"4\"] [data-metric=\"mean\"] strong').textContent"),'\u2014');
+    await win.webContents.executeJavaScript("document.getElementById('analysis-seconds').value='5';document.getElementById('analysis-form').requestSubmit()");await new Promise(r=>setTimeout(r,150));
+    assert.equal(analysisRequests.at(-1).windowSeconds,5);
+    fs.writeFileSync(path.join(folder,'analysis.png'),(await win.webContents.capturePage()).toPNG());
     await win.webContents.executeJavaScript("document.getElementById('report').close()");
     const inspect=()=>win.webContents.executeJavaScript("(()=>{const c=require('module').createRequire(process.cwd()+'/package.json')('chart.js/auto').getChart(document.getElementById('chart'));return {x:c.scales.x.ticks.map(t=>({value:t.value,label:t.label})),y:c.scales.y.ticks.map(t=>({value:t.value,label:t.label})),yMin:c.scales.y.min,yMax:c.scales.y.max,theme:document.documentElement.dataset.theme}})()");
     let axes=await inspect();assert.equal(axes.x.length,9);assert.equal(axes.y.length,9);assert.equal(axes.x[1].label,'');assert(axes.x[0].label);assert(axes.x[8].label);
@@ -168,10 +246,22 @@ app.whenReady().then(async()=>{
     const saved=JSON.parse(fs.readFileSync(settingsFile,'utf8'));assert.equal(saved.xDivisions,7);assert.equal(saved.theme,'blue');assert.equal(saved.scaleMode,'zeroMax');
     await win.webContents.executeJavaScript("document.getElementById('select-date').click();document.getElementById('selected-date').value='2026-10-25';document.getElementById('date-form').requestSubmit()");
     await new Promise(r=>setTimeout(r,150));const day=requests[requests.length-1];const wanted=new Date(2026,9,25).getTime(),nextDay=new Date(2026,9,26).getTime();assert.equal(day.fromMs,wanted);assert.equal(day.toMs,nextDay-1);
-    await win.reload();await new Promise(r=>setTimeout(r,600));axes=await inspect();assert.equal(axes.theme,'blue');assert.equal(axes.x.length,8);assert.equal(axes.y.length,11);assert.equal(axes.yMin,0);assert.equal(await win.webContents.executeJavaScript("document.querySelector('[data-channel=\"3\"]').checked"),false);
+    await win.webContents.executeJavaScript("document.getElementById('select-range').click();document.getElementById('range-start').value='2026-10-29T08:00:00.123';document.getElementById('range-end').value='2026-10-29T07:00:00';document.getElementById('range-form').requestSubmit()");
+    assert(await win.webContents.executeJavaScript("document.getElementById('range-dialog').open&&document.getElementById('range-error').textContent.length>0"));
+    await win.webContents.executeJavaScript("document.getElementById('range-end').value='2026-10-29T10:15:30.500';document.getElementById('range-form').requestSubmit()");await new Promise(r=>setTimeout(r,150));
+    assert.equal(requests.at(-1).fromMs,new Date(2026,9,29,8,0,0,123).getTime());assert.equal(requests.at(-1).toMs,new Date(2026,9,29,10,15,30,500).getTime());
+    await win.reload();await new Promise(r=>setTimeout(r,600));axes=await inspect();assert.equal(axes.theme,'blue');assert.equal(axes.x.length,8);assert.equal(axes.y.length,11);assert.equal(axes.yMin,0);assert(await win.webContents.executeJavaScript("document.getElementById('live').checked"),'Live non attivo alla riapertura');assert.equal(await win.webContents.executeJavaScript("document.querySelector('[data-channel=\"3\"]').checked"),false);
     for(let i=0;i<30;i++){if(await win.webContents.executeJavaScript("document.getElementById('forno-splash').hidden"))break;await new Promise(r=>setTimeout(r,150));}
     assert(await win.webContents.executeJavaScript("document.getElementById('forno-splash').hidden"),'Lo splash non si e chiuso automaticamente');
-    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-x-divisions').value='8';document.getElementById('opt-y-divisions').value='8';document.getElementById('opt-theme').value='classic';document.getElementById('options-form').requestSubmit();document.getElementById('scale-auto').click()");
+    await win.webContents.executeJavaScript("document.getElementById('scale-manual').click();document.getElementById('scale-min').value='400';document.getElementById('scale-max').value='440';document.getElementById('scale-form').requestSubmit()");
+    axes=await inspect();assert.equal(axes.yMin,400);assert.equal(axes.yMax,440);
+    await win.webContents.executeJavaScript("document.getElementById('scale-in').click()");axes=await inspect();assert.equal(axes.yMax-axes.yMin,32);
+    await win.webContents.executeJavaScript("document.getElementById('scale-out').click();document.getElementById('open-options').click();document.getElementById('opt-y-fixed').checked=true;document.getElementById('opt-y-fixed').dispatchEvent(new Event('change'));document.getElementById('opt-y-step').value='10';document.getElementById('opt-y-subdivisions').value='5';document.getElementById('opt-y-every').value='1';document.getElementById('options-form').requestSubmit()");
+    await new Promise(r=>setTimeout(r,150));axes=await inspect();assert.equal(axes.y.length,21);assert.equal(axes.y[1].value,402);
+    assert.equal(axes.y[1].label,'','Una suddivisione non deve avere la stessa etichetta delle linee principali');assert(axes.y[5].label,'Etichetta mancante sulla linea principale a 410 °C');
+    assert(await win.webContents.executeJavaScript("document.getElementById('y-divisions-control').hidden&&document.getElementById('opt-y-divisions').disabled"));
+    const degreePrefs=JSON.parse(fs.readFileSync(settingsFile,'utf8'));assert(degreePrefs.yFixedStep);assert.equal(degreePrefs.yDegreeStep,10);assert.equal(degreePrefs.ySubdivisions,5);assert.equal(degreePrefs.scaleMode,'manual');
+    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-x-divisions').value='8';document.getElementById('opt-y-fixed').checked=false;document.getElementById('opt-y-fixed').dispatchEvent(new Event('change'));document.getElementById('opt-y-divisions').value='8';document.getElementById('opt-theme').value='classic';document.getElementById('options-form').requestSubmit();document.getElementById('scale-auto').click()");
     await new Promise(r=>setTimeout(r,150));
     console.log('OK: griglia fissa, etichette, scala 0-Max+50, selezione giorno e preferenze ripristinate dopo riapertura');
     for(const theme of ['classic','blue','dark']) {
