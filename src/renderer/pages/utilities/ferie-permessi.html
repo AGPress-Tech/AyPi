@@ -49,7 +49,7 @@
             try {
                 var params = new URLSearchParams(window.location.search || "");
                 var isBlueArchive = params.get("theme") === "bluearchive";
-                var isAgpressSplash = params.get("splashTheme") === "agpress";
+                var isAgpressSplash = !isBlueArchive && params.get("splashTheme") === "agpress";
                 var useScriptedSplash = isBlueArchive || isAgpressSplash;
                 if (isBlueArchive) {
                     document.body.classList.add("fp-bluearchive");

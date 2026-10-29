@@ -22,8 +22,8 @@ app.whenReady().then(async()=>{
  require('../dist-ts/modules/forgeHub').setupForgeHub();
  const mesRequests=[],robotRequests=[];let pings=0;
  ipcMain.on('open-production-planner-window',(_e,p)=>mesRequests.push(p));
- ipcMain.on('mostra-robot-popup',(_e,...args)=>robotRequests.push(args));
- ipcMain.handle('ping-robot-dialog',()=>{pings++;});
+ ipcMain.handle('robot-status-custom',async(_e,...args)=>{robotRequests.push(args);await delay(400);return {ok:true,robotId:args[0],ip:'127.0.0.1',program:'Programma test',state:'AUTO',counter:'12',cycleTime:'30'};});
+ ipcMain.handle('ping-robot-custom',async(_e,robotId)=>{pings++;await delay(350);return {ok:true,robotId,ip:'127.0.0.1',reachable:true,summary:'Test locale',expectedMac:'TEST',detectedMac:'TEST'};});
  for(const theme of ['agpress','bluearchive']){
   const main=new BrowserWindow({show:false,width:1400,height:900,webPreferences:{nodeIntegration:true,contextIsolation:false,offscreen:true}});
   await main.loadFile(path.resolve('dist-ts/pages/bluearchive-preview.html'),{query:{theme}});
@@ -34,7 +34,10 @@ app.whenReady().then(async()=>{
   await main.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
   let hub;
   for(let i=0;i<50;i++){hub=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('/forge.html'));if(hub&&!hub.webContents.isLoading())break;await delay(100);}
-  assert(hub,'Hub FORGE assente');await delay(150);
+  assert(hub,'Hub FORGE assente');hub.webContents.setBackgroundThrottling(false);await delay(150);
+  assert(await hub.webContents.executeJavaScript("!document.getElementById('forge-splash').hidden"));
+  await hub.webContents.executeJavaScript("document.getElementById('skip-forge-splash').click()");await delay(900);
+  assert(await hub.webContents.executeJavaScript("document.getElementById('forge-splash').hidden&&!document.querySelector('.forge-workspace').inert"));
   const moduleTheme=theme==='agpress'?'standard':'bluearchive';
   assert.equal(await hub.webContents.executeJavaScript('document.documentElement.dataset.forgeTheme'),moduleTheme);
   assert((maximizations.get(hub.id)||0)>=1,'FORGE non massimizzato');
@@ -48,9 +51,18 @@ app.whenReady().then(async()=>{
   await main.webContents.executeJavaScript("document.getElementById('open-forge').click()");await delay(70);
   assert.equal(BrowserWindow.getAllWindows().filter(w=>w.webContents.getURL().includes('/forge.html')).length,1);
   await hub.webContents.executeJavaScript("document.getElementById('forge-open-mes').click();document.getElementById('forge-open-robots').click()");await delay(70);
-  assert.equal(mesRequests.at(-1).theme,moduleTheme);
+  assert.equal(mesRequests.at(-1).theme,'standard');
   assert(await hub.webContents.executeJavaScript("!document.getElementById('forge-robots').hidden&&document.getElementById('forge-overview').hidden"));
-  await hub.webContents.executeJavaScript("document.getElementById('show21D500').click();document.getElementById('show21D600').click();document.getElementById('show21D850').click();document.getElementById('pingRobots').click()");await delay(100);
+  await hub.webContents.executeJavaScript("document.getElementById('show21D500').click();document.getElementById('show21D600').click();document.getElementById('show21D850').click()");await delay(100);
+  assert(await hub.webContents.executeJavaScript("!document.getElementById('robotConsoleLoading').hidden&&getComputedStyle(document.querySelector('.robot-radar-ring:nth-child(2)')).animationName==='slowSpin'"),'Radar originale non attivo');
+  fs.writeFileSync(path.join(output,theme+'-robot-loading.png'),(await hub.webContents.capturePage()).toPNG());
+  await delay(400);assert(await hub.webContents.executeJavaScript("!document.getElementById('robotConsoleResult').hidden&&document.getElementById('robotResultRobot').textContent==='21D850'"));
+  fs.writeFileSync(path.join(output,theme+'-robot-result.png'),(await hub.webContents.capturePage()).toPNG());
+  await hub.webContents.executeJavaScript("document.getElementById('robotConsoleDone').click();document.getElementById('pingRobots').click()");await delay(80);
+  assert(await hub.webContents.executeJavaScript("!document.getElementById('robotConsoleSelector').hidden"));
+  await hub.webContents.executeJavaScript("document.querySelector('[data-robot-ping=\"21D500\"]').click()");await delay(400);
+  assert(await hub.webContents.executeJavaScript("!document.getElementById('robotConsoleResult').hidden&&!document.getElementById('robotConsoleBack').hidden"));
+  await hub.webContents.executeJavaScript("document.getElementById('robotConsoleDone').click()");await delay(300);
   assert.deepEqual(robotRequests.slice(-3),[
    ['21D500','http://192.168.1.153/index1.html','STATO ROBOT P21160'],
    ['21D600','http://192.168.1.152/index1.html','STATO ROBOT P17259'],
@@ -62,10 +74,20 @@ app.whenReady().then(async()=>{
   await hub.webContents.executeJavaScript("document.getElementById('forge-open-forno').click()");
   let forno;
   for(let i=0;i<50;i++){forno=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('/forno.html'));if(forno&&!forno.webContents.isLoading())break;await delay(100);}
-  assert(forno,`Finestra forno assente in ${theme}`);await delay(200);
+  assert(forno,`Finestra forno assente in ${theme}`);forno.webContents.setBackgroundThrottling(false);await delay(200);
   assert((maximizations.get(forno.id)||0)>=1,'Finestra non massimizzata all apertura');
-  await forno.webContents.executeJavaScript("document.getElementById('skip-forno-splash').click()");await delay(900);
+  assert(await forno.webContents.executeJavaScript("!document.getElementById('forno-splash')&&!document.querySelector('.workspace').inert"));
   assert(await forno.webContents.executeJavaScript("!!document.getElementById('chart')"));
+  assert.equal(await forno.webContents.executeJavaScript('document.documentElement.dataset.theme'),theme==='agpress'?'classic':'blue');
+  await forno.webContents.executeJavaScript("document.getElementById('live').checked=false");
+  const unchangedRange=await forno.webContents.executeJavaScript("document.getElementById('range-label').textContent");
+  const opposite=moduleTheme==='standard'?'bluearchive':'standard';
+  await hub.webContents.executeJavaScript(`require('electron').ipcRenderer.send('open-forno-window',{theme:${JSON.stringify(opposite)}})`);await delay(80);
+  assert.equal(await forno.webContents.executeJavaScript('document.documentElement.dataset.theme'),opposite==='standard'?'classic':'blue');
+  assert.equal(await forno.webContents.executeJavaScript("document.getElementById('range-label').textContent"),unchangedRange);
+  await hub.webContents.executeJavaScript("document.getElementById('forge-open-forno').click()");await delay(80);
+  assert(await hub.webContents.executeJavaScript("getComputedStyle(document.querySelector('.aypi-module-logo')).fontFamily.includes('Trebuchet')"));
+  fs.writeFileSync(path.join(output,theme+'-forno.png'),(await forno.webContents.capturePage()).toPNG());
   const expectedDivisions=theme==='agpress'?8:12;
   const loadedPrefs=await forno.webContents.executeJavaScript("require('electron').ipcRenderer.invoke('forno-view-settings-load')");
   assert.equal(loadedPrefs.settings.xDivisions,expectedDivisions);
@@ -85,10 +107,5 @@ app.whenReady().then(async()=>{
   fs.writeFileSync(path.join(output,theme+'.png'),(await main.webContents.capturePage()).toPNG());
   main.destroy();console.log('OK:',theme,'FORGE, tema, tre moduli, robot/ping invariati, forno indipendente e finestre riutilizzate');
  }
- const legacy=new BrowserWindow({show:false,width:1200,height:850,webPreferences:{nodeIntegration:true,contextIsolation:false,offscreen:true}});
- await legacy.loadFile(path.resolve('dist-ts/pages/robot.html'));await delay(500);
- assert(legacy.webContents.getURL().includes('/mes-scada.html'),'Il vecchio link robot non reindirizza');
- assert(await legacy.webContents.executeJavaScript("!!document.getElementById('open-forge')&&!document.getElementById('show21D500')"));
- fs.writeFileSync(path.join(output,'legacy-landing.png'),(await legacy.webContents.capturePage()).toPNG());legacy.destroy();
  console.log('Screenshot FORGE:',output);http.close();app.exit(0);
 }).catch(e=>{console.error(e);app.exit(1)});

@@ -6,7 +6,6 @@ import { setupAnnotations } from './forno/annotations';
 import { attachChartInteractions } from './forno/chart-interactions';
 import { createChartReveal } from './forno/chart-reveal';
 import { channelAverage } from './forno/channel-average';
-import { setupFornoSplash } from './forno/splash';
 import { appendLiveFrame,type LiveFrame } from './forno/live-series';
 import { DEFAULT_VIEW_SETTINGS, normalizeViewSettings, divisionTicks, shouldLabel, dayRange, EVENT_LABELS, type FornoViewSettings } from '../../main/modules/forno/preferences';
 const { ipcRenderer } = require('electron');
@@ -18,7 +17,6 @@ const live = element<HTMLInputElement>('live');
 const statusElement = element('status');
 const collectorStatus = element('collector-status');
 let backendState: any = null;
-const bootSplash = setupFornoSplash();
 const canvas = element<HTMLCanvasElement>('chart');
 const report = element<HTMLDialogElement>('report');
 const optionsDialog = element<HTMLDialogElement>('options-dialog');
@@ -190,7 +188,6 @@ interactions=attachChartInteractions(chart,{
     continuous:()=>continuous?.enabled||false,
 });
 
-bootSplash.mark('chart');
 
 function showRange() {
     element('range-label').textContent = formatTime(start).replace(/,\d{3}$/, '') + '  \u2192  ' + formatTime(end).replace(/,\d{3}$/, '');
@@ -200,8 +197,6 @@ function showRange() {
 function applyAppearance() {
     document.documentElement.style.setProperty('--continuous-tooltip-opacity',String((optionsDialog.open?Number(element<HTMLInputElement>('opt-tooltip-opacity').value):preferences.continuousTooltipOpacity)/100));
     document.documentElement.dataset.theme = preferences.theme;
-    const splash=document.getElementById('forno-splash');
-    if(splash && !splash.hidden) document.body.classList.toggle('agpress-scripted-splash',preferences.theme==='classic');
     const muted=color('--muted'), grid='rgba('+color('--chart-grid')+','+(preferences.gridOpacity/100)+')';
     for(const axis of ['x','y']) {
         chart.options.scales![axis]!.ticks!.color=muted;
@@ -283,7 +278,6 @@ async function refresh(full = false,prefetch=false,animate=full) {
         const fromMs = margin?Math.max(0,Math.floor(alignedStart-margin)):full||!buckets.length?alignedStart:Math.max(alignedStart,watermark);
         const queryEnd=Math.ceil(end+margin);
         const result = await ipcRenderer.invoke('forno-history', { fromMs, toMs: margin?queryEnd:Math.floor(end), intervalMs: effective, maxPoints: margin?3000:2000 });
-        bootSplash.mark('archive');
         if (disposed || version !== revision) return;
         const responseChannels=channelsOf(result);
         const keepCache=loadedInterval===effective;
@@ -343,6 +337,9 @@ async function loadPreferences() {
         preferences=normalizeViewSettings(result.settings); preferencesFile=result.path||'';
         element('preferences-status').textContent='Preferenze locali'+(preferencesFile?' \u00b7 '+preferencesFile:'');
     } catch(error) { element('preferences-status').textContent='Preferenze non caricate: '+String(error); }
+    const launchTheme=new URLSearchParams(location.search).get('theme');
+    if(launchTheme==='bluearchive')preferences.theme='blue';
+    else if(launchTheme==='standard'||launchTheme==='agpress')preferences.theme='classic';
     live.checked=true;
     continuous?.setEnabled(preferences.continuousTooltip);
     resolution.value=String(preferences.resolutionMs);
@@ -350,6 +347,10 @@ async function loadPreferences() {
     diagnostics.open=preferences.showDiagnostics;
     applyAppearance();showRange();chart.update('none');
 }
+const receiveInterfaceTheme=(_event:any,input:{theme:string})=>{
+    preferences.theme=input.theme==='bluearchive'?'blue':'classic';render(false);
+};
+ipcRenderer.on('forno-interface-theme',receiveInterfaceTheme);
 resolution.addEventListener('change',()=>{preferences.resolutionMs=Number(resolution.value);void savePreferences().catch(()=>{});clearSeries();void refresh(true);});
 live.addEventListener('change',()=>void refresh(true));
 for(const [id,mode] of [['scale-auto','auto'],['scale-zero','zeroMax']] as const) element(id).addEventListener('click',()=>{preferences.scaleMode=mode;render();void savePreferences().catch(()=>{});});
@@ -451,7 +452,7 @@ element('refresh-view').addEventListener('click',async()=>{
 async function checkStatus() {
     try {
         const s=await ipcRenderer.invoke('forno-status');
-        backendState=s;updateChannelCards();bootSplash.mark('server');
+        backendState=s;updateChannelCards();
         const badQuality=s.lastSample && (s.channels||s.lastSample.channels||[s.lastSample]).some((c:any)=>c.quality!=='good'&&c.quality!=='off');
         setModuleState(!s.enabled?'inactive':!s.running?'offline':badQuality?'warning':'online',!s.enabled?'Raccolta disattivata':!s.running?'Acquisizione arrestata':badQuality?'Lettura da verificare':'Acquisizione attiva');
         if(s.serverTimeMs) clockOffset=s.serverTimeMs-Date.now();
@@ -488,5 +489,5 @@ async function tick() {
     if(Date.now()-lastStatusCheck>10000) {lastStatusCheck=Date.now();await checkStatus();}
     if(!disposed) setTimeout(tick,Math.max(1000,Math.min(5000,Number(resolution.value))));
 }
-window.addEventListener('beforeunload',()=>{bootSplash.dispose();disposed=true;ipcRenderer.send('forno-live-stop');ipcRenderer.removeListener('forno-live-frame',receiveLive);ipcRenderer.removeListener('forno-live-state',receiveLiveState);annotations?.dispose();continuous?.dispose();interactions?.dispose();reveal.stop();chart.destroy();});
-void (async()=>{try{await loadPreferences();bootSplash.mark('interface');await checkStatus();showRange();await refresh(true);void ipcRenderer.invoke('forno-live-start').catch(()=>{});}finally{bootSplash.ready();}void tick();})();
+window.addEventListener('beforeunload',()=>{disposed=true;ipcRenderer.send('forno-live-stop');ipcRenderer.removeListener('forno-live-frame',receiveLive);ipcRenderer.removeListener('forno-live-state',receiveLiveState);ipcRenderer.removeListener('forno-interface-theme',receiveInterfaceTheme);annotations?.dispose();continuous?.dispose();interactions?.dispose();reveal.stop();chart.destroy();});
+void (async()=>{await loadPreferences();await checkStatus();showRange();await refresh(true);void ipcRenderer.invoke('forno-live-start').catch(()=>{});void tick();})();

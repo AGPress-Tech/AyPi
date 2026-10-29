@@ -73,6 +73,7 @@ if (typeof electron === 'string') {
             fs.cpSync(path.join(source, 'pages'), path.join(workspace, 'pages'), { recursive: true });
             fs.cpSync(path.join(source, 'styles'), path.join(workspace, 'styles'), { recursive: true });
             fs.copyFileSync(path.join(__dirname, 'forge-preview/landing.html'), path.join(workspace, 'pages/forge-preview.html'));
+            fs.copyFileSync(path.join(source,'scripts/utility-layout-bootstrap.js'),path.join(workspace,'scripts/utility-layout-bootstrap.js'));
             let scroll = 0;
             if (win.webContents.getURL()) {
                 const state = await win.webContents.executeJavaScript("({scroll:scrollY,robots:!!document.getElementById('forge-robots')&&!document.getElementById('forge-robots').hidden})");
@@ -132,8 +133,12 @@ if (typeof electron === 'string') {
         ipcMain.on('open-forge-window', () => { void selectView('hub'); });
         ipcMain.on('open-production-planner-window', () => simulated('MES e Pianificatore'));
         ipcMain.on('open-forno-window', () => simulated('Scada Forno'));
-        ipcMain.on('mostra-robot-popup', (_event, id) => simulated('Robot ' + id));
-        ipcMain.handle('ping-robot-dialog', () => { simulated('Verifica connessioni'); });
+        ipcMain.handle('robot-status-custom',async(_event,robotId)=>{
+            await delay(1400);return {ok:true,robotId,ip:'PREVIEW',program:'Programma dimostrativo',state:'SIMULAZIONE',counter:'1250',cycleTime:'32',details:'Dati simulati: nessuna connessione alla macchina.'};
+        });
+        ipcMain.handle('ping-robot-custom',async(_event,robotId)=>{
+            await delay(1400);return {ok:true,robotId,ip:'PREVIEW',reachable:true,summary:'Risposta simulata: nessun pacchetto inviato.',expectedMac:'SIMULAZIONE',detectedMac:'SIMULAZIONE'};
+        });
         menu(); await rebuild();
         if (!smoke) {
             win.center(); win.maximize(); win.show(); win.focus(); app.focus({ steal: true });

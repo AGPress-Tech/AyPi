@@ -18,7 +18,8 @@ app.whenReady().then(async()=>{
     for(const name of ['pages','styles','scripts','styles/utilities']) fs.mkdirSync(path.join(folder,name));
     fs.writeFileSync(path.join(folder,'pages/forno.html'),fs.readFileSync('src/renderer/pages/forno.html','utf8').replace('<body>',`<body><script>window.addEventListener('error',e=>console.error(e.error?.stack||e.message));</script>`));
     fs.copyFileSync('src/renderer/styles/forno.css',path.join(folder,'styles/forno.css'));
-    for(const name of ['production-planner-splash-bluearchive.css','agpress-scripted-splash.css','aypi-module-brand.css']) fs.copyFileSync('src/renderer/styles/utilities/'+name,path.join(folder,'styles/utilities',name));
+    fs.copyFileSync('src/renderer/scripts/utility-layout-bootstrap.js',path.join(folder,'scripts/utility-layout-bootstrap.js'));
+    for(const name of ['aypi-module-brand.css','aypi-operations-ui.css']) fs.copyFileSync('src/renderer/styles/utilities/'+name,path.join(folder,'styles/utilities',name));
     require('esbuild').buildSync({entryPoints:['src/renderer/scripts/forno-scripts.ts'],outfile:path.join(folder,'scripts/forno-scripts.js'),bundle:true,format:'cjs',platform:'node',external:['electron','chart.js/auto'],target:'es2020'});
     const scriptPath=path.join(folder,'scripts/forno-scripts.js');
     fs.writeFileSync(scriptPath,fs.readFileSync(scriptPath,'utf8').replace('require("chart.js/auto")',`require(${JSON.stringify(require.resolve('chart.js/auto'))})`));
@@ -68,12 +69,10 @@ app.whenReady().then(async()=>{
     await new Promise(r=>setTimeout(r,1200));
     if(stalled) {
         await new Promise(r=>setTimeout(r,6500));
-        assert(await win.webContents.executeJavaScript("document.getElementById('forno-splash').hidden && !document.querySelector('.workspace').inert"));
-        console.log('OK: splash sbloccato anche con backend senza risposta');win.destroy();app.exit(0);return;
+        assert(await win.webContents.executeJavaScript("!document.getElementById('forno-splash') && !document.querySelector('.workspace').inert"));
+        console.log('OK: interfaccia forno subito accessibile anche con backend senza risposta');win.destroy();app.exit(0);return;
     }
-    if(!(await win.webContents.executeJavaScript("matchMedia('(prefers-reduced-motion: reduce)').matches"))) assert(await win.webContents.executeJavaScript("!document.getElementById('forno-splash').hidden"));
-    await win.webContents.executeJavaScript("document.getElementById('skip-forno-splash').click()");await new Promise(r=>setTimeout(r,900));
-    assert(await win.webContents.executeJavaScript("document.getElementById('forno-splash').hidden && !document.querySelector('.workspace').inert"));
+    assert(await win.webContents.executeJavaScript("!document.getElementById('forno-splash') && !document.querySelector('.workspace').inert"));
     if(disabled) {
         const message=await win.webContents.executeJavaScript("document.getElementById('status').textContent");
         assert(message.includes('disabilitata'),message);
@@ -256,8 +255,7 @@ app.whenReady().then(async()=>{
     await win.webContents.executeJavaScript("document.getElementById('range-end').value='2026-10-29T10:15:30.500';document.getElementById('range-form').requestSubmit()");await new Promise(r=>setTimeout(r,150));
     assert.equal(requests.at(-1).fromMs,new Date(2026,9,29,8,0,0,123).getTime());assert.equal(requests.at(-1).toMs,new Date(2026,9,29,10,15,30,500).getTime());
     await win.reload();await new Promise(r=>setTimeout(r,600));axes=await inspect();assert.equal(axes.theme,'blue');assert.equal(axes.x.length,8);assert.equal(axes.y.length,11);assert.equal(axes.yMin,0);assert(await win.webContents.executeJavaScript("document.getElementById('live').checked"),'Live non attivo alla riapertura');assert.equal(await win.webContents.executeJavaScript("document.querySelector('[data-channel=\"3\"]').checked"),false);
-    for(let i=0;i<30;i++){if(await win.webContents.executeJavaScript("document.getElementById('forno-splash').hidden"))break;await new Promise(r=>setTimeout(r,150));}
-    assert(await win.webContents.executeJavaScript("document.getElementById('forno-splash').hidden"),'Lo splash non si e chiuso automaticamente');
+    assert(await win.webContents.executeJavaScript("!document.getElementById('forno-splash')"),'Il forno deve aprirsi senza splash');
     await win.webContents.executeJavaScript("document.getElementById('scale-manual').click();document.getElementById('scale-min').value='400';document.getElementById('scale-max').value='440';document.getElementById('scale-form').requestSubmit()");
     axes=await inspect();assert.equal(axes.yMin,400);assert.equal(axes.yMax,440);
     await win.webContents.executeJavaScript("document.getElementById('scale-in').click()");axes=await inspect();assert.equal(axes.yMax-axes.yMin,32);

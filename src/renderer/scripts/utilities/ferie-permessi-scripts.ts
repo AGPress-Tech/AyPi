@@ -1884,7 +1884,6 @@ async function init() {
             ?.remove();
         document.getElementById("fp-settings-theme-modal")?.remove();
     }
-    ipcRenderer.send("resize-normale");
     void hydrateAdminCacheRemote().catch(() => {
         adminCache = [];
     });

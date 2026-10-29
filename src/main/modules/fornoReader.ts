@@ -24,18 +24,23 @@ export function setupFornoReader() {
     ipcMain.on('forno-live-stop',event=>{streams.get(event.sender.id)?.();streams.delete(event.sender.id);});
     ipcMain.handle('forno-view-settings-load', () => readViewSettings(preferencesPath()));
     ipcMain.handle('forno-view-settings-save', (_event, input) => writeViewSettings(preferencesPath(), input));
-    ipcMain.on('open-forno-window', event => {
+    ipcMain.on('open-forno-window', (event,payload) => {
         const senderUrl = event.sender.getURL();
         if (!senderUrl.startsWith('file:') || !/\/(bluearchive-preview|robot|mes-scada|forge)\.html$/i.test(new URL(senderUrl).pathname)) return;
+        const requested=payload?.theme||new URL(senderUrl).searchParams.get('theme');
+        const theme=requested==='bluearchive'?'bluearchive':'standard';
+        const backgroundColor=theme==='bluearchive'?'#edf9ff':'#f7f4ed';
         if (fornoWindow && !fornoWindow.isDestroyed()) {
             if (fornoWindow.isMinimized()) fornoWindow.restore();
+            fornoWindow.setBackgroundColor(backgroundColor);
             fornoWindow.maximize();
+            fornoWindow.webContents.send('forno-interface-theme',{theme});
             fornoWindow.show(); fornoWindow.focus(); return;
         }
         fornoWindow = new BrowserWindow({
             width: 1250, height: 820, minWidth: 900, minHeight: 650,
             icon: path.join(__dirname, '..', 'assets', 'app-icon.png'),
-            show: false, autoHideMenuBar: true, title: 'AyPi — Scada Forno', backgroundColor: '#f3f1eb',
+            show: false, autoHideMenuBar: true, title: 'AyPi — Scada Forno', backgroundColor,
             parent: /\/forge\.html$/i.test(new URL(senderUrl).pathname)?undefined:BrowserWindow.fromWebContents(event.sender) || undefined,
             webPreferences: { nodeIntegration: true, contextIsolation: false },
         });
@@ -43,7 +48,7 @@ export function setupFornoReader() {
         fornoWindow.maximize();
         fornoWindow.once('ready-to-show', () => { fornoWindow?.maximize(); fornoWindow?.show(); });
         fornoWindow.on('closed', () => { fornoWindow = null; });
-        void fornoWindow.loadFile(path.join(__dirname, '..', 'pages', 'forno.html'), { query: { standalone: '1' } });
+        void fornoWindow.loadFile(path.join(__dirname, '..', 'pages', 'forno.html'), { query: { standalone: '1',theme } });
     });
     ipcMain.handle('forno-status', () => requestAypiBackend('/api/forno/status', { timeoutMs: 18000 }));
     ipcMain.handle('forno-messages',(_event,input:any)=>{

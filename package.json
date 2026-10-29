@@ -5,6 +5,7 @@
   "main": "dist-ts/main.js",
   "scripts": {
     "preview:forge": "node tools/preview-forge.cjs",
+    "check:assets": "node tools/check-runtime-assets.cjs",
     "start:bluearchive": "npm run build:ts && electron . --bluearchive-preview",
     "import:spine-characters": "node tools\\import-spine-characters.js",
     "build:ts": "node tools\\build-ts.js",

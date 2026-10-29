@@ -9,40 +9,12 @@
     <title>AyPi - MES e Pianificatore</title>
     <script src="../../scripts/utility-layout-bootstrap.js"></script>
     <link rel="stylesheet" href="../../styles/utilities/production-planner-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/production-planner-splash-bluearchive.css">
     <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
-    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css">
+    <link rel="stylesheet" href="../../styles/utilities/aypi-operations-ui.css">
 </head>
 
-<body>
-    <div class="planner-splash" id="planner-splash" aria-hidden="true">
-        <div class="planner-ba-boot" aria-hidden="true">
-            <div class="planner-ba-boot__grid"></div>
-            <div class="planner-ba-boot__sweep"></div>
-            <div class="planner-ba-boot__corner planner-ba-boot__corner--left">AGP // SYSTEM ROUTE 04</div>
-            <div class="planner-ba-boot__corner planner-ba-boot__corner--right">AYPI MES</div>
-            <div class="planner-ba-boot__center">
-                <div class="planner-ba-boot__emblem">
-                    <span class="planner-ba-boot__halo"></span>
-                    <span class="planner-ba-boot__ay">Ay</span><span class="planner-ba-boot__pi">Pi</span>
-                    <span class="planner-ba-boot__slash"></span>
-                </div>
-                <div class="planner-ba-boot__route">
-                    <i></i><span>MES &amp; PRODUCTION PLANNER</span><i></i>
-                </div>
-                <h1>Accesso al modulo <strong>MES e Pianificazione.</strong></h1>
-                <p>Ordini, macchine, conteggi PLC e reparti</p>
-                <div class="planner-ba-boot__progress"><i></i></div>
-                <div class="planner-ba-boot__status">
-                    <span class="is-complete">01&nbsp; DATI</span>
-                    <span>02&nbsp; MACCHINE</span>
-                    <span>03&nbsp; LAVORAZIONI</span>
-                    <span>04&nbsp; CALENDARIO</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    <script src="../../scripts/utilities/production-planner-splash.js"></script>
+<body class="aypi-operations">
+    <script src="../../scripts/utilities/production-planner-entry.js"></script>
     <div class="planner-app">
         <header class="topbar">
             <div class="brand">

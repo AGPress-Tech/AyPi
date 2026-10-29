@@ -1,4 +1,4 @@
-import { ipcRenderer, shell } from "electron";
+import { ipcRenderer } from "electron";
 import path from "path";
 import fs from "fs";
 import http from "http";
@@ -196,27 +196,6 @@ function fadeInBodyOnLoad() {
     } else {
         applyFadeIn();
     }
-}
-
-// Funzione per collegare l'icona GitHub a un link esterno
-function wireGithubIcon() {
-    const githubIcon = document.getElementById("githubIcon");
-    if (!githubIcon) return;
-    githubIcon.addEventListener("click", () => {
-        shell.openExternal("https://github.com/AGPress-Tech/AyPi");
-    });
-}
-
-// Funzione per collegare la versione dell'applicazione
-function wireAppVersion() {
-    const appVersionElement = document.getElementById("appVersion");
-    if (!appVersionElement) return;
-    ipcRenderer.invoke("get-app-version").then((version) => {
-        appVersionElement.textContent = `AyPi v${version}`;
-    });
-    appVersionElement.addEventListener("dblclick", () => {
-        ipcRenderer.send("open-infographics-window");
-    });
 }
 
 function wireThemeHotkey() {
@@ -499,135 +478,12 @@ function wireAdminHotkey() {
     });
 }
 
-// wireSidebarActions serve a attivare il menu laterale e la ricerca nella sidebar
-function wireSidebarActions() {
-    // ottengo il container della sidebar
-    const sidebarContainer = document.getElementById("sidebar-container");
-    if (!sidebarContainer) return;
-
-    // funzione per aggiornare il contenuto della sidebar
-    const applySidebarHtml = (html: string) => {
-        sidebarContainer.innerHTML =
-            typeof html === "string" ? html : String(html || "");
-
-        const quickMenu = document.getElementById("agQuickMenu");
-        const menuBtn = document.getElementById("menuBtn");
-        const currentPage = window.location.pathname.split(/[\\/]/).pop();
-
-        const topbar = document.querySelector(".ag-topbar");
-        if (topbar && !topbar.querySelector(".ag-main-nav")) {
-            const navigation = document.createElement("nav");
-            navigation.className = "ag-main-nav";
-            navigation.setAttribute("aria-label", "Navigazione principale");
-            navigation.innerHTML = `
-                <a href="moduli.html" data-page="moduli.html">Moduli</a>
-                <a href="programmi.html" data-page="programmi.html">Programmi</a>
-                <a href="infoarticoli.html" data-page="infoarticoli.html">Articoli</a>
-                <a href="produzioni.html" data-page="produzioni.html">Produzioni</a>
-                <a href="mes-scada.html" data-page="mes-scada.html">MES - SCADA</a>
-                <a href="calcolatore.html" data-page="calcolatore.html">Calcolatore</a>
-                <a href="utilities.html" data-page="utilities.html">Utilities</a>
-            `;
-            const actions = topbar.querySelector(".ag-topbar__actions");
-            topbar.insertBefore(navigation, actions || menuBtn);
-        }
-
-        document
-            .querySelectorAll<HTMLElement>(".ag-main-nav [data-page]")
-            .forEach((link) => {
-                const isActive = link.dataset.page === currentPage;
-                link.classList.toggle("is-active", isActive);
-                if (isActive) link.setAttribute("aria-current", "page");
-            });
-
-        function setQuickMenu(open: boolean) {
-            if (!quickMenu || !menuBtn) return;
-            quickMenu.classList.toggle("is-open", open);
-            quickMenu.setAttribute("aria-hidden", String(!open));
-            menuBtn.classList.toggle("is-open", open);
-            menuBtn.setAttribute("aria-expanded", String(open));
-        }
-
-        menuBtn?.addEventListener("click", (event) => {
-            event.stopPropagation();
-            setQuickMenu(!quickMenu?.classList.contains("is-open"));
-        });
-        menuBtn?.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter" && event.key !== " ") return;
-            event.preventDefault();
-            setQuickMenu(!quickMenu?.classList.contains("is-open"));
-        });
-        quickMenu?.addEventListener("click", (event) => event.stopPropagation());
-        document.addEventListener("click", () => setQuickMenu(false));
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") setQuickMenu(false);
-        });
-
-        const clockElement = document.getElementById("clock");
-        if (clockElement) {
-            function updateClock() {
-                const now = new Date();
-                const hours = now.getHours().toString().padStart(2, "0");
-                const minutes = now.getMinutes().toString().padStart(2, "0");
-                if (clockElement)
-                    clockElement.textContent = `${hours}:${minutes}`;
-            }
-            updateClock();
-            setInterval(updateClock, 1000);
-        }
-
-        document
-            .getElementById("openTimerShortcut")
-            ?.addEventListener("click", () => {
-                setQuickMenu(false);
-                ipcRenderer.send("open-timer-window");
-            });
-
-        document
-            .getElementById("install-addin")
-            ?.addEventListener("click", installAddinFunction);
-
-        if (!quickMenu || !menuBtn) {
-            ipcRenderer.invoke("show-message-box", {
-                type: "warning",
-                message: "Menu superiore non inizializzato.",
-                detail: `menu: ${!!quickMenu} | pulsante: ${!!menuBtn}`,
-            });
-        }
-    };
-
-    const sidebarPath = path.join(__dirname, "..", "pages", "sidebar.html");
-    try {
-        const html = fs.readFileSync(sidebarPath, "utf8");
-        if (html) {
-            applySidebarHtml(html);
-            return;
-        }
-    } catch (err) {
-        console.error("Errore lettura sidebar da path:", err);
-    }
-    fetch("sidebar.html")
-        .then((res) => res.text())
-        .then((htmlText) => applySidebarHtml(htmlText))
-        .catch((fetchErr) => {
-            console.error("Errore caricamento sidebar:", fetchErr);
-            ipcRenderer.invoke("show-message-box", {
-                type: "warning",
-                message: "Sidebar non caricata.",
-                detail: `Percorso: ${sidebarPath}\n${(fetchErr as Error | undefined)?.message || fetchErr}`,
-            });
-        });
-}
-
 // funzione per inizializzare l'interfaccia
 function initCommonUI() {
     const run = () => {
         fadeInBodyOnLoad();
-        wireGithubIcon();
-        wireAppVersion();
         wireAdminHotkey();
         wireThemeHotkey();
-        wireSidebarActions();
     };
     if (document.readyState === "loading") {
         window.addEventListener("DOMContentLoaded", run, { once: true });

@@ -22,11 +22,11 @@ for (const [channel, result] of Object.entries({
 })) ipcMain.handle(channel, () => result);
 app.whenReady().then(async () => {
     const win = new BrowserWindow({ show: false, width: 1280, height: 720,
-        webPreferences: { nodeIntegration: true, contextIsolation: false, backgroundThrottling: false } });
+        webPreferences: { nodeIntegration: true, contextIsolation: false, backgroundThrottling: false, offscreen: true } });
     try {
         await win.loadFile(path.resolve('dist-ts/pages/utilities/production-planner.html'));
         const run = (source) => win.webContents.executeJavaScript(source);
-        await run(`document.getElementById('planner-splash')?.remove(); refreshMesRuntime({quiet:true});`);
+        await run(`refreshMesRuntime({quiet:true});`);
         const focus = await run(`(() => {
             const box = document.createElement('div'); document.body.appendChild(box);
             updateMesContent(box, '<article data-mes-machine-card="m1"><button data-test="focus">A</button><strong>1</strong></article>');
@@ -179,7 +179,10 @@ app.whenReady().then(async () => {
         })()`),'Active orders must stay pinned across drag, removal, deletion and form editing');
         await run(`showMesPage('scheduler'); setTimelineZoom('hours');`);
         const previousTick = await run(`document.getElementById('scheduler-live-status').textContent`);
-        await new Promise(resolve => setTimeout(resolve, 1300));
+        for (let attempt = 0; attempt < 30; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (await run(`document.getElementById('scheduler-live-status').textContent`) !== previousTick) break;
+        }
         assert.notEqual(await run(`document.getElementById('scheduler-live-status').textContent`),previousTick,
             'Live forecasts must refresh while the scheduler is open');
         fs.writeFileSync(path.join(os.tmpdir(),'aypi-scheduler-hours.png'),(await win.webContents.capturePage()).toPNG());

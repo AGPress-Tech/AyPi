@@ -1,0 +1,31 @@
+/* Ingresso modulo: stessi componenti animati del MES, Calendar e Purchasing. */
+#forge-splash {
+    position: fixed;
+    z-index: 3000;
+    inset: 0;
+    overflow: hidden;
+    opacity: 1;
+    cursor: pointer;
+}
+#forge-splash[hidden] { display: none !important; }
+#forge-splash.is-fading, #forge-splash.is-hidden { opacity: 0; pointer-events: none; }
+#forge-splash .forge-boot__progress i { animation-duration: 1.8s; }
+.splash-skip {
+    position: absolute;
+    right: 28px;
+    bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 12px;
+    border: 1px solid rgba(120,120,120,.2);
+    border-radius: 5px;
+    background: rgba(255,255,255,.6);
+    color: #625d56;
+    font-size: 11px;
+}
+.splash-skip span { border: 1px solid currentColor; border-radius: 3px; padding: 2px 5px; font-size: 9px; opacity: .65; }
+.module-splash-active .forge-header, .module-splash-active .forge-workspace { opacity: 0; }
+
+#forge-splash .forge-boot{font-family:"Trebuchet MS","Segoe UI",Arial,sans-serif}
+@media(prefers-reduced-motion:reduce){#forge-splash{transition:none;clip-path:none}#forge-splash *{animation-duration:.01ms!important;animation-delay:0ms!important}}

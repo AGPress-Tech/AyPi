@@ -1,6 +1,6 @@
 ﻿/** Identita e animazione di ingresso condivise con gli altri moduli AyPi. */
-export function setupFornoSplash() {
-    const splash = document.getElementById('forno-splash');
+export function setupForgeSplash() {
+    const splash = document.getElementById('forge-splash');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const started = performance.now();
     const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -9,7 +9,7 @@ export function setupFornoSplash() {
         const timer = setTimeout(() => { timers.delete(timer); callback(); }, delay);
         timers.add(timer);
     };
-    const panels = ['.topbar', '.workspace'].map(selector => document.querySelector<HTMLElement>(selector)).filter(Boolean);
+    const panels = ['.forge-header', '.forge-workspace'].map(selector => document.querySelector<HTMLElement>(selector)).filter(Boolean);
     const hide = () => {
         if (finished) return;
         finished = true;

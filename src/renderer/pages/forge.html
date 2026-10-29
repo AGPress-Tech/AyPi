@@ -7,11 +7,36 @@
     <meta http-equiv="Content-Security-Policy"
         content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; connect-src 'self' file:; object-src 'none'">
     <title>AyPi — FORGE</title>
+    <script src="../scripts/utility-layout-bootstrap.js"></script>
     <link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
     <link rel="stylesheet" href="../styles/forge.css">
+    <link rel="stylesheet" href="../styles/utilities/aypi-operations-ui.css">
+    <link rel="stylesheet" href="../styles/forge/robot-console.css">
+    <link rel="stylesheet" href="../styles/forge/boot-animation.css">
+    <link rel="stylesheet" href="../styles/utilities/agpress-scripted-splash.css">
+    <link rel="stylesheet" href="../styles/forge/splash.css">
 </head>
 
-<body class="forge-window">
+<body class="forge-window aypi-operations module-splash-active">
+<div id="forge-splash" class="forge-splash forge-splash--bluearchive is-visible" role="status" aria-label="Apertura del modulo FORGE" aria-hidden="false">
+    <div class="forge-boot">
+        <div class="forge-boot__grid"></div><div class="forge-boot__sweep"></div>
+        <div class="forge-boot__corner forge-boot__corner--left">AGP // MANUFACTURING WORKSPACE</div>
+        <div class="forge-boot__corner forge-boot__corner--right">AYPI FORGE</div>
+        <div class="forge-boot__center">
+            <div class="forge-boot__emblem" role="img" aria-label="AyPi">
+                <span class="forge-boot__halo"></span><span class="forge-boot__ay">Ay</span><span class="forge-boot__pi">Pi</span><span class="forge-boot__slash"></span>
+            </div>
+            <div class="forge-boot__route"><i></i><span>FORGE / MES + SCADA</span><i></i></div>
+            <h1>Accesso al modulo <strong>FORGE.</strong></h1>
+            <p>Preparazione della centrale operativa e degli strumenti di produzione</p>
+            <div class="forge-boot__progress"><i></i></div>
+            <div class="forge-boot__status"><span data-boot-stage="interface">01&nbsp; INTERFACCIA</span><span data-boot-stage="theme">02&nbsp; TEMA</span><span data-boot-stage="modules">03&nbsp; MODULI</span><span data-boot-stage="ready">04&nbsp; PRONTO</span></div>
+        </div>
+    </div>
+    <button id="skip-forge-splash" class="splash-skip" type="button">Salta animazione <span>Esc</span></button>
+</div>
+
     <header class="forge-header">
         <div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo"
                 aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span
@@ -30,9 +55,8 @@
         <section id="forge-overview">
             <div class="forge-overview">
                 <div><span class="forge-kicker">01 / CENTRALE OPERATIVA</span>
-                    <h2>Il reparto, sotto un'unica regia.</h2>
-                    <p>Scegli il tuo spazio di lavoro: organizza la produzione, analizza i processi termici o verifica
-                        le isole robotizzate.</p>
+                    <h2>Control Hub.</h2>
+                    <p>Seleziona il controllo interessato.</p>
                 </div>
                 <div class="forge-overview-code"><span>OPERATIONS WORKSPACE</span><strong>MES + SCADA</strong></div>
             </div>
@@ -57,8 +81,8 @@
                             <path d="m10 66 26-3 20-7 24-36 19 3 19-2 18 5 28 27 24 6 25 4" />
                             <path d="m10 70 26-4 20-8 24-31 19 1 19-2 18 5 28 25 24 6 25 4" opacity=".45" />
                         </svg></span>
-                    <h3>Scada Forno</h3>
-                    <p>Quattro canali, temperature live, storico e analisi dei cicli.</p><span
+                    <h3>SCADA Forno</h3>
+                    <p>Multichannel support, temperature live, storico e analisi dei cicli.</p><span
                         class="forge-module-link">Apri supervisione <i aria-hidden="true">↗</i></span>
                 </button>
                 <button class="forge-module" id="forge-open-robots" type="button"><span class="forge-module-code">03 /
@@ -78,11 +102,11 @@
             <aside class="forge-future" aria-label="Sviluppi futuri">
                 <div><span class="forge-kicker">PROSSIMA EVOLUZIONE / IN PROGETTAZIONE</span><strong>FORGE
                         Spatial</strong>
-                    <p>La fabbrica in 3D, con macchine e dati nello stesso ambiente.</p>
+                    <p>3D environment.</p>
                 </div>
                 <div id="forge-future-editor" hidden><span class="forge-kicker">BLUE ARCHIVE / IN
                         PROGETTAZIONE</span><strong>Editor impianto</strong>
-                    <p>Layout, oggetti e collegamenti alle macchine. Disponibile in una fase futura.</p>
+                    <p>Layout, oggetti e collegamenti alle macchine. Disponibile in una release futura.</p>
                 </div>
             </aside>
         </section>
@@ -90,8 +114,7 @@
             <div class="forge-overview">
                 <div><span class="forge-kicker">03 / DIAGNOSTICA IMPIANTI</span>
                     <h2>Verifica robot.</h2>
-                    <p>Consulta le informazioni delle isole o avvia la verifica di connessione. Le letture vengono
-                        richieste solo quando scegli un controllo.</p>
+                    <p>Consulta le informazioni delle isole o avvia la verifica di connessione.</p>
                 </div>
             </div>
             <p id="forge-error" role="alert" hidden></p>

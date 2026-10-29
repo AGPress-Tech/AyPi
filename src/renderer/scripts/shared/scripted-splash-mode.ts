@@ -1,7 +1,7 @@
 function createScriptedSplashMode(blueArchiveBodyClasses: string[]) {
     const parameters = new URLSearchParams(window.location.search);
     const isBlueArchive = parameters.get("theme") === "bluearchive";
-    const isAgpress = parameters.get("splashTheme") === "agpress";
+    const isAgpress = !isBlueArchive && parameters.get("splashTheme") === "agpress";
     const enabled = isBlueArchive || isAgpress;
 
     if (isBlueArchive) document.body.classList.add(...blueArchiveBodyClasses);

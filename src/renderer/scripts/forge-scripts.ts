@@ -1,9 +1,15 @@
+import { setupRobotConsole } from './forge/robot-console';
+import { setupForgeSplash } from './forge/splash';
 const { ipcRenderer } = require("electron");
 const theme =
     new URLSearchParams(location.search).get("theme") === "bluearchive"
         ? "bluearchive"
         : "standard";
 document.documentElement.dataset.forgeTheme = theme;
+document.body.classList.toggle('agpress-scripted-splash',theme==='standard');
+const bootSplash=setupForgeSplash();
+bootSplash.mark('interface');bootSplash.mark('theme');
+const robotConsole=setupRobotConsole();
 const element = (id: string) => document.getElementById(id)!;
 element("forge-edition").textContent =
     theme === "bluearchive" ? "BLUE ARCHIVE" : "AGPRESS";
@@ -18,15 +24,15 @@ function showSection(robots: boolean) {
     else element("forge-open-robots").focus();
 }
 element("forge-open-mes").addEventListener("click", () =>
-    ipcRenderer.send("open-production-planner-window", { theme }),
+    ipcRenderer.send("open-production-planner-window", { theme:'standard' }),
 );
 element("forge-open-forno").addEventListener("click", () =>
-    ipcRenderer.send("open-forno-window"),
+    ipcRenderer.send("open-forno-window",{theme}),
 );
 element("forge-open-robots").addEventListener("click", () => showSection(true));
 element("forge-home").addEventListener("click", () => showSection(false));
 document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !element("forge-robots").hidden)
+    if (event.key === "Escape" && !event.defaultPrevented && !element("forge-robots").hidden && document.getElementById('robotConsoleBackdrop')?.getAttribute('aria-hidden')==='true')
         showSection(false);
 });
 const robots = [
@@ -48,23 +54,9 @@ const robots = [
 ];
 for (const robot of robots)
     element("show" + robot.id).addEventListener("click", () =>
-        ipcRenderer.send("mostra-robot-popup", robot.id, robot.url, robot.key),
+        robotConsole.openStatus({robotId:robot.id,robotUrl:robot.url,robotStateKey:robot.key}),
     );
-element("pingRobots").addEventListener("click", async () => {
-    const button = element("pingRobots") as HTMLButtonElement;
-    button.disabled = true;
-    try {
-        await ipcRenderer.invoke("ping-robot-dialog");
-    } catch (error) {
-        const message = element("forge-error");
-        message.hidden = false;
-        message.textContent =
-            "Verifica connessioni non disponibile: " +
-            String((error as Error).message || error);
-    } finally {
-        button.disabled = false;
-    }
-});
+element("pingRobots").addEventListener("click",()=>robotConsole.openConnections());
 const clock = () =>
     (element("forge-clock").textContent = new Date().toLocaleTimeString(
         "it-IT",
@@ -72,5 +64,6 @@ const clock = () =>
     ));
 clock();
 const timer = setInterval(clock, 30000);
-window.addEventListener("beforeunload", () => clearInterval(timer));
+bootSplash.mark('modules');bootSplash.mark('ready');bootSplash.ready();
+window.addEventListener("beforeunload", () => {clearInterval(timer);bootSplash.dispose();});
 export {};

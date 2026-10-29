@@ -2,6 +2,7 @@
 
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
 import path from "path";
+import { revealThemedWindow } from './file-manager/themed-window';
 import fs from "fs";
 import log from "electron-log";
 import { requestAypiBackend } from "./file-manager/backend-client";
@@ -46,7 +47,6 @@ import {
     registerLocalGitStatsIpc,
     resolveGitRepoRoot,
 } from "./file-manager/local-git-stats";
-import { registerMainWindowLayoutIpc } from "./file-manager/main-window-layout-ipc";
 import { registerAttrezzaggioPdfPreviewIpc } from "./file-manager/attrezzaggio-pdf-preview-ipc";
 import { registerRegistrazioniProgettazioneDataIpc } from "./file-manager/registrazioni-progettazione-data-ipc";
 import { registerRegistrazioniProgettiSpecialiDataIpc } from "./file-manager/registrazioni-progetti-speciali-data-ipc";
@@ -434,57 +434,10 @@ async function fetchGithubStats(owner: string, repo: string, token?: string) {
     };
 }
 
-function animateResize(
-    mainWindow: BrowserWindow,
-    targetWidth: number,
-    targetHeight: number,
-    duration = 100,
-) {
-    if (!mainWindow) return;
-
-    const [startWidth, startHeight] = mainWindow.getSize();
-    const steps = 20;
-    const stepDuration = duration / steps;
-    let currentStep = 0;
-
-    const interval = setInterval(() => {
-        currentStep++;
-        const progress = currentStep / steps;
-
-        const newWidth = Math.round(
-            startWidth + (targetWidth - startWidth) * progress,
-        );
-        const newHeight = Math.round(
-            startHeight + (targetHeight - startHeight) * progress,
-        );
-
-        mainWindow.setSize(newWidth, newHeight);
-
-        if (currentStep >= steps) {
-            clearInterval(interval);
-            mainWindow.setSize(targetWidth, targetHeight);
-            mainWindow.center();
-        }
-    }, stepDuration);
-}
-
 function isWindowAlive(
     win: BrowserWindow | null | undefined,
 ): win is BrowserWindow {
     return !!win && !win.isDestroyed();
-}
-
-function mainWindowUsesBlueArchiveLayout(mainWindow: BrowserWindow) {
-    if (!isWindowAlive(mainWindow) || mainWindow.webContents.isDestroyed()) {
-        return false;
-    }
-    try {
-        return decodeURIComponent(mainWindow.webContents.getURL())
-            .toLowerCase()
-            .includes("bluearchive-preview.html");
-    } catch {
-        return false;
-    }
 }
 
 function showMainWindow(mainWindow: BrowserWindow) {
@@ -498,8 +451,7 @@ function showMainWindow(mainWindow: BrowserWindow) {
 
 function showWindow(win: BrowserWindow) {
     if (!isWindowAlive(win)) return;
-    win.show();
-    win.focus();
+    revealThemedWindow(win);
 }
 
 function showWindowAfterRendererSignal(
@@ -962,7 +914,6 @@ const productManagerSessionState = createProductManagerSessionState();
 let suppressTicketWindowChaining = false;
 let feriePermessiSplashShown = false;
 let ticketSupportSplashShown = false;
-let productionPlannerSplashShown = false;
 let inventarioMagazzinoSplashShown = false;
 let isAppQuitting = false;
 
@@ -1343,17 +1294,10 @@ function openProductionPlannerWindow(
         },
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: "#f4f7fb",
+        backgroundColor: "#f2f8fc",
     });
 
     productionPlannerWindow.maximize();
-    const shouldShowSplash =
-        requestedTheme === "bluearchive" ||
-        getScriptedSplashTheme() === "agpress" ||
-        !productionPlannerSplashShown;
-    if (requestedTheme === "standard") {
-        productionPlannerSplashShown = true;
-    }
     productionPlannerWindow.loadFile(
         path.join(
             __dirname,
@@ -1364,7 +1308,6 @@ function openProductionPlannerWindow(
         ),
         {
             query: {
-                plannerSplash: shouldShowSplash ? "1" : "0",
                 theme: requestedTheme,
                 splashTheme: getScriptedSplashTheme(),
             },
@@ -2513,13 +2456,6 @@ function setupFileManager(mainWindow) {
     registerWarehouseInventoryIpc(ipcMain, app);
     app.on("before-quit", () => {
         isAppQuitting = true;
-    });
-
-    registerMainWindowLayoutIpc({
-        ipcMain,
-        mainWindow,
-        animateResize,
-        usesPersistentLayout: mainWindowUsesBlueArchiveLayout,
     });
 
     registerFileNavigationIpc({

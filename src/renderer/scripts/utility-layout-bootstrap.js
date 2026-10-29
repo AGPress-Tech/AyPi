@@ -5,8 +5,20 @@
         .pop()
         ?.toLowerCase();
     const isBlueArchive = params.get("theme") === "bluearchive";
-    const isAgpressSplash = params.get("splashTheme") === "agpress";
+    // Il tema esplicito del modulo prevale sullo splash ereditato dal portale.
+    const isAgpressSplash = !isBlueArchive && params.get("splashTheme") === "agpress";
     const bodyClasses = new Set();
+    const html = document.documentElement;
+    html.dataset.moduleTheme = isBlueArchive ? "bluearchive" : "standard";
+
+    // Eseguito nel <head>, prima dei CSS e di qualunque bundle/IPC asincrono.
+    if (["forge.html", "forge-preview.html"].includes(page)) {
+        html.dataset.forgeTheme = isBlueArchive ? "bluearchive" : "standard";
+        if (page === "forge.html" && !isBlueArchive) bodyClasses.add("agpress-scripted-splash");
+    }
+    if (page === "forno.html" && params.has("theme")) {
+        html.dataset.theme = isBlueArchive ? "blue" : "classic";
+    }
 
     const fixedBlueLayouts = {
         "file-list.html": "bluearchive-file-list",
@@ -19,6 +31,8 @@
     if (fixedBlueLayouts[page]) {
         bodyClasses.add(fixedBlueLayouts[page]);
     }
+    const fixedBlue = Boolean(fixedBlueLayouts[page]) || page === "production-planner.html";
+    html.style.backgroundColor = isBlueArchive || fixedBlue ? "#edf9ff" : "#f7f4ed";
 
     if (page === "ticket-support.html" || page === "ticket-support-admin.html") {
         bodyClasses.add("fp-bluearchive");
@@ -74,18 +88,19 @@
     if (page === "timers.html" && isBlueArchive) {
         bodyClasses.add("bluearchive-timers");
     }
+    if (page === "inventario-magazzino.html") {
+        bodyClasses.add(isBlueArchive ? "warehouse-bluearchive" : "agpress-login-ui");
+    }
 
     if (page === "production-planner.html") {
         if (isBlueArchive) bodyClasses.add("bluearchive-production-planner");
-        if (params.get("plannerSplash") === "1") {
-            bodyClasses.add("planner-splash-active");
-        }
     }
 
     if (isAgpressSplash) bodyClasses.add("agpress-scripted-splash");
 
     const applyLayout = () => {
         if (!document.body) return false;
+        if (isBlueArchive) document.body.classList.remove("agpress-scripted-splash", "agpress-purchasing", "agpress-login-ui");
         document.body.classList.add(...bodyClasses);
         return true;
     };

@@ -383,13 +383,9 @@ e aggiornamenti condizionali. Non contatta il forno reale o gli archivi aziendal
 La finestra Forno viene massimizzata sia alla prima apertura sia quando viene
 richiamata da FORGE dopo essere stata ripristinata a dimensioni normali.
 Il marchio nell'intestazione usa la geometria Ay/Pi con alone e barra obliqua
-gia presente nel MES. Lo splash Forno riutilizza direttamente il foglio animato
-del Production Planner e la variante AGPress condivisa con Calendar/Purchasing.
-
-Lo splash puo essere saltato con un clic, Invio o Esc e termina automaticamente.
-La durata massima e limitata anche quando il backend non risponde. Con movimento
-ridotto attivo vengono saltate le animazioni. Le fasi visualizzate indicano
-interfaccia, verifica server, accesso archivio e costruzione grafico; gli errori
-rimangono visibili nel modulo al termine dell'animazione.
+gia presente nel MES. Lo splash di apertura è collocato nell'hub FORGE;
+il forno apre direttamente la propria interfaccia, senza animazioni introduttive
+o blocchi dei controlli durante l'attesa del backend. Stato acquisizione,
+caricamento dello storico ed eventuali errori rimangono visibili nel pannello.
 Il pulsante Aggiorna e la spia di stato nell'intestazione permettono di verificare
 la raccolta senza dover aprire la diagnostica dettagliata.

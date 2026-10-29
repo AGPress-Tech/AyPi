@@ -1,0 +1,64 @@
+/* Chrome condiviso FORGE / Forno / MES: font e controlli coerenti con Calendar/Purchasing. */
+body.aypi-operations {
+    --ops-accent:#168eea; --ops-accent-2:#31c8f3; --ops-accent-rgb:35,166,226;
+    --ops-ink:#173451; --ops-ink-rgb:23,52,81; --ops-muted:#648097;
+    --ops-line:#d9e8f1; --ops-soft:#e8f8ff; --ops-soft-rgb:229,248,255;
+    --ops-bg:#f2f8fc; --ops-radius:6px 14px 6px 14px;
+    font-family:"Segoe UI","Yu Gothic UI",sans-serif;
+    background:radial-gradient(ellipse at 90% 0,rgba(var(--ops-accent-rgb),.09),transparent 45%),var(--ops-bg);
+}
+:is(:root[data-forge-theme=standard],:root[data-theme=classic]) body.aypi-operations {
+    --ops-accent:#cc930e; --ops-accent-2:#e5b33e; --ops-accent-rgb:204,147,14;
+    --ops-ink:#332f2b; --ops-ink-rgb:51,47,43; --ops-muted:#827760;
+    --ops-line:#e8dfce; --ops-soft:#fff6e2; --ops-soft-rgb:255,246,226; --ops-bg:#f7f4ed;
+}
+:root[data-theme=dark] body.aypi-operations {
+    --ops-accent:#52cbb5;--ops-accent-2:#3c9fa6;--ops-accent-rgb:82,203,181;
+    --ops-ink:#e5edf6;--ops-muted:#a3b5ca;--ops-line:#2a3e54;--ops-soft:#223d46;--ops-soft-rgb:34,61,70;--ops-bg:#111b28;
+}
+body.aypi-operations :is(.forge-header,.topbar) {
+    background:linear-gradient(110deg,var(--surface,#fff),var(--ops-soft));
+    color:var(--ops-ink);border:0;border-bottom:2px solid rgba(var(--ops-accent-rgb),.55);
+    box-shadow:0 7px 22px rgba(var(--ops-accent-rgb),.1);min-height:86px;
+    padding:16px 24px;isolation:isolate;
+}
+body.aypi-operations .forge-header {--ink:var(--ops-ink);--accent:var(--ops-accent)}
+body.aypi-operations :is(.forge-header,.topbar)::before {
+    content:"";position:absolute;left:0;top:0;bottom:0;width:5px;right:auto;
+    background:linear-gradient(var(--ops-accent),var(--ops-accent-2));border:0;transform:none;z-index:0;
+}
+body.aypi-operations :is(.forge-header,.topbar)::after {display:none}
+body.aypi-operations :is(.forge-header h1,.brand h1) {
+    font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--ops-ink);
+    font-weight:800;font-size:23px;letter-spacing:-.6px;line-height:1.15;text-shadow:none;
+}
+body.aypi-operations :is(.forge-header h1 small,.forge-header .forge-kicker,.topbar .eyebrow,.forge-header-meta) {color:var(--ops-muted);text-shadow:none}
+body.aypi-operations .forge-header h1 small {font-size:13px;letter-spacing:0}
+body.aypi-operations .forge-header-meta b {color:var(--ops-accent)}
+body.aypi-operations :is(.aypi-module-logo,.planner-aypi-logo) {
+    font-family:"Trebuchet MS","Segoe UI",Arial,sans-serif;
+    font-style:italic;font-weight:900;letter-spacing:-.079545em;
+    filter:drop-shadow(0 2px 3px rgba(var(--ops-ink-rgb),.12));
+}
+body.aypi-operations :is(.aypi-module-logo__ay,.planner-aypi-logo__ay) {color:var(--ops-accent)}
+body.aypi-operations :is(.aypi-module-logo__pi,.planner-aypi-logo__pi) {color:var(--ops-ink)}
+body.aypi-operations :is(.aypi-module-logo__halo,.planner-aypi-logo__halo) {border-color:var(--ops-ink)}
+body.aypi-operations :is(.aypi-module-logo__slash,.planner-aypi-logo__slash) {background:var(--ops-accent);box-shadow:.147727em 0 0 rgba(var(--ops-accent-rgb),.36)}
+body.aypi-operations .brand::after {background:linear-gradient(transparent,var(--ops-line),transparent)}
+body.aypi-operations :is(.topbar .button,.chart-panel~.button,.toolbar>.button,.dialog-actions .button,.robot-button) {
+    border-radius:var(--ops-radius);border:1px solid rgba(var(--ops-accent-rgb),.4);
+    background:var(--surface,#fff);color:var(--ops-ink);box-shadow:0 3px 10px rgba(var(--ops-accent-rgb),.07);
+}
+body.aypi-operations :is(.topbar .button:hover,.toolbar>.button:hover,.dialog-actions .button:hover) {background:var(--ops-soft);border-color:var(--ops-accent)}
+body.aypi-operations .topbar .button--ghost {color:var(--ops-ink)}
+body.aypi-operations .topbar .sync-status {color:var(--ops-muted);background:var(--surface,#fff);border:1px solid var(--ops-line);box-shadow:none}
+body.aypi-operations .topbar .sync-status span {color:inherit}
+body.aypi-operations :is(.forge-module,.forge-future,.toolbar,.chart-panel) {border-radius:var(--ops-radius);border-color:var(--ops-line)}
+body.aypi-operations .forge-module {box-shadow:0 8px 24px rgba(var(--ops-accent-rgb),.06)}
+body.aypi-operations .forge-module:hover {box-shadow:0 12px 28px rgba(var(--ops-accent-rgb),.14)}
+body.aypi-operations .forge-module-link {color:var(--ops-accent)}
+body.aypi-operations .forge-breadcrumb {padding:10px 14px;background:#ffffffb3;border:1px solid var(--ops-line);border-radius:var(--ops-radius)}
+body.aypi-operations .mes-navigation {background:var(--surface,#fff);border-color:var(--ops-line)}
+body.aypi-operations .mes-navigation__item {color:var(--ops-muted)}
+body.aypi-operations .mes-navigation__item.is-active {color:var(--ops-accent);background:var(--ops-soft);border-color:var(--ops-accent)}
+@media(max-width:1100px){body.aypi-operations :is(.forge-header,.topbar){padding:12px 18px}body.aypi-operations :is(.forge-header h1,.brand h1){font-size:21px}}

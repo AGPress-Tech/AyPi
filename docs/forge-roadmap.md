@@ -12,12 +12,20 @@ Percorso: **MES - SCADA → Apri FORGE → Centrale operativa**.
 
 - Presentazione condivisa nei colori ambra AGPress e azzurro Blue Archive.
 - Finestra FORGE dedicata, massimizzata e riutilizzata alla riapertura.
+- Splash di ingresso FORGE nei due temi, con logo e animazioni condivisi con
+  Calendar/Purchasing. Compare al caricamento della finestra, non al semplice
+  richiamo di una finestra già aperta. Click/Invio/Esc lo saltano; termina
+  automaticamente, con protezione sul tempo massimo e movimento ridotto.
+  Scada Forno apre direttamente la vista, senza un secondo splash.
 - Accesso al MES e Pianificatore attraverso il suo canale IPC esistente.
+  Il MES apre direttamente l'interfaccia, senza il precedente overlay introduttivo
+  nero; lo stato di sincronizzazione resta visibile nell'intestazione. Lo splash
+  di ingresso resta esclusivamente in FORGE.
 - Accesso a Scada Forno attraverso la sua finestra esistente.
 - Verifica robot: 21D500, 21D600, 21D850 e selezione/verifica connessioni,
   con gli stessi handler, indirizzi e chiavi di lettura precedenti.
-- Percorso reale `mes-scada.html`; `robot.html` mantiene compatibili i vecchi
-  collegamenti mediante reindirizzamento. La navigazione principale usa `mes-scada`.
+- Sezione `mes-scada` nel portale unico AyPi, con presentazione HTML condivisa.
+  Le vecchie pagine autonome Robot/MES e il reindirizzamento sono stati rimossi.
 - FORGE Spatial e l'editor sono indicazioni di sviluppo futuro, senza azioni
   fittizie. La voce futura dell'editor appare solo in Blue Archive.
 
@@ -33,10 +41,22 @@ La finestra forno rimane indipendente dalla chiusura dell'hub FORGE.
 - `src/renderer/pages/forge.html`: struttura della finestra operativa e della
   sottosezione Verifica robot.
 - `src/renderer/styles/forge.css`: layout e colori dei due temi.
+- `src/renderer/styles/utilities/aypi-operations-ui.css`: header chiaro, font del
+  logo e controlli comuni a FORGE, forno e MES. Il MES conserva la stessa palette
+  azzurra in entrambi gli accessi; FORGE/robot e forno seguono ambra o azzurro.
+- `src/renderer/pages/partials/robot-console.html`,
+  `src/renderer/styles/forge/robot-console.css` e
+  `src/renderer/scripts/forge/robot-console.ts`: console robot originale con
+  radar, scansione, scelta della cella e risultati. La console usa gli handler
+  `robot-status-custom` e `ping-robot-custom` già presenti, con dati reali nel client
+  e simulati nella preview. Annulla/Esc chiudono la vista e ignorano risultati tardivi.
 - `src/renderer/scripts/forge/landing.ts`: caricamento locale del frammento HTML
   e collegamento del pulsante. Non contiene markup o template HTML.
 - `src/renderer/scripts/forge-scripts.ts`: navigazione, clic e orologio della
   finestra operativa.
+- Lo splash è nell'HTML `forge.html`, con stile `styles/forge/splash.css` e
+  comportamento `scripts/forge/splash.ts`. Le fasi descrivono la preparazione
+  dell'interfaccia e dei moduli, senza fingere controlli o connessioni agli impianti.
 
 Il normale `npm run build` copia anche il frammento HTML nel client e genera
 l'installer. Per verificare soltanto la compilazione usare `npm run build:ts`.
@@ -54,6 +74,19 @@ La presentazione viene mostrata nel contenitore di sviluppo, senza avviare tutto
 il portale AyPi. I comandi verso MES, forno e robot sono simulati; richieste di
 rete e apertura di finestre esterne sono bloccate. La chiusura della finestra
 arresta la preview. Per la verifica automatica: `npm run preview:forge -- --smoke`.
+La regressione grafica dei moduli è verificabile con
+`node tools/test-operations-ui.cjs`: console animata nei due temi, Esc durante
+la lettura e confronto dello stile MES. Il test non contatta macchine o backend.
+
+Il tema iniziale viene applicato nel `<head>` da `utility-layout-bootstrap.js`,
+prima dei CSS e dei bundle applicativi. FORGE/forno impostano qui i propri
+attributi di tema; Calendar/Purchasing e le altre utility ricevono le classi del
+body prima del disegno. Un `theme=bluearchive` esplicito prevale su un eventuale
+`splashTheme=agpress` precedente, anche nei controller eseguiti successivamente.
+Le finestre riutilizzate aspettano il caricamento del nuovo documento prima di
+riapparire, evitando di mostrare il tema vecchio. Verifica dedicata:
+`node tools/test-theme-bootstrap.cjs` (20 pagine, bundle bloccati e Node disattivato)
+e `node --test tools/test-themed-window.cjs` (ciclo finestra e precedenza splash).
 
 ## Riferimento e adattamento
 

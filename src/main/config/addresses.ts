@@ -42,14 +42,8 @@ export const ADDRESS_DEFAULTS = ADDRESS_ENTRIES.reduce((acc, entry) => {
     return acc;
 }, {});
 
-export const ADDRESS_BY_ID = ADDRESS_ENTRIES.reduce((acc, entry) => {
-    acc[entry.id] = entry;
-    return acc;
-}, {});
-
 // CommonJS interop for legacy requires
 module.exports = {
     ADDRESS_ENTRIES,
     ADDRESS_DEFAULTS,
-    ADDRESS_BY_ID,
 };
