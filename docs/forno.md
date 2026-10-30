@@ -122,6 +122,60 @@ Un errore di persistenza arresta la raccolta e viene esposto nello stato.
 
 ## Vista operatore
 
+Il pulsante **Cicli forno**, a sinistra dello stato acquisizione, apre il menu
+con la voce **Visualizza cicli memorizzati**. Mostra i nomi dei programmi letti
+dal nanodac, il numero di cicli e la data dell'ultima lettura. **Aggiorna elenco**
+esegue una nuova lettura; nessun polling automatico o elenco locale precompilato.
+Occorre aggiornare backend e client.
+
+La richiesta `POST /api/forno/programs/list` usa una connessione dedicata sul
+backend con host/porta/Unit ID configurati per il forno. L'unica scrittura è il
+comando documentato FC06 `14976=1` (Get Listing); attende Complete e legge fino
+a 100 nomi con richieste FC03 di 21 registri a partire da `30976+i`.
+Non carica, salva, modifica o avvia programmi. Le richieste contemporanee delle
+postazioni condividono la lettura in corso; gli errori non diventano elenchi vuoti.
+Il timeout complessivo è 12 secondi e il socket è distinto dai collector.
+Il trasporto delle temperature e degli eventi rimane di sola lettura FC03.
+
+In Run o Hold il comando Get Listing può essere rifiutato dal nanodac. La richiesta
+elenco verifica prima modo/stato: durante la lavorazione restituisce soltanto il
+programma caricato, con `scope: "current"`, usando esclusivamente FC03. La finestra
+mostra **Ciclo in lavorazione** o **Ciclo in pausa** e permette di aprirne il grafico;
+l'archivio completo resta disponibile in Reset. Anche una transizione Reset → Run
+durante la richiesta viene gestita recuperando il ciclo caricato.
+
+Un clic sul nome di un ciclo apre **Programmazione del ciclo**: profilo nominale
+tempo/temperatura, durata calcolata dalle fasi, temperatura massima, azione finale
+e schede selezionabili per evidenziare rampe e soste sul grafico. Tooltip con
+tempo e setpoint; la temperatura iniziale dell'anteprima è modificabile solo
+localmente e parte da 0 °C. Nessun parametro viene ricavato dal nome del file.
+
+`POST /api/forno/programs/preview` riceve `{name, allowTemporaryLoad?: boolean,
+expectedCurrentProgram?: string}`. La conferma è legata al programma iniziale:
+se questo cambia fra richiesta e conferma, non viene effettuato il caricamento.
+Se il ciclo è già caricato e non modificato, legge soltanto FC03: impostazioni
+programmatore/program, segmenti nativi a `0x8000 + 2*(15040 + 48*i)` e nomi
+dei segmenti. I target sono float32 e i tempi uint32 in millisecondi, senza il
+limite degli interi a 16 bit. Nome e revisione vengono verificati prima/dopo.
+Sono rappresentati rampe a tempo o velocità, soste, step, due canali sincronizzati
+e GoBack finiti (massimo 500 fasi). Attese esterne e ripetizioni continue hanno
+durata variabile: l'anteprima si ferma senza inventare una fine. Holdback e
+mantenimento indefinito finale sono indicati esplicitamente.
+
+Per un ciclo diverso, la prima richiesta non carica nulla: richiede una conferma
+esplicita **Leggi e ripristina**. Il backend accetta il caricamento temporaneo
+solo in Reset, con programma iniziale salvato e senza modifiche pendenti.
+Controlla la presenza di entrambi i file, seleziona il nome con FC16 `27281`
+e richiede Load con FC06 `14912=2`. Al termine, anche dopo un errore di lettura,
+prova a ripristinare il programma iniziale e verifica l'esito. Se stato o programma
+cambiano dal pannello, interrompe le scritture e segnala il ripristino non confermato.
+L'operatore deve usare questa funzione senza interventi contemporanei sul pannello.
+Non vengono mai inviati Run, Hold, Reset, Store, Delete o modifiche ai segmenti.
+Le operazioni elenco/anteprima sono serializzate fra le postazioni.
+
+Verifiche: `node --test tools/test-forno-programs.cjs tools/test-forno-recipe-profile.cjs`
+(dopo compilazione backend) e `node tools/test-forno-ui.cjs`.
+
 Scheda **MES - SCADA → Apri FORGE → Scada Forno**.
 La risoluzione della vista è personale e non modifica il campionamento del server.
 
@@ -211,6 +265,12 @@ preferenze locali; non interrompono la raccolta. Note condivise aggiornate
 circa ogni 5 secondi anche nello storico, con risposta leggera se la revisione
 non cambia. Risultati limitati a 1000 note/2000 eventi per intervallo; in caso
 di troncamento compare l'indicazione di aumentare lo zoom.
+
+Gli intervalli di messaggi e storico vengono limitati a 366 giorni **dopo**
+l'arrotondamento ai millisecondi interi. Questo evita richieste di 366 giorni
+più 1 ms quando zoom/scorrimento producono estremi frazionari; l'eventuale
+margine di precaricamento o allineamento viene ridotto mantenendo la fine
+dell'intervallo. La validazione del backend rimane invariata.
 
 La raccolta eventi parte con il backend, su una connessione Modbus di sola
 lettura distinta da quella delle temperature, ogni 500 ms. Legge modo/stato,

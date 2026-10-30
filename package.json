@@ -1,6 +1,6 @@
 {
   "name": "aypi",
-  "version": "2.0.0",
+  "version": "1.4.1",
   "description": "Software AyPi per gestione applicativi AGPress",
   "main": "dist-ts/main.js",
   "scripts": {
@@ -11,7 +11,7 @@
     "build:ts": "node tools\\build-ts.js",
     "build:backend": "npm run prepare:forno && npx tsc -p backend\\tsconfig.json",
     "build:backend:tray": "npx tsc -p tsconfig.backend-app.json",
-    "dist:backend": "npm run build:backend && npm run build:backend:tray && electron-builder --config electron-builder.backend.json",
+    "dist:backend": "npm run build:backend && npm run build:backend:tray && npm run verify:backend:baseline && electron-builder --config electron-builder.backend.json",
     "dist:botbackend": "npm run dist:backend",
     "build": "npm run build:ts && electron-builder",
     "release": "npm run build:ts && electron-builder --publish always",
@@ -19,7 +19,8 @@
     "test:forno": "node --test tools/test-forno.cjs tools/test-forno-multichannel.cjs tools/test-forno-startup.cjs tools/test-forno-analysis.cjs tools/test-forno-sample.cjs tools/test-forno-messages.cjs",
     "test:plc-engine": "node --test tools/test-plc-engine.cjs",
     "test:forno:view": "node --test tools/test-forno-preferences.cjs tools/test-forno-reveal.cjs tools/test-forno-average.cjs tools/test-forno-axes.cjs",
-    "test:forno:transport": "node --test tools/test-forno-transport.cjs"
+    "test:forno:transport": "node --test tools/test-forno-transport.cjs",
+    "verify:backend:baseline": "node tools/verify-backend-baseline.cjs"
   },
   "author": "Ayrton Pizzi",
   "license": "ISC",

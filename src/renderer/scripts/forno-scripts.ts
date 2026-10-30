@@ -3,12 +3,15 @@ import { degreeTicks, parseLocalDateTime, formatLocalInput } from './forno/axes'
 import { setupAnalysisPanel } from './forno/analysis-panel';
 import { setupContinuousTooltip } from './forno/continuous-tooltip';
 import { setupAnnotations } from './forno/annotations';
+import { setupProgramsDialog } from './forno/programs-dialog';
+import { boundedQueryRange } from './forno/query-range';
 import { attachChartInteractions } from './forno/chart-interactions';
 import { createChartReveal } from './forno/chart-reveal';
 import { channelAverage } from './forno/channel-average';
 import { appendLiveFrame,type LiveFrame } from './forno/live-series';
 import { DEFAULT_VIEW_SETTINGS, normalizeViewSettings, divisionTicks, shouldLabel, dayRange, EVENT_LABELS, type FornoViewSettings } from '../../main/modules/forno/preferences';
 const { ipcRenderer } = require('electron');
+setupProgramsDialog(() => ipcRenderer.invoke('forno-programs-list'), input => ipcRenderer.invoke('forno-program-preview', input));
 
 type Bucket = { fromMs: number; toMs: number; samples: number; valid: number; missing: number; min: number | null; max: number | null; mean: number | null; first: number | null; last: number | null; firstTime: number | null; lastTime: number | null };
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -275,9 +278,8 @@ async function refresh(full = false,prefetch=false,animate=full) {
         // Nello storico rispetta esattamente il giorno/intervallo selezionato.
         const alignedStart = live.checked ? Math.floor(start/effective)*effective : Math.floor(start);
         const margin=prefetch?Math.max(0,Math.min((end-start)*0.25,(366*86400000-(end-start))/2)):0;
-        const fromMs = margin?Math.max(0,Math.floor(alignedStart-margin)):full||!buckets.length?alignedStart:Math.max(alignedStart,watermark);
-        const queryEnd=Math.ceil(end+margin);
-        const result = await ipcRenderer.invoke('forno-history', { fromMs, toMs: margin?queryEnd:Math.floor(end), intervalMs: effective, maxPoints: margin?3000:2000 });
+        const {fromMs,toMs:queryEnd}=boundedQueryRange(margin?alignedStart-margin:full||!buckets.length?alignedStart:Math.max(alignedStart,watermark),margin?end+margin:Math.floor(end));
+        const result = await ipcRenderer.invoke('forno-history', { fromMs, toMs: queryEnd, intervalMs: effective, maxPoints: margin?3000:2000 });
         if (disposed || version !== revision) return;
         const responseChannels=channelsOf(result);
         const keepCache=loadedInterval===effective;
@@ -481,13 +483,15 @@ async function checkStatus() {
 }
 async function tick() {
     if(disposed) return;
+    if(document.hidden){setTimeout(tick,1000);return;}
     if(!report.open&&!interactions?.busy && live.checked) {
         const span=end-start,requested=Number(resolution.value),target=requested*Math.max(1,Math.ceil((span+1)/(1800*requested)));
         if(!streamOnline||Date.now()-streamReceivedAt>streamStaleAfter||loadedInterval!==target||streamNeedsSync)await refresh(streamNeedsSync);
         else applyStreamFrames();
     }
-    if(Date.now()-lastStatusCheck>10000) {lastStatusCheck=Date.now();await checkStatus();}
-    if(!disposed) setTimeout(tick,Math.max(1000,Math.min(5000,Number(resolution.value))));
+    const mobile=document.documentElement.dataset.platform==='android';
+    if(Date.now()-lastStatusCheck>(mobile?1000:10000)) {lastStatusCheck=Date.now();await checkStatus();}
+    if(!disposed) setTimeout(tick,mobile?1000:Math.max(1000,Math.min(5000,Number(resolution.value))));
 }
 window.addEventListener('beforeunload',()=>{disposed=true;ipcRenderer.send('forno-live-stop');ipcRenderer.removeListener('forno-live-frame',receiveLive);ipcRenderer.removeListener('forno-live-state',receiveLiveState);ipcRenderer.removeListener('forno-interface-theme',receiveInterfaceTheme);annotations?.dispose();continuous?.dispose();interactions?.dispose();reveal.stop();chart.destroy();});
 void (async()=>{await loadPreferences();await checkStatus();showRange();await refresh(true);void ipcRenderer.invoke('forno-live-start').catch(()=>{});void tick();})();

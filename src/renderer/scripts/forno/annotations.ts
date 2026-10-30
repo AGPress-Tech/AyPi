@@ -1,5 +1,6 @@
 import type Chart from 'chart.js/auto';
 import { randomUUID } from 'crypto';
+import { boundedQueryRange } from './query-range';
 import { EVENT_LABELS,type FornoViewSettings } from '../../../main/modules/forno/preferences';
 
 export type OvenNote={id:string;timestampMs:number;text:string;author:string;createdAt:number;updatedAt:number;editedBy:string;revision:number};
@@ -97,13 +98,14 @@ export function setupAnnotations(chart:Chart<'line'>,options:{
     async function refresh(force=false) {
         if(disposed)return;
         const settings=options.settings(),range=options.range(),filter=[settings.showNotes,settings.showEvents,settings.eventTypes.join(',')].join('|');
+        const visibleStart=Math.ceil(range.start),visibleEnd=Math.floor(range.end);
         draw();
         if(!settings.showNotes&&!settings.showEvents){data={notes:[],events:[],truncated:false};revision++;draw();return;}
-        if(!force&&coverage?.filter===filter&&coverage.start<=range.start&&coverage.end>=range.end&&Date.now()-lastSync<4500)return;
-        if(busy){pending ||= force||!coverage||coverage.filter!==filter||coverage.start>range.start||coverage.end<range.end;return;}
+        if(!force&&coverage?.filter===filter&&coverage.start<=visibleStart&&coverage.end>=visibleEnd&&Date.now()-lastSync<4500)return;
+        if(busy){pending ||= force||!coverage||coverage.filter!==filter||coverage.start>visibleStart||coverage.end<visibleEnd;return;}
         busy=true;const margin=Math.max(0,Math.min((range.end-range.start)/4,(366*86400000-(range.end-range.start))/2));
-        const reusable=coverage?.filter===filter&&coverage.start<=range.start&&coverage.end>=range.end;
-        const fromMs=reusable?coverage!.start:Math.max(0,Math.floor(range.start-margin)),toMs=reusable?coverage!.end:Math.ceil(range.end+margin);
+        const reusable=coverage?.filter===filter&&coverage.start<=visibleStart&&coverage.end>=visibleEnd;
+        const {fromMs,toMs}=reusable?{fromMs:coverage!.start,toMs:coverage!.end}:boundedQueryRange(range.start-margin,range.end+margin);
         try {
             const response=await options.list({fromMs,toMs,showNotes:settings.showNotes,eventTypes:settings.showEvents?settings.eventTypes:[],revision:reusable?coverage?.revision:undefined});
             if(disposed)return;

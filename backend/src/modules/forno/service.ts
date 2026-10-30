@@ -3,6 +3,34 @@ import { fork, ChildProcess, ForkOptions } from 'child_process';
 import { getFornoConfig } from './config';
 import { HttpError } from '../../shared/http/errors';
 import { logger } from '../../shared/logging/logger';
+import { createStoredProgramsReader, readStoredPrograms } from './programs';
+import { readProgramRecipe } from './program-recipe';
+
+let programTask: { key: string; promise: Promise<any> } | null = null;
+function runProgramTask(key: string, action: () => Promise<any>) {
+    if (programTask) {
+        if (programTask.key === key) return programTask.promise;
+        return Promise.reject(new HttpError(409, 'È già in corso una lettura dei cicli da un’altra postazione. Riprovare tra poco.'));
+    }
+    const promise = Promise.resolve().then(action).finally(() => { programTask = null; });
+    programTask = { key, promise };
+    return promise;
+}
+export const listFornoPrograms = createStoredProgramsReader(() => runProgramTask('list', async () => {
+    const config = getFornoConfig();
+    if (!config.enabled) throw new HttpError(503, 'Modulo forno disabilitato sul server.');
+    try { return await readStoredPrograms(config); }
+    catch (error) { throw new HttpError(503, (error as Error).message, { code: 'FORNO_PROGRAMS_UNAVAILABLE' }); }
+}));
+
+export function getFornoProgramRecipe(name: string, allowTemporaryLoad: boolean, expectedCurrentProgram?: string) {
+    return runProgramTask(JSON.stringify([name, allowTemporaryLoad, expectedCurrentProgram]), async () => {
+        const config = getFornoConfig();
+        if (!config.enabled) throw new HttpError(503, 'Modulo forno disabilitato sul server.');
+        try { return await readProgramRecipe(config, name, allowTemporaryLoad, expectedCurrentProgram); }
+        catch (error) { throw new HttpError(503, (error as Error).message, { code: 'FORNO_RECIPE_UNAVAILABLE' }); }
+    });
+}
 
 let child: ChildProcess | null = null;
 let sequence = 0;

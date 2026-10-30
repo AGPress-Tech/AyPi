@@ -278,6 +278,33 @@ class AyPiApi {
         socket = null
     }
 
+    /** Il contenuto locale del forno può invocare solo questi comandi.
+     * Il token rimane nel codice nativo e non viene passato alla WebView.
+     */
+    suspend fun forno(session: AdminSession, channel: String, input: JSONObject): JSONObject {
+        fun query(vararg keys: String) = keys.filter { input.has(it) && !input.isNull(it) }
+            .joinToString("&") { "$it=${encodeSegment(input.get(it).toString())}" }
+        return when (channel) {
+            "forno-status" -> execute("GET", "/api/forno/status", session.token)
+            "forno-history" -> execute("GET", "/api/forno/history?${query("fromMs", "toMs", "intervalMs", "maxPoints")}", session.token)
+            "forno-sample" -> execute("GET", "/api/forno/sample?${query("timestampMs")}", session.token)
+            "forno-analysis" -> execute("GET", "/api/forno/analysis?${query("fromMs", "toMs", "windowSeconds")}", session.token)
+            "forno-messages" -> {
+                val types = input.optJSONArray("eventTypes") ?: JSONArray()
+                val list = (0 until types.length()).joinToString(",") { types.getString(it) }
+                execute("GET", "/api/forno/messages?${query("fromMs", "toMs", "revision")}&showNotes=${if (input.optBoolean("showNotes")) "1" else "0"}&eventTypes=${encodeSegment(list)}", session.token)
+            }
+            "forno-programs-list" -> execute("POST", "/api/forno/programs/list", session.token)
+            "forno-program-preview" -> execute("POST", "/api/forno/programs/preview", session.token, input)
+            "forno-note-save" -> {
+                val id = input.optString("id")
+                execute(if (id.isBlank()) "POST" else "PUT", if (id.isBlank()) "/api/forno/notes" else "/api/forno/notes/${encodeSegment(id)}", session.token, input)
+            }
+            "forno-note-delete" -> execute("DELETE", "/api/forno/notes/${encodeSegment(input.getString("id"))}", session.token, input)
+            else -> throw IOException("Comando forno non disponibile")
+        }
+    }
+
     private suspend fun executeArray(
         method: String,
         path: String,
@@ -322,7 +349,8 @@ class AyPiApi {
             "DELETE" -> builder.delete(requestBody)
             else -> error("Unsupported method")
         }
-        val response = client.newCall(builder.build()).await()
+        val transport = if (path == "/api/forno/programs/preview") client.newBuilder().readTimeout(55, TimeUnit.SECONDS).build() else client
+        val response = transport.newCall(builder.build()).await()
         response.use {
             val text = it.body?.string().orEmpty()
             if (!it.isSuccessful) {

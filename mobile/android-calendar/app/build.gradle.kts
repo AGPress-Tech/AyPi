@@ -11,8 +11,8 @@ android {
         applicationId = "it.agpress.aypi.calendar"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.4.5"
+        versionCode = 11
+        versionName = "0.5.1"
 
         buildConfigField(
             "String",
@@ -48,6 +48,24 @@ android {
         }
     }
 }
+
+val buildFornoAssets by tasks.registering(Exec::class) {
+    val workspace = rootProject.projectDir.parentFile.parentFile
+    workingDir(workspace)
+    commandLine("node", "tools/build-forno-mobile.cjs")
+    inputs.dir(workspace.resolve("src/renderer/scripts/forno"))
+    inputs.file(workspace.resolve("src/renderer/scripts/forno-scripts.ts"))
+    inputs.file(workspace.resolve("src/main/modules/forno/preferences.ts"))
+    inputs.dir(workspace.resolve("mobile/forno"))
+    inputs.file(workspace.resolve("tools/build-forno-mobile.cjs"))
+    inputs.file(workspace.resolve("package-lock.json"))
+    inputs.file(workspace.resolve("src/renderer/pages/forno.html"))
+    inputs.dir(workspace.resolve("src/renderer/styles"))
+    inputs.file(workspace.resolve("src/renderer/scripts/utility-layout-bootstrap.js"))
+    outputs.dir(layout.buildDirectory.dir("generated/fornoAssets"))
+}
+android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/fornoAssets").get().asFile)
+tasks.named("preBuild").configure { dependsOn(buildFornoAssets) }
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.03.00")

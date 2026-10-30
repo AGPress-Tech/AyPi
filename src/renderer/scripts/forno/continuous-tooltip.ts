@@ -98,8 +98,8 @@ export function setupContinuousTooltip(chart:Chart<'line'>,options:{
     document.addEventListener('pointerdown',event=>{if(!menu.hidden&&!menu.contains(event.target as Node))closeMenu();},{signal,capture:true});
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!menu.hidden){closeMenu();canvas.focus({preventScroll:true});}},{signal});
     canvas.addEventListener('pointermove',event=>{position={clientX:event.clientX,clientY:event.clientY};if(enabled&&!dragging)requestUpdate();},{signal});
-    canvas.addEventListener('pointerleave',()=>{position=null;wanted=null;guide=null;clearTimeout(timer);if(enabled)chart.draw();},{signal});
-    canvas.addEventListener('pointerdown',event=>{if(event.button===0){dragging=true;guide=null;clearTimeout(timer);}},{signal});
+    canvas.addEventListener('pointerleave',event=>{if(document.documentElement.dataset.platform==='android'&&event.pointerType==='touch')return;position=null;wanted=null;guide=null;clearTimeout(timer);if(enabled)chart.draw();},{signal});
+    canvas.addEventListener('pointerdown',event=>{if(event.pointerType==='touch')position={clientX:event.clientX,clientY:event.clientY};if(event.button===0){dragging=true;guide=null;clearTimeout(timer);}},{signal});
     canvas.addEventListener('pointerup',()=>{dragging=false;if(enabled)requestUpdate();},{signal});
     canvas.addEventListener('pointercancel',()=>{dragging=false;guide=null;},{signal});
     return {

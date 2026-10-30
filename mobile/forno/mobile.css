@@ -1,0 +1,90 @@
+html,body{min-width:0;width:100%;height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto;-webkit-tap-highlight-color:transparent}
+body{font-family:Roboto,"Segoe UI",sans-serif}.topbar{padding:10px 12px;gap:0}.topbar .brand{display:none}.topbar-actions{width:100%;display:grid;grid-template-columns:minmax(90px,1fr) auto 42px 42px;gap:8px;margin:0}.module-state{grid-row:1;grid-column:1;font-size:10px;white-space:normal}.module-state span{display:inline!important}#open-programs{grid-row:1;grid-column:2;font-size:12px}#refresh-view{grid-row:1;grid-column:3}#open-options{grid-row:1;grid-column:4;font-size:20px}.live-channels{grid-row:2;grid-column:1/-1;border:0;padding:7px 0 0}.live-channel-values{justify-content:space-between;margin-top:6px;gap:8px}.live-channel{min-width:0;flex:1;text-align:center}.live-channel strong,.live-channel #temperature{font-size:21px}.live-channels>.eyebrow{font-size:9px}
+.workspace{padding:10px;gap:10px;min-height:0}.toolbar{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:11px}.toolbar>label{min-width:0}.toolbar select{min-width:0;width:100%}.live-toggle{align-self:end;justify-content:center}.scale-control{grid-column:1/-1;margin:0;min-width:0}.segmented{width:100%;overflow-x:auto}.segmented button{flex:1;padding:10px 9px}.mobile-touch-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.mobile-touch-actions .button{font-size:12px;min-width:0;padding:8px}.mobile-touch-actions [aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.chart-panel{flex:none;min-height:390px;height:58vh;overflow:hidden}.chart-heading{display:flex;flex-wrap:wrap;gap:8px;padding:10px}.chart-heading-range{width:100%}#range-label{font-size:11px;margin-top:4px}.chart-heading .eyebrow{font-size:9px}.channel-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;gap:4px}.channel-card{padding:7px 4px;gap:3px;justify-content:center}.channel-card strong{display:none}.channel-card .channel-name{font-size:11px}.chart-heading #status{text-align:left;font-size:10px;width:100%;max-width:none}.plot{margin:5px 6px 4px;min-height:190px}.chart-footer{padding:8px;font-size:9px}.chart-footer>span{line-height:1.5}#grid-summary{display:none}.diagnostics{font-size:10px}.button{min-height:42px}dialog{max-width:calc(100vw - 20px);max-height:calc(100dvh - 24px);padding:17px}dialog.compact-dialog{width:calc(100vw - 28px)}.dialog-heading h2{font-size:21px}.icon-close{padding:2px 7px}.settings-grid{gap:12px}.dialog-actions{flex-wrap:wrap}.continuous-tooltip{max-width:210px;font-size:11px;right:3px}.continuous-tooltip .cursor-title{font-size:11px}.analysis-dialog{width:calc(100vw - 20px)}.analysis-channel-grid{grid-template-columns:1fr}.analysis-metrics{grid-template-columns:1fr 1fr;gap:14px}.analysis-card--combined .analysis-metric strong{font-size:20px}.analysis-toolbar{flex-wrap:wrap}.analysis-toolbar label{flex:1}.analysis-windows{gap:8px}.recipe-layout{grid-template-columns:1fr}.recipe-summary{grid-template-columns:1fr 1fr}.recipe-plot{height:245px}.recipe-name{font-size:21px}.recipe-phase-list{max-height:none}.program-detail .dialog-heading h2{font-size:16px}.stored-programs{max-height:52vh}input[type=datetime-local],textarea{width:100%;min-width:0;box-sizing:border-box}dialog label input{min-width:0;max-width:100%}.annotation-popup{max-width:calc(100vw - 45px)}
+@media(orientation:landscape){.topbar{padding:7px 12px}.topbar-actions{grid-template-columns:minmax(95px,1fr) auto 42px 42px minmax(260px,1.6fr)}.live-channels{grid-row:1;grid-column:5;padding:0 0 0 10px}.live-channels>.eyebrow{display:none}.live-channel-values{margin:0}.live-channel strong,.live-channel #temperature{font-size:17px}.toolbar{display:flex;flex-wrap:wrap;gap:8px}.toolbar>label{max-width:145px}.scale-control{max-width:330px}.mobile-touch-actions{display:flex}.mobile-touch-actions .button{min-width:64px}.chart-panel{height:68vh;min-height:300px}.chart-heading-range{width:auto;flex:1}.channel-controls{width:240px}.chart-heading #status{width:auto}.recipe-layout{grid-template-columns:minmax(0,1fr) 250px}.recipe-summary{grid-template-columns:repeat(4,1fr)}}
+.mobile-chart-focus,.mobile-chart-focus body{height:100%;overflow:hidden}.mobile-chart-focus .topbar,.mobile-chart-focus .diagnostics,.mobile-chart-focus .toolbar>:not(.mobile-touch-actions){display:none}.mobile-chart-focus .workspace{height:100dvh;box-sizing:border-box;padding:6px;gap:6px}.mobile-chart-focus .chart-panel{order:0;flex:1;height:auto;min-height:0}.mobile-chart-focus .toolbar{order:1;display:block;flex:none;padding:5px}.mobile-chart-focus .mobile-touch-actions{display:flex;justify-content:center}.mobile-chart-focus .mobile-touch-actions button{flex:1}.mobile-chart-focus .plot{min-height:100px}
+
+/* La WebView deve usare dimensioni proprie, senza minimi e specificità desktop. */
+html[data-platform=android],html[data-platform=android] body.aypi-operations {
+    width:100%;max-width:100%;min-width:0;height:auto;min-height:100%;
+    overflow-x:hidden;overflow-y:auto;
+}
+html[data-platform=android] body.aypi-operations .topbar {
+    width:100%;max-width:100%;min-width:0;padding:10px 12px;
+}
+html[data-platform=android] .topbar-actions {
+    min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr) 44px 44px;
+}
+html[data-platform=android] .module-state {grid-row:1;grid-column:1/-1;min-width:0;overflow-wrap:anywhere}
+html[data-platform=android] #open-programs {grid-row:2;grid-column:1;min-width:0}
+html[data-platform=android] #refresh-view {grid-row:2;grid-column:2;min-width:0;padding:8px}
+html[data-platform=android] #open-options {grid-row:2;grid-column:3;min-width:0;padding:8px}
+html[data-platform=android] .live-channels {grid-row:3;grid-column:1/-1;min-width:0;width:100%;padding:7px 0 0}
+html[data-platform=android] .live-channel-values {min-width:0;width:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+html[data-platform=android] .live-channel {min-width:0;width:auto}
+html[data-platform=android] .live-channel strong,html[data-platform=android] .live-channel #temperature {font-size:clamp(14px,4.8vw,21px)}
+html[data-platform=android] .workspace {min-width:0;max-width:100%;flex:none}
+html[data-platform=android] .toolbar {min-width:0;grid-template-columns:repeat(2,minmax(0,1fr))}
+html[data-platform=android] .toolbar>.button {min-width:0;white-space:normal}
+html[data-platform=android] .chart-panel {display:block;height:auto;min-height:0;flex:none}
+html[data-platform=android] .plot {height:max(360px,65vh);min-height:360px;flex:none}
+html[data-platform=android] .chart-heading {min-width:0}
+html[data-platform=android] #range-label {overflow-wrap:anywhere}
+
+/* Finestre grandi e scorrevoli, anche con pagina già scorsa o grafico espanso. */
+html[data-platform=android] body.aypi-operations dialog {
+    position:fixed;inset:12px;margin:auto;padding:18px;
+    width:calc(var(--forno-viewport-width,100vw) - 24px);
+    max-width:calc(var(--forno-viewport-width,100vw) - 24px);
+    min-width:0;height:fit-content;
+    max-height:calc(var(--forno-viewport-height,100vh) - 24px);
+    overflow:auto;font-size:15px;
+}
+html[data-platform=android] body.aypi-operations :is(#options-dialog,#report,#programs-dialog.program-detail) {
+    inset:8px;margin:0;width:calc(var(--forno-viewport-width,100vw) - 16px);
+    max-width:calc(var(--forno-viewport-width,100vw) - 16px);
+    height:calc(var(--forno-viewport-height,100vh) - 16px);
+    max-height:calc(var(--forno-viewport-height,100vh) - 16px);
+}
+html[data-platform=android] dialog .dialog-heading {position:sticky;top:-18px;z-index:4;background:var(--surface);padding:10px 0}
+html[data-platform=android] dialog .dialog-heading h2 {font-size:22px}
+html[data-platform=android] dialog .settings-grid {grid-template-columns:minmax(0,1fr);gap:16px}
+html[data-platform=android] dialog label {font-size:13px;min-width:0}
+html[data-platform=android] dialog :is(input[type=number],input[type=date],input[type=datetime-local],select,textarea) {font-size:16px;min-height:44px;min-width:0;max-width:100%}
+html[data-platform=android] dialog :is(legend,.analysis-toolbar label) {font-size:14px}
+html[data-platform=android] dialog :is(.dialog-intro,.settings-note,.analysis-range,.analysis-note) {font-size:12px;line-height:1.6}
+html[data-platform=android] dialog .analysis-metrics {grid-template-columns:repeat(2,minmax(0,1fr))}
+html[data-platform=android] dialog .analysis-card {min-width:0}
+html[data-platform=android] dialog .recipe-plot {height:300px}
+
+/* Griglia con altezza fissata alla WebView, senza dipendere dallo scroll precedente. */
+html[data-platform=android].mobile-chart-focus,html[data-platform=android].mobile-chart-focus body.aypi-operations {
+    height:var(--forno-viewport-height,100vh);min-height:0;overflow:hidden;
+}
+html[data-platform=android].mobile-chart-focus .workspace {
+    display:grid;grid-template-rows:minmax(0,1fr) auto;flex:none;
+    height:var(--forno-viewport-height,100vh);min-height:0;overflow:hidden;
+}
+html[data-platform=android].mobile-chart-focus .chart-panel {
+    display:flex;flex-direction:column;grid-row:1;height:100%;min-height:0;overflow:hidden;
+}
+html[data-platform=android].mobile-chart-focus .chart-heading-range {display:none}
+html[data-platform=android].mobile-chart-focus .chart-heading {flex:none;padding:6px;gap:4px}
+html[data-platform=android].mobile-chart-focus .chart-heading #status {font-size:9px}
+html[data-platform=android].mobile-chart-focus .plot {height:0;min-height:80px;flex:1;max-height:none}
+html[data-platform=android].mobile-chart-focus .toolbar {grid-row:2;min-width:0;max-width:100%;margin:0}
+html[data-platform=android].mobile-chart-focus .chart-footer {padding:5px;font-size:9px}
+html[data-platform=android].mobile-chart-focus .chart-footer {display:none}
+
+@media(min-width:700px) and (orientation:landscape) {
+    html[data-platform=android] .topbar-actions {grid-template-columns:minmax(0,1fr) auto 44px 44px minmax(240px,1.6fr)}
+    html[data-platform=android] .module-state {grid-row:1;grid-column:1}
+    html[data-platform=android] #open-programs {grid-row:1;grid-column:2}
+    html[data-platform=android] #refresh-view {grid-row:1;grid-column:3}
+    html[data-platform=android] #open-options {grid-row:1;grid-column:4}
+    html[data-platform=android] .live-channels {grid-row:1;grid-column:5;padding:0 0 0 10px}
+    html[data-platform=android] .live-channel strong,html[data-platform=android] .live-channel #temperature {font-size:17px}
+    html[data-platform=android] .plot {height:max(300px,80vh);min-height:300px}
+    html[data-platform=android] dialog .settings-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+}

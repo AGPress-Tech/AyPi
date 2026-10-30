@@ -25,6 +25,8 @@
             </div>
         </div>
         <div class="topbar-actions">
+            <button id="open-programs" class="button secondary" type="button" aria-haspopup="dialog"
+                aria-controls="programs-dialog">Cicli forno</button>
             <div id="module-state" class="module-state" data-state="connecting" role="status">
                 <i></i><span>Connessione...</span></div>
             <div class="live-channels" role="group" aria-label="Temperature live dei quattro canali"><span
@@ -102,6 +104,31 @@
             id="note-context-open" type="button" role="menuitem">Apri messaggi</button><button id="note-context-edit"
             type="button" role="menuitem">Modifica nota</button><button id="note-context-delete" class="danger"
             type="button" role="menuitem">Elimina nota</button></div>
+    <dialog id="programs-dialog" class="compact-dialog" aria-labelledby="programs-title">
+        <div class="dialog-heading">
+            <div><span class="eyebrow">NANODAC</span><h2 id="programs-title">Cicli forno</h2></div>
+            <button type="button" class="icon-close" data-close="programs-dialog" aria-label="Chiudi">×</button>
+        </div>
+        <div id="programs-menu">
+            <p class="dialog-intro">Che cosa vuoi fare?</p>
+            <button id="list-programs" class="button secondary programs-action" type="button">Visualizza cicli memorizzati</button>
+        </div>
+        <div id="programs-results" hidden>
+            <p id="programs-status" class="settings-note" role="status"></p>
+            <p id="programs-error" class="form-error" role="alert" hidden></p>
+            <ol id="programs-list" class="stored-programs" aria-label="Cicli memorizzati nel nanodac"></ol>
+            <p id="programs-read-time" class="settings-note"></p>
+        </div>
+        <div id="programs-detail" hidden>
+            <p id="recipe-name" class="recipe-name"></p>
+            <div id="recipe-content" aria-live="polite"></div>
+        </div>
+        <div class="dialog-actions">
+            <button id="programs-back" type="button" class="button secondary" hidden>Indietro</button>
+            <button id="programs-refresh" type="button" class="button secondary" hidden>Aggiorna elenco</button>
+            <button type="button" class="button secondary" data-close="programs-dialog">Chiudi</button>
+        </div>
+    </dialog>
     <dialog id="note-editor" class="compact-dialog">
         <form id="note-form">
             <div class="dialog-heading">

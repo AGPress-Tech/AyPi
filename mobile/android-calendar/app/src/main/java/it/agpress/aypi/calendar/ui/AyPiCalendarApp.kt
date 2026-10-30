@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -105,7 +106,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 private enum class MainPage { CALENDAR, PENDING, ANALYSIS, ADMIN }
-private enum class AppModule { CALENDAR, PURCHASING, TICKETS, PLANNER }
+private enum class AppModule { CALENDAR, PURCHASING, TICKETS, PLANNER, FORNO }
 
 @Composable
 fun AyPiCalendarApp(
@@ -151,6 +152,8 @@ fun AyPiCalendarApp(
                 modulesState,
                 modulesViewModel,
             ) { selectedModule = null }
+        selectedModule == AppModule.FORNO ->
+            FornoScreen(requireNotNull(state.session)) { selectedModule = null }
         else ->
             PlannerScreen(
                 requireNotNull(state.session),
@@ -234,6 +237,14 @@ private fun ModuleHome(
                     Icons.Default.Build,
                     permissions?.productionPlanner != false,
                 ) { onOpen(AppModule.PLANNER) }
+            }
+            item {
+                ModuleCard(
+                    "Scada Forno",
+                    "Temperature live, storico e cicli nanodac",
+                    Icons.Default.LocalFireDepartment,
+                    true,
+                ) { onOpen(AppModule.FORNO) }
             }
         }
     }

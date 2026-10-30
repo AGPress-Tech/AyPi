@@ -14,6 +14,21 @@ app.disableHardwareAcceleration();
 let folder;
 app.whenReady().then(async()=>{
     ipcMain.handle('forno-live-start',()=>({started:true}));
+    let programRequests=0, programMode='success';
+    ipcMain.handle('forno-programs-list',async()=>{
+        programRequests++;
+        if(programMode==='error') throw new Error('Nanodac non raggiungibile');
+        if(programMode==='delayed') await new Promise(resolve=>setTimeout(resolve,200));
+        if(programMode==='running')return {programs:['Ciclo_2_375_8h30m'],scope:'current',mode:2,readAtMs:Date.now()};
+        return {programs:programMode==='empty'?[]:['Ciclo_1_530_8h','Ciclo_2_375_8h30m','<b>Test</b>'],readAtMs:Date.now()};
+    });
+    const previewRequests=[];
+    const phase=(number,type,extra={})=>({number,name:String(number),type,durationSeconds:0,targets:[200],rampSeconds:[3600],rates:[0.1],endType:1,holdback:[0],goBackTo:1,cycles:1,...extra});
+    ipcMain.handle('forno-program-preview',(_event,input)=>{
+        previewRequests.push(input);
+        if(input.name==='Ciclo_1_530_8h'&&!input.allowTemporaryLoad)return {needsTemporaryLoad:true,currentProgram:'Ciclo_2_375_8h30m'};
+        return {name:input.name,readAtMs:Date.now(),channels:1,rampStyle:0,rampUnits:[0],servoTo:[0],holdback:[],segments:[phase(1,1),phase(2,2,{durationSeconds:3600}),phase(3,1,{targets:[375]}),phase(4,2,{durationSeconds:14400}),phase(5,0)]};
+    });
     folder=fs.mkdtempSync(path.join(os.tmpdir(),'aypi-forno-ui-'));
     for(const name of ['pages','styles','scripts','styles/utilities']) fs.mkdirSync(path.join(folder,name));
     fs.writeFileSync(path.join(folder,'pages/forno.html'),fs.readFileSync('src/renderer/pages/forno.html','utf8').replace('<body>',`<body><script>window.addEventListener('error',e=>console.error(e.error?.stack||e.message));</script>`));
@@ -22,7 +37,7 @@ app.whenReady().then(async()=>{
     for(const name of ['aypi-module-brand.css','aypi-operations-ui.css']) fs.copyFileSync('src/renderer/styles/utilities/'+name,path.join(folder,'styles/utilities',name));
     require('esbuild').buildSync({entryPoints:['src/renderer/scripts/forno-scripts.ts'],outfile:path.join(folder,'scripts/forno-scripts.js'),bundle:true,format:'cjs',platform:'node',external:['electron','chart.js/auto'],target:'es2020'});
     const scriptPath=path.join(folder,'scripts/forno-scripts.js');
-    fs.writeFileSync(scriptPath,fs.readFileSync(scriptPath,'utf8').replace('require("chart.js/auto")',`require(${JSON.stringify(require.resolve('chart.js/auto'))})`));
+    fs.writeFileSync(scriptPath,fs.readFileSync(scriptPath,'utf8').replaceAll('require("chart.js/auto")',`require(${JSON.stringify(require.resolve('chart.js/auto'))})`));
     const settingsStore=require('../dist-ts/modules/forno/preferences-store');
     const settingsFile=path.join(folder,'user-data','forno','view-settings.json');
     ipcMain.handle('forno-view-settings-load',()=>settingsStore.readViewSettings(settingsFile));
@@ -31,7 +46,8 @@ app.whenReady().then(async()=>{
     const analysisRequests=[];
     const sampleRequests=[];
     const messageRequests=[],noteSaves=[];let notes=[],testEvents=[];
-    ipcMain.handle('forno-messages',(_event,p)=>{messageRequests.push(p);return {notes:p.showNotes?notes.filter(n=>n.timestampMs>=p.fromMs&&n.timestampMs<=p.toMs):[],events:testEvents.filter(e=>p.eventTypes.includes(e.type)&&e.timestampMs>=p.fromMs&&e.timestampMs<=p.toMs),truncated:false};});
+    const validRange=p=>{assert(Number.isSafeInteger(p.fromMs)&&Number.isSafeInteger(p.toMs)&&p.fromMs>=0&&p.toMs>=p.fromMs&&p.toMs-p.fromMs<=366*86400000,JSON.stringify(p));};
+    ipcMain.handle('forno-messages',(_event,p)=>{validRange(p);messageRequests.push(p);return {notes:p.showNotes?notes.filter(n=>n.timestampMs>=p.fromMs&&n.timestampMs<=p.toMs):[],events:testEvents.filter(e=>p.eventTypes.includes(e.type)&&e.timestampMs>=p.fromMs&&e.timestampMs<=p.toMs),truncated:false};});
     ipcMain.handle('forno-note-save',(_event,p)=>{
         noteSaves.push(p);const previous=notes.find(n=>n.id===p.id);
         if(p.id&&(!previous||previous.revision!==p.revision))throw new Error('Nota modificata da un’altra postazione');
@@ -46,6 +62,7 @@ app.whenReady().then(async()=>{
     const stalled = process.env.AYPI_FORNO_TEST_STALL === '1';
     ipcMain.handle('forno-status',()=>stalled?new Promise(()=>{}):({enabled:!disabled,running:!disabled,error:disabled?'Modulo forno disabilitato':'',intervalMs:500,serverTimeMs:Date.now(),channels:[418,420,425,null].map((temperature,i)=>({id:i+1,name:'Canale '+(i+1),timestampMs:Date.now(),temperature,quality:i===3?'off':'good'})),lastSample:{timestampMs:Date.now(),temperature:418,quality:'good'},dbPath:'D:\\Forno\\forno.db',databaseBytes:4096,walBytes:8192}));
     ipcMain.handle('forno-history',(_e,p)=>{
+        validRange(p);
         requests.push(p);
         const buckets=[];
         const count=process.env.AYPI_FORNO_TEST_DENSE==='1'||p.maxPoints===3000?3000:20;
@@ -80,6 +97,50 @@ app.whenReady().then(async()=>{
         assert.equal(requests.length,0);console.log('OK: modulo disabilitato visibile, nessun caricamento infinito o richiesta storico inutile');win.destroy();app.exit(0);return;
     }
     const diagnostics=await win.webContents.executeJavaScript("document.getElementById('collector-status').textContent");
+    assert.equal(programRequests,0);
+    await win.webContents.executeJavaScript("document.getElementById('open-programs').click()");
+    assert(await win.webContents.executeJavaScript("document.getElementById('programs-dialog').open&&!document.getElementById('programs-menu').hidden"));
+    assert.equal(programRequests,0);
+    await win.webContents.executeJavaScript("document.getElementById('list-programs').click()");
+    await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(programRequests,1);
+    assert.deepEqual(await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#programs-list .stored-program-name'),li=>li.textContent)"),['Ciclo_1_530_8h','Ciclo_2_375_8h30m','<b>Test</b>']);
+    assert(await win.webContents.executeJavaScript("!document.querySelector('#programs-list b')&&document.getElementById('programs-read-time').textContent.includes('Ultima lettura')"));
+    fs.writeFileSync(path.join(folder,'forno-programs.png'),(await win.webContents.capturePage()).toPNG());
+    await win.webContents.executeJavaScript("document.querySelectorAll('.stored-program-button')[1].click()");await new Promise(resolve=>setTimeout(resolve,150));
+    assert.equal(previewRequests.length,1);assert.equal(previewRequests[0].allowTemporaryLoad,false);
+    assert(await win.webContents.executeJavaScript("document.getElementById('programs-dialog').classList.contains('program-detail')&&document.querySelector('.recipe-duration strong').textContent==='7 h'&&document.querySelectorAll('.recipe-phase').length===4"));
+    await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-phase')[3].click()");
+    assert(await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-phase')[3].getAttribute('aria-pressed')==='true'"));
+    fs.writeFileSync(path.join(folder,'forno-recipe.png'),(await win.webContents.capturePage()).toPNG());
+    for(const width of [900,1200]){
+        win.setSize(width,850);await new Promise(resolve=>setTimeout(resolve,100));
+        assert(await win.webContents.executeJavaScript("(()=>{const d=document.getElementById('programs-dialog');return d.scrollWidth<=d.clientWidth&&document.querySelector('.recipe-plot canvas').getBoundingClientRect().width>200})()"));
+    }
+    await win.webContents.executeJavaScript("document.querySelector('.recipe-start input').value='30';document.querySelector('.recipe-start input').dispatchEvent(new Event('change'))");assert.equal(previewRequests.length,1);
+    await win.webContents.executeJavaScript("document.getElementById('programs-back').click();document.querySelectorAll('.stored-program-button')[0].click()");await new Promise(resolve=>setTimeout(resolve,100));
+    assert(await win.webContents.executeJavaScript("!!document.querySelector('.recipe-read-confirm')"));assert.equal(previewRequests.length,2);
+    await win.webContents.executeJavaScript("document.querySelector('.recipe-read-confirm button').click()");await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(previewRequests[2].allowTemporaryLoad,true);
+    await win.webContents.executeJavaScript("document.getElementById('programs-back').click()");
+    programMode='running';
+    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click()");await new Promise(resolve=>setTimeout(resolve,100));
+    assert(await win.webContents.executeJavaScript("document.getElementById('programs-title').textContent==='Ciclo in lavorazione'&&document.getElementById('programs-status').textContent.includes('Reset')&&document.querySelectorAll('.stored-program-button').length===1"));
+    await win.webContents.executeJavaScript("document.querySelector('.stored-program-button').click()");await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(previewRequests.at(-1).allowTemporaryLoad,false);
+    assert(await win.webContents.executeJavaScript("!!document.querySelector('.recipe-plot canvas')&&!document.querySelector('.recipe-read-confirm')"));
+    await win.webContents.executeJavaScript("document.getElementById('programs-back').click()");
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('programs-title').textContent"),'Ciclo in lavorazione');
+    programMode='error';
+    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click()"); await new Promise(resolve=>setTimeout(resolve,100));
+    assert(await win.webContents.executeJavaScript("!document.getElementById('programs-error').hidden&&document.getElementById('programs-error').textContent.includes('non raggiungibile')&&document.getElementById('programs-list').children.length===0&&!document.getElementById('programs-refresh').disabled"));
+    programMode='empty';
+    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click()"); await new Promise(resolve=>setTimeout(resolve,100));
+    assert(await win.webContents.executeJavaScript("document.getElementById('programs-status').textContent.includes('Nessun ciclo')&&document.getElementById('programs-error').hidden"));
+    programMode='delayed';
+    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click();document.getElementById('programs-back').click()"); await new Promise(resolve=>setTimeout(resolve,300));
+    assert(await win.webContents.executeJavaScript("!document.getElementById('programs-menu').hidden&&document.getElementById('programs-results').hidden"));
+    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
     assert(diagnostics.includes('Ultimo tentativo salvato'),diagnostics);
     assert(diagnostics.includes('Database: D:'),diagnostics);
     assert.equal(await win.webContents.executeJavaScript("document.getElementById('temperature').textContent"),'418.0 °C');
@@ -306,6 +367,14 @@ app.whenReady().then(async()=>{
     await win.webContents.executeJavaScript("document.getElementById('live').checked=false;document.getElementById('live').dispatchEvent(new Event('change'))");await new Promise(r=>setTimeout(r,120));
     win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:7,values:[6010,6110,6210,null],resync:false});await new Promise(r=>setTimeout(r,100));
     assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-2').textContent"),'611.0 °C');
+    // Intervallo massimo e pan: gli estremi della vista diventano frazionari,
+    // ma messaggi e storico devono restare entro 366 giorni dopo gli arrotondamenti.
+    const previousMessages=messageRequests.length;
+    await win.webContents.executeJavaScript("document.getElementById('select-range').click();document.getElementById('range-start').value='2025-10-29T12:00:00';document.getElementById('range-end').value='2026-10-30T12:00:00';document.getElementById('range-form').requestSubmit()");await new Promise(r=>setTimeout(r,180));
+    win.webContents.sendInputEvent({type:'mouseDown',x:600,y:450,button:'left',clickCount:1});
+    win.webContents.sendInputEvent({type:'mouseMove',x:617,y:450,modifiers:['leftButtonDown']});
+    win.webContents.sendInputEvent({type:'mouseUp',x:617,y:450,button:'left',clickCount:1});await new Promise(r=>setTimeout(r,250));
+    assert(messageRequests.length>previousMessages);for(const p of [...requests,...messageRequests])validRange(p);
     for(const width of [900,1200,1920]){
         win.setSize(width,850);await new Promise(r=>setTimeout(r,120));
         const layout=await win.webContents.executeJavaScript("(()=>{const h=document.querySelector('.chart-heading').getBoundingClientRect(),c=document.getElementById('channel-controls').getBoundingClientRect(),b=document.getElementById('open-options').getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,button:b.right,controls:c.right,heading:h.right}})()");

@@ -51,6 +51,12 @@ export function setupFornoReader() {
         void fornoWindow.loadFile(path.join(__dirname, '..', 'pages', 'forno.html'), { query: { standalone: '1',theme } });
     });
     ipcMain.handle('forno-status', () => requestAypiBackend('/api/forno/status', { timeoutMs: 18000 }));
+    ipcMain.handle('forno-programs-list', () => requestAypiBackend('/api/forno/programs/list', { method: 'POST', timeoutMs: 18000 }));
+    ipcMain.handle('forno-program-preview', (_event, input: { name: string; allowTemporaryLoad?: boolean; expectedCurrentProgram?: string }) => {
+        if (typeof input?.name !== 'string' || !input.name || input.name.length > 20 || /[\x00-\x1f\x7f/\\]/.test(input.name) || (input.allowTemporaryLoad !== undefined && typeof input.allowTemporaryLoad !== 'boolean')) throw new Error('Richiesta ciclo non valida.');
+        if (input.expectedCurrentProgram !== undefined && (typeof input.expectedCurrentProgram !== 'string' || input.expectedCurrentProgram.length > 20)) throw new Error('Programma iniziale non valido.');
+        return requestAypiBackend('/api/forno/programs/preview', { method: 'POST', body: { name: input.name, allowTemporaryLoad: input.allowTemporaryLoad === true, expectedCurrentProgram: input.expectedCurrentProgram }, timeoutMs: 55000 });
+    });
     ipcMain.handle('forno-messages',(_event,input:any)=>{
         if(!Number.isSafeInteger(input?.fromMs)||!Number.isSafeInteger(input?.toMs)||!Array.isArray(input?.eventTypes))throw new Error('Intervallo messaggi non valido');
         const query=new URLSearchParams({fromMs:String(input.fromMs),toMs:String(input.toMs),showNotes:input.showNotes?'1':'0',eventTypes:input.eventTypes.join(',')});
