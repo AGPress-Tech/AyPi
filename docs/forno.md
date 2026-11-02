@@ -230,6 +230,18 @@ screenshot del wiring iTools fornito dall'operatore identifica le uscite:
 E1 / 3A3B = **Uscita saracinesca**; E2 / RELAY_4AC = **Marcia aspiratore**;
 E3 / RELAY_5AC = **Marcia scambiatore**. Questi nomi sono mostrati nell'editor,
 nella controverifica, nell'archivio e nella lettura dei programmi.
+Nelle opzioni degli eventi storici il gruppo Uscite evento contiene anche tre
+filtri separati per E1/E2/E3. Selezionare uno dei tre attiva il gruppo; i canali
+sono filtrati localmente e la selezione viene salvata nelle preferenze della
+postazione. Al backend viene ancora richiesto il solo tipo `digital_event`.
+I messaggi storici nel formato del collector vengono visualizzati con i nomi
+degli attuatori e ON/OFF; i record non riconosciuti restano consultabili sotto
+il gruppo generico. Non occorre aggiornare il backend e i record originali
+non vengono riscritti.
+Nelle schede delle fasi la sintesi mostra gli eventi ON e i passaggi ON → OFF
+rispetto al segmento precedente memorizzato; gli OFF invariati sono omessi.
+Se la sintesi è vuota non viene aggiunta una riga. Gli stati completi restano
+disponibili nella tabella ausiliaria e nell'editor, compresi gli stati di Reset.
 Le etichette non sono feedback della posizione o marcia effettiva. L'operatore
 ha successivamente confermato che E1 ON comanda l'apertura della saracinesca:
 l'app lo identifica come Apertura saracinesca. OFF disattiva il comando di

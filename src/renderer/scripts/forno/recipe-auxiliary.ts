@@ -3,10 +3,15 @@ import type { ProgramRecipe, RecipeSegment } from './recipe-profile';
 
 export function segmentEventSummary(recipe: ProgramRecipe, segment: RecipeSegment) {
     if (!Number.isInteger(recipe.maxEvents) || !segment.events) return 'Eventi ausiliari non disponibili: aggiornare il backend.';
-    if (!recipe.maxEvents) return 'Nessun evento ausiliario configurato';
+    if (!recipe.maxEvents) return '';
     const states = segment.type === 0 && segment.endType === 1 ? recipe.resetEvents : segment.events;
     if (!states || states.length < recipe.maxEvents) return 'Stati eventi non disponibili';
-    return Array.from({ length: recipe.maxEvents }, (_, i) => `${eventLabel(i)} ${states[i] ? 'ON' : 'OFF'}`).join(' · ');
+    const index = recipe.segments.findIndex(s => s.number === segment.number);
+    const previous = index > 0 ? recipe.segments[index - 1] : undefined;
+    const previousStates = previous?.type === 0 && previous.endType === 1 ? recipe.resetEvents : previous?.events;
+    return Array.from({ length: recipe.maxEvents }, (_, i) => states[i]
+        ? `${eventLabel(i)} ON`
+        : previousStates?.[i] ? `${eventLabel(i)} ON → OFF` : '').filter(Boolean).join(' · ');
 }
 
 /** Tutti i segmenti memorizzati, anche End, Wait e GoBack esclusi dal grafico termico. */

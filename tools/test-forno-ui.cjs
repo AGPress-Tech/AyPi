@@ -127,7 +127,7 @@ app.whenReady().then(async()=>{
     await win.webContents.executeJavaScript("document.querySelectorAll('.stored-program-button')[1].click()");await new Promise(resolve=>setTimeout(resolve,150));
     assert.equal(previewRequests.length,1);assert.equal(previewRequests[0].allowTemporaryLoad,false);
     assert(await win.webContents.executeJavaScript("document.getElementById('programs-dialog').classList.contains('program-detail')&&document.querySelector('.recipe-duration strong').textContent==='7 h'&&document.querySelectorAll('.recipe-phase').length===4"));
-    assert(await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-events-table thead th').length===6&&document.querySelectorAll('.recipe-events-table tbody tr').length===6&&document.querySelector('.recipe-events-table tr[data-segment=\"4\"]').querySelectorAll('[data-state=on]').length===3&&document.querySelector('.recipe-events-table tr[data-segment=\"5\"]').querySelectorAll('[data-state=off]').length===3&&document.querySelectorAll('.recipe-phase-events')[3].textContent==='E1 · Apertura saracinesca ON · E2 · Aspiratore ON · E3 · Scambiatore ON'"));
+    assert(await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-events-table thead th').length===6&&document.querySelectorAll('.recipe-events-table tbody tr').length===6&&document.querySelector('.recipe-events-table tr[data-segment=\"4\"]').querySelectorAll('[data-state=on]').length===3&&document.querySelector('.recipe-events-table tr[data-segment=\"5\"]').querySelectorAll('[data-state=off]').length===3&&document.querySelectorAll('.recipe-phase')[3].querySelector('.recipe-phase-events').textContent==='E1 · Apertura saracinesca ON · E2 · Aspiratore ON · E3 · Scambiatore ON'"));
     await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-phase')[3].click()");
     assert(await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-phase')[3].getAttribute('aria-pressed')==='true'"));
     fs.writeFileSync(path.join(folder,'forno-recipe.png'),(await win.webContents.capturePage()).toPNG());
@@ -401,6 +401,12 @@ app.whenReady().then(async()=>{
     assert.deepEqual(messageRequests.at(-1).eventTypes,['program_run']);
     await win.webContents.executeJavaScript("document.querySelector('.message-marker.event').click()");assert((await win.webContents.executeJavaScript("document.getElementById('annotation-popup').textContent")).includes('Ciclo prova: Run'));
     const notePrefs=JSON.parse(fs.readFileSync(settingsFile,'utf8'));assert.equal(notePrefs.showNotes,false);assert.equal(notePrefs.showEvents,true);assert.deepEqual(notePrefs.eventTypes,['program_run']);
+    testEvents.push(...[1,2,3].map(n=>({id:'output'+n,timestampMs:sharedTime,type:'digital_event',message:'Ciclo prova: Uscita evento '+n+' attiva',detail:{}})));
+    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('events-none').click();document.querySelector('[data-event-channel=\"2\"]').click();document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,170));
+    assert.deepEqual(messageRequests.at(-1).eventTypes,['digital_event'],'Le sotto-selezioni non devono inviare tipi nuovi al backend');
+    await win.webContents.executeJavaScript("document.querySelector('.message-marker.event').click()");
+    const outputPopup=await win.webContents.executeJavaScript("document.getElementById('annotation-popup').textContent");assert(outputPopup.includes('Marcia aspiratore'));assert(!outputPopup.includes('saracinesca'));assert(!outputPopup.includes('scambiatore'));
+    assert.deepEqual(JSON.parse(fs.readFileSync(settingsFile,'utf8')).eventOutputChannels.filter(n=>n<=3),[2]);
     await win.webContents.executeJavaScript("document.querySelector('.annotation-popup-heading button').click();document.getElementById('open-options').click();document.getElementById('opt-notes').checked=true;document.getElementById('opt-events').checked=false;document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,170));
     win.webContents.sendInputEvent({type:'mouseDown',x:Math.round(near.x),y:Math.round(near.y),button:'left',clickCount:1});
     win.webContents.sendInputEvent({type:'mouseUp',x:Math.round(near.x),y:Math.round(near.y),button:'left',clickCount:1});

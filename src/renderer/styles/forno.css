@@ -108,6 +108,7 @@ dialog.compact-dialog.program-detail.program-editor-dialog[open]{width:calc(100v
 #programs-editor>.program-editor-notice{flex-shrink:0;margin:0 0 4px;padding:7px 10px;font-size:10px}
 #programs-editor>.program-editor-toolbar{flex-shrink:0;margin:3px 0 7px;gap:5px}
 #programs-editor>.program-editor-toolbar .button{font-size:10px;padding:6px 8px;min-height:30px}
+#programs-editor>.program-editor-toolbar .button.primary:not(:disabled):is(:hover,:focus,:active){background:var(--ink);border-color:var(--ink);color:var(--surface)}
 #programs-editor>.settings-note,#programs-editor>.form-error{margin:1px 0;flex-shrink:0;font-size:10px;min-height:0;max-height:34px;overflow:auto}
 .program-editor-workspace{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:16px;flex:1;min-height:0}
 .program-editor-graph-pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow-y:auto;padding-right:2px;gap:5px}
@@ -153,6 +154,7 @@ dialog.compact-dialog.program-detail.program-editor-dialog[open]{width:calc(100v
 #programs-editor .program-editor-time{min-width:0;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
 .program-event-toggle{display:inline-flex;align-items:center;justify-content:center;width:29px;height:26px;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--muted);font:700 14px Segoe UI,sans-serif;cursor:pointer}
 .program-event-toggle svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+#programs-editor .phase-event .program-event-toggle{margin-top:auto;flex-shrink:0}
 .program-event-toggle[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.program-event-toggle:disabled{opacity:.5;cursor:not-allowed}
 .phase-specific{display:flex;flex-wrap:wrap;gap:8px;padding-top:7px;border-top:1px solid var(--line)}.phase-specific label{display:flex;flex-direction:column;font-size:10px;gap:4px;flex:1;min-width:90px}.phase-specific small{flex-basis:100%;font-size:9px;color:var(--muted);line-height:1.5}
 #programs-editor .program-editor-paste{flex-shrink:0;margin:7px 0 0;padding:8px;font-size:10px;max-height:210px;overflow:auto}

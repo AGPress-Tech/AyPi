@@ -51,3 +51,22 @@ test('giorno selezionato: mezzanotte locale, fine esatta e date invalide',()=>{
  assert.throws(()=>dayRange('2026-02-30'));assert.throws(()=>dayRange('invalid'));
  for(const date of ['2026-03-29','2026-10-25']){const r=dayRange(date);const d=new Date(r.start);const next=new Date(d);next.setDate(next.getDate()+1);assert.equal(r.end+1,next.getTime());}
 });
+
+
+test('filtri uscite: preferenze precedenti conservano tutti i canali, selezioni distinte e normalizzazione',()=>{
+ assert.deepEqual(normalizeViewSettings({eventTypes:['digital_event']}).eventOutputChannels,[1,2,3,4,5,6,7,8]);
+ assert.deepEqual(normalizeViewSettings({eventOutputChannels:[3,1,3]}).eventOutputChannels,[3,1]);
+ assert.deepEqual(normalizeViewSettings({eventOutputChannels:[]}).eventOutputChannels,[]);
+ assert.deepEqual(normalizeViewSettings({eventOutputChannels:[0,9]}).eventOutputChannels,[1,2,3,4,5,6,7,8]);
+ const a=normalizeViewSettings({});a.eventOutputChannels.pop();assert.equal(DEFAULT_VIEW_SETTINGS.eventOutputChannels.length,8);
+});
+
+test('messaggi storici: filtri E1/E2/E3 senza cambiare i tipi richiesti al backend',()=>{
+ const source=require('esbuild').buildSync({entryPoints:['src/renderer/scripts/forno/annotations.ts'],bundle:true,platform:'node',format:'cjs',write:false}).outputFiles[0].text;
+ const m={exports:{}};new Function('module','exports','require',source)(m,m.exports,require);const {visibleOutput,outputMessage}=m.exports;
+ const event={type:'digital_event',message:'Ciclo 1: Uscita evento 1 attiva'};
+ assert(visibleOutput(event,[1]));assert(!visibleOutput(event,[2,3]));assert(outputMessage(event).includes('Apertura saracinesca'));assert(outputMessage(event).endsWith('ON'));
+ assert(outputMessage({...event,message:'Ciclo 1: Uscita evento 2 disattiva'}).includes('Marcia aspiratore'));assert(outputMessage({...event,message:'Ciclo 1: Uscita evento 2 disattiva'}).endsWith('OFF'));
+ assert(outputMessage({...event,message:'Ciclo 1: Uscita evento 3 attiva'}).includes('Marcia scambiatore'));
+ assert(visibleOutput({type:'program_run',message:'Run'},[]));assert(visibleOutput({...event,message:'Formato non riconosciuto'},[]));
+});

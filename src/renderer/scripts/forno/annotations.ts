@@ -1,9 +1,16 @@
+import { eventDescription } from './event-labels';
 import type Chart from 'chart.js/auto';
 import { randomUUID } from 'crypto';
 import { boundedQueryRange } from './query-range';
 import { EVENT_LABELS,type FornoViewSettings } from '../../../main/modules/forno/preferences';
 
 export type OvenNote={id:string;timestampMs:number;text:string;author:string;createdAt:number;updatedAt:number;editedBy:string;revision:number};
+export function outputChannel(event: { type: string; message: string }) {
+    return event.type === 'digital_event' ? Number(event.message.match(/: Uscita evento ([1-8]) (?:attiva|disattiva)$/)?.[1]) || null : null;
+}
+export function visibleOutput(event: { type: string; message: string }, channels: number[]) { const channel = outputChannel(event); return channel === null || channels.includes(channel); }
+export function outputMessage(event: { type: string; message: string }) { const channel = outputChannel(event); return channel === null ? event.message : event.message.replace(/Uscita evento [1-8] (attiva|disattiva)$/, (_, state) => eventDescription(channel - 1) + ': ' + (state === 'attiva' ? 'ON' : 'OFF')); }
+
 export type OvenEvent={id:string;timestampMs:number;type:string;message:string;detail:any};
 type Messages={notes:OvenNote[];events:OvenEvent[];truncated:boolean;revision?:number;unchanged?:boolean};
 type Group={kind:'note'|'event';items:(OvenNote|OvenEvent)[];x:number;key:string};
@@ -51,7 +58,7 @@ export function setupAnnotations(chart:Chart<'line'>,options:{
                 entry.append(node('p','annotation-text',note.text),node('small','',note.author+(note.revision>1?' · modificata da '+note.editedBy:'')));
                 entry.addEventListener('contextmenu',event=>showMenu(event,group,note));
             }else {
-                const event=item as OvenEvent;entry.append(node('strong','annotation-event-kind',EVENT_LABELS[event.type]||event.type),node('p','annotation-text',event.message),node('small','','Rilevato dal backend'));
+                const event=item as OvenEvent;entry.append(node('strong','annotation-event-kind',EVENT_LABELS[event.type]||event.type),node('p','annotation-text',outputMessage(event)),node('small','','Rilevato dal backend'));
             }
             list.append(entry);
         }
@@ -65,7 +72,7 @@ export function setupAnnotations(chart:Chart<'line'>,options:{
     function draw() {
         if(disposed||!chart.scales.x)return;
         const settings=options.settings(),axis=chart.scales.x,a=chart.chartArea;
-        const key=[revision,axis.min,axis.max,a.left,a.right,a.top,a.bottom,settings.showNotes,settings.showEvents,settings.eventTypes.join(',')].join('|');
+        const key=[revision,axis.min,axis.max,a.left,a.right,a.top,a.bottom,settings.showNotes,settings.showEvents,settings.eventTypes.join(',') + '/' + settings.eventOutputChannels.join(',')].join('|');
         if(key===layoutKey)return;layoutKey=key;
         const groups=new Map<string,Group>();
         const add=(kind:'note'|'event',item:OvenNote|OvenEvent)=>{
@@ -74,7 +81,7 @@ export function setupAnnotations(chart:Chart<'line'>,options:{
             if(!groups.has(id))groups.set(id,{kind,items:[],x,key:''});groups.get(id)!.items.push(item);
         };
         if(settings.showNotes)for(const note of data.notes)add('note',note);
-        if(settings.showEvents)for(const event of data.events)if(settings.eventTypes.includes(event.type))add('event',event);
+        if(settings.showEvents)for(const event of data.events)if(settings.eventTypes.includes(event.type)&&visibleOutput(event,settings.eventOutputChannels))add('event',event);
         const seen=new Set<string>();let activeGroup:Group|null=null;
         for(const group of groups.values()) {
             group.key=group.kind+':'+group.items.map(i=>i.id).join(',');
@@ -97,7 +104,7 @@ export function setupAnnotations(chart:Chart<'line'>,options:{
     }
     async function refresh(force=false) {
         if(disposed)return;
-        const settings=options.settings(),range=options.range(),filter=[settings.showNotes,settings.showEvents,settings.eventTypes.join(',')].join('|');
+        const settings=options.settings(),range=options.range(),filter=[settings.showNotes,settings.showEvents,settings.eventTypes.join(',') + '/' + settings.eventOutputChannels.join(',')].join('|');
         const visibleStart=Math.ceil(range.start),visibleEnd=Math.floor(range.end);
         draw();
         if(!settings.showNotes&&!settings.showEvents){data={notes:[],events:[],truncated:false};revision++;draw();return;}

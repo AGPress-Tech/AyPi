@@ -1,5 +1,5 @@
 ﻿/** Preferenze locali del grafico: nessuna impostazione modifica il collector. */
-export const EVENT_LABELS={collector_started:'Avvio raccolta eventi',state_snapshot:'Stato iniziale / ripristino',program_run:'Avvio ciclo (Run)',program_hold:'Pausa (Hold)',program_resume:'Ripresa (Resume)',program_reset:'Reset ciclo',program_complete:'Fine ciclo',segment_start:'Inizio segmento',segment_end:'Uscita segmento',holdback:'Holdback',waiting:'Attesa',pv_event:'Eventi PV',digital_event:'Uscite evento',config_revision:'Revisione configurazione',communication_lost:'Interruzione lettura eventi',communication_restored:'Ripristino lettura eventi'};
+export const EVENT_LABELS={collector_started:'Avvio raccolta eventi',state_snapshot:'Stato iniziale / ripristino',program_run:'Avvio ciclo (Run)',program_hold:'Pausa (Hold)',program_resume:'Ripresa (Resume)',program_reset:'Reset ciclo',program_complete:'Fine ciclo',segment_start:'Inizio segmento',segment_end:'Uscita segmento',holdback:'Holdback',waiting:'Attesa',pv_event:'Eventi PV',digital_event:'Uscite evento (E1?E3)',config_revision:'Revisione configurazione',communication_lost:'Interruzione lettura eventi',communication_restored:'Ripristino lettura eventi'};
 export type FornoViewSettings = {
     version: 1;
     theme: 'classic' | 'blue' | 'dark';
@@ -9,7 +9,7 @@ export type FornoViewSettings = {
     analysisWindowSeconds:number;
     continuousTooltip:boolean;
     continuousTooltipOpacity:number;
-    showNotes:boolean;showEvents:boolean;eventTypes:string[];
+    showNotes:boolean;showEvents:boolean;eventTypes:string[];eventOutputChannels:number[];
     xDivisions: number; yDivisions: number;
     xLabelEvery: number; yLabelEvery: number;
     temperatureDecimals: number;
@@ -27,13 +27,14 @@ export const DEFAULT_VIEW_SETTINGS: FornoViewSettings = {
     visibleChannels: [1, 2, 3, 4],
     yMin:0,yMax:1000,yFixedStep:false,yDegreeStep:10,ySubdivisions:5,analysisWindowSeconds:60,
     continuousTooltip:false,continuousTooltipOpacity:100,
-    showNotes:true,showEvents:false,eventTypes:Object.keys(EVENT_LABELS),
+    showNotes:true,showEvents:false,eventTypes:Object.keys(EVENT_LABELS),eventOutputChannels:[1,2,3,4,5,6,7,8],
 };
 export const RESOLUTIONS = [500, 1000, 2000, 5000, 10000, 30000, 60000, 300000, 3600000];
 export const PERIODS = [60000, 600000, 3600000, 86400000, 604800000, 2592000000];
 export function normalizeViewSettings(input: unknown): FornoViewSettings {
     const value: any = input && typeof input === 'object' ? input : {};
-    const result = { ...DEFAULT_VIEW_SETTINGS, visibleChannels: [...DEFAULT_VIEW_SETTINGS.visibleChannels],eventTypes:[...DEFAULT_VIEW_SETTINGS.eventTypes] };
+    const result = { ...DEFAULT_VIEW_SETTINGS, visibleChannels: [...DEFAULT_VIEW_SETTINGS.visibleChannels],eventTypes:[...DEFAULT_VIEW_SETTINGS.eventTypes],eventOutputChannels:[...DEFAULT_VIEW_SETTINGS.eventOutputChannels] };
+    if(Array.isArray(value.eventOutputChannels)&&value.eventOutputChannels.every((n:unknown)=>Number.isInteger(n)&&Number(n)>=1&&Number(n)<=8))result.eventOutputChannels=[...new Set<number>(value.eventOutputChannels)];
     if(Array.isArray(value.eventTypes)&&value.eventTypes.every((t:unknown)=>typeof t==='string'&&Object.prototype.hasOwnProperty.call(EVENT_LABELS,t)))result.eventTypes=[...new Set<string>(value.eventTypes)];
     if (Array.isArray(value.visibleChannels) && value.visibleChannels.every((id:unknown) => Number.isInteger(id) && Number(id)>=1 && Number(id)<=4)) result.visibleChannels = [...new Set<number>(value.visibleChannels)];
     for (const key of ['showLegend', 'showEnvelope', 'showPoints', 'showDiagnostics','yFixedStep','continuousTooltip','showNotes','showEvents']) if (typeof value[key] === 'boolean') result[key] = value[key];

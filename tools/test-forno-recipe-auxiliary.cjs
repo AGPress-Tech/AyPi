@@ -38,9 +38,23 @@ test('UI: include End, Wait, GoBack, stati OFF e Reset; backend precedente dichi
         const segment=(number,type)=>({number,type,name:String(number),endType:1,events:[true,true,true],holdback:[0],userValues:[0],waitFor:0,goBackTo:1,cycles:2});
         const recipe={maxEvents:3,channels:1,resetEvents:[false,false,false],resetUserValues:[0],features:{userValues:true},segments:[segment(1,1),segment(2,4),segment(3,5),segment(4,0)]};
         assert.equal(segmentEventSummary(recipe,recipe.segments[0]),'E1 · Apertura saracinesca ON · E2 · Aspiratore ON · E3 · Scambiatore ON');
-        assert.equal(segmentEventSummary(recipe,recipe.segments[3]),'E1 · Apertura saracinesca OFF · E2 · Aspiratore OFF · E3 · Scambiatore OFF');
+        assert.equal(segmentEventSummary(recipe,recipe.segments[3]),'E1 · Apertura saracinesca ON → OFF · E2 · Aspiratore ON → OFF · E3 · Scambiatore ON → OFF');
         const root=new Element('section');renderRecipeAuxiliary(root,recipe);const text=flatten(root);
         for(const label of ['Apertura saracinesca','Marcia aspiratore','Marcia scambiatore','Attesa','Ripetizione','Fine → Reset','ON','OFF','Impostazione globale','wiring iTools']) assert(text.includes(label),label);
         const missing=new Element('section');renderRecipeAuxiliary(missing,{segments:[]});assert(flatten(missing).includes('Aggiornare il backend'));
     } finally {global.document=previous;}
+});
+
+
+test('schede: nasconde OFF invariati, mostra ON e solo le transizioni ON -> OFF',()=>{
+    const off=[false,false,false],recipe={maxEvents:3,resetEvents:off,segments:[
+        {number:1,type:1,events:off},{number:2,type:2,events:off},
+        {number:3,type:1,events:[true,false,true]},{number:4,type:2,events:[false,true,true]},
+        {number:5,type:2,events:off},{number:6,type:0,endType:1,events:[true,true,true]}
+    ]};
+    assert.equal(segmentEventSummary(recipe,recipe.segments[0]),'');assert.equal(segmentEventSummary(recipe,recipe.segments[1]),'');
+    const on=segmentEventSummary(recipe,recipe.segments[2]);assert(on.includes('E1')&&on.includes('E3'));assert(!on.includes('E2'));
+    const mixed=segmentEventSummary(recipe,recipe.segments[3]);assert(mixed.includes('ON \u2192 OFF'));assert(mixed.includes('Aspiratore ON'));assert(mixed.includes('Scambiatore ON'));
+    const switchedOff=segmentEventSummary(recipe,recipe.segments[4]);assert(!switchedOff.includes('E1'));assert(switchedOff.includes('E2')&&switchedOff.includes('E3'));
+    assert.equal(segmentEventSummary(recipe,recipe.segments[5]),'');
 });

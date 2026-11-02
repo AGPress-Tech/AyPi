@@ -1,3 +1,4 @@
+import { eventDescription } from './forno/event-labels';
 import Chart from "chart.js/auto";
 import {
     degreeTicks,
@@ -1212,6 +1213,7 @@ function fillOptions(settings: FornoViewSettings) {
         field.checked = settings.eventTypes.includes(field.dataset.eventType!);
     element<HTMLFieldSetElement>("event-filters").disabled =
         !settings.showEvents;
+    for (const field of document.querySelectorAll<HTMLInputElement>("[data-event-channel]")) field.checked = settings.eventOutputChannels.includes(Number(field.dataset.eventChannel));
     previewDivisions();
     syncDegreeControls();
     previewTooltipOpacity();
@@ -1241,6 +1243,13 @@ for (const [type, label] of Object.entries(EVENT_LABELS)) {
     wrapper.append(field, document.createTextNode(label));
     element("event-type-options").append(wrapper);
 }
+for (const channel of [1, 2, 3]) {
+    const wrapper = document.createElement('label'), field = document.createElement('input');
+    field.type = 'checkbox'; field.dataset.eventChannel = String(channel);
+    field.addEventListener('change', () => { if (field.checked) document.querySelector<HTMLInputElement>('[data-event-type=digital_event]')!.checked = true; });
+    wrapper.append(field, document.createTextNode(eventDescription(channel - 1)));
+    element('event-type-options').append(wrapper);
+}
 element("opt-events").addEventListener("change", () => {
     element<HTMLFieldSetElement>("event-filters").disabled =
         !element<HTMLInputElement>("opt-events").checked;
@@ -1251,7 +1260,7 @@ for (const [id, checked] of [
 ] as const)
     element(id).addEventListener("click", () => {
         document
-            .querySelectorAll<HTMLInputElement>("[data-event-type]")
+            .querySelectorAll<HTMLInputElement>("[data-event-type], [data-event-channel]")
             .forEach((field) => (field.checked = checked));
     });
 function syncDegreeControls() {
@@ -1282,6 +1291,8 @@ element<HTMLFormElement>("options-form").addEventListener(
         ]
             .filter((field) => field.checked)
             .map((field) => field.dataset.eventType!);
+        next.eventOutputChannels = [...document.querySelectorAll<HTMLInputElement>('[data-event-channel]')].filter(f => f.checked).map(f => Number(f.dataset.eventChannel));
+        next.eventOutputChannels.push(...preferences.eventOutputChannels.filter(n => n > 3));
         for (const [id, key] of Object.entries(optionFields)) {
             const field = element<HTMLInputElement>(id);
             next[key] =

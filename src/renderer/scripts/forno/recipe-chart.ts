@@ -42,7 +42,8 @@ export function createRecipeChart(root: HTMLElement, recipe: ProgramRecipe) {
             body.append(node('strong', '', title), node('span', '', s.type === 2 ? temperature(phase.end[0]) : temperature(phase.start[0]) + ' → ' + temperature(phase.end[0])), node('small', '', recipeDuration(phase.from) + ' → ' + recipeDuration(phase.to)));
             if (recipe.channels === 2) body.append(node('small', '', 'CH2: ' + temperature(phase.start[1]) + ' → ' + temperature(phase.end[1])));
             if (s.name && s.name !== String(s.number)) body.append(node('small', 'recipe-segment-name', s.name));
-            body.append(node('small', 'recipe-phase-events', segmentEventSummary(recipe, s)));
+            const events = segmentEventSummary(recipe, s);
+            if (events) body.append(node('small', 'recipe-phase-events', events));
             button.append(number, body, node('span', 'recipe-phase-duration', recipeDuration(phase.to - phase.from)));
             button.addEventListener('click', () => select(phase.index)); phaseList.append(button); buttons.push(button);
         }
