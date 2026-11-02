@@ -376,7 +376,9 @@ pixel o durate derivate da valori arrotondati in ore.
   Ulteriori richieste di restringere la vista oltre il profilo vengono limitate.
   Adatta grafico ripristina il profilo completo. Lo zoom modifica soltanto la
   vista e mantiene otto intervalli uguali con etichette complete. Gli intervalli
-  sono scelti tra 0,5 / 1 / 5 / 10 / 50 / 100 e multipli successivi; minimo 0,5,
+  temporali includono 0,5 / 1 / 1,5 / 2 / 2,5 / 3 / 4 / 5 / 6 / 8 / 10 ore
+  e passi successivi; quelli termici includono 0,5 / 1 / 2 / 2,5 / 5 / 10 /
+  15 / 20 / 25 / 30 / 40 / 50 / 75 / 100 °C e passi successivi. Minimo 0,5,
   massimo un decimale nelle etichette. Durante il
   trascinamento e al rilascio gli assi restano fermi: il punto segue le coordinate
   assolute del puntatore, limitato ai bordi della vista e al passo selezionato.

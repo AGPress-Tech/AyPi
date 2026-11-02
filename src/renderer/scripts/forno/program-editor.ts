@@ -90,9 +90,17 @@ export function createProgramEditor(root: HTMLElement, initial: ProgramDraft, st
     function persist() { const snapshot = cloneDraft(draft), at = revision; status.textContent = 'Salvataggio bozza locale…'; saving = saving.catch(() => {}).then(() => storage.save(snapshot)).then(saved => { if (JSON.stringify(validateDraft(saved)) !== JSON.stringify(snapshot)) throw Error('Bozza riletta diversa dal salvataggio.'); if (!disposed && revision === at) { saveFailed = false; if (!pending) status.textContent = 'Bozza salvata e riletta su questo PC · nessun invio al forno'; } }).catch(e => { if (!disposed) { saveFailed = true; status.textContent = 'Bozza non salvata: ' + (e as Error).message; } }); }
     function changed(keepScale = false) { revision++; render(keepScale); persist(); }
     function commit(next: ProgramDraft, keepScale = false) { const valid = validateDraft(next); history.push(cloneDraft(draft)); if (history.length > 100) history.shift(); future = []; draft = valid; pending = false; changed(keepScale); }
-    // Passi leggibili: 0,5 / 1 / 5 / 10 / 50 / 100 / ...; origine sempre zero.
+    // La vista iniziale e la rotella condividono gli stessi intervalli intermedi.
+    function axisSteps(axis: 'x' | 'y') {
+        const steps = axis === 'x'
+            ? [.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000]
+            : [.5, 1, 2, 2.5, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+        for (let magnitude = 1000; magnitude <= 100000000; magnitude *= 10)
+            for (const multiple of [1.5, 2, 2.5, 3, 4, 5, 7.5, 10]) steps.push(magnitude * multiple);
+        return steps;
+    }
     function setAxis(axis: 'x' | 'y', _min: number, max: number, _exact = false) {
-        const steps = [.5, 1, 5, 10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000, 500000000];
+        const steps = axisSteps(axis);
         const step = steps.find(n => n >= max / 8) || 500000000;
         const scale = chart.options.scales![axis]!; scale.min = 0; scale.max = step * 8;
         scale.ticks = { ...scale.ticks, count: 9, stepSize: step, autoSkip: false, maxRotation: 0, callback: (value, index) => axis === 'x' ? (chart.width < 560 && index % 2 ? '' : inputDuration(Math.round(Number(value) * 3600000))) : Number(value).toLocaleString('it-IT', { maximumFractionDigits: 1 }) };
@@ -272,7 +280,7 @@ export function createProgramEditor(root: HTMLElement, initial: ProgramDraft, st
         e.preventDefault(); const axis = e.shiftKey ? 'y' : 'x', scale = chart.scales[axis];
         const span = scale.max - scale.min, delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? a.height : 1);
         const bounds = zoomBounds(draft);
-        const sizes = [.5, 1, 5, 10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000, 500000000].map(n => n * 8);
+        const sizes = axisSteps(axis).map(n => n * 8);
         const nextSpan = delta > 0 ? sizes.find(n => n > span + .000001) ?? span : [...sizes].reverse().find(n => n < span - .000001 && n >= bounds[axis]) ?? span;
         setAxis(axis, 0, nextSpan, true); viewLocked = true; renderGraph(draft, true);
     }
