@@ -1,3 +1,4 @@
+import { eventLabel } from './event-labels';
 import type { LibraryEntry, LibraryView } from '../../../main/modules/forno/program-library';
 import type { ProgramDraft } from '../../../main/modules/forno/program-draft';
 
@@ -39,7 +40,7 @@ export function createProgramLibraryDialog(root: HTMLElement, api: ProgramLibrar
             const row = node('div', '', 'program-library-row'), checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = selection.has(entry.id); checkbox.setAttribute('aria-label', 'Seleziona ' + entry.name);
             checkbox.addEventListener('change', () => { if (checkbox.checked) selection.add(entry.id); else selection.delete(entry.id); updateButtons(); });
             const body = node('div'); body.append(node('strong', entry.name), node('small', entry.originalStatus), node('small', (entry.deletedAtMs ? 'Eliminato soltanto dal PC · ' : '') + 'Importato: ' + new Date(entry.importedAtMs).toLocaleString('it-IT')));
-            if (entry.draft) { const description = entry.draft.steps.map((s, i) => `${i + 1}: ${s.kind === 'ramp' ? 'Rampa' : 'Stasi'}, ${s.events.map((on, e) => `E${e + 1} ${on ? '✓' : '✕'}`).join(' ')}`).join(' · '); body.append(node('small', description)); }
+            if (entry.draft) { const description = entry.draft.steps.map((s, i) => `${i + 1}: ${s.kind === 'ramp' ? 'Rampa' : 'Stasi'}, ${s.events.map((on, e) => `${eventLabel(e)} ${on ? '✓' : '✕'}`).join(' ')}`).join(' · '); body.append(node('small', description)); }
             else body.append(node('small', 'Formato non editabile: originale conservato integralmente per backup/esportazione.'));
             const open = button('Apri copia nel programmatore', () => { if (!busy) edit(entry); }); open.disabled = busy || !entry.draft || !!entry.deletedAtMs;
             row.append(checkbox, body, open); row.dataset.id = entry.id; list.append(row);

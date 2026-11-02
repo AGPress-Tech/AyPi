@@ -225,10 +225,17 @@ non interpretati come indirizzi Modbus. Risultano 28 collegamenti attivi:
 | E3 | Wire.28: Programmer.Run.Event3 → DigitalIO.RELAY_5AC.PV | 5A–5C | ON/OFF, Invert=0 |
 
 Righe del clone: collegamenti 552–557, configurazione I/O 5197–5239.
-Non ci sono etichette camino/ventola/serranda: rimane da verificare il
-collegamento esterno di questi tre morsetti con lo schema o il manutentore.
-Il clone dimostra tre uscite comandate separatamente; non dimostra quali
-attuatori esterni comandino né la loro posizione effettiva.
+Il clone da solo non contiene etichette degli attuatori esterni. Il successivo
+screenshot del wiring iTools fornito dall'operatore identifica le uscite:
+E1 / 3A3B = **Uscita saracinesca**; E2 / RELAY_4AC = **Marcia aspiratore**;
+E3 / RELAY_5AC = **Marcia scambiatore**. Questi nomi sono mostrati nell'editor,
+nella controverifica, nell'archivio e nella lettura dei programmi.
+Le etichette non sono feedback della posizione o marcia effettiva. L'operatore
+ha successivamente confermato che E1 ON comanda l'apertura della saracinesca:
+l'app lo identifica come Apertura saracinesca. OFF disattiva il comando di
+apertura; non viene dedotto un feedback di chiusura.
+L'aggiornamento cambia solo la presentazione: ordine dei tre bit, backup,
+parametri e programmi memorizzati non vengono modificati.
 
 **Il valore utente CH1 non è un parametro accessorio inutilizzato.**
 I collegamenti Wire.1–14 realizzano una logica di attesa termica personalizzata:

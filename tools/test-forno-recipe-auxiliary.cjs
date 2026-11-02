@@ -37,10 +37,10 @@ test('UI: include End, Wait, GoBack, stati OFF e Reset; backend precedente dichi
     try {
         const segment=(number,type)=>({number,type,name:String(number),endType:1,events:[true,true,true],holdback:[0],userValues:[0],waitFor:0,goBackTo:1,cycles:2});
         const recipe={maxEvents:3,channels:1,resetEvents:[false,false,false],resetUserValues:[0],features:{userValues:true},segments:[segment(1,1),segment(2,4),segment(3,5),segment(4,0)]};
-        assert.equal(segmentEventSummary(recipe,recipe.segments[0]),'E1 ON · E2 ON · E3 ON');
-        assert.equal(segmentEventSummary(recipe,recipe.segments[3]),'E1 OFF · E2 OFF · E3 OFF');
+        assert.equal(segmentEventSummary(recipe,recipe.segments[0]),'E1 · Apertura saracinesca ON · E2 · Aspiratore ON · E3 · Scambiatore ON');
+        assert.equal(segmentEventSummary(recipe,recipe.segments[3]),'E1 · Apertura saracinesca OFF · E2 · Aspiratore OFF · E3 · Scambiatore OFF');
         const root=new Element('section');renderRecipeAuxiliary(root,recipe);const text=flatten(root);
-        for(const label of ['Evento 1','Evento 2','Evento 3','Attesa','Ripetizione','Fine → Reset','ON','OFF','Impostazione globale','cablaggio']) assert(text.includes(label),label);
+        for(const label of ['Apertura saracinesca','Marcia aspiratore','Marcia scambiatore','Attesa','Ripetizione','Fine → Reset','ON','OFF','Impostazione globale','wiring iTools']) assert(text.includes(label),label);
         const missing=new Element('section');renderRecipeAuxiliary(missing,{segments:[]});assert(flatten(missing).includes('Aggiornare il backend'));
     } finally {global.document=previous;}
 });

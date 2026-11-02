@@ -1,3 +1,4 @@
+import { eventLabel, eventDescription } from './event-labels';
 import type { ProgramRecipe, RecipeSegment } from './recipe-profile';
 
 export function segmentEventSummary(recipe: ProgramRecipe, segment: RecipeSegment) {
@@ -5,7 +6,7 @@ export function segmentEventSummary(recipe: ProgramRecipe, segment: RecipeSegmen
     if (!recipe.maxEvents) return 'Nessun evento ausiliario configurato';
     const states = segment.type === 0 && segment.endType === 1 ? recipe.resetEvents : segment.events;
     if (!states || states.length < recipe.maxEvents) return 'Stati eventi non disponibili';
-    return Array.from({ length: recipe.maxEvents }, (_, i) => `E${i + 1} ${states[i] ? 'ON' : 'OFF'}`).join(' · ');
+    return Array.from({ length: recipe.maxEvents }, (_, i) => `${eventLabel(i)} ${states[i] ? 'ON' : 'OFF'}`).join(' · ');
 }
 
 /** Tutti i segmenti memorizzati, anche End, Wait e GoBack esclusi dal grafico termico. */
@@ -17,12 +18,12 @@ export function renderRecipeAuxiliary(root: HTMLElement, recipe: ProgramRecipe) 
     if (!Number.isInteger(recipe.maxEvents) || !recipe.features || recipe.segments.some(s => !s.events)) {
         add(root, 'p', 'Eventi ausiliari non disponibili. Aggiornare il backend prima di verificare il programma.'); return;
     }
-    add(root, 'p', `${recipe.maxEvents} eventi configurati. ON/OFF indica il comando logico previsto, non la posizione fisica dell’attuatore. L’associazione di E1–E8 ai dispositivi del forno deve essere verificata sul cablaggio o nella configurazione iTools.`);
+    add(root, 'p', `${recipe.maxEvents} eventi configurati. ${[0, 1, 2].slice(0, recipe.maxEvents).map(eventDescription).join('; ')}. Nomi dal wiring iTools fornito; E1 ON comanda l’apertura della saracinesca, come confermato dall’operatore. ON/OFF indica il comando logico, non un feedback fisico. Eventuali eventi oltre E3 restano da identificare.`);
     const scroll = add(root, 'div', ''); scroll.className = 'recipe-events-scroll';
     const table = add(scroll, 'table', ''); table.className = 'recipe-events-table';
     add(table, 'caption', 'Stati programmati per segmento e stati globali in Reset');
     const head = add(add(table, 'thead', ''), 'tr', '');
-    for (const text of ['Fase', 'Tipo', ...Array.from({ length: recipe.maxEvents }, (_, i) => `Evento ${i + 1}`), 'Altri parametri']) {
+    for (const text of ['Fase', 'Tipo', ...Array.from({ length: recipe.maxEvents }, (_, i) => eventDescription(i)), 'Altri parametri']) {
         add(head, 'th', text).setAttribute('scope', 'col');
     }
     const body = add(table, 'tbody', '');
