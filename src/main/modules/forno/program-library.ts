@@ -50,7 +50,7 @@ export function writeVerifiedFile(file: string, bytes: Buffer) {
 }
 function saveLibrary(file: string, state: ProgramLibrary) { validateEntries(state.entries, state.sources); state.revision++; const bytes = Buffer.from(JSON.stringify(state, null, 2) + '\n'); if (bytes.length > 32000000) fail('Archivio oltre il limite di 32 MB: nessuna modifica salvata.'); writeVerifiedFile(file, bytes); return libraryView(state); }
 export function libraryView(state: ProgramLibrary): LibraryView {
-    return { revision: state.revision, sourceCount: state.sources.length, sourceSnapshots: state.sources.map(s => ({ filename: s.filename, capturedAtMs: s.capturedAtMs })), deviceWritesEnabled: false, entries: state.entries.map(e => ({ ...e, name: e.draft?.name || e.original!.filename.replace(/\.uipz$/i, ''), originalStatus: e.original ? 'Originale nativo conservato · SHA-256 verificato' : 'Programma locale · ripristino su forno non collaudato' })) };
+    return { revision: state.revision, sourceCount: state.sources.length, sourceSnapshots: state.sources.map(s => ({ filename: s.filename, capturedAtMs: s.capturedAtMs })), deviceWritesEnabled: false, entries: state.entries.map(e => ({ ...e, ...(e.draft ? { draft: validateDraft(e.draft) } : {}), name: e.draft?.name || e.original!.filename.replace(/\.uipz$/i, ''), originalStatus: e.original ? 'Originale nativo conservato · SHA-256 verificato' : 'Programma locale · ripristino su forno non collaudato' })) };
 }
 export function archiveDraft(file: string, draft: unknown, sourceId?: string): LibraryView {
     const validated = validateDraft(draft), state = readLibrary(file), source = sourceId ? state.entries.find(e => e.id === sourceId) : undefined;

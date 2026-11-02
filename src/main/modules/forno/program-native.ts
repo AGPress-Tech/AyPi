@@ -1,6 +1,6 @@
 import { gunzipSync, gzipSync } from 'zlib';
 import { createHash } from 'crypto';
-import { changeStart, validateDraft, type ProgramDraft } from './program-draft';
+import { changeStart, createDraftStep, newProgramDraft, reviewDraft, STEP_TYPES, validateDraft, type ProgramDraft, type StepKind } from './program-draft';
 
 export type NativeFile = { filename: string; base64: string; sha256: string };
 export const sha256 = (data: Buffer | string) => createHash('sha256').update(data).digest('hex');
@@ -52,41 +52,52 @@ export function decodeNative(file: NativeFile): ProgramDraft {
     if (config.length !== 1 || config[0].index !== 0 || config[0].values.size !== 1 || config[0].values.get(0) !== '1' || program.length !== 1 || program[0].index !== 0) fail('Configurazione nativa non gestita.');
     for (const [id, v] of program[0].values) if (![0, 6, 7, 9].includes(id) || [6, 7].includes(id) && v !== '0' || [0, 9].includes(id) && v !== name) fail('Il programma usa impostazioni non gestite.');
     if (program[0].values.get(6) !== '0' || !segments.length || segments.length > 26) fail('Stile rampa o numero fasi non gestiti.');
-    const d: ProgramDraft = { format: 'aypi-forno-draft', version: 1, name, startDeciC: 200, endType: 'reset', steps: [] }; let current = d.startDeciC;
+    const d = newProgramDraft(); d.name = name; let current = d.startDeciC;
     const number = (values: Map<number, string>, id: number) => { const text = values.get(id); if (text === undefined || !/^-?\d+(?:\.\d+)?$/.test(text)) fail(`Parametro nativo ${id} mancante o non numerico.`); const n = Number(text); if (!Number.isFinite(n)) fail('Numero nativo non valido.'); return n; };
     const deci = (v: number) => { if (Math.abs(v * 10 - Math.round(v * 10)) > .00001) fail('Precisione nativa non gestita dall’editor.'); return Math.round(v * 10); };
     for (let i = 0; i < segments.length; i++) {
         const { values: v, index } = segments[i]; if (index !== i) fail('Ordine segmenti non valido.');
         const type = number(v, 1);
-        if (type === 0) {
-            if (i !== segments.length - 1 || Array.from(v.keys()).some(k => ![0, 1, 9].includes(k))) fail('Segmento di fine non gestito.');
-            const end = number(v, 9); if (![0, 1].includes(end)) fail('Azione finale non gestita.'); d.endType = end === 1 ? 'reset' : 'dwell';
-            const label = v.get(0); if (label === undefined) fail('Nome del segmento di fine mancante.'); if (label !== String(i + 1)) d.endLabel = label; continue;
-        }
-        if (![1, 2].includes(type) || i === segments.length - 1) fail('Sono editabili soltanto Rampa, Stasi e Fine.');
-        const allowed = type === 1 ? [0, 1, 3, 5, 25, 27, 28, 29] : [0, 1, 2, 25, 27, 28, 29];
+        const kind = (['end', 'ramp', 'dwell', 'step', 'wait', 'goback'] as StepKind[])[type]; if (!kind) fail('Tipo segmento non riconosciuto.');
+        const extra: Record<StepKind, number[]> = { end: [9], ramp: [3, 5], dwell: [2], step: [3], wait: [14, 15, 17], goback: [19, 20] };
+        const allowed = [0, 1, 25, 27, 28, 29, ...extra[kind]];
         if (Array.from(v.keys()).some(k => !allowed.includes(k))) fail('Parametri segmento aggiuntivi: originale conservato senza conversione.');
-        const events = [27, 28, 29].map(k => { const n = number(v, k); if (![0, 1].includes(n)) fail('Stato evento nativo non valido.'); return n === 1; }) as [boolean, boolean, boolean];
-        if (type === 1) current = deci(number(v, 3));
+        const events = [27, 28, 29].map(k => { const n = kind === 'end' && !v.has(k) ? 0 : number(v, k); if (![0, 1].includes(n)) fail('Stato evento nativo non valido.'); return n === 1; }) as [boolean, boolean, boolean];
+        if (kind === 'ramp' || kind === 'step') current = deci(number(v, 3));
         const label = v.get(0); if (label === undefined) fail('Nome segmento mancante.');
-        d.steps.push({ kind: type === 1 ? 'ramp' : 'dwell', label: label === String(i + 1) ? '' : label, targetDeciC: current, durationMs: number(v, type === 1 ? 5 : 2), events, userValueDeci: deci(number(v, 25)) });
+        const next = createDraftStep(kind, current, i); next.label = label === String(i + 1) ? '' : label; next.targetDeciC = current; next.events = events;
+        next.userValueDeci = kind === 'end' && !v.has(25) ? 0 : deci(number(v, 25));
+        if (kind === 'ramp' || kind === 'dwell') next.durationMs = number(v, kind === 'ramp' ? 5 : 2);
+        if (kind === 'wait') { next.waitFor = number(v, 14) as 0 | 1; next.waitCondition = v.has(15) ? number(v, 15) : 1; next.waitValueDeci = v.has(17) ? deci(number(v, 17)) : 0; }
+        if (kind === 'goback') { next.goBackTo = number(v, 19); next.cycles = number(v, 20); }
+        if (kind === 'end') { const end = number(v, 9); if (![0, 1].includes(end)) fail('Azione finale non gestita.'); next.endAction = end === 1 ? 'reset' : 'dwell'; if (end === 1) { next.events = [false, false, false]; next.userValueDeci = 0; } }
+        d.steps.push(next);
     }
-    return validateDraft(d);
+    reviewDraft(d); return validateDraft(d);
 }
 
 /** Esportazione per collaudo offline in iTools; non attesta ripristino su hardware. */
 export function encodeNative(input: ProgramDraft): NativeFile {
-    const d = validateDraft(input); if (!d.steps.length) fail('Il programma deve contenere almeno una fase.');
+    const d = validateDraft(input); reviewDraft(d);
     const member = (id: number, value: string | number) => `    <M><P>${id}</P><V>${escape(String(value))}</V></M>`;
     const list = (type: string, c: number, index: number, s: number, values: [number, string | number][]) => `  <List type="${type}" C="${c}" I="${index}" S="${s}">\n${values.map(([id, v]) => member(id, v)).join('\n')}\n  </List>`;
     const blocks = [list('config', 244, 0, 3, [[0, 1]]), list('program', 245, 0, 0, [[0, d.name], [6, 0], [7, 0], [9, d.name]])];
-    d.steps.forEach((s, i) => blocks.push(list('segment', 246, i, 0, [[0, s.label || String(i + 1)], [1, s.kind === 'ramp' ? 1 : 2], ...(s.kind === 'ramp' ? [[3, s.targetDeciC / 10], [5, s.durationMs]] : [[2, s.durationMs]]) as [number, number][], [25, s.userValueDeci / 10], [27, Number(s.events[0])], [28, Number(s.events[1])], [29, Number(s.events[2])]])));
-    blocks.push(list('segment', 246, d.steps.length, 0, [[0, d.endLabel || String(d.steps.length + 1)], [1, 0], [9, d.endType === 'reset' ? 1 : 0]]));
+    d.steps.forEach((s, i) => {
+        const values: [number, string | number][] = [[0, s.label || String(i + 1)], [1, STEP_TYPES[s.kind]]];
+        if (s.kind === 'ramp') values.push([3, s.targetDeciC / 10], [5, s.durationMs]);
+        if (s.kind === 'dwell') values.push([2, s.durationMs]);
+        if (s.kind === 'step') values.push([3, s.targetDeciC / 10]);
+        if (s.kind === 'wait') values.push([14, s.waitFor!], [15, s.waitCondition!], [17, s.waitValueDeci! / 10]);
+        if (s.kind === 'goback') values.push([19, s.goBackTo!], [20, s.cycles!]);
+        if (s.kind === 'end') values.push([9, s.endAction === 'reset' ? 1 : 0]);
+        if (s.kind !== 'end' || s.endAction !== 'reset') values.push([25, s.userValueDeci / 10], [27, Number(s.events[0])], [28, Number(s.events[1])], [29, Number(s.events[2])]);
+        blocks.push(list('segment', 246, i, 0, values));
+    });
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Programs>\n<EditorVersion>0.0</EditorVersion>\n<Device class="nanodac" version="811"/>\n<Program name="${escape(d.name)}">\n${blocks.join('\n')}\n</Program></Programs>\n`;
     const file = nativeFile(d.name + '.uipz', gzipSync(Buffer.from(xml, 'utf8')));
     const decoded = changeStart(decodeNative(file), d.startDeciC);
     // Lo zero-length label è il nome automatico, equivalente al numero del segmento.
-    const comparable = (p: ProgramDraft) => JSON.stringify({ name: p.name, endType: p.endType, endLabel: p.endLabel || String(p.steps.length + 1), steps: p.steps.map((s, i) => ({ ...s, label: s.label || String(i + 1) })) });
+    const comparable = (p: ProgramDraft) => JSON.stringify({ name: p.name, steps: p.steps.map((s, i) => ({ ...s, label: s.label || String(i + 1) })) });
     if (comparable(decoded) !== comparable(d)) fail('La rilettura del file nativo generato non coincide con il programma.');
     return file;
 }

@@ -297,12 +297,19 @@ il test UI verifica le tre colonne, gli eventi ON e il ritorno OFF in Reset.
 **Cicli forno → Programmatore · crea o riprendi bozza** apre l'editor desktop.
 Dalla lettura di un programma compatibile, **Modifica una copia in bozza**
 importa le fasi già lette, senza ulteriori richieste al forno e senza modificare
-la ricetta originale. L'importazione rifiuta profili a due canali, rampe a
-velocità, Step, Wait, GoBack e funzionalità ausiliarie non gestite; non li
-trasforma in rampe/soste equivalenti inventate. Il ciclo 1 è compatibile.
+la ricetta originale. Sono supportati tutti i sei tipi del programmatore
+CH1 con rampe a tempo: Rampa, Stasi, Step, Wait, GoBack e Fine. L'importazione
+rifiuta profili a due canali, rampe a velocità e funzionalità ausiliarie non
+gestite, senza trasformarle in fasi equivalenti inventate. Il ciclo 1 è compatibile.
 L'editor è disponibile sul client desktop; su Android rimane la consultazione.
 
-Ogni fase è una **Rampa a tempo** oppure una **Stasi**. Si impostano
+La finestra occupa quasi tutta la larghezza e altezza disponibili. Grafico a
+sinistra e fasi a destra hanno pannelli indipendenti; la lista delle fasi scorre
+verticalmente senza spostare il grafico. Le celle sono organizzate per fase,
+con campi numerici esatti e parametri specifici del tipo selezionato.
+
+Ogni fase è una **Rampa**, **Stasi**, **Salto (Step)**, **Attesa (Wait)**,
+**Ripetizione (GoBack)** oppure **Fine / Reset**. Si impostano
 nome fase, temperatura finale, durata, tre eventi ON/OFF indipendenti e valore
 utente CH1. Una sosta mantiene il setpoint della fase precedente: il relativo
 campo temperatura è di sola lettura e segue le modifiche della rampa precedente.
@@ -311,8 +318,13 @@ imposta né modifica la configurazione PV/SP del forno. I dati termici sono
 decimi interi di °C, i tempi millisecondi interi; non si memorizzano coordinate
 pixel o durate derivate da valori arrotondati in ore.
 
-- **+ Rampa / + Stasi** inseriscono dopo la fase selezionata, oppure in fondo
-  senza selezione. Sono consentite 25 fasi più il segmento di fine.
+- **+ Rampa / + Stasi** o **Tipo → + Aggiungi fase** inseriscono dopo la fase
+  selezionata, oppure in fondo senza selezione. Se è presente Fine, le nuove
+  fasi sono inserite prima della chiusura. Sono consentite 25 fasi più Fine.
+- **+ Fine** aggiunge esplicitamente il segmento finale: le nuove bozze non
+  contengono alcuna Fine precompilata. Fine deve essere unica e ultima, può
+  essere rinominata, modificata o eliminata. La verifica e il file nativo sono
+  bloccati se manca; il salvataggio della bozza incompleta resta disponibile.
 - **Seleziona / sposta**: trascinare un punto cambia il termine della fase;
   per una rampa cambia anche la temperatura. Le fasi successive conservano
   le proprie durate. Le soste consecutive mantengono la temperatura coerente.
@@ -320,12 +332,55 @@ pixel o durate derivate da valori arrotondati in ore.
   interno a una rampa la divide conservando il termine originario, il tempo
   totale e i parametri ausiliari di entrambi i tratti. Non si divide una sosta
   trasformandola implicitamente in una rampa.
-- Il passo grafico è selezionabile (1 ms, 1 s, 10 s, 1 min; 0,1/1/5/10 °C).
+- Step cambia il setpoint istantaneamente, con un tratto verticale a tempo zero.
+  Wait mantiene il setpoint finché è soddisfatta una condizione sull'ingresso
+  `Wait Digital` o `Wait Analog 1` del programmatore CH1. Per l'analogico si
+  impostano criterio assoluto/deviazione alto/basso e soglia. La configurazione
+  dei collegamenti del forno non viene modificata e non si presume che tali
+  ingressi coincidano direttamente con i sensori di temperatura.
+- GoBack richiede fase precedente e numero di ripetizioni (0 = continuo).
+  I cicli finiti vengono espansi nel grafico fino a 500 passaggi. Le ripetizioni
+  annidate/sovrapposte sono rifiutate secondo HA030554 §3.4.9. Inserire una fase
+  rinumera le destinazioni; una fase usata come destinazione non può essere
+  eliminata senza modificare prima il riferimento. Per profili con GoBack si
+  modificano i parametri nella tabella, evitando trascinamenti ambigui su
+  un passaggio ripetuto.
+- Il grafico si ferma alla prima attesa esterna o al primo GoBack continuo e
+  avvisa che le fasi successive restano configurate. Non vengono inventati
+  tempi per attese, cicli continui o mantenimento indefinito finale.
+- Il passo grafico è selezionabile: 1 secondo, 30 secondi, 1 minuto,
+  10 minuti, 30 minuti, 1 ora; temperatura 1, 5, 10, 50, 100 °C.
+  Rotella: zoom orizzontale; Maiusc+rotella: zoom verticale. L'origine resta
+  fissa a 0 ore e 0 °C, indipendentemente dalla posizione del puntatore.
+  Lo zoom cambia soltanto il massimo dell'asse; il minimo ingrandimento visibile
+  comprende sempre tutto il profilo rappresentato, con margine del 3%.
+  Ulteriori richieste di restringere la vista oltre il profilo vengono limitate.
+  Adatta grafico ripristina il profilo completo. Lo zoom modifica soltanto la
+  vista e mantiene otto intervalli uguali con etichette complete. Gli intervalli
+  sono scelti tra 0,5 / 1 / 5 / 10 / 50 / 100 e multipli successivi; minimo 0,5,
+  massimo un decimale nelle etichette. Durante il
+  trascinamento e al rilascio gli assi restano fermi: il punto segue le coordinate
+  assolute del puntatore, limitato ai bordi della vista e al passo selezionato.
+  Grafico, dettaglio della fase, durata totale, tabella e controverifica mostrano
+  il candidato a ogni movimento. Il salvataggio avviene soltanto al rilascio
+  valido, come singola modifica annullabile; il cambio di scala non altera
+  il valore se il puntatore rimane fermo. L'anteprima usa requestAnimationFrame
+  e aggiorna i campi della tabella esistenti senza ricostruirla a ogni movimento.
+  Il solo tooltip nativo del grafico, posizionato a sinistra del punto, mostra
+  tempo, temperatura e fase fino al rilascio/annullamento, anche se il mouse
+  rimane fermo durante il drag. Gli eventi hover sono sospesi durante la presa
+  per impedire che nascondano il tooltip; nessuna seconda etichetta HTML.
   Le frecce sul canvas spostano il punto selezionato di un passo, Maiusc di
   dieci. Esc o annullamento del puntatore ripristinano il profilo precedente;
   un rilascio su un valore non valido annulla lo spostamento completo.
 - La tabella accetta temperature con punto o virgola e al massimo un decimale;
-  tempi `HH:MM:SS.mmm` (millisecondi facoltativi), da 1 ms a 500 h per fase.
+  tempi a secondi interi, da 1 secondo a 500 h per fase. Il campo durata usa
+  tre cifre per le ore e separatori `:` fissi: digitazione e cancellazione
+  sovrascrivono soltanto le cifre; l'incolla accetta tempi completi validi.
+  Anche l'importazione di righe Excel rifiuta le frazioni di secondo.
+  Il formato nativo conserva la risoluzione in millisecondi: eventuali frazioni
+  originali restano immutate se si modificano altri campi. Il tooltip del campo
+  ne espone il valore esatto; modificando quella durata si impostano secondi interi.
   Confermare con Tab/Invio. Input incompleti o non validi rimangono visibili
   e bloccano grafico, salvataggio ed esportazione finché corretti o annullati.
   Le modifiche sono applicate al modello soltanto quando tutti i campi sono validi.
@@ -334,15 +389,37 @@ pixel o durate derivate da valori arrotondati in ore.
   L'aggiunta è atomica: se anche una riga è errata non ne viene applicata nessuna.
 - Annulla/Ripristina conserva fino a 100 modifiche. Nuova bozza e importazione
   di una copia sono anch'esse annullabili nella sessione.
+- Clic sulla scheda o sul numero seleziona la fase e la evidenzia nel grafico.
+  Aggiungi fase (anche Rampa/Stasi) inserisce dopo la selezione; senza selezione
+  inserisce in fondo, prima di Fine. Fine rimane sempre l'ultima fase.
+  Trascinare il numero sulla metà superiore/inferiore di una scheda sposta
+  prima/dopo quella fase, con indicatore di destinazione e scroll ai bordi.
+  Dal numero è disponibile anche Alt+freccia su/giù. Ogni spostamento è una
+  singola modifica annullabile: nomi manuali, durate, target di rampa/salto,
+  eventi e valori utente seguono la fase; i plateau ereditano il nuovo setpoint
+  precedente. Le destinazioni GoBack seguono la fase originale rinumerata;
+  un ordine che rende il salto non retrogrado o crea cicli annidati è rifiutato
+  integralmente, senza salvare modifiche parziali.
 
 **Verifica programma** mostra istruzioni per ogni fase, tempi iniziali/finali,
 durata in ms, target decimale e corrispondente float32, eventi e valore utente.
 Usa lo stesso modello canonico del grafico e della tabella. La rappresentazione
 IEEE754 può avere piccoli scarti visibili rispetto al decimale (es. 530,1 °C):
 il confronto con i valori nativi rientrerà nella futura verifica di scrittura.
-L'azione finale può essere Reset, con stati globali del dispositivo da
-verificare, oppure mantenimento indefinito con eventi finali OFF e UserVal=0.
-Il mantenimento finale con eventi personalizzati non è ancora importabile.
+Il segmento Fine ha un'azione Reset, con stati globali del dispositivo da
+verificare, oppure mantenimento indefinito con eventi e valore utente configurati
+sul segmento. Con Reset i relativi controlli sono disabilitati perché si applicano
+i valori globali del forno. Gli eventi sono pulsanti con icone SVG di croce
+(OFF) oppure spunta (ON), stato accessibile e tooltip, senza caratteri testuali.
+Le fasi usano righe compatte che si adattano allo spazio del pannello destro,
+con scorrimento indipendente dal grafico.
+
+Il formato bozza è ora versione 2: Fine è una fase nella stessa lista delle
+altre. Le bozze e i backup v1 vengono letti conservando la Fine già prevista,
+il suo nome e la sua azione; non viene aggiunta una nuova Fine alle bozze v2.
+La migrazione in visualizzazione non riscrive i file originali né altera gli
+hash dei backup precedenti. I `.uipz` originali rimangono immutati; la generazione
+serializza soltanto i segmenti esplicitamente presenti, senza chiusure implicite.
 
 Ogni modifica valida viene salvata automaticamente su questo PC in
 `<userData AyPi>/forno/program-draft.json`, tramite file temporaneo, fsync,
@@ -361,8 +438,9 @@ nominali non attestano precisione fisica, risoluzione effettiva dell'attuatore o
 durata reale con pause Hold. Il valore utente è gestito esplicitamente per
 preservare la logica di attesa termica individuata nel clone; non va confuso
 con la stasi. Le nuove stasi propongono 5, modificabile; le nuove rampe 0.
-Nel cambio esplicito del tipo il valore segue il nuovo default soltanto se
-coincideva con il default precedente; i valori personalizzati sono mantenuti.
+Nel cambio del tipo viene proposta la configurazione propria del nuovo tipo;
+il valore utente personalizzato resta conservato, mentre il valore di default
+segue la scelta di rampa/stasi. Fine → Reset usa sempre gli stati globali.
 L'importazione conserva ogni valore originale: alcuni programmi esistenti
 hanno stasi con valore 0, quindi 5 non è un codice del tipo segmento.
 
@@ -409,7 +487,7 @@ preservando l'originale associato quando si è partiti da una voce dell'archivio
 La bozza di lavoro continua ad avere il proprio salvataggio automatico distinto.
 I nomi segmento vuoti sono automatici (numero corrente); i nomi manuali sono
 conservati. Fine compare come ultimo segmento numerato e ha un nome impostabile.
-Gli eventi sono separati con **✕ OFF / ✓ ON**: possono essere predisposti
+Gli eventi sono separati con pulsanti a icona **croce / spunta** (OFF / ON): possono essere predisposti
 singolarmente, ma non azionati dalla vista.
 
 **Elimina selezionati solo dal PC** è una cancellazione logica e recuperabile

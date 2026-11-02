@@ -34,13 +34,13 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
     const showMenu = () => {
         editorRoot.hidden = true;
         libraryRoot.hidden = true;
-        generation++; clearChart(); view = 'menu'; detail.hidden = true; dialog.classList.remove('program-detail');
+        generation++; clearChart(); view = 'menu'; detail.hidden = true; dialog.classList.remove('program-detail', 'program-editor-dialog');
         menu.hidden = false; results.hidden = true; back.hidden = true; refresh.hidden = true;
         element('programs-title').textContent = 'Cicli forno';
     };
     const load = async () => {
         const current = ++generation;
-        clearChart(); view = 'list'; detail.hidden = true; dialog.classList.remove('program-detail');
+        clearChart(); view = 'list'; detail.hidden = true; dialog.classList.remove('program-detail', 'program-editor-dialog');
         menu.hidden = true; results.hidden = false; back.hidden = false; refresh.hidden = false;
         element('programs-title').textContent = 'Cicli memorizzati';
         refresh.disabled = true; results.setAttribute('aria-busy', 'true');
@@ -76,7 +76,7 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
     async function openRecipe(name: string, allowTemporaryLoad = false, expectedCurrentProgram?: string) {
         const current = ++generation; clearChart(); view = 'detail'; chosen = name;
         menu.hidden = true; results.hidden = true; detail.hidden = false; back.hidden = false; refresh.hidden = true;
-        dialog.classList.add('program-detail'); element('programs-title').textContent = 'Programmazione del ciclo';
+        dialog.classList.remove('program-editor-dialog'); dialog.classList.add('program-detail'); element('programs-title').textContent = 'Programmazione del ciclo';
         element('recipe-name').textContent = name;
         content.replaceChildren(); content.setAttribute('aria-busy', 'true');
         const loading = document.createElement('p'); loading.className = 'recipe-loading'; loading.setAttribute('role', 'status');
@@ -112,7 +112,7 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
         if (copy) workingSource = sourceEntry && copy.source ? { id: sourceEntry.id, name: copy.source.name, readAtMs: copy.source.readAtMs } : null;
         menu.hidden = true; results.hidden = true; detail.hidden = true; editorRoot.hidden = false;
         libraryRoot.hidden = true;
-        back.hidden = false; refresh.hidden = true; view = 'editor'; dialog.classList.add('program-detail');
+        back.hidden = false; refresh.hidden = true; view = 'editor'; dialog.classList.add('program-detail', 'program-editor-dialog');
         element('programs-title').textContent = 'Programmatore · bozza locale';
         try {
             if (editor) { if (copy) editor.replace(copy); return; }
@@ -130,7 +130,7 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
     }
     async function openLibrary() {
         generation++; clearChart(); view = 'library'; menu.hidden = true; results.hidden = true; detail.hidden = true; editorRoot.hidden = true; libraryRoot.hidden = false;
-        back.hidden = false; refresh.hidden = true; dialog.classList.add('program-detail'); element('programs-title').textContent = 'Archivio locale e backup · nessun invio al forno'; await library.refresh();
+        back.hidden = false; refresh.hidden = true; dialog.classList.remove('program-editor-dialog'); dialog.classList.add('program-detail'); element('programs-title').textContent = 'Archivio locale e backup · nessun invio al forno'; await library.refresh();
     }
     const listOperation = async (action: () => Promise<void>) => { error.hidden = true; try { await action(); } catch (e) { error.textContent = (e as Error).message; error.hidden = false; } };
     element('open-programs').addEventListener('click', () => { showMenu(); dialog.showModal(); });
@@ -144,7 +144,7 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
     back.addEventListener('click', () => {
         if (view === 'editor') {
             generation++; editorRoot.hidden = true;
-            if (editorReturn === 'detail') { view = 'detail'; detail.hidden = false; element('programs-title').textContent = 'Programmazione del ciclo'; }
+            if (editorReturn === 'detail') { view = 'detail'; detail.hidden = false; dialog.classList.remove('program-editor-dialog'); element('programs-title').textContent = 'Programmazione del ciclo'; }
             else if (editorReturn === 'library') void openLibrary();
             else showMenu();
         } else if (view === 'detail') {

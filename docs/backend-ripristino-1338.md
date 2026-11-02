@@ -26,6 +26,14 @@ cartelle compilate. Se il backend cambia, la creazione del pacchetto si ferma.
 Le future modifiche intenzionali richiederanno una revisione di questo vincolo.
 Il comando di build desktop resta indipendente.
 
+Aggiornamento 02/11/2026: il riferimento storico rimane conservato; sono state
+esaminate e registrate le sole due modifiche necessarie al programmatore forno.
+La distribuzione verifica ora i loro hash specifici e mantiene il riferimento
+storico per gli altri 98 file e per tutte le dipendenze. Il gateway Android
+rimane invariato. Vedi [revisione forno](backend-forno-revisione-2026-11-02.md).
+Il confronto storico integrale è disponibile con
+`node tools/verify-backend-baseline.cjs --historical`.
+
 Il numero versione generale del progetto resta 1.4.1 per preservare il lavoro
 desktop; non identifica il contenuto del backend ripristinato. Non è stato
 prodotto né installato un nuovo backend: quello delle 13:38 già reinstallato

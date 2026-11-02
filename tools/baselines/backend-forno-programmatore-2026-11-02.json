@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "name": "Programmatore forno locale e lettura completa degli eventi",
+  "baseInstallerSha256": "fa3e843d051f92d3937c67ad86634f9fc2ee42482a24dcb5c738d2e131185409",
+  "review": "docs/backend-forno-revisione-2026-11-02.md",
+  "overrides": {
+    "backend-dist/modules/forno/program-recipe.js": {
+      "previousSha256": "0cb5fba79589592c2542f016645494e787a7de1482a3f4dfd0e10c6abbb1be59",
+      "sha256": "2331b9f7c3fa4c399359ac483c97393122c613ea7776cf004d7b102638c25acc",
+      "source": "backend/src/modules/forno/program-recipe.ts",
+      "sourceSha256": "9c0f89d55142158560e966e23068c1ff0b972a64557463369a09dacf0191a3aa",
+      "reason": "Lettura FC03 degli eventi ausiliari, valori utente, funzioni abilitate e stati di Reset; nessuna nuova scrittura Modbus."
+    },
+    "backend-dist/modules/forno/service.js": {
+      "previousSha256": "02215dc408ccabdda273068e2f88a1eeb01ddf2edcad585c479f445e03965b4a",
+      "sha256": "3a2dc68bf6079c1bd7733ad6d8e6af894cabf58c3b6598cb0c7f1a9c842ef312",
+      "source": "backend/src/modules/forno/service.ts",
+      "sourceSha256": "da0e65d29ffb9e7cc1a5d4d56bf7b40c390791e8a6ed8097e76b56fb43df7f3a",
+      "reason": "Rifiuto del caricamento temporaneo prima di accedere al forno; impedisce Load dal servizio pubblico."
+    }
+  }
+}

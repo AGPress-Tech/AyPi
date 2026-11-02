@@ -21,9 +21,9 @@ test('rilettura indipendente: XML originale ciclo 1 corrisponde ai parametri FC0
 });
 test('file generato: nomi XML escapati, nome Fine, tempi ms ed eventi singoli; rilettura e differenziale sui 9 originali',()=>{
     for(const f of fixture.files){const d=native.decodeNative(f),encoded=native.encodeNative(d),decoded=native.decodeNative(encoded);assert.deepEqual(decoded,d);}
-    let d=model.addStep(model.newProgramDraft(),'ramp');d.name='Nuovo';d.endLabel='Fine & controllo';d.steps[0]={...d.steps[0],label:'Caldo < prova',targetDeciC:5301,durationMs:1234567,events:[false,true,false]};
+    let d=model.addStep(model.addStep(model.newProgramDraft(),'ramp'),'end');d.name='Nuovo';d.steps[1].label='Fine & controllo';d=model.changeStep(d,0,{label:'Caldo < prova',targetDeciC:5301,durationMs:1234567,events:[false,true,false]});
     const decoded=native.decodeNative(native.encodeNative(d));assert.deepEqual(decoded,d);
-    const firstDwell=model.changeStart(model.addStep(model.newProgramDraft(),'dwell'),375);assert.deepEqual(model.changeStart(native.decodeNative(native.encodeNative(firstDwell)),375),firstDwell);
+    const firstDwell=model.changeStart(model.addStep(model.addStep(model.newProgramDraft(),'dwell'),'end'),375);assert.deepEqual(model.changeStart(native.decodeNative(native.encodeNative(firstDwell)),375),firstDwell);
     const bad=zlib.gunzipSync(native.nativeBytes(native.encodeNative(d))).toString().replace('<P>25</P>','<P>99</P>');
     assert.throws(()=>native.decodeNative(native.nativeFile('Nuovo.uipz',zlib.gzipSync(bad))),/aggiuntivi/);
 });
@@ -57,4 +57,12 @@ test('formato non supportato: originale salvato/esportabile ma nessuna conversio
 }));
 test('caricamento temporaneo bloccato dal servizio prima di qualsiasi accesso al forno',async()=>{
     const service=require('../backend-dist/modules/forno/service');await assert.rejects(service.getFornoProgramRecipe('Ciclo_1_530_8h',true,'Altro'),/Caricamento temporaneo sospeso/);
+});
+
+test('tutti i tipi nei file nativi: enum e indici Wait/GoBack verificati indipendentemente dal decoder',()=>{
+    let d=model.addStep(model.newProgramDraft(),'step');d=model.changeStep(d,0,{targetDeciC:1000});d=model.addStep(d,'ramp');d=model.addStep(d,'dwell');d=model.addStep(d,'wait');d=model.changeStep(d,3,{waitFor:1,waitCondition:3,waitValueDeci:125});d=model.addStep(d,'goback');d=model.changeStep(d,4,{goBackTo:2,cycles:2});d=model.addStep(d,'end');d=model.changeStep(d,5,{endAction:'dwell',events:[true,false,true],userValueDeci:50});
+    const file=native.encodeNative(d),xml=zlib.gunzipSync(native.nativeBytes(file)).toString();assert.deepEqual(native.decodeNative(file),d);
+    const lists=Array.from(xml.matchAll(/<List type="segment"[^>]*>([\s\S]*?)<\/List>/g),m=>Object.fromEntries(Array.from(m[1].matchAll(/<M><P>(\d+)<\/P><V>([^<]*)<\/V><\/M>/g),p=>[p[1],p[2]])));
+    assert.deepEqual(lists.map(p=>p[1]),['3','1','2','4','5','0']);assert.equal(lists[3][14],'1');assert.equal(lists[3][15],'3');assert.equal(lists[3][17],'12.5');assert.equal(lists[4][19],'2');assert.equal(lists[4][20],'2');assert.equal(lists[5][9],'0');assert.equal(lists[5][27],'1');assert.equal(lists[5][28],'0');assert.equal(lists[5][29],'1');
+    assert.throws(()=>native.encodeNative(model.newProgramDraft()),/Fine/);
 });
