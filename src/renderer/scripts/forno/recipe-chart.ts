@@ -1,5 +1,6 @@
 import Chart from 'chart.js/auto';
 import { buildRecipeProfile, recipeDuration, type ProgramRecipe } from './recipe-profile';
+import { renderRecipeAuxiliary, segmentEventSummary } from './recipe-auxiliary';
 
 export function createRecipeChart(root: HTMLElement, recipe: ProgramRecipe) {
     const node = (tag: string, className: string, text?: string) => { const n = document.createElement(tag); n.className = className; if (text !== undefined) n.textContent = text; return n; };
@@ -19,8 +20,10 @@ export function createRecipeChart(root: HTMLElement, recipe: ProgramRecipe) {
     const side = node('section', 'recipe-phases'); side.setAttribute('aria-label', 'Fasi del programma');
     layout.append(plotCard, side);
     const warnings = node('div', 'recipe-warnings');
+    const auxiliary = node('section', 'recipe-auxiliary');
+    renderRecipeAuxiliary(auxiliary, recipe);
     const source = node('p', 'recipe-source', 'Letto dal nanodac · ' + new Date(recipe.readAtMs).toLocaleString('it-IT'));
-    root.replaceChildren(summary, layout, warnings, source);
+    root.replaceChildren(summary, layout, warnings, auxiliary, source);
     const buttons: HTMLButtonElement[] = [];
     function select(index: number) { selected = index; buttons.forEach((b, i) => { b.classList.toggle('selected', i === index); b.setAttribute('aria-pressed', String(i === index)); }); chart?.draw(); }
     function render() {
@@ -39,6 +42,7 @@ export function createRecipeChart(root: HTMLElement, recipe: ProgramRecipe) {
             body.append(node('strong', '', title), node('span', '', s.type === 2 ? temperature(phase.end[0]) : temperature(phase.start[0]) + ' → ' + temperature(phase.end[0])), node('small', '', recipeDuration(phase.from) + ' → ' + recipeDuration(phase.to)));
             if (recipe.channels === 2) body.append(node('small', '', 'CH2: ' + temperature(phase.start[1]) + ' → ' + temperature(phase.end[1])));
             if (s.name && s.name !== String(s.number)) body.append(node('small', 'recipe-segment-name', s.name));
+            body.append(node('small', 'recipe-phase-events', segmentEventSummary(recipe, s)));
             button.append(number, body, node('span', 'recipe-phase-duration', recipeDuration(phase.to - phase.from)));
             button.addEventListener('click', () => select(phase.index)); phaseList.append(button); buttons.push(button);
         }

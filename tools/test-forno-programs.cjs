@@ -118,6 +118,9 @@ function recipeDevice(options={}) {
         if(r.address===14916)return [options.amended?1:0];
         if(r.address===4256)return [revision];
         if(r.address===14880)return [1,0,0,0,1,0,0,0,0,0,0,0];
+        if(r.address===14893)return [3,0,0,0,0,0,0,0,0];
+        if(r.address===14848)return [0,0,4,8];
+        if(r.address===62572)return [0,0,0,0];
         if(r.address===15008)return [0,0,0,0,0,0,0,0];
         if(r.address===14912)return r.value===1?[1]:[1,1];
         if(r.address===14976)return [0];
@@ -130,6 +133,7 @@ function recipeDevice(options={}) {
             b.writeUInt16BE(index===0?1:index===1?2:0,0);
             b.writeUInt32BE(index===1?14400000:0,4);b.writeFloatBE(375,8);
             b.writeUInt32BE(7200000,16);b.writeFloatBE(0.1,24);b.writeUInt16BE(1,32);
+            if(index===1){b.writeUInt16BE(1,104);b.writeUInt16BE(2,108);b.writeUInt16BE(4,112);b.writeFloatBE(20,96);}
             return Array.from({length:72},(_,i)=>b.readUInt16BE(i*2));
         }
         throw Error('Unexpected register '+r.address);
@@ -143,6 +147,11 @@ test('ricetta caricata: soltanto FC03, tempi nativi in ms e target float32',asyn
         const recipe=await readProgramRecipe(config,'Ciclo originale');
         assert.equal(recipe.segments[0].targets[0],375);assert.equal(recipe.segments[0].rampSeconds[0],7200);
         assert.equal(recipe.segments[1].durationSeconds,14400);assert.equal(recipe.segments[2].type,0);
+        assert.equal(recipe.maxEvents,3);assert.deepEqual(recipe.resetEvents,Array(8).fill(false));
+        assert.deepEqual(recipe.features,{holdback:false,pvEvents:false,userValues:true,messages:true});
+        assert.deepEqual(recipe.segments[1].events,[true,true,true,false,false,false,false,false]);
+        assert.deepEqual(recipe.segments[1].eventRaw,[1,2,4,0,0,0,0,0]);assert.equal(recipe.segments[1].userValues[0],20);
+        assert.equal(recipe.segments[1].nativeWords.length,72);
         assert(requests.every(r=>r.fc===3));
     },device.reply);
 });

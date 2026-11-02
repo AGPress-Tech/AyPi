@@ -1,5 +1,6 @@
-export type RecipeSegment = { number: number; name: string; type: number; durationSeconds: number; targets: number[]; rampSeconds: number[]; rates: number[]; endType: number; holdback: number[]; goBackTo: number; cycles: number };
-export type ProgramRecipe = { name: string; readAtMs: number; channels: number; rampStyle: number; rampUnits: number[]; servoTo: number[]; holdback: number[]; segments: RecipeSegment[] };
+// Un solo contratto per lettura backend e visualizzazione; nessun import a runtime.
+export type { RecipeSegment, ProgramRecipe } from '../../../../backend/src/modules/forno/program-recipe';
+import type { RecipeSegment, ProgramRecipe } from '../../../../backend/src/modules/forno/program-recipe';
 export type ProfilePhase = { segment: RecipeSegment; from: number; to: number; start: number[]; end: number[]; index: number; rampTimes: number[] };
 export type ProfilePoint = { x: number; y: number; phase: number };
 

@@ -1,9 +1,13 @@
 import { createRecipeChart } from './recipe-chart';
 import type { ProgramRecipe } from './recipe-profile';
+import { createProgramEditor, type DraftStorage } from './program-editor';
+import { draftFromRecipe, newProgramDraft } from '../../../main/modules/forno/program-draft';
+import { createProgramLibraryDialog, type ProgramLibraryApi } from './program-library-dialog';
+import type { LibraryEntry } from '../../../main/modules/forno/program-library';
 type StoredPrograms = { programs: string[]; readAtMs: number; scope?: 'stored' | 'current'; mode?: number };
 type PreviewResponse = ProgramRecipe | { needsTemporaryLoad: true; currentProgram: string };
 
-export function setupProgramsDialog(request: () => Promise<StoredPrograms>, preview: (input: { name: string; allowTemporaryLoad?: boolean; expectedCurrentProgram?: string }) => Promise<PreviewResponse>) {
+export function setupProgramsDialog(request: () => Promise<StoredPrograms>, preview: (input: { name: string; allowTemporaryLoad?: boolean; expectedCurrentProgram?: string }) => Promise<PreviewResponse>, draftStorage: DraftStorage, libraryApi: ProgramLibraryApi) {
     const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
     const dialog = element<HTMLDialogElement>('programs-dialog');
     const menu = element('programs-menu'), results = element('programs-results');
@@ -11,7 +15,13 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
     const list = element('programs-list'), readTime = element('programs-read-time');
     const back = element<HTMLButtonElement>('programs-back'), refresh = element<HTMLButtonElement>('programs-refresh');
     const detail = element('programs-detail'), content = element('recipe-content');
-    let view: 'menu' | 'list' | 'detail' = 'menu';
+    const editorRoot = element('programs-editor');
+    const libraryRoot = element('programs-library');
+    let workingSource: { id: string; name: string; readAtMs: number } | null = null;
+    const library = createProgramLibraryDialog(libraryRoot, libraryApi, entry => { if (entry.draft) void openEditor(entry.draft, entry); });
+    let editor: ReturnType<typeof createProgramEditor> | null = null;
+    let view: 'menu' | 'list' | 'detail' | 'editor' | 'library' = 'menu';
+    let editorReturn: 'menu' | 'detail' | 'library' = 'menu';
     let disposeChart: (() => void) | null = null;
     let chosen = '';
     let listTitle = 'Cicli memorizzati';
@@ -22,6 +32,8 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
         return text.includes('(404)') ? 'Aggiornare il backend sul server per consultare i cicli.' : (text.replace(/^Error invoking remote method '[^']+': Error: /, '').replace(/^Backend POST .*?failed \(\d+\): /, '') || 'Impossibile leggere i cicli. Verificare il collegamento e riprovare.');
     };
     const showMenu = () => {
+        editorRoot.hidden = true;
+        libraryRoot.hidden = true;
         generation++; clearChart(); view = 'menu'; detail.hidden = true; dialog.classList.remove('program-detail');
         menu.hidden = false; results.hidden = true; back.hidden = true; refresh.hidden = true;
         element('programs-title').textContent = 'Cicli forno';
@@ -75,14 +87,18 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
             content.replaceChildren();
             if ('needsTemporaryLoad' in data) {
                 const box = document.createElement('div'); box.className = 'recipe-read-confirm';
-                const title = document.createElement('h3'); title.textContent = 'Leggere questo ciclo a forno fermo';
-                const text = document.createElement('p'); text.textContent = `Per leggere le fasi, il nanodac deve caricare temporaneamente questo ciclo. Al termine sarà ripristinato “${data.currentProgram}”. Il riscaldamento non viene avviato. Procedere solo se nessuno sta usando il pannello del forno.`;
-                const button = document.createElement('button'); button.type = 'button'; button.className = 'button primary'; button.textContent = 'Leggi e ripristina';
-                button.addEventListener('click', () => void openRecipe(name, true, data.currentProgram)); box.append(title, text, button); content.append(box);
+                const title = document.createElement('h3'); title.textContent = 'Consulta questo ciclo dal backup locale';
+                const text = document.createElement('p'); text.textContent = `Sul forno è caricato “${data.currentProgram}”. Il caricamento temporaneo di altri cicli è sospeso. Importa il clone iTools .uic o i file .uipz nell’archivio locale per consultarli senza modificare il forno.`;
+                const button = document.createElement('button'); button.type = 'button'; button.className = 'button primary'; button.textContent = 'Apri archivio locale e backup';
+                button.addEventListener('click', () => void openLibrary()); box.append(title, text, button); content.append(box);
                 return;
             }
             if (data.name !== name) throw new Error('La ricetta ricevuta non corrisponde al ciclo selezionato.');
             disposeChart = createRecipeChart(content, data);
+            const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'button secondary'; edit.id = 'edit-program-copy'; edit.textContent = 'Modifica una copia in bozza';
+            const editError = document.createElement('p'); editError.className = 'form-error'; editError.setAttribute('role', 'alert');
+            edit.addEventListener('click', () => { try { const draft = draftFromRecipe(data); void openEditor(draft); } catch (e) { editError.textContent = (e as Error).message; } });
+            content.append(edit, editError);
         } catch (failure) {
             if (current !== generation || !dialog.open) return;
             content.replaceChildren();
@@ -90,15 +106,53 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
             const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'button secondary'; retry.textContent = 'Riprova'; retry.addEventListener('click', () => void openRecipe(name)); content.append(notice, retry);
         } finally { if (current === generation) content.setAttribute('aria-busy', 'false'); }
     }
+    async function openEditor(copy?: ReturnType<typeof newProgramDraft>, sourceEntry?: LibraryEntry) {
+        if (copy && editor?.isPending()) { const notice = document.createElement('p'); notice.className = 'form-error'; notice.textContent = 'La bozza contiene valori da correggere. Riaprire il programmatore e correggerli o annullarli prima di importare una copia.'; (sourceEntry ? libraryRoot : content).append(notice); return; }
+        const current = ++generation; editorReturn = sourceEntry ? 'library' : copy ? 'detail' : 'menu';
+        if (copy) workingSource = sourceEntry && copy.source ? { id: sourceEntry.id, name: copy.source.name, readAtMs: copy.source.readAtMs } : null;
+        menu.hidden = true; results.hidden = true; detail.hidden = true; editorRoot.hidden = false;
+        libraryRoot.hidden = true;
+        back.hidden = false; refresh.hidden = true; view = 'editor'; dialog.classList.add('program-detail');
+        element('programs-title').textContent = 'Programmatore · bozza locale';
+        try {
+            if (editor) { if (copy) editor.replace(copy); return; }
+            const draft = await draftStorage.load() || newProgramDraft();
+            if (generation !== current || !dialog.open) return;
+            editor = createProgramEditor(editorRoot, draft, { ...draftStorage, archive: async d => {
+                const sourceId = workingSource && d.source?.name === workingSource.name && d.source.readAtMs === workingSource.readAtMs ? workingSource.id : undefined;
+                const state = await libraryApi.archive(d, sourceId); return { count: state.entries.length };
+            } });
+            if (copy) editor.replace(copy);
+        } catch (e) {
+            if (generation !== current) return;
+            editorRoot.replaceChildren(); const error = document.createElement('p'); error.className = 'form-error'; error.textContent = 'Impossibile aprire la bozza: ' + (e as Error).message; editorRoot.append(error);
+        }
+    }
+    async function openLibrary() {
+        generation++; clearChart(); view = 'library'; menu.hidden = true; results.hidden = true; detail.hidden = true; editorRoot.hidden = true; libraryRoot.hidden = false;
+        back.hidden = false; refresh.hidden = true; dialog.classList.add('program-detail'); element('programs-title').textContent = 'Archivio locale e backup · nessun invio al forno'; await library.refresh();
+    }
+    const listOperation = async (action: () => Promise<void>) => { error.hidden = true; try { await action(); } catch (e) { error.textContent = (e as Error).message; error.hidden = false; } };
     element('open-programs').addEventListener('click', () => { showMenu(); dialog.showModal(); });
     element('list-programs').addEventListener('click', () => void load());
+    element('open-program-editor').addEventListener('click', () => void openEditor());
+    element('open-program-library').addEventListener('click', () => void openLibrary());
+    element('manage-local-programs').addEventListener('click', () => void openLibrary());
+    element('backup-forno-programs').addEventListener('click', () => void listOperation(async () => { const result = await libraryApi.backup(); if (result) status.textContent = `Backup locale verificato: ${result.count} programmi (${result.originals} originali nativi) · ${result.path}`; }));
+    element('import-forno-programs').addEventListener('click', () => void listOperation(async () => { if (await libraryApi.importFiles()) await openLibrary(); }));
     refresh.addEventListener('click', () => void load());
     back.addEventListener('click', () => {
-        if (view === 'detail') {
+        if (view === 'editor') {
+            generation++; editorRoot.hidden = true;
+            if (editorReturn === 'detail') { view = 'detail'; detail.hidden = false; element('programs-title').textContent = 'Programmazione del ciclo'; }
+            else if (editorReturn === 'library') void openLibrary();
+            else showMenu();
+        } else if (view === 'detail') {
             generation++; clearChart(); view = 'list'; detail.hidden = true; results.hidden = false; refresh.hidden = false;
             dialog.classList.remove('program-detail'); element('programs-title').textContent = listTitle;
             Array.from(list.querySelectorAll<HTMLButtonElement>('button')).find(b => b.querySelector('.stored-program-name')?.textContent === chosen)?.focus();
         } else { showMenu(); element('list-programs').focus(); }
     });
     dialog.addEventListener('close', () => { generation++; clearChart(); });
+    window.addEventListener('beforeunload', () => { editor?.dispose(); library.dispose(); });
 }

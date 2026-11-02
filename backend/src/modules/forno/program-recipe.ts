@@ -4,10 +4,15 @@ export type RecipeSegment = {
     number: number; name: string; type: number; durationSeconds: number;
     targets: number[]; rampSeconds: number[]; rates: number[];
     endType: number; holdback: number[]; goBackTo: number; cycles: number;
+    holdbackValues: number[]; waitFor: number; wait: number[]; waitValues: number[];
+    pvEvents: number[]; pvEventValues: number[]; pvEventUse: number[]; userValues: number[];
+    events: boolean[]; eventRaw: number[]; nativeWords: number[];
 };
 export type ProgramRecipe = {
     name: string; readAtMs: number; channels: number; rampStyle: number; rampUnits: number[];
     servoTo: number[]; holdback: number[]; segments: RecipeSegment[];
+    maxEvents: number; resetEvents: boolean[]; resetEventRaw: number[]; resetUserValues: number[];
+    features: { holdback: boolean; pvEvents: boolean; userValues: boolean; messages: boolean };
 };
 type Client = ReturnType<typeof createProgramConnection>;
 const decode = (words: number[]) => String.fromCharCode(...words.slice(0, words.includes(0) ? words.indexOf(0) : words.length)).trim();
@@ -24,11 +29,17 @@ export function decodeRecipeSegment(number: number, name: string, words: number[
     const seconds = (offset: number) => buffer.readUInt32BE(offset * 4) / 1000;
     const targets = Array.from({ length: channels }, (_, i) => float(2 + i));
     const rates = Array.from({ length: channels }, (_, i) => float(6 + i));
+    const perChannel = (offset: number, read = value) => Array.from({ length: channels }, (_, i) => read(offset + i));
+    // I bool nativi possono essere maschere (sul forno: 1, 2, 4), non solo 0/1.
+    const eventRaw = Array.from({ length: 8 }, (_, i) => value(26 + i));
     if (value(0) > 5 || targets.some(v => !Number.isFinite(v)) || rates.some(v => !Number.isFinite(v))) fail('Parametri segmento non interpretabili.');
     return { number, name, type: value(0), durationSeconds: seconds(1), targets,
         rampSeconds: Array.from({ length: channels }, (_, i) => seconds(4 + i)), rates,
         endType: value(8), holdback: Array.from({ length: channels }, (_, i) => value(9 + i)),
-        goBackTo: value(18), cycles: buffer.readInt16BE(19 * 4) };
+        goBackTo: value(18), cycles: buffer.readInt16BE(19 * 4),
+        holdbackValues: perChannel(11, float), waitFor: value(13), wait: perChannel(14), waitValues: perChannel(16, float),
+        pvEvents: perChannel(20), pvEventValues: perChannel(22, float), userValues: perChannel(24, float), pvEventUse: perChannel(34),
+        events: eventRaw.map(Boolean), eventRaw, nativeWords: [...words] };
 }
 
 async function snapshot(client: Client) {
@@ -43,8 +54,12 @@ async function readLoaded(client: Client): Promise<ProgramRecipe> {
     if (before.amended) fail('Il programma contiene modifiche non salvate. Riprovare dopo averle salvate o annullate.');
     const [revision] = await client.read(4256, 1);
     const setup = await client.read(14880, 12), settings = await client.read(15008, 8);
+    const auxiliary = await client.read(14893, 9), featureWords = await client.read(14848, 4);
+    const resetWords = await client.read(native(14902), 4);
+    const resetBuffer = Buffer.alloc(8); resetWords.forEach((word, i) => resetBuffer.writeUInt16BE(word, i * 2));
     const channels = setup[0];
     if (![1, 2].includes(channels) || ![0, 1].includes(settings[5]) || settings.slice(6, 8).some(v => v > 2)) fail('Configurazione del programmatore non riconosciuta.');
+    if (auxiliary[0] > 8) fail('Numero di eventi ausiliari non valido.');
     const segments: RecipeSegment[] = [];
     for (let i = 0; i < 26; i++) {
         const words = await client.read(native(15040 + 48 * i), 72);
@@ -58,7 +73,10 @@ async function readLoaded(client: Client): Promise<ProgramRecipe> {
     if (before.name !== after.name || before.amended !== after.amended || revision !== endRevision) fail('Il programma è cambiato durante la lettura. Riprovare.');
     return { name: before.name, readAtMs: Date.now(), channels, rampStyle: settings[5],
         rampUnits: settings.slice(6, 6 + channels), servoTo: setup.slice(10, 10 + channels),
-        holdback: settings[0] === 1 ? settings.slice(1, 1 + channels) : [], segments };
+        holdback: settings[0] === 1 ? settings.slice(1, 1 + channels) : [], segments,
+        maxEvents: auxiliary[0], resetEventRaw: auxiliary.slice(1), resetEvents: auxiliary.slice(1).map(Boolean),
+        resetUserValues: Array.from({ length: channels }, (_, i) => resetBuffer.readFloatBE(i * 4)),
+        features: { holdback: !!featureWords[0], pvEvents: !!featureWords[1], userValues: !!featureWords[2], messages: !!featureWords[3] } };
 }
 
 async function load(client: Client, name: string) {

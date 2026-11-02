@@ -151,8 +151,9 @@ tempo e setpoint; la temperatura iniziale dell'anteprima è modificabile solo
 localmente e parte da 0 °C. Nessun parametro viene ricavato dal nome del file.
 
 `POST /api/forno/programs/preview` riceve `{name, allowTemporaryLoad?: boolean,
-expectedCurrentProgram?: string}`. La conferma è legata al programma iniziale:
-se questo cambia fra richiesta e conferma, non viene effettuato il caricamento.
+expectedCurrentProgram?: string}`. In questa fase `allowTemporaryLoad:true`
+è rifiutato sia dall'IPC desktop sia dal servizio backend, prima dell'accesso
+al forno. Il programma già caricato rimane consultabile.
 Se il ciclo è già caricato e non modificato, legge soltanto FC03: impostazioni
 programmatore/program, segmenti nativi a `0x8000 + 2*(15040 + 48*i)` e nomi
 dei segmenti. I target sono float32 e i tempi uint32 in millisecondi, senza il
@@ -162,19 +163,297 @@ e GoBack finiti (massimo 500 fasi). Attese esterne e ripetizioni continue hanno
 durata variabile: l'anteprima si ferma senza inventare una fine. Holdback e
 mantenimento indefinito finale sono indicati esplicitamente.
 
-Per un ciclo diverso, la prima richiesta non carica nulla: richiede una conferma
-esplicita **Leggi e ripristina**. Il backend accetta il caricamento temporaneo
-solo in Reset, con programma iniziale salvato e senza modifiche pendenti.
-Controlla la presenza di entrambi i file, seleziona il nome con FC16 `27281`
-e richiede Load con FC06 `14912=2`. Al termine, anche dopo un errore di lettura,
-prova a ripristinare il programma iniziale e verifica l'esito. Se stato o programma
-cambiano dal pannello, interrompe le scritture e segnala il ripristino non confermato.
-L'operatore deve usare questa funzione senza interventi contemporanei sul pannello.
-Non vengono mai inviati Run, Hold, Reset, Store, Delete o modifiche ai segmenti.
+Per un ciclo diverso, la richiesta non carica nulla e la vista propone
+**Apri archivio locale e backup**. Il precedente percorso **Leggi e ripristina**
+è sospeso per rispettare il vincolo di non modificare al momento il forno.
+Il codice di basso livello precedente resta coperto da simulatore, ma non è
+raggiungibile tramite il servizio/IPC con caricamento autorizzato. Per leggere
+gli altri programmi si importano il clone iTools o i file nativi locali.
+Non vengono inviati Load, Run, Hold, Reset, Store, Delete o modifiche ai segmenti.
 Le operazioni elenco/anteprima sono serializzate fra le postazioni.
 
 Verifiche: `node --test tools/test-forno-programs.cjs tools/test-forno-recipe-profile.cjs`
 (dopo compilazione backend) e `node tools/test-forno-ui.cjs`.
+
+### Eventi ausiliari: indagine prima dell'editor (02/11/2026)
+
+Verifica sul nanodac `192.168.1.165`, Unit ID 255, con sole richieste FC03:
+programma già caricato `Ciclo_1_530_8h`, modo/stato Reset `[1,1]`, revisione
+configurazione 18. Non sono stati inviati Load, Store, Run o comandi agli attuatori.
+
+| Segmento | Profilo nominale CH1 | Evento 1 | Evento 2 | Evento 3 | Valore utente CH1 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Rampa a 200 °C, 1 h | OFF | OFF | OFF | 0 |
+| 2 | Sosta, 1 h | OFF | OFF | OFF | 5 |
+| 3 | Rampa a 400 °C, 2 h | OFF | OFF | OFF | 0 |
+| 4 | Sosta, 1 h | OFF | OFF | OFF | 5 |
+| 5 | Rampa a 530 °C, 2 h | OFF | OFF | OFF | 0 |
+| 6 | Sosta, 4 h | OFF | OFF | OFF | 5 |
+| 7 | Rampa a 10 °C, 30 s | ON | ON | ON | 0 |
+| 8 | Fine → Reset | OFF (Reset) | OFF (Reset) | OFF (Reset) | 0 |
+
+`MaxEvents` (14893) = 3; gli otto `ResetEvent` (14894–14901) sono zero.
+Holdback ed eventi PV sono disabilitati; UserValue e Messages sono abilitati
+(14848–14851 = `[0,0,4,8]`). I valori utente 5 nelle soste erano anch'essi
+omessi dalla vecchia anteprima: il loro significato dipende dal wiring.
+
+La segnalazione «apertura camino» è compatibile con la fase 7, ma NON identifica
+quale evento comandi il camino né la funzione degli altri due. Tutti e tre sono
+attivi contemporaneamente. Non si può dedurre se comandino tre attuatori distinti,
+logiche intermedie o un'azione combinata. ON/OFF è lo stato logico programmato,
+non una conferma della posizione fisica. La discesa a 10 °C in 30 s è il setpoint
+nominale, non il tempo necessario al raffreddamento reale.
+
+Riferimento: manuale Eurotherm HA030554, sezioni 3.4.9, 4.8.1, 4.8.3 e 5.3
+([PDF issue 5, tabella Segment.1 a pagina PDF 223](https://eurothermonline.com/media/instrument-manuals/nanodac%20Recorder%20%20Controller%20User%20Guide%20%28HA030554%20issue%205%29%20%289.38MB%29.pdf#page=223)).
+Il dispositivo supporta fino a otto eventi; il numero tre è una configurazione
+di questo forno. Gli eventi possono essere collegati ad altri parametri.
+Serve il clone completo iTools `.uic` e, per la funzione fisica finale, lo schema
+elettrico o la conferma del manutentore. Il file del solo programma non basta.
+In iTools selezionare lo strumento e usare File → Save to File / Save dalla
+finestra principale; non usare Load Values From File, Send to Device o Download.
+
+**Riscontro successivo nel clone fornito `forno magazzino.uic` (02/11/2026).**
+Il file è stato analizzato solo localmente. I riferimenti numerici `Wire.N.Src`
+e `Dest` sono stati risolti contro il campo `SortIndex` delle righe parametri,
+non interpretati come indirizzi Modbus. Risultano 28 collegamenti attivi:
+
+| Evento | Collegamento interno verificato | Morsetti | Tipo / inversione |
+| --- | --- | --- | --- |
+| E1 | Wire.26: Programmer.Run.Event1 → DigitalIO.3A3B.PV | 3A–3B | ON/OFF, Invert=0 |
+| E2 | Wire.27: Programmer.Run.Event2 → DigitalIO.RELAY_4AC.PV | 4A–4C | ON/OFF, Invert=0 |
+| E3 | Wire.28: Programmer.Run.Event3 → DigitalIO.RELAY_5AC.PV | 5A–5C | ON/OFF, Invert=0 |
+
+Righe del clone: collegamenti 552–557, configurazione I/O 5197–5239.
+Non ci sono etichette camino/ventola/serranda: rimane da verificare il
+collegamento esterno di questi tre morsetti con lo schema o il manutentore.
+Il clone dimostra tre uscite comandate separatamente; non dimostra quali
+attuatori esterni comandino né la loro posizione effettiva.
+
+**Il valore utente CH1 non è un parametro accessorio inutilizzato.**
+I collegamenti Wire.1–14 realizzano una logica di attesa termica personalizzata:
+
+- `Lgc2.1` confronta `Programmer.Run.Ch1UserVal` con zero (`Oper=5`, uguaglianza).
+- `Math2.1` somma 1 al risultato; `Mux8.1` seleziona quindi il valore utente
+  quando è diverso da zero, oppure `UsrVal.1.Val=1000` quando è zero.
+- `Math2.2` sottrae il valore selezionato dal setpoint `Programmer.Run.Ch1PSP`.
+- `Lgc2.2` e `Lgc2.3` confrontano rispettivamente le PV di Channel 1 e Channel 2
+  con questa soglia (`Oper=8`, minore). `Lgc2.4` combina i risultati in OR
+  (`Oper=2`) e alimenta `Programmer.SetUp.Hold`.
+
+In condizioni valide: `Hold = (PV1 < PSP - tolleranza) OR
+(PV2 < PSP - tolleranza)`, con tolleranza uguale al valore utente se diverso
+da zero, altrimenti 1000. Nel ciclo 1 le soste usano 5 °C: basta che uno dei
+due canali scenda sotto PSP−5 °C per attivare l'ingresso Hold. Non è una banda
+simmetrica ±5 °C e non è la funzione Holdback nativa (che è disabilitata).
+Lo zero seleziona la tolleranza ampia 1000, non elimina fisicamente la logica.
+Le conclusioni descrivono il cablaggio configurato; comportamento con guasti
+dei canali e modalità di ripresa vanno verificati nel collaudo dell'editor.
+Righe clone: Math2 334–361, Mux8 1538–1553, Lgc2 1602–1629, UsrVal.1 1712–1717.
+Le operazioni numeriche sono state confrontate con HA030554 §5.3.
+
+Questa logica usa due sensori pur avendo il programmatore un solo profilo CH1.
+I due loop di regolazione pilotano separatamente le uscite 1A–1B e 2A–2B
+(Wire.20 e Wire.25): non vanno confusi con gli eventi ausiliari E1–E3.
+
+La lettura ora restituisce gli otto eventi per segmento, gli stati globali di
+Reset, le funzioni abilitate, valori utente, soglie/uso degli eventi PV e criteri
+di attesa/Holdback. I bool sono interpretati come non-zero: sul forno la fase 7
+restituisce `[1,2,4,0,0,0,0,0]`, non `[1,1,1,0,0,0,0,0]`. Sono conservati anche
+i 72 word nativi originali di ogni segmento, inclusi i word di riempimento:
+non devono essere usati come blocco di scrittura indiscriminato.
+La vista riporta E1/E2/E3 sulle schede e una tabella di tutti i segmenti,
+inclusi Fine, Wait e GoBack, con ON e OFF espliciti. Per Fine → Reset mostra
+gli stati globali di Reset. Un backend precedente è segnalato come privo dei
+dati ausiliari, senza inventare stati OFF. Aggiornare backend e client.
+
+La scrittura sul nanodac non è ancora abilitata. Il programmatore locale
+descritto sotto permette di preparare bozze. Prima di introdurre l'invio occorre:
+
+- Verificare la corrispondenza evento → logica interna → uscita → attuatore,
+  le inversioni, gli eventuali impulsi/memorie e l'effetto di Reset; chiarire
+  anche l'uso dei valori utente. Non provare attuatori per identificarli.
+- Definire un formato completo di modifica, separato dall'anteprima termica,
+  preservando anche i parametri non modificati e distinguendo impostazioni
+  globali del forno dai parametri del singolo programma.
+- Validare tipi, limiti e funzioni disponibili; rendere configurabili gli
+  eventi per ogni segmento con nomi verificati e ON/OFF espliciti.
+- Operare solo in Reset, con esclusione delle operazioni concorrenti,
+  verifica che il programma non sia cambiato e backup verificabile prima
+  delle modifiche. Le scritture Modbus multiple non sono una transazione
+  atomica: prevedere interruzione, esiti incerti e recupero esplicito.
+- Rileggere e confrontare tutti i parametri dopo la modifica, verificare
+  l'esito Store e, in condizioni controllate, la persistenza dopo il Load.
+  Il solo ACK Modbus non dimostra che il programma salvato sia corretto.
+- Collaudare prima con simulatore (maschere 1/2/4, due canali, Fine/Reset,
+  perdita collegamento/ACK, modifica dal pannello, salvataggio parziale),
+  poi con verifica concordata sul forno fermo senza avviare un ciclo.
+
+Verifiche aggiuntive: `node --test tools/test-forno-recipe-auxiliary.cjs`;
+il test UI verifica le tre colonne, gli eventi ON e il ritorno OFF in Reset.
+
+### Programmatore locale: grafico e tabella sincronizzati
+
+**Cicli forno → Programmatore · crea o riprendi bozza** apre l'editor desktop.
+Dalla lettura di un programma compatibile, **Modifica una copia in bozza**
+importa le fasi già lette, senza ulteriori richieste al forno e senza modificare
+la ricetta originale. L'importazione rifiuta profili a due canali, rampe a
+velocità, Step, Wait, GoBack e funzionalità ausiliarie non gestite; non li
+trasforma in rampe/soste equivalenti inventate. Il ciclo 1 è compatibile.
+L'editor è disponibile sul client desktop; su Android rimane la consultazione.
+
+Ogni fase è una **Rampa a tempo** oppure una **Stasi**. Si impostano
+nome fase, temperatura finale, durata, tre eventi ON/OFF indipendenti e valore
+utente CH1. Una sosta mantiene il setpoint della fase precedente: il relativo
+campo temperatura è di sola lettura e segue le modifiche della rampa precedente.
+La prima sosta usa la partenza dell'anteprima. La partenza è locale e non
+imposta né modifica la configurazione PV/SP del forno. I dati termici sono
+decimi interi di °C, i tempi millisecondi interi; non si memorizzano coordinate
+pixel o durate derivate da valori arrotondati in ore.
+
+- **+ Rampa / + Stasi** inseriscono dopo la fase selezionata, oppure in fondo
+  senza selezione. Sono consentite 25 fasi più il segmento di fine.
+- **Seleziona / sposta**: trascinare un punto cambia il termine della fase;
+  per una rampa cambia anche la temperatura. Le fasi successive conservano
+  le proprie durate. Le soste consecutive mantengono la temperatura coerente.
+- **Disegna punti**: un click dopo l'ultimo punto aggiunge una fase; un click
+  interno a una rampa la divide conservando il termine originario, il tempo
+  totale e i parametri ausiliari di entrambi i tratti. Non si divide una sosta
+  trasformandola implicitamente in una rampa.
+- Il passo grafico è selezionabile (1 ms, 1 s, 10 s, 1 min; 0,1/1/5/10 °C).
+  Le frecce sul canvas spostano il punto selezionato di un passo, Maiusc di
+  dieci. Esc o annullamento del puntatore ripristinano il profilo precedente;
+  un rilascio su un valore non valido annulla lo spostamento completo.
+- La tabella accetta temperature con punto o virgola e al massimo un decimale;
+  tempi `HH:MM:SS.mmm` (millisecondi facoltativi), da 1 ms a 500 h per fase.
+  Confermare con Tab/Invio. Input incompleti o non validi rimangono visibili
+  e bloccano grafico, salvataggio ed esportazione finché corretti o annullati.
+  Le modifiche sono applicate al modello soltanto quando tutti i campi sono validi.
+- **Incolla righe da Excel** accetta sette colonne TSV senza intestazione:
+  `rampa/stasi` (accettata anche `sosta`), temperatura finale, durata, E1, E2, E3, valore utente CH1.
+  L'aggiunta è atomica: se anche una riga è errata non ne viene applicata nessuna.
+- Annulla/Ripristina conserva fino a 100 modifiche. Nuova bozza e importazione
+  di una copia sono anch'esse annullabili nella sessione.
+
+**Verifica programma** mostra istruzioni per ogni fase, tempi iniziali/finali,
+durata in ms, target decimale e corrispondente float32, eventi e valore utente.
+Usa lo stesso modello canonico del grafico e della tabella. La rappresentazione
+IEEE754 può avere piccoli scarti visibili rispetto al decimale (es. 530,1 °C):
+il confronto con i valori nativi rientrerà nella futura verifica di scrittura.
+L'azione finale può essere Reset, con stati globali del dispositivo da
+verificare, oppure mantenimento indefinito con eventi finali OFF e UserVal=0.
+Il mantenimento finale con eventi personalizzati non è ancora importabile.
+
+Ogni modifica valida viene salvata automaticamente su questo PC in
+`<userData AyPi>/forno/program-draft.json`, tramite file temporaneo, fsync,
+rename e rilettura per confronto. Un errore è visibile, non sostituito con una
+bozza vuota. La bozza contiene versione/formato espliciti; campi sconosciuti
+e versioni non supportate sono rifiutati. Salva bozza permette di riprovare;
+Esporta/Apri bozza usa file `.aypi-forno.json` scelti dall'operatore. Sono bozze
+AyPi, non file nativi nanodac. Modifiche non ancora confermate nei campi non
+sono salvate; restano nella finestra durante la sessione. Conservare bozze
+alternative tramite esportazione prima di chiudere l'applicazione: la cronologia
+Annulla non è persistita. Non è un archivio condiviso fra postazioni.
+
+Il campo dell'editor −10000…10000 °C è un limite di rappresentazione, non un
+limite operativo autorizzato per la macchina. Precisione del modello e tempi
+nominali non attestano precisione fisica, risoluzione effettiva dell'attuatore o
+durata reale con pause Hold. Il valore utente è gestito esplicitamente per
+preservare la logica di attesa termica individuata nel clone; non va confuso
+con la stasi. Le nuove stasi propongono 5, modificabile; le nuove rampe 0.
+Nel cambio esplicito del tipo il valore segue il nuovo default soltanto se
+coincideva con il default precedente; i valori personalizzati sono mantenuti.
+L'importazione conserva ogni valore originale: alcuni programmi esistenti
+hanno stasi con valore 0, quindi 5 non è un codice del tipo segmento.
+
+Non esiste un endpoint/comando di invio della bozza al forno. I comandi locali
+`forno-draft-load/save/import/export` non chiamano il backend. Restano da
+completare mappatura degli attuatori, limiti validati della macchina e protocollo
+di scrittura/rilettura indipendente/persistenza descritto sopra.
+
+Verifiche: `node --test tools/test-forno-program-draft.cjs` e
+`node tools/test-forno-ui.cjs`. Coperti: risoluzioni e limiti, plateau,
+divisione/trascinamento dei punti, importazione del ciclo 1 confrontata con i
+dati reali, file corrotto e salvataggio non valido senza sovrascrittura;
+nella UI anche trascinamento e disegno con eventi mouse reali, undo/redo,
+incolla senza applicazioni parziali, export identico alla bozza salvata e
+assenza di richieste programmi al nanodac durante l'editing locale.
+
+### Archivio programmi, backup e preparazione dei file nativi
+
+**Cicli forno → Archivio locale e backup programmi** apre la gestione locale.
+Nella lista dei programmi del forno sono presenti anche **Backup programmi…**,
+**Importa 1 o più programmi…** e **Gestisci archivio locale**. Al primo backup,
+se l'archivio è vuoto, viene chiesto di scegliere il clone iTools o i file
+nativi: non viene effettuata una scansione con caricamento dei programmi.
+
+Il formato portabile è `.aypi-forno-backup.json`, distinto dalla bozza singola
+`.aypi-forno.json`. Contiene tutte le versioni selezionate, i file `.uipz`
+originali in base64 e, quando presente, il clone `.uic` completo originale.
+SHA-256 verifica il contenuto complessivo e ciascun file; gzip verifica anche
+il CRC dei programmi. Il collegamento di ogni originale al proprio clone viene
+controllato sul nome e sull'hash, non solo sul nome. Gli hash rilevano
+corruzioni, non costituiscono una certificazione di funzionamento hardware.
+La data del file clone è esposta come data sorgente, senza fingere che il
+backup sia una nuova lettura dello stato attuale del forno.
+
+L'importazione multipla accetta `.uic`, `.uipz`, backup AyPi e bozze singole.
+Tutti i file sono validati prima dell'unica scrittura locale: un file corrotto
+annulla l'intera importazione. Le copie con lo stesso nome ricevono ID distinti,
+senza sovrascrivere per nome. Il sottoinsieme XML nanodac 811 osservato viene
+letto conservativamente; file validi di versioni/tipi non gestiti rimangono
+conservati integralmente ma non editabili. I file originali non sono ricompressi.
+
+**Salva versione nell’archivio** dall'editor salva una nuova versione locale,
+preservando l'originale associato quando si è partiti da una voce dell'archivio.
+La bozza di lavoro continua ad avere il proprio salvataggio automatico distinto.
+I nomi segmento vuoti sono automatici (numero corrente); i nomi manuali sono
+conservati. Fine compare come ultimo segmento numerato e ha un nome impostabile.
+Gli eventi sono separati con **✕ OFF / ✓ ON**: possono essere predisposti
+singolarmente, ma non azionati dalla vista.
+
+**Elimina selezionati solo dal PC** è una cancellazione logica e recuperabile
+tramite **Mostra anche eliminati dal PC → Recupera eliminati locali**. Gli
+originali sono conservati. Il backup completo comprende anche gli eliminati;
+quello della selezione comprende soltanto le voci selezionate.
+
+**Prepara ripristino degli originali…** estrae in una nuova cartella i `.uipz`
+identici ai byte importati, uno per sottocartella per evitare conflitti di nomi.
+**Esporta versioni locali .uipz…** genera file per le versioni modificate/nuove,
+confronta la rilettura con il modello dell'editor e li marca come generati e
+non collaudati su hardware. Un manifest `VERIFICA.json` elenca nomi, hash e
+origine dei file. I programmi originali e quelli generati sono distinguibili.
+L'XML/gzip è coerente con i nove originali forniti; la rilettura software non
+dimostra che un programma sia stato accettato, salvato e rieseguito dal forno.
+
+Il pulsante **Invio al forno bloccato** rimane disabilitato anche dopo un backup:
+non esistono endpoint di Store/Delete o azionamento relè. Il successivo collaudo
+del ripristino deve essere concordato prima di qualsiasi invio reale.
+Non usare il ripristino dell'intero clone come caricamento selettivo: secondo
+HA030554 §Programmer/Cloning può sostituire configurazione e archivio programmi.
+Riferimento ufficiale: [manuale Eurotherm](https://www.eurotherm.com/?wpdmdl=27991).
+
+L'archivio di lavoro è `<userData AyPi>/forno/program-library.json`, con ID,
+revisioni e scrittura atomica/rilettura. File non riconosciuti o oltre 32 MB sono
+rifiutati; un errore non viene sostituito con un archivio vuoto. La gestione e
+la preparazione dei backup non dipendono da backend, collector o rete.
+
+Per creare un backup offline da un clone senza aprire l'app:
+`node tools/backup-forno-clone.cjs "percorso/forno.uic" "cartella backup"`
+(dopo compilazione client). Il comando crea una cartella nuova e include clone
+identico, backup JSON, nove file nativi nel caso del clone fornito e riepilogo.
+Sul clone reale del 02/11/2026 08:14:14 sono stati verificati nove programmi,
+senza contattare il dispositivo. Il ripristino sul dispositivo non è stato eseguito.
+
+Verifiche aggiuntive: `node --test tools/test-forno-program-library.cjs`.
+Comprendono conteggio/CRC del clone con BOM e CRLF, confronto dei nove originali,
+confronto indipendente del ciclo 1 con la lettura FC03, valori zero delle stasi,
+nomi XML e Fine, rigenerazione/rilettura, importazione non parziale, backup
+alterato, originali non sovrascritti, eliminazione recuperabile, revisioni,
+versioni sconosciute e rifiuto del caricamento temporaneo nel servizio backend.
+Il test Electron copre anche importazione di nove originali, backup, preparazione
+dei file identici, modifica del solo E2, nuova versione, eliminazione/recupero e
+assenza di richieste al forno durante tutte queste operazioni locali.
 
 Scheda **MES - SCADA → Apri FORGE → Scada Forno**.
 La risoluzione della vista è personale e non modifica il campionamento del server.

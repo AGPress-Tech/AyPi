@@ -24,6 +24,7 @@ export const listFornoPrograms = createStoredProgramsReader(() => runProgramTask
 }));
 
 export function getFornoProgramRecipe(name: string, allowTemporaryLoad: boolean, expectedCurrentProgram?: string) {
+    if (allowTemporaryLoad) return Promise.reject(new HttpError(409, 'Caricamento temporaneo sospeso: in questa fase non sono consentite modifiche sul forno. Importare un clone iTools o un backup locale per consultare gli altri programmi.'));
     return runProgramTask(JSON.stringify([name, allowTemporaryLoad, expectedCurrentProgram]), async () => {
         const config = getFornoConfig();
         if (!config.enabled) throw new HttpError(503, 'Modulo forno disabilitato sul server.');

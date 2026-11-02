@@ -1,8 +1,10 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { readViewSettings, writeViewSettings } from './forno/preferences-store';
 import { requestAypiBackend } from './file-manager/backend-client';
 import { requestFornoHistory,openFornoLive } from './forno/network';
+import { readProgramDraft, writeProgramDraft } from './forno/program-draft-store';
+import { archiveDraft, exportBackupFile, importProgramFiles, libraryView, prepareRestoreFiles, readLibrary, setLocalDeletion } from './forno/program-library';
 
 let registered = false;
 let fornoWindow: BrowserWindow | null = null;
@@ -24,6 +26,46 @@ export function setupFornoReader() {
     ipcMain.on('forno-live-stop',event=>{streams.get(event.sender.id)?.();streams.delete(event.sender.id);});
     ipcMain.handle('forno-view-settings-load', () => readViewSettings(preferencesPath()));
     ipcMain.handle('forno-view-settings-save', (_event, input) => writeViewSettings(preferencesPath(), input));
+    const draftPath = () => path.join(app.getPath('userData'), 'forno', 'program-draft.json');
+    const libraryPath = () => path.join(app.getPath('userData'), 'forno', 'program-library.json');
+    ipcMain.handle('forno-library-list', () => libraryView(readLibrary(libraryPath())));
+    ipcMain.handle('forno-library-save', (_event, input) => archiveDraft(libraryPath(), input?.draft, input?.sourceId));
+    ipcMain.handle('forno-library-delete', (_event, input) => {
+        if (typeof input?.deleted !== 'boolean') throw new Error('Operazione locale non valida.');
+        return setLocalDeletion(libraryPath(), input.ids, input.revision, input.deleted);
+    });
+    ipcMain.handle('forno-library-import', async () => {
+        const result = await dialog.showOpenDialog({ title: 'Importa nell’archivio locale · nessun invio al forno', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Backup AyPi, clone iTools o programmi nanodac', extensions: ['json', 'uic', 'uipz'] }] });
+        return result.canceled ? null : importProgramFiles(libraryPath(), result.filePaths);
+    });
+    ipcMain.handle('forno-library-backup', async (_event, input) => {
+        if (!readLibrary(libraryPath()).entries.length) {
+            const source = await dialog.showOpenDialog({ title: 'Primo backup: seleziona il clone iTools o i programmi originali · nessun contatto con il forno', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Clone iTools, programmi nativi o backup', extensions: ['uic', 'uipz', 'json'] }] });
+            if (source.canceled) return null;
+            importProgramFiles(libraryPath(), source.filePaths);
+        }
+        const result = await dialog.showSaveDialog({ title: 'Salva backup verificato dei programmi locali', defaultPath: 'Programmi_forno.aypi-forno-backup.json', filters: [{ name: 'Backup programmi AyPi', extensions: ['json'] }] });
+        return result.canceled || !result.filePath ? null : exportBackupFile(libraryPath(), result.filePath, input?.ids);
+    });
+    ipcMain.handle('forno-library-restore-files', async (_event, input) => {
+        if (typeof input?.originalsOnly !== 'boolean') throw new Error('Tipo esportazione non valido.');
+        const result = await dialog.showOpenDialog({ title: 'Scegli dove preparare i file nativi · nessun invio al forno', properties: ['openDirectory', 'createDirectory'] });
+        return result.canceled || !result.filePaths[0] ? null : prepareRestoreFiles(libraryPath(), result.filePaths[0], input.ids, input.originalsOnly);
+    });
+    ipcMain.handle('forno-draft-load', () => readProgramDraft(draftPath()));
+    ipcMain.handle('forno-draft-save', (_event, input) => writeProgramDraft(draftPath(), input));
+    ipcMain.handle('forno-draft-export', async (_event, input) => {
+        const { validateDraft } = await import('./forno/program-draft');
+        const draft = validateDraft(input);
+        const result = await dialog.showSaveDialog({ title: 'Esporta bozza programma forno', defaultPath: draft.name + '.aypi-forno.json', filters: [{ name: 'Bozza AyPi forno', extensions: ['json'] }] });
+        if (result.canceled || !result.filePath) return null;
+        writeProgramDraft(result.filePath, draft); return { path: result.filePath };
+    });
+    ipcMain.handle('forno-draft-import', async () => {
+        const result = await dialog.showOpenDialog({ title: 'Apri bozza AyPi forno', properties: ['openFile'], filters: [{ name: 'Bozza AyPi forno', extensions: ['json'] }] });
+        if (result.canceled || !result.filePaths[0]) return null;
+        const draft = readProgramDraft(result.filePaths[0]); if (!draft) throw new Error('Bozza non trovata.'); return draft;
+    });
     ipcMain.on('open-forno-window', (event,payload) => {
         const senderUrl = event.sender.getURL();
         if (!senderUrl.startsWith('file:') || !/\/(bluearchive-preview|robot|mes-scada|forge)\.html$/i.test(new URL(senderUrl).pathname)) return;
@@ -53,6 +95,7 @@ export function setupFornoReader() {
     ipcMain.handle('forno-status', () => requestAypiBackend('/api/forno/status', { timeoutMs: 18000 }));
     ipcMain.handle('forno-programs-list', () => requestAypiBackend('/api/forno/programs/list', { method: 'POST', timeoutMs: 18000 }));
     ipcMain.handle('forno-program-preview', (_event, input: { name: string; allowTemporaryLoad?: boolean; expectedCurrentProgram?: string }) => {
+        if (input?.allowTemporaryLoad) throw new Error('Caricamento temporaneo sospeso. Usare il clone o il backup locale: nessun programma viene caricato sul forno.');
         if (typeof input?.name !== 'string' || !input.name || input.name.length > 20 || /[\x00-\x1f\x7f/\\]/.test(input.name) || (input.allowTemporaryLoad !== undefined && typeof input.allowTemporaryLoad !== 'boolean')) throw new Error('Richiesta ciclo non valida.');
         if (input.expectedCurrentProgram !== undefined && (typeof input.expectedCurrentProgram !== 'string' || input.expectedCurrentProgram.length > 20)) throw new Error('Programma iniziale non valido.');
         return requestAypiBackend('/api/forno/programs/preview', { method: 'POST', body: { name: input.name, allowTemporaryLoad: input.allowTemporaryLoad === true, expectedCurrentProgram: input.expectedCurrentProgram }, timeoutMs: 55000 });

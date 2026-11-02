@@ -112,8 +112,11 @@
         <div id="programs-menu">
             <p class="dialog-intro">Che cosa vuoi fare?</p>
             <button id="list-programs" class="button secondary programs-action" type="button">Visualizza cicli memorizzati</button>
+            <button id="open-program-editor" class="button secondary programs-action" type="button">Programmatore · crea o riprendi bozza</button>
+            <button id="open-program-library" class="button secondary programs-action" type="button">Archivio locale e backup programmi</button>
         </div>
         <div id="programs-results" hidden>
+            <div class="program-editor-toolbar"><button id="backup-forno-programs" type="button" class="button secondary">Backup programmi…</button><button id="import-forno-programs" type="button" class="button secondary">Importa 1 o più programmi…</button><button id="manage-local-programs" type="button" class="button secondary">Gestisci archivio locale</button></div>
             <p id="programs-status" class="settings-note" role="status"></p>
             <p id="programs-error" class="form-error" role="alert" hidden></p>
             <ol id="programs-list" class="stored-programs" aria-label="Cicli memorizzati nel nanodac"></ol>
@@ -123,6 +126,8 @@
             <p id="recipe-name" class="recipe-name"></p>
             <div id="recipe-content" aria-live="polite"></div>
         </div>
+        <div id="programs-editor" hidden></div>
+        <div id="programs-library" hidden></div>
         <div class="dialog-actions">
             <button id="programs-back" type="button" class="button secondary" hidden>Indietro</button>
             <button id="programs-refresh" type="button" class="button secondary" hidden>Aggiorna elenco</button>
