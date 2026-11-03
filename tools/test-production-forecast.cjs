@@ -1,18 +1,52 @@
-const fs = require('node:fs');
-const vm = require('node:vm');
-const assert = require('node:assert/strict');
-process.env.TZ = 'Europe/Rome';
+const fs = require("node:fs");
+const vm = require("node:vm");
+const assert = require("node:assert/strict");
+process.env.TZ = "Europe/Rome";
 const storage = new Map();
 const sandbox = {
-    require: (name) => name === 'electron' ? { ipcRenderer: { on() {}, invoke: async () => ({}) } } : {},
-    console, Date, Intl, Math, Number, String, Array, Set, Map, JSON,
-    setTimeout, clearTimeout, setInterval, clearInterval,
-    localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, String(value)) },
-    window: { addEventListener() {} },
-    document: { addEventListener() {}, getElementById() { return null; }, querySelector() { return null; }, querySelectorAll() { return []; } },
-    assert,
+  require: (name) =>
+    name === "electron"
+      ? { ipcRenderer: { on() { }, invoke: async () => ({}) } }
+      : {},
+  console,
+  Date,
+  Intl,
+  Math,
+  Number,
+  String,
+  Array,
+  Set,
+  Map,
+  JSON,
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  localStorage: {
+    getItem: (key) => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, String(value)),
+  },
+  window: { addEventListener() { } },
+  document: {
+    addEventListener() { },
+    getElementById() {
+      return null;
+    },
+    querySelector() {
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  },
+  assert,
 };
-vm.runInNewContext(fs.readFileSync('dist-ts/scripts/utilities/production-planner-scripts.js', 'utf8') + String.raw`
+vm.runInNewContext(
+  fs.readFileSync(
+    "dist-ts/scripts/utilities/production-planner-scripts.js",
+    "utf8",
+  ) +
+  String.raw`
 const local = (day, clock) => new Date(day + 'T' + clock + ':00');
 const stamp = (date) => date && dateKey(date) + ' ' + String(date.getHours()).padStart(2,'0') + ':' + String(date.getMinutes()).padStart(2,'0');
 const hours = Object.fromEntries(Array.from({length:7}, (_, i) => [String(i), i === 0 || i === 6 ? [] : [{start:'08:12',end:'16:12'}]]));
@@ -98,4 +132,6 @@ assert.ok(state.machines.some(machine=>machine.id==='m1'));
 if(remoteSaveTimer) { clearTimeout(remoteSaveTimer); remoteSaveTimer=null; }
 if(mesScheduleTimer) { clearTimeout(mesScheduleTimer); mesScheduleTimer=null; }
 console.log('Production forecast scenarios: OK');
-`, sandbox);
+`,
+  sandbox,
+);

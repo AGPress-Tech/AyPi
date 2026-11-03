@@ -52,9 +52,7 @@ function buildEmployeeKey(department: string, name: string) {
     return `${String(department || "").trim()}|${String(name || "").trim()}`;
 }
 
-export function normalizeAssigneesPayload(
-    parsed: unknown,
-): AssigneesPayload {
+export function normalizeAssigneesPayload(parsed: unknown): AssigneesPayload {
     if (Array.isArray(parsed)) {
         const names = parsed.map((name) => String(name));
         return { groups: { Altro: names }, options: names, emails: {} };

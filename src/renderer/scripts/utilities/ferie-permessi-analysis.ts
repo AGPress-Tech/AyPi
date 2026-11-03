@@ -347,7 +347,14 @@ async function hydrateDataset() {
 }
 
 function loadDataset() {
-    return state.payload || { requests: [], balances: {}, holidays: [], closures: [] };
+    return (
+        state.payload || {
+            requests: [],
+            balances: {},
+            holidays: [],
+            closures: [],
+        }
+    );
 }
 
 function getDepartmentMeta(payload) {
@@ -780,9 +787,7 @@ function renderLineChart(data) {
                           duration: 600,
                           from(ctx) {
                               const yScale = ctx.chart.scales.y;
-                              return yScale
-                                  ? yScale.getPixelForValue(0)
-                                  : 0;
+                              return yScale ? yScale.getPixelForValue(0) : 0;
                           },
                           delay(ctx) {
                               if (ctx.type !== "data" || ctx.yStarted) return 0;

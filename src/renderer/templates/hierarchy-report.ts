@@ -53,7 +53,10 @@ function buildTree(node, container) {
         }
 
         const activeTabBtn = document.querySelector(".details-tab-btn.active");
-        if (activeTabBtn && activeTabBtn.getAttribute("data-tab") === "details-stats") {
+        if (
+            activeTabBtn &&
+            activeTabBtn.getAttribute("data-tab") === "details-stats"
+        ) {
             renderStatsPanel(getReportDataSafe());
         }
     });
@@ -86,8 +89,8 @@ function showDetails(node) {
             typeof node.sizeBytes === "number"
                 ? node.sizeBytes
                 : typeof node.size === "number"
-                ? node.size
-                : null;
+                  ? node.size
+                  : null;
         if (typeof size === "number") {
             html += `<p><b>Dimensione:</b> ${size} byte (${formatBytes(size)})</p>`;
         }
@@ -98,7 +101,7 @@ function showDetails(node) {
     } else if (node.type === "folder") {
         if (typeof node.totalSizeBytes === "number") {
             html += `<p><b>Dimensione (subtree):</b> ${formatBytes(
-                node.totalSizeBytes
+                node.totalSizeBytes,
             )}</p>`;
         }
         if (typeof node.filesCount === "number") {
@@ -159,8 +162,10 @@ function renderTopElementsPanel(data) {
         const src = Array.isArray(data.topOldFiles)
             ? data.topOldFiles
             : Array.isArray(data.topFiles)
-            ? data.topFiles.slice().sort((a, b) => (a.mtimeMs || 0) - (b.mtimeMs || 0))
-            : [];
+              ? data.topFiles
+                    .slice()
+                    .sort((a, b) => (a.mtimeMs || 0) - (b.mtimeMs || 0))
+              : [];
         rows = src.slice(0, maxTop).map((r, idx) => ({
             index: idx + 1,
             name: r.name,
@@ -259,11 +264,12 @@ function computeStatsForSubtree(rootNode) {
                 typeof node.sizeBytes === "number"
                     ? node.sizeBytes
                     : typeof node.size === "number"
-                    ? node.size
-                    : 0;
+                      ? node.size
+                      : 0;
             totalSizeBytes += size;
 
-            const mtimeMs = typeof node.mtimeMs === "number" ? node.mtimeMs : null;
+            const mtimeMs =
+                typeof node.mtimeMs === "number" ? node.mtimeMs : null;
             if (typeof mtimeMs === "number") {
                 mtimeList.push(mtimeMs);
                 if (minMtimeMs === null || mtimeMs < minMtimeMs) {
@@ -277,7 +283,9 @@ function computeStatsForSubtree(rootNode) {
             const name = node.name || "";
             const dotIndex = name.lastIndexOf(".");
             let ext =
-                dotIndex >= 0 ? name.substring(dotIndex).toLowerCase() : "(senza estensione)";
+                dotIndex >= 0
+                    ? name.substring(dotIndex).toLowerCase()
+                    : "(senza estensione)";
             if (!ext) ext = "(senza estensione)";
 
             let bucket = extensionStatsMap[ext];
@@ -295,7 +303,7 @@ function computeStatsForSubtree(rootNode) {
     }
 
     const extensionStats = Object.values(extensionStatsMap).sort(
-        (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0)
+        (a, b) => (b.totalSizeBytes || 0) - (a.totalSizeBytes || 0),
     );
 
     let timeBuckets = [];
@@ -319,7 +327,9 @@ function computeStatsForSubtree(rootNode) {
 
         timeBuckets = Object.entries(bucketMap)
             .map(([label, count]) => ({ label, count }))
-            .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+            .sort((a, b) =>
+                a.label < b.label ? -1 : a.label > b.label ? 1 : 0,
+            );
     }
 
     return {
@@ -358,14 +368,17 @@ function renderStatsPanel(data) {
 
     let html = "";
     const baseLabel =
-        baseNode.fullPath || baseNode.name || (data.meta && data.meta.rootPath) || "(sconosciuta)";
+        baseNode.fullPath ||
+        baseNode.name ||
+        (data.meta && data.meta.rootPath) ||
+        "(sconosciuta)";
     html += `<p><b>Base statistica:</b><br><span style="font-size:12px;">${baseLabel}</span></p>`;
     html += "<hr>";
-    html += "<div class=\"stats-summary\">";
+    html += '<div class="stats-summary">';
     html += `<div><b>File:</b> ${stats.totalFiles || 0}</div>`;
     html += `<div><b>Cartelle:</b> ${stats.totalFolders || 0}</div>`;
     html += `<div><b>Spazio totale:</b> ${formatBytes(
-        stats.totalSizeBytes || 0
+        stats.totalSizeBytes || 0,
     )}</div>`;
     html += `<div><b>Profondità massima:</b> ${stats.maxDepth || 0}</div>`;
     html += "</div>";
@@ -386,9 +399,9 @@ function renderStatsPanel(data) {
 
     html += "<hr>";
     html += "<p><b>Estensioni principali:</b></p>";
-    html += "<div class=\"top-elements-controls\">";
-    html += "  <div class=\"top-elements-control\">";
-    html += "    <label for=\"extStatsMode\">Estensioni per:</label>";
+    html += '<div class="top-elements-controls">';
+    html += '  <div class="top-elements-control">';
+    html += '    <label for="extStatsMode">Estensioni per:</label>';
     html += `    <select id=\"extStatsMode\">`;
     html += `      <option value=\"size\"${
         extStatsMode === "size" ? " selected" : ""
@@ -398,8 +411,8 @@ function renderStatsPanel(data) {
     }>Conteggio</option>`;
     html += "    </select>";
     html += "  </div>";
-    html += "  <div class=\"top-elements-control\">";
-    html += "    <label for=\"extStatsSort\">Ordine:</label>";
+    html += '  <div class="top-elements-control">';
+    html += '    <label for="extStatsSort">Ordine:</label>';
     html += `    <select id=\"extStatsSort\">`;
     html += `      <option value=\"desc\"${
         extStatsSortDir === "desc" ? " selected" : ""
@@ -411,7 +424,7 @@ function renderStatsPanel(data) {
     html += "  </div>";
     html += "</div>";
 
-    html += "<div class=\"stats-section\">";
+    html += '<div class="stats-section">';
     html +=
         typeof Chart !== "undefined"
             ? '<canvas id="extStatsChart"></canvas>'
@@ -451,18 +464,16 @@ function renderStatsPanel(data) {
     const extCanvas = document.getElementById("extStatsChart");
     if (extCanvas && extStats.length) {
         const modeKey = extStatsMode === "count" ? "count" : "totalSizeBytes";
-        const sorted = extStats
-            .slice()
-            .sort((a, b) => {
-                const av = a[modeKey] || 0;
-                const bv = b[modeKey] || 0;
-                return extStatsSortDir === "asc" ? av - bv : bv - av;
-            });
+        const sorted = extStats.slice().sort((a, b) => {
+            const av = a[modeKey] || 0;
+            const bv = b[modeKey] || 0;
+            return extStatsSortDir === "asc" ? av - bv : bv - av;
+        });
 
         const topExt = sorted.slice(0, 12);
         const labelsExt = topExt.map((e) => e.extension || "(n/d)");
         const dataExt = topExt.map((e) =>
-            extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0
+            extStatsMode === "count" ? e.count || 0 : e.totalSizeBytes || 0,
         );
 
         if (extChartInstance) {
@@ -475,7 +486,10 @@ function renderStatsPanel(data) {
                 labels: labelsExt,
                 datasets: [
                     {
-                        label: extStatsMode === "count" ? "Conteggio file" : "Dimensione",
+                        label:
+                            extStatsMode === "count"
+                                ? "Conteggio file"
+                                : "Dimensione",
                         data: dataExt,
                         backgroundColor: "rgba(204,147,14,0.7)",
                     },
@@ -516,7 +530,10 @@ function renderStatsPanel(data) {
         }
 
         let filteredBuckets = timeBuckets.slice();
-        if (filteredBuckets.length && (statsYearFrom != null || statsYearTo != null)) {
+        if (
+            filteredBuckets.length &&
+            (statsYearFrom != null || statsYearTo != null)
+        ) {
             filteredBuckets = filteredBuckets.filter((b) => {
                 const year = parseInt(String(b.label).slice(0, 4), 10);
                 if (Number.isNaN(year)) return true;
@@ -530,7 +547,8 @@ function renderStatsPanel(data) {
         }
 
         if (yearFromInput) {
-            yearFromInput.value = statsYearFrom != null ? String(statsYearFrom) : "";
+            yearFromInput.value =
+                statsYearFrom != null ? String(statsYearFrom) : "";
         }
         if (yearToInput) {
             yearToInput.value = statsYearTo != null ? String(statsYearTo) : "";
@@ -712,8 +730,12 @@ function initReport() {
     const limitInput = document.getElementById("topElementsLimit");
     const modeSelect = document.getElementById("topElementsMode");
     if (limitInput && modeSelect) {
-        limitInput.addEventListener("change", () => renderTopElementsPanel(data));
-        modeSelect.addEventListener("change", () => renderTopElementsPanel(data));
+        limitInput.addEventListener("change", () =>
+            renderTopElementsPanel(data),
+        );
+        modeSelect.addEventListener("change", () =>
+            renderTopElementsPanel(data),
+        );
     }
 
     const filterEl = document.getElementById("treeFilter");
@@ -731,4 +753,3 @@ function initReport() {
 }
 
 document.addEventListener("DOMContentLoaded", initReport);
-

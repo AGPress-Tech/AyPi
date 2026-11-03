@@ -488,27 +488,27 @@ Il prototipo usa ora realmente un motore a punteggio: **vince il piano con lo sc
 
 Il carico multi-articolo non viene più fissato riga dopo riga nell'ordine inserito dall'operatore. Un beam search esterno valuta congiuntamente ordini e varianti di allocazione delle righe, mentre il beam interno conserva le stesse mosse, regole fisiche e componenti di punteggio del singolo articolo. I pareggi usano una chiave canonica indipendente dall'ordine di inserimento. Per contenere il costo, ogni candidato condivide lo stato iniziale e mantiene soltanto il delta dei nuovi slot; il calcolo delle distanze viene preindicizzato e i conteggi per pila evitano scansioni ripetute delle ubicazioni. La ricerca resta euristica e limitata, non esaustiva, ma la funzione obiettivo viene valutata sull'intero blocco.
 
-| Fattore | Peso |
-| --- | ---: |
-| Pila resa promiscua | `+100` |
-| Ogni nuovo cassone inserito in una pila di altro articolo | `+450` |
-| Distanza di una fila dallo stesso articolo | `+2000` per fila |
-| Continuità dello stesso articolo fronte/retro | `-800` |
-| Coppia fronte/retro completa `3+3` dello stesso articolo | `-660` |
-| Ogni nuovo cassone in continuità fronte/retro con giacenza preesistente | `-900` |
-| Nuovo modulo fisico aperto | `+450` |
-| Nuova divisione/pila per l'articolo | `+300` |
-| Pila interessata dal piano | `+260` |
-| Movimentazione del muletto | `+220` |
-| Fila iniziale successiva | `+180` |
-| Modulo fisico interessato | `+120` |
-| Cassone collocato anteriormente | `+90` |
-| Distanza di una colonna fisica dallo stesso articolo | `+35` |
-| Cambio lato rispetto allo stesso articolo | `+15` |
-| Colonna iniziale successiva da sinistra | `+8` |
-| Pila completata a tre | `-220` |
-| Completamento con il singolo residuo di un gruppo `3n+1` | `-450` aggiuntivo |
-| Pila portata a due | `-45` |
+| Fattore                                                                 |              Peso |
+| ----------------------------------------------------------------------- | ----------------: |
+| Pila resa promiscua                                                     |            `+100` |
+| Ogni nuovo cassone inserito in una pila di altro articolo               |            `+450` |
+| Distanza di una fila dallo stesso articolo                              |  `+2000` per fila |
+| Continuità dello stesso articolo fronte/retro                           |            `-800` |
+| Coppia fronte/retro completa `3+3` dello stesso articolo                |            `-660` |
+| Ogni nuovo cassone in continuità fronte/retro con giacenza preesistente |            `-900` |
+| Nuovo modulo fisico aperto                                              |            `+450` |
+| Nuova divisione/pila per l'articolo                                     |            `+300` |
+| Pila interessata dal piano                                              |            `+260` |
+| Movimentazione del muletto                                              |            `+220` |
+| Fila iniziale successiva                                                |            `+180` |
+| Modulo fisico interessato                                               |            `+120` |
+| Cassone collocato anteriormente                                         |             `+90` |
+| Distanza di una colonna fisica dallo stesso articolo                    |             `+35` |
+| Cambio lato rispetto allo stesso articolo                               |             `+15` |
+| Colonna iniziale successiva da sinistra                                 |              `+8` |
+| Pila completata a tre                                                   |            `-220` |
+| Completamento con il singolo residuo di un gruppo `3n+1`                | `-450` aggiuntivo |
+| Pila portata a due                                                      |             `-45` |
 
 Questi numeri non sono regole funzionali definitive: costituiscono il primo profilo empirico da calibrare con casi reali e simulazioni massive. Le combinazioni non valide fisicamente non ricevono uno score alto, ma vengono escluse prima del confronto.
 
@@ -528,16 +528,18 @@ Avrò successivamente i pesi per divisione, dove prediligo il completare divisio
 Nel caso in cui i cassoni sono disposti il questa configurazione:
 3 nella colonna A2, 2 nella colonna A1 e 3 nella colonna A4
 aggiungendone 5 di tipo diverso (uguali fra loro), la disposizione corretta sarebbe:
+
 - 3 in colonna A6 e 2 in colonna A3
 - 2 in A6 e 3 in colonna A3
-(dovrebbe in teoria avere lo stesso peso di movimentazione)
-In teoria il peso maggiore lo danno le divisioni
+  (dovrebbe in teoria avere lo stesso peso di movimentazione)
+  In teoria il peso maggiore lo danno le divisioni
 
 Fare prove con vari pesi per assicurarci disposizioni ottimali (fare magari delle simulazioni con dati di esempio con X numero di cassoni compreso tra 1 e 20 per almeno 30 articoli diversi (comprendendo filtri white e blacklist dati da me))
 
 Posso scegliere in fase di carico un sistema per gestire pesi "leggermente" variato, dove possono andare a fillare gli slot per MENO movimentazioni possibili, e una per miglior filling/sorting...
 
 La movimentazioni dei cassoni avvengono nei seguenti modi:
+
 - I cassoni vengono impilati e movimentati con un muletto
 - Il muletto può alzare fino a 3 cassoni contemporaneamente.
 - Per accedere ai cassoni posteriori deve prima "spostare temporaneamente nel corridoio" la colonna frontale.

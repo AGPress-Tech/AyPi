@@ -53,7 +53,12 @@ function renderAdminSelect({ document, loadAdminCredentials }) {
     ensureCustomSelect(adminSelect);
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    renderLoginSelectors,
-    renderAdminSelect,
-};
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        renderLoginSelectors,
+        renderAdminSelect,
+    };

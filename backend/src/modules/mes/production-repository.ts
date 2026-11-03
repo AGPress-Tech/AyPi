@@ -1,15 +1,29 @@
-import { getMesSqliteDatabase, runMesSqliteTransaction } from "../../shared/db/mes-sqlite";
+import {
+    getMesSqliteDatabase,
+    runMesSqliteTransaction,
+} from "../../shared/db/mes-sqlite";
 import { HttpError } from "../../shared/http/errors";
 import { serializeJson } from "../../shared/storage/json-codec";
 import { initializeMesSqliteStore } from "./repository";
-import type { MesOrder, MesOrderDetail, MesOrderDraft, MesPhase, MesPhaseDraft } from "./types";
+import type {
+    MesOrder,
+    MesOrderDetail,
+    MesOrderDraft,
+    MesPhase,
+    MesPhaseDraft,
+} from "./types";
 import { activeScheduleLocks, activeScheduleLocked } from "./schedule-lock";
 
 function rows(result: any) {
     if (!Array.isArray(result) || !result.length) return [];
     const columns = result[0].columns || [];
     return (result[0].values || []).map((values: unknown[]) =>
-        Object.fromEntries(columns.map((column: string, index: number) => [column, values[index]])),
+        Object.fromEntries(
+            columns.map((column: string, index: number) => [
+                column,
+                values[index],
+            ]),
+        ),
     );
 }
 
@@ -66,7 +80,8 @@ function phaseFromRow(row: any): MesPhase {
         createdBy: row.created_by,
         updatedAt: row.updated_at,
         updatedBy: row.updated_by,
-        plannedDurationSeconds: plannedSetupSeconds + targetQuantity * standardCycleSeconds,
+        plannedDurationSeconds:
+            plannedSetupSeconds + targetQuantity * standardCycleSeconds,
     };
 }
 
@@ -79,22 +94,33 @@ const PHASE_COLUMNS = `phase_id, order_id, phase_code, sequence, article_code,
     planned_machine_id, scheduled_start, scheduled_end, planning_status,
     execution_status, revision, created_at, created_by, updated_at, updated_by`;
 
-function insertAudit(database: any, entry: {
-    auditId: string;
-    entityType: string;
-    entityId: string;
-    action: string;
-    payload: unknown;
-    occurredAt: string;
-    actor: string;
-    requestId: string;
-}) {
+function insertAudit(
+    database: any,
+    entry: {
+        auditId: string;
+        entityType: string;
+        entityId: string;
+        action: string;
+        payload: unknown;
+        occurredAt: string;
+        actor: string;
+        requestId: string;
+    },
+) {
     database.run(
         `INSERT INTO mes_audit_log
          (audit_id, entity_type, entity_id, action, payload_json, occurred_at, actor, request_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [entry.auditId, entry.entityType, entry.entityId, entry.action,
-            serializeJson(entry.payload), entry.occurredAt, entry.actor, entry.requestId],
+        [
+            entry.auditId,
+            entry.entityType,
+            entry.entityId,
+            entry.action,
+            serializeJson(entry.payload),
+            entry.occurredAt,
+            entry.actor,
+            entry.requestId,
+        ],
     );
 }
 
@@ -109,10 +135,17 @@ export function createMesOrder(input: {
     initializeMesSqliteStore();
     const phaseCodes = new Set(input.phases.map((phase) => phase.phaseCode));
     const phaseSequences = new Set(input.phases.map((phase) => phase.sequence));
-    if (phaseCodes.size !== input.phases.length || phaseSequences.size !== input.phases.length) {
-        throw new HttpError(409, "Codice o sequenza fase duplicati nell'ordine.", {
-            code: "MES_PHASE_CONFLICT",
-        });
+    if (
+        phaseCodes.size !== input.phases.length ||
+        phaseSequences.size !== input.phases.length
+    ) {
+        throw new HttpError(
+            409,
+            "Codice o sequenza fase duplicati nell'ordine.",
+            {
+                code: "MES_PHASE_CONFLICT",
+            },
+        );
     }
     return runMesSqliteTransaction((database) => {
         const duplicate = database.exec(
@@ -120,56 +153,107 @@ export function createMesOrder(input: {
             [input.order.orderNumber],
         );
         if (duplicate?.[0]?.values?.length) {
-            throw new HttpError(409, "Esiste già un ordine con questo numero.", {
-                code: "MES_ORDER_NUMBER_CONFLICT",
-            });
+            throw new HttpError(
+                409,
+                "Esiste già un ordine con questo numero.",
+                {
+                    code: "MES_ORDER_NUMBER_CONFLICT",
+                },
+            );
         }
         const order = input.order;
         database.run(
             `INSERT INTO mes_orders (${ORDER_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-            [order.orderId, order.orderNumber, order.customer, order.articleCode,
-                order.targetQuantity, order.unit, order.orderType, order.materialAlloy,
-                order.grossWeight, order.netWeight, order.kilogramsToStamp,
-                order.barBundles, order.materialOwner, order.barSize,
-                order.firstDeliveryAt, order.dueAt,
-                order.priority, order.notes, "OPEN", input.now, input.actor,
-                input.now, input.actor],
+            [
+                order.orderId,
+                order.orderNumber,
+                order.customer,
+                order.articleCode,
+                order.targetQuantity,
+                order.unit,
+                order.orderType,
+                order.materialAlloy,
+                order.grossWeight,
+                order.netWeight,
+                order.kilogramsToStamp,
+                order.barBundles,
+                order.materialOwner,
+                order.barSize,
+                order.firstDeliveryAt,
+                order.dueAt,
+                order.priority,
+                order.notes,
+                "OPEN",
+                input.now,
+                input.actor,
+                input.now,
+                input.actor,
+            ],
         );
         input.phases.forEach((phase, index) => {
             database.run(
                 `INSERT INTO mes_phases (${PHASE_COLUMNS})
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-                [phase.phaseId, order.orderId, phase.phaseCode, phase.sequence,
-                    phase.articleCode, phase.targetQuantity, phase.unit,
-                    phase.standardCycleSeconds, phase.plannedSetupSeconds,
-                    phase.plannedMachineId, phase.scheduledStart, phase.scheduledEnd,
-                    phase.planningStatus, "NOT_STARTED", input.now, input.actor,
-                    input.now, input.actor],
+                [
+                    phase.phaseId,
+                    order.orderId,
+                    phase.phaseCode,
+                    phase.sequence,
+                    phase.articleCode,
+                    phase.targetQuantity,
+                    phase.unit,
+                    phase.standardCycleSeconds,
+                    phase.plannedSetupSeconds,
+                    phase.plannedMachineId,
+                    phase.scheduledStart,
+                    phase.scheduledEnd,
+                    phase.planningStatus,
+                    "NOT_STARTED",
+                    input.now,
+                    input.actor,
+                    input.now,
+                    input.actor,
+                ],
             );
             insertAudit(database, {
-                auditId: input.auditIds[index + 1], entityType: "PHASE",
-                entityId: phase.phaseId, action: "CREATE", payload: phase,
-                occurredAt: input.now, actor: input.actor, requestId: input.requestId,
+                auditId: input.auditIds[index + 1],
+                entityType: "PHASE",
+                entityId: phase.phaseId,
+                action: "CREATE",
+                payload: phase,
+                occurredAt: input.now,
+                actor: input.actor,
+                requestId: input.requestId,
             });
         });
         insertAudit(database, {
-            auditId: input.auditIds[0], entityType: "ORDER", entityId: order.orderId,
-            action: "CREATE", payload: order, occurredAt: input.now,
-            actor: input.actor, requestId: input.requestId,
+            auditId: input.auditIds[0],
+            entityType: "ORDER",
+            entityId: order.orderId,
+            action: "CREATE",
+            payload: order,
+            occurredAt: input.now,
+            actor: input.actor,
+            requestId: input.requestId,
         });
         return loadMesOrderDetailFromDatabase(database, order.orderId)!;
     });
 }
 
 function loadMesOrderDetailFromDatabase(database: any, orderId: string) {
-    const orderRow = rows(database.exec(
-        `SELECT ${ORDER_COLUMNS} FROM mes_orders WHERE order_id = ?`, [orderId],
-    ))[0];
+    const orderRow = rows(
+        database.exec(
+            `SELECT ${ORDER_COLUMNS} FROM mes_orders WHERE order_id = ?`,
+            [orderId],
+        ),
+    )[0];
     if (!orderRow) return null;
-    const phases = rows(database.exec(
-        `SELECT ${PHASE_COLUMNS} FROM mes_phases WHERE order_id = ? ORDER BY sequence, phase_id`,
-        [orderId],
-    )).map(phaseFromRow);
+    const phases = rows(
+        database.exec(
+            `SELECT ${PHASE_COLUMNS} FROM mes_phases WHERE order_id = ? ORDER BY sequence, phase_id`,
+            [orderId],
+        ),
+    ).map(phaseFromRow);
     return { ...orderFromRow(orderRow), phases };
 }
 
@@ -178,12 +262,21 @@ export function loadMesOrderDetail(orderId: string): MesOrderDetail | null {
     return loadMesOrderDetailFromDatabase(getMesSqliteDatabase(), orderId);
 }
 
-export function listMesOrders(options: { search?: string; status?: string; limit: number; offset: number }) {
+export function listMesOrders(options: {
+    search?: string;
+    status?: string;
+    limit: number;
+    offset: number;
+}) {
     initializeMesSqliteStore();
-    const conditions: string[] = ["EXISTS (SELECT 1 FROM mes_phases p WHERE p.order_id = mes_orders.order_id AND p.archived_at = '')"];
+    const conditions: string[] = [
+        "EXISTS (SELECT 1 FROM mes_phases p WHERE p.order_id = mes_orders.order_id AND p.archived_at = '')",
+    ];
     const params: unknown[] = [];
     if (options.search) {
-        conditions.push("(order_number LIKE ? OR article_code LIKE ? OR customer LIKE ?)");
+        conditions.push(
+            "(order_number LIKE ? OR article_code LIKE ? OR customer LIKE ?)",
+        );
         const pattern = `%${options.search}%`;
         params.push(pattern, pattern, pattern);
     }
@@ -193,20 +286,36 @@ export function listMesOrders(options: { search?: string; status?: string; limit
     }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const database = getMesSqliteDatabase();
-    const total = Number(database.exec(`SELECT COUNT(*) FROM mes_orders ${where}`, params)?.[0]?.values?.[0]?.[0]) || 0;
-    const items = rows(database.exec(
-        `SELECT ${ORDER_COLUMNS} FROM mes_orders ${where}
+    const total =
+        Number(
+            database.exec(
+                `SELECT COUNT(*) FROM mes_orders ${where}`,
+                params,
+            )?.[0]?.values?.[0]?.[0],
+        ) || 0;
+    const items = rows(
+        database.exec(
+            `SELECT ${ORDER_COLUMNS} FROM mes_orders ${where}
          ORDER BY updated_at DESC, order_number LIMIT ? OFFSET ?`,
-        [...params, options.limit, options.offset],
-    )).map(orderFromRow);
-    if (!items.length) return { total, limit: options.limit, offset: options.offset, rows: [] };
+            [...params, options.limit, options.offset],
+        ),
+    ).map(orderFromRow);
+    if (!items.length)
+        return {
+            total,
+            limit: options.limit,
+            offset: options.offset,
+            rows: [],
+        };
     const placeholders = items.map(() => "?").join(", ");
-    const phases = rows(database.exec(
-        `SELECT ${PHASE_COLUMNS} FROM mes_phases
+    const phases = rows(
+        database.exec(
+            `SELECT ${PHASE_COLUMNS} FROM mes_phases
          WHERE archived_at = '' AND order_id IN (${placeholders})
          ORDER BY order_id, sequence, phase_id`,
-        items.map((item) => item.orderId),
-    )).map(phaseFromRow);
+            items.map((item) => item.orderId),
+        ),
+    ).map(phaseFromRow);
     const phasesByOrder = new Map<string, MesPhase[]>();
     phases.forEach((phase) => {
         const group = phasesByOrder.get(phase.orderId) || [];
@@ -217,25 +326,57 @@ export function listMesOrders(options: { search?: string; status?: string; limit
         total,
         limit: options.limit,
         offset: options.offset,
-        rows: items.map((item) => ({ ...item, phases: phasesByOrder.get(item.orderId) || [] })),
+        rows: items.map((item) => ({
+            ...item,
+            phases: phasesByOrder.get(item.orderId) || [],
+        })),
     };
 }
 
 export function archiveMesPhase(input: {
-    phaseId: string; baseRevision: number; actor: string; requestId: string; now: string; auditId: string;
+    phaseId: string;
+    baseRevision: number;
+    actor: string;
+    requestId: string;
+    now: string;
+    auditId: string;
 }) {
     initializeMesSqliteStore();
     return runMesSqliteTransaction((database) => {
-        const phase = rows(database.exec("SELECT * FROM mes_phases WHERE phase_id = ?", [input.phaseId]))[0];
+        const phase = rows(
+            database.exec("SELECT * FROM mes_phases WHERE phase_id = ?", [
+                input.phaseId,
+            ]),
+        )[0];
         if (!phase) throw new HttpError(404, "Fase MES non trovata.");
-        if (phase.archived_at) return { phaseId: input.phaseId, archived: true };
-        if (Number(phase.revision) !== input.baseRevision) throw new HttpError(409, "La fase è stata modificata. Aggiorna e riprova.");
-        const active = database.exec("SELECT 1 FROM mes_machine_sessions WHERE phase_id = ? AND status = 'ACTIVE'", [input.phaseId]);
-        if (active?.[0]?.values?.length) throw new HttpError(409, "Sospendi o chiudi l'ordine sulla macchina prima di eliminarlo.");
-        database.run("UPDATE mes_phases SET archived_at = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE phase_id = ?",
-            [input.now, input.now, input.actor, input.phaseId]);
-        insertAudit(database, { ...input, entityType: "PHASE", entityId: input.phaseId,
-            action: "ARCHIVE", payload: phase, occurredAt: input.now });
+        if (phase.archived_at)
+            return { phaseId: input.phaseId, archived: true };
+        if (Number(phase.revision) !== input.baseRevision)
+            throw new HttpError(
+                409,
+                "La fase è stata modificata. Aggiorna e riprova.",
+            );
+        const active = database.exec(
+            "SELECT 1 FROM mes_machine_sessions WHERE phase_id = ? AND status = 'ACTIVE'",
+            [input.phaseId],
+        );
+        if (active?.[0]?.values?.length)
+            throw new HttpError(
+                409,
+                "Sospendi o chiudi l'ordine sulla macchina prima di eliminarlo.",
+            );
+        database.run(
+            "UPDATE mes_phases SET archived_at = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE phase_id = ?",
+            [input.now, input.now, input.actor, input.phaseId],
+        );
+        insertAudit(database, {
+            ...input,
+            entityType: "PHASE",
+            entityId: input.phaseId,
+            action: "ARCHIVE",
+            payload: phase,
+            occurredAt: input.now,
+        });
         return { phaseId: input.phaseId, archived: true };
     });
 }
@@ -254,15 +395,21 @@ export function updateMesOrder(input: {
         const before = loadMesOrderDetailFromDatabase(database, input.orderId);
         if (!before) throw new HttpError(404, "Ordine MES non trovato.");
         if (before.revision !== input.baseRevision) {
-            throw new HttpError(409, "L'ordine è stato aggiornato da un altro operatore.", {
-                code: "MES_ORDER_REVISION_CONFLICT", details: { currentRevision: before.revision },
-            });
+            throw new HttpError(
+                409,
+                "L'ordine è stato aggiornato da un altro operatore.",
+                {
+                    code: "MES_ORDER_REVISION_CONFLICT",
+                    details: { currentRevision: before.revision },
+                },
+            );
         }
         const duplicate = database.exec(
             "SELECT order_id FROM mes_orders WHERE order_number = ? AND order_id <> ?",
             [input.draft.orderNumber, input.orderId],
         );
-        if (duplicate?.[0]?.values?.length) throw new HttpError(409, "Esiste già un ordine con questo numero.");
+        if (duplicate?.[0]?.values?.length)
+            throw new HttpError(409, "Esiste già un ordine con questo numero.");
         const nextRevision = before.revision + 1;
         database.run(
             `UPDATE mes_orders SET order_number = ?, customer = ?, article_code = ?,
@@ -271,18 +418,40 @@ export function updateMesOrder(input: {
              material_owner = ?, bar_size = ?, first_delivery_at = ?, due_at = ?,
              priority = ?, notes = ?, status = ?, revision = ?, updated_at = ?, updated_by = ?
              WHERE order_id = ?`,
-            [input.draft.orderNumber, input.draft.customer, input.draft.articleCode,
-                input.draft.targetQuantity, input.draft.unit, before.orderType,
-                input.draft.materialAlloy, input.draft.grossWeight, input.draft.netWeight,
-                input.draft.kilogramsToStamp, input.draft.barBundles,
-                input.draft.materialOwner, input.draft.barSize, input.draft.firstDeliveryAt,
-                input.draft.dueAt, input.draft.priority, input.draft.notes,
-                before.status, nextRevision, input.now, input.actor, input.orderId],
+            [
+                input.draft.orderNumber,
+                input.draft.customer,
+                input.draft.articleCode,
+                input.draft.targetQuantity,
+                input.draft.unit,
+                before.orderType,
+                input.draft.materialAlloy,
+                input.draft.grossWeight,
+                input.draft.netWeight,
+                input.draft.kilogramsToStamp,
+                input.draft.barBundles,
+                input.draft.materialOwner,
+                input.draft.barSize,
+                input.draft.firstDeliveryAt,
+                input.draft.dueAt,
+                input.draft.priority,
+                input.draft.notes,
+                before.status,
+                nextRevision,
+                input.now,
+                input.actor,
+                input.orderId,
+            ],
         );
         insertAudit(database, {
-            auditId: input.auditId, entityType: "ORDER", entityId: input.orderId,
-            action: "UPDATE", payload: { before, after: input.draft },
-            occurredAt: input.now, actor: input.actor, requestId: input.requestId,
+            auditId: input.auditId,
+            entityType: "ORDER",
+            entityId: input.orderId,
+            action: "UPDATE",
+            payload: { before, after: input.draft },
+            occurredAt: input.now,
+            actor: input.actor,
+            requestId: input.requestId,
         });
         return loadMesOrderDetailFromDatabase(database, input.orderId)!;
     });
@@ -306,23 +475,45 @@ export function createMesPhase(input: {
             database.run(
                 `INSERT INTO mes_phases (${PHASE_COLUMNS})
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-                [phase.phaseId, input.orderId, phase.phaseCode, phase.sequence,
-                    phase.articleCode, phase.targetQuantity, phase.unit,
-                    phase.standardCycleSeconds, phase.plannedSetupSeconds,
-                    phase.plannedMachineId, phase.scheduledStart, phase.scheduledEnd,
-                    phase.planningStatus, "NOT_STARTED", input.now, input.actor,
-                    input.now, input.actor],
+                [
+                    phase.phaseId,
+                    input.orderId,
+                    phase.phaseCode,
+                    phase.sequence,
+                    phase.articleCode,
+                    phase.targetQuantity,
+                    phase.unit,
+                    phase.standardCycleSeconds,
+                    phase.plannedSetupSeconds,
+                    phase.plannedMachineId,
+                    phase.scheduledStart,
+                    phase.scheduledEnd,
+                    phase.planningStatus,
+                    "NOT_STARTED",
+                    input.now,
+                    input.actor,
+                    input.now,
+                    input.actor,
+                ],
             );
         } catch (error) {
             if (String(error).includes("UNIQUE constraint failed")) {
-                throw new HttpError(409, "Codice o sequenza fase già presenti nell'ordine.");
+                throw new HttpError(
+                    409,
+                    "Codice o sequenza fase già presenti nell'ordine.",
+                );
             }
             throw error;
         }
         insertAudit(database, {
-            auditId: input.auditId, entityType: "PHASE", entityId: phase.phaseId,
-            action: "CREATE", payload: phase, occurredAt: input.now,
-            actor: input.actor, requestId: input.requestId,
+            auditId: input.auditId,
+            entityType: "PHASE",
+            entityId: phase.phaseId,
+            action: "CREATE",
+            payload: phase,
+            occurredAt: input.now,
+            actor: input.actor,
+            requestId: input.requestId,
         });
         return loadMesOrderDetailFromDatabase(database, input.orderId)!;
     });
@@ -339,21 +530,40 @@ export function updateMesPhase(input: {
 }) {
     initializeMesSqliteStore();
     return runMesSqliteTransaction((database) => {
-        const phaseRow = rows(database.exec(
-            `SELECT ${PHASE_COLUMNS} FROM mes_phases WHERE phase_id = ? AND archived_at = ''`, [input.phaseId],
-        ))[0];
+        const phaseRow = rows(
+            database.exec(
+                `SELECT ${PHASE_COLUMNS} FROM mes_phases WHERE phase_id = ? AND archived_at = ''`,
+                [input.phaseId],
+            ),
+        )[0];
         if (!phaseRow) throw new HttpError(404, "Fase MES non trovata.");
         const before = phaseFromRow(phaseRow);
-        const active = activeScheduleLocks(database).find((lock) => lock.phaseId === input.phaseId);
-        if (active && (before.planningStatus === "SCHEDULED" || input.draft.planningStatus === "SCHEDULED")) {
-            if (input.draft.planningStatus !== "SCHEDULED"
-                || input.draft.plannedMachineId.toUpperCase() !== active.machineId.toUpperCase()
-                || Date.parse(input.draft.scheduledStart) !== Date.parse(active.startedAt)) activeScheduleLocked(input.phaseId);
+        const active = activeScheduleLocks(database).find(
+            (lock) => lock.phaseId === input.phaseId,
+        );
+        if (
+            active &&
+            (before.planningStatus === "SCHEDULED" ||
+                input.draft.planningStatus === "SCHEDULED")
+        ) {
+            if (
+                input.draft.planningStatus !== "SCHEDULED" ||
+                input.draft.plannedMachineId.toUpperCase() !==
+                    active.machineId.toUpperCase() ||
+                Date.parse(input.draft.scheduledStart) !==
+                    Date.parse(active.startedAt)
+            )
+                activeScheduleLocked(input.phaseId);
         }
         if (before.revision !== input.baseRevision) {
-            throw new HttpError(409, "La fase è stata aggiornata da un altro operatore.", {
-                code: "MES_PHASE_REVISION_CONFLICT", details: { currentRevision: before.revision },
-            });
+            throw new HttpError(
+                409,
+                "La fase è stata aggiornata da un altro operatore.",
+                {
+                    code: "MES_PHASE_REVISION_CONFLICT",
+                    details: { currentRevision: before.revision },
+                },
+            );
         }
         const nextRevision = before.revision + 1;
         try {
@@ -363,26 +573,44 @@ export function updateMesPhase(input: {
                  planned_setup_seconds = ?, planned_machine_id = ?, scheduled_start = ?,
                  scheduled_end = ?, planning_status = ?, execution_status = ?, revision = ?,
                  updated_at = ?, updated_by = ? WHERE phase_id = ?`,
-                [input.draft.phaseCode, input.draft.sequence, input.draft.articleCode,
-                    input.draft.targetQuantity, input.draft.unit,
-                    input.draft.standardCycleSeconds, input.draft.plannedSetupSeconds,
-                    input.draft.plannedMachineId, input.draft.scheduledStart,
-                    input.draft.scheduledEnd, input.draft.planningStatus,
-                    before.executionStatus, nextRevision, input.now, input.actor,
-                    input.phaseId],
+                [
+                    input.draft.phaseCode,
+                    input.draft.sequence,
+                    input.draft.articleCode,
+                    input.draft.targetQuantity,
+                    input.draft.unit,
+                    input.draft.standardCycleSeconds,
+                    input.draft.plannedSetupSeconds,
+                    input.draft.plannedMachineId,
+                    input.draft.scheduledStart,
+                    input.draft.scheduledEnd,
+                    input.draft.planningStatus,
+                    before.executionStatus,
+                    nextRevision,
+                    input.now,
+                    input.actor,
+                    input.phaseId,
+                ],
             );
         } catch (error) {
             if (String(error).includes("UNIQUE constraint failed")) {
-                throw new HttpError(409, "Codice o sequenza fase già presenti nell'ordine.");
+                throw new HttpError(
+                    409,
+                    "Codice o sequenza fase già presenti nell'ordine.",
+                );
             }
             throw error;
         }
         insertAudit(database, {
-            auditId: input.auditId, entityType: "PHASE", entityId: input.phaseId,
-            action: "UPDATE", payload: { before, after: input.draft },
-            occurredAt: input.now, actor: input.actor, requestId: input.requestId,
+            auditId: input.auditId,
+            entityType: "PHASE",
+            entityId: input.phaseId,
+            action: "UPDATE",
+            payload: { before, after: input.draft },
+            occurredAt: input.now,
+            actor: input.actor,
+            requestId: input.requestId,
         });
         return loadMesOrderDetailFromDatabase(database, before.orderId)!;
     });
 }
-

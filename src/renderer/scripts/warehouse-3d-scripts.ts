@@ -2,7 +2,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const { ipcRenderer } = require("electron");
-const { requestBackend, setBackendIdentity } = require("./shared/backend-client");
+const {
+    requestBackend,
+    setBackendIdentity,
+} = require("./shared/backend-client");
 
 const canvas = document.getElementById("warehouseCanvas");
 const stage = document.getElementById("viewerStage");
@@ -82,10 +85,21 @@ let lastMovementPlaybackId = "";
 let contextMovement3dId = "";
 let contextSlot3dLocation = "";
 let viewerDisposing = false;
-const MOVEMENT_HISTORY_RANGE_STORAGE_KEY = "aypi-warehouse-movement-history-range-v1";
-const MOVEMENT_HISTORY_RANGES = new Set(["today", "7", "30", "90", "365", "all"]);
-const storedMovementHistoryRange = localStorage.getItem(MOVEMENT_HISTORY_RANGE_STORAGE_KEY) || "30";
-let movement3dTimeRange = MOVEMENT_HISTORY_RANGES.has(storedMovementHistoryRange)
+const MOVEMENT_HISTORY_RANGE_STORAGE_KEY =
+    "aypi-warehouse-movement-history-range-v1";
+const MOVEMENT_HISTORY_RANGES = new Set([
+    "today",
+    "7",
+    "30",
+    "90",
+    "365",
+    "all",
+]);
+const storedMovementHistoryRange =
+    localStorage.getItem(MOVEMENT_HISTORY_RANGE_STORAGE_KEY) || "30";
+let movement3dTimeRange = MOVEMENT_HISTORY_RANGES.has(
+    storedMovementHistoryRange,
+)
     ? storedMovementHistoryRange
     : "30";
 const surfaceLabelTextureCache = new Map();
@@ -655,13 +669,15 @@ function surfaceLabelTexture(lines) {
     const verticalStep = count <= 3 ? 100 : Math.min(87, 272 / count);
     const firstY = 160 - (verticalStep * (count - 1)) / 2;
     visible.forEach((line, index) => {
-        const fontSize = index === 0 ? titleSize : index === 1 ? articleSize : textSize;
+        const fontSize =
+            index === 0 ? titleSize : index === 1 ? articleSize : textSize;
         const fontWeight = index <= 1 ? 900 : 800;
         context.font = `${fontWeight} ${fontSize}px Segoe UI, Arial`;
         context.lineWidth = 3;
         context.strokeStyle = "rgba(246,252,255,.98)";
         context.strokeText(line, 256, firstY + index * verticalStep, 478);
-        context.fillStyle = index === 0 ? "#123f70" : index === 1 ? "#172f42" : "#203947";
+        context.fillStyle =
+            index === 0 ? "#123f70" : index === 1 ? "#172f42" : "#203947";
         context.fillText(line, 256, firstY + index * verticalStep, 478);
     });
     const texture = new THREE.CanvasTexture(surface);
@@ -1065,7 +1081,8 @@ function addOperationalAreas() {
             mesh.userData.location = `STAGING:${item.id}`;
             mesh.userData.locations = [];
             mesh.userData.displayLocation = "IN ATTESA / PREPARAZIONE";
-            mesh.userData.state = item.type === "pallet" ? "pallet" : "occupied";
+            mesh.userData.state =
+                item.type === "pallet" ? "pallet" : "occupied";
             mesh.userData.baseColor = color;
             mesh.userData.searchable = [
                 item.article,
@@ -1677,8 +1694,14 @@ function matchesSelectedContent(candidate, selected) {
     if (fields.has("note"))
         return (
             Boolean(String(selected.note || "").trim()) &&
-            String(candidate.note || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it") ===
-                String(selected.note || "").trim().replace(/\s+/g, " ").toLocaleUpperCase("it")
+            String(candidate.note || "")
+                .trim()
+                .replace(/\s+/g, " ")
+                .toLocaleUpperCase("it") ===
+                String(selected.note || "")
+                    .trim()
+                    .replace(/\s+/g, " ")
+                    .toLocaleUpperCase("it")
         );
     if (fields.has("weighing"))
         return (
@@ -1770,14 +1793,13 @@ function movementLoadStackDetails(step) {
         const target =
             operationalLocations([unit?.to])[0] || stepTargets[index] || "";
         const match = target.match(/^([A-Z])(\d{1,3})([a-c])$/i);
-        const article = String(unit?.article || "").trim().toUpperCase();
+        const article = String(unit?.article || "")
+            .trim()
+            .toUpperCase();
         if (!match || !article) return null;
         return {
             unit,
-            target:
-                match[1].toUpperCase() +
-                match[2] +
-                match[3].toLowerCase(),
+            target: match[1].toUpperCase() + match[2] + match[3].toLowerCase(),
             stack: `${match[1].toUpperCase()}:${Number(match[2])}`,
             level: match[3].toLowerCase(),
             article,
@@ -1840,19 +1862,17 @@ function movementCorridorStackDetails(step) {
         useDestination ? step.to || [] : step.from || [],
     );
     const records = (step.units || []).map((unit, index) => {
-        if (unit?.type === 'pallet') return null;
+        if (unit?.type === "pallet") return null;
         const location =
             operationalLocations([useDestination ? unit?.to : unit?.from])[0] ||
             stepLocations[index] ||
-            '';
+            "";
         const match = location.match(/^([A-Z])(\d{1,3})([a-c])$/i);
         if (!match) return null;
         return {
             unit,
             location:
-                match[1].toUpperCase() +
-                match[2] +
-                match[3].toLowerCase(),
+                match[1].toUpperCase() + match[2] + match[3].toLowerCase(),
             stack: `${match[1].toUpperCase()}:${Number(match[2])}`,
             level: match[3].toLowerCase(),
         };
@@ -1873,12 +1893,12 @@ function mergeMovementCorridorStackSteps(steps) {
             details && previousDetails
                 ? [...previousDetails.records, ...details.records].sort(
                       (left, right) =>
-                          ['a', 'b', 'c'].indexOf(left.level) -
-                          ['a', 'b', 'c'].indexOf(right.level),
+                          ["a", "b", "c"].indexOf(left.level) -
+                          ["a", "b", "c"].indexOf(right.level),
                   )
                 : [];
         const levels = records.map((record) =>
-            ['a', 'b', 'c'].indexOf(record.level),
+            ["a", "b", "c"].indexOf(record.level),
         );
         const consecutive = levels.every(
             (level, index) => index === 0 || level === levels[index - 1] + 1,
@@ -1896,15 +1916,11 @@ function mergeMovementCorridorStackSteps(steps) {
         const locations = records.map((record) => record.location);
         merged[merged.length - 1] = {
             ...previous,
-            from:
-                ["corridor", "unload"].includes(step.kind)
-                    ? locations
-                    : Array.from(
-                          new Set([
-                              ...(previous.from || []),
-                              ...(step.from || []),
-                          ]),
-                      ),
+            from: ["corridor", "unload"].includes(step.kind)
+                ? locations
+                : Array.from(
+                      new Set([...(previous.from || []), ...(step.from || [])]),
+                  ),
             to:
                 step.kind === "reinsert"
                     ? locations
@@ -1919,26 +1935,28 @@ function mergeMovementCorridorStackSteps(steps) {
 }
 
 function normalizeMovementStackSteps(steps) {
-    return mergeMovementCorridorStackSteps(
-        mergeMovementLoadStackSteps(steps),
-    );
+    return mergeMovementCorridorStackSteps(mergeMovementLoadStackSteps(steps));
 }
 
 function movementSteps(movement) {
     if (movement?.playbackSteps?.length)
-        return normalizeMovementStackSteps(movement.playbackSteps.map((step) => ({
-            ...step,
-            from: [...(step.from || [])],
-            to: [...(step.to || [])],
-            units: (step.units || []).map((unit) => ({ ...unit })),
-        })));
+        return normalizeMovementStackSteps(
+            movement.playbackSteps.map((step) => ({
+                ...step,
+                from: [...(step.from || [])],
+                to: [...(step.to || [])],
+                units: (step.units || []).map((unit) => ({ ...unit })),
+            })),
+        );
     if (movement?.operationalSteps?.length)
-        return normalizeMovementStackSteps(movement.operationalSteps.map((step) => ({
-            ...step,
-            from: [...(step.from || [])],
-            to: [...(step.to || [])],
-            units: (step.units || []).map((unit) => ({ ...unit })),
-        })));
+        return normalizeMovementStackSteps(
+            movement.operationalSteps.map((step) => ({
+                ...step,
+                from: [...(step.from || [])],
+                to: [...(step.to || [])],
+                units: (step.units || []).map((unit) => ({ ...unit })),
+            })),
+        );
     const changes = movement?.changes || {};
     const itemFor = (id) =>
         [
@@ -2801,16 +2819,16 @@ function showMovement3dStep(index, restart = true) {
     hideMovementStepSources(step);
     document.getElementById("movement3dCounter").textContent =
         `${state.movement.id} · PASSAGGIO ${state.index + 1}/${state.steps.length}`;
-    document.getElementById("movement3dTitle").textContent =
-        state.movement.reversal
-            ? "Storno movimento"
-            : state.movement.type === "load"
-            ? "Movimentazione di carico"
-            : state.movement.type === "exit"
-              ? "Uscita verso la Zona Scarico"
-              : state.movement.optimization
-                ? "Ottimizzazione magazzino"
-                : "Movimentazione di scarico";
+    document.getElementById("movement3dTitle").textContent = state.movement
+        .reversal
+        ? "Storno movimento"
+        : state.movement.type === "load"
+          ? "Movimentazione di carico"
+          : state.movement.type === "exit"
+            ? "Uscita verso la Zona Scarico"
+            : state.movement.optimization
+              ? "Ottimizzazione magazzino"
+              : "Movimentazione di scarico";
     document.getElementById("movement3dDescription").textContent =
         movementStepDescription(step);
     document.getElementById("movement3dPrevious").disabled = state.index === 0;
@@ -3271,16 +3289,17 @@ function movement3dHistoryType(movement) {
 }
 
 function movement3dHistoryUnits(movement) {
-    if (movement.metadataEdit && movement.editedUnit) return [movement.editedUnit];
+    if (movement.metadataEdit && movement.editedUnit)
+        return [movement.editedUnit];
     const actionKinds = movement.reversal
         ? new Set(["load", "unload", "reinsert", "piece-pick", "staging-exit"])
         : movement.optimization
-        ? new Set(["optimization-place"])
-        : movement.type === "load"
-          ? new Set(["load"])
-          : movement.type === "exit"
-            ? new Set(["staging-exit"])
-            : new Set(["unload"]);
+          ? new Set(["optimization-place"])
+          : movement.type === "load"
+            ? new Set(["load"])
+            : movement.type === "exit"
+              ? new Set(["staging-exit"])
+              : new Set(["unload"]);
     const units = (movement.operationalSteps || movement.playbackSteps || [])
         .filter((step) => actionKinds.has(step.kind))
         .flatMap((step) => step.units || []);
@@ -3450,16 +3469,18 @@ function renderMovement3dHistory() {
         const timestamp = Date.parse(movement?.timestamp || "");
         return Number.isFinite(timestamp) && timestamp >= rangeStart;
     });
-    const total = currentSnapshot.movementHistoryTotal ?? loadedMovements.length;
-    document.getElementById("movement3dHistoryCount").textContent = String(
-        total,
-    );
-    document.getElementById("movement3dHistoryCount").title = `${total} movimenti registrati`;
+    const total =
+        currentSnapshot.movementHistoryTotal ?? loadedMovements.length;
+    document.getElementById("movement3dHistoryCount").textContent =
+        String(total);
+    document.getElementById("movement3dHistoryCount").title =
+        `${total} movimenti registrati`;
     const filteredCount = document.getElementById("movement3dFilteredCount");
     if (filteredCount) {
-        filteredCount.textContent = total > loadedMovements.length
-            ? `${movements.length} visibili · ultimi ${loadedMovements.length} caricati su ${total}`
-            : `${movements.length} nel periodo · ${total} totali`;
+        filteredCount.textContent =
+            total > loadedMovements.length
+                ? `${movements.length} visibili · ultimi ${loadedMovements.length} caricati su ${total}`
+                : `${movements.length} nel periodo · ${total} totali`;
     }
     const list = document.getElementById("movement3dHistoryList");
     const empty = document.getElementById("movement3dHistoryEmpty");
@@ -3585,7 +3606,10 @@ function setupMovement3dHistory() {
             movement3dTimeRange = MOVEMENT_HISTORY_RANGES.has(rangeSelect.value)
                 ? rangeSelect.value
                 : "30";
-            localStorage.setItem(MOVEMENT_HISTORY_RANGE_STORAGE_KEY, movement3dTimeRange);
+            localStorage.setItem(
+                MOVEMENT_HISTORY_RANGE_STORAGE_KEY,
+                movement3dTimeRange,
+            );
             renderMovement3dHistory();
         });
     }
@@ -4528,22 +4552,32 @@ function setupViewSettings() {
     document.querySelectorAll("[data-settings-page]").forEach((button) => {
         button.addEventListener("click", () => {
             const page = button.dataset.settingsPage;
-            document.querySelectorAll("[data-settings-page]").forEach((entry) => {
-                const active = entry.dataset.settingsPage === page;
-                entry.classList.toggle("is-active", active);
-                entry.setAttribute("aria-pressed", String(active));
-            });
-            document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
-                panel.hidden = panel.dataset.settingsPanel !== page;
-            });
+            document
+                .querySelectorAll("[data-settings-page]")
+                .forEach((entry) => {
+                    const active = entry.dataset.settingsPage === page;
+                    entry.classList.toggle("is-active", active);
+                    entry.setAttribute("aria-pressed", String(active));
+                });
+            document
+                .querySelectorAll("[data-settings-panel]")
+                .forEach((panel) => {
+                    panel.hidden = panel.dataset.settingsPanel !== page;
+                });
         });
     });
-    document.getElementById("showLabelsControl").addEventListener("change", (event) => {
-        if (event.target.checked !== surfaceLabelsVisible) document.getElementById("toggleLabels").click();
-    });
-    document.getElementById("showFreeSlotsControl").addEventListener("change", (event) => {
-        if (event.target.checked !== showFreeSlots) document.getElementById("toggleFreeSlots").click();
-    });
+    document
+        .getElementById("showLabelsControl")
+        .addEventListener("change", (event) => {
+            if (event.target.checked !== surfaceLabelsVisible)
+                document.getElementById("toggleLabels").click();
+        });
+    document
+        .getElementById("showFreeSlotsControl")
+        .addEventListener("change", (event) => {
+            if (event.target.checked !== showFreeSlots)
+                document.getElementById("toggleFreeSlots").click();
+        });
     document
         .getElementById("rackOpacityControl")
         .addEventListener("input", (event) => {
@@ -4936,7 +4970,10 @@ ipcRenderer.on("warehouse-3d-data", (_event, payload) => {
             ? `${focusMatch[1].toUpperCase()}${Number(focusMatch[2])}${focusMatch[3].toLowerCase()}`
             : "";
     if (requestedFocus && movementPlaybackState) stopMovement3dPlayback();
-    setBackendIdentity({ role: payload.actor?.role, actor: payload.actor?.displayName });
+    setBackendIdentity({
+        role: payload.actor?.role,
+        actor: payload.actor?.displayName,
+    });
     applyCameraViewOwner(payload.actor);
     liveSnapshot = payload;
     const playback = payload.movementPlayback;

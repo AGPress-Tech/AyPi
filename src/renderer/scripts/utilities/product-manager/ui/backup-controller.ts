@@ -2,8 +2,7 @@
 export function createPurchasingBackupController(context) {
     const { document } = context;
     const getModal = () => document.getElementById("pm-backup-modal");
-    const getMessage = () =>
-        document.getElementById("pm-backup-message");
+    const getMessage = () => document.getElementById("pm-backup-message");
 
     const setBackupMessage = (text, type = "") => {
         const element = getMessage();
@@ -15,8 +14,7 @@ export function createPurchasingBackupController(context) {
     function init() {
         const closeButton = document.getElementById("pm-backup-close");
         const runButton = document.getElementById("pm-backup-run");
-        const restoreButton =
-            document.getElementById("pm-backup-restore");
+        const restoreButton = document.getElementById("pm-backup-restore");
 
         closeButton?.addEventListener("click", () => {
             context.hideModal(getModal());
@@ -35,9 +33,7 @@ export function createPurchasingBackupController(context) {
                 })
                 .catch((error) => {
                     setBackupMessage(
-                        `Errore creazione backup: ${
-                            error?.message || String(error)
-                        }`,
+                        `Errore creazione backup: ${error?.message || String(error)}`,
                         "error",
                     );
                 });
@@ -58,10 +54,7 @@ export function createPurchasingBackupController(context) {
                         ? payload.items
                         : [];
                     if (!items.length) {
-                        setBackupMessage(
-                            "Nessun backup disponibile.",
-                            "error",
-                        );
+                        setBackupMessage("Nessun backup disponibile.", "error");
                         return;
                     }
                     const names = items
@@ -80,15 +73,10 @@ export function createPurchasingBackupController(context) {
                     );
                     await context.hydrate();
                     context.refreshViews();
-                    setBackupMessage(
-                        "Ripristino completato.",
-                        "success",
-                    );
+                    setBackupMessage("Ripristino completato.", "success");
                 } catch (error) {
                     setBackupMessage(
-                        `Errore ripristino backup: ${
-                            error?.message || String(error)
-                        }`,
+                        `Errore ripristino backup: ${error?.message || String(error)}`,
                         "error",
                     );
                 }

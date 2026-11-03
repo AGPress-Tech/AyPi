@@ -77,12 +77,8 @@ import {
     renderDepartmentList as renderDepartmentListUi,
     renderEmployeesList as renderEmployeesListUi,
 } from "./product-manager/ui/assignees-admin-ui";
-import {
-    createCatalogSection,
-} from "./product-manager/sections/catalog";
-import {
-    createInterventionsSection,
-} from "./product-manager/sections/interventions";
+import { createCatalogSection } from "./product-manager/sections/catalog";
+import { createInterventionsSection } from "./product-manager/sections/interventions";
 import {
     updateGreeting as updateGreetingUi,
     updateLoginButton as updateLoginButtonUi,
@@ -159,7 +155,10 @@ import { uiState } from "./product-manager/state/ui";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
 import { makeSplashSkippable } from "../shared/skippable-splash";
 import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
-import { requestBackend, resolveBackendRootUrl } from "../shared/backend-client";
+import {
+    requestBackend,
+    resolveBackendRootUrl,
+} from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
 import {
     buildRequestRecord as buildRequestRecordDomain,
@@ -195,7 +194,8 @@ const SPLASH_MODE = createScriptedSplashMode([
     "bluearchive-purchasing",
     "fp-bluearchive",
 ]);
-if (IS_BLUE_ARCHIVE_PURCHASING) document.body.classList.add("bluearchive-purchasing", "fp-bluearchive");
+if (IS_BLUE_ARCHIVE_PURCHASING)
+    document.body.classList.add("bluearchive-purchasing", "fp-bluearchive");
 else document.body.classList.add("agpress-purchasing", "agpress-login-ui");
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_PURCHASING);
 
@@ -213,7 +213,9 @@ function runBlueArchivePurchasingSplash() {
     splash.setAttribute("aria-hidden", "false");
     const splashController = makeSplashSkippable(splash, {
         onFinish: () => {
-            document.documentElement.classList.remove("agpress-purchasing-boot");
+            document.documentElement.classList.remove(
+                "agpress-purchasing-boot",
+            );
             SPLASH_MODE.cleanup();
         },
     });
@@ -342,7 +344,9 @@ async function verifyAdminPasswordRemote(password, targetName) {
 }
 
 function findAdminByNameRemote(name) {
-    const lower = String(name || "").trim().toLowerCase();
+    const lower = String(name || "")
+        .trim()
+        .toLowerCase();
     return (
         loadAdminCredentialsRemote().find(
             (admin) => admin.name.trim().toLowerCase() === lower,
@@ -381,12 +385,16 @@ async function saveAssigneesRemote() {
 
 async function hydrateProductManagerData() {
     const payload = await requestBackend("/api/product-manager/bootstrap");
-    purchasingRequestsCache = Array.isArray(payload?.requests) ? payload.requests : [];
+    purchasingRequestsCache = Array.isArray(payload?.requests)
+        ? payload.requests
+        : [];
     interventionsCache = Array.isArray(payload?.interventions)
         ? payload.interventions
         : [];
     catalogItems = Array.isArray(payload?.catalog) ? payload.catalog : [];
-    catalogCategories = Array.isArray(payload?.categories) ? payload.categories : [];
+    catalogCategories = Array.isArray(payload?.categories)
+        ? payload.categories
+        : [];
     interventionTypes = Array.isArray(payload?.interventionTypes)
         ? payload.interventionTypes
         : [];
@@ -568,10 +576,7 @@ const {
 function validateModuleBindings() {
     validateBindings([
         ["ui.messages", { setMessage }],
-        [
-            "ui.multiselect",
-            { openMultiselectMenu, closeMultiselectMenu },
-        ],
+        ["ui.multiselect", { openMultiselectMenu, closeMultiselectMenu }],
         [
             "ui.loginSelectors",
             {
@@ -627,8 +632,7 @@ function validateModuleBindings() {
             "ui.categoriesLists",
             {
                 renderCategoriesList: renderCategoriesListUi,
-                renderInterventionTypesList:
-                    renderInterventionTypesListUi,
+                renderInterventionTypesList: renderInterventionTypesListUi,
             },
         ],
         [
@@ -693,14 +697,10 @@ function validateModuleBindings() {
             "ui.filters",
             {
                 renderCategoryOptions: renderCategoryOptionsUi,
-                renderCatalogFilterOptions:
-                    renderCatalogFilterOptionsUi,
-                renderInterventionTypeOptions:
-                    renderInterventionTypeOptionsUi,
-                renderCartTagFilterOptions:
-                    renderCartTagFilterOptionsUi,
-                renderCartStatusFilterOptions:
-                    renderCartStatusFilterOptionsUi,
+                renderCatalogFilterOptions: renderCatalogFilterOptionsUi,
+                renderInterventionTypeOptions: renderInterventionTypeOptionsUi,
+                renderCartTagFilterOptions: renderCartTagFilterOptionsUi,
+                renderCartStatusFilterOptions: renderCartStatusFilterOptionsUi,
             },
         ],
         [
@@ -714,20 +714,13 @@ function validateModuleBindings() {
         ["ui.cartControls", { initCartFilters: initCartFiltersUi }],
         ["ui.cartTable", { renderCartTable: renderCartTableUi }],
         ["ui.export", { initExportModal: initExportModalUi }],
-        [
-            "ui.headerButtons",
-            { setupHeaderButtons: setupHeaderButtonsUi },
-        ],
-        [
-            "ui.settingsModals",
-            { initSettingsModals: initSettingsModalsUi },
-        ],
+        ["ui.headerButtons", { setupHeaderButtons: setupHeaderButtonsUi }],
+        ["ui.settingsModals", { initSettingsModals: initSettingsModalsUi }],
         [
             "ui.categoriesModals",
             {
                 initCategoriesModal: initCategoriesModalUi,
-                initInterventionTypesModal:
-                    initInterventionTypesModalUi,
+                initInterventionTypesModal: initInterventionTypesModalUi,
             },
         ],
         [
@@ -952,10 +945,7 @@ function storeRequestMode(mode) {
 
 function applyRequestModeUI() {
     if (!isFormPage()) return;
-    applyRequestModeUi(
-        document,
-        isInterventionMode(currentRequestMode),
-    );
+    applyRequestModeUi(document, isInterventionMode(currentRequestMode));
 }
 
 function setRequestMode(mode, { persist = true, reset = true } = {}) {
@@ -1141,19 +1131,11 @@ function getRequestAccessSession() {
 }
 
 function canEditLine(request, line) {
-    return canAccessRequestLine(
-        request,
-        line,
-        getRequestAccessSession(),
-    );
+    return canAccessRequestLine(request, line, getRequestAccessSession());
 }
 
 function canDeleteLine(request, line) {
-    return canAccessRequestLine(
-        request,
-        line,
-        getRequestAccessSession(),
-    );
+    return canAccessRequestLine(request, line, getRequestAccessSession());
 }
 
 function getEditDenyReason(request, line) {
@@ -1179,10 +1161,7 @@ function showFormMessage(text, type = "info") {
     if (!message) return;
     const normalizedText = String(text || "").trim();
     message.textContent = normalizedText;
-    message.classList.remove(
-        "pm-message--error",
-        "pm-message--success",
-    );
+    message.classList.remove("pm-message--error", "pm-message--success");
     if (!normalizedText) {
         message.classList.add("is-hidden");
         return;
@@ -1249,13 +1228,14 @@ function renderCartTable() {
         openInterventionEditModal,
         openAddModal,
         isLoggedIn,
-    renderCatalog,
-    saveCatalog,
-    catalogItems,
-    canEditRow: ({ request, line }) => canEditLine(request, line),
-    canDeleteRow: ({ request, line }) => canDeleteLine(request, line),
-    canEditReason: ({ request, line }) => getEditDenyReason(request, line),
-    canDeleteReason: ({ request, line }) => getDeleteDenyReason(request, line),
+        renderCatalog,
+        saveCatalog,
+        catalogItems,
+        canEditRow: ({ request, line }) => canEditLine(request, line),
+        canDeleteRow: ({ request, line }) => canDeleteLine(request, line),
+        canEditReason: ({ request, line }) => getEditDenyReason(request, line),
+        canDeleteReason: ({ request, line }) =>
+            getDeleteDenyReason(request, line),
     });
 }
 
@@ -1695,9 +1675,13 @@ function loadRetentionSettings() {
         const confirmed = Number(parsed?.confirmedDays);
         const deleted = Number(parsed?.deletedDays);
         const confirmedDays =
-            Number.isFinite(confirmed) && confirmed >= 1 ? Math.floor(confirmed) : DEFAULT_RETENTION_SETTINGS.confirmedDays;
+            Number.isFinite(confirmed) && confirmed >= 1
+                ? Math.floor(confirmed)
+                : DEFAULT_RETENTION_SETTINGS.confirmedDays;
         const deletedDays =
-            Number.isFinite(deleted) && deleted >= 1 ? Math.floor(deleted) : DEFAULT_RETENTION_SETTINGS.deletedDays;
+            Number.isFinite(deleted) && deleted >= 1
+                ? Math.floor(deleted)
+                : DEFAULT_RETENTION_SETTINGS.deletedDays;
         return { confirmedDays, deletedDays };
     } catch {
         return { ...DEFAULT_RETENTION_SETTINGS };
@@ -1706,7 +1690,10 @@ function loadRetentionSettings() {
 
 function saveRetentionSettings(next) {
     try {
-        window.localStorage.setItem(RETENTION_SETTINGS_KEY, JSON.stringify(next));
+        window.localStorage.setItem(
+            RETENTION_SETTINGS_KEY,
+            JSON.stringify(next),
+        );
     } catch (err) {
         console.error("Errore salvataggio retention:", err);
     }
@@ -1993,37 +1980,44 @@ function initCatalogModal() {
         });
     }
     if (browseBtn) {
-        browseBtn.addEventListener("click", asyncGuard.wrap(async () => {
-            try {
-                const selected = await ipcRenderer.invoke("pm-select-image");
-                if (selected && imageInput) {
-                    imageInput.value = selected;
-                    imageInput.dataset.path = selected;
-                    uiState.catalogRemoveImage = false;
+        browseBtn.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
+                try {
+                    const selected =
+                        await ipcRenderer.invoke("pm-select-image");
+                    if (selected && imageInput) {
+                        imageInput.value = selected;
+                        imageInput.dataset.path = selected;
+                        uiState.catalogRemoveImage = false;
+                    }
+                } catch (err) {
+                    showError(
+                        "Selezione immagine non disponibile.",
+                        "Riavvia AyPi per attivare il selettore immagini.",
+                    );
                 }
-            } catch (err) {
-                showError(
-                    "Selezione immagine non disponibile.",
-                    "Riavvia AyPi per attivare il selettore immagini.",
-                );
-            }
-        }));
+            }),
+        );
     }
     if (removeBtn) {
-        removeBtn.addEventListener("click", asyncGuard.wrap(async () => {
-            const confirmed = await openConfirmModal(
-                "Vuoi rimuovere l'immagine da questo prodotto?",
-            );
-            if (!confirmed) return;
-            if (imageInput) {
-                imageInput.value = "";
-                imageInput.dataset.path = "";
-            }
-            if (imageUrlInput) {
-                imageUrlInput.value = "";
-            }
-            uiState.catalogRemoveImage = true;
-        }));
+        removeBtn.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
+                const confirmed = await openConfirmModal(
+                    "Vuoi rimuovere l'immagine da questo prodotto?",
+                );
+                if (!confirmed) return;
+                if (imageInput) {
+                    imageInput.value = "";
+                    imageInput.dataset.path = "";
+                }
+                if (imageUrlInput) {
+                    imageUrlInput.value = "";
+                }
+                uiState.catalogRemoveImage = true;
+            }),
+        );
     }
 }
 
@@ -2128,7 +2122,8 @@ function initRetentionModal() {
             return;
         }
         const settings = loadRetentionSettings();
-        if (confirmedInput) confirmedInput.value = String(settings.confirmedDays);
+        if (confirmedInput)
+            confirmedInput.value = String(settings.confirmedDays);
         if (deletedInput) deletedInput.value = String(settings.deletedDays);
         modal.classList.remove("is-hidden");
         modal.setAttribute("aria-hidden", "false");
@@ -2144,15 +2139,26 @@ function initRetentionModal() {
         saveBtn.addEventListener("click", () => {
             const confirmed = Number(confirmedInput?.value || "");
             const deleted = Number(deletedInput?.value || "");
-            if (!Number.isFinite(confirmed) || confirmed < 1 || confirmed > 365) {
-                showWarning("Inserisci un valore valido per i convalidati (1-365).");
+            if (
+                !Number.isFinite(confirmed) ||
+                confirmed < 1 ||
+                confirmed > 365
+            ) {
+                showWarning(
+                    "Inserisci un valore valido per i convalidati (1-365).",
+                );
                 return;
             }
             if (!Number.isFinite(deleted) || deleted < 1 || deleted > 365) {
-                showWarning("Inserisci un valore valido per i rifiutati/eliminati (1-365).");
+                showWarning(
+                    "Inserisci un valore valido per i rifiutati/eliminati (1-365).",
+                );
                 return;
             }
-            const next = { confirmedDays: Math.floor(confirmed), deletedDays: Math.floor(deleted) };
+            const next = {
+                confirmedDays: Math.floor(confirmed),
+                deletedDays: Math.floor(deleted),
+            };
             saveRetentionSettings(next);
             cartState.retentionConfirmedDays = next.confirmedDays;
             cartState.retentionDeletedDays = next.deletedDays;
@@ -2431,7 +2437,10 @@ async function refreshProductManagerRealtime(includeShared: boolean) {
         renderCartStatusFilterOptions();
         renderCartTable();
     } catch (error) {
-        console.error("[realtime] Aggiornamento Product Manager fallito:", error);
+        console.error(
+            "[realtime] Aggiornamento Product Manager fallito:",
+            error,
+        );
     } finally {
         realtimeRefreshInFlight = false;
     }
@@ -2449,8 +2458,7 @@ ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
     realtimeRefreshTimer = setTimeout(() => {
         realtimeRefreshTimer = null;
         void refreshProductManagerRealtime(
-            realtimeEvent?.module === "shared" ||
-                realtimeEvent?.module === "*",
+            realtimeEvent?.module === "shared" || realtimeEvent?.module === "*",
         );
     }, 180);
 });

@@ -51,7 +51,7 @@ function applyCalendarButtonStyles(document: Document) {
                   ? "#3a3932"
                   : isBlueArchive
                     ? "linear-gradient(180deg, #edfaff, #dff5ff)"
-                  : "#f6f8fe",
+                    : "#f6f8fe",
             hoverBorder: isDark
                 ? "#2b2f36"
                 : isAyPi
@@ -65,7 +65,7 @@ function applyCalendarButtonStyles(document: Document) {
                   ? "#3a3328"
                   : isBlueArchive
                     ? "linear-gradient(120deg, #147eda, #30c8f2)"
-                  : "#e8f0fe",
+                    : "#e8f0fe",
             activeBorder: isDark
                 ? "#2b2f36"
                 : isAyPi
@@ -79,7 +79,7 @@ function applyCalendarButtonStyles(document: Document) {
                   ? "0 2px 6px rgba(0, 0, 0, 0.45)"
                   : isBlueArchive
                     ? "0 3px 8px rgba(24, 126, 187, 0.1)"
-                  : "0 1px 2px rgba(60, 64, 67, 0.15)",
+                    : "0 1px 2px rgba(60, 64, 67, 0.15)",
         };
     };
     const buttons = root.querySelectorAll<HTMLButtonElement>(".fc .fc-button");
@@ -254,7 +254,9 @@ function applyCalendarMorePopoverStyles(document: Document) {
         }
 
         popover
-            .querySelectorAll<HTMLElement>(".fc-popover-title, .fc-popover-close")
+            .querySelectorAll<HTMLElement>(
+                ".fc-popover-title, .fc-popover-close",
+            )
             .forEach((el) => {
                 el.style.color = palette.text;
             });
@@ -263,10 +265,14 @@ function applyCalendarMorePopoverStyles(document: Document) {
         if (body) body.style.background = palette.bg;
 
         popover
-            .querySelectorAll<HTMLElement>(".fc-more-popover .fc-daygrid-event-harness")
+            .querySelectorAll<HTMLElement>(
+                ".fc-more-popover .fc-daygrid-event-harness",
+            )
             .forEach((row, idx, list) => {
                 row.style.borderBottom =
-                    idx === list.length - 1 ? "none" : `1px solid ${palette.separator}`;
+                    idx === list.length - 1
+                        ? "none"
+                        : `1px solid ${palette.separator}`;
             });
     });
 }

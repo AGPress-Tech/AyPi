@@ -26,10 +26,17 @@ export function getWarehouseCapabilities() {
 }
 
 export function getWarehouseSnapshot() {
-    return { ...loadWarehouseSnapshot(), configuration: loadWarehouseConfiguration() };
+    return {
+        ...loadWarehouseSnapshot(),
+        configuration: loadWarehouseConfiguration(),
+    };
 }
 
-export function getWarehouseMovements(options: { limit: number; offset: number; from?: string }) {
+export function getWarehouseMovements(options: {
+    limit: number;
+    offset: number;
+    from?: string;
+}) {
     return loadWarehouseMovements(options);
 }
 
@@ -75,11 +82,23 @@ export function getWarehouseConfiguration() {
     return loadWarehouseConfiguration();
 }
 
-export function saveWarehouseServerConfiguration(payload: Parameters<typeof saveWarehouseConfiguration>[0], context?: ActionContext) {
+export function saveWarehouseServerConfiguration(
+    payload: Parameters<typeof saveWarehouseConfiguration>[0],
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("saveConfiguration", () => {
-        const result = saveWarehouseConfiguration(payload, meta.actor || "Amministratore AyPi");
-        logger.info("Warehouse configuration saved", { ...meta, event: "warehouse_configuration_saved", module: "warehouse", category: "settings", rows: result.rows.length });
+        const result = saveWarehouseConfiguration(
+            payload,
+            meta.actor || "Amministratore AyPi",
+        );
+        logger.info("Warehouse configuration saved", {
+            ...meta,
+            event: "warehouse_configuration_saved",
+            module: "warehouse",
+            category: "settings",
+            rows: result.rows.length,
+        });
         return result;
     });
 }
@@ -88,21 +107,39 @@ export function getWarehouseDatabasePreferences(ownerKey: string) {
     return loadWarehouseDatabasePreferences(ownerKey);
 }
 
-export function saveWarehouseUserDatabasePreferences(payload: { ownerKey: string; ownerLabel: string; visibleColumns: string[]; presets: unknown[] }, context?: ActionContext) {
+export function saveWarehouseUserDatabasePreferences(
+    payload: {
+        ownerKey: string;
+        ownerLabel: string;
+        visibleColumns: string[];
+        presets: unknown[];
+    },
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
-    return enqueue("saveDatabasePreferences", () => saveWarehouseDatabasePreferences(payload.ownerKey, payload.ownerLabel, payload.visibleColumns, payload.presets));
+    return enqueue("saveDatabasePreferences", () =>
+        saveWarehouseDatabasePreferences(
+            payload.ownerKey,
+            payload.ownerLabel,
+            payload.visibleColumns,
+            payload.presets,
+        ),
+    );
 }
 
 export function getWarehouseViewPreferences(ownerKey: string) {
     return loadWarehouseViewPreferences(ownerKey);
 }
 
-export function saveWarehouseUserViewPreferences(payload: {
-    ownerKey: string;
-    ownerLabel: string;
-    cameraViews: unknown[];
-    viewPresets: unknown[];
-}, context?: ActionContext) {
+export function saveWarehouseUserViewPreferences(
+    payload: {
+        ownerKey: string;
+        ownerLabel: string;
+        cameraViews: unknown[];
+        viewPresets: unknown[];
+    },
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("saveViewPreferences", () => {
         const preferences = saveWarehouseViewPreferences(

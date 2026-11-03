@@ -7,7 +7,8 @@ type RefreshOptions<T> = {
 };
 
 function createRefreshController<T>(options: RefreshOptions<T>) {
-    const { loadData, renderAll, autoRefreshMs } = options || ({} as RefreshOptions<T>);
+    const { loadData, renderAll, autoRefreshMs } =
+        options || ({} as RefreshOptions<T>);
     let refreshTimer: NodeJS.Timeout | null = null;
 
     async function refreshData() {
@@ -32,8 +33,15 @@ function createRefreshController<T>(options: RefreshOptions<T>) {
 export { createRefreshController };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createRefreshController };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createRefreshController };
 }
-
-

@@ -1,7 +1,19 @@
-import { app, BrowserWindow, Menu, Tray, dialog, shell, ipcMain } from "electron";
+import {
+    app,
+    BrowserWindow,
+    Menu,
+    Tray,
+    dialog,
+    shell,
+    ipcMain,
+} from "electron";
 import path from "path";
 import fs from "fs";
-import { ensureBackendRuntimeConfigFile, getMachineSummary, loadBackendRuntimeConfig } from "./config";
+import {
+    ensureBackendRuntimeConfigFile,
+    getMachineSummary,
+    loadBackendRuntimeConfig,
+} from "./config";
 import {
     buildLogViewerHtml,
     loadLogViewerData,
@@ -31,7 +43,10 @@ let backendState: BackendState = {
     url: "",
     startedAt: "",
 };
-const debugLogPath = path.join(process.env.TEMP || process.cwd(), "aypi-backend-tray.log");
+const debugLogPath = path.join(
+    process.env.TEMP || process.cwd(),
+    "aypi-backend-tray.log",
+);
 
 const isHeadless =
     process.argv.includes("--headless") ||
@@ -68,12 +83,14 @@ function applyRuntimeConfig() {
     process.env.AYPI_FP_GENERAL_DIR = loaded.config.generalDir;
     process.env.AYPI_LOG_DIR = loaded.config.logDir;
     process.env.AYPI_MES_DB_PATH = loaded.config.mesDatabasePath;
-    process.env.AYPI_FORNO_ENABLED = loaded.config.forno.enabled ? '1' : '0';
-    process.env.AYPI_FORNO_PROGRAM_TRANSFERS = loaded.config.forno.programTransfers;
+    process.env.AYPI_FORNO_ENABLED = loaded.config.forno.enabled ? "1" : "0";
+    process.env.AYPI_FORNO_PROGRAM_TRANSFERS =
+        loaded.config.forno.programTransfers;
     process.env.AYPI_FORNO_DB_PATH = loaded.config.forno.dbPath;
     process.env.AYPI_FORNO_HOST = loaded.config.forno.host;
     process.env.AYPI_FORNO_INTERVAL_MS = String(loaded.config.forno.intervalMs);
-    process.env.AYPI_MOBILE_GATEWAY_ENABLED = loaded.config.mobileGateway.enabled
+    process.env.AYPI_MOBILE_GATEWAY_ENABLED = loaded.config.mobileGateway
+        .enabled
         ? "1"
         : "0";
     process.env.AYPI_MOBILE_GATEWAY_HOST = loaded.config.mobileGateway.host;
@@ -137,7 +154,10 @@ function updateTrayMenu() {
         : `Backend fermo${backendState.error ? ` (${backendState.error})` : ""}`;
     const template: Electron.MenuItemConstructorOptions[] = [
         { label: statusLabel, enabled: false },
-        { label: `Host: ${loaded.config.host}:${loaded.config.port}`, enabled: false },
+        {
+            label: `Host: ${loaded.config.host}:${loaded.config.port}`,
+            enabled: false,
+        },
         {
             label: loaded.config.mobileGateway.enabled
                 ? `Gateway mobile: ${loaded.config.mobileGateway.host}:${loaded.config.mobileGateway.port}`
@@ -184,7 +204,9 @@ function updateTrayMenu() {
         {
             label: "Apri cartella script server",
             click: () => {
-                shell.openPath(path.join(process.resourcesPath, "backend-scripts"));
+                shell.openPath(
+                    path.join(process.resourcesPath, "backend-scripts"),
+                );
             },
         },
         {

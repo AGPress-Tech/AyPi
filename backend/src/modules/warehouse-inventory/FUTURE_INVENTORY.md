@@ -57,4 +57,3 @@ lavori di stampa.
 - Chi può approvare una rettifica e sopra quali soglie quantitative.
 - Politica di sostituzione delle etichette danneggiate e storico delle
   ristampe.
-

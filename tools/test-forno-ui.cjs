@@ -1,645 +1,2589 @@
 /* Smoke test Electron: UI forno con backend simulato, nessun accesso a MES/nanodac. */
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const assert = require('assert');
-const electron = require('electron');
-if (typeof electron === 'string') {
-    const env = {...process.env}; delete env.ELECTRON_RUN_AS_NODE;
-    const result = require('child_process').spawnSync(electron,[__filename],{env,windowsHide:true,stdio:'inherit',timeout:35000});
-    process.exit(result.status ?? 1);
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const assert = require("assert");
+const electron = require("electron");
+if (typeof electron === "string") {
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const result = require("child_process").spawnSync(electron, [__filename], {
+    env,
+    windowsHide: true,
+    stdio: "inherit",
+    timeout: 35000,
+  });
+  process.exit(result.status ?? 1);
 }
-const {app,BrowserWindow,ipcMain}=electron;
-function compileModule(file){const m={exports:{}};const source=require('esbuild').buildSync({entryPoints:[file],bundle:true,platform:'node',format:'cjs',write:false}).outputFiles[0].text;new Function('module','exports','require',source)(m,m.exports,require);return m.exports;}
-const localPrograms=compileModule('src/main/modules/forno/program-library.ts');
-const nativeFixture=require('./fixtures/forno-native-2026-11-02.json');
+const { app, BrowserWindow, ipcMain } = electron;
+function compileModule(file) {
+  const m = { exports: {} };
+  const source = require("esbuild").buildSync({
+    entryPoints: [file],
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    write: false,
+  }).outputFiles[0].text;
+  new Function("module", "exports", "require", source)(m, m.exports, require);
+  return m.exports;
+}
+const localPrograms = compileModule(
+  "src/main/modules/forno/program-library.ts",
+);
+const nativeFixture = require("./fixtures/forno-native-2026-11-02.json");
 app.disableHardwareAcceleration();
 let folder;
-app.whenReady().then(async()=>{
-    ipcMain.handle('forno-live-start',()=>({started:true}));
-    let programRequests=0, programMode='success';
-    ipcMain.handle('forno-programs-list',async()=>{
-        programRequests++;
-        if(programMode==='error') throw new Error('Nanodac non raggiungibile');
-        if(programMode==='delayed') await new Promise(resolve=>setTimeout(resolve,200));
-        if(programMode==='running')return {programs:['Ciclo_2_375_8h30m'],scope:'current',mode:2,readAtMs:Date.now()};
-        return {programs:programMode==='empty'?[]:['Ciclo_1_530_8h','Ciclo_2_375_8h30m','<b>Test</b>'],readAtMs:Date.now()};
+app
+  .whenReady()
+  .then(async () => {
+    ipcMain.handle("forno-live-start", () => ({ started: true }));
+    let programRequests = 0,
+      programMode = "success";
+    ipcMain.handle("forno-programs-list", async () => {
+      programRequests++;
+      if (programMode === "error") throw new Error("Nanodac non raggiungibile");
+      if (programMode === "delayed")
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      if (programMode === "running")
+        return {
+          programs: ["Ciclo_2_375_8h30m"],
+          scope: "current",
+          mode: 2,
+          readAtMs: Date.now(),
+        };
+      return {
+        programs:
+          programMode === "empty"
+            ? []
+            : ["Ciclo_1_530_8h", "Ciclo_2_375_8h30m", "<b>Test</b>"],
+        readAtMs: Date.now(),
+      };
     });
-    const previewRequests=[];
-    let storedDraft=null;const draftSaves=[],draftExports=[];
-    const transferCalls=[];let transferPending=false,fullManagement=false;
-    ipcMain.handle('forno-program-transfer',(_event,input)=>{
-        transferCalls.push(structuredClone(input));
-        if(input.operation==='inspect')return {...sampleRecipe(input.payload.name),editToken:'11111111-1111-4111-8111-111111111111',loadedInReset:true};
-        if(input.operation==='context')return {mode:fullManagement?'manage':'tests',enabled:true,current:{name:'Ciclo_originale',mode:1,status:1},programs:fullManagement?['Ciclo_1_530_8h','Ciclo_2_375_8h30m']:['Ciclo_originale'],managed:[],pending:transferPending?{backup:'backup-test.json',lastError:'Menu file occupato'}:null};
-        if(input.operation==='prepare')return {token:'test-ticket',name:input.payload.draft?.name||input.payload.name,exists:fullManagement&&(input.payload.overwrite||input.payload.action==='delete'),action:input.payload.action,recipe:sampleRecipe(input.payload.name||'Ciclo_1_530_8h'),limits:{min:0,max:700},program:input.payload.draft,message:'Store e rilettura, nessun Run'};
-        if(input.operation==='reconcile'){transferPending=false;return {verified:true,message:'Originale invariato, prova assente: sbloccato'};}
-        if(input.operation==='execute')return {verified:true,id:'test-receipt',message:'Prova salvata e verificata in Reset',backup:'server-backup.json',localBackupPath:'local-backup.json'};
-        throw Error('Operazione inattesa');
+    const previewRequests = [];
+    let storedDraft = null;
+    const draftSaves = [],
+      draftExports = [];
+    const transferCalls = [];
+    let transferPending = false,
+      fullManagement = false;
+    ipcMain.handle("forno-program-transfer", (_event, input) => {
+      transferCalls.push(structuredClone(input));
+      if (input.operation === "inspect")
+        return {
+          ...sampleRecipe(input.payload.name),
+          editToken: "11111111-1111-4111-8111-111111111111",
+          loadedInReset: true,
+        };
+      if (input.operation === "context")
+        return {
+          mode: fullManagement ? "manage" : "tests",
+          enabled: true,
+          current: { name: "Ciclo_originale", mode: 1, status: 1 },
+          programs: fullManagement
+            ? ["Ciclo_1_530_8h", "Ciclo_2_375_8h30m"]
+            : ["Ciclo_originale"],
+          managed: [],
+          pending: transferPending
+            ? { backup: "backup-test.json", lastError: "Menu file occupato" }
+            : null,
+        };
+      if (input.operation === "prepare")
+        return {
+          token: "test-ticket",
+          name: input.payload.draft?.name || input.payload.name,
+          exists:
+            fullManagement &&
+            (input.payload.overwrite || input.payload.action === "delete"),
+          action: input.payload.action,
+          recipe: sampleRecipe(input.payload.name || "Ciclo_1_530_8h"),
+          limits: { min: 0, max: 700 },
+          program: input.payload.draft,
+          message: "Store e rilettura, nessun Run",
+        };
+      if (input.operation === "reconcile") {
+        transferPending = false;
+        return {
+          verified: true,
+          message: "Originale invariato, prova assente: sbloccato",
+        };
+      }
+      if (input.operation === "execute")
+        return {
+          verified: true,
+          id: "test-receipt",
+          message: "Prova salvata e verificata in Reset",
+          backup: "server-backup.json",
+          localBackupPath: "local-backup.json",
+        };
+      throw Error("Operazione inattesa");
     });
-    ipcMain.handle('forno-draft-load',()=>storedDraft);
-    ipcMain.handle('forno-draft-save',(_event,input)=>{storedDraft=structuredClone(input);draftSaves.push(storedDraft);return storedDraft;});
-    ipcMain.handle('forno-draft-export',(_event,input)=>{draftExports.push(structuredClone(input));return {path:'Bozza.aypi-forno.json'};});
-    ipcMain.handle('forno-draft-import',()=>null);
-    const libraryFile=()=>path.join(folder,'program-library.json');
-    const libraryExports=[],restorePackages=[];
-    ipcMain.handle('forno-library-list',()=>localPrograms.libraryView(localPrograms.readLibrary(libraryFile())));
-    ipcMain.handle('forno-library-save',(_event,input)=>localPrograms.archiveDraft(libraryFile(),input.draft,input.sourceId));
-    ipcMain.handle('forno-library-delete',(_event,input)=>localPrograms.setLocalDeletion(libraryFile(),input.ids,input.revision,input.deleted));
-    ipcMain.handle('forno-library-import',()=>localPrograms.importProgramFiles(libraryFile(),[path.join(folder,'forno-test.uic')]));
-    ipcMain.handle('forno-library-backup',(_event,input)=>{const result=localPrograms.exportBackupFile(libraryFile(),path.join(folder,'backup-'+libraryExports.length+'.json'),input?.ids);libraryExports.push(result);return result;});
-    ipcMain.handle('forno-library-restore-files',(_event,input)=>{const result=localPrograms.prepareRestoreFiles(libraryFile(),folder,input.ids,input.originalsOnly);restorePackages.push(result);return result;});
-    const phase=(number,type,extra={})=>({number,name:String(number),type,durationSeconds:0,targets:[200],rampSeconds:[3600],rates:[0.1],endType:1,holdback:[0],goBackTo:1,cycles:1,events:[number===4,number===4,number===4,false,false,false,false,false],userValues:[0],...extra});
-    const sampleRecipe=name=>({name,readAtMs:Date.now(),channels:1,rampStyle:0,rampUnits:[0],servoTo:[0],holdback:[],maxEvents:3,resetEvents:Array(8).fill(false),resetUserValues:[0],features:{holdback:false,pvEvents:false,userValues:true,messages:true},segments:[phase(1,1),phase(2,2,{durationSeconds:3600}),phase(3,1,{targets:[375]}),phase(4,2,{durationSeconds:14400}),phase(5,0)]});
-    ipcMain.handle('forno-program-preview',(_event,input)=>{
-        previewRequests.push(input);
-        if(input.name==='Ciclo_1_530_8h'&&!input.allowTemporaryLoad)return {needsTemporaryLoad:true,currentProgram:'Ciclo_2_375_8h30m'};
-        return sampleRecipe(input.name);
+    ipcMain.handle("forno-draft-load", () => storedDraft);
+    ipcMain.handle("forno-draft-save", (_event, input) => {
+      storedDraft = structuredClone(input);
+      draftSaves.push(storedDraft);
+      return storedDraft;
     });
-    folder=fs.mkdtempSync(path.join(os.tmpdir(),'aypi-forno-ui-'));
-    fs.writeFileSync(path.join(folder,'forno-test.uic'),';$SERVER-PROGID\nEurothermIDM.Serialize.4\n;$IDM-PROGID\nEurothermIDM.nanodac.811\nProgram0, 0, "09", 0, 0, 0, ""\n'+nativeFixture.files.map(f=>`Program${f.index}, ${f.index}, "${f.cloneRecordHex}", 0, 0, 0, ""`).join('\n')+'\n');
-    for(const name of ['pages','styles','scripts','styles/utilities']) fs.mkdirSync(path.join(folder,name));
-    fs.writeFileSync(path.join(folder,'pages/forno.html'),fs.readFileSync('src/renderer/pages/forno.html','utf8').replace('<body>',`<body><script>window.addEventListener('error',e=>console.error(e.error?.stack||e.message));</script>`));
-    fs.copyFileSync('src/renderer/styles/forno.css',path.join(folder,'styles/forno.css'));
-    fs.copyFileSync('src/renderer/scripts/utility-layout-bootstrap.js',path.join(folder,'scripts/utility-layout-bootstrap.js'));
-    for(const name of ['aypi-module-brand.css','aypi-operations-ui.css']) fs.copyFileSync('src/renderer/styles/utilities/'+name,path.join(folder,'styles/utilities',name));
-    require('esbuild').buildSync({entryPoints:['src/renderer/scripts/forno-scripts.ts'],outfile:path.join(folder,'scripts/forno-scripts.js'),bundle:true,format:'cjs',platform:'node',external:['electron','chart.js/auto'],target:'es2020'});
-    const scriptPath=path.join(folder,'scripts/forno-scripts.js');
-    fs.writeFileSync(scriptPath,fs.readFileSync(scriptPath,'utf8').replaceAll('require("chart.js/auto")',`require(${JSON.stringify(require.resolve('chart.js/auto'))})`));
-    const settingsStore=require('../dist-ts/modules/forno/preferences-store');
-    const settingsFile=path.join(folder,'user-data','forno','view-settings.json');
-    ipcMain.handle('forno-view-settings-load',()=>settingsStore.readViewSettings(settingsFile));
-    ipcMain.handle('forno-view-settings-save',(_event,value)=>settingsStore.writeViewSettings(settingsFile,value));
-    const requests=[];
-    const analysisRequests=[];
-    const sampleRequests=[];
-    const messageRequests=[],noteSaves=[];let notes=[],testEvents=[];
-    const validRange=p=>{assert(Number.isSafeInteger(p.fromMs)&&Number.isSafeInteger(p.toMs)&&p.fromMs>=0&&p.toMs>=p.fromMs&&p.toMs-p.fromMs<=366*86400000,JSON.stringify(p));};
-    ipcMain.handle('forno-messages',(_event,p)=>{validRange(p);messageRequests.push(p);return {notes:p.showNotes?notes.filter(n=>n.timestampMs>=p.fromMs&&n.timestampMs<=p.toMs):[],events:testEvents.filter(e=>p.eventTypes.includes(e.type)&&e.timestampMs>=p.fromMs&&e.timestampMs<=p.toMs),truncated:false};});
-    ipcMain.handle('forno-note-save',(_event,p)=>{
-        noteSaves.push(p);const previous=notes.find(n=>n.id===p.id);
-        if(p.id&&(!previous||previous.revision!==p.revision))throw new Error('Nota modificata da un’altra postazione');
-        const note=previous?{...previous,text:p.text,revision:previous.revision+1,editedBy:'Operatore test',updatedAt:Date.now()}:{id:'note-'+(notes.length+1),timestampMs:p.timestampMs,text:p.text,author:'Operatore test',createdAt:Date.now(),updatedAt:Date.now(),editedBy:'Operatore test',revision:1};
-        notes=notes.filter(n=>n.id!==note.id);notes.push(note);return note;
+    ipcMain.handle("forno-draft-export", (_event, input) => {
+      draftExports.push(structuredClone(input));
+      return { path: "Bozza.aypi-forno.json" };
     });
-    ipcMain.handle('forno-note-delete',(_event,p)=>{const previous=notes.find(n=>n.id===p.id);if(!previous||previous.revision!==p.revision)throw new Error('Nota modificata da un’altra postazione');notes=notes.filter(n=>n.id!==p.id);return {deleted:true};});
-    ipcMain.handle('forno-sample',(_event,p)=>{sampleRequests.push(p);return {requestedMs:p.timestampMs,timestampMs:Math.round(p.timestampMs/500)*500,channels:[530.9,530.1,536.7,null].map((temperature,i)=>({id:i+1,name:'Canale '+(i+1),temperature,quality:i===3?'off':'good'})),mean:(530.9+530.1+536.7)/3};});
-    let historyDelay=0;
-    let readingOffset=0;
-    const disabled = process.env.AYPI_FORNO_TEST_DISABLED === '1';
-    const stalled = process.env.AYPI_FORNO_TEST_STALL === '1';
-    ipcMain.handle('forno-status',()=>stalled?new Promise(()=>{}):({enabled:!disabled,running:!disabled,error:disabled?'Modulo forno disabilitato':'',intervalMs:500,serverTimeMs:Date.now(),channels:[418,420,425,null].map((temperature,i)=>({id:i+1,name:'Canale '+(i+1),timestampMs:Date.now(),temperature,quality:i===3?'off':'good'})),lastSample:{timestampMs:Date.now(),temperature:418,quality:'good'},dbPath:'D:\\Forno\\forno.db',databaseBytes:4096,walBytes:8192}));
-    ipcMain.handle('forno-history',(_e,p)=>{
-        validRange(p);
-        requests.push(p);
-        const buckets=[];
-        const count=process.env.AYPI_FORNO_TEST_DENSE==='1'||p.maxPoints===3000?3000:20;
-        for(let t=Math.max(p.fromMs,Math.floor(p.toMs/p.intervalMs)*p.intervalMs-count*p.intervalMs);t<=p.toMs;t+=p.intervalMs){
-            buckets.push({fromMs:t,toMs:Math.min(t+p.intervalMs-1,p.toMs),samples:2,valid:2,missing:0,min:417.5+readingOffset,max:418+readingOffset,mean:417.75+readingOffset,first:417.5+readingOffset,last:418+readingOffset,firstTime:t,lastTime:Math.min(t+500,p.toMs)});
+    ipcMain.handle("forno-draft-import", () => null);
+    const libraryFile = () => path.join(folder, "program-library.json");
+    const libraryExports = [],
+      restorePackages = [];
+    ipcMain.handle("forno-library-list", () =>
+      localPrograms.libraryView(localPrograms.readLibrary(libraryFile())),
+    );
+    ipcMain.handle("forno-library-save", (_event, input) =>
+      localPrograms.archiveDraft(libraryFile(), input.draft, input.sourceId),
+    );
+    ipcMain.handle("forno-library-delete", (_event, input) =>
+      localPrograms.setLocalDeletion(
+        libraryFile(),
+        input.ids,
+        input.revision,
+        input.deleted,
+      ),
+    );
+    ipcMain.handle("forno-library-import", () =>
+      localPrograms.importProgramFiles(libraryFile(), [
+        path.join(folder, "forno-test.uic"),
+      ]),
+    );
+    ipcMain.handle("forno-library-backup", (_event, input) => {
+      const result = localPrograms.exportBackupFile(
+        libraryFile(),
+        path.join(folder, "backup-" + libraryExports.length + ".json"),
+        input?.ids,
+      );
+      libraryExports.push(result);
+      return result;
+    });
+    ipcMain.handle("forno-library-restore-files", (_event, input) => {
+      const result = localPrograms.prepareRestoreFiles(
+        libraryFile(),
+        folder,
+        input.ids,
+        input.originalsOnly,
+      );
+      restorePackages.push(result);
+      return result;
+    });
+    const phase = (number, type, extra = {}) => ({
+      number,
+      name: String(number),
+      type,
+      durationSeconds: 0,
+      targets: [200],
+      rampSeconds: [3600],
+      rates: [0.1],
+      endType: 1,
+      holdback: [0],
+      goBackTo: 1,
+      cycles: 1,
+      events: [
+        number === 4,
+        number === 4,
+        number === 4,
+        false,
+        false,
+        false,
+        false,
+        false,
+      ],
+      userValues: [0],
+      ...extra,
+    });
+    const sampleRecipe = (name) => ({
+      name,
+      readAtMs: Date.now(),
+      channels: 1,
+      rampStyle: 0,
+      rampUnits: [0],
+      servoTo: [0],
+      holdback: [],
+      maxEvents: 3,
+      resetEvents: Array(8).fill(false),
+      resetUserValues: [0],
+      features: {
+        holdback: false,
+        pvEvents: false,
+        userValues: true,
+        messages: true,
+      },
+      segments: [
+        phase(1, 1),
+        phase(2, 2, { durationSeconds: 3600 }),
+        phase(3, 1, { targets: [375] }),
+        phase(4, 2, { durationSeconds: 14400 }),
+        phase(5, 0),
+      ],
+    });
+    ipcMain.handle("forno-program-preview", (_event, input) => {
+      previewRequests.push(input);
+      if (input.name === "Ciclo_1_530_8h" && !input.allowTemporaryLoad)
+        return {
+          needsTemporaryLoad: true,
+          currentProgram: "Ciclo_2_375_8h30m",
+        };
+      return sampleRecipe(input.name);
+    });
+    folder = fs.mkdtempSync(path.join(os.tmpdir(), "aypi-forno-ui-"));
+    fs.writeFileSync(
+      path.join(folder, "forno-test.uic"),
+      ';$SERVER-PROGID\nEurothermIDM.Serialize.4\n;$IDM-PROGID\nEurothermIDM.nanodac.811\nProgram0, 0, "09", 0, 0, 0, ""\n' +
+      nativeFixture.files
+        .map(
+          (f) =>
+            `Program${f.index}, ${f.index}, "${f.cloneRecordHex}", 0, 0, 0, ""`,
+        )
+        .join("\n") +
+      "\n",
+    );
+    for (const name of ["pages", "styles", "scripts", "styles/utilities"])
+      fs.mkdirSync(path.join(folder, name));
+    fs.writeFileSync(
+      path.join(folder, "pages/forno.html"),
+      fs
+        .readFileSync("src/renderer/pages/forno.html", "utf8")
+        .replace(
+          "<body>",
+          `<body><script>window.addEventListener('error',e=>console.error(e.error?.stack||e.message));</script>`,
+        ),
+    );
+    fs.copyFileSync(
+      "src/renderer/styles/forno.css",
+      path.join(folder, "styles/forno.css"),
+    );
+    fs.copyFileSync(
+      "src/renderer/scripts/utility-layout-bootstrap.js",
+      path.join(folder, "scripts/utility-layout-bootstrap.js"),
+    );
+    for (const name of ["aypi-module-brand.css", "aypi-operations-ui.css"])
+      fs.copyFileSync(
+        "src/renderer/styles/utilities/" + name,
+        path.join(folder, "styles/utilities", name),
+      );
+    require("esbuild").buildSync({
+      entryPoints: ["src/renderer/scripts/forno-scripts.ts"],
+      outfile: path.join(folder, "scripts/forno-scripts.js"),
+      bundle: true,
+      format: "cjs",
+      platform: "node",
+      external: ["electron", "chart.js/auto"],
+      target: "es2020",
+    });
+    const scriptPath = path.join(folder, "scripts/forno-scripts.js");
+    fs.writeFileSync(
+      scriptPath,
+      fs
+        .readFileSync(scriptPath, "utf8")
+        .replaceAll(
+          'require("chart.js/auto")',
+          `require(${JSON.stringify(require.resolve("chart.js/auto"))})`,
+        ),
+    );
+    const settingsStore = require("../dist-ts/modules/forno/preferences-store");
+    const settingsFile = path.join(
+      folder,
+      "user-data",
+      "forno",
+      "view-settings.json",
+    );
+    ipcMain.handle("forno-view-settings-load", () =>
+      settingsStore.readViewSettings(settingsFile),
+    );
+    ipcMain.handle("forno-view-settings-save", (_event, value) =>
+      settingsStore.writeViewSettings(settingsFile, value),
+    );
+    const requests = [];
+    const analysisRequests = [];
+    const sampleRequests = [];
+    const messageRequests = [],
+      noteSaves = [];
+    let notes = [],
+      testEvents = [];
+    const validRange = (p) => {
+      assert(
+        Number.isSafeInteger(p.fromMs) &&
+        Number.isSafeInteger(p.toMs) &&
+        p.fromMs >= 0 &&
+        p.toMs >= p.fromMs &&
+        p.toMs - p.fromMs <= 366 * 86400000,
+        JSON.stringify(p),
+      );
+    };
+    ipcMain.handle("forno-messages", (_event, p) => {
+      validRange(p);
+      messageRequests.push(p);
+      return {
+        notes: p.showNotes
+          ? notes.filter(
+            (n) => n.timestampMs >= p.fromMs && n.timestampMs <= p.toMs,
+          )
+          : [],
+        events: testEvents.filter(
+          (e) =>
+            p.eventTypes.includes(e.type) &&
+            e.timestampMs >= p.fromMs &&
+            e.timestampMs <= p.toMs,
+        ),
+        truncated: false,
+      };
+    });
+    ipcMain.handle("forno-note-save", (_event, p) => {
+      noteSaves.push(p);
+      const previous = notes.find((n) => n.id === p.id);
+      if (p.id && (!previous || previous.revision !== p.revision))
+        throw new Error("Nota modificata da un’altra postazione");
+      const note = previous
+        ? {
+          ...previous,
+          text: p.text,
+          revision: previous.revision + 1,
+          editedBy: "Operatore test",
+          updatedAt: Date.now(),
         }
-        const stats={samples:40,valid:40,missing:0,min:417.5,max:418,mean:417.75,delta:0.5,first:417.5,last:418};
-        const channels=[0,2,7,null].map((offset,i)=>({id:i+1,name:'Canale '+(i+1),buckets:buckets.map(b=>({...b,valid:offset===null?0:b.valid,missing:offset===null?b.samples:0,...Object.fromEntries(['min','max','mean','first','last'].map(key=>[key,offset===null?null:b[key]+offset]))})),stats:{...stats,valid:offset===null?0:stats.valid,missing:offset===null?stats.samples:0,...Object.fromEntries(['min','max','mean','first','last'].map(key=>[key,offset===null?null:stats[key]+offset]))}}));
-        const response={buckets,effectiveIntervalMs:p.intervalMs,stats,channels};
-        return historyDelay?new Promise(resolve=>setTimeout(()=>resolve(response),historyDelay)):response;
+        : {
+          id: "note-" + (notes.length + 1),
+          timestampMs: p.timestampMs,
+          text: p.text,
+          author: "Operatore test",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          editedBy: "Operatore test",
+          revision: 1,
+        };
+      notes = notes.filter((n) => n.id !== note.id);
+      notes.push(note);
+      return note;
     });
-    ipcMain.handle('forno-analysis',(_e,p)=>{
-        analysisRequests.push(p);
-        const one=(id,offset)=>({id,name:id?'Canale '+id:'Tutti i canali',stats:{samples:40,valid:offset===null?0:40,missing:offset===null?40:0,min:offset===null?null:417.5+offset,max:offset===null?null:418+offset,delta:offset===null?null:0.5,mean:offset===null?null:417.75+offset},windows:{count:offset===null?0:20,meanDelta:offset===null?null:0.2,maxDelta:offset===null?null:{fromMs:p.fromMs,toMs:p.fromMs+p.windowSeconds*1000,min:417.5+offset,max:418+offset,delta:0.5,minTime:p.fromMs,maxTime:p.fromMs+p.windowSeconds*1000}}});
-        return {...p,combined:one(0,3),channels:[one(1,0),one(2,2),one(3,7),one(4,null)]};
+    ipcMain.handle("forno-note-delete", (_event, p) => {
+      const previous = notes.find((n) => n.id === p.id);
+      if (!previous || previous.revision !== p.revision)
+        throw new Error("Nota modificata da un’altra postazione");
+      notes = notes.filter((n) => n.id !== p.id);
+      return { deleted: true };
     });
-    const win=new BrowserWindow({show:false,width:1200,height:800,webPreferences:{nodeIntegration:true,contextIsolation:false,offscreen:true}});
-    const evaluate=win.webContents.executeJavaScript.bind(win.webContents);
-    win.webContents.executeJavaScript=async(source,...args)=>{try{return await evaluate(source,...args);}catch(error){console.error('Script UI fallito:',source.slice(0,300));console.error(await evaluate("JSON.stringify({errors:document.querySelectorAll('.form-error').length,programError:document.getElementById('programs-error').textContent,status:document.getElementById('programs-status').textContent,buttons:Array.from(document.querySelectorAll('#programs-dialog button')).map(b=>b.textContent).slice(-18)})"));throw error;}};
-    const errors=[];
-    win.webContents.on('console-message',(_e,level,message)=>{if(level>=3)errors.push(message);});
-    await win.loadFile(path.join(folder,'pages/forno.html'));
-    await new Promise(r=>setTimeout(r,1200));
-    if(stalled) {
-        await new Promise(r=>setTimeout(r,6500));
-        assert(await win.webContents.executeJavaScript("!document.getElementById('forno-splash') && !document.querySelector('.workspace').inert"));
-        console.log('OK: interfaccia forno subito accessibile anche con backend senza risposta');win.destroy();app.exit(0);return;
+    ipcMain.handle("forno-sample", (_event, p) => {
+      sampleRequests.push(p);
+      return {
+        requestedMs: p.timestampMs,
+        timestampMs: Math.round(p.timestampMs / 500) * 500,
+        channels: [530.9, 530.1, 536.7, null].map((temperature, i) => ({
+          id: i + 1,
+          name: "Canale " + (i + 1),
+          temperature,
+          quality: i === 3 ? "off" : "good",
+        })),
+        mean: (530.9 + 530.1 + 536.7) / 3,
+      };
+    });
+    let historyDelay = 0;
+    let readingOffset = 0;
+    const disabled = process.env.AYPI_FORNO_TEST_DISABLED === "1";
+    const stalled = process.env.AYPI_FORNO_TEST_STALL === "1";
+    ipcMain.handle("forno-status", () =>
+      stalled
+        ? new Promise(() => { })
+        : {
+          enabled: !disabled,
+          running: !disabled,
+          error: disabled ? "Modulo forno disabilitato" : "",
+          intervalMs: 500,
+          serverTimeMs: Date.now(),
+          channels: [418, 420, 425, null].map((temperature, i) => ({
+            id: i + 1,
+            name: "Canale " + (i + 1),
+            timestampMs: Date.now(),
+            temperature,
+            quality: i === 3 ? "off" : "good",
+          })),
+          lastSample: {
+            timestampMs: Date.now(),
+            temperature: 418,
+            quality: "good",
+          },
+          dbPath: "D:\\Forno\\forno.db",
+          databaseBytes: 4096,
+          walBytes: 8192,
+        },
+    );
+    ipcMain.handle("forno-history", (_e, p) => {
+      validRange(p);
+      requests.push(p);
+      const buckets = [];
+      const count =
+        process.env.AYPI_FORNO_TEST_DENSE === "1" || p.maxPoints === 3000
+          ? 3000
+          : 20;
+      for (
+        let t = Math.max(
+          p.fromMs,
+          Math.floor(p.toMs / p.intervalMs) * p.intervalMs -
+          count * p.intervalMs,
+        );
+        t <= p.toMs;
+        t += p.intervalMs
+      ) {
+        buckets.push({
+          fromMs: t,
+          toMs: Math.min(t + p.intervalMs - 1, p.toMs),
+          samples: 2,
+          valid: 2,
+          missing: 0,
+          min: 417.5 + readingOffset,
+          max: 418 + readingOffset,
+          mean: 417.75 + readingOffset,
+          first: 417.5 + readingOffset,
+          last: 418 + readingOffset,
+          firstTime: t,
+          lastTime: Math.min(t + 500, p.toMs),
+        });
+      }
+      const stats = {
+        samples: 40,
+        valid: 40,
+        missing: 0,
+        min: 417.5,
+        max: 418,
+        mean: 417.75,
+        delta: 0.5,
+        first: 417.5,
+        last: 418,
+      };
+      const channels = [0, 2, 7, null].map((offset, i) => ({
+        id: i + 1,
+        name: "Canale " + (i + 1),
+        buckets: buckets.map((b) => ({
+          ...b,
+          valid: offset === null ? 0 : b.valid,
+          missing: offset === null ? b.samples : 0,
+          ...Object.fromEntries(
+            ["min", "max", "mean", "first", "last"].map((key) => [
+              key,
+              offset === null ? null : b[key] + offset,
+            ]),
+          ),
+        })),
+        stats: {
+          ...stats,
+          valid: offset === null ? 0 : stats.valid,
+          missing: offset === null ? stats.samples : 0,
+          ...Object.fromEntries(
+            ["min", "max", "mean", "first", "last"].map((key) => [
+              key,
+              offset === null ? null : stats[key] + offset,
+            ]),
+          ),
+        },
+      }));
+      const response = {
+        buckets,
+        effectiveIntervalMs: p.intervalMs,
+        stats,
+        channels,
+      };
+      return historyDelay
+        ? new Promise((resolve) =>
+          setTimeout(() => resolve(response), historyDelay),
+        )
+        : response;
+    });
+    ipcMain.handle("forno-analysis", (_e, p) => {
+      analysisRequests.push(p);
+      const one = (id, offset) => ({
+        id,
+        name: id ? "Canale " + id : "Tutti i canali",
+        stats: {
+          samples: 40,
+          valid: offset === null ? 0 : 40,
+          missing: offset === null ? 40 : 0,
+          min: offset === null ? null : 417.5 + offset,
+          max: offset === null ? null : 418 + offset,
+          delta: offset === null ? null : 0.5,
+          mean: offset === null ? null : 417.75 + offset,
+        },
+        windows: {
+          count: offset === null ? 0 : 20,
+          meanDelta: offset === null ? null : 0.2,
+          maxDelta:
+            offset === null
+              ? null
+              : {
+                fromMs: p.fromMs,
+                toMs: p.fromMs + p.windowSeconds * 1000,
+                min: 417.5 + offset,
+                max: 418 + offset,
+                delta: 0.5,
+                minTime: p.fromMs,
+                maxTime: p.fromMs + p.windowSeconds * 1000,
+              },
+        },
+      });
+      return {
+        ...p,
+        combined: one(0, 3),
+        channels: [one(1, 0), one(2, 2), one(3, 7), one(4, null)],
+      };
+    });
+    const win = new BrowserWindow({
+      show: false,
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        offscreen: true,
+      },
+    });
+    const evaluate = win.webContents.executeJavaScript.bind(win.webContents);
+    win.webContents.executeJavaScript = async (source, ...args) => {
+      try {
+        return await evaluate(source, ...args);
+      } catch (error) {
+        console.error("Script UI fallito:", source.slice(0, 300));
+        console.error(
+          await evaluate(
+            "JSON.stringify({errors:document.querySelectorAll('.form-error').length,programError:document.getElementById('programs-error').textContent,status:document.getElementById('programs-status').textContent,buttons:Array.from(document.querySelectorAll('#programs-dialog button')).map(b=>b.textContent).slice(-18)})",
+          ),
+        );
+        throw error;
+      }
+    };
+    const errors = [];
+    win.webContents.on("console-message", (_e, level, message) => {
+      if (level >= 3) errors.push(message);
+    });
+    await win.loadFile(path.join(folder, "pages/forno.html"));
+    await new Promise((r) => setTimeout(r, 1200));
+    if (stalled) {
+      await new Promise((r) => setTimeout(r, 6500));
+      assert(
+        await win.webContents.executeJavaScript(
+          "!document.getElementById('forno-splash') && !document.querySelector('.workspace').inert",
+        ),
+      );
+      console.log(
+        "OK: interfaccia forno subito accessibile anche con backend senza risposta",
+      );
+      win.destroy();
+      app.exit(0);
+      return;
     }
-    assert(await win.webContents.executeJavaScript("!document.getElementById('forno-splash') && !document.querySelector('.workspace').inert"));
-    if(disabled) {
-        const message=await win.webContents.executeJavaScript("document.getElementById('status').textContent");
-        assert(message.includes('disabilitata'),message);
-        assert((await win.webContents.executeJavaScript("document.getElementById('collector-status').textContent")).includes('disattivata'));
-        assert.equal(requests.length,0);console.log('OK: modulo disabilitato visibile, nessun caricamento infinito o richiesta storico inutile');win.destroy();app.exit(0);return;
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('forno-splash') && !document.querySelector('.workspace').inert",
+      ),
+    );
+    if (disabled) {
+      const message = await win.webContents.executeJavaScript(
+        "document.getElementById('status').textContent",
+      );
+      assert(message.includes("disabilitata"), message);
+      assert(
+        (
+          await win.webContents.executeJavaScript(
+            "document.getElementById('collector-status').textContent",
+          )
+        ).includes("disattivata"),
+      );
+      assert.equal(requests.length, 0);
+      console.log(
+        "OK: modulo disabilitato visibile, nessun caricamento infinito o richiesta storico inutile",
+      );
+      win.destroy();
+      app.exit(0);
+      return;
     }
-    const diagnostics=await win.webContents.executeJavaScript("document.getElementById('collector-status').textContent");
-    assert.equal(programRequests,0);
-    await win.webContents.executeJavaScript("document.getElementById('open-programs').click()");
-    assert(await win.webContents.executeJavaScript("document.getElementById('programs-dialog').open&&!document.getElementById('programs-menu').hidden"));
-    assert.equal(programRequests,0);
-    await win.webContents.executeJavaScript("document.getElementById('list-programs').click()");
-    await new Promise(resolve=>setTimeout(resolve,100));
-    assert.equal(programRequests,1);
-    assert.deepEqual(await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#programs-list .stored-program-name'),li=>li.textContent)"),['Ciclo_1_530_8h','Ciclo_2_375_8h30m','<b>Test</b>']);
-    assert(await win.webContents.executeJavaScript("!document.querySelector('#programs-list b')&&document.getElementById('programs-read-time').textContent.includes('Ultima lettura')"));
-    fs.writeFileSync(path.join(folder,'forno-programs.png'),(await win.webContents.capturePage()).toPNG());
-    await win.webContents.executeJavaScript("document.querySelectorAll('.stored-program-button')[1].click()");await new Promise(resolve=>setTimeout(resolve,150));
-    assert.equal(previewRequests.length,1);assert.equal(previewRequests[0].allowTemporaryLoad,false);
-    assert(await win.webContents.executeJavaScript("document.getElementById('programs-dialog').classList.contains('program-detail')&&document.querySelector('.recipe-duration strong').textContent==='7 h'&&document.querySelectorAll('.recipe-phase').length===4"));
-    assert(await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-events-table thead th').length===6&&document.querySelectorAll('.recipe-events-table tbody tr').length===6&&document.querySelector('.recipe-events-table tr[data-segment=\"4\"]').querySelectorAll('[data-state=on]').length===3&&document.querySelector('.recipe-events-table tr[data-segment=\"5\"]').querySelectorAll('[data-state=off]').length===3&&document.querySelectorAll('.recipe-phase')[3].querySelector('.recipe-phase-events').textContent==='E1 · Apertura saracinesca ON · E2 · Aspiratore ON · E3 · Scambiatore ON'"));
-    await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-phase')[3].click()");
-    assert(await win.webContents.executeJavaScript("document.querySelectorAll('.recipe-phase')[3].getAttribute('aria-pressed')==='true'"));
-    fs.writeFileSync(path.join(folder,'forno-recipe.png'),(await win.webContents.capturePage()).toPNG());
-    for(const width of [900,1200]){
-        win.setSize(width,850);await new Promise(resolve=>setTimeout(resolve,100));
-        assert(await win.webContents.executeJavaScript("(()=>{const d=document.getElementById('programs-dialog');return d.scrollWidth<=d.clientWidth&&document.querySelector('.recipe-plot canvas').getBoundingClientRect().width>200})()"));
+    const diagnostics = await win.webContents.executeJavaScript(
+      "document.getElementById('collector-status').textContent",
+    );
+    assert.equal(programRequests, 0);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-programs').click()",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('programs-dialog').open&&!document.getElementById('programs-menu').hidden",
+      ),
+    );
+    assert.equal(programRequests, 0);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('list-programs').click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(programRequests, 1);
+    assert.deepEqual(
+      await win.webContents.executeJavaScript(
+        "Array.from(document.querySelectorAll('#programs-list .stored-program-name'),li=>li.textContent)",
+      ),
+      ["Ciclo_1_530_8h", "Ciclo_2_375_8h30m", "<b>Test</b>"],
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.querySelector('#programs-list b')&&document.getElementById('programs-read-time').textContent.includes('Ultima lettura')",
+      ),
+    );
+    fs.writeFileSync(
+      path.join(folder, "forno-programs.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelectorAll('.stored-program-button')[1].click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(previewRequests.length, 1);
+    assert.equal(previewRequests[0].allowTemporaryLoad, false);
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('programs-dialog').classList.contains('program-detail')&&document.querySelector('.recipe-duration strong').textContent==='7 h'&&document.querySelectorAll('.recipe-phase').length===4",
+      ),
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelectorAll('.recipe-events-table thead th').length===6&&document.querySelectorAll('.recipe-events-table tbody tr').length===6&&document.querySelector('.recipe-events-table tr[data-segment=\"4\"]').querySelectorAll('[data-state=on]').length===3&&document.querySelector('.recipe-events-table tr[data-segment=\"5\"]').querySelectorAll('[data-state=off]').length===3&&document.querySelectorAll('.recipe-phase')[3].querySelector('.recipe-phase-events').textContent==='E1 · Apertura saracinesca ON · E2 · Aspiratore ON · E3 · Scambiatore ON'",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelectorAll('.recipe-phase')[3].click()",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelectorAll('.recipe-phase')[3].getAttribute('aria-pressed')==='true'",
+      ),
+    );
+    fs.writeFileSync(
+      path.join(folder, "forno-recipe.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    for (const width of [900, 1200]) {
+      win.setSize(width, 850);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert(
+        await win.webContents.executeJavaScript(
+          "(()=>{const d=document.getElementById('programs-dialog');return d.scrollWidth<=d.clientWidth&&document.querySelector('.recipe-plot canvas').getBoundingClientRect().width>200})()",
+        ),
+      );
     }
-    await win.webContents.executeJavaScript("document.querySelector('.recipe-start input').value='30';document.querySelector('.recipe-start input').dispatchEvent(new Event('change'))");assert.equal(previewRequests.length,1);
-    await win.webContents.executeJavaScript("document.getElementById('programs-back').click();document.querySelectorAll('.stored-program-button')[0].click()");await new Promise(resolve=>setTimeout(resolve,100));
-    assert(await win.webContents.executeJavaScript("!!document.querySelector('.recipe-read-confirm')"));assert.equal(previewRequests.length,2);
-    assert(await win.webContents.executeJavaScript("document.querySelector('.recipe-read-confirm button').textContent.includes('archivio locale')&&document.querySelector('.recipe-read-confirm').textContent.includes('sospeso')"));
-    assert(previewRequests.every(r=>r.allowTemporaryLoad===false));
-    await win.webContents.executeJavaScript("document.getElementById('programs-back').click()");
-    programMode='running';
-    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click()");await new Promise(resolve=>setTimeout(resolve,100));
-    assert(await win.webContents.executeJavaScript("document.getElementById('programs-title').textContent==='Ciclo in lavorazione'&&document.getElementById('programs-status').textContent.includes('Reset')&&document.querySelectorAll('.stored-program-button').length===1"));
-    await win.webContents.executeJavaScript("document.querySelector('.stored-program-button').click()");await new Promise(resolve=>setTimeout(resolve,100));
-    assert.equal(previewRequests.at(-1).allowTemporaryLoad,false);
-    assert(await win.webContents.executeJavaScript("!!document.querySelector('.recipe-plot canvas')&&!document.querySelector('.recipe-read-confirm')"));
-    await win.webContents.executeJavaScript("document.getElementById('programs-back').click()");
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('programs-title').textContent"),'Ciclo in lavorazione');
-    programMode='error';
-    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click()"); await new Promise(resolve=>setTimeout(resolve,100));
-    assert(await win.webContents.executeJavaScript("!document.getElementById('programs-error').hidden&&document.getElementById('programs-error').textContent.includes('non raggiungibile')&&document.getElementById('programs-list').children.length===0&&!document.getElementById('programs-refresh').disabled"));
-    programMode='empty';
-    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click()"); await new Promise(resolve=>setTimeout(resolve,100));
-    assert(await win.webContents.executeJavaScript("document.getElementById('programs-status').textContent.includes('Nessun ciclo')&&document.getElementById('programs-error').hidden"));
-    programMode='delayed';
-    await win.webContents.executeJavaScript("document.getElementById('programs-refresh').click();document.getElementById('programs-back').click()"); await new Promise(resolve=>setTimeout(resolve,300));
-    assert(await win.webContents.executeJavaScript("!document.getElementById('programs-menu').hidden&&document.getElementById('programs-results').hidden"));
-    await win.webContents.executeJavaScript("new Promise(resolve=>{const d=document.getElementById('programs-dialog');d.addEventListener('close',()=>resolve(),{once:true});d.close()})");
-    const readsBeforeEditor={programs:programRequests,previews:previewRequests.length};
-    await win.webContents.executeJavaScript("document.getElementById('open-programs').click();document.getElementById('open-program-editor').click()");await new Promise(r=>setTimeout(r,120));
-    const editorButton=text=>win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('#programs-editor button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`);
-    const editorSet=(selector,value)=>win.webContents.executeJavaScript(`(()=>{const i=document.querySelector(${JSON.stringify('#programs-editor '+selector)});i.value=${JSON.stringify(value)};i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    assert(await win.webContents.executeJavaScript("!document.getElementById('programs-editor').hidden&&document.querySelector('.program-editor-notice').textContent.includes('Nessun invio')"));
-    await editorButton('+ Rampa');
-    await editorSet('input[data-field=name]','Prova_precisa');
-    await editorSet('tr[data-index="0"] input[data-field=target]','530,1');
-    await editorSet('tr[data-index="0"] input[data-field=duration]','02:30:00');
-    await editorSet('tr[data-index="0"] button[data-field=event0]','on');
-    await editorButton('+ Stasi');
-    await editorSet('tr[data-index="1"] input[data-field=user]','5');
-    await new Promise(r=>setTimeout(r,50));
-    assert.equal(storedDraft.steps[0].targetDeciC,5301);assert.equal(storedDraft.steps[0].durationMs,9000000);assert.equal(storedDraft.steps[1].targetDeciC,5301);assert.equal(storedDraft.steps[1].userValueDeci,50);assert.deepEqual(storedDraft.steps[0].events,[true,false,false]);
-    assert(await win.webContents.executeJavaScript(`(()=>{const i=document.querySelector('tr[data-index="0"] input[data-field=duration]');i.focus();i.setSelectionRange(4,4);i.dispatchEvent(new InputEvent('beforeinput',{inputType:'deleteContentBackward',bubbles:true,cancelable:true}));return /^\\d{3}:\\d{2}:\\d{2}$/.test(i.value)&&i.value[3]===':'&&i.value[6]===':'})()`),'I separatori non devono essere cancellabili');
-    await editorSet('tr[data-index="0"] input[data-field=duration]','02:30:00');
-    await new Promise(r=>setTimeout(r,40));
-    const savesBeforeInvalid=draftSaves.length;
-    await editorSet('tr[data-index="0"] input[data-field=duration]','00:00:00');
-    assert(await win.webContents.executeJavaScript("document.querySelector('#programs-editor .form-error').textContent.includes('durata')&&Array.from(document.querySelectorAll('#programs-editor button')).find(b=>b.textContent==='Esporta bozza…').disabled"));
-    assert.equal(draftSaves.length,savesBeforeInvalid);
-    await editorSet('tr[data-index="0"] input[data-field=duration]','00:00:00.500');
-    assert.equal(draftSaves.length,savesBeforeInvalid,'Durate con millisecondi non accettate in modifica');
-    assert(await win.webContents.executeJavaScript("document.querySelector('#programs-editor .form-error').textContent.includes('millisecondi')"));
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.recipe-start input').value='30';document.querySelector('.recipe-start input').dispatchEvent(new Event('change'))",
+    );
+    assert.equal(previewRequests.length, 1);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-back').click();document.querySelectorAll('.stored-program-button')[0].click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!!document.querySelector('.recipe-read-confirm')",
+      ),
+    );
+    assert.equal(previewRequests.length, 2);
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.recipe-read-confirm button').textContent.includes('archivio locale')&&document.querySelector('.recipe-read-confirm').textContent.includes('sospeso')",
+      ),
+    );
+    assert(previewRequests.every((r) => r.allowTemporaryLoad === false));
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-back').click()",
+    );
+    programMode = "running";
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-refresh').click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('programs-title').textContent==='Ciclo in lavorazione'&&document.getElementById('programs-status').textContent.includes('Reset')&&document.querySelectorAll('.stored-program-button').length===1",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.stored-program-button').click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(previewRequests.at(-1).allowTemporaryLoad, false);
+    assert(
+      await win.webContents.executeJavaScript(
+        "!!document.querySelector('.recipe-plot canvas')&&!document.querySelector('.recipe-read-confirm')",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-back').click()",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('programs-title').textContent",
+      ),
+      "Ciclo in lavorazione",
+    );
+    programMode = "error";
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-refresh').click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('programs-error').hidden&&document.getElementById('programs-error').textContent.includes('non raggiungibile')&&document.getElementById('programs-list').children.length===0&&!document.getElementById('programs-refresh').disabled",
+      ),
+    );
+    programMode = "empty";
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-refresh').click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('programs-status').textContent.includes('Nessun ciclo')&&document.getElementById('programs-error').hidden",
+      ),
+    );
+    programMode = "delayed";
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-refresh').click();document.getElementById('programs-back').click()",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('programs-menu').hidden&&document.getElementById('programs-results').hidden",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "new Promise(resolve=>{const d=document.getElementById('programs-dialog');d.addEventListener('close',()=>resolve(),{once:true});d.close()})",
+    );
+    const readsBeforeEditor = {
+      programs: programRequests,
+      previews: previewRequests.length,
+    };
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-programs').click();document.getElementById('open-program-editor').click()",
+    );
+    await new Promise((r) => setTimeout(r, 120));
+    const editorButton = (text) =>
+      win.webContents.executeJavaScript(
+        `Array.from(document.querySelectorAll('#programs-editor button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`,
+      );
+    const editorSet = (selector, value) =>
+      win.webContents.executeJavaScript(
+        `(()=>{const i=document.querySelector(${JSON.stringify("#programs-editor " + selector)});i.value=${JSON.stringify(value)};i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));})()`,
+      );
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('programs-editor').hidden&&document.querySelector('.program-editor-notice').textContent.includes('Nessun invio')",
+      ),
+    );
+    await editorButton("+ Rampa");
+    await editorSet("input[data-field=name]", "Prova_precisa");
+    await editorSet('tr[data-index="0"] input[data-field=target]', "530,1");
+    await editorSet(
+      'tr[data-index="0"] input[data-field=duration]',
+      "02:30:00",
+    );
+    await editorSet('tr[data-index="0"] button[data-field=event0]', "on");
+    await editorButton("+ Stasi");
+    await editorSet('tr[data-index="1"] input[data-field=user]', "5");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(storedDraft.steps[0].targetDeciC, 5301);
+    assert.equal(storedDraft.steps[0].durationMs, 9000000);
+    assert.equal(storedDraft.steps[1].targetDeciC, 5301);
+    assert.equal(storedDraft.steps[1].userValueDeci, 50);
+    assert.deepEqual(storedDraft.steps[0].events, [true, false, false]);
+    assert(
+      await win.webContents.executeJavaScript(
+        `(()=>{const i=document.querySelector('tr[data-index="0"] input[data-field=duration]');i.focus();i.setSelectionRange(4,4);i.dispatchEvent(new InputEvent('beforeinput',{inputType:'deleteContentBackward',bubbles:true,cancelable:true}));return /^\\d{3}:\\d{2}:\\d{2}$/.test(i.value)&&i.value[3]===':'&&i.value[6]===':'})()`,
+      ),
+      "I separatori non devono essere cancellabili",
+    );
+    await editorSet(
+      'tr[data-index="0"] input[data-field=duration]',
+      "02:30:00",
+    );
+    await new Promise((r) => setTimeout(r, 40));
+    const savesBeforeInvalid = draftSaves.length;
+    await editorSet(
+      'tr[data-index="0"] input[data-field=duration]',
+      "00:00:00",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('#programs-editor .form-error').textContent.includes('durata')&&Array.from(document.querySelectorAll('#programs-editor button')).find(b=>b.textContent==='Esporta bozza…').disabled",
+      ),
+    );
+    assert.equal(draftSaves.length, savesBeforeInvalid);
+    await editorSet(
+      'tr[data-index="0"] input[data-field=duration]',
+      "00:00:00.500",
+    );
+    assert.equal(
+      draftSaves.length,
+      savesBeforeInvalid,
+      "Durate con millisecondi non accettate in modifica",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('#programs-editor .form-error').textContent.includes('millisecondi')",
+      ),
+    );
 
-    await editorSet('tr[data-index="0"] input[data-field=duration]','02:30:00');
-    await win.webContents.executeJavaScript("document.querySelector('#programs-editor tr[data-index=\"0\"] .program-editor-select').click();document.querySelector('.program-editor-plot canvas').scrollIntoView({block:'center'})");
-    await new Promise(r=>setTimeout(r,100));
-    const chartModule=JSON.stringify(require.resolve('chart.js/auto'));
-    const dragPoints=await win.webContents.executeJavaScript(`(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),chart=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect(),p=chart.getDatasetMeta(0).data[chart.data.datasets[0].data.findIndex(p=>p.phase===0&&p.x>0)];return {from:{x:Math.round(r.left+p.x),y:Math.round(r.top+p.y)},to:{x:Math.round(r.left+chart.scales.x.getPixelForValue(2.75)),y:Math.round(r.top+chart.scales.y.getPixelForValue(540))}};})()`);
-    win.webContents.sendInputEvent({type:'mouseMove',...dragPoints.from});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...dragPoints.from});
-    win.webContents.sendInputEvent({type:'mouseMove',...dragPoints.to,modifiers:['leftButtonDown']});
-    await new Promise(r=>setTimeout(r,40));
-    assert.equal(storedDraft.steps[0].durationMs,9000000,'Il trascinamento non salva prima del rilascio');
-    assert(await win.webContents.executeJavaScript(`(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return c.tooltip.opacity===1&&c.tooltip.getActiveElements().length===1&&!document.querySelector('.program-editor-drag-label')})()`));
-    await new Promise(r=>setTimeout(r,650));
-    assert(await win.webContents.executeJavaScript(`(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return c.tooltip.opacity===1&&c.tooltip.getActiveElements().length===1})()`),'Tooltip scomparso durante il trascinamento a mouse fermo');
+    await editorSet(
+      'tr[data-index="0"] input[data-field=duration]',
+      "02:30:00",
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('#programs-editor tr[data-index=\"0\"] .program-editor-select').click();document.querySelector('.program-editor-plot canvas').scrollIntoView({block:'center'})",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    const chartModule = JSON.stringify(require.resolve("chart.js/auto"));
+    const dragPoints = await win.webContents.executeJavaScript(
+      `(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),chart=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect(),p=chart.getDatasetMeta(0).data[chart.data.datasets[0].data.findIndex(p=>p.phase===0&&p.x>0)];return {from:{x:Math.round(r.left+p.x),y:Math.round(r.top+p.y)},to:{x:Math.round(r.left+chart.scales.x.getPixelForValue(2.75)),y:Math.round(r.top+chart.scales.y.getPixelForValue(540))}};})()`,
+    );
+    win.webContents.sendInputEvent({ type: "mouseMove", ...dragPoints.from });
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      button: "left",
+      clickCount: 1,
+      ...dragPoints.from,
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      ...dragPoints.to,
+      modifiers: ["leftButtonDown"],
+    });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(
+      storedDraft.steps[0].durationMs,
+      9000000,
+      "Il trascinamento non salva prima del rilascio",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        `(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return c.tooltip.opacity===1&&c.tooltip.getActiveElements().length===1&&!document.querySelector('.program-editor-drag-label')})()`,
+      ),
+    );
+    await new Promise((r) => setTimeout(r, 650));
+    assert(
+      await win.webContents.executeJavaScript(
+        `(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return c.tooltip.opacity===1&&c.tooltip.getActiveElements().length===1})()`,
+      ),
+      "Tooltip scomparso durante il trascinamento a mouse fermo",
+    );
 
-    const previewBeforeEdge=await win.webContents.executeJavaScript(`(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),c=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect();return {xMax:c.scales.x.max,yMax:c.scales.y.max,info:document.querySelector('.program-editor-point').textContent,metrics:document.querySelector('.program-editor-metrics').textContent,target:document.querySelector('tr[data-index="0"] [data-field=target]').value,edge:{x:Math.round(r.left+c.chartArea.right-2),y:Math.round(r.top+c.chartArea.top+2)}}})()`);
-    assert.notEqual(previewBeforeEdge.target,'530.1');assert(previewBeforeEdge.info.includes(previewBeforeEdge.target));assert(previewBeforeEdge.info.includes('durata'));
-    win.webContents.sendInputEvent({type:'mouseMove',...previewBeforeEdge.edge,modifiers:['leftButtonDown']});
-    await new Promise(r=>setTimeout(r,40));
-    const expanded=await win.webContents.executeJavaScript(`(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return {xMax:c.scales.x.max,yMax:c.scales.y.max,ticks:[c.scales.x,c.scales.y].map(s=>s.ticks.map(t=>t.value)),pixels:[c.scales.x,c.scales.y].map(s=>s.ticks.map(t=>s.getPixelForValue(t.value))),info:document.querySelector('.program-editor-point').textContent,target:document.querySelector('tr[data-index="0"] [data-field=target]').value,point:(()=>{const r=c.canvas.getBoundingClientRect(),i=c.data.datasets[0].data.findIndex(p=>p.phase===0&&p.x>0),p=c.getDatasetMeta(0).data[i];return {x:r.left+p.x,y:r.top+p.y}})(),graphTarget:c.data.datasets[0].data.filter(p=>p.phase===0).slice(-1)[0].y,metrics:document.querySelector('.program-editor-metrics').textContent}})()`);
-    assert.equal(expanded.xMax,previewBeforeEdge.xMax,'La scala temporale deve restare ferma durante il drag');assert.equal(expanded.yMax,previewBeforeEdge.yMax,'La scala termica deve restare ferma durante il drag');
-    for(const ticks of [...expanded.ticks,...expanded.pixels]) { assert.equal(ticks.length,9);const gap=ticks[1]-ticks[0];for(let i=2;i<ticks.length;i++)assert(Math.abs(ticks[i]-ticks[i-1]-gap)<.001,'Griglia non uniforme'); }
-    assert(expanded.info.includes(expanded.target)&&expanded.graphTarget===Number(expanded.target),'Legenda e grafico devono usare il candidato');assert.notEqual(expanded.metrics,previewBeforeEdge.metrics,'La durata totale deve aggiornarsi durante il trascinamento');
-    assert(Math.abs(expanded.point.x-previewBeforeEdge.edge.x)<3&&Math.abs(expanded.point.y-previewBeforeEdge.edge.y)<3,'Il punto deve rimanere agganciato al puntatore');
-    assert.equal(storedDraft.steps[0].durationMs,9000000);
-    win.webContents.sendInputEvent({type:'mouseMove',...previewBeforeEdge.edge,modifiers:['leftButtonDown']});await new Promise(r=>setTimeout(r,20));
-    assert.equal(await win.webContents.executeJavaScript("document.querySelector('tr[data-index=\"0\"] [data-field=target]').value"),expanded.target,'A mouse fermo la scala non deve alterare il valore');
-    win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...previewBeforeEdge.edge});
-    await new Promise(r=>setTimeout(r,100));
-    assert.notEqual(storedDraft.steps[0].durationMs,9000000,'il trascinamento reale deve aggiornare la bozza');assert.equal(storedDraft.steps[1].durationMs,3600000);assert.equal(storedDraft.steps[1].targetDeciC,storedDraft.steps[0].targetDeciC);
-    const axesAfterDrop=await win.webContents.executeJavaScript(`(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return {x:c.scales.x.max,y:c.scales.y.max}})()`);
-    assert.equal(axesAfterDrop.x,expanded.xMax);assert.equal(axesAfterDrop.y,expanded.yMax);
-    const dragged=structuredClone(storedDraft);
-    const zoomState=()=>win.webContents.executeJavaScript(`(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return {min:c.scales.x.min,max:c.scales.x.max,ymin:c.scales.y.min,ymax:c.scales.y.max,points:c.data.datasets[0].data}})()`);
-    const wheel=(delta,vertical=false)=>win.webContents.executeJavaScript(`(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),c=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect();canvas.dispatchEvent(new WheelEvent('wheel',{clientX:r.left+c.chartArea.left+c.chartArea.width/2,clientY:r.top+c.chartArea.top+c.chartArea.height/2,deltaY:${delta},shiftKey:${vertical},bubbles:true,cancelable:true}))})()`);
+    const previewBeforeEdge = await win.webContents.executeJavaScript(
+      `(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),c=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect();return {xMax:c.scales.x.max,yMax:c.scales.y.max,info:document.querySelector('.program-editor-point').textContent,metrics:document.querySelector('.program-editor-metrics').textContent,target:document.querySelector('tr[data-index="0"] [data-field=target]').value,edge:{x:Math.round(r.left+c.chartArea.right-2),y:Math.round(r.top+c.chartArea.top+2)}}})()`,
+    );
+    assert.notEqual(previewBeforeEdge.target, "530.1");
+    assert(previewBeforeEdge.info.includes(previewBeforeEdge.target));
+    assert(previewBeforeEdge.info.includes("durata"));
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      ...previewBeforeEdge.edge,
+      modifiers: ["leftButtonDown"],
+    });
+    await new Promise((r) => setTimeout(r, 40));
+    const expanded = await win.webContents.executeJavaScript(
+      `(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return {xMax:c.scales.x.max,yMax:c.scales.y.max,ticks:[c.scales.x,c.scales.y].map(s=>s.ticks.map(t=>t.value)),pixels:[c.scales.x,c.scales.y].map(s=>s.ticks.map(t=>s.getPixelForValue(t.value))),info:document.querySelector('.program-editor-point').textContent,target:document.querySelector('tr[data-index="0"] [data-field=target]').value,point:(()=>{const r=c.canvas.getBoundingClientRect(),i=c.data.datasets[0].data.findIndex(p=>p.phase===0&&p.x>0),p=c.getDatasetMeta(0).data[i];return {x:r.left+p.x,y:r.top+p.y}})(),graphTarget:c.data.datasets[0].data.filter(p=>p.phase===0).slice(-1)[0].y,metrics:document.querySelector('.program-editor-metrics').textContent}})()`,
+    );
+    assert.equal(
+      expanded.xMax,
+      previewBeforeEdge.xMax,
+      "La scala temporale deve restare ferma durante il drag",
+    );
+    assert.equal(
+      expanded.yMax,
+      previewBeforeEdge.yMax,
+      "La scala termica deve restare ferma durante il drag",
+    );
+    for (const ticks of [...expanded.ticks, ...expanded.pixels]) {
+      assert.equal(ticks.length, 9);
+      const gap = ticks[1] - ticks[0];
+      for (let i = 2; i < ticks.length; i++)
+        assert(
+          Math.abs(ticks[i] - ticks[i - 1] - gap) < 0.001,
+          "Griglia non uniforme",
+        );
+    }
+    assert(
+      expanded.info.includes(expanded.target) &&
+      expanded.graphTarget === Number(expanded.target),
+      "Legenda e grafico devono usare il candidato",
+    );
+    assert.notEqual(
+      expanded.metrics,
+      previewBeforeEdge.metrics,
+      "La durata totale deve aggiornarsi durante il trascinamento",
+    );
+    assert(
+      Math.abs(expanded.point.x - previewBeforeEdge.edge.x) < 3 &&
+      Math.abs(expanded.point.y - previewBeforeEdge.edge.y) < 3,
+      "Il punto deve rimanere agganciato al puntatore",
+    );
+    assert.equal(storedDraft.steps[0].durationMs, 9000000);
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      ...previewBeforeEdge.edge,
+      modifiers: ["leftButtonDown"],
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('tr[data-index=\"0\"] [data-field=target]').value",
+      ),
+      expanded.target,
+      "A mouse fermo la scala non deve alterare il valore",
+    );
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      button: "left",
+      clickCount: 1,
+      ...previewBeforeEdge.edge,
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.notEqual(
+      storedDraft.steps[0].durationMs,
+      9000000,
+      "il trascinamento reale deve aggiornare la bozza",
+    );
+    assert.equal(storedDraft.steps[1].durationMs, 3600000);
+    assert.equal(
+      storedDraft.steps[1].targetDeciC,
+      storedDraft.steps[0].targetDeciC,
+    );
+    const axesAfterDrop = await win.webContents.executeJavaScript(
+      `(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return {x:c.scales.x.max,y:c.scales.y.max}})()`,
+    );
+    assert.equal(axesAfterDrop.x, expanded.xMax);
+    assert.equal(axesAfterDrop.y, expanded.yMax);
+    const dragged = structuredClone(storedDraft);
+    const zoomState = () =>
+      win.webContents.executeJavaScript(
+        `(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return {min:c.scales.x.min,max:c.scales.x.max,ymin:c.scales.y.min,ymax:c.scales.y.max,points:c.data.datasets[0].data}})()`,
+      );
+    const wheel = (delta, vertical = false) =>
+      win.webContents.executeJavaScript(
+        `(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),c=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect();canvas.dispatchEvent(new WheelEvent('wheel',{clientX:r.left+c.chartArea.left+c.chartArea.width/2,clientY:r.top+c.chartArea.top+c.chartArea.height/2,deltaY:${delta},shiftKey:${vertical},bubbles:true,cancelable:true}))})()`,
+      );
     await wheel(120);
-    const beforeWheel=await zoomState(),savesBeforeWheel=draftSaves.length;
-    assert(await win.webContents.executeJavaScript(`(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return [c.scales.x,c.scales.y].every(s=>{const t=s.ticks.map(t=>t.value),step=t[1]-t[0];return step>=.5&&t.every(n=>Math.abs(n*2-Math.round(n*2))<.00001)&&s.ticks.every(t=>!String(t.label).includes(',')||String(t.label).split(',')[1].length<=1)})})()`),'Intervalli leggibili, minimo 0,5 e massimo un decimale');
+    const beforeWheel = await zoomState(),
+      savesBeforeWheel = draftSaves.length;
+    assert(
+      await win.webContents.executeJavaScript(
+        `(()=>{const c=require(${chartModule}).Chart.getChart(document.querySelector('.program-editor-plot canvas'));return [c.scales.x,c.scales.y].every(s=>{const t=s.ticks.map(t=>t.value),step=t[1]-t[0];return step>=.5&&t.every(n=>Math.abs(n*2-Math.round(n*2))<.00001)&&s.ticks.every(t=>!String(t.label).includes(',')||String(t.label).split(',')[1].length<=1)})})()`,
+      ),
+      "Intervalli leggibili, minimo 0,5 e massimo un decimale",
+    );
 
-    await wheel(-120);const zoomed=await zoomState();assert(zoomed.max-zoomed.min<=beforeWheel.max-beforeWheel.min);assert.equal(zoomed.ymax,beforeWheel.ymax);assert.deepEqual(zoomed.points,beforeWheel.points);
-    await wheel(120);const unzoomed=await zoomState();assert(unzoomed.max>zoomed.max);assert.equal(unzoomed.min,0);assert.equal(unzoomed.ymin,0);
-    for(let i=0;i<15;i++){await wheel(-120);await wheel(-120,true);}
-    const tight=await zoomState();assert.equal(tight.min,0);assert.equal(tight.ymin,0);
-    for(const p of tight.points){assert(p.x>=tight.min&&p.x<tight.max,'Lo zoom non deve nascondere il termine del programma');assert(p.y>=tight.ymin&&p.y<tight.ymax,'Lo zoom verticale non deve nascondere temperature');}
-    const stopped=await zoomState();await wheel(-120);await wheel(-120,true);const still=await zoomState();assert.equal(still.max,stopped.max);assert.equal(still.ymax,stopped.ymax);
-    await wheel(120);await wheel(120,true);const wider=await zoomState();assert(wider.max>tight.max&&wider.ymax>tight.ymax);assert.equal(wider.min,0);assert.equal(wider.ymin,0);
-    assert.equal(draftSaves.length,savesBeforeWheel);assert.deepEqual(storedDraft,dragged,'Lo zoom non deve modificare il programma');
-    await editorButton('Adatta grafico');
-    await editorButton('Annulla');await new Promise(r=>setTimeout(r,30));assert.equal(storedDraft.steps[0].durationMs,9000000);
-    await editorButton('Ripristina');await new Promise(r=>setTimeout(r,30));assert.deepEqual(storedDraft,dragged);
-    await win.webContents.executeJavaScript("document.querySelector('.program-editor-paste textarea').value='rampa\\t600,0\\t01:00:00\\tOFF\\tON\\tOFF\\t5,0\\nsosta\\t600,0\\t00:30:00\\tOFF\\tOFF\\tON\\t5'");
-    await editorButton('Aggiungi righe incollate');await new Promise(r=>setTimeout(r,50));assert.equal(storedDraft.steps.length,4);assert.equal(storedDraft.steps[2].durationMs,3600000);assert.deepEqual(storedDraft.steps[3].events,[false,false,true]);
-    await win.webContents.executeJavaScript("document.querySelector('.program-editor-paste textarea').value='rampa\\t650\\t01:00:00\\tOFF\\tOFF\\tOFF\\t0\\nrampa\\t700\\t00:00:00\\tON\\tOFF\\tOFF\\t0'");
-    await editorButton('Aggiungi righe incollate');assert.equal(storedDraft.steps.length,4,'incolla non deve applicare righe parziali');
-    await editorButton('Verifica programma');assert(await win.webContents.executeJavaScript("document.querySelector('#programs-editor .form-error').textContent.includes('Fine')"));await editorButton('+ Fine');await new Promise(r=>setTimeout(r,50));await editorButton('Verifica programma');assert(await win.webContents.executeJavaScript("document.querySelector('.program-editor-review').open&&document.querySelector('.program-editor-review pre').textContent.includes('durata=01:00:00')"));
-    await editorButton('Esporta bozza…');await new Promise(r=>setTimeout(r,30));assert.deepEqual(draftExports[0],storedDraft);
-    await editorButton('Disegna punti');
-    await win.webContents.executeJavaScript("document.querySelector('.program-editor-plot canvas').scrollIntoView({block:'center'})");
-    const drawAt=await win.webContents.executeJavaScript(`(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),chart=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect();return {x:Math.round(r.left+chart.scales.x.getPixelForValue(5.75)),y:Math.round(r.top+chart.scales.y.getPixelForValue(650))};})()`);
-    win.webContents.sendInputEvent({type:'mouseMove',...drawAt});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...drawAt});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...drawAt});
-    await new Promise(r=>setTimeout(r,80));assert.equal(storedDraft.steps.length,6,'un click reale deve disegnare una nuova fase');
-    await editorButton('Annulla');await new Promise(r=>setTimeout(r,30));assert.equal(storedDraft.steps.length,5);
-    fs.writeFileSync(path.join(folder,'forno-program-editor.png'),(await win.webContents.capturePage()).toPNG());
-    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close();document.getElementById('open-programs').click();document.getElementById('open-program-editor').click()");
-    await new Promise(r=>setTimeout(r,50));assert(await win.webContents.executeJavaScript("document.querySelectorAll('.program-editor-table tbody tr').length===5"));
-    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
-    assert.equal(programRequests,readsBeforeEditor.programs);assert.equal(previewRequests.length,readsBeforeEditor.previews);
-    programMode='success';
-    await win.webContents.executeJavaScript("document.getElementById('open-programs').click();document.getElementById('list-programs').click()");await new Promise(r=>setTimeout(r,100));
-    await win.webContents.executeJavaScript("document.querySelectorAll('.stored-program-button')[1].click()");await new Promise(r=>setTimeout(r,100));
-    const readsBeforeCopy=previewRequests.length;
-    await win.webContents.executeJavaScript("document.getElementById('edit-program-copy').click()");await new Promise(r=>setTimeout(r,100));
-    assert.equal(storedDraft.name,'Ciclo_2_375_8h30m');assert.equal(storedDraft.steps.length,5);assert.deepEqual(storedDraft.steps[3].events,[true,true,true]);assert.equal(previewRequests.length,readsBeforeCopy);
-    await editorButton('Annulla');await new Promise(r=>setTimeout(r,30));assert.equal(storedDraft.name,'Prova_precisa');
-    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
-    console.log('OK: programmatore locale, precisione tabella, trascinamento reale, soste sincronizzate, undo/redo, incolla atomico, export e nessuna chiamata nanodac');
-    const readsBeforeLibrary={programs:programRequests,previews:previewRequests.length};
-    const libraryButton=text=>win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('#programs-library button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`);
-    await win.webContents.executeJavaScript("document.getElementById('open-programs').click();document.getElementById('open-program-library').click()");await new Promise(r=>setTimeout(r,80));
-    await libraryButton('Importa 1 o più programmi…');await new Promise(r=>setTimeout(r,100));
-    assert(await win.webContents.executeJavaScript("document.querySelectorAll('.program-library-row').length===9"));
-    await libraryButton('Backup completo…');await new Promise(r=>setTimeout(r,50));assert.equal(libraryExports[0].count,9);assert.equal(libraryExports[0].originals,9);
-    await win.webContents.executeJavaScript("document.querySelector('.program-library-row input').click()");
-    await libraryButton('Prepara ripristino degli originali…');await new Promise(r=>setTimeout(r,70));assert.equal(restorePackages[0].count,1);
-    const originalManifest=JSON.parse(fs.readFileSync(path.join(restorePackages[0].path,'VERIFICA.json')));
-    assert.deepEqual(fs.readFileSync(path.join(restorePackages[0].path,originalManifest.programs[0].filename)),Buffer.from(nativeFixture.files[0].base64,'base64'));
-    await win.webContents.executeJavaScript("document.querySelector('.program-library-row button').click()");await new Promise(r=>setTimeout(r,80));
-    assert(await win.webContents.executeJavaScript("document.querySelectorAll('.program-editor-table tbody tr').length===8&&document.querySelector('.program-editor-table tr[data-kind=end]')!==null"));
-    for(const width of [900,1200,1600]){
-        win.setSize(width,850);await new Promise(r=>setTimeout(r,90));
-        const layout=await win.webContents.executeJavaScript("(()=>{const d=document.getElementById('programs-dialog'),c=document.querySelector('.program-editor-plot canvas'),s=document.querySelector('.program-editor-table-scroll'),before=c.getBoundingClientRect();s.scrollTop=s.scrollHeight;const after=c.getBoundingClientRect();return {width:innerWidth,dialogWidth:d.clientWidth,right:s.getBoundingClientRect().left,plotRight:before.right,topBefore:before.top,topAfter:after.top,bottom:after.bottom,height:innerHeight,scrolled:s.scrollTop,scrollbar:s.scrollHeight>s.clientHeight,overflow:d.scrollWidth>d.clientWidth}})()");
-        assert(layout.dialogWidth>layout.width*.93,JSON.stringify(layout));assert(layout.right>=layout.plotRight,JSON.stringify(layout));assert.equal(layout.topBefore,layout.topAfter);assert(layout.topAfter>=0&&layout.bottom<=layout.height,JSON.stringify(layout));assert(layout.scrollbar&&layout.scrolled>0,JSON.stringify(layout));assert(!layout.overflow,JSON.stringify(layout));
+    await wheel(-120);
+    const zoomed = await zoomState();
+    assert(zoomed.max - zoomed.min <= beforeWheel.max - beforeWheel.min);
+    assert.equal(zoomed.ymax, beforeWheel.ymax);
+    assert.deepEqual(zoomed.points, beforeWheel.points);
+    await wheel(120);
+    const unzoomed = await zoomState();
+    assert(unzoomed.max > zoomed.max);
+    assert.equal(unzoomed.min, 0);
+    assert.equal(unzoomed.ymin, 0);
+    for (let i = 0; i < 15; i++) {
+      await wheel(-120);
+      await wheel(-120, true);
     }
-    win.setSize(1200,850);await new Promise(r=>setTimeout(r,80));
-    assert(await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.program-event-toggle')).every(b=>b.textContent===''&&b.querySelector('svg path')&&b.hasAttribute('aria-pressed'))&&Array.from(document.querySelectorAll('.program-editor-table select[data-field=kind]'))[0].options.length===6"));
-    await editorSet('tr[data-index="0"] button[data-field=event1]','on');
-    await editorSet('tr[data-index="0"] input[data-field=label]','Solo E2');
-    await editorSet('tr[data-index="7"] input[data-field=label]','Fine prova');
-    await editorButton('Salva versione nell’archivio');await new Promise(r=>setTimeout(r,80));
-    const local=localPrograms.readLibrary(libraryFile());assert.equal(local.entries.length,10);assert.deepEqual(local.entries[0].draft.steps[0].events,[false,false,false]);assert.deepEqual(local.entries[9].draft.steps[0].events,[false,true,false]);assert.equal(local.entries[9].draft.steps[7].label,'Fine prova');
-    await win.webContents.executeJavaScript("document.getElementById('programs-back').click()");await new Promise(r=>setTimeout(r,80));
-    await win.webContents.executeJavaScript("(()=>{const r=document.querySelectorAll('.program-library-row');r[0].querySelector('input').click();r[r.length-1].querySelector('input').click()})()");
-    await libraryButton('Esporta versioni locali .uipz…');await new Promise(r=>setTimeout(r,70));assert.equal(restorePackages[1].count,1);
-    await libraryButton('Elimina selezionati solo dal PC');await new Promise(r=>setTimeout(r,70));assert(await win.webContents.executeJavaScript("document.querySelectorAll('.program-library-row').length===9"));
-    assert(localPrograms.readLibrary(libraryFile()).entries[9].deletedAtMs);assert.equal(localPrograms.readLibrary(libraryFile()).entries[0].deletedAtMs,undefined);
-    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#programs-library>label')).find(l=>l.textContent.includes('Mostra anche')).querySelector('input').click()");
-    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.program-library-row')).at(-1).querySelector('input').click()");
-    await libraryButton('Recupera eliminati locali');await new Promise(r=>setTimeout(r,70));assert.equal(localPrograms.readLibrary(libraryFile()).entries[9].deletedAtMs,undefined);
-    assert(await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#programs-library button')).find(b=>b.textContent==='Apri selezionato per invio al forno…')!==undefined"));
-    fs.writeFileSync(path.join(folder,'forno-program-library.png'),(await win.webContents.capturePage()).toPNG());
-    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
-    assert.equal(programRequests,readsBeforeLibrary.programs);assert.equal(previewRequests.length,readsBeforeLibrary.previews);
-    console.log('OK: archivio di 9 originali, backup verificato, file nativi identici, modifica E2 singolo, nuova versione, eliminazione/recupero locali e apertura per invio esplicito');
-    await win.webContents.executeJavaScript("document.getElementById('open-programs').click();document.getElementById('open-program-editor').click()");await new Promise(r=>setTimeout(r,60));
-    await editorButton('Nuova bozza');await new Promise(r=>setTimeout(r,50));assert.equal(storedDraft.steps.length,0);
-    await editorSet('input[data-field=name]','Tutti_tipi');
-    for(const k of ['step','wait','ramp','goback']){await editorSet('select[data-field=newKind]',k);await editorButton('+ Aggiungi fase');}
-    await editorSet('tr[data-index="1"] select[data-field=waitFor]','1');
-    await editorSet('tr[data-index="1"] select[data-field=waitCondition]','2');
-    await editorSet('tr[data-index="1"] input[data-field=waitValue]','300');
-    await editorSet('tr[data-index="3"] select[data-field=goBackTo]','2');
-    await editorSet('tr[data-index="3"] input[data-field=cycles]','2');
-    await editorButton('+ Stasi');await editorButton('+ Fine');
-    await editorSet('tr[data-index="5"] select[data-field=endAction]','dwell');
-    await win.webContents.executeJavaScript("document.querySelector('tr[data-index=\"5\"] button[data-field=event2]').click()");
-    await new Promise(r=>setTimeout(r,50));
-    assert.deepEqual(storedDraft.steps.map(s=>s.kind),['step','wait','ramp','goback','dwell','end']);assert.equal(storedDraft.steps[1].waitValueDeci,3000);assert.equal(storedDraft.steps[3].goBackTo,2);assert.deepEqual(storedDraft.steps[5].events,[false,false,true]);
-    await editorButton('Verifica programma');assert(await win.webContents.executeJavaScript("document.querySelector('.program-editor-review pre').textContent.includes('WaitFor=1')&&document.querySelector('.program-editor-review pre').textContent.includes('torna=2')&&document.querySelector('.program-editor-graph-warnings').textContent.includes('attesa')"));
-    await editorButton('Salva versione nell’archivio');await new Promise(r=>setTimeout(r,60));
-    assert.equal(localPrograms.readLibrary(libraryFile()).entries.length,11);
-    fs.writeFileSync(path.join(folder,'forno-program-editor-all-types.png'),(await win.webContents.capturePage()).toPNG());
-    await editorButton('Invia al forno…');await new Promise(r=>setTimeout(r,80));
-    assert.equal(transferCalls.at(-1).operation,'context');
-    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog').getBoundingClientRect().width>800"),'La revisione deve avere spazio per i parametri');
-    const transferButton=text=>win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.program-transfer-dialog button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`);
-    await transferButton('Prepara invio della bozza');await new Promise(r=>setTimeout(r,50));assert.equal(transferCalls.at(-1).operation,'prepare');assert(transferCalls.at(-1).payload.draft.name.startsWith('TEST_'));assert(!transferCalls.some(c=>c.operation==='execute'));
-    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog pre').textContent.includes('Fine')||document.querySelector('.program-transfer-dialog pre').textContent.includes('end')"));
-    fs.writeFileSync(path.join(folder,'forno-program-transfer-review.png'),(await win.webContents.capturePage()).toPNG());
-    await transferButton('Conferma operazione sul forno');await new Promise(r=>setTimeout(r,70));assert.equal(transferCalls.filter(c=>c.operation==='execute').length,1);
-    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog').textContent.includes('local-backup.json')"));
-    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));assert(await win.webContents.executeJavaScript("!document.querySelector('.program-transfer-dialog')"));
-    console.log('OK: trasferimento con verifica preventiva, conferma esplicita e ricevuta; nessun invio automatico');
-    transferPending=true;await editorButton('Invia al forno\u2026');await new Promise(r=>setTimeout(r,60));
-    await transferButton('Verifica tentativo interrotto');await new Promise(r=>setTimeout(r,60));assert(transferCalls.some(c=>c.operation==='reconcile'));assert.equal(transferCalls.filter(c=>c.operation==='execute').length,1);
-    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog').textContent.includes('Originale invariato')"));
-    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
+    const tight = await zoomState();
+    assert.equal(tight.min, 0);
+    assert.equal(tight.ymin, 0);
+    for (const p of tight.points) {
+      assert(
+        p.x >= tight.min && p.x < tight.max,
+        "Lo zoom non deve nascondere il termine del programma",
+      );
+      assert(
+        p.y >= tight.ymin && p.y < tight.ymax,
+        "Lo zoom verticale non deve nascondere temperature",
+      );
+    }
+    const stopped = await zoomState();
+    await wheel(-120);
+    await wheel(-120, true);
+    const still = await zoomState();
+    assert.equal(still.max, stopped.max);
+    assert.equal(still.ymax, stopped.ymax);
+    await wheel(120);
+    await wheel(120, true);
+    const wider = await zoomState();
+    assert(wider.max > tight.max && wider.ymax > tight.ymax);
+    assert.equal(wider.min, 0);
+    assert.equal(wider.ymin, 0);
+    assert.equal(draftSaves.length, savesBeforeWheel);
+    assert.deepEqual(
+      storedDraft,
+      dragged,
+      "Lo zoom non deve modificare il programma",
+    );
+    await editorButton("Adatta grafico");
+    await editorButton("Annulla");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(storedDraft.steps[0].durationMs, 9000000);
+    await editorButton("Ripristina");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepEqual(storedDraft, dragged);
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.program-editor-paste textarea').value='rampa\\t600,0\\t01:00:00\\tOFF\\tON\\tOFF\\t5,0\\nsosta\\t600,0\\t00:30:00\\tOFF\\tOFF\\tON\\t5'",
+    );
+    await editorButton("Aggiungi righe incollate");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(storedDraft.steps.length, 4);
+    assert.equal(storedDraft.steps[2].durationMs, 3600000);
+    assert.deepEqual(storedDraft.steps[3].events, [false, false, true]);
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.program-editor-paste textarea').value='rampa\\t650\\t01:00:00\\tOFF\\tOFF\\tOFF\\t0\\nrampa\\t700\\t00:00:00\\tON\\tOFF\\tOFF\\t0'",
+    );
+    await editorButton("Aggiungi righe incollate");
+    assert.equal(
+      storedDraft.steps.length,
+      4,
+      "incolla non deve applicare righe parziali",
+    );
+    await editorButton("Verifica programma");
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('#programs-editor .form-error').textContent.includes('Fine')",
+      ),
+    );
+    await editorButton("+ Fine");
+    await new Promise((r) => setTimeout(r, 50));
+    await editorButton("Verifica programma");
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.program-editor-review').open&&document.querySelector('.program-editor-review pre').textContent.includes('durata=01:00:00')",
+      ),
+    );
+    await editorButton("Esporta bozza…");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepEqual(draftExports[0], storedDraft);
+    await editorButton("Disegna punti");
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.program-editor-plot canvas').scrollIntoView({block:'center'})",
+    );
+    const drawAt = await win.webContents.executeJavaScript(
+      `(()=>{const canvas=document.querySelector('.program-editor-plot canvas'),chart=require(${chartModule}).Chart.getChart(canvas),r=canvas.getBoundingClientRect();return {x:Math.round(r.left+chart.scales.x.getPixelForValue(5.75)),y:Math.round(r.top+chart.scales.y.getPixelForValue(650))};})()`,
+    );
+    win.webContents.sendInputEvent({ type: "mouseMove", ...drawAt });
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      button: "left",
+      clickCount: 1,
+      ...drawAt,
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      button: "left",
+      clickCount: 1,
+      ...drawAt,
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(
+      storedDraft.steps.length,
+      6,
+      "un click reale deve disegnare una nuova fase",
+    );
+    await editorButton("Annulla");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(storedDraft.steps.length, 5);
+    fs.writeFileSync(
+      path.join(folder, "forno-program-editor.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-dialog').close();document.getElementById('open-programs').click();document.getElementById('open-program-editor').click()",
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelectorAll('.program-editor-table tbody tr').length===5",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-dialog').close()",
+    );
+    assert.equal(programRequests, readsBeforeEditor.programs);
+    assert.equal(previewRequests.length, readsBeforeEditor.previews);
+    programMode = "success";
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-programs').click();document.getElementById('list-programs').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    await win.webContents.executeJavaScript(
+      "document.querySelectorAll('.stored-program-button')[1].click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    const readsBeforeCopy = previewRequests.length;
+    await win.webContents.executeJavaScript(
+      "document.getElementById('edit-program-copy').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(storedDraft.name, "Ciclo_2_375_8h30m");
+    assert.equal(storedDraft.steps.length, 5);
+    assert.deepEqual(storedDraft.steps[3].events, [true, true, true]);
+    assert.equal(previewRequests.length, readsBeforeCopy);
+    await editorButton("Annulla");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(storedDraft.name, "Prova_precisa");
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-dialog').close()",
+    );
+    console.log(
+      "OK: programmatore locale, precisione tabella, trascinamento reale, soste sincronizzate, undo/redo, incolla atomico, export e nessuna chiamata nanodac",
+    );
+    const readsBeforeLibrary = {
+      programs: programRequests,
+      previews: previewRequests.length,
+    };
+    const libraryButton = (text) =>
+      win.webContents.executeJavaScript(
+        `Array.from(document.querySelectorAll('#programs-library button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`,
+      );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-programs').click();document.getElementById('open-program-library').click()",
+    );
+    await new Promise((r) => setTimeout(r, 80));
+    await libraryButton("Importa 1 o più programmi…");
+    await new Promise((r) => setTimeout(r, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelectorAll('.program-library-row').length===9",
+      ),
+    );
+    await libraryButton("Backup completo…");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(libraryExports[0].count, 9);
+    assert.equal(libraryExports[0].originals, 9);
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.program-library-row input').click()",
+    );
+    await libraryButton("Prepara ripristino degli originali…");
+    await new Promise((r) => setTimeout(r, 70));
+    assert.equal(restorePackages[0].count, 1);
+    const originalManifest = JSON.parse(
+      fs.readFileSync(path.join(restorePackages[0].path, "VERIFICA.json")),
+    );
+    assert.deepEqual(
+      fs.readFileSync(
+        path.join(
+          restorePackages[0].path,
+          originalManifest.programs[0].filename,
+        ),
+      ),
+      Buffer.from(nativeFixture.files[0].base64, "base64"),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.program-library-row button').click()",
+    );
+    await new Promise((r) => setTimeout(r, 80));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelectorAll('.program-editor-table tbody tr').length===8&&document.querySelector('.program-editor-table tr[data-kind=end]')!==null",
+      ),
+    );
+    for (const width of [900, 1200, 1600]) {
+      win.setSize(width, 850);
+      await new Promise((r) => setTimeout(r, 90));
+      const layout = await win.webContents.executeJavaScript(
+        "(()=>{const d=document.getElementById('programs-dialog'),c=document.querySelector('.program-editor-plot canvas'),s=document.querySelector('.program-editor-table-scroll'),before=c.getBoundingClientRect();s.scrollTop=s.scrollHeight;const after=c.getBoundingClientRect();return {width:innerWidth,dialogWidth:d.clientWidth,right:s.getBoundingClientRect().left,plotRight:before.right,topBefore:before.top,topAfter:after.top,bottom:after.bottom,height:innerHeight,scrolled:s.scrollTop,scrollbar:s.scrollHeight>s.clientHeight,overflow:d.scrollWidth>d.clientWidth}})()",
+      );
+      assert(layout.dialogWidth > layout.width * 0.93, JSON.stringify(layout));
+      assert(layout.right >= layout.plotRight, JSON.stringify(layout));
+      assert.equal(layout.topBefore, layout.topAfter);
+      assert(
+        layout.topAfter >= 0 && layout.bottom <= layout.height,
+        JSON.stringify(layout),
+      );
+      assert(layout.scrollbar && layout.scrolled > 0, JSON.stringify(layout));
+      assert(!layout.overflow, JSON.stringify(layout));
+    }
+    win.setSize(1200, 850);
+    await new Promise((r) => setTimeout(r, 80));
+    assert(
+      await win.webContents.executeJavaScript(
+        "Array.from(document.querySelectorAll('.program-event-toggle')).every(b=>b.textContent===''&&b.querySelector('svg path')&&b.hasAttribute('aria-pressed'))&&Array.from(document.querySelectorAll('.program-editor-table select[data-field=kind]'))[0].options.length===6",
+      ),
+    );
+    await editorSet('tr[data-index="0"] button[data-field=event1]', "on");
+    await editorSet('tr[data-index="0"] input[data-field=label]', "Solo E2");
+    await editorSet('tr[data-index="7"] input[data-field=label]', "Fine prova");
+    await editorButton("Salva versione nell’archivio");
+    await new Promise((r) => setTimeout(r, 80));
+    const local = localPrograms.readLibrary(libraryFile());
+    assert.equal(local.entries.length, 10);
+    assert.deepEqual(local.entries[0].draft.steps[0].events, [
+      false,
+      false,
+      false,
+    ]);
+    assert.deepEqual(local.entries[9].draft.steps[0].events, [
+      false,
+      true,
+      false,
+    ]);
+    assert.equal(local.entries[9].draft.steps[7].label, "Fine prova");
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-back').click()",
+    );
+    await new Promise((r) => setTimeout(r, 80));
+    await win.webContents.executeJavaScript(
+      "(()=>{const r=document.querySelectorAll('.program-library-row');r[0].querySelector('input').click();r[r.length-1].querySelector('input').click()})()",
+    );
+    await libraryButton("Esporta versioni locali .uipz…");
+    await new Promise((r) => setTimeout(r, 70));
+    assert.equal(restorePackages[1].count, 1);
+    await libraryButton("Elimina selezionati solo dal PC");
+    await new Promise((r) => setTimeout(r, 70));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelectorAll('.program-library-row').length===9",
+      ),
+    );
+    assert(localPrograms.readLibrary(libraryFile()).entries[9].deletedAtMs);
+    assert.equal(
+      localPrograms.readLibrary(libraryFile()).entries[0].deletedAtMs,
+      undefined,
+    );
+    await win.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('#programs-library>label')).find(l=>l.textContent.includes('Mostra anche')).querySelector('input').click()",
+    );
+    await win.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('.program-library-row')).at(-1).querySelector('input').click()",
+    );
+    await libraryButton("Recupera eliminati locali");
+    await new Promise((r) => setTimeout(r, 70));
+    assert.equal(
+      localPrograms.readLibrary(libraryFile()).entries[9].deletedAtMs,
+      undefined,
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "Array.from(document.querySelectorAll('#programs-library button')).find(b=>b.textContent==='Apri selezionato per invio al forno…')!==undefined",
+      ),
+    );
+    fs.writeFileSync(
+      path.join(folder, "forno-program-library.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-dialog').close()",
+    );
+    assert.equal(programRequests, readsBeforeLibrary.programs);
+    assert.equal(previewRequests.length, readsBeforeLibrary.previews);
+    console.log(
+      "OK: archivio di 9 originali, backup verificato, file nativi identici, modifica E2 singolo, nuova versione, eliminazione/recupero locali e apertura per invio esplicito",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-programs').click();document.getElementById('open-program-editor').click()",
+    );
+    await new Promise((r) => setTimeout(r, 60));
+    await editorButton("Nuova bozza");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(storedDraft.steps.length, 0);
+    await editorSet("input[data-field=name]", "Tutti_tipi");
+    for (const k of ["step", "wait", "ramp", "goback"]) {
+      await editorSet("select[data-field=newKind]", k);
+      await editorButton("+ Aggiungi fase");
+    }
+    await editorSet('tr[data-index="1"] select[data-field=waitFor]', "1");
+    await editorSet('tr[data-index="1"] select[data-field=waitCondition]', "2");
+    await editorSet('tr[data-index="1"] input[data-field=waitValue]', "300");
+    await editorSet('tr[data-index="3"] select[data-field=goBackTo]', "2");
+    await editorSet('tr[data-index="3"] input[data-field=cycles]', "2");
+    await editorButton("+ Stasi");
+    await editorButton("+ Fine");
+    await editorSet('tr[data-index="5"] select[data-field=endAction]', "dwell");
+    await win.webContents.executeJavaScript(
+      "document.querySelector('tr[data-index=\"5\"] button[data-field=event2]').click()",
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(
+      storedDraft.steps.map((s) => s.kind),
+      ["step", "wait", "ramp", "goback", "dwell", "end"],
+    );
+    assert.equal(storedDraft.steps[1].waitValueDeci, 3000);
+    assert.equal(storedDraft.steps[3].goBackTo, 2);
+    assert.deepEqual(storedDraft.steps[5].events, [false, false, true]);
+    await editorButton("Verifica programma");
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.program-editor-review pre').textContent.includes('WaitFor=1')&&document.querySelector('.program-editor-review pre').textContent.includes('torna=2')&&document.querySelector('.program-editor-graph-warnings').textContent.includes('attesa')",
+      ),
+    );
+    await editorButton("Salva versione nell’archivio");
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(localPrograms.readLibrary(libraryFile()).entries.length, 11);
+    fs.writeFileSync(
+      path.join(folder, "forno-program-editor-all-types.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await editorButton("Invia al forno…");
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(transferCalls.at(-1).operation, "context");
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.program-transfer-dialog').getBoundingClientRect().width>800",
+      ),
+      "La revisione deve avere spazio per i parametri",
+    );
+    const transferButton = (text) =>
+      win.webContents.executeJavaScript(
+        `Array.from(document.querySelectorAll('.program-transfer-dialog button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`,
+      );
+    await transferButton("Prepara invio della bozza");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(transferCalls.at(-1).operation, "prepare");
+    assert(transferCalls.at(-1).payload.draft.name.startsWith("TEST_"));
+    assert(!transferCalls.some((c) => c.operation === "execute"));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.program-transfer-dialog pre').textContent.includes('Fine')||document.querySelector('.program-transfer-dialog pre').textContent.includes('end')",
+      ),
+    );
+    fs.writeFileSync(
+      path.join(folder, "forno-program-transfer-review.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await transferButton("Conferma operazione sul forno");
+    await new Promise((r) => setTimeout(r, 70));
+    assert.equal(
+      transferCalls.filter((c) => c.operation === "execute").length,
+      1,
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.program-transfer-dialog').textContent.includes('local-backup.json')",
+      ),
+    );
+    await transferButton("Chiudi");
+    await new Promise((r) => setTimeout(r, 30));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.querySelector('.program-transfer-dialog')",
+      ),
+    );
+    console.log(
+      "OK: trasferimento con verifica preventiva, conferma esplicita e ricevuta; nessun invio automatico",
+    );
+    transferPending = true;
+    await editorButton("Invia al forno\u2026");
+    await new Promise((r) => setTimeout(r, 60));
+    await transferButton("Verifica tentativo interrotto");
+    await new Promise((r) => setTimeout(r, 60));
+    assert(transferCalls.some((c) => c.operation === "reconcile"));
+    assert.equal(
+      transferCalls.filter((c) => c.operation === "execute").length,
+      1,
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.program-transfer-dialog').textContent.includes('Originale invariato')",
+      ),
+    );
+    await transferButton("Chiudi");
+    await new Promise((r) => setTimeout(r, 30));
 
+    const beforeReorder = structuredClone(storedDraft);
+    await win.webContents.executeJavaScript(
+      "document.querySelector('tr[data-index=\"1\"] .phase-name').click()",
+    );
+    await editorSet("select[data-field=newKind]", "ramp");
+    await editorButton("+ Aggiungi fase");
+    await new Promise((r) => setTimeout(r, 40));
+    assert.deepEqual(
+      storedDraft.steps.map((s) => s.kind),
+      ["step", "wait", "ramp", "ramp", "goback", "dwell", "end"],
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('tr[data-index=\"2\"]').classList.contains('selected')",
+      ),
+    );
+    await editorButton("Annulla");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepEqual(storedDraft, beforeReorder);
+    await win.webContents.executeJavaScript(
+      `(()=>{const from=document.querySelector('tr[data-index="2"] .program-editor-select'),row=document.querySelector('tr[data-index="0"]'),r=row.getBoundingClientRect(),dt=new DataTransfer();from.dispatchEvent(new DragEvent('dragstart',{dataTransfer:dt,bubbles:true,cancelable:true}));row.dispatchEvent(new DragEvent('dragover',{dataTransfer:dt,clientY:r.top+2,bubbles:true,cancelable:true}));if(!row.classList.contains('drop-before'))throw Error('Indicatore drop assente');row.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,clientY:r.top+2,bubbles:true,cancelable:true}));from.dispatchEvent(new DragEvent('dragend',{dataTransfer:dt,bubbles:true}));})()`,
+    );
+    await new Promise((r) => setTimeout(r, 40));
+    assert.deepEqual(
+      storedDraft.steps.map((s) => s.kind),
+      ["ramp", "step", "wait", "goback", "dwell", "end"],
+    );
+    assert.equal(storedDraft.steps[3].goBackTo, 3);
+    assert.deepEqual(
+      storedDraft.steps[2].events,
+      beforeReorder.steps[1].events,
+    );
+    await editorButton("Annulla");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepEqual(storedDraft, beforeReorder);
+    await win.webContents.executeJavaScript(
+      "document.querySelector('tr[data-index=\"2\"] .program-editor-select').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',altKey:true,bubbles:true,cancelable:true}))",
+    );
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepEqual(
+      storedDraft.steps.map((s) => s.kind),
+      ["step", "ramp", "wait", "goback", "dwell", "end"],
+    );
+    assert.equal(storedDraft.steps[3].goBackTo, 3);
+    await editorButton("Annulla");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepEqual(storedDraft, beforeReorder);
+    console.log(
+      "OK: selezione scheda, inserimento dopo selezione, drag/drop, riordino da tastiera, riferimenti GoBack e undo",
+    );
 
-    const beforeReorder=structuredClone(storedDraft);
-    await win.webContents.executeJavaScript("document.querySelector('tr[data-index=\"1\"] .phase-name').click()");
-    await editorSet('select[data-field=newKind]','ramp');await editorButton('+ Aggiungi fase');await new Promise(r=>setTimeout(r,40));
-    assert.deepEqual(storedDraft.steps.map(s=>s.kind),['step','wait','ramp','ramp','goback','dwell','end']);
-    assert(await win.webContents.executeJavaScript("document.querySelector('tr[data-index=\"2\"]').classList.contains('selected')"));
-    await editorButton('Annulla');await new Promise(r=>setTimeout(r,30));assert.deepEqual(storedDraft,beforeReorder);
-    await win.webContents.executeJavaScript(`(()=>{const from=document.querySelector('tr[data-index="2"] .program-editor-select'),row=document.querySelector('tr[data-index="0"]'),r=row.getBoundingClientRect(),dt=new DataTransfer();from.dispatchEvent(new DragEvent('dragstart',{dataTransfer:dt,bubbles:true,cancelable:true}));row.dispatchEvent(new DragEvent('dragover',{dataTransfer:dt,clientY:r.top+2,bubbles:true,cancelable:true}));if(!row.classList.contains('drop-before'))throw Error('Indicatore drop assente');row.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,clientY:r.top+2,bubbles:true,cancelable:true}));from.dispatchEvent(new DragEvent('dragend',{dataTransfer:dt,bubbles:true}));})()`);
-    await new Promise(r=>setTimeout(r,40));assert.deepEqual(storedDraft.steps.map(s=>s.kind),['ramp','step','wait','goback','dwell','end']);assert.equal(storedDraft.steps[3].goBackTo,3);assert.deepEqual(storedDraft.steps[2].events,beforeReorder.steps[1].events);
-    await editorButton('Annulla');await new Promise(r=>setTimeout(r,30));assert.deepEqual(storedDraft,beforeReorder);
-    await win.webContents.executeJavaScript("document.querySelector('tr[data-index=\"2\"] .program-editor-select').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',altKey:true,bubbles:true,cancelable:true}))");
-    await new Promise(r=>setTimeout(r,30));assert.deepEqual(storedDraft.steps.map(s=>s.kind),['step','ramp','wait','goback','dwell','end']);assert.equal(storedDraft.steps[3].goBackTo,3);
-    await editorButton('Annulla');await new Promise(r=>setTimeout(r,30));assert.deepEqual(storedDraft,beforeReorder);
-    console.log('OK: selezione scheda, inserimento dopo selezione, drag/drop, riordino da tastiera, riferimenti GoBack e undo');
-
-    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
-    assert.equal(programRequests,readsBeforeLibrary.programs);assert.equal(previewRequests.length,readsBeforeLibrary.previews);
-    console.log('OK: layout largo a 900/1200/1600 px, scroll fasi senza spostare grafico, eventi con icone SVG e tutti i sei tipi configurabili');
-    fullManagement=true;
-    await win.webContents.executeJavaScript("document.getElementById('open-programs').click();document.getElementById('list-programs').click()");await new Promise(r=>setTimeout(r,100));
-    assert(await win.webContents.executeJavaScript("document.getElementById('programs-status').textContent.includes('caricato in Reset')"));
-    await win.webContents.executeJavaScript("document.querySelector('#programs-list button').click()");await new Promise(r=>setTimeout(r,100));
-    assert.equal(transferCalls.at(-1).operation,'inspect');assert.equal(transferCalls.at(-1).payload.name,'Ciclo_1_530_8h');
-    await win.webContents.executeJavaScript("document.getElementById('edit-program-copy').click()");await new Promise(r=>setTimeout(r,60));
-    assert.equal(storedDraft.source.deviceToken,'11111111-1111-4111-8111-111111111111');
-    await editorSet('tr[data-index="0"] input[data-field=target]','210');
-    await editorButton('Invia al forno\u2026');await new Promise(r=>setTimeout(r,60));
-    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Tipo di salvataggio sul forno\"]').value"),'replace');
-    const executions=transferCalls.filter(c=>c.operation==='execute').length;
-    await transferButton('Prepara invio della bozza');await new Promise(r=>setTimeout(r,50));
-    assert(transferCalls.at(-1).payload.overwrite);assert.equal(transferCalls.at(-1).payload.expectedSnapshot,storedDraft.source.deviceToken);assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions);
-    await transferButton('Conferma sovrascrittura di Ciclo_1_530_8h');await new Promise(r=>setTimeout(r,60));
-    assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions+1);
-    fs.writeFileSync(path.join(folder,'forno-program-management.png'),(await win.webContents.capturePage()).toPNG());
-    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
-    await editorSet('input[data-field=name]','Copia_del_ciclo');await editorButton('Invia al forno\u2026');await new Promise(r=>setTimeout(r,60));
-    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Tipo di salvataggio sul forno\"]').value"),'new');
-    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
-    await win.webContents.executeJavaScript("document.getElementById('programs-back').click()");await new Promise(r=>setTimeout(r,90));
-    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#recipe-content button')).find(b=>b.textContent.startsWith('Elimina dal forno')).click()");await new Promise(r=>setTimeout(r,110));
-    assert.equal(transferCalls.at(-1).operation,'prepare');assert.equal(transferCalls.at(-1).payload.action,'delete');assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions+1);
-    await transferButton('Conferma eliminazione di Ciclo_1_530_8h');await new Promise(r=>setTimeout(r,60));
-    assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions+2);
-    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
-    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
-    console.log('OK: gestione completa, lettura in Reset, editor con riferimento, sovrascrittura ed eliminazione solo dopo conferma');
-    assert(diagnostics.includes('Ultimo tentativo salvato'),diagnostics);
-    assert(diagnostics.includes('Database: D:'),diagnostics);
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('temperature').textContent"),'418.0 °C');
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-2').textContent"),'420.0 °C');
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-3').textContent"),'425.0 °C');
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-4').textContent"),'Off');
-    assert(await win.webContents.executeJavaScript("document.getElementById('channel-controls').parentElement.classList.contains('chart-heading')&&document.querySelector('.channel-card').getBoundingClientRect().height<36"));
-    assert(requests.length>=1);
-    const initial=requests.length;
-    await win.webContents.executeJavaScript("document.getElementById('resolution').value='5000';document.getElementById('resolution').dispatchEvent(new Event('change'));");
-    await new Promise(r=>setTimeout(r,150));
-    assert(requests.length>initial);
-    assert.equal(requests[requests.length-1].intervalMs,5000);
-    await win.webContents.executeJavaScript("document.getElementById('live').checked=false;document.getElementById('live').dispatchEvent(new Event('change'));");
-    await new Promise(r=>setTimeout(r,450));
-    assert(await win.webContents.executeJavaScript("!document.getElementById('back-to-robot')"));
-    assert(await win.webContents.executeJavaScript("!document.getElementById('period')"),'Selettore Periodo ancora presente');
-    const chartExpression="require('module').createRequire(process.cwd()+'/package.json')('chart.js/auto').getChart(document.getElementById('chart'))";
-    const hoverState=()=>win.webContents.executeJavaScript(`(()=>{const c=${chartExpression};return {active:c.tooltip.getActiveElements().length,opacity:c.tooltip.opacity}})()`);
-    const near=await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression},points=c.getDatasetMeta(2).data,p=points[points.length-3],r=c.canvas.getBoundingClientRect();return {x:r.left+p.x,y:r.top+p.y,farX:r.left+points[0].x-35}})()`);
-    const move=async(x,y)=>win.webContents.executeJavaScript(`document.getElementById('chart').dispatchEvent(new PointerEvent('pointermove',{clientX:${x},clientY:${y},bubbles:true}))`);
-    const floatPoint=await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression},r=c.canvas.getBoundingClientRect();window.cursorGuides=0;window.originalCursorStroke=c.ctx.stroke;c.ctx.stroke=function(...a){if(this.getLineDash().join(',')==='4,4')window.cursorGuides++;return window.originalCursorStroke.apply(this,a)};return {x:r.left+c.chartArea.left+c.chartArea.width/2,y:r.top+c.chartArea.top+c.chartArea.height/2,width:r.width}})()`);
-    const context=()=>win.webContents.executeJavaScript(`document.getElementById('chart').dispatchEvent(new MouseEvent('contextmenu',{clientX:${floatPoint.x},clientY:${floatPoint.y},button:2,bubbles:true,cancelable:true}))`);
-    await context();assert(await win.webContents.executeJavaScript("!document.getElementById('chart-context-menu').hidden"));
-    await win.webContents.executeJavaScript("document.getElementById('toggle-continuous-tooltip').click()");
-    await new Promise(r=>setTimeout(r,100));
-    assert(await win.webContents.executeJavaScript("!document.getElementById('continuous-tooltip').hidden"),'Tooltip continuo non immediato');
-    assert((await win.webContents.executeJavaScript("document.querySelector('#cursor-readings [data-channel=\"1\"] strong').textContent")).includes('530,9'));
-    assert((await win.webContents.executeJavaScript("document.getElementById('cursor-mean').textContent")).includes('532,57'));
-    assert.equal(await win.webContents.executeJavaScript("document.querySelector('#cursor-readings [data-channel=\"4\"] small').textContent"),'Off');
-    assert(await win.webContents.executeJavaScript('window.cursorGuides>0'),'Linea verticale non disegnata');
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('chart').getBoundingClientRect().width"),floatPoint.width,'Il riquadro sottrae spazio al grafico');
-    assert.equal(JSON.parse(fs.readFileSync(settingsFile,'utf8')).continuousTooltip,true);
-    const burstStart=sampleRequests.length;
-    await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('chart');for(let i=0;i<80;i++)c.dispatchEvent(new PointerEvent('pointermove',{clientX:${floatPoint.x}+i/8,clientY:${floatPoint.y},bubbles:true}));})()`);
-    await new Promise(r=>setTimeout(r,650));assert(sampleRequests.length-burstStart<=4,'Richieste campione non limitate');
-    assert.equal((await hoverState()).active,0,'Tooltip normale sovrapposto al continuo');
-    fs.writeFileSync(path.join(folder,'continuous.png'),(await win.webContents.capturePage()).toPNG());
-    await context();assert.equal(await win.webContents.executeJavaScript("document.getElementById('toggle-continuous-tooltip').getAttribute('aria-checked')"),'true');
-    await win.webContents.executeJavaScript("document.getElementById('toggle-continuous-tooltip').click()");await new Promise(r=>setTimeout(r,100));
-    assert(await win.webContents.executeJavaScript("document.getElementById('continuous-tooltip').hidden"));
-    assert.equal(JSON.parse(fs.readFileSync(settingsFile,'utf8')).continuousTooltip,false);
-    await win.webContents.executeJavaScript(`(${chartExpression}).ctx.stroke=window.originalCursorStroke;void 0`);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-dialog').close()",
+    );
+    assert.equal(programRequests, readsBeforeLibrary.programs);
+    assert.equal(previewRequests.length, readsBeforeLibrary.previews);
+    console.log(
+      "OK: layout largo a 900/1200/1600 px, scroll fasi senza spostare grafico, eventi con icone SVG e tutti i sei tipi configurabili",
+    );
+    fullManagement = true;
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-programs').click();document.getElementById('list-programs').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('programs-status').textContent.includes('caricato in Reset')",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('#programs-list button').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(transferCalls.at(-1).operation, "inspect");
+    assert.equal(transferCalls.at(-1).payload.name, "Ciclo_1_530_8h");
+    await win.webContents.executeJavaScript(
+      "document.getElementById('edit-program-copy').click()",
+    );
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(
+      storedDraft.source.deviceToken,
+      "11111111-1111-4111-8111-111111111111",
+    );
+    await editorSet('tr[data-index="0"] input[data-field=target]', "210");
+    await editorButton("Invia al forno\u2026");
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('[aria-label=\"Tipo di salvataggio sul forno\"]').value",
+      ),
+      "replace",
+    );
+    const executions = transferCalls.filter(
+      (c) => c.operation === "execute",
+    ).length;
+    await transferButton("Prepara invio della bozza");
+    await new Promise((r) => setTimeout(r, 50));
+    assert(transferCalls.at(-1).payload.overwrite);
+    assert.equal(
+      transferCalls.at(-1).payload.expectedSnapshot,
+      storedDraft.source.deviceToken,
+    );
+    assert.equal(
+      transferCalls.filter((c) => c.operation === "execute").length,
+      executions,
+    );
+    await transferButton("Conferma sovrascrittura di Ciclo_1_530_8h");
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(
+      transferCalls.filter((c) => c.operation === "execute").length,
+      executions + 1,
+    );
+    fs.writeFileSync(
+      path.join(folder, "forno-program-management.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await transferButton("Chiudi");
+    await new Promise((r) => setTimeout(r, 30));
+    await editorSet("input[data-field=name]", "Copia_del_ciclo");
+    await editorButton("Invia al forno\u2026");
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('[aria-label=\"Tipo di salvataggio sul forno\"]').value",
+      ),
+      "new",
+    );
+    await transferButton("Chiudi");
+    await new Promise((r) => setTimeout(r, 30));
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-back').click()",
+    );
+    await new Promise((r) => setTimeout(r, 90));
+    await win.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('#recipe-content button')).find(b=>b.textContent.startsWith('Elimina dal forno')).click()",
+    );
+    await new Promise((r) => setTimeout(r, 110));
+    assert.equal(transferCalls.at(-1).operation, "prepare");
+    assert.equal(transferCalls.at(-1).payload.action, "delete");
+    assert.equal(
+      transferCalls.filter((c) => c.operation === "execute").length,
+      executions + 1,
+    );
+    await transferButton("Conferma eliminazione di Ciclo_1_530_8h");
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(
+      transferCalls.filter((c) => c.operation === "execute").length,
+      executions + 2,
+    );
+    await transferButton("Chiudi");
+    await new Promise((r) => setTimeout(r, 30));
+    await win.webContents.executeJavaScript(
+      "document.getElementById('programs-dialog').close()",
+    );
+    console.log(
+      "OK: gestione completa, lettura in Reset, editor con riferimento, sovrascrittura ed eliminazione solo dopo conferma",
+    );
+    assert(diagnostics.includes("Ultimo tentativo salvato"), diagnostics);
+    assert(diagnostics.includes("Database: D:"), diagnostics);
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('temperature').textContent",
+      ),
+      "418.0 °C",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('live-temperature-2').textContent",
+      ),
+      "420.0 °C",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('live-temperature-3').textContent",
+      ),
+      "425.0 °C",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('live-temperature-4').textContent",
+      ),
+      "Off",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('channel-controls').parentElement.classList.contains('chart-heading')&&document.querySelector('.channel-card').getBoundingClientRect().height<36",
+      ),
+    );
+    assert(requests.length >= 1);
+    const initial = requests.length;
+    await win.webContents.executeJavaScript(
+      "document.getElementById('resolution').value='5000';document.getElementById('resolution').dispatchEvent(new Event('change'));",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    assert(requests.length > initial);
+    assert.equal(requests[requests.length - 1].intervalMs, 5000);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('live').checked=false;document.getElementById('live').dispatchEvent(new Event('change'));",
+    );
+    await new Promise((r) => setTimeout(r, 450));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('back-to-robot')",
+      ),
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('period')",
+      ),
+      "Selettore Periodo ancora presente",
+    );
+    const chartExpression =
+      "require('module').createRequire(process.cwd()+'/package.json')('chart.js/auto').getChart(document.getElementById('chart'))";
+    const hoverState = () =>
+      win.webContents.executeJavaScript(
+        `(()=>{const c=${chartExpression};return {active:c.tooltip.getActiveElements().length,opacity:c.tooltip.opacity}})()`,
+      );
+    const near = await win.webContents.executeJavaScript(
+      `(()=>{const c=${chartExpression},points=c.getDatasetMeta(2).data,p=points[points.length-3],r=c.canvas.getBoundingClientRect();return {x:r.left+p.x,y:r.top+p.y,farX:r.left+points[0].x-35}})()`,
+    );
+    const move = async (x, y) =>
+      win.webContents.executeJavaScript(
+        `document.getElementById('chart').dispatchEvent(new PointerEvent('pointermove',{clientX:${x},clientY:${y},bubbles:true}))`,
+      );
+    const floatPoint = await win.webContents.executeJavaScript(
+      `(()=>{const c=${chartExpression},r=c.canvas.getBoundingClientRect();window.cursorGuides=0;window.originalCursorStroke=c.ctx.stroke;c.ctx.stroke=function(...a){if(this.getLineDash().join(',')==='4,4')window.cursorGuides++;return window.originalCursorStroke.apply(this,a)};return {x:r.left+c.chartArea.left+c.chartArea.width/2,y:r.top+c.chartArea.top+c.chartArea.height/2,width:r.width}})()`,
+    );
+    const context = () =>
+      win.webContents.executeJavaScript(
+        `document.getElementById('chart').dispatchEvent(new MouseEvent('contextmenu',{clientX:${floatPoint.x},clientY:${floatPoint.y},button:2,bubbles:true,cancelable:true}))`,
+      );
+    await context();
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('chart-context-menu').hidden",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('toggle-continuous-tooltip').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('continuous-tooltip').hidden",
+      ),
+      "Tooltip continuo non immediato",
+    );
+    assert(
+      (
+        await win.webContents.executeJavaScript(
+          "document.querySelector('#cursor-readings [data-channel=\"1\"] strong').textContent",
+        )
+      ).includes("530,9"),
+    );
+    assert(
+      (
+        await win.webContents.executeJavaScript(
+          "document.getElementById('cursor-mean').textContent",
+        )
+      ).includes("532,57"),
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('#cursor-readings [data-channel=\"4\"] small').textContent",
+      ),
+      "Off",
+    );
+    assert(
+      await win.webContents.executeJavaScript("window.cursorGuides>0"),
+      "Linea verticale non disegnata",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('chart').getBoundingClientRect().width",
+      ),
+      floatPoint.width,
+      "Il riquadro sottrae spazio al grafico",
+    );
+    assert.equal(
+      JSON.parse(fs.readFileSync(settingsFile, "utf8")).continuousTooltip,
+      true,
+    );
+    const burstStart = sampleRequests.length;
+    await win.webContents.executeJavaScript(
+      `(()=>{const c=document.getElementById('chart');for(let i=0;i<80;i++)c.dispatchEvent(new PointerEvent('pointermove',{clientX:${floatPoint.x}+i/8,clientY:${floatPoint.y},bubbles:true}));})()`,
+    );
+    await new Promise((r) => setTimeout(r, 650));
+    assert(
+      sampleRequests.length - burstStart <= 4,
+      "Richieste campione non limitate",
+    );
+    assert.equal(
+      (await hoverState()).active,
+      0,
+      "Tooltip normale sovrapposto al continuo",
+    );
+    fs.writeFileSync(
+      path.join(folder, "continuous.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await context();
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('toggle-continuous-tooltip').getAttribute('aria-checked')",
+      ),
+      "true",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('toggle-continuous-tooltip').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('continuous-tooltip').hidden",
+      ),
+    );
+    assert.equal(
+      JSON.parse(fs.readFileSync(settingsFile, "utf8")).continuousTooltip,
+      false,
+    );
+    await win.webContents.executeJavaScript(
+      `(${chartExpression}).ctx.stroke=window.originalCursorStroke;void 0`,
+    );
     // Note condivise: creazione al campione, popup, modifica e cancellazione.
-    await context();await win.webContents.executeJavaScript("document.getElementById('add-chart-note').click()");await new Promise(r=>setTimeout(r,120));
-    assert(await win.webContents.executeJavaScript("document.getElementById('note-editor').open&&!document.getElementById('note-save').disabled"));
-    const noteText='Controllo operatore <img src=x onerror="window.noteXss=true">\nSeconda riga';
-    await win.webContents.executeJavaScript(`document.getElementById('note-text').value=${JSON.stringify(noteText)};document.getElementById('note-form').requestSubmit()`);await new Promise(r=>setTimeout(r,160));
-    assert.equal(notes.length,1);assert.equal(notes[0].timestampMs,Math.round(sampleRequests.at(-1).timestampMs/500)*500);
-    assert(await win.webContents.executeJavaScript("!!document.querySelector('.message-marker.note')"));
-    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').click()");
-    assert(await win.webContents.executeJavaScript("!document.getElementById('annotation-popup').hidden&&!document.querySelector('#annotation-popup img')&&!window.noteXss"));
-    assert((await win.webContents.executeJavaScript("document.getElementById('annotation-popup').textContent")).includes(noteText));
-    fs.writeFileSync(path.join(folder,'note.png'),(await win.webContents.capturePage()).toPNG());
-    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').click()");assert(await win.webContents.executeJavaScript("document.getElementById('annotation-popup').hidden"));
-    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').dispatchEvent(new MouseEvent('contextmenu',{clientX:650,clientY:400,bubbles:true,cancelable:true}));document.getElementById('note-context-edit').click()");
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('note-text').value"),noteText);
-    await win.webContents.executeJavaScript("document.getElementById('note-text').value='Nota aggiornata';document.getElementById('note-form').requestSubmit()");await new Promise(r=>setTimeout(r,140));assert.equal(notes[0].revision,2);
-    await win.webContents.executeJavaScript("document.querySelector('.message-marker.note').click();document.querySelector('.annotation-entry[data-note-id]').dispatchEvent(new MouseEvent('contextmenu',{clientX:650,clientY:400,bubbles:true,cancelable:true}));document.getElementById('note-context-delete').click();document.getElementById('note-delete-form').requestSubmit()");
-    await new Promise(r=>setTimeout(r,150));assert.equal(notes.length,0);assert(await win.webContents.executeJavaScript("!document.querySelector('.message-marker.note')"));
+    await context();
+    await win.webContents.executeJavaScript(
+      "document.getElementById('add-chart-note').click()",
+    );
+    await new Promise((r) => setTimeout(r, 120));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('note-editor').open&&!document.getElementById('note-save').disabled",
+      ),
+    );
+    const noteText =
+      'Controllo operatore <img src=x onerror="window.noteXss=true">\nSeconda riga';
+    await win.webContents.executeJavaScript(
+      `document.getElementById('note-text').value=${JSON.stringify(noteText)};document.getElementById('note-form').requestSubmit()`,
+    );
+    await new Promise((r) => setTimeout(r, 160));
+    assert.equal(notes.length, 1);
+    assert.equal(
+      notes[0].timestampMs,
+      Math.round(sampleRequests.at(-1).timestampMs / 500) * 500,
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "!!document.querySelector('.message-marker.note')",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.message-marker.note').click()",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('annotation-popup').hidden&&!document.querySelector('#annotation-popup img')&&!window.noteXss",
+      ),
+    );
+    assert(
+      (
+        await win.webContents.executeJavaScript(
+          "document.getElementById('annotation-popup').textContent",
+        )
+      ).includes(noteText),
+    );
+    fs.writeFileSync(
+      path.join(folder, "note.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.message-marker.note').click()",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('annotation-popup').hidden",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.message-marker.note').dispatchEvent(new MouseEvent('contextmenu',{clientX:650,clientY:400,bubbles:true,cancelable:true}));document.getElementById('note-context-edit').click()",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('note-text').value",
+      ),
+      noteText,
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('note-text').value='Nota aggiornata';document.getElementById('note-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 140));
+    assert.equal(notes[0].revision, 2);
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.message-marker.note').click();document.querySelector('.annotation-entry[data-note-id]').dispatchEvent(new MouseEvent('contextmenu',{clientX:650,clientY:400,bubbles:true,cancelable:true}));document.getElementById('note-context-delete').click();document.getElementById('note-delete-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(notes.length, 0);
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.querySelector('.message-marker.note')",
+      ),
+    );
     // Arrivo da un'altra postazione e filtro locale degli eventi.
-    const sharedTime=noteSaves[0].timestampMs;
-    notes.push({id:'shared-note',timestampMs:sharedTime,text:'Nota da seconda postazione',author:'Collega',createdAt:Date.now(),updatedAt:Date.now(),editedBy:'Collega',revision:1});
-    testEvents=[{id:'e1',timestampMs:sharedTime,type:'program_run',message:'Ciclo prova: Run',detail:{}},{id:'e2',timestampMs:sharedTime+1000,type:'program_reset',message:'Ciclo prova: Reset',detail:{}}];
-    await win.webContents.executeJavaScript("document.getElementById('refresh-view').click()");await new Promise(r=>setTimeout(r,180));
-    assert(await win.webContents.executeJavaScript("!!document.querySelector('.message-marker.note')&&!document.querySelector('.message-marker.event')"),'Eventi non nascosti di default');
-    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-notes').checked=false;document.getElementById('opt-events').checked=true;document.getElementById('opt-events').dispatchEvent(new Event('change'));document.getElementById('events-none').click();document.querySelector('[data-event-type=program_run]').checked=true;document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,170));
-    assert(await win.webContents.executeJavaScript("!document.querySelector('.message-marker.note')&&document.querySelectorAll('.message-marker.event').length===1"));
-    assert.deepEqual(messageRequests.at(-1).eventTypes,['program_run']);
-    await win.webContents.executeJavaScript("document.querySelector('.message-marker.event').click()");assert((await win.webContents.executeJavaScript("document.getElementById('annotation-popup').textContent")).includes('Ciclo prova: Run'));
-    const notePrefs=JSON.parse(fs.readFileSync(settingsFile,'utf8'));assert.equal(notePrefs.showNotes,false);assert.equal(notePrefs.showEvents,true);assert.deepEqual(notePrefs.eventTypes,['program_run']);
-    testEvents.push(...[1,2,3].map(n=>({id:'output'+n,timestampMs:sharedTime,type:'digital_event',message:'Ciclo prova: Uscita evento '+n+' attiva',detail:{}})));
-    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('events-none').click();document.querySelector('[data-event-channel=\"2\"]').click();document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,170));
-    assert.deepEqual(messageRequests.at(-1).eventTypes,['digital_event'],'Le sotto-selezioni non devono inviare tipi nuovi al backend');
-    await win.webContents.executeJavaScript("document.querySelector('.message-marker.event').click()");
-    const outputPopup=await win.webContents.executeJavaScript("document.getElementById('annotation-popup').textContent");assert(outputPopup.includes('Marcia aspiratore'));assert(!outputPopup.includes('saracinesca'));assert(!outputPopup.includes('scambiatore'));
-    assert.deepEqual(JSON.parse(fs.readFileSync(settingsFile,'utf8')).eventOutputChannels.filter(n=>n<=3),[2]);
-    await win.webContents.executeJavaScript("document.querySelector('.annotation-popup-heading button').click();document.getElementById('open-options').click();document.getElementById('opt-notes').checked=true;document.getElementById('opt-events').checked=false;document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,170));
-    win.webContents.sendInputEvent({type:'mouseDown',x:Math.round(near.x),y:Math.round(near.y),button:'left',clickCount:1});
-    win.webContents.sendInputEvent({type:'mouseUp',x:Math.round(near.x),y:Math.round(near.y),button:'left',clickCount:1});
-    await new Promise(r=>setTimeout(r,100));
-    assert.equal(await win.webContents.executeJavaScript(`(${chartExpression}).getActiveElements().length`),0,'Un click lascia un punto selezionato');
-    await move(near.x,near.y+18);
-    await new Promise(r=>setTimeout(r,250));assert.equal((await hoverState()).active,0,'Tooltip apparso prima di 500 ms');
-    await win.webContents.executeJavaScript("document.getElementById('refresh-view').click()");
-    await new Promise(r=>setTimeout(r,330));assert((await hoverState()).active>=1,'Tooltip assente vicino alla curva');
-    assert.equal(await win.webContents.executeJavaScript(`(${chartExpression}).getActiveElements().length`),0,'Il tooltip attiva un pallino sulla curva');
-    const averageFooter=await win.webContents.executeJavaScript(`JSON.stringify((${chartExpression}).tooltip.footer)`);
-    assert(averageFooter.includes('Media complessiva: 420.75'),'Media tooltip errata o Off incluso: '+averageFooter);
-    assert(averageFooter.includes('3 canali validi: CH1, CH2, CH3'),averageFooter);
-    readingOffset=1;
-    const frozenMin=await win.webContents.executeJavaScript(`(${chartExpression}).scales.x.min`);
-    await win.webContents.executeJavaScript("document.getElementById('live').checked=true;document.getElementById('refresh-view').click()");
-    await new Promise(r=>setTimeout(r,100));
-    assert((await hoverState()).active>=1,'Il tooltip sparisce durante il live a mouse fermo');
-    assert(await win.webContents.executeJavaScript(`(${chartExpression}).scales.x.min>${frozenMin}`),'La vista live non avanza');
-    const updatedTooltip=await win.webContents.executeJavaScript(`JSON.stringify((${chartExpression}).tooltip.body)`);
-    assert(updatedTooltip.includes('419.0'),'Il tooltip mantiene dati precedenti al refresh: '+updatedTooltip);
-    assert((await win.webContents.executeJavaScript(`JSON.stringify((${chartExpression}).tooltip.footer)`)).includes('421.75'),'Media complessiva non aggiornata nel live');
-    const liveRequests=requests.length;
-    for(let i=0;i<65&&requests.length===liveRequests;i++)await new Promise(r=>setTimeout(r,100));
-    assert(requests.length>liveRequests,'Aggiornamento live automatico assente');
-    await new Promise(r=>setTimeout(r,80));
-    assert((await hoverState()).active>=1,'Il tick automatico chiude il tooltip a mouse fermo');
-    readingOffset=0;
-    await win.webContents.executeJavaScript("document.getElementById('live').checked=false;document.getElementById('refresh-view').click()");
-    await new Promise(r=>setTimeout(r,120));
-    await move(near.x,near.y+40);assert.equal((await hoverState()).active,0,'Il movimento non nasconde il tooltip');
-    await new Promise(r=>setTimeout(r,550));assert.equal((await hoverState()).active,0,'Tooltip troppo lontano in verticale');
-    await move(near.farX,near.y);await new Promise(r=>setTimeout(r,550));assert.equal((await hoverState()).active,0,'Tooltip troppo lontano dagli estremi in orizzontale');
-    const beforePan=await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression};return {min:c.scales.x.min,max:c.scales.x.max,width:c.chartArea.width}})()`);
-    const requestCount=requests.length;
-    assert(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('programs-dialog')).display==='none'"),'Il programmatore chiuso deve lasciare libero il grafico principale');
-    await move(500,450);
-    win.webContents.sendInputEvent({type:'mouseDown',x:500,y:450,button:'left',clickCount:1});
-    await new Promise(r=>setTimeout(r,30));
-    win.webContents.sendInputEvent({type:'mouseMove',x:620,y:450,modifiers:['leftButtonDown']});
-    await new Promise(r=>setTimeout(r,100));
-    const duringPan=await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression};return {min:c.scales.x.min,max:c.scales.x.max}})()`);
-    const dragCursor=await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('chart')).cursor");
-    assert.equal(dragCursor,'grabbing','Il drag deve usare la mano nativa, senza immagini sostitutive');
-    const expectedShift=-120/beforePan.width*(beforePan.max-beforePan.min);
-    assert(Math.abs(duringPan.min-beforePan.min-expectedShift)<2,'Il grafico non segue il mouse durante il drag');
-    assert.equal(requests.length,requestCount,'Richieste di rete durante il drag');
-    win.webContents.sendInputEvent({type:'mouseUp',x:620,y:450,button:'left',clickCount:1});
-    await new Promise(r=>setTimeout(r,450));
-    const afterPan=await win.webContents.executeJavaScript(`(${chartExpression}).scales.x.min`);
-    assert(Math.abs(afterPan-duringPan.min)<2,'Salto aggiuntivo al rilascio del mouse');
-    assert.equal(await win.webContents.executeJavaScript(`(${chartExpression}).getActiveElements().length`),0,'Pallino rimasto dopo il drag');
-    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('chart')).cursor"),'grab');
-    const cachedRequests=requests.length;
-    win.webContents.sendInputEvent({type:'mouseDown',x:600,y:450,button:'left',clickCount:1});
-    win.webContents.sendInputEvent({type:'mouseMove',x:570,y:450,modifiers:['leftButtonDown']});
-    await new Promise(r=>setTimeout(r,80));
-    win.webContents.sendInputEvent({type:'mouseUp',x:570,y:450,button:'left',clickCount:1});
-    await new Promise(r=>setTimeout(r,100));assert.equal(requests.length,cachedRequests,'Il pan dentro la cache deve terminare senza attendere la rete');
-    const beforeZoom=requests[requests.length-1];
-    historyDelay=300;
-    const beforeZoomRequests=requests.length;
-    await win.webContents.executeJavaScript("document.getElementById('chart').dispatchEvent(new WheelEvent('wheel',{clientX:600,clientY:450,deltaY:-120,bubbles:true,cancelable:true}));");
-    await new Promise(r=>setTimeout(r,50));
-    const inMotion=await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression};return {span:c.scales.x.max-c.scales.x.min,points:c.data.datasets[2].data.length}})()`);
-    assert(inMotion.span<beforeZoom.toMs-beforeZoom.fromMs,'Zoom non aggiornato durante il movimento');
-    assert(inMotion.points>0);assert.equal(requests.length,beforeZoomRequests,'Richiesta zoom non raggruppata');
-    await new Promise(r=>setTimeout(r,300));
-    assert(await win.webContents.executeJavaScript(`(${chartExpression}).data.datasets[2].data.length>0`),'Curva svuotata durante il caricamento');
-    historyDelay=0;await new Promise(r=>setTimeout(r,300));
-    const afterZoom=requests[requests.length-1];
-    assert(await win.webContents.executeJavaScript(`(()=>{const c=${chartExpression};return c.scales.x.max-c.scales.x.min<${duringPan.max-duringPan.min}})()`));
-    win.webContents.sendInputEvent({type:'mouseDown',x:500,y:450,button:'left',clickCount:1,modifiers:['control']});
-    await new Promise(r=>setTimeout(r,50));
-    win.webContents.sendInputEvent({type:'mouseMove',x:700,y:450,modifiers:['control','leftButtonDown']});
-    win.webContents.sendInputEvent({type:'mouseUp',x:700,y:450,button:'left',clickCount:1,modifiers:['control']});
-    await new Promise(r=>setTimeout(r,200));
-    assert(await win.webContents.executeJavaScript("document.getElementById('report').open"));
-    assert((await win.webContents.executeJavaScript("document.getElementById('report-content').textContent")).includes('Delta'));
-    assert((await win.webContents.executeJavaScript("document.getElementById('report-content').textContent")).includes('Canale 4'));
-    const selectionReport=await win.webContents.executeJavaScript("document.getElementById('report-content').textContent");
-    assert.equal(await win.webContents.executeJavaScript("document.querySelector('.analysis-card[data-channel=\"0\"] [data-metric=\"mean\"] strong').textContent"),'420,75 \u00b0C');
-    assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.analysis-card').length"),5);
-    assert.equal(await win.webContents.executeJavaScript("document.querySelector('.analysis-card[data-channel=\"4\"] [data-metric=\"mean\"] strong').textContent"),'\u2014');
-    await win.webContents.executeJavaScript("document.getElementById('analysis-seconds').value='5';document.getElementById('analysis-form').requestSubmit()");await new Promise(r=>setTimeout(r,150));
-    assert.equal(analysisRequests.at(-1).windowSeconds,5);
-    fs.writeFileSync(path.join(folder,'analysis.png'),(await win.webContents.capturePage()).toPNG());
-    await win.webContents.executeJavaScript("document.getElementById('report').close()");
-    const inspect=()=>win.webContents.executeJavaScript("(()=>{const c=require('module').createRequire(process.cwd()+'/package.json')('chart.js/auto').getChart(document.getElementById('chart'));return {x:c.scales.x.ticks.map(t=>({value:t.value,label:t.label})),y:c.scales.y.ticks.map(t=>({value:t.value,label:t.label})),yMin:c.scales.y.min,yMax:c.scales.y.max,theme:document.documentElement.dataset.theme}})()");
-    let axes=await inspect();assert.equal(axes.x.length,9);assert.equal(axes.y.length,9);assert.equal(axes.x[1].label,'');assert(axes.x[0].label);assert(axes.x[8].label);
-    await win.webContents.executeJavaScript("document.getElementById('scale-zero').click()");await new Promise(r=>setTimeout(r,100));
-    axes=await inspect();assert.equal(axes.yMin,0);assert.equal(axes.yMax,475);
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('channel-state-4').textContent"),'Nessun campione valido');
-    await win.webContents.executeJavaScript("document.querySelector('[data-channel=\"3\"]').click()");await new Promise(r=>setTimeout(r,120));
-    axes=await inspect();assert.equal(axes.yMax,470);
-    assert.deepEqual(JSON.parse(fs.readFileSync(settingsFile,'utf8')).visibleChannels,[1,2,4]);
-    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-x-divisions').value='7';document.getElementById('opt-x-every').value='2';document.getElementById('opt-y-divisions').value='10';document.getElementById('opt-theme').value='blue';document.getElementById('options-form').requestSubmit()");
-    await new Promise(r=>setTimeout(r,150));axes=await inspect();assert.equal(axes.x.length,8);assert.equal(axes.y.length,11);assert(axes.x[7].label);assert.equal(axes.theme,'blue');
-    assert(await win.webContents.executeJavaScript("document.querySelector('.aypi-module-logo__ay').textContent==='Ay' && document.querySelector('.aypi-module-logo__pi').textContent==='Pi'"));
-    const saved=JSON.parse(fs.readFileSync(settingsFile,'utf8'));assert.equal(saved.xDivisions,7);assert.equal(saved.theme,'blue');assert.equal(saved.scaleMode,'zeroMax');
-    await win.webContents.executeJavaScript("document.getElementById('select-date').click();document.getElementById('selected-date').value='2026-10-25';document.getElementById('date-form').requestSubmit()");
-    await new Promise(r=>setTimeout(r,150));const day=requests[requests.length-1];const wanted=new Date(2026,9,25).getTime(),nextDay=new Date(2026,9,26).getTime();assert.equal(day.fromMs,wanted);assert.equal(day.toMs,nextDay-1);
-    await win.webContents.executeJavaScript("document.getElementById('select-range').click();document.getElementById('range-start').value='2026-10-29T08:00:00.123';document.getElementById('range-end').value='2026-10-29T07:00:00';document.getElementById('range-form').requestSubmit()");
-    assert(await win.webContents.executeJavaScript("document.getElementById('range-dialog').open&&document.getElementById('range-error').textContent.length>0"));
-    await win.webContents.executeJavaScript("document.getElementById('range-end').value='2026-10-29T10:15:30.500';document.getElementById('range-form').requestSubmit()");await new Promise(r=>setTimeout(r,150));
-    assert.equal(requests.at(-1).fromMs,new Date(2026,9,29,8,0,0,123).getTime());assert.equal(requests.at(-1).toMs,new Date(2026,9,29,10,15,30,500).getTime());
-    await win.reload();await new Promise(r=>setTimeout(r,600));axes=await inspect();assert.equal(axes.theme,'blue');assert.equal(axes.x.length,8);assert.equal(axes.y.length,11);assert.equal(axes.yMin,0);assert(await win.webContents.executeJavaScript("document.getElementById('live').checked"),'Live non attivo alla riapertura');assert.equal(await win.webContents.executeJavaScript("document.querySelector('[data-channel=\"3\"]').checked"),false);
-    assert(await win.webContents.executeJavaScript("!document.getElementById('forno-splash')"),'Il forno deve aprirsi senza splash');
-    await win.webContents.executeJavaScript("document.getElementById('scale-manual').click();document.getElementById('scale-min').value='400';document.getElementById('scale-max').value='440';document.getElementById('scale-form').requestSubmit()");
-    axes=await inspect();assert.equal(axes.yMin,400);assert.equal(axes.yMax,440);
-    await win.webContents.executeJavaScript("document.getElementById('scale-in').click()");axes=await inspect();assert.equal(axes.yMax-axes.yMin,32);
-    await win.webContents.executeJavaScript("document.getElementById('scale-out').click();document.getElementById('open-options').click();document.getElementById('opt-y-fixed').checked=true;document.getElementById('opt-y-fixed').dispatchEvent(new Event('change'));document.getElementById('opt-y-step').value='10';document.getElementById('opt-y-subdivisions').value='5';document.getElementById('opt-y-every').value='1';document.getElementById('options-form').requestSubmit()");
-    await new Promise(r=>setTimeout(r,150));axes=await inspect();assert.equal(axes.y.length,21);assert.equal(axes.y[1].value,402);
-    assert.equal(axes.y[1].label,'','Una suddivisione non deve avere la stessa etichetta delle linee principali');assert(axes.y[5].label,'Etichetta mancante sulla linea principale a 410 °C');
-    assert(await win.webContents.executeJavaScript("document.getElementById('y-divisions-control').hidden&&document.getElementById('opt-y-divisions').disabled"));
-    const degreePrefs=JSON.parse(fs.readFileSync(settingsFile,'utf8'));assert(degreePrefs.yFixedStep);assert.equal(degreePrefs.yDegreeStep,10);assert.equal(degreePrefs.ySubdivisions,5);assert.equal(degreePrefs.scaleMode,'manual');
-    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-x-divisions').value='8';document.getElementById('opt-y-fixed').checked=false;document.getElementById('opt-y-fixed').dispatchEvent(new Event('change'));document.getElementById('opt-y-divisions').value='8';document.getElementById('opt-theme').value='classic';document.getElementById('options-form').requestSubmit();document.getElementById('scale-auto').click()");
-    await new Promise(r=>setTimeout(r,150));
-    console.log('OK: griglia fissa, etichette, scala 0-Max+50, selezione giorno e preferenze ripristinate dopo riapertura');
-    for(const theme of ['classic','blue','dark']) {
-        const appearance=await win.webContents.executeJavaScript(`(()=>{document.documentElement.dataset.theme=${JSON.stringify(theme)};const s=getComputedStyle(document.getElementById('chart'));return {scheme:s.colorScheme,background:s.backgroundColor}})()`);
-        assert(appearance.scheme.includes('only')&&appearance.scheme.includes(theme==='dark'?'dark':'light'),JSON.stringify(appearance));
-        assert.notEqual(appearance.background,'rgba(0, 0, 0, 0)','Sfondo canvas trasparente');
+    const sharedTime = noteSaves[0].timestampMs;
+    notes.push({
+      id: "shared-note",
+      timestampMs: sharedTime,
+      text: "Nota da seconda postazione",
+      author: "Collega",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      editedBy: "Collega",
+      revision: 1,
+    });
+    testEvents = [
+      {
+        id: "e1",
+        timestampMs: sharedTime,
+        type: "program_run",
+        message: "Ciclo prova: Run",
+        detail: {},
+      },
+      {
+        id: "e2",
+        timestampMs: sharedTime + 1000,
+        type: "program_reset",
+        message: "Ciclo prova: Reset",
+        detail: {},
+      },
+    ];
+    await win.webContents.executeJavaScript(
+      "document.getElementById('refresh-view').click()",
+    );
+    await new Promise((r) => setTimeout(r, 180));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!!document.querySelector('.message-marker.note')&&!document.querySelector('.message-marker.event')",
+      ),
+      "Eventi non nascosti di default",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-options').click();document.getElementById('opt-notes').checked=false;document.getElementById('opt-events').checked=true;document.getElementById('opt-events').dispatchEvent(new Event('change'));document.getElementById('events-none').click();document.querySelector('[data-event-type=program_run]').checked=true;document.getElementById('options-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 170));
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.querySelector('.message-marker.note')&&document.querySelectorAll('.message-marker.event').length===1",
+      ),
+    );
+    assert.deepEqual(messageRequests.at(-1).eventTypes, ["program_run"]);
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.message-marker.event').click()",
+    );
+    assert(
+      (
+        await win.webContents.executeJavaScript(
+          "document.getElementById('annotation-popup').textContent",
+        )
+      ).includes("Ciclo prova: Run"),
+    );
+    const notePrefs = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    assert.equal(notePrefs.showNotes, false);
+    assert.equal(notePrefs.showEvents, true);
+    assert.deepEqual(notePrefs.eventTypes, ["program_run"]);
+    testEvents.push(
+      ...[1, 2, 3].map((n) => ({
+        id: "output" + n,
+        timestampMs: sharedTime,
+        type: "digital_event",
+        message: "Ciclo prova: Uscita evento " + n + " attiva",
+        detail: {},
+      })),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-options').click();document.getElementById('events-none').click();document.querySelector('[data-event-channel=\"2\"]').click();document.getElementById('options-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 170));
+    assert.deepEqual(
+      messageRequests.at(-1).eventTypes,
+      ["digital_event"],
+      "Le sotto-selezioni non devono inviare tipi nuovi al backend",
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.message-marker.event').click()",
+    );
+    const outputPopup = await win.webContents.executeJavaScript(
+      "document.getElementById('annotation-popup').textContent",
+    );
+    assert(outputPopup.includes("Marcia aspiratore"));
+    assert(!outputPopup.includes("saracinesca"));
+    assert(!outputPopup.includes("scambiatore"));
+    assert.deepEqual(
+      JSON.parse(
+        fs.readFileSync(settingsFile, "utf8"),
+      ).eventOutputChannels.filter((n) => n <= 3),
+      [2],
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('.annotation-popup-heading button').click();document.getElementById('open-options').click();document.getElementById('opt-notes').checked=true;document.getElementById('opt-events').checked=false;document.getElementById('options-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 170));
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      x: Math.round(near.x),
+      y: Math.round(near.y),
+      button: "left",
+      clickCount: 1,
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      x: Math.round(near.x),
+      y: Math.round(near.y),
+      button: "left",
+      clickCount: 1,
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        `(${chartExpression}).getActiveElements().length`,
+      ),
+      0,
+      "Un click lascia un punto selezionato",
+    );
+    await move(near.x, near.y + 18);
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(
+      (await hoverState()).active,
+      0,
+      "Tooltip apparso prima di 500 ms",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('refresh-view').click()",
+    );
+    await new Promise((r) => setTimeout(r, 330));
+    assert(
+      (await hoverState()).active >= 1,
+      "Tooltip assente vicino alla curva",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        `(${chartExpression}).getActiveElements().length`,
+      ),
+      0,
+      "Il tooltip attiva un pallino sulla curva",
+    );
+    const averageFooter = await win.webContents.executeJavaScript(
+      `JSON.stringify((${chartExpression}).tooltip.footer)`,
+    );
+    assert(
+      averageFooter.includes("Media complessiva: 420.75"),
+      "Media tooltip errata o Off incluso: " + averageFooter,
+    );
+    assert(
+      averageFooter.includes("3 canali validi: CH1, CH2, CH3"),
+      averageFooter,
+    );
+    readingOffset = 1;
+    const frozenMin = await win.webContents.executeJavaScript(
+      `(${chartExpression}).scales.x.min`,
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('live').checked=true;document.getElementById('refresh-view').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    assert(
+      (await hoverState()).active >= 1,
+      "Il tooltip sparisce durante il live a mouse fermo",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        `(${chartExpression}).scales.x.min>${frozenMin}`,
+      ),
+      "La vista live non avanza",
+    );
+    const updatedTooltip = await win.webContents.executeJavaScript(
+      `JSON.stringify((${chartExpression}).tooltip.body)`,
+    );
+    assert(
+      updatedTooltip.includes("419.0"),
+      "Il tooltip mantiene dati precedenti al refresh: " + updatedTooltip,
+    );
+    assert(
+      (
+        await win.webContents.executeJavaScript(
+          `JSON.stringify((${chartExpression}).tooltip.footer)`,
+        )
+      ).includes("421.75"),
+      "Media complessiva non aggiornata nel live",
+    );
+    const liveRequests = requests.length;
+    for (let i = 0; i < 65 && requests.length === liveRequests; i++)
+      await new Promise((r) => setTimeout(r, 100));
+    assert(
+      requests.length > liveRequests,
+      "Aggiornamento live automatico assente",
+    );
+    await new Promise((r) => setTimeout(r, 80));
+    assert(
+      (await hoverState()).active >= 1,
+      "Il tick automatico chiude il tooltip a mouse fermo",
+    );
+    readingOffset = 0;
+    await win.webContents.executeJavaScript(
+      "document.getElementById('live').checked=false;document.getElementById('refresh-view').click()",
+    );
+    await new Promise((r) => setTimeout(r, 120));
+    await move(near.x, near.y + 40);
+    assert.equal(
+      (await hoverState()).active,
+      0,
+      "Il movimento non nasconde il tooltip",
+    );
+    await new Promise((r) => setTimeout(r, 550));
+    assert.equal(
+      (await hoverState()).active,
+      0,
+      "Tooltip troppo lontano in verticale",
+    );
+    await move(near.farX, near.y);
+    await new Promise((r) => setTimeout(r, 550));
+    assert.equal(
+      (await hoverState()).active,
+      0,
+      "Tooltip troppo lontano dagli estremi in orizzontale",
+    );
+    const beforePan = await win.webContents.executeJavaScript(
+      `(()=>{const c=${chartExpression};return {min:c.scales.x.min,max:c.scales.x.max,width:c.chartArea.width}})()`,
+    );
+    const requestCount = requests.length;
+    assert(
+      await win.webContents.executeJavaScript(
+        "getComputedStyle(document.getElementById('programs-dialog')).display==='none'",
+      ),
+      "Il programmatore chiuso deve lasciare libero il grafico principale",
+    );
+    await move(500, 450);
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      x: 500,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+    });
+    await new Promise((r) => setTimeout(r, 30));
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      x: 620,
+      y: 450,
+      modifiers: ["leftButtonDown"],
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    const duringPan = await win.webContents.executeJavaScript(
+      `(()=>{const c=${chartExpression};return {min:c.scales.x.min,max:c.scales.x.max}})()`,
+    );
+    const dragCursor = await win.webContents.executeJavaScript(
+      "getComputedStyle(document.getElementById('chart')).cursor",
+    );
+    assert.equal(
+      dragCursor,
+      "grabbing",
+      "Il drag deve usare la mano nativa, senza immagini sostitutive",
+    );
+    const expectedShift =
+      (-120 / beforePan.width) * (beforePan.max - beforePan.min);
+    assert(
+      Math.abs(duringPan.min - beforePan.min - expectedShift) < 2,
+      "Il grafico non segue il mouse durante il drag",
+    );
+    assert.equal(
+      requests.length,
+      requestCount,
+      "Richieste di rete durante il drag",
+    );
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      x: 620,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+    });
+    await new Promise((r) => setTimeout(r, 450));
+    const afterPan = await win.webContents.executeJavaScript(
+      `(${chartExpression}).scales.x.min`,
+    );
+    assert(
+      Math.abs(afterPan - duringPan.min) < 2,
+      "Salto aggiuntivo al rilascio del mouse",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        `(${chartExpression}).getActiveElements().length`,
+      ),
+      0,
+      "Pallino rimasto dopo il drag",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "getComputedStyle(document.getElementById('chart')).cursor",
+      ),
+      "grab",
+    );
+    const cachedRequests = requests.length;
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      x: 600,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      x: 570,
+      y: 450,
+      modifiers: ["leftButtonDown"],
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      x: 570,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(
+      requests.length,
+      cachedRequests,
+      "Il pan dentro la cache deve terminare senza attendere la rete",
+    );
+    const beforeZoom = requests[requests.length - 1];
+    historyDelay = 300;
+    const beforeZoomRequests = requests.length;
+    await win.webContents.executeJavaScript(
+      "document.getElementById('chart').dispatchEvent(new WheelEvent('wheel',{clientX:600,clientY:450,deltaY:-120,bubbles:true,cancelable:true}));",
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    const inMotion = await win.webContents.executeJavaScript(
+      `(()=>{const c=${chartExpression};return {span:c.scales.x.max-c.scales.x.min,points:c.data.datasets[2].data.length}})()`,
+    );
+    assert(
+      inMotion.span < beforeZoom.toMs - beforeZoom.fromMs,
+      "Zoom non aggiornato durante il movimento",
+    );
+    assert(inMotion.points > 0);
+    assert.equal(
+      requests.length,
+      beforeZoomRequests,
+      "Richiesta zoom non raggruppata",
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    assert(
+      await win.webContents.executeJavaScript(
+        `(${chartExpression}).data.datasets[2].data.length>0`,
+      ),
+      "Curva svuotata durante il caricamento",
+    );
+    historyDelay = 0;
+    await new Promise((r) => setTimeout(r, 300));
+    const afterZoom = requests[requests.length - 1];
+    assert(
+      await win.webContents.executeJavaScript(
+        `(()=>{const c=${chartExpression};return c.scales.x.max-c.scales.x.min<${duringPan.max - duringPan.min}})()`,
+      ),
+    );
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      x: 500,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+      modifiers: ["control"],
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      x: 700,
+      y: 450,
+      modifiers: ["control", "leftButtonDown"],
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      x: 700,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+      modifiers: ["control"],
+    });
+    await new Promise((r) => setTimeout(r, 200));
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('report').open",
+      ),
+    );
+    assert(
+      (
+        await win.webContents.executeJavaScript(
+          "document.getElementById('report-content').textContent",
+        )
+      ).includes("Delta"),
+    );
+    assert(
+      (
+        await win.webContents.executeJavaScript(
+          "document.getElementById('report-content').textContent",
+        )
+      ).includes("Canale 4"),
+    );
+    const selectionReport = await win.webContents.executeJavaScript(
+      "document.getElementById('report-content').textContent",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        'document.querySelector(\'.analysis-card[data-channel="0"] [data-metric="mean"] strong\').textContent',
+      ),
+      "420,75 \u00b0C",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.querySelectorAll('.analysis-card').length",
+      ),
+      5,
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        'document.querySelector(\'.analysis-card[data-channel="4"] [data-metric="mean"] strong\').textContent',
+      ),
+      "\u2014",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('analysis-seconds').value='5';document.getElementById('analysis-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(analysisRequests.at(-1).windowSeconds, 5);
+    fs.writeFileSync(
+      path.join(folder, "analysis.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('report').close()",
+    );
+    const inspect = () =>
+      win.webContents.executeJavaScript(
+        "(()=>{const c=require('module').createRequire(process.cwd()+'/package.json')('chart.js/auto').getChart(document.getElementById('chart'));return {x:c.scales.x.ticks.map(t=>({value:t.value,label:t.label})),y:c.scales.y.ticks.map(t=>({value:t.value,label:t.label})),yMin:c.scales.y.min,yMax:c.scales.y.max,theme:document.documentElement.dataset.theme}})()",
+      );
+    let axes = await inspect();
+    assert.equal(axes.x.length, 9);
+    assert.equal(axes.y.length, 9);
+    assert.equal(axes.x[1].label, "");
+    assert(axes.x[0].label);
+    assert(axes.x[8].label);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('scale-zero').click()",
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    axes = await inspect();
+    assert.equal(axes.yMin, 0);
+    assert.equal(axes.yMax, 475);
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('channel-state-4').textContent",
+      ),
+      "Nessun campione valido",
+    );
+    await win.webContents.executeJavaScript(
+      "document.querySelector('[data-channel=\"3\"]').click()",
+    );
+    await new Promise((r) => setTimeout(r, 120));
+    axes = await inspect();
+    assert.equal(axes.yMax, 470);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(settingsFile, "utf8")).visibleChannels,
+      [1, 2, 4],
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-options').click();document.getElementById('opt-x-divisions').value='7';document.getElementById('opt-x-every').value='2';document.getElementById('opt-y-divisions').value='10';document.getElementById('opt-theme').value='blue';document.getElementById('options-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    axes = await inspect();
+    assert.equal(axes.x.length, 8);
+    assert.equal(axes.y.length, 11);
+    assert(axes.x[7].label);
+    assert.equal(axes.theme, "blue");
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.aypi-module-logo__ay').textContent==='Ay' && document.querySelector('.aypi-module-logo__pi').textContent==='Pi'",
+      ),
+    );
+    const saved = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    assert.equal(saved.xDivisions, 7);
+    assert.equal(saved.theme, "blue");
+    assert.equal(saved.scaleMode, "zeroMax");
+    await win.webContents.executeJavaScript(
+      "document.getElementById('select-date').click();document.getElementById('selected-date').value='2026-10-25';document.getElementById('date-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    const day = requests[requests.length - 1];
+    const wanted = new Date(2026, 9, 25).getTime(),
+      nextDay = new Date(2026, 9, 26).getTime();
+    assert.equal(day.fromMs, wanted);
+    assert.equal(day.toMs, nextDay - 1);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('select-range').click();document.getElementById('range-start').value='2026-10-29T08:00:00.123';document.getElementById('range-end').value='2026-10-29T07:00:00';document.getElementById('range-form').requestSubmit()",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('range-dialog').open&&document.getElementById('range-error').textContent.length>0",
+      ),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('range-end').value='2026-10-29T10:15:30.500';document.getElementById('range-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(
+      requests.at(-1).fromMs,
+      new Date(2026, 9, 29, 8, 0, 0, 123).getTime(),
+    );
+    assert.equal(
+      requests.at(-1).toMs,
+      new Date(2026, 9, 29, 10, 15, 30, 500).getTime(),
+    );
+    await win.reload();
+    await new Promise((r) => setTimeout(r, 600));
+    axes = await inspect();
+    assert.equal(axes.theme, "blue");
+    assert.equal(axes.x.length, 8);
+    assert.equal(axes.y.length, 11);
+    assert.equal(axes.yMin, 0);
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('live').checked",
+      ),
+      "Live non attivo alla riapertura",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.querySelector('[data-channel=\"3\"]').checked",
+      ),
+      false,
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "!document.getElementById('forno-splash')",
+      ),
+      "Il forno deve aprirsi senza splash",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('scale-manual').click();document.getElementById('scale-min').value='400';document.getElementById('scale-max').value='440';document.getElementById('scale-form').requestSubmit()",
+    );
+    axes = await inspect();
+    assert.equal(axes.yMin, 400);
+    assert.equal(axes.yMax, 440);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('scale-in').click()",
+    );
+    axes = await inspect();
+    assert.equal(axes.yMax - axes.yMin, 32);
+    await win.webContents.executeJavaScript(
+      "document.getElementById('scale-out').click();document.getElementById('open-options').click();document.getElementById('opt-y-fixed').checked=true;document.getElementById('opt-y-fixed').dispatchEvent(new Event('change'));document.getElementById('opt-y-step').value='10';document.getElementById('opt-y-subdivisions').value='5';document.getElementById('opt-y-every').value='1';document.getElementById('options-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    axes = await inspect();
+    assert.equal(axes.y.length, 21);
+    assert.equal(axes.y[1].value, 402);
+    assert.equal(
+      axes.y[1].label,
+      "",
+      "Una suddivisione non deve avere la stessa etichetta delle linee principali",
+    );
+    assert(
+      axes.y[5].label,
+      "Etichetta mancante sulla linea principale a 410 °C",
+    );
+    assert(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('y-divisions-control').hidden&&document.getElementById('opt-y-divisions').disabled",
+      ),
+    );
+    const degreePrefs = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    assert(degreePrefs.yFixedStep);
+    assert.equal(degreePrefs.yDegreeStep, 10);
+    assert.equal(degreePrefs.ySubdivisions, 5);
+    assert.equal(degreePrefs.scaleMode, "manual");
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-options').click();document.getElementById('opt-x-divisions').value='8';document.getElementById('opt-y-fixed').checked=false;document.getElementById('opt-y-fixed').dispatchEvent(new Event('change'));document.getElementById('opt-y-divisions').value='8';document.getElementById('opt-theme').value='classic';document.getElementById('options-form').requestSubmit();document.getElementById('scale-auto').click()",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    console.log(
+      "OK: griglia fissa, etichette, scala 0-Max+50, selezione giorno e preferenze ripristinate dopo riapertura",
+    );
+    for (const theme of ["classic", "blue", "dark"]) {
+      const appearance = await win.webContents.executeJavaScript(
+        `(()=>{document.documentElement.dataset.theme=${JSON.stringify(theme)};const s=getComputedStyle(document.getElementById('chart'));return {scheme:s.colorScheme,background:s.backgroundColor}})()`,
+      );
+      assert(
+        appearance.scheme.includes("only") &&
+        appearance.scheme.includes(theme === "dark" ? "dark" : "light"),
+        JSON.stringify(appearance),
+      );
+      assert.notEqual(
+        appearance.background,
+        "rgba(0, 0, 0, 0)",
+        "Sfondo canvas trasparente",
+      );
     }
-    await win.webContents.executeJavaScript("document.documentElement.dataset.theme='classic'");
-    for(const [width,height] of [[1000,650],[1600,900]]) {
-        win.setSize(width,height);await new Promise(r=>setTimeout(r,120));
-        const layout=await win.webContents.executeJavaScript("({overflow:document.documentElement.scrollWidth>innerWidth+1,bottom:document.querySelector('.diagnostics').getBoundingClientRect().bottom,limit:innerHeight,plot:document.querySelector('.plot').getBoundingClientRect().height})");
-        assert(!layout.overflow,JSON.stringify(layout));assert(layout.bottom<=layout.limit+1,JSON.stringify(layout));assert(layout.plot>140,JSON.stringify(layout));
+    await win.webContents.executeJavaScript(
+      "document.documentElement.dataset.theme='classic'",
+    );
+    for (const [width, height] of [
+      [1000, 650],
+      [1600, 900],
+    ]) {
+      win.setSize(width, height);
+      await new Promise((r) => setTimeout(r, 120));
+      const layout = await win.webContents.executeJavaScript(
+        "({overflow:document.documentElement.scrollWidth>innerWidth+1,bottom:document.querySelector('.diagnostics').getBoundingClientRect().bottom,limit:innerHeight,plot:document.querySelector('.plot').getBoundingClientRect().height})",
+      );
+      assert(!layout.overflow, JSON.stringify(layout));
+      assert(layout.bottom <= layout.limit + 1, JSON.stringify(layout));
+      assert(layout.plot > 140, JSON.stringify(layout));
     }
-    const dataUrl=await win.webContents.executeJavaScript("document.getElementById('chart').toDataURL('image/png')");
-    assert(dataUrl.length>2000);
+    const dataUrl = await win.webContents.executeJavaScript(
+      "document.getElementById('chart').toDataURL('image/png')",
+    );
+    assert(dataUrl.length > 2000);
     // Real-time frames append locally; a reconnect performs one history catch-up.
-    await win.webContents.executeJavaScript("document.getElementById('live').checked=true;document.getElementById('live').dispatchEvent(new Event('change'))");await new Promise(r=>setTimeout(r,150));
-    const liveFrame={timestampMs:Date.now(),values:[6000,6100,6200,null],qualities:[0,0,0,9],epoch:'ui-test',sequence:1,intervalMs:500,resync:true};
-    win.webContents.send('forno-live-frame',liveFrame);await new Promise(r=>setTimeout(r,180));
-    const streamRequests=requests.length;
-    for(let i=2;i<=4;i++){await new Promise(r=>setTimeout(r,300));win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:i,resync:false});}
-    await new Promise(r=>setTimeout(r,300));
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('channel-value-1').textContent"),'600.0 \u00b0C');
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('channel-state-4').textContent"),'Off \u00b7 disattivato');
-    assert.equal(requests.length,streamRequests,'Il live WebSocket non deve interrogare lo storico periodicamente');
-    win.webContents.send('forno-live-state',{online:false});
-    win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:6,resync:true});await new Promise(r=>setTimeout(r,180));
-    assert(requests.length>streamRequests,'Riconnessione senza recupero dello storico');
-    console.log('OK: live locale senza polling storico e recupero dopo riconnessione');
-    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-tooltip-opacity').value='35';document.getElementById('opt-tooltip-opacity').dispatchEvent(new Event('input'))");
-    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('continuous-tooltip')).opacity"),'0.35');
-    fs.writeFileSync(path.join(folder,'settings.png'),(await win.webContents.capturePage()).toPNG());
-    await win.webContents.executeJavaScript("document.getElementById('options-dialog').close()");await new Promise(r=>setTimeout(r,60));
-    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('continuous-tooltip')).opacity"),'1');
-    await win.webContents.executeJavaScript("document.getElementById('open-options').click();document.getElementById('opt-tooltip-opacity').value='35';document.getElementById('options-form').requestSubmit()");await new Promise(r=>setTimeout(r,120));
-    assert.equal(JSON.parse(fs.readFileSync(settingsFile,'utf8')).continuousTooltipOpacity,35);
-    assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.getElementById('continuous-tooltip')).opacity"),'0.35');
+    await win.webContents.executeJavaScript(
+      "document.getElementById('live').checked=true;document.getElementById('live').dispatchEvent(new Event('change'))",
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    const liveFrame = {
+      timestampMs: Date.now(),
+      values: [6000, 6100, 6200, null],
+      qualities: [0, 0, 0, 9],
+      epoch: "ui-test",
+      sequence: 1,
+      intervalMs: 500,
+      resync: true,
+    };
+    win.webContents.send("forno-live-frame", liveFrame);
+    await new Promise((r) => setTimeout(r, 180));
+    const streamRequests = requests.length;
+    for (let i = 2; i <= 4; i++) {
+      await new Promise((r) => setTimeout(r, 300));
+      win.webContents.send("forno-live-frame", {
+        ...liveFrame,
+        timestampMs: Date.now(),
+        sequence: i,
+        resync: false,
+      });
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('channel-value-1').textContent",
+      ),
+      "600.0 \u00b0C",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('channel-state-4').textContent",
+      ),
+      "Off \u00b7 disattivato",
+    );
+    assert.equal(
+      requests.length,
+      streamRequests,
+      "Il live WebSocket non deve interrogare lo storico periodicamente",
+    );
+    win.webContents.send("forno-live-state", { online: false });
+    win.webContents.send("forno-live-frame", {
+      ...liveFrame,
+      timestampMs: Date.now(),
+      sequence: 6,
+      resync: true,
+    });
+    await new Promise((r) => setTimeout(r, 180));
+    assert(
+      requests.length > streamRequests,
+      "Riconnessione senza recupero dello storico",
+    );
+    console.log(
+      "OK: live locale senza polling storico e recupero dopo riconnessione",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-options').click();document.getElementById('opt-tooltip-opacity').value='35';document.getElementById('opt-tooltip-opacity').dispatchEvent(new Event('input'))",
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "getComputedStyle(document.getElementById('continuous-tooltip')).opacity",
+      ),
+      "0.35",
+    );
+    fs.writeFileSync(
+      path.join(folder, "settings.png"),
+      (await win.webContents.capturePage()).toPNG(),
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('options-dialog').close()",
+    );
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "getComputedStyle(document.getElementById('continuous-tooltip')).opacity",
+      ),
+      "1",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('open-options').click();document.getElementById('opt-tooltip-opacity').value='35';document.getElementById('options-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(
+      JSON.parse(fs.readFileSync(settingsFile, "utf8"))
+        .continuousTooltipOpacity,
+      35,
+    );
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "getComputedStyle(document.getElementById('continuous-tooltip')).opacity",
+      ),
+      "0.35",
+    );
     // The header remains live while the operator examines history.
-    await win.webContents.executeJavaScript("document.getElementById('live').checked=false;document.getElementById('live').dispatchEvent(new Event('change'))");await new Promise(r=>setTimeout(r,120));
-    win.webContents.send('forno-live-frame',{...liveFrame,timestampMs:Date.now(),sequence:7,values:[6010,6110,6210,null],resync:false});await new Promise(r=>setTimeout(r,100));
-    assert.equal(await win.webContents.executeJavaScript("document.getElementById('live-temperature-2').textContent"),'611.0 °C');
+    await win.webContents.executeJavaScript(
+      "document.getElementById('live').checked=false;document.getElementById('live').dispatchEvent(new Event('change'))",
+    );
+    await new Promise((r) => setTimeout(r, 120));
+    win.webContents.send("forno-live-frame", {
+      ...liveFrame,
+      timestampMs: Date.now(),
+      sequence: 7,
+      values: [6010, 6110, 6210, null],
+      resync: false,
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('live-temperature-2').textContent",
+      ),
+      "611.0 °C",
+    );
     // Intervallo massimo e pan: gli estremi della vista diventano frazionari,
     // ma messaggi e storico devono restare entro 366 giorni dopo gli arrotondamenti.
-    const previousMessages=messageRequests.length;
-    await win.webContents.executeJavaScript("document.getElementById('select-range').click();document.getElementById('range-start').value='2025-10-29T12:00:00';document.getElementById('range-end').value='2026-10-30T12:00:00';document.getElementById('range-form').requestSubmit()");await new Promise(r=>setTimeout(r,180));
-    win.webContents.sendInputEvent({type:'mouseDown',x:600,y:450,button:'left',clickCount:1});
-    win.webContents.sendInputEvent({type:'mouseMove',x:617,y:450,modifiers:['leftButtonDown']});
-    win.webContents.sendInputEvent({type:'mouseUp',x:617,y:450,button:'left',clickCount:1});await new Promise(r=>setTimeout(r,250));
-    assert(messageRequests.length>previousMessages);for(const p of [...requests,...messageRequests])validRange(p);
-    for(const width of [900,1200,1920]){
-        win.setSize(width,850);await new Promise(r=>setTimeout(r,120));
-        const layout=await win.webContents.executeJavaScript("(()=>{const h=document.querySelector('.chart-heading').getBoundingClientRect(),c=document.getElementById('channel-controls').getBoundingClientRect(),b=document.getElementById('open-options').getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,button:b.right,controls:c.right,heading:h.right}})()");
-        assert(layout.scroll<=layout.width&&layout.button<=layout.width&&layout.controls<=layout.heading,JSON.stringify(layout));
-        if(width===900)fs.writeFileSync(path.join(folder,'compact-900.png'),(await win.webContents.capturePage()).toPNG());
+    const previousMessages = messageRequests.length;
+    await win.webContents.executeJavaScript(
+      "document.getElementById('select-range').click();document.getElementById('range-start').value='2025-10-29T12:00:00';document.getElementById('range-end').value='2026-10-30T12:00:00';document.getElementById('range-form').requestSubmit()",
+    );
+    await new Promise((r) => setTimeout(r, 180));
+    win.webContents.sendInputEvent({
+      type: "mouseDown",
+      x: 600,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      x: 617,
+      y: 450,
+      modifiers: ["leftButtonDown"],
+    });
+    win.webContents.sendInputEvent({
+      type: "mouseUp",
+      x: 617,
+      y: 450,
+      button: "left",
+      clickCount: 1,
+    });
+    await new Promise((r) => setTimeout(r, 250));
+    assert(messageRequests.length > previousMessages);
+    for (const p of [...requests, ...messageRequests]) validRange(p);
+    for (const width of [900, 1200, 1920]) {
+      win.setSize(width, 850);
+      await new Promise((r) => setTimeout(r, 120));
+      const layout = await win.webContents.executeJavaScript(
+        "(()=>{const h=document.querySelector('.chart-heading').getBoundingClientRect(),c=document.getElementById('channel-controls').getBoundingClientRect(),b=document.getElementById('open-options').getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,button:b.right,controls:c.right,heading:h.right}})()",
+      );
+      assert(
+        layout.scroll <= layout.width &&
+        layout.button <= layout.width &&
+        layout.controls <= layout.heading,
+        JSON.stringify(layout),
+      );
+      if (width === 900)
+        fs.writeFileSync(
+          path.join(folder, "compact-900.png"),
+          (await win.webContents.capturePage()).toPNG(),
+        );
     }
-    assert.deepEqual(errors,[]);
-    const screenshot=await win.webContents.capturePage();
-    const screenshotPath=path.join(folder,'forno.png');fs.writeFileSync(screenshotPath,screenshot.toPNG());
-    console.log('OK: UI Electron, grafico, valore live, selettore risoluzione, storico, zoom e Ctrl-selezione. Screenshot:',screenshotPath);
-    win.destroy();app.exit(0);
-}).catch(error=>{console.error(error);app.exit(1);});
+    assert.deepEqual(errors, []);
+    const screenshot = await win.webContents.capturePage();
+    const screenshotPath = path.join(folder, "forno.png");
+    fs.writeFileSync(screenshotPath, screenshot.toPNG());
+    console.log(
+      "OK: UI Electron, grafico, valore live, selettore risoluzione, storico, zoom e Ctrl-selezione. Screenshot:",
+      screenshotPath,
+    );
+    win.destroy();
+    app.exit(0);
+  })
+  .catch((error) => {
+    console.error(error);
+    app.exit(1);
+  });

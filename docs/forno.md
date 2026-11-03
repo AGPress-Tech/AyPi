@@ -1,4 +1,4 @@
-﻿# Forno nanodac: archivio centralizzato AyPi
+# Forno nanodac: archivio centralizzato AyPi
 
 Il modulo forno è indipendente dal MES: non modifica tabelle, collector o persistenza MES.
 Il nanodac viene interrogato solo dal backend, anche senza finestre client aperte.
@@ -181,16 +181,16 @@ Verifica sul nanodac `192.168.1.165`, Unit ID 255, con sole richieste FC03:
 programma già caricato `Ciclo_1_530_8h`, modo/stato Reset `[1,1]`, revisione
 configurazione 18. Non sono stati inviati Load, Store, Run o comandi agli attuatori.
 
-| Segmento | Profilo nominale CH1 | Evento 1 | Evento 2 | Evento 3 | Valore utente CH1 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Rampa a 200 °C, 1 h | OFF | OFF | OFF | 0 |
-| 2 | Sosta, 1 h | OFF | OFF | OFF | 5 |
-| 3 | Rampa a 400 °C, 2 h | OFF | OFF | OFF | 0 |
-| 4 | Sosta, 1 h | OFF | OFF | OFF | 5 |
-| 5 | Rampa a 530 °C, 2 h | OFF | OFF | OFF | 0 |
-| 6 | Sosta, 4 h | OFF | OFF | OFF | 5 |
-| 7 | Rampa a 10 °C, 30 s | ON | ON | ON | 0 |
-| 8 | Fine → Reset | OFF (Reset) | OFF (Reset) | OFF (Reset) | 0 |
+| Segmento | Profilo nominale CH1 | Evento 1    | Evento 2    | Evento 3    | Valore utente CH1 |
+| -------- | -------------------- | ----------- | ----------- | ----------- | ----------------- |
+| 1        | Rampa a 200 °C, 1 h  | OFF         | OFF         | OFF         | 0                 |
+| 2        | Sosta, 1 h           | OFF         | OFF         | OFF         | 5                 |
+| 3        | Rampa a 400 °C, 2 h  | OFF         | OFF         | OFF         | 0                 |
+| 4        | Sosta, 1 h           | OFF         | OFF         | OFF         | 5                 |
+| 5        | Rampa a 530 °C, 2 h  | OFF         | OFF         | OFF         | 0                 |
+| 6        | Sosta, 4 h           | OFF         | OFF         | OFF         | 5                 |
+| 7        | Rampa a 10 °C, 30 s  | ON          | ON          | ON          | 0                 |
+| 8        | Fine → Reset         | OFF (Reset) | OFF (Reset) | OFF (Reset) | 0                 |
 
 `MaxEvents` (14893) = 3; gli otto `ResetEvent` (14894–14901) sono zero.
 Holdback ed eventi PV sono disabilitati; UserValue e Messages sono abilitati
@@ -218,11 +218,11 @@ Il file è stato analizzato solo localmente. I riferimenti numerici `Wire.N.Src`
 e `Dest` sono stati risolti contro il campo `SortIndex` delle righe parametri,
 non interpretati come indirizzi Modbus. Risultano 28 collegamenti attivi:
 
-| Evento | Collegamento interno verificato | Morsetti | Tipo / inversione |
-| --- | --- | --- | --- |
-| E1 | Wire.26: Programmer.Run.Event1 → DigitalIO.3A3B.PV | 3A–3B | ON/OFF, Invert=0 |
-| E2 | Wire.27: Programmer.Run.Event2 → DigitalIO.RELAY_4AC.PV | 4A–4C | ON/OFF, Invert=0 |
-| E3 | Wire.28: Programmer.Run.Event3 → DigitalIO.RELAY_5AC.PV | 5A–5C | ON/OFF, Invert=0 |
+| Evento | Collegamento interno verificato                         | Morsetti | Tipo / inversione |
+| ------ | ------------------------------------------------------- | -------- | ----------------- |
+| E1     | Wire.26: Programmer.Run.Event1 → DigitalIO.3A3B.PV      | 3A–3B    | ON/OFF, Invert=0  |
+| E2     | Wire.27: Programmer.Run.Event2 → DigitalIO.RELAY_4AC.PV | 4A–4C    | ON/OFF, Invert=0  |
+| E3     | Wire.28: Programmer.Run.Event3 → DigitalIO.RELAY_5AC.PV | 5A–5C    | ON/OFF, Invert=0  |
 
 Righe del clone: collegamenti 552–557, configurazione I/O 5197–5239.
 Il clone da solo non contiene etichette degli attuatori esterni. Il successivo
@@ -827,7 +827,6 @@ o blocchi dei controlli durante l'attesa del backend. Stato acquisizione,
 caricamento dello storico ed eventuali errori rimangono visibili nel pannello.
 Il pulsante Aggiorna e la spia di stato nell'intestazione permettono di verificare
 la raccolta senza dover aprire la diagnostica dettagliata.
-
 
 ### Gestione dei programmi sul forno
 

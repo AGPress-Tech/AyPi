@@ -35,7 +35,9 @@ function summarizeHaasHeader(item: any) {
         metodo: String(item?.metodo || "").trim(),
         cicloLavoro: String(item?.cicloLavoro || "").trim(),
         note: String(item?.note || "").trim(),
-        attachmentsCount: Array.isArray(item?.attachments) ? item.attachments.length : 0,
+        attachmentsCount: Array.isArray(item?.attachments)
+            ? item.attachments.length
+            : 0,
     };
 }
 
@@ -63,7 +65,9 @@ export function saveHaas(code: string, payload: any, context?: ActionContext) {
         const existingIdentifier = previousCode
             ? String(payload?.recordId || previousCode).trim()
             : "";
-        const beforeItem = existingIdentifier ? loadHaasItem(existingIdentifier) : null;
+        const beforeItem = existingIdentifier
+            ? loadHaasItem(existingIdentifier)
+            : null;
         const saved = saveHaasItem({
             ...payload,
             recordId: beforeItem?.recordId || payload?.recordId,
@@ -113,7 +117,8 @@ export function saveHaas(code: string, payload: any, context?: ActionContext) {
             removed: utensiliDiff.removed,
             updated: utensiliDiff.updated + headerChanges.length,
             changes,
-            changeSummary: buildChangeSummary(changes) || `Scheda HAAS ${code} salvata`,
+            changeSummary:
+                buildChangeSummary(changes) || `Scheda HAAS ${code} salvata`,
         });
         return saved;
     });

@@ -44,7 +44,10 @@ export function forbidden(message = "Forbidden", details?: unknown) {
     });
 }
 
-export function tooManyRequests(message = "Too many requests", details?: unknown) {
+export function tooManyRequests(
+    message = "Too many requests",
+    details?: unknown,
+) {
     return new HttpError(429, message, {
         code: "TOO_MANY_REQUESTS",
         details,

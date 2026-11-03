@@ -1,415 +1,505 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; connect-src 'self' file: https://api.open-meteo.com; object-src 'none'">
-    <title>AyPi — Blue Archive Mode</title>
-    <link rel="stylesheet" href="../assets/vendor/spine-player/spine-player.css">
-    <link rel="stylesheet" href="../assets/vendor/spine-player-4.2/spine-player.min.css">
-    <link id="blueArchiveStylesheet" rel="stylesheet" href="../styles/bluearchive-preview.css">
-    <link id="agpressStylesheet" rel="stylesheet" href="../styles/agpress-bluearchive.css" media="not all">
-    <script src="../scripts/interface-theme-bootstrap.js"></script>
-    <link rel="stylesheet" href="../styles/forge.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data:; connect-src 'self' file: https://api.open-meteo.com; object-src 'none'" />
+  <title>AyPi — Blue Archive Mode</title>
+  <link rel="stylesheet" href="../assets/vendor/spine-player/spine-player.css" />
+  <link rel="stylesheet" href="../assets/vendor/spine-player-4.2/spine-player.min.css" />
+  <link id="blueArchiveStylesheet" rel="stylesheet" href="../styles/bluearchive-preview.css" />
+  <link id="agpressStylesheet" rel="stylesheet" href="../styles/agpress-bluearchive.css" media="not all" />
+  <script src="../scripts/interface-theme-bootstrap.js"></script>
+  <link rel="stylesheet" href="../styles/forge.css" />
 </head>
 
 <body>
-    <div class="startup-sequence" id="startupSequence" role="status" aria-label="Avvio AyPi">
-        <div class="startup-grid" aria-hidden="true"></div>
-        <div class="startup-sweep" aria-hidden="true"></div>
-        <div class="startup-corner startup-corner-left" aria-hidden="true">AGP // SYSTEM 01</div>
-        <div class="startup-corner startup-corner-right" aria-hidden="true">AYPI INTERFACE</div>
-
-        <div class="startup-center">
-            <div class="aypi-logo startup-emblem" aria-hidden="true">
-                <span class="aypi-logo-halo startup-halo"></span>
-                <span class="aypi-logo-ay">Ay</span><span class="aypi-logo-pi">Pi</span>
-                <span class="aypi-logo-slash startup-logo-slash"></span>
-            </div>
-            <div class="startup-rule" aria-hidden="true"><i></i></div>
-            <div class="startup-kicker">PORTALE OPERATIVO AGPRESS</div>
-            <h1>Buongiorno<span class="startup-personal-greeting">, <strong><span
-                            id="startupUserName">Sensei</span>.</strong></span></h1>
-            <p>Preparazione dell'interfaccia AyPi</p>
-            <div class="startup-progress" aria-hidden="true"><i></i></div>
-        </div>
-
-        <div class="startup-skip">CLICK PER CONTINUARE</div>
+  <div class="startup-sequence" id="startupSequence" role="status" aria-label="Avvio AyPi">
+    <div class="startup-grid" aria-hidden="true"></div>
+    <div class="startup-sweep" aria-hidden="true"></div>
+    <div class="startup-corner startup-corner-left" aria-hidden="true">
+      AGP // SYSTEM 01
+    </div>
+    <div class="startup-corner startup-corner-right" aria-hidden="true">
+      AYPI INTERFACE
     </div>
 
-    <div class="sky-grid" aria-hidden="true"></div>
-    <div class="cursor-aura" id="cursorAura" aria-hidden="true"></div>
-    <div class="click-layer" id="clickLayer" aria-hidden="true"></div>
+    <div class="startup-center">
+      <div class="aypi-logo startup-emblem" aria-hidden="true">
+        <span class="aypi-logo-halo startup-halo"></span>
+        <span class="aypi-logo-ay">Ay</span><span class="aypi-logo-pi">Pi</span>
+        <span class="aypi-logo-slash startup-logo-slash"></span>
+      </div>
+      <div class="startup-rule" aria-hidden="true"><i></i></div>
+      <div class="startup-kicker">PORTALE OPERATIVO AGPRESS</div>
+      <h1>
+        Buongiorno<span class="startup-personal-greeting">, <strong><span
+              id="startupUserName">Sensei</span>.</strong></span>
+      </h1>
+      <p>Preparazione dell'interfaccia AyPi</p>
+      <div class="startup-progress" aria-hidden="true"><i></i></div>
+    </div>
 
-    <div class="preview-shell">
-        <header class="topbar">
-            <a class="aypi-logo brand" id="brandLink" href="https://github.com/AGPress-Tech/AyPi"
-                aria-label="Apri AyPi su GitHub" title="Apri AyPi su GitHub">
-                <span class="aypi-logo-halo" aria-hidden="true"></span>
-                <span class="aypi-logo-ay">Ay</span><span class="aypi-logo-pi">Pi</span>
-                <span class="aypi-logo-slash" aria-hidden="true"></span>
-            </a>
+    <div class="startup-skip">CLICK PER CONTINUARE</div>
+  </div>
 
-            <nav class="main-nav" aria-label="Navigazione principale">
-                <button class="nav-item active" data-page="moduli">Moduli</button>
-                <button class="nav-item" data-page="programmi">Programmi</button>
-                <button class="nav-item" data-page="articoli">Articoli</button>
-                <button class="nav-item" data-page="produzioni">Produzioni</button>
-                <button class="nav-item" data-page="mes-scada">MES - SCADA</button>
-                <button class="nav-item" data-page="calcolatore">Calcolatore</button>
-                <button class="nav-item" data-page="utilities">Utilities</button>
-            </nav>
+  <div class="sky-grid" aria-hidden="true"></div>
+  <div class="cursor-aura" id="cursorAura" aria-hidden="true"></div>
+  <div class="click-layer" id="clickLayer" aria-hidden="true"></div>
 
-            <div class="top-actions">
-                <div class="system-pill"><span></span> AYPI SYSTEM</div>
-                <button class="icon-button" id="menuToggle" aria-label="Apri menu">
-                    <i></i><i></i><i></i>
-                </button>
-            </div>
+  <div class="preview-shell">
+    <header class="topbar">
+      <a class="aypi-logo brand" id="brandLink" href="https://github.com/AGPress-Tech/AyPi"
+        aria-label="Apri AyPi su GitHub" title="Apri AyPi su GitHub">
+        <span class="aypi-logo-halo" aria-hidden="true"></span>
+        <span class="aypi-logo-ay">Ay</span><span class="aypi-logo-pi">Pi</span>
+        <span class="aypi-logo-slash" aria-hidden="true"></span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navigazione principale">
+        <button class="nav-item active" data-page="moduli">Moduli</button>
+        <button class="nav-item" data-page="programmi">Programmi</button>
+        <button class="nav-item" data-page="articoli">Articoli</button>
+        <button class="nav-item" data-page="produzioni">Produzioni</button>
+        <button class="nav-item" data-page="mes-scada">MES - SCADA</button>
+        <button class="nav-item" data-page="calcolatore">Calcolatore</button>
+        <button class="nav-item" data-page="utilities">Utilities</button>
+      </nav>
+
+      <div class="top-actions">
+        <div class="system-pill"><span></span> AYPI SYSTEM</div>
+        <button class="icon-button" id="menuToggle" aria-label="Apri menu">
+          <i></i><i></i><i></i>
+        </button>
+      </div>
+    </header>
+
+    <aside class="quick-menu" id="quickMenu" aria-hidden="true">
+      <div class="quick-menu-title">AyPi</div>
+      <button id="menuExcel">
+        <img src="../assets/AyPi-icon.png" alt="" />
+        <span>AyPi Excel<small>Installa o aggiorna l'add-in</small></span>
+      </button>
+      <button id="menuWebsite">
+        <span class="menu-symbol">↗</span>
+        <span>AyPi Website<small>Apri il portale AGPress</small></span>
+      </button>
+      <button class="menu-quit" id="menuQuit">
+        <span class="menu-symbol">×</span>
+        <span>Termina<small>Chiudi completamente AyPi</small></span>
+      </button>
+    </aside>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow"><span>01</span> PORTALE OPERATIVO</div>
+          <h1>Esplora,<br /><strong id="heroTitle">Moduli.</strong></h1>
+          <p id="heroDescription">
+            Accedi agli strumenti e ai moduli aziendali di AyPi.
+          </p>
+          <div class="hero-status">
+            <span class="status-line"></span>
+            <span>Tutti i sistemi sono operativi</span>
+          </div>
+        </div>
+
+        <div class="hero-art" aria-hidden="true">
+          <div class="hero-ring ring-one"></div>
+          <div class="hero-ring ring-two"></div>
+          <div class="hero-cross"></div>
+          <div class="hero-number" id="heroNumber">M</div>
+          <div class="hero-caption">AGPRESS // AYPI</div>
+        </div>
+      </section>
+
+      <section class="modules-section" id="apps">
+        <div class="section-heading">
+          <div>
+            <div class="eyebrow"><span>02</span> ACCESSO RAPIDO</div>
+            <h2 id="sectionTitle">Seleziona un modulo</h2>
+          </div>
+          <div class="page-index">
+            <b id="pageNumber">01</b><span>/ 07</span>
+          </div>
+        </div>
+
+        <div class="module-grid" id="pageContent"></div>
+      </section>
+    </main>
+
+    <div class="assistant" id="assistant" aria-label="Assistente Arona">
+      <div class="speech-bubble" id="speechBubble">Bentornato, Sensei!</div>
+      <div class="assistant-player" id="spineAssistantPlayer" role="button" tabindex="0" aria-label="Parla con Arona">
+      </div>
+      <div class="assistant-head-hitbox" id="assistantHeadHitbox" role="button" tabindex="0"
+        aria-label="Fai pat-pat sulla testa"></div>
+      <div class="assistant-loading" id="assistantLoading">
+        <i></i><span>ARONA SYSTEM</span>
+      </div>
+      <button class="assistant-switch" id="assistantSwitch" type="button" title="Scegli assistente"
+        aria-label="Scegli assistente" aria-expanded="false" aria-controls="assistantPicker">
+        ☰
+      </button>
+      <section class="assistant-picker" id="assistantPicker" aria-hidden="true" aria-label="Scegli il personaggio">
+        <header>
+          <strong>PERSONAGGIO</strong>
+          <button id="assistantPickerClose" type="button" aria-label="Chiudi selezione" title="Chiudi">
+            ×
+          </button>
+        </header>
+        <label class="assistant-picker-search">
+          <span class="visually-hidden">Cerca personaggio</span>
+          <input id="assistantPickerSearch" type="search" placeholder="Cerca..." autocomplete="off" />
+        </label>
+        <div class="assistant-picker-list" id="assistantPickerList" role="listbox"></div>
+        <p class="assistant-picker-empty" id="assistantPickerEmpty" hidden>
+          Nessun personaggio trovato.
+        </p>
+      </section>
+      <span class="assistant-label" id="assistantLabel">ARONA // ONLINE</span>
+    </div>
+
+    <div class="timer-backdrop" id="timerBackdrop" aria-hidden="true">
+      <section class="timer-panel" role="dialog" aria-modal="true" aria-labelledby="timerPanelTitle">
+        <header class="timer-panel-header">
+          <div>
+            <div class="eyebrow"><span>TM</span> AYPI TIME SYSTEM</div>
+            <h2 id="timerPanelTitle">Timer &amp; Cronometri</h2>
+          </div>
+          <button class="timer-close" id="timerClose" type="button" aria-label="Chiudi pannello">
+            ×
+          </button>
         </header>
 
-        <aside class="quick-menu" id="quickMenu" aria-hidden="true">
-            <div class="quick-menu-title">AyPi</div>
-            <button id="menuExcel"><img src="../assets/AyPi-icon.png" alt=""> <span>AyPi Excel<small>Installa o aggiorna
-                        l'add-in</small></span></button>
-            <button id="menuWebsite"><span class="menu-symbol">↗</span> <span>AyPi Website<small>Apri il portale
-                        AGPress</small></span></button>
-            <button class="menu-quit" id="menuQuit"><span class="menu-symbol">×</span> <span>Termina<small>Chiudi
-                        completamente AyPi</small></span></button>
-        </aside>
-
-        <main>
-            <section class="hero">
-                <div class="hero-copy">
-                    <div class="eyebrow"><span>01</span> PORTALE OPERATIVO</div>
-                    <h1>Esplora,<br><strong id="heroTitle">Moduli.</strong></h1>
-                    <p id="heroDescription">Accedi agli strumenti e ai moduli aziendali di AyPi.</p>
-                    <div class="hero-status">
-                        <span class="status-line"></span>
-                        <span>Tutti i sistemi sono operativi</span>
-                    </div>
-                </div>
-
-                <div class="hero-art" aria-hidden="true">
-                    <div class="hero-ring ring-one"></div>
-                    <div class="hero-ring ring-two"></div>
-                    <div class="hero-cross"></div>
-                    <div class="hero-number" id="heroNumber">M</div>
-                    <div class="hero-caption">AGPRESS // AYPI</div>
-                </div>
-            </section>
-
-            <section class="modules-section" id="apps">
-                <div class="section-heading">
-                    <div>
-                        <div class="eyebrow"><span>02</span> ACCESSO RAPIDO</div>
-                        <h2 id="sectionTitle">Seleziona un modulo</h2>
-                    </div>
-                    <div class="page-index"><b id="pageNumber">01</b><span>/ 07</span></div>
-                </div>
-
-                <div class="module-grid" id="pageContent"></div>
-            </section>
-        </main>
-
-        <div class="assistant" id="assistant" aria-label="Assistente Arona">
-            <div class="speech-bubble" id="speechBubble">Bentornato, Sensei!</div>
-            <div class="assistant-player" id="spineAssistantPlayer" role="button" tabindex="0"
-                aria-label="Parla con Arona"></div>
-            <div class="assistant-head-hitbox" id="assistantHeadHitbox" role="button" tabindex="0"
-                aria-label="Fai pat-pat sulla testa"></div>
-            <div class="assistant-loading" id="assistantLoading">
-                <i></i><span>ARONA SYSTEM</span>
-            </div>
-            <button class="assistant-switch" id="assistantSwitch" type="button" title="Scegli assistente"
-                aria-label="Scegli assistente" aria-expanded="false" aria-controls="assistantPicker">☰</button>
-            <section class="assistant-picker" id="assistantPicker" aria-hidden="true"
-                aria-label="Scegli il personaggio">
-                <header>
-                    <strong>PERSONAGGIO</strong>
-                    <button id="assistantPickerClose" type="button" aria-label="Chiudi selezione"
-                        title="Chiudi">×</button>
-                </header>
-                <label class="assistant-picker-search">
-                    <span class="visually-hidden">Cerca personaggio</span>
-                    <input id="assistantPickerSearch" type="search" placeholder="Cerca..." autocomplete="off">
-                </label>
-                <div class="assistant-picker-list" id="assistantPickerList" role="listbox"></div>
-                <p class="assistant-picker-empty" id="assistantPickerEmpty" hidden>Nessun personaggio trovato.</p>
-            </section>
-            <span class="assistant-label" id="assistantLabel">ARONA // ONLINE</span>
+        <div class="timer-tabs" role="tablist">
+          <button class="timer-tab active" type="button" data-time-view="stopwatch" role="tab">
+            Cronometro
+          </button>
+          <button class="timer-tab" type="button" data-time-view="countdown" role="tab">
+            Timer
+          </button>
         </div>
 
-        <div class="timer-backdrop" id="timerBackdrop" aria-hidden="true">
-            <section class="timer-panel" role="dialog" aria-modal="true" aria-labelledby="timerPanelTitle">
-                <header class="timer-panel-header">
-                    <div>
-                        <div class="eyebrow"><span>TM</span> AYPI TIME SYSTEM</div>
-                        <h2 id="timerPanelTitle">Timer &amp; Cronometri</h2>
-                    </div>
-                    <button class="timer-close" id="timerClose" type="button" aria-label="Chiudi pannello">×</button>
-                </header>
-
-                <div class="timer-tabs" role="tablist">
-                    <button class="timer-tab active" type="button" data-time-view="stopwatch"
-                        role="tab">Cronometro</button>
-                    <button class="timer-tab" type="button" data-time-view="countdown" role="tab">Timer</button>
-                </div>
-
-                <div class="time-view active" id="stopwatchView" data-view="stopwatch">
-                    <div class="time-status"><i></i><span id="stopwatchStatus">PRONTO</span></div>
-                    <div class="time-display" id="stopwatchDisplay">00:00.00</div>
-                    <div class="time-controls">
-                        <button class="time-primary" id="stopwatchToggle" type="button">Avvia</button>
-                        <button class="time-secondary" id="stopwatchLap" type="button">Giro</button>
-                        <button class="time-secondary" id="stopwatchReset" type="button">Azzera</button>
-                    </div>
-                    <div class="laps-list" id="lapsList">
-                        <span class="laps-empty">Nessun giro registrato</span>
-                    </div>
-                </div>
-
-                <div class="time-view" id="countdownView" data-view="countdown">
-                    <div class="time-status"><i></i><span id="countdownStatus">PRONTO</span></div>
-                    <div class="time-display" id="countdownDisplay">05:00</div>
-                    <div class="timer-presets" aria-label="Durate rapide">
-                        <button type="button" data-timer-minutes="1">1 min</button>
-                        <button type="button" data-timer-minutes="5" class="active">5 min</button>
-                        <button type="button" data-timer-minutes="10">10 min</button>
-                        <button type="button" data-timer-minutes="25">25 min</button>
-                    </div>
-                    <div class="time-controls">
-                        <button class="time-primary" id="countdownToggle" type="button">Avvia</button>
-                        <button class="time-secondary" id="countdownReset" type="button">Ripristina</button>
-                    </div>
-                </div>
-
-                <footer class="timer-panel-footer">
-                    <span><i></i> AYPI TIME SYSTEM // OPERATIVO</span>
-                    <span id="timerPanelClock">--:--:--</span>
-                </footer>
-            </section>
+        <div class="time-view active" id="stopwatchView" data-view="stopwatch">
+          <div class="time-status">
+            <i></i><span id="stopwatchStatus">PRONTO</span>
+          </div>
+          <div class="time-display" id="stopwatchDisplay">00:00.00</div>
+          <div class="time-controls">
+            <button class="time-primary" id="stopwatchToggle" type="button">
+              Avvia
+            </button>
+            <button class="time-secondary" id="stopwatchLap" type="button">
+              Giro
+            </button>
+            <button class="time-secondary" id="stopwatchReset" type="button">
+              Azzera
+            </button>
+          </div>
+          <div class="laps-list" id="lapsList">
+            <span class="laps-empty">Nessun giro registrato</span>
+          </div>
         </div>
 
-        <div class="weather-backdrop" id="weatherBackdrop" aria-hidden="true">
-            <section class="weather-panel" role="dialog" aria-modal="true" aria-labelledby="weatherPanelTitle">
-                <div class="weather-panel-grid" aria-hidden="true"></div>
-                <header class="weather-panel-header">
-                    <div>
-                        <div class="eyebrow"><span>WX</span> AYPI WEATHER SYSTEM</div>
-                        <h2 id="weatherPanelTitle">Meteo Omegna</h2>
-                        <p>Omegna, Piemonte · previsioni locali</p>
-                    </div>
-                    <div class="weather-panel-actions">
-                        <button class="weather-refresh" id="weatherRefresh" type="button" title="Aggiorna previsioni"
-                            aria-label="Aggiorna previsioni">↻</button>
-                        <button class="weather-close" id="weatherClose" type="button"
-                            aria-label="Chiudi pannello">×</button>
-                    </div>
-                </header>
-
-                <div class="weather-current" id="weatherCurrent">
-                    <div class="weather-current-icon" id="weatherCurrentIcon" aria-hidden="true">·</div>
-                    <div class="weather-current-main">
-                        <strong id="weatherCurrentTemperature">--°</strong>
-                        <span id="weatherCurrentDescription">Caricamento meteo…</span>
-                    </div>
-                    <div class="weather-current-stats">
-                        <span><small>PERCEPITA</small><b id="weatherFeelsLike">--°</b></span>
-                        <span><small>UMIDITÀ</small><b id="weatherHumidity">--%</b></span>
-                        <span><small>VENTO</small><b id="weatherWind">-- km/h</b></span>
-                    </div>
-                </div>
-
-                <div class="weather-tabs" role="tablist" aria-label="Periodo previsioni">
-                    <button class="weather-tab active" type="button" data-weather-view="today" role="tab"
-                        aria-selected="true">Oggi</button>
-                    <button class="weather-tab" type="button" data-weather-view="week" role="tab"
-                        aria-selected="false">Questa settimana</button>
-                    <button class="weather-tab" type="button" data-weather-view="next" role="tab"
-                        aria-selected="false">Prossima settimana</button>
-                </div>
-
-                <div class="weather-views">
-                    <section class="weather-view active" data-weather-panel="today">
-                        <div class="weather-view-heading">
-                            <div><strong>Previsioni di oggi</strong><small id="weatherTodayDate"></small></div>
-                            <span>ORA PER ORA</span>
-                        </div>
-                        <div class="weather-hourly" id="weatherHourly"></div>
-                    </section>
-                    <section class="weather-view" data-weather-panel="week">
-                        <div class="weather-view-heading">
-                            <div><strong>Settimana corrente</strong><small>Da oggi a domenica</small></div>
-                            <span>GIORNO PER GIORNO</span>
-                        </div>
-                        <div class="weather-daily" id="weatherCurrentWeek"></div>
-                    </section>
-                    <section class="weather-view" data-weather-panel="next">
-                        <div class="weather-view-heading">
-                            <div><strong>Prossima settimana</strong><small>Da lunedì a domenica</small></div>
-                            <span>FINO A 16 GIORNI</span>
-                        </div>
-                        <div class="weather-daily" id="weatherNextWeek"></div>
-                    </section>
-                    <section class="weather-day-detail" id="weatherDayDetail" aria-hidden="true">
-                        <header class="weather-detail-header">
-                            <button id="weatherDetailBack" type="button" aria-label="Torna alle previsioni">‹</button>
-                            <div>
-                                <span>DETTAGLIO GIORNALIERO</span>
-                                <h3 id="weatherDetailDate">--</h3>
-                            </div>
-                        </header>
-                        <div class="weather-detail-summary">
-                            <div class="weather-detail-condition">
-                                <i id="weatherDetailIcon" aria-hidden="true">·</i>
-                                <div>
-                                    <strong id="weatherDetailDescription">--</strong>
-                                    <span>Omegna, Piemonte</span>
-                                </div>
-                            </div>
-                            <div class="weather-detail-metrics">
-                                <span><small>MASSIMA</small><b id="weatherDetailMax">--°</b></span>
-                                <span><small>MINIMA</small><b id="weatherDetailMin">--°</b></span>
-                                <span><small>PIOGGIA</small><b id="weatherDetailRain">--%</b></span>
-                                <span><small>ALBA</small><b id="weatherDetailSunrise">--:--</b></span>
-                                <span><small>TRAMONTO</small><b id="weatherDetailSunset">--:--</b></span>
-                            </div>
-                        </div>
-                        <div class="weather-detail-hourly-heading">
-                            <strong>Andamento della giornata</strong>
-                            <span>TEMPERATURA · PIOGGIA · VENTO · UMIDITÀ</span>
-                        </div>
-                        <div class="weather-detail-hourly" id="weatherDetailHourly"></div>
-                    </section>
-                </div>
-
-                <div class="weather-panel-footer">
-                    <span id="weatherUpdateStatus"><i></i> Connessione al servizio meteo…</span>
-                    <span>Dati: Open-Meteo</span>
-                </div>
-            </section>
+        <div class="time-view" id="countdownView" data-view="countdown">
+          <div class="time-status">
+            <i></i><span id="countdownStatus">PRONTO</span>
+          </div>
+          <div class="time-display" id="countdownDisplay">05:00</div>
+          <div class="timer-presets" aria-label="Durate rapide">
+            <button type="button" data-timer-minutes="1">1 min</button>
+            <button type="button" data-timer-minutes="5" class="active">
+              5 min
+            </button>
+            <button type="button" data-timer-minutes="10">10 min</button>
+            <button type="button" data-timer-minutes="25">25 min</button>
+          </div>
+          <div class="time-controls">
+            <button class="time-primary" id="countdownToggle" type="button">
+              Avvia
+            </button>
+            <button class="time-secondary" id="countdownReset" type="button">
+              Ripristina
+            </button>
+          </div>
         </div>
 
-        <div class="admin-backdrop" id="adminBackdrop" aria-hidden="true">
-            <section class="admin-panel" role="dialog" aria-modal="true" aria-labelledby="adminPanelTitle">
-                <button class="admin-close" id="adminClose" type="button" aria-label="Chiudi">×</button>
-                <div class="admin-halo" aria-hidden="true"></div>
-                <div class="eyebrow"><span>F2</span> CONFIGURAZIONE AYPI</div>
-                <h2 id="adminPanelTitle">Accesso amministratore</h2>
-                <p>Abilita la modifica dei percorsi. Dopo l'accesso usa il tasto destro su una scheda configurabile.</p>
-                <form id="adminForm">
-                    <label for="adminPassword">Password</label>
-                    <input id="adminPassword" type="password" autocomplete="current-password"
-                        placeholder="Inserisci la password">
-                    <div class="admin-error" id="adminError" aria-live="polite"></div>
-                    <div class="admin-actions">
-                        <button class="time-secondary" id="adminCancel" type="button">Annulla</button>
-                        <button class="time-primary" type="submit">Accedi</button>
-                    </div>
-                </form>
-            </section>
-        </div>
-
-        <div class="admin-backdrop name-backdrop" id="nameBackdrop" aria-hidden="true">
-            <section class="admin-panel name-panel" role="dialog" aria-modal="true" aria-labelledby="namePanelTitle">
-                <button class="admin-close" id="nameClose" type="button" aria-label="Chiudi">×</button>
-                <div class="admin-halo" aria-hidden="true"></div>
-                <div class="eyebrow"><span>ID</span> PERSONALIZZAZIONE ASSISTENTE</div>
-                <h2 id="namePanelTitle">Come desideri essere chiamato?</h2>
-                <p><span id="nameAssistantLabel">Arona</span> userà questo nome nei saluti e in tutti i suoi messaggi.
-                </p>
-                <form id="nameForm">
-                    <label for="personalName">Il tuo nome</label>
-                    <input id="personalName" type="text" maxlength="32" autocomplete="name"
-                        placeholder="es. Alessandro">
-                    <div class="admin-error" id="nameError" aria-live="polite"></div>
-                    <div class="admin-actions name-actions">
-                        <button class="time-secondary" id="nameReset" type="button">Usa Sensei</button>
-                        <button class="time-secondary" id="nameCancel" type="button">Annulla</button>
-                        <button class="time-primary" type="submit">Salva</button>
-                    </div>
-                </form>
-            </section>
-        </div>
-
-        <div class="admin-backdrop theme-backdrop" id="themeBackdrop" aria-hidden="true">
-            <section class="admin-panel theme-panel" role="dialog" aria-modal="true" aria-labelledby="themePanelTitle">
-                <button class="admin-close" id="themeClose" type="button" aria-label="Chiudi">×</button>
-                <div class="admin-halo" aria-hidden="true"></div>
-                <div class="eyebrow"><span>F4</span> AYPI INTERFACE SELECTOR</div>
-                <h2 id="themePanelTitle">Modalità grafica</h2>
-                <p>Inserisci il codice della modalità che desideri attivare.</p>
-                <form id="themeForm">
-                    <label for="themePassword">Password</label>
-                    <input id="themePassword" type="password" autocomplete="off" placeholder="Inserisci la password">
-                    <div class="admin-error" id="themeError" aria-live="polite"></div>
-                    <div class="admin-actions">
-                        <button class="time-secondary" id="themeCancel" type="button">Annulla</button>
-                        <button class="time-primary" type="submit">Conferma</button>
-                    </div>
-                </form>
-            </section>
-        </div>
-
-        <div class="animation-lab-backdrop" id="animationLabBackdrop" aria-hidden="true">
-            <section class="animation-lab-panel" role="dialog" aria-modal="true" aria-labelledby="animationLabTitle">
-                <button class="admin-close" id="animationLabClose" type="button" aria-label="Chiudi">×</button>
-                <div class="animation-lab-auth" id="animationLabAuth">
-                    <div class="eyebrow"><span>F6</span> SPINE ANIMATION LAB</div>
-                    <h2 id="animationLabTitle">Archivio animazioni</h2>
-                    <p>Inserisci la password per accedere alle animazioni del personaggio selezionato.</p>
-                    <form id="animationLabAuthForm">
-                        <label for="animationLabPassword">Password</label>
-                        <input id="animationLabPassword" type="password" autocomplete="off"
-                            placeholder="Inserisci la password">
-                        <div class="admin-error" id="animationLabError" aria-live="polite"></div>
-                        <div class="admin-actions">
-                            <button class="time-secondary" id="animationLabCancel" type="button">Annulla</button>
-                            <button class="time-primary" type="submit">Accedi</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="animation-lab-content" id="animationLabContent" hidden>
-                    <header class="animation-lab-header">
-                        <div>
-                            <div class="eyebrow"><span>F6</span> SPINE ANIMATION LAB</div>
-                            <h2>Test animazioni</h2>
-                            <p>Clicca un'animazione per riprodurla direttamente sul personaggio.</p>
-                        </div>
-                        <label class="animation-loop"><input id="animationLoop" type="checkbox"> Ripeti</label>
-                    </header>
-                    <div class="animation-lab-status" id="animationLabStatus">Caricamento modello...</div>
-                    <div class="animation-grid" id="animationGrid"></div>
-                </div>
-            </section>
-        </div>
-
-        <footer>
-            <span id="appVersion">AYPI v...</span>
-            <div class="footer-tools">
-                <button class="footer-weather" id="footerWeather" type="button" aria-label="Apri meteo di Omegna"
-                    aria-expanded="false" title="Meteo Omegna">
-                    <span class="footer-weather-icon" id="footerWeatherIcon" aria-hidden="true">·</span>
-                    <span class="footer-weather-location">OMEGNA</span>
-                    <strong id="footerWeatherTemperature">--°</strong>
-                </button>
-                <i class="footer-tools-divider" aria-hidden="true"></i>
-                <button class="footer-clock" id="footerClock" type="button" aria-label="Apri Timer e Cronometri"
-                    aria-expanded="false" title="Apri Timer e Cronometri">--:--:--</button>
-            </div>
-            <span>© AGPRESS</span>
+        <footer class="timer-panel-footer">
+          <span><i></i> AYPI TIME SYSTEM // OPERATIVO</span>
+          <span id="timerPanelClock">--:--:--</span>
         </footer>
+      </section>
     </div>
 
-    <script src="../assets/vendor/spine-player/spine-player.js"></script>
-    <script src="../assets/vendor/spine-player/runtime-registry.js"></script>
-    <script src="../assets/vendor/spine-player-4.2/spine-player.min.js"></script>
-    <script src="../assets/bluearchive/spine/characters/characters.js"></script>
-    <script src="../scripts/bluearchive-preview.js"></script>
+    <div class="weather-backdrop" id="weatherBackdrop" aria-hidden="true">
+      <section class="weather-panel" role="dialog" aria-modal="true" aria-labelledby="weatherPanelTitle">
+        <div class="weather-panel-grid" aria-hidden="true"></div>
+        <header class="weather-panel-header">
+          <div>
+            <div class="eyebrow"><span>WX</span> AYPI WEATHER SYSTEM</div>
+            <h2 id="weatherPanelTitle">Meteo Omegna</h2>
+            <p>Omegna, Piemonte · previsioni locali</p>
+          </div>
+          <div class="weather-panel-actions">
+            <button class="weather-refresh" id="weatherRefresh" type="button" title="Aggiorna previsioni"
+              aria-label="Aggiorna previsioni">
+              ↻
+            </button>
+            <button class="weather-close" id="weatherClose" type="button" aria-label="Chiudi pannello">
+              ×
+            </button>
+          </div>
+        </header>
+
+        <div class="weather-current" id="weatherCurrent">
+          <div class="weather-current-icon" id="weatherCurrentIcon" aria-hidden="true">
+            ·
+          </div>
+          <div class="weather-current-main">
+            <strong id="weatherCurrentTemperature">--°</strong>
+            <span id="weatherCurrentDescription">Caricamento meteo…</span>
+          </div>
+          <div class="weather-current-stats">
+            <span><small>PERCEPITA</small><b id="weatherFeelsLike">--°</b></span>
+            <span><small>UMIDITÀ</small><b id="weatherHumidity">--%</b></span>
+            <span><small>VENTO</small><b id="weatherWind">-- km/h</b></span>
+          </div>
+        </div>
+
+        <div class="weather-tabs" role="tablist" aria-label="Periodo previsioni">
+          <button class="weather-tab active" type="button" data-weather-view="today" role="tab" aria-selected="true">
+            Oggi
+          </button>
+          <button class="weather-tab" type="button" data-weather-view="week" role="tab" aria-selected="false">
+            Questa settimana
+          </button>
+          <button class="weather-tab" type="button" data-weather-view="next" role="tab" aria-selected="false">
+            Prossima settimana
+          </button>
+        </div>
+
+        <div class="weather-views">
+          <section class="weather-view active" data-weather-panel="today">
+            <div class="weather-view-heading">
+              <div>
+                <strong>Previsioni di oggi</strong><small id="weatherTodayDate"></small>
+              </div>
+              <span>ORA PER ORA</span>
+            </div>
+            <div class="weather-hourly" id="weatherHourly"></div>
+          </section>
+          <section class="weather-view" data-weather-panel="week">
+            <div class="weather-view-heading">
+              <div>
+                <strong>Settimana corrente</strong><small>Da oggi a domenica</small>
+              </div>
+              <span>GIORNO PER GIORNO</span>
+            </div>
+            <div class="weather-daily" id="weatherCurrentWeek"></div>
+          </section>
+          <section class="weather-view" data-weather-panel="next">
+            <div class="weather-view-heading">
+              <div>
+                <strong>Prossima settimana</strong><small>Da lunedì a domenica</small>
+              </div>
+              <span>FINO A 16 GIORNI</span>
+            </div>
+            <div class="weather-daily" id="weatherNextWeek"></div>
+          </section>
+          <section class="weather-day-detail" id="weatherDayDetail" aria-hidden="true">
+            <header class="weather-detail-header">
+              <button id="weatherDetailBack" type="button" aria-label="Torna alle previsioni">
+                ‹
+              </button>
+              <div>
+                <span>DETTAGLIO GIORNALIERO</span>
+                <h3 id="weatherDetailDate">--</h3>
+              </div>
+            </header>
+            <div class="weather-detail-summary">
+              <div class="weather-detail-condition">
+                <i id="weatherDetailIcon" aria-hidden="true">·</i>
+                <div>
+                  <strong id="weatherDetailDescription">--</strong>
+                  <span>Omegna, Piemonte</span>
+                </div>
+              </div>
+              <div class="weather-detail-metrics">
+                <span><small>MASSIMA</small><b id="weatherDetailMax">--°</b></span>
+                <span><small>MINIMA</small><b id="weatherDetailMin">--°</b></span>
+                <span><small>PIOGGIA</small><b id="weatherDetailRain">--%</b></span>
+                <span><small>ALBA</small><b id="weatherDetailSunrise">--:--</b></span>
+                <span><small>TRAMONTO</small><b id="weatherDetailSunset">--:--</b></span>
+              </div>
+            </div>
+            <div class="weather-detail-hourly-heading">
+              <strong>Andamento della giornata</strong>
+              <span>TEMPERATURA · PIOGGIA · VENTO · UMIDITÀ</span>
+            </div>
+            <div class="weather-detail-hourly" id="weatherDetailHourly"></div>
+          </section>
+        </div>
+
+        <div class="weather-panel-footer">
+          <span id="weatherUpdateStatus"><i></i> Connessione al servizio meteo…</span>
+          <span>Dati: Open-Meteo</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="admin-backdrop" id="adminBackdrop" aria-hidden="true">
+      <section class="admin-panel" role="dialog" aria-modal="true" aria-labelledby="adminPanelTitle">
+        <button class="admin-close" id="adminClose" type="button" aria-label="Chiudi">
+          ×
+        </button>
+        <div class="admin-halo" aria-hidden="true"></div>
+        <div class="eyebrow"><span>F2</span> CONFIGURAZIONE AYPI</div>
+        <h2 id="adminPanelTitle">Accesso amministratore</h2>
+        <p>
+          Abilita la modifica dei percorsi. Dopo l'accesso usa il tasto destro
+          su una scheda configurabile.
+        </p>
+        <form id="adminForm">
+          <label for="adminPassword">Password</label>
+          <input id="adminPassword" type="password" autocomplete="current-password"
+            placeholder="Inserisci la password" />
+          <div class="admin-error" id="adminError" aria-live="polite"></div>
+          <div class="admin-actions">
+            <button class="time-secondary" id="adminCancel" type="button">
+              Annulla
+            </button>
+            <button class="time-primary" type="submit">Accedi</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="admin-backdrop name-backdrop" id="nameBackdrop" aria-hidden="true">
+      <section class="admin-panel name-panel" role="dialog" aria-modal="true" aria-labelledby="namePanelTitle">
+        <button class="admin-close" id="nameClose" type="button" aria-label="Chiudi">
+          ×
+        </button>
+        <div class="admin-halo" aria-hidden="true"></div>
+        <div class="eyebrow">
+          <span>ID</span> PERSONALIZZAZIONE ASSISTENTE
+        </div>
+        <h2 id="namePanelTitle">Come desideri essere chiamato?</h2>
+        <p>
+          <span id="nameAssistantLabel">Arona</span> userà questo nome nei
+          saluti e in tutti i suoi messaggi.
+        </p>
+        <form id="nameForm">
+          <label for="personalName">Il tuo nome</label>
+          <input id="personalName" type="text" maxlength="32" autocomplete="name" placeholder="es. Alessandro" />
+          <div class="admin-error" id="nameError" aria-live="polite"></div>
+          <div class="admin-actions name-actions">
+            <button class="time-secondary" id="nameReset" type="button">
+              Usa Sensei
+            </button>
+            <button class="time-secondary" id="nameCancel" type="button">
+              Annulla
+            </button>
+            <button class="time-primary" type="submit">Salva</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="admin-backdrop theme-backdrop" id="themeBackdrop" aria-hidden="true">
+      <section class="admin-panel theme-panel" role="dialog" aria-modal="true" aria-labelledby="themePanelTitle">
+        <button class="admin-close" id="themeClose" type="button" aria-label="Chiudi">
+          ×
+        </button>
+        <div class="admin-halo" aria-hidden="true"></div>
+        <div class="eyebrow"><span>F4</span> AYPI INTERFACE SELECTOR</div>
+        <h2 id="themePanelTitle">Modalità grafica</h2>
+        <p>Inserisci il codice della modalità che desideri attivare.</p>
+        <form id="themeForm">
+          <label for="themePassword">Password</label>
+          <input id="themePassword" type="password" autocomplete="off" placeholder="Inserisci la password" />
+          <div class="admin-error" id="themeError" aria-live="polite"></div>
+          <div class="admin-actions">
+            <button class="time-secondary" id="themeCancel" type="button">
+              Annulla
+            </button>
+            <button class="time-primary" type="submit">Conferma</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="animation-lab-backdrop" id="animationLabBackdrop" aria-hidden="true">
+      <section class="animation-lab-panel" role="dialog" aria-modal="true" aria-labelledby="animationLabTitle">
+        <button class="admin-close" id="animationLabClose" type="button" aria-label="Chiudi">
+          ×
+        </button>
+        <div class="animation-lab-auth" id="animationLabAuth">
+          <div class="eyebrow"><span>F6</span> SPINE ANIMATION LAB</div>
+          <h2 id="animationLabTitle">Archivio animazioni</h2>
+          <p>
+            Inserisci la password per accedere alle animazioni del personaggio
+            selezionato.
+          </p>
+          <form id="animationLabAuthForm">
+            <label for="animationLabPassword">Password</label>
+            <input id="animationLabPassword" type="password" autocomplete="off" placeholder="Inserisci la password" />
+            <div class="admin-error" id="animationLabError" aria-live="polite"></div>
+            <div class="admin-actions">
+              <button class="time-secondary" id="animationLabCancel" type="button">
+                Annulla
+              </button>
+              <button class="time-primary" type="submit">Accedi</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="animation-lab-content" id="animationLabContent" hidden>
+          <header class="animation-lab-header">
+            <div>
+              <div class="eyebrow"><span>F6</span> SPINE ANIMATION LAB</div>
+              <h2>Test animazioni</h2>
+              <p>
+                Clicca un'animazione per riprodurla direttamente sul
+                personaggio.
+              </p>
+            </div>
+            <label class="animation-loop"><input id="animationLoop" type="checkbox" /> Ripeti</label>
+          </header>
+          <div class="animation-lab-status" id="animationLabStatus">
+            Caricamento modello...
+          </div>
+          <div class="animation-grid" id="animationGrid"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <span id="appVersion">AYPI v...</span>
+      <div class="footer-tools">
+        <button class="footer-weather" id="footerWeather" type="button" aria-label="Apri meteo di Omegna"
+          aria-expanded="false" title="Meteo Omegna">
+          <span class="footer-weather-icon" id="footerWeatherIcon" aria-hidden="true">·</span>
+          <span class="footer-weather-location">OMEGNA</span>
+          <strong id="footerWeatherTemperature">--°</strong>
+        </button>
+        <i class="footer-tools-divider" aria-hidden="true"></i>
+        <button class="footer-clock" id="footerClock" type="button" aria-label="Apri Timer e Cronometri"
+          aria-expanded="false" title="Apri Timer e Cronometri">
+          --:--:--
+        </button>
+      </div>
+      <span>© AGPRESS</span>
+    </footer>
+  </div>
+
+  <script src="../assets/vendor/spine-player/spine-player.js"></script>
+  <script src="../assets/vendor/spine-player/runtime-registry.js"></script>
+  <script src="../assets/vendor/spine-player-4.2/spine-player.min.js"></script>
+  <script src="../assets/bluearchive/spine/characters/characters.js"></script>
+  <script src="../scripts/bluearchive-preview.js"></script>
 </body>
 
 </html>

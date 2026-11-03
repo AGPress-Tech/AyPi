@@ -98,7 +98,9 @@ function normalizeTicket(input: any): Ticket {
 }
 
 function normalizeStore(raw: any): TicketStore {
-    const tickets = Array.isArray(raw?.tickets) ? raw.tickets.map(normalizeTicket) : [];
+    const tickets = Array.isArray(raw?.tickets)
+        ? raw.tickets.map(normalizeTicket)
+        : [];
     return {
         version: 1,
         tickets,
@@ -123,7 +125,10 @@ function saveStore(store: TicketStore) {
         method: "PUT",
         body: storeCache,
     }).catch((err) => {
-        console.error("[ticket-support] errore salvataggio store backend:", err);
+        console.error(
+            "[ticket-support] errore salvataggio store backend:",
+            err,
+        );
     });
     return loadStore();
 }

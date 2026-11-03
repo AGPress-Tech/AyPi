@@ -63,9 +63,7 @@ export function registerBatchRenameIpc() {
     ipcMain.handle("batch-rename-delete-preset", async (_event, payload) => {
         const name = String(payload?.name || "").trim();
         if (!name) return loadPresets();
-        const presets = loadPresets().filter(
-            (preset) => preset?.name !== name,
-        );
+        const presets = loadPresets().filter((preset) => preset?.name !== name);
         savePresets(presets);
         return presets;
     });

@@ -2,38 +2,44 @@ const fs = require("fs");
 const vm = require("vm");
 
 const source = fs.readFileSync(
-    "dist-ts/scripts/utilities/production-planner-scripts.js",
-    "utf8",
+  "dist-ts/scripts/utilities/production-planner-scripts.js",
+  "utf8",
 );
-const ipcRenderer = { on() {}, invoke: async () => ({ state: "connected" }) };
+const ipcRenderer = { on() { }, invoke: async () => ({ state: "connected" }) };
 const storage = new Map();
 const sandbox = {
-    require: (name) => name === "electron" ? { ipcRenderer } : {},
-    console,
-    Date,
-    Intl,
-    Math,
-    Number,
-    String,
-    Array,
-    Set,
-    Map,
-    JSON,
-    setTimeout,
-    clearTimeout,
-    setInterval,
-    clearInterval,
-    localStorage: {
-        getItem: (key) => storage.get(key) || null,
-        setItem: (key, value) => storage.set(key, String(value)),
+  require: (name) => (name === "electron" ? { ipcRenderer } : {}),
+  console,
+  Date,
+  Intl,
+  Math,
+  Number,
+  String,
+  Array,
+  Set,
+  Map,
+  JSON,
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  localStorage: {
+    getItem: (key) => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, String(value)),
+  },
+  window: { addEventListener() { } },
+  document: {
+    addEventListener() { },
+    getElementById() {
+      return null;
     },
-    window: { addEventListener() {} },
-    document: {
-        addEventListener() {},
-        getElementById() { return null; },
-        querySelector() { return null; },
-        querySelectorAll() { return []; },
+    querySelector() {
+      return null;
     },
+    querySelectorAll() {
+      return [];
+    },
+  },
 };
 
 const tests = String.raw`
@@ -136,5 +142,5 @@ console.log("Planner state scenarios: OK");
 `;
 
 vm.runInNewContext(`${source}\n${tests}`, sandbox, {
-    filename: "production-planner-scripts.js",
+  filename: "production-planner-scripts.js",
 });

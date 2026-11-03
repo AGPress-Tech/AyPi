@@ -47,8 +47,14 @@ try {
 async function loadAssigneesData() {
     const payload = await requestBackend("/api/shared/assignees");
     return {
-        groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
-        emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+        groups:
+            payload?.groups && typeof payload.groups === "object"
+                ? payload.groups
+                : {},
+        emails:
+            payload?.emails && typeof payload.emails === "object"
+                ? payload.emails
+                : {},
     };
 }
 
@@ -319,8 +325,10 @@ window.addEventListener("DOMContentLoaded", () => {
     const saveBtn = document.getElementById("fp-hours-save");
     const closeBtn = document.getElementById("fp-hours-close");
 
-    if (refreshBtn) refreshBtn.addEventListener("click", () => void loadAndRender());
-    if (exportBtn) exportBtn.addEventListener("click", () => void exportExcel());
+    if (refreshBtn)
+        refreshBtn.addEventListener("click", () => void loadAndRender());
+    if (exportBtn)
+        exportBtn.addEventListener("click", () => void exportExcel());
     if (saveBtn) saveBtn.addEventListener("click", () => void saveChanges());
     if (closeBtn) closeBtn.addEventListener("click", () => window.close());
 

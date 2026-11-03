@@ -14,14 +14,14 @@ function isValidRoleName(name) {
   const trimmed = name.trim();
   if (!trimmed) return false;
   if (trimmed.length > 24) return false;
-  if (trimmed.includes('\n')) return false;
+  if (trimmed.includes("\n")) return false;
   return true;
 }
 
 function roleButtonStyle(roleName) {
   if (!roleName) return undefined;
-  if (roleName.toLowerCase() === 'owner') return 'success';
-  if (roleName.toLowerCase() === 'admin') return 'primary';
+  if (roleName.toLowerCase() === "owner") return "success";
+  if (roleName.toLowerCase() === "admin") return "primary";
   return undefined;
 }
 

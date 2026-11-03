@@ -13,10 +13,7 @@ function normalizeString(value: unknown) {
     return String(value).trim();
 }
 
-export function isRequestOwner(
-    request: any,
-    session: RequestAccessSession,
-) {
+export function isRequestOwner(request: any, session: RequestAccessSession) {
     if (!request || !session.employee) return false;
     const employee = normalizeString(session.employeeName);
     if (!employee) return false;

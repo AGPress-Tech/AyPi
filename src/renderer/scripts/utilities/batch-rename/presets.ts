@@ -3,9 +3,12 @@ require("../../shared/dev-guards");
 import { ipcRenderer } from "electron";
 
 function buildPresetFromUI(name) {
-    const scopeInput = document.querySelector('input[name="renameScope"]:checked');
+    const scopeInput = document.querySelector(
+        'input[name="renameScope"]:checked',
+    );
     const scope = scopeInput ? scopeInput.value : "files";
-    const includeSubfolders = document.getElementById("chkIncludeSubfolders")?.checked || false;
+    const includeSubfolders =
+        document.getElementById("chkIncludeSubfolders")?.checked || false;
     const extFilter = document.getElementById("extFilter")?.value || "";
     const sortOrder = document.getElementById("sortOrder")?.value || "nameAsc";
 
@@ -24,87 +27,156 @@ function buildPresetFromUI(name) {
             pathLenMin: document.getElementById("pathLenMin")?.value || "",
             pathLenMax: document.getElementById("pathLenMax")?.value || "",
             filterRegex: document.getElementById("filterRegex")?.value || "",
-            filterRegexFlags: document.getElementById("filterRegexFlags")?.value || "",
-            filterJsCondition: document.getElementById("filterJsCondition")?.value || "",
+            filterRegexFlags:
+                document.getElementById("filterRegexFlags")?.value || "",
+            filterJsCondition:
+                document.getElementById("filterJsCondition")?.value || "",
         },
         transforms: {
             addRemove: {
-                enabled: document.getElementById("chkAddRemoveEnabled")?.checked || false,
+                enabled:
+                    document.getElementById("chkAddRemoveEnabled")?.checked ||
+                    false,
                 prefix: document.getElementById("prefixInput")?.value || "",
                 suffix: document.getElementById("suffixInput")?.value || "",
                 insertText: document.getElementById("insertText")?.value || "",
-                insertPosition: document.getElementById("insertPosition")?.value || "",
-                insertFrom: document.getElementById("insertFrom")?.value || "start",
+                insertPosition:
+                    document.getElementById("insertPosition")?.value || "",
+                insertFrom:
+                    document.getElementById("insertFrom")?.value || "start",
                 rmDigits: document.getElementById("rmDigits")?.checked || false,
-                rmSymbols: document.getElementById("rmSymbols")?.checked || false,
-                rmExtraSpaces: document.getElementById("rmExtraSpaces")?.checked || false,
+                rmSymbols:
+                    document.getElementById("rmSymbols")?.checked || false,
+                rmExtraSpaces:
+                    document.getElementById("rmExtraSpaces")?.checked || false,
                 rmAll: document.getElementById("rmAll")?.checked || false,
             },
             replace: {
-                enabled: document.getElementById("chkReplaceEnabled")?.checked || false,
+                enabled:
+                    document.getElementById("chkReplaceEnabled")?.checked ||
+                    false,
                 findText: document.getElementById("findText")?.value || "",
-                replaceText: document.getElementById("replaceText")?.value || "",
-                replaceAll: document.getElementById("chkReplaceAll")?.checked || false,
-                caseSensitive: document.getElementById("chkReplaceCaseSensitive")?.checked || false,
-                useRegex: document.getElementById("chkReplaceRegex")?.checked || false,
+                replaceText:
+                    document.getElementById("replaceText")?.value || "",
+                replaceAll:
+                    document.getElementById("chkReplaceAll")?.checked || false,
+                caseSensitive:
+                    document.getElementById("chkReplaceCaseSensitive")
+                        ?.checked || false,
+                useRegex:
+                    document.getElementById("chkReplaceRegex")?.checked ||
+                    false,
             },
             case: {
-                enabled: document.getElementById("chkCaseEnabled")?.checked || false,
+                enabled:
+                    document.getElementById("chkCaseEnabled")?.checked || false,
                 mode: document.getElementById("caseMode")?.value || "keep",
             },
             numbering: {
-                enabled: document.getElementById("chkNumberingEnabled")?.checked || false,
+                enabled:
+                    document.getElementById("chkNumberingEnabled")?.checked ||
+                    false,
                 start: document.getElementById("numberStart")?.value || "",
                 step: document.getElementById("numberStep")?.value || "",
                 padding: document.getElementById("numberPadding")?.value || "",
-                position: document.getElementById("numberPosition")?.value || "prefix",
-                separator: document.getElementById("numberSeparator")?.value || "",
-                resetPerFolder: document.getElementById("numberResetPerFolder")?.checked || false,
-                resetPerExtension: document.getElementById("numberResetPerExtension")?.checked || false,
+                position:
+                    document.getElementById("numberPosition")?.value ||
+                    "prefix",
+                separator:
+                    document.getElementById("numberSeparator")?.value || "",
+                resetPerFolder:
+                    document.getElementById("numberResetPerFolder")?.checked ||
+                    false,
+                resetPerExtension:
+                    document.getElementById("numberResetPerExtension")
+                        ?.checked || false,
             },
             date: {
-                enabled: document.getElementById("chkDateEnabled")?.checked || false,
+                enabled:
+                    document.getElementById("chkDateEnabled")?.checked || false,
                 type: document.getElementById("dateType")?.value || "mtime",
-                preset: document.getElementById("dateFormatPreset")?.value || "YYYYMMDD",
-                customFormat: document.getElementById("dateFormatCustom")?.value || "",
-                position: document.getElementById("datePosition")?.value || "prefix",
-                separator: document.getElementById("dateSeparator")?.value || "_",
+                preset:
+                    document.getElementById("dateFormatPreset")?.value ||
+                    "YYYYMMDD",
+                customFormat:
+                    document.getElementById("dateFormatCustom")?.value || "",
+                position:
+                    document.getElementById("datePosition")?.value || "prefix",
+                separator:
+                    document.getElementById("dateSeparator")?.value || "_",
             },
             removeAdvanced: {
-                enabled: document.getElementById("chkRemoveAdvancedEnabled")?.checked || false,
+                enabled:
+                    document.getElementById("chkRemoveAdvancedEnabled")
+                        ?.checked || false,
                 firstN: document.getElementById("removeFirstN")?.value || "",
                 lastN: document.getElementById("removeLastN")?.value || "",
-                rangeFrom: document.getElementById("removeRangeFrom")?.value || "",
+                rangeFrom:
+                    document.getElementById("removeRangeFrom")?.value || "",
                 rangeTo: document.getElementById("removeRangeTo")?.value || "",
-                cropMode: document.getElementById("removeCropMode")?.value || "none",
-                cropText: document.getElementById("removeCropText")?.value || "",
-                trimSpaces: document.getElementById("removeTrimSpaces")?.checked || false,
-                leadingDots: document.getElementById("removeLeadingDots")?.checked || false,
+                cropMode:
+                    document.getElementById("removeCropMode")?.value || "none",
+                cropText:
+                    document.getElementById("removeCropText")?.value || "",
+                trimSpaces:
+                    document.getElementById("removeTrimSpaces")?.checked ||
+                    false,
+                leadingDots:
+                    document.getElementById("removeLeadingDots")?.checked ||
+                    false,
             },
             parts: {
-                enabled: document.getElementById("chkPartsEnabled")?.checked || false,
-                delimiterMode: document.getElementById("partsDelimiter")?.value || "auto",
-                delimiterCustom: document.getElementById("partsDelimiterCustom")?.value || "",
+                enabled:
+                    document.getElementById("chkPartsEnabled")?.checked ||
+                    false,
+                delimiterMode:
+                    document.getElementById("partsDelimiter")?.value || "auto",
+                delimiterCustom:
+                    document.getElementById("partsDelimiterCustom")?.value ||
+                    "",
                 moveFrom: document.getElementById("partsMoveFrom")?.value || "",
                 moveTo: document.getElementById("partsMoveTo")?.value || "",
-                appendFolderPosition: document.getElementById("appendFolderPosition")?.value || "none",
-                appendFolderSeparator: document.getElementById("appendFolderSeparator")?.value || "_",
-                appendFolderLevels: document.getElementById("appendFolderLevels")?.value || "1",
-                extensionMode: document.getElementById("extensionMode")?.value || "keep",
-                extensionReplace: document.getElementById("extensionReplace")?.value || "",
+                appendFolderPosition:
+                    document.getElementById("appendFolderPosition")?.value ||
+                    "none",
+                appendFolderSeparator:
+                    document.getElementById("appendFolderSeparator")?.value ||
+                    "_",
+                appendFolderLevels:
+                    document.getElementById("appendFolderLevels")?.value || "1",
+                extensionMode:
+                    document.getElementById("extensionMode")?.value || "keep",
+                extensionReplace:
+                    document.getElementById("extensionReplace")?.value || "",
             },
             copyMove: {
-                enabled: document.getElementById("chkCopyMoveEnabled")?.checked || false,
+                enabled:
+                    document.getElementById("chkCopyMoveEnabled")?.checked ||
+                    false,
                 destPath: document.getElementById("copyMovePath")?.value || "",
-                copyNotMove: document.getElementById("copyMoveCopyNotMove")?.checked || false,
-                keepFolders: document.getElementById("copyMoveKeepFolders")?.checked || false,
+                copyNotMove:
+                    document.getElementById("copyMoveCopyNotMove")?.checked ||
+                    false,
+                keepFolders:
+                    document.getElementById("copyMoveKeepFolders")?.checked ||
+                    false,
             },
             special: {
-                enabled: document.getElementById("chkSpecialEnabled")?.checked || false,
-                setMtimeNow: document.getElementById("specialSetMtimeNow")?.checked || false,
-                setAtimeNow: document.getElementById("specialSetAtimeNow")?.checked || false,
-                attrReadOnly: document.getElementById("specialAttrReadOnly")?.checked || false,
-                attrHidden: document.getElementById("specialAttrHidden")?.checked || false,
+                enabled:
+                    document.getElementById("chkSpecialEnabled")?.checked ||
+                    false,
+                setMtimeNow:
+                    document.getElementById("specialSetMtimeNow")?.checked ||
+                    false,
+                setAtimeNow:
+                    document.getElementById("specialSetAtimeNow")?.checked ||
+                    false,
+                attrReadOnly:
+                    document.getElementById("specialAttrReadOnly")?.checked ||
+                    false,
+                attrHidden:
+                    document.getElementById("specialAttrHidden")?.checked ||
+                    false,
             },
         },
     };
@@ -120,7 +192,9 @@ function applyPresetToUI(preset) {
     const t = preset.transforms;
 
     if (opts.scope) {
-        const scopeRadio = document.querySelector(`input[name="renameScope"][value="${opts.scope}"]`);
+        const scopeRadio = document.querySelector(
+            `input[name="renameScope"][value="${opts.scope}"]`,
+        );
         if (scopeRadio) scopeRadio.checked = true;
     }
     const chkSub = document.getElementById("chkIncludeSubfolders");
@@ -293,8 +367,4 @@ async function loadPresetsIntoUI(selectedName) {
     }
 }
 
-export {
-    buildPresetFromUI,
-    applyPresetToUI,
-    loadPresetsIntoUI,
-};
+export { buildPresetFromUI, applyPresetToUI, loadPresetsIntoUI };

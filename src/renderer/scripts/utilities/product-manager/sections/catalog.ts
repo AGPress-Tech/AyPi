@@ -436,8 +436,10 @@ function addCategory(ctx) {
 }
 
 export function createCatalogSection(getContext) {
-    const withContext = (handler) => (...args) =>
-        handler(getContext(), ...args);
+    const withContext =
+        (handler) =>
+        (...args) =>
+            handler(getContext(), ...args);
     return {
         normalizeHexColor: withContext(normalizeHexColor),
         loadCategoryColors: withContext(loadCategoryColors),

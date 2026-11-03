@@ -10,14 +10,14 @@ point esistenti compatibili.
 
 Le aree più critiche rilevate dall'audit iniziale sono:
 
-| Area | File | Righe iniziali |
-| --- | --- | ---: |
-| Electron main | `src/main/modules/fileManager.ts` | 4.076 |
-| Calendar renderer | `ferie-permessi-scripts.ts` | 3.483 |
-| Purchasing renderer | `product-manager-scripts.ts` | 3.352 |
-| Hierarchy renderer | `hierarchy-scripts.ts` | 2.485 |
-| Attrezzaggio renderer | `attrezzaggio-scripts.ts` | 2.237 |
-| Ticket renderer | `ticket-support-scripts.ts` | 2.007 |
+| Area                  | File                              | Righe iniziali |
+| --------------------- | --------------------------------- | -------------: |
+| Electron main         | `src/main/modules/fileManager.ts` |          4.076 |
+| Calendar renderer     | `ferie-permessi-scripts.ts`       |          3.483 |
+| Purchasing renderer   | `product-manager-scripts.ts`      |          3.352 |
+| Hierarchy renderer    | `hierarchy-scripts.ts`            |          2.485 |
+| Attrezzaggio renderer | `attrezzaggio-scripts.ts`         |          2.237 |
+| Ticket renderer       | `ticket-support-scripts.ts`       |          2.007 |
 
 Non è presente una suite di test automatizzati generale. Le verifiche disponibili
 sono compilazione TypeScript, build renderer e alcuni smoke test mirati.

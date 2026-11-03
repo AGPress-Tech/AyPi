@@ -70,7 +70,9 @@ function normalizedHeader(value: string) {
 }
 
 function eventId(parts: Array<string | number>) {
-    return createHash("sha256").update(parts.join("\u001f"), "utf8").digest("hex");
+    return createHash("sha256")
+        .update(parts.join("\u001f"), "utf8")
+        .digest("hex");
 }
 
 export function parsePlcImpulseCsv(options: {
@@ -84,7 +86,9 @@ export function parsePlcImpulseCsv(options: {
     if (!rows.length) throw new Error("Il CSV è vuoto.");
 
     const headers = rows[0].map(normalizedHeader);
-    const missing = REQUIRED_HEADERS.filter((header) => !headers.includes(header));
+    const missing = REQUIRED_HEADERS.filter(
+        (header) => !headers.includes(header),
+    );
     if (missing.length) {
         throw new Error(`Intestazioni CSV mancanti: ${missing.join(", ")}.`);
     }
@@ -98,7 +102,8 @@ export function parsePlcImpulseCsv(options: {
         const rowNumber = offset + Math.max(2, options.firstDataRow || 2);
         if (!columns.some((column) => String(column || "").trim())) return;
         totalRows += 1;
-        const get = (name: string) => String(columns[indexes.get(name)!] ?? "").trim();
+        const get = (name: string) =>
+            String(columns[indexes.get(name)!] ?? "").trim();
         const machineId = get("macchina");
         const timestamp = get("timestamp_locale");
         const multiplier = integer(get("moltiplicatore"));
@@ -110,14 +115,21 @@ export function parsePlcImpulseCsv(options: {
 
         let issue = "";
         if (!machineId) issue = "Codice macchina mancante.";
-        else if (!timestamp || !Number.isFinite(occurredAtMs)) issue = "Timestamp non valido.";
-        else if (!multiplier || multiplier < 1) issue = "Moltiplicatore non valido.";
-        else if (!sourcePulse || sourcePulse < 1) issue = "Contatore impulsi non valido.";
-        else if (!sourcePieces || sourcePieces < 1) issue = "Contatore pezzi non valido.";
-        else if (byte === null || byte < 0) issue = "Byte del segnale non valido.";
-        else if (bit === null || bit < 0 || bit > 7) issue = "Bit del segnale non valido.";
+        else if (!timestamp || !Number.isFinite(occurredAtMs))
+            issue = "Timestamp non valido.";
+        else if (!multiplier || multiplier < 1)
+            issue = "Moltiplicatore non valido.";
+        else if (!sourcePulse || sourcePulse < 1)
+            issue = "Contatore impulsi non valido.";
+        else if (!sourcePieces || sourcePieces < 1)
+            issue = "Contatore pezzi non valido.";
+        else if (byte === null || byte < 0)
+            issue = "Byte del segnale non valido.";
+        else if (bit === null || bit < 0 || bit > 7)
+            issue = "Bit del segnale non valido.";
         if (issue) {
-            if (issues.length < 100) issues.push({ row: rowNumber, message: issue });
+            if (issues.length < 100)
+                issues.push({ row: rowNumber, message: issue });
             return;
         }
 
@@ -169,4 +181,3 @@ export function parsePlcImpulseCsv(options: {
         issues,
     };
 }
-

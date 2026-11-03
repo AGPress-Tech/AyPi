@@ -81,9 +81,8 @@ export function registerFilesystemDialogIpc({
         const dialogOptions: OpenDialogOptions = {
             title: "Seleziona la cartella",
             defaultPath:
-                (app.isPackaged
-                    ? getSafeLocalPath()
-                    : lastFolderDialogPath) || undefined,
+                (app.isPackaged ? getSafeLocalPath() : lastFolderDialogPath) ||
+                undefined,
             properties: ["openDirectory", "dontAddToRecent"],
         };
 
@@ -157,9 +156,7 @@ export function registerFilesystemDialogIpc({
                 ],
             });
 
-            return result.canceled || !result.filePath
-                ? null
-                : result.filePath;
+            return result.canceled || !result.filePath ? null : result.filePath;
         },
     );
 }

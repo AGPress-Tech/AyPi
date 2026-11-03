@@ -121,16 +121,16 @@ di AyPi; non si trasferiscono logiche dei reattori o asset del progetto Minecraf
 L'ordine conta più delle date. Ogni fase si chiude con una verifica sul reparto;
 il calendario si decide dopo il primo prototipo e i riscontri degli operatori.
 
-| Fase | Risultato concreto | Criterio per passare alla fase successiva |
-|---|---|---|
-| 0 · Hub FORGE | Presentazione, temi e accessi ai tre moduli. | Navigazione, riapertura finestre e controlli robot verificati nei due temi. |
-| 1 · Standard GUI e stati | Componenti comuni per intestazioni, navigazione, stato connessione, filtri, tooltip e dettagli. Migrazione un modulo alla volta. | Stato/qualità leggibili allo stesso modo in forno e MES; preferenze esistenti conservate. |
-| 2 · Registro asset e segnali | Identità condivise di stabilimento, reparto, macchina, sorgente e segnale; associazione agli ID reali già presenti. | Una pressa e il forno identificati senza duplicare le anagrafiche MES o reinterpretare gli stati. |
-| 3 · FORGE Spatial, primo viewer | Un reparto pilota 3D con pochi asset, navigazione, selezione, stato e collegamento alle schermate 2D. | Layout leggibile sul PC operatore, comportamento offline esplicito e traffico misurato. |
-| 4 · Editor impianto | Posiziona/ruota/ridimensiona oggetti, imposta reparti e associa macchine/segnali. Bozza, annulla/ripeti, salva e pubblica. | Versioni concorrenti protette, recupero del layout precedente e autorizzazioni verificate. |
-| 5 · Supervisione nello spazio | Valori selezionabili, colori per stato, etichette, dettagli macchina e timeline 2D/3D coerenti. | Letture uguali al MES/forno, qualità e tempi corretti, nessuna richiesta per ogni oggetto a ogni frame. |
-| 6 · Contesto di produzione | Collegamento fra ordini, fasi, cicli forno, note ed eventi; filtri e confronti. | Tracciabilità verificata su casi reali, senza attribuzioni automatiche ambigue dei cicli agli ordini. |
-| 7 · Workspace personalizzabili | Dashboard, viste per reparto/ruolo, preset operatore e condivisione delle configurazioni. | Una modifica di vista non altera layout pubblicato o acquisizione; prestazioni monitorate. |
+| Fase                            | Risultato concreto                                                                                                               | Criterio per passare alla fase successiva                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 0 · Hub FORGE                   | Presentazione, temi e accessi ai tre moduli.                                                                                     | Navigazione, riapertura finestre e controlli robot verificati nei due temi.                             |
+| 1 · Standard GUI e stati        | Componenti comuni per intestazioni, navigazione, stato connessione, filtri, tooltip e dettagli. Migrazione un modulo alla volta. | Stato/qualità leggibili allo stesso modo in forno e MES; preferenze esistenti conservate.               |
+| 2 · Registro asset e segnali    | Identità condivise di stabilimento, reparto, macchina, sorgente e segnale; associazione agli ID reali già presenti.              | Una pressa e il forno identificati senza duplicare le anagrafiche MES o reinterpretare gli stati.       |
+| 3 · FORGE Spatial, primo viewer | Un reparto pilota 3D con pochi asset, navigazione, selezione, stato e collegamento alle schermate 2D.                            | Layout leggibile sul PC operatore, comportamento offline esplicito e traffico misurato.                 |
+| 4 · Editor impianto             | Posiziona/ruota/ridimensiona oggetti, imposta reparti e associa macchine/segnali. Bozza, annulla/ripeti, salva e pubblica.       | Versioni concorrenti protette, recupero del layout precedente e autorizzazioni verificate.              |
+| 5 · Supervisione nello spazio   | Valori selezionabili, colori per stato, etichette, dettagli macchina e timeline 2D/3D coerenti.                                  | Letture uguali al MES/forno, qualità e tempi corretti, nessuna richiesta per ogni oggetto a ogni frame. |
+| 6 · Contesto di produzione      | Collegamento fra ordini, fasi, cicli forno, note ed eventi; filtri e confronti.                                                  | Tracciabilità verificata su casi reali, senza attribuzioni automatiche ambigue dei cicli agli ordini.   |
+| 7 · Workspace personalizzabili  | Dashboard, viste per reparto/ruolo, preset operatore e condivisione delle configurazioni.                                        | Una modifica di vista non altera layout pubblicato o acquisizione; prestazioni monitorate.              |
 
 Indicativamente: primo ciclo di sviluppo dedicato a standard e registro asset;
 secondo ciclo al viewer di un reparto; terzo all'editor e ai binding. Estensione

@@ -5,10 +5,7 @@ interface EditTagsMultiselectDependencies {
         button: HTMLElement,
         host: HTMLElement,
     ) => void;
-    closeMenu: (
-        menu: Element,
-        host: Element | null,
-    ) => void;
+    closeMenu: (menu: Element, host: Element | null) => void;
 }
 
 interface EditTagsMultiselectOptions {
@@ -84,9 +81,7 @@ export function buildEditTagsMultiSelect(
                 const hostId =
                     (otherMenu as HTMLElement).dataset.pmHostId || "";
                 const host = hostId
-                    ? document.querySelector(
-                          `[data-pm-host-id="${hostId}"]`,
-                      )
+                    ? document.querySelector(`[data-pm-host-id="${hostId}"]`)
                     : null;
                 dependencies.closeMenu(otherMenu, host);
             });
@@ -108,11 +103,7 @@ export function buildEditTagsMultiSelect(
     });
     document.addEventListener("click", (event) => {
         const target = event.target as Node | null;
-        if (
-            target &&
-            !wrapper.contains(target) &&
-            !menu.contains(target)
-        ) {
+        if (target && !wrapper.contains(target) && !menu.contains(target)) {
             dependencies.closeMenu(menu, wrapper);
         }
     });

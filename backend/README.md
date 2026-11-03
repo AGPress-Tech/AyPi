@@ -59,7 +59,6 @@ Avvio automatico server:
   - `backend/scripts/install-server-task.ps1`
   - `backend/scripts/uninstall-server-task.ps1`
 
-
 ### Gestione completa dei programmi (03/11/2026)
 
 Dopo il collaudo riuscito, la nuova revisione abilita manage in produzione.

@@ -109,11 +109,7 @@ function createCategoryField(
     });
     document.addEventListener("click", (event) => {
         const target = event.target as Node | null;
-        if (
-            target &&
-            !wrapper.contains(target) &&
-            !menu.contains(target)
-        ) {
+        if (target && !wrapper.contains(target) && !menu.contains(target)) {
             context.closeMultiselectMenu(menu, wrapper);
         }
     });
@@ -205,8 +201,7 @@ export function createPurchaseRequestLine(
             label: "UM",
             value: line.unit,
             placeholder: "Pezzi / Scatole",
-            onInput: (value) =>
-                context.updateLineField(index, "unit", value),
+            onInput: (value) => context.updateLineField(index, "unit", value),
         }),
         createUrgencyField(context, line, index),
     );
@@ -225,15 +220,13 @@ export function createPurchaseRequestLine(
             label: "URL",
             value: line.url,
             placeholder: "Link prodotto (opzionale)",
-            onInput: (value) =>
-                context.updateLineField(index, "url", value),
+            onInput: (value) => context.updateLineField(index, "url", value),
         }),
         createTextField(document, {
             label: "Note riga",
             value: line.note,
             placeholder: "Note specifiche",
-            onInput: (value) =>
-                context.updateLineField(index, "note", value),
+            onInput: (value) => context.updateLineField(index, "note", value),
         }),
     );
 

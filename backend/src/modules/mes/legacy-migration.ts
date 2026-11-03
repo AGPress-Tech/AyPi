@@ -11,7 +11,10 @@ import {
 } from "../../shared/db/sqlite";
 import { logger } from "../../shared/logging/logger";
 import { initializeProductionPlannerSqliteStore } from "../production-planner/repository";
-import { initializeMesSqliteStore, backfillMesActivationIds } from "./repository";
+import {
+    initializeMesSqliteStore,
+    backfillMesActivationIds,
+} from "./repository";
 
 type LegacyTable = {
     name: string;
@@ -53,14 +56,19 @@ function tableExists(database: any, table: string) {
 }
 
 function tableColumns(database: any, table: string) {
-    return (database.exec(`PRAGMA table_info(${quoteIdentifier(table)})`)?.[0]?.values || [])
-        .map((row: unknown[]) => String(row[1]));
+    return (
+        database.exec(`PRAGMA table_info(${quoteIdentifier(table)})`)?.[0]
+            ?.values || []
+    ).map((row: unknown[]) => String(row[1]));
 }
 
 function tableCount(database: any, table: string) {
-    return Number(database.exec(
-        `SELECT COUNT(*) FROM ${quoteIdentifier(table)}`,
-    )?.[0]?.values?.[0]?.[0]) || 0;
+    return (
+        Number(
+            database.exec(`SELECT COUNT(*) FROM ${quoteIdentifier(table)}`)?.[0]
+                ?.values?.[0]?.[0],
+        ) || 0
+    );
 }
 
 function allocateSafetyCopyPath() {
@@ -75,8 +83,11 @@ function allocateSafetyCopyPath() {
 function copyTableRows(source: any, target: any, descriptor: LegacyTable) {
     const sourceColumns = tableColumns(source, descriptor.name);
     const targetColumnSet = new Set(tableColumns(target, descriptor.name));
-    const columns = sourceColumns.filter((column) => targetColumnSet.has(column));
-    if (!columns.length) throw new Error(`Nessuna colonna compatibile per ${descriptor.name}.`);
+    const columns = sourceColumns.filter((column) =>
+        targetColumnSet.has(column),
+    );
+    if (!columns.length)
+        throw new Error(`Nessuna colonna compatibile per ${descriptor.name}.`);
     const columnSql = columns.map(quoteIdentifier).join(", ");
     const placeholders = columns.map(() => "?").join(", ");
     const insertSql = `INSERT OR IGNORE INTO ${quoteIdentifier(descriptor.name)} (${columnSql}) VALUES (${placeholders})`;
@@ -87,21 +98,31 @@ function copyTableRows(source: any, target: any, descriptor: LegacyTable) {
             `SELECT ${columnSql} FROM ${quoteIdentifier(descriptor.name)} LIMIT ? OFFSET ?`,
             [pageSize, offset],
         )?.[0];
-        (result?.values || []).forEach((values: unknown[]) => target.run(insertSql, values));
+        (result?.values || []).forEach((values: unknown[]) =>
+            target.run(insertSql, values),
+        );
     }
 
-    if (descriptor.name === "production_planner_state" && descriptor.revisionColumn) {
+    if (
+        descriptor.name === "production_planner_state" &&
+        descriptor.revisionColumn
+    ) {
         const sourceRow = source.exec(
             `SELECT ${columnSql} FROM production_planner_state WHERE store_key = 'main'`,
         )?.[0]?.values?.[0];
         if (sourceRow) {
             const revisionIndex = columns.indexOf(descriptor.revisionColumn);
-            const targetRevision = Number(target.exec(
-                "SELECT revision FROM production_planner_state WHERE store_key = 'main'",
-            )?.[0]?.values?.[0]?.[0]) || 0;
+            const targetRevision =
+                Number(
+                    target.exec(
+                        "SELECT revision FROM production_planner_state WHERE store_key = 'main'",
+                    )?.[0]?.values?.[0]?.[0],
+                ) || 0;
             const sourceRevision = Number(sourceRow[revisionIndex]) || 0;
             if (sourceRevision > targetRevision) {
-                target.run("DELETE FROM production_planner_state WHERE store_key = 'main'");
+                target.run(
+                    "DELETE FROM production_planner_state WHERE store_key = 'main'",
+                );
                 target.run(insertSql, sourceRow);
             }
         }
@@ -114,8 +135,11 @@ export function migrateLegacyMesStorage() {
     initializeProductionPlannerSqliteStore();
     const primary = getSqliteDatabase();
     const mes = getMesSqliteDatabase();
-    const present = LEGACY_TABLES.filter((table) => tableExists(primary, table.name));
-    if (!present.length) return { migrated: false, backupPath: "", tables: [] as string[] };
+    const present = LEGACY_TABLES.filter((table) =>
+        tableExists(primary, table.name),
+    );
+    if (!present.length)
+        return { migrated: false, backupPath: "", tables: [] as string[] };
 
     const backupPath = allocateSafetyCopyPath();
     fs.writeFileSync(backupPath, Buffer.from(primary.export()), { flag: "wx" });
@@ -124,9 +148,14 @@ export function migrateLegacyMesStorage() {
     runMesSqliteTransaction((target) => {
         present.forEach((descriptor) => {
             if (!tableExists(target, descriptor.name)) {
-                throw new Error(`Tabella MES di destinazione mancante: ${descriptor.name}.`);
+                throw new Error(
+                    `Tabella MES di destinazione mancante: ${descriptor.name}.`,
+                );
             }
-            copiedCounts.set(descriptor.name, copyTableRows(primary, target, descriptor));
+            copiedCounts.set(
+                descriptor.name,
+                copyTableRows(primary, target, descriptor),
+            );
         });
         backfillMesActivationIds(target);
     });

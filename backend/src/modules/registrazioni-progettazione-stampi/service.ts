@@ -12,7 +12,8 @@ import {
 const enqueue = createOperationQueue("registrazioni-progettazione-stampi");
 
 export const getRegistrazioniStampi = () => listRegistrazioniStampi();
-export const getRegistrazioneStampi = (code: string) => loadRegistrazioneStampi(code);
+export const getRegistrazioneStampi = (code: string) =>
+    loadRegistrazioneStampi(code);
 export const getRegistrazioneStampiAttachmentPath = (name: string) =>
     resolveRegistrazioneStampiAttachment(name);
 
@@ -23,7 +24,11 @@ export function saveRegistrazioneStampiItem(
 ) {
     const meta = buildContext(context);
     return enqueue("saveItem", () => {
-        const saved = saveRegistrazioneStampi({ ...payload, code, progettoNumero: code });
+        const saved = saveRegistrazioneStampi({
+            ...payload,
+            code,
+            progettoNumero: code,
+        });
         logger.info("Registrazione progettazione stampi salvata", {
             ...meta,
             event: "registrazione_progettazione_stampi_saved",
@@ -37,7 +42,10 @@ export function saveRegistrazioneStampiItem(
     });
 }
 
-export function removeRegistrazioneStampiItem(code: string, context?: ActionContext) {
+export function removeRegistrazioneStampiItem(
+    code: string,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("deleteItem", () => {
         const removed = deleteRegistrazioneStampi(code);

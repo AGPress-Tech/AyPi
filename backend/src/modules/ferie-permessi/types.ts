@@ -36,7 +36,9 @@ export type BalanceEntry = {
 };
 
 export type HolidayLike = { date?: string; name?: string } | string;
-export type ClosureLike = { start?: string; end?: string; name?: string } | string;
+export type ClosureLike =
+    | { start?: string; end?: string; name?: string }
+    | string;
 export type HolidayEntry = { date: string; name?: string };
 export type ClosureEntry = { start: string; end?: string; name?: string };
 

@@ -131,13 +131,19 @@ function inferModule(
     if (combined.includes("ferie-permessi") || combined.includes(" fp ")) {
         return "calendar";
     }
-    if (combined.includes("product-manager") || combined.includes("purchasing")) {
+    if (
+        combined.includes("product-manager") ||
+        combined.includes("purchasing")
+    ) {
         return "purchasing";
     }
     if (combined.includes("ticket-support") || combined.includes("ticket")) {
         return "ticket";
     }
-    if (combined.includes("transfer-attrezzaggio") || combined.includes("attrezz")) {
+    if (
+        combined.includes("transfer-attrezzaggio") ||
+        combined.includes("attrezz")
+    ) {
         return "transfer";
     }
     if (combined.includes("/api/shared/") || combined.includes("shared")) {
@@ -167,17 +173,27 @@ function inferCategory(
     const scope = String(data.scope || "").toLowerCase();
     const msg = String(message || "").toLowerCase();
 
-    if (msg.includes("failed") || statusCode >= 400 || data.detail) return "error";
+    if (msg.includes("failed") || statusCode >= 400 || data.detail)
+        return "error";
     if (msg.includes("file write") || filePath) return "storage";
-    if (msg.includes("backup") || msg.includes("restore") || filePath.includes("backup")) {
+    if (
+        msg.includes("backup") ||
+        msg.includes("restore") ||
+        filePath.includes("backup")
+    ) {
         return "backup";
     }
-    if (msg.includes("verify") || msg.includes("admin") || url.includes("/admins")) {
+    if (
+        msg.includes("verify") ||
+        msg.includes("admin") ||
+        url.includes("/admins")
+    ) {
         return "auth";
     }
     if (msg.includes("queue") || scope) return "queue";
     if (msg.includes("http request") || method || url) return "http";
-    if (msg.includes("backend listening") || msg.includes("backend stopped")) return "lifecycle";
+    if (msg.includes("backend listening") || msg.includes("backend stopped"))
+        return "lifecycle";
     return "data";
 }
 
@@ -188,13 +204,23 @@ function getCategoryMeta(category: string): ViewerCategory {
         case "queue":
             return { key: category, label: "Coda", icon: "≋", tone: "accent" };
         case "storage":
-            return { key: category, label: "Storage", icon: "🗂", tone: "neutral" };
+            return {
+                key: category,
+                label: "Storage",
+                icon: "🗂",
+                tone: "neutral",
+            };
         case "backup":
             return { key: category, label: "Backup", icon: "⟲", tone: "warn" };
         case "auth":
             return { key: category, label: "Auth", icon: "🔐", tone: "accent" };
         case "lifecycle":
-            return { key: category, label: "Stato", icon: "●", tone: "neutral" };
+            return {
+                key: category,
+                label: "Stato",
+                icon: "●",
+                tone: "neutral",
+            };
         case "error":
             return { key: category, label: "Errore", icon: "⚠", tone: "error" };
         case "tray":
@@ -269,14 +295,28 @@ function buildLogFileDescriptors(logDir: string, trayDebugLogPath: string) {
 
 function normalizeFilters(filters: LogViewerFilters = {}) {
     return {
-        level: String(filters.level || "").trim().toUpperCase(),
-        search: String(filters.search || "").trim().toLowerCase(),
+        level: String(filters.level || "")
+            .trim()
+            .toUpperCase(),
+        search: String(filters.search || "")
+            .trim()
+            .toLowerCase(),
         file: String(filters.file || "").trim(),
-        source: String(filters.source || "").trim().toLowerCase(),
-        remoteAddress: String(filters.remoteAddress || "").trim().toLowerCase(),
-        module: String(filters.module || "").trim().toLowerCase(),
-        requestId: String(filters.requestId || "").trim().toLowerCase(),
-        user: String(filters.user || "").trim().toLowerCase(),
+        source: String(filters.source || "")
+            .trim()
+            .toLowerCase(),
+        remoteAddress: String(filters.remoteAddress || "")
+            .trim()
+            .toLowerCase(),
+        module: String(filters.module || "")
+            .trim()
+            .toLowerCase(),
+        requestId: String(filters.requestId || "")
+            .trim()
+            .toLowerCase(),
+        user: String(filters.user || "")
+            .trim()
+            .toLowerCase(),
         limit: Math.max(50, Math.min(Number(filters.limit) || 250, 1000)),
     };
 }
@@ -438,20 +478,30 @@ function buildHttpOperationLabel(method: string, url: string) {
 
     if (normalizedUrl.includes("/api/ferie-permessi/payload")) {
         if (normalizedMethod === "GET") return "Lettura stato Ferie e Permessi";
-        if (normalizedMethod === "PUT") return "Sostituzione payload Ferie e Permessi";
+        if (normalizedMethod === "PUT")
+            return "Sostituzione payload Ferie e Permessi";
     }
-    if (normalizedUrl.includes("/api/ferie-permessi/requests/") && normalizedUrl.endsWith("/approve")) {
+    if (
+        normalizedUrl.includes("/api/ferie-permessi/requests/") &&
+        normalizedUrl.endsWith("/approve")
+    ) {
         return "Approvazione richiesta Ferie e Permessi";
     }
-    if (normalizedUrl.includes("/api/ferie-permessi/requests/") && normalizedUrl.endsWith("/reject")) {
+    if (
+        normalizedUrl.includes("/api/ferie-permessi/requests/") &&
+        normalizedUrl.endsWith("/reject")
+    ) {
         return "Rifiuto richiesta Ferie e Permessi";
     }
     if (normalizedUrl.includes("/api/ferie-permessi/requests/")) {
-        if (normalizedMethod === "PUT") return "Modifica richiesta Ferie e Permessi";
-        if (normalizedMethod === "DELETE") return "Eliminazione richiesta Ferie e Permessi";
+        if (normalizedMethod === "PUT")
+            return "Modifica richiesta Ferie e Permessi";
+        if (normalizedMethod === "DELETE")
+            return "Eliminazione richiesta Ferie e Permessi";
     }
     if (normalizedUrl.includes("/api/ferie-permessi/requests")) {
-        if (normalizedMethod === "POST") return "Creazione richiesta Ferie e Permessi";
+        if (normalizedMethod === "POST")
+            return "Creazione richiesta Ferie e Permessi";
     }
     if (normalizedUrl.includes("/api/ferie-permessi/holidays/")) {
         if (normalizedMethod === "PUT") return "Modifica festivita";
@@ -465,22 +515,31 @@ function buildHttpOperationLabel(method: string, url: string) {
         if (normalizedMethod === "PUT") return "Modifica chiusura";
         if (normalizedMethod === "DELETE") return "Eliminazione chiusura";
     }
-    if (normalizedUrl.includes("/api/ferie-permessi/backups/") && normalizedUrl.endsWith("/restore")) {
+    if (
+        normalizedUrl.includes("/api/ferie-permessi/backups/") &&
+        normalizedUrl.endsWith("/restore")
+    ) {
         return "Ripristino backup Ferie e Permessi";
     }
     if (normalizedUrl.includes("/api/ferie-permessi/backups")) {
-        if (normalizedMethod === "GET") return "Lettura lista backup Ferie e Permessi";
-        if (normalizedMethod === "POST") return "Creazione backup Ferie e Permessi";
+        if (normalizedMethod === "GET")
+            return "Lettura lista backup Ferie e Permessi";
+        if (normalizedMethod === "POST")
+            return "Creazione backup Ferie e Permessi";
     }
 
     if (normalizedUrl.includes("/api/product-manager/bootstrap")) {
         return "Lettura bootstrap Purchasing";
     }
-    if (normalizedUrl.includes("/api/product-manager/backups/") && normalizedUrl.endsWith("/restore")) {
+    if (
+        normalizedUrl.includes("/api/product-manager/backups/") &&
+        normalizedUrl.endsWith("/restore")
+    ) {
         return "Ripristino backup Purchasing";
     }
     if (normalizedUrl.includes("/api/product-manager/backups")) {
-        if (normalizedMethod === "GET") return "Lettura lista backup Purchasing";
+        if (normalizedMethod === "GET")
+            return "Lettura lista backup Purchasing";
         if (normalizedMethod === "POST") return "Creazione backup Purchasing";
     }
     if (normalizedUrl.includes("/api/product-manager/requests")) {
@@ -513,7 +572,10 @@ function buildHttpOperationLabel(method: string, url: string) {
         if (normalizedMethod === "GET") return "Lettura categorie ticket";
         if (normalizedMethod === "PUT") return "Salvataggio categorie ticket";
     }
-    if (normalizedUrl.includes("/api/ticket-support/backups/") && normalizedUrl.endsWith("/restore")) {
+    if (
+        normalizedUrl.includes("/api/ticket-support/backups/") &&
+        normalizedUrl.endsWith("/restore")
+    ) {
         return "Ripristino backup ticket";
     }
     if (normalizedUrl.includes("/api/ticket-support/backups")) {
@@ -522,9 +584,12 @@ function buildHttpOperationLabel(method: string, url: string) {
     }
 
     if (normalizedUrl.includes("/api/transfer-attrezzaggio/items/")) {
-        if (normalizedMethod === "GET") return "Lettura scheda attrezzaggio transfer";
-        if (normalizedMethod === "PUT") return "Salvataggio scheda attrezzaggio transfer";
-        if (normalizedMethod === "DELETE") return "Eliminazione scheda attrezzaggio transfer";
+        if (normalizedMethod === "GET")
+            return "Lettura scheda attrezzaggio transfer";
+        if (normalizedMethod === "PUT")
+            return "Salvataggio scheda attrezzaggio transfer";
+        if (normalizedMethod === "DELETE")
+            return "Eliminazione scheda attrezzaggio transfer";
     }
     if (normalizedUrl.includes("/api/transfer-attrezzaggio/items")) {
         return "Lettura lista schede attrezzaggio transfer";
@@ -564,10 +629,12 @@ function buildStructuredOperationSummary(
         event === "http_request_completed" ||
         event === "http_request_failed"
     ) {
-        const label = buildHttpOperationLabel(method, url) || `${method} ${url}`.trim();
+        const label =
+            buildHttpOperationLabel(method, url) || `${method} ${url}`.trim();
         if (event === "http_request_started") return `${label} in corso`;
         if (event === "http_request_failed") return `${label} fallita`;
-        if (Number(data.statusCode || 0) >= 400) return `${label} completata con warning`;
+        if (Number(data.statusCode || 0) >= 400)
+            return `${label} completata con warning`;
         return `${label} completata`;
     }
 
@@ -583,7 +650,8 @@ function buildStructuredOperationSummary(
         purchasing_save_interventions: "Interventi Purchasing salvati",
         purchasing_save_catalog: "Catalogo Purchasing salvato",
         purchasing_save_categories: "Categorie Purchasing salvate",
-        purchasing_save_intervention_types: "Tipi intervento Purchasing salvati",
+        purchasing_save_intervention_types:
+            "Tipi intervento Purchasing salvati",
         purchasing_save_catalog_image: "Immagine catalogo Purchasing salvata",
         ticket_backup_created: "Backup Ticket creato",
         ticket_backup_restored: "Backup Ticket ripristinato",
@@ -694,7 +762,8 @@ function interpretDetails(message: string, details: unknown) {
             ? (data.balanceChange as Record<string, unknown>)
             : null;
     if (balanceChange) {
-        const employee = toDisplayValue(balanceChange.employee).trim() || "dipendente";
+        const employee =
+            toDisplayValue(balanceChange.employee).trim() || "dipendente";
         changes.push({
             label: `Saldo ore ${employee}`,
             before: toDisplayValue(balanceChange.beforeHours).trim() || "-",
@@ -717,13 +786,21 @@ function interpretDetails(message: string, details: unknown) {
     }
     if (message === "HTTP request started" && data.method && data.url) {
         summary = `Richiesta in ingresso ${data.method} ${data.url}`;
-    } else if (message === "HTTP request completed" && data.method && data.url) {
+    } else if (
+        message === "HTTP request completed" &&
+        data.method &&
+        data.url
+    ) {
         summary = `Richiesta completata ${data.method} ${data.url}`;
     } else if (message === "HTTP request failed" && data.method && data.url) {
         summary = `Richiesta fallita ${data.method} ${data.url}`;
     } else if (message === "FP payload read") {
         summary = "Lettura stato Ferie e Permessi";
-    } else if (message === "Queue operation completed" && data.scope && data.operationName) {
+    } else if (
+        message === "Queue operation completed" &&
+        data.scope &&
+        data.operationName
+    ) {
         summary = `Operazione completata: ${data.scope} / ${data.operationName}`;
     } else if (message === "File write" && data.filePath) {
         summary = `Scrittura file completata`;
@@ -771,19 +848,20 @@ function normalizeTimelineItems(entries: ParsedLogEntry[]) {
         "SQLite persisted",
     ]);
     const eventOf = (entry?: ParsedLogEntry) => {
-        const details = entry?.details && typeof entry.details === "object"
-            ? (entry.details as Record<string, unknown>)
-            : {};
+        const details =
+            entry?.details && typeof entry.details === "object"
+                ? (entry.details as Record<string, unknown>)
+                : {};
         return String(details.event || "").toLowerCase();
     };
     const isTechnicalNoise = (entry?: ParsedLogEntry) =>
-        !!entry && (
-            technicalNoiseEvents.has(eventOf(entry)) ||
-            technicalNoiseMessages.has(entry.message)
-        );
+        !!entry &&
+        (technicalNoiseEvents.has(eventOf(entry)) ||
+            technicalNoiseMessages.has(entry.message));
     entries.forEach((entry, index) => {
         if (!entry.requestId && isTechnicalNoise(entry)) return;
-        const key = entry.requestId ||
+        const key =
+            entry.requestId ||
             `single:${entry.fileName}:${entry.timestamp}:${index}`;
         if (!groupsMap.has(key)) groupsMap.set(key, []);
         groupsMap.get(key)?.push(entry);
@@ -799,30 +877,38 @@ function normalizeTimelineItems(entries: ParsedLogEntry[]) {
                 entry?.details && typeof entry.details === "object"
                     ? (entry.details as Record<string, unknown>)
                     : {};
-            const httpOutcome = [...sorted].reverse().find((entry) =>
-                eventOf(entry) === "http_request_completed" ||
-                eventOf(entry) === "http_request_failed",
-            );
-            const actionEntry = [...sorted].reverse().find(
-                (entry) => !isTechnicalNoise(entry),
-            );
-            const failedEntry = [...sorted].reverse().find(
-                (entry) => entry.level === "ERROR" ||
-                    eventOf(entry) === "http_request_failed",
-            );
+            const httpOutcome = [...sorted]
+                .reverse()
+                .find(
+                    (entry) =>
+                        eventOf(entry) === "http_request_completed" ||
+                        eventOf(entry) === "http_request_failed",
+                );
+            const actionEntry = [...sorted]
+                .reverse()
+                .find((entry) => !isTechnicalNoise(entry));
+            const failedEntry = [...sorted]
+                .reverse()
+                .find(
+                    (entry) =>
+                        entry.level === "ERROR" ||
+                        eventOf(entry) === "http_request_failed",
+                );
             const primary = failedEntry || actionEntry || httpOutcome || last;
             const outcomeDetails = detailsOf(httpOutcome || primary);
             const statusCode = Number(outcomeDetails.statusCode || 0);
-            const outcome = failedEntry || statusCode >= 500
-                ? "error"
-                : statusCode >= 400 || primary?.level === "WARN"
-                    ? "warning"
-                    : "success";
-            const outcomeLabel = outcome === "error"
-                ? "Errore"
-                : outcome === "warning"
-                    ? "Attenzione"
-                    : "Riuscita";
+            const outcome =
+                failedEntry || statusCode >= 500
+                    ? "error"
+                    : statusCode >= 400 || primary?.level === "WARN"
+                      ? "warning"
+                      : "success";
+            const outcomeLabel =
+                outcome === "error"
+                    ? "Errore"
+                    : outcome === "warning"
+                      ? "Attenzione"
+                      : "Riuscita";
             const users = Array.from(
                 new Set(sorted.map((item) => item.user).filter(Boolean)),
             );
@@ -844,25 +930,33 @@ function normalizeTimelineItems(entries: ParsedLogEntry[]) {
                 method: String(outcomeDetails.method || ""),
                 url: String(outcomeDetails.url || ""),
                 entries: primary
-                    ? [{
-                        timestamp: primary.timestamp,
-                        level: outcome === "error"
-                            ? "ERROR"
-                            : outcome === "warning"
-                                ? "WARN"
-                                : primary.level,
-                        source: primary.source,
-                        module: primary.module,
-                        category: getCategoryMeta(primary.category),
-                        message: primary.message,
-                        interpreted: interpretDetails(primary.message, primary.details),
-                        remoteAddress: primary.remoteAddress,
-                        fileName: primary.fileName,
-                    }]
+                    ? [
+                          {
+                              timestamp: primary.timestamp,
+                              level:
+                                  outcome === "error"
+                                      ? "ERROR"
+                                      : outcome === "warning"
+                                        ? "WARN"
+                                        : primary.level,
+                              source: primary.source,
+                              module: primary.module,
+                              category: getCategoryMeta(primary.category),
+                              message: primary.message,
+                              interpreted: interpretDetails(
+                                  primary.message,
+                                  primary.details,
+                              ),
+                              remoteAddress: primary.remoteAddress,
+                              fileName: primary.fileName,
+                          },
+                      ]
                     : [],
             };
         })
-        .sort((a, b) => String(b.finishedAt).localeCompare(String(a.finishedAt)));
+        .sort((a, b) =>
+            String(b.finishedAt).localeCompare(String(a.finishedAt)),
+        );
 }
 
 export function loadLogViewerData(
@@ -873,23 +967,21 @@ export function loadLogViewerData(
 ) {
     const normalizedFilters = normalizeFilters(filters);
     const allDescriptors = buildLogFileDescriptors(logDir, trayDebugLogPath);
-    const descriptors = allDescriptors.filter(
-        (descriptor) => {
-            if (
-                normalizedFilters.file &&
-                descriptor.fileName !== normalizedFilters.file
-            ) {
-                return false;
-            }
-            if (
-                normalizedFilters.source &&
-                descriptor.source !== normalizedFilters.source
-            ) {
-                return false;
-            }
-            return true;
-        },
-    );
+    const descriptors = allDescriptors.filter((descriptor) => {
+        if (
+            normalizedFilters.file &&
+            descriptor.fileName !== normalizedFilters.file
+        ) {
+            return false;
+        }
+        if (
+            normalizedFilters.source &&
+            descriptor.source !== normalizedFilters.source
+        ) {
+            return false;
+        }
+        return true;
+    });
     const effectiveCursor: LogViewerCursor = cursor
         ? {
               fileIndex: Math.max(0, Number(cursor.fileIndex) || 0),
@@ -903,7 +995,10 @@ export function loadLogViewerData(
     let fileIndex = effectiveCursor.fileIndex;
     const offsets = { ...effectiveCursor.offsets };
 
-    while (fileIndex < descriptors.length && entries.length < normalizedFilters.limit) {
+    while (
+        fileIndex < descriptors.length &&
+        entries.length < normalizedFilters.limit
+    ) {
         const descriptor = descriptors[fileIndex];
         const batch = readLogEntriesBatchFromFile(
             descriptor,
@@ -926,12 +1021,16 @@ export function loadLogViewerData(
         .filter((value, index, items) => items.indexOf(value) === index);
     const defaultFile = availableFiles.includes(todayFile)
         ? todayFile
-        : availableFiles.find((file) => file !== path.basename(trayDebugLogPath)) || "";
+        : availableFiles.find(
+              (file) => file !== path.basename(trayDebugLogPath),
+          ) || "";
     const actionGroups = normalizeTimelineItems(entries);
     const stats = {
         total: actionGroups.length,
-        info: actionGroups.filter((group) => group.outcome === "success").length,
-        warn: actionGroups.filter((group) => group.outcome === "warning").length,
+        info: actionGroups.filter((group) => group.outcome === "success")
+            .length,
+        warn: actionGroups.filter((group) => group.outcome === "warning")
+            .length,
         error: actionGroups.filter((group) => group.outcome === "error").length,
     };
     const nextCursor =

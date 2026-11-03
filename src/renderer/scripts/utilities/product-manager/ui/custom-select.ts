@@ -50,7 +50,10 @@ function positionFloating(selectEl, list, wrapper) {
 function updateButton(selectEl, button) {
     if (!selectEl || !button) return;
     const selected = selectEl.selectedOptions?.[0];
-    const label = selected && selected.value ? selected.textContent : selected?.textContent || "";
+    const label =
+        selected && selected.value
+            ? selected.textContent
+            : selected?.textContent || "";
     button.textContent = label || "Seleziona";
     button.dataset.value = selected?.value || "";
     button.classList.toggle("is-placeholder", !selected || !selected.value);
@@ -78,8 +81,13 @@ function syncCustomSelect(selectEl) {
             selectEl.value = opt.value;
             selectEl.dispatchEvent(new Event("change", { bubbles: true }));
             updateButton(selectEl, button);
-            Array.from(list.querySelectorAll(".pm-custom-select__option")).forEach((btn) => {
-                btn.classList.toggle("is-selected", btn.dataset.value === opt.value);
+            Array.from(
+                list.querySelectorAll(".pm-custom-select__option"),
+            ).forEach((btn) => {
+                btn.classList.toggle(
+                    "is-selected",
+                    btn.dataset.value === opt.value,
+                );
             });
             closeSelect(elements.wrapper);
             clearFloating(list);
@@ -131,24 +139,32 @@ function ensureCustomSelect(selectEl) {
 
     button.addEventListener("click", () => {
         if (!wrapper.classList.contains("is-open")) {
-            doc.querySelectorAll(".pm-custom-select.is-open").forEach((other) => {
-                if (other === wrapper) return;
-                other.classList.remove("is-open");
-                const otherList = other.querySelector(".pm-custom-select__list");
-                if (otherList) clearFloating(otherList);
-            });
-            doc.querySelectorAll(".pm-multiselect__menu--floating").forEach((menuEl) => {
-                menuEl.classList.add("is-hidden");
-                menuEl.classList.remove("pm-multiselect__menu--floating");
-                menuEl.style.top = "";
-                menuEl.style.left = "";
-                menuEl.style.width = "";
-                const hostId = menuEl.dataset.pmHostId || "";
-                const hostEl = hostId ? doc.querySelector(`[data-pm-host-id="${hostId}"]`) : null;
-                if (hostEl && !hostEl.contains(menuEl)) {
-                    hostEl.appendChild(menuEl);
-                }
-            });
+            doc.querySelectorAll(".pm-custom-select.is-open").forEach(
+                (other) => {
+                    if (other === wrapper) return;
+                    other.classList.remove("is-open");
+                    const otherList = other.querySelector(
+                        ".pm-custom-select__list",
+                    );
+                    if (otherList) clearFloating(otherList);
+                },
+            );
+            doc.querySelectorAll(".pm-multiselect__menu--floating").forEach(
+                (menuEl) => {
+                    menuEl.classList.add("is-hidden");
+                    menuEl.classList.remove("pm-multiselect__menu--floating");
+                    menuEl.style.top = "";
+                    menuEl.style.left = "";
+                    menuEl.style.width = "";
+                    const hostId = menuEl.dataset.pmHostId || "";
+                    const hostEl = hostId
+                        ? doc.querySelector(`[data-pm-host-id="${hostId}"]`)
+                        : null;
+                    if (hostEl && !hostEl.contains(menuEl)) {
+                        hostEl.appendChild(menuEl);
+                    }
+                },
+            );
         }
         wrapper.classList.toggle("is-open");
         handleOpenChange();
@@ -180,9 +196,14 @@ function ensureCustomSelect(selectEl) {
 
     selectEl.addEventListener("change", () => {
         updateButton(selectEl, button);
-        Array.from(list.querySelectorAll(".pm-custom-select__option")).forEach((optionBtn) => {
-            optionBtn.classList.toggle("is-selected", optionBtn.dataset.value === selectEl.value);
-        });
+        Array.from(list.querySelectorAll(".pm-custom-select__option")).forEach(
+            (optionBtn) => {
+                optionBtn.classList.toggle(
+                    "is-selected",
+                    optionBtn.dataset.value === selectEl.value,
+                );
+            },
+        );
     });
 
     const observer = new MutationObserver(() => {
@@ -201,8 +222,13 @@ function initCustomSelects({ document, selector }) {
     });
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    ensureCustomSelect,
-    syncCustomSelect,
-    initCustomSelects,
-};
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        ensureCustomSelect,
+        syncCustomSelect,
+        initCustomSelects,
+    };

@@ -86,45 +86,57 @@ const validateTransferPayload = createSchemaValidator<any>({
 });
 
 export function registerTransferAttrezzaggioRoutes(router: Router) {
-    router.register("GET", "/api/transfer-attrezzaggio/items", async (_req, res) => {
-        sendJson(res, 200, { items: getTransferItems() });
-    });
+    router.register(
+        "GET",
+        "/api/transfer-attrezzaggio/items",
+        async (_req, res) => {
+            sendJson(res, 200, { items: getTransferItems() });
+        },
+    );
 
-    router.register("GET", "/api/transfer-attrezzaggio/items/:code", async (_req, res, params) => {
-        const item = getTransferItem(params.code);
-        if (!item) {
-            throw notFound("Transfer item not found");
-        }
-        sendJson(res, 200, { item });
-    });
+    router.register(
+        "GET",
+        "/api/transfer-attrezzaggio/items/:code",
+        async (_req, res, params) => {
+            const item = getTransferItem(params.code);
+            if (!item) {
+                throw notFound("Transfer item not found");
+            }
+            sendJson(res, 200, { item });
+        },
+    );
 
-    router.register("PUT", "/api/transfer-attrezzaggio/items/:code", async (req, res, params) => {
-        const payload = validateTransferPayload(
-            await readJsonBody(req),
-            "Invalid transfer item payload",
-        );
-        sendJson(
-            res,
-            200,
-            {
+    router.register(
+        "PUT",
+        "/api/transfer-attrezzaggio/items/:code",
+        async (req, res, params) => {
+            const payload = validateTransferPayload(
+                await readJsonBody(req),
+                "Invalid transfer item payload",
+            );
+            sendJson(res, 200, {
                 item: await saveTransfer(params.code, payload, {
                     actor: getRequestUser(req),
                     requestId: getRequestId(req),
                 }),
-            },
-        );
-    });
+            });
+        },
+    );
 
-    router.register("DELETE", "/api/transfer-attrezzaggio/items/:code", async (req, res, params) => {
-        const ok = await removeTransfer(params.code, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        });
-        if (!ok) {
-            throw notFound("Transfer item not found");
-        }
-        sendJson(res, 200, { ok: true });
-    });
+    router.register(
+        "DELETE",
+        "/api/transfer-attrezzaggio/items/:code",
+        async (req, res, params) => {
+            const ok = await removeTransfer(params.code, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            });
+            if (!ok) {
+                throw notFound("Transfer item not found");
+            }
+            sendJson(res, 200, { ok: true });
+        },
+    );
 
     router.register(
         "GET",

@@ -2,10 +2,7 @@ import fs from "fs";
 import path from "path";
 import initSqlJs from "sql.js";
 import { backendConfig } from "../../config";
-import {
-    ensureFolderFor,
-    replaceFileAtomic,
-} from "../storage/json-files";
+import { ensureFolderFor, replaceFileAtomic } from "../storage/json-files";
 import { logger } from "../logging/logger";
 
 type SqlJsDatabase = any;

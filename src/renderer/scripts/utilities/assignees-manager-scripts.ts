@@ -1,7 +1,9 @@
 // @ts-nocheck
 require("../shared/dev-guards");
 const { ipcRenderer } = require("electron");
-const { initBlueArchivePointerEffects } = require("../shared/bluearchive-pointer-effects");
+const {
+    initBlueArchivePointerEffects,
+} = require("../shared/bluearchive-pointer-effects");
 const IS_BLUE_ARCHIVE_ASSIGNEES =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
 if (IS_BLUE_ARCHIVE_ASSIGNEES) {
@@ -62,10 +64,12 @@ function getCtx() {
         getAssigneeGroups: () => ({ ...assigneeGroups }),
         getAssigneeEmails: () => ({ ...(assigneeEmails || {}) }),
         setAssigneeGroups: (next) => {
-            assigneeGroups = next && typeof next === "object" ? { ...next } : {};
+            assigneeGroups =
+                next && typeof next === "object" ? { ...next } : {};
         },
         setAssigneeEmails: (next) => {
-            assigneeEmails = next && typeof next === "object" ? { ...next } : {};
+            assigneeEmails =
+                next && typeof next === "object" ? { ...next } : {};
         },
         editingDepartment: () => editingDepartment,
         setEditingDepartment: (next) => {
@@ -117,9 +121,15 @@ function addDepartment() {
 }
 
 function addEmployee() {
-    const dept = String(document.getElementById("fp-employee-department")?.value || "").trim();
-    const name = String(document.getElementById("fp-employee-name")?.value || "").trim();
-    const email = String(document.getElementById("fp-employee-email")?.value || "").trim();
+    const dept = String(
+        document.getElementById("fp-employee-department")?.value || "",
+    ).trim();
+    const name = String(
+        document.getElementById("fp-employee-name")?.value || "",
+    ).trim();
+    const email = String(
+        document.getElementById("fp-employee-email")?.value || "",
+    ).trim();
     if (!dept || !name) return;
     if (!assigneeGroups[dept]) assigneeGroups[dept] = [];
     if (!assigneeGroups[dept].includes(name)) {
@@ -139,48 +149,59 @@ function addEmployee() {
 }
 
 function init() {
-    void loadAll().then(redraw).catch((err) => asyncGuard.handle(err));
+    void loadAll()
+        .then(redraw)
+        .catch((err) => asyncGuard.handle(err));
 
+    document.getElementById("am-refresh")?.addEventListener(
+        "click",
+        asyncGuard.wrap(async () => {
+            await loadAll();
+            redraw();
+            setMessage("Dati aggiornati.");
+        }),
+    );
     document
-        .getElementById("am-refresh")
-        ?.addEventListener(
-            "click",
-            asyncGuard.wrap(async () => {
-                await loadAll();
-                redraw();
-                setMessage("Dati aggiornati.");
-            }),
-        );
-    document.getElementById("am-close")?.addEventListener("click", () => window.close());
-    document.getElementById("fp-department-add")?.addEventListener("click", addDepartment);
-    document.getElementById("fp-employee-add")?.addEventListener("click", addEmployee);
-    document.getElementById("fp-department-name")?.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        addDepartment();
-    });
+        .getElementById("am-close")
+        ?.addEventListener("click", () => window.close());
+    document
+        .getElementById("fp-department-add")
+        ?.addEventListener("click", addDepartment);
+    document
+        .getElementById("fp-employee-add")
+        ?.addEventListener("click", addEmployee);
+    document
+        .getElementById("fp-department-name")
+        ?.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            addDepartment();
+        });
     const triggerEmployee = (event) => {
         if (event.key !== "Enter") return;
         event.preventDefault();
         addEmployee();
     };
-    document.getElementById("fp-employee-name")?.addEventListener("keydown", triggerEmployee);
-    document.getElementById("fp-employee-email")?.addEventListener("keydown", triggerEmployee);
+    document
+        .getElementById("fp-employee-name")
+        ?.addEventListener("keydown", triggerEmployee);
+    document
+        .getElementById("fp-employee-email")
+        ?.addEventListener("keydown", triggerEmployee);
 }
 
 document.addEventListener("DOMContentLoaded", asyncGuard.wrap(init));
 
 let realtimeRefreshTimer = null;
 ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
-    if (
-        realtimeEvent?.module !== "shared" &&
-        realtimeEvent?.module !== "*"
-    ) {
+    if (realtimeEvent?.module !== "shared" && realtimeEvent?.module !== "*") {
         return;
     }
     if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
     realtimeRefreshTimer = setTimeout(() => {
         realtimeRefreshTimer = null;
-        void loadAll().then(redraw).catch((err) => asyncGuard.handle(err));
+        void loadAll()
+            .then(redraw)
+            .catch((err) => asyncGuard.handle(err));
     }, 180);
 });

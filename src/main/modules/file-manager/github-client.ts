@@ -136,9 +136,7 @@ export async function fetchGithubCommits(
             if (sha && date) commits.push({ sha, date });
         });
         if (minTime && commits.length) {
-            const oldest = new Date(
-                commits[commits.length - 1].date,
-            ).getTime();
+            const oldest = new Date(commits[commits.length - 1].date).getTime();
             if (!Number.isNaN(oldest) && oldest <= minTime) break;
         }
         if (response.length < 100) break;

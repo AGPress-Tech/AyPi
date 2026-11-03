@@ -76,14 +76,21 @@ if (IS_DEV) {
         "warehouse-movement-details-ready",
     ]);
     if (ipcRenderer && typeof ipcRenderer.invoke === "function") {
-        const refreshKnownChannels = () => ipcRenderer
-            .invoke("dev-ipc-channels")
-            .then((payload: { on?: string[]; handle?: string[] } | null) => {
-                if (!payload) return;
-                (payload.on || []).forEach((ch) => knownChannels.add(ch));
-                (payload.handle || []).forEach((ch) => knownChannels.add(ch));
-            })
-            .catch(() => {});
+        const refreshKnownChannels = () =>
+            ipcRenderer
+                .invoke("dev-ipc-channels")
+                .then(
+                    (payload: { on?: string[]; handle?: string[] } | null) => {
+                        if (!payload) return;
+                        (payload.on || []).forEach((ch) =>
+                            knownChannels.add(ch),
+                        );
+                        (payload.handle || []).forEach((ch) =>
+                            knownChannels.add(ch),
+                        );
+                    },
+                )
+                .catch(() => {});
         void refreshKnownChannels();
         // La pagina principale può iniziare a caricarsi qualche istante prima che
         // setupFileManager abbia registrato tutti i moduli IPC. Aggiorna quindi il

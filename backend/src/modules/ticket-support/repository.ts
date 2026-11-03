@@ -16,10 +16,7 @@ import {
     getSqliteDatabase,
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
-import {
-    parseJson,
-    serializeJson,
-} from "../../shared/storage/json-codec";
+import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 
 type TicketHistoryEntry = {
     at: string;
@@ -198,7 +195,9 @@ function loadTicketStoreFromSqlite(): TicketStore {
 function saveTicketCategoriesToSqlite(payload: TicketCategories) {
     const normalized = {
         version: 1,
-        issueTypes: Array.isArray(payload?.issueTypes) ? payload.issueTypes : [],
+        issueTypes: Array.isArray(payload?.issueTypes)
+            ? payload.issueTypes
+            : [],
         areas: Array.isArray(payload?.areas) ? payload.areas : [],
     };
     runSqliteTransaction((database) => {

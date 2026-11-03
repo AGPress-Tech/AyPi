@@ -99,10 +99,7 @@ export function createCalendarFilterState(
         const defaults = buildDefaults();
         const admin = dependencies.isAdminLoggedIn();
         FILTER_KEYS.forEach((key) => {
-            const requested = toFilterBoolean(
-                state?.[key],
-                defaults[key],
-            );
+            const requested = toFilterBoolean(state?.[key], defaults[key]);
             const allowed =
                 admin || !dependencies.isAdminRequiredForFilter(key);
             const value = allowed ? requested : false;

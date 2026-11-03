@@ -1,8 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const config = require('../config');
+const fs = require("fs");
+const path = require("path");
+const config = require("../config");
 
-const REQUEST_TIMEOUT_MS = Number(process.env.AYPI_BOT_BACKEND_TIMEOUT_MS || 10000);
+const REQUEST_TIMEOUT_MS = Number(
+  process.env.AYPI_BOT_BACKEND_TIMEOUT_MS || 10000,
+);
 let syncQueue = Promise.resolve();
 
 function ensureParent(filePath) {
@@ -12,14 +14,14 @@ function ensureParent(filePath) {
 function writeJson(filePath, value) {
   ensureParent(filePath);
   const tempPath = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), 'utf8');
+  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), "utf8");
   fs.renameSync(tempPath, filePath);
 }
 
 function readJson(filePath, fallback) {
   try {
     if (!fs.existsSync(filePath)) return fallback;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch {
     return fallback;
   }
@@ -33,9 +35,9 @@ async function api(pathname, options = {}) {
       ...options,
       signal: controller.signal,
       headers: {
-        'content-type': 'application/json',
-        'x-aypi-user': 'AyPi Telegram Bot',
-        'x-aypi-client': 'telegram-bot',
+        "content-type": "application/json",
+        "x-aypi-user": "AyPi Telegram Bot",
+        "x-aypi-client": "telegram-bot",
         ...(options.headers || {}),
       },
     });
@@ -49,13 +51,14 @@ async function api(pathname, options = {}) {
 }
 
 function requestYear(request) {
-  const candidate = request?.start || request?.createdAt || request?.updatedAt || '';
+  const candidate =
+    request?.start || request?.createdAt || request?.updatedAt || "";
   const match = /^(\d{4})/.exec(String(candidate));
   return match ? match[1] : String(new Date().getFullYear());
 }
 
 function ticketYear(ticket) {
-  const parsed = new Date(ticket?.createdAt || '');
+  const parsed = new Date(ticket?.createdAt || "");
   return Number.isFinite(parsed.getTime())
     ? String(parsed.getFullYear())
     : String(new Date().getFullYear());
@@ -116,11 +119,14 @@ function writeTicketCache(store, categories) {
       tickets: items,
     });
   });
-  writeJson(config.ticketCategoriesPath, categories || {
-    version: 1,
-    issueTypes: [],
-    areas: [],
-  });
+  writeJson(
+    config.ticketCategoriesPath,
+    categories || {
+      version: 1,
+      issueTypes: [],
+      areas: [],
+    },
+  );
 }
 
 function readAllCalendarRequests() {
@@ -150,16 +156,20 @@ function stable(value) {
 }
 
 async function pullBackendState() {
-  const [calendar, tickets, categories, assignees, accessConfig] = await Promise.all([
-    api('/api/ferie-permessi/payload'),
-    api('/api/ticket-support/store'),
-    api('/api/ticket-support/categories'),
-    api('/api/shared/assignees'),
-    api('/api/shared/calendar-access-config').catch(() => null),
-  ]);
+  const [calendar, tickets, categories, assignees, accessConfig] =
+    await Promise.all([
+      api("/api/ferie-permessi/payload"),
+      api("/api/ticket-support/store"),
+      api("/api/ticket-support/categories"),
+      api("/api/shared/assignees"),
+      api("/api/shared/calendar-access-config").catch(() => null),
+    ]);
   writeCalendarCache(calendar);
   writeTicketCache(tickets, categories);
-  writeJson(config.assigneesFile, assignees || { groups: {}, options: [], emails: {} });
+  writeJson(
+    config.assigneesFile,
+    assignees || { groups: {}, options: [], emails: {} },
+  );
   if (accessConfig) {
     writeJson(config.calendarConfigFile, {
       filters: accessConfig?.operations?.filters || {},
@@ -176,31 +186,41 @@ async function pullBackendState() {
 async function pushCalendarChanges(beforeRequests) {
   const afterRequests = readAllCalendarRequests();
   const beforeById = new Map(
-    (beforeRequests || []).map((item) => [String(item?.id || ''), item]),
+    (beforeRequests || []).map((item) => [String(item?.id || ""), item]),
   );
   for (const next of afterRequests) {
-    const id = String(next?.id || '');
+    const id = String(next?.id || "");
     if (!id) continue;
     const previous = beforeById.get(id);
     if (!previous || stable(previous) === stable(next)) continue;
-    const previousStatus = String(previous.status || '').toLowerCase();
-    const nextStatus = String(next.status || '').toLowerCase();
-    if (nextStatus === 'approved' && previousStatus !== 'approved') {
-      await api(`/api/ferie-permessi/requests/${encodeURIComponent(id)}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({ actor: next.approvedBy || 'AyPi Telegram Bot' }),
-      });
+    const previousStatus = String(previous.status || "").toLowerCase();
+    const nextStatus = String(next.status || "").toLowerCase();
+    if (nextStatus === "approved" && previousStatus !== "approved") {
+      await api(
+        `/api/ferie-permessi/requests/${encodeURIComponent(id)}/approve`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            actor: next.approvedBy || "AyPi Telegram Bot",
+          }),
+        },
+      );
       continue;
     }
-    if (nextStatus === 'rejected' && previousStatus !== 'rejected') {
-      await api(`/api/ferie-permessi/requests/${encodeURIComponent(id)}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({ actor: next.rejectedBy || 'AyPi Telegram Bot' }),
-      });
+    if (nextStatus === "rejected" && previousStatus !== "rejected") {
+      await api(
+        `/api/ferie-permessi/requests/${encodeURIComponent(id)}/reject`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            actor: next.rejectedBy || "AyPi Telegram Bot",
+          }),
+        },
+      );
       continue;
     }
     await api(`/api/ferie-permessi/requests/${encodeURIComponent(id)}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(next),
     });
   }
@@ -209,8 +229,8 @@ async function pushCalendarChanges(beforeRequests) {
 async function pushTicketChanges(beforeStore, beforeTickets) {
   const afterTickets = readAllTickets();
   if (stable(beforeTickets || []) === stable(afterTickets)) return;
-  await api('/api/ticket-support/store', {
-    method: 'PUT',
+  await api("/api/ticket-support/store", {
+    method: "PUT",
     body: JSON.stringify({
       version: Number(beforeStore?.version) || 1,
       tickets: afterTickets,
@@ -223,7 +243,7 @@ async function runSynchronizedUpdate(ctx, next) {
   try {
     snapshot = await pullBackendState();
   } catch (error) {
-    console.warn('[telegram-bot] Backend sync pull failed:', error.message);
+    console.warn("[telegram-bot] Backend sync pull failed:", error.message);
   }
   const result = await next();
   if (!snapshot) return result;
@@ -231,9 +251,11 @@ async function runSynchronizedUpdate(ctx, next) {
     await pushCalendarChanges(snapshot.calendarRequests);
     await pushTicketChanges(snapshot.tickets, snapshot.ticketItems);
   } catch (error) {
-    console.error('[telegram-bot] Backend sync push failed:', error.message);
+    console.error("[telegram-bot] Backend sync push failed:", error.message);
     try {
-      await ctx.reply('⚠️ Operazione eseguita nel bot, ma la sincronizzazione con AyPi Backend non è riuscita.');
+      await ctx.reply(
+        "⚠️ Operazione eseguita nel bot, ma la sincronizzazione con AyPi Backend non è riuscita.",
+      );
     } catch {
       // ignore Telegram notification failures
     }
@@ -243,7 +265,7 @@ async function runSynchronizedUpdate(ctx, next) {
 
 function backendSyncMiddleware(ctx, next) {
   const task = syncQueue.then(() => runSynchronizedUpdate(ctx, next));
-  syncQueue = task.catch(() => {});
+  syncQueue = task.catch(() => { });
   return task;
 }
 

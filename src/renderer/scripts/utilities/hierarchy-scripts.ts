@@ -1241,8 +1241,7 @@ function renderStatsPanelV2() {
                                 );
                                 return gradient;
                             },
-                            hoverBackgroundColor:
-                                hierarchyChartTheme.secondary,
+                            hoverBackgroundColor: hierarchyChartTheme.secondary,
                             borderColor: hierarchyChartTheme.primary,
                             borderWidth: USES_MODERN_HIERARCHY ? 1 : 0,
                             borderRadius: USES_MODERN_HIERARCHY ? 7 : 0,

@@ -170,7 +170,8 @@ function setupWarehouseSplash() {
     const parameters = new URLSearchParams(window.location.search);
     const enabled = parameters.get("warehouseSplash") === "1";
     const blueArchive = parameters.get("theme") === "bluearchive";
-    const agpressScriptedSplash = !blueArchive && parameters.get("splashTheme") === "agpress";
+    const agpressScriptedSplash =
+        !blueArchive && parameters.get("splashTheme") === "agpress";
     const scriptedSplash = blueArchive || agpressScriptedSplash;
     document.body.classList.toggle("warehouse-bluearchive", blueArchive);
     document.body.classList.toggle("agpress-login-ui", !blueArchive);
@@ -2768,8 +2769,7 @@ function loadBatchValues() {
                     .querySelector(".load-batch-weighing")
                     ?.value.trim()
                     .toUpperCase() || "",
-            note:
-                row.querySelector(".load-batch-note")?.value.trim() || "",
+            note: row.querySelector(".load-batch-note")?.value.trim() || "",
             pieceCount: Number(row.querySelector(".load-batch-pieces")?.value),
         }),
     );
@@ -2913,7 +2913,7 @@ function createOperationLineElement(entry, index, review = false) {
                   ? "Tutti ordine"
                   : entry.note
                     ? "Tutti nota"
-                  : `${entry.quantity || 1} unità`;
+                    : `${entry.quantity || 1} unità`;
     const actions = document.createElement("div");
     const edit = document.createElement("button");
     edit.type = "button";
@@ -3991,7 +3991,9 @@ function planWeightedCrateAllocations(
                             left.codes[0].localeCompare(
                                 right.codes[0],
                                 undefined,
-                                { numeric: true },
+                                {
+                                    numeric: true,
+                                },
                             ),
                     )
                     .slice(0, actionWidth),
@@ -4193,7 +4195,9 @@ function planPalletEntryAllocations(initialState, entry, resultLimit = 1) {
                         .localeCompare(
                             right.pairs.flat().join("|"),
                             undefined,
-                            { numeric: true },
+                            {
+                                numeric: true,
+                            },
                         ),
             )
             .slice(0, beamWidth);
@@ -4947,7 +4951,9 @@ function optimizationEntriesAndUnits(units) {
                 String(left.item.id).localeCompare(
                     String(right.item.id),
                     "it",
-                    { numeric: true },
+                    {
+                        numeric: true,
+                    },
                 ),
         ),
     );
@@ -7285,8 +7291,7 @@ async function saveInventoryItemEdit() {
     }
     values.maxPieceCapacity = Math.max(
         values.pieceCount,
-        Number.isInteger(values.maxPieceCapacity) &&
-            values.maxPieceCapacity > 0
+        Number.isInteger(values.maxPieceCapacity) && values.maxPieceCapacity > 0
             ? values.maxPieceCapacity
             : values.pieceCount,
     );
@@ -7498,10 +7503,7 @@ async function saveUnloadZoneItemEdit() {
     if (!Number.isInteger(pieceCount) || pieceCount < 1) {
         return { error: "Il numero pezzi deve essere un intero positivo." };
     }
-    const nextMaximumPieceCapacity = Math.max(
-        maximumPieceCapacity,
-        pieceCount,
-    );
+    const nextMaximumPieceCapacity = Math.max(maximumPieceCapacity, pieceCount);
     const noteChanged = (item.note || "") !== note;
     const piecesChanged = currentPieceCount !== pieceCount;
     if (!noteChanged && !piecesChanged)
@@ -7556,10 +7558,11 @@ function setupInventoryNoteEdit() {
             event.preventDefault();
             const button = document.getElementById("saveInventoryNoteEdit");
             button.disabled = true;
-            setInventoryNoteEditMessage("Salvataggio delle modifiche in corso…");
+            setInventoryNoteEditMessage(
+                "Salvataggio delle modifiche in corso…",
+            );
             const result = await saveUnloadZoneItemEdit();
-            if (result?.error)
-                setInventoryNoteEditMessage(result.error, true);
+            if (result?.error) setInventoryNoteEditMessage(result.error, true);
             if (button.isConnected) button.disabled = false;
         });
 }
@@ -8214,7 +8217,9 @@ function operationalUnitsDetail(step) {
             `ordine ${unit.orderReference || "—"}`,
             unit.note ? `nota ${unit.note}` : "",
             `${unit.pieceCount || 0} pezzi`,
-        ].filter(Boolean).join(" · ");
+        ]
+            .filter(Boolean)
+            .join(" · ");
         row.append(identity, route, metadata);
         list.appendChild(row);
     });
@@ -10626,7 +10631,10 @@ function setupWarehouseLogin() {
             try {
                 const verified = await requestBackend(
                     "/api/shared/admins/verify",
-                    { method: "POST", body: { password, targetName } },
+                    {
+                        method: "POST",
+                        body: { password, targetName },
+                    },
                 );
                 if (!verified?.admin) throw new Error("Credenziali non valide");
                 await saveWarehouseSession({
@@ -12978,7 +12986,11 @@ function renderWarehouseSimulation() {
         const time = document.createElement("time");
         time.textContent = new Date(order.createdAt).toLocaleTimeString(
             "it-IT",
-            { hour: "2-digit", minute: "2-digit", second: "2-digit" },
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+            },
         );
         identity.append(kind, id, time);
         const body = document.createElement("div");

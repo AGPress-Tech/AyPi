@@ -32,9 +32,7 @@ export function createPasswordController(context) {
     }
 
     function close() {
-        context.hideModal(
-            document.getElementById("fp-approve-modal"),
-        );
+        context.hideModal(document.getElementById("fp-approve-modal"));
     }
 
     async function confirm() {
@@ -87,9 +85,7 @@ export function createPasswordController(context) {
             );
             return;
         }
-        const next = adminCache.filter(
-            (item) => item.name !== adminName,
-        );
+        const next = adminCache.filter((item) => item.name !== adminName);
         context.setAdminCache(next);
         context.saveAdminCredentials(next);
         context.renderAdminList();
@@ -102,8 +98,7 @@ export function createPasswordController(context) {
 
     function init() {
         const cancel = document.getElementById("fp-approve-cancel");
-        const confirmButton =
-            document.getElementById("fp-approve-confirm");
+        const confirmButton = document.getElementById("fp-approve-confirm");
         const recover = document.getElementById("fp-approve-recover");
         const input = document.getElementById("fp-approve-password");
         cancel?.addEventListener("click", close);

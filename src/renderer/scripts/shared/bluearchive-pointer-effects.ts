@@ -80,7 +80,9 @@ function initBlueArchivePointerEffects(enabled = false) {
         ring.style.left = `${x}px`;
         ring.style.top = `${y}px`;
         layer.appendChild(ring);
-        ring.addEventListener("animationend", () => ring.remove(), { once: true });
+        ring.addEventListener("animationend", () => ring.remove(), {
+            once: true,
+        });
 
         for (let index = 0; index < 10; index += 1) {
             const particle = document.createElement("i");
@@ -89,9 +91,18 @@ function initBlueArchivePointerEffects(enabled = false) {
             const distance = 24 + Math.random() * 36;
             particle.style.left = `${x}px`;
             particle.style.top = `${y}px`;
-            particle.style.setProperty("--fp-ba-particle-x", `${Math.cos(angle) * distance}px`);
-            particle.style.setProperty("--fp-ba-particle-y", `${Math.sin(angle) * distance}px`);
-            particle.style.setProperty("--fp-ba-particle-color", colors[index % colors.length]);
+            particle.style.setProperty(
+                "--fp-ba-particle-x",
+                `${Math.cos(angle) * distance}px`,
+            );
+            particle.style.setProperty(
+                "--fp-ba-particle-y",
+                `${Math.sin(angle) * distance}px`,
+            );
+            particle.style.setProperty(
+                "--fp-ba-particle-color",
+                colors[index % colors.length],
+            );
             layer.appendChild(particle);
             particle.addEventListener("animationend", () => particle.remove(), {
                 once: true,

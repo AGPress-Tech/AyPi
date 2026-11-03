@@ -137,7 +137,10 @@ export function diffCollections(options: {
             }
         }
         const afterItem = afterMap.get(key);
-        if (afterItem && JSON.stringify(beforeItem) !== JSON.stringify(afterItem)) {
+        if (
+            afterItem &&
+            JSON.stringify(beforeItem) !== JSON.stringify(afterItem)
+        ) {
             updated += 1;
             const keys = new Set<string>([
                 ...Object.keys(beforeItem || {}),
@@ -148,7 +151,11 @@ export function diffCollections(options: {
                 if (changes.length >= sampleLimit) return;
                 const beforeValue = beforeItem?.[fieldKey];
                 const afterValue = afterItem?.[fieldKey];
-                if (!isPrimitiveLike(beforeValue) || !isPrimitiveLike(afterValue)) return;
+                if (
+                    !isPrimitiveLike(beforeValue) ||
+                    !isPrimitiveLike(afterValue)
+                )
+                    return;
                 if (sameAuditValue(beforeValue, afterValue)) return;
                 changes.push({
                     label: `${entityLabel} ${key} · ${fieldLabels[fieldKey] || fieldKey}`,

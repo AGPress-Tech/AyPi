@@ -17,7 +17,9 @@ export function getRequestClient(request: IncomingMessage) {
 export function getRequestRole(request: IncomingMessage) {
     const header = request.headers["x-aypi-role"];
     const value = Array.isArray(header) ? header[0] : header;
-    return String(value || "guest").trim().toLowerCase();
+    return String(value || "guest")
+        .trim()
+        .toLowerCase();
 }
 
 export function getRequestActor(request: IncomingMessage) {

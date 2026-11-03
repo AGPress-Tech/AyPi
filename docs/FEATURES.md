@@ -1,6 +1,7 @@
 # AyPi Features
 
 ## Navigation pages
+
 - Moduli: accesso ai principali moduli AyPi aziendali.
 - Programmi: programmi di produzione e consegna dei vari reparti.
 - Articoli: documenti tecnici (tavole e disegni).
@@ -10,6 +11,7 @@
 - Utilities: strumenti e utilities generiche.
 
 ## Modules catalog
+
 - Ticket Support
 - Gestione Manutenzioni
 - Valutazione Fornitori
@@ -32,6 +34,7 @@
 - Analizzatore Gerarchia Cartelle
 
 ## Utilities
+
 - Elenco files cartella in Excel: scansione cartella e output Excel.
 - Rinomina files in batch: rinomina massiva con preset.
 - Generatore QR/Barcode: crea codici da input testuale.
@@ -40,6 +43,7 @@
 - Timer e cronometri: multipli, preset, giri e parziali.
 
 ## System
+
 - Auto update all'avvio.
 - Verifica rete interna e disponibilita' moduli.
 - Tray con azioni rapide e visione timer attivi.

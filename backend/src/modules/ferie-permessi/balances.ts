@@ -247,14 +247,19 @@ function extractEmployeeNameFromKey(key: string | null | undefined) {
 function listBalanceEntries(
     balances: Record<string, BalanceEntry> | null | undefined,
 ) {
-    return Object.entries(balances || {}).map(([key, entry]) => ({ key, entry }));
+    return Object.entries(balances || {}).map(([key, entry]) => ({
+        key,
+        entry,
+    }));
 }
 
 function buildAssigneeEmailMap(assignees: AssigneesPayload | null | undefined) {
     const emails = assignees?.emails || {};
     const map = new Map<string, string>();
     Object.keys(emails).forEach((key) => {
-        const email = String(emails[key] || "").trim().toLocaleLowerCase("it-IT");
+        const email = String(emails[key] || "")
+            .trim()
+            .toLocaleLowerCase("it-IT");
         if (!email) return;
         map.set(key, email);
     });
@@ -281,9 +286,12 @@ function findBalanceKeyByEmployeeName(
 ) {
     const target = normalizeIdentityValue(employeeName);
     if (!target) return null;
-    const entries = listBalanceEntries(balances).filter(({ key }) => !ignoredKeys?.has(key));
+    const entries = listBalanceEntries(balances).filter(
+        ({ key }) => !ignoredKeys?.has(key),
+    );
     const matches = entries.filter(({ key, entry }) => {
-        const candidateName = entry?.employee || extractEmployeeNameFromKey(key);
+        const candidateName =
+            entry?.employee || extractEmployeeNameFromKey(key);
         return normalizeIdentityValue(candidateName) === target;
     });
     if (matches.length !== 1) return null;
@@ -297,7 +305,9 @@ function findBalanceKeyByEmail(
 ) {
     const target = normalizeIdentityValue(email);
     if (!target) return null;
-    const entries = listBalanceEntries(balances).filter(({ key }) => !ignoredKeys?.has(key));
+    const entries = listBalanceEntries(balances).filter(
+        ({ key }) => !ignoredKeys?.has(key),
+    );
     const matches = entries.filter(({ entry }) => {
         return normalizeIdentityValue(entry?.employeeEmail) === target;
     });
@@ -318,10 +328,13 @@ function resolveBalanceKey(
 }
 
 function listEmployees(assignees: AssigneesPayload | null | undefined) {
-    const rows: Array<{ key: string; employee: string; department: string }> = [];
+    const rows: Array<{ key: string; employee: string; department: string }> =
+        [];
     const groups = assignees?.groups || {};
     Object.keys(groups).forEach((department) => {
-        const employees = Array.isArray(groups[department]) ? groups[department] : [];
+        const employees = Array.isArray(groups[department])
+            ? groups[department]
+            : [];
         employees.forEach((employee) => {
             const key = getEmployeeKey(employee, department);
             if (!key) return;
@@ -392,7 +405,11 @@ export function normalizeBalances(
         const rowEmail = assigneeEmails.get(row.key) || "";
         let resolvedKey = nextBalances[row.key] ? row.key : null;
         if (!resolvedKey && rowEmail) {
-            resolvedKey = findBalanceKeyByEmail(nextBalances, rowEmail, claimedKeys);
+            resolvedKey = findBalanceKeyByEmail(
+                nextBalances,
+                rowEmail,
+                claimedKeys,
+            );
         }
         if (!resolvedKey) {
             resolvedKey = findBalanceKeyByEmployeeName(
@@ -402,10 +419,16 @@ export function normalizeBalances(
             );
         }
 
-        if (resolvedKey && resolvedKey !== row.key && nextBalances[resolvedKey]) {
+        if (
+            resolvedKey &&
+            resolvedKey !== row.key &&
+            nextBalances[resolvedKey]
+        ) {
             const movedEntry = nextBalances[resolvedKey];
             const previousKeys = new Set<string>([
-                ...(Array.isArray(movedEntry.previousKeys) ? movedEntry.previousKeys : []),
+                ...(Array.isArray(movedEntry.previousKeys)
+                    ? movedEntry.previousKeys
+                    : []),
                 resolvedKey,
             ]);
             nextBalances[row.key] = {
@@ -433,7 +456,8 @@ export function normalizeBalances(
             );
             nextBalances[row.key] = {
                 hoursAvailable:
-                    Math.round((DEFAULT_INITIAL_HOURS - approvedHours) * 100) / 100,
+                    Math.round((DEFAULT_INITIAL_HOURS - approvedHours) * 100) /
+                    100,
                 lastAccrualMonth: currentMonth,
                 monthlyAccrualHours: MONTHLY_ACCRUAL_HOURS,
                 employee: row.employee,
@@ -447,7 +471,8 @@ export function normalizeBalances(
             if (closureHours > 0) {
                 nextBalances[row.key].hoursAvailable =
                     Math.round(
-                        (nextBalances[row.key].hoursAvailable - closureHours) * 100,
+                        (nextBalances[row.key].hoursAvailable - closureHours) *
+                            100,
                     ) / 100;
             }
             claimedKeys.add(row.key);
@@ -456,11 +481,16 @@ export function normalizeBalances(
         if (existing.monthlyAccrualHours == null) {
             existing.monthlyAccrualHours = MONTHLY_ACCRUAL_HOURS;
         }
-        const diff = monthDiff(existing.lastAccrualMonth || currentMonth, currentMonth);
+        const diff = monthDiff(
+            existing.lastAccrualMonth || currentMonth,
+            currentMonth,
+        );
         if (diff > 0) {
             existing.hoursAvailable =
                 (Number(existing.hoursAvailable) || 0) +
-                diff * (Number(existing.monthlyAccrualHours) || MONTHLY_ACCRUAL_HOURS);
+                diff *
+                    (Number(existing.monthlyAccrualHours) ||
+                        MONTHLY_ACCRUAL_HOURS);
             existing.lastAccrualMonth = currentMonth;
         }
         existing.employee = row.employee;
@@ -521,7 +551,8 @@ function ensureBalanceEntry(payload: FpPayload, key: string | null) {
 export function getBalanceImpact(payload: FpPayload, request: RequestLike) {
     const key = getEmployeeKey(request.employee, request.department);
     const resolvedKey = key ? resolveBalanceKey(payload.balances, key) : null;
-    const entry = resolvedKey && payload.balances ? payload.balances[resolvedKey] : null;
+    const entry =
+        resolvedKey && payload.balances ? payload.balances[resolvedKey] : null;
     const hoursBefore = entry
         ? Number(entry.hoursAvailable) || 0
         : DEFAULT_INITIAL_HOURS;
@@ -532,7 +563,10 @@ export function getBalanceImpact(payload: FpPayload, request: RequestLike) {
     return { negative: hoursAfter < 0, hoursBefore, hoursAfter, hoursDelta };
 }
 
-export function applyBalanceForApproval(payload: FpPayload, request: RequestLike) {
+export function applyBalanceForApproval(
+    payload: FpPayload,
+    request: RequestLike,
+) {
     if (request.balanceAppliedAt) return payload;
     const key = getEmployeeKey(request.employee, request.department);
     if (!key) return payload;
@@ -550,12 +584,17 @@ export function applyBalanceForApproval(payload: FpPayload, request: RequestLike
     return payload;
 }
 
-export function applyBalanceForDeletion(payload: FpPayload, request: RequestLike) {
+export function applyBalanceForDeletion(
+    payload: FpPayload,
+    request: RequestLike,
+) {
     const key = getEmployeeKey(request.employee, request.department);
     if (!key) return payload;
     const entry = ensureBalanceEntry(payload, key);
     if (!entry) return payload;
-    entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) + (Number(request.balanceHours) || 0);
+    entry.hoursAvailable =
+        (Number(entry.hoursAvailable) || 0) +
+        (Number(request.balanceHours) || 0);
     return payload;
 }
 
@@ -568,7 +607,10 @@ export function applyBalanceForUpdate(
     const isApproved = nextRequest.status === "approved";
     if (!wasApproved && !isApproved) return payload;
 
-    const oldKey = getEmployeeKey(existingRequest.employee, existingRequest.department);
+    const oldKey = getEmployeeKey(
+        existingRequest.employee,
+        existingRequest.department,
+    );
     const newKey = getEmployeeKey(nextRequest.employee, nextRequest.department);
     const oldHours = Number(existingRequest.balanceHours) || 0;
     const newHours = isBalanceNeutral(nextRequest)
@@ -578,7 +620,9 @@ export function applyBalanceForUpdate(
     if (!isApproved) {
         if (wasApproved && oldHours !== 0 && oldKey) {
             const entry = ensureBalanceEntry(payload, oldKey);
-            if (entry) entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) + oldHours;
+            if (entry)
+                entry.hoursAvailable =
+                    (Number(entry.hoursAvailable) || 0) + oldHours;
         }
         nextRequest.balanceHours = 0;
         nextRequest.balanceAppliedAt = null;
@@ -589,14 +633,19 @@ export function applyBalanceForUpdate(
     if (oldKey !== newKey) {
         if (oldHours !== 0) {
             const oldEntry = ensureBalanceEntry(payload, oldKey);
-            if (oldEntry) oldEntry.hoursAvailable = (Number(oldEntry.hoursAvailable) || 0) + oldHours;
+            if (oldEntry)
+                oldEntry.hoursAvailable =
+                    (Number(oldEntry.hoursAvailable) || 0) + oldHours;
         }
         const newEntry = ensureBalanceEntry(payload, newKey);
-        if (newEntry) newEntry.hoursAvailable = (Number(newEntry.hoursAvailable) || 0) - newHours;
+        if (newEntry)
+            newEntry.hoursAvailable =
+                (Number(newEntry.hoursAvailable) || 0) - newHours;
     } else {
         const entry = ensureBalanceEntry(payload, newKey);
         if (entry) {
-            entry.hoursAvailable = (Number(entry.hoursAvailable) || 0) - (newHours - oldHours);
+            entry.hoursAvailable =
+                (Number(entry.hoursAvailable) || 0) - (newHours - oldHours);
         }
     }
 

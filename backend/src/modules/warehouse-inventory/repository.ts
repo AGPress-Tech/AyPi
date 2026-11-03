@@ -3,10 +3,7 @@ import {
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
 import { HttpError } from "../../shared/http/errors";
-import {
-    parseJson,
-    serializeJson,
-} from "../../shared/storage/json-codec";
+import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 import {
     isValidWarehouseTrackingCode,
     normalizeWarehouseTrackingCode,
@@ -21,7 +18,8 @@ const UNLOAD_ZONE_TABLE = "warehouse_unload_zone";
 const VIEW_PREFERENCES_TABLE = "warehouse_view_preferences";
 const CONFIGURATION_TABLE = "warehouse_configuration";
 const DATABASE_PREFERENCES_TABLE = "warehouse_database_preferences";
-const PHYSICAL_INVENTORY_SESSIONS_TABLE = "warehouse_physical_inventory_sessions";
+const PHYSICAL_INVENTORY_SESSIONS_TABLE =
+    "warehouse_physical_inventory_sessions";
 const PHYSICAL_INVENTORY_SCANS_TABLE = "warehouse_physical_inventory_scans";
 const INVENTORY_ADJUSTMENTS_TABLE = "warehouse_inventory_adjustments";
 const LABEL_PRINT_JOBS_TABLE = "warehouse_label_print_jobs";
@@ -73,10 +71,27 @@ export type WarehouseMovement = {
         type?: "crate" | "pallet";
         sourceIds?: string[];
     }>;
-    lines: Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; note?: string; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>;
+    lines: Array<{
+        article: string;
+        locations: string[];
+        kind?: "loaded" | "unloaded" | "relocated" | "pieces";
+        note?: string;
+        weighingCode?: string;
+        pieceCount?: number;
+        maxPieceCapacity?: number;
+    }>;
     operationalSteps?: Array<{
         order: number;
-        kind: "corridor" | "unload" | "reinsert" | "piece-pick" | "load" | "staging-exit" | "optimization-corridor" | "optimization-stage" | "optimization-place";
+        kind:
+            | "corridor"
+            | "unload"
+            | "reinsert"
+            | "piece-pick"
+            | "load"
+            | "staging-exit"
+            | "optimization-corridor"
+            | "optimization-stage"
+            | "optimization-place";
         sourceArea?: string;
         destinationArea?: string;
         from: string[];
@@ -108,7 +123,10 @@ export type WarehouseMovement = {
     } | null;
 };
 
-export type WarehouseUnloadZoneItem = Omit<WarehouseInventoryItem, "location"> & {
+export type WarehouseUnloadZoneItem = Omit<
+    WarehouseInventoryItem,
+    "location"
+> & {
     location: null;
     originalLocations: string[];
     stagedAt: string;
@@ -137,8 +155,16 @@ export type WarehouseSaveResult = {
 
 export type WarehouseConfiguration = {
     rows: Array<{ code: string; capacity: number; invertedSides: boolean }>;
-    rowRestrictions: Array<{ key: string; whitelist: string[]; blacklist: string[] }>;
-    slotRestrictions: Array<{ key: string; whitelist: string[]; blacklist: string[] }>;
+    rowRestrictions: Array<{
+        key: string;
+        whitelist: string[];
+        blacklist: string[];
+    }>;
+    slotRestrictions: Array<{
+        key: string;
+        whitelist: string[];
+        blacklist: string[];
+    }>;
     updatedAt: string;
     updatedBy: string;
 };
@@ -299,12 +325,21 @@ export function initializeWarehouseInventorySqliteStore() {
         CREATE INDEX IF NOT EXISTS idx_${LABEL_PRINT_JOBS_TABLE}_unit
             ON ${LABEL_PRINT_JOBS_TABLE}(unit_id);
     `);
-    const movementColumns = database.exec(`PRAGMA table_info(${MOVEMENTS_TABLE})`);
-    const hasDetails = (movementColumns?.[0]?.values || []).some((row: unknown[]) => String(row[1]) === "details_json");
-    if (!hasDetails) database.run(`ALTER TABLE ${MOVEMENTS_TABLE} ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}'`);
-    const movementSchema = String(database.exec(`
+    const movementColumns = database.exec(
+        `PRAGMA table_info(${MOVEMENTS_TABLE})`,
+    );
+    const hasDetails = (movementColumns?.[0]?.values || []).some(
+        (row: unknown[]) => String(row[1]) === "details_json",
+    );
+    if (!hasDetails)
+        database.run(
+            `ALTER TABLE ${MOVEMENTS_TABLE} ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}'`,
+        );
+    const movementSchema = String(
+        database.exec(`
         SELECT sql FROM sqlite_master WHERE type = 'table' AND name = '${MOVEMENTS_TABLE}'
-    `)?.[0]?.values?.[0]?.[0] || "");
+    `)?.[0]?.values?.[0]?.[0] || "",
+    );
     if (movementSchema && !movementSchema.includes("'exit'")) {
         database.exec(`PRAGMA foreign_keys = OFF`);
         try {
@@ -335,21 +370,51 @@ export function initializeWarehouseInventorySqliteStore() {
                 COMMIT;
             `);
         } catch (error) {
-            try { database.exec(`ROLLBACK`); } catch { /* keep original error */ }
+            try {
+                database.exec(`ROLLBACK`);
+            } catch {
+                /* keep original error */
+            }
             throw error;
         } finally {
             database.exec(`PRAGMA foreign_keys = ON`);
         }
-        database.exec(`CREATE INDEX IF NOT EXISTS idx_${MOVEMENTS_TABLE}_occurred ON ${MOVEMENTS_TABLE}(occurred_at)`);
+        database.exec(
+            `CREATE INDEX IF NOT EXISTS idx_${MOVEMENTS_TABLE}_occurred ON ${MOVEMENTS_TABLE}(occurred_at)`,
+        );
     }
-    const unitColumns = new Set((database.exec(`PRAGMA table_info(${UNITS_TABLE})`)?.[0]?.values || []).map((row: unknown[]) => String(row[1])));
-    if (!unitColumns.has("weighing_code")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN weighing_code TEXT NOT NULL DEFAULT ''`);
-    if (!unitColumns.has("note")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN note TEXT NOT NULL DEFAULT ''`);
-    if (!unitColumns.has("tracking_code")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN tracking_code TEXT NOT NULL DEFAULT ''`);
-    if (!unitColumns.has("piece_count")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN piece_count INTEGER NOT NULL DEFAULT 1`);
-    if (!unitColumns.has("max_piece_capacity")) database.run(`ALTER TABLE ${UNITS_TABLE} ADD COLUMN max_piece_capacity INTEGER NOT NULL DEFAULT 1`);
-    database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${UNITS_TABLE}_weighing ON ${UNITS_TABLE}(weighing_code) WHERE weighing_code <> ''`);
-    database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${UNITS_TABLE}_tracking ON ${UNITS_TABLE}(tracking_code) WHERE tracking_code <> ''`);
+    const unitColumns = new Set(
+        (
+            database.exec(`PRAGMA table_info(${UNITS_TABLE})`)?.[0]?.values ||
+            []
+        ).map((row: unknown[]) => String(row[1])),
+    );
+    if (!unitColumns.has("weighing_code"))
+        database.run(
+            `ALTER TABLE ${UNITS_TABLE} ADD COLUMN weighing_code TEXT NOT NULL DEFAULT ''`,
+        );
+    if (!unitColumns.has("note"))
+        database.run(
+            `ALTER TABLE ${UNITS_TABLE} ADD COLUMN note TEXT NOT NULL DEFAULT ''`,
+        );
+    if (!unitColumns.has("tracking_code"))
+        database.run(
+            `ALTER TABLE ${UNITS_TABLE} ADD COLUMN tracking_code TEXT NOT NULL DEFAULT ''`,
+        );
+    if (!unitColumns.has("piece_count"))
+        database.run(
+            `ALTER TABLE ${UNITS_TABLE} ADD COLUMN piece_count INTEGER NOT NULL DEFAULT 1`,
+        );
+    if (!unitColumns.has("max_piece_capacity"))
+        database.run(
+            `ALTER TABLE ${UNITS_TABLE} ADD COLUMN max_piece_capacity INTEGER NOT NULL DEFAULT 1`,
+        );
+    database.exec(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_${UNITS_TABLE}_weighing ON ${UNITS_TABLE}(weighing_code) WHERE weighing_code <> ''`,
+    );
+    database.exec(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_${UNITS_TABLE}_tracking ON ${UNITS_TABLE}(tracking_code) WHERE tracking_code <> ''`,
+    );
 }
 
 const DEFAULT_WAREHOUSE_ROWS = ["A", "B", "C", "D", "E"].map((code, index) => ({
@@ -361,10 +426,13 @@ const DEFAULT_WAREHOUSE_ROWS = ["A", "B", "C", "D", "E"].map((code, index) => ({
 export function loadWarehouseConfiguration(): WarehouseConfiguration {
     initializeWarehouseInventorySqliteStore();
     const database = getSqliteDatabase();
-    const rows = database.exec(`
+    const rows = database.exec(
+        `
         SELECT rows_json, row_restrictions_json, slot_restrictions_json, updated_at, updated_by
         FROM ${CONFIGURATION_TABLE} WHERE store_key = ?
-    `, [STORE_KEY]);
+    `,
+        [STORE_KEY],
+    );
     const row = rows?.[0]?.values?.[0];
     return {
         rows: parseJson(row?.[0], DEFAULT_WAREHOUSE_ROWS),
@@ -375,10 +443,15 @@ export function loadWarehouseConfiguration(): WarehouseConfiguration {
     };
 }
 
-export function saveWarehouseConfiguration(configuration: Omit<WarehouseConfiguration, "updatedAt" | "updatedBy">, updatedBy: string) {
+export function saveWarehouseConfiguration(
+    configuration: Omit<WarehouseConfiguration, "updatedAt" | "updatedBy">,
+    updatedBy: string,
+) {
     initializeWarehouseInventorySqliteStore();
     const updatedAt = new Date().toISOString();
-    runSqliteTransaction((database) => database.run(`
+    runSqliteTransaction((database) =>
+        database.run(
+            `
         INSERT INTO ${CONFIGURATION_TABLE} (
             store_key, rows_json, row_restrictions_json, slot_restrictions_json, updated_at, updated_by
         ) VALUES (?, ?, ?, ?, ?, ?)
@@ -388,41 +461,79 @@ export function saveWarehouseConfiguration(configuration: Omit<WarehouseConfigur
             slot_restrictions_json = excluded.slot_restrictions_json,
             updated_at = excluded.updated_at,
             updated_by = excluded.updated_by
-    `, [STORE_KEY, serializeJson(configuration.rows), serializeJson(configuration.rowRestrictions), serializeJson(configuration.slotRestrictions), updatedAt, updatedBy]));
+    `,
+            [
+                STORE_KEY,
+                serializeJson(configuration.rows),
+                serializeJson(configuration.rowRestrictions),
+                serializeJson(configuration.slotRestrictions),
+                updatedAt,
+                updatedBy,
+            ],
+        ),
+    );
     return loadWarehouseConfiguration();
 }
 
 export function loadWarehouseDatabasePreferences(ownerKey: string) {
     initializeWarehouseInventorySqliteStore();
-    const rows = getSqliteDatabase().exec(`
+    const rows = getSqliteDatabase().exec(
+        `
         SELECT owner_label, visible_columns_json, presets_json, updated_at
         FROM ${DATABASE_PREFERENCES_TABLE} WHERE owner_key = ?
-    `, [ownerKey]);
+    `,
+        [ownerKey],
+    );
     const row = rows?.[0]?.values?.[0];
-    return { ownerKey, ownerLabel: String(row?.[0] || ""), visibleColumns: parseJson<string[]>(row?.[1], []), presets: parseJson<unknown[]>(row?.[2], []), updatedAt: String(row?.[3] || "") };
+    return {
+        ownerKey,
+        ownerLabel: String(row?.[0] || ""),
+        visibleColumns: parseJson<string[]>(row?.[1], []),
+        presets: parseJson<unknown[]>(row?.[2], []),
+        updatedAt: String(row?.[3] || ""),
+    };
 }
 
-export function saveWarehouseDatabasePreferences(ownerKey: string, ownerLabel: string, visibleColumns: string[], presets: unknown[]) {
+export function saveWarehouseDatabasePreferences(
+    ownerKey: string,
+    ownerLabel: string,
+    visibleColumns: string[],
+    presets: unknown[],
+) {
     initializeWarehouseInventorySqliteStore();
     const updatedAt = new Date().toISOString();
-    runSqliteTransaction((database) => database.run(`
+    runSqliteTransaction((database) =>
+        database.run(
+            `
         INSERT INTO ${DATABASE_PREFERENCES_TABLE} (owner_key, owner_label, visible_columns_json, presets_json, updated_at)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(owner_key) DO UPDATE SET owner_label = excluded.owner_label,
             visible_columns_json = excluded.visible_columns_json, presets_json = excluded.presets_json,
             updated_at = excluded.updated_at
-    `, [ownerKey, ownerLabel, serializeJson(visibleColumns), serializeJson(presets), updatedAt]));
+    `,
+            [
+                ownerKey,
+                ownerLabel,
+                serializeJson(visibleColumns),
+                serializeJson(presets),
+                updatedAt,
+            ],
+        ),
+    );
     return loadWarehouseDatabasePreferences(ownerKey);
 }
 
 export function loadWarehouseViewPreferences(ownerKey: string) {
     initializeWarehouseInventorySqliteStore();
     const database = getSqliteDatabase();
-    const rows = database.exec(`
+    const rows = database.exec(
+        `
         SELECT owner_label, camera_views_json, view_presets_json, updated_at
         FROM ${VIEW_PREFERENCES_TABLE}
         WHERE owner_key = ?
-    `, [ownerKey]);
+    `,
+        [ownerKey],
+    );
     const row = rows?.[0]?.values?.[0];
     return {
         ownerKey,
@@ -442,7 +553,8 @@ export function saveWarehouseViewPreferences(
     const updatedAt = new Date().toISOString();
     initializeWarehouseInventorySqliteStore();
     runSqliteTransaction((database) => {
-        database.run(`
+        database.run(
+            `
             INSERT INTO ${VIEW_PREFERENCES_TABLE} (
                 owner_key, owner_label, camera_views_json, view_presets_json, updated_at
             ) VALUES (?, ?, ?, ?, ?)
@@ -451,7 +563,15 @@ export function saveWarehouseViewPreferences(
                 camera_views_json = excluded.camera_views_json,
                 view_presets_json = excluded.view_presets_json,
                 updated_at = excluded.updated_at
-        `, [ownerKey, ownerLabel, serializeJson(cameraViews), serializeJson(viewPresets), updatedAt]);
+        `,
+            [
+                ownerKey,
+                ownerLabel,
+                serializeJson(cameraViews),
+                serializeJson(viewPresets),
+                updatedAt,
+            ],
+        );
     });
     return loadWarehouseViewPreferences(ownerKey);
 }
@@ -484,107 +604,202 @@ export function loadWarehouseSnapshot(): WarehouseSnapshot {
         INNER JOIN ${UNITS_TABLE} u ON u.unit_id = o.unit_id
         ORDER BY o.location COLLATE NOCASE ASC
     `);
-    const inventory = (inventoryRows?.[0]?.values || []).map((row: unknown[]) => ({
-        location: String(row[0] || ""),
-        id: String(row[1] || ""),
-        article: String(row[2] || ""),
-        customer: String(row[3] || ""),
-        orderReference: String(row[4] || ""),
-        note: String(row[5] || ""),
-        weighingCode: String(row[6] || ""),
-        trackingCode: String(row[7] || ""),
-        pieceCount: Math.max(1, Number(row[8]) || 1),
-        maxPieceCapacity: Math.max(1, Number(row[9]) || Number(row[8]) || 1),
-        tags: parseJson<string[]>(row[10], []),
-        inMovement: Boolean(row[11]),
-        type: row[12] === "pallet" ? "pallet" as const : "crate" as const,
-        pairedLocation: row[13] ? String(row[13]) : null,
-        receivedAt: String(row[14] || ""),
-    }));
+    const inventory = (inventoryRows?.[0]?.values || []).map(
+        (row: unknown[]) => ({
+            location: String(row[0] || ""),
+            id: String(row[1] || ""),
+            article: String(row[2] || ""),
+            customer: String(row[3] || ""),
+            orderReference: String(row[4] || ""),
+            note: String(row[5] || ""),
+            weighingCode: String(row[6] || ""),
+            trackingCode: String(row[7] || ""),
+            pieceCount: Math.max(1, Number(row[8]) || 1),
+            maxPieceCapacity: Math.max(
+                1,
+                Number(row[9]) || Number(row[8]) || 1,
+            ),
+            tags: parseJson<string[]>(row[10], []),
+            inMovement: Boolean(row[11]),
+            type:
+                row[12] === "pallet" ? ("pallet" as const) : ("crate" as const),
+            pairedLocation: row[13] ? String(row[13]) : null,
+            receivedAt: String(row[14] || ""),
+        }),
+    );
 
-    const movements = loadWarehouseMovements({ limit: 100, offset: 0 }).movements;
-    const movementsTotal = Number(database.exec(`SELECT COUNT(*) FROM ${MOVEMENTS_TABLE}`)?.[0]?.values?.[0]?.[0]) || 0;
+    const movements = loadWarehouseMovements({
+        limit: 100,
+        offset: 0,
+    }).movements;
+    const movementsTotal =
+        Number(
+            database.exec(`SELECT COUNT(*) FROM ${MOVEMENTS_TABLE}`)?.[0]
+                ?.values?.[0]?.[0],
+        ) || 0;
     const unloadRows = database.exec(`
         SELECT payload_json
         FROM ${UNLOAD_ZONE_TABLE}
         ORDER BY rowid ASC
     `);
     const unloadZone = (unloadRows?.[0]?.values || [])
-        .map((row: unknown[]) => parseJson<WarehouseUnloadZoneItem | null>(row[0], null))
+        .map((row: unknown[]) =>
+            parseJson<WarehouseUnloadZoneItem | null>(row[0], null),
+        )
         .filter((item): item is WarehouseUnloadZoneItem => Boolean(item?.id));
     return { inventory, movements, movementsTotal, unloadZone, ...meta };
 }
 
-export function loadWarehouseMovements(options: { limit: number; offset: number; from?: string }) {
+export function loadWarehouseMovements(options: {
+    limit: number;
+    offset: number;
+    from?: string;
+}) {
     initializeWarehouseInventorySqliteStore();
     const database = getSqliteDatabase();
     const limit = Math.min(500, Math.max(1, Math.trunc(options.limit || 100)));
     const offset = Math.max(0, Math.trunc(options.offset || 0));
     const from = String(options.from || "").trim();
     const where = from ? "WHERE occurred_at >= ?" : "";
-    const parameters: Array<string | number> = from ? [from, limit, offset] : [limit, offset];
-    const movementRows = database.exec(`
+    const parameters: Array<string | number> = from
+        ? [from, limit, offset]
+        : [limit, offset];
+    const movementRows = database.exec(
+        `
         SELECT movement_id, movement_type, occurred_at, details_json
         FROM ${MOVEMENTS_TABLE}
         ${where}
         ORDER BY occurred_at DESC, movement_id DESC
         LIMIT ? OFFSET ?
-    `, parameters);
-    const movementIds = (movementRows?.[0]?.values || []).map((row: unknown[]) => String(row[0] || ""));
+    `,
+        parameters,
+    );
+    const movementIds = (movementRows?.[0]?.values || []).map(
+        (row: unknown[]) => String(row[0] || ""),
+    );
     if (!movementIds.length) {
         const countParams = from ? [from] : [];
-        const total = Number(database.exec(`SELECT COUNT(*) FROM ${MOVEMENTS_TABLE} ${where}`, countParams)?.[0]?.values?.[0]?.[0]) || 0;
+        const total =
+            Number(
+                database.exec(
+                    `SELECT COUNT(*) FROM ${MOVEMENTS_TABLE} ${where}`,
+                    countParams,
+                )?.[0]?.values?.[0]?.[0],
+            ) || 0;
         return { movements: [] as WarehouseMovement[], total, limit, offset };
     }
     const placeholders = movementIds.map(() => "?").join(",");
-    const lineRows = database.exec(`
+    const lineRows = database.exec(
+        `
         SELECT movement_id, line_order, article, locations_json
         FROM ${MOVEMENT_LINES_TABLE}
         WHERE movement_id IN (${placeholders})
         ORDER BY movement_id ASC, line_order ASC
-    `, movementIds);
-    const linesByMovement = new Map<string, Array<{ article: string; locations: string[]; kind?: "loaded" | "unloaded" | "relocated" | "pieces"; note?: string; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }>>();
+    `,
+        movementIds,
+    );
+    const linesByMovement = new Map<
+        string,
+        Array<{
+            article: string;
+            locations: string[];
+            kind?: "loaded" | "unloaded" | "relocated" | "pieces";
+            note?: string;
+            weighingCode?: string;
+            pieceCount?: number;
+            maxPieceCapacity?: number;
+        }>
+    >();
     (lineRows?.[0]?.values || []).forEach((row: unknown[]) => {
         const movementId = String(row[0] || "");
-        if (!linesByMovement.has(movementId)) linesByMovement.set(movementId, []);
+        if (!linesByMovement.has(movementId))
+            linesByMovement.set(movementId, []);
         linesByMovement.get(movementId)?.push({
             article: String(row[2] || ""),
             locations: parseJson<string[]>(row[3], []),
         });
     });
-    const movements = (movementRows?.[0]?.values || []).map((row: unknown[]) => {
-        const details = parseJson<Record<string, unknown>>(row[3], {});
-        const lineDetails = Array.isArray(details.lineDetails) ? details.lineDetails as Array<{ kind?: "loaded" | "unloaded" | "relocated" | "pieces"; note?: string; weighingCode?: string; pieceCount?: number; maxPieceCapacity?: number }> : [];
-        const lines = (linesByMovement.get(String(row[0] || "")) || []).map((line, index) => ({
-            ...line,
-            ...lineDetails[index],
-        }));
-        delete details.lineDetails;
-        return {
-            ...details,
-            id: String(row[0] || ""),
-            type: row[1] === "exit" ? "exit" as const : row[1] === "unload" ? "unload" as const : "load" as const,
-            timestamp: String(row[2] || ""),
-            lines,
-        } as WarehouseMovement;
-    });
+    const movements = (movementRows?.[0]?.values || []).map(
+        (row: unknown[]) => {
+            const details = parseJson<Record<string, unknown>>(row[3], {});
+            const lineDetails = Array.isArray(details.lineDetails)
+                ? (details.lineDetails as Array<{
+                      kind?: "loaded" | "unloaded" | "relocated" | "pieces";
+                      note?: string;
+                      weighingCode?: string;
+                      pieceCount?: number;
+                      maxPieceCapacity?: number;
+                  }>)
+                : [];
+            const lines = (linesByMovement.get(String(row[0] || "")) || []).map(
+                (line, index) => ({
+                    ...line,
+                    ...lineDetails[index],
+                }),
+            );
+            delete details.lineDetails;
+            return {
+                ...details,
+                id: String(row[0] || ""),
+                type:
+                    row[1] === "exit"
+                        ? ("exit" as const)
+                        : row[1] === "unload"
+                          ? ("unload" as const)
+                          : ("load" as const),
+                timestamp: String(row[2] || ""),
+                lines,
+            } as WarehouseMovement;
+        },
+    );
     const countParams = from ? [from] : [];
-    const total = Number(database.exec(`SELECT COUNT(*) FROM ${MOVEMENTS_TABLE} ${where}`, countParams)?.[0]?.values?.[0]?.[0]) || 0;
+    const total =
+        Number(
+            database.exec(
+                `SELECT COUNT(*) FROM ${MOVEMENTS_TABLE} ${where}`,
+                countParams,
+            )?.[0]?.values?.[0]?.[0],
+        ) || 0;
     return { movements, total, limit, offset };
 }
 
 export function loadWarehouseMovement(movementId: string) {
     initializeWarehouseInventorySqliteStore();
     const database = getSqliteDatabase();
-    const rows = database.exec(`SELECT movement_type, occurred_at, details_json FROM ${MOVEMENTS_TABLE} WHERE movement_id = ?`, [movementId]);
+    const rows = database.exec(
+        `SELECT movement_type, occurred_at, details_json FROM ${MOVEMENTS_TABLE} WHERE movement_id = ?`,
+        [movementId],
+    );
     const row = rows?.[0]?.values?.[0];
     if (!row) return null;
     const details = parseJson<Record<string, unknown>>(row[2], {});
-    const lineDetails = Array.isArray(details.lineDetails) ? details.lineDetails as WarehouseMovement["lines"] : [];
-    const lineRows = database.exec(`SELECT article, locations_json FROM ${MOVEMENT_LINES_TABLE} WHERE movement_id = ? ORDER BY line_order ASC`, [movementId]);
-    const lines = (lineRows?.[0]?.values || []).map((line: unknown[], index: number) => ({ article: String(line[0] || ""), locations: parseJson<string[]>(line[1], []), ...(lineDetails[index] || {}) }));
+    const lineDetails = Array.isArray(details.lineDetails)
+        ? (details.lineDetails as WarehouseMovement["lines"])
+        : [];
+    const lineRows = database.exec(
+        `SELECT article, locations_json FROM ${MOVEMENT_LINES_TABLE} WHERE movement_id = ? ORDER BY line_order ASC`,
+        [movementId],
+    );
+    const lines = (lineRows?.[0]?.values || []).map(
+        (line: unknown[], index: number) => ({
+            article: String(line[0] || ""),
+            locations: parseJson<string[]>(line[1], []),
+            ...(lineDetails[index] || {}),
+        }),
+    );
     delete details.lineDetails;
-    return { ...details, id: movementId, type: row[0] === "exit" ? "exit" : row[0] === "unload" ? "unload" : "load", timestamp: String(row[1] || ""), lines } as WarehouseMovement;
+    return {
+        ...details,
+        id: movementId,
+        type:
+            row[0] === "exit"
+                ? "exit"
+                : row[0] === "unload"
+                  ? "unload"
+                  : "load",
+        timestamp: String(row[1] || ""),
+        lines,
+    } as WarehouseMovement;
 }
 
 export function saveWarehouseSnapshot(
@@ -601,46 +816,76 @@ export function saveWarehouseSnapshot(
     [...inventory, ...unloadZone].forEach((item) => {
         const trackingCode = normalizeWarehouseTrackingCode(item.trackingCode);
         if (!isValidWarehouseTrackingCode(trackingCode)) {
-            throw new HttpError(400, `Codice univoco non valido per il cassone ${item.id}.`, {
-                code: "WAREHOUSE_INVALID_TRACKING_CODE",
-                details: { unitId: item.id, trackingCode },
-            });
+            throw new HttpError(
+                400,
+                `Codice univoco non valido per il cassone ${item.id}.`,
+                {
+                    code: "WAREHOUSE_INVALID_TRACKING_CODE",
+                    details: { unitId: item.id, trackingCode },
+                },
+            );
         }
         const owner = trackingOwners.get(trackingCode);
         if (trackingCode && owner && owner !== item.id) {
-            throw new HttpError(400, `Il codice univoco ${trackingCode} è già assegnato a un altro cassone.`, {
-                code: "WAREHOUSE_DUPLICATE_TRACKING_CODE",
-                details: { trackingCode, unitIds: [owner, item.id] },
-            });
+            throw new HttpError(
+                400,
+                `Il codice univoco ${trackingCode} è già assegnato a un altro cassone.`,
+                {
+                    code: "WAREHOUSE_DUPLICATE_TRACKING_CODE",
+                    details: { trackingCode, unitIds: [owner, item.id] },
+                },
+            );
         }
         if (trackingCode) trackingOwners.set(trackingCode, item.id);
     });
     inventory.forEach((item) => {
         const pieces = Math.max(1, Number(item.pieceCount) || 1);
         const capacity = Math.max(1, Number(item.maxPieceCapacity) || pieces);
-        if (!Number.isInteger(pieces) || !Number.isInteger(capacity) || pieces > capacity) {
-            throw new HttpError(400, `Quantità pezzi non valida per il cassone ${item.id}.`, {
-                code: "WAREHOUSE_INVALID_PIECE_COUNT",
-                details: { unitId: item.id, pieceCount: item.pieceCount, maxPieceCapacity: item.maxPieceCapacity },
-            });
+        if (
+            !Number.isInteger(pieces) ||
+            !Number.isInteger(capacity) ||
+            pieces > capacity
+        ) {
+            throw new HttpError(
+                400,
+                `Quantità pezzi non valida per il cassone ${item.id}.`,
+                {
+                    code: "WAREHOUSE_INVALID_PIECE_COUNT",
+                    details: {
+                        unitId: item.id,
+                        pieceCount: item.pieceCount,
+                        maxPieceCapacity: item.maxPieceCapacity,
+                    },
+                },
+            );
         }
-        const weighingCode = String(item.weighingCode || "").trim().toUpperCase();
+        const weighingCode = String(item.weighingCode || "")
+            .trim()
+            .toUpperCase();
         const owner = weighingOwners.get(weighingCode);
         if (weighingCode && owner && owner !== item.id) {
-            throw new HttpError(400, `Il codice pesata ${weighingCode} è già assegnato a un altro cassone.`, {
-                code: "WAREHOUSE_DUPLICATE_WEIGHING_CODE",
-                details: { weighingCode, unitIds: [owner, item.id] },
-            });
+            throw new HttpError(
+                400,
+                `Il codice pesata ${weighingCode} è già assegnato a un altro cassone.`,
+                {
+                    code: "WAREHOUSE_DUPLICATE_WEIGHING_CODE",
+                    details: { weighingCode, unitIds: [owner, item.id] },
+                },
+            );
         }
         if (weighingCode) weighingOwners.set(weighingCode, item.id);
     });
     runSqliteTransaction((database) => {
         const currentRevision = loadRevision().revision;
         if (baseRevision !== currentRevision) {
-            throw new HttpError(409, "Il magazzino è stato aggiornato da un'altra postazione.", {
-                code: "WAREHOUSE_REVISION_CONFLICT",
-                details: { currentRevision },
-            });
+            throw new HttpError(
+                409,
+                "Il magazzino è stato aggiornato da un'altra postazione.",
+                {
+                    code: "WAREHOUSE_REVISION_CONFLICT",
+                    details: { currentRevision },
+                },
+            );
         }
 
         if (replaceMovements) {
@@ -671,18 +916,29 @@ export function saveWarehouseSnapshot(
                     item.article,
                     item.customer,
                     item.orderReference,
-                    String(item.note || "").trim().slice(0, 500),
+                    String(item.note || "")
+                        .trim()
+                        .slice(0, 500),
                     String(item.weighingCode || "").trim(),
                     normalizeWarehouseTrackingCode(item.trackingCode),
                     Math.max(1, Number(item.pieceCount) || 1),
-                    Math.max(1, Number(item.maxPieceCapacity) || Number(item.pieceCount) || 1),
+                    Math.max(
+                        1,
+                        Number(item.maxPieceCapacity) ||
+                            Number(item.pieceCount) ||
+                            1,
+                    ),
                     item.inMovement ? 1 : 0,
                     item.receivedAt,
                     serializeJson(item.tags || []),
                 ]);
                 insertedUnits.add(item.id);
             }
-            occupancyStatement.run([item.location, item.id, item.pairedLocation || null]);
+            occupancyStatement.run([
+                item.location,
+                item.id,
+                item.pairedLocation || null,
+            ]);
         });
         unitStatement.free();
         occupancyStatement.free();
@@ -698,7 +954,10 @@ export function saveWarehouseSnapshot(
             VALUES (?, ?, ?, ?)
         `);
         movements.forEach((movement) => {
-            database.run(`DELETE FROM ${MOVEMENT_LINES_TABLE} WHERE movement_id = ?`, [movement.id]);
+            database.run(
+                `DELETE FROM ${MOVEMENT_LINES_TABLE} WHERE movement_id = ?`,
+                [movement.id],
+            );
             movementStatement.run([
                 movement.id,
                 movement.type,
@@ -728,11 +987,22 @@ export function saveWarehouseSnapshot(
                         pieceCount: line.pieceCount || null,
                         maxPieceCapacity: line.maxPieceCapacity || null,
                     })),
-                    reconstructed: Boolean((movement as WarehouseMovement & { reconstructed?: boolean }).reconstructed),
+                    reconstructed: Boolean(
+                        (
+                            movement as WarehouseMovement & {
+                                reconstructed?: boolean;
+                            }
+                        ).reconstructed,
+                    ),
                 }),
             ]);
             movement.lines.forEach((line, index) => {
-                lineStatement.run([movement.id, index, line.article, serializeJson(line.locations || [])]);
+                lineStatement.run([
+                    movement.id,
+                    index,
+                    line.article,
+                    serializeJson(line.locations || []),
+                ]);
             });
         });
         movementStatement.free();
@@ -742,27 +1012,44 @@ export function saveWarehouseSnapshot(
             INSERT INTO ${UNLOAD_ZONE_TABLE} (unit_id, payload_json)
             VALUES (?, ?)
         `);
-        unloadZone.forEach((item) => unloadStatement.run([item.id, serializeJson(item)]));
+        unloadZone.forEach((item) =>
+            unloadStatement.run([item.id, serializeJson(item)]),
+        );
         unloadStatement.free();
 
         const revision = currentRevision + 1;
         const updatedAt = new Date().toISOString();
         const actor = String(updatedBy || "").trim() || "Operatore AyPi";
-        database.run(`
+        database.run(
+            `
             INSERT INTO ${META_TABLE} (store_key, revision, updated_at, updated_by)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(store_key) DO UPDATE SET
                 revision = excluded.revision,
                 updated_at = excluded.updated_at,
                 updated_by = excluded.updated_by
-        `, [STORE_KEY, revision, updatedAt, actor]);
+        `,
+            [STORE_KEY, revision, updatedAt, actor],
+        );
     });
     const meta = loadRevision();
     const database = getSqliteDatabase();
     return {
         ...meta,
-        occupiedSlots: Number(database.exec(`SELECT COUNT(*) FROM ${OCCUPANCIES_TABLE}`)?.[0]?.values?.[0]?.[0]) || 0,
-        movementsTotal: Number(database.exec(`SELECT COUNT(*) FROM ${MOVEMENTS_TABLE}`)?.[0]?.values?.[0]?.[0]) || 0,
-        unloadZoneUnits: Number(database.exec(`SELECT COUNT(*) FROM ${UNLOAD_ZONE_TABLE}`)?.[0]?.values?.[0]?.[0]) || 0,
+        occupiedSlots:
+            Number(
+                database.exec(`SELECT COUNT(*) FROM ${OCCUPANCIES_TABLE}`)?.[0]
+                    ?.values?.[0]?.[0],
+            ) || 0,
+        movementsTotal:
+            Number(
+                database.exec(`SELECT COUNT(*) FROM ${MOVEMENTS_TABLE}`)?.[0]
+                    ?.values?.[0]?.[0],
+            ) || 0,
+        unloadZoneUnits:
+            Number(
+                database.exec(`SELECT COUNT(*) FROM ${UNLOAD_ZONE_TABLE}`)?.[0]
+                    ?.values?.[0]?.[0],
+            ) || 0,
     };
 }

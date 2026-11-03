@@ -80,41 +80,57 @@ const validateHaasPayload = createSchemaValidator<any>({
 });
 
 export function registerHaasAttrezzaggioRoutes(router: Router) {
-    router.register("GET", "/api/haas-attrezzaggio/items", async (_req, res) => {
-        sendJson(res, 200, { items: getHaasItems() });
-    });
+    router.register(
+        "GET",
+        "/api/haas-attrezzaggio/items",
+        async (_req, res) => {
+            sendJson(res, 200, { items: getHaasItems() });
+        },
+    );
 
-    router.register("GET", "/api/haas-attrezzaggio/items/:code", async (_req, res, params) => {
-        const item = getHaasItem(params.code);
-        if (!item) {
-            throw notFound("HAAS item not found");
-        }
-        sendJson(res, 200, { item });
-    });
+    router.register(
+        "GET",
+        "/api/haas-attrezzaggio/items/:code",
+        async (_req, res, params) => {
+            const item = getHaasItem(params.code);
+            if (!item) {
+                throw notFound("HAAS item not found");
+            }
+            sendJson(res, 200, { item });
+        },
+    );
 
-    router.register("PUT", "/api/haas-attrezzaggio/items/:code", async (req, res, params) => {
-        const payload = validateHaasPayload(
-            await readJsonBody(req),
-            "Invalid HAAS item payload",
-        );
-        sendJson(res, 200, {
-            item: await saveHaas(params.code, payload, {
+    router.register(
+        "PUT",
+        "/api/haas-attrezzaggio/items/:code",
+        async (req, res, params) => {
+            const payload = validateHaasPayload(
+                await readJsonBody(req),
+                "Invalid HAAS item payload",
+            );
+            sendJson(res, 200, {
+                item: await saveHaas(params.code, payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            });
+        },
+    );
+
+    router.register(
+        "DELETE",
+        "/api/haas-attrezzaggio/items/:code",
+        async (req, res, params) => {
+            const ok = await removeHaas(params.code, {
                 actor: getRequestUser(req),
                 requestId: getRequestId(req),
-            }),
-        });
-    });
-
-    router.register("DELETE", "/api/haas-attrezzaggio/items/:code", async (req, res, params) => {
-        const ok = await removeHaas(params.code, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        });
-        if (!ok) {
-            throw notFound("HAAS item not found");
-        }
-        sendJson(res, 200, { ok: true });
-    });
+            });
+            if (!ok) {
+                throw notFound("HAAS item not found");
+            }
+            sendJson(res, 200, { ok: true });
+        },
+    );
 
     router.register(
         "GET",

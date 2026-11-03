@@ -65,10 +65,7 @@ export function createRequestStore(dependencies: RequestStoreDependencies) {
                     body: normalized,
                 })
                 .catch((error) => {
-                    dependencies.showError(
-                        errorMessage,
-                        errorDetail(error),
-                    );
+                    dependencies.showError(errorMessage, errorDetail(error));
                 });
             return true;
         } catch (error) {

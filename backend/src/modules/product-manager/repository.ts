@@ -19,10 +19,7 @@ import {
     getSqliteDatabase,
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
-import {
-    parseJson,
-    serializeJson,
-} from "../../shared/storage/json-codec";
+import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 import { loadAssigneeOptions } from "../shared/repository";
 
 const PURCHASING_DIR = backendConfig.modules.productManager.dir;
@@ -43,7 +40,6 @@ function ensureProductManagerBackup(prefix = "auto", limit = 30) {
         ? ensureAgpressDailyBackup(prefix, limit)
         : createAgpressBackup(prefix, limit);
 }
-
 
 function ensureProductManagerSqliteSchema() {
     const database = getSqliteDatabase();
@@ -190,10 +186,14 @@ export function loadProductManagerBootstrap() {
 export function saveProductManagerRequests(payload: any[]) {
     ensureProductManagerBackup();
     ensureProductManagerSqliteSchema();
-    replaceTableWithCollection(PM_REQUESTS_TABLE, Array.isArray(payload) ? payload : [], {
-        prefix: "request",
-        shard: true,
-    });
+    replaceTableWithCollection(
+        PM_REQUESTS_TABLE,
+        Array.isArray(payload) ? payload : [],
+        {
+            prefix: "request",
+            shard: true,
+        },
+    );
     return loadCollectionFromTable(PM_REQUESTS_TABLE, { shard: true });
 }
 
@@ -214,9 +214,13 @@ export function saveProductManagerInterventions(payload: any[]) {
 export function saveProductManagerCatalog(payload: any[]) {
     ensureProductManagerBackup();
     ensureProductManagerSqliteSchema();
-    replaceTableWithCollection(PM_CATALOG_TABLE, Array.isArray(payload) ? payload : [], {
-        prefix: "catalog",
-    });
+    replaceTableWithCollection(
+        PM_CATALOG_TABLE,
+        Array.isArray(payload) ? payload : [],
+        {
+            prefix: "catalog",
+        },
+    );
     return loadCollectionFromTable(PM_CATALOG_TABLE);
 }
 
@@ -301,7 +305,11 @@ export function restoreProductManagerBackup(name: string) {
     }
     ensureDir(path.dirname(backendConfig.database.path));
     fs.copyFileSync(dbInBackup, backendConfig.database.path);
-    const productsBackupDir = path.join(backupDir, "AyPi Purchasing", "products");
+    const productsBackupDir = path.join(
+        backupDir,
+        "AyPi Purchasing",
+        "products",
+    );
     if (fs.existsSync(productsBackupDir)) {
         replaceDirectoryContents(productsBackupDir, PRODUCTS_DIR);
     }

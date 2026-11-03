@@ -1,4 +1,4 @@
-import { registerFornoRoutes } from '../modules/forno/routes';
+import { registerFornoRoutes } from "../modules/forno/routes";
 import type { Router } from "../shared/http/router";
 import { registerUploadRoutes } from "../shared/http/upload-routes";
 import { registerFeriePermessiRoutes } from "../modules/ferie-permessi/routes";

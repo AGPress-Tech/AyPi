@@ -15,10 +15,7 @@ export function applyRequestModeUi(
         button.replaceChildren(icon, document.createTextNode(label));
     };
 
-    document.body.classList.toggle(
-        "pm-mode-intervention",
-        isIntervention,
-    );
+    document.body.classList.toggle("pm-mode-intervention", isIntervention);
     const formTitle = document.getElementById("pm-form-title");
     const toggleButton = document.getElementById("pm-toggle-request");
     const notesLabel = document.getElementById("pm-notes-label");

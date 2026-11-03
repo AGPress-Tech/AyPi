@@ -65,7 +65,11 @@ function renderCategoriesList(ctx) {
                 if (!dataTransfer) return;
                 const fromIndex = Number(dataTransfer.getData("text/plain"));
                 const toIndex = Number(row.dataset.index || "0");
-                if (Number.isNaN(fromIndex) || Number.isNaN(toIndex) || fromIndex === toIndex) {
+                if (
+                    Number.isNaN(fromIndex) ||
+                    Number.isNaN(toIndex) ||
+                    fromIndex === toIndex
+                ) {
                     return;
                 }
                 const current = catalogCategories();
@@ -125,7 +129,9 @@ function renderCategoriesList(ctx) {
         actions.className = "fp-assignees-row__actions";
 
         const applyRename = (nextName) => {
-            const nextCategories = items.map((entry) => (entry === cat ? nextName : entry));
+            const nextCategories = items.map((entry) =>
+                entry === cat ? nextName : entry,
+            );
             setCatalogCategories(nextCategories);
             const colors = getCategoryColors();
             if (colors[cat]) {
@@ -136,18 +142,26 @@ function renderCategoriesList(ctx) {
             }
             const catalogItems = getCatalogItems();
             const nextCatalog = catalogItems.map((item) => {
-                const tags = toTags(item.category || "").map((t) => (t === cat ? nextName : t));
+                const tags = toTags(item.category || "").map((t) =>
+                    t === cat ? nextName : t,
+                );
                 return { ...item, category: tags.join(", ") };
             });
             setCatalogItems(nextCatalog);
             const requests = readRequestsFile();
             requests.forEach((req) => {
                 (req.lines || []).forEach((line) => {
-                    const tags = toTags(line.category || "").map((t) => (t === cat ? nextName : t));
+                    const tags = toTags(line.category || "").map((t) =>
+                        t === cat ? nextName : t,
+                    );
                     line.category = tags.join(", ");
                 });
             });
-            if (saveCategories(nextCategories) && saveCatalog(nextCatalog) && saveRequestsFile(requests)) {
+            if (
+                saveCategories(nextCategories) &&
+                saveCatalog(nextCatalog) &&
+                saveRequestsFile(requests)
+            ) {
                 if (uiState) uiState.categoriesEditingName = null;
                 renderCategoriesList(ctx);
                 renderCategoryOptions();
@@ -206,9 +220,13 @@ function renderCategoriesList(ctx) {
             removeBtn.addEventListener("click", async () => {
                 try {
                     closeCategoriesModal();
-                    const ok = await openConfirmModal(`Vuoi eliminare la categoria \"${cat}\"?`);
+                    const ok = await openConfirmModal(
+                        `Vuoi eliminare la categoria \"${cat}\"?`,
+                    );
                     if (!ok) return;
-                    const nextCategories = items.filter((entry) => entry !== cat);
+                    const nextCategories = items.filter(
+                        (entry) => entry !== cat,
+                    );
                     setCatalogCategories(nextCategories);
                     const colors = getCategoryColors();
                     if (colors[cat]) {
@@ -219,18 +237,26 @@ function renderCategoriesList(ctx) {
                     }
                     const catalogItems = getCatalogItems();
                     const nextCatalog = catalogItems.map((item) => {
-                        const tags = toTags(item.category || "").filter((t) => t !== cat);
+                        const tags = toTags(item.category || "").filter(
+                            (t) => t !== cat,
+                        );
                         return { ...item, category: tags.join(", ") };
                     });
                     setCatalogItems(nextCatalog);
                     const requests = readRequestsFile();
                     requests.forEach((req) => {
                         (req.lines || []).forEach((line) => {
-                            const tags = toTags(line.category || "").filter((t) => t !== cat);
+                            const tags = toTags(line.category || "").filter(
+                                (t) => t !== cat,
+                            );
                             line.category = tags.join(", ");
                         });
                     });
-                    if (saveCategories(nextCategories) && saveCatalog(nextCatalog) && saveRequestsFile(requests)) {
+                    if (
+                        saveCategories(nextCategories) &&
+                        saveCatalog(nextCatalog) &&
+                        saveRequestsFile(requests)
+                    ) {
                         renderCategoriesList(ctx);
                         renderCategoryOptions();
                         renderCatalogFilterOptions();
@@ -239,7 +265,9 @@ function renderCategoriesList(ctx) {
                         renderCartTable();
                     }
                 } catch (err) {
-                    showWarning(err?.message || "Rimozione categoria non riuscita.");
+                    showWarning(
+                        err?.message || "Rimozione categoria non riuscita.",
+                    );
                 }
             });
             actions.append(editBtn, removeBtn);
@@ -248,7 +276,8 @@ function renderCategoriesList(ctx) {
         list.appendChild(row);
     });
     if (!items.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessuna categoria disponibile.</div>";
+        list.innerHTML =
+            '<div class="pm-message">Nessuna categoria disponibile.</div>';
     }
 }
 
@@ -307,7 +336,11 @@ function renderInterventionTypesList(ctx) {
                 if (!dataTransfer) return;
                 const fromIndex = Number(dataTransfer.getData("text/plain"));
                 const toIndex = Number(row.dataset.index || "0");
-                if (Number.isNaN(fromIndex) || Number.isNaN(toIndex) || fromIndex === toIndex) {
+                if (
+                    Number.isNaN(fromIndex) ||
+                    Number.isNaN(toIndex) ||
+                    fromIndex === toIndex
+                ) {
                     return;
                 }
                 const current = interventionTypes();
@@ -350,16 +383,23 @@ function renderInterventionTypesList(ctx) {
         actions.className = "fp-assignees-row__actions";
 
         const applyRename = (nextName) => {
-            const nextTypes = types.map((entry) => (entry === type ? nextName : entry));
+            const nextTypes = types.map((entry) =>
+                entry === type ? nextName : entry,
+            );
             setInterventionTypes(nextTypes);
             const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
             requests.forEach((req) => {
                 (req.lines || []).forEach((line) => {
-                    const tags = toTags(getInterventionType(line)).map((t) => (t === type ? nextName : t));
+                    const tags = toTags(getInterventionType(line)).map((t) =>
+                        t === type ? nextName : t,
+                    );
                     line.interventionType = tags.join(", ");
                 });
             });
-            if (saveInterventionTypes(nextTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+            if (
+                saveInterventionTypes(nextTypes) &&
+                saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)
+            ) {
                 if (uiState) uiState.interventionTypesEditingName = null;
                 renderInterventionTypesList(ctx);
                 renderCartTagFilterOptions();
@@ -415,25 +455,36 @@ function renderInterventionTypesList(ctx) {
             removeBtn.addEventListener("click", async () => {
                 try {
                     closeInterventionTypesModal();
-                    const ok = await openConfirmModal(`Vuoi eliminare la tipologia \"${type}\"?`);
+                    const ok = await openConfirmModal(
+                        `Vuoi eliminare la tipologia \"${type}\"?`,
+                    );
                     if (!ok) return;
                     const nextTypes = types.filter((entry) => entry !== type);
                     setInterventionTypes(nextTypes);
-                    const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
+                    const requests = readRequestsFile(
+                        REQUEST_MODES.INTERVENTION,
+                    );
                     requests.forEach((req) => {
                         (req.lines || []).forEach((line) => {
-                            const tags = toTags(getInterventionType(line)).filter((t) => t !== type);
+                            const tags = toTags(
+                                getInterventionType(line),
+                            ).filter((t) => t !== type);
                             line.interventionType = tags.join(", ");
                         });
                     });
-                    if (saveInterventionTypes(nextTypes) && saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)) {
+                    if (
+                        saveInterventionTypes(nextTypes) &&
+                        saveRequestsFile(requests, REQUEST_MODES.INTERVENTION)
+                    ) {
                         renderInterventionTypesList(ctx);
                         renderCartTagFilterOptions();
                         renderLines();
                         renderCartTable();
                     }
                 } catch (err) {
-                    showWarning(err?.message || "Rimozione tipologia non riuscita.");
+                    showWarning(
+                        err?.message || "Rimozione tipologia non riuscita.",
+                    );
                 }
             });
             actions.append(editBtn, removeBtn);
@@ -442,11 +493,17 @@ function renderInterventionTypesList(ctx) {
         list.appendChild(row);
     });
     if (!types.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessuna tipologia disponibile.</div>";
+        list.innerHTML =
+            '<div class="pm-message">Nessuna tipologia disponibile.</div>';
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    renderCategoriesList,
-    renderInterventionTypesList,
-};
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        renderCategoriesList,
+        renderInterventionTypesList,
+    };

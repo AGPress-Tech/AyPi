@@ -29,7 +29,11 @@ function initExportModal(ctx) {
             return;
         }
         el.textContent = text;
-        el.classList.remove("is-hidden", "pm-message--error", "pm-message--success");
+        el.classList.remove(
+            "is-hidden",
+            "pm-message--error",
+            "pm-message--success",
+        );
         if (isError) {
             el.classList.add("pm-message--error");
         } else {
@@ -50,13 +54,15 @@ function initExportModal(ctx) {
             const requests = readRequestsFile(REQUEST_MODES.INTERVENTION);
             const rows = [];
             requests.forEach((request) => {
-                const requester = [request.employee, request.department].filter(Boolean).join(" - ");
+                const requester = [request.employee, request.department]
+                    .filter(Boolean)
+                    .join(" - ");
                 (request.lines || []).forEach((line) => {
                     const status = line.deletedAt
                         ? "deleted"
                         : line.confirmedAt || line.confirmed
-                            ? "confirmed"
-                            : "pending";
+                          ? "confirmed"
+                          : "pending";
                     const typeValue = getInterventionType(line);
                     rows.push({
                         requestId: request.id || "",
@@ -82,13 +88,15 @@ function initExportModal(ctx) {
         const requests = readRequestsFile(REQUEST_MODES.PURCHASE);
         const rows = [];
         requests.forEach((request) => {
-            const requester = [request.employee, request.department].filter(Boolean).join(" - ");
+            const requester = [request.employee, request.department]
+                .filter(Boolean)
+                .join(" - ");
             (request.lines || []).forEach((line) => {
                 const status = line.deletedAt
                     ? "deleted"
                     : line.confirmedAt || line.confirmed
-                        ? "confirmed"
-                        : "pending";
+                      ? "confirmed"
+                      : "pending";
                 rows.push({
                     requestId: request.id || "",
                     createdAt: request.createdAt || "",
@@ -276,13 +284,25 @@ function initExportModal(ctx) {
 
     const exportCartExcel = async () => {
         if (!XLSX) {
-            showError("Modulo 'xlsx' non trovato.", "Esegui 'npm install xlsx' nella cartella del progetto AyPi.");
+            showError(
+                "Modulo 'xlsx' non trovato.",
+                "Esegui 'npm install xlsx' nella cartella del progetto AyPi.",
+            );
             return;
         }
-        const rangeMode = document.querySelector("input[name='pm-export-range']:checked")?.value || "all";
-        const start = parseDateInput(document.getElementById("pm-export-start")?.value || "");
-        const end = parseDateInput(document.getElementById("pm-export-end")?.value || "");
-        const yearValue = parseInt(document.getElementById("pm-export-year")?.value || "", 10);
+        const rangeMode =
+            document.querySelector("input[name='pm-export-range']:checked")
+                ?.value || "all";
+        const start = parseDateInput(
+            document.getElementById("pm-export-start")?.value || "",
+        );
+        const end = parseDateInput(
+            document.getElementById("pm-export-end")?.value || "",
+        );
+        const yearValue = parseInt(
+            document.getElementById("pm-export-year")?.value || "",
+            10,
+        );
         const year = Number.isNaN(yearValue) ? null : yearValue;
         if (rangeMode === "range" && start && end && start > end) {
             setExportMessage("Seleziona un intervallo valido.", true);
@@ -291,13 +311,21 @@ function initExportModal(ctx) {
         const stateValues = [];
         const stateContainer = document.getElementById("pm-export-state");
         if (stateContainer) {
-            stateContainer.querySelectorAll('input[type="checkbox"]:checked').forEach((input) => {
-                stateValues.push(input.value);
-            });
+            stateContainer
+                .querySelectorAll('input[type="checkbox"]:checked')
+                .forEach((input) => {
+                    stateValues.push(input.value);
+                });
         }
-        const includePending = stateValues.length ? stateValues.includes("Pending") : true;
-        const includeConfirmed = stateValues.length ? stateValues.includes("Convalidati") : true;
-        const includeDeleted = stateValues.length ? stateValues.includes("Eliminati") : false;
+        const includePending = stateValues.length
+            ? stateValues.includes("Pending")
+            : true;
+        const includeConfirmed = stateValues.length
+            ? stateValues.includes("Convalidati")
+            : true;
+        const includeDeleted = stateValues.length
+            ? stateValues.includes("Eliminati")
+            : false;
         if (!includePending && !includeConfirmed && !includeDeleted) {
             setExportMessage("Seleziona almeno uno stato.", true);
             return;
@@ -307,15 +335,19 @@ function initExportModal(ctx) {
         const tagValues = [];
         const urgencyContainer = document.getElementById("pm-export-urgency");
         if (urgencyContainer) {
-            urgencyContainer.querySelectorAll('input[type="checkbox"]:checked').forEach((input) => {
-                urgencyValues.push(input.value);
-            });
+            urgencyContainer
+                .querySelectorAll('input[type="checkbox"]:checked')
+                .forEach((input) => {
+                    urgencyValues.push(input.value);
+                });
         }
         const tagContainer = document.getElementById("pm-export-tag");
         if (tagContainer) {
-            tagContainer.querySelectorAll('input[type="checkbox"]:checked').forEach((input) => {
-                tagValues.push(input.value);
-            });
+            tagContainer
+                .querySelectorAll('input[type="checkbox"]:checked')
+                .forEach((input) => {
+                    tagValues.push(input.value);
+                });
         }
         const filtered = filterExportRows(rows, {
             search: "",
@@ -335,13 +367,19 @@ function initExportModal(ctx) {
         }
         const isIntervention = isInterventionMode();
         const filePath = await ipcRenderer.invoke("select-output-file", {
-            defaultName: isIntervention ? "lista_interventi.xlsx" : "lista_acquisti.xlsx",
+            defaultName: isIntervention
+                ? "lista_interventi.xlsx"
+                : "lista_acquisti.xlsx",
             filters: [{ name: "File Excel", extensions: ["xlsx"] }],
         });
         if (!filePath) return;
         const wb = XLSX.utils.book_new();
         const sheet = buildExportSheet(filtered);
-        XLSX.utils.book_append_sheet(wb, sheet, isIntervention ? "Interventi" : "Acquisti");
+        XLSX.utils.book_append_sheet(
+            wb,
+            sheet,
+            isIntervention ? "Interventi" : "Acquisti",
+        );
         XLSX.writeFile(wb, filePath);
         setExportMessage("File Excel creato con successo.", false);
     };
@@ -351,7 +389,9 @@ function initExportModal(ctx) {
     const cancelBtn = document.getElementById("pm-export-cancel");
     const runBtn = document.getElementById("pm-export-run");
     const modal = document.getElementById("pm-export-modal");
-    const rangeRadios = document.querySelectorAll("input[name='pm-export-range']");
+    const rangeRadios = document.querySelectorAll(
+        "input[name='pm-export-range']",
+    );
     const tagSelect = document.getElementById("pm-export-tag");
     const yearSelect = document.getElementById("pm-export-year");
     const searchInput = document.getElementById("pm-export-search");
@@ -359,7 +399,9 @@ function initExportModal(ctx) {
     const stateSelect = document.getElementById("pm-export-state");
 
     const setRangeState = () => {
-        const mode = document.querySelector("input[name='pm-export-range']:checked")?.value || "all";
+        const mode =
+            document.querySelector("input[name='pm-export-range']:checked")
+                ?.value || "all";
         const yearField = document.getElementById("pm-export-year");
         const startField = document.getElementById("pm-export-start");
         const endField = document.getElementById("pm-export-end");
@@ -430,15 +472,23 @@ function initExportModal(ctx) {
             menu.appendChild(option);
         });
         const closeOtherMenus = () => {
-            document.querySelectorAll(".pm-multiselect__menu--floating").forEach((menuEl) => {
-                if (menuEl === menu) return;
-                const hostId = menuEl.dataset.pmHostId || "";
-                const host = hostId ? document.querySelector(`[data-pm-host-id="${hostId}"]`) : null;
-                closeMultiselectMenu(menuEl, host || null);
-            });
-            document.querySelectorAll(".pm-custom-select.is-open").forEach((custom) => {
-                custom.classList.remove("is-open");
-            });
+            document
+                .querySelectorAll(".pm-multiselect__menu--floating")
+                .forEach((menuEl) => {
+                    if (menuEl === menu) return;
+                    const hostId = menuEl.dataset.pmHostId || "";
+                    const host = hostId
+                        ? document.querySelector(
+                              `[data-pm-host-id="${hostId}"]`,
+                          )
+                        : null;
+                    closeMultiselectMenu(menuEl, host || null);
+                });
+            document
+                .querySelectorAll(".pm-custom-select.is-open")
+                .forEach((custom) => {
+                    custom.classList.remove("is-open");
+                });
         };
 
         button.addEventListener("click", (event) => {
@@ -468,13 +518,19 @@ function initExportModal(ctx) {
 
     const openModal = () => {
         if (!modal) return;
-        const tagValues = isInterventionMode() ? interventionTypes : catalogCategories;
+        const tagValues = isInterventionMode()
+            ? interventionTypes
+            : catalogCategories;
         exportTagSelect = buildExportMultiSelect(tagSelect, tagValues, []);
-        exportUrgencySelect = buildExportMultiSelect(urgencySelect, ["Alta", "Media", "Bassa"], []);
+        exportUrgencySelect = buildExportMultiSelect(
+            urgencySelect,
+            ["Alta", "Media", "Bassa"],
+            [],
+        );
         exportStateSelect = buildExportMultiSelect(
             stateSelect,
             ["Pending", "Convalidati", "Eliminati"],
-            []
+            [],
         );
         populateYearOptions();
         if (searchInput) searchInput.value = "";
@@ -495,7 +551,9 @@ function initExportModal(ctx) {
     if (cancelBtn) cancelBtn.addEventListener("click", () => closeModal());
     if (runBtn) runBtn.addEventListener("click", () => exportCartExcel());
     if (rangeRadios.length) {
-        rangeRadios.forEach((radio) => radio.addEventListener("change", setRangeState));
+        rangeRadios.forEach((radio) =>
+            radio.addEventListener("change", setRangeState),
+        );
     }
     if (modal) {
         modal.addEventListener("click", (event) => {
@@ -504,4 +562,9 @@ function initExportModal(ctx) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { initExportModal };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { initExportModal };

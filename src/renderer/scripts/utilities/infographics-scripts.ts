@@ -170,8 +170,7 @@ async function reloadStats(force: boolean) {
             fetchError.textContent =
                 "Nota: linee variate calcolate da repository locale";
         } else if (payload.warning === "code-frequency-cache") {
-            fetchError.textContent =
-                "Nota: linee variate recuperate da cache";
+            fetchError.textContent = "Nota: linee variate recuperate da cache";
         } else if (payload.warning === "commit-week-partial") {
             fetchError.textContent =
                 "Nota: inclusa settimana corrente (parziale)";

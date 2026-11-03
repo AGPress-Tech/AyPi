@@ -51,7 +51,9 @@ export class Router {
             if (!match) continue;
             const params = route.keys.reduce<Record<string, string>>(
                 (accumulator, key, index) => {
-                    accumulator[key] = decodeURIComponent(match[index + 1] || "");
+                    accumulator[key] = decodeURIComponent(
+                        match[index + 1] || "",
+                    );
                     return accumulator;
                 },
                 {},

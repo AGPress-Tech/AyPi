@@ -1,122 +1,128 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="it">
 
 <head>
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AyPi - Confronta cartelle</title>
-    <link rel="stylesheet" href="../../styles/utilities/compare-folders-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/compare-folders-bluearchive-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
-    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css">
-    <script src="../../scripts/utility-layout-bootstrap.js"></script>
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AyPi - Confronta cartelle</title>
+  <link rel="stylesheet" href="../../styles/utilities/compare-folders-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/compare-folders-bluearchive-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css" />
+  <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css" />
+  <script src="../../scripts/utility-layout-bootstrap.js"></script>
 </head>
 
 <body class="bluearchive-compare">
-    <div class="ba-utility-splash" id="baCompareSplash" aria-hidden="true">
-        <div class="ba-splash-grid"></div>
-        <div class="ba-splash-core">
-            <div class="ba-compare-mark"><span>A</span><i></i><span>B</span></div>
-            <small>AYPI // DIRECTORY ANALYSIS</small>
-            <h1>FOLDER COMPARE</h1>
-            <p>Inizializzazione motore di confronto</p>
-            <div class="ba-splash-progress"><i></i></div>
-        </div>
+  <div class="ba-utility-splash" id="baCompareSplash" aria-hidden="true">
+    <div class="ba-splash-grid"></div>
+    <div class="ba-splash-core">
+      <div class="ba-compare-mark"><span>A</span><i></i><span>B</span></div>
+      <small>AYPI // DIRECTORY ANALYSIS</small>
+      <h1>FOLDER COMPARE</h1>
+      <p>Inizializzazione motore di confronto</p>
+      <div class="ba-splash-progress"><i></i></div>
     </div>
-    <div class="container">
-        <header class="utility-header">
-            <div>
-                <span class="ba-only utility-kicker">UTILITY 03 // DIRECTORY ANALYSIS</span>
-                <h2>Confronta cartelle</h2>
-                <p class="ba-only utility-subtitle">Analizza differenze, metadati e corrispondenze tra due directory.
-                </p>
-            </div>
-            <div class="ba-only utility-badge"><i></i> COMPARE READY</div>
-        </header>
+  </div>
+  <div class="container">
+    <header class="utility-header">
+      <div>
+        <span class="ba-only utility-kicker">UTILITY 03 // DIRECTORY ANALYSIS</span>
+        <h2>Confronta cartelle</h2>
+        <p class="ba-only utility-subtitle">
+          Analizza differenze, metadati e corrispondenze tra due directory.
+        </p>
+      </div>
+      <div class="ba-only utility-badge"><i></i> COMPARE READY</div>
+    </header>
 
-        <div class="section folders-section">
-            <div class="folder-row">
-                <button id="btnSelectFolderA"><span class="ba-only folder-letter">A</span>Seleziona cartella
-                    A...</button>
-                <div class="label-col">
-                    <span class="label">Cartella A:</span>
-                    <span id="lblFolderA" class="value">Nessuna</span>
-                </div>
-            </div>
-            <div class="folder-row">
-                <button id="btnSelectFolderB"><span class="ba-only folder-letter">B</span>Seleziona cartella
-                    B...</button>
-                <div class="label-col">
-                    <span class="label">Cartella B:</span>
-                    <span id="lblFolderB" class="value">Nessuna</span>
-                </div>
-            </div>
+    <div class="section folders-section">
+      <div class="folder-row">
+        <button id="btnSelectFolderA">
+          <span class="ba-only folder-letter">A</span>Seleziona cartella A...
+        </button>
+        <div class="label-col">
+          <span class="label">Cartella A:</span>
+          <span id="lblFolderA" class="value">Nessuna</span>
         </div>
-
-        <div class="section options">
-            <label class="inline">
-                <input type="checkbox" id="chkIncludeSubfolders" checked>
-                Includi sottocartelle
-            </label>
-
-            <label for="compareMode">Modalità di confronto</label>
-            <select id="compareMode">
-                <option value="name">Solo percorso e nome file</option>
-                <option value="meta">Dimensione + data modifica</option>
-                <option value="hash">Conferma differenze con hash (più lento)</option>
-            </select>
+      </div>
+      <div class="folder-row">
+        <button id="btnSelectFolderB">
+          <span class="ba-only folder-letter">B</span>Seleziona cartella B...
+        </button>
+        <div class="label-col">
+          <span class="label">Cartella B:</span>
+          <span id="lblFolderB" class="value">Nessuna</span>
         </div>
-
-        <div class="section filters">
-            <span>Mostra:</span>
-            <label class="inline">
-                <input type="checkbox" id="filterOnlyA" checked>
-                Solo in A
-            </label>
-            <label class="inline">
-                <input type="checkbox" id="filterOnlyB" checked>
-                Solo in B
-            </label>
-            <label class="inline">
-                <input type="checkbox" id="filterDiff" checked>
-                Diversi
-            </label>
-            <label class="inline">
-                <input type="checkbox" id="filterSame">
-                Uguali
-            </label>
-        </div>
-
-        <div class="section commands">
-            <div class="left">
-                <button id="btnCompare">Confronta</button>
-            </div>
-            <div class="right">
-                <button id="btnOpenInA" disabled>Apri in A</button>
-                <button id="btnOpenInB" disabled>Apri in B</button>
-                <button id="btnClose">Chiudi</button>
-            </div>
-        </div>
-
-        <div class="section preview-section">
-            <table id="resultsTable">
-                <thead>
-                    <tr>
-                        <th><span class="ba-only table-heading-prefix">RISULTATI //</span> Percorso relativo</th>
-                        <th>Stato</th>
-                        <th>Info A</th>
-                        <th>Info B</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
+      </div>
     </div>
 
-    <script src="../../scripts/utilities/compare-folders-scripts.js"></script>
+    <div class="section options">
+      <label class="inline">
+        <input type="checkbox" id="chkIncludeSubfolders" checked />
+        Includi sottocartelle
+      </label>
+
+      <label for="compareMode">Modalità di confronto</label>
+      <select id="compareMode">
+        <option value="name">Solo percorso e nome file</option>
+        <option value="meta">Dimensione + data modifica</option>
+        <option value="hash">Conferma differenze con hash (più lento)</option>
+      </select>
+    </div>
+
+    <div class="section filters">
+      <span>Mostra:</span>
+      <label class="inline">
+        <input type="checkbox" id="filterOnlyA" checked />
+        Solo in A
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="filterOnlyB" checked />
+        Solo in B
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="filterDiff" checked />
+        Diversi
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="filterSame" />
+        Uguali
+      </label>
+    </div>
+
+    <div class="section commands">
+      <div class="left">
+        <button id="btnCompare">Confronta</button>
+      </div>
+      <div class="right">
+        <button id="btnOpenInA" disabled>Apri in A</button>
+        <button id="btnOpenInB" disabled>Apri in B</button>
+        <button id="btnClose">Chiudi</button>
+      </div>
+    </div>
+
+    <div class="section preview-section">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>
+              <span class="ba-only table-heading-prefix">RISULTATI //</span>
+              Percorso relativo
+            </th>
+            <th>Stato</th>
+            <th>Info A</th>
+            <th>Info B</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="../../scripts/utilities/compare-folders-scripts.js"></script>
 </body>
 
 </html>

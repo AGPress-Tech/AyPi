@@ -1,6 +1,9 @@
 import path from "path";
 import { backendConfig } from "../../config";
-import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
+import {
+    getSqliteDatabase,
+    runSqliteTransaction,
+} from "../../shared/db/sqlite";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import { createAttachmentStore } from "../../shared/storage/attachment-store";
 import { parseJson, serializeJson } from "../../shared/storage/json-codec";
@@ -39,7 +42,9 @@ function normalizeWorkflowAttachments(items: unknown) {
     const source = Array.isArray(items) ? items : [];
     const normalized = attachments.normalize(source);
     return normalized.map((item) => {
-        const original = source.find((candidate) => String(candidate?.id || "") === item.id);
+        const original = source.find(
+            (candidate) => String(candidate?.id || "") === item.id,
+        );
         return {
             ...item,
             workflowKey: text(original?.workflowKey),
@@ -48,20 +53,27 @@ function normalizeWorkflowAttachments(items: unknown) {
 }
 
 function normalizeLinkedPaths(items: unknown) {
-    return (Array.isArray(items) ? items : []).map((item: any, index) => ({
-        id: text(item?.id) || `path-${index + 1}`,
-        name: text(item?.name) || path.basename(text(item?.path)),
-        path: text(item?.path),
-        workflowKey: text(item?.workflowKey),
-        createdAt: text(item?.createdAt),
-    })).filter((item) => item.path);
+    return (Array.isArray(items) ? items : [])
+        .map((item: any, index) => ({
+            id: text(item?.id) || `path-${index + 1}`,
+            name: text(item?.name) || path.basename(text(item?.path)),
+            path: text(item?.path),
+            workflowKey: text(item?.workflowKey),
+            createdAt: text(item?.createdAt),
+        }))
+        .filter((item) => item.path);
 }
 
 function workflowPhaseComplete(phaseKey: string, data: any) {
     if (!data?.data || !data?.emessoDa) return false;
-    if (phaseKey === "validation") return Boolean(data.firmaDirezioneProduzione);
+    if (phaseKey === "validation")
+        return Boolean(data.firmaDirezioneProduzione);
     if (phaseKey === "riesame1" || phaseKey === "riesame2") {
-        return Boolean(data.partecipantiProduzione && data.partecipantiStampaggio && data.partecipantiOfficina);
+        return Boolean(
+            data.partecipantiProduzione &&
+            data.partecipantiStampaggio &&
+            data.partecipantiOfficina,
+        );
     }
     return true;
 }
@@ -72,8 +84,13 @@ function registrationComplete(item: any, data: string, emessoDa: string) {
     const phases = item?.fasiSuccessive?.[origin];
     if (!phases || typeof phases !== "object") return false;
     // La terza verifica è esplicitamente eventuale e non blocca la chiusura del modulo.
-    return ["riesame1", "verifica1", "verifica2", "riesame2", "validation"]
-        .every((phaseKey) => workflowPhaseComplete(phaseKey, phases[phaseKey]));
+    return [
+        "riesame1",
+        "verifica1",
+        "verifica2",
+        "riesame2",
+        "validation",
+    ].every((phaseKey) => workflowPhaseComplete(phaseKey, phases[phaseKey]));
 }
 
 export function normalizeRegistrazioneStampi(raw: any) {
@@ -86,7 +103,9 @@ export function normalizeRegistrazioneStampi(raw: any) {
         descrizioneProgetto: text(item.descrizioneProgetto),
         tipologia: text(item.tipologia),
         nuovoProgetto: yesNo(item.nuovoProgetto),
-        origineProgetto: ["interno", "cliente"].includes(text(item.origineProgetto))
+        origineProgetto: ["interno", "cliente"].includes(
+            text(item.origineProgetto),
+        )
             ? text(item.origineProgetto)
             : "",
         personalizzazioneCliente: yesNo(item.personalizzazioneCliente),
@@ -107,7 +126,9 @@ export function normalizeRegistrazioneStampi(raw: any) {
         rischioAlto: text(item.rischioAlto),
         rischioMedio: text(item.rischioMedio),
         rischioBasso: text(item.rischioBasso),
-        rischioProgetto: ["alto", "medio", "basso"].includes(text(item.rischioProgetto))
+        rischioProgetto: ["alto", "medio", "basso"].includes(
+            text(item.rischioProgetto),
+        )
             ? text(item.rischioProgetto)
             : "",
         note: text(item.note),
@@ -120,7 +141,9 @@ export function normalizeRegistrazioneStampi(raw: any) {
         completato: registrationComplete(item, data, emessoDa),
         attachments: normalizeWorkflowAttachments(item.attachments),
         linkedPaths: normalizeLinkedPaths(item.linkedPaths),
-        newAttachments: Array.isArray(item.newAttachments) ? item.newAttachments : [],
+        newAttachments: Array.isArray(item.newAttachments)
+            ? item.newAttachments
+            : [],
         createdAt: text(item.createdAt),
         updatedAt: text(item.updatedAt),
     };
@@ -156,17 +179,23 @@ export function saveRegistrazioneStampi(payload: any) {
     const previousCode = text(payload?.previousCode);
     const target = loadRegistrazioneStampi(normalized.code);
     if (target && previousCode !== normalized.code) {
-        throw new Error(`Esiste già una registrazione con numero progetto ${normalized.code}.`);
+        throw new Error(
+            `Esiste già una registrazione con numero progetto ${normalized.code}.`,
+        );
     }
-    const current = (previousCode ? loadRegistrazioneStampi(previousCode) : null) || target;
+    const current =
+        (previousCode ? loadRegistrazioneStampi(previousCode) : null) || target;
     const retained = normalizeWorkflowAttachments(normalized.attachments);
     const retainedIds = new Set(retained.map((item) => item.id));
-    const removed = normalizeWorkflowAttachments(current?.attachments)
-        .filter((item) => !retainedIds.has(item.id));
-    const added = attachments.saveNew(normalized.newAttachments).map((item, index) => ({
-        ...item,
-        workflowKey: text(normalized.newAttachments?.[index]?.workflowKey),
-    }));
+    const removed = normalizeWorkflowAttachments(current?.attachments).filter(
+        (item) => !retainedIds.has(item.id),
+    );
+    const added = attachments
+        .saveNew(normalized.newAttachments)
+        .map((item, index) => ({
+            ...item,
+            workflowKey: text(normalized.newAttachments?.[index]?.workflowKey),
+        }));
     const now = new Date().toISOString();
     const next = {
         ...normalized,
@@ -179,7 +208,9 @@ export function saveRegistrazioneStampi(payload: any) {
     try {
         runSqliteTransaction((database) => {
             if (previousCode && previousCode !== next.code) {
-                database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [previousCode]);
+                database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [
+                    previousCode,
+                ]);
             }
             database.run(
                 `INSERT OR REPLACE INTO ${TABLE}

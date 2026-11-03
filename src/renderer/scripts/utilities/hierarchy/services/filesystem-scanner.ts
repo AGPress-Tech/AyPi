@@ -43,11 +43,7 @@ export async function scanFolderRecursively(
                 withFileTypes: true,
             });
         } catch (error) {
-            console.error(
-                "Errore lettura cartella:",
-                currentPath,
-                error,
-            );
+            console.error("Errore lettura cartella:", currentPath, error);
             return;
         }
 
@@ -66,11 +62,7 @@ export async function scanFolderRecursively(
             try {
                 stats = await fs.promises.stat(fullPath);
             } catch (error) {
-                console.error(
-                    "Errore stat elemento:",
-                    fullPath,
-                    error,
-                );
+                console.error("Errore stat elemento:", fullPath, error);
                 continue;
             }
 

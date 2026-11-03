@@ -199,7 +199,9 @@ function fadeInBodyOnLoad() {
 }
 
 function wireThemeHotkey() {
-    let overlay = document.getElementById("aypi-theme-overlay") as HTMLDivElement | null;
+    let overlay = document.getElementById(
+        "aypi-theme-overlay",
+    ) as HTMLDivElement | null;
     if (!overlay) {
         overlay = document.createElement("div");
         overlay.id = "aypi-theme-overlay";
@@ -229,8 +231,12 @@ function wireThemeHotkey() {
 
         const form = overlay.querySelector("form") as HTMLFormElement;
         const input = overlay.querySelector("input") as HTMLInputElement;
-        const error = overlay.querySelector("[data-theme-error]") as HTMLElement;
-        const cancel = overlay.querySelector("[data-theme-cancel]") as HTMLButtonElement;
+        const error = overlay.querySelector(
+            "[data-theme-error]",
+        ) as HTMLElement;
+        const cancel = overlay.querySelector(
+            "[data-theme-cancel]",
+        ) as HTMLButtonElement;
         Object.assign(form.style, {
             width: "min(360px, 88vw)",
             padding: "24px",
@@ -241,20 +247,74 @@ function wireThemeHotkey() {
             boxShadow: "0 24px 70px rgba(0,0,0,.55)",
             fontFamily: "Segoe UI, sans-serif",
         });
-        const kicker = overlay.querySelector("[data-theme-kicker]") as HTMLElement;
-        Object.assign(kicker.style, { color: "#e4ab32", fontSize: "10px", fontWeight: "800", letterSpacing: "1.7px", marginBottom: "9px" });
+        const kicker = overlay.querySelector(
+            "[data-theme-kicker]",
+        ) as HTMLElement;
+        Object.assign(kicker.style, {
+            color: "#e4ab32",
+            fontSize: "10px",
+            fontWeight: "800",
+            letterSpacing: "1.7px",
+            marginBottom: "9px",
+        });
         const title = overlay.querySelector("strong") as HTMLElement;
-        Object.assign(title.style, { display: "block", fontSize: "22px", marginBottom: "6px" });
+        Object.assign(title.style, {
+            display: "block",
+            fontSize: "22px",
+            marginBottom: "6px",
+        });
         const description = overlay.querySelector("p") as HTMLElement;
-        Object.assign(description.style, { margin: "0 0 16px", color: "#bbb1a5", fontSize: "12px" });
-        Object.assign(input.style, { width: "100%", boxSizing: "border-box", padding: "10px 11px", color: "white", background: "#171614", border: "1px solid #777066", borderRadius: "7px", outline: "none" });
-        Object.assign(error.style, { display: "block", minHeight: "18px", paddingTop: "5px", color: "#ff8d9b", fontSize: "10px" });
-        const actions = overlay.querySelector("[data-theme-actions]") as HTMLElement;
-        Object.assign(actions.style, { display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "6px" });
-        actions.querySelectorAll("button").forEach((button) => Object.assign((button as HTMLButtonElement).style, { padding: "8px 14px", border: "0", borderRadius: "6px", cursor: "pointer", fontWeight: "700" }));
-        Object.assign(cancel.style, { color: "#eee5da", background: "#4a4540" });
-        const confirm = overlay.querySelector("[data-theme-confirm]") as HTMLButtonElement;
-        Object.assign(confirm.style, { color: "#30270f", background: "#e4ab32" });
+        Object.assign(description.style, {
+            margin: "0 0 16px",
+            color: "#bbb1a5",
+            fontSize: "12px",
+        });
+        Object.assign(input.style, {
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "10px 11px",
+            color: "white",
+            background: "#171614",
+            border: "1px solid #777066",
+            borderRadius: "7px",
+            outline: "none",
+        });
+        Object.assign(error.style, {
+            display: "block",
+            minHeight: "18px",
+            paddingTop: "5px",
+            color: "#ff8d9b",
+            fontSize: "10px",
+        });
+        const actions = overlay.querySelector(
+            "[data-theme-actions]",
+        ) as HTMLElement;
+        Object.assign(actions.style, {
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "8px",
+            marginTop: "6px",
+        });
+        actions.querySelectorAll("button").forEach((button) =>
+            Object.assign((button as HTMLButtonElement).style, {
+                padding: "8px 14px",
+                border: "0",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "700",
+            }),
+        );
+        Object.assign(cancel.style, {
+            color: "#eee5da",
+            background: "#4a4540",
+        });
+        const confirm = overlay.querySelector(
+            "[data-theme-confirm]",
+        ) as HTMLButtonElement;
+        Object.assign(confirm.style, {
+            color: "#30270f",
+            background: "#e4ab32",
+        });
 
         const close = () => {
             overlay!.style.display = "none";

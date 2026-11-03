@@ -1,5 +1,5 @@
-import { setupFornoReader } from './fornoReader';
-import { setupForgeHub } from './forgeHub';
+import { setupFornoReader } from "./fornoReader";
+import { setupForgeHub } from "./forgeHub";
 // Importa moduli necessari
 import { ipcMain } from "electron";
 import { execFile } from "child_process";
@@ -10,7 +10,7 @@ type RobotConfig = { ip: string; mac: string };
 const ROBOTS: Record<string, RobotConfig> = {
     "21D500": { ip: "192.168.1.153", mac: "00:03:1d:12:0f:71" },
     "21D600": { ip: "192.168.1.152", mac: "00:03:1d:11:62:da" },
-    "21D850": { ip: "192.168.1.92",  mac: "00:03:1d:14:13:38" }
+    "21D850": { ip: "192.168.1.92", mac: "00:03:1d:14:13:38" },
 };
 
 const ROBOT_CUSTOM_TIMEOUT_MS = 12000;
@@ -47,7 +47,7 @@ function estraiTesto(testo: string, chiave: string) {
     if (idx === -1) return null;
 
     const dopo = testo.slice(idx + chiave.length).trim();
-    return dopo.split("\n")[0].replace("[","").replace("]","").trim();
+    return dopo.split("\n")[0].replace("[", "").replace("]", "").trim();
 }
 
 function estraiPrimaParola(testo: string, chiave: string) {
@@ -66,7 +66,9 @@ function estraiRigaSubitoDopo(testo: string, chiave: string) {
     const dopo = testo.slice(idx + chiave.length);
     const righe = dopo.split("\n");
 
-    let riga = righe[3] ? righe[3].replace("[","").replace("]","").replace(/'/g, "").trim() : null;
+    let riga = righe[3]
+        ? righe[3].replace("[", "").replace("]", "").replace(/'/g, "").trim()
+        : null;
     if (!riga) return null;
 
     riga = riga.replace(/\s+/g, " ");
@@ -120,14 +122,12 @@ async function getRobotStatus(
                 estraiTesto(cleanText, "Programma di lavoro:") || "Non trovato",
             state: estraiTesto(cleanText, chiaveStato) || "Non trovato",
             counter: estraiPrimaParola(cleanText, "PEZZI NUMERO") || undefined,
-            cycleTime:
-                estraiPrimaParola(cleanText, "TEMPO CICLO") || undefined,
+            cycleTime: estraiPrimaParola(cleanText, "TEMPO CICLO") || undefined,
             details:
                 estraiRigaSubitoDopo(cleanText, "PEZZI NUMERO") || undefined,
         };
     } catch (error) {
-        const timedOut =
-            error instanceof Error && error.name === "AbortError";
+        const timedOut = error instanceof Error && error.name === "AbortError";
         return {
             ok: false,
             robotId,
@@ -163,9 +163,7 @@ async function pingRobot(robotId: string): Promise<RobotPingResult> {
                     .filter(Boolean);
                 const summary =
                     lines.find((line) =>
-                        /Persi\s*=|Lost\s*=|Minimum\s*=|Minimo\s*=/i.test(
-                            line,
-                        ),
+                        /Persi\s*=|Lost\s*=|Minimum\s*=|Minimo\s*=/i.test(line),
                     ) ||
                     lines.at(-1) ||
                     "Nessuna risposta ricevuta.";
@@ -198,12 +196,8 @@ function setupRobotManager() {
     setupForgeHub();
     ipcMain.handle(
         "robot-status-custom",
-        async (
-            _event,
-            robotId: string,
-            url: string,
-            chiaveStato: string,
-        ) => getRobotStatus(robotId, url, chiaveStato),
+        async (_event, robotId: string, url: string, chiaveStato: string) =>
+            getRobotStatus(robotId, url, chiaveStato),
     );
 
     ipcMain.handle("ping-robot-custom", async (_event, robotId: string) =>

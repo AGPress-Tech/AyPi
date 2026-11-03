@@ -16,11 +16,16 @@ import {
 function contentType(filePath: string) {
     const extension = path.extname(filePath).toLowerCase();
     const types: Record<string, string> = {
-        ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg", ".doc": "application/msword",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".doc": "application/msword",
+        ".docx":
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xls": "application/vnd.ms-excel",
-        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xlsx":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     };
     return types[extension] || "application/octet-stream";
 }
@@ -32,7 +37,8 @@ export function registerRegistrazioniProgettiSpecialiRoutes(router: Router) {
     });
     router.register("GET", `${base}/items/:code`, async (_req, res, params) => {
         const item = getRegistrazioneProgettoSpeciale(params.code);
-        if (!item) throw notFound("Registrazione progetto speciale non trovata");
+        if (!item)
+            throw notFound("Registrazione progetto speciale non trovata");
         sendJson(res, 200, { item });
     });
     router.register("PUT", `${base}/items/:code`, async (req, res, params) => {
@@ -43,21 +49,37 @@ export function registerRegistrazioniProgettiSpecialiRoutes(router: Router) {
         );
         sendJson(res, 200, { item });
     });
-    router.register("DELETE", `${base}/items/:code`, async (req, res, params) => {
-        const removed = await removeRegistrazioneProgettoSpecialeItem(params.code, {
-            actor: getRequestUser(req), requestId: getRequestId(req),
-        });
-        if (!removed) throw notFound("Registrazione progetto speciale non trovata");
-        sendJson(res, 200, { ok: true });
-    });
-    router.register("GET", `${base}/attachments/:storedName`, async (_req, res, params) => {
-        const filePath = getProgettoSpecialeAttachmentPath(params.storedName);
-        if (!fs.existsSync(filePath)) throw notFound("Allegato non trovato");
-        res.writeHead(200, {
-            "Content-Type": contentType(filePath),
-            "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(path.basename(filePath))}`,
-            "Cache-Control": "private, max-age=60",
-        });
-        fs.createReadStream(filePath).pipe(res);
-    });
+    router.register(
+        "DELETE",
+        `${base}/items/:code`,
+        async (req, res, params) => {
+            const removed = await removeRegistrazioneProgettoSpecialeItem(
+                params.code,
+                {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                },
+            );
+            if (!removed)
+                throw notFound("Registrazione progetto speciale non trovata");
+            sendJson(res, 200, { ok: true });
+        },
+    );
+    router.register(
+        "GET",
+        `${base}/attachments/:storedName`,
+        async (_req, res, params) => {
+            const filePath = getProgettoSpecialeAttachmentPath(
+                params.storedName,
+            );
+            if (!fs.existsSync(filePath))
+                throw notFound("Allegato non trovato");
+            res.writeHead(200, {
+                "Content-Type": contentType(filePath),
+                "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(path.basename(filePath))}`,
+                "Cache-Control": "private, max-age=60",
+            });
+            fs.createReadStream(filePath).pipe(res);
+        },
+    );
 }

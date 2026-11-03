@@ -32,7 +32,8 @@ setupProgramsDialog(
         save: (draft) => ipcRenderer.invoke("forno-draft-save", draft),
         export: (draft) => ipcRenderer.invoke("forno-draft-export", draft),
         import: () => ipcRenderer.invoke("forno-draft-import"),
-        transfer: (input) => ipcRenderer.invoke("forno-program-transfer", input),
+        transfer: (input) =>
+            ipcRenderer.invoke("forno-program-transfer", input),
     },
     {
         list: () => ipcRenderer.invoke("forno-library-list"),

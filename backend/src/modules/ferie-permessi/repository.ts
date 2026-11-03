@@ -17,10 +17,7 @@ import {
     getSqliteDatabase,
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
-import {
-    parseJson,
-    serializeJson,
-} from "../../shared/storage/json-codec";
+import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 import { loadAssigneeOptions } from "../shared/repository";
 import type { FpPayload, RequestLike } from "./types";
 import type { AssigneesPayload } from "./types";
@@ -83,7 +80,8 @@ function toShardKey(request: RequestLike) {
         const direct = /^(\d{4})/.exec(value.trim());
         if (direct) return direct[1];
         const parsed = new Date(value);
-        if (!Number.isNaN(parsed.getTime())) return String(parsed.getFullYear());
+        if (!Number.isNaN(parsed.getTime()))
+            return String(parsed.getFullYear());
     }
     return "undated";
 }
@@ -180,7 +178,9 @@ function loadFpPayloadFromSqlite(): FpPayload {
     `);
 
     const requests = (requestRows?.[0]?.values || [])
-        .map((row: unknown[]) => parseJson<RequestLike>(row?.[0], {} as RequestLike))
+        .map((row: unknown[]) =>
+            parseJson<RequestLike>(row?.[0], {} as RequestLike),
+        )
         .filter((row: RequestLike) => !!row && typeof row === "object");
 
     const balances = Object.fromEntries(
@@ -253,7 +253,9 @@ export function restoreFeriePermessiBackup(
     if (mode === "full") {
         const dbInBackup = path.join(sourceDir, "General", "data", "aypi.db");
         if (!fs.existsSync(dbInBackup)) {
-            throw new Error("Il backup selezionato non contiene un database AyPi");
+            throw new Error(
+                "Il backup selezionato non contiene un database AyPi",
+            );
         }
         replaceDirectoryContents(
             sourceDir,
@@ -261,7 +263,9 @@ export function restoreFeriePermessiBackup(
         );
         return { ok: true, restored: name, mode };
     }
-    const dbInBackup = fs.existsSync(path.join(sourceDir, "General", "data", "aypi.db"))
+    const dbInBackup = fs.existsSync(
+        path.join(sourceDir, "General", "data", "aypi.db"),
+    )
         ? path.join(sourceDir, "General", "data", "aypi.db")
         : path.join(sourceDir, "aypi.db");
     if (!fs.existsSync(dbInBackup)) {

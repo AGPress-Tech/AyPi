@@ -6,8 +6,12 @@ const ChartModule = require("chart.js/auto");
 const Chart = ChartModule.Chart || ChartModule.default || ChartModule;
 
 const byId = (id: string) => document.getElementById(id);
-const numberFormat = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 });
-const integerFormat = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0 });
+const numberFormat = new Intl.NumberFormat("it-IT", {
+    maximumFractionDigits: 1,
+});
+const integerFormat = new Intl.NumberFormat("it-IT", {
+    maximumFractionDigits: 0,
+});
 const dateFormat = new Intl.DateTimeFormat("it-IT");
 const STORAGE_KEY = "aypi-production-analysis-custom-v1";
 const WORK_LABELS = {
@@ -82,17 +86,24 @@ function clamp(value: number, min = 0, max = 1) {
 }
 
 function machineFor(job) {
-    return plannerState.machines.find((machine) => machine.id === job.machineId) || {
-        id: job.machineId || "",
-        name: job.machineId ? "Macchina rimossa" : "Da pianificare",
-        department: job.machineId ? "Non assegnato" : "Da pianificare",
-        category: "Non assegnata",
-    };
+    return (
+        plannerState.machines.find(
+            (machine) => machine.id === job.machineId,
+        ) || {
+            id: job.machineId || "",
+            name: job.machineId ? "Macchina rimossa" : "Da pianificare",
+            department: job.machineId ? "Non assegnato" : "Da pianificare",
+            category: "Non assegnata",
+        }
+    );
 }
 
 function progressRatio(job) {
     if (job.workStatus === "done") return 1;
-    return clamp((Number(job.progressDays) || 0) / Math.max(1, Number(job.durationDays) || 1));
+    return clamp(
+        (Number(job.progressDays) || 0) /
+            Math.max(1, Number(job.durationDays) || 1),
+    );
 }
 
 function completionDate(job) {
@@ -121,7 +132,8 @@ function summarize(jobs) {
     let punctualEligible = 0;
     let punctual = 0;
     jobs.forEach((job) => {
-        if (job.article) articleSet.add(String(job.article).trim().toLocaleLowerCase("it"));
+        if (job.article)
+            articleSet.add(String(job.article).trim().toLocaleLowerCase("it"));
         const machine = machineFor(job);
         if (job.machineId) machineSet.add(job.machineId);
         if (machine.department) departmentSet.add(machine.department);
@@ -157,7 +169,9 @@ function summarize(jobs) {
         duration: jobs.length ? durationTotal / jobs.length : 0,
         punctualEligible,
         punctual,
-        punctuality: punctualEligible ? (punctual / punctualEligible) * 100 : null,
+        punctuality: punctualEligible
+            ? (punctual / punctualEligible) * 100
+            : null,
     };
 }
 
@@ -174,8 +188,10 @@ function periodKey(job, granularity) {
     const year = date.getFullYear();
     const month = date.getMonth();
     if (granularity === "day") return localIso(date);
-    if (granularity === "week") return `Settimana ${localIso(startOfWeek(date))}`;
-    if (granularity === "quarter") return `${year} · T${Math.floor(month / 3) + 1}`;
+    if (granularity === "week")
+        return `Settimana ${localIso(startOfWeek(date))}`;
+    if (granularity === "quarter")
+        return `${year} · T${Math.floor(month / 3) + 1}`;
     if (granularity === "year") return String(year);
     return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
@@ -201,7 +217,11 @@ function selectedValues(id: string) {
 
 function exactMatch(value, filter) {
     if (!filter) return true;
-    return String(value || "").trim().localeCompare(filter.trim(), "it", { sensitivity: "accent" }) === 0;
+    return (
+        String(value || "")
+            .trim()
+            .localeCompare(filter.trim(), "it", { sensitivity: "accent" }) === 0
+    );
 }
 
 function overlaps(job, from, to) {
@@ -221,21 +241,25 @@ function within(value, from, to) {
 
 function readFilters() {
     return {
-        productionFrom: (byId("filter-production-from") as HTMLInputElement).value,
+        productionFrom: (byId("filter-production-from") as HTMLInputElement)
+            .value,
         productionTo: (byId("filter-production-to") as HTMLInputElement).value,
         deliveryFrom: (byId("filter-delivery-from") as HTMLInputElement).value,
         deliveryTo: (byId("filter-delivery-to") as HTMLInputElement).value,
-        completionFrom: (byId("filter-completion-from") as HTMLInputElement).value,
+        completionFrom: (byId("filter-completion-from") as HTMLInputElement)
+            .value,
         completionTo: (byId("filter-completion-to") as HTMLInputElement).value,
         article: (byId("filter-article") as HTMLInputElement).value,
         customer: (byId("filter-customer-text") as HTMLInputElement).value,
         workStatus: (byId("filter-work-status") as HTMLSelectElement).value,
-        materialStatus: (byId("filter-material-status") as HTMLSelectElement).value,
+        materialStatus: (byId("filter-material-status") as HTMLSelectElement)
+            .value,
         unit: (byId("filter-unit") as HTMLSelectElement).value,
         departments: selectedValues("filter-departments"),
         categories: selectedValues("filter-categories"),
         machines: selectedValues("filter-machines"),
-        onlyCompleted: (byId("filter-only-completed") as HTMLInputElement).checked,
+        onlyCompleted: (byId("filter-only-completed") as HTMLInputElement)
+            .checked,
         granularity: (byId("filter-granularity") as HTMLSelectElement).value,
     };
 }
@@ -244,17 +268,46 @@ function applyFilters() {
     const filters = readFilters();
     filteredJobs = plannerState.jobs.filter((job) => {
         const machine = machineFor(job);
-        if (!overlaps(job, filters.productionFrom, filters.productionTo)) return false;
-        if (!within(job.firstDeliveryDate, filters.deliveryFrom, filters.deliveryTo)) return false;
-        if (!within(completionDate(job), filters.completionFrom, filters.completionTo)) return false;
+        if (!overlaps(job, filters.productionFrom, filters.productionTo))
+            return false;
+        if (
+            !within(
+                job.firstDeliveryDate,
+                filters.deliveryFrom,
+                filters.deliveryTo,
+            )
+        )
+            return false;
+        if (
+            !within(
+                completionDate(job),
+                filters.completionFrom,
+                filters.completionTo,
+            )
+        )
+            return false;
         if (!exactMatch(job.article, filters.article)) return false;
         if (!exactMatch(job.customer, filters.customer)) return false;
-        if (filters.workStatus && job.workStatus !== filters.workStatus) return false;
-        if (filters.materialStatus && job.materialStatus !== filters.materialStatus) return false;
+        if (filters.workStatus && job.workStatus !== filters.workStatus)
+            return false;
+        if (
+            filters.materialStatus &&
+            job.materialStatus !== filters.materialStatus
+        )
+            return false;
         if (filters.unit && job.unit !== filters.unit) return false;
-        if (filters.departments.size && !filters.departments.has(machine.department)) return false;
-        if (filters.categories.size && !filters.categories.has(machine.category)) return false;
-        if (filters.machines.size && !filters.machines.has(job.machineId)) return false;
+        if (
+            filters.departments.size &&
+            !filters.departments.has(machine.department)
+        )
+            return false;
+        if (
+            filters.categories.size &&
+            !filters.categories.has(machine.category)
+        )
+            return false;
+        if (filters.machines.size && !filters.machines.has(job.machineId))
+            return false;
         if (filters.onlyCompleted && job.workStatus !== "done") return false;
         return true;
     });
@@ -264,12 +317,18 @@ function applyFilters() {
 function renderFilterSummary(filters) {
     const parts = [`${integerFormat.format(filteredJobs.length)} lavorazioni`];
     if (filters.productionFrom || filters.productionTo) {
-        parts.push(`produzione ${displayDate(filters.productionFrom)} – ${displayDate(filters.productionTo)}`);
+        parts.push(
+            `produzione ${displayDate(filters.productionFrom)} – ${displayDate(filters.productionTo)}`,
+        );
     }
-    if (filters.deliveryFrom || filters.deliveryTo) parts.push("prima consegna filtrata");
-    if (filters.completionFrom || filters.completionTo) parts.push("completamento filtrato");
-    if (filters.departments.size) parts.push(`${filters.departments.size} reparti`);
-    if (filters.categories.size) parts.push(`${filters.categories.size} categorie`);
+    if (filters.deliveryFrom || filters.deliveryTo)
+        parts.push("prima consegna filtrata");
+    if (filters.completionFrom || filters.completionTo)
+        parts.push("completamento filtrato");
+    if (filters.departments.size)
+        parts.push(`${filters.departments.size} reparti`);
+    if (filters.categories.size)
+        parts.push(`${filters.categories.size} categorie`);
     if (filters.machines.size) parts.push(`${filters.machines.size} macchine`);
     if (filters.article) parts.push(`articolo “${filters.article}”`);
     if (filters.customer) parts.push(`cliente “${filters.customer}”`);
@@ -278,91 +337,195 @@ function renderFilterSummary(filters) {
 
 function renderKpis(summary) {
     byId("kpi-jobs").textContent = integerFormat.format(summary.jobs);
-    byId("kpi-jobs-note").textContent = `${integerFormat.format(summary.completed)} completate`;
-    byId("kpi-articles").textContent = integerFormat.format(summary.distinctArticles);
-    byId("kpi-pieces").textContent = integerFormat.format(summary.producedPieces);
+    byId("kpi-jobs-note").textContent =
+        `${integerFormat.format(summary.completed)} completate`;
+    byId("kpi-articles").textContent = integerFormat.format(
+        summary.distinctArticles,
+    );
+    byId("kpi-pieces").textContent = integerFormat.format(
+        summary.producedPieces,
+    );
     byId("kpi-kg").textContent = numberFormat.format(summary.producedKg);
-    byId("kpi-on-time").textContent = summary.punctuality === null ? "—" : `${numberFormat.format(summary.punctuality)}%`;
-    byId("kpi-on-time-note").textContent = `${summary.punctualEligible} completate con prima consegna`;
-    byId("kpi-completion").textContent = `${numberFormat.format(summary.completion)}%`;
+    byId("kpi-on-time").textContent =
+        summary.punctuality === null
+            ? "—"
+            : `${numberFormat.format(summary.punctuality)}%`;
+    byId("kpi-on-time-note").textContent =
+        `${summary.punctualEligible} completate con prima consegna`;
+    byId("kpi-completion").textContent =
+        `${numberFormat.format(summary.completion)}%`;
     byId("kpi-duration").textContent = numberFormat.format(summary.duration);
     byId("kpi-machines").textContent = integerFormat.format(summary.machines);
     byId("kpi-departments-note").textContent = `${summary.departments} reparti`;
 }
 
 function chartColors(count) {
-    const palette = ["#2c93e8", "#62d6ff", "#705cdf", "#40bf8d", "#f2b84b", "#ff7891", "#5175aa", "#8ed1d8"];
-    return Array.from({ length: count }, (_, index) => palette[index % palette.length]);
+    const palette = [
+        "#2c93e8",
+        "#62d6ff",
+        "#705cdf",
+        "#40bf8d",
+        "#f2b84b",
+        "#ff7891",
+        "#5175aa",
+        "#8ed1d8",
+    ];
+    return Array.from(
+        { length: count },
+        (_, index) => palette[index % palette.length],
+    );
 }
 
 function drawChart(id, config) {
     charts.get(id)?.destroy();
     const canvas = byId(id) as HTMLCanvasElement;
     if (!canvas) return;
-    charts.set(id, new Chart(canvas, {
-        ...config,
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 220 },
-            plugins: {
-                legend: { labels: { usePointStyle: true, boxWidth: 9 } },
-                tooltip: { intersect: false },
-                ...(config.options?.plugins || {}),
+    charts.set(
+        id,
+        new Chart(canvas, {
+            ...config,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 220 },
+                plugins: {
+                    legend: { labels: { usePointStyle: true, boxWidth: 9 } },
+                    tooltip: { intersect: false },
+                    ...(config.options?.plugins || {}),
+                },
+                scales: config.options?.scales,
+                indexAxis: config.options?.indexAxis,
             },
-            scales: config.options?.scales,
-            indexAxis: config.options?.indexAxis,
-        },
-    }));
+        }),
+    );
 }
 
 function renderCharts(groups) {
-    const periods = groups.period.slice().sort((a, b) => a.label.localeCompare(b.label, "it"));
+    const periods = groups.period
+        .slice()
+        .sort((a, b) => a.label.localeCompare(b.label, "it"));
     drawChart("chart-timeline", {
         type: "line",
         data: {
             labels: periods.map((row) => row.label),
             datasets: [
-                { label: "Pezzi prodotti", data: periods.map((row) => row.summary.producedPieces), borderColor: "#2c93e8", backgroundColor: "#2c93e822", fill: true, tension: .28 },
-                { label: "Kg prodotti", data: periods.map((row) => row.summary.producedKg), borderColor: "#705cdf", backgroundColor: "#705cdf18", fill: true, tension: .28 },
+                {
+                    label: "Pezzi prodotti",
+                    data: periods.map((row) => row.summary.producedPieces),
+                    borderColor: "#2c93e8",
+                    backgroundColor: "#2c93e822",
+                    fill: true,
+                    tension: 0.28,
+                },
+                {
+                    label: "Kg prodotti",
+                    data: periods.map((row) => row.summary.producedKg),
+                    borderColor: "#705cdf",
+                    backgroundColor: "#705cdf18",
+                    fill: true,
+                    tension: 0.28,
+                },
             ],
         },
     });
-    const machines = groups.machine.slice().sort((a, b) => b.summary.producedPieces - a.summary.producedPieces).slice(0, 15);
+    const machines = groups.machine
+        .slice()
+        .sort((a, b) => b.summary.producedPieces - a.summary.producedPieces)
+        .slice(0, 15);
     drawChart("chart-machines", {
         type: "bar",
-        data: { labels: machines.map((row) => row.label), datasets: [{ label: "Pezzi prodotti", data: machines.map((row) => row.summary.producedPieces), backgroundColor: "#2c93e8" }] },
+        data: {
+            labels: machines.map((row) => row.label),
+            datasets: [
+                {
+                    label: "Pezzi prodotti",
+                    data: machines.map((row) => row.summary.producedPieces),
+                    backgroundColor: "#2c93e8",
+                },
+            ],
+        },
         options: { indexAxis: "y", plugins: { legend: { display: false } } },
     });
-    const departments = groups.department.slice().sort((a, b) => b.summary.jobs - a.summary.jobs);
+    const departments = groups.department
+        .slice()
+        .sort((a, b) => b.summary.jobs - a.summary.jobs);
     drawChart("chart-departments", {
         type: "bar",
         data: {
             labels: departments.map((row) => row.label),
             datasets: [
-                { label: "Lavorazioni", data: departments.map((row) => row.summary.jobs), backgroundColor: "#2c93e8" },
-                { label: "Articoli distinti", data: departments.map((row) => row.summary.distinctArticles), backgroundColor: "#62d6ff" },
+                {
+                    label: "Lavorazioni",
+                    data: departments.map((row) => row.summary.jobs),
+                    backgroundColor: "#2c93e8",
+                },
+                {
+                    label: "Articoli distinti",
+                    data: departments.map(
+                        (row) => row.summary.distinctArticles,
+                    ),
+                    backgroundColor: "#62d6ff",
+                },
             ],
         },
     });
-    const statusCounts = ["not_started", "running", "done"].map((status) => filteredJobs.filter((job) => job.workStatus === status).length);
+    const statusCounts = ["not_started", "running", "done"].map(
+        (status) =>
+            filteredJobs.filter((job) => job.workStatus === status).length,
+    );
     drawChart("chart-status", {
         type: "doughnut",
-        data: { labels: Object.values(WORK_LABELS), datasets: [{ data: statusCounts, backgroundColor: ["#91a3b8", "#2c93e8", "#40bf8d"] }] },
+        data: {
+            labels: Object.values(WORK_LABELS),
+            datasets: [
+                {
+                    data: statusCounts,
+                    backgroundColor: ["#91a3b8", "#2c93e8", "#40bf8d"],
+                },
+            ],
+        },
         options: { plugins: { legend: { position: "bottom" } } },
     });
-    const punctualDepartments = departments.filter((row) => row.summary.punctuality !== null);
+    const punctualDepartments = departments.filter(
+        (row) => row.summary.punctuality !== null,
+    );
     drawChart("chart-punctuality", {
         type: "bar",
-        data: { labels: punctualDepartments.map((row) => row.label), datasets: [{ label: "Puntualità %", data: punctualDepartments.map((row) => row.summary.punctuality), backgroundColor: punctualDepartments.map((row) => row.summary.punctuality >= 90 ? "#40bf8d" : row.summary.punctuality >= 70 ? "#f2b84b" : "#ff7891") }] },
-        options: { indexAxis: "y", scales: { x: { min: 0, max: 100 } }, plugins: { legend: { display: false } } },
+        data: {
+            labels: punctualDepartments.map((row) => row.label),
+            datasets: [
+                {
+                    label: "Puntualità %",
+                    data: punctualDepartments.map(
+                        (row) => row.summary.punctuality,
+                    ),
+                    backgroundColor: punctualDepartments.map((row) =>
+                        row.summary.punctuality >= 90
+                            ? "#40bf8d"
+                            : row.summary.punctuality >= 70
+                              ? "#f2b84b"
+                              : "#ff7891",
+                    ),
+                },
+            ],
+        },
+        options: {
+            indexAxis: "y",
+            scales: { x: { min: 0, max: 100 } },
+            plugins: { legend: { display: false } },
+        },
     });
 }
 
 function tableMarkup(headers, rows) {
     return `<thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${
         rows.length
-            ? rows.map((row) => `<tr>${row.map((cell, index) => `<td${index === 0 ? ' class="cell-label"' : ""}>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")
+            ? rows
+                  .map(
+                      (row) =>
+                          `<tr>${row.map((cell, index) => `<td${index === 0 ? ' class="cell-label"' : ""}>${escapeHtml(cell)}</td>`).join("")}</tr>`,
+                  )
+                  .join("")
             : `<tr><td colspan="${headers.length}" class="empty-cell">Nessun dato per i filtri selezionati</td></tr>`
     }</tbody>`;
 }
@@ -376,42 +539,89 @@ function summaryRow(row) {
         integerFormat.format(summary.producedPieces),
         numberFormat.format(summary.producedKg),
         `${numberFormat.format(summary.completion)}%`,
-        summary.punctuality === null ? "—" : `${numberFormat.format(summary.punctuality)}%`,
+        summary.punctuality === null
+            ? "—"
+            : `${numberFormat.format(summary.punctuality)}%`,
         numberFormat.format(summary.duration),
     ];
 }
 
 function renderTables(groups) {
-    const headers = ["Voce", "Lavorazioni", "Articoli distinti", "Pezzi prodotti", "Kg prodotti", "Completamento", "Puntualità", "Durata media"];
+    const headers = [
+        "Voce",
+        "Lavorazioni",
+        "Articoli distinti",
+        "Pezzi prodotti",
+        "Kg prodotti",
+        "Completamento",
+        "Puntualità",
+        "Durata media",
+    ];
     [
         ["machine", "machine-table"],
         ["department", "department-table"],
         ["article", "article-table"],
         ["period", "period-table"],
     ].forEach(([groupName, tableId]) => {
-        const rows = groups[groupName].slice().sort((a, b) => b.summary.jobs - a.summary.jobs);
+        const rows = groups[groupName]
+            .slice()
+            .sort((a, b) => b.summary.jobs - a.summary.jobs);
         byId(tableId).innerHTML = tableMarkup(headers, rows.map(summaryRow));
-        byId(`${groupName}-table-count`).textContent = `${integerFormat.format(rows.length)} righe`;
+        byId(`${groupName}-table-count`).textContent =
+            `${integerFormat.format(rows.length)} righe`;
     });
     const limit = 1000;
     const rows = filteredJobs.slice(0, limit).map((job) => {
         const machine = machineFor(job);
         const onTime = isOnTime(job);
         return [
-            job.article || "—", job.customer || "—", job.phase || "—", job.materialAlloy || "—", job.barKgBundles || "—", job.materialOwner || "—",
-            machine.name, machine.department, displayDate(job.start), displayDate(job.end),
-            displayDate(job.firstDeliveryDate), displayDate(completionDate(job)), WORK_LABELS[job.workStatus] || job.workStatus,
-            `${numberFormat.format(progressRatio(job) * 100)}%`, MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
-            numberFormat.format(job.quantity), job.unit || "pz", onTime === null ? "—" : onTime ? "Sì" : "No",
+            job.article || "—",
+            job.customer || "—",
+            job.phase || "—",
+            job.materialAlloy || "—",
+            job.barKgBundles || "—",
+            job.materialOwner || "—",
+            machine.name,
+            machine.department,
+            displayDate(job.start),
+            displayDate(job.end),
+            displayDate(job.firstDeliveryDate),
+            displayDate(completionDate(job)),
+            WORK_LABELS[job.workStatus] || job.workStatus,
+            `${numberFormat.format(progressRatio(job) * 100)}%`,
+            MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
+            numberFormat.format(job.quantity),
+            job.unit || "pz",
+            onTime === null ? "—" : onTime ? "Sì" : "No",
         ];
     });
     byId("detail-table").innerHTML = tableMarkup(
-        ["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Proprietario barra / materiale", "Macchina", "Reparto", "Inizio", "Fine", "Prima consegna", "Completata il", "Stato", "Avanzamento", "Disponibilità materiale", "Quantità", "Unità", "Puntuale"],
+        [
+            "Articolo",
+            "Cliente",
+            "Fase",
+            "Materiale / Lega",
+            "Kg / Fasci di barra",
+            "Proprietario barra / materiale",
+            "Macchina",
+            "Reparto",
+            "Inizio",
+            "Fine",
+            "Prima consegna",
+            "Completata il",
+            "Stato",
+            "Avanzamento",
+            "Disponibilità materiale",
+            "Quantità",
+            "Unità",
+            "Puntuale",
+        ],
         rows,
     );
-    byId("detail-table-count").textContent = filteredJobs.length > limit
-        ? `${integerFormat.format(limit)} di ${integerFormat.format(filteredJobs.length)} · Excel contiene tutto`
-        : `${integerFormat.format(filteredJobs.length)} righe`;
+    byId("detail-table-count").textContent =
+        filteredJobs.length > limit
+            ? `${integerFormat.format(limit)} di ${integerFormat.format(filteredJobs.length)} · Excel contiene tutto`
+            : `${integerFormat.format(filteredJobs.length)} righe`;
 }
 
 function dimensionKey(job, dimension, granularity) {
@@ -421,8 +631,10 @@ function dimensionKey(job, dimension, granularity) {
     if (dimension === "category") return machine.category;
     if (dimension === "article") return job.article || "Senza articolo";
     if (dimension === "customer") return job.customer || "Senza cliente";
-    if (dimension === "material") return MATERIAL_LABELS[job.materialStatus] || job.materialStatus;
-    if (dimension === "status") return WORK_LABELS[job.workStatus] || job.workStatus;
+    if (dimension === "material")
+        return MATERIAL_LABELS[job.materialStatus] || job.materialStatus;
+    if (dimension === "status")
+        return WORK_LABELS[job.workStatus] || job.workStatus;
     return periodKey(job, granularity);
 }
 
@@ -442,30 +654,49 @@ function loadCustomAnalyses() {
 
 function renderCustomAnalyses(filters) {
     const container = byId("custom-grid");
-    [...charts.keys()].filter((key) => key.startsWith("custom-")).forEach((key) => {
-        charts.get(key)?.destroy();
-        charts.delete(key);
-    });
+    [...charts.keys()]
+        .filter((key) => key.startsWith("custom-"))
+        .forEach((key) => {
+            charts.get(key)?.destroy();
+            charts.delete(key);
+        });
     if (!customAnalyses.length) {
-        container.innerHTML = '<div class="custom-empty">Nessuna analisi personalizzata. Aggiungine una usando i controlli sopra.</div>';
+        container.innerHTML =
+            '<div class="custom-empty">Nessuna analisi personalizzata. Aggiungine una usando i controlli sopra.</div>';
         return;
     }
-    container.innerHTML = customAnalyses.map((spec) => `
+    container.innerHTML = customAnalyses
+        .map(
+            (spec) => `
         <article class="custom-card">
             <header><div><span class="eyebrow">${escapeHtml(DIMENSION_LABELS[spec.dimension] || spec.dimension)}</span><h3>${escapeHtml(METRIC_LABELS[spec.metric] || spec.metric)}</h3></div>
             <button type="button" class="custom-remove" data-remove-custom="${escapeHtml(spec.id)}" title="Rimuovi analisi">×</button></header>
             <div class="custom-chart-wrap" id="custom-body-${escapeHtml(spec.id)}"><canvas id="custom-chart-${escapeHtml(spec.id)}"></canvas></div>
-        </article>`).join("");
+        </article>`,
+        )
+        .join("");
     customAnalyses.forEach((spec) => {
-        const groups = groupJobs(filteredJobs, (job) => dimensionKey(job, spec.dimension, filters.granularity))
-            .map((row) => ({ ...row, value: metricValue(row.summary, spec.metric) }))
-            .sort((a, b) => spec.dimension === "period" ? a.label.localeCompare(b.label, "it") : b.value - a.value)
+        const groups = groupJobs(filteredJobs, (job) =>
+            dimensionKey(job, spec.dimension, filters.granularity),
+        )
+            .map((row) => ({
+                ...row,
+                value: metricValue(row.summary, spec.metric),
+            }))
+            .sort((a, b) =>
+                spec.dimension === "period"
+                    ? a.label.localeCompare(b.label, "it")
+                    : b.value - a.value,
+            )
             .slice(0, 25);
         const body = byId(`custom-body-${spec.id}`);
         if (spec.type === "table") {
             body.innerHTML = `<div class="table-scroll"><table>${tableMarkup(
                 [DIMENSION_LABELS[spec.dimension], METRIC_LABELS[spec.metric]],
-                groups.map((row) => [row.label, numberFormat.format(row.value)]),
+                groups.map((row) => [
+                    row.label,
+                    numberFormat.format(row.value),
+                ]),
             )}</table></div>`;
             return;
         }
@@ -473,9 +704,23 @@ function renderCustomAnalyses(filters) {
             type: spec.type,
             data: {
                 labels: groups.map((row) => row.label),
-                datasets: [{ label: METRIC_LABELS[spec.metric], data: groups.map((row) => row.value), backgroundColor: spec.type === "doughnut" ? chartColors(groups.length) : "#2c93e8", borderColor: "#2c93e8", tension: .25 }],
+                datasets: [
+                    {
+                        label: METRIC_LABELS[spec.metric],
+                        data: groups.map((row) => row.value),
+                        backgroundColor:
+                            spec.type === "doughnut"
+                                ? chartColors(groups.length)
+                                : "#2c93e8",
+                        borderColor: "#2c93e8",
+                        tension: 0.25,
+                    },
+                ],
             },
-            options: { indexAxis: spec.type === "bar" && groups.length > 8 ? "y" : "x", plugins: { legend: { display: spec.type === "doughnut" } } },
+            options: {
+                indexAxis: spec.type === "bar" && groups.length > 8 ? "y" : "x",
+                plugins: { legend: { display: spec.type === "doughnut" } },
+            },
         });
     });
 }
@@ -483,13 +728,30 @@ function renderCustomAnalyses(filters) {
 function buildGroups(filters) {
     return {
         machine: groupJobs(filteredJobs, (job) => machineFor(job).name),
-        department: groupJobs(filteredJobs, (job) => machineFor(job).department),
+        department: groupJobs(
+            filteredJobs,
+            (job) => machineFor(job).department,
+        ),
         category: groupJobs(filteredJobs, (job) => machineFor(job).category),
-        article: groupJobs(filteredJobs, (job) => job.article || "Senza articolo"),
-        customer: groupJobs(filteredJobs, (job) => job.customer || "Senza cliente"),
-        material: groupJobs(filteredJobs, (job) => MATERIAL_LABELS[job.materialStatus] || job.materialStatus),
-        status: groupJobs(filteredJobs, (job) => WORK_LABELS[job.workStatus] || job.workStatus),
-        period: groupJobs(filteredJobs, (job) => periodKey(job, filters.granularity)),
+        article: groupJobs(
+            filteredJobs,
+            (job) => job.article || "Senza articolo",
+        ),
+        customer: groupJobs(
+            filteredJobs,
+            (job) => job.customer || "Senza cliente",
+        ),
+        material: groupJobs(
+            filteredJobs,
+            (job) => MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
+        ),
+        status: groupJobs(
+            filteredJobs,
+            (job) => WORK_LABELS[job.workStatus] || job.workStatus,
+        ),
+        period: groupJobs(filteredJobs, (job) =>
+            periodKey(job, filters.granularity),
+        ),
     };
 }
 
@@ -520,17 +782,50 @@ function showToast(message, error = false) {
 
 function fillMultiSelect(id, values) {
     const element = byId(id) as HTMLSelectElement;
-    const selected = new Set([...element.selectedOptions].map((option) => option.value));
-    element.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"${selected.has(value) ? " selected" : ""}>${escapeHtml(value)}</option>`).join("");
+    const selected = new Set(
+        [...element.selectedOptions].map((option) => option.value),
+    );
+    element.innerHTML = values
+        .map(
+            (value) =>
+                `<option value="${escapeHtml(value)}"${selected.has(value) ? " selected" : ""}>${escapeHtml(value)}</option>`,
+        )
+        .join("");
 }
 
 function populateFilterOptions() {
-    fillMultiSelect("filter-departments", [...new Set(plannerState.machines.map((machine) => machine.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, "it")));
-    fillMultiSelect("filter-categories", [...new Set(plannerState.machines.map((machine) => machine.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "it")));
-    fillMultiSelect("filter-machines", plannerState.machines.slice().sort((a, b) => a.name.localeCompare(b.name, "it")).map((machine) => machine.id));
+    fillMultiSelect(
+        "filter-departments",
+        [
+            ...new Set(
+                plannerState.machines
+                    .map((machine) => machine.department)
+                    .filter(Boolean),
+            ),
+        ].sort((a, b) => a.localeCompare(b, "it")),
+    );
+    fillMultiSelect(
+        "filter-categories",
+        [
+            ...new Set(
+                plannerState.machines
+                    .map((machine) => machine.category)
+                    .filter(Boolean),
+            ),
+        ].sort((a, b) => a.localeCompare(b, "it")),
+    );
+    fillMultiSelect(
+        "filter-machines",
+        plannerState.machines
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name, "it"))
+            .map((machine) => machine.id),
+    );
     const machineSelect = byId("filter-machines") as HTMLSelectElement;
     [...machineSelect.options].forEach((option) => {
-        const machine = plannerState.machines.find((item) => item.id === option.value);
+        const machine = plannerState.machines.find(
+            (item) => item.id === option.value,
+        );
         if (machine) option.textContent = machine.name;
     });
     renderResourceFilter();
@@ -542,16 +837,31 @@ async function loadLatest(manual = false) {
     setSync("loading", "Aggiornamento…");
     try {
         const result = await ipcRenderer.invoke("production-planner-load");
-        if (!result?.ok) throw new Error(result?.error || "Backend non raggiungibile");
+        if (!result?.ok)
+            throw new Error(result?.error || "Backend non raggiungibile");
         const snapshot = result.snapshot || {};
-        plannerState = snapshot.state || { machines: [], jobs: [], unavailabilities: [] };
+        plannerState = snapshot.state || {
+            machines: [],
+            jobs: [],
+            unavailabilities: [],
+        };
         plannerState.machines ||= [];
         plannerState.jobs ||= [];
         remoteRevision = Number(snapshot.revision) || 0;
         populateFilterOptions();
         applyFilters();
-        const time = new Date(snapshot.updatedAt || Date.now()).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-        setSync("online", `Sincronizzato ${time}`, `Revisione ${remoteRevision}`);
+        const time = new Date(
+            snapshot.updatedAt || Date.now(),
+        ).toLocaleTimeString("it-IT", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+        });
+        setSync(
+            "online",
+            `Sincronizzato ${time}`,
+            `Revisione ${remoteRevision}`,
+        );
         if (manual) showToast("Analisi aggiornata con i dati più recenti");
     } catch (error) {
         setSync("offline", "Backend non disponibile", String(error));
@@ -585,14 +895,18 @@ function setQuickRange(value) {
 }
 
 function resetFilters() {
-    document.querySelectorAll(".filter-panel input").forEach((input: HTMLInputElement) => {
-        if (input.type === "checkbox") input.checked = false;
-        else input.value = "";
-    });
-    document.querySelectorAll(".filter-panel select").forEach((select: HTMLSelectElement) => {
-        [...select.options].forEach((option) => option.selected = false);
-        select.selectedIndex = select.multiple ? -1 : 0;
-    });
+    document
+        .querySelectorAll(".filter-panel input")
+        .forEach((input: HTMLInputElement) => {
+            if (input.type === "checkbox") input.checked = false;
+            else input.value = "";
+        });
+    document
+        .querySelectorAll(".filter-panel select")
+        .forEach((select: HTMLSelectElement) => {
+            [...select.options].forEach((option) => (option.selected = false));
+            select.selectedIndex = select.multiple ? -1 : 0;
+        });
     (byId("filter-quick-range") as HTMLSelectElement).value = "all";
     (byId("filter-granularity") as HTMLSelectElement).value = "month";
     setQuickRange("all");
@@ -614,18 +928,28 @@ function updateResourceFilterSummary() {
     const categories = selectedResourceValues("filter-categories").size;
     const machines = selectedResourceValues("filter-machines").size;
     const parts = [];
-    if (departments) parts.push(`${departments} ${departments === 1 ? "reparto" : "reparti"}`);
-    if (categories) parts.push(`${categories} ${categories === 1 ? "categoria" : "categorie"}`);
-    if (machines) parts.push(`${machines} ${machines === 1 ? "macchina" : "macchine"}`);
-    byId("resource-filter-summary").textContent =
-        parts.length ? parts.join(" · ") : "Tutti i reparti, categorie e macchine";
+    if (departments)
+        parts.push(
+            `${departments} ${departments === 1 ? "reparto" : "reparti"}`,
+        );
+    if (categories)
+        parts.push(
+            `${categories} ${categories === 1 ? "categoria" : "categorie"}`,
+        );
+    if (machines)
+        parts.push(`${machines} ${machines === 1 ? "macchina" : "macchine"}`);
+    byId("resource-filter-summary").textContent = parts.length
+        ? parts.join(" · ")
+        : "Tutti i reparti, categorie e macchine";
 }
 
 function machineMatchesResourceGroups(machine) {
     const departments = selectedResourceValues("filter-departments");
     const categories = selectedResourceValues("filter-categories");
-    return (!departments.size || departments.has(machine.department))
-        && (!categories.size || categories.has(machine.category));
+    return (
+        (!departments.size || departments.has(machine.department)) &&
+        (!categories.size || categories.has(machine.category))
+    );
 }
 
 function renderResourceMachineList(preserveScroll = true) {
@@ -634,23 +958,34 @@ function renderResourceMachineList(preserveScroll = true) {
     const selected = selectedResourceValues("filter-machines");
     const search = String(
         (byId("resource-filter-search") as HTMLInputElement)?.value || "",
-    ).trim().toLocaleLowerCase("it");
+    )
+        .trim()
+        .toLocaleLowerCase("it");
     const machines = plannerState.machines
         .filter(machineMatchesResourceGroups)
-        .filter((machine) => !search || [
-            machine.name,
-            machine.department,
-            machine.category,
-        ].some((value) => String(value || "").toLocaleLowerCase("it").includes(search)));
+        .filter(
+            (machine) =>
+                !search ||
+                [machine.name, machine.department, machine.category].some(
+                    (value) =>
+                        String(value || "")
+                            .toLocaleLowerCase("it")
+                            .includes(search),
+                ),
+        );
     list.innerHTML = machines.length
-        ? machines.map((machine) => `
+        ? machines
+              .map(
+                  (machine) => `
             <button class="analysis-resource-machine${selected.has(machine.id) ? " is-active" : ""}"
                 type="button" data-resource-select="filter-machines" data-resource-value="${escapeHtml(machine.id)}">
                 <i style="background:${escapeHtml(machine.color || "#78a6c8")}"></i>
                 <span><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.department)} · ${escapeHtml(machine.category)}</small></span>
                 <b>${selected.has(machine.id) ? "✓" : ""}</b>
             </button>
-        `).join("")
+        `,
+              )
+              .join("")
         : '<div class="analysis-resource-empty">Nessuna macchina corrisponde ai filtri.</div>';
     list.scrollTop = Math.min(
         previousScrollTop,
@@ -665,12 +1000,16 @@ function renderResourceFilter(preserveMachineScroll = true) {
     ].forEach(([selectId, containerId]) => {
         const select = byId(selectId) as HTMLSelectElement;
         const container = byId(containerId);
-        container.innerHTML = [...select.options].map((option) => `
+        container.innerHTML = [...select.options]
+            .map(
+                (option) => `
             <button class="analysis-resource-chip${option.selected ? " is-active" : ""}"
                 type="button" data-resource-select="${selectId}" data-resource-value="${escapeHtml(option.value)}">
                 ${escapeHtml(option.textContent || option.value)}
             </button>
-        `).join("");
+        `,
+            )
+            .join("");
     });
     renderResourceMachineList(preserveMachineScroll);
     updateResourceFilterSummary();
@@ -679,8 +1018,14 @@ function renderResourceFilter(preserveMachineScroll = true) {
 function clearIncompatibleSelectedMachines() {
     const machineSelect = byId("filter-machines") as HTMLSelectElement;
     [...machineSelect.options].forEach((option) => {
-        const machine = plannerState.machines.find((item) => item.id === option.value);
-        if (option.selected && machine && !machineMatchesResourceGroups(machine)) {
+        const machine = plannerState.machines.find(
+            (item) => item.id === option.value,
+        );
+        if (
+            option.selected &&
+            machine &&
+            !machineMatchesResourceGroups(machine)
+        ) {
             option.selected = false;
         }
     });
@@ -704,20 +1049,89 @@ function exportRows(groups) {
         ["Macchine", summary.machines],
         ["Reparti", summary.departments],
     ];
-    const aggregateHeaders = ["Voce", "Lavorazioni", "Articoli distinti", "Pezzi prodotti", "Pezzi pianificati", "Kg prodotti", "Kg pianificati", "Completamento %", "Puntualità %", "Durata media"];
-    const aggregate = (rows) => [aggregateHeaders, ...rows.map((row) => [
-        row.label, row.summary.jobs, row.summary.distinctArticles, row.summary.producedPieces, row.summary.plannedPieces,
-        row.summary.producedKg, row.summary.plannedKg, row.summary.completion, row.summary.punctuality ?? "", row.summary.duration,
-    ])];
-    const detail = [["Articolo", "Cliente", "Fase", "Materiale / Lega", "Kg / Fasci di barra", "Proprietario barra / materiale", "Macchina", "Reparto", "Categoria", "Inizio", "Fine", "Durata", "Prima consegna", "Qtà prima consegna", "Consegna finale opzionale", "Completata il", "Stato", "Avanzamento %", "Disponibilità materiale", "Quantità", "Unità", "Puntuale", "Note"],
+    const aggregateHeaders = [
+        "Voce",
+        "Lavorazioni",
+        "Articoli distinti",
+        "Pezzi prodotti",
+        "Pezzi pianificati",
+        "Kg prodotti",
+        "Kg pianificati",
+        "Completamento %",
+        "Puntualità %",
+        "Durata media",
+    ];
+    const aggregate = (rows) => [
+        aggregateHeaders,
+        ...rows.map((row) => [
+            row.label,
+            row.summary.jobs,
+            row.summary.distinctArticles,
+            row.summary.producedPieces,
+            row.summary.plannedPieces,
+            row.summary.producedKg,
+            row.summary.plannedKg,
+            row.summary.completion,
+            row.summary.punctuality ?? "",
+            row.summary.duration,
+        ]),
+    ];
+    const detail = [
+        [
+            "Articolo",
+            "Cliente",
+            "Fase",
+            "Materiale / Lega",
+            "Kg / Fasci di barra",
+            "Proprietario barra / materiale",
+            "Macchina",
+            "Reparto",
+            "Categoria",
+            "Inizio",
+            "Fine",
+            "Durata",
+            "Prima consegna",
+            "Qtà prima consegna",
+            "Consegna finale opzionale",
+            "Completata il",
+            "Stato",
+            "Avanzamento %",
+            "Disponibilità materiale",
+            "Quantità",
+            "Unità",
+            "Puntuale",
+            "Note",
+        ],
         ...filteredJobs.map((job) => {
             const machine = machineFor(job);
             const onTime = isOnTime(job);
-            return [job.article, job.customer, job.phase, job.materialAlloy, job.barKgBundles, job.materialOwner, machine.name, machine.department, machine.category,
-                job.start, job.end, job.durationDays, job.firstDeliveryDate, job.firstDeliveryQuantity, job.dueDate, completionDate(job),
-                WORK_LABELS[job.workStatus] || job.workStatus, progressRatio(job) * 100, MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
-                job.quantity, job.unit, onTime === null ? "" : onTime ? "Sì" : "No", job.notes];
-        })];
+            return [
+                job.article,
+                job.customer,
+                job.phase,
+                job.materialAlloy,
+                job.barKgBundles,
+                job.materialOwner,
+                machine.name,
+                machine.department,
+                machine.category,
+                job.start,
+                job.end,
+                job.durationDays,
+                job.firstDeliveryDate,
+                job.firstDeliveryQuantity,
+                job.dueDate,
+                completionDate(job),
+                WORK_LABELS[job.workStatus] || job.workStatus,
+                progressRatio(job) * 100,
+                MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
+                job.quantity,
+                job.unit,
+                onTime === null ? "" : onTime ? "Sì" : "No",
+                job.notes,
+            ];
+        }),
+    ];
     return { overview, aggregate, detail };
 }
 
@@ -738,9 +1152,14 @@ async function exportExcel() {
         const rows = exportRows(groups);
         const append = (name, data) => {
             const sheet = XLSX.utils.aoa_to_sheet(data);
-            if (data.length && data[0]?.length) sheet["!autofilter"] = { ref: `A1:${XLSX.utils.encode_col(data[0].length - 1)}${Math.max(1, data.length)}` };
+            if (data.length && data[0]?.length)
+                sheet["!autofilter"] = {
+                    ref: `A1:${XLSX.utils.encode_col(data[0].length - 1)}${Math.max(1, data.length)}`,
+                };
             sheet["!freeze"] = { xSplit: 0, ySplit: 1 };
-            sheet["!cols"] = (data[0] || []).map((header) => ({ wch: Math.min(35, Math.max(12, String(header).length + 2)) }));
+            sheet["!cols"] = (data[0] || []).map((header) => ({
+                wch: Math.min(35, Math.max(12, String(header).length + 2)),
+            }));
             XLSX.utils.book_append_sheet(workbook, sheet, name);
         };
         append("Riepilogo", rows.overview);
@@ -755,21 +1174,47 @@ async function exportExcel() {
         append("Dettaglio", rows.detail);
         append("Filtri", [
             ["Filtro", "Valore"],
-            ["Produzione da", filters.productionFrom], ["Produzione a", filters.productionTo],
-            ["Prima consegna da", filters.deliveryFrom], ["Prima consegna a", filters.deliveryTo],
-            ["Completamento da", filters.completionFrom], ["Completamento a", filters.completionTo],
-            ["Articolo", filters.article], ["Cliente", filters.customer],
-            ["Stato", filters.workStatus], ["Materiale", filters.materialStatus], ["Unità", filters.unit],
-            ["Reparti", [...filters.departments].join(", ")], ["Categorie", [...filters.categories].join(", ")],
-            ["Macchine", [...filters.machines].map((id) => plannerState.machines.find((machine) => machine.id === id)?.name || id).join(", ")],
-            ["Solo completate", filters.onlyCompleted ? "Sì" : "No"], ["Granularità", filters.granularity],
+            ["Produzione da", filters.productionFrom],
+            ["Produzione a", filters.productionTo],
+            ["Prima consegna da", filters.deliveryFrom],
+            ["Prima consegna a", filters.deliveryTo],
+            ["Completamento da", filters.completionFrom],
+            ["Completamento a", filters.completionTo],
+            ["Articolo", filters.article],
+            ["Cliente", filters.customer],
+            ["Stato", filters.workStatus],
+            ["Materiale", filters.materialStatus],
+            ["Unità", filters.unit],
+            ["Reparti", [...filters.departments].join(", ")],
+            ["Categorie", [...filters.categories].join(", ")],
+            [
+                "Macchine",
+                [...filters.machines]
+                    .map(
+                        (id) =>
+                            plannerState.machines.find(
+                                (machine) => machine.id === id,
+                            )?.name || id,
+                    )
+                    .join(", "),
+            ],
+            ["Solo completate", filters.onlyCompleted ? "Sì" : "No"],
+            ["Granularità", filters.granularity],
         ]);
         customAnalyses.forEach((spec, index) => {
-            const customGroups = groupJobs(filteredJobs, (job) => dimensionKey(job, spec.dimension, filters.granularity))
-                .map((row) => [row.label, metricValue(row.summary, spec.metric)])
+            const customGroups = groupJobs(filteredJobs, (job) =>
+                dimensionKey(job, spec.dimension, filters.granularity),
+            )
+                .map((row) => [
+                    row.label,
+                    metricValue(row.summary, spec.metric),
+                ])
                 .sort((a, b) => String(a[0]).localeCompare(String(b[0]), "it"));
             append(`Personalizzata ${index + 1}`, [
-                [DIMENSION_LABELS[spec.dimension] || spec.dimension, METRIC_LABELS[spec.metric] || spec.metric],
+                [
+                    DIMENSION_LABELS[spec.dimension] || spec.dimension,
+                    METRIC_LABELS[spec.metric] || spec.metric,
+                ],
                 ...customGroups,
             ]);
         });
@@ -782,7 +1227,10 @@ async function exportExcel() {
 
 function bindEvents() {
     byId("analysis-close").addEventListener("click", () => window.close());
-    byId("analysis-refresh").addEventListener("click", () => void loadLatest(true));
+    byId("analysis-refresh").addEventListener(
+        "click",
+        () => void loadLatest(true),
+    );
     byId("analysis-export").addEventListener("click", () => void exportExcel());
     byId("analysis-apply").addEventListener("click", applyFilters);
     byId("analysis-reset").addEventListener("click", resetFilters);
@@ -790,28 +1238,42 @@ function bindEvents() {
         setQuickRange(event.target.value);
         if (event.target.value !== "custom") applyFilters();
     });
-    ["filter-production-from", "filter-production-to"].forEach((id) => byId(id).addEventListener("change", () => {
-        (byId("filter-quick-range") as HTMLSelectElement).value = "custom";
-    }));
+    ["filter-production-from", "filter-production-to"].forEach((id) =>
+        byId(id).addEventListener("change", () => {
+            (byId("filter-quick-range") as HTMLSelectElement).value = "custom";
+        }),
+    );
     byId("analysis-resource-filter").addEventListener("click", (event) => {
-        const clear = (event.target as HTMLElement).closest("#resource-filter-clear");
+        const clear = (event.target as HTMLElement).closest(
+            "#resource-filter-clear",
+        );
         if (clear) {
-            ["filter-departments", "filter-categories", "filter-machines"].forEach((id) => {
-                [...(byId(id) as HTMLSelectElement).options].forEach((option) => {
-                    option.selected = false;
-                });
+            [
+                "filter-departments",
+                "filter-categories",
+                "filter-machines",
+            ].forEach((id) => {
+                [...(byId(id) as HTMLSelectElement).options].forEach(
+                    (option) => {
+                        option.selected = false;
+                    },
+                );
             });
             (byId("resource-filter-search") as HTMLInputElement).value = "";
             renderResourceFilter(false);
             applyFilters();
             return;
         }
-        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-resource-select]");
+        const button = (event.target as HTMLElement).closest<HTMLElement>(
+            "[data-resource-select]",
+        );
         if (!button) return;
         const selectId = button.dataset.resourceSelect || "";
         const select = byId(selectId) as HTMLSelectElement | null;
         const option = select
-            ? [...select.options].find((item) => item.value === button.dataset.resourceValue)
+            ? [...select.options].find(
+                  (item) => item.value === button.dataset.resourceValue,
+              )
             : null;
         if (!option) return;
         option.selected = !option.selected;
@@ -841,21 +1303,27 @@ function bindEvents() {
         renderCustomAnalyses(readFilters());
     });
     byId("custom-grid").addEventListener("click", (event) => {
-        const button = (event.target as HTMLElement).closest("[data-remove-custom]") as HTMLElement;
+        const button = (event.target as HTMLElement).closest(
+            "[data-remove-custom]",
+        ) as HTMLElement;
         if (!button) return;
-        customAnalyses = customAnalyses.filter((spec) => spec.id !== button.dataset.removeCustom);
+        customAnalyses = customAnalyses.filter(
+            (spec) => spec.id !== button.dataset.removeCustom,
+        );
         localStorage.setItem(STORAGE_KEY, JSON.stringify(customAnalyses));
         renderCustomAnalyses(readFilters());
     });
     ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
-        if (!["*", "production-planner"].includes(realtimeEvent?.module)) return;
+        if (!["*", "production-planner"].includes(realtimeEvent?.module))
+            return;
         window.clearTimeout(refreshTimer);
         refreshTimer = window.setTimeout(() => void loadLatest(false), 250);
     });
     ipcRenderer.on("aypi-realtime-status", (_event, status) => {
         if (status?.state === "connected") return;
         if (status?.state === "connecting") setSync("loading", "Connessione…");
-        if (status?.state === "disconnected") setSync("offline", "Riconnessione…", status?.error || "");
+        if (status?.state === "disconnected")
+            setSync("offline", "Riconnessione…", status?.error || "");
     });
 }
 

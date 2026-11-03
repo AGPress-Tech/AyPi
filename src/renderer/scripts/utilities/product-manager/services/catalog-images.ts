@@ -2,10 +2,7 @@
 
 type CatalogImageContext = {
     getBackendCatalogImageUrl: (fileName: string) => string;
-    uploadCatalogImage: (
-        filePath: string,
-        catalogId: string,
-    ) => string;
+    uploadCatalogImage: (filePath: string, catalogId: string) => string;
 };
 
 type CatalogItem = {
@@ -18,9 +15,7 @@ function getCatalogImageSrc(
     item?: CatalogItem | null,
 ) {
     if (item && item.imageUrl) return item.imageUrl;
-    return item?.imageFile
-        ? ctx.getBackendCatalogImageUrl(item.imageFile)
-        : "";
+    return item?.imageFile ? ctx.getBackendCatalogImageUrl(item.imageFile) : "";
 }
 
 function copyCatalogImage(
@@ -32,10 +27,7 @@ function copyCatalogImage(
     return ctx.uploadCatalogImage(filePath, catalogId);
 }
 
-export {
-    getCatalogImageSrc,
-    copyCatalogImage,
-};
+export { getCatalogImageSrc, copyCatalogImage };
 
 // Keep CommonJS compatibility for legacy JS callers
 if (

@@ -8,10 +8,7 @@ let lastReachabilityCheckAt = 0;
 let lastReachable = true;
 let inFlightCheck: Promise<boolean> | null = null;
 
-export function openNetworkFile(
-    mainWindow: BrowserWindow,
-    filePath: string,
-) {
+export function openNetworkFile(mainWindow: BrowserWindow, filePath: string) {
     fs.access(NETWORK_PATHS.dl360ServerCheck, fs.constants.F_OK, (error) => {
         if (error) {
             log.warn("Server non raggiungibile:", error.message);

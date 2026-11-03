@@ -177,9 +177,7 @@ export function registerAttrezzaggioPdfPreviewIpc({
             const pdfPath = await createPdf(
                 {
                     html,
-                    title: String(
-                        payload?.title || "scheda-attrezzaggio",
-                    ),
+                    title: String(payload?.title || "scheda-attrezzaggio"),
                     pageSize: payload?.pageSize === "A3" ? "A3" : "A4",
                     landscape: !!payload?.landscape,
                 },
@@ -191,10 +189,7 @@ export function registerAttrezzaggioPdfPreviewIpc({
             logger.error("[attrezzaggio-pdf] errore anteprima:", error);
             return {
                 ok: false,
-                error:
-                    error instanceof Error
-                        ? error.message
-                        : String(error),
+                error: error instanceof Error ? error.message : String(error),
             };
         }
     });

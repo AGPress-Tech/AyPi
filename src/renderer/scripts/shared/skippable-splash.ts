@@ -35,7 +35,10 @@ function makeSplashSkippable(
     };
 
     splash.classList.add("is-splash-skippable");
-    splash.setAttribute("aria-label", "Clicca per saltare la schermata iniziale");
+    splash.setAttribute(
+        "aria-label",
+        "Clicca per saltare la schermata iniziale",
+    );
     splash.addEventListener("click", requestSkip);
 
     return {

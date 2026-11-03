@@ -23,9 +23,21 @@ export async function requestAypiBackend(
     pathname: string,
     options?: BackendRequestOptions,
 ) {
-    return withUploadedAttachments(options?.body,
-        (path, uploadOptions) => requestAypiBackendRaw(path, { ...uploadOptions, headers: options?.headers }),
-        (body) => requestAypiBackendRaw(pathname, options && Object.prototype.hasOwnProperty.call(options, "body") ? { ...options, body } : options));
+    return withUploadedAttachments(
+        options?.body,
+        (path, uploadOptions) =>
+            requestAypiBackendRaw(path, {
+                ...uploadOptions,
+                headers: options?.headers,
+            }),
+        (body) =>
+            requestAypiBackendRaw(
+                pathname,
+                options && Object.prototype.hasOwnProperty.call(options, "body")
+                    ? { ...options, body }
+                    : options,
+            ),
+    );
 }
 
 function requestAypiBackendRaw(

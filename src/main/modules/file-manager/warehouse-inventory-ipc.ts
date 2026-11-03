@@ -47,7 +47,8 @@ async function getDatabase(app: App) {
     if (!databasePromise) {
         databasePromise = (async () => {
             const SqlJs = await initSqlJs({
-                locateFile: (file: string) => require.resolve(`sql.js/dist/${file}`),
+                locateFile: (file: string) =>
+                    require.resolve(`sql.js/dist/${file}`),
             });
             const target = databasePath(app);
             database = fs.existsSync(target)
@@ -63,7 +64,9 @@ async function getDatabase(app: App) {
             `);
             persistDatabase(app);
             return database;
-        })().finally(() => { databasePromise = null; });
+        })().finally(() => {
+            databasePromise = null;
+        });
     }
     return databasePromise;
 }
@@ -75,7 +78,15 @@ async function loadSnapshot(app: App) {
         [STORE_KEY],
     );
     const row = rows?.[0]?.values?.[0];
-    if (!row) return { inventory: [], movements: [], unloadZone: [], revision: 0, updatedAt: "", updatedBy: "" };
+    if (!row)
+        return {
+            inventory: [],
+            movements: [],
+            unloadZone: [],
+            revision: 0,
+            updatedAt: "",
+            updatedBy: "",
+        };
     let payload: any = {};
     try {
         payload = JSON.parse(String(row[2] || "{}"));
@@ -97,43 +108,65 @@ async function saveSnapshot(app: App, payload: any) {
     const current = await loadSnapshot(app);
     const baseRevision = Number(payload?.baseRevision);
     if (!Number.isInteger(baseRevision) || baseRevision !== current.revision) {
-        throw new Error(`Revisione magazzino non valida: attesa ${current.revision}.`);
+        throw new Error(
+            `Revisione magazzino non valida: attesa ${current.revision}.`,
+        );
     }
     const revision = current.revision + 1;
     const updatedAt = new Date().toISOString();
     const state = {
         inventory: Array.isArray(payload?.inventory) ? payload.inventory : [],
         movements: Array.isArray(payload?.movements) ? payload.movements : [],
-        unloadZone: Array.isArray(payload?.unloadZone) ? payload.unloadZone : [],
+        unloadZone: Array.isArray(payload?.unloadZone)
+            ? payload.unloadZone
+            : [],
     };
     const weighingOwners = new Map<string, string>();
     state.inventory.forEach((item: any) => {
         const pieces = Number(item?.pieceCount);
         const capacity = Number(item?.maxPieceCapacity);
-        if (!Number.isInteger(pieces) || pieces < 1 || !Number.isInteger(capacity) || capacity < pieces) {
-            throw new Error(`Quantità pezzi non valida per il cassone ${item?.id || "senza ID"}.`);
+        if (
+            !Number.isInteger(pieces) ||
+            pieces < 1 ||
+            !Number.isInteger(capacity) ||
+            capacity < pieces
+        ) {
+            throw new Error(
+                `Quantità pezzi non valida per il cassone ${item?.id || "senza ID"}.`,
+            );
         }
-        const weighingCode = String(item?.weighingCode || "").trim().toUpperCase();
+        const weighingCode = String(item?.weighingCode || "")
+            .trim()
+            .toUpperCase();
         const owner = weighingOwners.get(weighingCode);
         if (weighingCode && owner && owner !== item.id) {
-            throw new Error(`Il codice pesata ${weighingCode} è già assegnato al cassone ${owner}.`);
+            throw new Error(
+                `Il codice pesata ${weighingCode} è già assegnato al cassone ${owner}.`,
+            );
         }
         if (weighingCode) weighingOwners.set(weighingCode, item.id);
     });
     db.exec("BEGIN IMMEDIATE TRANSACTION;");
     try {
-        db.run(`
+        db.run(
+            `
             INSERT INTO ${TABLE} (store_key, revision, updated_at, payload_json)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(store_key) DO UPDATE SET
                 revision = excluded.revision,
                 updated_at = excluded.updated_at,
                 payload_json = excluded.payload_json
-        `, [STORE_KEY, revision, updatedAt, JSON.stringify(state)]);
+        `,
+            [STORE_KEY, revision, updatedAt, JSON.stringify(state)],
+        );
         db.exec("COMMIT;");
         persistDatabase(app);
     } catch (error) {
-        try { db.exec("ROLLBACK;"); } catch { /* ignore */ }
+        try {
+            db.exec("ROLLBACK;");
+        } catch {
+            /* ignore */
+        }
         throw error;
     }
     return { ...state, revision, updatedAt, updatedBy: "Database locale AyPi" };
@@ -143,7 +176,9 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
     if (registered) return;
     registered = true;
     ipcMain.handle("warehouse-inventory-local-load", () => loadSnapshot(app));
-    ipcMain.handle("warehouse-inventory-local-save", (_event, payload) => saveSnapshot(app, payload));
+    ipcMain.handle("warehouse-inventory-local-save", (_event, payload) =>
+        saveSnapshot(app, payload),
+    );
     ipcMain.handle("warehouse-inventory-focus-window", (event) => {
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window || window.isDestroyed()) return false;
@@ -152,22 +187,28 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
     });
     ipcMain.on("open-warehouse-movement-details-window", (event, payload) => {
         const senderOwner = BrowserWindow.fromWebContents(event.sender);
-        const owner = payload?.preferWarehouse3dOwner
-            && warehouse3dWindow
-            && !warehouse3dWindow.isDestroyed()
-            ? warehouse3dWindow
-            : senderOwner;
+        const owner =
+            payload?.preferWarehouse3dOwner &&
+            warehouse3dWindow &&
+            !warehouse3dWindow.isDestroyed()
+                ? warehouse3dWindow
+                : senderOwner;
         const movement = payload?.movement || payload;
         if (!owner || owner.isDestroyed() || !movement?.id) return;
         movementDetailsOwner = owner;
         movementDetailsPayload = {
             movement,
-            initialView: payload?.movement ? payload.initialView || "comparison" : "comparison",
+            initialView: payload?.movement
+                ? payload.initialView || "comparison"
+                : "comparison",
         };
         if (movementDetailsWindow && !movementDetailsWindow.isDestroyed()) {
             movementDetailsWindow.setParentWindow(owner);
             focusBrowserWindow(movementDetailsWindow);
-            movementDetailsWindow.webContents.send("warehouse-movement-details-data", movementDetailsPayload);
+            movementDetailsWindow.webContents.send(
+                "warehouse-movement-details-data",
+                movementDetailsPayload,
+            );
             return;
         }
         movementDetailsWindow = new BrowserWindow({
@@ -181,11 +222,21 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
             webPreferences: { nodeIntegration: true, contextIsolation: false },
         });
         movementDetailsWindow.setMenu(null);
-        movementDetailsWindow.loadFile(path.join(__dirname, "..", "..", "pages", "warehouse-movement-details.html"));
+        movementDetailsWindow.loadFile(
+            path.join(
+                __dirname,
+                "..",
+                "..",
+                "pages",
+                "warehouse-movement-details.html",
+            ),
+        );
         movementDetailsWindow.once("ready-to-show", () => {
             focusBrowserWindow(movementDetailsWindow);
         });
-        movementDetailsWindow.on("focus", () => movementDetailsWindow?.webContents.focus());
+        movementDetailsWindow.on("focus", () =>
+            movementDetailsWindow?.webContents.focus(),
+        );
         movementDetailsWindow.on("closed", () => {
             movementDetailsWindow = null;
             movementDetailsPayload = null;
@@ -194,9 +245,17 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         });
     });
     ipcMain.on("warehouse-movement-details-ready", (event) => {
-        if (!movementDetailsWindow || movementDetailsWindow.isDestroyed()
-            || movementDetailsWindow.webContents !== event.sender || !movementDetailsPayload) return;
-        event.sender.send("warehouse-movement-details-data", movementDetailsPayload);
+        if (
+            !movementDetailsWindow ||
+            movementDetailsWindow.isDestroyed() ||
+            movementDetailsWindow.webContents !== event.sender ||
+            !movementDetailsPayload
+        )
+            return;
+        event.sender.send(
+            "warehouse-movement-details-data",
+            movementDetailsPayload,
+        );
     });
     ipcMain.handle("warehouse-3d-open-window", (event, payload) => {
         const owner = BrowserWindow.fromWebContents(event.sender);
@@ -206,7 +265,10 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         if (warehouse3dWindow && !warehouse3dWindow.isDestroyed()) {
             warehouse3dWindow.maximize();
             focusBrowserWindow(warehouse3dWindow);
-            warehouse3dWindow.webContents.send("warehouse-3d-data", warehouse3dPayload);
+            warehouse3dWindow.webContents.send(
+                "warehouse-3d-data",
+                warehouse3dPayload,
+            );
             return true;
         }
         warehouse3dWindow = new BrowserWindow({
@@ -220,7 +282,9 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
             webPreferences: { nodeIntegration: true, contextIsolation: false },
         });
         warehouse3dWindow.setMenu(null);
-        warehouse3dWindow.loadFile(path.join(__dirname, "..", "..", "pages", "warehouse-3d.html"));
+        warehouse3dWindow.loadFile(
+            path.join(__dirname, "..", "..", "pages", "warehouse-3d.html"),
+        );
         warehouse3dWindow.once("ready-to-show", () => {
             warehouse3dWindow?.maximize();
             focusBrowserWindow(warehouse3dWindow);
@@ -229,7 +293,11 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
             // Nasconde prima la superficie WebGL: il teardown del renderer non
             // deve essere visibile sopra la finestra principale durante il
             // passaggio di focus, soprattutto con una riproduzione in pausa.
-            if (warehouse3dWindow && !warehouse3dWindow.isDestroyed() && warehouse3dWindow.isVisible()) {
+            if (
+                warehouse3dWindow &&
+                !warehouse3dWindow.isDestroyed() &&
+                warehouse3dWindow.isVisible()
+            ) {
                 warehouse3dWindow.hide();
             }
         });
@@ -251,39 +319,74 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         if (sender && !sender.isDestroyed()) warehouse3dOwner = sender;
         warehouse3dPayload = payload;
         if (warehouse3dWindow && !warehouse3dWindow.isDestroyed()) {
-            warehouse3dWindow.webContents.send("warehouse-3d-data", warehouse3dPayload);
+            warehouse3dWindow.webContents.send(
+                "warehouse-3d-data",
+                warehouse3dPayload,
+            );
         }
     });
     ipcMain.on("warehouse-3d-movement-action", (event, payload) => {
-        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
-            || warehouse3dWindow.webContents !== event.sender
-            || !warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
-        warehouse3dOwner.webContents.send("warehouse-3d-movement-action-request", {
-            movementId: String(payload?.movementId || ""),
-            view: payload?.view === "playback"
-                ? "playback"
-                : payload?.view === "instructions" ? "instructions" : "comparison",
-        });
+        if (
+            !warehouse3dWindow ||
+            warehouse3dWindow.isDestroyed() ||
+            warehouse3dWindow.webContents !== event.sender ||
+            !warehouse3dOwner ||
+            warehouse3dOwner.isDestroyed()
+        )
+            return;
+        warehouse3dOwner.webContents.send(
+            "warehouse-3d-movement-action-request",
+            {
+                movementId: String(payload?.movementId || ""),
+                view:
+                    payload?.view === "playback"
+                        ? "playback"
+                        : payload?.view === "instructions"
+                          ? "instructions"
+                          : "comparison",
+            },
+        );
     });
     ipcMain.on("warehouse-3d-playback-data", (event, payload) => {
-        if (!warehouse3dOwner || warehouse3dOwner.isDestroyed()
-            || warehouse3dOwner.webContents !== event.sender
-            || !warehouse3dWindow || warehouse3dWindow.isDestroyed()) return;
-        warehouse3dWindow.webContents.send("warehouse-3d-playback-data", payload);
+        if (
+            !warehouse3dOwner ||
+            warehouse3dOwner.isDestroyed() ||
+            warehouse3dOwner.webContents !== event.sender ||
+            !warehouse3dWindow ||
+            warehouse3dWindow.isDestroyed()
+        )
+            return;
+        warehouse3dWindow.webContents.send(
+            "warehouse-3d-playback-data",
+            payload,
+        );
     });
     ipcMain.on("warehouse-3d-ready", (event) => {
-        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
-            || warehouse3dWindow.webContents !== event.sender || !warehouse3dPayload) return;
+        if (
+            !warehouse3dWindow ||
+            warehouse3dWindow.isDestroyed() ||
+            warehouse3dWindow.webContents !== event.sender ||
+            !warehouse3dPayload
+        )
+            return;
         event.sender.send("warehouse-3d-data", warehouse3dPayload);
     });
     ipcMain.on("warehouse-3d-select-slot", (_event, location) => {
         if (!warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
-        warehouse3dOwner.webContents.send("warehouse-3d-slot-selected", String(location || ""));
+        warehouse3dOwner.webContents.send(
+            "warehouse-3d-slot-selected",
+            String(location || ""),
+        );
     });
     ipcMain.on("warehouse-3d-edit-unit", (event, payload) => {
-        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
-            || warehouse3dWindow.webContents !== event.sender
-            || !warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
+        if (
+            !warehouse3dWindow ||
+            warehouse3dWindow.isDestroyed() ||
+            warehouse3dWindow.webContents !== event.sender ||
+            !warehouse3dOwner ||
+            warehouse3dOwner.isDestroyed()
+        )
+            return;
         warehouse3dOwner.webContents.send("warehouse-3d-edit-unit-request", {
             location: String(payload?.location || ""),
             stagingUnitId: String(payload?.stagingUnitId || ""),
@@ -291,25 +394,41 @@ export function registerWarehouseInventoryIpc(ipcMain: IpcMain, app: App) {
         focusBrowserWindow(warehouse3dOwner);
     });
     ipcMain.on("warehouse-3d-analyze-article", (event, payload) => {
-        if (!warehouse3dWindow || warehouse3dWindow.isDestroyed()
-            || warehouse3dWindow.webContents !== event.sender
-            || !warehouse3dOwner || warehouse3dOwner.isDestroyed()) return;
+        if (
+            !warehouse3dWindow ||
+            warehouse3dWindow.isDestroyed() ||
+            warehouse3dWindow.webContents !== event.sender ||
+            !warehouse3dOwner ||
+            warehouse3dOwner.isDestroyed()
+        )
+            return;
         const location = String(payload?.location || "");
         if (!location) return;
         warehouse3dWindow.hide();
         warehouse3dOwner.webContents.send(
             "warehouse-3d-analyze-article-request",
-            { location },
+            {
+                location,
+            },
         );
         focusBrowserWindow(warehouse3dOwner);
     });
     ipcMain.on("warehouse-3d-article-analysis-closed", (event) => {
-        if (!warehouse3dOwner || warehouse3dOwner.isDestroyed()
-            || warehouse3dOwner.webContents !== event.sender
-            || !warehouse3dWindow || warehouse3dWindow.isDestroyed()) return;
+        if (
+            !warehouse3dOwner ||
+            warehouse3dOwner.isDestroyed() ||
+            warehouse3dOwner.webContents !== event.sender ||
+            !warehouse3dWindow ||
+            warehouse3dWindow.isDestroyed()
+        )
+            return;
         focusBrowserWindow(warehouse3dWindow);
     });
     app.on("before-quit", () => {
-        try { persistDatabase(app); } catch { /* a previous atomic save remains valid */ }
+        try {
+            persistDatabase(app);
+        } catch {
+            /* a previous atomic save remains valid */
+        }
     });
 }

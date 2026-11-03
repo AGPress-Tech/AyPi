@@ -51,7 +51,9 @@ function summarizeAdmin(admin: SharedAdminEntry | null | undefined) {
         email: String(admin?.email || "").trim(),
         phone: String(admin?.phone || "").trim(),
         accessCalendar:
-            typeof admin?.accessCalendar === "boolean" ? admin.accessCalendar : true,
+            typeof admin?.accessCalendar === "boolean"
+                ? admin.accessCalendar
+                : true,
         accessPurchasing:
             typeof admin?.accessPurchasing === "boolean"
                 ? admin.accessPurchasing
@@ -66,25 +68,36 @@ function summarizeAssigneeEntries(payload: {
     groups?: Record<string, string[]>;
     emails?: Record<string, string>;
 }) {
-    const groups = payload?.groups && typeof payload.groups === "object" ? payload.groups : {};
-    const emails = payload?.emails && typeof payload.emails === "object" ? payload.emails : {};
+    const groups =
+        payload?.groups && typeof payload.groups === "object"
+            ? payload.groups
+            : {};
+    const emails =
+        payload?.emails && typeof payload.emails === "object"
+            ? payload.emails
+            : {};
     return Object.keys(groups)
         .flatMap((department) =>
-            (Array.isArray(groups[department]) ? groups[department] : []).map((name) => {
-                const normalizedName = String(name || "").trim();
-                const key = `${department}|${normalizedName}`;
-                return {
-                    key,
-                    name: normalizedName,
-                    department: String(department || "").trim(),
-                    email: String(emails[key] || "").trim(),
-                };
-            }),
+            (Array.isArray(groups[department]) ? groups[department] : []).map(
+                (name) => {
+                    const normalizedName = String(name || "").trim();
+                    const key = `${department}|${normalizedName}`;
+                    return {
+                        key,
+                        name: normalizedName,
+                        department: String(department || "").trim(),
+                        email: String(emails[key] || "").trim(),
+                    };
+                },
+            ),
         )
         .filter((item) => item.name);
 }
 
-export function saveAdmins(admins: SharedAdminEntry[], context?: ActionContext) {
+export function saveAdmins(
+    admins: SharedAdminEntry[],
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("saveAdmins", async () => {
         const beforeAdmins = loadAdminCredentials().map(summarizeAdmin);

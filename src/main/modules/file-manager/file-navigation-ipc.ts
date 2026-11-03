@@ -90,9 +90,7 @@ export function registerFileNavigationIpc({
         const entry = addressBook.get(key);
         const kind = entry?.kind === "directory" ? "directory" : "file";
         const senderWindow = browserWindow.fromWebContents(event.sender);
-        const window = isWindowAlive(senderWindow)
-            ? senderWindow
-            : mainWindow;
+        const window = isWindowAlive(senderWindow) ? senderWindow : mainWindow;
         const dialogOptions: OpenDialogOptions = {
             title: "Seleziona il percorso da associare",
             properties: [

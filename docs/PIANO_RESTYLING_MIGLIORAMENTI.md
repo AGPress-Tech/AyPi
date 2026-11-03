@@ -387,13 +387,13 @@ Per ogni utility:
 
 ### Fase 5 — Migrazione visuale per ondate
 
-| Ondata | Aree | Motivo |
-| --- | --- | --- |
-| A | Moduli, Programmi, Articoli, Produzioni, Robot, Calcolatore, Utilities | Stabilizza navigazione e launcher comuni. |
-| B | Elenca File, Gerarchia, Confronta Cartelle, Batch Rinomina, QR, Timer | Convalida componenti su utility simili ma concrete. |
-| C | Ticket Support, Calendario, Gestione Acquisti, Pianificazione | Condivide molti form, tabelle, filtri, modali e ruoli. |
-| D | Schede Attrezzaggio, Registrazioni Progettazione, Inventario | Interfacce specialistiche da migrare senza appiattirne le funzioni. |
-| E | Stato Robot, verifiche rete, admin manager e finestre secondarie | Completa casi tecnici, stati live e strumenti amministrativi. |
+| Ondata | Aree                                                                   | Motivo                                                              |
+| ------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| A      | Moduli, Programmi, Articoli, Produzioni, Robot, Calcolatore, Utilities | Stabilizza navigazione e launcher comuni.                           |
+| B      | Elenca File, Gerarchia, Confronta Cartelle, Batch Rinomina, QR, Timer  | Convalida componenti su utility simili ma concrete.                 |
+| C      | Ticket Support, Calendario, Gestione Acquisti, Pianificazione          | Condivide molti form, tabelle, filtri, modali e ruoli.              |
+| D      | Schede Attrezzaggio, Registrazioni Progettazione, Inventario           | Interfacce specialistiche da migrare senza appiattirne le funzioni. |
+| E      | Stato Robot, verifiche rete, admin manager e finestre secondarie       | Completa casi tecnici, stati live e strumenti amministrativi.       |
 
 Ogni ondata deve riutilizzare i componenti della precedente. Se emerge un nuovo
 pattern generale, va aggiunto al design system prima di copiarlo in più moduli.
@@ -473,16 +473,16 @@ Attività:
 
 ## 10. Rischi e contromisure
 
-| Rischio | Contromisura |
-| --- | --- |
-| Restyling e refactoring logico insieme causano regressioni | Separare le tranche; conservare i contratti esistenti. |
-| Un CSS globale rompe moduli specialistici | Token e componenti opt-in durante la migrazione. |
-| Percentuale falsa o bloccata | Usare stato indeterminato finché il totale non è noto. |
-| Troppi eventi di progresso rallentano la UI | Throttling e invio in batch. |
-| Scansioni parallele saturano dischi o rete | Concorrenza configurabile e limitata. |
-| Tabelle/alberi enormi bloccano dopo la scansione | Virtualizzazione, lazy rendering e paginazione. |
-| Modifiche condivise alterano Blue Archive | Separazione dei token e smoke test dedicato. |
-| La migrazione resta incompleta e duplica tutto | Definition of Done e rimozione legacy per singola pagina. |
+| Rischio                                                    | Contromisura                                              |
+| ---------------------------------------------------------- | --------------------------------------------------------- |
+| Restyling e refactoring logico insieme causano regressioni | Separare le tranche; conservare i contratti esistenti.    |
+| Un CSS globale rompe moduli specialistici                  | Token e componenti opt-in durante la migrazione.          |
+| Percentuale falsa o bloccata                               | Usare stato indeterminato finché il totale non è noto.    |
+| Troppi eventi di progresso rallentano la UI                | Throttling e invio in batch.                              |
+| Scansioni parallele saturano dischi o rete                 | Concorrenza configurabile e limitata.                     |
+| Tabelle/alberi enormi bloccano dopo la scansione           | Virtualizzazione, lazy rendering e paginazione.           |
+| Modifiche condivise alterano Blue Archive                  | Separazione dei token e smoke test dedicato.              |
+| La migrazione resta incompleta e duplica tutto             | Definition of Done e rimozione legacy per singola pagina. |
 
 ## 11. Definition of Done per una schermata migrata
 

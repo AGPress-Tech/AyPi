@@ -1,13 +1,19 @@
-import { startFornoService, stopFornoService } from './modules/forno/service';
-import { attachFornoLive,closeFornoLive } from './modules/forno/live';
+import { startFornoService, stopFornoService } from "./modules/forno/service";
+import { attachFornoLive, closeFornoLive } from "./modules/forno/live";
 import http from "http";
 import { backendConfig } from "./config";
 import { registerRoutes } from "./routes";
 import { logger } from "./shared/logging/logger";
 import { Router } from "./shared/http/router";
 import { sendError } from "./shared/http/response";
-import { initializeSqliteDatabase, closeSqliteDatabase } from "./shared/db/sqlite";
-import { initializeMesSqliteDatabase, closeMesSqliteDatabase } from "./shared/db/mes-sqlite";
+import {
+    initializeSqliteDatabase,
+    closeSqliteDatabase,
+} from "./shared/db/sqlite";
+import {
+    initializeMesSqliteDatabase,
+    closeMesSqliteDatabase,
+} from "./shared/db/mes-sqlite";
 import { initializeFeriePermessiSqliteStore } from "./modules/ferie-permessi/repository";
 import { initializeSharedSqliteStore } from "./modules/shared/repository";
 import { initializeProductManagerSqliteStore } from "./modules/product-manager/repository";
@@ -65,9 +71,12 @@ function inferRequestModule(requestUrl: string): RealtimeModule {
     if (normalizedUrl.includes("/api/ferie-permessi/")) return "calendar";
     if (normalizedUrl.includes("/api/product-manager/")) return "purchasing";
     if (normalizedUrl.includes("/api/ticket-support/")) return "ticket";
-    if (normalizedUrl.includes("/api/transfer-attrezzaggio/")) return "transfer";
-    if (normalizedUrl.includes("/api/haas-attrezzaggio/")) return "attrezzaggio";
-    if (normalizedUrl.includes("/api/production-planner/")) return "production-planner";
+    if (normalizedUrl.includes("/api/transfer-attrezzaggio/"))
+        return "transfer";
+    if (normalizedUrl.includes("/api/haas-attrezzaggio/"))
+        return "attrezzaggio";
+    if (normalizedUrl.includes("/api/production-planner/"))
+        return "production-planner";
     if (normalizedUrl.includes("/api/warehouse-inventory/")) return "warehouse";
     if (normalizedUrl.includes("/api/mes/")) return "mes";
     if (normalizedUrl.includes("/api/shared/")) return "shared";
@@ -79,9 +88,7 @@ function shouldSkipHttpAccessLog(method: string, _requestUrl: string) {
     return normalizedMethod === "GET" || normalizedMethod === "HEAD";
 }
 
-export function createBackendServer(
-    ready: Promise<void> = Promise.resolve(),
-) {
+export function createBackendServer(ready: Promise<void> = Promise.resolve()) {
     const router = new Router();
     registerRoutes(router);
     const nextRequestId = buildRequestIdFactory();
@@ -153,9 +160,7 @@ export function createBackendServer(
             }
         } catch (error) {
             const httpErrorDetails =
-                error &&
-                typeof error === "object" &&
-                "details" in error
+                error && typeof error === "object" && "details" in error
                     ? (error as { details?: unknown }).details
                     : undefined;
             logger.error("HTTP request failed", {
@@ -240,8 +245,11 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                                 : String(error),
                     });
                 }
-                void startFornoService().catch(error => {
-                    logger.error('Forno acquisition unavailable', { module: 'core', detail: String(error) });
+                void startFornoService().catch((error) => {
+                    logger.error("Forno acquisition unavailable", {
+                        module: "core",
+                        detail: String(error),
+                    });
                 });
                 resolveReady();
 
@@ -279,26 +287,28 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                                 stopFornoService(),
                                 stopTelegramBotService(),
                                 mobileGateway?.stop() || Promise.resolve(),
-                            ]).finally(() => server.close((closeErr) => {
-                                if (closeErr) {
-                                    stopReject(closeErr);
-                                    return;
-                                }
-                                logger.info("AyPi backend stopped", {
-                                    event: "backend_stopped",
-                                    category: "lifecycle",
-                                    module: "core",
-                                    host,
-                                    port,
-                                });
-                                try {
-                                    closeMesSqliteDatabase();
-                                    closeSqliteDatabase();
-                                } catch {
-                                    // ignore sqlite shutdown issues
-                                }
-                                stopResolve();
-                            }));
+                            ]).finally(() =>
+                                server.close((closeErr) => {
+                                    if (closeErr) {
+                                        stopReject(closeErr);
+                                        return;
+                                    }
+                                    logger.info("AyPi backend stopped", {
+                                        event: "backend_stopped",
+                                        category: "lifecycle",
+                                        module: "core",
+                                        host,
+                                        port,
+                                    });
+                                    try {
+                                        closeMesSqliteDatabase();
+                                        closeSqliteDatabase();
+                                    } catch {
+                                        // ignore sqlite shutdown issues
+                                    }
+                                    stopResolve();
+                                }),
+                            );
                         }),
                 });
             } catch (error) {

@@ -44,14 +44,14 @@ export function normalizeScanOptions(options: HierarchyScanOptions = {}) {
             .replace(/^\./, "")
             .trim();
     const normalizeName = (value: unknown) =>
-        String(value || "").toLowerCase().trim();
+        String(value || "")
+            .toLowerCase()
+            .trim();
 
     return {
         maxDepth,
         excludeExtensions: Array.isArray(options.excludeExtensions)
-            ? options.excludeExtensions
-                  .map(normalizeExtension)
-                  .filter(Boolean)
+            ? options.excludeExtensions.map(normalizeExtension).filter(Boolean)
             : [],
         excludeFolders: Array.isArray(options.excludeFolders)
             ? options.excludeFolders.map(normalizeName).filter(Boolean)
@@ -68,17 +68,15 @@ export function buildFilteredTreeFromOptions(
 ) {
     if (!sourceRoot) return null;
 
-    const {
-        maxDepth,
-        excludeExtensions,
-        excludeFolders,
-        excludeFiles,
-    } = normalizeScanOptions(options);
+    const { maxDepth, excludeExtensions, excludeFolders, excludeFiles } =
+        normalizeScanOptions(options);
     const extensionSet = new Set(excludeExtensions);
     const folderSet = new Set(excludeFolders);
     const fileSet = new Set(excludeFiles);
     const normalizeName = (value: unknown) =>
-        String(value || "").toLowerCase().trim();
+        String(value || "")
+            .toLowerCase()
+            .trim();
 
     const isExcludedFolder = (name: string, depth: number) => {
         if (depth === 0) return false;
@@ -96,10 +94,7 @@ export function buildFilteredTreeFromOptions(
         ) {
             return true;
         }
-        const extension = (path.extname(normalized) || "").replace(
-            /^\./,
-            "",
-        );
+        const extension = (path.extname(normalized) || "").replace(/^\./, "");
         return !!extension && extensionSet.has(extension);
     };
 
@@ -157,9 +152,7 @@ export function collectSubtreeRows(
         "Percorso relativo": relativePath || "",
         "Percorso completo": node.fullPath || "",
         Dimensione: node.size ?? "",
-        "Dimensione (formattata)": node.size
-            ? formatBytes(node.size)
-            : "",
+        "Dimensione (formattata)": node.size ? formatBytes(node.size) : "",
         "Ultima modifica": node.mtimeMs
             ? new Date(node.mtimeMs).toLocaleString()
             : "",

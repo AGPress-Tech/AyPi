@@ -22,12 +22,19 @@ type AdminModalsOptions = {
     openOtpModal: () => void;
     loadAdminCredentials: () => AdminEntry[];
     saveAdminCredentials: (admins: AdminEntry[]) => void;
-    verifyAdminPassword: (password: string, targetName?: string | null) => Promise<any>;
+    verifyAdminPassword: (
+        password: string,
+        targetName?: string | null,
+    ) => Promise<any>;
     hashPassword: (password: string) => Promise<string>;
     isHashingAvailable: () => boolean;
     isValidEmail: (value: string) => boolean;
     isValidPhone: (value: string) => boolean;
-    showDialog: (type: string, message: string, detail?: string) => Promise<any>;
+    showDialog: (
+        type: string,
+        message: string,
+        detail?: string,
+    ) => Promise<any>;
     getAdminCache: () => AdminEntry[];
     setAdminCache: (admins: AdminEntry[]) => void;
     getAdminEditingIndex: () => number;
@@ -128,24 +135,36 @@ function createAdminModals(options: AdminModalsOptions) {
                 admin.accessCalendar = next;
                 saveAdminCredentials(adminCache);
                 renderAdminList();
-                setAdminMessage("fp-admin-message", UI_TEXTS.adminUpdated, false);
+                setAdminMessage(
+                    "fp-admin-message",
+                    UI_TEXTS.adminUpdated,
+                    false,
+                );
             });
 
-            const purchasingBtn = makeScopeBtn("Purchasing", hasPurchasing, () => {
-                const next = !hasPurchasing;
-                if (!next && !hasCalendar) {
+            const purchasingBtn = makeScopeBtn(
+                "Purchasing",
+                hasPurchasing,
+                () => {
+                    const next = !hasPurchasing;
+                    if (!next && !hasCalendar) {
+                        setAdminMessage(
+                            "fp-admin-message",
+                            "Seleziona almeno un modulo.",
+                            true,
+                        );
+                        return;
+                    }
+                    admin.accessPurchasing = next;
+                    saveAdminCredentials(adminCache);
+                    renderAdminList();
                     setAdminMessage(
                         "fp-admin-message",
-                        "Seleziona almeno un modulo.",
-                        true,
+                        UI_TEXTS.adminUpdated,
+                        false,
                     );
-                    return;
-                }
-                admin.accessPurchasing = next;
-                saveAdminCredentials(adminCache);
-                renderAdminList();
-                setAdminMessage("fp-admin-message", UI_TEXTS.adminUpdated, false);
-            });
+                },
+            );
 
             scopes.appendChild(calendarBtn);
             scopes.appendChild(purchasingBtn);
@@ -157,14 +176,24 @@ function createAdminModals(options: AdminModalsOptions) {
             edit.textContent = "Modifica";
             edit.addEventListener("click", () => {
                 setAdminEditingIndex(index);
-                const nameInput = document.getElementById("fp-admin-edit-name") as HTMLInputElement | null;
+                const nameInput = document.getElementById(
+                    "fp-admin-edit-name",
+                ) as HTMLInputElement | null;
                 if (nameInput) nameInput.value = admin.name;
-                const emailInput = document.getElementById("fp-admin-edit-email") as HTMLInputElement | null;
+                const emailInput = document.getElementById(
+                    "fp-admin-edit-email",
+                ) as HTMLInputElement | null;
                 if (emailInput) emailInput.value = admin.email || "";
-                const phoneInput = document.getElementById("fp-admin-edit-phone") as HTMLInputElement | null;
+                const phoneInput = document.getElementById(
+                    "fp-admin-edit-phone",
+                ) as HTMLInputElement | null;
                 if (phoneInput) phoneInput.value = admin.phone || "";
-                const editModal = document.getElementById("fp-admin-edit-modal") as HTMLElement | null;
-                const passwordPanel = document.getElementById("fp-admin-password-panel") as HTMLElement | null;
+                const editModal = document.getElementById(
+                    "fp-admin-edit-modal",
+                ) as HTMLElement | null;
+                const passwordPanel = document.getElementById(
+                    "fp-admin-password-panel",
+                ) as HTMLElement | null;
                 if (passwordPanel) passwordPanel.classList.add("is-hidden");
                 setAdminMessage("fp-admin-edit-message", "");
                 if (editModal) showModal(editModal);
@@ -176,17 +205,25 @@ function createAdminModals(options: AdminModalsOptions) {
             remove.textContent = "Rimuovi";
             remove.addEventListener("click", async () => {
                 if (adminCache.length <= 1) {
-                    setAdminMessage("fp-admin-message", UI_TEXTS.adminMinRequired, true);
+                    setAdminMessage(
+                        "fp-admin-message",
+                        UI_TEXTS.adminMinRequired,
+                        true,
+                    );
                     return;
                 }
-                const confirmed = await openConfirmModal(UI_TEXTS.adminDeleteConfirm(escapeHtml(admin.name)));
+                const confirmed = await openConfirmModal(
+                    UI_TEXTS.adminDeleteConfirm(escapeHtml(admin.name)),
+                );
                 if (!confirmed) return;
                 openPasswordModal({
                     type: "admin-delete",
                     id: admin.name,
                     adminName: admin.name,
                     title: "Elimina admin",
-                    description: UI_TEXTS.adminDeletePasswordDescription(admin.name),
+                    description: UI_TEXTS.adminDeletePasswordDescription(
+                        admin.name,
+                    ),
                 });
             });
 
@@ -198,9 +235,13 @@ function createAdminModals(options: AdminModalsOptions) {
     }
 
     function openAdminModal() {
-        const modal = document.getElementById("fp-admin-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-admin-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
-        const nextCache = loadAdminCredentials().sort((a, b) => a.name.localeCompare(b.name));
+        const nextCache = loadAdminCredentials().sort((a, b) =>
+            a.name.localeCompare(b.name),
+        );
         setAdminCache(nextCache);
         renderAdminList();
         setAdminMessage("fp-admin-message", "");
@@ -209,40 +250,96 @@ function createAdminModals(options: AdminModalsOptions) {
     }
 
     function closeAdminModal() {
-        const modal = document.getElementById("fp-admin-modal") as HTMLElement | null;
+        const modal = document.getElementById(
+            "fp-admin-modal",
+        ) as HTMLElement | null;
         if (!modal) return;
         hideModal(modal);
         setAdminEditingIndex(-1);
     }
 
     function initAdminModals() {
-        const adminOpen = document.getElementById("fp-admin-open") as HTMLButtonElement | null;
-        const adminModal = document.getElementById("fp-admin-modal") as HTMLElement | null;
-        const adminClose = document.getElementById("fp-admin-close") as HTMLButtonElement | null;
-        const adminAddOpen = document.getElementById("fp-admin-add-open") as HTMLButtonElement | null;
-        const adminAddModal = document.getElementById("fp-admin-add-modal") as HTMLElement | null;
-        const adminAddClose = document.getElementById("fp-admin-add-close") as HTMLButtonElement | null;
-        const adminAddCancel = document.getElementById("fp-admin-add-cancel") as HTMLButtonElement | null;
-        const adminAdd = document.getElementById("fp-admin-add") as HTMLButtonElement | null;
-        const adminEditModal = document.getElementById("fp-admin-edit-modal") as HTMLElement | null;
-        const adminEditSave = document.getElementById("fp-admin-edit-save") as HTMLButtonElement | null;
-        const adminEditClose = document.getElementById("fp-admin-edit-close") as HTMLButtonElement | null;
-        const adminEditCancel = document.getElementById("fp-admin-edit-cancel") as HTMLButtonElement | null;
-        const adminPasswordPanel = document.getElementById("fp-admin-password-panel") as HTMLElement | null;
-        const adminPasswordOpen = document.getElementById("fp-admin-password-open") as HTMLButtonElement | null;
-        const adminCurrentInput = document.getElementById("fp-admin-current") as HTMLInputElement | null;
-        const adminNewInput = document.getElementById("fp-admin-new") as HTMLInputElement | null;
-        const adminNewConfirmInput = document.getElementById("fp-admin-new-confirm") as HTMLInputElement | null;
-        const adminChange = document.getElementById("fp-admin-change") as HTMLButtonElement | null;
-        const adminForgot = document.getElementById("fp-admin-forgot") as HTMLButtonElement | null;
-        const adminEditName = document.getElementById("fp-admin-edit-name") as HTMLInputElement | null;
-        const adminEditEmail = document.getElementById("fp-admin-edit-email") as HTMLInputElement | null;
-        const adminEditPhone = document.getElementById("fp-admin-edit-phone") as HTMLInputElement | null;
-        const adminNameInput = document.getElementById("fp-admin-name") as HTMLInputElement | null;
-        const adminEmailInput = document.getElementById("fp-admin-email") as HTMLInputElement | null;
-        const adminPhoneInput = document.getElementById("fp-admin-phone") as HTMLInputElement | null;
-        const adminPasswordInput = document.getElementById("fp-admin-password") as HTMLInputElement | null;
-        const adminPasswordConfirmInput = document.getElementById("fp-admin-password-confirm") as HTMLInputElement | null;
+        const adminOpen = document.getElementById(
+            "fp-admin-open",
+        ) as HTMLButtonElement | null;
+        const adminModal = document.getElementById(
+            "fp-admin-modal",
+        ) as HTMLElement | null;
+        const adminClose = document.getElementById(
+            "fp-admin-close",
+        ) as HTMLButtonElement | null;
+        const adminAddOpen = document.getElementById(
+            "fp-admin-add-open",
+        ) as HTMLButtonElement | null;
+        const adminAddModal = document.getElementById(
+            "fp-admin-add-modal",
+        ) as HTMLElement | null;
+        const adminAddClose = document.getElementById(
+            "fp-admin-add-close",
+        ) as HTMLButtonElement | null;
+        const adminAddCancel = document.getElementById(
+            "fp-admin-add-cancel",
+        ) as HTMLButtonElement | null;
+        const adminAdd = document.getElementById(
+            "fp-admin-add",
+        ) as HTMLButtonElement | null;
+        const adminEditModal = document.getElementById(
+            "fp-admin-edit-modal",
+        ) as HTMLElement | null;
+        const adminEditSave = document.getElementById(
+            "fp-admin-edit-save",
+        ) as HTMLButtonElement | null;
+        const adminEditClose = document.getElementById(
+            "fp-admin-edit-close",
+        ) as HTMLButtonElement | null;
+        const adminEditCancel = document.getElementById(
+            "fp-admin-edit-cancel",
+        ) as HTMLButtonElement | null;
+        const adminPasswordPanel = document.getElementById(
+            "fp-admin-password-panel",
+        ) as HTMLElement | null;
+        const adminPasswordOpen = document.getElementById(
+            "fp-admin-password-open",
+        ) as HTMLButtonElement | null;
+        const adminCurrentInput = document.getElementById(
+            "fp-admin-current",
+        ) as HTMLInputElement | null;
+        const adminNewInput = document.getElementById(
+            "fp-admin-new",
+        ) as HTMLInputElement | null;
+        const adminNewConfirmInput = document.getElementById(
+            "fp-admin-new-confirm",
+        ) as HTMLInputElement | null;
+        const adminChange = document.getElementById(
+            "fp-admin-change",
+        ) as HTMLButtonElement | null;
+        const adminForgot = document.getElementById(
+            "fp-admin-forgot",
+        ) as HTMLButtonElement | null;
+        const adminEditName = document.getElementById(
+            "fp-admin-edit-name",
+        ) as HTMLInputElement | null;
+        const adminEditEmail = document.getElementById(
+            "fp-admin-edit-email",
+        ) as HTMLInputElement | null;
+        const adminEditPhone = document.getElementById(
+            "fp-admin-edit-phone",
+        ) as HTMLInputElement | null;
+        const adminNameInput = document.getElementById(
+            "fp-admin-name",
+        ) as HTMLInputElement | null;
+        const adminEmailInput = document.getElementById(
+            "fp-admin-email",
+        ) as HTMLInputElement | null;
+        const adminPhoneInput = document.getElementById(
+            "fp-admin-phone",
+        ) as HTMLInputElement | null;
+        const adminPasswordInput = document.getElementById(
+            "fp-admin-password",
+        ) as HTMLInputElement | null;
+        const adminPasswordConfirmInput = document.getElementById(
+            "fp-admin-password-confirm",
+        ) as HTMLInputElement | null;
 
         if (adminOpen) {
             adminOpen.addEventListener("click", () => {
@@ -276,30 +373,59 @@ function createAdminModals(options: AdminModalsOptions) {
             adminEditSave.addEventListener("click", () => {
                 const name = adminEditName ? adminEditName.value.trim() : "";
                 if (!name) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.adminNameRequired, true);
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.adminNameRequired,
+                        true,
+                    );
                     return;
                 }
                 const adminEditingIndex = getAdminEditingIndex();
                 const adminCache = getAdminCache();
-                if (adminEditingIndex < 0 || adminEditingIndex >= adminCache.length) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.adminSelectionRequired, true);
+                if (
+                    adminEditingIndex < 0 ||
+                    adminEditingIndex >= adminCache.length
+                ) {
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.adminSelectionRequired,
+                        true,
+                    );
                     return;
                 }
-                const emailValue = adminEditEmail ? adminEditEmail.value.trim() : "";
-                const phoneValue = adminEditPhone ? adminEditPhone.value.trim() : "";
+                const emailValue = adminEditEmail
+                    ? adminEditEmail.value.trim()
+                    : "";
+                const phoneValue = adminEditPhone
+                    ? adminEditPhone.value.trim()
+                    : "";
                 if (emailValue && !isValidEmail(emailValue)) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.invalidEmail, true);
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.invalidEmail,
+                        true,
+                    );
                     return;
                 }
                 if (phoneValue && !isValidPhone(phoneValue)) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.invalidPhone, true);
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.invalidPhone,
+                        true,
+                    );
                     return;
                 }
                 const exists = adminCache.some(
-                    (admin, idx) => idx !== adminEditingIndex && admin.name.toLowerCase() === name.toLowerCase()
+                    (admin, idx) =>
+                        idx !== adminEditingIndex &&
+                        admin.name.toLowerCase() === name.toLowerCase(),
                 );
                 if (exists) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.adminAlreadyExists, true);
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.adminAlreadyExists,
+                        true,
+                    );
                     return;
                 }
                 adminCache[adminEditingIndex].name = name;
@@ -311,13 +437,18 @@ function createAdminModals(options: AdminModalsOptions) {
                 renderAdminList();
                 if (adminEditModal) hideModal(adminEditModal);
                 setAdminMessage("fp-admin-edit-message", "");
-                setAdminMessage("fp-admin-message", UI_TEXTS.adminUpdated, false);
+                setAdminMessage(
+                    "fp-admin-message",
+                    UI_TEXTS.adminUpdated,
+                    false,
+                );
             });
         }
         if (adminEditClose) {
             adminEditClose.addEventListener("click", () => {
                 if (adminEditModal) hideModal(adminEditModal);
-                if (adminPasswordPanel) adminPasswordPanel.classList.add("is-hidden");
+                if (adminPasswordPanel)
+                    adminPasswordPanel.classList.add("is-hidden");
                 setAdminEditingIndex(-1);
                 setAdminMessage("fp-admin-edit-message", "");
             });
@@ -330,7 +461,10 @@ function createAdminModals(options: AdminModalsOptions) {
         }
         if (adminAddClose) {
             adminAddClose.addEventListener("click", () => {
-                if (typeof isInitialSetupActive === "function" && isInitialSetupActive()) {
+                if (
+                    typeof isInitialSetupActive === "function" &&
+                    isInitialSetupActive()
+                ) {
                     return;
                 }
                 if (adminAddModal) hideModal(adminAddModal);
@@ -338,13 +472,17 @@ function createAdminModals(options: AdminModalsOptions) {
                 if (adminEmailInput) adminEmailInput.value = "";
                 if (adminPhoneInput) adminPhoneInput.value = "";
                 if (adminPasswordInput) adminPasswordInput.value = "";
-                if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
+                if (adminPasswordConfirmInput)
+                    adminPasswordConfirmInput.value = "";
                 setAdminMessage("fp-admin-add-message", "");
             });
         }
         if (adminAddCancel) {
             adminAddCancel.addEventListener("click", () => {
-                if (typeof isInitialSetupActive === "function" && isInitialSetupActive()) {
+                if (
+                    typeof isInitialSetupActive === "function" &&
+                    isInitialSetupActive()
+                ) {
                     return;
                 }
                 if (adminAddModal) hideModal(adminAddModal);
@@ -352,7 +490,8 @@ function createAdminModals(options: AdminModalsOptions) {
                 if (adminEmailInput) adminEmailInput.value = "";
                 if (adminPhoneInput) adminPhoneInput.value = "";
                 if (adminPasswordInput) adminPasswordInput.value = "";
-                if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
+                if (adminPasswordConfirmInput)
+                    adminPasswordConfirmInput.value = "";
                 setAdminMessage("fp-admin-add-message", "");
             });
         }
@@ -360,37 +499,65 @@ function createAdminModals(options: AdminModalsOptions) {
             adminAdd.addEventListener("click", async () => {
                 const name = adminNameInput ? adminNameInput.value.trim() : "";
                 const pass = adminPasswordInput ? adminPasswordInput.value : "";
-                const confirm = adminPasswordConfirmInput ? adminPasswordConfirmInput.value : "";
-                const email = adminEmailInput ? adminEmailInput.value.trim() : "";
-                const phone = adminPhoneInput ? adminPhoneInput.value.trim() : "";
+                const confirm = adminPasswordConfirmInput
+                    ? adminPasswordConfirmInput.value
+                    : "";
+                const email = adminEmailInput
+                    ? adminEmailInput.value.trim()
+                    : "";
+                const phone = adminPhoneInput
+                    ? adminPhoneInput.value.trim()
+                    : "";
                 if (!name || !pass || !confirm) {
-                    setAdminMessage("fp-admin-add-message", UI_TEXTS.fieldsRequired, true);
+                    setAdminMessage(
+                        "fp-admin-add-message",
+                        UI_TEXTS.fieldsRequired,
+                        true,
+                    );
                     return;
                 }
                 if (email && !isValidEmail(email)) {
-                    setAdminMessage("fp-admin-add-message", UI_TEXTS.invalidEmail, true);
+                    setAdminMessage(
+                        "fp-admin-add-message",
+                        UI_TEXTS.invalidEmail,
+                        true,
+                    );
                     return;
                 }
                 if (phone && !isValidPhone(phone)) {
-                    setAdminMessage("fp-admin-add-message", UI_TEXTS.invalidPhone, true);
+                    setAdminMessage(
+                        "fp-admin-add-message",
+                        UI_TEXTS.invalidPhone,
+                        true,
+                    );
                     return;
                 }
                 if (pass !== confirm) {
-                    setAdminMessage("fp-admin-add-message", UI_TEXTS.passwordsMismatch, true);
+                    setAdminMessage(
+                        "fp-admin-add-message",
+                        UI_TEXTS.passwordsMismatch,
+                        true,
+                    );
                     return;
                 }
                 if (!isHashingAvailable()) {
                     await showDialog(
                         "error",
                         UI_TEXTS.hashingUnavailableTitle,
-                        UI_TEXTS.hashingUnavailableDetail
+                        UI_TEXTS.hashingUnavailableDetail,
                     );
                     return;
                 }
                 const adminCache = getAdminCache();
-                const exists = adminCache.some((admin) => admin.name.toLowerCase() === name.toLowerCase());
+                const exists = adminCache.some(
+                    (admin) => admin.name.toLowerCase() === name.toLowerCase(),
+                );
                 if (exists) {
-                    setAdminMessage("fp-admin-add-message", UI_TEXTS.adminAlreadyExists, true);
+                    setAdminMessage(
+                        "fp-admin-add-message",
+                        UI_TEXTS.adminAlreadyExists,
+                        true,
+                    );
                     return;
                 }
                 const hash = await hashPassword(pass);
@@ -409,8 +576,13 @@ function createAdminModals(options: AdminModalsOptions) {
                 if (adminEmailInput) adminEmailInput.value = "";
                 if (adminPhoneInput) adminPhoneInput.value = "";
                 if (adminPasswordInput) adminPasswordInput.value = "";
-                if (adminPasswordConfirmInput) adminPasswordConfirmInput.value = "";
-                setAdminMessage("fp-admin-add-message", UI_TEXTS.adminAdded, false);
+                if (adminPasswordConfirmInput)
+                    adminPasswordConfirmInput.value = "";
+                setAdminMessage(
+                    "fp-admin-add-message",
+                    UI_TEXTS.adminAdded,
+                    false,
+                );
                 if (adminAddModal) hideModal(adminAddModal);
                 if (typeof onInitialSetupComplete === "function") {
                     onInitialSetupComplete();
@@ -420,47 +592,72 @@ function createAdminModals(options: AdminModalsOptions) {
         if (adminEditCancel) {
             adminEditCancel.addEventListener("click", () => {
                 if (adminEditModal) hideModal(adminEditModal);
-                if (adminPasswordPanel) adminPasswordPanel.classList.add("is-hidden");
+                if (adminPasswordPanel)
+                    adminPasswordPanel.classList.add("is-hidden");
                 setAdminEditingIndex(-1);
                 setAdminMessage("fp-admin-edit-message", "");
             });
         }
         if (adminPasswordOpen) {
             adminPasswordOpen.addEventListener("click", () => {
-                if (adminPasswordPanel) adminPasswordPanel.classList.toggle("is-hidden");
+                if (adminPasswordPanel)
+                    adminPasswordPanel.classList.toggle("is-hidden");
             });
         }
         if (adminChange) {
             adminChange.addEventListener("click", async () => {
-                const current = adminCurrentInput ? adminCurrentInput.value : "";
+                const current = adminCurrentInput
+                    ? adminCurrentInput.value
+                    : "";
                 const next = adminNewInput ? adminNewInput.value : "";
-                const confirm = adminNewConfirmInput ? adminNewConfirmInput.value : "";
+                const confirm = adminNewConfirmInput
+                    ? adminNewConfirmInput.value
+                    : "";
                 const adminEditingIndex = getAdminEditingIndex();
                 const adminCache = getAdminCache();
-                if (adminEditingIndex < 0 || adminEditingIndex >= adminCache.length) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.adminSelectionRequired, true);
+                if (
+                    adminEditingIndex < 0 ||
+                    adminEditingIndex >= adminCache.length
+                ) {
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.adminSelectionRequired,
+                        true,
+                    );
                     return;
                 }
                 if (!current || !next || !confirm) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.fieldsRequired, true);
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.fieldsRequired,
+                        true,
+                    );
                     return;
                 }
                 if (next !== confirm) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.passwordsMismatch, true);
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.passwordsMismatch,
+                        true,
+                    );
                     return;
                 }
                 if (!isHashingAvailable()) {
                     await showDialog(
                         "error",
                         UI_TEXTS.hashingUnavailableTitle,
-                        UI_TEXTS.hashingUnavailableDetail
+                        UI_TEXTS.hashingUnavailableDetail,
                     );
                     return;
                 }
                 const admin = adminCache[adminEditingIndex];
                 const verify = await verifyAdminPassword(current, admin?.name);
                 if (!admin || !verify) {
-                    setAdminMessage("fp-admin-edit-message", UI_TEXTS.passwordInvalid, true);
+                    setAdminMessage(
+                        "fp-admin-edit-message",
+                        UI_TEXTS.passwordInvalid,
+                        true,
+                    );
                     return;
                 }
                 admin.passwordHash = await hashPassword(next);
@@ -469,7 +666,11 @@ function createAdminModals(options: AdminModalsOptions) {
                 if (adminCurrentInput) adminCurrentInput.value = "";
                 if (adminNewInput) adminNewInput.value = "";
                 if (adminNewConfirmInput) adminNewConfirmInput.value = "";
-                setAdminMessage("fp-admin-edit-message", UI_TEXTS.passwordUpdated, false);
+                setAdminMessage(
+                    "fp-admin-edit-message",
+                    UI_TEXTS.passwordUpdated,
+                    false,
+                );
             });
         }
         if (adminForgot) {
@@ -483,12 +684,24 @@ function createAdminModals(options: AdminModalsOptions) {
     }
 
     function openAdminAddModal() {
-        const adminAddModal = document.getElementById("fp-admin-add-modal") as HTMLElement | null;
-        const adminNameInput = document.getElementById("fp-admin-name") as HTMLInputElement | null;
-        const adminEmailInput = document.getElementById("fp-admin-email") as HTMLInputElement | null;
-        const adminPhoneInput = document.getElementById("fp-admin-phone") as HTMLInputElement | null;
-        const adminPasswordInput = document.getElementById("fp-admin-password") as HTMLInputElement | null;
-        const adminPasswordConfirmInput = document.getElementById("fp-admin-password-confirm") as HTMLInputElement | null;
+        const adminAddModal = document.getElementById(
+            "fp-admin-add-modal",
+        ) as HTMLElement | null;
+        const adminNameInput = document.getElementById(
+            "fp-admin-name",
+        ) as HTMLInputElement | null;
+        const adminEmailInput = document.getElementById(
+            "fp-admin-email",
+        ) as HTMLInputElement | null;
+        const adminPhoneInput = document.getElementById(
+            "fp-admin-phone",
+        ) as HTMLInputElement | null;
+        const adminPasswordInput = document.getElementById(
+            "fp-admin-password",
+        ) as HTMLInputElement | null;
+        const adminPasswordConfirmInput = document.getElementById(
+            "fp-admin-password-confirm",
+        ) as HTMLInputElement | null;
         if (adminNameInput) adminNameInput.value = "";
         if (adminEmailInput) adminEmailInput.value = "";
         if (adminPhoneInput) adminPhoneInput.value = "";
@@ -510,6 +723,15 @@ function createAdminModals(options: AdminModalsOptions) {
 export { createAdminModals };
 
 // Keep CommonJS compatibility for legacy JS callers
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) {
-    if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { createAdminModals };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+) {
+    if (
+        typeof module !== "undefined" &&
+        module.exports &&
+        !(globalThis as any).__aypiBundled
+    )
+        module.exports = { createAdminModals };
 }

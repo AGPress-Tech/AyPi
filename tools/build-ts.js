@@ -6,89 +6,111 @@ const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist-ts");
 
 function rmDir(target) {
-    if (fs.existsSync(target)) {
-        fs.rmSync(target, { recursive: true, force: true });
-    }
+  if (fs.existsSync(target)) {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 }
 
 function copyDir(src, dest, opts = {}) {
-    if (!fs.existsSync(src)) return;
-    fs.mkdirSync(dest, { recursive: true });
-    const entries = fs.readdirSync(src, { withFileTypes: true });
-    for (const entry of entries) {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
-        if (entry.isDirectory()) {
-            copyDir(srcPath, destPath, opts);
-        } else if (entry.isFile()) {
-            if (opts.skipExt && opts.skipExt.includes(path.extname(entry.name))) {
-                continue;
-            }
-            fs.copyFileSync(srcPath, destPath);
-        }
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath, opts);
+    } else if (entry.isFile()) {
+      if (opts.skipExt && opts.skipExt.includes(path.extname(entry.name))) {
+        continue;
+      }
+      fs.copyFileSync(srcPath, destPath);
     }
+  }
 }
 
 rmDir(distDir);
 
-let result = spawnSync("node", [path.join(__dirname, "generate-agpress-bluearchive-theme.js")], {
+let result = spawnSync(
+  "node",
+  [path.join(__dirname, "generate-agpress-bluearchive-theme.js")],
+  {
     stdio: "inherit",
     shell: true,
     cwd: rootDir,
-});
+  },
+);
 if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  process.exit(result.status ?? 1);
 }
 
-result = spawnSync("node", [path.join(__dirname, "generate-agpress-scripted-splash-scopes.js")], {
+result = spawnSync(
+  "node",
+  [path.join(__dirname, "generate-agpress-scripted-splash-scopes.js")],
+  {
     stdio: "inherit",
     shell: true,
     cwd: rootDir,
-});
+  },
+);
 if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  process.exit(result.status ?? 1);
 }
 
 // Copy non-JS/TS runtime assets
 copyDir(path.join(rootDir, "assets"), path.join(distDir, "assets"));
-copyDir(path.join(rootDir, "src", "renderer", "pages"), path.join(distDir, "pages"));
-copyDir(path.join(rootDir, "src", "renderer", "styles"), path.join(distDir, "styles"));
-copyDir(path.join(rootDir, "src", "renderer", "Guida"), path.join(distDir, "Guida"), { skipExt: [".ts"] });
-copyDir(path.join(rootDir, "src", "renderer", "templates"), path.join(distDir, "templates"), { skipExt: [".ts"] });
+copyDir(
+  path.join(rootDir, "src", "renderer", "pages"),
+  path.join(distDir, "pages"),
+);
+copyDir(
+  path.join(rootDir, "src", "renderer", "styles"),
+  path.join(distDir, "styles"),
+);
+copyDir(
+  path.join(rootDir, "src", "renderer", "Guida"),
+  path.join(distDir, "Guida"),
+  { skipExt: [".ts"] },
+);
+copyDir(
+  path.join(rootDir, "src", "renderer", "templates"),
+  path.join(distDir, "templates"),
+  { skipExt: [".ts"] },
+);
 
 // Generate git stats cache for infographics (optional).
 try {
-    const outPath = path.join(distDir, "pages", "utilities", "git-stats.json");
-    spawnSync("node", [path.join(__dirname, "generate-git-stats.js"), outPath], {
-        stdio: "inherit",
-        shell: true,
-        cwd: rootDir,
-    });
+  const outPath = path.join(distDir, "pages", "utilities", "git-stats.json");
+  spawnSync("node", [path.join(__dirname, "generate-git-stats.js"), outPath], {
+    stdio: "inherit",
+    shell: true,
+    cwd: rootDir,
+  });
 } catch (err) {
-    // Non-blocking: UI can still attempt live git access in dev.
+  // Non-blocking: UI can still attempt live git access in dev.
 }
 
 // Copy legacy JS modules that are not in TS
 const legacyUpdater = path.join(rootDir, "modules", "updater.js");
 if (fs.existsSync(legacyUpdater)) {
-    const modulesDir = path.join(distDir, "modules");
-    fs.mkdirSync(modulesDir, { recursive: true });
-    fs.copyFileSync(legacyUpdater, path.join(modulesDir, "updater.js"));
+  const modulesDir = path.join(distDir, "modules");
+  fs.mkdirSync(modulesDir, { recursive: true });
+  fs.copyFileSync(legacyUpdater, path.join(modulesDir, "updater.js"));
 }
 
 result = spawnSync("npx", ["tsc", "-p", "tsconfig.json"], {
-    stdio: "inherit",
-    shell: true,
-    cwd: rootDir,
+  stdio: "inherit",
+  shell: true,
+  cwd: rootDir,
 });
 if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  process.exit(result.status ?? 1);
 }
 
 result = spawnSync("node", [path.join(__dirname, "build-renderer.js")], {
-    stdio: "inherit",
-    shell: true,
-    cwd: rootDir,
+  stdio: "inherit",
+  shell: true,
+  cwd: rootDir,
 });
 
 process.exit(result.status ?? 1);

@@ -91,11 +91,9 @@ const {
     applyBalanceForUpdate,
 } = bootRequire(path.join(fpBaseDir, "services", "balances"));
 const { showDialog } = bootRequire(path.join(fpBaseDir, "services", "dialogs"));
-const {
-    isMailerAvailable,
-    getMailerError,
-    sendOtpEmail,
-} = bootRequire(path.join(fpBaseDir, "services", "otp-mail"));
+const { isMailerAvailable, getMailerError, sendOtpEmail } = bootRequire(
+    path.join(fpBaseDir, "services", "otp-mail"),
+);
 
 window.addEventListener("error", (event) => {
     const detail =
@@ -167,10 +165,8 @@ const { getTypeLabel } = bootRequire(path.join(fpBaseDir, "utils", "labels"));
 const {
     UI_TEXTS = { initErrorTitle: "Errore inizializzazione ferie/permessi." },
 } = requireModule(path.join(fpBaseDir, "utils", "ui-texts")) || {};
-const {
-    DEFAULT_ACCESS_CONFIG,
-    normalizeAccessConfig,
-} = requireModule(path.join(fpBaseDir, "services", "access-config")) || {};
+const { DEFAULT_ACCESS_CONFIG, normalizeAccessConfig } =
+    requireModule(path.join(fpBaseDir, "services", "access-config")) || {};
 
 let calendar = null;
 let XLSX;
@@ -313,8 +309,14 @@ async function loadAssigneeOptionsRemote() {
     const payload = await requestBackend("/api/shared/assignees");
     return {
         options: Object.values(payload?.groups || {}).flat(),
-        groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
-        emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+        groups:
+            payload?.groups && typeof payload.groups === "object"
+                ? payload.groups
+                : {},
+        emails:
+            payload?.emails && typeof payload.emails === "object"
+                ? payload.emails
+                : {},
     };
 }
 
@@ -327,8 +329,10 @@ async function saveAssigneeOptionsRemote(data) {
         },
     });
     const next = payload?.data || {};
-    assigneeGroups = next?.groups && typeof next.groups === "object" ? next.groups : {};
-    assigneeEmails = next?.emails && typeof next.emails === "object" ? next.emails : {};
+    assigneeGroups =
+        next?.groups && typeof next.groups === "object" ? next.groups : {};
+    assigneeEmails =
+        next?.emails && typeof next.emails === "object" ? next.emails : {};
     assigneeOptions = Object.values(assigneeGroups).flat();
     return {
         options: assigneeOptions,
@@ -1762,7 +1766,10 @@ function fillFormFromRequest(prefix, request) {
 }
 
 function populateEmployees() {
-    const groups = assigneeGroups && typeof assigneeGroups === "object" ? assigneeGroups : {};
+    const groups =
+        assigneeGroups && typeof assigneeGroups === "object"
+            ? assigneeGroups
+            : {};
     assigneeGroups = groups;
     populateEmployeesFor("fp", groups);
     populateEmployeesFor("fp-edit", groups);
@@ -2036,7 +2043,9 @@ async function init() {
                 showInfoModal(
                     UI_TEXTS.adminLoginTitle,
                     UI_TEXTS.adminLogoffSuccess,
-                    { showLogin: false },
+                    {
+                        showLogin: false,
+                    },
                 );
                 return;
             }

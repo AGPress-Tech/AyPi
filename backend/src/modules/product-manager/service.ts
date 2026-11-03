@@ -81,7 +81,10 @@ export function runProductManagerBackup(context?: ActionContext) {
     });
 }
 
-export function runProductManagerRestore(name: string, context?: ActionContext) {
+export function runProductManagerRestore(
+    name: string,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("restoreBackup", () => {
         const result = restoreProductManagerBackup(name);
@@ -124,7 +127,9 @@ export function saveRequests(payload: any[], context?: ActionContext) {
 
 export function saveInterventions(payload: any[], context?: ActionContext) {
     return enqueue("saveInterventions", () => {
-        const before = summarizeArray(loadProductManagerBootstrap().interventions);
+        const before = summarizeArray(
+            loadProductManagerBootstrap().interventions,
+        );
         const after = summarizeArray(saveProductManagerInterventions(payload));
         logArraySave({
             message: "Purchasing interventions saved",
@@ -186,8 +191,12 @@ export function saveCategories(payload: any[], context?: ActionContext) {
 
 export function saveInterventionTypes(payload: any[], context?: ActionContext) {
     return enqueue("saveInterventionTypes", () => {
-        const before = summarizeArray(loadProductManagerBootstrap().interventionTypes);
-        const after = summarizeArray(saveProductManagerInterventionTypes(payload));
+        const before = summarizeArray(
+            loadProductManagerBootstrap().interventionTypes,
+        );
+        const after = summarizeArray(
+            saveProductManagerInterventionTypes(payload),
+        );
         logArraySave({
             message: "Purchasing intervention types saved",
             event: "purchasing_save_intervention_types",

@@ -45,10 +45,8 @@ export class MobileRealtimeHub {
         head: Buffer,
     ) => {
         try {
-            const pathname = new URL(
-                request.url || "/",
-                "http://localhost",
-            ).pathname;
+            const pathname = new URL(request.url || "/", "http://localhost")
+                .pathname;
             if (pathname !== "/ws") {
                 socket.destroy();
                 return;
@@ -63,9 +61,14 @@ export class MobileRealtimeHub {
                 return;
             }
             request.headers["x-aypi-user"] = session.adminName;
-            this.socketServer.handleUpgrade(request, socket, head, (webSocket) => {
-                this.socketServer.emit("connection", webSocket, request);
-            });
+            this.socketServer.handleUpgrade(
+                request,
+                socket,
+                head,
+                (webSocket) => {
+                    this.socketServer.emit("connection", webSocket, request);
+                },
+            );
         } catch (error) {
             logger.warn("Mobile realtime upgrade rejected", {
                 event: "mobile_realtime_upgrade_rejected",
@@ -153,7 +156,8 @@ export class MobileRealtimeHub {
                 "ticket",
                 "production-planner",
             ].includes(change.module)
-        ) return;
+        )
+            return;
         this.sequence += 1;
         const payload = {
             type: "module.changed",

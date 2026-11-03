@@ -1,4 +1,9 @@
-export type MesEventSource = "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO" | "MANUAL";
+export type MesEventSource =
+    | "PLC_CSV"
+    | "PLC_SQLITE"
+    | "ROBOT"
+    | "DEMO"
+    | "MANUAL";
 
 export type MesAcquisitionMode = "LIVE" | "DEMO";
 export type MesAcquisitionStatus = "ACTIVE" | "STOPPED" | "STALE";
@@ -159,12 +164,24 @@ export type MesOrderDetail = MesOrder & { phases: MesPhase[] };
 
 export type MesOrderDraft = Omit<
     MesOrder,
-    "orderId" | "revision" | "createdAt" | "createdBy" | "updatedAt" | "updatedBy"
+    | "orderId"
+    | "revision"
+    | "createdAt"
+    | "createdBy"
+    | "updatedAt"
+    | "updatedBy"
 >;
 
 export type MesPhaseDraft = Omit<
     MesPhase,
-    "phaseId" | "orderId" | "revision" | "createdAt" | "createdBy" | "updatedAt" | "updatedBy" | "plannedDurationSeconds"
+    | "phaseId"
+    | "orderId"
+    | "revision"
+    | "createdAt"
+    | "createdBy"
+    | "updatedAt"
+    | "updatedBy"
+    | "plannedDurationSeconds"
 >;
 
 export type MesSessionMode = "PRODUCTION" | "SETUP";
@@ -218,4 +235,3 @@ export type MesActivationPreview = {
     activeSession: MesMachineSession | null;
     lastClosedSession: MesMachineSession | null;
 };
-

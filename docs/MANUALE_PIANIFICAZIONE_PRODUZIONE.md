@@ -89,15 +89,15 @@ La schermata è suddivisa nelle seguenti aree:
 
 ### Pulsanti della barra superiore
 
-| Pulsante | Funzione |
-|---|---|
-| **Aggiorna** | Richiede immediatamente lo stato più recente al backend. |
-| **Annulla** | Ripristina l’ultimo stato precedente disponibile. Equivale a `Ctrl+Z` quando non si sta scrivendo in un campo o usando un form. |
-| **Analisi** | Apre la finestra dedicata alle analisi di produzione. |
-| **Fermi macchina** | Apre la gestione di guasti e manutenzioni per una singola macchina. |
-| **Chiusure / Ferie** | Apre la gestione delle indisponibilità aziendali, di reparto o di più macchine. |
-| **Macchine** | Apre l’anagrafica delle macchine, dei reparti, delle categorie e dell’ordine nel Gantt. |
-| **+ Nuova lavorazione** | Apre il modulo per creare un nuovo articolo/ordine di produzione. |
+| Pulsante                | Funzione                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Aggiorna**            | Richiede immediatamente lo stato più recente al backend.                                                                        |
+| **Annulla**             | Ripristina l’ultimo stato precedente disponibile. Equivale a `Ctrl+Z` quando non si sta scrivendo in un campo o usando un form. |
+| **Analisi**             | Apre la finestra dedicata alle analisi di produzione.                                                                           |
+| **Fermi macchina**      | Apre la gestione di guasti e manutenzioni per una singola macchina.                                                             |
+| **Chiusure / Ferie**    | Apre la gestione delle indisponibilità aziendali, di reparto o di più macchine.                                                 |
+| **Macchine**            | Apre l’anagrafica delle macchine, dei reparti, delle categorie e dell’ordine nel Gantt.                                         |
+| **+ Nuova lavorazione** | Apre il modulo per creare un nuovo articolo/ordine di produzione.                                                               |
 
 ### Adattamento alle finestre ridotte
 
@@ -269,15 +269,15 @@ Il confronto non distingue maiuscole e minuscole.
 
 #### Wildcard disponibili
 
-| Simbolo | Significato | Esempio |
-|---|---|---|
-| `%` | Zero o più caratteri | `%1144` trova tutti i codici che contengono `1144`. |
-| `_` | Un singolo carattere | `T_00` trova `T100`, `TA00`, ecc. |
-| `[]` | Un carattere compreso nell’insieme | `[AB]400` trova `A400` e `B400`. |
-| `[^]` | Un carattere non compreso nell’insieme | `[^T]400` esclude `T400`. |
-| `-` | Un carattere compreso nell’intervallo indicato dentro `[]` | `[0-9]00` trova codici come `400`. |
-| `{}` | Tratta come letterale il contenuto racchiuso | `{%}400` cerca un `%` reale; `A{_}B` cerca `_`. |
-| `|` | Termina il modello esattamente nel punto indicato | `1144|` trova esclusivamente `1144`. |
+| Simbolo | Significato                                                | Esempio                                             |
+| ------- | ---------------------------------------------------------- | --------------------------------------------------- |
+| `%`     | Zero o più caratteri                                       | `%1144` trova tutti i codici che contengono `1144`. |
+| `_`     | Un singolo carattere                                       | `T_00` trova `T100`, `TA00`, ecc.                   |
+| `[]`    | Un carattere compreso nell’insieme                         | `[AB]400` trova `A400` e `B400`.                    |
+| `[^]`   | Un carattere non compreso nell’insieme                     | `[^T]400` esclude `T400`.                           |
+| `-`     | Un carattere compreso nell’intervallo indicato dentro `[]` | `[0-9]00` trova codici come `400`.                  |
+| `{}`    | Tratta come letterale il contenuto racchiuso               | `{%}400` cerca un `%` reale; `A{_}B` cerca `_`.     |
+| `       | `                                                          | Termina il modello esattamente nel punto indicato   | `1144 | `trova esclusivamente`1144`. |
 
 Il terminatore `|` permette di costruire facilmente ricerche con fine esatta:
 
@@ -472,26 +472,26 @@ Premere **+ Nuova lavorazione** per aprire il form.
 
 ### Campi del form
 
-| Campo | Obbligo | Descrizione |
-|---|---:|---|
-| **Codice articolo** | Sì | Identificativo esatto dell’articolo. |
-| **Cliente** | Sì | Cliente associato alla produzione. |
-| **Fase di lavorazione** | No | Fase o operazione prevista. |
-| **Materiale / Lega** | No | Materiale tecnico, lega o qualità. |
-| **Quantità** | No | Quantità totale prevista. |
-| **Unità** | Sì | Pezzi oppure kg. |
-| **Kg / Fasci di barra** | No | Testo libero, per esempio `1.200 kg / 3 fasci`. |
-| **Proprietario barra / materiale** | No | Cliente, azienda, fornitore o altro proprietario. |
-| **Macchina** | No | Una macchina specifica oppure Da pianificare. |
-| **Priorità** | Sì | Normale, Alta o Urgente. |
-| **Inizio previsto** | Dipende | Utilizzabile solo dopo aver scelto una macchina. |
-| **Durata produzione** | Sì | Numero intero di giorni lavorativi, minimo 1. |
-| **Consegna finale** | No | Informazione opzionale; non determina il ritardo principale. |
-| **Prima consegna** | No | Data usata come riferimento per puntualità e ritardo. |
-| **Quantità prima consegna** | No | Quantità prevista alla prima consegna. |
-| **Stato materiale** | Sì | Uno dei cinque stati disponibili. |
-| **Stato lavorazione** | Sì | Non ancora iniziato, In corso o Terminato. |
-| **Note** | No | Annotazioni fino a 600 caratteri. |
+| Campo                              | Obbligo | Descrizione                                                  |
+| ---------------------------------- | ------: | ------------------------------------------------------------ |
+| **Codice articolo**                |      Sì | Identificativo esatto dell’articolo.                         |
+| **Cliente**                        |      Sì | Cliente associato alla produzione.                           |
+| **Fase di lavorazione**            |      No | Fase o operazione prevista.                                  |
+| **Materiale / Lega**               |      No | Materiale tecnico, lega o qualità.                           |
+| **Quantità**                       |      No | Quantità totale prevista.                                    |
+| **Unità**                          |      Sì | Pezzi oppure kg.                                             |
+| **Kg / Fasci di barra**            |      No | Testo libero, per esempio `1.200 kg / 3 fasci`.              |
+| **Proprietario barra / materiale** |      No | Cliente, azienda, fornitore o altro proprietario.            |
+| **Macchina**                       |      No | Una macchina specifica oppure Da pianificare.                |
+| **Priorità**                       |      Sì | Normale, Alta o Urgente.                                     |
+| **Inizio previsto**                | Dipende | Utilizzabile solo dopo aver scelto una macchina.             |
+| **Durata produzione**              |      Sì | Numero intero di giorni lavorativi, minimo 1.                |
+| **Consegna finale**                |      No | Informazione opzionale; non determina il ritardo principale. |
+| **Prima consegna**                 |      No | Data usata come riferimento per puntualità e ritardo.        |
+| **Quantità prima consegna**        |      No | Quantità prevista alla prima consegna.                       |
+| **Stato materiale**                |      Sì | Uno dei cinque stati disponibili.                            |
+| **Stato lavorazione**              |      Sì | Non ancora iniziato, In corso o Terminato.                   |
+| **Note**                           |      No | Annotazioni fino a 600 caratteri.                            |
 
 ### Da pianificare
 
@@ -1026,11 +1026,11 @@ Premere **Analisi** nella barra del pianificatore. Si apre una finestra indipend
 
 ### Pulsanti superiori
 
-| Pulsante | Funzione |
-|---|---|
-| **Aggiorna** | Scarica immediatamente i dati più recenti. |
+| Pulsante          | Funzione                                                                        |
+| ----------------- | ------------------------------------------------------------------------------- |
+| **Aggiorna**      | Scarica immediatamente i dati più recenti.                                      |
 | **Esporta Excel** | Crea un file `.xlsx` con filtri, riepiloghi, dettagli e analisi personalizzate. |
-| **Chiudi** | Chiude soltanto la finestra Analisi. |
+| **Chiudi**        | Chiude soltanto la finestra Analisi.                                            |
 
 ### Aggiornamento in tempo reale
 

@@ -91,15 +91,15 @@ Il formato della sorgente non deve comparire nelle regole del pianificatore. Cam
 
 Gli identificativi interni devono essere stabili e indipendenti dai nomi mostrati all'utente.
 
-| Entità | Identificativo proposto | Nota |
-|---|---|---|
-| Macchina | `machineId` | Mantiene il codice aziendale, per esempio `21D450` |
-| Ordine | `orderId` UUID | Il numero ordine resta un campo aziendale modificabile |
-| Fase | `phaseId` UUID | Identifica univocamente la fase anche se viene spostata |
-| Sessione | `sessionId` UUID | Una fase può avere più sessioni nel tempo |
-| Evento macchina | `eventId` deterministico | Impedisce duplicati durante una nuova importazione |
-| Rettifica | `adjustmentId` UUID | Sempre accompagnata da audit |
-| Risoluzione non attribuiti | `resolutionId` UUID | Registra la scelta fatta all'attivazione |
+| Entità                     | Identificativo proposto  | Nota                                                    |
+| -------------------------- | ------------------------ | ------------------------------------------------------- |
+| Macchina                   | `machineId`              | Mantiene il codice aziendale, per esempio `21D450`      |
+| Ordine                     | `orderId` UUID           | Il numero ordine resta un campo aziendale modificabile  |
+| Fase                       | `phaseId` UUID           | Identifica univocamente la fase anche se viene spostata |
+| Sessione                   | `sessionId` UUID         | Una fase può avere più sessioni nel tempo               |
+| Evento macchina            | `eventId` deterministico | Impedisce duplicati durante una nuova importazione      |
+| Rettifica                  | `adjustmentId` UUID      | Sempre accompagnata da audit                            |
+| Risoluzione non attribuiti | `resolutionId` UUID      | Registra la scelta fatta all'attivazione                |
 
 Per i CSV correnti, `eventId` sarà derivato almeno da:
 
@@ -202,17 +202,17 @@ Una risoluzione confermata contiene:
 
 ```ts
 type UnassignedCountResolution = {
-    resolutionId: string;
-    machineId: string;
-    phaseId: string;
-    sessionId: string;
-    detectedPieces: number;
-    attributedPieces: number;
-    excludedPieces: number;
-    reasonCode: string;
-    note: string;
-    actor: string;
-    resolvedAt: string;
+  resolutionId: string;
+  machineId: string;
+  phaseId: string;
+  sessionId: string;
+  detectedPieces: number;
+  attributedPieces: number;
+  excludedPieces: number;
+  reasonCode: string;
+  note: string;
+  actor: string;
+  resolvedAt: string;
 };
 ```
 
@@ -283,23 +283,23 @@ Una rettifica non modifica direttamente un evento macchina. Produce un nuovo eve
 
 ```ts
 type ProductionAdjustment = {
-    adjustmentId: string;
-    machineId: string;
-    phaseId: string;
-    sessionId?: string;
-    kind:
-        | "OPENING_CREDIT"
-        | "GOOD_PIECES_ADD"
-        | "GOOD_PIECES_REMOVE"
-        | "SCRAP_ADD"
-        | "SCRAP_REMOVE"
-        | "UNASSIGNED_EXCLUSION"
-        | "SETUP_RECONCILIATION";
-    quantity: number;
-    reasonCode: string;
-    note: string;
-    actor: string;
-    createdAt: string;
+  adjustmentId: string;
+  machineId: string;
+  phaseId: string;
+  sessionId?: string;
+  kind:
+    | "OPENING_CREDIT"
+    | "GOOD_PIECES_ADD"
+    | "GOOD_PIECES_REMOVE"
+    | "SCRAP_ADD"
+    | "SCRAP_REMOVE"
+    | "UNASSIGNED_EXCLUSION"
+    | "SETUP_RECONCILIATION";
+  quantity: number;
+  reasonCode: string;
+  note: string;
+  actor: string;
+  createdAt: string;
 };
 ```
 
@@ -317,23 +317,23 @@ Regole:
 
 ```ts
 type MachineCounterEvent = {
-    eventId: string;
-    source: "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO";
-    sourceSessionId: string;
-    sourcePosition: string;
-    machineId: string;
-    occurredAt: string;
-    receivedAt: string;
-    pulseDelta: number;
-    pieceDelta: number;
-    multiplier: number;
-    signal?: {
-        mac?: string;
-        frameId?: string;
-        byte?: number;
-        bit?: number;
-    };
-    raw?: Record<string, unknown>;
+  eventId: string;
+  source: "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO";
+  sourceSessionId: string;
+  sourcePosition: string;
+  machineId: string;
+  occurredAt: string;
+  receivedAt: string;
+  pulseDelta: number;
+  pieceDelta: number;
+  multiplier: number;
+  signal?: {
+    mac?: string;
+    frameId?: string;
+    byte?: number;
+    bit?: number;
+  };
+  raw?: Record<string, unknown>;
 };
 ```
 
@@ -348,14 +348,14 @@ Vincoli:
 
 ### Mappatura del CSV corrente `impulsi.csv`
 
-| CSV attuale | Evento MES |
-|---|---|
-| `timestamp_locale` | `occurredAt` |
-| `macchina` | `machineId` |
-| `mac`, `frame_id`, `byte_sdu`, `bit` | `signal` |
-| differenza di `impulso_sessione` | `pulseDelta` |
-| differenza di `pezzi_sessione` | `pieceDelta` |
-| `moltiplicatore` | `multiplier` |
+| CSV attuale                          | Evento MES   |
+| ------------------------------------ | ------------ |
+| `timestamp_locale`                   | `occurredAt` |
+| `macchina`                           | `machineId`  |
+| `mac`, `frame_id`, `byte_sdu`, `bit` | `signal`     |
+| differenza di `impulso_sessione`     | `pulseDelta` |
+| differenza di `pezzi_sessione`       | `pieceDelta` |
+| `moltiplicatore`                     | `multiplier` |
 
 I contatori cumulativi del CSV sono riferimenti di controllo. L'importatore deve produrre delta e riconoscere riavvii, nuove cartelle e ripartenze da zero.
 
@@ -365,25 +365,20 @@ I contatori cumulativi del CSV sono riferimenti di controllo. L'importatore deve
 
 ```ts
 type ProductionPhase = {
-    phaseId: string;
-    orderId: string;
-    phaseCode: string;
-    articleCode: string;
-    targetQuantity: number;
-    unit: "pz" | "kg";
-    standardCycleSeconds: number;
-    plannedSetupSeconds: number;
-    plannedMachineId?: string;
-    scheduledStart?: string;
-    scheduledEnd?: string;
-    planningStatus: "BACKLOG" | "SCHEDULED" | "ARCHIVED";
-    executionStatus:
-        | "NOT_STARTED"
-        | "SETUP"
-        | "RUNNING"
-        | "PAUSED"
-        | "COMPLETED"
-        | "CANCELLED";
+  phaseId: string;
+  orderId: string;
+  phaseCode: string;
+  articleCode: string;
+  targetQuantity: number;
+  unit: "pz" | "kg";
+  standardCycleSeconds: number;
+  plannedSetupSeconds: number;
+  plannedMachineId?: string;
+  scheduledStart?: string;
+  scheduledEnd?: string;
+  planningStatus: "BACKLOG" | "SCHEDULED" | "ARCHIVED";
+  executionStatus:
+    "NOT_STARTED" | "SETUP" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED";
 };
 ```
 
@@ -549,4 +544,3 @@ La prima implementazione dovrà dimostrare il flusso completo su una macchina:
 10. chiusura confermata della fase;
 11. verifica dei dati nella griglia analitica;
 12. nuova importazione dello stesso CSV senza duplicazioni.
-

@@ -1,54 +1,50 @@
 {
-  "appId": "com.Agpress.AyPiBackend",
-  "productName": "AyPi Backend",
-  "directories": {
-    "output": "dist-backend"
-  },
-  "files": [
-    "dist-backend-app/**/*",
-    "backend-dist/**/*",
-    "bot-backend/src/**/*",
-    "bot-backend/assets/**/*",
-    "assets/**/*",
-    "package.json",
-    "!**/*.py",
-    "!**/__pycache__/**/*"
-  ],
-  "extraResources": [
-    {
-      "from": "backend/resources",
-      "to": "backend-resources",
-      "filter": [
-        "**/*",
+    "appId": "com.Agpress.AyPiBackend",
+    "productName": "AyPi Backend",
+    "directories": {
+        "output": "dist-backend"
+    },
+    "files": [
+        "dist-backend-app/**/*",
+        "backend-dist/**/*",
+        "bot-backend/src/**/*",
+        "bot-backend/assets/**/*",
+        "assets/**/*",
+        "package.json",
         "!**/*.py",
         "!**/__pycache__/**/*"
-      ]
+    ],
+    "extraResources": [
+        {
+            "from": "backend/resources",
+            "to": "backend-resources",
+            "filter": ["**/*", "!**/*.py", "!**/__pycache__/**/*"]
+        },
+        {
+            "from": "backend/scripts",
+            "to": "backend-scripts"
+        }
+    ],
+    "extraMetadata": {
+        "main": "dist-backend-app/main.js"
     },
-    {
-      "from": "backend/scripts",
-      "to": "backend-scripts"
-    }
-  ],
-  "extraMetadata": {
-    "main": "dist-backend-app/main.js"
-  },
-  "asar": true,
-  "npmRebuild": false,
-  "win": {
-    "icon": "assets/app-icon.ico",
-    "target": "nsis",
-    "sign": false
-  },
-  "nsis": {
-    "oneClick": true,
-    "perMachine": true,
-    "runAfterFinish": false,
-    "include": "backend/scripts/backend-installer.nsh"
-  },
-  "publish": null,
-  "asarUnpack": [
-    "node_modules/better-sqlite3/**/*",
-    "node_modules/koffi/**/*",
-    "node_modules/@koromix/**/*"
-  ]
+    "asar": true,
+    "npmRebuild": false,
+    "win": {
+        "icon": "assets/app-icon.ico",
+        "target": "nsis",
+        "sign": false
+    },
+    "nsis": {
+        "oneClick": true,
+        "perMachine": true,
+        "runAfterFinish": false,
+        "include": "backend/scripts/backend-installer.nsh"
+    },
+    "publish": null,
+    "asarUnpack": [
+        "node_modules/better-sqlite3/**/*",
+        "node_modules/koffi/**/*",
+        "node_modules/@koromix/**/*"
+    ]
 }

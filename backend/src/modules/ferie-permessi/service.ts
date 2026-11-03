@@ -45,7 +45,10 @@ export {
 
 let fpQueue: Promise<unknown> = Promise.resolve();
 
-function queueFpOperation<T>(_operationName: string, run: () => T | Promise<T>) {
+function queueFpOperation<T>(
+    _operationName: string,
+    run: () => T | Promise<T>,
+) {
     const nextRun = fpQueue.then(run, run);
     fpQueue = nextRun.then(
         () => undefined,
@@ -169,9 +172,11 @@ function findBalanceSnapshot(
               : "";
     const department = String(request.department || "").trim();
     const fallback = Object.entries(payload.balances).find(([, entry]) => {
-        const sameEmployee = String(entry?.employee || "").trim() === employeeName;
+        const sameEmployee =
+            String(entry?.employee || "").trim() === employeeName;
         const sameDepartment =
-            !department || String(entry?.department || "").trim() === department;
+            !department ||
+            String(entry?.department || "").trim() === department;
         return sameEmployee && sameDepartment;
     });
     if (!fallback) return null;
@@ -202,7 +207,9 @@ function buildBalanceChange(
     if (beforeHours === afterHours) return null;
     return {
         employee:
-            afterBalance?.employee || beforeBalance?.employee || toAuditValue(afterRequest?.employee),
+            afterBalance?.employee ||
+            beforeBalance?.employee ||
+            toAuditValue(afterRequest?.employee),
         department:
             afterBalance?.department ||
             beforeBalance?.department ||
@@ -283,7 +290,10 @@ export async function getPayload(_context?: ActionContext) {
     });
 }
 
-export async function createRequest(input: RequestLike, context?: ActionContext) {
+export async function createRequest(
+    input: RequestLike,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return queueFpOperation("createRequest", () => {
         const payload = loadFpPayload();
@@ -318,7 +328,10 @@ export async function createRequest(input: RequestLike, context?: ActionContext)
     });
 }
 
-export async function replacePayload(nextPayload: FpPayload, context?: ActionContext) {
+export async function replacePayload(
+    nextPayload: FpPayload,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return queueFpOperation("replacePayload", () => {
         const beforePayload = loadFpPayload();
@@ -442,9 +455,15 @@ export async function updateRequest(
             after: summarizePayload(payload),
             beforeRequest,
             afterRequest: summarizeRequest(nextRequest),
-            changes: buildRequestChanges(beforeRequest, summarizeRequest(nextRequest)),
+            changes: buildRequestChanges(
+                beforeRequest,
+                summarizeRequest(nextRequest),
+            ),
             changeSummary: buildChangeSummary(
-                buildRequestChanges(beforeRequest, summarizeRequest(nextRequest)),
+                buildRequestChanges(
+                    beforeRequest,
+                    summarizeRequest(nextRequest),
+                ),
             ),
             balanceChange: buildBalanceChange(
                 beforeBalancePayload,
@@ -487,7 +506,10 @@ export async function approveRequest(id: string, context?: ActionContext) {
             beforeRequest,
             afterRequest: summarizeRequest(target),
             balanceImpact,
-            changes: buildRequestChanges(beforeRequest, summarizeRequest(target)),
+            changes: buildRequestChanges(
+                beforeRequest,
+                summarizeRequest(target),
+            ),
             changeSummary: buildChangeSummary(
                 buildRequestChanges(beforeRequest, summarizeRequest(target)),
             ),
@@ -534,7 +556,10 @@ export async function rejectRequest(id: string, context?: ActionContext) {
             after: summarizePayload(payload),
             beforeRequest,
             afterRequest: summarizeRequest(target),
-            changes: buildRequestChanges(beforeRequest, summarizeRequest(target)),
+            changes: buildRequestChanges(
+                beforeRequest,
+                summarizeRequest(target),
+            ),
             changeSummary: buildChangeSummary(
                 buildRequestChanges(beforeRequest, summarizeRequest(target)),
             ),
@@ -579,7 +604,10 @@ export async function deleteRequest(id: string, context?: ActionContext) {
             after: summarizePayload(payload),
             beforeRequest,
             afterRequest: summarizeRequest(target),
-            changes: buildRequestChanges(beforeRequest, summarizeRequest(target)),
+            changes: buildRequestChanges(
+                beforeRequest,
+                summarizeRequest(target),
+            ),
             changeSummary: buildChangeSummary(
                 buildRequestChanges(beforeRequest, summarizeRequest(target)),
             ),
@@ -686,7 +714,12 @@ export async function updateHoliday(
             updated,
             changes: updated
                 ? buildEntryChanges(
-                      { date, name: existing.find((item) => item.date === date)?.name || "" },
+                      {
+                          date,
+                          name:
+                              existing.find((item) => item.date === date)
+                                  ?.name || "",
+                      },
                       { date: nextDate, name: nextName || "" },
                       { date: "Data festivita", name: "Nome festivita" },
                   )
@@ -696,13 +729,18 @@ export async function updateHoliday(
     });
 }
 
-export async function createClosure(entry: ClosureEntry, context?: ActionContext) {
+export async function createClosure(
+    entry: ClosureEntry,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return queueFpOperation("createClosure", () => {
         const payload = loadFpPayload();
         const before = summarizePayload(payload);
         const existing = normalizeClosureEntries(payload.closures);
-        const map = new Map(existing.map((item) => [buildClosureKey(item), item]));
+        const map = new Map(
+            existing.map((item) => [buildClosureKey(item), item]),
+        );
         const key = buildClosureKey(entry);
         const added = !!key && !map.has(key);
         if (added) {
@@ -736,7 +774,10 @@ export async function createClosure(entry: ClosureEntry, context?: ActionContext
     });
 }
 
-export async function deleteClosure(entry: ClosureEntry, context?: ActionContext) {
+export async function deleteClosure(
+    entry: ClosureEntry,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return queueFpOperation("deleteClosure", () => {
         const payload = loadFpPayload();

@@ -23,17 +23,17 @@ function getMailerError() {
 }
 
 async function loadMailConfig(): Promise<MailConfig | null> {
-    const payload = await requestBackend("/api/shared/otp-mail-config") as {
+    const payload = (await requestBackend("/api/shared/otp-mail-config")) as {
         config?: MailConfig;
     } | null;
     return payload?.config || null;
 }
 
 async function saveMailConfig(payload: unknown) {
-    const result = await requestBackend("/api/shared/otp-mail-config", {
+    const result = (await requestBackend("/api/shared/otp-mail-config", {
         method: "PUT",
         body: payload,
-    }) as { data?: unknown } | null;
+    })) as { data?: unknown } | null;
     return result?.data || null;
 }
 

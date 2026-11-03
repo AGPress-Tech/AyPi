@@ -60,8 +60,14 @@ window.addEventListener("DOMContentLoaded", () => {
     const presetsList = getEl("presetsList") as HTMLElement;
     const closePresetsBtn = getEl("closePresetsBtn") as HTMLButtonElement;
 
-    const timePresetButtons = Array.from(document.querySelectorAll(".time-preset")) as HTMLElement[];
-    const timeInputs = [hoursInput, minutesInput, secondsInput] as HTMLInputElement[];
+    const timePresetButtons = Array.from(
+        document.querySelectorAll(".time-preset"),
+    ) as HTMLElement[];
+    const timeInputs = [
+        hoursInput,
+        minutesInput,
+        secondsInput,
+    ] as HTMLInputElement[];
 
     const PRESETS_STORAGE_KEY = "aypi-timer-presets-v1";
 
@@ -90,13 +96,18 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function openDialog(prefType: TimerType | null = null, existingTimer: Timer | null = null) {
+    function openDialog(
+        prefType: TimerType | null = null,
+        existingTimer: Timer | null = null,
+    ) {
         if (existingTimer) {
             editingTimerId = existingTimer.id;
-            if (dialogTitle) dialogTitle.textContent = "Modifica timer / cronometro";
+            if (dialogTitle)
+                dialogTitle.textContent = "Modifica timer / cronometro";
             if (confirmDialogBtn) confirmDialogBtn.textContent = "Salva";
 
-            typeSelect.value = existingTimer.type === "stopwatch" ? "stopwatch" : "timer";
+            typeSelect.value =
+                existingTimer.type === "stopwatch" ? "stopwatch" : "timer";
             nameInput.value = existingTimer.name || "";
 
             if (existingTimer.type === "timer") {
@@ -114,7 +125,8 @@ window.addEventListener("DOMContentLoaded", () => {
             }
         } else {
             editingTimerId = null;
-            if (dialogTitle) dialogTitle.textContent = "Nuovo timer / cronometro";
+            if (dialogTitle)
+                dialogTitle.textContent = "Nuovo timer / cronometro";
             if (confirmDialogBtn) confirmDialogBtn.textContent = "Aggiungi";
 
             if (prefType) {
@@ -144,7 +156,12 @@ window.addEventListener("DOMContentLoaded", () => {
         dialogBackdrop.classList.add("hidden");
     }
 
-    function clampNumber(value: string | number, min: number, max: number, fallback: number) {
+    function clampNumber(
+        value: string | number,
+        min: number,
+        max: number,
+        fallback: number,
+    ) {
         const n = Number(value);
         if (Number.isNaN(n)) return fallback;
         return Math.min(Math.max(n, min), max);
@@ -154,21 +171,31 @@ window.addEventListener("DOMContentLoaded", () => {
         timeInputs.forEach((input) => {
             if (!input) return;
 
-            input.addEventListener("wheel", (event) => {
-                event.preventDefault();
+            input.addEventListener(
+                "wheel",
+                (event) => {
+                    event.preventDefault();
 
-                const step = event.deltaY < 0 ? 1 : -1;
-                const min = typeof input.min === "string" && input.min !== "" ? Number(input.min) : 0;
-                const max = typeof input.max === "string" && input.max !== "" ? Number(input.max) : 59;
+                    const step = event.deltaY < 0 ? 1 : -1;
+                    const min =
+                        typeof input.min === "string" && input.min !== ""
+                            ? Number(input.min)
+                            : 0;
+                    const max =
+                        typeof input.max === "string" && input.max !== ""
+                            ? Number(input.max)
+                            : 59;
 
-                const current = clampNumber(input.value, min, max, 0);
-                let next = current + step;
+                    const current = clampNumber(input.value, min, max, 0);
+                    let next = current + step;
 
-                if (next > max) next = min;
-                if (next < min) next = max;
+                    if (next > max) next = min;
+                    if (next < min) next = max;
 
-                input.value = String(next);
-            }, { passive: false });
+                    input.value = String(next);
+                },
+                { passive: false },
+            );
         });
     }
 
@@ -182,8 +209,8 @@ window.addEventListener("DOMContentLoaded", () => {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
                 presets = parsed
-                    .filter(p => p && typeof p.name === "string")
-                    .map(p => ({
+                    .filter((p) => p && typeof p.name === "string")
+                    .map((p) => ({
                         name: p.name,
                         type: p.type === "stopwatch" ? "stopwatch" : "timer",
                         initialSeconds: Number(p.initialSeconds) || 0,
@@ -198,7 +225,10 @@ window.addEventListener("DOMContentLoaded", () => {
 
     function savePresets() {
         try {
-            window.localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+            window.localStorage.setItem(
+                PRESETS_STORAGE_KEY,
+                JSON.stringify(presets),
+            );
         } catch {
             // ignora errori di storage
         }
@@ -253,9 +283,15 @@ window.addEventListener("DOMContentLoaded", () => {
             useBtn.addEventListener("click", () => {
                 presetsPanel.classList.add("hidden");
 
-                const type = preset.type === "stopwatch" ? "stopwatch" : "timer";
-                const name = preset.name || (type === "timer" ? `Timer ${nextId}` : `Cronometro ${nextId}`);
-                let initialSeconds = type === "timer" ? (Number(preset.initialSeconds) || 0) : 0;
+                const type =
+                    preset.type === "stopwatch" ? "stopwatch" : "timer";
+                const name =
+                    preset.name ||
+                    (type === "timer"
+                        ? `Timer ${nextId}`
+                        : `Cronometro ${nextId}`);
+                let initialSeconds =
+                    type === "timer" ? Number(preset.initialSeconds) || 0 : 0;
 
                 const timer: Timer = {
                     id: nextId++,
@@ -293,19 +329,21 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     function formatTime(totalSeconds: number) {
-          const sign = totalSeconds < 0 ? "-" : "";
-          const t = Math.max(0, Math.floor(Math.abs(totalSeconds)));
-          const h = String(Math.floor(t / 3600)).padStart(2, "0");
-          const m = String(Math.floor((t % 3600) / 60)).padStart(2, "0");
-          const s = String(t % 60).padStart(2, "0");
-          return `${sign}${h}:${m}:${s}`;
-      }
+        const sign = totalSeconds < 0 ? "-" : "";
+        const t = Math.max(0, Math.floor(Math.abs(totalSeconds)));
+        const h = String(Math.floor(t / 3600)).padStart(2, "0");
+        const m = String(Math.floor((t % 3600) / 60)).padStart(2, "0");
+        const s = String(t % 60).padStart(2, "0");
+        return `${sign}${h}:${m}:${s}`;
+    }
 
     function sendTrayUpdate() {
         const items = timers
-            .filter(t => t && t.running)
-            .map(t => ({
-                name: (t.name || "").trim() || (t.type === "stopwatch" ? "Cronometro" : "Timer"),
+            .filter((t) => t && t.running)
+            .map((t) => ({
+                name:
+                    (t.name || "").trim() ||
+                    (t.type === "stopwatch" ? "Cronometro" : "Timer"),
                 time: formatTime((t.currentMs || 0) / 1000),
             }));
         ipcRenderer.send("timers-tray-update", { items });
@@ -318,7 +356,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
     function showTimerNotification(name: string) {
         const title = "AyPi - Timer terminato";
-        const body = name ? `Il timer "${name}" è terminato.` : "Un timer è terminato.";
+        const body = name
+            ? `Il timer "${name}" è terminato.`
+            : "Un timer è terminato.";
         if (!("Notification" in window)) return;
 
         if (Notification.permission === "granted") {
@@ -336,7 +376,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const now = Date.now();
         let changed = false;
 
-        timers.forEach(timer => {
+        timers.forEach((timer) => {
             if (!timer || !timer.running) return;
             if (!timer.lastTickAt) {
                 timer.lastTickAt = now;
@@ -356,15 +396,21 @@ window.addEventListener("DOMContentLoaded", () => {
         });
 
         if (!changed) return;
-        timers.forEach(timer => {
+        timers.forEach((timer) => {
             if (!timer) return;
-            const card = timersList.querySelector(`.timer-card[data-id="${timer.id}"]`);
+            const card = timersList.querySelector(
+                `.timer-card[data-id="${timer.id}"]`,
+            );
             if (!card) return;
             const display = card.querySelector(".timer-display");
             if (display) {
                 display.textContent = formatTime(timer.currentSeconds || 0);
             }
-            if (timer.type === "timer" && timer.currentMs <= 0 && timer.running) {
+            if (
+                timer.type === "timer" &&
+                timer.currentMs <= 0 &&
+                timer.running
+            ) {
                 timer.running = false;
                 timer.lastTickAt = null;
                 if (timer.intervalId != null) {
@@ -406,14 +452,15 @@ window.addEventListener("DOMContentLoaded", () => {
         badgeRow.className = "badge-row";
 
         const badge = document.createElement("span");
-        badge.className = "timer-badge" + (timer.type === "stopwatch" ? " stopwatch" : "");
+        badge.className =
+            "timer-badge" + (timer.type === "stopwatch" ? " stopwatch" : "");
         badge.textContent = timer.type === "timer" ? "Timer" : "Cronometro";
 
-          const addSmallBtn = document.createElement("button");
-          addSmallBtn.className = "card-add-btn";
-          addSmallBtn.type = "button";
-          addSmallBtn.textContent = "+";
-          addSmallBtn.title = "Salva come preset";
+        const addSmallBtn = document.createElement("button");
+        addSmallBtn.className = "card-add-btn";
+        addSmallBtn.type = "button";
+        addSmallBtn.textContent = "+";
+        addSmallBtn.title = "Salva come preset";
 
         badgeRow.appendChild(badge);
         badgeRow.appendChild(addSmallBtn);
@@ -435,8 +482,12 @@ window.addEventListener("DOMContentLoaded", () => {
         let lapBtn = null;
         let checkpointBtn = null;
         if (timer.type === "stopwatch") {
-            timer.lapCount = typeof timer.lapCount === "number" ? timer.lapCount : 0;
-            timer.checkpointCount = typeof timer.checkpointCount === "number" ? timer.checkpointCount : 0;
+            timer.lapCount =
+                typeof timer.lapCount === "number" ? timer.lapCount : 0;
+            timer.checkpointCount =
+                typeof timer.checkpointCount === "number"
+                    ? timer.checkpointCount
+                    : 0;
 
             lapBtn = document.createElement("button");
             lapBtn.type = "button";
@@ -464,10 +515,10 @@ window.addEventListener("DOMContentLoaded", () => {
         deleteBtn.textContent = "Rimuovi";
         deleteBtn.className = "danger";
 
-          controls.appendChild(startBtn);
-          if (lapBtn) controls.appendChild(lapBtn);
-          if (checkpointBtn) controls.appendChild(checkpointBtn);
-          controls.appendChild(editBtn);
+        controls.appendChild(startBtn);
+        if (lapBtn) controls.appendChild(lapBtn);
+        if (checkpointBtn) controls.appendChild(checkpointBtn);
+        controls.appendChild(editBtn);
         controls.appendChild(resetBtn);
         controls.appendChild(deleteBtn);
 
@@ -580,7 +631,7 @@ window.addEventListener("DOMContentLoaded", () => {
         deleteBtn.addEventListener("click", () => {
             stopInterval();
             card.remove();
-            timers = timers.filter(t => t.id !== timer.id);
+            timers = timers.filter((t) => t.id !== timer.id);
             updateEmptyState();
             sendTrayUpdate();
         });
@@ -605,7 +656,10 @@ window.addEventListener("DOMContentLoaded", () => {
                 const checkpointTimeMs = timer.currentMs || 0;
                 timer.laps.push({ type: "checkpoint", time: checkpointTimeMs });
                 timer.checkpointCount += 1;
-                addLapItem(`Parziale ${timer.checkpointCount}`, checkpointTimeMs / 1000);
+                addLapItem(
+                    `Parziale ${timer.checkpointCount}`,
+                    checkpointTimeMs / 1000,
+                );
             });
         }
 
@@ -622,8 +676,13 @@ window.addEventListener("DOMContentLoaded", () => {
                 alert("Dai un nome al timer prima di salvarlo come preset.");
                 return;
             }
-            if (timer.type === "timer" && (!timer.initialSeconds || timer.initialSeconds <= 0)) {
-                alert("Imposta un tempo iniziale maggiore di 0 per salvare il preset.");
+            if (
+                timer.type === "timer" &&
+                (!timer.initialSeconds || timer.initialSeconds <= 0)
+            ) {
+                alert(
+                    "Imposta un tempo iniziale maggiore di 0 per salvare il preset.",
+                );
                 return;
             }
 
@@ -633,7 +692,9 @@ window.addEventListener("DOMContentLoaded", () => {
                 initialSeconds: timer.initialSeconds || 0,
             };
 
-            const existingIndex = presets.findIndex(p => p.name === preset.name);
+            const existingIndex = presets.findIndex(
+                (p) => p.name === preset.name,
+            );
             if (existingIndex !== -1) {
                 const oldPreset = presets[existingIndex];
                 const oldLabel = `${oldPreset.type === "stopwatch" ? "Cronometro" : "Timer"} · ${formatTime(oldPreset.initialSeconds || 0)}`;
@@ -644,7 +705,7 @@ window.addEventListener("DOMContentLoaded", () => {
                     `Attuale: ${oldLabel}`,
                     `Nuovo:   ${newLabel}`,
                     "",
-                    "Vuoi sostituirlo?"
+                    "Vuoi sostituirlo?",
                 ].join("\n");
 
                 const replace = window.confirm(message);
@@ -683,11 +744,12 @@ window.addEventListener("DOMContentLoaded", () => {
         }
 
         if (!name) {
-            name = type === "timer" ? `Timer ${nextId}` : `Cronometro ${nextId}`;
+            name =
+                type === "timer" ? `Timer ${nextId}` : `Cronometro ${nextId}`;
         }
 
         if (editingTimerId != null) {
-            const idx = timers.findIndex(t => t.id === editingTimerId);
+            const idx = timers.findIndex((t) => t.id === editingTimerId);
             if (idx !== -1) {
                 const timer = timers[idx];
                 if (timer.intervalId != null) {
@@ -705,7 +767,9 @@ window.addEventListener("DOMContentLoaded", () => {
                 timer.checkpointCount = 0;
                 timer.lastTickAt = null;
 
-                const existingCard = timersList.querySelector(`.timer-card[data-id="${timer.id}"]`);
+                const existingCard = timersList.querySelector(
+                    `.timer-card[data-id="${timer.id}"]`,
+                );
                 if (existingCard) existingCard.remove();
 
                 createTimerElement(timer);
@@ -747,7 +811,9 @@ window.addEventListener("DOMContentLoaded", () => {
             const minutesFromData = Number(btn.dataset.minutes || "");
             const deltaSeconds = Number.isFinite(secondsFromData)
                 ? secondsFromData
-                : (Number.isFinite(minutesFromData) ? minutesFromData * 60 : 0);
+                : Number.isFinite(minutesFromData)
+                  ? minutesFromData * 60
+                  : 0;
 
             const h = clampNumber(hoursInput.value, 0, 99, 0);
             const m = clampNumber(minutesInput.value, 0, 59, 0);

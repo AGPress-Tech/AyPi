@@ -74,26 +74,37 @@ async function refreshFolderTree() {
             row.style.setProperty("--folder-depth", String(depth));
 
             const children = Array.isArray(node.children) ? node.children : [];
-            const branch = children.length ? renderBranch(children, depth + 1) : null;
+            const branch = children.length
+                ? renderBranch(children, depth + 1)
+                : null;
             const toggle = document.createElement("button");
             toggle.type = "button";
             toggle.className = "folder-tree-native__toggle";
             toggle.disabled = !branch;
             toggle.textContent = branch ? "▾" : "";
-            toggle.setAttribute("aria-label", branch ? `Comprimi ${node.text}` : "");
+            toggle.setAttribute(
+                "aria-label",
+                branch ? `Comprimi ${node.text}` : "",
+            );
 
             const select = document.createElement("button");
             select.type = "button";
             select.className = "folder-tree-native__select";
             select.textContent = node.text;
             select.title = node.id;
-            select.classList.toggle("is-selected", node.id === state.rootFolder);
+            select.classList.toggle(
+                "is-selected",
+                node.id === state.rootFolder,
+            );
             select.addEventListener("click", () => {
                 state.rootFolder = node.id;
                 treeElement
                     .querySelectorAll(".folder-tree-native__select")
                     .forEach((button) =>
-                        button.classList.toggle("is-selected", button === select),
+                        button.classList.toggle(
+                            "is-selected",
+                            button === select,
+                        ),
                     );
                 updateSelectedFolderLabel();
             });
@@ -101,7 +112,8 @@ async function refreshFolderTree() {
             if (branch) {
                 item.setAttribute("aria-expanded", "true");
                 toggle.addEventListener("click", () => {
-                    const expanded = item.getAttribute("aria-expanded") !== "false";
+                    const expanded =
+                        item.getAttribute("aria-expanded") !== "false";
                     item.setAttribute("aria-expanded", String(!expanded));
                     branch.hidden = expanded;
                     toggle.textContent = expanded ? "▸" : "▾";

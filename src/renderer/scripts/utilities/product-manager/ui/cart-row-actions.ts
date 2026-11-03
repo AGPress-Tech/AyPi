@@ -29,11 +29,7 @@ export function createCartRowActions(context) {
             return;
         }
         if (line.deletedAt || line.confirmed) return;
-        context.confirmRequestLine(
-            request,
-            line,
-            context.getSession(),
-        );
+        context.confirmRequestLine(request, line, context.getSession());
         if (context.saveRequests(requests)) context.renderCart();
     }
 
@@ -74,12 +70,10 @@ export function createCartRowActions(context) {
             }
         }
 
-        context.deleteRequestLine(
-            request,
-            line,
-            context.getSession(),
-            { admin: context.isAdmin(), reason },
-        );
+        context.deleteRequestLine(request, line, context.getSession(), {
+            admin: context.isAdmin(),
+            reason,
+        });
         if (context.saveRequests(requests)) context.renderCart();
     }
 

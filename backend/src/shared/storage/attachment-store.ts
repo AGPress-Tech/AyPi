@@ -80,7 +80,10 @@ export function createAttachmentStore(directory: string) {
                     mimeType,
                 );
                 const storedName = `${id}${extension}`;
-                const size = writeAttachmentData(base64, resolvePath(storedName));
+                const size = writeAttachmentData(
+                    base64,
+                    resolvePath(storedName),
+                );
                 return {
                     id,
                     originalName,

@@ -2,10 +2,7 @@ import { execFileSync, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import type { App, IpcMain } from "electron";
-import {
-    getBundledGitStats,
-    writeGitStatsSnapshot,
-} from "./git-snapshots";
+import { getBundledGitStats, writeGitStatsSnapshot } from "./git-snapshots";
 import { startOfWeekMonday, toDateKey } from "./git-date-utils";
 
 export function resolveGitRepoRoot(appPath: string) {
@@ -60,7 +57,9 @@ export function getGitDailyStats(repoRoot: string) {
         rawLog.split(/\r?\n/).forEach((line) => {
             if (!line.trim()) return;
             if (line.startsWith("@@@")) {
-                const date = new Date(line.replace("@@@", "").split("|")[1] || "");
+                const date = new Date(
+                    line.replace("@@@", "").split("|")[1] || "",
+                );
                 if (Number.isNaN(date.getTime())) {
                     currentDate = "";
                     return;
@@ -130,10 +129,7 @@ export function getGitDailyStats(repoRoot: string) {
     }
 }
 
-export function getLocalWeekDiffTotals(
-    weekStart: Date,
-    appPath: string,
-) {
+export function getLocalWeekDiffTotals(weekStart: Date, appPath: string) {
     const repoRoot = resolveGitRepoRoot(appPath);
     if (!repoRoot) return { additions: 0, deletions: 0 };
 
@@ -157,9 +153,7 @@ export function getLocalWeekDiffTotals(
                 ? new Date(`${row.date}T00:00:00Z`)
                 : null;
             if (!rowDate || Number.isNaN(rowDate.getTime())) return totals;
-            if (
-                toDateKey(startOfWeekMonday(rowDate)) !== weekKey
-            ) {
+            if (toDateKey(startOfWeekMonday(rowDate)) !== weekKey) {
                 return totals;
             }
             totals.additions += Number(row.additions || 0);

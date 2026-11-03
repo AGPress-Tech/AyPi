@@ -41,7 +41,9 @@ function summarizeTransferHeader(item: any) {
         mani: String(item?.mani || "").trim(),
         morsetti: String(item?.morsetti || "").trim(),
         note: String(item?.note || "").trim(),
-        attachmentsCount: Array.isArray(item?.attachments) ? item.attachments.length : 0,
+        attachmentsCount: Array.isArray(item?.attachments)
+            ? item.attachments.length
+            : 0,
     };
 }
 
@@ -68,19 +70,27 @@ function summarizeUtensiliRows(item: any) {
         : [];
 }
 
-export function saveTransfer(identifier: string, payload: any, context?: ActionContext) {
+export function saveTransfer(
+    identifier: string,
+    payload: any,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("saveItem", () => {
         const previousCode = String(payload?.previousCode || "").trim();
         const existingIdentifier = previousCode
             ? String(payload?.recordId || previousCode).trim()
             : "";
-        const beforeItem = existingIdentifier ? loadTransferItem(existingIdentifier) : null;
+        const beforeItem = existingIdentifier
+            ? loadTransferItem(existingIdentifier)
+            : null;
         const saved = saveTransferItem({
             ...payload,
             recordId: beforeItem?.recordId || payload?.recordId,
             previousCode: beforeItem?.code || payload?.previousCode,
-            code: String(payload?.code || beforeItem?.code || identifier).trim(),
+            code: String(
+                payload?.code || beforeItem?.code || identifier,
+            ).trim(),
         });
         const headerChanges = buildChanges(
             summarizeTransferHeader(beforeItem),
@@ -139,8 +149,7 @@ export function saveTransfer(identifier: string, payload: any, context?: ActionC
             updated: utensiliDiff.updated + headerChanges.length,
             changes,
             changeSummary:
-                buildChangeSummary(changes) ||
-                `Scheda ${saved.code} salvata`,
+                buildChangeSummary(changes) || `Scheda ${saved.code} salvata`,
         });
         return saved;
     });

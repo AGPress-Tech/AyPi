@@ -7,11 +7,7 @@ export function createInterventionRequestLine(
             selected: string[],
             onChange: (values: string[]) => void,
         ) => { wrap: HTMLElement };
-        updateLineField: (
-            index: number,
-            field: string,
-            value: string,
-        ) => void;
+        updateLineField: (index: number, field: string, value: string) => void;
         removeLine: (index: number) => void;
     },
     line: any,

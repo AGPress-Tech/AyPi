@@ -18,7 +18,10 @@ import type { MesCollectorBatch, PlcCsvImportPayload } from "./types";
 
 const enqueue = createOperationQueue("mes");
 
-export function ingestMesCollectorBatch(batch: MesCollectorBatch, context?: ActionContext) {
+export function ingestMesCollectorBatch(
+    batch: MesCollectorBatch,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("ingestCollectorBatch", () => {
         const result = storeCollectorBatch(batch, new Date().toISOString());
@@ -41,7 +44,10 @@ export function getMesAcquisitionStatus(staleAfterSeconds?: number) {
     return loadAcquisitionStatus(staleAfterSeconds);
 }
 
-export function importPlcCsv(payload: PlcCsvImportPayload, context?: ActionContext) {
+export function importPlcCsv(
+    payload: PlcCsvImportPayload,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("importPlcCsv", () => {
         let parsed;
@@ -53,19 +59,23 @@ export function importPlcCsv(payload: PlcCsvImportPayload, context?: ActionConte
             );
         }
         const importedAt = new Date().toISOString();
-        const result = storeMachineEvents(parsed.events, {
-            importId: randomUUID(),
-            source: "PLC_CSV",
-            sourceSessionId: payload.sourceSessionId,
-            sourceFile: payload.sourceFile,
-            totalRows: parsed.totalRows,
-            validRows: parsed.events.length,
-            insertedEvents: 0,
-            duplicateEvents: 0,
-            rejectedRows: parsed.rejectedRows,
-            issues: parsed.issues,
-            importedAt,
-        }, meta.actor || "Operatore AyPi");
+        const result = storeMachineEvents(
+            parsed.events,
+            {
+                importId: randomUUID(),
+                source: "PLC_CSV",
+                sourceSessionId: payload.sourceSessionId,
+                sourceFile: payload.sourceFile,
+                totalRows: parsed.totalRows,
+                validRows: parsed.events.length,
+                insertedEvents: 0,
+                duplicateEvents: 0,
+                rejectedRows: parsed.rejectedRows,
+                issues: parsed.issues,
+                importedAt,
+            },
+            meta.actor || "Operatore AyPi",
+        );
         logger.info("MES PLC CSV imported", {
             ...meta,
             event: "mes_plc_csv_imported",
@@ -82,7 +92,9 @@ export function importPlcCsv(payload: PlcCsvImportPayload, context?: ActionConte
     });
 }
 
-export function getMesMachineEvents(options: Parameters<typeof loadMachineEvents>[0]) {
+export function getMesMachineEvents(
+    options: Parameters<typeof loadMachineEvents>[0],
+) {
     return loadMachineEvents(options);
 }
 
@@ -97,4 +109,3 @@ export function getMesImports(limit?: number) {
 export function getMesUnassignedPieces() {
     return loadUnassignedPieces();
 }
-

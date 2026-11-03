@@ -32,14 +32,7 @@ export function registerNativeAppIpc({
             filters: [
                 {
                     name: "Immagini",
-                    extensions: [
-                        "png",
-                        "jpg",
-                        "jpeg",
-                        "webp",
-                        "gif",
-                        "bmp",
-                    ],
+                    extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"],
                 },
             ],
         };

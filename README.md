@@ -31,6 +31,6 @@ Al momento supporta in 7 pagine di navigazione, **Moduli**, **Programmi**, **Art
 </ul>
 <br/>
 L'applicazione si aggiorna automaticamente all'avvio, verificando la connessione a Internet e alla rete interna. È inoltre in grado di notificare all'utente eventuali modifiche ai moduli, come rimozioni, spostamenti o utilizzi da parte di altri operatori. Tramite l'orologio digitale presente nella sidebar, è possibile impostare timer (anche preconfigurati) e cronometri.
-Inoltre, integra un pulsante dedicato per scaricare e aggiornare l'<b>AyPi addin</b> per <b>Excel</b>. 
+Inoltre, integra un pulsante dedicato per scaricare e aggiornare l'<b>AyPi addin</b> per <b>Excel</b>.
 
 Questo applicativo può essere accompagnato da un bot telegram che consente al momento l'uso del modulo <b>AyPi Calendar</b> in remoto e da mobile (Android e iOS).

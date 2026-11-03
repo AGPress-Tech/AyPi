@@ -59,56 +59,51 @@ function registerItemHandlers(
         }
     });
 
-    ipcMain.handle(
-        `${options.channelPrefix}-load`,
-        async (_event, payload) => {
-            try {
-                const code = String(payload?.code || "");
-                if (!code) {
-                    return { ok: false, error: "Codice mancante." };
-                }
-                const response = await request(
-                    `${options.endpoint}/${encodeURIComponent(code)}`,
-                );
-                return { ok: true, item: response?.item || null };
-            } catch (error) {
-                return { ok: false, error: errorMessage(error) };
+    ipcMain.handle(`${options.channelPrefix}-load`, async (_event, payload) => {
+        try {
+            const code = String(payload?.code || "");
+            if (!code) {
+                return { ok: false, error: "Codice mancante." };
             }
-        },
-    );
+            const response = await request(
+                `${options.endpoint}/${encodeURIComponent(code)}`,
+            );
+            return { ok: true, item: response?.item || null };
+        } catch (error) {
+            return { ok: false, error: errorMessage(error) };
+        }
+    });
 
-    ipcMain.handle(
-        `${options.channelPrefix}-save`,
-        async (_event, payload) => {
-            try {
-                const code = options.buildCode(payload);
-                if (options.invalidCode(code)) {
-                    return {
-                        ok: false,
-                        error: options.invalidCodeMessage,
-                    };
-                }
-                const identifier = options.useStableRecordId && payload?.recordId
+    ipcMain.handle(`${options.channelPrefix}-save`, async (_event, payload) => {
+        try {
+            const code = options.buildCode(payload);
+            if (options.invalidCode(code)) {
+                return {
+                    ok: false,
+                    error: options.invalidCodeMessage,
+                };
+            }
+            const identifier =
+                options.useStableRecordId && payload?.recordId
                     ? String(payload.recordId).trim()
                     : code;
-                const response = await request(
-                    `${options.endpoint}/${encodeURIComponent(identifier)}`,
-                    {
-                        method: "PUT",
-                        body: { ...payload, code },
-                    },
-                );
-                return {
-                    ok: true,
-                    code,
-                    recordId: response?.item?.recordId || payload?.recordId || "",
-                    item: response?.item || null,
-                };
-            } catch (error) {
-                return { ok: false, error: errorMessage(error) };
-            }
-        },
-    );
+            const response = await request(
+                `${options.endpoint}/${encodeURIComponent(identifier)}`,
+                {
+                    method: "PUT",
+                    body: { ...payload, code },
+                },
+            );
+            return {
+                ok: true,
+                code,
+                recordId: response?.item?.recordId || payload?.recordId || "",
+                item: response?.item || null,
+            };
+        } catch (error) {
+            return { ok: false, error: errorMessage(error) };
+        }
+    });
 
     ipcMain.handle(
         `${options.channelPrefix}-delete`,
@@ -120,7 +115,9 @@ function registerItemHandlers(
                 }
                 await request(
                     `${options.endpoint}/${encodeURIComponent(code)}`,
-                    { method: "DELETE" },
+                    {
+                        method: "DELETE",
+                    },
                 );
                 return { ok: true };
             } catch (error) {
@@ -144,15 +141,19 @@ function registerItemHandlers(
                 const item = loaded?.item;
                 if (!item) return { ok: false, error: "Scheda non trovata." };
                 let found = false;
-                const rotation = ((Math.round(Number(payload?.rotation) || 0) % 360) + 360) % 360;
-                const attachments = (Array.isArray(item.attachments) ? item.attachments : []).map(
-                    (attachment) => {
-                        if (String(attachment?.id || "") !== attachmentId) return attachment;
-                        found = true;
-                        return { ...attachment, rotation };
-                    },
-                );
-                if (!found) return { ok: false, error: "Allegato non trovato." };
+                const rotation =
+                    ((Math.round(Number(payload?.rotation) || 0) % 360) + 360) %
+                    360;
+                const attachments = (
+                    Array.isArray(item.attachments) ? item.attachments : []
+                ).map((attachment) => {
+                    if (String(attachment?.id || "") !== attachmentId)
+                        return attachment;
+                    found = true;
+                    return { ...attachment, rotation };
+                });
+                if (!found)
+                    return { ok: false, error: "Allegato non trovato." };
                 const response = await request(
                     `${options.endpoint}/${encodeURIComponent(recordId)}`,
                     {

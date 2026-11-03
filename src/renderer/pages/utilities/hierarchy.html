@@ -1,169 +1,176 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="it">
 
 <head>
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AyPi - Generatore di Gerarchia</title>
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AyPi - Generatore di Gerarchia</title>
 
-    <link rel="stylesheet" href="../../styles/utilities/hierarchy-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/hierarchy-bluearchive-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
-    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css">
-    <script src="../../scripts/utility-layout-bootstrap.js"></script>
+  <link rel="stylesheet" href="../../styles/utilities/hierarchy-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/hierarchy-bluearchive-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css" />
+  <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css" />
+  <script src="../../scripts/utility-layout-bootstrap.js"></script>
 </head>
 
 <body class="bluearchive-hierarchy">
-    <div class="ba-utility-splash" id="baHierarchySplash" aria-hidden="true">
-        <div class="ba-splash-grid"></div>
-        <div class="ba-splash-core">
-            <div class="ba-tree-mark">
-                <i></i><span></span><span></span><span></span>
-            </div>
-            <small>AYPI // DIRECTORY INTELLIGENCE</small>
-            <h1>HIERARCHY</h1>
-            <p>Inizializzazione mappa directory</p>
-            <div class="ba-splash-progress"><i></i></div>
-        </div>
+  <div class="ba-utility-splash" id="baHierarchySplash" aria-hidden="true">
+    <div class="ba-splash-grid"></div>
+    <div class="ba-splash-core">
+      <div class="ba-tree-mark">
+        <i></i><span></span><span></span><span></span>
+      </div>
+      <small>AYPI // DIRECTORY INTELLIGENCE</small>
+      <h1>HIERARCHY</h1>
+      <p>Inizializzazione mappa directory</p>
+      <div class="ba-splash-progress"><i></i></div>
     </div>
-    <div class="container">
-        <header class="utility-header">
-            <div>
-                <span class="ba-only utility-kicker">UTILITY 05 // DIRECTORY INTELLIGENCE</span>
-                <h2>Gerarchia</h2>
-                <p class="ba-only utility-subtitle">Esplora struttura, dimensioni e statistiche delle directory
-                    aziendali.</p>
-            </div>
-            <div class="ba-only utility-badge"><i></i> SCANNER READY</div>
-        </header>
+  </div>
+  <div class="container">
+    <header class="utility-header">
+      <div>
+        <span class="ba-only utility-kicker">UTILITY 05 // DIRECTORY INTELLIGENCE</span>
+        <h2>Gerarchia</h2>
+        <p class="ba-only utility-subtitle">
+          Esplora struttura, dimensioni e statistiche delle directory
+          aziendali.
+        </p>
+      </div>
+      <div class="ba-only utility-badge"><i></i> SCANNER READY</div>
+    </header>
 
-        <div class="header">
-            <button id="btnSelectFolder">Seleziona cartella...</button>
-            <span id="selectedFolder">(nessuna cartella selezionata)</span>
-            <button id="btnStartScan">Avvia scansione</button>
-            <button id="btnExportNavigableReport">Esporta report navigabile</button>
-            <button id="btnClose">Chiudi</button>
-        </div>
-
-        <div class="main-area">
-            <div class="tree-panel">
-                <div class="tree-header">
-                    <span class="panel-title">Gerarchia</span>
-                    <div class="search-bar">
-                        <input type="text" id="searchInput" placeholder="Cerca per nome o parte di percorso..." />
-                        <button id="btnSearch">Cerca</button>
-                    </div>
-                </div>
-
-                <div id="searchResults" class="search-results"></div>
-
-                <div class="scan-options-panel collapsed">
-                    <button type="button" class="scan-options-toggle" id="scanOptionsToggle">
-                        <span class="panel-subtitle">Opzioni di scansione</span>
-                        <span class="scan-options-arrow" id="scanOptionsArrow">&#9658;</span>
-                    </button>
-                    <div class="scan-options-body" id="scanOptionsBody">
-                        <div class="scan-option-row">
-                            <label for="scanDepth">Profondità massima (0 = illimitata)</label>
-                            <input type="number" id="scanDepth" min="0" placeholder="0" />
-                        </div>
-                        <div class="scan-option-row">
-                            <label for="excludeExtensions">Escludi estensioni (separate da virgola o spazio)</label>
-                            <input type="text" id="excludeExtensions" placeholder=".log, .tmp, .bak" />
-                        </div>
-                        <div class="scan-option-row">
-                            <label for="excludeFolders">Escludi cartelle (nomi cartelle)</label>
-                            <input type="text" id="excludeFolders" placeholder="node_modules, .git" />
-                        </div>
-                        <div class="scan-option-row">
-                            <label for="excludeFiles">Escludi file (nomi file)</label>
-                            <input type="text" id="excludeFiles" placeholder="Thumbs.db, desktop.ini" />
-                        </div>
-                        <div class="scan-option-row">
-                            <button type="button" id="btnApplyScanFilter" class="small-btn">Aggiorna filtro
-                                albero</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tree-container">
-                    <div id="treeRoot" class="tree-view"></div>
-                </div>
-            </div>
-
-            <div class="details-container">
-                <h3>Area informazioni</h3>
-                <div class="details-tabs-row">
-                    <button class="details-tab-btn active" data-tab="details-main">Dettagli</button>
-                    <button class="details-tab-btn" data-tab="details-top">Top elementi</button>
-                    <button class="details-tab-btn" data-tab="details-stats">Statistiche</button>
-                </div>
-
-                <div id="details-main" class="details-tab-content">
-                    <div id="detailsBox" class="details-box">
-                        <p>Seleziona un nodo per vedere i dettagli</p>
-                    </div>
-                </div>
-
-                <div id="details-top" class="details-tab-content hidden">
-                    <div id="detailsTopBox" class="details-box">
-                        <div class="top-elements-controls">
-                            <div class="top-elements-control">
-                                <label for="topElementsLimit">Top N:</label>
-                                <input type="number" id="topElementsLimit" min="1" value="20" />
-                            </div>
-                            <div class="top-elements-control">
-                                <label for="topElementsMode">Vista:</label>
-                                <select id="topElementsMode">
-                                    <option value="files">Top file pesanti</option>
-                                    <option value="folders">Top cartelle pesanti</option>
-                                    <option value="old">Top file meno recenti</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="top-elements-table-wrapper">
-                            <table id="topElementsTable" class="top-elements-table"></table>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="details-stats" class="details-tab-content hidden">
-                    <div id="detailsStatsBox" class="details-box">
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="header">
+      <button id="btnSelectFolder">Seleziona cartella...</button>
+      <span id="selectedFolder">(nessuna cartella selezionata)</span>
+      <button id="btnStartScan">Avvia scansione</button>
+      <button id="btnExportNavigableReport">Esporta report navigabile</button>
+      <button id="btnClose">Chiudi</button>
     </div>
 
-    <div id="treeContextMenu" class="context-menu">
-        <div class="context-menu-item" data-action="open">
-            Apri in Esplora File
-        </div>
-        <div class="context-menu-item" data-action="copy-full">
-            Copia percorso completo
-        </div>
-        <div class="context-menu-item" data-action="copy-rel">
-            Copia percorso relativo alla root
+    <div class="main-area">
+      <div class="tree-panel">
+        <div class="tree-header">
+          <span class="panel-title">Gerarchia</span>
+          <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Cerca per nome o parte di percorso..." />
+            <button id="btnSearch">Cerca</button>
+          </div>
         </div>
 
-        <hr class="context-menu-separator">
+        <div id="searchResults" class="search-results"></div>
 
-        <div class="context-menu-item" data-action="open-batch-rename">
-            Apri questa cartella in Batch Rename
+        <div class="scan-options-panel collapsed">
+          <button type="button" class="scan-options-toggle" id="scanOptionsToggle">
+            <span class="panel-subtitle">Opzioni di scansione</span>
+            <span class="scan-options-arrow" id="scanOptionsArrow">&#9658;</span>
+          </button>
+          <div class="scan-options-body" id="scanOptionsBody">
+            <div class="scan-option-row">
+              <label for="scanDepth">Profondità massima (0 = illimitata)</label>
+              <input type="number" id="scanDepth" min="0" placeholder="0" />
+            </div>
+            <div class="scan-option-row">
+              <label for="excludeExtensions">Escludi estensioni (separate da virgola o spazio)</label>
+              <input type="text" id="excludeExtensions" placeholder=".log, .tmp, .bak" />
+            </div>
+            <div class="scan-option-row">
+              <label for="excludeFolders">Escludi cartelle (nomi cartelle)</label>
+              <input type="text" id="excludeFolders" placeholder="node_modules, .git" />
+            </div>
+            <div class="scan-option-row">
+              <label for="excludeFiles">Escludi file (nomi file)</label>
+              <input type="text" id="excludeFiles" placeholder="Thumbs.db, desktop.ini" />
+            </div>
+            <div class="scan-option-row">
+              <button type="button" id="btnApplyScanFilter" class="small-btn">
+                Aggiorna filtro albero
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="context-menu-item" data-action="compare-A">
-            Usa come Cartella A in Confronta cartelle
+
+        <div class="tree-container">
+          <div id="treeRoot" class="tree-view"></div>
         </div>
-        <div class="context-menu-item" data-action="compare-B">
-            Usa come Cartella B in Confronta cartelle
+      </div>
+
+      <div class="details-container">
+        <h3>Area informazioni</h3>
+        <div class="details-tabs-row">
+          <button class="details-tab-btn active" data-tab="details-main">
+            Dettagli
+          </button>
+          <button class="details-tab-btn" data-tab="details-top">
+            Top elementi
+          </button>
+          <button class="details-tab-btn" data-tab="details-stats">
+            Statistiche
+          </button>
         </div>
+
+        <div id="details-main" class="details-tab-content">
+          <div id="detailsBox" class="details-box">
+            <p>Seleziona un nodo per vedere i dettagli</p>
+          </div>
+        </div>
+
+        <div id="details-top" class="details-tab-content hidden">
+          <div id="detailsTopBox" class="details-box">
+            <div class="top-elements-controls">
+              <div class="top-elements-control">
+                <label for="topElementsLimit">Top N:</label>
+                <input type="number" id="topElementsLimit" min="1" value="20" />
+              </div>
+              <div class="top-elements-control">
+                <label for="topElementsMode">Vista:</label>
+                <select id="topElementsMode">
+                  <option value="files">Top file pesanti</option>
+                  <option value="folders">Top cartelle pesanti</option>
+                  <option value="old">Top file meno recenti</option>
+                </select>
+              </div>
+            </div>
+            <div class="top-elements-table-wrapper">
+              <table id="topElementsTable" class="top-elements-table"></table>
+            </div>
+          </div>
+        </div>
+
+        <div id="details-stats" class="details-tab-content hidden">
+          <div id="detailsStatsBox" class="details-box"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="treeContextMenu" class="context-menu">
+    <div class="context-menu-item" data-action="open">
+      Apri in Esplora File
+    </div>
+    <div class="context-menu-item" data-action="copy-full">
+      Copia percorso completo
+    </div>
+    <div class="context-menu-item" data-action="copy-rel">
+      Copia percorso relativo alla root
     </div>
 
+    <hr class="context-menu-separator" />
 
-    <script src="../../scripts/utilities/hierarchy-scripts.js"></script>
+    <div class="context-menu-item" data-action="open-batch-rename">
+      Apri questa cartella in Batch Rename
+    </div>
+    <div class="context-menu-item" data-action="compare-A">
+      Usa come Cartella A in Confronta cartelle
+    </div>
+    <div class="context-menu-item" data-action="compare-B">
+      Usa come Cartella B in Confronta cartelle
+    </div>
+  </div>
+
+  <script src="../../scripts/utilities/hierarchy-scripts.js"></script>
 </body>
 
 </html>

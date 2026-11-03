@@ -24,13 +24,21 @@ function validatePlannerState(value: any) {
 }
 
 export function registerProductionPlannerRoutes(router: Router) {
-    router.register("GET", "/api/production-planner/state", async (_req, res) => {
-        sendJson(res, 200, getProductionPlannerSnapshot());
-    });
+    router.register(
+        "GET",
+        "/api/production-planner/state",
+        async (_req, res) => {
+            sendJson(res, 200, getProductionPlannerSnapshot());
+        },
+    );
 
-    router.register("GET", "/api/production-planner/revision", async (_req, res) => {
-        sendJson(res, 200, getProductionPlannerRevision());
-    });
+    router.register(
+        "GET",
+        "/api/production-planner/revision",
+        async (_req, res) => {
+            sendJson(res, 200, getProductionPlannerRevision());
+        },
+    );
 
     // TODO(release 1.3.3): rimuovere questo endpoint dopo aver verificato che
     // tutte le postazioni usino /ws. È mantenuto solo per i client AyPi legacy.
@@ -40,10 +48,7 @@ export function registerProductionPlannerRoutes(router: Router) {
         async (_req, res, params) => {
             const revision = Math.max(0, Number(params.revision) || 0);
             res.setHeader("Deprecation", "true");
-            res.setHeader(
-                "Link",
-                '</ws>; rel="successor-version"',
-            );
+            res.setHeader("Link", '</ws>; rel="successor-version"');
             res.setHeader("x-aypi-legacy-transport", "long-poll");
             sendJson(
                 res,
@@ -53,17 +58,21 @@ export function registerProductionPlannerRoutes(router: Router) {
         },
     );
 
-    router.register("PUT", "/api/production-planner/state", async (req, res) => {
-        const payload = (await readJsonBody<any>(req)) || {};
-        const state = validatePlannerState(payload.state);
-        const baseRevision = Number(payload.baseRevision);
-        if (!Number.isInteger(baseRevision) || baseRevision < 0) {
-            throw badRequest("Revisione pianificatore non valida.");
-        }
-        const snapshot = await saveProductionPlanner(state, baseRevision, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        });
-        sendJson(res, 200, snapshot);
-    });
+    router.register(
+        "PUT",
+        "/api/production-planner/state",
+        async (req, res) => {
+            const payload = (await readJsonBody<any>(req)) || {};
+            const state = validatePlannerState(payload.state);
+            const baseRevision = Number(payload.baseRevision);
+            if (!Number.isInteger(baseRevision) || baseRevision < 0) {
+                throw badRequest("Revisione pianificatore non valida.");
+            }
+            const snapshot = await saveProductionPlanner(state, baseRevision, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            });
+            sendJson(res, 200, snapshot);
+        },
+    );
 }

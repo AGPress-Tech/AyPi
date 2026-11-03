@@ -3,9 +3,7 @@ export type TypeColorMap = Record<string, string>;
 export function normalizeHexColor(value: unknown, fallback: string) {
     if (typeof value !== "string") return fallback;
     const cleaned = value.trim();
-    return /^#[0-9a-fA-F]{6}$/.test(cleaned)
-        ? cleaned.toLowerCase()
-        : fallback;
+    return /^#[0-9a-fA-F]{6}$/.test(cleaned) ? cleaned.toLowerCase() : fallback;
 }
 
 export function createTypeColorStore(options: {
@@ -48,7 +46,10 @@ export function createTypeColorStore(options: {
     function save(next: TypeColorMap = colors) {
         set(next);
         try {
-            options.storage?.setItem(options.storageKey, JSON.stringify(colors));
+            options.storage?.setItem(
+                options.storageKey,
+                JSON.stringify(colors),
+            );
         } catch (err) {
             console.error("Errore salvataggio impostazioni colori:", err);
         }

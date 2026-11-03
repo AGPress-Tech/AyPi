@@ -184,19 +184,14 @@ function createRenderer(options: RendererOptions) {
             });
         };
 
-        const usesBlueArchiveSplash =
-            !!splash?.classList.contains(
-                "fp-calendar-splash--bluearchive",
-            );
+        const usesBlueArchiveSplash = !!splash?.classList.contains(
+            "fp-calendar-splash--bluearchive",
+        );
 
         // Lo splash Blue Archive ha una sequenza sincronizzata con la propria
         // progress bar. Il controller legacy qui sotto (800ms + 800ms) non
         // deve anticiparne il fade o applicare il timeout massimo di 4,5s.
-        if (
-            usesBlueArchiveSplash &&
-            splash &&
-            splash.dataset.hidden !== "1"
-        ) {
+        if (usesBlueArchiveSplash && splash && splash.dataset.hidden !== "1") {
             scheduleRender();
             return;
         }

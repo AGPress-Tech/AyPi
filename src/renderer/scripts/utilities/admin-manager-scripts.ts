@@ -1,7 +1,9 @@
 // @ts-nocheck
 require("../shared/dev-guards");
 const { ipcRenderer } = require("electron");
-const { initBlueArchivePointerEffects } = require("../shared/bluearchive-pointer-effects");
+const {
+    initBlueArchivePointerEffects,
+} = require("../shared/bluearchive-pointer-effects");
 const IS_BLUE_ARCHIVE_ADMINS =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
 if (IS_BLUE_ARCHIVE_ADMINS) {
@@ -331,10 +333,7 @@ document.addEventListener("DOMContentLoaded", asyncGuard.wrap(init));
 
 let realtimeRefreshTimer = null;
 ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
-    if (
-        realtimeEvent?.module !== "shared" &&
-        realtimeEvent?.module !== "*"
-    ) {
+    if (realtimeEvent?.module !== "shared" && realtimeEvent?.module !== "*") {
         return;
     }
     if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);

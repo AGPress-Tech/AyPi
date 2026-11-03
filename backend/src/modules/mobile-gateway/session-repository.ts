@@ -88,7 +88,11 @@ export function createMobileAdminSession(adminName: string) {
                   LIMIT ?
               )
         `);
-        prune.run([session.adminName, session.adminName, MAX_SESSIONS_PER_ADMIN]);
+        prune.run([
+            session.adminName,
+            session.adminName,
+            MAX_SESSIONS_PER_ADMIN,
+        ]);
         prune.free();
     });
 
@@ -159,4 +163,3 @@ export function revokeMobileAdminSession(token: string) {
         statement.free();
     });
 }
-

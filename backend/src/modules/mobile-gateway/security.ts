@@ -24,8 +24,9 @@ export function resolveMobileAdminSession(
     if (!session) return null;
     const admin = loadAdminCredentials().find(
         (entry) =>
-            String(entry.name || "").trim().toLowerCase() ===
-            session.adminName.trim().toLowerCase(),
+            String(entry.name || "")
+                .trim()
+                .toLowerCase() === session.adminName.trim().toLowerCase(),
     );
     if (!admin || admin.accessCalendar === false) return null;
     return {
@@ -33,4 +34,3 @@ export function resolveMobileAdminSession(
         token,
     };
 }
-

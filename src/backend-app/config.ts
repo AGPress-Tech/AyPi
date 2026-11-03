@@ -9,7 +9,14 @@ export type BackendRuntimeConfig = {
     generalDir: string;
     logDir: string;
     mesDatabasePath: string;
-    forno: { enabled: boolean; autoStart?: boolean; dbPath: string; host: string; intervalMs: number; programTransfers: 'tests' | 'manage' | 'off' };
+    forno: {
+        enabled: boolean;
+        autoStart?: boolean;
+        dbPath: string;
+        host: string;
+        intervalMs: number;
+        programTransfers: "tests" | "manage" | "off";
+    };
     mobileGateway: {
         enabled: boolean;
         host: string;
@@ -21,13 +28,14 @@ export type BackendRuntimeConfig = {
 const DEFAULT_FORNO = {
     enabled: true,
     autoStart: true,
-    programTransfers: 'manage' as const,
-    dbPath: '',
-    host: '192.168.1.165',
+    programTransfers: "manage" as const,
+    dbPath: "",
+    host: "192.168.1.165",
     intervalMs: 500,
 };
 
-const IS_DEV_PROFILE = (process.env.AYPI_BACKEND_PROFILE || "").trim() === "dev";
+const IS_DEV_PROFILE =
+    (process.env.AYPI_BACKEND_PROFILE || "").trim() === "dev";
 const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
     ? {
           host: "127.0.0.1",
@@ -35,8 +43,15 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           port: 3000,
           generalDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General",
           logDir: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\log",
-          mesDatabasePath: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\data\\mes.db",
-          forno: { ...DEFAULT_FORNO, enabled: false, autoStart: false, programTransfers: 'off', dbPath: 'C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\data\\forno.db' },
+          mesDatabasePath:
+              "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\data\\mes.db",
+          forno: {
+              ...DEFAULT_FORNO,
+              enabled: false,
+              autoStart: false,
+              programTransfers: "off",
+              dbPath: "C:\\Users\\admin\\Desktop\\AyPi\\AGPRESS\\General\\data\\forno.db",
+          },
           mobileGateway: {
               enabled: true,
               host: "127.0.0.1",
@@ -50,8 +65,12 @@ const DEFAULT_CONFIG: BackendRuntimeConfig = IS_DEV_PROFILE
           port: 3000,
           generalDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General",
           logDir: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\log",
-          mesDatabasePath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\mes.db",
-          forno: { ...DEFAULT_FORNO, dbPath: '\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\forno.db' },
+          mesDatabasePath:
+              "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\mes.db",
+          forno: {
+              ...DEFAULT_FORNO,
+              dbPath: "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\forno.db",
+          },
           mobileGateway: {
               enabled: true,
               host: "127.0.0.1",
@@ -130,34 +149,87 @@ export function loadBackendRuntimeConfig() {
         payload.mobileGateway && typeof payload.mobileGateway === "object"
             ? (payload.mobileGateway as Record<string, unknown>)
             : {};
-    const fornoPayload = payload.forno && typeof payload.forno === 'object' ? payload.forno as Record<string, unknown> : {};
-    const transferSetting = process.env.AYPI_FORNO_PROGRAM_TRANSFERS?.trim() || fornoPayload.programTransfers;
-    const transferMode = typeof transferSetting === 'string' ? transferSetting.trim() : transferSetting;
+    const fornoPayload =
+        payload.forno && typeof payload.forno === "object"
+            ? (payload.forno as Record<string, unknown>)
+            : {};
+    const transferSetting =
+        process.env.AYPI_FORNO_PROGRAM_TRANSFERS?.trim() ||
+        fornoPayload.programTransfers;
+    const transferMode =
+        typeof transferSetting === "string"
+            ? transferSetting.trim()
+            : transferSetting;
     const config: BackendRuntimeConfig = {
-        host: getString(process.env.AYPI_BACKEND_HOST, getString(payload.host, DEFAULT_CONFIG.host)),
+        host: getString(
+            process.env.AYPI_BACKEND_HOST,
+            getString(payload.host, DEFAULT_CONFIG.host),
+        ),
         advertisedHost: getString(
             process.env.AYPI_BACKEND_ADVERTISED_HOST,
             getString(payload.advertisedHost, DEFAULT_CONFIG.advertisedHost),
         ),
-        port: getNumber(process.env.AYPI_BACKEND_PORT, getNumber(payload.port, DEFAULT_CONFIG.port)),
+        port: getNumber(
+            process.env.AYPI_BACKEND_PORT,
+            getNumber(payload.port, DEFAULT_CONFIG.port),
+        ),
         generalDir,
         logDir: rawLogDir,
         mesDatabasePath: getString(
             process.env.AYPI_MES_DB_PATH,
-            getString(payload.mesDatabasePath, path.join(generalDir, "data", "mes.db")),
+            getString(
+                payload.mesDatabasePath,
+                path.join(generalDir, "data", "mes.db"),
+            ),
         ),
         forno: {
             // Le vecchie installazioni salvavano enabled:false per default.
             // L'avvio automatico sostituisce quel flag; autoStart:false resta
             // un arresto esplicito e il profilo dev non interroga il forno.
-            enabled: getBoolean(process.env.AYPI_FORNO_ENABLED, getBoolean(fornoPayload.autoStart, DEFAULT_CONFIG.forno.autoStart!)),
-            autoStart: getBoolean(fornoPayload.autoStart, DEFAULT_CONFIG.forno.autoStart!),
+            enabled: getBoolean(
+                process.env.AYPI_FORNO_ENABLED,
+                getBoolean(
+                    fornoPayload.autoStart,
+                    DEFAULT_CONFIG.forno.autoStart!,
+                ),
+            ),
+            autoStart: getBoolean(
+                fornoPayload.autoStart,
+                DEFAULT_CONFIG.forno.autoStart!,
+            ),
             // Anche i JSON delle installazioni precedenti ereditano il default manage.
             // Un off esplicito o un valore non riconosciuto resta disabilitato.
-            programTransfers: transferMode === undefined ? DEFAULT_CONFIG.forno.programTransfers : transferMode === 'tests' ? 'tests' : transferMode === 'manage' ? 'manage' : 'off',
-            dbPath: getString(process.env.AYPI_FORNO_DB_PATH, getString(fornoPayload.dbPath, path.join(path.dirname(getString(process.env.AYPI_DB_PATH, path.join(generalDir, 'data', 'aypi.db'))), 'forno.db'))),
-            host: getString(process.env.AYPI_FORNO_HOST, getString(fornoPayload.host, DEFAULT_FORNO.host)),
-            intervalMs: getNumber(process.env.AYPI_FORNO_INTERVAL_MS, getNumber(fornoPayload.intervalMs, 500)),
+            programTransfers:
+                transferMode === undefined
+                    ? DEFAULT_CONFIG.forno.programTransfers
+                    : transferMode === "tests"
+                      ? "tests"
+                      : transferMode === "manage"
+                        ? "manage"
+                        : "off",
+            dbPath: getString(
+                process.env.AYPI_FORNO_DB_PATH,
+                getString(
+                    fornoPayload.dbPath,
+                    path.join(
+                        path.dirname(
+                            getString(
+                                process.env.AYPI_DB_PATH,
+                                path.join(generalDir, "data", "aypi.db"),
+                            ),
+                        ),
+                        "forno.db",
+                    ),
+                ),
+            ),
+            host: getString(
+                process.env.AYPI_FORNO_HOST,
+                getString(fornoPayload.host, DEFAULT_FORNO.host),
+            ),
+            intervalMs: getNumber(
+                process.env.AYPI_FORNO_INTERVAL_MS,
+                getNumber(fornoPayload.intervalMs, 500),
+            ),
         },
         mobileGateway: {
             enabled: getBoolean(
@@ -207,7 +279,11 @@ export function loadBackendRuntimeConfig() {
 export function ensureBackendRuntimeConfigFile(configPath: string) {
     try {
         if (!fs.existsSync(configPath)) {
-            fs.writeFileSync(configPath, JSON.stringify(DEFAULT_CONFIG, null, 2), "utf8");
+            fs.writeFileSync(
+                configPath,
+                JSON.stringify(DEFAULT_CONFIG, null, 2),
+                "utf8",
+            );
             return;
         }
     } catch {

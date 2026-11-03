@@ -30,18 +30,12 @@ export function createCalendarAccessPolicy(context) {
         return Boolean(getOperations().filters?.[key]);
     }
 
-    const pendingAccess = () =>
-        Boolean(getOperations().pending?.access);
-    const pendingApprove = () =>
-        Boolean(getOperations().pending?.approve);
-    const pendingReject = () =>
-        Boolean(getOperations().pending?.reject);
-    const editApproved = () =>
-        Boolean(getOperations().editApproved);
-    const deleteApproved = () =>
-        Boolean(getOperations().deleteApproved);
-    const manageAccess = () =>
-        Boolean(getOperations().manageAccess);
+    const pendingAccess = () => Boolean(getOperations().pending?.access);
+    const pendingApprove = () => Boolean(getOperations().pending?.approve);
+    const pendingReject = () => Boolean(getOperations().pending?.reject);
+    const editApproved = () => Boolean(getOperations().editApproved);
+    const deleteApproved = () => Boolean(getOperations().deleteApproved);
+    const manageAccess = () => Boolean(getOperations().manageAccess);
     const daysAccess = () => Boolean(getOperations().daysAccess);
     const exportData = () => Boolean(getOperations().export);
 
@@ -49,10 +43,7 @@ export function createCalendarAccessPolicy(context) {
         const type = actionValue?.type || "";
         if (type === "mutua-create") return create("mutua");
         if (type === "infortunio-create") return create("infortunio");
-        if (
-            type === "retribuito-create" ||
-            type === "giustificato-create"
-        ) {
+        if (type === "retribuito-create" || type === "giustificato-create") {
             return create("retribuito");
         }
         if (type === "speciale-create") return create("speciale");
@@ -68,10 +59,7 @@ export function createCalendarAccessPolicy(context) {
             return daysAccess();
         }
         if (type === "export") return exportData();
-        if (
-            type === "manage-access" ||
-            type === "assignees-access"
-        ) {
+        if (type === "manage-access" || type === "assignees-access") {
             return manageAccess();
         }
         return true;

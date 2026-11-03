@@ -74,7 +74,10 @@ element("pingRobots").addEventListener("click", () =>
 const clock = () =>
     (element("forge-clock").textContent = new Date().toLocaleTimeString(
         "it-IT",
-        { hour: "2-digit", minute: "2-digit" },
+        {
+            hour: "2-digit",
+            minute: "2-digit",
+        },
     ));
 clock();
 const timer = setInterval(clock, 30000);

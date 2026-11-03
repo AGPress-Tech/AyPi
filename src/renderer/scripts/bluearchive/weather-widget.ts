@@ -64,7 +64,8 @@ function weatherInfo(code: number, isDay = true) {
     if (code === 0) {
         return { icon: isDay ? "☀️" : "🌙", label: "Sereno" };
     }
-    if (code === 1) return { icon: isDay ? "🌤️" : "☁️", label: "Prevalentemente sereno" };
+    if (code === 1)
+        return { icon: isDay ? "🌤️" : "☁️", label: "Prevalentemente sereno" };
     if (code === 2) return { icon: "⛅", label: "Parzialmente nuvoloso" };
     if (code === 3) return { icon: "☁️", label: "Coperto" };
     if (code === 45 || code === 48) return { icon: "🌫️", label: "Nebbia" };
@@ -72,7 +73,8 @@ function weatherInfo(code: number, isDay = true) {
     if (code >= 61 && code <= 67) return { icon: "🌧️", label: "Pioggia" };
     if (code >= 71 && code <= 77) return { icon: "❄️", label: "Neve" };
     if (code >= 80 && code <= 82) return { icon: "🌦️", label: "Rovesci" };
-    if (code === 85 || code === 86) return { icon: "🌨️", label: "Rovesci di neve" };
+    if (code === 85 || code === 86)
+        return { icon: "🌨️", label: "Rovesci di neve" };
     if (code >= 95) return { icon: "⛈️", label: "Temporale" };
     return { icon: "🌡️", label: "Condizioni variabili" };
 }
@@ -424,9 +426,7 @@ function setupWeatherWidget() {
             );
         }
         if (humidity) {
-            humidity.textContent = Number.isFinite(
-                current.relative_humidity_2m,
-            )
+            humidity.textContent = Number.isFinite(current.relative_humidity_2m)
                 ? `${Math.round(current.relative_humidity_2m)}%`
                 : "--%";
         }
@@ -444,20 +444,8 @@ function setupWeatherWidget() {
         const nextMonday = addDays(today, 8 - isoWeekDay);
         const nextSunday = addDays(nextMonday, 6);
         renderHourly(data, todayKey);
-        renderDaily(
-            data,
-            "weatherCurrentWeek",
-            today,
-            currentSunday,
-            todayKey,
-        );
-        renderDaily(
-            data,
-            "weatherNextWeek",
-            nextMonday,
-            nextSunday,
-            todayKey,
-        );
+        renderDaily(data, "weatherCurrentWeek", today, currentSunday, todayKey);
+        renderDaily(data, "weatherNextWeek", nextMonday, nextSunday, todayKey);
         setStatus(`Aggiornato alle ${formatUpdateClock(fetchedAt)} · Omegna`);
     }
 
@@ -519,7 +507,9 @@ function setupWeatherWidget() {
                     cache: "no-store",
                 });
                 if (!response.ok) {
-                    throw new Error(`Servizio meteo non disponibile (${response.status})`);
+                    throw new Error(
+                        `Servizio meteo non disponibile (${response.status})`,
+                    );
                 }
                 const data = (await response.json()) as WeatherApiData;
                 if (!isWeatherData(data)) {
@@ -598,9 +588,7 @@ function setupWeatherWidget() {
                 closeDayDetail(false);
                 const view = tab.dataset.weatherView;
                 document
-                    .querySelectorAll<HTMLButtonElement>(
-                        "[data-weather-view]",
-                    )
+                    .querySelectorAll<HTMLButtonElement>("[data-weather-view]")
                     .forEach((item) => {
                         const active = item === tab;
                         item.classList.toggle("active", active);

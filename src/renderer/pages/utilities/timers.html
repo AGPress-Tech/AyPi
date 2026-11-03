@@ -1,113 +1,151 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="it">
 
 <head>
-            <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AyPi - Timer & Cronometri</title>
-    <script src="../../scripts/utility-layout-bootstrap.js"></script>
-    <link rel="stylesheet" href="../../styles/utilities/timers-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/timers-bluearchive-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AyPi - Timer & Cronometri</title>
+  <script src="../../scripts/utility-layout-bootstrap.js"></script>
+  <link rel="stylesheet" href="../../styles/utilities/timers-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/timers-bluearchive-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css" />
 </head>
 
 <body>
-    <div class="container">
-        <header class="timers-header">
-            <div>
-                <h2>Timer &amp; Cronometri</h2>
-                <p class="subtitle">Gestisci piccoli promemoria direttamente da AyPi.</p>
-            </div>
-            <div class="header-actions">
-                <button id="addTimerBtn" class="add-btn" title="Nuovo timer/cronometro">+</button>
-                <button id="openPresetsBtn" class="preset-btn" title="Timer salvati">&#9201;</button>
-            </div>
-        </header>
+  <div class="container">
+    <header class="timers-header">
+      <div>
+        <h2>Timer &amp; Cronometri</h2>
+        <p class="subtitle">
+          Gestisci piccoli promemoria direttamente da AyPi.
+        </p>
+      </div>
+      <div class="header-actions">
+        <button id="addTimerBtn" class="add-btn" title="Nuovo timer/cronometro">
+          +
+        </button>
+        <button id="openPresetsBtn" class="preset-btn" title="Timer salvati">
+          &#9201;
+        </button>
+      </div>
+    </header>
 
-        <div id="timersEmpty" class="timers-empty">
-            Nessun timer o cronometro ancora. Clicca su <strong>+</strong> per crearne uno.
-        </div>
-
-        <div id="timersList" class="timers-list"></div>
-
-        <div id="newTimerDialog" class="dialog-backdrop hidden">
-            <div class="dialog">
-                <h3 id="dialogTitle">Nuovo timer / Cronometro</h3>
-
-                <div class="dialog-row">
-                    <label for="timerType">Tipo</label>
-                    <select id="timerType">
-                        <option value="timer">Timer (conto alla rovescia)</option>
-                        <option value="stopwatch">Cronometro</option>
-                    </select>
-                </div>
-
-                <div class="dialog-row" id="timeRow">
-                    <label for="timerName">Nome</label>
-                    <input id="timerName" type="text" placeholder="Es. Pausa caffÃ¨">
-                </div>
-
-                <div class="dialog-row" id="timeInputsRow">
-                    <label>Tempo iniziale (hh:mm:ss)</label>
-                    <div class="time-inputs">
-                        <input id="hoursInput" type="number" min="0" max="23" value="0">
-                        <span>:</span>
-                        <input id="minutesInput" type="number" min="0" max="59" value="5">
-                        <span>:</span>
-                        <input id="secondsInput" type="number" min="0" max="59" value="0">
-                    </div>
-                    <div class="time-presets">
-                        <div class="time-preset-group">
-                            <button type="button" class="time-preset" data-seconds="5">+5 sec</button>
-                            <button type="button" class="time-preset" data-seconds="-5">-5 sec</button>
-                        </div>
-                        <div class="time-preset-group">
-                            <button type="button" class="time-preset" data-seconds="30">+30 sec</button>
-                            <button type="button" class="time-preset" data-seconds="-30">-30 sec</button>
-                        </div>
-                        <div class="time-preset-group">
-                            <button type="button" class="time-preset" data-seconds="60">+1 min</button>
-                            <button type="button" class="time-preset" data-seconds="-60">-1 min</button>
-                        </div>
-                        <div class="time-preset-group">
-                            <button type="button" class="time-preset" data-seconds="300">+5 min</button>
-                            <button type="button" class="time-preset" data-seconds="-300">-5 min</button>
-                        </div>
-                        <div class="time-preset-group">
-                            <button type="button" class="time-preset" data-seconds="600">+10 min</button>
-                            <button type="button" class="time-preset" data-seconds="-600">-10 min</button>
-                        </div>
-                        <div class="time-preset-group">
-                            <button type="button" class="time-preset" data-seconds="1800">+30 min</button>
-                            <button type="button" class="time-preset" data-seconds="-1800">-30 min</button>
-                        </div>
-                    </div>
-                </div>
-                <p class="hint">Per il cronometro il tempo parte sempre da 00:00:00.</p>
-
-                <div class="dialog-actions">
-                    <button type="button" id="cancelDialogBtn" class="secondary">Annulla</button>
-                    <button type="button" id="confirmDialogBtn" class="primary">Aggiungi</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="presetsPanel" class="presets-backdrop hidden">
-            <div class="presets-card">
-                <div class="presets-header">
-                    <h3>Timer salvati</h3>
-                    <button type="button" id="closePresetsBtn" class="presets-close">&times;</button>
-                </div>
-                <div id="presetsList" class="presets-list"></div>
-            </div>
-        </div>
+    <div id="timersEmpty" class="timers-empty">
+      Nessun timer o cronometro ancora. Clicca su <strong>+</strong> per
+      crearne uno.
     </div>
 
-    <script src="../../scripts/utilities/timers-scripts.js"></script>
+    <div id="timersList" class="timers-list"></div>
+
+    <div id="newTimerDialog" class="dialog-backdrop hidden">
+      <div class="dialog">
+        <h3 id="dialogTitle">Nuovo timer / Cronometro</h3>
+
+        <div class="dialog-row">
+          <label for="timerType">Tipo</label>
+          <select id="timerType">
+            <option value="timer">Timer (conto alla rovescia)</option>
+            <option value="stopwatch">Cronometro</option>
+          </select>
+        </div>
+
+        <div class="dialog-row" id="timeRow">
+          <label for="timerName">Nome</label>
+          <input id="timerName" type="text" placeholder="Es. Pausa caffÃ¨" />
+        </div>
+
+        <div class="dialog-row" id="timeInputsRow">
+          <label>Tempo iniziale (hh:mm:ss)</label>
+          <div class="time-inputs">
+            <input id="hoursInput" type="number" min="0" max="23" value="0" />
+            <span>:</span>
+            <input id="minutesInput" type="number" min="0" max="59" value="5" />
+            <span>:</span>
+            <input id="secondsInput" type="number" min="0" max="59" value="0" />
+          </div>
+          <div class="time-presets">
+            <div class="time-preset-group">
+              <button type="button" class="time-preset" data-seconds="5">
+                +5 sec
+              </button>
+              <button type="button" class="time-preset" data-seconds="-5">
+                -5 sec
+              </button>
+            </div>
+            <div class="time-preset-group">
+              <button type="button" class="time-preset" data-seconds="30">
+                +30 sec
+              </button>
+              <button type="button" class="time-preset" data-seconds="-30">
+                -30 sec
+              </button>
+            </div>
+            <div class="time-preset-group">
+              <button type="button" class="time-preset" data-seconds="60">
+                +1 min
+              </button>
+              <button type="button" class="time-preset" data-seconds="-60">
+                -1 min
+              </button>
+            </div>
+            <div class="time-preset-group">
+              <button type="button" class="time-preset" data-seconds="300">
+                +5 min
+              </button>
+              <button type="button" class="time-preset" data-seconds="-300">
+                -5 min
+              </button>
+            </div>
+            <div class="time-preset-group">
+              <button type="button" class="time-preset" data-seconds="600">
+                +10 min
+              </button>
+              <button type="button" class="time-preset" data-seconds="-600">
+                -10 min
+              </button>
+            </div>
+            <div class="time-preset-group">
+              <button type="button" class="time-preset" data-seconds="1800">
+                +30 min
+              </button>
+              <button type="button" class="time-preset" data-seconds="-1800">
+                -30 min
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="hint">
+          Per il cronometro il tempo parte sempre da 00:00:00.
+        </p>
+
+        <div class="dialog-actions">
+          <button type="button" id="cancelDialogBtn" class="secondary">
+            Annulla
+          </button>
+          <button type="button" id="confirmDialogBtn" class="primary">
+            Aggiungi
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="presetsPanel" class="presets-backdrop hidden">
+      <div class="presets-card">
+        <div class="presets-header">
+          <h3>Timer salvati</h3>
+          <button type="button" id="closePresetsBtn" class="presets-close">
+            &times;
+          </button>
+        </div>
+        <div id="presetsList" class="presets-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../scripts/utilities/timers-scripts.js"></script>
 </body>
 
 </html>
-
-

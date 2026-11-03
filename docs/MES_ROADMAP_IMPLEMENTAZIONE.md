@@ -2,19 +2,19 @@
 
 Aggiornato al 23 ottobre 2026.
 
-| Fase | Stato | Risultato |
-|---|---|---|
-| Backup pre-MES | Completato | Snapshot locale verificato del Pianificatore precedente alle modifiche MES |
-| 0. Regole e contratto dati | Completato | Regole, stati, formule, invarianti e casi limite documentati |
-| 1. Importatore CSV | Completato | Sincronizzazione incrementale automatica dei CSV PLC, deduplicazione e consultazione eventi |
-| 2. Database MES | Completato | Modello normalizzato, CRUD ordini/fasi, sessioni, allocazioni, rettifiche e audit |
-| 3. Motore sessioni | Completato backend | Flusso parametrico per ogni macchina: attivazione, attribuzione, conteggio, pausa e chiusura |
-| 4. Ordini evoluti | Completato base | Ordini/fasi MES dal planner, tempo ciclo, attrezzaggio e durata automatica |
-| 5. Console macchina | In corso | Quadro MES a pagina intera, selezione manuale ordine, pausa, attrezzaggio, riconciliazione e chiusura; restano le rettifiche manuali |
-| 6. Integrazione Gantt | In corso | Lo schedulatore è subordinato al MES: segue macchina, stato e avanzamento reali senza attivare ordini; resta la pianificazione oraria/turni |
-| 7. Esploratore dati | Da iniziare | Griglia filtrabile ed esportazione |
-| 8. Analisi | Da iniziare | KPI per macchina, articolo, fase e periodo |
-| 9. Collector SQLite | Da iniziare | Sostituzione dell'adattatore CSV con la futura sorgente SQLite |
+| Fase                       | Stato              | Risultato                                                                                                                                   |
+| -------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backup pre-MES             | Completato         | Snapshot locale verificato del Pianificatore precedente alle modifiche MES                                                                  |
+| 0. Regole e contratto dati | Completato         | Regole, stati, formule, invarianti e casi limite documentati                                                                                |
+| 1. Importatore CSV         | Completato         | Sincronizzazione incrementale automatica dei CSV PLC, deduplicazione e consultazione eventi                                                 |
+| 2. Database MES            | Completato         | Modello normalizzato, CRUD ordini/fasi, sessioni, allocazioni, rettifiche e audit                                                           |
+| 3. Motore sessioni         | Completato backend | Flusso parametrico per ogni macchina: attivazione, attribuzione, conteggio, pausa e chiusura                                                |
+| 4. Ordini evoluti          | Completato base    | Ordini/fasi MES dal planner, tempo ciclo, attrezzaggio e durata automatica                                                                  |
+| 5. Console macchina        | In corso           | Quadro MES a pagina intera, selezione manuale ordine, pausa, attrezzaggio, riconciliazione e chiusura; restano le rettifiche manuali        |
+| 6. Integrazione Gantt      | In corso           | Lo schedulatore è subordinato al MES: segue macchina, stato e avanzamento reali senza attivare ordini; resta la pianificazione oraria/turni |
+| 7. Esploratore dati        | Da iniziare        | Griglia filtrabile ed esportazione                                                                                                          |
+| 8. Analisi                 | Da iniziare        | KPI per macchina, articolo, fase e periodo                                                                                                  |
+| 9. Collector SQLite        | Da iniziare        | Sostituzione dell'adattatore CSV con la futura sorgente SQLite                                                                              |
 
 ## Funzionalità disponibili dopo la fase 2
 
@@ -60,25 +60,25 @@ Aggiornato al 23 ottobre 2026.
 
 ## API introdotte
 
-| Metodo | Percorso | Uso |
-|---|---|---|
-| `POST` | `/api/mes/imports/plc-csv` | Importa il contenuto di un CSV PLC |
-| `GET` | `/api/mes/events` | Consulta gli eventi con paginazione e filtri |
-| `GET` | `/api/mes/events/summary` | Restituisce i totali per macchina |
-| `GET` | `/api/mes/imports` | Consulta lo storico delle importazioni |
-| `GET` | `/api/mes/orders` | Cerca e pagina gli ordini MES |
-| `POST` | `/api/mes/orders` | Crea un ordine con una o più fasi |
-| `GET` | `/api/mes/orders/:orderId` | Legge ordine e relative fasi |
-| `PUT` | `/api/mes/orders/:orderId` | Aggiorna un ordine controllandone la revisione |
-| `POST` | `/api/mes/orders/:orderId/phases` | Aggiunge una fase a un ordine |
-| `PUT` | `/api/mes/phases/:phaseId` | Aggiorna una fase controllandone la revisione |
-| `GET` | `/api/mes/machines/unassigned` | Elenca i pezzi non ancora attribuiti per macchina |
-| `GET` | `/api/mes/machines/activation-preview` | Mostra cosa dovrà decidere l'operatore prima dell'avvio |
-| `GET` | `/api/mes/sessions` | Elenca le sessioni di tutte le macchine o di una macchina specifica |
-| `POST` | `/api/mes/sessions` | Attiva una fase e risolve gli eventuali pezzi precedenti |
-| `POST` | `/api/mes/sessions/:sessionId/actions` | Mette in pausa, riprende, completa o annulla una sessione |
-| `POST` | `/api/mes/sessions/:sessionId/adjustments` | Aggiunge o rimuove pezzi con causale e audit |
-| `POST` | `/api/mes/sessions/:sessionId/operator` | Registra o cambia l'operatore della macchina |
+| Metodo | Percorso                                            | Uso                                                                       |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------- |
+| `POST` | `/api/mes/imports/plc-csv`                          | Importa il contenuto di un CSV PLC                                        |
+| `GET`  | `/api/mes/events`                                   | Consulta gli eventi con paginazione e filtri                              |
+| `GET`  | `/api/mes/events/summary`                           | Restituisce i totali per macchina                                         |
+| `GET`  | `/api/mes/imports`                                  | Consulta lo storico delle importazioni                                    |
+| `GET`  | `/api/mes/orders`                                   | Cerca e pagina gli ordini MES                                             |
+| `POST` | `/api/mes/orders`                                   | Crea un ordine con una o più fasi                                         |
+| `GET`  | `/api/mes/orders/:orderId`                          | Legge ordine e relative fasi                                              |
+| `PUT`  | `/api/mes/orders/:orderId`                          | Aggiorna un ordine controllandone la revisione                            |
+| `POST` | `/api/mes/orders/:orderId/phases`                   | Aggiunge una fase a un ordine                                             |
+| `PUT`  | `/api/mes/phases/:phaseId`                          | Aggiorna una fase controllandone la revisione                             |
+| `GET`  | `/api/mes/machines/unassigned`                      | Elenca i pezzi non ancora attribuiti per macchina                         |
+| `GET`  | `/api/mes/machines/activation-preview`              | Mostra cosa dovrà decidere l'operatore prima dell'avvio                   |
+| `GET`  | `/api/mes/sessions`                                 | Elenca le sessioni di tutte le macchine o di una macchina specifica       |
+| `POST` | `/api/mes/sessions`                                 | Attiva una fase e risolve gli eventuali pezzi precedenti                  |
+| `POST` | `/api/mes/sessions/:sessionId/actions`              | Mette in pausa, riprende, completa o annulla una sessione                 |
+| `POST` | `/api/mes/sessions/:sessionId/adjustments`          | Aggiunge o rimuove pezzi con causale e audit                              |
+| `POST` | `/api/mes/sessions/:sessionId/operator`             | Registra o cambia l'operatore della macchina                              |
 | `POST` | `/api/mes/sessions/:sessionId/setup-reconciliation` | Classifica i conteggi di attrezzaggio e opzionalmente avvia la produzione |
 
 ## Prossimo incremento
@@ -92,4 +92,3 @@ Il prossimo incremento completerà la console **MES e Pianificatore** con:
 - ulteriori KPI di efficienza per macchina, articolo e periodo.
 
 Gli eventi grezzi continueranno a non essere modificati: attribuzioni e azzeramenti saranno registrati come movimenti separati e auditabili.
-

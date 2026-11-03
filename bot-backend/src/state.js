@@ -1,12 +1,12 @@
-﻿const { loadAllowedIds, loadBotMessages } = require('./storage');
+﻿const { loadAllowedIds, loadBotMessages } = require("./storage");
 
-const config = require('./config');
+const config = require("./config");
 const allowedIds = loadAllowedIds();
 if (allowedIds.size === 0) {
   console.warn(
     config.allowOpenAccess
-      ? 'Warning: No allowed IDs configured. Explicit open access is enabled.'
-      : 'Warning: No allowed IDs configured. Bot access is locked pending registration.'
+      ? "Warning: No allowed IDs configured. Explicit open access is enabled."
+      : "Warning: No allowed IDs configured. Bot access is locked pending registration.",
   );
 }
 
@@ -34,7 +34,10 @@ const botMessagesByChat = new Map();
 const stored = loadBotMessages();
 Object.keys(stored).forEach((chatId) => {
   const list = Array.isArray(stored[chatId]) ? stored[chatId] : [];
-  botMessagesByChat.set(Number(chatId), list.filter((n) => Number.isFinite(n)));
+  botMessagesByChat.set(
+    Number(chatId),
+    list.filter((n) => Number.isFinite(n)),
+  );
 });
 
 module.exports = {
@@ -59,4 +62,3 @@ module.exports = {
   calendarHighlightsByChat,
   botMessagesByChat,
 };
-

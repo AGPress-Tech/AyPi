@@ -9,10 +9,7 @@ import {
     getSqliteDatabase,
     runSqliteTransaction,
 } from "../../shared/db/sqlite";
-import {
-    parseJson,
-    serializeJson,
-} from "../../shared/storage/json-codec";
+import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 
 const TRANSFER_DIR = backendConfig.modules.transferAttrezzaggio.dir;
 const TRANSFER_ATTACHMENTS_DIR = path.join(TRANSFER_DIR, "_attachments");
@@ -32,22 +29,34 @@ function ensureTransferBackup() {
 function ensureTransferSqliteSchema() {
     if (transferSchemaReady) return;
     const database = getSqliteDatabase();
-    const tableExists = Boolean(database.exec(
-        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
-        [TRANSFER_ITEMS_TABLE],
-    )?.[0]?.values?.length);
+    const tableExists = Boolean(
+        database.exec(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
+            [TRANSFER_ITEMS_TABLE],
+        )?.[0]?.values?.length,
+    );
     const existingColumns = tableExists
-        ? database.exec(`PRAGMA table_info(${TRANSFER_ITEMS_TABLE})`)?.[0]?.values || []
+        ? database.exec(`PRAGMA table_info(${TRANSFER_ITEMS_TABLE})`)?.[0]
+              ?.values || []
         : [];
-    const recordIdColumn = existingColumns.find((row: unknown[]) => row?.[1] === "record_id");
+    const recordIdColumn = existingColumns.find(
+        (row: unknown[]) => row?.[1] === "record_id",
+    );
     const recordIdIsPrimaryKey = Number(recordIdColumn?.[5] || 0) > 0;
     const requiresIdentityMigration = tableExists && !recordIdIsPrimaryKey;
     let safetyCopy = "";
 
-    if (requiresIdentityMigration && fs.existsSync(backendConfig.database.path)) {
+    if (
+        requiresIdentityMigration &&
+        fs.existsSync(backendConfig.database.path)
+    ) {
         safetyCopy = `${backendConfig.database.path}.pre-transfer-unique-record-id.bak`;
         if (!fs.existsSync(safetyCopy)) {
-            fs.copyFileSync(backendConfig.database.path, safetyCopy, fs.constants.COPYFILE_EXCL);
+            fs.copyFileSync(
+                backendConfig.database.path,
+                safetyCopy,
+                fs.constants.COPYFILE_EXCL,
+            );
         }
     }
 
@@ -67,21 +76,26 @@ function ensureTransferSqliteSchema() {
                 )`);
             } else if (requiresIdentityMigration) {
                 const recordIdSelect = recordIdColumn ? "record_id" : "NULL";
-                const rows = transaction.exec(`
+                const rows =
+                    transaction.exec(`
                     SELECT code, ${recordIdSelect}, codice_articolo, fase,
                            codice_macchina, metodo_variante, updated_at, payload_json
                     FROM ${TRANSFER_ITEMS_TABLE}
                 `)?.[0]?.values || [];
-                const aliasTableExists = Boolean(transaction.exec(
-                    `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'transfer_item_aliases'`,
-                )?.[0]?.values?.length);
+                const aliasTableExists = Boolean(
+                    transaction.exec(
+                        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'transfer_item_aliases'`,
+                    )?.[0]?.values?.length,
+                );
                 const legacyAliases = aliasTableExists
                     ? transaction.exec(
                           `SELECT alias_code, record_id FROM transfer_item_aliases`,
                       )?.[0]?.values || []
                     : [];
 
-                transaction.exec(`DROP TABLE IF EXISTS transfer_items_with_unique_ids`);
+                transaction.exec(
+                    `DROP TABLE IF EXISTS transfer_items_with_unique_ids`,
+                );
                 transaction.exec(`
                     CREATE TABLE transfer_items_with_unique_ids (
                         record_id TEXT PRIMARY KEY NOT NULL,
@@ -128,7 +142,9 @@ function ensureTransferSqliteSchema() {
                 });
                 insert.free();
                 transaction.exec(`DROP TABLE ${TRANSFER_ITEMS_TABLE}`);
-                transaction.exec(`ALTER TABLE transfer_items_with_unique_ids RENAME TO ${TRANSFER_ITEMS_TABLE}`);
+                transaction.exec(
+                    `ALTER TABLE transfer_items_with_unique_ids RENAME TO ${TRANSFER_ITEMS_TABLE}`,
+                );
                 transaction.exec(`
                     CREATE TABLE IF NOT EXISTS transfer_item_aliases (
                         alias_code TEXT PRIMARY KEY,
@@ -140,11 +156,16 @@ function ensureTransferSqliteSchema() {
                     INSERT OR REPLACE INTO transfer_item_aliases (alias_code, record_id)
                     VALUES (?, ?)
                 `);
-                migratedAliases.forEach(([alias, recordId]) => aliasInsert.run([alias, recordId]));
+                migratedAliases.forEach(([alias, recordId]) =>
+                    aliasInsert.run([alias, recordId]),
+                );
                 legacyAliases.forEach((row: unknown[]) => {
                     const alias = String(row?.[0] || "").trim();
-                    const newRecordId = migratedRecordIdByOldId.get(String(row?.[1] || "").trim());
-                    if (alias && newRecordId) aliasInsert.run([alias, newRecordId]);
+                    const newRecordId = migratedRecordIdByOldId.get(
+                        String(row?.[1] || "").trim(),
+                    );
+                    if (alias && newRecordId)
+                        aliasInsert.run([alias, newRecordId]);
                 });
                 aliasInsert.free();
             }
@@ -163,17 +184,20 @@ function ensureTransferSqliteSchema() {
         });
     } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        logger.error("Migrazione ID schede Transfer annullata: database ripristinato", {
-            event: "transfer_record_ids_migration_failed",
-            category: "storage",
-            module: "transfer",
-            outcome: "error",
-            safetyCopy,
-            detail,
-        });
+        logger.error(
+            "Migrazione ID schede Transfer annullata: database ripristinato",
+            {
+                event: "transfer_record_ids_migration_failed",
+                category: "storage",
+                module: "transfer",
+                outcome: "error",
+                safetyCopy,
+                detail,
+            },
+        );
         throw new Error(
             `Migrazione ID schede Transfer annullata. Il backend non è stato avviato. ` +
-            `Copia di sicurezza: ${safetyCopy || "non necessaria per un database nuovo"}. Dettaglio: ${detail}`,
+                `Copia di sicurezza: ${safetyCopy || "non necessaria per un database nuovo"}. Dettaglio: ${detail}`,
         );
     }
     if (requiresIdentityMigration) {
@@ -264,7 +288,9 @@ export function normalizeTransferItem(raw: any) {
         morsetti: String(item.morsetti || "").trim(),
         note: String(item.note || "").trim(),
         attachments: normalizeAttachmentMeta(item.attachments),
-        newAttachments: Array.isArray(item.newAttachments) ? item.newAttachments : [],
+        newAttachments: Array.isArray(item.newAttachments)
+            ? item.newAttachments
+            : [],
         utensili: normalizeUtensiliRows(item.utensili),
         updatedAt: String(item.updatedAt || raw?.updatedAt || "").trim(),
         createdAt: String(item.createdAt || raw?.createdAt || "").trim(),
@@ -273,7 +299,11 @@ export function normalizeTransferItem(raw: any) {
 
 function saveTransferItemsToSqlite(
     items: any[],
-    options?: { aliasCode?: string; recordId?: string; deletedRecordId?: string },
+    options?: {
+        aliasCode?: string;
+        recordId?: string;
+        deletedRecordId?: string;
+    },
 ) {
     runSqliteTransaction((database) => {
         database.run(`DELETE FROM ${TRANSFER_ITEMS_TABLE}`);
@@ -305,12 +335,20 @@ function saveTransferItemsToSqlite(
         });
         statement.free();
         if (options?.deletedRecordId) {
-            database.run(`DELETE FROM transfer_item_aliases WHERE record_id = ?`, [options.deletedRecordId]);
+            database.run(
+                `DELETE FROM transfer_item_aliases WHERE record_id = ?`,
+                [options.deletedRecordId],
+            );
         }
         if (options?.recordId) {
-            const currentCode = items.find((item) => item.recordId === options.recordId)?.code;
+            const currentCode = items.find(
+                (item) => item.recordId === options.recordId,
+            )?.code;
             if (currentCode) {
-                database.run(`DELETE FROM transfer_item_aliases WHERE alias_code = ?`, [currentCode]);
+                database.run(
+                    `DELETE FROM transfer_item_aliases WHERE alias_code = ?`,
+                    [currentCode],
+                );
             }
             if (options.aliasCode && options.aliasCode !== currentCode) {
                 database.run(
@@ -341,8 +379,12 @@ function loadTransferItemsFromSqlite() {
             fase: item.fase || parts.fase,
             codiceMacchina: item.codiceMacchina || parts.codiceMacchina,
             metodo: item.metodoVariante || parts.metodo,
-            utensiliCount: Array.isArray(item.utensili) ? item.utensili.length : 0,
-            attachmentsCount: Array.isArray(item.attachments) ? item.attachments.length : 0,
+            utensiliCount: Array.isArray(item.utensili)
+                ? item.utensili.length
+                : 0,
+            attachmentsCount: Array.isArray(item.attachments)
+                ? item.attachments.length
+                : 0,
             utensiliDescrizioni: Array.isArray(item.utensili)
                 ? item.utensili
                       .map((row: any) => String(row.descrizione || "").trim())
@@ -413,7 +455,8 @@ export function saveTransferItem(payload: any) {
     );
     const addedAttachments = saveNewAttachments(normalized.newAttachments);
     const now = new Date().toISOString();
-    let recordId = current?.recordId || normalized.recordId || crypto.randomUUID();
+    let recordId =
+        current?.recordId || normalized.recordId || crypto.randomUUID();
     while (!current && loadTransferItem(recordId)) {
         recordId = crypto.randomUUID();
     }

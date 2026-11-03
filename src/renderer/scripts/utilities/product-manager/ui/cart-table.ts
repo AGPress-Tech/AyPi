@@ -66,7 +66,9 @@ function renderCartTable({
         const requester = request.employee || "";
         const nextLines = [];
         (request.lines || []).forEach((line) => {
-            const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
+            const deletedAt = line.deletedAt
+                ? new Date(line.deletedAt).getTime()
+                : 0;
             if (deletedAt && now - deletedAt >= deletedMs) {
                 needsSave = true;
                 droppedDeleted += 1;
@@ -74,7 +76,9 @@ function renderCartTable({
             }
             nextLines.push(line);
             const nextIndex = nextLines.length - 1;
-            const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
+            const confirmedAt = line.confirmedAt
+                ? new Date(line.confirmedAt).getTime()
+                : 0;
             if (confirmedAt && now - confirmedAt >= confirmedMs) {
                 droppedConfirmed += 1;
                 return;
@@ -101,10 +105,22 @@ function renderCartTable({
                 deletedReason: line.deletedReason || "",
                 requester,
                 createdAt: request.createdAt || "",
-                canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
-                canDelete: typeof canDeleteRow === "function" ? canDeleteRow({ request, line }) : isAdmin(),
-                editReason: typeof canEditReason === "function" ? canEditReason({ request, line }) : "",
-                deleteReason: typeof canDeleteReason === "function" ? canDeleteReason({ request, line }) : "",
+                canEdit:
+                    typeof canEditRow === "function"
+                        ? canEditRow({ request, line })
+                        : isAdmin(),
+                canDelete:
+                    typeof canDeleteRow === "function"
+                        ? canDeleteRow({ request, line })
+                        : isAdmin(),
+                editReason:
+                    typeof canEditReason === "function"
+                        ? canEditReason({ request, line })
+                        : "",
+                deleteReason:
+                    typeof canDeleteReason === "function"
+                        ? canDeleteReason({ request, line })
+                        : "",
             });
         });
         if (nextLines.length !== (request.lines || []).length) {
@@ -112,21 +128,27 @@ function renderCartTable({
         }
     });
     if (needsSave) {
-        const cleaned = requests.filter((request) => Array.isArray(request.lines) && request.lines.length);
+        const cleaned = requests.filter(
+            (request) => Array.isArray(request.lines) && request.lines.length,
+        );
         saveRequestsFile(cleaned);
     }
 
     const urgencyFilter = Array.isArray(cartState.urgency)
         ? cartState.urgency.filter((value) => value)
         : cartState.urgency
-        ? [cartState.urgency]
-        : [];
-    const tagFilter = Array.isArray(cartState.tag) ? cartState.tag.filter((value) => value) : cartState.tag ? [cartState.tag] : [];
+          ? [cartState.urgency]
+          : [];
+    const tagFilter = Array.isArray(cartState.tag)
+        ? cartState.tag.filter((value) => value)
+        : cartState.tag
+          ? [cartState.tag]
+          : [];
     const statusFilter = Array.isArray(cartState.status)
         ? cartState.status.filter((value) => value)
         : cartState.status
-        ? [cartState.status]
-        : [];
+          ? [cartState.status]
+          : [];
     let failUrgency = 0;
     let failTag = 0;
     let failSearch = 0;
@@ -135,8 +157,8 @@ function renderCartTable({
         const rowStatus = row.deletedAt
             ? "Rifiutate"
             : row.confirmedAt || row.confirmed
-            ? "Convalidati"
-            : "In attesa";
+              ? "Convalidati"
+              : "In attesa";
         if (statusFilter.length) {
             if (!statusFilter.includes(rowStatus)) {
                 failStatus += 1;
@@ -180,20 +202,26 @@ function renderCartTable({
 
     const sortKey = cartState.sort || "created_desc";
     filtered.sort((a, b) => {
-        if (sortKey === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
-        if (sortKey === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
-        if (sortKey === "product_asc") return a.product.localeCompare(b.product);
-        if (sortKey === "product_desc") return b.product.localeCompare(a.product);
+        if (sortKey === "created_asc")
+            return String(a.createdAt).localeCompare(String(b.createdAt));
+        if (sortKey === "created_desc")
+            return String(b.createdAt).localeCompare(String(a.createdAt));
+        if (sortKey === "product_asc")
+            return a.product.localeCompare(b.product);
+        if (sortKey === "product_desc")
+            return b.product.localeCompare(a.product);
         if (sortKey === "urgency_desc") {
             const order = { Alta: 3, Media: 2, Bassa: 1, "": 0 };
             return (order[b.urgency] || 0) - (order[a.urgency] || 0);
         }
-        if (sortKey === "requester_asc") return a.requester.localeCompare(b.requester);
+        if (sortKey === "requester_asc")
+            return a.requester.localeCompare(b.requester);
         return 0;
     });
 
     if (!filtered.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessun prodotto in lista.</div>";
+        list.innerHTML =
+            '<div class="pm-message">Nessun prodotto in lista.</div>';
         return;
     }
 
@@ -226,10 +254,14 @@ function renderCartTable({
     filtered.forEach((row) => {
         const tr = document.createElement("div");
         tr.className = "pm-table__row";
-        if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
+        if (row.confirmedAt || row.confirmed)
+            tr.classList.add("pm-table__row--confirmed");
         if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
         if (row.deletedAt) {
-            if (row.deletedByRole === "employee" || (!row.deletedReason && !row.deletedByRole)) {
+            if (
+                row.deletedByRole === "employee" ||
+                (!row.deletedReason && !row.deletedByRole)
+            ) {
                 tr.title = "Eliminato dall'utente";
             } else if (row.deletedBy && row.deletedReason) {
                 tr.title = `Admin: ${row.deletedBy}\nMotivazione: ${row.deletedReason}`;
@@ -241,7 +273,8 @@ function renderCartTable({
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
-        deleteBtn.title = row.deleteReason || (row.deletedAt ? "Riga eliminata." : "Elimina");
+        deleteBtn.title =
+            row.deleteReason || (row.deletedAt ? "Riga eliminata." : "Elimina");
         deleteBtn.disabled = !row.canDelete || Boolean(row.deletedAt);
         deleteBtn.addEventListener("click", () => deleteCartRow(row));
         const deleteIcon = document.createElement("span");
@@ -253,7 +286,8 @@ function renderCartTable({
         confirmBtn.type = "button";
         confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
         confirmBtn.title = "Convalida";
-        confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
+        confirmBtn.disabled =
+            !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
         if (!isAdmin()) confirmBtn.title = "Solo admin.";
         if (row.deletedAt) confirmBtn.title = "Riga eliminata.";
         if (row.confirmed) confirmBtn.title = "Riga già convalidata.";
@@ -296,7 +330,9 @@ function renderCartTable({
 
         const priceCell = document.createElement("div");
         priceCell.className = "pm-table__cell";
-        priceCell.textContent = row.priceCad ? formatPriceCadDisplay(row.priceCad) : "-";
+        priceCell.textContent = row.priceCad
+            ? formatPriceCadDisplay(row.priceCad)
+            : "-";
 
         const requesterCell = document.createElement("div");
         requesterCell.className = "pm-table__cell";
@@ -307,7 +343,8 @@ function renderCartTable({
         dateCell.textContent = formatDateDisplay(row.createdAt);
 
         const actionsCell = document.createElement("div");
-        actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
+        actionsCell.className =
+            "pm-table__cell pm-table__actions pm-table__actions--compact";
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "pm-icon-btn";
@@ -353,7 +390,9 @@ function renderCartTable({
             addCatalogBtn.appendChild(addCatalogIcon);
             addCatalogBtn.addEventListener("click", async () => {
                 try {
-                    const ok = await openConfirmModal("Vuoi aggiungere questo prodotto al catalogo?");
+                    const ok = await openConfirmModal(
+                        "Vuoi aggiungere questo prodotto al catalogo?",
+                    );
                     if (!ok) return;
                     const item = {
                         id: `CAT-${Date.now()}`,
@@ -371,7 +410,10 @@ function renderCartTable({
                         renderCatalog();
                     }
                 } catch (err) {
-                    console.error("[product-manager] aggiunta catalogo da carrello fallita:", err);
+                    console.error(
+                        "[product-manager] aggiunta catalogo da carrello fallita:",
+                        err,
+                    );
                 }
             });
             if (!isAdmin() || row.deletedAt) addCatalogBtn.disabled = true;
@@ -393,7 +435,7 @@ function renderCartTable({
             priceCell,
             requesterCell,
             dateCell,
-            actionsCell
+            actionsCell,
         );
         table.appendChild(tr);
     });
@@ -435,14 +477,18 @@ function renderInterventionTable({
         const requester = request.employee || "";
         const nextLines = [];
         (request.lines || []).forEach((line) => {
-            const deletedAt = line.deletedAt ? new Date(line.deletedAt).getTime() : 0;
+            const deletedAt = line.deletedAt
+                ? new Date(line.deletedAt).getTime()
+                : 0;
             if (deletedAt && now - deletedAt >= deletedMs) {
                 needsSave = true;
                 return;
             }
             nextLines.push(line);
             const nextIndex = nextLines.length - 1;
-            const confirmedAt = line.confirmedAt ? new Date(line.confirmedAt).getTime() : 0;
+            const confirmedAt = line.confirmedAt
+                ? new Date(line.confirmedAt).getTime()
+                : 0;
             if (confirmedAt && now - confirmedAt >= confirmedMs) {
                 return;
             }
@@ -452,7 +498,9 @@ function renderInterventionTable({
                 key: `${request.id || requestIndex}-${nextIndex}`,
                 requestIndex,
                 lineIndex: nextIndex,
-                interventionType: typeTags.length ? typeTags.join(", ") : typeValue,
+                interventionType: typeTags.length
+                    ? typeTags.join(", ")
+                    : typeValue,
                 tags: typeTags,
                 description: getInterventionDescription(line),
                 urgency: line.urgency || "",
@@ -464,10 +512,22 @@ function renderInterventionTable({
                 deletedReason: line.deletedReason || "",
                 requester,
                 createdAt: request.createdAt || "",
-                canEdit: typeof canEditRow === "function" ? canEditRow({ request, line }) : isAdmin(),
-                canDelete: typeof canDeleteRow === "function" ? canDeleteRow({ request, line }) : isAdmin(),
-                editReason: typeof canEditReason === "function" ? canEditReason({ request, line }) : "",
-                deleteReason: typeof canDeleteReason === "function" ? canDeleteReason({ request, line }) : "",
+                canEdit:
+                    typeof canEditRow === "function"
+                        ? canEditRow({ request, line })
+                        : isAdmin(),
+                canDelete:
+                    typeof canDeleteRow === "function"
+                        ? canDeleteRow({ request, line })
+                        : isAdmin(),
+                editReason:
+                    typeof canEditReason === "function"
+                        ? canEditReason({ request, line })
+                        : "",
+                deleteReason:
+                    typeof canDeleteReason === "function"
+                        ? canDeleteReason({ request, line })
+                        : "",
             });
         });
         if (nextLines.length !== (request.lines || []).length) {
@@ -475,27 +535,33 @@ function renderInterventionTable({
         }
     });
     if (needsSave) {
-        const cleaned = requests.filter((request) => Array.isArray(request.lines) && request.lines.length);
+        const cleaned = requests.filter(
+            (request) => Array.isArray(request.lines) && request.lines.length,
+        );
         saveRequestsFile(cleaned, REQUEST_MODES.INTERVENTION);
     }
 
     const urgencyFilter = Array.isArray(cartState.urgency)
         ? cartState.urgency.filter((value) => value)
         : cartState.urgency
-        ? [cartState.urgency]
-        : [];
-    const tagFilter = Array.isArray(cartState.tag) ? cartState.tag.filter((value) => value) : cartState.tag ? [cartState.tag] : [];
+          ? [cartState.urgency]
+          : [];
+    const tagFilter = Array.isArray(cartState.tag)
+        ? cartState.tag.filter((value) => value)
+        : cartState.tag
+          ? [cartState.tag]
+          : [];
     const statusFilter = Array.isArray(cartState.status)
         ? cartState.status.filter((value) => value)
         : cartState.status
-        ? [cartState.status]
-        : [];
+          ? [cartState.status]
+          : [];
     const filtered = rows.filter((row) => {
         const rowStatus = row.deletedAt
             ? "Rifiutate"
             : row.confirmedAt || row.confirmed
-            ? "Convalidati"
-            : "In attesa";
+              ? "Convalidati"
+              : "In attesa";
         if (statusFilter.length) {
             if (!statusFilter.includes(rowStatus)) return false;
         }
@@ -507,30 +573,42 @@ function renderInterventionTable({
             if (!tagFilter.some((tag) => tags.includes(tag))) return false;
         }
         if (cartState.search) {
-            const haystack = [row.interventionType, row.description, row.requester, row.urgency]
+            const haystack = [
+                row.interventionType,
+                row.description,
+                row.requester,
+                row.urgency,
+            ]
                 .join(" ")
                 .toLowerCase();
-            if (!haystack.includes(cartState.search.toLowerCase())) return false;
+            if (!haystack.includes(cartState.search.toLowerCase()))
+                return false;
         }
         return true;
     });
 
     const sortKey = cartState.sort || "created_desc";
     filtered.sort((a, b) => {
-        if (sortKey === "created_asc") return String(a.createdAt).localeCompare(String(b.createdAt));
-        if (sortKey === "created_desc") return String(b.createdAt).localeCompare(String(a.createdAt));
-        if (sortKey === "type_asc") return a.interventionType.localeCompare(b.interventionType);
-        if (sortKey === "type_desc") return b.interventionType.localeCompare(a.interventionType);
+        if (sortKey === "created_asc")
+            return String(a.createdAt).localeCompare(String(b.createdAt));
+        if (sortKey === "created_desc")
+            return String(b.createdAt).localeCompare(String(a.createdAt));
+        if (sortKey === "type_asc")
+            return a.interventionType.localeCompare(b.interventionType);
+        if (sortKey === "type_desc")
+            return b.interventionType.localeCompare(a.interventionType);
         if (sortKey === "urgency_desc") {
             const order = { Alta: 3, Media: 2, Bassa: 1, "": 0 };
             return (order[b.urgency] || 0) - (order[a.urgency] || 0);
         }
-        if (sortKey === "requester_asc") return a.requester.localeCompare(b.requester);
+        if (sortKey === "requester_asc")
+            return a.requester.localeCompare(b.requester);
         return 0;
     });
 
     if (!filtered.length) {
-        list.innerHTML = "<div class=\"pm-message\">Nessun intervento in lista.</div>";
+        list.innerHTML =
+            '<div class="pm-message">Nessun intervento in lista.</div>';
         return;
     }
 
@@ -539,7 +617,15 @@ function renderInterventionTable({
 
     const header = document.createElement("div");
     header.className = "pm-table__row pm-table__row--header";
-    ["Stato", "Tipologia", "Descrizione", "Priorità", "Richiesto da", "Data", "Azioni"].forEach((title) => {
+    [
+        "Stato",
+        "Tipologia",
+        "Descrizione",
+        "Priorità",
+        "Richiesto da",
+        "Data",
+        "Azioni",
+    ].forEach((title) => {
         const cell = document.createElement("div");
         cell.className = "pm-table__cell";
         cell.textContent = title;
@@ -550,10 +636,14 @@ function renderInterventionTable({
     filtered.forEach((row) => {
         const tr = document.createElement("div");
         tr.className = "pm-table__row";
-        if (row.confirmedAt || row.confirmed) tr.classList.add("pm-table__row--confirmed");
+        if (row.confirmedAt || row.confirmed)
+            tr.classList.add("pm-table__row--confirmed");
         if (row.deletedAt) tr.classList.add("pm-table__row--deleted");
         if (row.deletedAt) {
-            if (row.deletedByRole === "employee" || (!row.deletedReason && !row.deletedByRole)) {
+            if (
+                row.deletedByRole === "employee" ||
+                (!row.deletedReason && !row.deletedByRole)
+            ) {
                 tr.title = "Eliminato dall'utente";
             } else if (row.deletedBy && row.deletedReason) {
                 tr.title = `Admin: ${row.deletedBy}\nMotivazione: ${row.deletedReason}`;
@@ -566,7 +656,8 @@ function renderInterventionTable({
         deleteBtn.type = "button";
         deleteBtn.className = "pm-icon-btn pm-icon-btn--danger";
         deleteBtn.title = "Elimina";
-        deleteBtn.title = row.deleteReason || (row.deletedAt ? "Riga eliminata." : "Elimina");
+        deleteBtn.title =
+            row.deleteReason || (row.deletedAt ? "Riga eliminata." : "Elimina");
         deleteBtn.disabled = !row.canDelete || Boolean(row.deletedAt);
         deleteBtn.addEventListener("click", () => deleteCartRow(row));
         const deleteIcon = document.createElement("span");
@@ -578,7 +669,8 @@ function renderInterventionTable({
         confirmBtn.type = "button";
         confirmBtn.className = "pm-icon-btn pm-icon-btn--success";
         confirmBtn.title = "Convalida";
-        confirmBtn.disabled = !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
+        confirmBtn.disabled =
+            !isAdmin() || Boolean(row.confirmed) || Boolean(row.deletedAt);
         if (!isAdmin()) confirmBtn.title = "Solo admin.";
         if (row.deletedAt) confirmBtn.title = "Riga eliminata.";
         if (row.confirmed) confirmBtn.title = "Riga già convalidata.";
@@ -611,7 +703,8 @@ function renderInterventionTable({
         dateCell.textContent = formatDateDisplay(row.createdAt);
 
         const actionsCell = document.createElement("div");
-        actionsCell.className = "pm-table__cell pm-table__actions pm-table__actions--compact";
+        actionsCell.className =
+            "pm-table__cell pm-table__actions pm-table__actions--compact";
         if (isLoggedIn()) {
             const editBtn = document.createElement("button");
             editBtn.type = "button";
@@ -622,7 +715,9 @@ function renderInterventionTable({
             editIcon.className = "material-icons";
             editIcon.textContent = "edit";
             editBtn.appendChild(editIcon);
-            editBtn.addEventListener("click", () => openInterventionEditModal(row));
+            editBtn.addEventListener("click", () =>
+                openInterventionEditModal(row),
+            );
             if (!row.canEdit || row.deletedAt) editBtn.disabled = true;
             editBtn.title =
                 row.editReason ||
@@ -630,7 +725,15 @@ function renderInterventionTable({
             actionsCell.appendChild(editBtn);
         }
 
-        tr.append(statusCell, typeCell, descCell, urgencyCell, requesterCell, dateCell, actionsCell);
+        tr.append(
+            statusCell,
+            typeCell,
+            descCell,
+            urgencyCell,
+            requesterCell,
+            dateCell,
+            actionsCell,
+        );
         table.appendChild(tr);
     });
 
@@ -644,4 +747,9 @@ function renderInterventionTable({
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = { renderCartTable };
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = { renderCartTable };

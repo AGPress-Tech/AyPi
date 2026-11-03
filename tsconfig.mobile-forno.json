@@ -1,4 +1,4 @@
 {
-  "extends": "./tsconfig.renderer.json",
-  "include": ["mobile/forno/**/*.ts", "types/**/*.d.ts"]
+    "extends": "./tsconfig.renderer.json",
+    "include": ["mobile/forno/**/*.ts", "types/**/*.d.ts"]
 }

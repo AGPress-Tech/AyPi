@@ -60,4 +60,3 @@ export function isValidWarehouseTrackingCode(value: unknown) {
     const normalized = normalizeWarehouseTrackingCode(value);
     return !normalized || /^[A-Z0-9][A-Z0-9._:/-]{5,79}$/.test(normalized);
 }
-

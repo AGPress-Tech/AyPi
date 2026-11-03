@@ -2152,7 +2152,9 @@ function renderListFiltered() {
             asyncGuard.wrap(async () => {
                 const loaded = await ipcRenderer.invoke(
                     "transfer-attrezzaggio-load",
-                    { code: item.recordId || item.code },
+                    {
+                        code: item.recordId || item.code,
+                    },
                 );
                 if (!loaded?.ok) return;
                 await printCard(loaded.item);
@@ -2171,7 +2173,9 @@ function renderListFiltered() {
                 try {
                     resDel = await ipcRenderer.invoke(
                         "transfer-attrezzaggio-delete",
-                        { code: item.recordId || item.code },
+                        {
+                            code: item.recordId || item.code,
+                        },
                     );
                 } catch (err) {
                     await showError(

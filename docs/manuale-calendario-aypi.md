@@ -9,6 +9,7 @@ Questo manuale spiega come usare il modulo "Ferie e Permessi" di AyPi per inseri
 ## 1) Panoramica del modulo
 
 Il modulo permette di:
+
 - Inserire richieste di Ferie/Permessi/Permessi Retribuiti.
 - Registrare Straordinari.
 - Registrare Mutua (inserimento con password, senza approvazione successiva).
@@ -23,6 +24,7 @@ Il modulo permette di:
 ## 2) Elementi principali dell'interfaccia
 
 ### 2.1 Barra in alto
+
 - **Titolo e descrizione**: Calendario Dipendenti e Richieste.
 - **Riepilogo**: mostra conteggio di richieste in attesa e approvate.
 - **Filtri**: permettono di mostrare/nascondere i tipi di eventi (ferie/permessi, permessi retribuiti, straordinari, mutua, permesso chiusura aziendale).
@@ -31,6 +33,7 @@ Il modulo permette di:
 - **Impostazioni**: accesso a temi e ad alcune funzioni di configurazione.
 
 ### 2.2 Colonna sinistra (pannello gestione)
+
 - **Richieste in attesa**: apre il pannello con le richieste da approvare.
 - **Gestione**: pulsante che apre una finestra con:
   - Gestione dipendenti
@@ -39,6 +42,7 @@ Il modulo permette di:
 - **Esporta ferie/permessi**: esporta dati in Excel.
 
 ### 2.3 Calendario centrale
+
 - Visualizza le richieste approvate con colori diversi per tipologia.
 - Le festivita/chiusure sono evidenziate con un colore di sfondo.
 - Doppio click su un giorno: apre la vista giornaliera.
@@ -48,6 +52,7 @@ Il modulo permette di:
 ## 3) Inserimento di una nuova richiesta
 
 Nella sezione Nuova richiesta:
+
 1. **Seleziona reparto**.
 2. **Seleziona dipendente**.
 3. **Scegli il tipo**:
@@ -62,23 +67,27 @@ Nella sezione Nuova richiesta:
 6. **Salva**.
 
 ### 3.1 Regole generali
+
 - Le date devono essere coerenti (data fine non antecedente a data inizio).
 - Per periodi di più giorni è richiesta la modalità "Giornata intera".
 
 ### 3.2 Tipi speciali
 
 #### Permesso Retribuito
+
 - Non necessita approvazione successiva.
 - All'invio viene richiesta la **password admin**.
-- Se la password � corretta, la richiesta viene inserita **direttamente nel calendario**.
+- Se la password � corretta, la richiesta viene inserita **direttamente nel calendario**.
 - Non riduce il monte ore.
 
 #### Mutua
+
 - Non necessita approvazione successiva.
 - All'invio viene richiesta la **password admin**.
 - Se la password è corretta, la richiesta viene inserita **direttamente nel calendario**.
 
 #### Permesso Chiusura Aziendale
+
 - Funziona come lo straordinario (calcolo ore senza esclusione weekend).
 - Se inserito durante giorni di **chiusura aziendale**, aumenta il saldo ore disponibili.
 - Richiede **password admin** al momento dell'invio, senza approvazione successiva.
@@ -110,15 +119,18 @@ I filtri permettono di mostrare o nascondere le tipologie.
 ## 6) Gestione (Dipendenti e Ore)
 
 Clicca sul pulsante **Gestione**:
+
 - Richiede password admin solo la prima volta.
 - Si apre una finestra con due opzioni:
   - **Gestione dipendenti**
   - **Gestione ore**
 
 ### 6.1 Gestione dipendenti
+
 - Permette di aggiungere o rimuovere reparti e dipendenti.
 
 ### 6.2 Gestione ore
+
 - Mostra il saldo ore disponibile per ogni dipendente.
 - Tiene conto delle richieste approvate, chiusure e permesso chiusura aziendale.
 
@@ -127,11 +139,13 @@ Clicca sul pulsante **Gestione**:
 ## 7) Festività e Chiusure aziendali
 
 ### 7.1 Festività
+
 - Inserisci un nome e un intervallo date (da-a).
 - Richiede password admin.
 - Le festività non contano ai fini del conteggio ore ferie/permessi.
 
 ### 7.2 Chiusure aziendali
+
 - Inserisci nome (opzionale) e intervallo date.
 - Richiede password admin.
 - Le chiusure scalano ore dal saldo dipendenti nel mese di riferimento.
@@ -175,4 +189,3 @@ Clicca sul pulsante **Gestione**:
 ---
 
 Per eventuali problemi o dubbi, contattare l'amministratore di sistema.
-

@@ -95,8 +95,7 @@ export function buildCalendarRequest(
 
     const random = options.random || Math.random;
     const id =
-        requestId ||
-        `${now.getTime()}-${random().toString(16).slice(2, 8)}`;
+        requestId || `${now.getTime()}-${random().toString(16).slice(2, 8)}`;
     const common = {
         id,
         employee,

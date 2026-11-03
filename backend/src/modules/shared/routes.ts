@@ -156,10 +156,14 @@ export function registerSharedRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid admin verify payload",
         );
-        const admin = await verifyAdmin(payload.password, payload.targetName || null, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        });
+        const admin = await verifyAdmin(
+            payload.password,
+            payload.targetName || null,
+            {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            },
+        );
         if (!admin) {
             throw unauthorized("Invalid admin credentials");
         }

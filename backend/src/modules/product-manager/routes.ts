@@ -6,9 +6,7 @@ import { readJsonBody } from "../../shared/http/request";
 import { badRequest, notFound } from "../../shared/http/errors";
 import { sendJson } from "../../shared/http/response";
 import { createSchemaValidator } from "../../shared/http/validation";
-import {
-    resolveCatalogImagePath,
-} from "./repository";
+import { resolveCatalogImagePath } from "./repository";
 import {
     getProductManagerBackups,
     getProductManagerBootstrap,
@@ -49,20 +47,36 @@ const validateCatalogImagePayload = createSchemaValidator<{
 });
 
 export function registerProductManagerRoutes(router: Router) {
-    router.register("GET", "/api/product-manager/bootstrap", async (_req, res) => {
-        sendJson(res, 200, getProductManagerBootstrap());
-    });
+    router.register(
+        "GET",
+        "/api/product-manager/bootstrap",
+        async (_req, res) => {
+            sendJson(res, 200, getProductManagerBootstrap());
+        },
+    );
 
-    router.register("GET", "/api/product-manager/backups", async (_req, res) => {
-        sendJson(res, 200, { items: getProductManagerBackups() });
-    });
+    router.register(
+        "GET",
+        "/api/product-manager/backups",
+        async (_req, res) => {
+            sendJson(res, 200, { items: getProductManagerBackups() });
+        },
+    );
 
-    router.register("POST", "/api/product-manager/backups", async (req, res) => {
-        sendJson(res, 201, await runProductManagerBackup({
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        }));
-    });
+    router.register(
+        "POST",
+        "/api/product-manager/backups",
+        async (req, res) => {
+            sendJson(
+                res,
+                201,
+                await runProductManagerBackup({
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            );
+        },
+    );
 
     router.register(
         "POST",
@@ -71,38 +85,50 @@ export function registerProductManagerRoutes(router: Router) {
             if (!String(params.name || "").trim()) {
                 throw badRequest("Backup name missing");
             }
-            sendJson(res, 200, await runProductManagerRestore(params.name, {
-                actor: getRequestUser(req),
-                requestId: getRequestId(req),
-            }));
+            sendJson(
+                res,
+                200,
+                await runProductManagerRestore(params.name, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            );
         },
     );
 
-    router.register("PUT", "/api/product-manager/requests", async (req, res) => {
-        const payload = validateArrayPayload(
-            await readJsonBody(req),
-            "Invalid purchasing requests payload",
-        );
-        sendJson(res, 200, {
-            items: await saveRequests(payload, {
-                actor: getRequestUser(req),
-                requestId: getRequestId(req),
-            }),
-        });
-    });
+    router.register(
+        "PUT",
+        "/api/product-manager/requests",
+        async (req, res) => {
+            const payload = validateArrayPayload(
+                await readJsonBody(req),
+                "Invalid purchasing requests payload",
+            );
+            sendJson(res, 200, {
+                items: await saveRequests(payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            });
+        },
+    );
 
-    router.register("PUT", "/api/product-manager/interventions", async (req, res) => {
-        const payload = validateArrayPayload(
-            await readJsonBody(req),
-            "Invalid purchasing interventions payload",
-        );
-        sendJson(res, 200, {
-            items: await saveInterventions(payload, {
-                actor: getRequestUser(req),
-                requestId: getRequestId(req),
-            }),
-        });
-    });
+    router.register(
+        "PUT",
+        "/api/product-manager/interventions",
+        async (req, res) => {
+            const payload = validateArrayPayload(
+                await readJsonBody(req),
+                "Invalid purchasing interventions payload",
+            );
+            sendJson(res, 200, {
+                items: await saveInterventions(payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            });
+        },
+    );
 
     router.register("PUT", "/api/product-manager/catalog", async (req, res) => {
         const payload = validateArrayPayload(
@@ -117,18 +143,22 @@ export function registerProductManagerRoutes(router: Router) {
         });
     });
 
-    router.register("PUT", "/api/product-manager/categories", async (req, res) => {
-        const payload = validateArrayPayload(
-            await readJsonBody(req),
-            "Invalid categories payload",
-        );
-        sendJson(res, 200, {
-            items: await saveCategories(payload, {
-                actor: getRequestUser(req),
-                requestId: getRequestId(req),
-            }),
-        });
-    });
+    router.register(
+        "PUT",
+        "/api/product-manager/categories",
+        async (req, res) => {
+            const payload = validateArrayPayload(
+                await readJsonBody(req),
+                "Invalid categories payload",
+            );
+            sendJson(res, 200, {
+                items: await saveCategories(payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            });
+        },
+    );
 
     router.register(
         "PUT",
@@ -147,16 +177,24 @@ export function registerProductManagerRoutes(router: Router) {
         },
     );
 
-    router.register("POST", "/api/product-manager/catalog-image", async (req, res) => {
-        const payload = validateCatalogImagePayload(
-            await readJsonBody(req),
-            "Invalid catalog image payload",
-        );
-        sendJson(res, 200, await saveCatalogImageEntry(payload, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        }));
-    });
+    router.register(
+        "POST",
+        "/api/product-manager/catalog-image",
+        async (req, res) => {
+            const payload = validateCatalogImagePayload(
+                await readJsonBody(req),
+                "Invalid catalog image payload",
+            );
+            sendJson(
+                res,
+                200,
+                await saveCatalogImageEntry(payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            );
+        },
+    );
 
     router.register(
         "GET",

@@ -70,10 +70,7 @@ export function validateRequestPayload(
     if (
         lines.some(
             (line) =>
-                !line.product ||
-                !line.quantity ||
-                !line.unit ||
-                !line.urgency,
+                !line.product || !line.quantity || !line.unit || !line.urgency,
         )
     ) {
         return "Compila prodotto, quantita, UM e urgenza per ogni riga.";

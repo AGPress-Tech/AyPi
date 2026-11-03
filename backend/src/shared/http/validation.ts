@@ -28,7 +28,9 @@ function normalizeNullableSchema(value: unknown): unknown {
 }
 
 export function createSchemaValidator<T>(schema: Record<string, unknown>) {
-    const validate = ajv.compile(normalizeNullableSchema(schema) as Record<string, unknown>);
+    const validate = ajv.compile(
+        normalizeNullableSchema(schema) as Record<string, unknown>,
+    );
     return (value: unknown, message = "Request body validation failed") => {
         const ok = validate(value);
         if (!ok) {

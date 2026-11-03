@@ -1,6 +1,9 @@
 import path from "path";
 import { backendConfig } from "../../config";
-import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
+import {
+    getSqliteDatabase,
+    runSqliteTransaction,
+} from "../../shared/db/sqlite";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
 import { createAttachmentStore } from "../../shared/storage/attachment-store";
 import { parseJson, serializeJson } from "../../shared/storage/json-codec";
@@ -37,27 +40,37 @@ function ensureSchema() {
 function normalizeScopedAttachments(items: unknown) {
     const source = Array.isArray(items) ? items : [];
     return attachments.normalize(source).map((item) => {
-        const original = source.find((candidate) => text(candidate?.id) === item.id);
+        const original = source.find(
+            (candidate) => text(candidate?.id) === item.id,
+        );
         return { ...item, scopeKey: text(original?.scopeKey) };
     });
 }
 
 function normalizeLinkedPaths(items: unknown) {
-    return (Array.isArray(items) ? items : []).map((item: any, index) => ({
-        id: text(item?.id) || `path-${index + 1}`,
-        name: text(item?.name) || path.basename(text(item?.path)),
-        path: text(item?.path),
-        scopeKey: text(item?.scopeKey) || "base",
-        createdAt: text(item?.createdAt),
-    })).filter((item) => item.path);
+    return (Array.isArray(items) ? items : [])
+        .map((item: any, index) => ({
+            id: text(item?.id) || `path-${index + 1}`,
+            name: text(item?.name) || path.basename(text(item?.path)),
+            path: text(item?.path),
+            scopeKey: text(item?.scopeKey) || "base",
+            createdAt: text(item?.createdAt),
+        }))
+        .filter((item) => item.path);
 }
 
 function normalizePairs(value: unknown) {
     if (!Array.isArray(value)) return [];
     return value.map((pair, index) => ({
         id: text(pair?.id) || `pair-${index + 1}`,
-        verifica: pair?.verifica && typeof pair.verifica === "object" ? pair.verifica : {},
-        riesame: pair?.riesame && typeof pair.riesame === "object" ? pair.riesame : {},
+        verifica:
+            pair?.verifica && typeof pair.verifica === "object"
+                ? pair.verifica
+                : {},
+        riesame:
+            pair?.riesame && typeof pair.riesame === "object"
+                ? pair.riesame
+                : {},
     }));
 }
 
@@ -65,11 +78,17 @@ function normalizeValidations(value: unknown) {
     if (!Array.isArray(value)) return [];
     return value.map((attempt, index) => {
         const legacyNotes = Array.isArray(attempt?.noteRows)
-            ? attempt.noteRows.map((row: any) => text(row?.text)).filter(Boolean).join("\n")
+            ? attempt.noteRows
+                  .map((row: any) => text(row?.text))
+                  .filter(Boolean)
+                  .join("\n")
             : "";
         return {
             id: text(attempt?.id) || `validation-${index + 1}`,
-            answers: attempt?.answers && typeof attempt.answers === "object" ? attempt.answers : {},
+            answers:
+                attempt?.answers && typeof attempt.answers === "object"
+                    ? attempt.answers
+                    : {},
             note: text(attempt?.note) || legacyNotes,
             superata: yesNo(attempt?.superata),
             data: text(attempt?.data),
@@ -84,17 +103,23 @@ function pairComplete(pair: any) {
     const verifica = pair?.verifica || {};
     const riesame = pair?.riesame || {};
     return Boolean(
-        verifica.data && verifica.firmaResponsabileTecnico && verifica.firmaRgq &&
-        riesame.data && riesame.firmaDirezioneCommerciale &&
-        riesame.firmaResponsabileTecnico && riesame.firmaRgq
+        verifica.data &&
+        verifica.firmaResponsabileTecnico &&
+        verifica.firmaRgq &&
+        riesame.data &&
+        riesame.firmaDirezioneCommerciale &&
+        riesame.firmaResponsabileTecnico &&
+        riesame.firmaRgq,
     );
 }
 
 function validationComplete(attempt: any) {
     return Boolean(
-        attempt?.superata === "si" && attempt?.data &&
-        attempt?.firmaProgettazione && attempt?.firmaDirezioneProduzione &&
-        attempt?.firmaDirezioneCommerciale
+        attempt?.superata === "si" &&
+        attempt?.data &&
+        attempt?.firmaProgettazione &&
+        attempt?.firmaDirezioneProduzione &&
+        attempt?.firmaDirezioneCommerciale,
     );
 }
 
@@ -114,9 +139,13 @@ export function normalizeRegistrazioneProgettoSpeciale(raw: any) {
         pesoTornito: text(item.pesoTornito),
         requisitiNormativi: text(item.requisitiNormativi),
         requisitiBrevetto: text(item.requisitiBrevetto),
-        validazionePreseriePrevistaPer: text(item.validazionePreseriePrevistaPer),
+        validazionePreseriePrevistaPer: text(
+            item.validazionePreseriePrevistaPer,
+        ),
         inizioProduzionePrevistaPer: text(item.inizioProduzionePrevistaPer),
-        dfmeaPfmea: Array.isArray(item.dfmeaPfmea) ? item.dfmeaPfmea.map(text).filter(Boolean) : [],
+        dfmeaPfmea: Array.isArray(item.dfmeaPfmea)
+            ? item.dfmeaPfmea.map(text).filter(Boolean)
+            : [],
         dfmeaPfmeaNote: text(item.dfmeaPfmeaNote),
         rischioAlto: text(item.rischioAlto),
         rischioMedio: text(item.rischioMedio),
@@ -130,12 +159,17 @@ export function normalizeRegistrazioneProgettoSpeciale(raw: any) {
         coppieVerificaRiesame: coppie,
         validazioni,
         completato: Boolean(
-            baseComplete && coppie.length > 0 && coppie.every(pairComplete) &&
-            validazioni.length > 0 && validationComplete(validazioni[validazioni.length - 1])
+            baseComplete &&
+            coppie.length > 0 &&
+            coppie.every(pairComplete) &&
+            validazioni.length > 0 &&
+            validationComplete(validazioni[validazioni.length - 1]),
         ),
         attachments: normalizeScopedAttachments(item.attachments),
         linkedPaths: normalizeLinkedPaths(item.linkedPaths),
-        newAttachments: Array.isArray(item.newAttachments) ? item.newAttachments : [],
+        newAttachments: Array.isArray(item.newAttachments)
+            ? item.newAttachments
+            : [],
         createdAt: text(item.createdAt),
         updatedAt: text(item.updatedAt),
     };
@@ -159,7 +193,9 @@ export function loadRegistrazioneProgettoSpeciale(code: string) {
         [text(code)],
     );
     const raw = result?.[0]?.values?.[0]?.[0];
-    return raw ? normalizeRegistrazioneProgettoSpeciale(parseJson(raw, {})) : null;
+    return raw
+        ? normalizeRegistrazioneProgettoSpeciale(parseJson(raw, {}))
+        : null;
 }
 
 export function saveRegistrazioneProgettoSpeciale(payload: any) {
@@ -169,17 +205,25 @@ export function saveRegistrazioneProgettoSpeciale(payload: any) {
     const previousCode = text(payload?.previousCode);
     const target = loadRegistrazioneProgettoSpeciale(normalized.code);
     if (target && previousCode !== normalized.code) {
-        throw new Error(`Esiste già una registrazione con numero progetto ${normalized.code}.`);
+        throw new Error(
+            `Esiste già una registrazione con numero progetto ${normalized.code}.`,
+        );
     }
-    const current = (previousCode ? loadRegistrazioneProgettoSpeciale(previousCode) : null) || target;
+    const current =
+        (previousCode
+            ? loadRegistrazioneProgettoSpeciale(previousCode)
+            : null) || target;
     const retained = normalizeScopedAttachments(normalized.attachments);
     const retainedIds = new Set(retained.map((item) => item.id));
-    const removed = normalizeScopedAttachments(current?.attachments)
-        .filter((item) => !retainedIds.has(item.id));
-    const added = attachments.saveNew(normalized.newAttachments).map((item, index) => ({
-        ...item,
-        scopeKey: text(normalized.newAttachments?.[index]?.scopeKey),
-    }));
+    const removed = normalizeScopedAttachments(current?.attachments).filter(
+        (item) => !retainedIds.has(item.id),
+    );
+    const added = attachments
+        .saveNew(normalized.newAttachments)
+        .map((item, index) => ({
+            ...item,
+            scopeKey: text(normalized.newAttachments?.[index]?.scopeKey),
+        }));
     const now = new Date().toISOString();
     const next = normalizeRegistrazioneProgettoSpeciale({
         ...normalized,
@@ -191,7 +235,9 @@ export function saveRegistrazioneProgettoSpeciale(payload: any) {
     try {
         runSqliteTransaction((database) => {
             if (previousCode && previousCode !== next.code) {
-                database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [previousCode]);
+                database.run(`DELETE FROM ${TABLE} WHERE code = ?`, [
+                    previousCode,
+                ]);
             }
             database.run(
                 `INSERT OR REPLACE INTO ${TABLE}

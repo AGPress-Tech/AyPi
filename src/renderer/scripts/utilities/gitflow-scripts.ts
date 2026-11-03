@@ -30,7 +30,9 @@ async function init() {
     if (!payload || !payload.ok || !payload.data || !payload.data.length) {
         const reason = payload?.reason ? `Motivo: ${payload.reason}` : "";
         const error = payload?.error ? `Errore: ${payload.error}` : "";
-        const tokenInfo = payload?.tokenPresent ? "Token: rilevato" : "Token: NON rilevato";
+        const tokenInfo = payload?.tokenPresent
+            ? "Token: rilevato"
+            : "Token: NON rilevato";
         track.innerHTML = `<div style="color:#8a95a8; padding:16px;">
             Nessun dato disponibile.<br>${tokenInfo}<br>${reason}<br>${error}
         </div>`;

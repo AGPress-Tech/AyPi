@@ -4,13 +4,9 @@ export function setupLogin(context) {
     let adminFailCount = 0;
     const loginButton = document.getElementById("pm-login-toggle");
     const closeButton = document.getElementById("pm-login-close");
-    const employeeChoice = document.getElementById(
-        "pm-login-choice-employee",
-    );
+    const employeeChoice = document.getElementById("pm-login-choice-employee");
     const adminChoice = document.getElementById("pm-login-choice-admin");
-    const employeePanel = document.getElementById(
-        "pm-login-employee-panel",
-    );
+    const employeePanel = document.getElementById("pm-login-employee-panel");
     const adminPanel = document.getElementById("pm-login-admin-panel");
     const employeeConfirm = document.getElementById(
         "pm-login-employee-confirm",
@@ -18,16 +14,10 @@ export function setupLogin(context) {
     const adminConfirm = document.getElementById("pm-login-admin-confirm");
     const adminError = document.getElementById("pm-login-admin-error");
     const adminRecover = document.getElementById("pm-login-admin-recover");
-    const employeeDepartment = document.getElementById(
-        "pm-login-department",
-    );
-    const employeeName = document.getElementById(
-        "pm-login-employee-name",
-    );
+    const employeeDepartment = document.getElementById("pm-login-department");
+    const employeeName = document.getElementById("pm-login-employee-name");
     const adminName = document.getElementById("pm-login-admin-name");
-    const adminPassword = document.getElementById(
-        "pm-login-admin-password",
-    );
+    const adminPassword = document.getElementById("pm-login-admin-password");
 
     const resetAdminError = () => {
         adminFailCount = 0;
@@ -40,11 +30,7 @@ export function setupLogin(context) {
             adminError.classList.remove("is-hidden");
         }
         adminFailCount += 1;
-        if (
-            allowRecovery &&
-            adminRecover &&
-            adminFailCount >= 3
-        ) {
+        if (allowRecovery && adminRecover && adminFailCount >= 3) {
             adminRecover.classList.remove("is-hidden");
         }
     };
@@ -80,9 +66,7 @@ export function setupLogin(context) {
         const department = employeeDepartment?.value || "";
         const employee = employeeName?.value || "";
         if (!department || !employee) {
-            context.showWarning(
-                "Seleziona reparto e dipendente per accedere.",
-            );
+            context.showWarning("Seleziona reparto e dipendente per accedere.");
             return;
         }
         context.setSession({

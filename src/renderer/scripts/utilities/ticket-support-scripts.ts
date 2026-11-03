@@ -1,10 +1,24 @@
 // @ts-nocheck
 require("../shared/dev-guards");
-import { loadStore, saveStore, hydrateStore } from "./ticket-support/services/storage";
-import { isMailerAvailable, getMailerError, sendMail } from "./ticket-support/services/mailer";
+import {
+    loadStore,
+    saveStore,
+    hydrateStore,
+} from "./ticket-support/services/storage";
+import {
+    isMailerAvailable,
+    getMailerError,
+    sendMail,
+} from "./ticket-support/services/mailer";
 import { ipcRenderer } from "electron";
 import { createOtpModals } from "./ferie-permessi/ui/otp-modals";
-import { isHashingAvailable, hashPassword, getAuthenticator, otpState, resetOtpState } from "./ferie-permessi/config/security";
+import {
+    isHashingAvailable,
+    hashPassword,
+    getAuthenticator,
+    otpState,
+    resetOtpState,
+} from "./ferie-permessi/config/security";
 import {
     isMailerAvailable as isOtpMailerAvailable,
     getMailerError as getOtpMailerError,
@@ -13,10 +27,26 @@ import {
     sendTestEmail,
     sendOtpEmail,
 } from "./ferie-permessi/services/otp-mail";
-import { OTP_EXPIRY_MS, OTP_RESEND_MS } from "./ferie-permessi/config/constants";
+import {
+    OTP_EXPIRY_MS,
+    OTP_RESEND_MS,
+} from "./ferie-permessi/config/constants";
 import { showDialog } from "./ferie-permessi/services/dialogs";
-import { session, setSession, saveSession, loadSession, clearSession, applySharedSessionData, isAdmin, isEmployee, isLoggedIn } from "./product-manager/state/session";
-import { renderLoginSelectors, renderAdminSelect } from "./product-manager/ui/login-selectors";
+import {
+    session,
+    setSession,
+    saveSession,
+    loadSession,
+    clearSession,
+    applySharedSessionData,
+    isAdmin,
+    isEmployee,
+    isLoggedIn,
+} from "./product-manager/state/session";
+import {
+    renderLoginSelectors,
+    renderAdminSelect,
+} from "./product-manager/ui/login-selectors";
 import { requestBackend } from "../shared/backend-client";
 import { createAsyncGuard } from "../shared/async-guard";
 import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
@@ -26,15 +56,35 @@ import { isValidEmail } from "../shared/validation";
 import { normalizeAdminEntry } from "../shared/admin-data";
 
 const ADMIN_EMAIL = "tech@agpress-srl.it";
-const STATUS_LIST = ["Da prendere in carico", "Presa in carico", "In Attesa", "Risolto", "Chiuso"];
+const STATUS_LIST = [
+    "Da prendere in carico",
+    "Presa in carico",
+    "In Attesa",
+    "Risolto",
+    "Chiuso",
+];
 const FINAL_STATUSES = new Set(["Risolto", "Chiuso"]);
 const FINAL_STATUS_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_ISSUE_TYPES = ["Assistenza", "Bug", "Richiesta nuova funzione", "Altro"];
-const DEFAULT_AREAS = ["Mail", "MES", "Gestionale", "Hardware", "Rete", "Altro"];
+const DEFAULT_ISSUE_TYPES = [
+    "Assistenza",
+    "Bug",
+    "Richiesta nuova funzione",
+    "Altro",
+];
+const DEFAULT_AREAS = [
+    "Mail",
+    "MES",
+    "Gestionale",
+    "Hardware",
+    "Rete",
+    "Altro",
+];
 const params = new URLSearchParams(window.location.search || "");
-const currentView = (params.get("tsView") || "form").toLowerCase() === "admin" ? "admin" : "form";
-const IS_BLUE_ARCHIVE_TICKET_SUPPORT =
-    params.get("theme") === "bluearchive";
+const currentView =
+    (params.get("tsView") || "form").toLowerCase() === "admin"
+        ? "admin"
+        : "form";
+const IS_BLUE_ARCHIVE_TICKET_SUPPORT = params.get("theme") === "bluearchive";
 const SPLASH_MODE = createScriptedSplashMode([
     "fp-bluearchive",
     "bluearchive-purchasing",
@@ -43,8 +93,15 @@ const SPLASH_MODE = createScriptedSplashMode([
 // Ticket Support intentionally uses one shared, light-blue visual language in
 // both application modes. Keep the mode flag only for mode-specific behaviour
 // (pointer effects and child-window payloads), never for the module skin.
-document.body.classList.add("fp-bluearchive", "bluearchive-purchasing", "bluearchive-ticket-support");
-document.body.classList.toggle("agpress-login-ui", !IS_BLUE_ARCHIVE_TICKET_SUPPORT);
+document.body.classList.add(
+    "fp-bluearchive",
+    "bluearchive-purchasing",
+    "bluearchive-ticket-support",
+);
+document.body.classList.toggle(
+    "agpress-login-ui",
+    !IS_BLUE_ARCHIVE_TICKET_SUPPORT,
+);
 initBlueArchivePointerEffects(IS_BLUE_ARCHIVE_TICKET_SUPPORT);
 
 function runBlueArchiveTicketSupportSplash() {
@@ -101,8 +158,14 @@ let editMode = "";
 let adminLoginFailCount = 0;
 const adminFilters = { search: "", status: "", area: "", priority: "" };
 const operatorFilters = { search: "", status: "", area: "", priority: "" };
-let ticketCategories = { issueTypes: [...DEFAULT_ISSUE_TYPES], areas: [...DEFAULT_AREAS] };
-const categoriesUiState = { issueTypesEditingName: null, areasEditingName: null };
+let ticketCategories = {
+    issueTypes: [...DEFAULT_ISSUE_TYPES],
+    areas: [...DEFAULT_AREAS],
+};
+const categoriesUiState = {
+    issueTypesEditingName: null,
+    areasEditingName: null,
+};
 
 const asyncGuard = createAsyncGuard({
     errorTitle: "Errore Ticket Support.",
@@ -158,10 +221,14 @@ async function verifyAdminPassword(password, targetName) {
 }
 
 function findAdminByName(name) {
-    const lower = String(name || "").trim().toLowerCase();
-    return loadAdminCredentials().find(
-        (item) => item.name.trim().toLowerCase() === lower,
-    ) || null;
+    const lower = String(name || "")
+        .trim()
+        .toLowerCase();
+    return (
+        loadAdminCredentials().find(
+            (item) => item.name.trim().toLowerCase() === lower,
+        ) || null
+    );
 }
 
 function loadAssigneeOptions() {
@@ -175,9 +242,13 @@ function loadAssigneeOptions() {
 async function hydrateAssignees() {
     const payload = await requestBackend("/api/shared/assignees");
     assigneeGroups =
-        payload?.groups && typeof payload.groups === "object" ? payload.groups : {};
+        payload?.groups && typeof payload.groups === "object"
+            ? payload.groups
+            : {};
     assigneeEmails =
-        payload?.emails && typeof payload.emails === "object" ? payload.emails : {};
+        payload?.emails && typeof payload.emails === "object"
+            ? payload.emails
+            : {};
     return loadAssigneeOptions();
 }
 
@@ -186,7 +257,9 @@ function nowIso() {
 }
 
 function toKey(value) {
-    return String(value || "").trim().toLowerCase();
+    return String(value || "")
+        .trim()
+        .toLowerCase();
 }
 
 function escapeHtml(value) {
@@ -194,7 +267,7 @@ function escapeHtml(value) {
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
-        .replaceAll("\"", "&quot;")
+        .replaceAll('"', "&quot;")
         .replaceAll("'", "&#39;");
 }
 
@@ -202,7 +275,10 @@ function formatDateTime(value) {
     if (!value) return "-";
     const date = value instanceof Date ? value : new Date(value);
     if (!Number.isFinite(date.getTime())) return "-";
-    return new Intl.DateTimeFormat("it-IT", { dateStyle: "short", timeStyle: "medium" }).format(date);
+    return new Intl.DateTimeFormat("it-IT", {
+        dateStyle: "short",
+        timeStyle: "medium",
+    }).format(date);
 }
 
 function getStatusPresentation(status) {
@@ -214,7 +290,9 @@ function getStatusPresentation(status) {
         Risolto: { slug: "resolved", icon: "task_alt" },
         Chiuso: { slug: "closed", icon: "lock" },
     };
-    return presentations[normalized] || { slug: "unknown", icon: "help_outline" };
+    return (
+        presentations[normalized] || { slug: "unknown", icon: "help_outline" }
+    );
 }
 
 function renderStatusBadge(status) {
@@ -230,7 +308,9 @@ function setTheme() {
 
 function initTheme() {
     setTheme();
-    try { window.localStorage.removeItem("ts-theme"); } catch {}
+    try {
+        window.localStorage.removeItem("ts-theme");
+    } catch {}
 }
 
 function openSettingsModal() {
@@ -288,12 +368,18 @@ function ensureMailSettingsModal() {
 
 function readMailSettingsForm() {
     return {
-        host: String(document.getElementById("ts-mail-host")?.value || "").trim(),
+        host: String(
+            document.getElementById("ts-mail-host")?.value || "",
+        ).trim(),
         port: Number(document.getElementById("ts-mail-port")?.value || 587),
         secure: !!document.getElementById("ts-mail-secure")?.checked,
-        user: String(document.getElementById("ts-mail-user")?.value || "").trim(),
+        user: String(
+            document.getElementById("ts-mail-user")?.value || "",
+        ).trim(),
         pass: String(document.getElementById("ts-mail-pass")?.value || ""),
-        from: String(document.getElementById("ts-mail-from")?.value || "").trim(),
+        from: String(
+            document.getElementById("ts-mail-from")?.value || "",
+        ).trim(),
     };
 }
 
@@ -307,14 +393,21 @@ async function openMailSettingsModal() {
     try {
         const config = (await loadMailConfig()) || {};
         document.getElementById("ts-mail-host").value = config.host || "";
-        document.getElementById("ts-mail-port").value = String(config.port || 587);
+        document.getElementById("ts-mail-port").value = String(
+            config.port || 587,
+        );
         document.getElementById("ts-mail-secure").checked = !!config.secure;
         document.getElementById("ts-mail-user").value = config.user || "";
         document.getElementById("ts-mail-pass").value = config.pass || "";
         document.getElementById("ts-mail-from").value = config.from || "";
-        document.getElementById("ts-mail-test-to").value = config.from || config.user || "";
+        document.getElementById("ts-mail-test-to").value =
+            config.from || config.user || "";
     } catch (error) {
-        showInlineMessage("ts-mail-message", `Configurazione non caricata: ${error.message || error}`, "error");
+        showInlineMessage(
+            "ts-mail-message",
+            `Configurazione non caricata: ${error.message || error}`,
+            "error",
+        );
     }
     openModal("ts-mail-modal");
 }
@@ -322,23 +415,45 @@ async function openMailSettingsModal() {
 async function saveTicketMailSettings() {
     try {
         await saveMailConfig(readMailSettingsForm());
-        showInlineMessage("ts-mail-message", "Configurazione email salvata.", "success");
+        showInlineMessage(
+            "ts-mail-message",
+            "Configurazione email salvata.",
+            "success",
+        );
     } catch (error) {
-        showInlineMessage("ts-mail-message", `Salvataggio non riuscito: ${error.message || error}`, "error");
+        showInlineMessage(
+            "ts-mail-message",
+            `Salvataggio non riuscito: ${error.message || error}`,
+            "error",
+        );
     }
 }
 
 async function testTicketMailSettings() {
-    const recipient = String(document.getElementById("ts-mail-test-to")?.value || "").trim();
+    const recipient = String(
+        document.getElementById("ts-mail-test-to")?.value || "",
+    ).trim();
     if (!isValidEmail(recipient)) {
-        showInlineMessage("ts-mail-message", "Inserisci un destinatario di test valido.", "error");
+        showInlineMessage(
+            "ts-mail-message",
+            "Inserisci un destinatario di test valido.",
+            "error",
+        );
         return;
     }
     try {
         await sendTestEmail(readMailSettingsForm(), recipient);
-        showInlineMessage("ts-mail-message", "Email di test inviata correttamente.", "success");
+        showInlineMessage(
+            "ts-mail-message",
+            "Email di test inviata correttamente.",
+            "success",
+        );
     } catch (error) {
-        showInlineMessage("ts-mail-message", `Invio test non riuscito: ${error.message || error}`, "error");
+        showInlineMessage(
+            "ts-mail-message",
+            `Invio test non riuscito: ${error.message || error}`,
+            "error",
+        );
     }
 }
 
@@ -362,10 +477,15 @@ function closeBackupModal() {
 function createTicketBackup() {
     requestBackend("/api/ticket-support/backups", { method: "POST" })
         .then((payload) => {
-            setBackupMessage(`Backup creato: ${payload?.path || payload?.name || ""}`);
+            setBackupMessage(
+                `Backup creato: ${payload?.path || payload?.name || ""}`,
+            );
         })
         .catch((err) => {
-            setBackupMessage(`Errore creazione backup: ${err.message || String(err)}`, true);
+            setBackupMessage(
+                `Errore creazione backup: ${err.message || String(err)}`,
+                true,
+            );
         });
 }
 
@@ -374,7 +494,8 @@ async function restoreTicketBackup() {
         setBackupMessage("");
         const ok = await showTicketConfirm({
             title: "Ripristina backup",
-            message: "Il database Ticket corrente verrà sostituito. Vuoi continuare?",
+            message:
+                "Il database Ticket corrente verrà sostituito. Vuoi continuare?",
             confirmLabel: "Ripristina",
             danger: true,
         });
@@ -403,7 +524,10 @@ async function restoreTicketBackup() {
         renderAll();
         setBackupMessage("Ripristino completato.");
     } catch (err) {
-        setBackupMessage(`Errore ripristino backup: ${err.message || String(err)}`, true);
+        setBackupMessage(
+            `Errore ripristino backup: ${err.message || String(err)}`,
+            true,
+        );
     }
 }
 
@@ -440,7 +564,8 @@ function setMessage(node, text, isError = false) {
 }
 
 function showWarning(message) {
-    const id = currentView === "admin" ? "ts-admin-message" : "ts-create-message";
+    const id =
+        currentView === "admin" ? "ts-admin-message" : "ts-create-message";
     showInlineMessage(id, message, "error");
 }
 
@@ -477,7 +602,10 @@ async function hydrateTicketCategories() {
         const payload = await requestBackend("/api/ticket-support/categories");
         ticketCategories = normalizeCategories(payload);
     } catch (err) {
-        console.error("[ticket-support] errore lettura categorie backend:", err);
+        console.error(
+            "[ticket-support] errore lettura categorie backend:",
+            err,
+        );
         ticketCategories = normalizeCategories({});
     }
     return loadTicketCategories();
@@ -491,7 +619,10 @@ function saveTicketCategories(next) {
             method: "PUT",
             body: payload,
         }).catch((err) => {
-            console.error("[ticket-support] errore salvataggio categorie backend:", err);
+            console.error(
+                "[ticket-support] errore salvataggio categorie backend:",
+                err,
+            );
             showWarning("Errore salvataggio categorie.");
         });
         return true;
@@ -513,16 +644,22 @@ function setTicketCategories(next) {
 }
 
 function getIssueTypes() {
-    return Array.isArray(ticketCategories.issueTypes) ? ticketCategories.issueTypes : [...DEFAULT_ISSUE_TYPES];
+    return Array.isArray(ticketCategories.issueTypes)
+        ? ticketCategories.issueTypes
+        : [...DEFAULT_ISSUE_TYPES];
 }
 
 function getAreas() {
-    return Array.isArray(ticketCategories.areas) ? ticketCategories.areas : [...DEFAULT_AREAS];
+    return Array.isArray(ticketCategories.areas)
+        ? ticketCategories.areas
+        : [...DEFAULT_AREAS];
 }
 
 function ensureOption(select, value, labelSuffix = " (legacy)") {
     if (!select || !value) return;
-    const exists = Array.from(select.options).some((opt) => opt.value === value);
+    const exists = Array.from(select.options).some(
+        (opt) => opt.value === value,
+    );
     if (exists) return;
     const option = document.createElement("option");
     option.value = value;
@@ -557,12 +694,32 @@ function renderCategorySelects() {
     const issueTypes = getIssueTypes();
     const areas = getAreas();
 
-    renderSelectOptions(document.getElementById("ts-issue-type"), issueTypes, "Seleziona...");
-    renderSelectOptions(document.getElementById("ts-area"), areas, "Seleziona...");
-    renderSelectOptions(document.getElementById("ts-edit-type"), issueTypes, null);
+    renderSelectOptions(
+        document.getElementById("ts-issue-type"),
+        issueTypes,
+        "Seleziona...",
+    );
+    renderSelectOptions(
+        document.getElementById("ts-area"),
+        areas,
+        "Seleziona...",
+    );
+    renderSelectOptions(
+        document.getElementById("ts-edit-type"),
+        issueTypes,
+        null,
+    );
     renderSelectOptions(document.getElementById("ts-edit-area"), areas, null);
-    renderSelectOptions(document.getElementById("ts-admin-filter-area"), areas, "Tutti");
-    renderSelectOptions(document.getElementById("ts-op-filter-area"), areas, "Tutti");
+    renderSelectOptions(
+        document.getElementById("ts-admin-filter-area"),
+        areas,
+        "Tutti",
+    );
+    renderSelectOptions(
+        document.getElementById("ts-op-filter-area"),
+        areas,
+        "Tutti",
+    );
 
     const adminArea = document.getElementById("ts-admin-filter-area");
     if (adminArea) {
@@ -621,7 +778,11 @@ function renderEditableList({
                 if (!dataTransfer) return;
                 const fromIndex = Number(dataTransfer.getData("text/plain"));
                 const toIndex = Number(row.dataset.index || "0");
-                if (Number.isNaN(fromIndex) || Number.isNaN(toIndex) || fromIndex === toIndex) {
+                if (
+                    Number.isNaN(fromIndex) ||
+                    Number.isNaN(toIndex) ||
+                    fromIndex === toIndex
+                ) {
                     return;
                 }
                 onReorder(fromIndex, toIndex);
@@ -729,7 +890,9 @@ function renderCategoriesModal() {
         },
         onRename: (from, to) => {
             const next = issueTypes.map((item) => (item === from ? to : item));
-            if (setTicketCategories({ ...ticketCategories, issueTypes: next })) {
+            if (
+                setTicketCategories({ ...ticketCategories, issueTypes: next })
+            ) {
                 store.tickets.forEach((ticket) => {
                     if (ticket.issueType === from) ticket.issueType = to;
                 });
@@ -741,7 +904,9 @@ function renderCategoriesModal() {
         },
         onRemove: (value) => {
             const next = issueTypes.filter((item) => item !== value);
-            if (setTicketCategories({ ...ticketCategories, issueTypes: next })) {
+            if (
+                setTicketCategories({ ...ticketCategories, issueTypes: next })
+            ) {
                 renderAll();
                 renderCategoriesModal();
             }
@@ -750,7 +915,9 @@ function renderCategoriesModal() {
             const next = [...issueTypes];
             const [moved] = next.splice(fromIndex, 1);
             next.splice(toIndex, 0, moved);
-            if (setTicketCategories({ ...ticketCategories, issueTypes: next })) {
+            if (
+                setTicketCategories({ ...ticketCategories, issueTypes: next })
+            ) {
                 renderCategoriesModal();
             }
         },
@@ -902,7 +1069,9 @@ function getCurrentRequester() {
 
 function getTicketOwnerPersonKey(ticket) {
     if (!ticket) return "";
-    const createdByKey = String(ticket.createdByKey || "").trim().toLowerCase();
+    const createdByKey = String(ticket.createdByKey || "")
+        .trim()
+        .toLowerCase();
     if (createdByKey.startsWith("person|")) return createdByKey;
     const requesterName = String(ticket.requester?.name || "").trim();
     if (requesterName) return getPersonKey(requesterName);
@@ -911,11 +1080,18 @@ function getTicketOwnerPersonKey(ticket) {
 
 function isTicketOwnedByRequester(ticket, requester) {
     if (!ticket || !requester) return false;
-    const personKey = String(requester.personKey || "").trim().toLowerCase();
-    const legacyKey = String(requester.key || "").trim().toLowerCase();
-    const ticketKey = String(ticket.createdByKey || "").trim().toLowerCase();
+    const personKey = String(requester.personKey || "")
+        .trim()
+        .toLowerCase();
+    const legacyKey = String(requester.key || "")
+        .trim()
+        .toLowerCase();
+    const ticketKey = String(ticket.createdByKey || "")
+        .trim()
+        .toLowerCase();
     const ticketPersonKey = getTicketOwnerPersonKey(ticket);
-    if (personKey && (ticketKey === personKey || ticketPersonKey === personKey)) return true;
+    if (personKey && (ticketKey === personKey || ticketPersonKey === personKey))
+        return true;
     if (legacyKey && ticketKey === legacyKey) return true;
     return false;
 }
@@ -980,9 +1156,20 @@ function getFinalStatusTimestamp(ticket) {
     const status = String(ticket?.status || "").trim();
     let raw = "";
     if (status === "Chiuso") {
-        raw = ticket?.closedAt || ticket?.resolvedAt || ticket?.lastStatusChangeAt || ticket?.updatedAt || ticket?.createdAt || "";
+        raw =
+            ticket?.closedAt ||
+            ticket?.resolvedAt ||
+            ticket?.lastStatusChangeAt ||
+            ticket?.updatedAt ||
+            ticket?.createdAt ||
+            "";
     } else if (status === "Risolto") {
-        raw = ticket?.resolvedAt || ticket?.lastStatusChangeAt || ticket?.updatedAt || ticket?.createdAt || "";
+        raw =
+            ticket?.resolvedAt ||
+            ticket?.lastStatusChangeAt ||
+            ticket?.updatedAt ||
+            ticket?.createdAt ||
+            "";
     }
     if (!raw) return 0;
     const ts = new Date(raw).getTime();
@@ -1002,9 +1189,15 @@ function filterAdminTickets(tickets) {
     return tickets
         .filter((ticket) => !isTicketExpired(ticket, nowMs))
         .filter((ticket) => {
-            if (adminFilters.status && ticket.status !== adminFilters.status) return false;
-            if (adminFilters.area && ticket.area !== adminFilters.area) return false;
-            if (adminFilters.priority && ticket.priority !== adminFilters.priority) return false;
+            if (adminFilters.status && ticket.status !== adminFilters.status)
+                return false;
+            if (adminFilters.area && ticket.area !== adminFilters.area)
+                return false;
+            if (
+                adminFilters.priority &&
+                ticket.priority !== adminFilters.priority
+            )
+                return false;
             if (!search) return true;
             const haystack = [
                 ticket.id,
@@ -1015,10 +1208,14 @@ function filterAdminTickets(tickets) {
                 ticket.priority,
                 ticket.status,
                 ticket.description,
-            ].join(" ").toLowerCase();
+            ]
+                .join(" ")
+                .toLowerCase();
             return haystack.includes(search);
         })
-        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        .sort((a, b) =>
+            String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
+        );
 }
 
 function filterOperatorTickets(tickets) {
@@ -1027,9 +1224,18 @@ function filterOperatorTickets(tickets) {
     return tickets
         .filter((ticket) => !isTicketExpired(ticket, nowMs))
         .filter((ticket) => {
-            if (operatorFilters.status && ticket.status !== operatorFilters.status) return false;
-            if (operatorFilters.area && ticket.area !== operatorFilters.area) return false;
-            if (operatorFilters.priority && ticket.priority !== operatorFilters.priority) return false;
+            if (
+                operatorFilters.status &&
+                ticket.status !== operatorFilters.status
+            )
+                return false;
+            if (operatorFilters.area && ticket.area !== operatorFilters.area)
+                return false;
+            if (
+                operatorFilters.priority &&
+                ticket.priority !== operatorFilters.priority
+            )
+                return false;
             if (!search) return true;
             const haystack = [
                 ticket.id,
@@ -1038,16 +1244,23 @@ function filterOperatorTickets(tickets) {
                 ticket.priority,
                 ticket.status,
                 ticket.description,
-            ].join(" ").toLowerCase();
+            ]
+                .join(" ")
+                .toLowerCase();
             return haystack.includes(search);
         })
-        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        .sort((a, b) =>
+            String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
+        );
 }
 
 async function trySendMail(payload) {
     if (!isMailerAvailable()) {
         const err = getMailerError();
-        return { ok: false, error: err ? String(err.message || err) : "Mailer non disponibile" };
+        return {
+            ok: false,
+            error: err ? String(err.message || err) : "Mailer non disponibile",
+        };
     }
     try {
         await sendMail(payload);
@@ -1076,7 +1289,11 @@ async function notifyAdminOnCreate(ticket) {
 async function notifyRequesterOnStatusChange(ticket, fromStatus, toStatus) {
     const recipient = String(ticket.requester?.email || "").trim();
     if (!recipient || !isValidEmail(recipient)) {
-        return { ok: false, skipped: true, error: "Email dipendente non disponibile." };
+        return {
+            ok: false,
+            skipped: true,
+            error: "Email dipendente non disponibile.",
+        };
     }
     const subject = `[AyPi Ticket Support] Aggiornamento ticket ${ticket.id}`;
     const text =
@@ -1102,11 +1319,17 @@ function renderOperatorList() {
 
     const me = getCurrentRequester();
     const adminNameKey = isAdmin() ? toKey(session.adminName || "") : "";
-    const mine = filterOperatorTickets(store.tickets.filter((ticket) => {
-        if (isTicketOwnedByRequester(ticket, me)) return true;
-        if (adminNameKey && toKey(ticket.requester?.name || "") === adminNameKey) return true;
-        return false;
-    }));
+    const mine = filterOperatorTickets(
+        store.tickets.filter((ticket) => {
+            if (isTicketOwnedByRequester(ticket, me)) return true;
+            if (
+                adminNameKey &&
+                toKey(ticket.requester?.name || "") === adminNameKey
+            )
+                return true;
+            return false;
+        }),
+    );
 
     if (!mine.length) {
         if (feedCount) feedCount.textContent = "00";
@@ -1114,27 +1337,33 @@ function renderOperatorList() {
         return;
     }
     if (feedCount) {
-        feedCount.textContent = String(Math.min(mine.length, 99)).padStart(2, "0");
+        feedCount.textContent = String(Math.min(mine.length, 99)).padStart(
+            2,
+            "0",
+        );
     }
 
-    container.innerHTML = mine.map((ticket) => {
-        const history = (ticket.history || [])
-            .slice()
-            .sort((a, b) => String(a.at).localeCompare(String(b.at)))
-            .slice(-3)
-            .map((item) => {
-                const rawEvent = String(item?.event || "");
-                const isCreated = rawEvent.trim().toLowerCase() === "ticket creato";
-                const statusPart = !isCreated && (item.fromStatus || item.toStatus)
-                    ? ` (${item.fromStatus || "-"} -> ${item.toStatus || "-"})`
-                    : "";
-                const notePart = item.note ? ` | Info: ${item.note}` : "";
-                return `[${formatDateTime(item.at)}] ${item.event}${statusPart}${notePart}`;
-            })
-            .join("\n");
-        const statusPresentation = getStatusPresentation(ticket.status);
-        const statusClass = ` ts-ticket-card--status-${statusPresentation.slug}`;
-        return `
+    container.innerHTML = mine
+        .map((ticket) => {
+            const history = (ticket.history || [])
+                .slice()
+                .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+                .slice(-3)
+                .map((item) => {
+                    const rawEvent = String(item?.event || "");
+                    const isCreated =
+                        rawEvent.trim().toLowerCase() === "ticket creato";
+                    const statusPart =
+                        !isCreated && (item.fromStatus || item.toStatus)
+                            ? ` (${item.fromStatus || "-"} -> ${item.toStatus || "-"})`
+                            : "";
+                    const notePart = item.note ? ` | Info: ${item.note}` : "";
+                    return `[${formatDateTime(item.at)}] ${item.event}${statusPart}${notePart}`;
+                })
+                .join("\n");
+            const statusPresentation = getStatusPresentation(ticket.status);
+            const statusClass = ` ts-ticket-card--status-${statusPresentation.slug}`;
+            return `
             <article class="ts-ticket-card${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
                 <div class="ts-ticket-card__head">
                     <div class="ts-ticket-card__title">
@@ -1165,7 +1394,8 @@ function renderOperatorList() {
                 </div>
             </article>
         `;
-    }).join("");
+        })
+        .join("");
 
     container.querySelectorAll(".ts-op-edit").forEach((btn) => {
         const ticketId = btn.dataset.ticketId || "";
@@ -1180,11 +1410,14 @@ function renderOperatorList() {
 
     if (container.dataset.tsBound !== "1") {
         container.addEventListener("click", (event) => {
-            const target = event.target instanceof Element ? event.target : null;
+            const target =
+                event.target instanceof Element ? event.target : null;
             if (!target) return;
             const historyBtn = target.closest(".ts-history-open");
             if (historyBtn) {
-                openHistoryModal(historyBtn.getAttribute("data-ticket-id") || "");
+                openHistoryModal(
+                    historyBtn.getAttribute("data-ticket-id") || "",
+                );
                 return;
             }
             const editBtn = target.closest(".ts-op-edit");
@@ -1234,10 +1467,11 @@ function renderAdminTable() {
             <div class="pm-table__cell">Azioni</div>
         </div>
     `;
-    const body = rows.map((ticket) => {
-        const statusPresentation = getStatusPresentation(ticket.status);
-        const statusClass = ` ts-admin-row--${statusPresentation.slug}`;
-        return `
+    const body = rows
+        .map((ticket) => {
+            const statusPresentation = getStatusPresentation(ticket.status);
+            const statusClass = ` ts-admin-row--${statusPresentation.slug}`;
+            return `
         <div class="pm-table__row${statusClass}" data-ticket-id="${escapeHtml(ticket.id)}">
             <div class="pm-table__cell">
                 <button type="button" class="fp-link-btn ts-history-open" data-ticket-id="${escapeHtml(ticket.id)}">${escapeHtml(ticket.id)}</button>
@@ -1264,16 +1498,20 @@ function renderAdminTable() {
             </div>
         </div>
     `;
-    }).join("");
+        })
+        .join("");
 
     table.innerHTML = header + body;
     if (table.dataset.tsBound !== "1") {
         table.addEventListener("click", (event) => {
-            const target = event.target instanceof Element ? event.target : null;
+            const target =
+                event.target instanceof Element ? event.target : null;
             if (!target) return;
             const historyBtn = target.closest(".ts-history-open");
             if (historyBtn) {
-                openHistoryModal(historyBtn.getAttribute("data-ticket-id") || "");
+                openHistoryModal(
+                    historyBtn.getAttribute("data-ticket-id") || "",
+                );
                 return;
             }
             const editBtn = target.closest(".ts-admin-edit");
@@ -1283,7 +1521,9 @@ function renderAdminTable() {
             }
             const delBtn = target.closest(".ts-admin-delete");
             if (delBtn) {
-                deleteTicketByAdmin(delBtn.getAttribute("data-ticket-id") || "");
+                deleteTicketByAdmin(
+                    delBtn.getAttribute("data-ticket-id") || "",
+                );
                 return;
             }
             const statusBtn = target.closest(".ts-admin-status");
@@ -1334,7 +1574,15 @@ function updateRoleBadge() {
 
 function updateAdminButtonVisibility() {
     const isAdminUser = isAdmin();
-    ["ts-open-admin-list", "ts-clean-closed", "ts-settings-assignees-section", "ts-settings-admin-section", "ts-settings-categories-section", "ts-settings-backup-section", "ts-settings-mail-section"].forEach((id) => {
+    [
+        "ts-open-admin-list",
+        "ts-clean-closed",
+        "ts-settings-assignees-section",
+        "ts-settings-admin-section",
+        "ts-settings-categories-section",
+        "ts-settings-backup-section",
+        "ts-settings-mail-section",
+    ].forEach((id) => {
         const node = document.getElementById(id);
         if (!node) return;
         node.classList.toggle("ts-hidden", !isAdminUser);
@@ -1416,7 +1664,10 @@ function runTicketDialog({ title, message, confirmLabel, danger, options }) {
     const values = Array.isArray(options) ? options : [];
     if (choice) {
         choice.innerHTML = values
-            .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+            .map(
+                (value) =>
+                    `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`,
+            )
             .join("");
         choice.classList.toggle("is-hidden", values.length === 0);
     }
@@ -1479,14 +1730,20 @@ function formatHistoryEntry(entry) {
     const fromStatus = escapeHtml(entry?.fromStatus || "");
     const toStatus = escapeHtml(entry?.toStatus || "");
     const isCreated = rawEvent.trim().toLowerCase() === "ticket creato";
-    const statusPart = !isCreated && (fromStatus || toStatus)
-        ? ` (${fromStatus || "-"} -> ${toStatus || "-"})`
-        : "";
+    const statusPart =
+        !isCreated && (fromStatus || toStatus)
+            ? ` (${fromStatus || "-"} -> ${toStatus || "-"})`
+            : "";
     const rawNote = String(entry?.note || "").trim();
     let noteBlock = "";
     if (rawNote.startsWith("Modifiche:")) {
         const payload = rawNote.replace(/^Modifiche:\s*/i, "").trim();
-        const parts = payload ? payload.split(";").map((item) => item.trim()).filter(Boolean) : [];
+        const parts = payload
+            ? payload
+                  .split(";")
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+            : [];
         const rows = parts.map((item) => {
             const match = item.match(/^([^:]+):\s*\"(.*)\"\s*->\s*\"(.*)\"$/);
             if (!match) {
@@ -1585,11 +1842,9 @@ function openLoginModalAfterSplash() {
         return;
     }
 
-    window.addEventListener(
-        "ts-splash-finished",
-        () => openLoginModal(),
-        { once: true },
-    );
+    window.addEventListener("ts-splash-finished", () => openLoginModal(), {
+        once: true,
+    });
 }
 
 function closeLoginModal() {
@@ -1612,9 +1867,7 @@ function openAdminListModal() {
         return;
     }
     ipcRenderer.send("open-ticket-support-admin-window", {
-        theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
-            ? "bluearchive"
-            : "standard",
+        theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT ? "bluearchive" : "standard",
     });
 }
 
@@ -1687,33 +1940,64 @@ function saveTicketEdit() {
     }
 
     if (editMode === "employee" && !canEmployeeEdit(ticket)) {
-        showInlineMessage("ts-edit-message", "Questo ticket non e' piu modificabile.", "error");
+        showInlineMessage(
+            "ts-edit-message",
+            "Questo ticket non e' piu modificabile.",
+            "error",
+        );
         return;
     }
     if (editMode === "admin" && !isAdmin()) {
-        showInlineMessage("ts-edit-message", "Accesso admin richiesto.", "error");
+        showInlineMessage(
+            "ts-edit-message",
+            "Accesso admin richiesto.",
+            "error",
+        );
         return;
     }
 
-    const issueType = String(document.getElementById("ts-edit-type")?.value || "").trim();
-    const area = String(document.getElementById("ts-edit-area")?.value || "").trim();
-    const priority = String(document.getElementById("ts-edit-priority")?.value || "").trim();
-    const description = String(document.getElementById("ts-edit-description")?.value || "").trim();
+    const issueType = String(
+        document.getElementById("ts-edit-type")?.value || "",
+    ).trim();
+    const area = String(
+        document.getElementById("ts-edit-area")?.value || "",
+    ).trim();
+    const priority = String(
+        document.getElementById("ts-edit-priority")?.value || "",
+    ).trim();
+    const description = String(
+        document.getElementById("ts-edit-description")?.value || "",
+    ).trim();
 
-    if (!isValidSelectValue(document.getElementById("ts-edit-type"), issueType)) {
-        showInlineMessage("ts-edit-message", "Tipo intervento non valido.", "error");
+    if (
+        !isValidSelectValue(document.getElementById("ts-edit-type"), issueType)
+    ) {
+        showInlineMessage(
+            "ts-edit-message",
+            "Tipo intervento non valido.",
+            "error",
+        );
         return;
     }
     if (!isValidSelectValue(document.getElementById("ts-edit-area"), area)) {
         showInlineMessage("ts-edit-message", "Ambito non valido.", "error");
         return;
     }
-    if (!isValidSelectValue(document.getElementById("ts-edit-priority"), priority)) {
+    if (
+        !isValidSelectValue(
+            document.getElementById("ts-edit-priority"),
+            priority,
+        )
+    ) {
         showInlineMessage("ts-edit-message", "Priorita non valida.", "error");
         return;
     }
     if (!description) {
-        showInlineMessage("ts-edit-message", "Descrizione obbligatoria.", "error");
+        showInlineMessage(
+            "ts-edit-message",
+            "Descrizione obbligatoria.",
+            "error",
+        );
         return;
     }
 
@@ -1735,13 +2019,19 @@ function saveTicketEdit() {
     ticket.priority = priority;
     ticket.description = description;
     ticket.updatedAt = nowIso();
-    ticket.history.push(createHistory({
-        event: editMode === "employee" ? "Modifica dipendente" : "Modifica admin",
-        actor: editMode === "employee"
-            ? (getCurrentRequester().name || "Utente")
-            : (session.adminName || "Admin"),
-        note: buildEditNote(before, after),
-    }));
+    ticket.history.push(
+        createHistory({
+            event:
+                editMode === "employee"
+                    ? "Modifica dipendente"
+                    : "Modifica admin",
+            actor:
+                editMode === "employee"
+                    ? getCurrentRequester().name || "Utente"
+                    : session.adminName || "Admin",
+            note: buildEditNote(before, after),
+        }),
+    );
     saveAll();
     renderAll();
     closeEditModal();
@@ -1751,8 +2041,12 @@ async function saveStatusChange() {
     if (!isAdmin() || !statusEditingTicketId) return;
     const ticket = getTicketById(statusEditingTicketId);
     if (!ticket) return;
-    const toStatus = String(document.getElementById("ts-status-select")?.value || "").trim();
-    const infoText = String(document.getElementById("ts-status-info")?.value || "").trim();
+    const toStatus = String(
+        document.getElementById("ts-status-select")?.value || "",
+    ).trim();
+    const infoText = String(
+        document.getElementById("ts-status-info")?.value || "",
+    ).trim();
     if (!STATUS_LIST.includes(toStatus)) {
         showInlineMessage("ts-status-message", "Stato non valido.", "error");
         return;
@@ -1766,19 +2060,29 @@ async function saveStatusChange() {
     ticket.status = toStatus;
     ticket.updatedAt = at;
     updateStatusDates(ticket, toStatus, at);
-    ticket.history.push(createHistory({
-        event: "Cambio stato admin",
-        actor: session.adminName || "Admin",
-        fromStatus,
-        toStatus,
-        note: infoText,
-    }));
+    ticket.history.push(
+        createHistory({
+            event: "Cambio stato admin",
+            actor: session.adminName || "Admin",
+            fromStatus,
+            toStatus,
+            note: infoText,
+        }),
+    );
     saveAll();
     renderAll();
 
-    const mailResult = await notifyRequesterOnStatusChange(ticket, fromStatus, toStatus);
+    const mailResult = await notifyRequesterOnStatusChange(
+        ticket,
+        fromStatus,
+        toStatus,
+    );
     if (!mailResult.ok && !mailResult.skipped) {
-        showInlineMessage("ts-status-message", `Stato salvato, ma email non inviata: ${mailResult.error}`, "error");
+        showInlineMessage(
+            "ts-status-message",
+            `Stato salvato, ma email non inviata: ${mailResult.error}`,
+            "error",
+        );
         return;
     }
     closeStatusModal();
@@ -1793,16 +2097,32 @@ async function handleCreateTicket(event) {
     }
 
     const requester = getCurrentRequester();
-    const issueType = String(document.getElementById("ts-issue-type")?.value || "").trim();
+    const issueType = String(
+        document.getElementById("ts-issue-type")?.value || "",
+    ).trim();
     const area = String(document.getElementById("ts-area")?.value || "").trim();
-    const priority = String(document.getElementById("ts-priority")?.value || "Media").trim();
-    const description = String(document.getElementById("ts-description")?.value || "").trim();
+    const priority = String(
+        document.getElementById("ts-priority")?.value || "Media",
+    ).trim();
+    const description = String(
+        document.getElementById("ts-description")?.value || "",
+    ).trim();
     if (!issueType || !area || !description) {
-        showInlineMessage("ts-create-message", "Compila tipo intervento, ambito e descrizione.", "error");
+        showInlineMessage(
+            "ts-create-message",
+            "Compila tipo intervento, ambito e descrizione.",
+            "error",
+        );
         return;
     }
-    if (!isValidSelectValue(document.getElementById("ts-issue-type"), issueType)) {
-        showInlineMessage("ts-create-message", "Tipo intervento non valido.", "error");
+    if (
+        !isValidSelectValue(document.getElementById("ts-issue-type"), issueType)
+    ) {
+        showInlineMessage(
+            "ts-create-message",
+            "Tipo intervento non valido.",
+            "error",
+        );
         return;
     }
     if (!isValidSelectValue(document.getElementById("ts-area"), area)) {
@@ -1847,11 +2167,19 @@ async function handleCreateTicket(event) {
     saveAll();
     renderAll();
     document.getElementById("ts-ticket-form")?.reset();
-    showInlineMessage("ts-create-message", `Ticket ${ticket.id} creato.`, "success");
+    showInlineMessage(
+        "ts-create-message",
+        `Ticket ${ticket.id} creato.`,
+        "success",
+    );
 
     const mailResult = await notifyAdminOnCreate(ticket);
     if (!mailResult.ok) {
-        showInlineMessage("ts-create-message", `Ticket creato, ma email admin non inviata: ${mailResult.error}`, "error");
+        showInlineMessage(
+            "ts-create-message",
+            `Ticket creato, ma email admin non inviata: ${mailResult.error}`,
+            "error",
+        );
     }
 }
 
@@ -1906,13 +2234,15 @@ async function cleanClosedTickets() {
     });
     if (!ok) return;
     const before = store.tickets.length;
-    const remaining = store.tickets.filter((ticket) => !isFinalStatus(ticket.status));
+    const remaining = store.tickets.filter(
+        (ticket) => !isFinalStatus(ticket.status),
+    );
     const removed = before - remaining.length;
     if (!removed) {
         showInlineMessage(
             currentView === "admin" ? "ts-admin-message" : "ts-create-message",
             "Nessun ticket chiuso o risolto da rimuovere.",
-            "success"
+            "success",
         );
         return;
     }
@@ -1922,7 +2252,7 @@ async function cleanClosedTickets() {
     showInlineMessage(
         currentView === "admin" ? "ts-admin-message" : "ts-create-message",
         `Pulizia completata: rimossi ${removed} ticket.`,
-        "success"
+        "success",
     );
 }
 
@@ -1974,14 +2304,18 @@ function bindLoginEvents() {
     const choiceAdmin = document.getElementById("pm-login-choice-admin");
     const employeePanel = document.getElementById("pm-login-employee-panel");
     const adminPanel = document.getElementById("pm-login-admin-panel");
-    const employeeConfirm = document.getElementById("pm-login-employee-confirm");
+    const employeeConfirm = document.getElementById(
+        "pm-login-employee-confirm",
+    );
     const adminConfirm = document.getElementById("pm-login-admin-confirm");
     const adminError = document.getElementById("pm-login-admin-error");
     const adminRecover = document.getElementById("pm-login-admin-recover");
     const employeeDepartment = document.getElementById("pm-login-department");
     const employeeName = document.getElementById("pm-login-employee-name");
     const adminNameInput = document.getElementById("pm-login-admin-name");
-    const adminPasswordInput = document.getElementById("pm-login-admin-password");
+    const adminPasswordInput = document.getElementById(
+        "pm-login-admin-password",
+    );
 
     if (currentView === "admin") {
         if (loginToggle) {
@@ -2036,13 +2370,20 @@ function bindLoginEvents() {
 
     if (employeeConfirm) {
         employeeConfirm.addEventListener("click", () => {
-            const dept = document.getElementById("pm-login-department")?.value || "";
-            const emp = document.getElementById("pm-login-employee-name")?.value || "";
+            const dept =
+                document.getElementById("pm-login-department")?.value || "";
+            const emp =
+                document.getElementById("pm-login-employee-name")?.value || "";
             if (!dept || !emp) {
                 showWarning("Seleziona reparto e dipendente per accedere.");
                 return;
             }
-            setSession({ role: "employee", adminName: "", department: dept, employee: emp });
+            setSession({
+                role: "employee",
+                adminName: "",
+                department: dept,
+                employee: emp,
+            });
             saveSession();
             closeLoginModal();
             renderAll();
@@ -2052,55 +2393,71 @@ function bindLoginEvents() {
         if (!field || !employeeConfirm) return;
         field.addEventListener("keydown", (event) => {
             if (event.key !== "Enter") return;
-            if (employeePanel && employeePanel.classList.contains("is-hidden")) return;
+            if (employeePanel && employeePanel.classList.contains("is-hidden"))
+                return;
             event.preventDefault();
             employeeConfirm.click();
         });
     });
 
     if (adminConfirm) {
-        adminConfirm.addEventListener("click", asyncGuard.wrap(async () => {
-            const adminName = document.getElementById("pm-login-admin-name")?.value || "";
-            const password = document.getElementById("pm-login-admin-password")?.value || "";
-            if (adminError) adminError.classList.add("is-hidden");
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-            if (!adminName || !password) {
-                if (adminError) adminError.classList.remove("is-hidden");
-                adminLoginFailCount += 1;
-                if (adminRecover && adminLoginFailCount >= 3) {
-                    adminRecover.classList.remove("is-hidden");
+        adminConfirm.addEventListener(
+            "click",
+            asyncGuard.wrap(async () => {
+                const adminName =
+                    document.getElementById("pm-login-admin-name")?.value || "";
+                const password =
+                    document.getElementById("pm-login-admin-password")?.value ||
+                    "";
+                if (adminError) adminError.classList.add("is-hidden");
+                if (adminRecover) adminRecover.classList.add("is-hidden");
+                if (!adminName || !password) {
+                    if (adminError) adminError.classList.remove("is-hidden");
+                    adminLoginFailCount += 1;
+                    if (adminRecover && adminLoginFailCount >= 3) {
+                        adminRecover.classList.remove("is-hidden");
+                    }
+                    return;
                 }
-                return;
-            }
-            let verified = null;
-            try {
-                verified = await verifyAdminPassword(password, adminName);
-            } catch (err) {
-                console.error("[ticket-support] errore verifica admin backend:", err);
-                showWarning("Verifica admin non riuscita.");
-                return;
-            }
-            if (!verified || !verified.admin) {
-                if (adminError) adminError.classList.remove("is-hidden");
-                adminLoginFailCount += 1;
-                if (adminRecover && adminLoginFailCount >= 3) {
-                    adminRecover.classList.remove("is-hidden");
+                let verified = null;
+                try {
+                    verified = await verifyAdminPassword(password, adminName);
+                } catch (err) {
+                    console.error(
+                        "[ticket-support] errore verifica admin backend:",
+                        err,
+                    );
+                    showWarning("Verifica admin non riuscita.");
+                    return;
                 }
-                return;
-            }
-            adminLoginFailCount = 0;
-            if (adminRecover) adminRecover.classList.add("is-hidden");
-            setSession({ role: "admin", adminName: verified.admin.name, department: "", employee: "" });
-            saveSession();
-            closeLoginModal();
-            renderAll();
-        }));
+                if (!verified || !verified.admin) {
+                    if (adminError) adminError.classList.remove("is-hidden");
+                    adminLoginFailCount += 1;
+                    if (adminRecover && adminLoginFailCount >= 3) {
+                        adminRecover.classList.remove("is-hidden");
+                    }
+                    return;
+                }
+                adminLoginFailCount = 0;
+                if (adminRecover) adminRecover.classList.add("is-hidden");
+                setSession({
+                    role: "admin",
+                    adminName: verified.admin.name,
+                    department: "",
+                    employee: "",
+                });
+                saveSession();
+                closeLoginModal();
+                renderAll();
+            }),
+        );
     }
     [adminNameInput, adminPasswordInput].forEach((field) => {
         if (!field || !adminConfirm) return;
         field.addEventListener("keydown", (event) => {
             if (event.key !== "Enter") return;
-            if (adminPanel && adminPanel.classList.contains("is-hidden")) return;
+            if (adminPanel && adminPanel.classList.contains("is-hidden"))
+                return;
             event.preventDefault();
             adminConfirm.click();
         });
@@ -2114,81 +2471,117 @@ function bindLoginEvents() {
 }
 
 function bindLogoutEvents() {
-    document.getElementById("pm-logout-cancel")?.addEventListener("click", closeLogoutModal);
-    document.getElementById("pm-logout-confirm")?.addEventListener("click", () => {
-        clearSession();
-        resetAdminLoginSensitiveFields();
-        closeLogoutModal();
-        closeAdminListModal();
-        renderAll();
-    });
+    document
+        .getElementById("pm-logout-cancel")
+        ?.addEventListener("click", closeLogoutModal);
+    document
+        .getElementById("pm-logout-confirm")
+        ?.addEventListener("click", () => {
+            clearSession();
+            resetAdminLoginSensitiveFields();
+            closeLogoutModal();
+            closeAdminListModal();
+            renderAll();
+        });
 }
 
 function bindStatusModalEvents() {
-    document.getElementById("ts-status-close")?.addEventListener("click", closeStatusModal);
-    document.getElementById("ts-status-cancel")?.addEventListener("click", closeStatusModal);
+    document
+        .getElementById("ts-status-close")
+        ?.addEventListener("click", closeStatusModal);
+    document
+        .getElementById("ts-status-cancel")
+        ?.addEventListener("click", closeStatusModal);
     document
         .getElementById("ts-status-save")
         ?.addEventListener("click", asyncGuard.wrap(saveStatusChange));
 }
 
 function bindEditModalEvents() {
-    document.getElementById("ts-edit-close")?.addEventListener("click", closeEditModal);
-    document.getElementById("ts-edit-cancel")?.addEventListener("click", closeEditModal);
+    document
+        .getElementById("ts-edit-close")
+        ?.addEventListener("click", closeEditModal);
+    document
+        .getElementById("ts-edit-cancel")
+        ?.addEventListener("click", closeEditModal);
     document
         .getElementById("ts-edit-save")
         ?.addEventListener("click", asyncGuard.wrap(saveTicketEdit));
 }
 
 function bindHistoryEvents() {
-    document.getElementById("ts-history-close")?.addEventListener("click", closeHistoryModal);
+    document
+        .getElementById("ts-history-close")
+        ?.addEventListener("click", closeHistoryModal);
 }
 
 function bindAdminListEvents() {
-    document.getElementById("ts-open-admin-list")?.addEventListener("click", () => {
-        openAdminListModal();
-    });
-    document.getElementById("ts-admin-list-close")?.addEventListener("click", () => {
-        closeAdminListModal();
-    });
-    document.getElementById("ts-clean-closed")?.addEventListener("click", () => {
-        cleanClosedTickets();
-    });
-    document.getElementById("ts-admin-filter-search")?.addEventListener("input", (event) => {
-        adminFilters.search = String(event.target?.value || "");
-        renderAdminTable();
-    });
-    document.getElementById("ts-admin-filter-status")?.addEventListener("change", (event) => {
-        adminFilters.status = String(event.target?.value || "");
-        renderAdminTable();
-    });
-    document.getElementById("ts-admin-filter-area")?.addEventListener("change", (event) => {
-        adminFilters.area = String(event.target?.value || "");
-        renderAdminTable();
-    });
-    document.getElementById("ts-admin-filter-priority")?.addEventListener("change", (event) => {
-        adminFilters.priority = String(event.target?.value || "");
-        renderAdminTable();
-    });
+    document
+        .getElementById("ts-open-admin-list")
+        ?.addEventListener("click", () => {
+            openAdminListModal();
+        });
+    document
+        .getElementById("ts-admin-list-close")
+        ?.addEventListener("click", () => {
+            closeAdminListModal();
+        });
+    document
+        .getElementById("ts-clean-closed")
+        ?.addEventListener("click", () => {
+            cleanClosedTickets();
+        });
+    document
+        .getElementById("ts-admin-filter-search")
+        ?.addEventListener("input", (event) => {
+            adminFilters.search = String(event.target?.value || "");
+            renderAdminTable();
+        });
+    document
+        .getElementById("ts-admin-filter-status")
+        ?.addEventListener("change", (event) => {
+            adminFilters.status = String(event.target?.value || "");
+            renderAdminTable();
+        });
+    document
+        .getElementById("ts-admin-filter-area")
+        ?.addEventListener("change", (event) => {
+            adminFilters.area = String(event.target?.value || "");
+            renderAdminTable();
+        });
+    document
+        .getElementById("ts-admin-filter-priority")
+        ?.addEventListener("change", (event) => {
+            adminFilters.priority = String(event.target?.value || "");
+            renderAdminTable();
+        });
 }
 
 function bindOperatorListEvents() {
-    document.getElementById("ts-op-filter-search")?.addEventListener("input", (event) => {
-        operatorFilters.search = String(event.target?.value || "");
-        renderOperatorList();
-    });
-    document.getElementById("ts-op-filter-status")?.addEventListener("change", (event) => {
-        operatorFilters.status = String(event.target?.value || "");
-        renderOperatorList();
-    });
-    document.getElementById("ts-op-filter-area")?.addEventListener("change", (event) => {
-        operatorFilters.area = String(event.target?.value || "");
-        renderOperatorList();
-    });
-    document.getElementById("ts-op-filter-priority")?.addEventListener("change", (event) => {
-        operatorFilters.priority = String(event.target?.value || "");
-        renderOperatorList();
-    });
+    document
+        .getElementById("ts-op-filter-search")
+        ?.addEventListener("input", (event) => {
+            operatorFilters.search = String(event.target?.value || "");
+            renderOperatorList();
+        });
+    document
+        .getElementById("ts-op-filter-status")
+        ?.addEventListener("change", (event) => {
+            operatorFilters.status = String(event.target?.value || "");
+            renderOperatorList();
+        });
+    document
+        .getElementById("ts-op-filter-area")
+        ?.addEventListener("change", (event) => {
+            operatorFilters.area = String(event.target?.value || "");
+            renderOperatorList();
+        });
+    document
+        .getElementById("ts-op-filter-priority")
+        ?.addEventListener("change", (event) => {
+            operatorFilters.priority = String(event.target?.value || "");
+            renderOperatorList();
+        });
 }
 
 function bindMainEvents() {
@@ -2196,18 +2589,16 @@ function bindMainEvents() {
         .getElementById("ts-ticket-form")
         ?.addEventListener("submit", asyncGuard.wrap(handleCreateTicket));
     bindOperatorListEvents();
-    document
-        .getElementById("ts-refresh")
-        ?.addEventListener(
-            "click",
-            asyncGuard.wrap(async () => {
-                await hydrateStore();
-                await hydrateTicketCategories();
-                store = loadStore();
-                ticketCategories = loadTicketCategories();
-                renderAll();
-            }),
-        );
+    document.getElementById("ts-refresh")?.addEventListener(
+        "click",
+        asyncGuard.wrap(async () => {
+            await hydrateStore();
+            await hydrateTicketCategories();
+            store = loadStore();
+            ticketCategories = loadTicketCategories();
+            renderAll();
+        }),
+    );
 }
 
 function bindSettingsEvents() {
@@ -2215,61 +2606,95 @@ function bindSettingsEvents() {
     document.getElementById("ts-settings")?.addEventListener("click", () => {
         openSettingsModal();
     });
-    document.getElementById("ts-settings-close")?.addEventListener("click", () => {
-        closeSettingsModal();
-    });
+    document
+        .getElementById("ts-settings-close")
+        ?.addEventListener("click", () => {
+            closeSettingsModal();
+        });
     document.getElementById("ts-theme-open")?.addEventListener("click", () => {
         openThemeModal();
     });
     document.getElementById("ts-theme-close")?.addEventListener("click", () => {
         closeThemeModal();
     });
-    document.getElementById("ts-theme-light")?.addEventListener("click", () => setTheme("light"));
-    document.getElementById("ts-theme-dark")?.addEventListener("click", () => setTheme("dark"));
-    document.getElementById("ts-theme-aypi")?.addEventListener("click", () => setTheme("aypi"));
-    document.getElementById("ts-settings-admin-open")?.addEventListener("click", () => {
-        closeSettingsModal();
-        if (!isAdmin()) return;
-        ipcRenderer.send("pm-open-calendar-admins", {
-            theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
-                ? "bluearchive"
-                : "standard",
+    document
+        .getElementById("ts-theme-light")
+        ?.addEventListener("click", () => setTheme("light"));
+    document
+        .getElementById("ts-theme-dark")
+        ?.addEventListener("click", () => setTheme("dark"));
+    document
+        .getElementById("ts-theme-aypi")
+        ?.addEventListener("click", () => setTheme("aypi"));
+    document
+        .getElementById("ts-settings-admin-open")
+        ?.addEventListener("click", () => {
+            closeSettingsModal();
+            if (!isAdmin()) return;
+            ipcRenderer.send("pm-open-calendar-admins", {
+                theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
+                    ? "bluearchive"
+                    : "standard",
+            });
         });
-    });
-    document.getElementById("ts-settings-assignees-open")?.addEventListener("click", () => {
-        closeSettingsModal();
-        if (!isAdmin()) return;
-        ipcRenderer.send("pm-open-calendar-assignees", {
-            theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
-                ? "bluearchive"
-                : "standard",
+    document
+        .getElementById("ts-settings-assignees-open")
+        ?.addEventListener("click", () => {
+            closeSettingsModal();
+            if (!isAdmin()) return;
+            ipcRenderer.send("pm-open-calendar-assignees", {
+                theme: IS_BLUE_ARCHIVE_TICKET_SUPPORT
+                    ? "bluearchive"
+                    : "standard",
+            });
         });
-    });
-    document.getElementById("ts-settings-backup-open")?.addEventListener("click", () => {
-        closeSettingsModal();
-        openBackupModal();
-    });
-    document.getElementById("ts-settings-mail-open")?.addEventListener("click", () => {
-        closeSettingsModal();
-        void openMailSettingsModal();
-    });
-    document.getElementById("ts-mail-close")?.addEventListener("click", () => closeModal("ts-mail-modal"));
-    document.getElementById("ts-mail-save")?.addEventListener("click", asyncGuard.wrap(saveTicketMailSettings));
-    document.getElementById("ts-mail-test-send")?.addEventListener("click", asyncGuard.wrap(testTicketMailSettings));
-    document.getElementById("ts-settings-categories-open")?.addEventListener("click", () => {
-        closeSettingsModal();
-        openCategoriesModal();
-    });
-    document.getElementById("ts-categories-close")?.addEventListener("click", closeCategoriesModal);
-    document.getElementById("ts-backup-close")?.addEventListener("click", closeBackupModal);
-    document.getElementById("ts-backup-run")?.addEventListener("click", createTicketBackup);
-    document.getElementById("ts-backup-restore")?.addEventListener("click", () => {
-        restoreTicketBackup();
-    });
+    document
+        .getElementById("ts-settings-backup-open")
+        ?.addEventListener("click", () => {
+            closeSettingsModal();
+            openBackupModal();
+        });
+    document
+        .getElementById("ts-settings-mail-open")
+        ?.addEventListener("click", () => {
+            closeSettingsModal();
+            void openMailSettingsModal();
+        });
+    document
+        .getElementById("ts-mail-close")
+        ?.addEventListener("click", () => closeModal("ts-mail-modal"));
+    document
+        .getElementById("ts-mail-save")
+        ?.addEventListener("click", asyncGuard.wrap(saveTicketMailSettings));
+    document
+        .getElementById("ts-mail-test-send")
+        ?.addEventListener("click", asyncGuard.wrap(testTicketMailSettings));
+    document
+        .getElementById("ts-settings-categories-open")
+        ?.addEventListener("click", () => {
+            closeSettingsModal();
+            openCategoriesModal();
+        });
+    document
+        .getElementById("ts-categories-close")
+        ?.addEventListener("click", closeCategoriesModal);
+    document
+        .getElementById("ts-backup-close")
+        ?.addEventListener("click", closeBackupModal);
+    document
+        .getElementById("ts-backup-run")
+        ?.addEventListener("click", createTicketBackup);
+    document
+        .getElementById("ts-backup-restore")
+        ?.addEventListener("click", () => {
+            restoreTicketBackup();
+        });
 }
 
 function bindCategoriesEvents() {
-    document.getElementById("ts-issue-type-add")?.addEventListener("click", addIssueType);
+    document
+        .getElementById("ts-issue-type-add")
+        ?.addEventListener("click", addIssueType);
     document.getElementById("ts-area-add")?.addEventListener("click", addArea);
     const issueInput = document.getElementById("ts-issue-type-name");
     if (issueInput) {
@@ -2299,7 +2724,11 @@ function applySharedSession(payload) {
     } else {
         if (currentView === "admin") {
             closeLoginModal();
-            showInlineMessage("ts-admin-message", "Sessione terminata. Accedi dalla home Ticket Support.", "error");
+            showInlineMessage(
+                "ts-admin-message",
+                "Sessione terminata. Accedi dalla home Ticket Support.",
+                "error",
+            );
         } else {
             openLoginModalAfterSplash();
         }
@@ -2313,7 +2742,8 @@ async function refreshSessionFromMain() {
         loginModal &&
         !loginModal.classList.contains("is-hidden") &&
         active &&
-        (active.id === "pm-login-admin-password" || active.id === "pm-login-admin-name")
+        (active.id === "pm-login-admin-password" ||
+            active.id === "pm-login-admin-name")
     ) {
         return;
     }
@@ -2354,12 +2784,17 @@ async function init() {
     otpUi.initOtpModals();
 
     renderAll();
-    void storeHydration.then(() => {
-        store = loadStore();
-        renderAll();
-    }).catch((error) => {
-        console.error("[ticket-support] aggiornamento ticket in background fallito:", error);
-    });
+    void storeHydration
+        .then(() => {
+            store = loadStore();
+            renderAll();
+        })
+        .catch((error) => {
+            console.error(
+                "[ticket-support] aggiornamento ticket in background fallito:",
+                error,
+            );
+        });
     void secondaryHydration.then(() => {
         ticketCategories = loadTicketCategories();
         updateLoginSelectors();
@@ -2367,20 +2802,28 @@ async function init() {
     });
     if (!isLoggedIn()) {
         if (currentView === "admin") {
-            showInlineMessage("ts-admin-message", "Accedi dalla home Ticket Support per usare questa finestra.", "error");
+            showInlineMessage(
+                "ts-admin-message",
+                "Accedi dalla home Ticket Support per usare questa finestra.",
+                "error",
+            );
         } else {
             openLoginModalAfterSplash();
         }
     } else if (currentView === "admin" && !isAdmin()) {
-        showInlineMessage("ts-admin-message", "Accesso admin richiesto. Cambia utente dalla home Ticket Support.", "error");
+        showInlineMessage(
+            "ts-admin-message",
+            "Accesso admin richiesto. Cambia utente dalla home Ticket Support.",
+            "error",
+        );
     }
 
     if (!isMailerAvailable()) {
         const err = getMailerError();
         showInlineMessage(
             "ts-create-message",
-            `Mailer non disponibile: ${err ? (err.message || err) : "errore sconosciuto"}`,
-            "error"
+            `Mailer non disponibile: ${err ? err.message || err : "errore sconosciuto"}`,
+            "error",
         );
     }
 }
@@ -2426,7 +2869,10 @@ async function refreshTicketSupportRealtime(includeShared: boolean) {
         }
         renderAll();
     } catch (error) {
-        console.error("[realtime] Aggiornamento Ticket Support fallito:", error);
+        console.error(
+            "[realtime] Aggiornamento Ticket Support fallito:",
+            error,
+        );
     } finally {
         realtimeRefreshInFlight = false;
     }
@@ -2444,8 +2890,7 @@ ipcRenderer.on("aypi-realtime-event", (_event, realtimeEvent) => {
     realtimeRefreshTimer = setTimeout(() => {
         realtimeRefreshTimer = null;
         void refreshTicketSupportRealtime(
-            realtimeEvent?.module === "shared" ||
-                realtimeEvent?.module === "*",
+            realtimeEvent?.module === "shared" || realtimeEvent?.module === "*",
         );
     }, 180);
 });

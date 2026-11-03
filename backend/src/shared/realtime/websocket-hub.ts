@@ -112,7 +112,7 @@ export class RealtimeHub {
             return;
         }
         if (pathname !== "/ws") {
-            if(pathname==='/api/forno/live')return;
+            if (pathname === "/api/forno/live") return;
             socket.destroy();
             return;
         }
@@ -259,10 +259,7 @@ export class RealtimeHub {
             timestamp: new Date().toISOString(),
         };
         this.clients.forEach((state, webSocket) => {
-            if (
-                !state.modules.has("*") &&
-                !state.modules.has(change.module)
-            ) {
+            if (!state.modules.has("*") && !state.modules.has(change.module)) {
                 return;
             }
             this.send(webSocket, payload);

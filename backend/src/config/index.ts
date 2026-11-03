@@ -47,11 +47,19 @@ const haasAttrezzaggioDir = getEnvString(
 );
 const registrazioniProgettazioneStampiDir = getEnvString(
     "AYPI_REGISTRAZIONI_PROGETTAZIONE_STAMPI_DIR",
-    path.join(feriePermessiBaseDir, "Registrazioni Progettazione", "Costruzione Stampi"),
+    path.join(
+        feriePermessiBaseDir,
+        "Registrazioni Progettazione",
+        "Costruzione Stampi",
+    ),
 );
 const registrazioniProgettiSpecialiDir = getEnvString(
     "AYPI_REGISTRAZIONI_PROGETTI_SPECIALI_DIR",
-    path.join(feriePermessiBaseDir, "Registrazioni Progettazione", "Progetti Speciali"),
+    path.join(
+        feriePermessiBaseDir,
+        "Registrazioni Progettazione",
+        "Progetti Speciali",
+    ),
 );
 const backendLogDir = getEnvString(
     "AYPI_LOG_DIR",

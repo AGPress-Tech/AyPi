@@ -35,10 +35,7 @@ function writeSnapshot(
     }
 }
 
-function readSnapshot(
-    targetPath: string | undefined,
-    fallbackPath: string,
-) {
+function readSnapshot(targetPath: string | undefined, fallbackPath: string) {
     const inputPath =
         targetPath && typeof targetPath === "string"
             ? targetPath

@@ -2,7 +2,7 @@
 
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
 import path from "path";
-import { revealThemedWindow } from './file-manager/themed-window';
+import { revealThemedWindow } from "./file-manager/themed-window";
 import fs from "fs";
 import log from "electron-log";
 import { requestAypiBackend } from "./file-manager/backend-client";
@@ -454,10 +454,7 @@ function showWindow(win: BrowserWindow) {
     revealThemedWindow(win);
 }
 
-function showWindowAfterRendererSignal(
-    win: BrowserWindow,
-    channel: string,
-) {
+function showWindowAfterRendererSignal(win: BrowserWindow, channel: string) {
     if (!isWindowAlive(win) || win.webContents.isDestroyed()) return;
     // Conserva il riferimento ai webContents: durante l'evento `closed`
     // accedere di nuovo a win.webContents può sollevare "Object has been
@@ -934,7 +931,12 @@ function openFileListWindow(
                     "utilities",
                     "file-list.html",
                 ),
-                { query: { theme: fileListWindowTheme, splashTheme: getScriptedSplashTheme() } },
+                {
+                    query: {
+                        theme: fileListWindowTheme,
+                        splashTheme: getScriptedSplashTheme(),
+                    },
+                },
             );
         }
         fileListWindow.maximize();
@@ -957,7 +959,12 @@ function openFileListWindow(
     fileListWindow.maximize();
     fileListWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
-        { query: { theme: fileListWindowTheme, splashTheme: getScriptedSplashTheme() } },
+        {
+            query: {
+                theme: fileListWindowTheme,
+                splashTheme: getScriptedSplashTheme(),
+            },
+        },
     );
     fileListWindow.setMenu(null);
     fileListWindow.once("ready-to-show", () => {
@@ -989,7 +996,12 @@ function openBatchRenameWindow(
                     "utilities",
                     "batch-rename.html",
                 ),
-                { query: { theme: batchRenameWindowTheme, splashTheme: getScriptedSplashTheme() } },
+                {
+                    query: {
+                        theme: batchRenameWindowTheme,
+                        splashTheme: getScriptedSplashTheme(),
+                    },
+                },
             );
         }
         batchRenameWindow.maximize();
@@ -1011,7 +1023,12 @@ function openBatchRenameWindow(
     batchRenameWindow.maximize();
     batchRenameWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
-        { query: { theme: batchRenameWindowTheme, splashTheme: getScriptedSplashTheme() } },
+        {
+            query: {
+                theme: batchRenameWindowTheme,
+                splashTheme: getScriptedSplashTheme(),
+            },
+        },
     );
     batchRenameWindow.setMenu(null);
 
@@ -1046,7 +1063,12 @@ function openQrGeneratorWindow(
                     "utilities",
                     "qr-generator.html",
                 ),
-                { query: { theme: qrGeneratorWindowTheme, splashTheme: getScriptedSplashTheme() } },
+                {
+                    query: {
+                        theme: qrGeneratorWindowTheme,
+                        splashTheme: getScriptedSplashTheme(),
+                    },
+                },
             );
         }
         qrGeneratorWindow.maximize();
@@ -1068,7 +1090,12 @@ function openQrGeneratorWindow(
     qrGeneratorWindow.maximize();
     qrGeneratorWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
-        { query: { theme: qrGeneratorWindowTheme, splashTheme: getScriptedSplashTheme() } },
+        {
+            query: {
+                theme: qrGeneratorWindowTheme,
+                splashTheme: getScriptedSplashTheme(),
+            },
+        },
     );
     qrGeneratorWindow.setMenu(null);
     qrGeneratorWindow.once("ready-to-show", () => {
@@ -1108,7 +1135,12 @@ function openHierarchyWindow(
                     "utilities",
                     "hierarchy.html",
                 ),
-                { query: { theme: hierarchyWindowTheme, splashTheme: getScriptedSplashTheme() } },
+                {
+                    query: {
+                        theme: hierarchyWindowTheme,
+                        splashTheme: getScriptedSplashTheme(),
+                    },
+                },
             );
         }
         hierarchyWindow.maximize();
@@ -1132,7 +1164,12 @@ function openHierarchyWindow(
     hierarchyWindow.maximize();
     hierarchyWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
-        { query: { theme: hierarchyWindowTheme, splashTheme: getScriptedSplashTheme() } },
+        {
+            query: {
+                theme: hierarchyWindowTheme,
+                splashTheme: getScriptedSplashTheme(),
+            },
+        },
     );
     hierarchyWindow.setMenu(null);
 
@@ -1867,17 +1904,23 @@ function openFeriePermessiAnalysisWindow(mainWindow) {
     feriePermessiAnalysisWindow.webContents.on(
         "did-fail-load",
         (_event, errorCode, errorDescription, validatedURL) => {
-            log.error("[calendar-analysis:renderer] Caricamento pagina fallito.", {
-                errorCode,
-                errorDescription,
-                url: validatedURL,
-            });
+            log.error(
+                "[calendar-analysis:renderer] Caricamento pagina fallito.",
+                {
+                    errorCode,
+                    errorDescription,
+                    url: validatedURL,
+                },
+            );
         },
     );
     feriePermessiAnalysisWindow.webContents.on(
         "render-process-gone",
         (_event, details) => {
-            log.error("[calendar-analysis:renderer] Processo terminato.", details);
+            log.error(
+                "[calendar-analysis:renderer] Processo terminato.",
+                details,
+            );
         },
     );
 
@@ -2304,23 +2347,31 @@ function openInventarioMagazzinoWindow(
     mainWindow: BrowserWindow,
     options: { theme?: "standard" | "bluearchive" } = {},
 ) {
-    const requestedTheme = options.theme === "bluearchive" ? "bluearchive" : "standard";
+    const requestedTheme =
+        options.theme === "bluearchive" ? "bluearchive" : "standard";
     const warehouseRequireLogin = app.isPackaged ? "1" : "0";
     if (isWindowAlive(inventarioMagazzinoWindow)) {
         if (inventarioMagazzinoWindowTheme !== requestedTheme) {
             inventarioMagazzinoWindowTheme = requestedTheme;
             inventarioMagazzinoWindow.loadFile(
-                path.join(__dirname, "..", "pages", "inventario-magazzino.html"),
-                { query: {
-                    warehouseSplash:
-                        requestedTheme === "bluearchive" ||
-                        getScriptedSplashTheme() === "agpress"
-                            ? "1"
-                            : "0",
-                    warehouseRequireLogin,
-                    theme: requestedTheme,
-                    splashTheme: getScriptedSplashTheme(),
-                } },
+                path.join(
+                    __dirname,
+                    "..",
+                    "pages",
+                    "inventario-magazzino.html",
+                ),
+                {
+                    query: {
+                        warehouseSplash:
+                            requestedTheme === "bluearchive" ||
+                            getScriptedSplashTheme() === "agpress"
+                                ? "1"
+                                : "0",
+                        warehouseRequireLogin,
+                        theme: requestedTheme,
+                        splashTheme: getScriptedSplashTheme(),
+                    },
+                },
             );
         }
         showWindow(inventarioMagazzinoWindow);
@@ -2340,7 +2391,8 @@ function openInventarioMagazzinoWindow(
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
         show: false,
-        backgroundColor: requestedTheme === "bluearchive" ? "#edf9ff" : "#f3f5f7",
+        backgroundColor:
+            requestedTheme === "bluearchive" ? "#edf9ff" : "#f3f5f7",
     });
 
     const showSplash =
@@ -2350,12 +2402,14 @@ function openInventarioMagazzinoWindow(
     if (requestedTheme === "standard") inventarioMagazzinoSplashShown = true;
     inventarioMagazzinoWindow.loadFile(
         path.join(__dirname, "..", "pages", "inventario-magazzino.html"),
-        { query: {
-            warehouseSplash: showSplash ? "1" : "0",
-            warehouseRequireLogin,
-            theme: requestedTheme,
-            splashTheme: getScriptedSplashTheme(),
-        } },
+        {
+            query: {
+                warehouseSplash: showSplash ? "1" : "0",
+                warehouseRequireLogin,
+                theme: requestedTheme,
+                splashTheme: getScriptedSplashTheme(),
+            },
+        },
     );
     inventarioMagazzinoWindow.setMenu(null);
     inventarioMagazzinoWindow.once("ready-to-show", () => {
@@ -2366,7 +2420,8 @@ function openInventarioMagazzinoWindow(
         }
     });
     inventarioMagazzinoWindow.on("focus", () => {
-        if (!inventarioMagazzinoWindow?.isDestroyed()) inventarioMagazzinoWindow.webContents.focus();
+        if (!inventarioMagazzinoWindow?.isDestroyed())
+            inventarioMagazzinoWindow.webContents.focus();
     });
 
     inventarioMagazzinoWindow.on("closed", () => {
@@ -2408,7 +2463,12 @@ function openCompareFoldersWindow(
                 "utilities",
                 "compare-folders.html",
             ),
-            { query: { theme: compareFoldersWindowTheme, splashTheme: getScriptedSplashTheme() } },
+            {
+                query: {
+                    theme: compareFoldersWindowTheme,
+                    splashTheme: getScriptedSplashTheme(),
+                },
+            },
         );
     };
     const createWindow = () => {
@@ -2958,7 +3018,8 @@ function setupFileManager(mainWindow) {
     });
     ipcMain.on("open-inventario-magazzino-window", (_event, payload) => {
         openInventarioMagazzinoWindow(mainWindow, {
-            theme: payload?.theme === "bluearchive" ? "bluearchive" : "standard",
+            theme:
+                payload?.theme === "bluearchive" ? "bluearchive" : "standard",
         });
     });
     ipcMain.on("attrezzaggio-window-close-response", (event, payload) => {
@@ -3138,8 +3199,10 @@ function setupFileManager(mainWindow) {
             openTicketSupportAdminWindow(mainWindow, { theme });
             return;
         }
-        await guardServerAndOpenModule(mainWindow, ticketSupportAdminWindow, () =>
-            openTicketSupportAdminWindow(mainWindow, { theme }),
+        await guardServerAndOpenModule(
+            mainWindow,
+            ticketSupportAdminWindow,
+            () => openTicketSupportAdminWindow(mainWindow, { theme }),
         );
     });
 

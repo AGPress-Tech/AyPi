@@ -59,9 +59,7 @@ function compileSqlWildcard(pattern: string) {
         if (character === "{") {
             const closingIndex = pattern.indexOf("}", index + 1);
             if (closingIndex > index + 1) {
-                source += escapeRegex(
-                    pattern.slice(index + 1, closingIndex),
-                );
+                source += escapeRegex(pattern.slice(index + 1, closingIndex));
                 index = closingIndex;
                 continue;
             }

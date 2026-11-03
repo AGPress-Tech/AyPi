@@ -11,14 +11,25 @@ import {
 
 const enqueue = createOperationQueue("registrazioni-progetti-speciali");
 
-export const getRegistrazioniProgettiSpeciali = () => listRegistrazioniProgettiSpeciali();
-export const getRegistrazioneProgettoSpeciale = (code: string) => loadRegistrazioneProgettoSpeciale(code);
-export const getProgettoSpecialeAttachmentPath = (name: string) => resolveProgettoSpecialeAttachment(name);
+export const getRegistrazioniProgettiSpeciali = () =>
+    listRegistrazioniProgettiSpeciali();
+export const getRegistrazioneProgettoSpeciale = (code: string) =>
+    loadRegistrazioneProgettoSpeciale(code);
+export const getProgettoSpecialeAttachmentPath = (name: string) =>
+    resolveProgettoSpecialeAttachment(name);
 
-export function saveRegistrazioneProgettoSpecialeItem(code: string, payload: any, context?: ActionContext) {
+export function saveRegistrazioneProgettoSpecialeItem(
+    code: string,
+    payload: any,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("saveItem", () => {
-        const saved = saveRegistrazioneProgettoSpeciale({ ...payload, code, progettoNumero: code });
+        const saved = saveRegistrazioneProgettoSpeciale({
+            ...payload,
+            code,
+            progettoNumero: code,
+        });
         logger.info("Registrazione progetto speciale salvata", {
             ...meta,
             event: "registrazione_progetto_speciale_saved",
@@ -32,7 +43,10 @@ export function saveRegistrazioneProgettoSpecialeItem(code: string, payload: any
     });
 }
 
-export function removeRegistrazioneProgettoSpecialeItem(code: string, context?: ActionContext) {
+export function removeRegistrazioneProgettoSpecialeItem(
+    code: string,
+    context?: ActionContext,
+) {
     const meta = buildContext(context);
     return enqueue("deleteItem", () => {
         const removed = deleteRegistrazioneProgettoSpeciale(code);

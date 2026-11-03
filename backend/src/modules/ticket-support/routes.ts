@@ -106,10 +106,14 @@ export function registerTicketSupportRoutes(router: Router) {
     });
 
     router.register("POST", "/api/ticket-support/backups", async (req, res) => {
-        sendJson(res, 201, await runTicketBackup({
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        }));
+        sendJson(
+            res,
+            201,
+            await runTicketBackup({
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }),
+        );
     });
 
     router.register(
@@ -119,10 +123,14 @@ export function registerTicketSupportRoutes(router: Router) {
             if (!String(params.name || "").trim()) {
                 throw badRequest("Backup name missing");
             }
-            sendJson(res, 200, await runTicketRestore(params.name, {
-                actor: getRequestUser(req),
-                requestId: getRequestId(req),
-            }));
+            sendJson(
+                res,
+                200,
+                await runTicketRestore(params.name, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            );
         },
     );
 
@@ -131,24 +139,40 @@ export function registerTicketSupportRoutes(router: Router) {
             await readJsonBody(req),
             "Invalid ticket store payload",
         );
-        sendJson(res, 200, await saveStore(payload, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        }));
-    });
-
-    router.register("GET", "/api/ticket-support/categories", async (_req, res) => {
-        sendJson(res, 200, getTicketCategories());
-    });
-
-    router.register("PUT", "/api/ticket-support/categories", async (req, res) => {
-        const payload = validateTicketCategoriesPayload(
-            await readJsonBody(req),
-            "Invalid ticket categories payload",
+        sendJson(
+            res,
+            200,
+            await saveStore(payload, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            }),
         );
-        sendJson(res, 200, await saveCategories(payload, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        }));
     });
+
+    router.register(
+        "GET",
+        "/api/ticket-support/categories",
+        async (_req, res) => {
+            sendJson(res, 200, getTicketCategories());
+        },
+    );
+
+    router.register(
+        "PUT",
+        "/api/ticket-support/categories",
+        async (req, res) => {
+            const payload = validateTicketCategoriesPayload(
+                await readJsonBody(req),
+                "Invalid ticket categories payload",
+            );
+            sendJson(
+                res,
+                200,
+                await saveCategories(payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            );
+        },
+    );
 }

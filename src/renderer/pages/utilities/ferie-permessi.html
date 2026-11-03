@@ -1,863 +1,1023 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="it">
 
 <head>
-            <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AyPi Calendar</title>
-    <script src="../../scripts/utility-layout-bootstrap.js"></script>
-    <!-- FullCalendar CSS: CDN removed due to incorrect MIME type -->
-    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-bluearchive-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css">
-    <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css">
-    <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-operations-bluearchive-style.css">
-    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash-scopes.css">
-    <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css">
-    <link rel="stylesheet" href="../../styles/utilities/agpress-login-style.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' file:; script-src 'self' 'unsafe-inline' file: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' file: https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' file: https://fonts.gstatic.com data:; img-src 'self' file: data: blob:; connect-src 'self' file:; media-src 'self' file: data: blob:; object-src 'none'; base-uri 'self'; frame-src 'self'" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AyPi Calendar</title>
+  <script src="../../scripts/utility-layout-bootstrap.js"></script>
+  <!-- FullCalendar CSS: CDN removed due to incorrect MIME type -->
+  <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-bluearchive-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-pointer-effects.css" />
+  <link rel="stylesheet" href="../../styles/utilities/bluearchive-design-system.css" />
+  <link rel="stylesheet" href="../../styles/utilities/ferie-permessi-operations-bluearchive-style.css" />
+  <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash-scopes.css" />
+  <link rel="stylesheet" href="../../styles/utilities/agpress-scripted-splash.css" />
+  <link rel="stylesheet" href="../../styles/utilities/agpress-login-style.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
 </head>
 
 <body>
-    <div id="fp-calendar-splash" class="fp-calendar-splash">
-        <div class="fp-ba-calendar-boot" aria-hidden="true">
-            <div class="fp-ba-boot-grid"></div>
-            <div class="fp-ba-boot-sweep"></div>
-            <div class="fp-ba-boot-corner fp-ba-boot-corner--left">AGP // SYSTEM ROUTE 02</div>
-            <div class="fp-ba-boot-corner fp-ba-boot-corner--right">AYPI CALENDAR</div>
-            <div class="fp-ba-boot-center">
-                <div class="fp-ba-boot-emblem">
-                    <span class="fp-ba-boot-halo"></span>
-                    <span class="fp-ba-boot-ay">Ay</span><span class="fp-ba-boot-pi">Pi</span>
-                    <span class="fp-ba-boot-slash"></span>
-                </div>
-                <div class="fp-ba-boot-route"><i></i><span>CALENDAR MODULE</span><i></i></div>
-                <h1>Accesso al modulo <strong>Calendar.</strong></h1>
-                <p>Sincronizzazione agenda, dipendenti e richieste</p>
-                <div class="fp-ba-boot-progress"><i></i></div>
-                <div class="fp-ba-boot-status">
-                    <span class="is-complete">01&nbsp; UTENTI</span>
-                    <span>02&nbsp; RICHIESTE</span>
-                    <span>03&nbsp; CALENDARIO</span>
-                </div>
-            </div>
+  <div id="fp-calendar-splash" class="fp-calendar-splash">
+    <div class="fp-ba-calendar-boot" aria-hidden="true">
+      <div class="fp-ba-boot-grid"></div>
+      <div class="fp-ba-boot-sweep"></div>
+      <div class="fp-ba-boot-corner fp-ba-boot-corner--left">
+        AGP // SYSTEM ROUTE 02
+      </div>
+      <div class="fp-ba-boot-corner fp-ba-boot-corner--right">
+        AYPI CALENDAR
+      </div>
+      <div class="fp-ba-boot-center">
+        <div class="fp-ba-boot-emblem">
+          <span class="fp-ba-boot-halo"></span>
+          <span class="fp-ba-boot-ay">Ay</span><span class="fp-ba-boot-pi">Pi</span>
+          <span class="fp-ba-boot-slash"></span>
         </div>
+        <div class="fp-ba-boot-route">
+          <i></i><span>CALENDAR MODULE</span><i></i>
+        </div>
+        <h1>Accesso al modulo <strong>Calendar.</strong></h1>
+        <p>Sincronizzazione agenda, dipendenti e richieste</p>
+        <div class="fp-ba-boot-progress"><i></i></div>
+        <div class="fp-ba-boot-status">
+          <span class="is-complete">01&nbsp; UTENTI</span>
+          <span>02&nbsp; RICHIESTE</span>
+          <span>03&nbsp; CALENDARIO</span>
+        </div>
+      </div>
     </div>
-    <script>
-        (function () {
-            try {
-                var params = new URLSearchParams(window.location.search || "");
-                var isBlueArchive = params.get("theme") === "bluearchive";
-                var isAgpressSplash = !isBlueArchive && params.get("splashTheme") === "agpress";
-                var useScriptedSplash = isBlueArchive || isAgpressSplash;
-                if (isBlueArchive) {
-                    document.body.classList.add("fp-bluearchive");
-                }
-                if (isAgpressSplash) document.body.classList.add("agpress-scripted-splash");
-                var splashEl = document.getElementById("fp-calendar-splash");
-                var splashScope = null;
-                if (isAgpressSplash && splashEl) {
-                    splashScope = document.createElement("div");
-                    splashScope.className = "agpress-scripted-splash-scope fp-bluearchive";
-                    splashEl.parentNode.insertBefore(splashScope, splashEl);
-                    splashScope.appendChild(splashEl);
-                }
-                if (params.get("fpSplash") === "1") {
-                    if (splashEl) {
-                        if (useScriptedSplash) {
-                            splashEl.classList.add("fp-calendar-splash--bluearchive");
-                        }
-                        document.body.classList.add("fp-splash-active");
-                        splashEl.classList.add("is-visible");
-                        var finishSplash = function () {
-                            if (splashEl.dataset.hidden === "1") return;
-                            splashEl.classList.add("is-hidden");
-                            splashEl.classList.remove("is-visible", "is-fading");
-                            splashEl.dataset.hidden = "1";
-                            splashEl.setAttribute("aria-hidden", "true");
-                            document.body.classList.add("fp-calendar-ready");
-                            document.body.classList.remove("fp-splash-active");
-                            if (isAgpressSplash) {
-                                document.body.classList.remove("agpress-scripted-splash");
-                                if (splashScope && splashScope.parentNode) {
-                                    splashScope.parentNode.insertBefore(splashEl, splashScope);
-                                    splashScope.remove();
-                                    splashScope = null;
-                                }
-                            }
-                        };
-                        var skipSplash = function () {
-                            if (
-                                splashEl.dataset.hidden === "1" ||
-                                splashEl.dataset.skipRequested === "1"
-                            ) {
-                                return;
-                            }
-                            splashEl.dataset.skipRequested = "1";
-                            splashEl.classList.add("is-splash-skipping", "is-fading");
-                            finishSplash();
-                        };
-                        splashEl.classList.add("is-splash-skippable");
-                        splashEl.setAttribute("aria-hidden", "false");
-                        splashEl.setAttribute("aria-label", "Clicca per saltare la schermata iniziale");
-                        splashEl.addEventListener("click", skipSplash);
-                        if (useScriptedSplash) {
-                            var exitStarted = false;
-                            var beginBlueArchiveExit = function () {
-                                if (exitStarted) return;
-                                exitStarted = true;
-                                splashEl.querySelector(".fp-ba-boot-status span:last-child")?.classList.add("is-complete");
-                                setTimeout(function () {
-                                    splashEl.classList.add("is-fading");
-                                    document.body.classList.add("fp-calendar-ready");
-                                }, 900);
-                                setTimeout(finishSplash, 1900);
-                            };
-                            var progressBar = splashEl.querySelector(".fp-ba-boot-progress i");
-                            var statusSteps = splashEl.querySelectorAll(".fp-ba-boot-status span");
-                            setTimeout(function () {
-                                statusSteps[1]?.classList.add("is-complete");
-                            }, 1900);
-                            if (progressBar) {
-                                progressBar.addEventListener("animationend", beginBlueArchiveExit, { once: true });
-                            }
-                            // Fallback nel caso in cui Chromium non emetta animationend.
-                            setTimeout(beginBlueArchiveExit, 4800);
-                        } else {
-                            setTimeout(finishSplash, 5000);
-                        }
-                    }
-                } else {
-                    document.body.classList.add("fp-calendar-ready");
-                    splashEl?.classList.add("is-hidden");
-                }
-            } catch (err) {}
-        })();
-    </script>
-    <div class="fp-page">
-        <header class="fp-header">
-            <div class="fp-header__title">
-                <h1>Calendario Dipendenti e Richieste</h1>
-                <button type="button" class="fp-header__subtitle-link" id="fp-guide-news">
-                    Visualizza novita e aggiornamenti
-                </button>
-            </div>
-            <div class="fp-filters-legend">
-                    <div class="fp-calendar-filters" id="fp-calendar-filters">
-                        <label class="fp-filter-toggle">
-                            <input type="checkbox" id="fp-filter-ferie" checked>
-                            <span>Ferie</span>
-                        </label>
-                        <label class="fp-filter-toggle">
-                            <input type="checkbox" id="fp-filter-permesso" checked>
-                            <span>Permessi</span>
-                        </label>
-                        <label class="fp-filter-toggle">
-                            <input type="checkbox" id="fp-filter-overtime">
-                            <span>Straordinari</span>
-                        </label>
-                        <label class="fp-filter-toggle">
-                            <input type="checkbox" id="fp-filter-mutua">
-                            <span>Mutua/Infortunio</span>
-                        </label>
-                        <label class="fp-filter-toggle">
-                            <input type="checkbox" id="fp-filter-speciale">
-                            <span>Chiusura aziendale</span>
-                        </label>
-                        <label class="fp-filter-toggle">
-                            <input type="checkbox" id="fp-filter-retribuito">
-                            <span>Retribuiti</span>
-                        </label>
-                    </div>
-                    <div class="fp-legend" id="fp-legend">
-                        <button type="button" class="fp-legend__item" data-type="ferie">
-                            <span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie
-                        </button>
-                        <button type="button" class="fp-legend__item" data-type="permesso">
-                            <span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi
-                        </button>
-                        <button type="button" class="fp-legend__item" data-type="straordinari">
-                            <span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari
-                        </button>
-                        <button type="button" class="fp-legend__item" data-type="mutua">
-                            <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua/Infortunio
-                        </button>
-                        <button type="button" class="fp-legend__item" data-type="speciale">
-                            <span class="fp-legend__dot fp-legend__dot--speciale"></span>Chiusura aziendale
-                        </button>
-                        <button type="button" class="fp-legend__item" data-type="retribuito">
-                            <span class="fp-legend__dot fp-legend__dot--retribuito"></span>Retribuiti
-                        </button>
-                        <div class="fp-legend-editor is-hidden" id="fp-legend-editor">
-                            <div class="fp-legend-editor__title" id="fp-legend-editor-title">Colore legenda</div>
-                            <div class="fp-legend-editor__row">
-                                <input type="color" class="fp-color-input" id="fp-legend-color-input">
-                                <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-default">Default</button>
-                                <button type="button" class="fp-btn fp-btn--primary" id="fp-legend-save">Salva</button>
-                                <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-cancel">Chiudi</button>
-                            </div>
-                        </div>
-                    </div>
-            </div>
-            <div class="fp-header__actions">
-                <div id="fp-summary" class="fp-summary">...</div>
-                <button type="button" class="fp-btn" id="fp-refresh">Aggiorna</button>
-                <button type="button" class="fp-btn" id="fp-admin-toggle">Login</button>
-                <button type="button" class="fp-btn fp-btn--icon" id="fp-settings" aria-label="Impostazioni">
-                    <span class="material-icons fp-icon-mi" aria-hidden="true">settings</span>
-                </button>
-            </div>
-        </header>
-
-        <main class="fp-body">
-            <section class="fp-panel">
-                <div class="fp-card fp-card--pending">
-                    <button type="button" class="fp-btn fp-btn--pending" id="fp-pending-toggle" aria-expanded="false">
-                        <span class="fp-btn__icon-group" aria-hidden="true">
-                            <span class="fp-btn__icon fp-icon-badge">
-                                <span class="material-icons fp-icon-mi" aria-hidden="true">notifications</span>
-                                <span id="fp-pending-badge" class="fp-badge fp-badge--inline fp-badge--counter">0</span>
-                            </span>
-                        </span>
-                        <span class="fp-btn__label">Richieste in attesa</span>
-                    </button>
-                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-open">
-                        <span class="fp-btn__icon" aria-hidden="true">
-                            <span class="material-icons fp-icon-mi" aria-hidden="true">manage_accounts</span>
-                        </span>
-                        <span class="fp-btn__label">Gestione</span>
-                    </button>
-                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-manage">
-    <span class="fp-btn__icon" aria-hidden="true">
-        <span class="material-icons fp-icon-mi" aria-hidden="true">event_note</span>
-    </span>
-    <span class="fp-btn__label">Festivita e chiusure</span>
-</button>
-                    <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-export-open">
-                        <span class="fp-btn__icon" aria-hidden="true">
-                            <span class="material-icons fp-icon-mi" aria-hidden="true">file_download</span>
-                        </span>
-                        <span class="fp-btn__label">Esporta ferie/permessi</span>
-                    </button>
-                </div>
-                <form id="fp-request-form" class="fp-card">
-                    <h2>Nuova richiesta</h2>
-                    <div class="fp-field">
-                        <label for="fp-department">Reparto</label>
-                        <select id="fp-department"></select>
-                    </div>
-                    <div class="fp-field">
-                        <label for="fp-employee">Dipendente</label>
-                        <select id="fp-employee"></select>
-                    </div>
-                    <div class="fp-field">
-                        <label for="fp-type">Tipo</label>
-                        <select id="fp-type">
-                            <option value="ferie">Ferie</option>
-                            <option value="permesso">Permesso</option>
-                            <option value="straordinari">Straordinari</option>
-                            <option value="mutua">Mutua</option>
-                            <option value="infortunio">Infortunio</option>
-                            <option value="speciale">Permesso Chiusura Aziendale</option>
-                            <option value="retribuito">Permesso Retribuito</option>
-                        </select>
-                    </div>
-                    <div class="fp-field fp-checkbox">
-                        <input type="checkbox" id="fp-all-day">
-                        <label for="fp-all-day">Giornata intera</label>
-                    </div>
-                    <div class="fp-grid">
-                        <div class="fp-field">
-                            <label for="fp-start-date">Data inizio</label>
-                            <input type="date" id="fp-start-date" required>
-                        </div>
-                        <div class="fp-field">
-                            <label for="fp-start-time">Ora inizio</label>
-                            <input type="time" id="fp-start-time" value="08:00">
-                        </div>
-                        <div class="fp-field">
-                            <label for="fp-end-date">Data fine</label>
-                            <input type="date" id="fp-end-date" required>
-                        </div>
-                        <div class="fp-field">
-                            <label for="fp-end-time">Ora fine</label>
-                            <input type="time" id="fp-end-time" value="17:30">
-                        </div>
-                    </div>
-                    <div id="fp-end-date-error" class="fp-inline-error is-hidden"></div>
-                    <div class="fp-field">
-                        <label for="fp-note">Note</label>
-                        <textarea id="fp-note" rows="3" placeholder="Inserisci eventuali dettagli"></textarea>
-                    </div>
-                    <div class="fp-actions">
-                        <button type="button" class="fp-btn fp-btn--primary" id="fp-request-save">Salva</button>
-                    </div>
-                    <div id="fp-form-message" class="fp-message is-hidden"></div>
-                </form>
-
-            </section>
-
-            <section class="fp-calendar">
-                <div id="fp-calendar"></div>
-            </section>
-        </main>
-    </div>
-
-    <div class="fp-pending-flyout" id="fp-pending-panel" aria-hidden="true">
-        <div class="fp-pending-flyout__header">
-            <h3>Richieste in attesa</h3>
-            <button type="button" class="fp-btn fp-btn--ghost" id="fp-pending-close">Chiudi</button>
-        </div>
-        <div id="fp-pending-list" class="fp-pending-list"></div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-confirm-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-confirm-card" role="dialog" aria-modal="true" aria-labelledby="fp-confirm-title">
-            <h3 id="fp-confirm-title">Conferma richiesta</h3>
-            <p id="fp-confirm-message"></p>
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-confirm-cancel">No</button>
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-confirm-ok">Si</button>
-            </div>
-        </div>
-    </div>
-
-    
-    <div class="fp-modal is-hidden" id="fp-settings-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-settings-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-settings-title">Impostazioni</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-close">Chiudi</button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-settings-theme-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">palette</span>
-                    </span>
-                    <span class="fp-btn__label">Tema</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-holidays-list-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">event</span>
-                    </span>
-                    <span class="fp-btn__label">Mostra festivita future</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-closures-list-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">event_busy</span>
-                    </span>
-                    <span class="fp-btn__label">Mostra chiusure future</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-admin-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">admin_panel_settings</span>
-                    </span>
-                    <span class="fp-btn__label">Gestione admin</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-settings-config-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">tune</span>
-                    </span>
-                    <span class="fp-btn__label">Configurazione</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-analysis-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">query_stats</span>
-                    </span>
-                    <span class="fp-btn__label">Analisi</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-backup-open">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">backup</span>
-                    </span>
-                    <span class="fp-btn__label">Backup</span>
-                </button>
-            </div>
-            <div id="fp-settings-message" class="fp-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-config-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-config-card" role="dialog" aria-modal="true" aria-labelledby="fp-config-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-config-title">Configurazione accessi</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-config-close">Chiudi</button>
-            </div>
-            <div class="fp-config-hint">
-                Attiva lo switch per richiedere il login admin. Disattivalo per consentire l'operazione a tutti.
-            </div>
-
-            <div class="fp-config-body">
-                <div class="fp-config-section">
-                    <h4>Nuove richieste</h4>
-                    <div class="fp-config-grid">
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-ferie"><span class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-permesso"><span class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-straordinari"><span class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua/Infortunio</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-speciale"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura Aziendale</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-create-retribuito"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
-                    </div>
-                </div>
-
-                <div class="fp-config-section">
-                    <h4>Richieste in attesa</h4>
-                    <div class="fp-config-grid">
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-pending-access"><span class="fp-switch__track"></span><span class="fp-switch__label">Accedi al menu richieste</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-pending-approve"><span class="fp-switch__track"></span><span class="fp-switch__label">Convalida richieste</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-pending-reject"><span class="fp-switch__track"></span><span class="fp-switch__label">Rifiuta richieste</span></label>
-                    </div>
-                </div>
-
-                <div class="fp-config-section">
-                    <h4>Richieste approvate</h4>
-                    <div class="fp-config-grid">
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-edit-approved"><span class="fp-switch__track"></span><span class="fp-switch__label">Modifica richieste approvate</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-delete-approved"><span class="fp-switch__track"></span><span class="fp-switch__label">Elimina richieste approvate</span></label>
-                    </div>
-                </div>
-
-                <div class="fp-config-section">
-                    <h4>Filtri calendario</h4>
-                    <div class="fp-config-grid">
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-ferie"><span class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-permesso"><span class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-straordinari"><span class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-mutua"><span class="fp-switch__track"></span><span class="fp-switch__label">Mutua/Infortunio</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-speciale"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura Aziendale</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-filter-retribuito"><span class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
-                    </div>
-                </div>
-
-                <div class="fp-config-section">
-                    <h4>Gestione e calendario</h4>
-                    <div class="fp-config-grid">
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-manage-access"><span class="fp-switch__track"></span><span class="fp-switch__label">Gestione ore e dipendenti</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-days-access"><span class="fp-switch__track"></span><span class="fp-switch__label">Festivita e chiusure aziendali</span></label>
-                        <label class="fp-switch"><input type="checkbox" id="fp-config-export"><span class="fp-switch__track"></span><span class="fp-switch__label">Export Excel</span></label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-config-reset">Ripristina default</button>
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-config-save">Salva</button>
-            </div>
-            <div id="fp-config-message" class="fp-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-guide-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-guide-card" role="dialog" aria-modal="true" aria-labelledby="fp-guide-title">
-            <div id="fp-guide-message" class="fp-message is-hidden"></div>
-            <iframe id="fp-guide-frame" class="fp-guide-frame" title="Guida AyPi" src="about:blank"></iframe>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-settings-theme-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-settings-theme-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-settings-theme-title">Tema</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-theme-close">Chiudi</button>
-            </div>
-            <div class="fp-theme-options">
-                <label class="fp-theme-option">
-                    <input type="radio" name="fp-theme" value="light" checked>
-                    <span>Light mode</span>
-                </label>
-                <label class="fp-theme-option">
-                    <input type="radio" name="fp-theme" value="dark">
-                    <span>Dark mode</span>
-                </label>
-                <label class="fp-theme-option">
-                    <input type="radio" name="fp-theme" value="aypi">
-                    <span>AyPi</span>
-                </label>
-            </div>
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-theme-reset">Ripristina default</button>
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-settings-theme-save">Salva</button>
-            </div>
-            <div id="fp-settings-theme-message" class="fp-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-setup-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-setup-card" role="dialog" aria-modal="true" aria-labelledby="fp-setup-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-setup-title">Configurazione iniziale</h3>
-            </div>
-            <p class="fp-setup-intro" id="fp-setup-intro"></p>
-            <div class="fp-setup-section">
-                <div class="fp-setup-label">Percorso dati</div>
-                <div class="fp-setup-path" id="fp-setup-path"></div>
-                <div class="fp-setup-note" id="fp-setup-note"></div>
-            </div>
-            <div class="fp-setup-section">
-                <div class="fp-setup-label">Mailing OTP</div>
-                <div class="fp-setup-choice">
-                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-setup-mail-skip">Non ora</button>
-                    <button type="button" class="fp-btn fp-btn--primary" id="fp-setup-mail-open">Configura ora</button>
-                </div>
-                <div class="fp-setup-mail is-hidden" id="fp-setup-mail-section">
-                    <div class="fp-admin-grid fp-admin-grid--stack">
-                        <input class="fp-field__input" id="fp-mail-host" type="text" placeholder="Host SMTP (es. smtp.domain.it)">
-                        <input class="fp-field__input" id="fp-mail-port" type="number" placeholder="Porta (es. 587)">
-                        <label class="fp-field__checkbox">
-                            <input type="checkbox" id="fp-mail-secure">
-                            <span>Connessione sicura (SSL/TLS)</span>
-                        </label>
-                        <input class="fp-field__input" id="fp-mail-user" type="text" placeholder="User (email o utente SMTP)">
-                        <input class="fp-field__input" id="fp-mail-pass" type="password" placeholder="Password SMTP">
-                        <input class="fp-field__input" id="fp-mail-from" type="text" placeholder="Mittente (opzionale)">
-                        <input class="fp-field__input" id="fp-mail-test" type="email" placeholder="Email di prova">
-                    </div>
-                    <div class="fp-actions fp-actions--modal">
-                        <button type="button" class="fp-btn fp-btn--ghost" id="fp-mail-test-send">Invia test</button>
-                        <button type="button" class="fp-btn fp-btn--primary" id="fp-mail-save">Salva mailing e continua</button>
-                    </div>
-                    <div id="fp-setup-mail-message" class="fp-message is-hidden"></div>
-                </div>
-            </div>
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-setup-continue">Continua senza mailing</button>
-            </div>
-        </div>
-    </div>
-    <div class="fp-modal is-hidden" id="fp-export-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-export-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-export-title">Esporta ferie/permessi</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-close">Chiudi</button>
-            </div>
-            <div class="fp-export-section">
-                <div class="fp-assignees-subtitle">Periodo</div>
-                <div class="fp-export-choice">
-                    <label><input type="radio" name="fp-export-range" value="all" checked> Sempre</label>
-                    <label><input type="radio" name="fp-export-range" value="custom"> Da - a</label>
-                </div>
-                <div class="fp-export-grid">
-                    <div class="fp-field">
-                        <label for="fp-export-start">Da</label>
-                        <input class="fp-field__input" type="date" id="fp-export-start">
-                    </div>
-                    <div class="fp-field">
-                        <label for="fp-export-end">A</label>
-                        <input class="fp-field__input" type="date" id="fp-export-end">
-                    </div>
-                </div>
-            </div>
-            <div class="fp-export-section">
-                <div class="fp-assignees-subtitle">Tipi</div>
-                <div class="fp-export-choice">
-                    <label><input type="checkbox" id="fp-export-ferie" checked> Ferie</label>
-                    <label><input type="checkbox" id="fp-export-permessi" checked> Permessi</label>
-                    <label><input type="checkbox" id="fp-export-straordinari" checked> Straordinari</label>
-                    <label><input type="checkbox" id="fp-export-mutua" checked> Mutua</label>
-                    <label><input type="checkbox" id="fp-export-infortunio" checked> Infortunio</label>
-                    <label><input type="checkbox" id="fp-export-speciale" checked> Permesso Chiusura Aziendale</label>
-                    <label><input type="checkbox" id="fp-export-retribuito" checked> Permessi Retribuiti</label>
-                </div>
-            </div>
-            <div class="fp-export-section">
-                <div class="fp-assignees-subtitle">Reparti</div>
-                <div class="fp-export-actions">
-                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-select-all">Tutti</button>
-                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-select-none">Nessuno</button>
-                </div>
-                <div id="fp-export-departments" class="fp-export-departments"></div>
-            </div>
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-export-run">Esporta Excel</button>
-            </div>
-            <div id="fp-export-message" class="fp-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-backup-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true" aria-labelledby="fp-backup-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-backup-title">Backup calendario</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-backup-close">Chiudi</button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-backup-run">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">backup</span>
-                    </span>
-                    <span class="fp-btn__label">Backup calendario</span>
-                </button>
-            </div>
-            <div class="fp-export-section">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-backup-restore">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">restore</span>
-                    </span>
-                    <span class="fp-btn__label">Recupera</span>
-                </button>
-            </div>
-            <div id="fp-backup-message" class="fp-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
-            <div class="fp-login-identity-panel" aria-hidden="true">
-                <span class="fp-login-identity-kicker">AYPI // SECURE ACCESS</span>
-                <strong>IDENTITY GATE</strong>
-                <span>Autenticazione amministratore</span>
-                <small>Schale authorization network</small>
-            </div>
-            <div class="fp-login-identity-content">
-                <div class="fp-login-identity-heading">
-                    <h3 id="fp-approve-title">Approva richiesta</h3>
-                    <p id="fp-approve-desc">Inserisci la password per confermare.</p>
-                </div>
-                <label class="fp-login-admin-field is-hidden" id="fp-login-admin-field" for="fp-login-admin-name">
-                    <span>Amministratore</span>
-                    <select id="fp-login-admin-name" class="fp-field__input" autocomplete="username"></select>
-                </label>
-                <label class="fp-login-password-field" for="fp-approve-password">
-                    <span>Password</span>
-                    <input type="password" id="fp-approve-password" placeholder="Password" autocomplete="current-password">
-                </label>
-                <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">Password errata.</div>
-                <button type="button" class="fp-link-btn is-hidden" id="fp-approve-recover">Recupero password?</button>
-                <div class="fp-actions fp-actions--modal">
-                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">Annulla</button>
-                    <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">Conferma</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-info-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-info-title">
-            <h3 id="fp-info-title">Avviso</h3>
-            <p id="fp-info-message"></p>
-            <div class="fp-actions fp-actions--modal">
-                <button type="button" class="fp-btn fp-btn--primary is-hidden" id="fp-info-login">Accedi</button>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-info-ok">Ok</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-manage-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-manage-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-manage-title">Gestione</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-manage-close">Chiudi</button>
-            </div>
-            <div class="fp-days-picker">
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-assignees">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">groups</span>
-                    </span>
-                    <span class="fp-btn__label">Gestisci dipendenti</span>
-                </button>
-                <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-hours">
-                    <span class="fp-btn__icon" aria-hidden="true">
-                        <span class="material-icons fp-icon-mi" aria-hidden="true">schedule</span>
-                    </span>
-                    <span class="fp-btn__label">Gestione ore</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-days-picker-modal" aria-hidden="true">
-    <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-days-picker-title">
-        <div class="fp-assignees-header">
-            <h3 id="fp-days-picker-title">Gestione calendario</h3>
-            <button type="button" class="fp-btn fp-btn--ghost" id="fp-days-picker-close">Chiudi</button>
-        </div>
-        <div class="fp-days-picker">
-            <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-picker-holiday">
-                <span class="fp-btn__icon" aria-hidden="true">
-                    <span class="material-icons fp-icon-mi" aria-hidden="true">event</span>
-                </span>
-                <span class="fp-btn__label">Gestione festivita</span>
-            </button>
-            <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-picker-closure">
-                <span class="fp-btn__icon" aria-hidden="true">
-                    <span class="material-icons fp-icon-mi" aria-hidden="true">event_busy</span>
-                </span>
-                <span class="fp-btn__label">Chiusure azienda</span>
-            </button>
-        </div>
-    </div>
-</div>
-
-<div class="fp-modal is-hidden" id="fp-holidays-modal" aria-hidden="true">
-    <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-holidays-title">
-        <div class="fp-assignees-header">
-            <h3 id="fp-holidays-title">Gestione festivita</h3>
-            <button type="button" class="fp-btn fp-btn--ghost" id="fp-holidays-close">Chiudi</button>
-        </div>
-        <div class="fp-holidays-date-grid">
-            <input class="fp-field__input fp-holidays-name" type="text" id="fp-holidays-name" placeholder="Nome festivita">
-            <input class="fp-field__input fp-holidays-start" type="date" id="fp-holidays-start">
-            <input class="fp-field__input fp-holidays-end" type="date" id="fp-holidays-end">
-            <button type="button" class="fp-btn fp-btn--primary fp-holidays-add" id="fp-holidays-add">Aggiungi</button>
-        </div>
-        <div id="fp-holidays-message" class="fp-message is-hidden"></div>
-    </div>
-</div>
-
-<div class="fp-modal is-hidden" id="fp-closures-modal" aria-hidden="true">
-    <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true" aria-labelledby="fp-closures-title">
-        <div class="fp-assignees-header">
-            <h3 id="fp-closures-title">Chiusure azienda</h3>
-            <button type="button" class="fp-btn fp-btn--ghost" id="fp-closures-close">Chiudi</button>
-        </div>
-        <div class="fp-closures-date-grid">
-            <input class="fp-field__input fp-closures-name" type="text" id="fp-closures-name" placeholder="Nome chiusura (opzionale)">
-            <input class="fp-field__input fp-closures-start" type="date" id="fp-closures-start">
-            <input class="fp-field__input fp-closures-end" type="date" id="fp-closures-end">
-            <button type="button" class="fp-btn fp-btn--primary fp-closures-add" id="fp-closures-add">Aggiungi</button>
-        </div>
-        <div id="fp-closures-message" class="fp-message is-hidden"></div>
-    </div>
-</div>
-
-<div class="fp-modal is-hidden" id="fp-closures-list-modal" aria-hidden="true">
-    <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-closures-list-title">
-        <div class="fp-assignees-header">
-            <h3 id="fp-closures-list-title">Chiusure future</h3>
-            <button type="button" class="fp-btn fp-btn--ghost" id="fp-closures-list-close">Chiudi</button>
-        </div>
-        <div id="fp-closures-future-list" class="fp-holidays-list"></div>
-    </div>
-</div>
-
-<div class="fp-modal is-hidden" id="fp-holidays-list-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-holidays-list-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-holidays-list-title">Festivita future</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-holidays-list-close">Chiudi</button>
-            </div>
-            <div id="fp-holidays-future-list" class="fp-holidays-list"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-otp-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true" aria-labelledby="fp-otp-title">
-            <div class="fp-assignees-header">
-                <h3 id="fp-otp-title">Recupero password</h3>
-                <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-close">Chiudi</button>
-            </div>
-            <div class="fp-admin-grid fp-admin-grid--stack">
-                <input class="fp-field__input" id="fp-otp-admin-name" type="text" placeholder="Nome e cognome admin">
-                <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-send">Invia OTP via email</button>
-            </div>
-            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-verify-section">
-                <input class="fp-field__input" id="fp-otp-code" type="text" placeholder="Codice OTP">
-                <div class="fp-admin-actions">
-                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-resend">Invia di nuovo OTP</button>
-                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-verify">Verifica OTP</button>
-                </div>
-            </div>
-            <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-reset-section">
-                <input class="fp-field__input" id="fp-otp-new" type="password" placeholder="Nuova password">
-                <input class="fp-field__input" id="fp-otp-new-confirm" type="password" placeholder="Conferma nuova password">
-                <div class="fp-admin-actions">
-                    <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-reset">Aggiorna password</button>
-                </div>
-            </div>
-            <div id="fp-otp-message" class="fp-message is-hidden"></div>
-        </div>
-    </div>
-
-    <div class="fp-modal is-hidden" id="fp-edit-modal" aria-hidden="true">
-        <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-edit-title">
-            <h3 id="fp-edit-title">Modifica richiesta</h3>
-            <form id="fp-edit-form" class="fp-card fp-card--modal">
-                <div class="fp-field">
-                    <label for="fp-edit-department">Reparto</label>
-                    <select id="fp-edit-department"></select>
-                </div>
-                <div class="fp-field">
-                    <label for="fp-edit-employee">Dipendente</label>
-                    <select id="fp-edit-employee"></select>
-                </div>
-                <div class="fp-field">
-                    <label for="fp-edit-type">Tipo</label>
-                    <select id="fp-edit-type">
-                        <option value="ferie">Ferie</option>
-                        <option value="permesso">Permesso</option>
-                        <option value="straordinari">Straordinari</option>
-                        <option value="mutua">Mutua</option>
-                        <option value="infortunio">Infortunio</option>
-                        <option value="speciale">Permesso Chiusura Aziendale</option>
-                        <option value="retribuito">Permesso Retribuito</option>
-                    </select>
-                </div>
-                    <div class="fp-field fp-checkbox">
-                        <input type="checkbox" id="fp-edit-all-day">
-                    <label for="fp-edit-all-day">Giornata intera</label>
-                </div>
-                <div class="fp-grid">
-                    <div class="fp-field">
-                        <label for="fp-edit-start-date">Data inizio</label>
-                        <input type="date" id="fp-edit-start-date" required>
-                    </div>
-                    <div class="fp-field">
-                        <label for="fp-edit-start-time">Ora inizio</label>
-                        <input type="time" id="fp-edit-start-time" value="08:00">
-                    </div>
-                    <div class="fp-field">
-                        <label for="fp-edit-end-date">Data fine</label>
-                        <input type="date" id="fp-edit-end-date" required>
-                    </div>
-                    <div class="fp-field">
-                        <label for="fp-edit-end-time">Ora fine</label>
-                        <input type="time" id="fp-edit-end-time" value="17:30">
-                    </div>
-                </div>
-                <div id="fp-edit-end-date-error" class="fp-inline-error is-hidden"></div>
-                <div class="fp-field">
-                    <label for="fp-edit-note">Note</label>
-                    <textarea id="fp-edit-note" rows="3" placeholder="Inserisci eventuali dettagli"></textarea>
-                </div>
-                <div id="fp-edit-message" class="fp-message is-hidden"></div>
-                <div class="fp-actions fp-actions--modal">
-                    <button type="button" class="fp-btn fp-btn--danger" id="fp-edit-delete">Elimina</button>
-                    <button type="button" class="fp-btn fp-btn--ghost" id="fp-edit-cancel">Annulla</button>
-                    <button type="submit" class="fp-btn fp-btn--primary">Salva</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script src="../../assets/vendor/fullcalendar/index.global.min.js"></script>
-    <script>
-        if (!window.FullCalendar) {
-            document.write('<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"><\\/script>');
+  </div>
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search || "");
+        var isBlueArchive = params.get("theme") === "bluearchive";
+        var isAgpressSplash =
+          !isBlueArchive && params.get("splashTheme") === "agpress";
+        var useScriptedSplash = isBlueArchive || isAgpressSplash;
+        if (isBlueArchive) {
+          document.body.classList.add("fp-bluearchive");
         }
-    </script>
-    <script src="../../scripts/utilities/ferie-permessi-scripts.js"></script>
+        if (isAgpressSplash)
+          document.body.classList.add("agpress-scripted-splash");
+        var splashEl = document.getElementById("fp-calendar-splash");
+        var splashScope = null;
+        if (isAgpressSplash && splashEl) {
+          splashScope = document.createElement("div");
+          splashScope.className =
+            "agpress-scripted-splash-scope fp-bluearchive";
+          splashEl.parentNode.insertBefore(splashScope, splashEl);
+          splashScope.appendChild(splashEl);
+        }
+        if (params.get("fpSplash") === "1") {
+          if (splashEl) {
+            if (useScriptedSplash) {
+              splashEl.classList.add("fp-calendar-splash--bluearchive");
+            }
+            document.body.classList.add("fp-splash-active");
+            splashEl.classList.add("is-visible");
+            var finishSplash = function () {
+              if (splashEl.dataset.hidden === "1") return;
+              splashEl.classList.add("is-hidden");
+              splashEl.classList.remove("is-visible", "is-fading");
+              splashEl.dataset.hidden = "1";
+              splashEl.setAttribute("aria-hidden", "true");
+              document.body.classList.add("fp-calendar-ready");
+              document.body.classList.remove("fp-splash-active");
+              if (isAgpressSplash) {
+                document.body.classList.remove("agpress-scripted-splash");
+                if (splashScope && splashScope.parentNode) {
+                  splashScope.parentNode.insertBefore(splashEl, splashScope);
+                  splashScope.remove();
+                  splashScope = null;
+                }
+              }
+            };
+            var skipSplash = function () {
+              if (
+                splashEl.dataset.hidden === "1" ||
+                splashEl.dataset.skipRequested === "1"
+              ) {
+                return;
+              }
+              splashEl.dataset.skipRequested = "1";
+              splashEl.classList.add("is-splash-skipping", "is-fading");
+              finishSplash();
+            };
+            splashEl.classList.add("is-splash-skippable");
+            splashEl.setAttribute("aria-hidden", "false");
+            splashEl.setAttribute(
+              "aria-label",
+              "Clicca per saltare la schermata iniziale",
+            );
+            splashEl.addEventListener("click", skipSplash);
+            if (useScriptedSplash) {
+              var exitStarted = false;
+              var beginBlueArchiveExit = function () {
+                if (exitStarted) return;
+                exitStarted = true;
+                splashEl
+                  .querySelector(".fp-ba-boot-status span:last-child")
+                  ?.classList.add("is-complete");
+                setTimeout(function () {
+                  splashEl.classList.add("is-fading");
+                  document.body.classList.add("fp-calendar-ready");
+                }, 900);
+                setTimeout(finishSplash, 1900);
+              };
+              var progressBar = splashEl.querySelector(
+                ".fp-ba-boot-progress i",
+              );
+              var statusSteps = splashEl.querySelectorAll(
+                ".fp-ba-boot-status span",
+              );
+              setTimeout(function () {
+                statusSteps[1]?.classList.add("is-complete");
+              }, 1900);
+              if (progressBar) {
+                progressBar.addEventListener(
+                  "animationend",
+                  beginBlueArchiveExit,
+                  { once: true },
+                );
+              }
+              // Fallback nel caso in cui Chromium non emetta animationend.
+              setTimeout(beginBlueArchiveExit, 4800);
+            } else {
+              setTimeout(finishSplash, 5000);
+            }
+          }
+        } else {
+          document.body.classList.add("fp-calendar-ready");
+          splashEl?.classList.add("is-hidden");
+        }
+      } catch (err) { }
+    })();
+  </script>
+  <div class="fp-page">
+    <header class="fp-header">
+      <div class="fp-header__title">
+        <h1>Calendario Dipendenti e Richieste</h1>
+        <button type="button" class="fp-header__subtitle-link" id="fp-guide-news">
+          Visualizza novita e aggiornamenti
+        </button>
+      </div>
+      <div class="fp-filters-legend">
+        <div class="fp-calendar-filters" id="fp-calendar-filters">
+          <label class="fp-filter-toggle">
+            <input type="checkbox" id="fp-filter-ferie" checked />
+            <span>Ferie</span>
+          </label>
+          <label class="fp-filter-toggle">
+            <input type="checkbox" id="fp-filter-permesso" checked />
+            <span>Permessi</span>
+          </label>
+          <label class="fp-filter-toggle">
+            <input type="checkbox" id="fp-filter-overtime" />
+            <span>Straordinari</span>
+          </label>
+          <label class="fp-filter-toggle">
+            <input type="checkbox" id="fp-filter-mutua" />
+            <span>Mutua/Infortunio</span>
+          </label>
+          <label class="fp-filter-toggle">
+            <input type="checkbox" id="fp-filter-speciale" />
+            <span>Chiusura aziendale</span>
+          </label>
+          <label class="fp-filter-toggle">
+            <input type="checkbox" id="fp-filter-retribuito" />
+            <span>Retribuiti</span>
+          </label>
+        </div>
+        <div class="fp-legend" id="fp-legend">
+          <button type="button" class="fp-legend__item" data-type="ferie">
+            <span class="fp-legend__dot fp-legend__dot--ferie"></span>Ferie
+          </button>
+          <button type="button" class="fp-legend__item" data-type="permesso">
+            <span class="fp-legend__dot fp-legend__dot--permesso"></span>Permessi
+          </button>
+          <button type="button" class="fp-legend__item" data-type="straordinari">
+            <span class="fp-legend__dot fp-legend__dot--straordinari"></span>Straordinari
+          </button>
+          <button type="button" class="fp-legend__item" data-type="mutua">
+            <span class="fp-legend__dot fp-legend__dot--mutua"></span>Mutua/Infortunio
+          </button>
+          <button type="button" class="fp-legend__item" data-type="speciale">
+            <span class="fp-legend__dot fp-legend__dot--speciale"></span>Chiusura aziendale
+          </button>
+          <button type="button" class="fp-legend__item" data-type="retribuito">
+            <span class="fp-legend__dot fp-legend__dot--retribuito"></span>Retribuiti
+          </button>
+          <div class="fp-legend-editor is-hidden" id="fp-legend-editor">
+            <div class="fp-legend-editor__title" id="fp-legend-editor-title">
+              Colore legenda
+            </div>
+            <div class="fp-legend-editor__row">
+              <input type="color" class="fp-color-input" id="fp-legend-color-input" />
+              <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-default">
+                Default
+              </button>
+              <button type="button" class="fp-btn fp-btn--primary" id="fp-legend-save">
+                Salva
+              </button>
+              <button type="button" class="fp-btn fp-btn--ghost" id="fp-legend-cancel">
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="fp-header__actions">
+        <div id="fp-summary" class="fp-summary">...</div>
+        <button type="button" class="fp-btn" id="fp-refresh">Aggiorna</button>
+        <button type="button" class="fp-btn" id="fp-admin-toggle">
+          Login
+        </button>
+        <button type="button" class="fp-btn fp-btn--icon" id="fp-settings" aria-label="Impostazioni">
+          <span class="material-icons fp-icon-mi" aria-hidden="true">settings</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="fp-body">
+      <section class="fp-panel">
+        <div class="fp-card fp-card--pending">
+          <button type="button" class="fp-btn fp-btn--pending" id="fp-pending-toggle" aria-expanded="false">
+            <span class="fp-btn__icon-group" aria-hidden="true">
+              <span class="fp-btn__icon fp-icon-badge">
+                <span class="material-icons fp-icon-mi" aria-hidden="true">notifications</span>
+                <span id="fp-pending-badge" class="fp-badge fp-badge--inline fp-badge--counter">0</span>
+              </span>
+            </span>
+            <span class="fp-btn__label">Richieste in attesa</span>
+          </button>
+          <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-open">
+            <span class="fp-btn__icon" aria-hidden="true">
+              <span class="material-icons fp-icon-mi" aria-hidden="true">manage_accounts</span>
+            </span>
+            <span class="fp-btn__label">Gestione</span>
+          </button>
+          <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-manage">
+            <span class="fp-btn__icon" aria-hidden="true">
+              <span class="material-icons fp-icon-mi" aria-hidden="true">event_note</span>
+            </span>
+            <span class="fp-btn__label">Festivita e chiusure</span>
+          </button>
+          <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-export-open">
+            <span class="fp-btn__icon" aria-hidden="true">
+              <span class="material-icons fp-icon-mi" aria-hidden="true">file_download</span>
+            </span>
+            <span class="fp-btn__label">Esporta ferie/permessi</span>
+          </button>
+        </div>
+        <form id="fp-request-form" class="fp-card">
+          <h2>Nuova richiesta</h2>
+          <div class="fp-field">
+            <label for="fp-department">Reparto</label>
+            <select id="fp-department"></select>
+          </div>
+          <div class="fp-field">
+            <label for="fp-employee">Dipendente</label>
+            <select id="fp-employee"></select>
+          </div>
+          <div class="fp-field">
+            <label for="fp-type">Tipo</label>
+            <select id="fp-type">
+              <option value="ferie">Ferie</option>
+              <option value="permesso">Permesso</option>
+              <option value="straordinari">Straordinari</option>
+              <option value="mutua">Mutua</option>
+              <option value="infortunio">Infortunio</option>
+              <option value="speciale">Permesso Chiusura Aziendale</option>
+              <option value="retribuito">Permesso Retribuito</option>
+            </select>
+          </div>
+          <div class="fp-field fp-checkbox">
+            <input type="checkbox" id="fp-all-day" />
+            <label for="fp-all-day">Giornata intera</label>
+          </div>
+          <div class="fp-grid">
+            <div class="fp-field">
+              <label for="fp-start-date">Data inizio</label>
+              <input type="date" id="fp-start-date" required />
+            </div>
+            <div class="fp-field">
+              <label for="fp-start-time">Ora inizio</label>
+              <input type="time" id="fp-start-time" value="08:00" />
+            </div>
+            <div class="fp-field">
+              <label for="fp-end-date">Data fine</label>
+              <input type="date" id="fp-end-date" required />
+            </div>
+            <div class="fp-field">
+              <label for="fp-end-time">Ora fine</label>
+              <input type="time" id="fp-end-time" value="17:30" />
+            </div>
+          </div>
+          <div id="fp-end-date-error" class="fp-inline-error is-hidden"></div>
+          <div class="fp-field">
+            <label for="fp-note">Note</label>
+            <textarea id="fp-note" rows="3" placeholder="Inserisci eventuali dettagli"></textarea>
+          </div>
+          <div class="fp-actions">
+            <button type="button" class="fp-btn fp-btn--primary" id="fp-request-save">
+              Salva
+            </button>
+          </div>
+          <div id="fp-form-message" class="fp-message is-hidden"></div>
+        </form>
+      </section>
+
+      <section class="fp-calendar">
+        <div id="fp-calendar"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="fp-pending-flyout" id="fp-pending-panel" aria-hidden="true">
+    <div class="fp-pending-flyout__header">
+      <h3>Richieste in attesa</h3>
+      <button type="button" class="fp-btn fp-btn--ghost" id="fp-pending-close">
+        Chiudi
+      </button>
+    </div>
+    <div id="fp-pending-list" class="fp-pending-list"></div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-confirm-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-confirm-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-confirm-title">
+      <h3 id="fp-confirm-title">Conferma richiesta</h3>
+      <p id="fp-confirm-message"></p>
+      <div class="fp-actions fp-actions--modal">
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-confirm-cancel">
+          No
+        </button>
+        <button type="button" class="fp-btn fp-btn--primary" id="fp-confirm-ok">
+          Si
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-settings-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-settings-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-settings-title">Impostazioni</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-settings-theme-open">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">palette</span>
+          </span>
+          <span class="fp-btn__label">Tema</span>
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-holidays-list-open">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">event</span>
+          </span>
+          <span class="fp-btn__label">Mostra festivita future</span>
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-closures-list-open">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">event_busy</span>
+          </span>
+          <span class="fp-btn__label">Mostra chiusure future</span>
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-admin-open">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">admin_panel_settings</span>
+          </span>
+          <span class="fp-btn__label">Gestione admin</span>
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-settings-config-open">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">tune</span>
+          </span>
+          <span class="fp-btn__label">Configurazione</span>
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-analysis-open">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">query_stats</span>
+          </span>
+          <span class="fp-btn__label">Analisi</span>
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-backup-open">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">backup</span>
+          </span>
+          <span class="fp-btn__label">Backup</span>
+        </button>
+      </div>
+      <div id="fp-settings-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-config-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-config-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-config-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-config-title">Configurazione accessi</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-config-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-config-hint">
+        Attiva lo switch per richiedere il login admin. Disattivalo per
+        consentire l'operazione a tutti.
+      </div>
+
+      <div class="fp-config-body">
+        <div class="fp-config-section">
+          <h4>Nuove richieste</h4>
+          <div class="fp-config-grid">
+            <label class="fp-switch"><input type="checkbox" id="fp-config-create-ferie" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-create-permesso" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-create-straordinari" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-create-mutua" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Mutua/Infortunio</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-create-speciale" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura
+                Aziendale</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-create-retribuito" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
+          </div>
+        </div>
+
+        <div class="fp-config-section">
+          <h4>Richieste in attesa</h4>
+          <div class="fp-config-grid">
+            <label class="fp-switch"><input type="checkbox" id="fp-config-pending-access" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Accedi al menu richieste</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-pending-approve" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Convalida richieste</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-pending-reject" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Rifiuta richieste</span></label>
+          </div>
+        </div>
+
+        <div class="fp-config-section">
+          <h4>Richieste approvate</h4>
+          <div class="fp-config-grid">
+            <label class="fp-switch"><input type="checkbox" id="fp-config-edit-approved" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Modifica richieste
+                approvate</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-delete-approved" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Elimina richieste
+                approvate</span></label>
+          </div>
+        </div>
+
+        <div class="fp-config-section">
+          <h4>Filtri calendario</h4>
+          <div class="fp-config-grid">
+            <label class="fp-switch"><input type="checkbox" id="fp-config-filter-ferie" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Ferie</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-filter-permesso" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Permessi</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-filter-straordinari" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Straordinari</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-filter-mutua" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Mutua/Infortunio</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-filter-speciale" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Permesso Chiusura
+                Aziendale</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-filter-retribuito" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Permesso Retribuito</span></label>
+          </div>
+        </div>
+
+        <div class="fp-config-section">
+          <h4>Gestione e calendario</h4>
+          <div class="fp-config-grid">
+            <label class="fp-switch"><input type="checkbox" id="fp-config-manage-access" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Gestione ore e dipendenti</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-days-access" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Festivita e chiusure
+                aziendali</span></label>
+            <label class="fp-switch"><input type="checkbox" id="fp-config-export" /><span
+                class="fp-switch__track"></span><span class="fp-switch__label">Export Excel</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="fp-actions fp-actions--modal">
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-config-reset">
+          Ripristina default
+        </button>
+        <button type="button" class="fp-btn fp-btn--primary" id="fp-config-save">
+          Salva
+        </button>
+      </div>
+      <div id="fp-config-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-guide-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-guide-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-guide-title">
+      <div id="fp-guide-message" class="fp-message is-hidden"></div>
+      <iframe id="fp-guide-frame" class="fp-guide-frame" title="Guida AyPi" src="about:blank"></iframe>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-settings-theme-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-settings-theme-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-settings-theme-title">Tema</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-theme-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-theme-options">
+        <label class="fp-theme-option">
+          <input type="radio" name="fp-theme" value="light" checked />
+          <span>Light mode</span>
+        </label>
+        <label class="fp-theme-option">
+          <input type="radio" name="fp-theme" value="dark" />
+          <span>Dark mode</span>
+        </label>
+        <label class="fp-theme-option">
+          <input type="radio" name="fp-theme" value="aypi" />
+          <span>AyPi</span>
+        </label>
+      </div>
+      <div class="fp-actions fp-actions--modal">
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-settings-theme-reset">
+          Ripristina default
+        </button>
+        <button type="button" class="fp-btn fp-btn--primary" id="fp-settings-theme-save">
+          Salva
+        </button>
+      </div>
+      <div id="fp-settings-theme-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-setup-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-setup-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-setup-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-setup-title">Configurazione iniziale</h3>
+      </div>
+      <p class="fp-setup-intro" id="fp-setup-intro"></p>
+      <div class="fp-setup-section">
+        <div class="fp-setup-label">Percorso dati</div>
+        <div class="fp-setup-path" id="fp-setup-path"></div>
+        <div class="fp-setup-note" id="fp-setup-note"></div>
+      </div>
+      <div class="fp-setup-section">
+        <div class="fp-setup-label">Mailing OTP</div>
+        <div class="fp-setup-choice">
+          <button type="button" class="fp-btn fp-btn--ghost" id="fp-setup-mail-skip">
+            Non ora
+          </button>
+          <button type="button" class="fp-btn fp-btn--primary" id="fp-setup-mail-open">
+            Configura ora
+          </button>
+        </div>
+        <div class="fp-setup-mail is-hidden" id="fp-setup-mail-section">
+          <div class="fp-admin-grid fp-admin-grid--stack">
+            <input class="fp-field__input" id="fp-mail-host" type="text" placeholder="Host SMTP (es. smtp.domain.it)" />
+            <input class="fp-field__input" id="fp-mail-port" type="number" placeholder="Porta (es. 587)" />
+            <label class="fp-field__checkbox">
+              <input type="checkbox" id="fp-mail-secure" />
+              <span>Connessione sicura (SSL/TLS)</span>
+            </label>
+            <input class="fp-field__input" id="fp-mail-user" type="text" placeholder="User (email o utente SMTP)" />
+            <input class="fp-field__input" id="fp-mail-pass" type="password" placeholder="Password SMTP" />
+            <input class="fp-field__input" id="fp-mail-from" type="text" placeholder="Mittente (opzionale)" />
+            <input class="fp-field__input" id="fp-mail-test" type="email" placeholder="Email di prova" />
+          </div>
+          <div class="fp-actions fp-actions--modal">
+            <button type="button" class="fp-btn fp-btn--ghost" id="fp-mail-test-send">
+              Invia test
+            </button>
+            <button type="button" class="fp-btn fp-btn--primary" id="fp-mail-save">
+              Salva mailing e continua
+            </button>
+          </div>
+          <div id="fp-setup-mail-message" class="fp-message is-hidden"></div>
+        </div>
+      </div>
+      <div class="fp-actions fp-actions--modal">
+        <button type="button" class="fp-btn fp-btn--primary" id="fp-setup-continue">
+          Continua senza mailing
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="fp-modal is-hidden" id="fp-export-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-export-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-export-title">Esporta ferie/permessi</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <div class="fp-assignees-subtitle">Periodo</div>
+        <div class="fp-export-choice">
+          <label><input type="radio" name="fp-export-range" value="all" checked />
+            Sempre</label>
+          <label><input type="radio" name="fp-export-range" value="custom" /> Da -
+            a</label>
+        </div>
+        <div class="fp-export-grid">
+          <div class="fp-field">
+            <label for="fp-export-start">Da</label>
+            <input class="fp-field__input" type="date" id="fp-export-start" />
+          </div>
+          <div class="fp-field">
+            <label for="fp-export-end">A</label>
+            <input class="fp-field__input" type="date" id="fp-export-end" />
+          </div>
+        </div>
+      </div>
+      <div class="fp-export-section">
+        <div class="fp-assignees-subtitle">Tipi</div>
+        <div class="fp-export-choice">
+          <label><input type="checkbox" id="fp-export-ferie" checked />
+            Ferie</label>
+          <label><input type="checkbox" id="fp-export-permessi" checked />
+            Permessi</label>
+          <label><input type="checkbox" id="fp-export-straordinari" checked />
+            Straordinari</label>
+          <label><input type="checkbox" id="fp-export-mutua" checked />
+            Mutua</label>
+          <label><input type="checkbox" id="fp-export-infortunio" checked />
+            Infortunio</label>
+          <label><input type="checkbox" id="fp-export-speciale" checked />
+            Permesso Chiusura Aziendale</label>
+          <label><input type="checkbox" id="fp-export-retribuito" checked />
+            Permessi Retribuiti</label>
+        </div>
+      </div>
+      <div class="fp-export-section">
+        <div class="fp-assignees-subtitle">Reparti</div>
+        <div class="fp-export-actions">
+          <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-select-all">
+            Tutti
+          </button>
+          <button type="button" class="fp-btn fp-btn--ghost" id="fp-export-select-none">
+            Nessuno
+          </button>
+        </div>
+        <div id="fp-export-departments" class="fp-export-departments"></div>
+      </div>
+      <div class="fp-actions fp-actions--modal">
+        <button type="button" class="fp-btn fp-btn--primary" id="fp-export-run">
+          Esporta Excel
+        </button>
+      </div>
+      <div id="fp-export-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-backup-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-export-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-backup-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-backup-title">Backup calendario</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-backup-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-backup-run">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">backup</span>
+          </span>
+          <span class="fp-btn__label">Backup calendario</span>
+        </button>
+      </div>
+      <div class="fp-export-section">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-backup-restore">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">restore</span>
+          </span>
+          <span class="fp-btn__label">Recupera</span>
+        </button>
+      </div>
+      <div id="fp-backup-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-approve-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-approve-title">
+      <div class="fp-login-identity-panel" aria-hidden="true">
+        <span class="fp-login-identity-kicker">AYPI // SECURE ACCESS</span>
+        <strong>IDENTITY GATE</strong>
+        <span>Autenticazione amministratore</span>
+        <small>Schale authorization network</small>
+      </div>
+      <div class="fp-login-identity-content">
+        <div class="fp-login-identity-heading">
+          <h3 id="fp-approve-title">Approva richiesta</h3>
+          <p id="fp-approve-desc">Inserisci la password per confermare.</p>
+        </div>
+        <label class="fp-login-admin-field is-hidden" id="fp-login-admin-field" for="fp-login-admin-name">
+          <span>Amministratore</span>
+          <select id="fp-login-admin-name" class="fp-field__input" autocomplete="username"></select>
+        </label>
+        <label class="fp-login-password-field" for="fp-approve-password">
+          <span>Password</span>
+          <input type="password" id="fp-approve-password" placeholder="Password" autocomplete="current-password" />
+        </label>
+        <div id="fp-approve-error" class="fp-message fp-message--error is-hidden">
+          Password errata.
+        </div>
+        <button type="button" class="fp-link-btn is-hidden" id="fp-approve-recover">
+          Recupero password?
+        </button>
+        <div class="fp-actions fp-actions--modal">
+          <button type="button" class="fp-btn fp-btn--ghost" id="fp-approve-cancel">
+            Annulla
+          </button>
+          <button type="button" class="fp-btn fp-btn--primary" id="fp-approve-confirm">
+            Conferma
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-info-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-info-title">
+      <h3 id="fp-info-title">Avviso</h3>
+      <p id="fp-info-message"></p>
+      <div class="fp-actions fp-actions--modal">
+        <button type="button" class="fp-btn fp-btn--primary is-hidden" id="fp-info-login">
+          Accedi
+        </button>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-info-ok">
+          Ok
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-manage-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-manage-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-manage-title">Gestione</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-manage-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-days-picker">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-assignees">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">groups</span>
+          </span>
+          <span class="fp-btn__label">Gestisci dipendenti</span>
+        </button>
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-manage-hours">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">schedule</span>
+          </span>
+          <span class="fp-btn__label">Gestione ore</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-days-picker-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-days-picker-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-days-picker-title">Gestione calendario</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-days-picker-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-days-picker">
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-picker-holiday">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">event</span>
+          </span>
+          <span class="fp-btn__label">Gestione festivita</span>
+        </button>
+        <button type="button" class="fp-btn fp-btn--pending fp-btn--manage" id="fp-days-picker-closure">
+          <span class="fp-btn__icon" aria-hidden="true">
+            <span class="material-icons fp-icon-mi" aria-hidden="true">event_busy</span>
+          </span>
+          <span class="fp-btn__label">Chiusure azienda</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-holidays-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-holidays-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-holidays-title">Gestione festivita</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-holidays-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-holidays-date-grid">
+        <input class="fp-field__input fp-holidays-name" type="text" id="fp-holidays-name"
+          placeholder="Nome festivita" />
+        <input class="fp-field__input fp-holidays-start" type="date" id="fp-holidays-start" />
+        <input class="fp-field__input fp-holidays-end" type="date" id="fp-holidays-end" />
+        <button type="button" class="fp-btn fp-btn--primary fp-holidays-add" id="fp-holidays-add">
+          Aggiungi
+        </button>
+      </div>
+      <div id="fp-holidays-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-closures-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-holidays-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-closures-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-closures-title">Chiusure azienda</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-closures-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-closures-date-grid">
+        <input class="fp-field__input fp-closures-name" type="text" id="fp-closures-name"
+          placeholder="Nome chiusura (opzionale)" />
+        <input class="fp-field__input fp-closures-start" type="date" id="fp-closures-start" />
+        <input class="fp-field__input fp-closures-end" type="date" id="fp-closures-end" />
+        <button type="button" class="fp-btn fp-btn--primary fp-closures-add" id="fp-closures-add">
+          Aggiungi
+        </button>
+      </div>
+      <div id="fp-closures-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-closures-list-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true"
+      aria-labelledby="fp-closures-list-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-closures-list-title">Chiusure future</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-closures-list-close">
+          Chiudi
+        </button>
+      </div>
+      <div id="fp-closures-future-list" class="fp-holidays-list"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-holidays-list-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true"
+      aria-labelledby="fp-holidays-list-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-holidays-list-title">Festivita future</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-holidays-list-close">
+          Chiudi
+        </button>
+      </div>
+      <div id="fp-holidays-future-list" class="fp-holidays-list"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-otp-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech fp-admin-card" role="dialog" aria-modal="true"
+      aria-labelledby="fp-otp-title">
+      <div class="fp-assignees-header">
+        <h3 id="fp-otp-title">Recupero password</h3>
+        <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-close">
+          Chiudi
+        </button>
+      </div>
+      <div class="fp-admin-grid fp-admin-grid--stack">
+        <input class="fp-field__input" id="fp-otp-admin-name" type="text" placeholder="Nome e cognome admin" />
+        <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-send">
+          Invia OTP via email
+        </button>
+      </div>
+      <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-verify-section">
+        <input class="fp-field__input" id="fp-otp-code" type="text" placeholder="Codice OTP" />
+        <div class="fp-admin-actions">
+          <button type="button" class="fp-btn fp-btn--ghost" id="fp-otp-resend">
+            Invia di nuovo OTP
+          </button>
+          <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-verify">
+            Verifica OTP
+          </button>
+        </div>
+      </div>
+      <div class="fp-admin-grid fp-admin-grid--stack fp-otp-section is-hidden" id="fp-otp-reset-section">
+        <input class="fp-field__input" id="fp-otp-new" type="password" placeholder="Nuova password" />
+        <input class="fp-field__input" id="fp-otp-new-confirm" type="password" placeholder="Conferma nuova password" />
+        <div class="fp-admin-actions">
+          <button type="button" class="fp-btn fp-btn--primary" id="fp-otp-reset">
+            Aggiorna password
+          </button>
+        </div>
+      </div>
+      <div id="fp-otp-message" class="fp-message is-hidden"></div>
+    </div>
+  </div>
+
+  <div class="fp-modal is-hidden" id="fp-edit-modal" aria-hidden="true">
+    <div class="fp-modal__card fp-modal__card--tech" role="dialog" aria-modal="true" aria-labelledby="fp-edit-title">
+      <h3 id="fp-edit-title">Modifica richiesta</h3>
+      <form id="fp-edit-form" class="fp-card fp-card--modal">
+        <div class="fp-field">
+          <label for="fp-edit-department">Reparto</label>
+          <select id="fp-edit-department"></select>
+        </div>
+        <div class="fp-field">
+          <label for="fp-edit-employee">Dipendente</label>
+          <select id="fp-edit-employee"></select>
+        </div>
+        <div class="fp-field">
+          <label for="fp-edit-type">Tipo</label>
+          <select id="fp-edit-type">
+            <option value="ferie">Ferie</option>
+            <option value="permesso">Permesso</option>
+            <option value="straordinari">Straordinari</option>
+            <option value="mutua">Mutua</option>
+            <option value="infortunio">Infortunio</option>
+            <option value="speciale">Permesso Chiusura Aziendale</option>
+            <option value="retribuito">Permesso Retribuito</option>
+          </select>
+        </div>
+        <div class="fp-field fp-checkbox">
+          <input type="checkbox" id="fp-edit-all-day" />
+          <label for="fp-edit-all-day">Giornata intera</label>
+        </div>
+        <div class="fp-grid">
+          <div class="fp-field">
+            <label for="fp-edit-start-date">Data inizio</label>
+            <input type="date" id="fp-edit-start-date" required />
+          </div>
+          <div class="fp-field">
+            <label for="fp-edit-start-time">Ora inizio</label>
+            <input type="time" id="fp-edit-start-time" value="08:00" />
+          </div>
+          <div class="fp-field">
+            <label for="fp-edit-end-date">Data fine</label>
+            <input type="date" id="fp-edit-end-date" required />
+          </div>
+          <div class="fp-field">
+            <label for="fp-edit-end-time">Ora fine</label>
+            <input type="time" id="fp-edit-end-time" value="17:30" />
+          </div>
+        </div>
+        <div id="fp-edit-end-date-error" class="fp-inline-error is-hidden"></div>
+        <div class="fp-field">
+          <label for="fp-edit-note">Note</label>
+          <textarea id="fp-edit-note" rows="3" placeholder="Inserisci eventuali dettagli"></textarea>
+        </div>
+        <div id="fp-edit-message" class="fp-message is-hidden"></div>
+        <div class="fp-actions fp-actions--modal">
+          <button type="button" class="fp-btn fp-btn--danger" id="fp-edit-delete">
+            Elimina
+          </button>
+          <button type="button" class="fp-btn fp-btn--ghost" id="fp-edit-cancel">
+            Annulla
+          </button>
+          <button type="submit" class="fp-btn fp-btn--primary">Salva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../../assets/vendor/fullcalendar/index.global.min.js"></script>
+  <script>
+    if (!window.FullCalendar) {
+      document.write(
+        '<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"><\\/script>',
+      );
+    }
+  </script>
+  <script src="../../scripts/utilities/ferie-permessi-scripts.js"></script>
 </body>
 
 </html>
-
-
-
-
-
-
-
-
-

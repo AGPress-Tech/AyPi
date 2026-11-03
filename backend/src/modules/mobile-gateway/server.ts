@@ -4,10 +4,7 @@ import { registerFeriePermessiRoutes } from "../ferie-permessi/routes";
 import { registerProductManagerRoutes } from "../product-manager/routes";
 import { registerProductionPlannerRoutes } from "../production-planner/routes";
 import { registerTicketSupportRoutes } from "../ticket-support/routes";
-import {
-    getPayload,
-    updateBalanceEntries,
-} from "../ferie-permessi/service";
+import { getPayload, updateBalanceEntries } from "../ferie-permessi/service";
 import {
     getAdminNames,
     getAdmins,
@@ -17,11 +14,7 @@ import {
     verifyAdmin,
 } from "../shared/service";
 import { Router } from "../../shared/http/router";
-import {
-    sendError,
-    sendJson,
-    sendNoContent,
-} from "../../shared/http/response";
+import { sendError, sendJson, sendNoContent } from "../../shared/http/response";
 import { readJsonBody } from "../../shared/http/request";
 import {
     badRequest,
@@ -42,10 +35,7 @@ import {
     initializeMobileSessionStore,
     revokeMobileAdminSession,
 } from "./session-repository";
-import {
-    readBearerToken,
-    resolveMobileAdminSession,
-} from "./security";
+import { readBearerToken, resolveMobileAdminSession } from "./security";
 import { MobileRealtimeHub } from "./realtime";
 
 type LoginAttempt = {
@@ -109,18 +99,17 @@ function setSecurityHeaders(response: http.ServerResponse) {
 }
 
 function isPublicPath(pathname: string) {
-    return (
-        pathname === "/health" ||
-        pathname === "/api/mobile/auth/login"
-    );
+    return pathname === "/health" || pathname === "/api/mobile/auth/login";
 }
 
 function inferMobileModule(pathname: string) {
     if (
         pathname.startsWith("/api/ferie-permessi/") ||
         pathname.startsWith("/api/mobile/calendar/")
-    ) return "calendar" as const;
-    if (pathname.startsWith("/api/product-manager/")) return "purchasing" as const;
+    )
+        return "calendar" as const;
+    if (pathname.startsWith("/api/product-manager/"))
+        return "purchasing" as const;
     if (pathname.startsWith("/api/ticket-support/")) return "ticket" as const;
     if (pathname.startsWith("/api/production-planner/")) {
         return "production-planner" as const;
@@ -128,11 +117,17 @@ function inferMobileModule(pathname: string) {
     return "shared" as const;
 }
 
-function getMobileModulePermissions(adminName: string): MobileModulePermissions {
+function getMobileModulePermissions(
+    adminName: string,
+): MobileModulePermissions {
     const target = getAdmins().find(
         (entry) =>
-            String(entry.name || "").trim().toLowerCase() ===
-            String(adminName || "").trim().toLowerCase(),
+            String(entry.name || "")
+                .trim()
+                .toLowerCase() ===
+            String(adminName || "")
+                .trim()
+                .toLowerCase(),
     );
     return {
         calendar: target?.accessCalendar !== false,
@@ -149,7 +144,8 @@ function canAccessMobilePath(
     if (
         pathname.startsWith("/api/ferie-permessi/") ||
         pathname.startsWith("/api/mobile/calendar/")
-    ) return permissions.calendar;
+    )
+        return permissions.calendar;
     if (pathname.startsWith("/api/product-manager/")) {
         return permissions.purchasing;
     }
@@ -182,62 +178,67 @@ function registerMobileRoutes(router: Router) {
         });
     });
 
-    router.register("POST", "/api/mobile/auth/login", async (request, response) => {
-        const body = (await readJsonBody<{
-            adminName?: string;
-            password?: string;
-        }>(request)) || {};
-        const adminName = String(body.adminName || "").trim();
-        const password = String(body.password || "");
-        const key = loginKey(request, adminName);
-        const attempt = recentFailures(key);
-        if (attempt.failures.length >= MAX_LOGIN_FAILURES) {
-            throw tooManyRequests(
-                "Troppi tentativi. Riprova tra qualche minuto.",
-            );
-        }
-        if (!adminName || !password) {
-            registerLoginFailure(key);
-            throw unauthorized("Credenziali non valide");
-        }
+    router.register(
+        "POST",
+        "/api/mobile/auth/login",
+        async (request, response) => {
+            const body =
+                (await readJsonBody<{
+                    adminName?: string;
+                    password?: string;
+                }>(request)) || {};
+            const adminName = String(body.adminName || "").trim();
+            const password = String(body.password || "");
+            const key = loginKey(request, adminName);
+            const attempt = recentFailures(key);
+            if (attempt.failures.length >= MAX_LOGIN_FAILURES) {
+                throw tooManyRequests(
+                    "Troppi tentativi. Riprova tra qualche minuto.",
+                );
+            }
+            if (!adminName || !password) {
+                registerLoginFailure(key);
+                throw unauthorized("Credenziali non valide");
+            }
 
-        const admin = await verifyAdmin(password, adminName, {
-            actor: adminName,
-            requestId: getRequestId(request),
-        });
-        if (!admin) {
-            registerLoginFailure(key);
-            logger.warn("Mobile admin login failed", {
-                event: "mobile_admin_login_failed",
+            const admin = await verifyAdmin(password, adminName, {
+                actor: adminName,
+                requestId: getRequestId(request),
+            });
+            if (!admin) {
+                registerLoginFailure(key);
+                logger.warn("Mobile admin login failed", {
+                    event: "mobile_admin_login_failed",
+                    category: "security",
+                    module: "calendar",
+                    user: adminName || "unknown",
+                    remoteAddress: request.socket.remoteAddress || "",
+                });
+                throw unauthorized("Credenziali non valide");
+            }
+            resetLoginFailures(key);
+            const created = createMobileAdminSession(admin.name);
+            const modules = getMobileModulePermissions(admin.name);
+            logger.info("Mobile admin login completed", {
+                event: "mobile_admin_login_completed",
                 category: "security",
                 module: "calendar",
-                user: adminName || "unknown",
+                user: admin.name,
                 remoteAddress: request.socket.remoteAddress || "",
+                expiresAt: created.session.expiresAt,
             });
-            throw unauthorized("Credenziali non valide");
-        }
-        resetLoginFailures(key);
-        const created = createMobileAdminSession(admin.name);
-        const modules = getMobileModulePermissions(admin.name);
-        logger.info("Mobile admin login completed", {
-            event: "mobile_admin_login_completed",
-            category: "security",
-            module: "calendar",
-            user: admin.name,
-            remoteAddress: request.socket.remoteAddress || "",
-            expiresAt: created.session.expiresAt,
-        });
-        sendJson(response, 200, {
-            tokenType: "Bearer",
-            accessToken: created.token,
-            expiresAt: created.session.expiresAt,
-            admin: {
-                name: admin.name,
-                email: admin.email || "",
-                modules,
-            },
-        });
-    });
+            sendJson(response, 200, {
+                tokenType: "Bearer",
+                accessToken: created.token,
+                expiresAt: created.session.expiresAt,
+                admin: {
+                    name: admin.name,
+                    email: admin.email || "",
+                    modules,
+                },
+            });
+        },
+    );
 
     router.register("GET", "/api/mobile/auth/me", async (request, response) => {
         const session = resolveMobileAdminSession(request);
@@ -253,10 +254,14 @@ function registerMobileRoutes(router: Router) {
         });
     });
 
-    router.register("POST", "/api/mobile/auth/logout", async (request, response) => {
-        revokeMobileAdminSession(readBearerToken(request));
-        sendNoContent(response);
-    });
+    router.register(
+        "POST",
+        "/api/mobile/auth/logout",
+        async (request, response) => {
+            revokeMobileAdminSession(readBearerToken(request));
+            sendNoContent(response);
+        },
+    );
 
     router.register(
         "GET",
@@ -292,10 +297,11 @@ function registerMobileRoutes(router: Router) {
         "PUT",
         "/api/mobile/calendar/assignees",
         async (request, response) => {
-            const body = (await readJsonBody<{
-                groups?: Record<string, unknown>;
-                emails?: Record<string, unknown>;
-            }>(request)) || {};
+            const body =
+                (await readJsonBody<{
+                    groups?: Record<string, unknown>;
+                    emails?: Record<string, unknown>;
+                }>(request)) || {};
             if (
                 !body.groups ||
                 typeof body.groups !== "object" ||
@@ -304,17 +310,19 @@ function registerMobileRoutes(router: Router) {
                 throw badRequest("Elenco reparti non valido");
             }
             const groups: Record<string, string[]> = {};
-            Object.entries(body.groups).forEach(([rawDepartment, rawEmployees]) => {
-                const department = rawDepartment.trim();
-                if (!department || !Array.isArray(rawEmployees)) return;
-                groups[department] = Array.from(
-                    new Set(
-                        rawEmployees
-                            .map((value) => String(value || "").trim())
-                            .filter(Boolean),
-                    ),
-                ).sort((left, right) => left.localeCompare(right, "it"));
-            });
+            Object.entries(body.groups).forEach(
+                ([rawDepartment, rawEmployees]) => {
+                    const department = rawDepartment.trim();
+                    if (!department || !Array.isArray(rawEmployees)) return;
+                    groups[department] = Array.from(
+                        new Set(
+                            rawEmployees
+                                .map((value) => String(value || "").trim())
+                                .filter(Boolean),
+                        ),
+                    ).sort((left, right) => left.localeCompare(right, "it"));
+                },
+            );
             const emails: Record<string, string> = {};
             if (
                 body.emails &&
@@ -342,13 +350,14 @@ function registerMobileRoutes(router: Router) {
         "PUT",
         "/api/mobile/calendar/balances",
         async (request, response) => {
-            const body = (await readJsonBody<{
-                entries?: Array<{
-                    key?: string;
-                    hoursAvailable?: number;
-                    monthlyAccrualHours?: number;
-                }>;
-            }>(request)) || {};
+            const body =
+                (await readJsonBody<{
+                    entries?: Array<{
+                        key?: string;
+                        hoursAvailable?: number;
+                        monthlyAccrualHours?: number;
+                    }>;
+                }>(request)) || {};
             if (!Array.isArray(body.entries)) {
                 throw badRequest("Elenco ore non valido");
             }
@@ -400,10 +409,7 @@ export function startMobileGatewayServer(): Promise<MobileGatewayHandle | null> 
     return new Promise((resolve, reject) => {
         const server = http.createServer(async (request, response) => {
             const method = String(request.method || "GET").toUpperCase();
-            const requestUrl = new URL(
-                request.url || "/",
-                "http://localhost",
-            );
+            const requestUrl = new URL(request.url || "/", "http://localhost");
             const pathname = requestUrl.pathname;
             const requestId = `mobile_${Date.now()}_${++requestCounter}`;
             setRequestId(request, requestId);
@@ -438,7 +444,10 @@ export function startMobileGatewayServer(): Promise<MobileGatewayHandle | null> 
                     pathname !== "/api/mobile/auth/logout"
                 ) {
                     response.once("finish", () => {
-                        if (response.statusCode < 200 || response.statusCode >= 300) {
+                        if (
+                            response.statusCode < 200 ||
+                            response.statusCode >= 300
+                        ) {
                             return;
                         }
                         publishRealtimeChange({

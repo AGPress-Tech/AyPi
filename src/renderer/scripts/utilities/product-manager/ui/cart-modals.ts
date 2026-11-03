@@ -82,18 +82,11 @@ export function createCartModals(context) {
                 description: getFieldValue(
                     "pm-intervention-edit-description",
                 ).trim(),
-                urgency: getFieldValue(
-                    "pm-intervention-edit-urgency",
-                ).trim(),
+                urgency: getFieldValue("pm-intervention-edit-urgency").trim(),
             },
             context.getSession(),
         );
-        if (
-            context.saveRequests(
-                requests,
-                context.requestModes.INTERVENTION,
-            )
-        ) {
+        if (context.saveRequests(requests, context.requestModes.INTERVENTION)) {
             closeInterventionEdit();
             context.renderCart();
         }
@@ -115,16 +108,12 @@ export function createCartModals(context) {
         const modal = context.document.getElementById("pm-edit-modal");
         if (!modal) return;
         const product = context.document.getElementById("pm-edit-product");
-        const tagsContainer =
-            context.document.getElementById("pm-edit-tags");
-        const tagsInput =
-            context.document.getElementById("pm-edit-tags-input");
-        const quantity =
-            context.document.getElementById("pm-edit-quantity");
+        const tagsContainer = context.document.getElementById("pm-edit-tags");
+        const tagsInput = context.document.getElementById("pm-edit-tags-input");
+        const quantity = context.document.getElementById("pm-edit-quantity");
         const unit = context.document.getElementById("pm-edit-unit");
         const urgency = context.document.getElementById("pm-edit-urgency");
-        const supplier =
-            context.document.getElementById("pm-edit-supplier");
+        const supplier = context.document.getElementById("pm-edit-supplier");
         const url = context.document.getElementById("pm-edit-url");
         const price = context.document.getElementById("pm-edit-price");
         const note = context.document.getElementById("pm-edit-note");
@@ -142,10 +131,7 @@ export function createCartModals(context) {
             {
                 container: tagsContainer,
                 input: tagsInput,
-                values: [
-                    ...context.getCatalogCategories(),
-                    ...selectedTags,
-                ],
+                values: [...context.getCatalogCategories(), ...selectedTags],
                 selected: selectedTags,
             },
         );
@@ -195,9 +181,7 @@ export function createCartModals(context) {
             {
                 product: getFieldValue("pm-edit-product").trim(),
                 category: getFieldValue("pm-edit-tags-input").trim(),
-                quantity: getFieldValue("pm-edit-quantity")
-                    .toString()
-                    .trim(),
+                quantity: getFieldValue("pm-edit-quantity").toString().trim(),
                 unit: getFieldValue("pm-edit-unit").trim(),
                 urgency: getFieldValue("pm-edit-urgency").trim(),
                 supplier: getFieldValue("pm-edit-supplier").trim(),
@@ -219,8 +203,7 @@ export function createCartModals(context) {
         if (!context.requireLogin()) return;
         context.uiState.pendingAddRow = row;
         const modal = context.document.getElementById("pm-add-modal");
-        const quantity =
-            context.document.getElementById("pm-add-quantity");
+        const quantity = context.document.getElementById("pm-add-quantity");
         if (!modal) return;
         if (quantity) quantity.value = "";
         modal.classList.remove("is-hidden");
@@ -269,9 +252,7 @@ export function createCartModals(context) {
             note: "",
         };
         const requests = context.readRequests();
-        requests.push(
-            context.buildRequestRecord({ notes: "", lines: [line] }),
-        );
+        requests.push(context.buildRequestRecord({ notes: "", lines: [line] }));
         if (context.saveRequests(requests)) {
             closeAdd();
             context.renderCart();

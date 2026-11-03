@@ -43,7 +43,8 @@ function parseEnvLine(line: string) {
 
 function getEnvCandidates() {
     const resourcesPath = String(
-        (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath || "",
+        (process as NodeJS.Process & { resourcesPath?: string })
+            .resourcesPath || "",
     );
     return [
         process.env.AYPI_BOT_ENV || "",
@@ -89,7 +90,9 @@ function resolveBotEntry() {
     ];
     const entry = candidates.find((candidate) => fs.existsSync(candidate));
     if (!entry) {
-        throw new Error(`Telegram bot entry non trovato (${candidates.join(" | ")})`);
+        throw new Error(
+            `Telegram bot entry non trovato (${candidates.join(" | ")})`,
+        );
     }
     return entry;
 }

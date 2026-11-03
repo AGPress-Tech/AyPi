@@ -126,16 +126,29 @@ type ApprovalModalOptions = {
         dates?: string[],
         name?: string,
     ) => Promise<any> | void;
-    onHolidayRemove: (admin: AdminLike | null, date?: string) => Promise<any> | void;
+    onHolidayRemove: (
+        admin: AdminLike | null,
+        date?: string,
+    ) => Promise<any> | void;
     onHolidayUpdate: (
         admin: AdminLike | null,
         date?: string,
         nextDate?: string,
         nextName?: string,
     ) => Promise<any> | void;
-    onClosureCreate: (admin: AdminLike | null, entry?: any) => Promise<any> | void;
-    onClosureRemove: (admin: AdminLike | null, entry?: any) => Promise<any> | void;
-    onClosureUpdate: (admin: AdminLike | null, entry?: any, next?: any) => Promise<any> | void;
+    onClosureCreate: (
+        admin: AdminLike | null,
+        entry?: any,
+    ) => Promise<any> | void;
+    onClosureRemove: (
+        admin: AdminLike | null,
+        entry?: any,
+    ) => Promise<any> | void;
+    onClosureUpdate: (
+        admin: AdminLike | null,
+        entry?: any,
+        next?: any,
+    ) => Promise<any> | void;
     onFilterAccess: (admin: AdminLike | null, filter?: string) => void;
     onExport: (admin: AdminLike | null, action?: PendingAction) => void;
     onBackupAccess: (admin: AdminLike | null) => void;
@@ -219,11 +232,7 @@ function createApprovalModal(options: ApprovalModalOptions) {
             error instanceof Error
                 ? error.stack || error.message
                 : String(error || "Errore sconosciuto");
-        showDialog(
-            "error",
-            "Operazione ferie/permessi non riuscita.",
-            detail,
-        );
+        showDialog("error", "Operazione ferie/permessi non riuscita.", detail);
     }
 
     const ALWAYS_REQUIRE_PASSWORD = new Set([
@@ -519,7 +528,9 @@ function createApprovalModal(options: ApprovalModalOptions) {
                     showInfoModal(
                         UI_TEXTS.adminLoginTitle,
                         UI_TEXTS.adminLoginRequired,
-                        { showLogin: true },
+                        {
+                            showLogin: true,
+                        },
                     );
                 } else {
                     showDialog(

@@ -2,10 +2,7 @@ import {
     getMesSqliteDatabase,
     runMesSqliteTransaction,
 } from "../../shared/db/mes-sqlite";
-import {
-    parseJson,
-    serializeJson,
-} from "../../shared/storage/json-codec";
+import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 import { HttpError } from "../../shared/http/errors";
 import { initializeMesSqliteStore } from "../mes/repository";
 import { validateActivePlannerSchedules } from "../mes/schedule-lock";
@@ -90,13 +87,24 @@ export function saveProductionPlannerSnapshot(
         );
         const currentRevision = Number(rows?.[0]?.values?.[0]?.[0]) || 0;
         if (baseRevision !== currentRevision) {
-            throw new HttpError(409, "Il pianificatore è stato aggiornato da un altro operatore.", {
-                code: "PLANNER_REVISION_CONFLICT",
-                details: { currentRevision },
-            });
+            throw new HttpError(
+                409,
+                "Il pianificatore è stato aggiornato da un altro operatore.",
+                {
+                    code: "PLANNER_REVISION_CONFLICT",
+                    details: { currentRevision },
+                },
+            );
         }
-        const previous = database.exec(`SELECT payload_json FROM ${TABLE} WHERE store_key = ?`, [STORE_KEY])?.[0]?.values?.[0]?.[0];
-        validateActivePlannerSchedules(database, state, parseJson(previous, null));
+        const previous = database.exec(
+            `SELECT payload_json FROM ${TABLE} WHERE store_key = ?`,
+            [STORE_KEY],
+        )?.[0]?.values?.[0]?.[0];
+        validateActivePlannerSchedules(
+            database,
+            state,
+            parseJson(previous, null),
+        );
         const revision = currentRevision + 1;
         const updatedAt = new Date().toISOString();
         const actor = String(updatedBy || "").trim() || "Operatore AyPi";

@@ -1,6 +1,6 @@
-﻿const { loadOwners, loadRoles, getRolePerms } = require('../storage');
-const config = require('../config');
-const { allowedIds } = require('../state');
+﻿const { loadOwners, loadRoles, getRolePerms } = require("../storage");
+const config = require("../config");
+const { allowedIds } = require("../state");
 
 function isAuthorized(ctx) {
   if (allowedIds.size === 0) return config.allowOpenAccess;
@@ -23,7 +23,7 @@ function isAdminUser(ctx) {
   const chatId = ctx?.chat?.id;
   if (!chatId) return false;
   const roles = loadRoles();
-  return String(roles[String(chatId)] || '').toLowerCase() === 'admin';
+  return String(roles[String(chatId)] || "").toLowerCase() === "admin";
 }
 
 function canRole(ctx, permKey) {
@@ -31,7 +31,7 @@ function canRole(ctx, permKey) {
   if (!chatId) return false;
   if (isOwnerUser(ctx)) return true;
   const roles = loadRoles();
-  const roleName = roles[String(chatId)] || 'Senza ruolo';
+  const roleName = roles[String(chatId)] || "Senza ruolo";
   const perms = getRolePerms(roleName);
   return Boolean(perms[permKey]);
 }

@@ -1,5 +1,12 @@
 import "./modules/stdio-errors";
-import { app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut } from "electron";
+import {
+    app,
+    BrowserWindow,
+    Menu,
+    Tray,
+    ipcMain,
+    globalShortcut,
+} from "electron";
 import path from "path";
 import fs from "fs";
 import {
@@ -73,7 +80,9 @@ function getThemeSettingsPath() {
 function loadBlueArchivePreference() {
     if (IS_BLUE_ARCHIVE_PREVIEW) return true;
     try {
-        const saved = JSON.parse(fs.readFileSync(getThemeSettingsPath(), "utf8"));
+        const saved = JSON.parse(
+            fs.readFileSync(getThemeSettingsPath(), "utf8"),
+        );
         return saved && saved.theme === "bluearchive";
     } catch {
         return false;
@@ -139,15 +148,36 @@ if (IS_DEV) {
         const fs = require("fs");
         const Module = require("module");
         const originalLoad = Module._load;
-        Module._load = function (request: string, parent: { filename?: string } | null, isMain: boolean) {
-            if (typeof request === "string" && request.startsWith(".") && parent && parent.filename) {
+        Module._load = function (
+            request: string,
+            parent: { filename?: string } | null,
+            isMain: boolean,
+        ) {
+            if (
+                typeof request === "string" &&
+                request.startsWith(".") &&
+                parent &&
+                parent.filename
+            ) {
                 try {
-                    const resolved = Module._resolveFilename(request, parent, isMain);
-                    if (typeof resolved === "string" && !fs.existsSync(resolved)) {
-                        console.warn(`[aypi-dev] require missing path: ${request} -> ${resolved}`);
+                    const resolved = Module._resolveFilename(
+                        request,
+                        parent,
+                        isMain,
+                    );
+                    if (
+                        typeof resolved === "string" &&
+                        !fs.existsSync(resolved)
+                    ) {
+                        console.warn(
+                            `[aypi-dev] require missing path: ${request} -> ${resolved}`,
+                        );
                     }
                 } catch (err) {
-                    console.warn(`[aypi-dev] require resolve failed: ${request}`, err);
+                    console.warn(
+                        `[aypi-dev] require resolve failed: ${request}`,
+                        err,
+                    );
                 }
             }
             return originalLoad.apply(this, arguments as any);
@@ -161,7 +191,9 @@ function getTrayIconPath() {
     return getInterfaceIconPath(true);
 }
 
-function isWindowAlive(win: BrowserWindow | null | undefined): win is BrowserWindow {
+function isWindowAlive(
+    win: BrowserWindow | null | undefined,
+): win is BrowserWindow {
     return !!win && !win.isDestroyed();
 }
 
@@ -190,7 +222,7 @@ function createTray() {
 function updateTrayMenu() {
     if (!tray) return;
 
-    const timerItems = (trayTimers || []).map(timer => ({
+    const timerItems = (trayTimers || []).map((timer) => ({
         label: `${timer.name} â€¢ ${timer.time}`,
         click: () => {
             if (!mainWindow) return;
@@ -201,10 +233,10 @@ function updateTrayMenu() {
     const template: Electron.MenuItemConstructorOptions[] = [
         ...(timerItems.length
             ? [
-                { label: "Timer / Cronometri in corso", enabled: false },
-                ...timerItems,
-                { type: "separator" as const },
-            ]
+                  { label: "Timer / Cronometri in corso", enabled: false },
+                  ...timerItems,
+                  { type: "separator" as const },
+              ]
             : []),
         {
             label: "Apri",
@@ -246,7 +278,7 @@ function requestTrayUpdateAndPopup() {
 
 function requestTrayUpdate() {
     const windows = BrowserWindow.getAllWindows();
-    windows.forEach(win => {
+    windows.forEach((win) => {
         if (win && win.webContents) {
             win.webContents.send("timers-tray-request");
         }
@@ -271,9 +303,12 @@ app.whenReady().then(() => {
         show: useBlueArchiveUi,
     });
 
-    mainWindow.loadFile(path.join(__dirname, "pages", "bluearchive-preview.html"), {
-        query: { theme: useBlueArchiveUi ? "bluearchive" : "agpress" },
-    });
+    mainWindow.loadFile(
+        path.join(__dirname, "pages", "bluearchive-preview.html"),
+        {
+            query: { theme: useBlueArchiveUi ? "bluearchive" : "agpress" },
+        },
+    );
     mainWindow.setMenu(null);
     setupPlcReader(mainWindow);
     if (!useBlueArchiveUi) {
@@ -380,7 +415,8 @@ app.on("browser-window-created", (_event, win) => {
             input.key !== "F2" ||
             input.type !== "keyDown" ||
             input.isAutoRepeat
-        ) return;
+        )
+            return;
         event.preventDefault();
         if (!win || win.isDestroyed() || !win.webContents) return;
         const isAttrezzaggioWindow = win.webContents
@@ -395,12 +431,22 @@ app.on("browser-window-created", (_event, win) => {
     });
 
     if (IS_DEV) {
-        win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-            console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
-        });
-        win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
-            console.error(`[renderer] did-fail-load ${errorCode} ${errorDescription} ${validatedURL}`);
-        });
+        win.webContents.on(
+            "console-message",
+            (_event, level, message, line, sourceId) => {
+                console.log(
+                    `[renderer:${level}] ${message} (${sourceId}:${line})`,
+                );
+            },
+        );
+        win.webContents.on(
+            "did-fail-load",
+            (_event, errorCode, errorDescription, validatedURL) => {
+                console.error(
+                    `[renderer] did-fail-load ${errorCode} ${errorDescription} ${validatedURL}`,
+                );
+            },
+        );
         win.webContents.on("render-process-gone", (_event, details) => {
             console.error("[renderer] process gone:", details);
         });
@@ -467,8 +513,13 @@ app.on("browser-window-created", () => {
 ipcMain.on("timers-tray-update", (_event, payload) => {
     const items = payload && Array.isArray(payload.items) ? payload.items : [];
     trayTimers = items
-        .filter(item => item && typeof item.name === "string" && typeof item.time === "string")
-        .map(item => ({
+        .filter(
+            (item) =>
+                item &&
+                typeof item.name === "string" &&
+                typeof item.time === "string",
+        )
+        .map((item) => ({
             name: item.name,
             time: item.time,
         }));

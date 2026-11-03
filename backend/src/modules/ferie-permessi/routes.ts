@@ -24,7 +24,9 @@ import {
 } from "./service";
 import type { ClosureEntry, FpPayload, RequestLike } from "./types";
 
-const validateBackupPayload = createSchemaValidator<{ mode?: "calendar" | "full" }>({
+const validateBackupPayload = createSchemaValidator<{
+    mode?: "calendar" | "full";
+}>({
     type: "object",
     additionalProperties: false,
     properties: {
@@ -85,14 +87,26 @@ const validateFpPayload = createSchemaValidator<FpPayload>({
     required: ["requests", "balances", "holidays", "closures"],
     additionalProperties: false,
     properties: {
-        requests: { type: "array", items: { type: "object", additionalProperties: true } },
-        balances: { type: "object", additionalProperties: { type: "object", additionalProperties: true } },
+        requests: {
+            type: "array",
+            items: { type: "object", additionalProperties: true },
+        },
+        balances: {
+            type: "object",
+            additionalProperties: {
+                type: "object",
+                additionalProperties: true,
+            },
+        },
         holidays: { type: "array", items: {} },
         closures: { type: "array", items: {} },
     },
 });
 
-const validateHolidaysPayload = createSchemaValidator<{ dates: string[]; name?: string }>({
+const validateHolidaysPayload = createSchemaValidator<{
+    dates: string[];
+    name?: string;
+}>({
     type: "object",
     required: ["dates"],
     additionalProperties: false,
@@ -102,7 +116,10 @@ const validateHolidaysPayload = createSchemaValidator<{ dates: string[]; name?: 
     },
 });
 
-const validateHolidayUpdatePayload = createSchemaValidator<{ nextDate?: string; nextName?: string }>({
+const validateHolidayUpdatePayload = createSchemaValidator<{
+    nextDate?: string;
+    nextName?: string;
+}>({
     type: "object",
     additionalProperties: false,
     properties: {
@@ -122,7 +139,10 @@ const validateClosurePayload = createSchemaValidator<ClosureEntry>({
     },
 });
 
-const validateClosureUpdatePayload = createSchemaValidator<{ entry: ClosureEntry; next: ClosureEntry }>({
+const validateClosureUpdatePayload = createSchemaValidator<{
+    entry: ClosureEntry;
+    next: ClosureEntry;
+}>({
     type: "object",
     required: ["entry", "next"],
     additionalProperties: false,
@@ -160,7 +180,9 @@ export function registerFeriePermessiRoutes(router: Router) {
         sendJson(
             res,
             201,
-            createFeriePermessiBackup(payload.mode === "calendar" ? "calendar" : "full"),
+            createFeriePermessiBackup(
+                payload.mode === "calendar" ? "calendar" : "full",
+            ),
         );
     });
 
@@ -171,7 +193,9 @@ export function registerFeriePermessiRoutes(router: Router) {
             if (!String(params.name || "").trim()) {
                 throw badRequest("Backup name missing");
             }
-            const payload = validateBackupPayload((await readJsonBody(req)) || {});
+            const payload = validateBackupPayload(
+                (await readJsonBody(req)) || {},
+            );
             sendJson(
                 res,
                 200,
@@ -194,20 +218,24 @@ export function registerFeriePermessiRoutes(router: Router) {
         );
     });
 
-    router.register("POST", "/api/ferie-permessi/requests", async (req, res) => {
-        const payload = validateRequestPayload(
-            (await readJsonBody(req)) || {},
-            "Invalid ferie-permessi request payload",
-        );
-        sendJson(
-            res,
-            201,
-            await createRequest(payload, {
-                actor: getRequestUser(req),
-                requestId: getRequestId(req),
-            }),
-        );
-    });
+    router.register(
+        "POST",
+        "/api/ferie-permessi/requests",
+        async (req, res) => {
+            const payload = validateRequestPayload(
+                (await readJsonBody(req)) || {},
+                "Invalid ferie-permessi request payload",
+            );
+            sendJson(
+                res,
+                201,
+                await createRequest(payload, {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                }),
+            );
+        },
+    );
 
     router.register(
         "PUT",
@@ -232,7 +260,9 @@ export function registerFeriePermessiRoutes(router: Router) {
         "POST",
         "/api/ferie-permessi/requests/:id/approve",
         async (req, res, params) => {
-            const payload = validateActorPayload((await readJsonBody(req)) || {});
+            const payload = validateActorPayload(
+                (await readJsonBody(req)) || {},
+            );
             const item = await approveRequest(params.id, {
                 actor: payload.actor || getRequestUser(req),
                 requestId: getRequestId(req),
@@ -248,7 +278,9 @@ export function registerFeriePermessiRoutes(router: Router) {
         "POST",
         "/api/ferie-permessi/requests/:id/reject",
         async (req, res, params) => {
-            const payload = validateActorPayload((await readJsonBody(req)) || {});
+            const payload = validateActorPayload(
+                (await readJsonBody(req)) || {},
+            );
             const item = await rejectRequest(params.id, {
                 actor: payload.actor || getRequestUser(req),
                 requestId: getRequestId(req),
@@ -264,7 +296,9 @@ export function registerFeriePermessiRoutes(router: Router) {
         "DELETE",
         "/api/ferie-permessi/requests/:id",
         async (req, res, params) => {
-            const payload = validateActorPayload((await readJsonBody(req)) || {});
+            const payload = validateActorPayload(
+                (await readJsonBody(req)) || {},
+            );
             const item = await deleteRequest(params.id, {
                 actor: payload.actor || getRequestUser(req),
                 requestId: getRequestId(req),
@@ -291,21 +325,25 @@ export function registerFeriePermessiRoutes(router: Router) {
         );
     });
 
-    router.register("POST", "/api/ferie-permessi/holidays", async (req, res) => {
-        const payload = validateHolidaysPayload(
-            (await readJsonBody(req)) || {},
-            "Invalid holidays payload",
-        );
-        const result = await createHolidays(
-            payload.dates,
-            payload.name || "",
-            {
-                actor: getRequestUser(req),
-                requestId: getRequestId(req),
-            },
-        );
-        sendJson(res, 200, result);
-    });
+    router.register(
+        "POST",
+        "/api/ferie-permessi/holidays",
+        async (req, res) => {
+            const payload = validateHolidaysPayload(
+                (await readJsonBody(req)) || {},
+                "Invalid holidays payload",
+            );
+            const result = await createHolidays(
+                payload.dates,
+                payload.name || "",
+                {
+                    actor: getRequestUser(req),
+                    requestId: getRequestId(req),
+                },
+            );
+            sendJson(res, 200, result);
+        },
+    );
 
     router.register(
         "DELETE",
@@ -323,7 +361,9 @@ export function registerFeriePermessiRoutes(router: Router) {
         "PUT",
         "/api/ferie-permessi/holidays/:date",
         async (req, res, params) => {
-            const payload = validateHolidayUpdatePayload((await readJsonBody(req)) || {});
+            const payload = validateHolidayUpdatePayload(
+                (await readJsonBody(req)) || {},
+            );
             const result = await updateHoliday(
                 params.date,
                 payload.nextDate || "",
@@ -337,17 +377,21 @@ export function registerFeriePermessiRoutes(router: Router) {
         },
     );
 
-    router.register("POST", "/api/ferie-permessi/closures", async (req, res) => {
-        const payload = validateClosurePayload(
-            (await readJsonBody(req)) || {},
-            "Invalid closure payload",
-        );
-        const result = await createClosure(payload, {
-            actor: getRequestUser(req),
-            requestId: getRequestId(req),
-        });
-        sendJson(res, 200, result);
-    });
+    router.register(
+        "POST",
+        "/api/ferie-permessi/closures",
+        async (req, res) => {
+            const payload = validateClosurePayload(
+                (await readJsonBody(req)) || {},
+                "Invalid closure payload",
+            );
+            const result = await createClosure(payload, {
+                actor: getRequestUser(req),
+                requestId: getRequestId(req),
+            });
+            sendJson(res, 200, result);
+        },
+    );
 
     router.register(
         "DELETE",
@@ -365,23 +409,15 @@ export function registerFeriePermessiRoutes(router: Router) {
         },
     );
 
-    router.register(
-        "PUT",
-        "/api/ferie-permessi/closures",
-        async (req, res) => {
-            const payload = validateClosureUpdatePayload(
-                (await readJsonBody(req)) || {},
-                "Invalid closure update payload",
-            );
-            const result = await updateClosure(
-                payload.entry,
-                payload.next,
-                {
-                    actor: getRequestUser(req),
-                    requestId: getRequestId(req),
-                },
-            );
-            sendJson(res, 200, result);
-        },
-    );
+    router.register("PUT", "/api/ferie-permessi/closures", async (req, res) => {
+        const payload = validateClosureUpdatePayload(
+            (await readJsonBody(req)) || {},
+            "Invalid closure update payload",
+        );
+        const result = await updateClosure(payload.entry, payload.next, {
+            actor: getRequestUser(req),
+            requestId: getRequestId(req),
+        });
+        sendJson(res, 200, result);
+    });
 }

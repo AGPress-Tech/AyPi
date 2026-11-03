@@ -18,7 +18,9 @@ export async function initializeMesSqliteDatabase() {
     });
     const dbPath = backendConfig.mesDatabase.path;
     ensureFolderFor(dbPath);
-    const existingFile = fs.existsSync(dbPath) ? fs.readFileSync(dbPath) : undefined;
+    const existingFile = fs.existsSync(dbPath)
+        ? fs.readFileSync(dbPath)
+        : undefined;
     database = existingFile
         ? new sqliteModule.Database(existingFile)
         : new sqliteModule.Database();
@@ -71,7 +73,8 @@ export function runMesSqliteTransaction<T>(run: (db: SqlJsDatabase) => T): T {
     const db = getMesSqliteDatabase();
     const depth = transactionDepth;
     const savepoint = `mes_nested_${depth}`;
-    if (!depth && !fs.existsSync(backendConfig.mesDatabase.path)) persistMesSqliteDatabase();
+    if (!depth && !fs.existsSync(backendConfig.mesDatabase.path))
+        persistMesSqliteDatabase();
     db.exec(depth ? `SAVEPOINT ${savepoint}` : "BEGIN IMMEDIATE TRANSACTION;");
     transactionDepth++;
     let committed = false;
@@ -86,12 +89,18 @@ export function runMesSqliteTransaction<T>(run: (db: SqlJsDatabase) => T): T {
             // A failed atomic replacement leaves the last durable snapshot intact.
             // Restore it so subsequent reads cannot report an unsaved success.
             db.close();
-            database = new sqliteModule.Database(fs.readFileSync(backendConfig.mesDatabase.path));
+            database = new sqliteModule.Database(
+                fs.readFileSync(backendConfig.mesDatabase.path),
+            );
             database.exec("PRAGMA foreign_keys = ON;");
             throw error;
         }
         try {
-            db.exec(depth ? `ROLLBACK TO SAVEPOINT ${savepoint}; RELEASE SAVEPOINT ${savepoint};` : "ROLLBACK;");
+            db.exec(
+                depth
+                    ? `ROLLBACK TO SAVEPOINT ${savepoint}; RELEASE SAVEPOINT ${savepoint};`
+                    : "ROLLBACK;",
+            );
         } catch {
             // Ignore rollback failures and preserve the original error.
         }

@@ -61,5 +61,6 @@ superati. Verificati otto compilati backend e cinque file desktop nell'ASAR.
 Nessuna installazione, pubblicazione o mutazione sul forno eseguita.
 
 Installer verificati:
+
 - dist-backend/AyPi Backend Setup 1.4.1.exe SHA-256 c32f6569af62afd13b0942f8af77aeba1d4ff574a405d7d581c9a22a3ae4561a
 - dist/AyPi Setup 1.4.1.exe SHA-256 65aa4daa0916041517a8b03bbb42001ee6531926bc537b5f48fd576b46241da2

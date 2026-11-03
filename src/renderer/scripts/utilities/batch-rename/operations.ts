@@ -185,11 +185,7 @@ async function handleApply(showInfo, showWarning) {
                 `${fromEsc},${toEsc},${op.isDirectory ? "1" : "0"},${op.kind}`,
             );
         }
-        await fs.promises.writeFile(
-            logCsvPath,
-            lines.join("\r\n"),
-            "utf8",
-        );
+        await fs.promises.writeFile(logCsvPath, lines.join("\r\n"), "utf8");
     } catch (err) {
         console.error("Errore scrivendo il log CSV:", err);
     }

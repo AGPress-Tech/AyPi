@@ -1,11 +1,11 @@
 import crypto from "crypto";
 import { argon2id, argon2Verify } from "hash-wasm";
 import { ensureAgpressDailyBackup } from "../../shared/storage/agpress-backups";
-import { getSqliteDatabase, runSqliteTransaction } from "../../shared/db/sqlite";
 import {
-    parseJson,
-    serializeJson,
-} from "../../shared/storage/json-codec";
+    getSqliteDatabase,
+    runSqliteTransaction,
+} from "../../shared/db/sqlite";
+import { parseJson, serializeJson } from "../../shared/storage/json-codec";
 
 export type SharedAdminEntry = {
     name: string;
@@ -147,7 +147,9 @@ export function normalizeAccessConfig(raw: unknown): SharedAccessConfig {
         JSON.stringify(DEFAULT_ACCESS_CONFIG),
     );
     const src =
-        raw && typeof raw === "object" ? (raw as Partial<SharedAccessConfig>) : {};
+        raw && typeof raw === "object"
+            ? (raw as Partial<SharedAccessConfig>)
+            : {};
     const ops =
         src.operations && typeof src.operations === "object"
             ? (src.operations as SharedAccessConfig["operations"])
@@ -279,13 +281,19 @@ function normalizeAdminEntry(item: any): SharedAdminEntry {
     return {
         name: String(item?.name || "").trim(),
         password: item?.password ? String(item.password) : undefined,
-        passwordHash: item?.passwordHash ? String(item.passwordHash) : undefined,
+        passwordHash: item?.passwordHash
+            ? String(item.passwordHash)
+            : undefined,
         email: item?.email ? String(item.email) : "",
         phone: item?.phone ? String(item.phone) : "",
         accessCalendar:
-            typeof item?.accessCalendar === "boolean" ? item.accessCalendar : true,
+            typeof item?.accessCalendar === "boolean"
+                ? item.accessCalendar
+                : true,
         accessPurchasing:
-            typeof item?.accessPurchasing === "boolean" ? item.accessPurchasing : true,
+            typeof item?.accessPurchasing === "boolean"
+                ? item.accessPurchasing
+                : true,
     };
 }
 
@@ -315,7 +323,9 @@ function loadAdminCredentialsFromSqlite(): SharedAdminEntry[] {
     const admins = (rows?.[0]?.values || [])
         .map((row: unknown[]) => normalizeAdminEntry(parseJson(row?.[0], {})))
         .filter((entry: SharedAdminEntry) => !!entry.name);
-    return admins.length ? admins : [{ name: "Admin", password: APPROVAL_PASSWORD }];
+    return admins.length
+        ? admins
+        : [{ name: "Admin", password: APPROVAL_PASSWORD }];
 }
 
 function hasSharedAdminsSqliteData() {
@@ -367,7 +377,9 @@ export async function verifyAdminPassword(
     for (const admin of admins) {
         if (
             normalizedTargetName &&
-            String(admin.name || "").trim().toLowerCase() !== normalizedTargetName
+            String(admin.name || "")
+                .trim()
+                .toLowerCase() !== normalizedTargetName
         ) {
             continue;
         }
@@ -404,19 +416,19 @@ export async function verifyAdminPassword(
 export async function saveAdminCredentials(admins: SharedAdminEntry[]) {
     ensureGeneralBackup();
     const normalizedAdmins = admins.map((admin) => ({
-            name: admin.name,
-            passwordHash: admin.passwordHash,
-            password: admin.passwordHash ? undefined : admin.password,
-            email: admin.email || "",
-            phone: admin.phone || "",
-            accessCalendar:
-                typeof admin.accessCalendar === "boolean"
-                    ? admin.accessCalendar
-                    : true,
-            accessPurchasing:
-                typeof admin.accessPurchasing === "boolean"
-                    ? admin.accessPurchasing
-                    : true,
+        name: admin.name,
+        passwordHash: admin.passwordHash,
+        password: admin.passwordHash ? undefined : admin.password,
+        email: admin.email || "",
+        phone: admin.phone || "",
+        accessCalendar:
+            typeof admin.accessCalendar === "boolean"
+                ? admin.accessCalendar
+                : true,
+        accessPurchasing:
+            typeof admin.accessPurchasing === "boolean"
+                ? admin.accessPurchasing
+                : true,
     }));
     saveAdminCredentialsToSqlite(normalizedAdmins);
 }
@@ -426,7 +438,9 @@ function normalizeAssigneesPayload(parsed: any): SharedAssigneesPayload {
         return { groups: {}, emails: {}, options: [] };
     }
     const rawGroups =
-        parsed.groups && typeof parsed.groups === "object" ? parsed.groups : parsed;
+        parsed.groups && typeof parsed.groups === "object"
+            ? parsed.groups
+            : parsed;
     const rawEmails =
         parsed.emails && typeof parsed.emails === "object" ? parsed.emails : {};
     const groups: Record<string, string[]> = {};
@@ -468,8 +482,14 @@ function saveAssigneeOptionsToSqlite(payload: {
     emails?: Record<string, string>;
 }) {
     const normalized = normalizeAssigneesPayload({
-        groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
-        emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+        groups:
+            payload?.groups && typeof payload.groups === "object"
+                ? payload.groups
+                : {},
+        emails:
+            payload?.emails && typeof payload.emails === "object"
+                ? payload.emails
+                : {},
     });
     runSqliteTransaction((database) => {
         database.run(`DELETE FROM ${SHARED_ASSIGNEES_TABLE}`);
@@ -492,7 +512,9 @@ function loadAssigneeOptionsFromSqlite(): SharedAssigneesPayload {
 }
 
 function hasSharedAssigneesSqliteData() {
-    return execScalarNumber(`SELECT COUNT(*) FROM ${SHARED_ASSIGNEES_TABLE}`) > 0;
+    return (
+        execScalarNumber(`SELECT COUNT(*) FROM ${SHARED_ASSIGNEES_TABLE}`) > 0
+    );
 }
 
 function loadSharedSettingFromSqlite<T>(storeKey: string, fallback: T): T {
@@ -541,8 +563,14 @@ export async function saveAssigneeOptions(payload: {
 }) {
     ensureGeneralBackup();
     const normalized = {
-        groups: payload?.groups && typeof payload.groups === "object" ? payload.groups : {},
-        emails: payload?.emails && typeof payload.emails === "object" ? payload.emails : {},
+        groups:
+            payload?.groups && typeof payload.groups === "object"
+                ? payload.groups
+                : {},
+        emails:
+            payload?.emails && typeof payload.emails === "object"
+                ? payload.emails
+                : {},
     };
     saveAssigneeOptionsToSqlite(normalized);
 }

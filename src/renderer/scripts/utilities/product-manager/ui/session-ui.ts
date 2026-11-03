@@ -38,7 +38,8 @@ function updateAdminControls(ctx) {
     const backupSection = document.getElementById("pm-backup-section");
     if (backupSection) backupSection.classList.toggle("is-hidden", !adminMode);
     const catalogAdd = document.getElementById("pm-catalog-add");
-    if (catalogAdd) catalogAdd.style.display = adminMode ? "inline-flex" : "none";
+    if (catalogAdd)
+        catalogAdd.style.display = adminMode ? "inline-flex" : "none";
     const assigneesBtn = document.getElementById("pm-assignees-open");
     if (assigneesBtn) {
         assigneesBtn.style.display = adminMode ? "inline-flex" : "none";
@@ -97,10 +98,15 @@ function applySharedSession(ctx, payload) {
     }
 }
 
-if (typeof module !== "undefined" && module.exports && !(globalThis as any).__aypiBundled) module.exports = {
-    updateGreeting,
-    updateLoginButton,
-    updateAdminControls,
-    syncSessionUI,
-    applySharedSession,
-};
+if (
+    typeof module !== "undefined" &&
+    module.exports &&
+    !(globalThis as any).__aypiBundled
+)
+    module.exports = {
+        updateGreeting,
+        updateLoginButton,
+        updateAdminControls,
+        syncSessionUI,
+        applySharedSession,
+    };

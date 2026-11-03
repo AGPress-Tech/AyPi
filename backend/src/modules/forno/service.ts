@@ -1,80 +1,176 @@
-import path from 'path';
-import { fork, ChildProcess, ForkOptions } from 'child_process';
-import { getFornoConfig } from './config';
-import { HttpError } from '../../shared/http/errors';
-import { logger } from '../../shared/logging/logger';
-import { createStoredProgramsReader, readStoredPrograms } from './programs';
-import { readProgramRecipe } from './program-recipe';
-import { transferContext, prepareTransfer, executeTransfer, reconcileUnchangedTransfer, inspectProgram } from './program-transfer';
+import path from "path";
+import { fork, ChildProcess, ForkOptions } from "child_process";
+import { getFornoConfig } from "./config";
+import { HttpError } from "../../shared/http/errors";
+import { logger } from "../../shared/logging/logger";
+import { createStoredProgramsReader, readStoredPrograms } from "./programs";
+import { readProgramRecipe } from "./program-recipe";
+import {
+    transferContext,
+    prepareTransfer,
+    executeTransfer,
+    reconcileUnchangedTransfer,
+    inspectProgram,
+} from "./program-transfer";
 
 let programTask: { key: string; promise: Promise<any> } | null = null;
 function runProgramTask(key: string, action: () => Promise<any>) {
     if (programTask) {
         if (programTask.key === key) return programTask.promise;
-        return Promise.reject(new HttpError(409, 'È già in corso una lettura dei cicli da un’altra postazione. Riprovare tra poco.'));
+        return Promise.reject(
+            new HttpError(
+                409,
+                "È già in corso una lettura dei cicli da un’altra postazione. Riprovare tra poco.",
+            ),
+        );
     }
-    const promise = Promise.resolve().then(action).finally(() => { programTask = null; });
+    const promise = Promise.resolve()
+        .then(action)
+        .finally(() => {
+            programTask = null;
+        });
     programTask = { key, promise };
     return promise;
 }
-export function fornoProgramTransfer(action: 'context' | 'prepare' | 'execute' | 'reconcile' | 'inspect', input: unknown, actor: string) {
+export function fornoProgramTransfer(
+    action: "context" | "prepare" | "execute" | "reconcile" | "inspect",
+    input: unknown,
+    actor: string,
+) {
     // Le mutazioni non sono mai deduplicate/condivise come le letture.
-    if (programTask) return Promise.reject(new HttpError(409, 'Un’altra operazione sui programmi è in corso.'));
-    return runProgramTask('transfer:' + Date.now() + ':' + Math.random(), async () => {
-        const config = getFornoConfig();
-        if (!config.enabled) throw new HttpError(503, 'Modulo forno disabilitato.');
-        try { return action === 'inspect' ? await inspectProgram(config, input, actor) : action === 'context' ? await transferContext(config) : action === 'reconcile' ? await reconcileUnchangedTransfer(config, actor) : action === 'prepare' ? await prepareTransfer(config, input, actor) : await executeTransfer(config, input, actor); }
-        catch (error) { throw new HttpError(409, (error as Error).message, { code: 'FORNO_TRANSFER_REJECTED' }); }
-    });
+    if (programTask)
+        return Promise.reject(
+            new HttpError(409, "Un’altra operazione sui programmi è in corso."),
+        );
+    return runProgramTask(
+        "transfer:" + Date.now() + ":" + Math.random(),
+        async () => {
+            const config = getFornoConfig();
+            if (!config.enabled)
+                throw new HttpError(503, "Modulo forno disabilitato.");
+            try {
+                return action === "inspect"
+                    ? await inspectProgram(config, input, actor)
+                    : action === "context"
+                      ? await transferContext(config)
+                      : action === "reconcile"
+                        ? await reconcileUnchangedTransfer(config, actor)
+                        : action === "prepare"
+                          ? await prepareTransfer(config, input, actor)
+                          : await executeTransfer(config, input, actor);
+            } catch (error) {
+                throw new HttpError(409, (error as Error).message, {
+                    code: "FORNO_TRANSFER_REJECTED",
+                });
+            }
+        },
+    );
 }
-export const listFornoPrograms = createStoredProgramsReader(() => runProgramTask('list', async () => {
-    const config = getFornoConfig();
-    if (!config.enabled) throw new HttpError(503, 'Modulo forno disabilitato sul server.');
-    try { return await readStoredPrograms(config); }
-    catch (error) { throw new HttpError(503, (error as Error).message, { code: 'FORNO_PROGRAMS_UNAVAILABLE' }); }
-}));
-
-export function getFornoProgramRecipe(name: string, allowTemporaryLoad: boolean, expectedCurrentProgram?: string) {
-    if (allowTemporaryLoad) return Promise.reject(new HttpError(409, 'Caricamento temporaneo sospeso: in questa fase non sono consentite modifiche sul forno. Importare un clone iTools o un backup locale per consultare gli altri programmi.'));
-    return runProgramTask(JSON.stringify([name, allowTemporaryLoad, expectedCurrentProgram]), async () => {
+export const listFornoPrograms = createStoredProgramsReader(() =>
+    runProgramTask("list", async () => {
         const config = getFornoConfig();
-        if (!config.enabled) throw new HttpError(503, 'Modulo forno disabilitato sul server.');
-        try { return await readProgramRecipe(config, name, allowTemporaryLoad, expectedCurrentProgram); }
-        catch (error) { throw new HttpError(503, (error as Error).message, { code: 'FORNO_RECIPE_UNAVAILABLE' }); }
-    });
+        if (!config.enabled)
+            throw new HttpError(503, "Modulo forno disabilitato sul server.");
+        try {
+            return await readStoredPrograms(config);
+        } catch (error) {
+            throw new HttpError(503, (error as Error).message, {
+                code: "FORNO_PROGRAMS_UNAVAILABLE",
+            });
+        }
+    }),
+);
+
+export function getFornoProgramRecipe(
+    name: string,
+    allowTemporaryLoad: boolean,
+    expectedCurrentProgram?: string,
+) {
+    if (allowTemporaryLoad)
+        return Promise.reject(
+            new HttpError(
+                409,
+                "Caricamento temporaneo sospeso: in questa fase non sono consentite modifiche sul forno. Importare un clone iTools o un backup locale per consultare gli altri programmi.",
+            ),
+        );
+    return runProgramTask(
+        JSON.stringify([name, allowTemporaryLoad, expectedCurrentProgram]),
+        async () => {
+            const config = getFornoConfig();
+            if (!config.enabled)
+                throw new HttpError(
+                    503,
+                    "Modulo forno disabilitato sul server.",
+                );
+            try {
+                return await readProgramRecipe(
+                    config,
+                    name,
+                    allowTemporaryLoad,
+                    expectedCurrentProgram,
+                );
+            } catch (error) {
+                throw new HttpError(503, (error as Error).message, {
+                    code: "FORNO_RECIPE_UNAVAILABLE",
+                });
+            }
+        },
+    );
 }
 
 let child: ChildProcess | null = null;
 let sequence = 0;
 let ready = false;
 let stopping = false;
-let lastError = '';
+let lastError = "";
 let restartTimer: NodeJS.Timeout | null = null;
-const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
-const frameListeners=new Set<(frame:any)=>void>();
-let latestFrame:any=null;
-export function subscribeFornoFrames(listener:(frame:any)=>void){frameListeners.add(listener);if(latestFrame)listener(latestFrame);return ()=>{frameListeners.delete(listener);};}
-
-function unavailable(message: string) {
-    return new HttpError(503, message, { code: 'FORNO_UNAVAILABLE' });
+const pending = new Map<
+    number,
+    {
+        resolve: (value: any) => void;
+        reject: (error: Error) => void;
+        timer: NodeJS.Timeout;
+    }
+>();
+const frameListeners = new Set<(frame: any) => void>();
+let latestFrame: any = null;
+export function subscribeFornoFrames(listener: (frame: any) => void) {
+    frameListeners.add(listener);
+    if (latestFrame) listener(latestFrame);
+    return () => {
+        frameListeners.delete(listener);
+    };
 }
 
-export function fornoRequest(command: string, parameters: Record<string, unknown> = {}): Promise<any> {
-    if (!child || !ready) return Promise.reject(unavailable(lastError || 'Acquisizione forno non attiva'));
-    if (pending.size >= 8) return Promise.reject(new HttpError(429, 'Troppe richieste forno: riprovare tra poco'));
+function unavailable(message: string) {
+    return new HttpError(503, message, { code: "FORNO_UNAVAILABLE" });
+}
+
+export function fornoRequest(
+    command: string,
+    parameters: Record<string, unknown> = {},
+): Promise<any> {
+    if (!child || !ready)
+        return Promise.reject(
+            unavailable(lastError || "Acquisizione forno non attiva"),
+        );
+    if (pending.size >= 8)
+        return Promise.reject(
+            new HttpError(429, "Troppe richieste forno: riprovare tra poco"),
+        );
     const target = child;
     return new Promise((resolve, reject) => {
         const id = ++sequence;
         const timer = setTimeout(() => {
             pending.delete(id);
-            reject(unavailable('Timeout archivio forno'));
+            reject(unavailable("Timeout archivio forno"));
         }, 15000);
         pending.set(id, { resolve, reject, timer });
-        target.send({ ...parameters, id, command }, error => {
+        target.send({ ...parameters, id, command }, (error) => {
             if (error) {
                 clearTimeout(timer);
                 pending.delete(id);
-                reject(unavailable('Canale archivio forno interrotto'));
+                reject(unavailable("Canale archivio forno interrotto"));
             }
         });
     });
@@ -83,9 +179,21 @@ export function fornoRequest(command: string, parameters: Record<string, unknown
 export async function getFornoStatus() {
     if (!ready) {
         const enabled = getFornoConfig().enabled;
-        return { enabled, running: false, error: lastError || (enabled ? 'Acquisizione forno non pronta' : 'Modulo forno disabilitato') };
+        return {
+            enabled,
+            running: false,
+            error:
+                lastError ||
+                (enabled
+                    ? "Acquisizione forno non pronta"
+                    : "Modulo forno disabilitato"),
+        };
     }
-    return { enabled: true, serverTimeMs: Date.now(), ...await fornoRequest('status') };
+    return {
+        enabled: true,
+        serverTimeMs: Date.now(),
+        ...(await fornoRequest("status")),
+    };
 }
 
 export async function startFornoService(): Promise<void> {
@@ -93,32 +201,50 @@ export async function startFornoService(): Promise<void> {
     const config = getFornoConfig();
     if (!config.enabled) return;
     stopping = false;
-    const target = fork(path.join(__dirname, 'worker.js'), [], {
-        windowsHide: true, serialization:'advanced', stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', AYPI_FORNO_CONFIG: JSON.stringify(config),
-            AYPI_FORNO_RESOURCES: (process as any).resourcesPath ? path.join((process as any).resourcesPath, 'backend-resources/forno') : '' },
+    const target = fork(path.join(__dirname, "worker.js"), [], {
+        windowsHide: true,
+        serialization: "advanced",
+        stdio: ["ignore", "pipe", "pipe", "ipc"],
+        env: {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: "1",
+            AYPI_FORNO_CONFIG: JSON.stringify(config),
+            AYPI_FORNO_RESOURCES: (process as any).resourcesPath
+                ? path.join(
+                      (process as any).resourcesPath,
+                      "backend-resources/forno",
+                  )
+                : "",
+        },
     } as ForkOptions & { windowsHide: boolean });
     child = target;
-    let stderr = '';
-    target.stderr?.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-2000); });
+    let stderr = "";
+    target.stderr?.on("data", (chunk) => {
+        stderr = (stderr + chunk.toString()).slice(-2000);
+    });
     await new Promise<void>((resolve, reject) => {
         let hadReady = false;
         const timer = setTimeout(() => {
-            lastError = 'Avvio worker forno scaduto';
+            lastError = "Avvio worker forno scaduto";
             target.kill();
             reject(new Error(lastError));
         }, 10000);
-        target.on('message', (message: any) => {
+        target.on("message", (message: any) => {
             try {
-                if(message.type==='frame'){
-                    latestFrame=message.frame;for(const listener of frameListeners){try{listener(latestFrame);}catch{}}
-                } else if (message.type === 'ready') {
+                if (message.type === "frame") {
+                    latestFrame = message.frame;
+                    for (const listener of frameListeners) {
+                        try {
+                            listener(latestFrame);
+                        } catch {}
+                    }
+                } else if (message.type === "ready") {
                     clearTimeout(timer);
                     hadReady = true;
                     ready = true;
-                    lastError = '';
+                    lastError = "";
                     resolve();
-                } else if (message.type === 'fatal') {
+                } else if (message.type === "fatal") {
                     lastError = String(message.error);
                     clearTimeout(timer);
                     reject(new Error(lastError));
@@ -127,34 +253,50 @@ export async function startFornoService(): Promise<void> {
                     if (!request) return;
                     pending.delete(message.id);
                     clearTimeout(request.timer);
-                    if (message.error) request.reject(Object.assign(new Error(String(message.error)),{code:message.errorCode}));
+                    if (message.error)
+                        request.reject(
+                            Object.assign(new Error(String(message.error)), {
+                                code: message.errorCode,
+                            }),
+                        );
                     else request.resolve(message.result);
                 }
-            } catch { /* messaggi non JSON non sono dati validi */ }
+            } catch {
+                /* messaggi non JSON non sono dati validi */
+            }
         });
-        target.once('error', error => {
+        target.once("error", (error) => {
             clearTimeout(timer);
             lastError = `Worker forno non avviabile: ${error.message}`;
             reject(new Error(lastError));
         });
-        target.once('close', code => {
+        target.once("close", (code) => {
             clearTimeout(timer);
             ready = false;
-            latestFrame=null;
+            latestFrame = null;
             if (child === target) child = null;
-            if (!stopping) lastError = lastError || `Worker forno terminato (${code}): ${stderr}`;
+            if (!stopping)
+                lastError =
+                    lastError || `Worker forno terminato (${code}): ${stderr}`;
             for (const request of pending.values()) {
                 clearTimeout(request.timer);
-                request.reject(unavailable(lastError || 'Archivio forno arrestato'));
+                request.reject(
+                    unavailable(lastError || "Archivio forno arrestato"),
+                );
             }
             pending.clear();
-            reject(new Error(lastError || 'Worker forno arrestato'));
+            reject(new Error(lastError || "Worker forno arrestato"));
             // Nessun retry automatico per errori di configurazione all'avvio.
             // Un crash dopo l'avvio viene recuperato; il periodo scoperto resta esplicito nei timestamp.
             if (!stopping && hadReady && code !== 1) {
                 restartTimer = setTimeout(() => {
                     restartTimer = null;
-                    void startFornoService().catch(error => logger.error('Forno restart failed', { module: 'core', detail: String(error) }));
+                    void startFornoService().catch((error) =>
+                        logger.error("Forno restart failed", {
+                            module: "core",
+                            detail: String(error),
+                        }),
+                    );
                 }, 5000);
             }
         });
@@ -167,10 +309,12 @@ export async function stopFornoService() {
     restartTimer = null;
     const target = child;
     if (!target) return;
-    const closed = new Promise<void>(resolve => target.once('close', () => resolve()));
+    const closed = new Promise<void>((resolve) =>
+        target.once("close", () => resolve()),
+    );
     const fallback = setTimeout(() => target.kill(), 6000);
     try {
-        if (ready) await fornoRequest('stop');
+        if (ready) await fornoRequest("stop");
         else target.kill();
         await closed;
     } finally {

@@ -54,8 +54,7 @@ export function createCalendarApi(dependencies: CalendarApiDependencies) {
         return new Promise<any>((resolve, reject) => {
             try {
                 const target = new URL(url);
-                const client =
-                    target.protocol === "https:" ? https : http;
+                const client = target.protocol === "https:" ? https : http;
                 const backendRequest = client.request(
                     {
                         protocol: target.protocol,
@@ -74,9 +73,7 @@ export function createCalendarApi(dependencies: CalendarApiDependencies) {
                         response.on("end", () => {
                             const statusCode = response.statusCode || 500;
                             if (statusCode < 200 || statusCode >= 300) {
-                                reject(
-                                    new Error(`HTTP ${statusCode}: ${raw}`),
-                                );
+                                reject(new Error(`HTTP ${statusCode}: ${raw}`));
                                 return;
                             }
                             try {
