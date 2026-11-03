@@ -1,7 +1,8 @@
 export {};
 const { ipcRenderer } = require("electron");
 ("use strict");
-const embeddedInMes = new URLSearchParams(location.search).get("embedded") === "1";
+const embeddedInMes =
+    new URLSearchParams(location.search).get("embedded") === "1";
 document.body.classList.toggle("is-mes-embedded", embeddedInMes);
 if (embeddedInMes) document.documentElement.dataset.mesEmbedded = "true";
 const $ = (id: string): any => document.getElementById(id);
@@ -49,7 +50,10 @@ function showView(view) {
     if (view === "overview") updateCarouselPosition();
 }
 window.addEventListener("message", (event) => {
-    if (event.data?.type === "aypi-plc-view" && typeof event.data.view === "string") {
+    if (
+        event.data?.type === "aypi-plc-view" &&
+        typeof event.data.view === "string"
+    ) {
         showView(event.data.view);
     }
 });
@@ -641,8 +645,10 @@ detectButton.addEventListener("click", async () => {
     detectButton.disabled = true;
     $("session-feedback").textContent = "Rilevamento schede…";
     try {
-        const interfaces = await ipcRenderer.invoke("plc-reader-interfaces", {
-        });
+        const interfaces = await ipcRenderer.invoke(
+            "plc-reader-interfaces",
+            {},
+        );
         adapterSelect.replaceChildren(
             ...interfaces.map((item) => new Option(item.name, item.id)),
         );

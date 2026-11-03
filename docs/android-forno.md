@@ -1,10 +1,10 @@
 # Scada Forno su Android
 
-> **Aggiornamento sospeso il 30/10/2026.** Il backend è stato ripristinato al
-> contenuto dell'installer 1.4.0 delle 13:38. Il gateway Android non espone più
-> le API del forno. Le istruzioni seguenti descrivono il lavoro sperimentale
-> conservato, non una versione da installare. Usare il desktop per il forno.
-> Vedi [ripristino backend](backend-ripristino-1338.md).
+> **Modulo sperimentale sospeso.** Il gateway Android non espone le API del
+> forno. Le istruzioni seguenti descrivono il lavoro conservato, non una
+> versione da installare. Usare il desktop per il forno.
+> La gestione programmi corrente e descritta nella
+> [revisione backend](backend-forno-management-2026-11-03.md).
 
 La home dell'app Android include **Scada Forno**. Il modulo usa HTML, CSS e logica
 dei grafici desktop, compilati nell'APK, con layout e gesti per telefono/tablet.

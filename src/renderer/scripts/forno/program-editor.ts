@@ -1,8 +1,9 @@
 import { eventLabel, eventDescription } from './event-labels';
+import { openProgramTransfer, type TransferApi } from './program-transfer-dialog';
 import Chart from 'chart.js/auto';
 import { addStep, buildDraftProfile, cloneDraft, createDraftStep, draftTimeline, formatDuration as formatExactDuration, insertDraftPoint, moveDraftPoint, newProgramDraft, parseDeci, parseDuration, removeStep, reorderStep, reviewDraft, STEP_LABELS, validateDraft, type ProgramDraft, type DraftStep, type StepKind } from '../../../main/modules/forno/program-draft';
 
-export type DraftStorage = { load: () => Promise<ProgramDraft | null>; save: (draft: ProgramDraft) => Promise<ProgramDraft>; export: (draft: ProgramDraft) => Promise<{ path: string } | null>; import: () => Promise<ProgramDraft | null>; archive?: (draft: ProgramDraft) => Promise<{ count: number }> };
+export type DraftStorage = { load: () => Promise<ProgramDraft | null>; save: (draft: ProgramDraft) => Promise<ProgramDraft>; export: (draft: ProgramDraft) => Promise<{ path: string } | null>; import: () => Promise<ProgramDraft | null>; archive?: (draft: ProgramDraft) => Promise<{ count: number }>; transfer?: TransferApi };
 export function createProgramEditor(root: HTMLElement, initial: ProgramDraft, storage: DraftStorage) {
     let draft = validateDraft(initial), selected = -1, pending = false, mode: 'select' | 'draw' = 'select', revision = 0, disposed = false, saveFailed = false;
     let viewLocked = false;
@@ -27,7 +28,7 @@ export function createProgramEditor(root: HTMLElement, initial: ProgramDraft, st
     const name = input('Nome del programma', draft.name, 'name'); name.maxLength = 20;
     const start = input('Temperatura iniziale anteprima in °C', numberText(draft.startDeciC), 'start'); start.inputMode = 'decimal';
     form.append(field('Nome programma', name), field('Partenza anteprima [°C]', start));
-    const notice = node('p', 'program-editor-notice', 'BOZZA LOCALE · Nessun invio al forno. Il grafico mostra il setpoint nominale. La partenza reale e gli ingressi di attesa dipendono dalla configurazione del forno.');
+    const notice = node('p', 'program-editor-notice', 'BOZZA LOCALE · Nessun invio automatico al forno. Usa Invia al forno per creare o sovrascrivere un programma, con backup e conferma. Il grafico mostra il setpoint nominale. La partenza reale e gli ingressi di attesa dipendono dalla configurazione del forno.');
     const status = node('p', 'settings-note'); status.setAttribute('role', 'status'); const error = node('p', 'form-error'); error.setAttribute('role', 'alert');
     const workspace = node('div', 'program-editor-workspace'), left = node('section', 'program-editor-graph-pane'), right = node('section', 'program-editor-steps-pane');
     right.setAttribute('aria-label', 'Fasi del programma con scorrimento indipendente');
@@ -81,7 +82,8 @@ export function createProgramEditor(root: HTMLElement, initial: ProgramDraft, st
     const archiveButton = button('Salva versione nell’archivio', () => { if (!pending && storage.archive) void external(async () => { reviewDraft(draft); const result = await storage.archive!(cloneDraft(draft)); status.textContent = `Versione salvata nell’archivio locale (${result.count} programmi). Nessuna modifica al forno.`; }); }); archiveButton.hidden = !storage.archive;
     const resetInputs = button('Annulla valori in corso', () => { pending = false; error.textContent = ''; render(); });
     const verifyButton = button('Verifica programma', () => run(() => { reviewDraft(draft); review.open = true; renderReview(); }), 'button primary');
-    toolbar.append(newButton, undo, redo, retrySave, importButton, exportButton, archiveButton, verifyButton, resetInputs); root.replaceChildren(notice, toolbar, workspace, error, status); root.classList.add('program-editor');
+    const transferButton = button('Invia al forno…', () => run(() => { if (saveFailed) throw Error('Salvare e rileggere la bozza prima del trasferimento.'); if (storage.transfer) openProgramTransfer(cloneDraft(draft), storage.transfer, copy => { selected = -1; commit(validateDraft(copy)); }); })); transferButton.hidden = !storage.transfer;
+    toolbar.append(newButton, undo, redo, retrySave, importButton, exportButton, archiveButton, verifyButton, transferButton, resetInputs); root.replaceChildren(notice, toolbar, workspace, error, status); root.classList.add('program-editor');
     const chart = new Chart(canvas, { type: 'line', data: { datasets: [{ label: 'Setpoint CH1', data: [], borderColor: '#ec8627', backgroundColor: '#ec862713', fill: true, borderWidth: 3, pointRadius: 4, pointHoverRadius: 7, pointBorderWidth: 2, pointBackgroundColor: '#fff', tension: 0, parsing: false }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', intersect: true }, plugins: { legend: { display: false }, tooltip: { xAlign: 'right', callbacks: { title: items => inputDuration(Math.round((items[0]?.parsed.x || 0) * 3600000)), label: item => `${item.parsed.y.toFixed(1)} °C`, afterBody: items => { const p = items[0]?.raw as { phase: number }; return p?.phase >= 0 ? `Fase ${p.phase + 1} · ${STEP_LABELS[draft.steps[p.phase].kind]}` : 'Partenza anteprima'; } } } }, scales: { x: { type: 'linear', min: 0, max: 2, title: { display: true, text: 'Tempo nominale dall’inizio [h]' } }, y: { min: 0, max: 600, title: { display: true, text: 'Setpoint [°C]' } } } } });
     function updateMode() { selectMode.setAttribute('aria-pressed', String(mode === 'select')); drawMode.setAttribute('aria-pressed', String(mode === 'draw')); canvas.style.cursor = mode === 'draw' ? 'crosshair' : 'grab'; }
     function run(action: () => void) { if (pending) { error.textContent = 'Correggere i valori in corso oppure annullarli prima di proseguire.'; return; } try { action(); error.textContent = ''; } catch (e) { error.textContent = (e as Error).message; } }

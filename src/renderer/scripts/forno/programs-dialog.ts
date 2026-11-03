@@ -1,3 +1,4 @@
+import { openProgramTransfer } from './program-transfer-dialog';
 import { createRecipeChart } from './recipe-chart';
 import type { ProgramRecipe } from './recipe-profile';
 import { createProgramEditor, type DraftStorage } from './program-editor';
@@ -24,6 +25,7 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
     let editorReturn: 'menu' | 'detail' | 'library' = 'menu';
     let disposeChart: (() => void) | null = null;
     let chosen = '';
+    let managementEnabled = false, listDirty = false;
     let listTitle = 'Cicli memorizzati';
     let generation = 0;
     const clearChart = () => { disposeChart?.(); disposeChart = null; };
@@ -48,6 +50,9 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
         status.textContent = 'Lettura dei cicli dal nanodac…';
         try {
             const data = await request();
+            managementEnabled = false;
+            if(data.scope!=='current'&&draftStorage.transfer){try{managementEnabled=(await draftStorage.transfer({operation:'context'})).mode==='manage';}catch{/* la consultazione resta disponibile anche con mutazioni bloccate */}}
+            listDirty=false;
             if (generation !== current || !dialog.open) return;
             if (!Array.isArray(data?.programs) || data.programs.length > 100 || data.programs.some(name => typeof name !== 'string') || !Number.isSafeInteger(data.readAtMs)) throw new Error('Elenco cicli ricevuto non valido.');
             for (const name of data.programs) {
@@ -62,7 +67,7 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
             element('programs-title').textContent = listTitle;
             status.textContent = data.scope === 'current'
                 ? 'Seleziona il ciclo caricato per visualizzarne il grafico. L’archivio completo è consultabile a forno fermo, in Reset.'
-                : data.programs.length ? `${data.programs.length} ${data.programs.length === 1 ? 'ciclo memorizzato' : 'cicli memorizzati'}` : 'Nessun ciclo memorizzato nel nanodac.';
+                : data.programs.length ? `${data.programs.length} ${data.programs.length === 1 ? 'ciclo memorizzato' : 'cicli memorizzati'}${managementEnabled?' ? Selezionando un ciclo, viene caricato in Reset per leggerlo. Nessun avvio.':''}` : 'Nessun ciclo memorizzato nel nanodac.';
             readTime.textContent = 'Ultima lettura: ' + new Date(data.readAtMs).toLocaleString('it-IT');
         } catch (failure) {
             if (generation !== current || !dialog.open) return;
@@ -82,7 +87,7 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
         const loading = document.createElement('p'); loading.className = 'recipe-loading'; loading.setAttribute('role', 'status');
         loading.textContent = allowTemporaryLoad ? 'Lettura delle fasi e ripristino del programma iniziale…' : 'Lettura della programmazione dal nanodac…'; content.append(loading);
         try {
-            const data = await preview({ name, allowTemporaryLoad, expectedCurrentProgram });
+            const data = managementEnabled && draftStorage.transfer ? await draftStorage.transfer({operation:'inspect',payload:{name}}) : await preview({ name, allowTemporaryLoad, expectedCurrentProgram });
             if (current !== generation || !dialog.open) return;
             content.replaceChildren();
             if ('needsTemporaryLoad' in data) {
@@ -95,10 +100,15 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
             }
             if (data.name !== name) throw new Error('La ricetta ricevuta non corrisponde al ciclo selezionato.');
             disposeChart = createRecipeChart(content, data);
-            const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'button secondary'; edit.id = 'edit-program-copy'; edit.textContent = 'Modifica una copia in bozza';
+            const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'button secondary'; edit.id = 'edit-program-copy'; edit.textContent = managementEnabled ? 'Modifica programma' : 'Modifica una copia in bozza';
             const editError = document.createElement('p'); editError.className = 'form-error'; editError.setAttribute('role', 'alert');
             edit.addEventListener('click', () => { try { const draft = draftFromRecipe(data); void openEditor(draft); } catch (e) { editError.textContent = (e as Error).message; } });
-            content.append(edit, editError);
+            content.append(edit);
+            if(managementEnabled&&draftStorage.transfer){
+                const remove=document.createElement('button');remove.type='button';remove.className='button secondary';remove.textContent='Elimina dal forno…';
+                remove.onclick=()=>{const reference=newProgramDraft();reference.name=data.name;reference.source={name:data.name,readAtMs:data.readAtMs,deviceToken:(data as any).editToken};openProgramTransfer(reference,draftStorage.transfer!,copy=>void openEditor(copy),{action:'delete',target:data.name});};content.append(remove);
+            }
+            content.append(editError);
         } catch (failure) {
             if (current !== generation || !dialog.open) return;
             content.replaceChildren();
@@ -144,15 +154,18 @@ export function setupProgramsDialog(request: () => Promise<StoredPrograms>, prev
     back.addEventListener('click', () => {
         if (view === 'editor') {
             generation++; editorRoot.hidden = true;
+            if(editorReturn==='detail'&&listDirty){void openRecipe(chosen);return;}
             if (editorReturn === 'detail') { view = 'detail'; detail.hidden = false; dialog.classList.remove('program-editor-dialog'); element('programs-title').textContent = 'Programmazione del ciclo'; }
             else if (editorReturn === 'library') void openLibrary();
             else showMenu();
         } else if (view === 'detail') {
+            if(listDirty){void load();return;}
             generation++; clearChart(); view = 'list'; detail.hidden = true; results.hidden = false; refresh.hidden = false;
             dialog.classList.remove('program-detail'); element('programs-title').textContent = listTitle;
             Array.from(list.querySelectorAll<HTMLButtonElement>('button')).find(b => b.querySelector('.stored-program-name')?.textContent === chosen)?.focus();
         } else { showMenu(); element('list-programs').focus(); }
     });
+    window.addEventListener('forno-programs-changed',()=>{listDirty=true;});
     dialog.addEventListener('close', () => { generation++; clearChart(); });
     window.addEventListener('beforeunload', () => { editor?.dispose(); library.dispose(); });
 }

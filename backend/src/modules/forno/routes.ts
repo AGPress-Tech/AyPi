@@ -1,7 +1,7 @@
 ﻿import type { Router } from '../../shared/http/router';
 import { badRequest } from '../../shared/http/errors';
 import { sendJson } from '../../shared/http/response';
-import { fornoRequest, getFornoStatus, listFornoPrograms, getFornoProgramRecipe } from './service';
+import { fornoRequest, getFornoStatus, listFornoPrograms, getFornoProgramRecipe, fornoProgramTransfer } from './service';
 import { readJsonBody } from '../../shared/http/request';
 import { HttpError } from '../../shared/http/errors';
 import { EVENT_TYPES } from './messages';
@@ -9,6 +9,11 @@ import { HISTORY_MIME,sendHistory } from './transport';
 
 /** Consultazione archivio e note operatore: il campionamento resta centrale. */
 export function registerFornoRoutes(router: Router) {
+    for (const action of ['context', 'prepare', 'execute', 'reconcile', 'inspect'] as const)
+        router.register('POST', '/api/forno/programs/transfer/' + action, async (request, response) => {
+            const actor = String(request.headers['x-aypi-user'] || 'Operatore AyPi').slice(0, 120);
+            sendJson(response, 200, await fornoProgramTransfer(action, action === 'context' ? {} : await readJsonBody(request), actor));
+        });
     router.register('POST', '/api/forno/programs/preview', async (request, response) => {
         const input = await readJsonBody<{ name?: string; allowTemporaryLoad?: boolean; expectedCurrentProgram?: string }>(request);
         if (typeof input?.name !== 'string' || !input.name || input.name.length > 20 || /[\x00-\x1f\x7f/\\]/.test(input.name) || (input.allowTemporaryLoad !== undefined && typeof input.allowTemporaryLoad !== 'boolean')) throw badRequest('Richiesta ciclo non valida.');

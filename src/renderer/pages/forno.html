@@ -28,7 +28,8 @@
             <button id="open-programs" class="button secondary" type="button" aria-haspopup="dialog"
                 aria-controls="programs-dialog">Cicli forno</button>
             <div id="module-state" class="module-state" data-state="connecting" role="status">
-                <i></i><span>Connessione...</span></div>
+                <i></i><span>Connessione...</span>
+            </div>
             <div class="live-channels" role="group" aria-label="Temperature live dei quattro canali"><span
                     class="eyebrow">CANALI · LIVE</span>
                 <div id="live-channel-values" class="live-channel-values"></div>
@@ -99,24 +100,33 @@
                 class="context-check" aria-hidden="true"></span><span>Tooltip continuo<small>Linea verticale e
                     temperature al passaggio</small></span></button><button id="add-chart-note" type="button"><span
                 class="note-menu-symbol" aria-hidden="true">✎</span><span>Aggiungi nota qui<small>Collega una nota al
-                    campione registrato</small></span></button></div>
+                    campione registrato</small></span></button>
+    </div>
     <div id="note-context-menu" class="chart-context-menu" role="menu" aria-label="Gestione nota" hidden><button
             id="note-context-open" type="button" role="menuitem">Apri messaggi</button><button id="note-context-edit"
             type="button" role="menuitem">Modifica nota</button><button id="note-context-delete" class="danger"
             type="button" role="menuitem">Elimina nota</button></div>
     <dialog id="programs-dialog" class="compact-dialog" aria-labelledby="programs-title">
         <div class="dialog-heading">
-            <div><span class="eyebrow">NANODAC</span><h2 id="programs-title">Cicli forno</h2></div>
+            <div><span class="eyebrow">NANODAC</span>
+                <h2 id="programs-title">Cicli forno</h2>
+            </div>
             <button type="button" class="icon-close" data-close="programs-dialog" aria-label="Chiudi">×</button>
         </div>
         <div id="programs-menu">
             <p class="dialog-intro">Che cosa vuoi fare?</p>
-            <button id="list-programs" class="button secondary programs-action" type="button">Visualizza cicli memorizzati</button>
-            <button id="open-program-editor" class="button secondary programs-action" type="button">Programmatore · crea o riprendi bozza</button>
-            <button id="open-program-library" class="button secondary programs-action" type="button">Archivio locale e backup programmi</button>
+            <button id="list-programs" class="button secondary programs-action" type="button">Visualizza cicli
+                memorizzati</button>
+            <button id="open-program-editor" class="button secondary programs-action" type="button">Programmatore · crea
+                o riprendi bozza</button>
+            <button id="open-program-library" class="button secondary programs-action" type="button">Archivio locale e
+                backup programmi</button>
         </div>
         <div id="programs-results" hidden>
-            <div class="program-editor-toolbar"><button id="backup-forno-programs" type="button" class="button secondary">Backup programmi…</button><button id="import-forno-programs" type="button" class="button secondary">Importa 1 o più programmi…</button><button id="manage-local-programs" type="button" class="button secondary">Gestisci archivio locale</button></div>
+            <div class="program-editor-toolbar"><button id="backup-forno-programs" type="button"
+                    class="button secondary">Backup programmi…</button><button id="import-forno-programs" type="button"
+                    class="button secondary">Importa 1 o più programmi…</button><button id="manage-local-programs"
+                    type="button" class="button secondary">Gestisci archivio locale</button></div>
             <p id="programs-status" class="settings-note" role="status"></p>
             <p id="programs-error" class="form-error" role="alert" hidden></p>
             <ol id="programs-list" class="stored-programs" aria-label="Cicli memorizzati nel nanodac"></ol>

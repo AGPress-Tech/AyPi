@@ -27,6 +27,16 @@ app.whenReady().then(async()=>{
     });
     const previewRequests=[];
     let storedDraft=null;const draftSaves=[],draftExports=[];
+    const transferCalls=[];let transferPending=false,fullManagement=false;
+    ipcMain.handle('forno-program-transfer',(_event,input)=>{
+        transferCalls.push(structuredClone(input));
+        if(input.operation==='inspect')return {...sampleRecipe(input.payload.name),editToken:'11111111-1111-4111-8111-111111111111',loadedInReset:true};
+        if(input.operation==='context')return {mode:fullManagement?'manage':'tests',enabled:true,current:{name:'Ciclo_originale',mode:1,status:1},programs:fullManagement?['Ciclo_1_530_8h','Ciclo_2_375_8h30m']:['Ciclo_originale'],managed:[],pending:transferPending?{backup:'backup-test.json',lastError:'Menu file occupato'}:null};
+        if(input.operation==='prepare')return {token:'test-ticket',name:input.payload.draft?.name||input.payload.name,exists:fullManagement&&(input.payload.overwrite||input.payload.action==='delete'),action:input.payload.action,recipe:sampleRecipe(input.payload.name||'Ciclo_1_530_8h'),limits:{min:0,max:700},program:input.payload.draft,message:'Store e rilettura, nessun Run'};
+        if(input.operation==='reconcile'){transferPending=false;return {verified:true,message:'Originale invariato, prova assente: sbloccato'};}
+        if(input.operation==='execute')return {verified:true,id:'test-receipt',message:'Prova salvata e verificata in Reset',backup:'server-backup.json',localBackupPath:'local-backup.json'};
+        throw Error('Operazione inattesa');
+    });
     ipcMain.handle('forno-draft-load',()=>storedDraft);
     ipcMain.handle('forno-draft-save',(_event,input)=>{storedDraft=structuredClone(input);draftSaves.push(storedDraft);return storedDraft;});
     ipcMain.handle('forno-draft-export',(_event,input)=>{draftExports.push(structuredClone(input));return {path:'Bozza.aypi-forno.json'};});
@@ -40,10 +50,11 @@ app.whenReady().then(async()=>{
     ipcMain.handle('forno-library-backup',(_event,input)=>{const result=localPrograms.exportBackupFile(libraryFile(),path.join(folder,'backup-'+libraryExports.length+'.json'),input?.ids);libraryExports.push(result);return result;});
     ipcMain.handle('forno-library-restore-files',(_event,input)=>{const result=localPrograms.prepareRestoreFiles(libraryFile(),folder,input.ids,input.originalsOnly);restorePackages.push(result);return result;});
     const phase=(number,type,extra={})=>({number,name:String(number),type,durationSeconds:0,targets:[200],rampSeconds:[3600],rates:[0.1],endType:1,holdback:[0],goBackTo:1,cycles:1,events:[number===4,number===4,number===4,false,false,false,false,false],userValues:[0],...extra});
+    const sampleRecipe=name=>({name,readAtMs:Date.now(),channels:1,rampStyle:0,rampUnits:[0],servoTo:[0],holdback:[],maxEvents:3,resetEvents:Array(8).fill(false),resetUserValues:[0],features:{holdback:false,pvEvents:false,userValues:true,messages:true},segments:[phase(1,1),phase(2,2,{durationSeconds:3600}),phase(3,1,{targets:[375]}),phase(4,2,{durationSeconds:14400}),phase(5,0)]});
     ipcMain.handle('forno-program-preview',(_event,input)=>{
         previewRequests.push(input);
         if(input.name==='Ciclo_1_530_8h'&&!input.allowTemporaryLoad)return {needsTemporaryLoad:true,currentProgram:'Ciclo_2_375_8h30m'};
-        return {name:input.name,readAtMs:Date.now(),channels:1,rampStyle:0,rampUnits:[0],servoTo:[0],holdback:[],maxEvents:3,resetEvents:Array(8).fill(false),resetUserValues:[0],features:{holdback:false,pvEvents:false,userValues:true,messages:true},segments:[phase(1,1),phase(2,2,{durationSeconds:3600}),phase(3,1,{targets:[375]}),phase(4,2,{durationSeconds:14400}),phase(5,0)]};
+        return sampleRecipe(input.name);
     });
     folder=fs.mkdtempSync(path.join(os.tmpdir(),'aypi-forno-ui-'));
     fs.writeFileSync(path.join(folder,'forno-test.uic'),';$SERVER-PROGID\nEurothermIDM.Serialize.4\n;$IDM-PROGID\nEurothermIDM.nanodac.811\nProgram0, 0, "09", 0, 0, 0, ""\n'+nativeFixture.files.map(f=>`Program${f.index}, ${f.index}, "${f.cloneRecordHex}", 0, 0, 0, ""`).join('\n')+'\n');
@@ -97,6 +108,8 @@ app.whenReady().then(async()=>{
         return {...p,combined:one(0,3),channels:[one(1,0),one(2,2),one(3,7),one(4,null)]};
     });
     const win=new BrowserWindow({show:false,width:1200,height:800,webPreferences:{nodeIntegration:true,contextIsolation:false,offscreen:true}});
+    const evaluate=win.webContents.executeJavaScript.bind(win.webContents);
+    win.webContents.executeJavaScript=async(source,...args)=>{try{return await evaluate(source,...args);}catch(error){console.error('Script UI fallito:',source.slice(0,300));console.error(await evaluate("JSON.stringify({errors:document.querySelectorAll('.form-error').length,programError:document.getElementById('programs-error').textContent,status:document.getElementById('programs-status').textContent,buttons:Array.from(document.querySelectorAll('#programs-dialog button')).map(b=>b.textContent).slice(-18)})"));throw error;}};
     const errors=[];
     win.webContents.on('console-message',(_e,level,message)=>{if(level>=3)errors.push(message);});
     await win.loadFile(path.join(folder,'pages/forno.html'));
@@ -290,11 +303,11 @@ app.whenReady().then(async()=>{
     await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#programs-library>label')).find(l=>l.textContent.includes('Mostra anche')).querySelector('input').click()");
     await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.program-library-row')).at(-1).querySelector('input').click()");
     await libraryButton('Recupera eliminati locali');await new Promise(r=>setTimeout(r,70));assert.equal(localPrograms.readLibrary(libraryFile()).entries[9].deletedAtMs,undefined);
-    assert(await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#programs-library button')).find(b=>b.textContent==='Invio al forno bloccato').disabled"));
+    assert(await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#programs-library button')).find(b=>b.textContent==='Apri selezionato per invio al forno…')!==undefined"));
     fs.writeFileSync(path.join(folder,'forno-program-library.png'),(await win.webContents.capturePage()).toPNG());
     await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
     assert.equal(programRequests,readsBeforeLibrary.programs);assert.equal(previewRequests.length,readsBeforeLibrary.previews);
-    console.log('OK: archivio di 9 originali, backup verificato, file nativi identici, modifica E2 singolo, nuova versione, eliminazione/recupero locali e invio forno bloccato');
+    console.log('OK: archivio di 9 originali, backup verificato, file nativi identici, modifica E2 singolo, nuova versione, eliminazione/recupero locali e apertura per invio esplicito');
     await win.webContents.executeJavaScript("document.getElementById('open-programs').click();document.getElementById('open-program-editor').click()");await new Promise(r=>setTimeout(r,60));
     await editorButton('Nuova bozza');await new Promise(r=>setTimeout(r,50));assert.equal(storedDraft.steps.length,0);
     await editorSet('input[data-field=name]','Tutti_tipi');
@@ -313,6 +326,23 @@ app.whenReady().then(async()=>{
     await editorButton('Salva versione nell’archivio');await new Promise(r=>setTimeout(r,60));
     assert.equal(localPrograms.readLibrary(libraryFile()).entries.length,11);
     fs.writeFileSync(path.join(folder,'forno-program-editor-all-types.png'),(await win.webContents.capturePage()).toPNG());
+    await editorButton('Invia al forno…');await new Promise(r=>setTimeout(r,80));
+    assert.equal(transferCalls.at(-1).operation,'context');
+    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog').getBoundingClientRect().width>800"),'La revisione deve avere spazio per i parametri');
+    const transferButton=text=>win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.program-transfer-dialog button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`);
+    await transferButton('Prepara invio della bozza');await new Promise(r=>setTimeout(r,50));assert.equal(transferCalls.at(-1).operation,'prepare');assert(transferCalls.at(-1).payload.draft.name.startsWith('TEST_'));assert(!transferCalls.some(c=>c.operation==='execute'));
+    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog pre').textContent.includes('Fine')||document.querySelector('.program-transfer-dialog pre').textContent.includes('end')"));
+    fs.writeFileSync(path.join(folder,'forno-program-transfer-review.png'),(await win.webContents.capturePage()).toPNG());
+    await transferButton('Conferma operazione sul forno');await new Promise(r=>setTimeout(r,70));assert.equal(transferCalls.filter(c=>c.operation==='execute').length,1);
+    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog').textContent.includes('local-backup.json')"));
+    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));assert(await win.webContents.executeJavaScript("!document.querySelector('.program-transfer-dialog')"));
+    console.log('OK: trasferimento con verifica preventiva, conferma esplicita e ricevuta; nessun invio automatico');
+    transferPending=true;await editorButton('Invia al forno\u2026');await new Promise(r=>setTimeout(r,60));
+    await transferButton('Verifica tentativo interrotto');await new Promise(r=>setTimeout(r,60));assert(transferCalls.some(c=>c.operation==='reconcile'));assert.equal(transferCalls.filter(c=>c.operation==='execute').length,1);
+    assert(await win.webContents.executeJavaScript("document.querySelector('.program-transfer-dialog').textContent.includes('Originale invariato')"));
+    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
+
+
     const beforeReorder=structuredClone(storedDraft);
     await win.webContents.executeJavaScript("document.querySelector('tr[data-index=\"1\"] .phase-name').click()");
     await editorSet('select[data-field=newKind]','ramp');await editorButton('+ Aggiungi fase');await new Promise(r=>setTimeout(r,40));
@@ -330,6 +360,34 @@ app.whenReady().then(async()=>{
     await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
     assert.equal(programRequests,readsBeforeLibrary.programs);assert.equal(previewRequests.length,readsBeforeLibrary.previews);
     console.log('OK: layout largo a 900/1200/1600 px, scroll fasi senza spostare grafico, eventi con icone SVG e tutti i sei tipi configurabili');
+    fullManagement=true;
+    await win.webContents.executeJavaScript("document.getElementById('open-programs').click();document.getElementById('list-programs').click()");await new Promise(r=>setTimeout(r,100));
+    assert(await win.webContents.executeJavaScript("document.getElementById('programs-status').textContent.includes('caricato in Reset')"));
+    await win.webContents.executeJavaScript("document.querySelector('#programs-list button').click()");await new Promise(r=>setTimeout(r,100));
+    assert.equal(transferCalls.at(-1).operation,'inspect');assert.equal(transferCalls.at(-1).payload.name,'Ciclo_1_530_8h');
+    await win.webContents.executeJavaScript("document.getElementById('edit-program-copy').click()");await new Promise(r=>setTimeout(r,60));
+    assert.equal(storedDraft.source.deviceToken,'11111111-1111-4111-8111-111111111111');
+    await editorSet('tr[data-index="0"] input[data-field=target]','210');
+    await editorButton('Invia al forno\u2026');await new Promise(r=>setTimeout(r,60));
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Tipo di salvataggio sul forno\"]').value"),'replace');
+    const executions=transferCalls.filter(c=>c.operation==='execute').length;
+    await transferButton('Prepara invio della bozza');await new Promise(r=>setTimeout(r,50));
+    assert(transferCalls.at(-1).payload.overwrite);assert.equal(transferCalls.at(-1).payload.expectedSnapshot,storedDraft.source.deviceToken);assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions);
+    await transferButton('Conferma sovrascrittura di Ciclo_1_530_8h');await new Promise(r=>setTimeout(r,60));
+    assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions+1);
+    fs.writeFileSync(path.join(folder,'forno-program-management.png'),(await win.webContents.capturePage()).toPNG());
+    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
+    await editorSet('input[data-field=name]','Copia_del_ciclo');await editorButton('Invia al forno\u2026');await new Promise(r=>setTimeout(r,60));
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[aria-label=\"Tipo di salvataggio sul forno\"]').value"),'new');
+    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
+    await win.webContents.executeJavaScript("document.getElementById('programs-back').click()");await new Promise(r=>setTimeout(r,90));
+    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('#recipe-content button')).find(b=>b.textContent.startsWith('Elimina dal forno')).click()");await new Promise(r=>setTimeout(r,110));
+    assert.equal(transferCalls.at(-1).operation,'prepare');assert.equal(transferCalls.at(-1).payload.action,'delete');assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions+1);
+    await transferButton('Conferma eliminazione di Ciclo_1_530_8h');await new Promise(r=>setTimeout(r,60));
+    assert.equal(transferCalls.filter(c=>c.operation==='execute').length,executions+2);
+    await transferButton('Chiudi');await new Promise(r=>setTimeout(r,30));
+    await win.webContents.executeJavaScript("document.getElementById('programs-dialog').close()");
+    console.log('OK: gestione completa, lettura in Reset, editor con riferimento, sovrascrittura ed eliminazione solo dopo conferma');
     assert(diagnostics.includes('Ultimo tentativo salvato'),diagnostics);
     assert(diagnostics.includes('Database: D:'),diagnostics);
     assert.equal(await win.webContents.executeJavaScript("document.getElementById('temperature').textContent"),'418.0 °C');

@@ -129,6 +129,11 @@ dialog.compact-dialog.program-detail.program-editor-dialog[open]{width:calc(100v
 #programs-editor .program-editor-metrics{padding:7px 10px;font-size:10px;flex-shrink:0}
 .program-editor-graph-warnings{font-size:10px;line-height:1.5;color:var(--muted);margin:0;flex-shrink:0}
 .program-editor-zoom-help{font-size:9px;line-height:1.4;color:var(--muted);margin:0;flex-shrink:0}
+dialog.compact-dialog.program-transfer-dialog{width:min(1000px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow:auto}
+.program-transfer-dialog h2{font-size:21px;margin:0 0 10px}.program-transfer-dialog h3{font-size:15px;margin:14px 0 8px}
+.program-transfer-actions{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:-24px;background:var(--surface);padding:8px 0;border-top:1px solid var(--line)}
+.program-transfer-dialog p{font-size:12px;line-height:1.6}.program-transfer-dialog input{padding:8px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);margin-bottom:8px}.program-transfer-dialog .button{margin:5px}.program-transfer-dialog pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:240px;overflow:auto}.program-transfer-dialog [hidden]{display:none!important}
+.program-transfer-dialog .button.primary:is(:hover,:focus,:active){background:var(--ink);color:var(--surface)}
 #programs-editor .program-editor-review,#programs-editor .program-editor-help{margin:1px 0;padding:7px 9px;font-size:11px;flex-shrink:0}
 .program-editor-help{border:1px solid var(--line);border-radius:7px}.program-editor-help summary{cursor:pointer;font-weight:600}
 #programs-editor .program-editor-review pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;font-size:10px}

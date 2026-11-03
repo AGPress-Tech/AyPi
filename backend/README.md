@@ -58,3 +58,24 @@ Avvio automatico server:
 - per la gestione manuale restano disponibili:
   - `backend/scripts/install-server-task.ps1`
   - `backend/scripts/uninstall-server-task.ps1`
+
+
+### Gestione completa dei programmi (03/11/2026)
+
+Dopo il collaudo riuscito, la nuova revisione abilita manage in produzione.
+Aggiornare sia backend sia applicazione desktop. Il nuovo installer eredita
+manage anche dai JSON precedenti privi di forno.programTransfers. Un valore
+tests esplicito resta limitato ai TEST_; impostare manage per gestire anche i
+preesistenti. off e ambiente esplicito restano rispettati. Nessun avvio remoto.
+
+Lista in Reset: selezionare un ciclo lo carica in Reset e legge la versione
+salvata; Modifica programma apre l'editor. Salva bozza conserva sul PC; Invia al
+forno permette Nuovo oppure Sovrascrivi, con riepilogo e conferma separata.
+Elimina dal forno prepara una cancellazione distinta dall'eliminazione locale.
+L'archivio locale apre una versione nell'editor per l'invio esplicito.
+
+Backup completo prima delle operazioni, riferimento di lettura per evitare
+conflitti e nuovo Load/confronto prima di sovrascrivere o eliminare. Copia locale
+della ricevuta e, quando convertibile, bozza precedente anche nell'archivio.
+Le letture aggiornano il programma caricato, senza avviarlo. Non usare pannello
+o iTools durante le operazioni. Dettagli: [revisione programmi forno](../docs/backend-forno-management-2026-11-03.md).

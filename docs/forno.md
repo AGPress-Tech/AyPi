@@ -286,8 +286,10 @@ inclusi Fine, Wait e GoBack, con ON e OFF espliciti. Per Fine → Reset mostra
 gli stati globali di Reset. Un backend precedente è segnalato come privo dei
 dati ausiliari, senza inventare stati OFF. Aggiornare backend e client.
 
-La scrittura sul nanodac non è ancora abilitata. Il programmatore locale
-descritto sotto permette di preparare bozze. Prima di introdurre l'invio occorre:
+La gestione desktop permette creazione, sovrascrittura ed eliminazione in
+Reset, con backup e conferma. Il profilo `tests` rimane limitato alle prove;
+la produzione usa `manage`. Vedere Gestione dei programmi sul forno in fondo.
+Le condizioni di verifica della scrittura sono:
 
 - Verificare la corrispondenza evento → logica interna → uscita → attuatore,
   le inversioni, gli eventuali impulsi/memorie e l'effetto di Reset; chiarire
@@ -465,10 +467,9 @@ segue la scelta di rampa/stasi. Fine → Reset usa sempre gli stati globali.
 L'importazione conserva ogni valore originale: alcuni programmi esistenti
 hanno stasi con valore 0, quindi 5 non è un codice del tipo segmento.
 
-Non esiste un endpoint/comando di invio della bozza al forno. I comandi locali
-`forno-draft-load/save/import/export` non chiamano il backend. Restano da
-completare mappatura degli attuatori, limiti validati della macchina e protocollo
-di scrittura/rilettura indipendente/persistenza descritto sopra.
+I comandi locali `forno-draft-load/save/import/export` non chiamano il backend.
+Il trasferimento esplicito usa il percorso separato Invia al forno, descritto
+qui sotto. Non esiste un comando Run, Hold, Reset o azionamento I/O remoto.
 
 Verifiche: `node --test tools/test-forno-program-draft.cjs` e
 `node tools/test-forno-ui.cjs`. Coperti: risoluzioni e limiti, plateau,
@@ -525,9 +526,8 @@ origine dei file. I programmi originali e quelli generati sono distinguibili.
 L'XML/gzip è coerente con i nove originali forniti; la rilettura software non
 dimostra che un programma sia stato accettato, salvato e rieseguito dal forno.
 
-Il pulsante **Invio al forno bloccato** rimane disabilitato anche dopo un backup:
-non esistono endpoint di Store/Delete o azionamento relè. Il successivo collaudo
-del ripristino deve essere concordato prima di qualsiasi invio reale.
+Per inviare una versione locale, aprirla nell'editor e usare **Invia al forno**.
+L'invio non parte dal semplice salvataggio o dall'importazione dell'archivio.
 Non usare il ripristino dell'intero clone come caricamento selettivo: secondo
 HA030554 §Programmer/Cloning può sostituire configurazione e archivio programmi.
 Riferimento ufficiale: [manuale Eurotherm](https://www.eurotherm.com/?wpdmdl=27991).
@@ -827,3 +827,77 @@ o blocchi dei controlli durante l'attesa del backend. Stato acquisizione,
 caricamento dello storico ed eventuali errori rimangono visibili nel pannello.
 Il pulsante Aggiorna e la spia di stato nell'intestazione permettono di verificare
 la raccolta senza dover aprire la diagnostica dettagliata.
+
+
+### Gestione dei programmi sul forno
+
+Aggiornare sia l'app desktop sia il backend. La produzione usa `manage` come
+impostazione predefinita. `tests` esplicito limita l'accesso alle prove TEST_
+create da questa installazione; `off` disabilita i trasferimenti. In sviluppo
+il default resta off. Ambiente e configurazione esplicita hanno precedenza.
+
+- In Reset, selezionare un ciclo nella lista lo carica e legge dal forno.
+  La lettura lascia il programma selezionato caricato, senza avviarlo.
+- **Modifica programma** apre l'editor grafico e la tabella sincronizzata.
+- **Salva bozza sul PC** e **Salva versione nell'archivio** restano locali.
+- **Invia al forno...** permette di creare un nuovo file oppure scegliere
+  esplicitamente quale programma esistente sovrascrivere.
+- **Elimina dal forno...** prepara la cancellazione del solo programma scelto;
+  l'eliminazione nell'archivio locale resta distinta.
+- Preparazione, riepilogo delle fasi e conferma precedono ogni scrittura o
+  eliminazione. Nessun comando Run viene inviato dall'app.
+
+Il pannello deve restare sulla schermata del ciclo in Reset, non sulla lista
+programmi; iTools deve essere chiuso. Le operazioni sono serializzate dal
+backend. Una lettura valida per due ore lega nome, immagine e operatore;
+la conferma preparata scade dopo tre minuti. Cambiamenti del programma,
+riavvio del backend o scadenza richiedono una nuova lettura.
+
+Prima del Load di consultazione viene conservata l'immagine precedente.
+Prima di modificare o eliminare un file esistente, il backend salva il backup,
+ricarica il file e verifica che corrisponda alla lettura di riferimento.
+La scrittura confronta tutti i parametri applicabili prima dello Store,
+poi esegue Load e nuovo confronto. L'elenco finale deve essere quello atteso.
+Se si elimina il file caricato, viene prima caricato un altro programma in
+Reset. L'ultimo file non viene eliminato senza un'alternativa caricabile.
+
+Il piano scrive solo il profilo verificato CH1, rampe a tempo, tre eventi e
+User Value. Holdback/PV disabilitati ed eventi E4-E8 non vengono scritti.
+Fine Reset usa le impostazioni globali; Wait Digital non scrive le soglie
+analogiche inattive. Formati non convertibili senza perdita restano leggibili:
+non vengono normalizzati o approssimati silenziosamente nell'editor.
+
+Backup, journal e ricevute sono in `forno-program-transfers` accanto a
+`forno.db`. Conservano i 26 segmenti nativi, i nomi, configurazione, elenco,
+ricetta precedente e richiesta. Il desktop copia la ricevuta in
+`<userData>/forno/transfers`; quando possibile conserva anche la bozza
+precedente `.before.aypi-forno.json` nell'archivio locale.
+
+Se un'operazione fallisce, non vengono ripetute le scritture. Il journal
+rimane bloccato anche dopo un riavvio. Non eliminare `state.json` per forzare
+un nuovo tentativo: la copia RAM puo essere parziale, perche impostare Fine
+tronca le fasi successive. Non avviare o salvare tale copia.
+**Verifica tentativo interrotto** sblocca solo una nuova prova assente dopo
+doppio confronto col backup e controllo dell'elenco. Non ripristina la RAM.
+L'unica eccezione documentata riguarda EndType 0/1 nelle fasi non Fine:
+il firmware puo conservarlo dopo Load; la differenza inattiva e elencata
+nella ricevuta. Tipi, temperature, durate, eventi, nomi e ogni altro word
+restano confrontati. EndType di una fase Fine e sempre vincolante.
+
+La baseline di distribuzione conserva il riferimento originale
+`tools/baselines/backend-1.4.0-1338.json` e la revisione corrente
+`tools/baselines/backend-forno-management-2026-11-03.json`. La revisione
+ammette solo gli otto compilati esaminati; gli altri 94 restano invariati.
+Dettagli: [revisione gestione programmi](backend-forno-management-2026-11-03.md).
+
+Verifiche di manutenzione:
+
+```powershell
+npm run test:forno:programs
+node tools/test-forno-ui.cjs
+npm run verify:backend:baseline
+```
+
+Il collaudo dell'operatore ha confermato l'invio di un programma TEST_;
+la revisione di gestione completa e coperta da test simulati e UI.
+Il collaudo termico resta distinto dal confronto software Store/Load.

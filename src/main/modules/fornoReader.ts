@@ -1,8 +1,10 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { readViewSettings, writeViewSettings } from './forno/preferences-store';
 import { requestAypiBackend } from './file-manager/backend-client';
 import { requestFornoHistory,openFornoLive } from './forno/network';
+import { draftFromRecipe } from './forno/program-draft';
 import { readProgramDraft, writeProgramDraft } from './forno/program-draft-store';
 import { archiveDraft, exportBackupFile, importProgramFiles, libraryView, prepareRestoreFiles, readLibrary, setLocalDeletion } from './forno/program-library';
 
@@ -94,6 +96,26 @@ export function setupFornoReader() {
     });
     ipcMain.handle('forno-status', () => requestAypiBackend('/api/forno/status', { timeoutMs: 18000 }));
     ipcMain.handle('forno-programs-list', () => requestAypiBackend('/api/forno/programs/list', { method: 'POST', timeoutMs: 18000 }));
+    ipcMain.handle('forno-program-transfer', async (event, input) => {
+        const url = event.sender.getURL();
+        if (!url.startsWith('file:') || !/\/forno\.html$/i.test(new URL(url).pathname) || !['context', 'prepare', 'execute', 'reconcile', 'inspect'].includes(input?.operation)) throw new Error('Richiesta trasferimento non valida.');
+        const result = await requestAypiBackend('/api/forno/programs/transfer/' + input.operation, { method: 'POST', body: input.payload || {}, timeoutMs: 240000 });
+        if (input.operation === 'execute' && result?.verified && /^[a-f0-9-]{36}$/.test(result.id)) {
+            try {
+                const folder = path.join(app.getPath('userData'), 'forno', 'transfers'); fs.mkdirSync(folder, { recursive: true });
+                const file = path.join(folder, result.id + '.json'), bytes = JSON.stringify({ format: 'aypi-forno-transfer-receipt', version: 1, ...result }, null, 2);
+                const fd = fs.openSync(file, 'wx'); try { fs.writeFileSync(fd, bytes); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+                if (fs.readFileSync(file, 'utf8') !== bytes) throw Error('Rilettura locale diversa.');
+                if(result.backupData?.recipeBefore&&(result.action==='delete'||result.action==='upload'&&result.backupData.targetExisted)){
+                    try{const previous=draftFromRecipe(result.backupData.recipeBefore);writeProgramDraft(path.join(folder,result.id+'.before.aypi-forno.json'),previous);archiveDraft(libraryPath(),previous);result.message+=' Versione precedente conservata anche come bozza e nell’archivio locale.';}
+                    catch(error){result.message+=' Backup completo precedente conservato nella ricevuta; bozza precedente non archiviata: '+(error as Error).message;}
+                }
+                if (result.draft) { writeProgramDraft(path.join(folder, result.id + '.aypi-forno.json'), result.draft); if (result.action === 'upload') archiveDraft(libraryPath(), result.draft); }
+                result.localBackupPath = file;
+            } catch (error) { result.message += ' Copia locale del backup non completata: ' + (error as Error).message + '. Conservato il backup sul server: ' + result.backup; }
+        }
+        return result;
+    });
     ipcMain.handle('forno-program-preview', (_event, input: { name: string; allowTemporaryLoad?: boolean; expectedCurrentProgram?: string }) => {
         if (input?.allowTemporaryLoad) throw new Error('Caricamento temporaneo sospeso. Usare il clone o il backup locale: nessun programma viene caricato sul forno.');
         if (typeof input?.name !== 'string' || !input.name || input.name.length > 20 || /[\x00-\x1f\x7f/\\]/.test(input.name) || (input.allowTemporaryLoad !== undefined && typeof input.allowTemporaryLoad !== 'boolean')) throw new Error('Richiesta ciclo non valida.');

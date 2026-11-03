@@ -5,6 +5,7 @@ import { HttpError } from '../../shared/http/errors';
 import { logger } from '../../shared/logging/logger';
 import { createStoredProgramsReader, readStoredPrograms } from './programs';
 import { readProgramRecipe } from './program-recipe';
+import { transferContext, prepareTransfer, executeTransfer, reconcileUnchangedTransfer, inspectProgram } from './program-transfer';
 
 let programTask: { key: string; promise: Promise<any> } | null = null;
 function runProgramTask(key: string, action: () => Promise<any>) {
@@ -15,6 +16,16 @@ function runProgramTask(key: string, action: () => Promise<any>) {
     const promise = Promise.resolve().then(action).finally(() => { programTask = null; });
     programTask = { key, promise };
     return promise;
+}
+export function fornoProgramTransfer(action: 'context' | 'prepare' | 'execute' | 'reconcile' | 'inspect', input: unknown, actor: string) {
+    // Le mutazioni non sono mai deduplicate/condivise come le letture.
+    if (programTask) return Promise.reject(new HttpError(409, 'Un’altra operazione sui programmi è in corso.'));
+    return runProgramTask('transfer:' + Date.now() + ':' + Math.random(), async () => {
+        const config = getFornoConfig();
+        if (!config.enabled) throw new HttpError(503, 'Modulo forno disabilitato.');
+        try { return action === 'inspect' ? await inspectProgram(config, input, actor) : action === 'context' ? await transferContext(config) : action === 'reconcile' ? await reconcileUnchangedTransfer(config, actor) : action === 'prepare' ? await prepareTransfer(config, input, actor) : await executeTransfer(config, input, actor); }
+        catch (error) { throw new HttpError(409, (error as Error).message, { code: 'FORNO_TRANSFER_REJECTED' }); }
+    });
 }
 export const listFornoPrograms = createStoredProgramsReader(() => runProgramTask('list', async () => {
     const config = getFornoConfig();

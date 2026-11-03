@@ -37,3 +37,37 @@ test('rifiuta revisioni estese e riferimenti storici diversi', () => fixture(({ 
     review.overrides['backend-dist/modules/mobile-gateway/server.js'] = { sha256: hash('gateway') }; assert(verify().failures.some(f => f.includes('Revisione non valida')));
     delete review.overrides['backend-dist/modules/mobile-gateway/server.js']; review.overrides['backend-dist/modules/forno/service.js'].previousSha256 = hash('other'); assert(verify().failures.some(f => f.includes('dichiarazione')));
 }));
+
+
+test('revisione trasferimenti: quattro override e due aggiunte, sorgenti esatti e nessuna estensione arbitraria',()=>fixture(({root,baseline,review,write})=>{
+ review.version=2;review.additions={};
+ for(const name of ['programs','routes','program-transfer','program-transfer-plan']){
+  const file=`backend-dist/modules/forno/${name}.js`,source=`backend/src/modules/forno/${name}.ts`,old='old '+name,current='reviewed '+name;
+  const addition=name.startsWith('program-transfer');if(!addition)baseline.files[file]=hash(old);
+  write(file,current);write(source,current+' source');
+  (addition?review.additions:review.overrides)[file]={previousSha256:addition?null:hash(old),sha256:hash(current),source,sourceSha256:hash(current+' source'),reason:'Trasferimenti verificati'};
+ }
+ assert.deepEqual(verifyBackend(root,baseline,review).failures,[]);assert.equal(verifyBackend(root,baseline,review).reviewed,6);
+ write('backend/src/modules/forno/program-transfer.ts','changed');assert(verifyBackend(root,baseline,review).failures.some(f=>f.includes('program-transfer.ts')));
+ review.additions['backend-dist/unknown.js']={};assert(verifyBackend(root,baseline,review).failures.some(f=>f.includes('Revisione non valida')));
+}));
+
+
+test('revisione tests automatico: ammette solo i due file launcher esaminati in aggiunta ai trasferimenti',()=>fixture(({root,baseline,review,write})=>{
+ review.version=3;review.additions={};
+ const sources={
+  'backend-dist/modules/forno/programs.js':'backend/src/modules/forno/programs.ts',
+  'backend-dist/modules/forno/routes.js':'backend/src/modules/forno/routes.ts',
+  'dist-backend-app/config.js':'src/backend-app/config.ts',
+  'dist-backend-app/main.js':'src/backend-app/main.ts',
+  'backend-dist/modules/forno/program-transfer.js':'backend/src/modules/forno/program-transfer.ts',
+  'backend-dist/modules/forno/program-transfer-plan.js':'backend/src/modules/forno/program-transfer-plan.ts',
+ };
+ for(const [file,source]of Object.entries(sources)){
+  const addition=file.includes('/program-transfer'),current='reviewed '+file,old='old '+file;if(!addition)baseline.files[file]=hash(old);
+  write(file,current);write(source,current+' source');
+  (addition?review.additions:review.overrides)[file]={previousSha256:addition?null:hash(old),sha256:hash(current),source,sourceSha256:hash(current+' source'),reason:'Modifica esaminata'};
+ }
+ assert.deepEqual(verifyBackend(root,baseline,review).failures,[]);assert.equal(verifyBackend(root,baseline,review).reviewed,8);
+ write('src/backend-app/main.ts','unexpected launcher change');assert(verifyBackend(root,baseline,review).failures.some(f=>f.includes('src/backend-app/main.ts')));
+}));

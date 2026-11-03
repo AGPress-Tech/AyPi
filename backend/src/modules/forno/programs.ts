@@ -38,7 +38,7 @@ export function createProgramConnection(config: Connection, timeoutMs = 12000) {
             if (buffer.readUInt16BE(0) !== id || buffer.readUInt16BE(2) !== 0 || buffer[6] !== config.unit || length < 2 || length > 254) return invalid();
             if (buffer.length < length + 6) return;
             if (buffer.length !== length + 6) return invalid();
-            if (buffer[7] === (fc | 128) && length === 3) return finish(new Error(`Il nanodac ha rifiutato la lettura dei cicli (Modbus ${buffer[8]}).`));
+            if (buffer[7] === (fc | 128) && length === 3) return finish(new Error(`Il nanodac ha rifiutato la richiesta Modbus FC${fc}, registro ${address}, eccezione ${buffer[8]}.`));
             if (buffer[7] !== fc) return invalid();
             if (fc === 6 || fc === 16) {
                 if (length !== 6 || buffer.readUInt16BE(8) !== address || buffer.readUInt16BE(10) !== value) return invalid();
@@ -77,6 +77,21 @@ export function createProgramConnection(config: Connection, timeoutMs = 12000) {
             return request(16, 27281, words.length, words);
         },
         loadSelected: () => request(6, 14912, 2),
+        /** Solo parametri del programma in RAM; mai Run, I/O o configurazione macchina. */
+        writeRecipe: (address: number, words: number[]) => {
+            const string = Array.from({ length: 26 }, (_, i) => 27344 + 21 * i).includes(address) && words.length === 21;
+            const offset = (address - 15040) % 48;
+            const scalar = address >= 15040 && address <= 16275 && [0, 8, 13, 14, 18, 19, 26, 27, 28].includes(offset) && words.length === 1;
+            const base = (address - 32768) / 2, nativeOffset = (base - 15040) % 48;
+            const native = Number.isInteger(base) && base >= 15040 && base <= 16275 && [1, 2, 4, 24, 16].includes(nativeOffset) && words.length === 2;
+            const settings = [15013].includes(address) && words.length === 1;
+            if ((!string && !scalar && !native && !settings) || words.some(n => !Number.isInteger(n) || n < 0 || n > 65535)) throw new Error('Scrittura programma fuori dai registri consentiti.');
+            return words.length === 1 ? request(6, address, words[0]) : request(16, address, words.length, words);
+        },
+        fileOperation: (operation: 2 | 4 | 8) => {
+            if (![2, 4, 8].includes(operation)) throw new Error('Operazione file non consentita.');
+            return request(6, 14912, operation);
+        },
         close: () => socket?.destroy(),
     };
 }

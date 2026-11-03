@@ -69,6 +69,7 @@ function applyRuntimeConfig() {
     process.env.AYPI_LOG_DIR = loaded.config.logDir;
     process.env.AYPI_MES_DB_PATH = loaded.config.mesDatabasePath;
     process.env.AYPI_FORNO_ENABLED = loaded.config.forno.enabled ? '1' : '0';
+    process.env.AYPI_FORNO_PROGRAM_TRANSFERS = loaded.config.forno.programTransfers;
     process.env.AYPI_FORNO_DB_PATH = loaded.config.forno.dbPath;
     process.env.AYPI_FORNO_HOST = loaded.config.forno.host;
     process.env.AYPI_FORNO_INTERVAL_MS = String(loaded.config.forno.intervalMs);

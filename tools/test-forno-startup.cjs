@@ -32,3 +32,20 @@ test('avvio forno: sviluppo disattivato, attivazione soltanto esplicita',()=>{
  assert.equal(resolve({forno:{autoStart:true}},{AYPI_BACKEND_PROFILE:'dev'}).runtime.forno.enabled,true);
  assert.equal(resolve({},{AYPI_BACKEND_PROFILE:'dev',AYPI_FORNO_ENABLED:'1'}).direct.enabled,true);
 });
+
+
+test('trasferimenti: manage predefinito in produzione, anche su configurazioni precedenti',()=>{
+ for(const payload of [{},{forno:{enabled:false}},{forno:{autoStart:true}}])assert.equal(resolve(payload).runtime.forno.programTransfers,'manage');
+ assert.equal(resolve({},{AYPI_BACKEND_PROFILE:'dev'}).runtime.forno.programTransfers,'off');
+});
+
+test('trasferimenti: spegnimento esplicito conservato, ambiente prioritario e valori ignoti disabilitati',()=>{
+ assert.equal(resolve({forno:{programTransfers:'off'}}).runtime.forno.programTransfers,'off');
+ assert.equal(resolve({forno:{programTransfers:'tests'}},{AYPI_FORNO_PROGRAM_TRANSFERS:'off'}).runtime.forno.programTransfers,'off');
+ assert.equal(resolve({forno:{programTransfers:'off'}},{AYPI_FORNO_PROGRAM_TRANSFERS:'tests'}).runtime.forno.programTransfers,'tests');
+ assert.equal(resolve({forno:{programTransfers:'invalid'}}).runtime.forno.programTransfers,'off');
+ for(const value of [false,true,1,null])assert.equal(resolve({forno:{programTransfers:value}}).runtime.forno.programTransfers,'off');
+ assert.equal(resolve({},{AYPI_FORNO_PROGRAM_TRANSFERS:'invalid'}).runtime.forno.programTransfers,'off');
+});
+
+test('gestione completa esplicita e tests conservato come profilo limitato',()=>{assert.equal(resolve({forno:{programTransfers:'manage'}}).runtime.forno.programTransfers,'manage');assert.equal(resolve({forno:{programTransfers:'tests'}}).runtime.forno.programTransfers,'tests');assert.equal(resolve({forno:{programTransfers:'off'}},{AYPI_FORNO_PROGRAM_TRANSFERS:'manage'}).runtime.forno.programTransfers,'manage');});

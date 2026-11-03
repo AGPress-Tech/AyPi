@@ -4,7 +4,7 @@ export type DraftStep = {
     waitFor?: 0 | 1; waitCondition?: number; waitValueDeci?: number;
     goBackTo?: number; cycles?: number; endAction?: 'reset' | 'dwell';
 };
-export type ProgramDraft = { format: 'aypi-forno-draft'; version: 2; name: string; startDeciC: number; steps: DraftStep[]; source?: { name: string; readAtMs: number } };
+export type ProgramDraft = { format: 'aypi-forno-draft'; version: 2; name: string; startDeciC: number; steps: DraftStep[]; source?: { name: string; readAtMs: number; deviceToken?: string } };
 export const MAX_STEPS = 25, MAX_DURATION_MS = 500 * 3600000;
 export const STEP_LABELS: Record<StepKind, string> = { ramp: 'Rampa', dwell: 'Stasi', step: 'Salto (Step)', wait: 'Attesa (Wait)', goback: 'Ripetizione (GoBack)', end: 'Fine / Reset' };
 export const STEP_TYPES: Record<StepKind, number> = { end: 0, ramp: 1, dwell: 2, step: 3, wait: 4, goback: 5 };
@@ -36,7 +36,7 @@ export function validateDraft(input: unknown): ProgramDraft {
     if (typeof d.name !== 'string' || !d.name.trim() || d.name !== d.name.trim() || d.name.length > 20 || /[\x00-\x1f\x7f<>:"/\\|?*]/.test(d.name)) fail('Nome ciclo: da 1 a 20 caratteri, senza caratteri riservati.');
     if (!temp(d.startDeciC)) fail('Temperatura iniziale non valida.');
     if (!Array.isArray(d.steps) || d.steps.length > 26 || d.steps.filter(s => s?.kind !== 'end').length > MAX_STEPS) fail('Sono consentite al massimo 25 fasi più una Fine esplicita.');
-    if (d.source) { keys(d.source, ['name', 'readAtMs']); if (typeof d.source.name !== 'string' || !Number.isSafeInteger(d.source.readAtMs)) fail('Origine bozza non valida.'); }
+    if (d.source) { keys(d.source, ['name', 'readAtMs', 'deviceToken']); if(d.source.deviceToken!==undefined&&!/^[a-f0-9-]{36}$/.test(d.source.deviceToken))fail('Riferimento lettura forno non valido.'); if (typeof d.source.name !== 'string' || !Number.isSafeInteger(d.source.readAtMs)) fail('Origine bozza non valida.'); }
     let current = d.startDeciC;
     for (const [i, s] of d.steps.entries()) {
         if (!s || !Object.prototype.hasOwnProperty.call(STEP_TYPES, s.kind)) fail(`Tipo della fase ${i + 1} non valido.`);
@@ -157,13 +157,13 @@ export function reviewDraft(input: ProgramDraft) {
 export function draftFromRecipe(recipe: any): ProgramDraft {
     if (recipe.channels !== 1 || recipe.rampStyle !== 0 || recipe.maxEvents !== 3 || !recipe.features || recipe.features.holdback || recipe.features.pvEvents || recipe.holdback.some(Boolean)) fail('Configurazione non gestita: sono supportati i sei tipi nativi per il profilo CH1 con rampe a tempo.');
     const deci = (v: number) => { const n = Math.round(v * 10); if (!Number.isFinite(v) || Math.abs(v - n / 10) > .0001) fail('Valori non rappresentabili a 0,1 °C.'); return n; };
-    const d = newProgramDraft(); d.name = recipe.name; d.source = { name: recipe.name, readAtMs: recipe.readAtMs }; let current = d.startDeciC;
+    const d = newProgramDraft(); d.name = recipe.name; d.source = { name: recipe.name, readAtMs: recipe.readAtMs, ...(recipe.editToken?{deviceToken:recipe.editToken}:{}) }; let current = d.startDeciC;
     for (const [i, s] of recipe.segments.entries()) {
         const kind = (['end', 'ramp', 'dwell', 'step', 'wait', 'goback'] as StepKind[])[s.type]; if (!kind || !s.events || s.events.length !== 8 || s.events.slice(3).some(Boolean) || s.holdback.some(Boolean) || s.pvEvents?.some(Boolean)) fail('Parametri ausiliari non gestiti.');
         const next = createDraftStep(kind, current, i); next.label = s.name === String(i + 1) ? '' : s.name; next.events = s.events.slice(0, 3); next.userValueDeci = deci(s.userValues[0]);
         if (kind === 'ramp' || kind === 'step') current = deci(s.targets[0]); next.targetDeciC = current;
         if (kind === 'ramp' || kind === 'dwell') next.durationMs = Math.round((kind === 'ramp' ? s.rampSeconds[0] : s.durationSeconds) * 1000);
-        if (kind === 'wait') { next.waitFor = s.waitFor; next.waitCondition = s.wait[0]; next.waitValueDeci = deci(s.waitValues[0]); }
+        if (kind === 'wait') { next.waitFor = s.waitFor; next.waitCondition = s.waitFor===0?1:s.wait[0]; next.waitValueDeci = s.waitFor===0?0:deci(s.waitValues[0]); }
         if (kind === 'goback') { next.goBackTo = s.goBackTo; next.cycles = s.cycles; }
         if (kind === 'end') { if (![0, 1].includes(s.endType)) fail('Azione finale non riconosciuta.'); next.endAction = s.endType === 1 ? 'reset' : 'dwell'; if (s.endType === 1) { next.events = [false, false, false]; next.userValueDeci = 0; } }
         d.steps.push(next);
