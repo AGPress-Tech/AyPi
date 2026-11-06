@@ -60,6 +60,8 @@ __pycache__/
 .env
 .env.backend
 backend/.env
+**/sql-analytics.credentials.json
+**/sql-analytics.credentials.json.tmp
 bot-backend/.env
 src/main/config/otp-mail.json
 config/otp-mail.json

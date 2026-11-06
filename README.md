@@ -3,6 +3,8 @@
 Questo applicativo è stato sviluppato per gli operatori [**AGPress**](https://agpress-srl.it/) per poter visualizzare
 ed interagire con più semplicità con ogni modulo **AyPi** presente in rete.
 
+Il [Controllo di Gestione](docs/controllo-gestione.md) è accessibile dal menu AyPi dopo l’autenticazione amministratore con F2 e comprende dashboard, conto economico, confronto degli esercizi e dettaglio delle ripartizioni da Excel.
+
 Al momento supporta in 7 pagine di navigazione, **Moduli**, **Programmi**, **Articoli**, **Produzioni**, **Robot**, **Calcolatore** e **Utilities**, con i seguenti moduli:<br/>
 <ul>
 <li><b>Gestione Manutenzioni</b></li>

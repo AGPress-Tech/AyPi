@@ -5,7 +5,7 @@ import path from "path";
 import { revealThemedWindow } from "./file-manager/themed-window";
 import fs from "fs";
 import log from "electron-log";
-import { requestAypiBackend } from "./file-manager/backend-client";
+import { requestAypiBackend, resolveAypiBackendBaseUrl } from "./file-manager/backend-client";
 import { registerBatchRenameIpc } from "./file-manager/batch-rename-ipc";
 import { registerHierarchyReportIpc } from "./file-manager/hierarchy-report-ipc";
 import { isDl360ServerReachable } from "./file-manager/network-files";
@@ -35,6 +35,7 @@ import { setupRealtimeClient } from "./file-manager/realtime-client";
 import { registerFilesystemDialogIpc } from "./file-manager/filesystem-dialog-ipc";
 import { registerFileNavigationIpc } from "./file-manager/file-navigation-ipc";
 import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
+import { registerManagementIpc } from "./management/ipc";
 import {
     createProductManagerSessionState,
     registerProductManagerSessionIpc,
@@ -2526,10 +2527,12 @@ function setupFileManager(mainWindow) {
         mainWindow,
     });
 
-    registerAdminStateIpc({
+    const adminState = registerAdminStateIpc({
         ipcMain,
         browserWindow: BrowserWindow,
+        onManagementDisabled: () => management.revoke(),
     });
+    const management = registerManagementIpc(mainWindow, adminState.canAccessManagement, getInterfaceIconPath, {getCredential:adminState.getManagementCredential,getBackendUrl:resolveAypiBackendBaseUrl});
 
     registerFilesystemDialogIpc({
         ipcMain,

@@ -1,4 +1,5 @@
 import { registerFornoRoutes } from "../modules/forno/routes";
+import { registerAnalyticsRoutes } from "../modules/analytics/routes";
 import type { Router } from "../shared/http/router";
 import { registerUploadRoutes } from "../shared/http/upload-routes";
 import { registerFeriePermessiRoutes } from "../modules/ferie-permessi/routes";
@@ -17,6 +18,7 @@ import { backendConfig } from "../config";
 import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
 
 export function registerRoutes(router: Router) {
+    registerAnalyticsRoutes(router);
     registerUploadRoutes(router);
     router.register("GET", "/health", async (_req, res) => {
         sendJson(res, 200, {
@@ -35,6 +37,7 @@ export function registerRoutes(router: Router) {
                 "telegram-bot",
                 "warehouse-inventory",
                 "mes",
+                "analytics",
             ],
             host: backendConfig.advertisedHost,
             port: backendConfig.port,

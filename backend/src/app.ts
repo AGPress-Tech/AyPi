@@ -1,4 +1,5 @@
 import { startFornoService, stopFornoService } from "./modules/forno/service";
+import { analyticsService } from "./modules/analytics/service";
 import { attachFornoLive, closeFornoLive } from "./modules/forno/live";
 import http from "http";
 import { backendConfig } from "./config";
@@ -108,6 +109,7 @@ export function createBackendServer(ready: Promise<void> = Promise.resolve()) {
             ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
             requestUrl.toLowerCase().startsWith("/api/") &&
             !requestUrl.toLowerCase().startsWith("/api/uploads")
+            && !requestUrl.toLowerCase().startsWith("/api/analytics/")
         ) {
             response.once("finish", () => {
                 if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -286,6 +288,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                             void Promise.allSettled([
                                 stopFornoService(),
                                 stopTelegramBotService(),
+                                analyticsService.close(),
                                 mobileGateway?.stop() || Promise.resolve(),
                             ]).finally(() =>
                                 server.close((closeErr) => {

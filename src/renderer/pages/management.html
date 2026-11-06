@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="it">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'">
+<title>AyPi · Controllo di Gestione</title>
+<script src="../scripts/utility-layout-bootstrap.js"></script>
+<link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
+<link rel="stylesheet" href="../styles/utilities/aypi-operations-ui.css">
+<link rel="stylesheet" href="../styles/management.css"></head>
+<body class="aypi-operations management-window">
+<header class="topbar">
+  <div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo" aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash" aria-hidden="true"></span></div>
+  <div class="header-title"><div class="eyebrow">CONTROLLO DI GESTIONE</div><h1 id="viewTitle">Overview economica</h1></div>
+  <div class="actions"><span class="session"><i></i> Accesso amministratore</span><button id="export" class="button">↓ Esporta Excel</button><button id="refresh" class="button primary">↻ Aggiorna dati</button><button id="close" class="button" aria-label="Chiudi controllo di gestione">Chiudi ×</button></div>
+</header>
+<main>
+<div class="navigation-row">
+<nav class="module-tabs" aria-label="Sezioni"><button class="active" data-view="overview">Overview</button><button data-view="goals">Obiettivi e KPI</button><button data-view="statement">Conto economico</button><button data-view="trends">Andamento e anni</button><button data-view="details">Dettaglio conti</button><button data-view="quality">Origine e verifiche</button></nav>
+<div id="status" role="status" aria-live="polite">Caricamento del file Excel di rete…</div>
+</div>
+<section class="filters" id="filters" aria-label="Periodi di analisi e confronto">
+  <div class="field source-field"><label for="dataSource">Dati</label><select id="dataSource"><option value="sql">SQL · aggiornati</option><option value="excel">Excel · istantanea</option></select></div>
+  <div class="period-block analysis-period">
+    <strong class="period-title">Analisi</strong>
+    <div class="field"><label for="year">Anno</label><select id="year"></select></div>
+    <div class="field"><label for="from">Da</label><select id="from"></select></div>
+    <span class="period-arrow" aria-hidden="true">→</span>
+    <div class="field"><label for="to">A</label><select id="to"></select></div>
+  </div>
+  <div class="period-block compare-period">
+    <strong class="period-title">Confronto</strong>
+    <div class="field"><label for="compare">Anno</label><select id="compare"></select></div>
+    <div class="field"><label for="comparisonMode">Periodo</label><select id="comparisonMode"><option value="same">Stessi mesi</option><option value="custom">Scegli mesi</option></select></div>
+    <span id="samePeriodNote" class="same-period-note"></span>
+    <div class="field comparison-period" hidden><label for="compareFrom">Da</label><select id="compareFrom"></select></div>
+    <span class="period-arrow comparison-period" hidden aria-hidden="true">→</span>
+    <div class="field comparison-period" hidden><label for="compareTo">A</label><select id="compareTo"></select></div>
+  </div>
+  <details id="additionalYears" class="additional-years">
+    <summary>Altri anni <span id="extraYearCount"></span></summary>
+    <div class="years-popover">
+      <div class="years-actions"><strong>Confronto su più anni</strong><button id="lastFourYears" type="button">Ultimi 4</button></div>
+      <p>Gli anni aggiuntivi usano il periodo del confronto.</p>
+      <div id="yearChoices" class="year-choices"></div>
+    </div>
+  </details>
+  <button id="reset" title="Ripristina ultimi due esercizi e stesso periodo">↺ Ripristina</button>
+</section>
+<div id="content" hidden>
+<section id="goals" class="view" hidden>
+  <div class="goals-toolbar"><span id="goalsScope"></span><span id="goalsNotice" role="status">Obiettivi personali salvati su questo PC</span></div>
+  <div id="goalGauges" class="goal-gauges"></div>
+  <div class="grid goal-charts">
+    <article class="panel"><div class="panel-head"><div><h2>Composizione dei costi</h2><p>Seleziona una componente per filtrare i gruppi</p></div><button id="clearGoalCategory">Tutti i costi</button></div><div class="cost-mix-layout"><div class="cost-mix-plot"><canvas id="costMixChart" role="img" aria-label="Composizione dei costi per categoria"></canvas></div><div id="costMixLegend" class="cost-mix-legend" aria-label="Categorie di costo e incidenze"></div></div></article>
+    <article class="panel"><div class="panel-head"><div><h2 id="goalRankingTitle">Gruppi principali</h2><p>Clicca una barra per aprire i conti e le ripartizioni</p></div><div class="ranking-controls"><select id="goalRankingMode" aria-label="Tipo di classifica"><option value="costs">Costi</option><option value="revenue">Ricavi</option></select><select id="goalRankingTop" aria-label="Numero di gruppi"><option value="5">Top 5</option><option value="10">Top 10</option><option value="20">Top 20</option></select></div></div><div class="chart ranking-scroll"><div id="goalRankingPlot"><canvas id="goalRankingChart" role="img" aria-label="Classifica dei gruppi contabili"></canvas></div></div></article>
+  </div>
+</section>
+<section id="overview" class="view"><div id="kpis" class="kpis"></div><div class="grid"><article class="panel"><div class="panel-head"><div><h2>Overview per categoria</h2><p>Seleziona una barra per esplorare i gruppi</p></div><button id="clearCategory">Tutte le categorie</button></div><div class="chart large"><canvas id="categoryChart"></canvas></div></article><article class="panel"><div class="panel-head"><div><h2 id="groupTitle">Componenti di risultato</h2><p>Confronto dei gruppi · valori in euro</p></div></div><div class="chart large"><canvas id="groupChart"></canvas></div></article></div><article class="panel margin-panel"><div class="panel-head"><div><h2>Margini di gestione</h2><p>Intero periodo selezionato</p></div></div><div id="marginBridge" class="margin-bridge"></div></article></section>
+<section id="statement" class="view" hidden><article class="panel"><div class="panel-head"><div><h2>Conto economico riclassificato</h2><p>Categoria → gruppo → conto → anno → movimenti · anni in ordine cronologico · delta tra anni consecutivi</p></div><button id="expandAll">Espandi / comprimi categorie</button></div><div class="table-scroll"><table id="statementTable"></table></div></article></section>
+<section id="trends" class="view" hidden><div class="trend-tools"><label for="metric">Indicatore</label><select id="metric"></select><label class="check"><input type="checkbox" id="cumulative"> Cumulato nell’intervallo</label></div><div class="grid"><article class="panel"><div class="panel-head"><div><h2>Andamento mensile</h2><p id="trendNote">Mesi privi di movimenti mostrati come dati non disponibili</p></div></div><div class="chart"><canvas id="monthlyChart"></canvas></div></article><article class="panel"><div class="panel-head"><div><h2>Confronto storico</h2><p>Stesso intervallo di mesi dell’esercizio principale per tutti gli anni</p></div></div><div class="chart"><canvas id="historyChart"></canvas></div></article></div><article class="panel"><div class="panel-head"><h2>Riepilogo degli esercizi</h2></div><div class="table-scroll"><table id="historyTable"></table></div></article></section>
+<section id="details" class="view" hidden><article class="panel"><div class="panel-head"><div><h2>Tracciabilità delle ripartizioni</h2><p>Saldi del periodo → regola percentuale → valore gestionale. Un conto può contribuire a più gruppi.</p></div></div><div class="detail-filters"><label for="detailCategory">Categoria</label><select id="detailCategory"></select><label for="detailGroup">Gruppo</label><select id="detailGroup"></select><input id="search" type="search" placeholder="Cerca codice o descrizione" aria-label="Cerca conto"></div><div id="detailSummary" class="table-note"></div><div class="table-scroll"><table id="detailTable"></table></div></article></section>
+<section id="quality" class="view" hidden><article class="panel"><div class="panel-head"><h2>Origine dei dati e qualità dell’importazione</h2></div><div id="qualityInfo" class="quality-info"></div></article><article class="panel method"><h2>Criteri di calcolo</h2><p>Origine: fogli Bilancino, Calcoli e Filtri di ExportMovimenti.xlsx. Tutti gli anni presenti sono disponibili; la data utilizzata è DataCompetenza. Le scritture con TipoCodice 5177346 sono escluse.</p><p>I codici delle regole con meno di 8 caratteri selezionano una famiglia di conti; quelli di almeno 8 caratteri selezionano il conto esatto. Il valore gestionale è il saldo contabile moltiplicato per la percentuale e invertito di segno. Nessun arrotondamento intermedio.</p><p>Margine 1 = ricavi di produzione + variazioni rimanenze + incrementi immobilizzazioni + costi variabili. Margine 2 = Margine 1 + costi fissi + ammortamenti e svalutazioni. Totale Algeria = componenti non legate alla produzione. Margine 3 = Margine 2 + Totale Algeria + gestione finanziaria + gestione straordinaria.</p><p>Ricavi e costi dei KPI rappresentano rispettivamente la somma delle categorie positive e il valore assoluto delle categorie negative. I margini usano sempre l’intero perimetro gestionale. Il confronto usa gli stessi mesi salvo selezione di periodi indipendenti; non viene eseguita alcuna proiezione annuale.</p><p>I conti senza regole possono comprendere conti patrimoniali: il loro saldo non viene aggiunto ai risultati gestionali. Ripartizioni superiori al 100% sono segnalate e applicate come definite nel file. Budget, imposte e indici patrimoniali richiedono dati e regole specifici e non vengono stimati.</p></article></section>
+</div><footer id="sourceFooter">Origine: \\Dl360\pubbliche\TECH\Controlli di Gestione\ExportMovimenti.xlsx</footer></main>
+<dialog id="goalDialog" class="goal-dialog" aria-labelledby="goalDialogTitle"><form id="goalForm">
+  <h2 id="goalDialogTitle">Imposta obiettivo</h2><p id="goalDialogScope"></p>
+  <label for="goalValue">Obiettivo del periodo, in euro</label><input id="goalValue" type="number" min="0" max="1000000000000" step="0.01" required inputmode="decimal" autocomplete="off">
+  <button type="button" id="useGoalComparison">Usa il valore del confronto</button>
+  <p id="goalFormError" role="alert"></p><p class="goal-local-note">Salvato su questo PC, per l’anno e i mesi indicati.</p>
+  <div class="goal-dialog-actions"><button type="button" id="deleteGoal">Rimuovi obiettivo</button><button type="button" id="cancelGoal">Annulla</button><button type="submit" class="primary" id="saveGoal">Salva obiettivo</button></div>
+</form></dialog>
+<script src="../scripts/management.js"></script></body></html>

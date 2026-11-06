@@ -25,9 +25,40 @@ const addedSources = {
 };
 const hash = (target) =>
   crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex");
+const analyticsOverrides = {
+  "backend-dist/app.js": "backend/src/app.ts",
+  "backend-dist/routes/index.js": "backend/src/routes/index.ts",
+};
+const analyticsAdditions = Object.fromEntries(["catalog", "config", "routes", "service"].map(name =>
+  [`backend-dist/modules/analytics/${name}.js`, `backend/src/modules/analytics/${name}.ts`]));
+analyticsAdditions["backend/scripts/configure-sql-analytics.ps1"] = "backend/scripts/configure-sql-analytics.ps1";
+function applyAnalyticsReview(root, baseline, review, extension, expectedFiles, failures) {
+  if (!extension) return {};
+  const baseReviewHash = crypto.createHash("sha256").update(JSON.stringify(review)).digest("hex");
+  const exactKeys = (object, expected) => object && Object.keys(object).length === Object.keys(expected).length && Object.keys(object).every(key => Object.hasOwn(expected, key));
+  if (extension.version !== 1 || extension.baseInstallerSha256 !== baseline.installer.sha256 || extension.baseReviewSha256 !== baseReviewHash
+      || !exactKeys(extension.overrides, analyticsOverrides) || !exactKeys(extension.additions, analyticsAdditions)
+      || !exactKeys(extension.dependencies, {mssql:1}) || extension.dependencies.mssql !== "^12.7.14"
+      || !/^[a-f0-9]{64}$/.test(extension.packageLockSha256 || "")) {
+    failures.push("Revisione analisi SQL non valida o estesa oltre il perimetro autorizzato."); return {};
+  }
+  const lock = path.join(root,"package-lock.json");
+  if (!fs.existsSync(lock) || hash(lock) !== extension.packageLockSha256) failures.push("package-lock.json: diverso dalla revisione analisi SQL.");
+  for (const [file, entry] of Object.entries({...extension.overrides, ...extension.additions})) {
+    const source = analyticsOverrides[file] || analyticsAdditions[file];
+    if (!entry || entry.source !== source || entry.previousSha256 !== (expectedFiles[file] || null)
+        || !/^[a-f0-9]{64}$/.test(entry.sha256 || "") || !/^[a-f0-9]{64}$/.test(entry.sourceSha256 || "") || !entry.reason) {
+      failures.push(`${file}: dichiarazione della revisione SQL non valida.`); continue;
+    }
+    expectedFiles[file] = entry.sha256;
+    const sourcePath = path.join(root,source);
+    if (!fs.existsSync(sourcePath) || hash(sourcePath) !== entry.sourceSha256) failures.push(`${source}: diverso dal sorgente SQL revisionato.`);
+  }
+  return extension.dependencies;
+}
 
-/** Baseline storica immutata; le revisioni possono aggiornare soltanto i file forno espressamente esaminati. */
-function verifyBackend(root, baseline, review = null) {
+/** Baseline storica immutata; Forno e SQL hanno revisioni separate e perimetri espliciti. */
+function verifyBackend(root, baseline, review = null, analyticsReview = null) {
   const failures = [],
     expectedFiles = { ...baseline.files };
   if (review) {
@@ -79,14 +110,16 @@ function verifyBackend(root, baseline, review = null) {
       }
     }
   }
+  const sqlDependencies = applyAnalyticsReview(root, baseline, review, analyticsReview, expectedFiles, failures);
+  const expectedDependencies = {...baseline.dependencies, ...sqlDependencies};
   const dependencies = JSON.parse(
     fs.readFileSync(path.join(root, "package.json"), "utf8"),
   ).dependencies;
   for (const name of new Set([
     ...Object.keys(dependencies),
-    ...Object.keys(baseline.dependencies),
+    ...Object.keys(expectedDependencies),
   ])) {
-    if (dependencies[name] !== baseline.dependencies[name])
+    if (dependencies[name] !== expectedDependencies[name])
       failures.push(`dipendenza ${name}: diversa dalla versione delle 13:38`);
   }
   for (const [file, expected] of Object.entries(expectedFiles)) {
@@ -113,9 +146,9 @@ function verifyBackend(root, baseline, review = null) {
   return {
     failures,
     total: Object.keys(expectedFiles).length,
-    reviewed: review
+    reviewed: (review
       ? Object.keys({ ...review.overrides, ...review.additions }).length
-      : 0,
+      : 0) + (analyticsReview ? Object.keys({...analyticsReview.overrides,...analyticsReview.additions}).length : 0),
   };
 }
 
@@ -130,7 +163,8 @@ if (require.main === module) {
   const review = historical
     ? null
     : require("./baselines/backend-forno-management-2026-11-03.json");
-  const result = verifyBackend(root, baseline, review);
+  const analyticsReview = historical ? null : require("./baselines/backend-analytics-2026-11-06.json");
+  const result = verifyBackend(root, baseline, review, analyticsReview);
   if (result.failures.length) {
     console.error(
       "Pacchetto backend bloccato: il contenuto non corrisponde al riferimento verificato.",
@@ -144,7 +178,7 @@ if (require.main === module) {
     console.log(
       historical
         ? `Backend verificato: ${result.total} file identici all'installer 1.4.0 delle 13:38.`
-        : `Backend verificato: ${result.total - result.reviewed} file identici al riferimento delle 13:38; ${result.reviewed} file forno e relativi sorgenti corrispondono alla revisione gestione programmi del 03/11/2026.`,
+        : `Backend verificato: revisione forno del 03/11/2026 preservata; analisi SQL e dipendenza mssql corrispondono al perimetro verificato del 06/11/2026.`,
     );
   }
 }

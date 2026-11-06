@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "baseInstallerSha256": "fa3e843d051f92d3937c67ad86634f9fc2ee42482a24dcb5c738d2e131185409",
+  "baseReviewSha256": "c9fa2309c659fd49e637352d3fae27e1ba866b5870730fe6d57ae25716a2c515",
+  "packageLockSha256": "bd1ddef9245ee2b052bdce3c6c81b3a21b3d696460a010f648efeaa03a00a12d",
+  "review": "docs/backend-analytics-2026-11-06.md",
+  "dependencies": {
+    "mssql": "^12.7.14"
+  },
+  "overrides": {
+    "backend-dist/app.js": {
+      "previousSha256": "425f4bd60d959ceb22298a702be89bbdfaf936ab342807cf3c41ae1311820717",
+      "sha256": "77f54e4c85c4e84ad35e83330e9b0b949c0bcf824bbcc862f07bcdcdce8d761f",
+      "source": "backend/src/app.ts",
+      "sourceSha256": "5a5746d0d7d6ea87c887ad6bac54f449f736a9b45d54ab4728bf800d6d95c62a",
+      "reason": "Analisi SQL su richiesta: catalogo SELECT, accesso amministratore e credenziali protette solo sul backend."
+    },
+    "backend-dist/routes/index.js": {
+      "previousSha256": "47d3279e6cd5942abec77a4f1e04e0176469f94fd27d387030ae4cc6c7966baf",
+      "sha256": "c2d83df666839e5dfac9538e5acf35dc44a6cc45260f2d20a64fb832c7e386fb",
+      "source": "backend/src/routes/index.ts",
+      "sourceSha256": "c5cbe7bb1525661753afa86fd9b67875382830948066b8c957d07d3047edab57",
+      "reason": "Analisi SQL su richiesta: catalogo SELECT, accesso amministratore e credenziali protette solo sul backend."
+    }
+  },
+  "additions": {
+    "backend-dist/modules/analytics/catalog.js": {
+      "previousSha256": null,
+      "sha256": "0219a54d1379388982effd731fe93805a747681649089f6c17b891c71cb09c63",
+      "source": "backend/src/modules/analytics/catalog.ts",
+      "sourceSha256": "dbce8a8dffb3d83224fef382da3db26df98de0cf17ae0a5ca363657613963a58",
+      "reason": "Analisi SQL su richiesta: catalogo SELECT, accesso amministratore e credenziali protette solo sul backend."
+    },
+    "backend-dist/modules/analytics/config.js": {
+      "previousSha256": null,
+      "sha256": "3774aa96eaa66948a7b0db992ccdff6035e51eba1263aab39bd58d1de665b696",
+      "source": "backend/src/modules/analytics/config.ts",
+      "sourceSha256": "d0fb4c5b7e4833ec05852c7416bb369f2757b7d5d9ff184d4baae24bfbae70ad",
+      "reason": "Analisi SQL su richiesta: catalogo SELECT, accesso amministratore e credenziali protette solo sul backend."
+    },
+    "backend-dist/modules/analytics/routes.js": {
+      "previousSha256": null,
+      "sha256": "034d0496048e47d23dc4a4ac0ed7107ca48e0fd815d44015e664bc1bc741d58a",
+      "source": "backend/src/modules/analytics/routes.ts",
+      "sourceSha256": "3cab3a924954dd1d93cfe6b5d7628f0767cbc60019fc82e7be263d0560cbbfc7",
+      "reason": "Analisi SQL su richiesta: catalogo SELECT, accesso amministratore e credenziali protette solo sul backend."
+    },
+    "backend-dist/modules/analytics/service.js": {
+      "previousSha256": null,
+      "sha256": "b2295daa61228d71a93a67f4ab8e0375fcefdd011ebda4f41cb81c9b96a1c2e1",
+      "source": "backend/src/modules/analytics/service.ts",
+      "sourceSha256": "1ea926c4ccafe9b0c00a6e107eeb3481b75a49bd7972af47bcf810ed371ff251",
+      "reason": "Analisi SQL su richiesta: catalogo SELECT, accesso amministratore e credenziali protette solo sul backend."
+    },
+    "backend/scripts/configure-sql-analytics.ps1": {
+      "previousSha256": null,
+      "sha256": "1e4a26a630744cdfa1497df18ca404623cc0f283a38d04f394e3059a35bfe026",
+      "source": "backend/scripts/configure-sql-analytics.ps1",
+      "sourceSha256": "1e4a26a630744cdfa1497df18ca404623cc0f283a38d04f394e3059a35bfe026",
+      "reason": "Configurazione server con password SQL cifrata DPAPI e ACL locali."
+    }
+  }
+}

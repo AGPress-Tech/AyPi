@@ -4,19 +4,21 @@ type AdminStateDependencies = {
     ipcMain: IpcMain;
     browserWindow: Pick<typeof BrowserWindow, "getAllWindows">;
     password?: string;
+    onManagementDisabled?: () => void;
 };
 
 export function registerAdminStateIpc({
     ipcMain,
     browserWindow,
     password: expectedPassword = "AGPress",
+    onManagementDisabled,
 }: AdminStateDependencies) {
     let enabled = false;
 
     const broadcastState = () => {
         browserWindow.getAllWindows().forEach((window) => {
             try {
-                window.webContents.send("admin-state-changed", { enabled });
+                window.webContents.send("admin-state-changed", { enabled, management: enabled });
             } catch {
                 // Una finestra può chiudersi durante il broadcast.
             }
@@ -40,10 +42,13 @@ export function registerAdminStateIpc({
     });
 
     ipcMain.handle("admin-is-enabled", async () => enabled);
+    ipcMain.handle("management-is-enabled", () => enabled);
 
     ipcMain.handle("admin-disable", async () => {
         enabled = false;
+        onManagementDisabled?.();
         broadcastState();
         return { ok: true };
     });
+    return { canAccessManagement: () => enabled, getManagementCredential: () => enabled ? expectedPassword : null };
 }

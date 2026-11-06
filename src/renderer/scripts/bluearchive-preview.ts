@@ -1767,6 +1767,19 @@ document.getElementById("menuWebsite")?.addEventListener("click", () => {
     }
 });
 
+const managementIpc = require("electron").ipcRenderer;
+const managementButton = document.getElementById("menuManagement");
+function updateManagementAccess(enabled: boolean) {
+    if (managementButton) managementButton.style.display = enabled ? "" : "none";
+}
+managementIpc.on("admin-state-changed", (_event, state) => updateManagementAccess(!!state.management));
+managementIpc.invoke("management-is-enabled").then(updateManagementAccess);
+managementButton?.addEventListener("click", async () => {
+    setQuickMenuOpen(false);
+    const result = await managementIpc.invoke("management-open");
+    if (!result.ok) showBubble(result.error, 4000);
+});
+
 document.getElementById("menuQuit")?.addEventListener("click", () => {
     require("electron").ipcRenderer.send("quit-app");
 });
