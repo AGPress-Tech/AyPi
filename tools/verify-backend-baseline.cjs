@@ -153,8 +153,11 @@ function verifyBackend(root, baseline, review = null, analyticsReview = null) {
 }
 
 if (require.main === module) {
+  if (process.argv.length === 2) {
+    require('./verify-backend-release.cjs').main();
+  } else {
   const historical = process.argv.includes("--historical");
-  if (process.argv.slice(2).some((arg) => arg !== "--historical"))
+  if (process.argv.slice(2).some((arg) => !['--historical','--legacy-reviewed'].includes(arg)))
     throw new Error(
       "Opzione non riconosciuta. È disponibile soltanto --historical per il confronto storico integrale.",
     );
@@ -180,6 +183,7 @@ if (require.main === module) {
         ? `Backend verificato: ${result.total} file identici all'installer 1.4.0 delle 13:38.`
         : `Backend verificato: revisione forno del 03/11/2026 preservata; analisi SQL e dipendenza mssql corrispondono al perimetro verificato del 06/11/2026.`,
     );
+  }
   }
 }
 module.exports = { verifyBackend };

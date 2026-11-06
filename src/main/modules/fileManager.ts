@@ -36,6 +36,7 @@ import { registerFilesystemDialogIpc } from "./file-manager/filesystem-dialog-ip
 import { registerFileNavigationIpc } from "./file-manager/file-navigation-ipc";
 import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
 import { registerManagementIpc } from "./management/ipc";
+import { registerArticleOrdersIpc } from "./article-orders/ipc";
 import {
     createProductManagerSessionState,
     registerProductManagerSessionIpc,
@@ -2533,6 +2534,7 @@ function setupFileManager(mainWindow) {
         onManagementDisabled: () => management.revoke(),
     });
     const management = registerManagementIpc(mainWindow, adminState.canAccessManagement, getInterfaceIconPath, {getCredential:adminState.getManagementCredential,getBackendUrl:resolveAypiBackendBaseUrl});
+    registerArticleOrdersIpc(mainWindow,getInterfaceIconPath);
 
     registerFilesystemDialogIpc({
         ipcMain,

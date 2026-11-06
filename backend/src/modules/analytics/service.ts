@@ -1,5 +1,7 @@
 import { loadAnalyticsConfig, AnalyticsConfig } from "./config";
 import { queryDefinition, queryParameters } from "./catalog";
+import { buildArticleOrderQuery } from "./article-orders";
+import { buildArticleOfferQuery } from "./article-offers";
 const sql = require("mssql");
 
 export type AnalyticsDataset={queryId:string;columns:string[];rows:unknown[][];queriedAt:string;source:string;rowCount:number};
@@ -42,6 +44,20 @@ export function createAnalyticsService(getConfig=loadAnalyticsConfig, driver=sql
         pending.set(key,operation);
         try{return await operation;}finally{pending.delete(key);}
     }
-    return {config,query,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
+    let articleRequests=0;
+    async function executeArticleQuery(definition:ReturnType<typeof buildArticleOrderQuery>){
+        if(articleRequests>=3)throw new Error('Altre ricerche sono in corso. Riprovare tra qualche secondo.');
+        articleRequests++;
+        try{
+            const connection=await pool(),request=connection.request();
+            for(const p of definition.bindings)request.input(p.name,p.type==='text'?driver.VarChar(128*2+2):p.type==='date'?driver.Date:p.type==='int'?driver.Int:driver.Float,p.type==='date'?new Date(`${p.value}T00:00:00Z`):p.value);
+            const result=await request.query(definition.sql);
+            const rows=result.recordset.map((row:any)=>Object.fromEntries(Object.entries(row).filter(([k])=>k!=='totalRows').map(([k,v])=>[k,v instanceof Date?v.toISOString().slice(0,10):v])));
+            return {rows,total:Number(result.recordset[0]?.totalRows??0),offset:definition.filters.offset,queriedAt:new Date().toISOString()};
+        }finally{articleRequests--}
+    }
+    const articleOrders=(input:unknown)=>executeArticleQuery(buildArticleOrderQuery(input));
+    const articleOffers=(input:unknown)=>executeArticleQuery(buildArticleOfferQuery(input));
+    return {config,query,articleOrders,articleOffers,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
 }
 export const analyticsService=createAnalyticsService();

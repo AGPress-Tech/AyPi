@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Get-NetFirewallRule -Name 'AyPiBackend-LAN' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 
 $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if (-not $task) {

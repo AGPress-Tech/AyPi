@@ -11,7 +11,7 @@
         "build:ts": "node tools\\build-ts.js",
         "build:backend": "npm run prepare:forno && npx tsc -p backend\\tsconfig.json",
         "build:backend:tray": "npx tsc -p tsconfig.backend-app.json",
-        "dist:backend": "npm run build:backend && npm run build:backend:tray && npm run verify:backend:baseline && electron-builder --config electron-builder.backend.json",
+        "dist:backend": "npm run build:backend && npm run build:backend:tray && npm run verify:backend:baseline && node tools/prepare-analytics-installer.cjs && electron-builder --config electron-builder.backend.json --publish never",
         "dist:botbackend": "npm run dist:backend",
         "build": "npm run build:ts && electron-builder",
         "release": "npm run build:ts && electron-builder --publish always",

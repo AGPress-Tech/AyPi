@@ -16,6 +16,10 @@
     ],
     "extraResources": [
         {
+            "from": ".private/backend-provisioning.json",
+            "to": "backend-provisioning.json"
+        },
+        {
             "from": "backend/resources",
             "to": "backend-resources",
             "filter": ["**/*", "!**/*.py", "!**/__pycache__/**/*"]

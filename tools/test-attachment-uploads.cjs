@@ -317,7 +317,7 @@ test("real Transfer, HAAS, project and catalog routes save and reload attachment
         assert.equal(loaded.item.attachments[24].workflowKey, "phase-24");
       const updated = await request(endpoint, {
         method: "PUT",
-        body: { ...loaded.item, newAttachments: [] },
+        body: { ...loaded.item, newAttachments: [], ...(module === 'registrazioni-progettazione-stampi' ? {previousCode: loaded.item.code} : {}) },
       });
       assert.equal(updated.item.attachments.length, 25);
     }

@@ -50,6 +50,7 @@
 *.keystore
 
 # misc
+/.private/
 .DS_Store
 __pycache__/
 *.py[cod]

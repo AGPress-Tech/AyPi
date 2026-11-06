@@ -110,6 +110,7 @@ export function createBackendServer(ready: Promise<void> = Promise.resolve()) {
             requestUrl.toLowerCase().startsWith("/api/") &&
             !requestUrl.toLowerCase().startsWith("/api/uploads")
             && !requestUrl.toLowerCase().startsWith("/api/analytics/")
+            && !requestUrl.toLowerCase().startsWith("/api/erp/")
         ) {
             response.once("finish", () => {
                 if (response.statusCode < 200 || response.statusCode >= 300) {

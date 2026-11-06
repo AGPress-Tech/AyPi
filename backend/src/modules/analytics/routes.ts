@@ -6,10 +6,27 @@ import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
 import { ANALYTICS_QUERIES, queryDefinition, queryParameters } from "./catalog";
 import { analyticsService } from "./service";
+import { validateArticleOrderFilters } from "./article-orders";
+import { validateArticleOfferFilters } from "./article-offers";
 const compress=promisify(gzip);
 const digest=(value:string)=>createHash("sha256").update(value).digest();
 
 export function registerAnalyticsRoutes(router:Router,service=analyticsService) {
+    router.register('POST','/api/erp/article-offers',async(req,res)=>{
+        let filters;
+        try{filters=validateArticleOfferFilters(await readJsonBody(req));}catch(error){sendJson(res,400,{error:error instanceof Error?error.message:'Filtri non validi.'});return;}
+        res.setHeader('Cache-Control','no-store');
+        try{sendJson(res,200,await service.articleOffers(filters));}
+        catch{sendJson(res,503,{error:'Ricerca offerte nel gestionale non riuscita. Verificare il backend e riprovare.'});}
+    });
+    // Ricerca operativa disponibile ai normali client AyPi. Le analisi economiche conservano l'autenticazione admin.
+    router.register('POST','/api/erp/article-orders',async(req,res)=>{
+        let filters;
+        try{filters=validateArticleOrderFilters(await readJsonBody(req));}catch(error){sendJson(res,400,{error:error instanceof Error?error.message:'Filtri non validi.'});return;}
+        res.setHeader('Cache-Control','no-store');
+        try{sendJson(res,200,await service.articleOrders(filters));}
+        catch{sendJson(res,503,{error:'Ricerca nel gestionale non riuscita. Verificare il backend e riprovare.'});}
+    });
     const sessions=new Map<string,{ip:string;expires:number}>(), attempts=new Map<string,{count:number;until:number}>();
     const ip=(req:any)=>req.socket?.remoteAddress || "";
     const authorize=(req:any,res:any)=>{

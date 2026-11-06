@@ -1,0 +1,3 @@
+/* Resta cliccabile per spiegare il requisito di accesso. */
+.module-card.access-restricted { filter: grayscale(1); opacity: .48; cursor: not-allowed; }
+.module-card.access-restricted:hover { filter: grayscale(1); opacity: .65; }

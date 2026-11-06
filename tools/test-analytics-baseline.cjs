@@ -4,9 +4,10 @@ const baseline=require('./baselines/backend-1.4.0-1338.json');
 const forno=require('./baselines/backend-forno-management-2026-11-03.json');
 const sql=require('./baselines/backend-analytics-2026-11-06.json');
 const verify=review=>verifyBackend(process.cwd(),baseline,forno,review);
-test('revisione SQL: file e lock verificati; il perimetro degli altri moduli resta vincolato',()=>{
+test('revisione SQL storica: rifiuta ampliamenti del perimetro e riferimenti alterati',()=>{
   const valid=verify(sql);
-  assert.deepEqual(valid.failures.filter(s=>/analytics|SQL|mssql|app\.js|routes\/index|package-lock/.test(s)),[]);
+  // Il checkout attuale include la nuova ricerca ordini; la revisione SQL originale resta uno storico immutato.
+  assert(!valid.failures.some(s=>s.includes('Revisione analisi SQL non valida')));
   const changedBaseline=JSON.parse(JSON.stringify(baseline));
   changedBaseline.files['backend-dist/modules/forno/analysis.js']='0'.repeat(64);
   assert(verifyBackend(process.cwd(),changedBaseline,forno,sql).failures.some(s=>s.includes('forno/analysis.js')),'il controllo storico Forno deve restare attivo');

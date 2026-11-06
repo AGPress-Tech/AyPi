@@ -15,6 +15,8 @@ if (-not (Test-Path -LiteralPath $ExePath)) {
 }
 
 $resolvedExePath = (Resolve-Path -LiteralPath $ExePath).Path
+Get-NetFirewallRule -Name 'AyPiBackend-LAN' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+New-NetFirewallRule -Name 'AyPiBackend-LAN' -DisplayName 'AyPi Backend - rete aziendale' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3000 -Program $resolvedExePath -RemoteAddress LocalSubnet -Profile Any | Out-Null
 $exeDirectory = Split-Path -Parent $resolvedExePath
 $taskAction = New-ScheduledTaskAction `
     -Execute $resolvedExePath `

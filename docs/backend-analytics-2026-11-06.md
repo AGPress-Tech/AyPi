@@ -4,13 +4,7 @@ Il backend espone un catalogo di analisi contabili definito nel codice. La conne
 
 ## Installazione e configurazione
 
-Aggiornare **backend e client AyPi**. Sul computer che esegue il backend, eseguire `backend-scripts/configure-sql-analytics.ps1` fornendo le credenziali SQL. Lo script crea:
-
-```
-C:\ProgramData\AGPress\AyPiBackend\sql-analytics.credentials.json
-```
-
-La password è cifrata tramite Windows DPAPI LocalMachine e il file è accessibile soltanto a SYSTEM, amministratori e utente che ha configurato il servizio. Il file cifrato va creato sul server di esecuzione: la copia da un altro computer non è utilizzabile. Non viene incluso nel repository o negli installer. Riavviare il backend dopo una variazione della configurazione.
+Installare i due pacchetti aziendali come descritto in [Installer 1.4.1](backend-release-2026-11-06.md). Il backend configura automaticamente il login dedicato e salva il segreto protetto con DPAPI in `C:\ProgramData\AGPress\AyPiBackend\sql-analytics.credentials.json`; il client non richiede driver SQL o credenziali. Per configurazioni manuali resta disponibile `backend-scripts/configure-sql-analytics.ps1`.
 
 Configurazione avanzata: `AYPI_ANALYTICS_CREDENTIALS_FILE` sceglie un percorso alternativo; `AYPI_ANALYTICS_SQL_PASSWORD` permette l'iniezione del segreto nell'ambiente del solo processo backend. Nel file sono configurabili server, istanza, database, utente, porta opzionale, TLS e verifica del certificato. I valori predisposti per la rete aziendale sono TLS attivo e certificato del server interno accettato.
 
@@ -28,7 +22,7 @@ Catalogo e query richiedono `Authorization: Bearer <token>`. I parametri ammessi
 
 Le query Bilancino riprendono SELECT e join della Power Query originale, con le stesse conversioni di segno; gli alias corrispondono alle successive trasformazioni Excel. Viene mantenuto anche IDRegistrazione. Le risposte contengono colonne e righe compatte, origine e data di lettura; il trasferimento gzip riduce i dati sulla rete. Le risposte non sono memorizzabili nelle cache HTTP. Gli errori di connessione non espongono credenziali SQL.
 
-Timeout: connessione 15 secondi, query 90 secondi, client 120 secondi. Massimo due analisi distinte contemporanee e 750.000 righe per risposta. Questi vincoli evitano richieste illimitate; per dataset più grandi usare i parametri di periodo. L'utente SQL fornito resta quello configurato: l'applicazione espone esclusivamente le SELECT del catalogo e non modifica account o permessi del database.
+Timeout: connessione 15 secondi, query 90 secondi, client 120 secondi. Massimo due analisi distinte contemporanee e 750.000 righe per risposta. Questi vincoli evitano richieste illimitate; per dataset più grandi usare i parametri di periodo. Il login dedicato AyPiAnalytics legge tutte le tabelle e viste di NuovaAGP, con scritture negate. Le API espongono esclusivamente le SELECT del catalogo.
 
 ## Controllo di gestione
 
@@ -47,9 +41,7 @@ Il dettaglio dei movimenti usa la stessa lettura della dashboard, evitando diffe
 
 ## Stato della distribuzione
 
-I compilati SQL e client sono pronti per il collaudo. La revisione `tools/baselines/backend-analytics-2026-11-06.json` ammette esclusivamente due punti di integrazione, i quattro moduli SQL, lo script di configurazione e la dipendenza mssql con lock verificato. La baseline storica e la revisione Forno restano separate e attive.
-
-La creazione dell'installer completo resta bloccata da **71 differenze pregresse** di altri moduli rispetto al riferimento storico: Forno, MES, Calendar e altri componenti già presenti nel checkout. Nessuno di questi sorgenti è stato modificato per la funzione SQL e non è stato aggiornato il loro riferimento di distribuzione. Occorre una revisione specifica di quel contenuto prima di produrre un installer completo; il controllo non è stato disabilitato.
+I pacchetti completi sono generati usando il manifest congelato della release corrente. La baseline storica e le revisioni precedenti restano disponibili per confronto esplicito. Dettagli, permessi e limiti del provisioning in [Installer 1.4.1](backend-release-2026-11-06.md).
 
 Comandi di collaudo:
 
