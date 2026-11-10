@@ -22,6 +22,8 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
     let targets: Targets = Object.create(null), context: GoalsContext | null = null;
     let selectedCategory: string | null = null, notice = "", editing: {year:number;from:number;to:number;metric:TargetMetric} | null = null;
     let reference = 0, saving = false;
+    let mixMode: "costs" | "revenue" = "costs";
+    const mixCategories = (c:GoalsContext) => c.categories.filter(v=>mixMode==="costs" ? v.value<0 : v.value>0).sort((a,b)=>Math.abs(b.value)-Math.abs(a.value));
     const charts = new Map<string,Chart>();
     const palette = ["#267bb4","#438f89","#74859b","#bd9c61","#8c89a4","#8faeb7","#567383"];
     const dialog = $("goalDialog") as HTMLDialogElement;
@@ -62,30 +64,35 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
     }
     function render(c:GoalsContext) {
         context=c;
-        if (selectedCategory && !c.categories.some(v=>v.name===selectedCategory && v.value<0)) selectedCategory=null;
+        const components=mixCategories(c),isCosts=mixMode==="costs",mixLabel=isCosts ? "Costi" : "Ricavi";
+        if (selectedCategory && !components.some(v=>v.name===selectedCategory)) selectedCategory=null;
+        $("costMixTitle").textContent=`Composizione dei ${mixLabel.toLowerCase()}`;
+        $("toggleGoalMix").textContent=isCosts ? "Mostra ricavi" : "Mostra costi";
+        $("toggleGoalMix").setAttribute("aria-pressed",String(!isCosts));
+        $("costMixChart").setAttribute("aria-label",`Composizione dei ${mixLabel.toLowerCase()} per categoria`);
+        $("costMixLegend").setAttribute("aria-label",`Categorie di ${isCosts ? "costo" : "ricavo"} e incidenze`);
         $("goalsScope").textContent=`Analisi ${scopeLabel(c)} · confronto ${c.comparisonYear}`;
         $("goalsNotice").textContent=notice || "Obiettivi personali salvati su questo PC";
         $("goalsNotice").classList.toggle("negative",!!notice);
         $("goalGauges").innerHTML=TARGET_METRICS.map(gauge).join("");
-        const costs=c.categories.filter(v=>v.value<0).sort((a,b)=>a.value-b.value);
-        const totalCost=costs.reduce((sum,item)=>sum-item.value,0);
-        const costColors=costs.map((_,i)=>i===0 ? accent() : palette[i%palette.length]);
+        const totalMix=components.reduce((sum,item)=>sum+Math.abs(item.value),0);
+        const mixColors=components.map((_,i)=>i===0 ? accent() : palette[i%palette.length]);
         const style=getComputedStyle(document.body),ink=style.getPropertyValue("--ops-ink").trim(),muted=style.getPropertyValue("--ops-muted").trim();
         const tooltipStyle={backgroundColor:"#1b344b",padding:12,cornerRadius:7,displayColors:false,titleFont:{size:12,weight:600 as const},bodyFont:{size:12}};
         charts.get("mix")?.destroy();
         const mixNode=$("costMixChart") as HTMLCanvasElement;
         const compactMix=mixNode.parentElement!.clientHeight<160;
-        const selectCost=(i:number)=>{selectedCategory=selectedCategory===costs[i].name ? null : costs[i].name;($("goalRankingMode") as HTMLSelectElement).value="costs";render(context!);};
-        $("costMixLegend").innerHTML=costs.length ? `<div class="cost-legend-heading"><span>Componente</span><span>Importo / incidenza</span></div>${costs.map((item,i)=>`<button class="cost-legend-item ${selectedCategory===item.name ? "is-selected" : ""}" data-cost-index="${i}" aria-pressed="${selectedCategory===item.name}"><i style="background:${costColors[i]}"></i><span class="cost-legend-name">${esc(item.name)}</span><span class="cost-legend-numbers"><strong>${esc(euro(-item.value))}</strong><small>${esc(percentage(-item.value/totalCost*100))}</small></span></button>`).join("")}` : `<p class="goal-empty-state">Nessun costo nel periodo selezionato</p>`;
+        const selectComponent=(i:number)=>{selectedCategory=selectedCategory===components[i].name ? null : components[i].name;($("goalRankingMode") as HTMLSelectElement).value=mixMode;render(context!);};
+        $("costMixLegend").innerHTML=components.length ? `<div class="cost-legend-heading"><span>Componente</span><span>Importo / incidenza</span></div>${components.map((item,i)=>`<button class="cost-legend-item ${selectedCategory===item.name ? "is-selected" : ""}" data-component-index="${i}" aria-pressed="${selectedCategory===item.name}"><i style="background:${mixColors[i]}"></i><span class="cost-legend-name">${esc(item.name)}</span><span class="cost-legend-numbers"><strong>${esc(euro(Math.abs(item.value)))}</strong><small>${esc(percentage(Math.abs(item.value)/totalMix*100))}</small></span></button>`).join("")}` : `<p class="goal-empty-state">${isCosts ? "Nessun costo" : "Nessun ricavo"} nel periodo selezionato</p>`;
         const mix=new Chart(mixNode,{
             type:"doughnut",
-            data:{labels:costs.map(v=>v.name),datasets:[{data:costs.map(v=>-v.value),backgroundColor:costColors.map((color,i)=>selectedCategory && selectedCategory!==costs[i].name ? color+"70" : color),borderWidth:compactMix ? 2 : 3,borderColor:"#fff",borderRadius:3,hoverOffset:compactMix ? 2 : 4,offset:costs.map(v=>v.name===selectedCategory ? compactMix ? 2 : 6 : 0)}]},
-            options:{responsive:true,maintainAspectRatio:false,animation:false,cutout:"74%",layout:{padding:compactMix ? 4 : 12},interaction:{intersect:true},plugins:{legend:{display:false},tooltip:{...tooltipStyle,intersect:true,callbacks:{label:ctx=>`${euro(Number(ctx.raw))} · ${percentage(Number(ctx.raw)/totalCost*100)}`}}},onClick:(_e,elements)=>{if(elements.length)selectCost(elements[0].index);},onHover:(_e,elements)=>{mixNode.style.cursor=elements.length ? "pointer" : "default";}},
+            data:{labels:components.map(v=>v.name),datasets:[{data:components.map(v=>Math.abs(v.value)),backgroundColor:mixColors.map((color,i)=>selectedCategory && selectedCategory!==components[i].name ? color+"70" : color),borderWidth:compactMix ? 2 : 3,borderColor:"#fff",borderRadius:3,hoverOffset:compactMix ? 2 : 4,offset:components.map(v=>v.name===selectedCategory ? compactMix ? 2 : 6 : 0)}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:false,cutout:"74%",layout:{padding:compactMix ? 4 : 12},interaction:{intersect:true},plugins:{legend:{display:false},tooltip:{...tooltipStyle,intersect:true,callbacks:{label:ctx=>`${euro(Number(ctx.raw))} · ${percentage(Number(ctx.raw)/totalMix*100)}`}}},onClick:(_e,elements)=>{if(elements.length)selectComponent(elements[0].index);},onHover:(_e,elements)=>{mixNode.style.cursor=elements.length ? "pointer" : "default";}},
             plugins:[{id:"costMixCenter",afterDraw(chart){
                 const {ctx,chartArea:area}=chart,x=(area.left+area.right)/2,y=(area.top+area.bottom)/2,diameter=Math.min(area.right-area.left,area.bottom-area.top);
                 ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
-                ctx.fillStyle=ink;ctx.font=`700 ${diameter<160 ? 14 : diameter<260 ? 19 : 25}px 'Segoe UI', sans-serif`;ctx.fillText(compact(totalCost)+" €",x,y-(diameter<100 ? 0 : 8),Math.max(30,diameter*.64));
-                if(diameter>=100){ctx.fillStyle=muted;ctx.font="12px 'Segoe UI', sans-serif";ctx.fillText(`Costi ${c.year}`,x,y+(diameter<160 ? 11 : 17));}ctx.restore();
+                ctx.fillStyle=ink;ctx.font=`700 ${diameter<160 ? 14 : diameter<260 ? 19 : 25}px 'Segoe UI', sans-serif`;ctx.fillText(compact(totalMix)+" €",x,y-(diameter<100 ? 0 : 8),Math.max(30,diameter*.64));
+                if(diameter>=100){ctx.fillStyle=muted;ctx.font="12px 'Segoe UI', sans-serif";ctx.fillText(`${mixLabel} ${c.year}`,x,y+(diameter<160 ? 11 : 17));}ctx.restore();
             }}],
         });
         charts.set("mix",mix);clearHover(mixNode,mix);
@@ -94,7 +101,7 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
         const groupTotal=eligible.reduce((sum,g)=>sum+Math.abs(g.value),0);
         const groups=eligible.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).slice(0,top);
         $("goalRankingTitle").textContent=selectedCategory || `Top ${top} gruppi · ${mode==="costs" ? "costi" : "ricavi"}`;
-        $("clearGoalCategory").textContent=selectedCategory ? "Azzera filtro" : "Tutti i costi";
+        $("clearGoalCategory").textContent=selectedCategory ? "Azzera filtro" : `Tutti i ${mixLabel.toLowerCase()}`;
         charts.get("ranking")?.destroy();
         const rankNode=$("goalRankingChart") as HTMLCanvasElement;
         $("goalRankingPlot").style.height=Math.max(80,rankNode.parentElement!.parentElement!.clientHeight-14,groups.length*34+36)+"px";
@@ -146,12 +153,18 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
     dialog.addEventListener("cancel",event=>{if(saving)event.preventDefault();});
     $("useGoalComparison").addEventListener("click",()=>{input.value=String(reference);});
     $("goalRankingMode").addEventListener("change",()=>{selectedCategory=null;if(context)render(context);});
+    $("toggleGoalMix").addEventListener("click",()=>{
+        mixMode=mixMode==="costs" ? "revenue" : "costs";
+        selectedCategory=null;
+        ($("goalRankingMode") as HTMLSelectElement).value=mixMode;
+        if(context)render(context);
+    });
     $("costMixLegend").addEventListener("click",event=>{
-        const button=(event.target as HTMLElement).closest<HTMLElement>("[data-cost-index]");
+        const button=(event.target as HTMLElement).closest<HTMLElement>("[data-component-index]");
         if(!button || !context)return;
-        const costs=context.categories.filter(v=>v.value<0).sort((a,b)=>a.value-b.value),index=Number(button.dataset.costIndex);
-        selectedCategory=selectedCategory===costs[index].name ? null : costs[index].name;
-        ($("goalRankingMode") as HTMLSelectElement).value="costs";render(context);
+        const components=mixCategories(context),index=Number(button.dataset.componentIndex);
+        selectedCategory=selectedCategory===components[index].name ? null : components[index].name;
+        ($("goalRankingMode") as HTMLSelectElement).value=mixMode;render(context);
     });
     $("goalRankingTop").addEventListener("change",()=>{if(context)render(context);});
     $("clearGoalCategory").addEventListener("click",()=>{selectedCategory=null;if(context)render(context);});

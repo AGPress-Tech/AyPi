@@ -266,6 +266,7 @@ pages.analisi = {
         {label:'Controllo di gestione',description:'Dashboard economiche, confronti e obiettivi · Solo amministratori',channel:'management-open',invoke:true,requiresAdmin:true},
         {label:'Analisi Venduto per Articolo',description:'Trova gli ordini clienti, le consegne e i residui di uno o più articoli',channel:'article-orders-open',invoke:true},
         {label:'Analisi Offerte per Articolo',description:'Trova le offerte clienti, le quantità e i prezzi proposti per uno o più articoli',channel:'article-offers-open',invoke:true},
+        {label:'Analisi Torneria',description:'Produzioni, valorizzazioni, saturazione macchine e confronti pluriennali',channel:'turning-analysis-open',invoke:true},
     ],
 };
 const pageOrder = Object.keys(pages);

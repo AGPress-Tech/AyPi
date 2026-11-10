@@ -1,4 +1,6 @@
 import {ARTICLE_ORDER_COLUMNS,DEFAULT_ARTICLE_ORDER_COLUMNS,ARTICLE_OFFER_COLUMNS,DEFAULT_ARTICLE_OFFER_COLUMNS,ArticleDocumentColumn} from '../../main/modules/article-orders/columns';
+import {SortCriterion} from '../../main/modules/analysis-sorting';
+import {bindSortingHeaders,updateSortingBar} from '../modules/table-sorting';
 const ipc=require('electron').ipcRenderer;
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const IS_OFFERS=decodeURIComponent(location.pathname).endsWith('article-offers.html');
@@ -22,6 +24,7 @@ const groups=[
     ...(!IS_OFFERS?[{key:'residuals',label:'Residuo da evadere',type:'number'}]:[]),
 ];
 let rows:any[]=[],total=0,applied:any=null,loading=false,exporting=false,generation=0,lastRead='';
+let sorting:SortCriterion[]=[];
 let selected=new Set<string>(IS_OFFERS?DEFAULT_ARTICLE_OFFER_COLUMNS:DEFAULT_ARTICLE_ORDER_COLUMNS);
 try{const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(Array.isArray(saved))selected=new Set(saved.filter(k=>COLUMNS.some(c=>c.key===k)));}catch{}
 selected.add('article');
@@ -77,6 +80,7 @@ function collect(){
     }
     if(!filters.articles.length)throw new Error('Inserisci almeno un articolo o un intervallo di articoli.');
     if(!IS_OFFERS){filters.delivered=$<HTMLSelectElement>('delivered').value;filters.includeCancelled=$<HTMLInputElement>('includeCancelled').checked;}
+    filters.sort=sorting.map(item=>({...item}));
     return filters;
 }
 function visibleColumns(){return COLUMNS.filter(c=>selected.has(c.key))}
@@ -100,7 +104,9 @@ function renderTable(){
     const columns=visibleColumns(),table=$<HTMLTableElement>('results');
     table.hidden=!rows.length;$('empty').hidden=!!rows.length;
     table.querySelector('thead')!.innerHTML='<tr>'+columns.map(col=>`<th class="${['number','money'].includes(col.kind)?'numeric':''}" scope="col">${col.label}</th>`).join('')+'</tr>';
-    let lastArticle='';const multipleArticles=rows.some(r=>r.article!==rows[0]?.article);
+    bindSortingHeaders(table,columns,sorting,changeSorting);
+    updateSortingBar(table,COLUMNS,sorting,changeSorting);
+    let lastArticle='';const multipleArticles=(!sorting.length||sorting[0].key==='article')&&rows.some(r=>r.article!==rows[0]?.article);
     table.querySelector('tbody')!.innerHTML=rows.map(row=>{
         const heading=multipleArticles&&lastArticle!==row.article?`<tr class="article-group"><td colspan="${columns.length}">Articolo ${escape(row.article)} · ${escape(row.description)}</td></tr>`:'';
         lastArticle=row.article;
@@ -122,9 +128,15 @@ function syncButtons(){
     $<HTMLButtonElement>('export').disabled=!applied||exporting||loading||JSON.stringify(collectSafe())!==JSON.stringify(applied);
 }
 const collectSafe=()=>{try{return collect()}catch{return null}};
-async function search(append=false){
+function changeSorting(next:SortCriterion[]){
+    if(JSON.stringify(next)===JSON.stringify(sorting))return;
+    sorting=next;
+    renderTable();
+    if(applied)void search(false,{...applied,sort:sorting.map(item=>({...item}))});
+}
+async function search(append=false,overrideFilters?:any){
     if(append&&(loading||!applied||rows.length>=total))return;
-    let filters:any;try{filters=append?applied:collect()}catch(error){setStatus((error as Error).message,true);return}
+    let filters:any;try{filters=append?applied:overrideFilters??collect()}catch(error){setStatus((error as Error).message,true);return}
     const token=append?generation:++generation;
     loading=true;syncButtons();setStatus(append?`Caricamento di ${IS_OFFERS?'altre offerte':'altri ordini'}…`:'Ricerca nel gestionale…');
     try{
@@ -138,7 +150,7 @@ async function search(append=false){
         if(!rows.length)$('empty').innerHTML=`<span class="empty-symbol">⌕</span><h2>${IS_OFFERS?'Nessuna offerta trovata':'Nessun ordine trovato'}</h2><p>Controlla il codice articolo o amplia i filtri della ricerca.</p>`;
         setStatus(`Lettura SQL ${lastRead}${append?' · risultati aggiunti':''}.`);
         if(JSON.stringify(collectSafe())!==JSON.stringify(applied))setStatus(`I filtri sono cambiati durante la ricerca. Premi Cerca ${IS_OFFERS?'offerte':'ordini'} per applicarli.`);
-    }catch(error){if(token===generation)setStatus(`${(error as Error).message}${applied?' I risultati precedenti restano visibili.':''}`,true)}
+    }catch(error){if(token===generation){sorting=(applied?.sort||[]).map(item=>({...item}));renderTable();setStatus(`${(error as Error).message}${applied?' I risultati precedenti restano visibili.':''}`,true)}}
     finally{if(token===generation){loading=false;syncButtons()}}
 }
 $('searchForm').addEventListener('submit',event=>{event.preventDefault();void search()});
@@ -154,4 +166,4 @@ $('export').addEventListener('click',async()=>{
 $('close').addEventListener('click',()=>ipc.send(`${CHANNEL}-close`));
 document.addEventListener('keydown',event=>{if(event.key==='Escape')$<HTMLDetailsElement>('columns').open=false});
 document.addEventListener('click',event=>{if(!$('columns').contains(event.target as Node))$<HTMLDetailsElement>('columns').open=false});
-initFilters();renderColumns();syncButtons();document.querySelector<HTMLInputElement>('[data-key="articles"] .value')?.focus();
+initFilters();renderColumns();renderTable();syncButtons();document.querySelector<HTMLInputElement>('[data-key="articles"] .value')?.focus();

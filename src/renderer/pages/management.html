@@ -6,7 +6,8 @@
 <script src="../scripts/utility-layout-bootstrap.js"></script>
 <link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
 <link rel="stylesheet" href="../styles/utilities/aypi-operations-ui.css">
-<link rel="stylesheet" href="../styles/management.css"></head>
+<link rel="stylesheet" href="../styles/management.css">
+<link rel="stylesheet" href="../styles/table-sorting.css"></head>
 <body class="aypi-operations management-window">
 <header class="topbar">
   <div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo" aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash" aria-hidden="true"></span></div>
@@ -51,7 +52,7 @@
   <div class="goals-toolbar"><span id="goalsScope"></span><span id="goalsNotice" role="status">Obiettivi personali salvati su questo PC</span></div>
   <div id="goalGauges" class="goal-gauges"></div>
   <div class="grid goal-charts">
-    <article class="panel"><div class="panel-head"><div><h2>Composizione dei costi</h2><p>Seleziona una componente per filtrare i gruppi</p></div><button id="clearGoalCategory">Tutti i costi</button></div><div class="cost-mix-layout"><div class="cost-mix-plot"><canvas id="costMixChart" role="img" aria-label="Composizione dei costi per categoria"></canvas></div><div id="costMixLegend" class="cost-mix-legend" aria-label="Categorie di costo e incidenze"></div></div></article>
+    <article class="panel"><div class="panel-head"><div><h2 id="costMixTitle">Composizione dei costi</h2><p>Seleziona una componente per filtrare i gruppi</p></div><div class="mix-controls"><button id="toggleGoalMix" type="button" aria-controls="costMixChart costMixLegend" aria-pressed="false">Mostra ricavi</button><button id="clearGoalCategory">Tutti i costi</button></div></div><div class="cost-mix-layout"><div class="cost-mix-plot"><canvas id="costMixChart" role="img" aria-label="Composizione dei costi per categoria"></canvas></div><div id="costMixLegend" class="cost-mix-legend" aria-label="Categorie di costo e incidenze"></div></div></article>
     <article class="panel"><div class="panel-head"><div><h2 id="goalRankingTitle">Gruppi principali</h2><p>Clicca una barra per aprire i conti e le ripartizioni</p></div><div class="ranking-controls"><select id="goalRankingMode" aria-label="Tipo di classifica"><option value="costs">Costi</option><option value="revenue">Ricavi</option></select><select id="goalRankingTop" aria-label="Numero di gruppi"><option value="5">Top 5</option><option value="10">Top 10</option><option value="20">Top 20</option></select></div></div><div class="chart ranking-scroll"><div id="goalRankingPlot"><canvas id="goalRankingChart" role="img" aria-label="Classifica dei gruppi contabili"></canvas></div></div></article>
   </div>
 </section>

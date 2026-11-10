@@ -5,6 +5,14 @@ ed interagire con più semplicità con ogni modulo **AyPi** presente in rete.
 
 La scheda **Analisi** della home raccoglie il [Controllo di Gestione](docs/controllo-gestione.md), riservato agli amministratori con F2, l’[Analisi Venduto per Articolo](docs/ricerca-per-articolo.md) e l’[Analisi Offerte per Articolo](docs/offerte-per-articolo.md), disponibili a tutti con filtri multipli sui dati letti dal gestionale.
 
+La stessa scheda include [Analisi Torneria](docs/analisi-torneria.md), disponibile a tutti: dashboard interattiva, confronti fra più anni, macchine, clienti, articoli, registrazioni e rendimenti dal foglio COMPLETO di Controllo_Valorizzazione.xlsm. Il modulo legge il file di rete dal client e non richiede un aggiornamento del backend.
+
+In Analisi Torneria ogni pagina dispone di un menu Grafici con visibilità, grafici personalizzati e preset personali salvabili. La mappa 3D delle registrazioni confronta pezzi, resa e ore con assi selezionabili, oppure si può passare a bolle e dispersione 2D.
+
+La pagina Simulatore cerca un articolo nei consuntivi e confronta scenari di prezzo, tempo ciclo e lotto, includendo l'attrezzaggio: calcola la resa ottenibile oppure il prezzo/ciclo per raggiungere un obiettivo. Dati reali, risultati e ipotesi sono esportabili separatamente; la sorgente resta invariata. La dispersione in Rendimenti ora si apre in 2D.
+
+Le tabelle delle analisi supportano [ordinamenti multipli](docs/ordinamento-analisi.md) con priorità mantenute, Ctrl+clic per rimuovere un criterio e pulsante per azzerare gli ordinamenti.
+
 Al momento supporta in 7 pagine di navigazione, **Moduli**, **Programmi**, **Articoli**, **Produzioni**, **Robot**, **Calcolatore** e **Utilities**, con i seguenti moduli:<br/>
 <ul>
 <li><b>Gestione Manutenzioni</b></li>

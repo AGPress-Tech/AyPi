@@ -73,3 +73,5 @@ Piani_Futuri.md
 
 # SQLite Electron prebuilt assets (generated during build)
 /backend/resources/forno/native/
+
+/docs

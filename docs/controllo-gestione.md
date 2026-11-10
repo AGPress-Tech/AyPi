@@ -1,5 +1,7 @@
 # Controllo di gestione AyPi
 
+Le tabelle supportano [ordinamenti multipli](ordinamento-analisi.md), con priorità numerate sulle intestazioni, Ctrl+clic per rimuovere un criterio e pulsante **Rimuovi ordinamenti** per azzerare la sequenza. Le gerarchie e i blocchi contabili rimangono uniti; le colonne degli anni restano cronologiche e i delta conservano la propria base di confronto.
+
 Nella home aprire la scheda **Analisi**, dopo Utilities. **Controllo di gestione** è visibile a tutti ma grigio senza accesso amministratore: il clic mostra un avviso o il messaggio dell’assistente nel tema Blue Archive. Premere **F2** e autenticarsi con la password amministratore esistente (`AGPress`) per abilitarlo. Il vecchio pulsante nel menu in alto a destra è stato rimosso. Disattivando la modalità admin con F2 si chiude anche il modulo e si svuota la cache della sessione. L’autorizzazione è verificata nel processo principale anche per apertura, lettura ed esportazione.
 
 La modalità predefinita **SQL · aggiornati** legge il Bilancino tramite il backend da `DL360\SQL2017 / NuovaAGP`, usando la query originale dell’Excel. **Calcoli** e **Filtri** rimangono nel file `\\Dl360\pubbliche\TECH\Controlli di Gestione\ExportMovimenti.xlsx`, che non viene modificato. Non occorre più aggiornare il foglio Bilancino per ottenere i nuovi movimenti. La modalità **Excel · istantanea** legge invece tutti e tre i fogli dell’export, per scelta esplicita dell’utente.

@@ -13,7 +13,7 @@ function releaseFiles(root){
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 function verifyRelease(root,manifest){
  const failures=[];
- if(manifest.version!==1||manifest.release!=='1.4.1-analytics-2026-11-06'||!manifest.files) return ['Manifest di distribuzione non valido.'];
+ if(manifest.version!==1||!['1.4.1-analytics-2026-11-06','1.4.1-analysis-sorting-2026-11-09'].includes(manifest.release)||!manifest.files) return ['Manifest di distribuzione non valido.'];
  const current=releaseFiles(root);
  for(const name of new Set([...current,...Object.keys(manifest.files)])){
   if(!Object.hasOwn(manifest.files,name))failures.push(`${name}: aggiunta non prevista nel pacchetto congelato`);
@@ -23,7 +23,7 @@ function verifyRelease(root,manifest){
  return failures;
 }
 function main(){
- const root=path.resolve(__dirname,'..'),manifest=require('./baselines/backend-release-2026-11-06.json');
+ const root=path.resolve(__dirname,'..'),manifest=require('./baselines/backend-release-2026-11-09.json');
  const failures=verifyRelease(root,manifest);
  if(failures.length){console.error(failures.join('\n'));process.exitCode=1}
  else console.log(`Distribuzione backend 1.4.1 verificata: ${Object.keys(manifest.files).length} file, sorgenti, dipendenze e script di installazione corrispondono al manifest congelato.`);

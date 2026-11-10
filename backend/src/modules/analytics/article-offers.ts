@@ -1,15 +1,16 @@
-import {validateArticleOrderFilters,buildArticleDocumentQuery,ArticleOrderFilters} from './article-orders';
-export type ArticleOfferFilters=Pick<ArticleOrderFilters,'articles'|'customers'|'units'|'quantities'|'prices'|'offset'|'limit'>&{
+import {validateArticleOrderFilters,buildArticleDocumentQuery,ArticleOrderFilters,validateDocumentSort} from './article-orders';
+export const OFFER_SORT_COLUMNS=['article','description','offerNo','line','offerDate','customerCode','customerName','customerType','quantity','unit','unitPrice','netPrice','currency'];
+export type ArticleOfferFilters=Pick<ArticleOrderFilters,'articles'|'customers'|'units'|'quantities'|'prices'|'offset'|'limit'|'sort'>&{
     offers?:ArticleOrderFilters['orders'];offerDates?:ArticleOrderFilters['orderDates'];
 };
 export function validateArticleOfferFilters(input:unknown):ArticleOfferFilters {
     if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Filtri non validi.');
     const value=input as any;
-    if(Object.keys(value).some(k=>!['articles','customers','offers','offerDates','quantities','units','prices','offset','limit'].includes(k)))throw new Error('Filtro offerte non previsto.');
+    if(Object.keys(value).some(k=>!['articles','customers','offers','offerDates','quantities','units','prices','offset','limit','sort'].includes(k)))throw new Error('Filtro offerte non previsto.');
     const {articles,customers,orders,orderDates,quantities,units,prices,offset,limit}=validateArticleOrderFilters({
         articles:value.articles,customers:value.customers,orders:value.offers,orderDates:value.offerDates,quantities:value.quantities,units:value.units,prices:value.prices,offset:value.offset,limit:value.limit,
     });
-    return {articles,customers,offers:orders,offerDates:orderDates,quantities,units,prices,offset,limit};
+    return {articles,customers,offers:orders,offerDates:orderDates,quantities,units,prices,offset,limit,sort:validateDocumentSort(value.sort,OFFER_SORT_COLUMNS)};
 }
 export const ARTICLE_OFFER_SOURCE=`SELECT d.Item AS article,d.Description AS description,h.QuotationNo AS offerNo,
  h.CustQuotaId AS offerId,d.Line AS line,
@@ -27,6 +28,6 @@ export function buildArticleOfferQuery(input:unknown){
     return buildArticleDocumentQuery(filters,{
         source:ARTICLE_OFFER_SOURCE,text:{articles:['article'],customers:['customerCode','customerName'],offers:['offerNo'],units:['unit']},
         ranges:{offerDates:'offerDate',quantities:'quantity',prices:'unitPrice'},dates:['offerDates'],conditions:[],
-        order:'article,offerDate DESC,offerId DESC,line',
+        order:'article,offerDate DESC,offerId DESC,line',sortable:OFFER_SORT_COLUMNS,
     });
 }

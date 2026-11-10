@@ -2,6 +2,8 @@ import Chart from "chart.js/auto";
 import * as XLSX from "xlsx";
 import { ManagementData, Movement, CATEGORIES, margins, matches } from "../../main/modules/management/model";
 import { createManagementGoals, GoalsContext } from "../modules/management-goals";
+import {SortCriterion,SortValue,sortByCriteria,sortHierarchy} from '../../main/modules/analysis-sorting';
+import {bindSortingHeaders,updateSortingBar} from '../modules/table-sorting';
 
 const { ipcRenderer } = require("electron");
 const $ = (id: string) => document.getElementById(id)!;
@@ -82,11 +84,37 @@ function report(year: number, from: number, to: number): Report {
         costs: -values.filter(v => v < 0).reduce((s,v) => s+v,0), total: values.reduce((s,v) => s+v,0) };
 }
 function reports() { const a = range(), b = range(true); return [report(a.year,a.from,a.to),report(b.year,b.from,b.to)]; }
-type Cell = string | number | { text: string; change: number | null };
-type TableRow = { cells: Cell[]; cls?: string; toggle?: string; toggleKind?: string; open?: boolean; title?: string; subline?: string };
-const deltaCell = (value: number, base: number, percent = false): Cell => ({ text: percent ? delta(value,base) : euro(value-base), change: percent && Math.abs(base) < 1e-9 ? null : value-base });
+type Cell = string | number | { text: string; change: number | null;sort?:number|null };
+type TableRow = { cells: Cell[]; sortValues?:SortValue[];cls?: string; toggle?: string; toggleKind?: string; open?: boolean; title?: string; subline?: string };
+const tableSorting=new Map<string,SortCriterion[]>();
+const deltaCell = (value: number, base: number, percent = false): Cell => ({ text: percent ? delta(value,base) : euro(value-base), change: percent && Math.abs(base) < 1e-9 ? null : value-base,sort:percent?(Math.abs(base)<1e-9?null:(value-base)/Math.abs(base)*100):value-base });
+const sortColumns=(headers:string[])=>headers.map((label,i)=>({key:i===0?'label':label==='Δ %'?`percent:${headers[i+1]}`:label,label,...label==='Δ %'?{summaryLabel:`${headers[i-1]} %`}:{}}));
+function cellSortValue(cell:Cell):SortValue {
+    if(typeof cell==='number')return cell;
+    if(typeof cell==='object')return cell.sort??(cell.change===null?null:cell.change);
+    if(['n.d.','—',''].includes(cell))return null;
+    const date=cell.match(/^(\d{2})\/(\d{2})\/(\d{4})/);if(date)return `${date[3]}-${date[2]}-${date[1]}`;
+    if(/^-?[\d.,\s\u00a0]+[€%]?$/.test(cell))return Number(cell.replace(/[\s\u00a0€%]/g,'').replace(/\./g,'').replace(',','.'));
+    return cell;
+}
+function sortedTableRows<T extends TableRow>(id:string,headers:string[],rows:readonly T[]):T[]{
+    const criteria=tableSorting.get(id)||[],columns=sortColumns(headers);
+    const value=(row:T,key:string):SortValue=>{const index=columns.findIndex(c=>c.key===key);return index<0?null:row.sortValues?row.sortValues[index]:cellSortValue(row.cells[index]);};
+    return id==='statementTable'?sortHierarchy(rows,criteria,{value,depth:row=>row.cls==='group-row'?1:row.cls==='account-row'?2:row.cls==='account-year-row'?3:row.cls?.includes('movement-')?4:0,pinned:row=>row.cls==='subtotal'||!!row.cls?.includes('movement-note')}):sortByCriteria(rows,criteria,value);
+}
+function sortedRecords<T>(id:string,headers:string[],records:readonly T[],values:(item:T)=>SortValue[],cls?:(item:T)=>string){
+    return sortedTableRows(id,headers,records.map(record=>({record,cells:[] as Cell[],sortValues:values(record),cls:cls?.(record)}))).map(row=>row.record);
+}
+function changeTableSorting(id:string,next:SortCriterion[]){
+    tableSorting.set(id,next);
+    if(id==='statementTable'){
+        movementStates.clear();statement();
+        for(const key of expandedMovementYears){const [group,code,year]=JSON.parse(key);void loadAccountMovements(group,code,year);}
+    }else if(id==='historyTable')trends();else details();
+}
 function table(id: string, headers: string[], rows: TableRow[]) {
-    const node = $(id);
+    const node = $(id) as HTMLTableElement;
+    rows=sortedTableRows(id,headers,rows);
     node.style.minWidth = `${Math.max(750, 360 + (headers.length - 1) * 145)}px`;
     node.innerHTML = `<thead><tr>${headers.map(h => `<th>${escape(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr class="${r.cls || ""}">${r.cells.map((cell, i) => {
         const text = typeof cell === "object" ? cell.text : cell;
@@ -95,6 +123,8 @@ function table(id: string, headers: string[], rows: TableRow[]) {
         const open = r.open ?? expanded.has(r.toggle);
         return `<td class="${cls}" title="${escape(i === 0 && r.title ? r.title : text)}">${i === 0 && r.toggle ? `<button class="row-toggle" data-${r.toggleKind || "category"}="${escape(r.toggle)}" aria-expanded="${open}">${open ? "▾" : "▸"} ${escape(text)}</button>` : escape(text)}${i === 0 && r.subline ? `<small class="movement-subline">${escape(r.subline)}</small>` : ""}</td>`;
     }).join("")}</tr>`).join("")}</tbody>`;
+    bindSortingHeaders(node,sortColumns(headers),tableSorting.get(id)||[],next=>changeTableSorting(id,next));
+    updateSortingBar(node,sortColumns(headers),tableSorting.get(id)||[],next=>changeTableSorting(id,next),id==='statementTable'?'Ordina separatamente i livelli della gerarchia; margini e totali mantengono la loro posizione.':'');
 }
 function comparisonHeaders() {
     return selectedRanges().flatMap((r,i,all) => i ? [`Δ ${all[i-1].year} → ${r.year}`, "Δ %", String(r.year)] : [String(r.year)]);
@@ -102,6 +132,7 @@ function comparisonHeaders() {
 function comparisonCells(values: number[]): Cell[] {
     return values.flatMap((value,i): Cell[] => i ? [deltaCell(value,values[i-1]),deltaCell(value,values[i-1],true),euro(value)] : [euro(value)]);
 }
+function comparisonSortValues(values:number[]):SortValue[]{return values.flatMap((value,i):SortValue[]=>i?[value-values[i-1],Math.abs(values[i-1])<1e-9?null:(value-values[i-1])/Math.abs(values[i-1])*100,value]:[value]);}
 function chart(id: string, type: "bar" | "line", labels: string[], datasets: any[], horizontal = false, click?: (i: number) => void) {
     charts.get(id)?.destroy();
     const node = $(id) as HTMLCanvasElement;
@@ -183,7 +214,8 @@ async function loadAccountMovements(group: string, code: string, year: number) {
     state.loading = true; state.error = "";
     if (view === "statement") statement();
     try {
-        const response = await ipcRenderer.invoke("management-movements",{snapshot:data!.loadedAt,group,code,ranges:selectedRanges().filter(r => r.year === year),offset:state.offset,limit:200});
+        const sort=(tableSorting.get('statementTable')||[]).flatMap(item=>item.key==='label'?[{key:'date',direction:item.direction}]:item.key===String(year)?[{key:'value',direction:item.direction}]:[]);
+        const response = await ipcRenderer.invoke("management-movements",{snapshot:data!.loadedAt,group,code,ranges:selectedRanges().filter(r => r.year === year),offset:state.offset,limit:200,sort});
         if (movementStates.get(key) !== state) return;
         if (!response.ok) throw new Error(response.error);
         state.items.push(...response.items); state.total=response.total; state.offset=response.nextOffset;
@@ -195,6 +227,7 @@ function accountMovementRows(group: string, code: string, year: number): TableRo
     const blank = () => comparisonHeaders().map(() => "");
     const rows: TableRow[] = (state?.items || []).map(m => ({
         cls:"movement-row",
+        sortValues:[m.competenceDate,...ranges.flatMap((r,i):SortValue[]=>[...i?[null,null]:[],r.year===m.year?m.allocatedValue:null])],
         cells:[`${m.competenceDate.split("-").reverse().join("/")} · ${m.journalEntryId ? "Reg. "+m.journalEntryId+" / " : ""}Riga ${m.rowId} · ${m.description}`,...ranges.flatMap((r,i) => [...i ? ["",""] : [],r.year===m.year ? euro(m.allocatedValue) : "—"])],
         title:`Conto ${m.code} · Riga Excel ${m.sourceRow}\nCompetenza ${m.competenceDate} · Registrazione ${m.registrationDate || "n.d."}\nDare ${m.debit===null ? "n.d." : euro(m.debit)} · Avere ${m.credit===null ? "n.d." : euro(m.credit)}\nValore contabile ${euro(m.value)} · Quota ${pct(m.share*100)} · Gestionale ${euro(m.allocatedValue)}\nTipo ${m.typeCode} · Cliente/fornitore ${m.customerSupplier || "n.d."}`,
         subline:`Contabile ${euro(m.value)} · Quota ${pct(m.share*100)}${m.debit===null ? "" : ` · Dare ${euro(m.debit)}`}${m.credit===null ? "" : ` · Avere ${euro(m.credit)}`} · Reg. ${m.registrationDate || "n.d."}`,
@@ -208,15 +241,15 @@ function accountMovementRows(group: string, code: string, year: number): TableRo
 function statement() {
     const rows: TableRow[] = [];
     for (const r of statementRows()) {
-        rows.push({cells:[r.name,...comparisonCells(r.values)],cls:r.type === "subtotal" ? "subtotal" : r.type === "group" ? "group-row" : "",
+        rows.push({cells:[r.name,...comparisonCells(r.values)],sortValues:[r.name,...comparisonSortValues(r.values)],cls:r.type === "subtotal" ? "subtotal" : r.type === "group" ? "group-row" : "",
             toggle:r.type === "subtotal" ? undefined : r.name,toggleKind:r.type === "group" ? "group" : "category",open:r.type === "group" ? expandedGroups.has(r.name) : expanded.has(r.name)});
         if (r.type !== "group" || !expandedGroups.has(r.name)) continue;
         for (const account of groupAccounts(r.name)) {
             const key = accountKey(r.name,account.code);
-            rows.push({cls:"account-row",cells:[`${account.code} · ${data!.descriptions[account.code] || ""} · ${pct(account.share*100)}`,...comparisonCells(account.values)],toggle:key,toggleKind:"account",open:expandedAccounts.has(key)});
+            rows.push({cls:"account-row",cells:[`${account.code} · ${data!.descriptions[account.code] || ""} · ${pct(account.share*100)}`,...comparisonCells(account.values)],sortValues:[account.code,...comparisonSortValues(account.values)],toggle:key,toggleKind:"account",open:expandedAccounts.has(key)});
             if (expandedAccounts.has(key)) for (const [i,period] of selectedRanges().entries()) {
                 const yearKey = movementYearKey(r.name,account.code,period.year);
-                rows.push({cls:"account-year-row",cells:[`${period.year} · ${months[period.from-1]}–${months[period.to-1]}`,...selectedRanges().flatMap((r,j) => [...j ? ["",""] : [],r.year === period.year ? euro(account.values[i]) : "—"])],toggle:yearKey,toggleKind:"movement-year",open:expandedMovementYears.has(yearKey)});
+                rows.push({cls:"account-year-row",cells:[`${period.year} · ${months[period.from-1]}–${months[period.to-1]}`,...selectedRanges().flatMap((r,j) => [...j ? ["",""] : [],r.year === period.year ? euro(account.values[i]) : "—"])],sortValues:[period.year,...selectedRanges().flatMap((r,j):SortValue[]=>[...j?[null,null]:[],r.year===period.year?account.values[i]:null])],toggle:yearKey,toggleKind:"movement-year",open:expandedMovementYears.has(yearKey)});
                 if (expandedMovementYears.has(yearKey)) rows.push(...accountMovementRows(r.name,account.code,period.year));
             }
         }
@@ -234,6 +267,13 @@ function goalsContext(period=range()): GoalsContext {
     };
 }
 function historyRows() { const a = range(); return data!.years.map(year => ({ year, r:report(year,a.from,a.to), months:data!.periods[year].filter(m => m >= a.from && m <= a.to).length })); }
+function historyHeaders(){return ['Esercizio','Mesi con dati / richiesti','Ricavi gestionali','Costi gestionali','Margine 1','Margine 2','Margine 3','Δ M3 €','Δ M3 %'];}
+function historySortValues(history:ReturnType<typeof historyRows>,i:number):SortValue[]{
+    const h=history[i],value=h.r.metrics['Margine 3'],previous=i&&history[i-1].months?history[i-1].r.metrics['Margine 3']:null;
+    return [h.year,h.months,...[h.r.revenue,h.r.costs,h.r.metrics['Margine 1'],h.r.metrics['Margine 2'],value].map(v=>h.months?v:null),h.months&&previous!==null?value-previous:null,h.months&&previous!==null&&Math.abs(previous)>1e-9?(value-previous)/Math.abs(previous)*100:null];
+}
+function detailHeaders(){return ['Conto / descrizione','Gruppo','Regola','Quota',...selectedRanges().flatMap((r,i,all)=>[...i?[`Δ ${all[i-1].year} → ${r.year}`]:[],`Saldo ${r.year}`,`Gestionale ${r.year}`])];}
+function detailSortValues(r:ReturnType<typeof detailRows>[number]):SortValue[]{return [`${r.code} · ${r.description}`,r.group,r.prefix,r.share*100,...r.values.flatMap((value,i)=>[...i?[value-r.values[i-1]]:[],r.balances[i],value])];}
 function trends() {
     const key = select("metric").value, a = range();
     const ranges = selectedRanges();
@@ -250,7 +290,7 @@ function trends() {
     chart("monthlyChart","line",visibleMonths.map(m => months[m-1].slice(0,3)),sets);
     const history = historyRows();
     chart("historyChart","bar",history.map(h => String(h.year)),[{ label:key,data:history.map(h => h.months ? metric(h.r,key) : null),backgroundColor:history.map(h => h.year === a.year ? colors[0] : "#aec6e4"),borderRadius:4 }]);
-    table("historyTable",["Esercizio","Mesi con dati / richiesti","Ricavi gestionali","Costi gestionali","Margine 1","Margine 2","Margine 3","Δ M3 €","Δ M3 %"],history.map((h,i) => ({cells:[h.year,`${h.months} / ${a.to-a.from+1}`,...[h.r.revenue,h.r.costs,h.r.metrics["Margine 1"],h.r.metrics["Margine 2"],h.r.metrics["Margine 3"]].map(v => h.months ? euro(v) : "n.d."),...i && h.months && history[i-1].months ? [deltaCell(h.r.metrics["Margine 3"],history[i-1].r.metrics["Margine 3"]),deltaCell(h.r.metrics["Margine 3"],history[i-1].r.metrics["Margine 3"],true)] : ["n.d.","n.d."]]})));
+    table("historyTable",["Esercizio","Mesi con dati / richiesti","Ricavi gestionali","Costi gestionali","Margine 1","Margine 2","Margine 3","Δ M3 €","Δ M3 %"],history.map((h,i) => ({sortValues:historySortValues(history,i),cells:[h.year,`${h.months} / ${a.to-a.from+1}`,...[h.r.revenue,h.r.costs,h.r.metrics["Margine 1"],h.r.metrics["Margine 2"],h.r.metrics["Margine 3"]].map(v => h.months ? euro(v) : "n.d."),...i && h.months && history[i-1].months ? [deltaCell(h.r.metrics["Margine 3"],history[i-1].r.metrics["Margine 3"]),deltaCell(h.r.metrics["Margine 3"],history[i-1].r.metrics["Margine 3"],true)] : ["n.d.","n.d."]]})));
 }
 function updateDetailGroups(value = "") {
     const cat = select("detailCategory").value;
@@ -282,7 +322,7 @@ function details() {
     const rows = detailRows();
     $("detailSummary").textContent = `${number(rows.length)} ripartizioni · Totale gestionale selezionato ${euro(rows.reduce((s,r) => s+r.value,0))} · Il saldo contabile può ripetersi tra regole; sommare i valori ripartiti.`;
     const ranges = selectedRanges();
-    table("detailTable",["Conto / descrizione","Gruppo","Regola","Quota",...ranges.flatMap((r,i) => [...i ? [`Δ ${ranges[i-1].year} → ${r.year}`] : [],`Saldo ${r.year}`,`Gestionale ${r.year}`])],rows.map(r => ({cells:[`${r.code} · ${r.description}`,r.group,r.prefix,pct(r.share*100),...r.values.flatMap((value,i):Cell[] => [...i ? [deltaCell(value,r.values[i-1])] : [],euro(r.balances[i]),euro(value)])]})));
+    table("detailTable",["Conto / descrizione","Gruppo","Regola","Quota",...ranges.flatMap((r,i) => [...i ? [`Δ ${ranges[i-1].year} → ${r.year}`] : [],`Saldo ${r.year}`,`Gestionale ${r.year}`])],rows.map(r => ({sortValues:detailSortValues(r),cells:[`${r.code} · ${r.description}`,r.group,r.prefix,pct(r.share*100),...r.values.flatMap((value,i):Cell[] => [...i ? [deltaCell(value,r.values[i-1])] : [],euro(r.balances[i]),euro(value)])]})));
 }
 function quality() {
     const q = data!.quality;
@@ -377,14 +417,15 @@ async function exportWorkbook() {
     // Esporta sempre tutti i gruppi, indipendentemente dall’espansione della matrice.
     const prior = new Set(expanded); data.categories.forEach(c => expanded.add(c)); const rows=statementRows(); expanded.clear(); prior.forEach(c => expanded.add(c));
     const ranges = selectedRanges();
-    add("Conto economico",[["Voce","Livello",...comparisonHeaders()],...rows.map(r => [r.name,r.type,...r.values.flatMap((v,i) => i ? [v-r.values[i-1],Math.abs(r.values[i-1])<1e-9 ? null : (v-r.values[i-1])/Math.abs(r.values[i-1])*100,v] : [v])])]);
+    add("Conto economico",[["Voce","Livello",...comparisonHeaders()],...sortedRecords('statementTable',['Voce',...comparisonHeaders()],rows,r=>[r.name,...comparisonSortValues(r.values)],r=>r.type==='subtotal'?'subtotal':r.type==='group'?'group-row':'').map(r => [r.name,r.type,...r.values.flatMap((v,i) => i ? [v-r.values[i-1],Math.abs(r.values[i-1])<1e-9 ? null : (v-r.values[i-1])/Math.abs(r.values[i-1])*100,v] : [v])])]);
     const history = historyRows();
-    add("Storico",[["Anno","Dal mese","Al mese","Mesi presenti","Ricavi","Costi","Margine 1","Margine 2","Margine 3","Δ M3 €","Δ M3 %"],...history.map((h,i) => {
+    add("Storico",[["Anno","Dal mese","Al mese","Mesi presenti","Ricavi","Costi","Margine 1","Margine 2","Margine 3","Δ M3 €","Δ M3 %"],...sortedRecords('historyTable',historyHeaders(),history,h=>historySortValues(history,history.indexOf(h))).map(h => {
+        const i=history.indexOf(h);
         const previous = i && history[i-1].months ? history[i-1].r.metrics["Margine 3"] : null;
         const value = h.r.metrics["Margine 3"];
         return [h.year,a.from,a.to,h.months,...[h.r.revenue,h.r.costs,h.r.metrics["Margine 1"],h.r.metrics["Margine 2"],value].map(v => h.months ? v : null),h.months && previous!==null ? value-previous : null,h.months && previous!==null && Math.abs(previous)>1e-9 ? (value-previous)/Math.abs(previous)*100 : null];
     })]);
-    add("Dettaglio filtrato",[["Conto","Descrizione","Categoria","Gruppo","Regola","Percentuale",...ranges.flatMap((r,i) => [...i ? [`Δ ${ranges[i-1].year} → ${r.year}`] : [],`Saldo ${r.year}`,`Gestionale ${r.year}`])],...detailRows().map(r => [r.code,r.description,r.category,r.group,r.prefix,r.share,...r.values.flatMap((v,i) => [...i ? [v-r.values[i-1]] : [],r.balances[i],v])])]);
+    add("Dettaglio filtrato",[["Conto","Descrizione","Categoria","Gruppo","Regola","Percentuale",...ranges.flatMap((r,i) => [...i ? [`Δ ${ranges[i-1].year} → ${r.year}`] : [],`Saldo ${r.year}`,`Gestionale ${r.year}`])],...sortedRecords('detailTable',detailHeaders(),detailRows(),detailSortValues).map(r => [r.code,r.description,r.category,r.group,r.prefix,r.share,...r.values.flatMap((v,i) => [...i ? [v-r.values[i-1]] : [],r.balances[i],v])])]);
     add("Origine",[["Sorgente",data.source],["Tipo sorgente",data.sourceKind || "excel"],["Lettura SQL",data.queriedAt || ""],["Parametri Excel",data.parameterSource || data.source],["Modifica parametri",data.modifiedAt],["Lettura riuscita",data.loadedAt],["Esportazione",new Date().toISOString()],["Principale",a.year,a.from,a.to],["Confronto",b.year,b.from,b.to],...ranges.map(r => ["Periodo selezionato",r.year,r.from,r.to]),["Filtro categoria dettaglio",select("detailCategory").value],["Filtro gruppo dettaglio",select("detailGroup").value],["Ricerca conto",($( "search") as HTMLInputElement).value],...Object.entries(data.quality)]);
     const objectiveRows=goals.exportRows(ranges.map(r=>goalsContext(r)));
     if(objectiveRows.length)add("Obiettivi",[["Anno","Dal mese","Al mese","Indicatore","Obiettivo €","Consuntivo €","Δ favorevole €","Stato"],...objectiveRows]);

@@ -1,9 +1,21 @@
 type TextRule = { op: 'exact'|'contains'|'prefix'|'range'; value: string; to?: string };
 type Range = { from?: number|string; to?: number|string };
+export type DocumentSort={key:string;direction:'asc'|'desc'};
+export const ORDER_SORT_COLUMNS=['article','description','orderNo','line','orderDate','deliveryDate','quantity','unit','deliveredQuantity','residual','delivered','unitPrice','netPrice','currency','customerCode','customerName','cancelled'];
+export function validateDocumentSort(value:unknown,columns:readonly string[]):DocumentSort[]{
+    if(value===undefined)return [];
+    if(!Array.isArray(value)||value.length>columns.length)throw new Error('Ordinamento non valido.');
+    const seen=new Set<string>();
+    return value.map(item=>{
+        if(!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).some(k=>!['key','direction'].includes(k))||!columns.includes(item.key)||!['asc','desc'].includes(item.direction)||seen.has(item.key))throw new Error('Colonna o direzione di ordinamento non valida.');
+        seen.add(item.key);return {key:item.key,direction:item.direction};
+    });
+}
 export type ArticleOrderFilters = {
     articles: TextRule[]; customers?: TextRule[]; orders?: TextRule[]; units?: TextRule[];
     orderDates?: Range[]; deliveryDates?: Range[]; quantities?: Range[]; prices?: Range[]; residuals?: Range[];
     delivered?: 'all'|'yes'|'no'; includeCancelled?: boolean; offset?:number; limit?:number;
+    sort?:DocumentSort[];
 };
 const textKeys=['articles','customers','orders','units'];
 const dateKeys=['orderDates','deliveryDates'];
@@ -11,7 +23,7 @@ const numberKeys=['quantities','prices','residuals'];
 export function validateArticleOrderFilters(input:unknown):ArticleOrderFilters {
     if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Filtri non validi.');
     const value=input as any;
-    if(Object.keys(value).some(k=>![...textKeys,...dateKeys,...numberKeys,'delivered','includeCancelled','offset','limit'].includes(k)))throw new Error('Filtro non previsto.');
+    if(Object.keys(value).some(k=>![...textKeys,...dateKeys,...numberKeys,'delivered','includeCancelled','offset','limit','sort'].includes(k)))throw new Error('Filtro non previsto.');
     const clean:any={};
     for(const key of [...textKeys,...dateKeys,...numberKeys]){
         const rules=value[key]??[];
@@ -44,6 +56,7 @@ export function validateArticleOrderFilters(input:unknown):ArticleOrderFilters {
         const n=value[key]??defaultValue;if(!Number.isInteger(n)||n<min||n>max)throw new Error('Limite risultati non valido.');clean[key]=n;
     }
     clean.delivered=value.delivered??'all';clean.includeCancelled=value.includeCancelled??false;
+    clean.sort=validateDocumentSort(value.sort,ORDER_SORT_COLUMNS);
     return clean;
 }
 const validDate=(col:string)=>`CASE WHEN ${col} >= '19000101' THEN CONVERT(date,${col}) END`;
@@ -66,11 +79,11 @@ export function buildArticleOrderQuery(input:unknown){
         source:ARTICLE_ORDER_SOURCE,text:{articles:['article'],customers:['customerCode','customerName'],orders:['orderNo'],units:['unit']},
         ranges:{orderDates:'orderDate',deliveryDates:'deliveryDate',quantities:'quantity',prices:'unitPrice',residuals:'residual'},dates:dateKeys,
         conditions:[...(!filters.includeCancelled?['cancelled=0']:[]),...(filters.delivered!=='all'?[`delivered=${filters.delivered==='yes'?1:0}`]:[])],
-        order:'article,orderDate DESC,orderId DESC,line',
+        order:'article,orderDate DESC,orderId DESC,line',sortable:ORDER_SORT_COLUMNS,
     });
 }
 // Descrittori definiti nel codice: nessun nome di colonna o frammento SQL proviene dal client.
-export function buildArticleDocumentQuery(filters:Record<string,any>,definition:{source:string;text:Record<string,string[]>;ranges:Record<string,string>;dates:string[];conditions:string[];order:string}){
+export function buildArticleDocumentQuery(filters:Record<string,any>,definition:{source:string;text:Record<string,string[]>;ranges:Record<string,string>;dates:string[];conditions:string[];order:string;sortable:readonly string[]}){
     const bindings:{name:string;type:'text'|'number'|'date'|'int';value:unknown}[]=[];
     const bind=(value:unknown,type:'text'|'number'|'date'|'int')=>{const name=`p${bindings.length}`;bindings.push({name,type,value});return '@'+name};
     const conditions:string[]=[];
@@ -96,6 +109,9 @@ export function buildArticleDocumentQuery(filters:Record<string,any>,definition:
     }
     conditions.push(...definition.conditions);
     const offset=bind(filters.offset,'int'),limit=bind(filters.limit,'int');
+    const sorting=validateDocumentSort(filters.sort,definition.sortable);
+    const orderedKeys=new Set(sorting.map(item=>item.key));
+    const order=[...sorting.flatMap(item=>[`CASE WHEN ${item.key} IS NULL THEN 1 ELSE 0 END ASC`,`${item.key} ${item.direction.toUpperCase()}`]),...definition.order.split(',').filter(part=>!orderedKeys.has(part.trim().split(/\s+/)[0]))].join(',');
     return {filters,bindings,sql:`WITH Orders AS (${definition.source}) SELECT *,COUNT_BIG(*) OVER() AS totalRows FROM Orders
- WHERE ${conditions.join(' AND ')} ORDER BY ${definition.order} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`};
+ WHERE ${conditions.join(' AND ')} ORDER BY ${order} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`};
 }

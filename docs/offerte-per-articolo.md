@@ -6,6 +6,8 @@ Partendo da almeno un articolo mostra le offerte clienti in cui compare, con **A
 
 ## Filtri e risultati
 
+Le intestazioni supportano [ordinamenti multipli](ordinamento-analisi.md): clic per aggiungere/invertire, Ctrl+clic per rimuovere il criterio, **Rimuovi ordinamenti** per azzerare la sequenza. L’ordine di scelta resta la priorità dell’ordinamento anche cambiando i filtri, caricando altre pagine ed esportando in Excel.
+
 Stesso funzionamento dell’Analisi Venduto: ogni filtro parte da una condizione e ne può aggiungere fino a 20. Alternative dello stesso filtro in OR, tipi diversi in AND.
 
 - Articolo, cliente, numero offerta e U.M.: esatto, contiene, inizia con o intervallo di codici.

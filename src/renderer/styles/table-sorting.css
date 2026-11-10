@@ -1,0 +1,9 @@
+.sortable-header { cursor:pointer; }
+.sort-header-button { display:inline-flex; align-items:center; justify-content:inherit; gap:7px; padding:0!important; border:0!important; border-radius:0!important; background:transparent!important; box-shadow:none!important; color:inherit; font:inherit!important; font-weight:inherit!important; text-align:inherit; white-space:nowrap; cursor:pointer; }
+.sort-marker { color:var(--ops-accent,#168eea); font-size:.85em; font-weight:700; min-width:13px; }
+th[aria-sort=none] .sort-marker { color:var(--ops-muted,#648097); opacity:.5; }
+.sort-header-button:focus-visible { outline:2px solid var(--ops-accent,#168eea); outline-offset:3px; }
+.sorting-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex:0 0 auto; padding:6px 14px; border-block:1px solid var(--ops-line,#d9e8f1); background:#fff; min-width:0; font-size:11px; color:var(--ops-muted,#648097); }
+.sorting-summary { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sorting-bar .clear-sorting { flex:0 0 auto; font-size:11px; padding:5px 8px; white-space:nowrap; }
+.clear-sorting:disabled { opacity:.45; cursor:default; }

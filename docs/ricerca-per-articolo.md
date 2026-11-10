@@ -12,6 +12,8 @@ Consegnato può essere Tutti/Sì/No. Gli ordini e le righe annullati sono esclus
 
 ## Risultati ed esportazione
 
+Le intestazioni supportano [ordinamenti multipli](ordinamento-analisi.md), mantenuti quando si modificano i filtri e durante caricamento ed export di tutti i risultati. Il primo clic aggiunge un criterio crescente, i successivi ne invertono la direzione senza spostarne la priorità. Ctrl+clic rimuove il criterio; **Rimuovi ordinamenti** azzera l’intera sequenza.
+
 Una riga per voce d’ordine, identificata da SaleOrdId + Line: lo stesso articolo può comparire più volte nello stesso ordine con quantità e consegne differenti. Ordinamento per articolo, poi data ordine decrescente, identificativo e riga per stabilità. Articoli diversi hanno separatori visivi. Intestazione e prima colonna restano fisse; tabella e filtri scorrono internamente alla finestra.
 
 **Colonne** permette di mostrare/nascondere descrizione, numero ordine, riga, data ordine, consegna prevista, quantità, U.M., quantità consegnata, residuo, consegnato, prezzo unitario, prezzo netto, valuta, codice cliente, ragione sociale e annullamento. Articolo rimane sempre visibile. Le colonne non cambiano i filtri applicati ai dati.
