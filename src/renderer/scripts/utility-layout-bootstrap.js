@@ -13,7 +13,7 @@
   html.dataset.moduleTheme = isBlueArchive ? "bluearchive" : "standard";
 
   // Eseguito nel <head>, prima dei CSS e di qualunque bundle/IPC asincrono.
-  if (["forge.html", "forge-preview.html", "management.html", "article-orders.html", "article-offers.html", "turning-analysis.html"].includes(page)) {
+  if (["forge.html", "forge-preview.html", "management.html", "article-orders.html", "article-offers.html", "turning-analysis.html", "customer-analysis.html", "commercial-analysis.html"].includes(page)) {
     html.dataset.forgeTheme = isBlueArchive ? "bluearchive" : "standard";
     if (page === "forge.html" && !isBlueArchive)
       bodyClasses.add("agpress-scripted-splash");

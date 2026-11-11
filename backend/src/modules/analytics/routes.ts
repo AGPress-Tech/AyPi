@@ -8,10 +8,26 @@ import { ANALYTICS_QUERIES, queryDefinition, queryParameters } from "./catalog";
 import { analyticsService } from "./service";
 import { validateArticleOrderFilters } from "./article-orders";
 import { validateArticleOfferFilters } from "./article-offers";
+import {validateCustomerAnalysis,validateCustomerSearch} from './customer-analysis';
+import {validateDocumentLinkRequest} from './document-links';
 const compress=promisify(gzip);
 const digest=(value:string)=>createHash("sha256").update(value).digest();
 
 export function registerAnalyticsRoutes(router:Router,service=analyticsService) {
+    router.register('POST','/api/erp/document-links',async(req,res)=>{
+        let input;
+        try{input=validateDocumentLinkRequest(await readJsonBody(req));}catch(error){sendJson(res,400,{error:(error as Error).message});return;}
+        res.setHeader('Cache-Control','no-store');
+        try{sendJson(res,200,await service.documentLinks(input));}
+        catch{sendJson(res,503,{error:'Lettura dei documenti collegati non riuscita. Verificare il backend e riprovare.'});}
+    });
+    for(const lookup of [true,false])router.register('POST',lookup?'/api/erp/customer-search':'/api/erp/customer-analysis',async(req,res)=>{
+        let input;
+        try{const body=await readJsonBody(req);input=lookup?validateCustomerSearch(body):validateCustomerAnalysis(body);}catch(error){sendJson(res,400,{error:error instanceof Error?error.message:'Filtri non validi.'});return;}
+        res.setHeader('Cache-Control','no-store');
+        try{sendJson(res,200,await (lookup?service.customerSearch(input):service.customerAnalysis(input)));}
+        catch(error){sendJson(res,503,{error:error instanceof Error&&error.message.startsWith('Oltre 100.000')?error.message:'Lettura clienti dal gestionale non riuscita. Verificare il backend e riprovare.'});}
+    });
     router.register('POST','/api/erp/article-offers',async(req,res)=>{
         let filters;
         try{filters=validateArticleOfferFilters(await readJsonBody(req));}catch(error){sendJson(res,400,{error:error instanceof Error?error.message:'Filtri non validi.'});return;}

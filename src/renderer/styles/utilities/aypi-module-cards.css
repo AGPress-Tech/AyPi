@@ -1,0 +1,162 @@
+/* Shared home module cards. */
+.module-card {
+  position: relative;
+  min-height: 132px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 14px 16px 13px;
+  text-align: left;
+  border: 1px solid rgba(31, 114, 168, 0.16);
+  border-radius: 2px 2px 19px 2px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 25px rgba(50, 112, 151, 0.1);
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.12s ease;
+}
+
+.module-card::before {
+  content: "";
+  position: absolute;
+  inset: auto -25px -35px auto;
+  width: 105px;
+  height: 105px;
+  border: 18px solid rgba(38, 191, 243, 0.08);
+  border-radius: 50%;
+}
+
+.module-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 42%;
+  background: var(--card-accent, var(--cyan));
+}
+
+.module-card:hover {
+  border-color: rgba(31, 145, 211, 0.4);
+  box-shadow: 0 19px 35px rgba(40, 119, 171, 0.19);
+}
+
+.module-card.cyan {
+  --card-accent: #2dc8ee;
+}
+
+.module-card.blue {
+  --card-accent: #288ff0;
+}
+
+.module-card.white {
+  --card-accent: #8cdaf4;
+}
+
+.module-card.navy {
+  --card-accent: #17243d;
+  background: linear-gradient(135deg, #223652, #14223a);
+  color: white;
+}
+
+.module-card.navy .card-description,
+.module-card.navy .card-code {
+  color: #a8bbcf;
+}
+
+.card-code {
+  color: #91a0b1;
+  font: 800 8px/1 monospace;
+  letter-spacing: 1px;
+}
+
+.card-icon {
+  position: relative;
+  width: 29px;
+  height: 29px;
+  margin: 9px 0 7px;
+  border: 1px solid var(--card-accent);
+  transform: rotate(45deg);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--card-accent) 8%, transparent);
+}
+
+.card-icon i {
+  position: absolute;
+  inset: 8px;
+  border: 2px solid var(--card-accent);
+  transform: rotate(-45deg);
+}
+
+.icon-search i {
+  border-radius: 50%;
+}
+
+.icon-search i::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  width: 7px;
+  height: 2px;
+  background: var(--card-accent);
+  transform: rotate(45deg);
+}
+
+.icon-grid i {
+  border: 0;
+  background:
+    linear-gradient(90deg,
+      var(--card-accent) 42%,
+      transparent 42% 58%,
+      var(--card-accent) 58%),
+    linear-gradient(var(--card-accent) 42%,
+      transparent 42% 58%,
+      var(--card-accent) 58%);
+}
+
+.icon-chart i {
+  border-width: 0 0 2px 2px;
+}
+
+.icon-chart i::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 0;
+  top: 6px;
+  height: 2px;
+  background: var(--card-accent);
+  transform: rotate(-28deg);
+  transform-origin: left;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.card-description {
+  margin-top: 3px;
+  color: #7b8ba0;
+  font-size: 9px;
+}
+
+.card-arrow {
+  position: absolute;
+  right: 15px;
+  top: 14px;
+  color: var(--card-accent);
+  font-size: 17px;
+  transition: transform 0.2s;
+}
+
+.module-card:hover .card-arrow {
+  transform: translate(3px, -3px);
+}
+

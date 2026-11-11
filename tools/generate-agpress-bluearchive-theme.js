@@ -124,7 +124,13 @@ function transformCss(source) {
   return output;
 }
 
-let css = transformCss(fs.readFileSync(sourcePath, "utf8"));
+// Inline shared cards before recoloring so the standard home retains its palette.
+const sharedCards = fs.readFileSync(path.join(path.dirname(sourcePath), "utilities", "aypi-module-cards.css"), "utf8");
+const sourceCss = fs.readFileSync(sourcePath, "utf8").replace(
+  "/* Shared module cards: utilities/aypi-module-cards.css */",
+  sharedCards.trim(),
+);
+let css = transformCss(sourceCss);
 css += `
 
 /* AGPress excludes the Blue Archive identity and pointer effects. */

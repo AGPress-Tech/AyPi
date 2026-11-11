@@ -786,6 +786,7 @@ main {
   perspective: 1000px;
 }
 
+/* Shared home module cards. */
 .module-card {
   position: relative;
   min-height: 132px;
@@ -3351,6 +3352,7 @@ body.animation-lab-open .assistant {
     transition-duration: 0.12s;
   }
 }
+
 
 /* AGPress excludes the Blue Archive identity and pointer effects. */
 .assistant,

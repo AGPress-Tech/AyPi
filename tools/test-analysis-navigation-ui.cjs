@@ -1,0 +1,86 @@
+// Run with Electron after npm run build:ts. Uses isolated test data and hidden windows.
+const {app,BrowserWindow,ipcMain,Menu}=require('electron');
+process.on('uncaughtException',error=>{console.error(error);app.exit(1)});process.on('unhandledRejection',error=>{console.error(error);app.exit(1)});
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..'),dir=path.join(root,'.tmp-analysis-navigation');fs.mkdirSync(dir,{recursive:true});app.setPath('userData',path.join(dir,'profile'));app.commandLine.appendSwitch('disable-gpu');
+for(const method of ['show','focus','maximize'])BrowserWindow.prototype[method]=function(){};
+let nativeMenu=[];
+const base={customerCode:'C001',customerName:'Cliente Test',article:'ART-A',description:'Articolo A',line:1,unit:'NR',currency:'EUR',quantity:10,deliveredQuantity:0,residual:10,unitPrice:2,netPrice:2,netAmount:20,delivered:0,cancelled:0,createdDate:'2026-01-01',lineCreatedDate:'2026-01-01',headerDelivered:0,headerCancelled:0,deliveryDate:'2026-05-01'};
+const orders=[{...base,orderId:101,orderNo:'26/001',orderDate:'2026-01-01'},{...base,article:'ART-B',description:'Articolo B',line:2,orderId:101,orderNo:'26/001',orderDate:'2026-01-01'}];
+const offers=[{...base,offerId:201,offerNo:'26/OFF-1',offerDate:'2026-01-01',customerType:'Cliente'},{...base,article:'ART-B',description:'Articolo B',line:2,offerId:201,offerNo:'26/OFF-1',offerDate:'2026-01-01',customerType:'Cliente'}];
+const normalized=(rs,kind)=>rs.map(r=>({...r,kind,documentId:r[kind==='order'?'orderId':'offerId'],documentNo:r[kind==='order'?'orderNo':'offerNo'],documentDate:r[kind==='order'?'orderDate':'offerDate']}));
+const calls=[];
+require('../dist-ts/modules/file-manager/backend-client').requestAypiBackend=async(endpoint,options)=>{
+ const f=options.body;calls.push({endpoint,filters:f});
+ if(endpoint.endsWith('customer-search'))return {customers:[{code:'C001',name:'Cliente Test'}],more:false};
+ if(endpoint.endsWith('customer-analysis'))return {rows:[...normalized(orders,'order'),...normalized(offers,'offer')],customer:'C001',queriedAt:'2026-11-10T10:00:00Z'};
+ if(endpoint.endsWith('document-links'))return {rows:f.kind==='order'?normalized(offers,'offer'):normalized(orders,'order'),queriedAt:'2026-11-10T10:00:00Z'};
+ const source=endpoint.endsWith('article-offers')?offers:orders,rows=source.filter(r=>!f.articles?.length||f.articles.some(a=>a.value===r.article));
+ return {rows,total:rows.length,offset:0,queriedAt:'2026-11-10T10:00:00Z'};
+};
+app.whenReady().then(async()=>{
+ const watchdog=setTimeout(()=>{console.error('Timeout globale del test di navigazione');app.exit(1)},45000);
+ Menu.buildFromTemplate=items=>{nativeMenu=items;return {popup(){}};};
+ const XLSX=require('xlsx'),headers=Array(20).fill('');for(const [i,h] of [[0,'Cliente'],[2,'Articolo'],[5,'EUR/pezzo'],[6,'Pezzi'],[7,'Ore Att'],[8,'Ore Lav'],[10,'Ricavo Tot'],[12,'Mese/Anno'],[19,'Macchina']])headers[i]=h;
+ const fixtureRow=Array(20).fill(null);Object.assign(fixtureRow,{0:'Cliente Test',2:'ART-A',5:2,6:10,7:1,8:1,10:20,12:'2024-04-01',19:'M1'});
+ const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([headers,fixtureRow]),'COMPLETO');const fixture=path.join(dir,'turning-context.xlsx');XLSX.writeFile(workbook,fixture);require('../dist-ts/modules/turning-analysis/model').TURNING_SOURCE=fixture;
+ const main=new BrowserWindow({show:false,webPreferences:{nodeIntegration:true,contextIsolation:false}}),errors=[];
+ app.on('web-contents-created',(_event,contents)=>{contents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});});
+
+ await main.loadURL('about:blank');
+ require('../dist-ts/modules/analysis-navigation').registerAnalysisNavigation(main,()=> '');
+ require('../dist-ts/modules/article-orders/ipc').registerArticleOrdersIpc(main,()=> '');
+ require('../dist-ts/modules/customer-analysis/ipc').registerCustomerAnalysisIpc(main,()=> '');
+ require('../dist-ts/modules/turning-analysis/ipc').registerTurningAnalysisIpc(main,()=> '');
+ const rec=(article,year,id)=>({id,customer:'Cliente Test',order:'26/001',article,phase:'F1',description:article,machine:'M1',date:`${year}-04-01`,year,month:4,quantity:10,unitPrice:2,setup:1,production:1,hours:2,revenue:20,rate:10,ideal:20,cycle:360,sheetCycle:null,note:''});
+ ipcMain.removeHandler('turning-analysis-load');ipcMain.handle('turning-analysis-load',()=>({ok:true,data:{source:'fixture',modifiedAt:'2026-11-10',loadedAt:'2026-11-10',records:[rec('ART-A',2024,1),rec('ART-B',2026,2)],years:[2024,2026],machines:[{code:'M1',description:'Macchina',rate:20}],customers:['Cliente Test'],articles:['ART-A','ART-B'],capacities:{'2024':{M1:{eight:2000,fourteen:3000,mixed:2500}},'2026':{M1:{eight:2000,fourteen:3000,mixed:2500}}},monitored:{'2024':['M1'],'2026':['M1']},quality:{read:2,included:2,blank:0,invalidDates:0,invalidInputs:0,blankNumericCells:0,missingMachine:0,missingArticle:0,unpriced:0,noIdeal:0,cachedErrors:0,formulaDifferences:0,examples:[]}}}));
+ const run=(win,code)=>win.webContents.executeJavaScript(code,true);
+ const until=async check=>{const start=Date.now();while(Date.now()-start<10000){if(await check())return;await new Promise(resolve=>setTimeout(resolve,30));}throw Error('Timeout nella verifica navigazione');};
+ const find=page=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().split('?')[0].endsWith('/'+page));
+ const open=async(target,context)=>{const result=await run(main,`require('electron').ipcRenderer.invoke('analysis-navigate',${JSON.stringify({target,context})})`);assert.equal(result.ok,true,result.error);};
+ try{
+  assert.equal((await run(main,"require('electron').ipcRenderer.invoke('commercial-analysis-open')")).ok,true);
+  await until(()=>!!find('commercial-analysis.html'));const hub=find('commercial-analysis.html');await until(()=>run(hub,"document.querySelectorAll('[data-analysis]').length===3"));
+  await run(hub,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");const screenshot=await hub.webContents.capturePage();fs.writeFileSync(path.join(dir,'hub.png'),screenshot.toPNG());
+  
+  await run(hub,"document.querySelector('[data-analysis=article-orders]').click()");await until(()=>!!find('article-orders.html'));
+  const sold=find('article-orders.html');await open('article-orders',{article:'ART-A'});await until(()=>run(sold,"document.querySelectorAll('#results [data-analysis-row]').length===1"));
+  const soldId=sold.id;
+  nativeMenu=[];await run(sold,"document.querySelector('#results [data-analysis-row] td[data-analysis-field=quantity]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");await new Promise(r=>setTimeout(r,100));assert.equal(nativeMenu.length,0);
+  nativeMenu=[];await run(sold,"require('electron').ipcRenderer.invoke('analysis-context-menu',{article:'ART-MISSING'})");assert.equal(nativeMenu.length,0);
+
+  await run(sold,"document.querySelector('#results [data-analysis-row] td[data-analysis-field=article]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");
+  await until(()=>nativeMenu.some(item=>item.label.includes('Torneria')));assert(nativeMenu.every(item=>!item.label.includes('cliente')));nativeMenu.find(item=>item.label.includes('Torneria')).click();
+  await until(()=>!!find('turning-analysis.html'));const turning=find('turning-analysis.html');
+  await until(()=>run(turning,"!!document.querySelector('#turningTable tbody tr[data-analysis-article=\"ART-A\"]')"));
+  assert.equal(await run(turning,"document.querySelectorAll('#turningTable tbody tr[data-analysis-article=\"ART-B\"]').length"),0);
+  await open('turning-analysis',{article:'ART-B'});assert.equal(find('turning-analysis.html').id,turning.id);
+  await until(()=>run(turning,"!!document.querySelector('#turningTable tbody tr[data-analysis-article=\"ART-B\"]')"));
+  await open('turning-analysis',{article:'ART-NON-PRESENTE'});await until(()=>run(turning,"!!document.querySelector('.empty-table')"));
+  await open('turning-analysis',{article:'ART-A'});
+  await run(turning,"document.querySelector('#turningTable tbody td[data-analysis-customer-name]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");
+  await until(()=>nativeMenu.some(item=>item.label.includes('cliente in')));assert(nativeMenu.every(item=>!item.label.includes('articolo')));nativeMenu.find(item=>item.label.includes('cliente in')).click();
+  await until(()=>!!find('customer-analysis.html'));const customer=find('customer-analysis.html');await until(()=>run(customer,"document.querySelectorAll('#kpis .kpi').length===6 && !document.querySelector('#refresh').disabled"));
+  await run(customer,"document.querySelector('[data-view=documents]').click();document.querySelector('[data-expand-document=\"order:101\"]').click()");
+  await until(()=>run(customer,"document.querySelectorAll('.document-links-row .linked-documents-table tbody tr').length===2"));
+  assert((await run(customer,"document.querySelector('.document-links-row').textContent")).includes('26/OFF-1'));
+  await run(customer,"document.querySelector('.document-links-row [data-linked-index]').click()");
+  await until(()=>!!find('article-offers.html'));const quoted=find('article-offers.html');
+  await until(()=>run(quoted,"document.querySelectorAll('#results [data-analysis-row]').length===2"));
+  assert(calls.some(c=>c.endpoint.endsWith('article-offers')&&c.filters.offers?.[0]?.value==='26/OFF-1'&&c.filters.documentId===201&&!c.filters.articles.length));
+  await run(quoted,"document.querySelector('[data-expand-document]').click()");
+  await until(()=>run(quoted,"document.querySelectorAll('.document-links-row .linked-documents-table tbody tr').length===2"));
+  await run(customer,"document.querySelector('[data-document=\"order:101\"]').click();document.querySelector('.document-connections>summary').click()");
+  await until(()=>run(customer,"document.querySelectorAll('#documentDialog .linked-documents-table tbody tr').length===2"));
+  await open('article-orders',{article:'ART-B'});assert.equal(find('article-orders.html').id,soldId);
+  await until(()=>run(sold,"document.querySelector('[data-key=articles] .value').value==='ART-B' && document.querySelector('#results').textContent.includes('ART-B')"));
+  nativeMenu=[];await run(sold,"require('electron').ipcRenderer.invoke('analysis-context-menu',{article:'ART-B'})");assert(nativeMenu.some(item=>item.label.includes('offerte')));assert(nativeMenu.every(item=>!item.label.includes('Torneria')));
+  nativeMenu=[];await run(customer,"document.querySelector('[data-document]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");await until(()=>nativeMenu.length>0);assert.equal(nativeMenu.length,1);assert(nativeMenu[0].label.includes('ordine'));
+  await run(customer,"document.querySelector('#documentDialog .document-close').click()");assert.equal(await run(customer,"document.querySelector('#documentDialog').open"),false);
+  const unknown=new BrowserWindow({show:false,webPreferences:{nodeIntegration:true,contextIsolation:false}});await unknown.loadURL('about:blank');
+  assert.equal((await run(unknown,"require('electron').ipcRenderer.invoke('analysis-navigate',{target:'turning-analysis',context:{article:'ART-A'}})")).ok,false);
+  assert.equal((await run(main,"require('electron').ipcRenderer.invoke('analysis-navigate',{target:'turning-analysis',context:{url:'https://example.com'}})")).ok,false);
+  assert.deepEqual(errors,[]);console.log('OK: hub, menu contestuale, riuso finestre, filtri Torneria pluriennali, articolo assente, ricerca cliente, espansioni reciproche, dettaglio ordine, apertura offerta completa e autorizzazioni.');
+  BrowserWindow.getAllWindows().forEach(w=>w.destroy());app.exit(0);
+ }catch(error){console.error(error);console.error(errors);for(const win of BrowserWindow.getAllWindows()){try{console.error(win.webContents.getURL(),await run(win,"({view:document.body.dataset.view,status:document.querySelector('#status')?.textContent,content:document.querySelector('#content')?.textContent.slice(0,800)})"))}catch{}}BrowserWindow.getAllWindows().forEach(w=>w.destroy());app.exit(1);}
+});

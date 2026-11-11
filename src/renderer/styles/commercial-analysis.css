@@ -1,0 +1,24 @@
+.commercial-hub main {
+  position: relative;
+  padding: 28px clamp(24px, 4vw, 76px) 40px;
+  gap: 30px;
+  overflow: auto;
+  background: transparent;
+}
+.hub-catalog { position: relative; flex: 0 0 auto; }
+.hub-section-heading { display: flex; align-items: center; gap: 20px; margin-bottom: 16px; }
+.hub-section-heading h2 { margin: 0; font-size: 19px; letter-spacing: -.4px; }
+.hub-section-heading::after { content: ""; flex: 1; height: 1px; background: var(--ops-line); }
+.hub-section-heading>span { color: var(--ops-muted); font: 9px monospace; letter-spacing: 1px; }
+.hub-section-heading i { margin-left: 8px; color: var(--ops-accent); font-style: normal; }
+.hub-modules { display: grid; grid-template-columns: repeat(auto-fill, 240px); gap: 13px; }
+.commercial-hub .module-card { width: 240px; min-height: 132px; color: var(--ops-ink); }
+.commercial-hub .module-card.blue { --card-accent: var(--ops-accent); }
+.commercial-hub .module-card.cyan { --card-accent: var(--ops-accent-2); }
+.commercial-hub .module-card.navy { color: white; }
+.commercial-hub .module-card.navy :is(.card-icon, .card-arrow) { --card-accent: var(--ops-accent-2); }
+.commercial-hub .card-description { line-height: 1.3; }
+#status[hidden] { display: none; }
+@media (max-height: 700px) {
+  .commercial-hub main { padding-top: 18px; gap: 20px; }
+}

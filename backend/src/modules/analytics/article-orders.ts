@@ -15,7 +15,7 @@ export type ArticleOrderFilters = {
     articles: TextRule[]; customers?: TextRule[]; orders?: TextRule[]; units?: TextRule[];
     orderDates?: Range[]; deliveryDates?: Range[]; quantities?: Range[]; prices?: Range[]; residuals?: Range[];
     delivered?: 'all'|'yes'|'no'; includeCancelled?: boolean; offset?:number; limit?:number;
-    sort?:DocumentSort[];
+    sort?:DocumentSort[];documentId?:number;
 };
 const textKeys=['articles','customers','orders','units'];
 const dateKeys=['orderDates','deliveryDates'];
@@ -23,7 +23,7 @@ const numberKeys=['quantities','prices','residuals'];
 export function validateArticleOrderFilters(input:unknown):ArticleOrderFilters {
     if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Filtri non validi.');
     const value=input as any;
-    if(Object.keys(value).some(k=>![...textKeys,...dateKeys,...numberKeys,'delivered','includeCancelled','offset','limit','sort'].includes(k)))throw new Error('Filtro non previsto.');
+    if(Object.keys(value).some(k=>![...textKeys,...dateKeys,...numberKeys,'delivered','includeCancelled','offset','limit','sort','documentId'].includes(k)))throw new Error('Filtro non previsto.');
     const clean:any={};
     for(const key of [...textKeys,...dateKeys,...numberKeys]){
         const rules=value[key]??[];
@@ -49,7 +49,8 @@ export function validateArticleOrderFilters(input:unknown):ArticleOrderFilters {
             return result;
         });
     }
-    if(!clean.articles.length)throw new Error('Inserire almeno un articolo o un intervallo di articoli.');
+    if(value.documentId!==undefined){if(!Number.isInteger(value.documentId)||value.documentId<1||value.documentId>2147483647)throw Error('Identificativo documento non valido.');clean.documentId=value.documentId;}
+    if(!clean.articles.length&&!clean.orders.some((r:any)=>r.op==='exact')&&!clean.documentId)throw new Error('Inserire un articolo oppure il numero esatto del documento.');
     if(value.delivered!==undefined&&!['all','yes','no'].includes(value.delivered))throw new Error('Stato consegna non valido.');
     if(value.includeCancelled!==undefined&&typeof value.includeCancelled!=='boolean')throw new Error('Stato annullamento non valido.');
     for(const [key,min,max,defaultValue] of [['offset',0,1000000,0],['limit',1,1000,250]] as const){
@@ -79,11 +80,11 @@ export function buildArticleOrderQuery(input:unknown){
         source:ARTICLE_ORDER_SOURCE,text:{articles:['article'],customers:['customerCode','customerName'],orders:['orderNo'],units:['unit']},
         ranges:{orderDates:'orderDate',deliveryDates:'deliveryDate',quantities:'quantity',prices:'unitPrice',residuals:'residual'},dates:dateKeys,
         conditions:[...(!filters.includeCancelled?['cancelled=0']:[]),...(filters.delivered!=='all'?[`delivered=${filters.delivered==='yes'?1:0}`]:[])],
-        order:'article,orderDate DESC,orderId DESC,line',sortable:ORDER_SORT_COLUMNS,
+        order:'article,orderDate DESC,orderId DESC,line',sortable:ORDER_SORT_COLUMNS,idColumn:'orderId',
     });
 }
 // Descrittori definiti nel codice: nessun nome di colonna o frammento SQL proviene dal client.
-export function buildArticleDocumentQuery(filters:Record<string,any>,definition:{source:string;text:Record<string,string[]>;ranges:Record<string,string>;dates:string[];conditions:string[];order:string;sortable:readonly string[]}){
+export function buildArticleDocumentQuery(filters:Record<string,any>,definition:{source:string;text:Record<string,string[]>;ranges:Record<string,string>;dates:string[];conditions:string[];order:string;sortable:readonly string[];idColumn?:string}){
     const bindings:{name:string;type:'text'|'number'|'date'|'int';value:unknown}[]=[];
     const bind=(value:unknown,type:'text'|'number'|'date'|'int')=>{const name=`p${bindings.length}`;bindings.push({name,type,value});return '@'+name};
     const conditions:string[]=[];
@@ -108,6 +109,7 @@ export function buildArticleDocumentQuery(filters:Record<string,any>,definition:
         }).join(' OR ')+')');
     }
     conditions.push(...definition.conditions);
+    if(filters.documentId!==undefined){if(!definition.idColumn)throw Error('Filtro documento non disponibile.');conditions.push(`${definition.idColumn}=${bind(filters.documentId,'int')}`);}
     const offset=bind(filters.offset,'int'),limit=bind(filters.limit,'int');
     const sorting=validateDocumentSort(filters.sort,definition.sortable);
     const orderedKeys=new Set(sorting.map(item=>item.key));

@@ -1,4 +1,6 @@
 .sortable-header { cursor:pointer; }
+/* Keep headers and data columns visually aligned across all analysis modules. */
+body.aypi-operations table :is(th, td) { border-inline-end:1px solid var(--ops-line,#d9e8f1); }
 .sort-header-button { display:inline-flex; align-items:center; justify-content:inherit; gap:7px; padding:0!important; border:0!important; border-radius:0!important; background:transparent!important; box-shadow:none!important; color:inherit; font:inherit!important; font-weight:inherit!important; text-align:inherit; white-space:nowrap; cursor:pointer; }
 .sort-marker { color:var(--ops-accent,#168eea); font-size:.85em; font-weight:700; min-width:13px; }
 th[aria-sort=none] .sort-marker { color:var(--ops-muted,#648097); opacity:.5; }
@@ -7,3 +9,9 @@ th[aria-sort=none] .sort-marker { color:var(--ops-muted,#648097); opacity:.5; }
 .sorting-summary { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sorting-bar .clear-sorting { flex:0 0 auto; font-size:11px; padding:5px 8px; white-space:nowrap; }
 .clear-sorting:disabled { opacity:.45; cursor:default; }
+.analysis-linked-documents{padding:12px 16px!important;background:var(--ops-soft,#e8f8ff)!important;white-space:normal!important;text-align:left!important;max-width:none!important}
+.linked-document{margin:5px 0;border:1px solid var(--ops-line,#d9e8f1);border-radius:7px;background:#fff;padding:9px 11px}
+.linked-document>summary{cursor:pointer;font-size:12px;font-weight:600}.linked-document>summary>span{font-weight:400;color:var(--ops-muted);margin-left:12px}
+.linked-document>button{font-size:11px;margin:8px 0}.linked-documents-table{min-width:650px;width:100%;border-collapse:separate;border-spacing:0;font-size:12px}.linked-documents-table th,.linked-documents-table td{padding:7px 9px!important;text-align:left}.linked-documents-table .numeric{text-align:right}
+.document-connections{margin-top:12px;border:1px solid var(--ops-line);border-radius:7px}.document-connections>summary{padding:10px;cursor:pointer;font-weight:600}
+button.document-expand{padding:2px 5px;margin-right:5px;border:0;background:transparent;color:var(--ops-accent);font-size:13px}

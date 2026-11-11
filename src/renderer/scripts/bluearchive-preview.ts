@@ -261,12 +261,32 @@ const pages: Record<string, PageDefinition> = {
 };
 
 pages.analisi = {
-    title:'Analisi',heading:'Analisi del gestionale',description:'Ricerche, report e analisi dei dati aziendali.',code:'ANL',
-    actions:[
-        {label:'Controllo di gestione',description:'Dashboard economiche, confronti e obiettivi · Solo amministratori',channel:'management-open',invoke:true,requiresAdmin:true},
-        {label:'Analisi Venduto per Articolo',description:'Trova gli ordini clienti, le consegne e i residui di uno o più articoli',channel:'article-orders-open',invoke:true},
-        {label:'Analisi Offerte per Articolo',description:'Trova le offerte clienti, le quantità e i prezzi proposti per uno o più articoli',channel:'article-offers-open',invoke:true},
-        {label:'Analisi Torneria',description:'Produzioni, valorizzazioni, saturazione macchine e confronti pluriennali',channel:'turning-analysis-open',invoke:true},
+    title: "Analisi",
+    heading: "Analisi del gestionale",
+    description: "Ricerche, report e analisi dei dati aziendali.",
+    code: "ANL",
+    actions: [
+        {
+            label: "Controllo di gestione",
+            description:
+                "Dashboard economiche, confronti e obiettivi · Solo amministratori",
+            channel: "management-open",
+            invoke: true,
+            requiresAdmin: true,
+        },
+        {
+            label: "Analisi commerciali",
+            description: "Venduto per articolo, offerte e analisi per cliente",
+            channel: "commercial-analysis-open",
+            invoke: true,
+        },
+        {
+            label: "Analisi Torneria",
+            description:
+                "Produzioni, valorizzazioni, saturazione macchine e confronti pluriennali",
+            channel: "turning-analysis-open",
+            invoke: true,
+        },
     ],
 };
 const pageOrder = Object.keys(pages);
@@ -1368,7 +1388,7 @@ function renderActions(page: PageDefinition) {
     pageContent.innerHTML = (page.actions || [])
         .map(
             (action, index) => `
-        <button class="module-card ${tones[index % tones.length]} ${action.requiresAdmin&&!managementAccess?'access-restricted':''}" ${action.requiresAdmin?`data-admin-required="true" aria-disabled="${!managementAccess}"`:''} data-action-index="${index}" data-label="${action.label}">
+        <button class="module-card ${tones[index % tones.length]} ${action.requiresAdmin && !managementAccess ? "access-restricted" : ""}" ${action.requiresAdmin ? `data-admin-required="true" aria-disabled="${!managementAccess}"` : ""} data-action-index="${index}" data-label="${action.label}">
             <span class="card-code">${page.code}-${String(index + 1).padStart(2, "0")}</span>
             <span class="card-icon ${icons[index % icons.length]}"><i></i></span>
             <span class="card-title">${action.label}</span>
@@ -1385,10 +1405,14 @@ function renderActions(page: PageDefinition) {
                 Number(card.dataset.actionIndex)
             ];
             card.addEventListener("click", async () => {
-                if(action?.requiresAdmin&&!managementAccess){
-                    const text='Il Controllo di gestione è riservato agli amministratori. Premi F2 per accedere come amministratore.';
-                    if(IS_AGPRESS_INTERFACE)await require('electron').ipcRenderer.invoke('analysis-access-denied');
-                    else showBubble(text,5500);
+                if (action?.requiresAdmin && !managementAccess) {
+                    const text =
+                        "Il Controllo di gestione è riservato agli amministratori. Premi F2 per accedere come amministratore.";
+                    if (IS_AGPRESS_INTERFACE)
+                        await require("electron").ipcRenderer.invoke(
+                            "analysis-access-denied",
+                        );
+                    else showBubble(text, 5500);
                     return;
                 }
                 if (action?.addressKey)
@@ -1398,11 +1422,15 @@ function renderActions(page: PageDefinition) {
                 else if (action?.channel) {
                     const ipcRenderer = require("electron").ipcRenderer;
                     if (action.invoke) {
-                        const result=await ipcRenderer.invoke(
+                        const result = await ipcRenderer.invoke(
                             action.channel,
                             ...(action.channelArgs || []),
                         );
-                        if(result?.ok===false){if(IS_AGPRESS_INTERFACE)window.alert(result.error);else showBubble(result.error,4500);}
+                        if (result?.ok === false) {
+                            if (IS_AGPRESS_INTERFACE)
+                                window.alert(result.error);
+                            else showBubble(result.error, 4500);
+                        }
                     } else
                         ipcRenderer.send(
                             action.channel,
@@ -1787,13 +1815,17 @@ document.getElementById("menuWebsite")?.addEventListener("click", () => {
 
 const managementIpc = require("electron").ipcRenderer;
 function updateManagementAccess(enabled: boolean) {
-    managementAccess=enabled;
-    document.querySelectorAll<HTMLElement>('[data-admin-required]').forEach(button=>{
-        button.classList.toggle('access-restricted',!enabled);
-        button.setAttribute('aria-disabled',String(!enabled));
-    });
+    managementAccess = enabled;
+    document
+        .querySelectorAll<HTMLElement>("[data-admin-required]")
+        .forEach((button) => {
+            button.classList.toggle("access-restricted", !enabled);
+            button.setAttribute("aria-disabled", String(!enabled));
+        });
 }
-managementIpc.on("admin-state-changed", (_event, state) => updateManagementAccess(!!state.management));
+managementIpc.on("admin-state-changed", (_event, state) =>
+    updateManagementAccess(!!state.management),
+);
 managementIpc.invoke("management-is-enabled").then(updateManagementAccess);
 
 document.getElementById("menuQuit")?.addEventListener("click", () => {

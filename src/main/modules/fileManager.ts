@@ -38,6 +38,8 @@ import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
 import { registerManagementIpc } from "./management/ipc";
 import { registerArticleOrdersIpc } from "./article-orders/ipc";
 import { registerTurningAnalysisIpc } from "./turning-analysis/ipc";
+import { registerCustomerAnalysisIpc } from "./customer-analysis/ipc";
+import { registerAnalysisNavigation } from "./analysis-navigation";
 import {
     createProductManagerSessionState,
     registerProductManagerSessionIpc,
@@ -2535,8 +2537,10 @@ function setupFileManager(mainWindow) {
         onManagementDisabled: () => management.revoke(),
     });
     const management = registerManagementIpc(mainWindow, adminState.canAccessManagement, getInterfaceIconPath, {getCredential:adminState.getManagementCredential,getBackendUrl:resolveAypiBackendBaseUrl});
+    registerAnalysisNavigation(mainWindow,getInterfaceIconPath);
     registerArticleOrdersIpc(mainWindow,getInterfaceIconPath);
     registerTurningAnalysisIpc(mainWindow,getInterfaceIconPath);
+    registerCustomerAnalysisIpc(mainWindow,getInterfaceIconPath);
 
     registerFilesystemDialogIpc({
         ipcMain,

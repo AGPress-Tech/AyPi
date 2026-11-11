@@ -4,6 +4,8 @@ import fs from 'fs';
 import * as XLSX from 'xlsx';
 import {requestAypiBackend} from '../file-manager/backend-client';
 import {ARTICLE_ORDER_COLUMNS,ARTICLE_OFFER_COLUMNS,ArticleDocumentColumn} from './columns';
+import {registerAnalysisTarget,canOpenAnalysis} from '../analysis-navigation';
+import type {AnalysisTarget} from '../analysis-navigation-model';
 
 export function registerArticleOrdersIpc(mainWindow:BrowserWindow,icon:()=>string){
     ipcMain.handle('analysis-access-denied',async event=>{
@@ -17,17 +19,21 @@ function registerArticleDocumentIpc(mainWindow:BrowserWindow,icon:()=>string,opt
     let window:BrowserWindow|null=null;
     const owns=(event:any)=>window&&!window.isDestroyed()&&event.sender===window.webContents;
     const query=(filters:any)=>requestAypiBackend(`/api/erp/${options.channel}`,{method:'POST',body:filters});
-    ipcMain.handle(`${options.channel}-open`,async event=>{
-        if(event.sender!==mainWindow.webContents)return {ok:false,error:'Apertura non autorizzata.'};
-        if(window&&!window.isDestroyed()){window.maximize();window.show();window.focus();return {ok:true}}
+    const open=async()=>{
+        if(window&&!window.isDestroyed()){window.maximize();window.show();window.focus();return window;}
         const win=new BrowserWindow({width:1500,height:940,minWidth:1000,minHeight:680,title:`AyPi · ${options.title}`,icon:icon(),show:false,backgroundColor:'#f7f4ed',webPreferences:{nodeIntegration:true,contextIsolation:false}});
         window=win;win.setMenu(null);win.maximize();
         win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
         win.once('ready-to-show',()=>{if(!win.isDestroyed())win.show()});
         win.on('closed',()=>{if(window===win)window=null});
         const theme=/[?&]theme=bluearchive(?:&|$)/.test(mainWindow.webContents.getURL()||'')?'bluearchive':'standard';
-        await win.loadFile(path.join(__dirname,'..','..','pages',options.page),{query:{theme}});
-        return {ok:true};
+        void win.loadFile(path.join(__dirname,'..','..','pages',options.page),{query:{theme}}).catch(error=>{if(!win.isDestroyed())win.webContents.send('analysis-navigation-error',error.message);});
+        return win;
+    };
+    registerAnalysisTarget(options.channel as AnalysisTarget,open,owns);
+    ipcMain.handle(`${options.channel}-open`,async event=>{
+        if(event.sender!==mainWindow.webContents&&!canOpenAnalysis(event.sender))return {ok:false,error:'Apertura non autorizzata.'};
+        await open();return {ok:true};
     });
     ipcMain.handle(`${options.channel}-search`,async(event,filters)=>{
         if(!owns(event))return {ok:false,error:'Finestra non autorizzata.'};

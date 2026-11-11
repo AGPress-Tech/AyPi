@@ -1,4 +1,8 @@
 import Chart from 'chart.js/auto';
+import {analysisChartControls,setChartExpanded} from '../modules/analysis-chart-controls';
+import {installAnalysisLinks} from '../modules/analysis-links';
+import {contextFromAnalysisElement} from '../modules/document-links';
+import type {AnalysisContext} from '../../main/modules/analysis-navigation-model';
 import {axisLabel,axisTicks,countMetric} from '../modules/chart-axis';
 import {color as chartColor} from 'chart.js/helpers';
 import {cumulativeSeries} from '../../main/modules/turning-analysis/chart-values';
@@ -131,7 +135,7 @@ function renderKpis(){
 }
 function panel(title:string,subtitle:string,body:string,actions=''){
     const id=body.match(/<canvas id="([^"]+)"/)?.[1];
-    const tools=id?`${['turningMonthly','entityMonthly'].includes(id)?`<button data-cumulative aria-pressed="${ui.cumulative}" title="Alterna valori mensili e cumulati dall’inizio del periodo">${ui.cumulative?'Cumulativo':'Mensile'} ⇄</button>`:''}<button class="chart-icon" data-reset-chart="${id}" title="Rimuovi selezioni dei grafici e zoom mensile" aria-label="Azzera selezioni del grafico ${esc(title)}">↺</button><button class="chart-icon" data-expand-chart="${id}" title="Espandi o riduci grafico" aria-label="Espandi grafico ${esc(title)}" aria-pressed="${ui.focusChart===id}">${ui.focusChart===id?'⤡':'⤢'}</button>`:'';
+    const tools=id?analysisChartControls(id,title,ui.focusChart===id,['turningMonthly','entityMonthly'].includes(id)?ui.cumulative:undefined):'';
     return `<article class="panel${id?' chart-panel':''}"><div class="panel-head"><div><h2>${esc(title)}</h2><p title="${esc(subtitle)}">${esc(subtitle)}</p></div><div class="panel-actions">${actions}${tools}</div></div>${body}</article>`;
 }
 const canvas=(id:string)=>`<div class="chart"><div class="chart-viewport"><canvas id="${id}"></canvas></div></div>`;
@@ -338,13 +342,15 @@ function tableShell(){return `<div class="table-toolbar"><span id="tableSummary"
 function renderTable(spec:TableSpec,reset=true){
     activeTable=spec;if(reset)visibleRows=250;
     const columns=selectedColumns(spec),all=sortedRows(spec),shown=all.slice(0,visibleRows),node=$<HTMLTableElement>('turningTable');
-    const tableRow=(row:Row,total=false)=>`<tr class="${total?'row-total':row.depth?'child-row':''}">${columns.map((col,i)=>{
+    const tableRow=(row:Row,total=false)=>`<tr ${total?'':`data-analysis-article="${esc(String(row.values.article|| (row.dimension==='article'?row.entity:'')||''))}" data-analysis-customer-name="${esc(String(row.values.customer||(row.dimension==='customer'?row.entity:'')||''))}"`} class="${total?'row-total':row.depth?'child-row':''}">${columns.map((col,i)=>{
         const value=row.values[col.key],display=format(value,col.kind),cls=col.delta&&typeof value==='number'&&Math.abs(value)>1e-9?(col.lowerBetter?-value:value)>0?'positive':'negative':'';
         let cell=esc(display);
         if(i===0&&!total&&spec.key==='comparisons'&&ui.monthly&&ui.grouping!=='month'&&!row.depth)cell=`<button class="row-toggle" data-expand="${esc(row.id)}" aria-expanded="${expandedComparisons.has(row.id)}">${expandedComparisons.has(row.id)?'▾':'▸'} ${cell}</button>`;
         else if(!total&&col.key==='reference'&&spec.key.startsWith('simulator'))cell=`<button class="simulation-reference" data-simulation-reference="${row.values.sourceRow??row.id}" aria-pressed="${simulationOnlyReference&&simulationReference===Number(row.values.sourceRow??row.id)}" title="Usa solo questa riga come riferimento">${simulationOnlyReference&&simulationReference===Number(row.values.sourceRow??row.id)?'●':'◎'}</button>`;
         else if(i===0&&!total&&row.dimension&&row.entity)cell=`<button class="row-link" data-pick-dimension="${row.dimension}" data-pick-value="${esc(row.entity)}">${cell}</button>`;
-        return `<td class="${col.kind==='text'||col.kind==='date'?'':'numeric'} ${cls}" title="${esc(row.tooltips?.[col.key]||display)}">${cell}</td>`;
+        const contextField=!total&&(col.key==='article'||(i===0&&row.dimension==='article'))?'article':!total&&(col.key==='customer'||(i===0&&row.dimension==='customer'))?'customer':null;
+        const contextValue=contextField==='article'?String(row.values.article||row.entity||''):String(row.values.customer||row.entity||'');
+        return `<td ${contextField?`data-analysis-${contextField==='article'?'article':'customer-name'}="${esc(contextValue)}"`:''} class="${col.kind==='text'||col.kind==='date'?'':'numeric'} ${cls}" title="${esc(row.tooltips?.[col.key]||display)}">${cell}</td>`;
     }).join('')}</tr>`;
     node.innerHTML=`<thead><tr>${columns.map(col=>`<th class="${col.kind==='text'||col.kind==='date'?'':'numeric'}">${esc(col.label)}</th>`).join('')}</tr></thead><tbody>${shown.map(row=>tableRow(row)).join('')}${!shown.length?`<tr><td colspan="${columns.length}" class="empty-table">Nessuna registrazione con queste selezioni.</td></tr>`:''}</tbody>${spec.total?`<tfoot>${tableRow(spec.total,true)}</tfoot>`:''}`;
     const change=(next:SortCriterion[])=>{sortStates.set(spec.key,next);renderTable(spec)};
@@ -544,7 +550,7 @@ function applyChartFocus(){
     const panel=ui.focusChart?$(ui.focusChart)?.closest<HTMLElement>('.panel'):null;
     if(panel){panel.classList.add('chart-focused');panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label',panel.querySelector('h2')?.textContent||'Grafico');}
     document.body.classList.toggle('chart-focus-open',!!panel);$('chartBackdrop').hidden=!panel;
-    document.querySelectorAll<HTMLElement>('[data-expand-chart]').forEach(button=>{const expanded=button.dataset.expandChart===ui.focusChart;button.setAttribute('aria-pressed',String(expanded));button.textContent=expanded?'⤡':'⤢'});
+    document.querySelectorAll<HTMLElement>('[data-expand-chart]').forEach(button=>setChartExpanded(button,button.dataset.expandChart===ui.focusChart));
     panel?.querySelector<HTMLElement>('[data-expand-chart]')?.focus({preventScroll:true});resizeCharts();
 }
 function resetChartSelections(){
@@ -600,7 +606,7 @@ async function load(refresh=false){
         else{filters.years=filters.years.filter(y=>data!.years.includes(y));if(!filters.years.length)filters.years=[data!.years[data!.years.length-1]];}
         initPickers();syncFilters();render();$<HTMLButtonElement>('export').disabled=false;
     }catch(error){status(`Lettura non riuscita: ${(error as Error).message}${data?' · Restano visibili i dati dell’ultima lettura riuscita.':''}`,true)}
-    finally{loading=false;$<HTMLButtonElement>('refresh').disabled=false}
+    finally{loading=false;$<HTMLButtonElement>('refresh').disabled=false;applyAnalysisContext();}
 }
 async function saveSettings(next:TurningSettings){const result=await ipc.invoke('turning-analysis-settings-save',next);if(!result.ok)throw new Error(result.error);settings=result.settings;settingsWarning='';render();}
 function openGoals(){
@@ -785,4 +791,20 @@ $('saveCharts').addEventListener('click',async()=>{try{const next=clone(chartPre
 $('saveChartPreset').addEventListener('click',async()=>{try{const next=clone(chartPreferences),name=$<HTMLInputElement>('chartPresetName').value.trim();next.presets[view]??=[];next.presets[view]!.push({id:newChartId(),name,layout:{...clone(pageCharts()),layout:ui.layout as ChartLayout['layout']}});next.pages[view]={...clone(pageCharts()),layout:ui.layout as ChartLayout['layout']};await persistCharts(next);$<HTMLInputElement>('chartPresetName').value='';}catch(error){chartMessage((error as Error).message,true)}});
 $('applyChartPreset').addEventListener('click',()=>{const preset=chartPreferences.presets[view]?.find(p=>p.id===$<HTMLSelectElement>('chartPreset').value);if(!preset){chartMessage('Scegli prima un preset.',true);return}try{updateChartPage(page=>Object.assign(page,clone(preset.layout)));fillChartBuilder();chartMessage('Preset caricato. Premi Salva pagina per usarlo alla prossima apertura.')}catch(error){chartMessage((error as Error).message,true)}});
 $('deleteChartPreset').addEventListener('click',async()=>{const id=$<HTMLSelectElement>('chartPreset').value;if(!id){chartMessage('Scegli il preset da eliminare.',true);return}try{const next=clone(chartPreferences);next.presets[view]=(next.presets[view]||[]).filter(p=>p.id!==id);await persistCharts(next)}catch(error){chartMessage((error as Error).message,true)}});
+let pendingAnalysisContext:AnalysisContext|null=null;
+function applyAnalysisContext(){
+    if(!data||loading||!pendingAnalysisContext)return;
+    const context=pendingAnalysisContext;pendingAnalysisContext=null;
+    view='articles';ui.records=true;ui.focusChart='';ui.periodMode='compare';ui.singleYear=0;chartMonthContext=null;
+    const next:TurningFilters={years:[...data.years],from:1,to:12,machines:[],customers:[],articles:context.article?[data.articles.find(a=>a.trim().toLocaleLowerCase('it')===context.article!.trim().toLocaleLowerCase('it'))||context.article]:[]};
+    if(!context.article&&(context.customerName||context.customerCode)){
+        const names=[context.customerName,context.customerCode].filter(Boolean).map(v=>v!.trim().toLocaleLowerCase('it'));
+        next.customers=data.customers.filter(c=>names.includes(c.trim().toLocaleLowerCase('it')));
+        if(!next.customers.length)next.customers=[context.customerName||context.customerCode!];
+    }
+    commit(next);
+}
+ipc.on('analysis-open-context',(_event:any,context:AnalysisContext)=>{pendingAnalysisContext=context;applyAnalysisContext();});
+installAnalysisLinks(contextFromAnalysisElement,message=>status(message,true));
+ipc.send('analysis-context-ready');
 void load();

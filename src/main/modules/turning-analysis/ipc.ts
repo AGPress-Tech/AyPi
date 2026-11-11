@@ -4,22 +4,42 @@ import fs from 'fs';
 import {Worker} from 'worker_threads';
 import {TURNING_SOURCE,TurningData,emptyTurningSettings,validateTurningSettings} from './model';
 import {emptyChartPreferences,validateChartPreferences} from './chart-presets';
+import {registerAnalysisTarget,canOpenAnalysis} from '../analysis-navigation';
 
 export function registerTurningAnalysisIpc(mainWindow:BrowserWindow,icon:()=>string){
     let window:BrowserWindow|null=null,cache:TurningData|null=null,worker:Worker|null=null,pending:Promise<any>|null=null;
     let writes:Promise<unknown>=Promise.resolve();
     const owns=(event:any)=>window&&!window.isDestroyed()&&event.sender===window.webContents;
     const settingsPath=()=>path.join(app.getPath('userData'),'turning-analysis.settings.json');
-    ipcMain.handle('turning-analysis-open',async event=>{
-        if(event.sender!==mainWindow.webContents)return {ok:false,error:'Finestra non autorizzata.'};
-        if(window&&!window.isDestroyed()){window.maximize();window.show();window.focus();return {ok:true}}
+    const open=async()=>{
+        if(window&&!window.isDestroyed()){window.maximize();window.show();window.focus();return window;}
         const win=new BrowserWindow({width:1520,height:960,minWidth:1000,minHeight:680,show:false,title:'AyPi · Analisi Torneria',icon:icon(),backgroundColor:'#f7f4ed',webPreferences:{nodeIntegration:true,contextIsolation:false}});
         window=win;cache=null;win.setMenu(null);win.maximize();
         win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());
         win.once('ready-to-show',()=>{if(!win.isDestroyed())win.show()});
         win.on('closed',()=>{if(window===win){window=null;cache=null;worker?.terminate();worker=null;pending=null}});
         const theme=/[?&]theme=bluearchive(?:&|$)/.test(mainWindow.webContents.getURL()||'')?'bluearchive':'standard';
-        await win.loadFile(path.join(__dirname,'..','..','pages','turning-analysis.html'),{query:{theme}});return {ok:true};
+        void win.loadFile(path.join(__dirname,'..','..','pages','turning-analysis.html'),{query:{theme}}).catch(error=>{if(!win.isDestroyed())win.webContents.send('analysis-navigation-error',error.message);});return win;
+    };
+    let lookup:Promise<TurningData|null>|null=null,lookupUntil=0;
+    const exists=async(context:import('../analysis-navigation-model').AnalysisContext)=>{
+        if(!cache&&(!lookup||Date.now()>lookupUntil)){
+            lookupUntil=Date.now()+60000;
+            lookup=new Promise(resolve=>{
+                const task=new Worker(path.join(__dirname,'worker.js'),{workerData:{source:TURNING_SOURCE}});let done=false;
+                const finish=(data:TurningData|null)=>{if(done)return;done=true;clearTimeout(timer);resolve(data);void task.terminate();};
+                const timer=setTimeout(()=>finish(null),10000);
+                task.once('message',result=>finish(result.ok?result.data:null));task.once('error',()=>finish(null));task.once('exit',()=>finish(null));
+            });
+        }
+        const source=cache||await lookup;
+        const same=(a:string,b:string)=>a.trim().toLocaleLowerCase('it')===b.trim().toLocaleLowerCase('it');
+        return !!source?.records.some(r=>context.article?same(r.article,context.article):!!context.customerName&&same(r.customer,context.customerName));
+    };
+    registerAnalysisTarget('turning-analysis',open,owns,exists);
+    ipcMain.handle('turning-analysis-open',async event=>{
+        if(event.sender!==mainWindow.webContents&&!canOpenAnalysis(event.sender))return {ok:false,error:'Finestra non autorizzata.'};
+        await open();return {ok:true};
     });
     ipcMain.handle('turning-analysis-load',async(event,payload)=>{
         if(!owns(event))return {ok:false,error:'Finestra non autorizzata.'};

@@ -1,0 +1,42 @@
+/* Home backdrop, shared with the module launcher. */
+body.aypi-home-backdrop {
+  --home-glow: 69, 194, 255;
+  --home-paper: #f8fdff;
+  --home-shade: #e7f6ff;
+  --home-grid: 43, 142, 194;
+  --home-frame: 28, 146, 220;
+  --home-stripe: 34, 148, 218;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(var(--home-glow), .22), transparent 25%),
+    linear-gradient(118deg, var(--home-paper) 0 54%, var(--home-shade) 54% 100%);
+}
+:is(:root[data-interface-theme="agpress"], :root[data-forge-theme="standard"]) body.aypi-home-backdrop {
+  --home-glow: 243, 185, 62;
+  --home-paper: #fdf1d9;
+  --home-shade: #fcedcd;
+  --home-grid: 177, 135, 46;
+  --home-frame: 200, 147, 34;
+  --home-stripe: 198, 148, 39;
+}
+.aypi-home-backdrop .sky-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: .42;
+  background-image:
+    linear-gradient(rgba(var(--home-grid), .08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--home-grid), .08) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, transparent, #000 35%, #000);
+}
+.aypi-home-backdrop .sky-grid::after {
+  content: "";
+  position: absolute;
+  right: -9vw;
+  top: 17vh;
+  width: 45vw;
+  height: 70vh;
+  border: 1px solid rgba(var(--home-frame), .14);
+  transform: skewX(-24deg) rotate(-10deg);
+  background: repeating-linear-gradient(90deg, transparent 0 22px, rgba(var(--home-stripe), .035) 22px 24px);
+}

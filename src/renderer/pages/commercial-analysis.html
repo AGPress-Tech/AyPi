@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'">
+  <title>AyPi · Analisi commerciali</title>
+  <script src="../scripts/utility-layout-bootstrap.js"></script>
+  <link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
+  <link rel="stylesheet" href="../styles/utilities/aypi-operations-ui.css">
+  <link rel="stylesheet" href="../styles/turning-analysis.css">
+  <link rel="stylesheet" href="../styles/utilities/aypi-module-cards.css">
+  <link rel="stylesheet" href="../styles/commercial-analysis.css">
+  <link rel="stylesheet" href="../styles/utilities/aypi-home-background.css">
+</head>
+<body class="aypi-operations commercial-hub aypi-home-backdrop">
+  <div class="sky-grid" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash"></span></div>
+    <div class="header-title"><div class="eyebrow">GESTIONALE · ORDINI E OFFERTE</div><h1>Analisi commerciali</h1></div>
+    <div class="header-actions"><button id="close">Chiudi ×</button></div>
+  </header>
+  <main>
+    <section class="hub-catalog" aria-labelledby="modules-title">
+      <div class="hub-section-heading"><h2 id="modules-title">Le tue analisi</h2><span>SCEGLI UN MODULO <i aria-hidden="true">↘</i></span></div>
+      <div class="hub-modules">
+        <button class="module-card blue" data-analysis="article-orders"><span class="card-code">ANL–02 / VENDUTO</span><span class="card-icon icon-grid" aria-hidden="true"><i></i></span><strong class="card-title">Venduto per articolo</strong><span class="card-description">Ordini, consegne e residui degli articoli.</span><span class="card-arrow" aria-hidden="true">↗</span></button>
+        <button class="module-card cyan" data-analysis="article-offers"><span class="card-code">ANL–03 / OFFERTE</span><span class="card-icon icon-search" aria-hidden="true"><i></i></span><strong class="card-title">Offerte per articolo</strong><span class="card-description">Storico offerte, quantità e prezzi proposti.</span><span class="card-arrow" aria-hidden="true">↗</span></button>
+        <button class="module-card navy" data-analysis="customer-analysis"><span class="card-code">ANL–04 / CLIENTI</span><span class="card-icon icon-chart" aria-hidden="true"><i></i></span><strong class="card-title">Analisi per cliente</strong><span class="card-description">Dashboard, documenti e storico del cliente.</span><span class="card-arrow" aria-hidden="true">↗</span></button>
+      </div>
+    </section>
+    <p id="status" role="status" hidden></p>
+  </main>
+  <script src="../scripts/commercial-analysis.js"></script>
+</body>
+</html>

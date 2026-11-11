@@ -2,6 +2,8 @@ import { loadAnalyticsConfig, AnalyticsConfig } from "./config";
 import { queryDefinition, queryParameters } from "./catalog";
 import { buildArticleOrderQuery } from "./article-orders";
 import { buildArticleOfferQuery } from "./article-offers";
+import {customerSearchQuery,customerAnalysisQuery} from './customer-analysis';
+import {documentLinksQuery} from './document-links';
 const sql = require("mssql");
 
 export type AnalyticsDataset={queryId:string;columns:string[];rows:unknown[][];queriedAt:string;source:string;rowCount:number};
@@ -58,6 +60,31 @@ export function createAnalyticsService(getConfig=loadAnalyticsConfig, driver=sql
     }
     const articleOrders=(input:unknown)=>executeArticleQuery(buildArticleOrderQuery(input));
     const articleOffers=(input:unknown)=>executeArticleQuery(buildArticleOfferQuery(input));
-    return {config,query,articleOrders,articleOffers,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
+    async function customerQuery(input:unknown,lookup:boolean){
+        const definition=lookup?customerSearchQuery(input):customerAnalysisQuery(input);
+        if(articleRequests>=3)throw Error('Altre ricerche sono in corso. Riprovare tra qualche secondo.');
+        articleRequests++;
+        try{
+            const connection=await pool(),request=connection.request();
+            for(const p of definition.bindings){const isDate='type' in p&&p.type==='date';request.input(p.name,isDate?driver.Date:driver.VarChar(258),isDate?new Date(p.value+'T00:00:00Z'):p.value);}
+            const result=await request.query(definition.sql);
+            if(!lookup&&result.recordset.length>100000)throw Error('Oltre 100.000 righe per questo cliente: restringere il periodo di lettura.');
+            const rows=result.recordset.map((row:any)=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,v instanceof Date?v.toISOString().slice(0,10):v])));
+            return lookup?{customers:rows.slice(0,100),more:rows.length>100}:{rows,queriedAt:new Date().toISOString(),customer:(input as any).customer};
+        }finally{articleRequests--;}
+    }
+    const customerSearch=(input:unknown)=>customerQuery(input,true),customerAnalysis=(input:unknown)=>customerQuery(input,false);
+    async function documentLinks(input:unknown){
+        const definition=documentLinksQuery(input);
+        if(articleRequests>=3)throw Error('Altre ricerche sono in corso. Riprovare tra qualche secondo.');
+        articleRequests++;
+        try{
+            const connection=await pool(),request=connection.request();request.input('id',driver.Int,definition.bindings[0].value);
+            const result=await request.query(definition.sql);
+            if(result.recordset.length>10000)throw Error('Troppi documenti collegati per questa ricerca.');
+            return {rows:result.recordset.map((row:any)=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,v instanceof Date?v.toISOString().slice(0,10):v]))),queriedAt:new Date().toISOString()};
+        }finally{articleRequests--;}
+    }
+    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
 }
 export const analyticsService=createAnalyticsService();
