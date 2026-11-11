@@ -1,3 +1,8 @@
+import {excelDateCell,formatExcelNumbers} from '../../main/modules/analysis-excel';
+import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
+import {installAnalysisWorkspace} from '../modules/analysis-workspace';
+import {analysisSelectionHighlight} from '../modules/analysis-selection-highlight';
+import type {WorkspaceChart} from '../../main/modules/analysis-ui-model';
 import Chart from "chart.js/auto";
 import * as XLSX from "xlsx";
 import { ManagementData, Movement, CATEGORIES, margins, matches } from "../../main/modules/management/model";
@@ -21,7 +26,13 @@ const colors = [themeStyle.getPropertyValue("--ops-accent").trim(), "#45556b"];
 Chart.defaults.font.family = themeStyle.fontFamily;
 Chart.defaults.color = themeStyle.getPropertyValue("--ops-muted").trim();
 let data: ManagementData | null = null;
-let category: string | null = null;
+let groupCategories=new Map<string,string>();
+const selection={categories:[] as string[],groups:[] as string[],months:[] as number[],years:[] as number[]};
+const hasSelection=()=>Object.values(selection).some(v=>v.length);
+function selectShare(field:keyof typeof selection,key:any,multiple=false){const values=selection[field] as any[];(selection as any)[field]=multiple?(values.includes(key)?values.filter(v=>v!==key):[...values,key]):values.length===1&&values[0]===key?[]:[key];render();}
+function selectShareArea(field:keyof typeof selection,keys:any[],multiple=false){(selection as any)[field]=mergeAreaSelection(selection[field] as any[],keys,multiple);render();}
+function resetSelection(){selection.categories=[];selection.groups=[];selection.months=[];selection.years=[];render();}
+function selectedPoint(p:{group:string;year:number;month:number}){const category=groupCategories.get(p.group);return (!selection.categories.length||selection.categories.includes(category!))&&(!selection.groups.length||selection.groups.includes(p.group))&&(!selection.months.length||selection.months.includes(p.month))&&(!selection.years.length||selection.years.includes(p.year));}
 let view = "overview", busy = false;
 const expanded = new Set<string>();
 const expandedGroups = new Set<string>();
@@ -75,13 +86,13 @@ function updateYearChoices() {
         label.append(input, String(year)); $("yearChoices").appendChild(label);
     }
 }
-function report(year: number, from: number, to: number): Report {
+function report(year: number, from: number, to: number, selected=false): Report {
     const groups = Object.create(null), categories = Object.create(null);
-    for (const p of data!.points) if (p.year === year && p.month >= from && p.month <= to) groups[p.group] = (groups[p.group] || 0) + p.value;
+    for (const p of data!.points) if (p.year === year && p.month >= from && p.month <= to && (!selected||selectedPoint(p))) groups[p.group] = (groups[p.group] || 0) + p.value;
     for (const g of data!.groups) categories[g.category] = (categories[g.category] || 0) + (groups[g.name] || 0);
     const values = Object.values(categories) as number[];
     return { groups, categories, metrics: margins(categories), revenue: values.filter(v => v > 0).reduce((s,v) => s+v,0),
-        costs: -values.filter(v => v < 0).reduce((s,v) => s+v,0), total: values.reduce((s,v) => s+v,0) };
+        costs: Math.abs(values.filter(v => v < 0).reduce((s,v) => s+v,0)), total: values.reduce((s,v) => s+v,0) };
 }
 function reports() { const a = range(), b = range(true); return [report(a.year,a.from,a.to),report(b.year,b.from,b.to)]; }
 type Cell = string | number | { text: string; change: number | null;sort?:number|null };
@@ -133,20 +144,20 @@ function comparisonCells(values: number[]): Cell[] {
     return values.flatMap((value,i): Cell[] => i ? [deltaCell(value,values[i-1]),deltaCell(value,values[i-1],true),euro(value)] : [euro(value)]);
 }
 function comparisonSortValues(values:number[]):SortValue[]{return values.flatMap((value,i):SortValue[]=>i?[value-values[i-1],Math.abs(values[i-1])<1e-9?null:(value-values[i-1])/Math.abs(values[i-1])*100,value]:[value]);}
-function chart(id: string, type: "bar" | "line", labels: string[], datasets: any[], horizontal = false, click?: (i: number) => void) {
+function chart(id: string, type: "bar" | "line", labels: string[], datasets: any[], horizontal = false, click?: (i: number,multiple:boolean) => void,area?:(indices:number[],multiple:boolean)=>void) {
     charts.get(id)?.destroy();
     const node = $(id) as HTMLCanvasElement;
-    const instance = new Chart(node, { type, data: { labels, datasets }, options: {
-        responsive: true, maintainAspectRatio: false, animation: false, indexAxis: horizontal ? "y" : "x",
+    const instance = new Chart(node, { type, data: { labels, datasets }, plugins:[analysisSelectionHighlight], options: {
+        responsive: true, maintainAspectRatio: false, animation: false,onAreaSelect:area, indexAxis: horizontal ? "y" : "x",
         interaction: { mode: "index", intersect: true },
         hover: { mode: "nearest", intersect: true },
         plugins: { legend: { position: "top", align: "end", labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, font: { size: 12 } } },
-            tooltip: { mode: "index", intersect: true, callbacks: { label: (ctx) => `${ctx.dataset.label}: ${euro(Number(horizontal ? ctx.parsed.x : ctx.parsed.y))}` } } },
+            tooltip: { mode: "index", intersect: true, callbacks: { label: (ctx) => `${(ctx.dataset as any).highlightSeries?"Selezione":"Totale"} ${ctx.dataset.label}: ${euro(Number(horizontal ? ctx.parsed.x : ctx.parsed.y))}` } } },
         scales: { x: { grid: { display: horizontal }, ticks: { font: { size: 12 }, callback: function(value) { return horizontal ? compact(Number(value)) : shortLabel(this.getLabelForValue(Number(value))); } } },
             y: { beginAtZero: true, grid: { display: !horizontal, color: "#edf1f7" }, ticks: { autoSkip: !horizontal, font: { size: horizontal && node.parentElement!.clientHeight < 250 ? 11 : 12 }, callback: function(value) { return horizontal ? shortLabel(this.getLabelForValue(Number(value))) : compact(Number(value)); } } } },
         onClick: (event, elements, current) => {
             const area = current.chartArea;
-            if (event.x >= area.left && event.x <= area.right && event.y >= area.top && event.y <= area.bottom && click && elements.length) click(elements[0].index);
+            if (event.x >= area.left && event.x <= area.right && event.y >= area.top && event.y <= area.bottom && click && elements.length) click(elements[0].index,!!((event.native as any)?.ctrlKey||(event.native as any)?.metaKey));
         },
         onHover: (_event,elements) => { node.style.cursor = click && elements.length ? "pointer" : "default"; },
     } });
@@ -161,21 +172,44 @@ function shortLabel(s: string) { return s.length > 28 ? s.slice(0,26) + "…" : 
 function series(reports: Report[], keys: string[], kind: "categories" | "groups") {
     return reports.map((r,i) => ({ label: String(selectedRanges()[i].year), data: keys.map(k => r[kind][k] || 0), backgroundColor: seriesColor(i,reports.length), borderRadius: 3 }));
 }
+function shareSeries(keys:string[],kind:'categories'|'groups'){
+    const ranges=selectedRanges(),totals=ranges.map(r=>report(r.year,r.from,r.to)),selected=ranges.map(r=>report(r.year,r.from,r.to,true));
+    return series(totals,keys,kind).map((d:any,i)=>({...d,highlightValues:hasSelection()?keys.map(k=>selected[i][kind][k]||0):undefined,highlightColor:seriesColor(i,ranges.length),backgroundColor:hasSelection()?seriesColor(i,ranges.length)+'35':seriesColor(i,ranges.length)}));
+}
+function renderSelection(){
+    let host=document.getElementById('managementSelection');if(!host){host=document.createElement('div');host.id='managementSelection';host.className='management-selection';$('filters').after(host)}
+    host.hidden=!hasSelection();
+    host.innerHTML=Object.entries(selection).flatMap(([field,values])=>(values as any[]).map(key=>`<button data-selection-field="${field}" data-selection-value="${escape(key)}">${escape(field==='months'?months[Number(key)-1]:key)} ×</button>`)).join('')+(hasSelection()?`<span>Quota selezionata: ${euro(report(range().year,range().from,range().to,true).total)} · totali contabili invariati</span><button data-open-selection>Apri dettaglio conti</button>`:'');
+}
+function buildCustomChart(spec:WorkspaceChart){
+    if(!data)return null;const temporal=['monthlyChart','historyChart'].includes(spec.source),r=range(),keys=spec.source==='monthlyChart'?Array.from({length:r.to-r.from+1},(_,i)=>String(r.from+i)):spec.source==='historyChart'?data.years.map(String):spec.source==='categoryChart'?data.categories:data.groups.map(g=>g.name);
+    const labels=keys.slice(0,spec.limit),kind=spec.source==='categoryChart'?'categories':'groups';
+    const value=(key:string,selected:boolean)=>{if(!temporal)return report(r.year,r.from,r.to,selected)[kind][key]||0;const reportValue=spec.source==='monthlyChart'?report(r.year,+key,+key,selected):report(+key,r.from,r.to,selected);return spec.metric==='revenue'?reportValue.revenue:spec.metric==='costs'?reportValue.costs:reportValue.metrics[spec.metric]||0};
+    const totals=labels.map(k=>value(k,false)),selected=labels.map(k=>value(k,true));
+    const type=spec.kind==='doughnut'&&totals.some(v=>v<0)?'bar':spec.kind;
+    const dataset:any={label:spec.title,data:totals,backgroundColor:labels.map((_,i)=>type==='doughnut'?seriesColor(i,labels.length):hasSelection()?colors[0]+'35':colors[0]),borderColor:colors[0],highlightValues:hasSelection()&&type!=='line'?selected:undefined,highlightColors:labels.map((_,i)=>seriesColor(i,labels.length)),highlightColor:colors[0]};
+    return {type,data:{labels:labels.map(k=>spec.source==='monthlyChart'?months[+k-1]:k),datasets:type==='line'&&hasSelection()?[{...dataset,borderColor:colors[0]+'35'},{...dataset,data:selected,borderColor:colors[0],backgroundColor:colors[0],highlightSeries:true}]:[dataset]},plugins:[analysisSelectionHighlight],options:{responsive:true,maintainAspectRatio:false,animation:false,...(type==='doughnut'?{}:{scales:{y:{beginAtZero:true}}}),onAreaSelect:(indices:number[],multiple:boolean)=>{const keys=indices.map(i=>temporal?+labels[i]:labels[i]);selectShareArea(spec.source==='monthlyChart'?'months':spec.source==='historyChart'?'years':spec.source==='categoryChart'?'categories':'groups',keys,multiple)},onClick:(e:any,elements:any[])=>{if(!elements.length)return;const key=labels[elements[0].index],multiple=!!(e?.native?.ctrlKey||e?.native?.metaKey);selectShare(spec.source==='monthlyChart'?'months':spec.source==='historyChart'?'years':spec.source==='categoryChart'?'categories':'groups',temporal?+key:key,multiple)}}};
+}
+document.addEventListener('click',event=>{const button=(event.target as HTMLElement).closest<HTMLElement>('[data-selection-field],[data-open-selection]');if(!button)return;if(button.hasAttribute('data-open-selection')){setView('details');return}const field=button.dataset.selectionField as keyof typeof selection,value=['months','years'].includes(field)?Number(button.dataset.selectionValue):button.dataset.selectionValue;selectShare(field,value,true)});
 function overview() {
     const [a,b] = reports();
     const cards = [ ["Ricavi gestionali", a.revenue, b.revenue], ["Costi gestionali", a.costs,b.costs], ["Margine finale · M3",a.metrics["Margine 3"],b.metrics["Margine 3"]], ["Margine / ricavi produzione",a.metrics["Margine 3"],b.metrics["Margine 3"]] ];
     $("kpis").innerHTML = cards.map(([title,v,base],i) => `<article class="kpi"><small>${title} · ${range().year}</small><strong class="${i === 2 ? Number(v) >= 0 ? "positive" : "negative" : ""}">${i === 3 ? a.categories[CATEGORIES[0]] ? pct(Number(v) / a.categories[CATEGORIES[0]] * 100) : "n.d." : euro(Number(v))}</strong><p class="${i === 3 || Number(v) === Number(base) ? "" : Number(v) > Number(base) ? "delta-positive" : "delta-negative"}">${i === 3 ? "Rapporto M3 / ricavi di produzione" : `Δ ${euro(Number(v)-Number(base))} · ${delta(Number(v),Number(base))}`}</p><p>${i === 3 ? "Perimetro gestionale completo" : `rispetto al ${range(true).year}`}</p></article>`).join("");
     const all = selectedReports();
-    chart("categoryChart", "bar", data!.categories, series(all,data!.categories,"categories"), true, i => { category = category === data!.categories[i] ? null : data!.categories[i]; overview(); });
-    const groups = data!.groups.filter(g => !category || g.category === category).map(g => g.name)
+    if(hasSelection()){
+        const r=range(),share=report(r.year,r.from,r.to,true),values=[euro(share.revenue),euro(share.costs),euro(share.metrics['Margine 3']),share.categories[CATEGORIES[0]]?pct(share.metrics['Margine 3']/share.categories[CATEGORIES[0]]*100):'n.d.'];
+        $('kpis').querySelectorAll('.kpi').forEach((card,i)=>{const label=document.createElement('small');label.className='kpi-selected';label.textContent='Selezione: '+values[i];card.append(label)});
+    }
+    chart("categoryChart", "bar", data!.categories, shareSeries(data!.categories,"categories"), true, (i,multiple)=>selectShare("categories",data!.categories[i],multiple),(indices,multiple)=>selectShareArea("categories",indices.map(i=>data!.categories[i]),multiple));
+    const groups = data!.groups.map(g => g.name)
         .sort((x,y) => Math.max(...all.map(r => Math.abs(r.groups[y]||0)))-Math.max(...all.map(r => Math.abs(r.groups[x]||0)))).slice(0,12);
-    $("groupTitle").textContent = category || "Componenti di risultato · primi 12 gruppi";
-    chart("groupChart", "bar", groups, series(all,groups,"groups"), true, i => { select("detailCategory").value = data!.groups.find(g => g.name === groups[i])!.category; updateDetailGroups(groups[i]); setView("details"); });
+    $("groupTitle").textContent = "Componenti di risultato · primi 12 gruppi";
+    chart("groupChart", "bar", groups, shareSeries(groups,"groups"), true, (i,multiple)=>selectShare("groups",groups[i],multiple),(indices,multiple)=>selectShareArea("groups",indices.map(i=>groups[i]),multiple));
     $("marginBridge").innerHTML = Object.entries(a.metrics).map(([name,value]) => `<div><small>${escape(name)}</small><strong class="${value >= 0 ? "positive" : "negative"}">${euro(value)}</strong></div>`).join("");
 }
 function statementRows() {
-    const all = selectedReports(), rows: { name: string; values: number[]; type: string }[] = [];
-    for (const cat of data!.categories) {
+    const all = selectedRanges().map(r=>report(r.year,r.from,r.to,hasSelection())), rows: { name: string; values: number[]; type: string }[] = [];
+    for (const cat of data!.categories.filter(c=>!selection.categories.length||selection.categories.includes(c))) {
         rows.push({ name:cat,values:all.map(r => r.categories[cat]||0),type:"category" });
         if (expanded.has(cat)) for (const g of data!.groups.filter(g => g.category === cat)) rows.push({ name:g.name,values:all.map(r => r.groups[g.name]||0),type:"group" });
         const metric = marginAfter(cat);
@@ -225,7 +259,7 @@ async function loadAccountMovements(group: string, code: string, year: number) {
 function accountMovementRows(group: string, code: string, year: number): TableRow[] {
     const key = movementYearKey(group,code,year), state = movementStates.get(key), ranges=selectedRanges();
     const blank = () => comparisonHeaders().map(() => "");
-    const rows: TableRow[] = (state?.items || []).map(m => ({
+    const rows: TableRow[] = (state?.items || []).filter(m=>(!selection.months.length||selection.months.includes(m.month))&&(!selection.years.length||selection.years.includes(m.year))).map(m => ({
         cls:"movement-row",
         sortValues:[m.competenceDate,...ranges.flatMap((r,i):SortValue[]=>[...i?[null,null]:[],r.year===m.year?m.allocatedValue:null])],
         cells:[`${m.competenceDate.split("-").reverse().join("/")} · ${m.journalEntryId ? "Reg. "+m.journalEntryId+" / " : ""}Riga ${m.rowId} · ${m.description}`,...ranges.flatMap((r,i) => [...i ? ["",""] : [],r.year===m.year ? euro(m.allocatedValue) : "—"])],
@@ -258,12 +292,12 @@ function statement() {
 }
 function metric(r: Report, key: string) { return key === "Ricavi gestionali" ? r.revenue : key === "Costi gestionali" ? r.costs : r.metrics[key] ?? r.categories[key] ?? 0; }
 function goalsContext(period=range()): GoalsContext {
-    const r=report(period.year,period.from,period.to), compare=range(true), b=report(compare.year,compare.from,compare.to);
+    const r=report(period.year,period.from,period.to), compare=range(true), b=report(compare.year,compare.from,compare.to),share=report(period.year,period.from,period.to,true);
     return {...period,comparisonYear:compare.year,
         actual:{"Ricavi di Produzione":r.categories[CATEGORIES[0]]||0,"Margine 3":r.metrics["Margine 3"],"Costi gestionali":r.costs},
         reference:{"Ricavi di Produzione":b.categories[CATEGORIES[0]]||0,"Margine 3":b.metrics["Margine 3"],"Costi gestionali":b.costs},
-        categories:data!.categories.map(name=>({name,value:r.categories[name]||0})),
-        groups:data!.groups.map(g=>({...g,value:r.groups[g.name]||0})),
+        selectionActive:hasSelection(),selectedCategories:selection.categories,categories:data!.categories.map(name=>({name,value:r.categories[name]||0,selectedValue:share.categories[name]||0})),
+        groups:data!.groups.map(g=>({...g,value:r.groups[g.name]||0,selectedValue:share.groups[g.name]||0})),
     };
 }
 function historyRows() { const a = range(); return data!.years.map(year => ({ year, r:report(year,a.from,a.to), months:data!.periods[year].filter(m => m >= a.from && m <= a.to).length })); }
@@ -287,9 +321,10 @@ function trends() {
                 return check("cumulative") ? sum : value;
             }) };
     });
-    chart("monthlyChart","line",visibleMonths.map(m => months[m-1].slice(0,3)),sets);
+    const selectedSets=ranges.map((r,i)=>{let sum=0;return {...sets[i],data:visibleMonths.map(m=>{if(m<r.from||m>r.to||!data!.periods[r.year].includes(m))return null;const value=metric(report(r.year,m,m,true),key);sum+=value;return check('cumulative')?sum:value}),highlightSeries:true}});
+    chart("monthlyChart","line",visibleMonths.map(m => months[m-1].slice(0,3)),hasSelection()?[...sets.map(d=>({...d,borderColor:d.borderColor+'35',backgroundColor:d.backgroundColor+'35'})),...selectedSets]:sets,false,(i,multiple)=>selectShare('months',visibleMonths[i],multiple),(indices,multiple)=>selectShareArea('months',indices.map(i=>visibleMonths[i]),multiple));
     const history = historyRows();
-    chart("historyChart","bar",history.map(h => String(h.year)),[{ label:key,data:history.map(h => h.months ? metric(h.r,key) : null),backgroundColor:history.map(h => h.year === a.year ? colors[0] : "#aec6e4"),borderRadius:4 }]);
+    chart("historyChart","bar",history.map(h => String(h.year)),[{ label:key,data:history.map(h => h.months ? metric(h.r,key) : null),backgroundColor:history.map(h => (h.year === a.year ? colors[0] : "#aec6e4")+(hasSelection()?"35":"")),borderRadius:4,highlightValues:hasSelection()?history.map(h=>metric(report(h.year,a.from,a.to,true),key)):undefined,highlightColor:colors[0] }],false,(i,multiple)=>selectShare('years',history[i].year,multiple),(indices,multiple)=>selectShareArea('years',indices.map(i=>history[i].year),multiple));
     table("historyTable",["Esercizio","Mesi con dati / richiesti","Ricavi gestionali","Costi gestionali","Margine 1","Margine 2","Margine 3","Δ M3 €","Δ M3 %"],history.map((h,i) => ({sortValues:historySortValues(history,i),cells:[h.year,`${h.months} / ${a.to-a.from+1}`,...[h.r.revenue,h.r.costs,h.r.metrics["Margine 1"],h.r.metrics["Margine 2"],h.r.metrics["Margine 3"]].map(v => h.months ? euro(v) : "n.d."),...i && h.months && history[i-1].months ? [deltaCell(h.r.metrics["Margine 3"],history[i-1].r.metrics["Margine 3"]),deltaCell(h.r.metrics["Margine 3"],history[i-1].r.metrics["Margine 3"],true)] : ["n.d.","n.d."]]})));
 }
 function updateDetailGroups(value = "") {
@@ -301,13 +336,13 @@ function detailRows() {
     const ranges = selectedRanges(), primaryIndex = ranges.findIndex(r => r.year === range().year);
     const totals = ranges.map(r => {
         const map = new Map<string,number>();
-        for (const p of data!.accounts) if (p.year === r.year && p.month >= r.from && p.month <= r.to) map.set(p.code,(map.get(p.code)||0)+p.value);
+        for (const p of data!.accounts) if (p.year === r.year && p.month >= r.from && p.month <= r.to && (!selection.months.length||selection.months.includes(p.month))&&(!selection.years.length||selection.years.includes(p.year))) map.set(p.code,(map.get(p.code)||0)+p.value);
         return map;
     });
     const rows: { code:string; description:string; group:string; category:string; prefix:string; share:number; balances:number[]; values:number[]; value:number }[] = [];
     for (const rule of data!.rules) {
         const category = data!.groups.find(g => g.name === rule.group)!.category;
-        if (cat && cat !== category || group && group !== rule.group) continue;
+        if (cat && cat !== category || group && group !== rule.group || selection.categories.length&&!selection.categories.includes(category)||selection.groups.length&&!selection.groups.includes(rule.group)) continue;
         for (const code of new Set(totals.flatMap(map => [...map.keys()]))) {
             if (!matches(code,rule.code)) continue;
             const description = data!.descriptions[code] || "";
@@ -334,16 +369,17 @@ function quality() {
 }
 function render() {
     if (!data) return;
-    const context = JSON.stringify([data.loadedAt,selectedRanges()]);
+    const context = JSON.stringify([data.loadedAt,selectedRanges(),selection]);
     if (context !== movementContext) { movementContext=context; expandedAccounts.clear(); expandedMovementYears.clear(); movementStates.clear(); }
     const a = range(), b = range(true);
     updateYearChoices();
+    renderSelection();
     $("samePeriodNote").textContent = `${months[a.from-1].slice(0,3)} → ${months[a.to-1].slice(0,3)}`;
     $("samePeriodNote").hidden = independent();
     document.querySelectorAll<HTMLElement>(".comparison-period").forEach(el => el.hidden = !independent());
     const coverage = (r: ReturnType<typeof range>) => data!.periods[r.year].filter(m => m >= r.from && m <= r.to).length;
     $("sourceFooter").textContent = selectedRanges().map(r => `${r.year}: ${months[r.from-1]}–${months[r.to-1]} (${coverage(r)}/${r.to-r.from+1} mesi con dati)`).join(" · ") + ` · ${data.sourceKind==="sql" ? "SQL letto "+new Date(data.queriedAt!).toLocaleString("it-IT") : "Istantanea Excel "+new Date(data.modifiedAt).toLocaleString("it-IT")}`;
-    $("sourceFooter").title = $("sourceFooter").textContent;
+    $("sourceFooter").title = $("sourceFooter").textContent;$("sourceFooter").hidden=true;
     if (view === "overview") overview(); else if (view === "goals") goals.render(goalsContext()); else if (view === "statement") statement(); else if (view === "trends") trends(); else if (view === "details") details(); else quality();
 }
 function setView(next: string) {
@@ -360,7 +396,7 @@ function resetFilters() {
     select("compareFrom").value = "1"; select("compareTo").value = select("to").value;
     select("comparisonMode").value = "same";
     document.querySelectorAll<HTMLElement>(".comparison-period").forEach(el => el.hidden=true);
-    category=null; expanded.clear(); select("detailCategory").value=""; updateDetailGroups(); ($( "search") as HTMLInputElement).value="";
+    selection.categories=[];selection.groups=[];selection.months=[];selection.years=[]; expanded.clear(); select("detailCategory").value=""; updateDetailGroups(); ($( "search") as HTMLInputElement).value="";
 }
 async function load(refresh = false) {
     if (busy) return;
@@ -373,7 +409,7 @@ async function load(refresh = false) {
         if (!response.ok) throw new Error(response.error);
         const first = !data;
         const previous = first ? null : ["year","compare","from","to","compareFrom","compareTo"].map(id => select(id).value);
-        data=response.data;
+        data=response.data;groupCategories=new Map(data!.groups.map(g=>[g.name,g.category]));
         for (const year of extraYears) if (!data!.years.includes(year)) extraYears.delete(year);
         const years=data!.years.map(y => ({value:y,text:String(y)})); options("year",years); options("compare",years);
         if (first) {
@@ -392,7 +428,7 @@ async function load(refresh = false) {
         const warnings=[q.invalidDates ? `${q.invalidDates} date non valide escluse` : "", q.overlappingAccounts ? `${q.overlappingAccounts} conti ripartiti oltre il 100%: verificare le regole` : ""].filter(Boolean);
         $("status").className=warnings.length ? "warning" : "";
         $("status").title=`${data!.sourceKind==="sql" ? "SQL" : "Excel"} - ${number(q.included)} movimenti elaborati · ${number(q.closing)} chiusure escluse · ${data!.years[0]}–${data!.years.at(-1)} · Ultima lettura ${new Date(data!.loadedAt).toLocaleString("it-IT")}${warnings.length ? " · "+warnings.join(" · ") : ""}`;
-        $("status").textContent = warnings.length ? warnings.join(" · ") : `${data!.sourceKind==="sql" ? "SQL" : "Excel"} - ${number(q.included)} movimenti · Lettura ${new Date(data!.loadedAt).toLocaleTimeString("it-IT")}`;
+        $("status").textContent = warnings.join(" · ");
         render();
     } catch(error) {
         $("status").className="error";
@@ -404,6 +440,7 @@ async function exportWorkbook() {
     const book=XLSX.utils.book_new(), a=range(), b=range(true);
     const add = (name:string,rows:any[][]) => {
         const ws = XLSX.utils.aoa_to_sheet(rows);
+        formatExcelNumbers(ws);
         ws["!cols"] = rows[0].map((_,i) => ({wch: i===0 ? 55 : 22}));
         rows[0].forEach((header,i) => {
             if (!String(header).startsWith("Δ")) return;
@@ -426,7 +463,7 @@ async function exportWorkbook() {
         return [h.year,a.from,a.to,h.months,...[h.r.revenue,h.r.costs,h.r.metrics["Margine 1"],h.r.metrics["Margine 2"],value].map(v => h.months ? v : null),h.months && previous!==null ? value-previous : null,h.months && previous!==null && Math.abs(previous)>1e-9 ? (value-previous)/Math.abs(previous)*100 : null];
     })]);
     add("Dettaglio filtrato",[["Conto","Descrizione","Categoria","Gruppo","Regola","Percentuale",...ranges.flatMap((r,i) => [...i ? [`Δ ${ranges[i-1].year} → ${r.year}`] : [],`Saldo ${r.year}`,`Gestionale ${r.year}`])],...sortedRecords('detailTable',detailHeaders(),detailRows(),detailSortValues).map(r => [r.code,r.description,r.category,r.group,r.prefix,r.share,...r.values.flatMap((v,i) => [...i ? [v-r.values[i-1]] : [],r.balances[i],v])])]);
-    add("Origine",[["Sorgente",data.source],["Tipo sorgente",data.sourceKind || "excel"],["Lettura SQL",data.queriedAt || ""],["Parametri Excel",data.parameterSource || data.source],["Modifica parametri",data.modifiedAt],["Lettura riuscita",data.loadedAt],["Esportazione",new Date().toISOString()],["Principale",a.year,a.from,a.to],["Confronto",b.year,b.from,b.to],...ranges.map(r => ["Periodo selezionato",r.year,r.from,r.to]),["Filtro categoria dettaglio",select("detailCategory").value],["Filtro gruppo dettaglio",select("detailGroup").value],["Ricerca conto",($( "search") as HTMLInputElement).value],...Object.entries(data.quality)]);
+    add("Origine",[["Sorgente",data.source],["Tipo sorgente",data.sourceKind || "excel"],["Lettura SQL",excelDateCell(data.queriedAt || "",'dd/mm/yyyy hh:mm:ss')],["Parametri Excel",data.parameterSource || data.source],["Modifica parametri",excelDateCell(data.modifiedAt,'dd/mm/yyyy hh:mm:ss')],["Lettura riuscita",excelDateCell(data.loadedAt,'dd/mm/yyyy hh:mm:ss')],["Esportazione",excelDateCell(new Date().toISOString(),'dd/mm/yyyy hh:mm:ss')],["Selezioni grafici",JSON.stringify(selection)],["Principale",a.year,a.from,a.to],["Confronto",b.year,b.from,b.to],...ranges.map(r => ["Periodo selezionato",r.year,r.from,r.to]),["Filtro categoria dettaglio",select("detailCategory").value],["Filtro gruppo dettaglio",select("detailGroup").value],["Ricerca conto",($( "search") as HTMLInputElement).value],...Object.entries(data.quality)]);
     const objectiveRows=goals.exportRows(ranges.map(r=>goalsContext(r)));
     if(objectiveRows.length)add("Obiettivi",[["Anno","Dal mese","Al mese","Indicatore","Obiettivo €","Consuntivo €","Δ favorevole €","Stato"],...objectiveRows]);
     try {
@@ -466,7 +503,7 @@ window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer
 $("detailCategory").addEventListener("change",() => { if (!data) return; updateDetailGroups(); details(); });
 $("detailGroup").addEventListener("change",() => { if (data) details(); });
 $("search").addEventListener("input",() => { if (data) details(); });
-$("clearCategory").addEventListener("click",() => { category=null; render(); });
+$("clearCategory").addEventListener("click",resetSelection);
 $("statementTable").addEventListener("click",event => {
     const button=(event.target as HTMLElement).closest<HTMLElement>("[data-category],[data-group],[data-account],[data-movement-year],[data-more]");
     if (!button) return;
@@ -510,4 +547,5 @@ $("export").addEventListener("click",exportWorkbook);
 $("close").addEventListener("click",() => window.close());
 ipcRenderer.on("admin-state-changed",(_event,state) => { if (!state.management) { data=null; charts.forEach(c => c.destroy()); goals.destroy(); $("content").hidden=true; window.close(); } });
 ($( "export") as HTMLButtonElement).disabled=true;
+const workspace=installAnalysisWorkspace({key:'management',actions:document.querySelector('.actions')!,container:()=>$('content'),reset:resetSelection,sources:[{id:'categoryChart',title:'Categorie contabili'},{id:'groupChart',title:'Gruppi contabili'},{id:'monthlyChart',title:'Andamento mensile'},{id:'historyChart',title:'Storico annuale'}],metrics:[{id:'revenue',title:'Ricavi gestionali'},{id:'costs',title:'Costi gestionali'},...['Margine 1','Margine 2','Margine 3'].map(id=>({id,title:id}))],build:buildCustomChart,revision:()=>[selection,data?.loadedAt,data?selectedRanges():[]]});
 void load();

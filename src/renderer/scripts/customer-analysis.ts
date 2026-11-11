@@ -1,3 +1,4 @@
+import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
 import Chart from "chart.js/auto";
 import {
     analysisChartControls,
@@ -744,6 +745,14 @@ function drawChart(c: CustomerChart) {
                         b.key,
                         !!(native?.ctrlKey || native?.metaKey),
                     );
+            },
+            onAreaSelect:(indices,multiple)=>{
+                const dimension=c.dimension as keyof CustomerSelection;
+                if(!CUSTOMER_SELECTION_DIMENSIONS.includes(dimension))return;
+                const keys=indices.map(index=>buckets.find(b=>b.label===labels[index])?.key).filter((key):key is string=>!!key).map(key=>dimension==='kind'?(key==='Ordini'?'order':key==='Offerte'?'offer':key):key);
+                if(!keys.length)return;
+                filters.selection={...(filters.selection??emptyCustomerSelection()),[dimension]:mergeAreaSelection(filters.selection?.[dimension]??[],keys,multiple)};
+                syncFilters();applyFilters();
             },
             onHover: (_event, elements) => {
                 canvas.style.cursor = elements.length ? "pointer" : "default";

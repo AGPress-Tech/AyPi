@@ -6,6 +6,15 @@ const model=require('../src/main/modules/customer-analysis/model.ts');
 const queries=require('../backend/src/modules/analytics/customer-analysis.ts');
 const {documentLinksQuery,validateDocumentLinkRequest}=require('../backend/src/modules/analytics/document-links.ts');
 const {validateArticleOrderFilters}=require('../backend/src/modules/analytics/article-orders.ts');
+const {buildArticleOrderQuery}=require('../backend/src/modules/analytics/article-orders.ts');
+const {ARTICLE_ORDER_COLUMNS,DEFAULT_ARTICLE_ORDER_COLUMNS}=require('../src/main/modules/article-orders/columns.ts');
+assert.deepEqual(ARTICLE_ORDER_COLUMNS.slice(0,5).map(c=>c.key),['article','description','netWeight','grossWeight','orderNo']);
+assert(DEFAULT_ARTICLE_ORDER_COLUMNS.includes('netWeight')&&DEFAULT_ARTICLE_ORDER_COLUMNS.includes('grossWeight'));
+assert(!DEFAULT_ARTICLE_ORDER_COLUMNS.includes('description'));
+const weightQuery=buildArticleOrderQuery({articles:[{op:'exact',value:'ART-A'}],sort:[{key:'netWeight',direction:'asc'}]});
+assert.match(weightQuery.sql,/g.NetWeight AS netWeight,g.GrossWeight AS grossWeight/);
+assert.match(weightQuery.sql,/LEFT JOIN dbo.MA_ItemsGoodsData g ON g.Item=d.Item/);
+assert.match(weightQuery.sql,/netWeight ASC/);
 const {validateArticleOfferFilters}=require('../backend/src/modules/analytics/article-offers.ts');
 const {createAnalyticsService}=require('../backend/src/modules/analytics/service.ts');
 const base={kind:'order',documentId:1,documentNo:'ORD-1',documentDate:'2026-01-10',deliveryDate:'2026-02-01',customerCode:'C001',customerName:'Test',article:'ART-A',description:'Articolo',line:1,unit:'PZ',currency:'EUR',quantity:100,deliveredQuantity:25,residual:75,unitPrice:2,netPrice:1.5,netAmount:120,createdDate:'2026-01-09',delivered:0,cancelled:0};
@@ -115,7 +124,7 @@ async function testIpc(){
  }
  const out={exports:{}};
  const source=ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../src/main/modules/customer-analysis/ipc.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,esModuleInterop:true,target:ts.ScriptTarget.ES2020}}).outputText;
- vm.runInNewContext(source,{exports:out.exports,__dirname:path.resolve(__dirname,'../src/main/modules/customer-analysis'),Buffer,Intl,Date,Map,Set,Promise,require:id=>id==='electron'?{app:{getPath:()=>artifacts},BrowserWindow:FakeWindow,ipcMain:{handle:(k,v)=>handlers[k]=v,on:(k,v)=>listeners[k]=v},dialog:{showSaveDialog:async()=>({filePath:path.join(artifacts,'result.xlsx')})}}:id==='../analysis-navigation'?{registerAnalysisTarget(){},canOpenAnalysis(){return false}}:id==='./model'?model:id==='../file-manager/backend-client'?{requestAypiBackend:async(_path,body)=>{if(fail)throw Error('Offline');return {rows,customer:body.body.customer,queriedAt:'2026-11-10T10:00:00Z'}}}:require(id)});
+ vm.runInNewContext(source,{exports:out.exports,__dirname:path.resolve(__dirname,'../src/main/modules/customer-analysis'),Buffer,Intl,Date,Map,Set,Promise,require:id=>id==='electron'?{app:{getPath:()=>artifacts},BrowserWindow:FakeWindow,ipcMain:{handle:(k,v)=>handlers[k]=v,on:(k,v)=>listeners[k]=v},dialog:{showSaveDialog:async()=>({filePath:path.join(artifacts,'result.xlsx')})}}:id==='../analysis-navigation'?{registerAnalysisTarget(){},canOpenAnalysis(){return false}}:id==='../analysis-excel'?require('../src/main/modules/analysis-excel.ts'):id==='./model'?model:id==='../file-manager/backend-client'?{requestAypiBackend:async(_path,body)=>{if(fail)throw Error('Offline');return {rows,customer:body.body.customer,queriedAt:'2026-11-10T10:00:00Z'}}}:require(id)});
  out.exports.registerCustomerAnalysisIpc(mainWindow,()=> '');
  assert.equal((await handlers['customer-analysis-open']({sender:{}})).ok,false);
  assert.equal((await handlers['customer-analysis-open']({sender:mainContents})).ok,true);
@@ -125,7 +134,7 @@ async function testIpc(){
  const prefs=model.emptyCustomerPreferences();assert.equal((await handlers['customer-analysis-preferences-save'](event,prefs)).ok,true);
  assert.equal((await handlers['customer-analysis-preferences-load'](event)).preferences.charts.length,4);
  const exported=await handlers['customer-analysis-export'](event,model.defaultCustomerFilters());assert.equal(exported.ok,true);assert.equal(exported.count,5);
- const workbook=XLSX.readFile(path.join(artifacts,'result.xlsx'));assert(workbook.SheetNames.includes('Storico mensile'));assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['Righe documenti']).length,5);assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets.Documenti).length,4);
+ const workbook=XLSX.readFile(path.join(artifacts,'result.xlsx'),{cellNF:true,cellDates:true});assert(workbook.SheetNames.includes('Storico mensile'));assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['Righe documenti']).length,5);assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets.Documenti).length,4);assert.equal(workbook.Sheets['Righe documenti'].D2.t,'d');assert.equal(workbook.Sheets.Documenti.D2.t,'d');
  const selectedFilters={...model.defaultCustomerFilters(),selection:model.toggleCustomerSelection(model.emptyCustomerSelection(),'article','ART-B')};
  assert.equal((await handlers['customer-analysis-export'](event,selectedFilters)).count,1,'Excel follows the shared chart selection');
  fail=true;assert.equal((await handlers['customer-analysis-load'](event,{customer:'OTHER'})).ok,false);

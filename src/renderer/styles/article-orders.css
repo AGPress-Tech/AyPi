@@ -1,4 +1,5 @@
 :root { color-scheme:light; }
+.analysis-information{font-size:11px;color:var(--ops-muted);flex:0 0 auto}.analysis-information summary{cursor:pointer}.analysis-information p{margin:6px 0;line-height:1.5}
 * { box-sizing:border-box; }
 body { margin:0; height:100vh; display:flex; flex-direction:column; overflow:hidden; background:var(--ops-bg,#f7f4ed); color:var(--ops-ink,#183044); font:14px 'Segoe UI',sans-serif; }
 button,input,select { font:inherit; }

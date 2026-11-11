@@ -1,3 +1,5 @@
+import {excelDateCell,excelNumberFormat} from '../../main/modules/analysis-excel';
+import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
 import Chart from 'chart.js/auto';
 import {analysisChartControls,setChartExpanded} from '../modules/analysis-chart-controls';
 import {installAnalysisLinks} from '../modules/analysis-links';
@@ -41,7 +43,12 @@ let data:TurningData|null=null,settings=emptyTurningSettings(),view:View='dashbo
 let filters:TurningFilters={years:[],from:1,to:12,machines:[],customers:[],articles:[]};
 let filterUndoStack:TurningFilters[]=[],activeTable:TableSpec|null=null,visibleRows=250;
 const ui={metric:'revenue',grouping:'machine',monthly:false,activeOnly:true,records:false,influence:'machine' as Dimension,minRecords:3,minHours:1,cumulative:false,layout:'compact',focusChart:'',periodMode:'compare',singleYear:0};
+let chartDimensionContext:Partial<Record<FilterDimension,string[]>>={};
+let chartMonthSelection:number[]=[];
 let chartMonthContext:{from:number;to:number}|null=null;
+let chartYearContext:number[]|null=null;
+let committedChartContext={dimensions:{} as Partial<Record<FilterDimension,string[]>>,monthSelection:[] as number[],months:null as {from:number;to:number}|null,years:null as number[]|null};
+const chartUndoStack:typeof committedChartContext[]=[];
 let simulationScenario=defaultHypothesis(),simulationTable:'real'|'result'='real',simulationOnlyReference=false,simulationReference:number|null=null,simulationPhase='',simulationOrder='',simulationError='';
 let simulationControlsOpen=true,simulationDirty=false;
 let simulationDraft={...defaultHypothesis(),value:'',quantity:'',setup:''};
@@ -52,11 +59,11 @@ const analysisYears=()=>groupedPage()&&ui.periodMode==='single'?[filters.years.i
 const primaryYear=()=>Math.max(...analysisYears());
 const comparisonYear=()=>{const years=[...analysisYears()].sort((a,b)=>a-b);return years.length>1?years[years.length-2]:data!.years.includes(years[0]-1)?years[0]-1:null};
 const simulationMatch=(row:TurningRecord)=>(!simulationPhase||row.phase.toLocaleLowerCase('it')===simulationPhase.toLocaleLowerCase('it'))&&(!simulationOrder||row.order.toLocaleLowerCase('it').includes(simulationOrder.toLocaleLowerCase('it')));
-const scopeRows=(year?:number)=>data?filterTurningRecords(data,filters,year===undefined?analysisYears():[year]).filter(row=>view!=='simulator'||simulationMatch(row)):[];
+const scopeRows=(year?:number)=>data?filterTurningRecords(data,filters,year===undefined?analysisYears():[year]).filter(row=>(!chartMonthSelection.length||chartMonthSelection.includes(row.month))&&(view!=='simulator'||simulationMatch(row))):[];
 // Anni, mesi e intervalli definiscono il contesto; le dimensioni evidenziano
 // la quota selezionata senza eliminare i totali dagli altri grafici.
-const hasChartSelection=()=>!!(filters.machines.length||filters.customers.length||filters.articles.length);
-const chartRows=(year=primaryYear())=>filterTurningRecords(data!,{...filters,machines:[],customers:[],articles:view==='simulator'?filters.articles:[]},[year]).filter(row=>view!=='simulator'||simulationMatch(row));
+const hasChartSelection=()=>Object.keys(chartDimensionContext).length>0||chartMonthSelection.length>0;
+const chartRows=(year=primaryYear())=>filterTurningRecords(data!,{...filters,machines:chartDimensionContext.machines??filters.machines,customers:chartDimensionContext.customers??filters.customers,articles:chartDimensionContext.articles??filters.articles},[year]).filter(row=>view!=='simulator'||simulationMatch(row));
 const fadeColor=(value:string,alpha=.2)=>chartColor(value).alpha(alpha).rgbString();
 const dimensionKey=(dimension:Dimension):FilterDimension=>dimension==='machine'?'machines':dimension==='customer'?'customers':'articles';
 const color=(index:number,total=filters.years.length)=>index===total-1?accent:['#526c84','#21988b','#8d72b7','#ca8944','#c46183','#658b37','#7173b1'][index]||`hsl(${index*137.5%360},55%,43%)`;
@@ -82,12 +89,17 @@ function validFilters(next:TurningFilters){
 }
 function commit(next:TurningFilters,remember=true){
     try{validFilters(next)}catch(error){status((error as Error).message,true);syncFilters();return}
-    if(remember){filterUndoStack.push(clone(filters));if(filterUndoStack.length>30)filterUndoStack.shift();}
+    if(remember){filterUndoStack.push(clone(filters));chartUndoStack.push(clone(committedChartContext));if(filterUndoStack.length>30){filterUndoStack.shift();chartUndoStack.shift();}}
+    committedChartContext=clone({dimensions:chartDimensionContext,monthSelection:chartMonthSelection,months:chartMonthContext,years:chartYearContext});
     filters=clone(next);filters.years.sort((a,b)=>a-b);visibleRows=250;syncFilters();render();
 }
+function chooseArea(dimension:Dimension,keys:string[],multiple=false){const field=dimensionKey(dimension),next=clone(filters);chartDimensionContext[field]??=[...filters[field]];next[field]=mergeAreaSelection(filters[field],keys,multiple);if(!next[field].length){next[field]=[...chartDimensionContext[field]!];delete chartDimensionContext[field];}commit(next);}
+function chooseMonthsArea(months:number[],multiple=false){chartMonthSelection=mergeAreaSelection(chartMonthSelection,months,multiple);commit(clone(filters));}
 function choose(dimension:Dimension,key:string,multiple=false){
     const next=clone(filters),field=dimensionKey(dimension);
+    chartDimensionContext[field]??=[...filters[field]];
     next[field]=multiple?(next[field].includes(key)?next[field].filter(v=>v!==key):[...next[field],key]):next[field].length===1&&next[field][0]===key?[]:[key];
+    if(!next[field].length){next[field]=[...chartDimensionContext[field]!];delete chartDimensionContext[field];}
     commit(next);
 }
 function pickerValues(dimension:FilterDimension){
@@ -117,6 +129,7 @@ function syncFilters(){
     const reference=comparisonYear();$('scope').textContent=`KPI ${primaryYear()}${reference?' vs '+reference:''} · ${MONTHS[filters.from-1]}–${MONTHS[filters.to-1]}`;
     if(view==='simulator')$('scope').textContent=`Simulazione · ${filters.years.join(' · ')} · ${MONTHS[filters.from-1]}–${MONTHS[filters.to-1]}`;
     $('selectionChips').innerHTML=(['machines','customers','articles'] as FilterDimension[]).flatMap(field=>filters[field].slice(0,2).map(value=>`<button class="selection-chip" data-remove-field="${field}" data-remove-value="${esc(value)}" title="Rimuovi selezione">${esc(value)} ×</button>`).concat(filters[field].length>2?[`<button class="selection-chip" data-clear-field="${field}">+${filters[field].length-2} · azzera</button>`]:[])).join('');
+    if(chartMonthSelection.length){const button=document.createElement('button');button.className='selection-chip';button.dataset.clearMonthArea='true';button.textContent=chartMonthSelection.map(m=>MONTHS[m-1].slice(0,3)).join(', ')+' \u00d7';$('selectionChips').append(button);}
     $<HTMLButtonElement>('undo').disabled=!filterUndoStack.length;
 }
 function metric(rows:readonly TurningRecord[],key:string,year:number,from=filters.from,to=filters.to,machine?:string){
@@ -144,7 +157,7 @@ function donutFractions(instance:any){
     const elapsed=reducedMotion.matches?1:Math.min(1,(performance.now()-tween.start)/420),ease=1-Math.pow(1-elapsed,4);
     return tween.to.map((value:number,i:number)=>tween.from[i]+(value-tween.from[i])*ease);
 }
-function chart(id:string,type:any,labels:string[],datasets:any[],options:any={},onSelect?:(index:number,multiple:boolean)=>void){
+function chart(id:string,type:any,labels:string[],datasets:any[],options:any={},onSelect?:(index:number,multiple:boolean)=>void,onArea?:(indices:number[],multiple:boolean)=>void){
     const valueMetric=options.valueMetric||'';delete options.valueMetric;
     if(chartHidden(id)){$(id)?.closest<HTMLElement>('.panel')?.setAttribute('hidden','');return;}
     if(spatialCharts.has(id)){spatialCharts.get(id)!.destroy();spatialCharts.delete(id);}
@@ -192,7 +205,7 @@ function chart(id:string,type:any,labels:string[],datasets:any[],options:any={},
             return `${source.label||ctx.label}: ${num(value,2)}`;
         }}}},
         ...type==='doughnut'?{cutout:'70%',borderWidth:2,borderColor:'#fff'}:{scales:{x:{...options.indexAxis==='y'?{beginAtZero:true,grace:'15%'}:{},grid:{display:options.indexAxis==='y',color:'#edf0f3'},ticks:{font:{size:10},precision:countMetric(valueMetric)?0:undefined,maxRotation:0,callback:function(v:any){return options.indexAxis==='y'?axisLabel(+v,valueMetric):String((this as any).getLabelForValue(v)).slice(0,22)}}},y:{beginAtZero:true,grid:{display:options.indexAxis!=='y',color:'#edf0f3'},ticks:{font:{size:10},precision:countMetric(valueMetric)?0:undefined,callback:function(v:any){return options.indexAxis==='y'?String((this as any).getLabelForValue(v)).slice(0,25):axisLabel(+v,valueMetric)}}}}},
-        ...options,onHover:(_event:any,elements:any[],instance:any)=>{instance.canvas.style.cursor=onSelect&&elements.length?'pointer':'default'},onClick:(event:any,elements:any[])=>{if(onSelect&&elements.length)onSelect(elements[0].index,!!(event.native?.ctrlKey||event.native?.metaKey))},
+        ...options,onAreaSelect:onArea,onHover:(_event:any,elements:any[],instance:any)=>{instance.canvas.style.cursor=onSelect&&elements.length?'pointer':'default'},onClick:(event:any,elements:any[])=>{if(onSelect&&elements.length)onSelect(elements[0].index,!!(event.native?.ctrlKey||event.native?.metaKey))},
     }};
     if(previous&&(previous.config as any).type===type){
         // Riutilizzare canvas e controller conserva le geometrie iniziali per
@@ -225,7 +238,7 @@ function monthlyChart(id:string,key=ui.metric){
         return [{...common,seriesKey:`${year}:total`,label:String(year),data:total,borderColor:active?fadeColor(tint,.22):tint,backgroundColor:active?fadeColor(tint,.22):tint,order:1},
             {...common,seriesKey:`${year}:selection`,highlightSeries:true,label:`${year} · selezione`,data:active?selection:monthList.map(()=>null),borderColor:tint,backgroundColor:tint,order:0}];
     });
-    chart(id,'line',monthList.map(m=>MONTHS[m-1].slice(0,3)),datasets,{valueMetric:key},(index,multiple)=>{const month=monthList[index],next=clone(filters);chartMonthContext??={from:filters.from,to:filters.to};next.from=ui.cumulative?Math.min(chartMonthContext.from,month):multiple?Math.min(filters.from,month):month;next.to=multiple?Math.max(filters.to,month):month;commit(next)});
+    chart(id,'line',monthList.map(m=>MONTHS[m-1].slice(0,3)),datasets,{valueMetric:key},(index,multiple)=>{const month=monthList[index],next=clone(filters);chartMonthContext??={from:filters.from,to:filters.to};next.from=ui.cumulative?Math.min(chartMonthContext.from,month):multiple?Math.min(filters.from,month):month;next.to=multiple?Math.max(filters.to,month):month;commit(next)},(indices,multiple)=>chooseMonthsArea(indices.map(i=>monthList[i]),multiple));
 }
 function rankingChart(id:string,dimension:Dimension,key='revenue',limit=8){
     const source=groupedPage()&&ui.periodMode==='compare'?analysisYears().flatMap(y=>chartRows(y)):chartRows();
@@ -239,12 +252,12 @@ function highlightedRanking(id:string,groups:{key:string;value:number|null}[],di
             const total=new Map(turningGroups(chartRows(year),dimension).map(g=>[g.key,g.stats[key]])),chosen=new Map(turningGroups(scopeRows(year),dimension).map(g=>[g.key,g.stats[key]])),tint=color(index,years.length);
             return {seriesKey:String(year),year,label:String(year),data:groups.map(g=>total.get(g.key)??0),backgroundColor:active?fadeColor(tint):tint,highlightColor:tint,highlightValues:active?groups.map(g=>chosen.get(g.key)??0):undefined,borderRadius:3,maxBarThickness:24};
         });
-        chart(id,'bar',groups.map(g=>g.key),datasets,{indexAxis:'y',valueMetric:key},(i,multiple)=>choose(dimension,groups[i].key,multiple));return;
+        chart(id,'bar',groups.map(g=>g.key),datasets,{indexAxis:'y',valueMetric:key},(i,multiple)=>choose(dimension,groups[i].key,multiple),(indices,multiple)=>chooseArea(dimension,indices.map(i=>groups[i].key),multiple));return;
     }
     chart(id,'bar',groups.map(g=>g.key),[
         {seriesKey:'total',label:active?label+' · totale':label,data:groups.map(g=>g.value),backgroundColor:active?fadeColor(accent):accent,borderRadius:3,maxBarThickness:28,grouped:false,order:1},
         {seriesKey:'selection',highlightSeries:true,label:label+' · selezione',data:groups.map(g=>active?(selected.get(g.key)??0):null),backgroundColor:accent,borderRadius:3,maxBarThickness:28,grouped:false,order:0},
-    ],{indexAxis:'y',valueMetric:key},(i,multiple)=>choose(dimension,groups[i].key,multiple));
+    ],{indexAxis:'y',valueMetric:key},(i,multiple)=>choose(dimension,groups[i].key,multiple),(indices,multiple)=>chooseArea(dimension,indices.map(i=>groups[i].key),multiple));
 }
 function dashboard(){
     $('content').innerHTML=`<div class="dashboard-grid">${panel('Andamento del ricavo'+(ui.cumulative?' · cumulativo':''),ui.cumulative?'Cumulato dall’inizio del periodo selezionato · stessi mesi per ogni anno':'Esercizi confrontati sugli stessi mesi · clic su un mese per esplorarlo',canvas('turningMonthly'))}${panel('Obiettivi e avanzamento','Anno KPI e selezioni correnti',`<div class="goal-list" id="goalList"></div>`,'<button data-open-goals>Imposta obiettivi</button>')}${panel('Macchine per ricavo · '+primaryYear(),'Clic per selezionare · Ctrl+clic per selezioni multiple',canvas('turningMachines'))}${panel('Clienti per ricavo · '+primaryYear(),'Seleziona una componente per aggiornare tutta l’analisi',canvas('turningCustomers'))}</div>`;
@@ -408,7 +421,7 @@ function customGrouping(config:CustomChart,rows:TurningRecord[]){
 }
 function customSelect(config:CustomChart,key:string,multiple:boolean){
     if(config.dimension==='month'){const next=clone(filters),month=+key;chartMonthContext??={from:filters.from,to:filters.to};next.from=multiple?Math.min(next.from,month):month;next.to=multiple?Math.max(next.to,month):month;commit(next)}
-    else if(config.dimension==='year'){const next=clone(filters);next.years=multiple?[...new Set([...next.years,+key])]:[+key];commit(next)}
+    else if(config.dimension==='year'){chartYearContext??=[...filters.years];const next=clone(filters);next.years=multiple?[...new Set([...next.years,+key])]:[+key];commit(next)}
     else choose(config.dimension,key,multiple);
 }
 function renderCustomCharts(){
@@ -434,12 +447,12 @@ function renderCustomCharts(){
             if(config.kind==='bar'&&['rate','setupShare'].includes(config.metric))return [{...common,label:label+' · totale'},{...common,seriesKey:String(year)+':selection',label:label+' · selezione',hidden:!active,highlightSeries:!active,data:chosen,backgroundColor:tint}];
             return config.kind==='bar'?[{...common,highlightColor:tint,highlightValues:active?chosen.map(v=>v??0):undefined}]:[{...common,order:1},{...common,seriesKey:String(year)+':selection',highlightSeries:true,label:label+' · selezione',data:active?chosen:groups.map(()=>null),borderColor:tint,backgroundColor:tint,order:0}];
         });
-        chart(config.id,config.kind,labels,datasets,config.kind==='bar'?{indexAxis:'y',valueMetric:config.metric}:{valueMetric:config.metric},(i,m)=>customSelect(config,groups[i].key,m));
+        chart(config.id,config.kind,labels,datasets,config.kind==='bar'?{indexAxis:'y',valueMetric:config.metric}:{valueMetric:config.metric},(i,m)=>customSelect(config,groups[i].key,m),(indices,multiple)=>{const keys=indices.map(i=>groups[i].key);if(config.dimension==='month')chooseMonthsArea(keys.map(Number),multiple);else if(config.dimension==='year'){chartYearContext??=[...filters.years];const next=clone(filters);next.years=mergeAreaSelection(filters.years,keys.map(Number),multiple);if(next.years.length)commit(next);}else chooseArea(config.dimension,keys,multiple);});
     }
 }
 function performanceView(){
     const scatter=pageCharts().scatter;
-    $('content').innerHTML=`<div class="split-view"><div class="chart-grid">${panel('Resa e dimensione delle registrazioni',scatter.mode==='scatter3d'?'Trascina per ruotare · Ctrl+rotella per zoom · clic su un punto per selezionare l’articolo':'Ogni punto è una registrazione · clic per selezionare l’articolo',canvas('rateScatter'),`<select id="scatterMode" aria-label="Visualizzazione dispersione"><option value="scatter3d" ${scatter.mode==='scatter3d'?'selected':''}>3D</option><option value="bubble" ${scatter.mode==='bubble'?'selected':''}>Bolle</option><option value="scatter" ${scatter.mode==='scatter'?'selected':''}>2D</option></select><button data-edit-scatter title="Personalizza assi e periodo">Assi</button>`)}${panel('Resa complessiva per segmento · '+primaryYear(),'Ricavo / ore dei segmenti con campione minimo',canvas('rateRanking'))}</div>${panel('Fattori associati alla resa','Analisi descrittiva · selezioni e campione minimo espliciti',tableShell(),`<div class="view-tools"><select id="influenceDimension" aria-label="Dimensione rendimento">${[['machine','Macchine'],['customer','Clienti'],['article','Articoli']].map(([value,label])=>`<option value="${value}" ${ui.influence===value?'selected':''}>${label}</option>`).join('')}</select><label>Min. registrazioni<input id="minRecords" type="number" min="1" value="${ui.minRecords}"></label><label>Min. ore<input id="minHours" type="number" min="0" step="any" value="${ui.minHours}"></label></div>`)}</div>`;
+    $('content').innerHTML=`<div class="split-view"><div class="chart-grid">${panel('Resa e dimensione delle registrazioni',scatter.mode==='scatter3d'?'Trascina per ruotare · Ctrl+rotella per zoom · clic su un punto per selezionare l’articolo':'Ogni punto è una registrazione · clic per selezionare l’articolo',canvas('rateScatter'),`<select id="scatterMode" aria-label="Visualizzazione dispersione"><option value="scatter3d" ${scatter.mode==='scatter3d'?'selected':''}>3D</option><option value="bubble" ${scatter.mode==='bubble'?'selected':''}>Bolle</option><option value="scatter" ${scatter.mode==='scatter'?'selected':''}>2D</option></select>`)}${panel('Resa complessiva per segmento · '+primaryYear(),'Ricavo / ore dei segmenti con campione minimo',canvas('rateRanking'))}</div>${panel('Fattori associati alla resa','Analisi descrittiva · selezioni e campione minimo espliciti',tableShell(),`<div class="view-tools"><select id="influenceDimension" aria-label="Dimensione rendimento">${[['machine','Macchine'],['customer','Clienti'],['article','Articoli']].map(([value,label])=>`<option value="${value}" ${ui.influence===value?'selected':''}>${label}</option>`).join('')}</select><label>Min. registrazioni<input id="minRecords" type="number" min="1" value="${ui.minRecords}"></label><label>Min. ore<input id="minHours" type="number" min="0" step="any" value="${ui.minHours}"></label></div>`)}</div>`;
     renderScatter('rateScatter',scatter);
     const spec=performanceSpec(),rank=performanceSpec(chartRows()).rows.slice().sort((a,b)=>(b.values.rate as number||0)-(a.values.rate as number||0)).slice(0,7);
     highlightedRanking('rateRanking',rank.map(r=>({key:r.entity!,value:r.values.rate as number|null})),ui.influence,'rate');renderTable(spec);
@@ -554,8 +567,8 @@ function applyChartFocus(){
     panel?.querySelector<HTMLElement>('[data-expand-chart]')?.focus({preventScroll:true});resizeCharts();
 }
 function resetChartSelections(){
-    if(!data)return;const next=clone(filters);next.machines=[];next.customers=[];next.articles=[];
-    if(chartMonthContext){next.from=chartMonthContext.from;next.to=chartMonthContext.to;chartMonthContext=null;}commit(next);
+    if(!data)return;chartMonthSelection=[];const next=clone(filters);for(const field of ['machines','customers','articles'] as FilterDimension[])if(chartDimensionContext[field])next[field]=[...chartDimensionContext[field]!];chartDimensionContext={};
+    if(chartMonthContext){next.from=chartMonthContext.from;next.to=chartMonthContext.to;chartMonthContext=null;}if(chartYearContext){next.years=[...chartYearContext];chartYearContext=null;}commit(next);
 }
 function updateLayoutButton(){document.body.dataset.layout=ui.layout;$('layoutToggle').textContent=ui.layout==='expanded'?'↕ Vista compatta':'↕ Vista ampia';$('layoutToggle').setAttribute('aria-pressed',String(ui.layout==='expanded'));}
 function chartMessage(message:string,error=false){$('chartsMessage').textContent=message;$('chartsMessage').classList.toggle('error-text',error);}
@@ -602,7 +615,7 @@ async function load(refresh=false){
     try{
         const result=await ipc.invoke('turning-analysis-load',{refresh});if(!result.ok)throw new Error(result.error);
         const first=!data;data=result.data;
-        if(first){filters=defaultFilters();const [saved,prefs]=await Promise.all([ipc.invoke('turning-analysis-settings-load'),ipc.invoke('turning-analysis-charts-load')]);if(saved.ok)settings=saved.settings;else settingsWarning=saved.error;if(prefs.ok){chartPreferences=prefs.preferences;if(chartPreferences.pages.performance)chartPreferences.pages.performance.scatter.mode='scatter';ui.layout=pageCharts().layout;updateLayoutButton();}else chartsWarning=prefs.error;}
+        if(first){filters=defaultFilters();const [saved,prefs]=await Promise.all([ipc.invoke('turning-analysis-settings-load'),ipc.invoke('turning-analysis-charts-load')]);if(saved.ok)settings=saved.settings;else settingsWarning=saved.error;if(prefs.ok){chartPreferences=prefs.preferences;ui.layout=pageCharts().layout;updateLayoutButton();}else chartsWarning=prefs.error;}
         else{filters.years=filters.years.filter(y=>data!.years.includes(y));if(!filters.years.length)filters.years=[data!.years[data!.years.length-1]];}
         initPickers();syncFilters();render();$<HTMLButtonElement>('export').disabled=false;
     }catch(error){status(`Lettura non riuscita: ${(error as Error).message}${data?' · Restano visibili i dati dell’ultima lettura riuscita.':''}`,true)}
@@ -630,8 +643,8 @@ function openCapacity(){
 }
 function appendAnalysisSheet(book:XLSX.WorkBook,name:string,spec:TableSpec,allColumns=false){
     const columns=(allColumns?spec.columns:columnStates.has(spec.key)?selectedColumns(spec):spec.columns).filter(col=>col.key!=='reference'),rows=sortedRows(spec,true),values=[columns.map(c=>c.label),...rows.map(row=>columns.map(c=>row.values[c.key]??null)),...spec.total?[columns.map(c=>spec.total!.values[c.key]??null)]:[]];
-    const sheet=XLSX.utils.aoa_to_sheet(values);sheet['!cols']=columns.map((col,i)=>({wch:i===0?24:col.kind==='text'?35:22}));sheet['!autofilter']={ref:sheet['!ref']||'A1'};
-    for(let col=0;col<columns.length;col++)for(let r=1;r<values.length;r++){const cell=sheet[XLSX.utils.encode_cell({r,c:col})];if(cell?.t==='n'){const c=columns[col],pattern=c.kind==='price'?'#,##0.00####':c.kind==='percent'?'0.0%':'#,##0.00####';cell.z=c.kind==='year'?'0':c.kind==='integer'?'#,##0':c.delta?`[${c.lowerBetter?'Red':'Green'}]${pattern};[${c.lowerBetter?'Green':'Red'}]-${pattern};${pattern}`:pattern;}}
+    const sheet=XLSX.utils.aoa_to_sheet(values.map((row,index)=>index?row.map((v,i)=>columns[i].kind==='date'?excelDateCell(v,'mm/yyyy'):v):row));sheet['!cols']=columns.map((col,i)=>({wch:i===0?24:col.kind==='text'?35:22}));sheet['!autofilter']={ref:sheet['!ref']||'A1'};
+    for(let col=0;col<columns.length;col++)for(let r=1;r<values.length;r++){const cell=sheet[XLSX.utils.encode_cell({r,c:col})];if(cell?.t==='n'&&columns[col].kind!=='date'){const c=columns[col],pattern=c.kind==='percent'?'0.0%':excelNumberFormat(Number(cell.v),['price','money','rate'].includes(c.kind)?2:0);cell.z=c.kind==='year'?'0':c.kind==='integer'?'#,##0':c.delta?`[${c.lowerBetter?'Red':'Green'}]${pattern};[${c.lowerBetter?'Green':'Red'}]-${pattern};${pattern}`:pattern;}}
     XLSX.utils.book_append_sheet(book,sheet,name);
 }
 async function exportSimulation(){
@@ -640,7 +653,7 @@ async function exportSimulation(){
     try{
         const book=XLSX.utils.book_new();appendAnalysisSheet(book,'Dati reali',simulationRealSpec(),true);appendAnalysisSheet(book,'Simulazione',simulationResultSpec(),true);
         const s=simulationScenario,{summary}=simulationAlternatives();
-        const criteria=[['Origine',data.source],['Foglio','COMPLETO'],['Modifica file',data.modifiedAt],['Lettura riuscita',data.loadedAt],['Esportazione',new Date().toISOString()],['Articolo',filters.articles.join(', ')],['Filtri generali',JSON.stringify(filters)],['Fase',simulationPhase||'Tutte'],['Ordine contiene',simulationOrder||'Tutti'],['Ambito',simulationOnlyReference?'Riga Excel '+simulationReference:'Tutte le righe della ricerca'],['Registrazioni originali',simulatorSource().length],['Scenari validi',summary.valid],['Scenari non calcolabili',summary.failed],['Parametro modificato',s.driver],['Nuovo valore',s.value??'Originale per riga'],['Base resa',s.includeSetup?'Attrezzaggio + produzione':'Sola produzione'],['Tempo base',s.cycleSource==='sheet'?'Tempo da scheda':'Ciclo reale'],['Lotto simulato per riga',s.quantity??'Originale'],['Attrezzaggio h per riga',s.setup??'Originale'],['Alternative','A e B sono soluzioni alternative per la stessa produzione, non si sommano. La resa mantenuta è quella reale sulla base scelta.'],['Formula resa','Quantità × prezzo / (attrezzaggio incluso + quantità × secondi/pezzo / 3600)'],['Nota','Scenari indipendenti per registrazione/fase. I pezzi possono ripetersi in più fasi. Non è una modifica della sorgente né un preventivo aggregato di un singolo lotto.'],['Ordinamenti',JSON.stringify([...sortStates])]];
+        const criteria=[['Origine',data.source],['Foglio','COMPLETO'],['Modifica file',excelDateCell(data.modifiedAt,'dd/mm/yyyy hh:mm:ss')],['Lettura riuscita',excelDateCell(data.loadedAt,'dd/mm/yyyy hh:mm:ss')],['Esportazione',excelDateCell(new Date().toISOString(),'dd/mm/yyyy hh:mm:ss')],['Articolo',filters.articles.join(', ')],['Filtri generali',JSON.stringify(filters)],['Fase',simulationPhase||'Tutte'],['Ordine contiene',simulationOrder||'Tutti'],['Ambito',simulationOnlyReference?'Riga Excel '+simulationReference:'Tutte le righe della ricerca'],['Registrazioni originali',simulatorSource().length],['Scenari validi',summary.valid],['Scenari non calcolabili',summary.failed],['Parametro modificato',s.driver],['Nuovo valore',s.value??'Originale per riga'],['Base resa',s.includeSetup?'Attrezzaggio + produzione':'Sola produzione'],['Tempo base',s.cycleSource==='sheet'?'Tempo da scheda':'Ciclo reale'],['Lotto simulato per riga',s.quantity??'Originale'],['Attrezzaggio h per riga',s.setup??'Originale'],['Alternative','A e B sono soluzioni alternative per la stessa produzione, non si sommano. La resa mantenuta è quella reale sulla base scelta.'],['Formula resa','Quantità × prezzo / (attrezzaggio incluso + quantità × secondi/pezzo / 3600)'],['Nota','Scenari indipendenti per registrazione/fase. I pezzi possono ripetersi in più fasi. Non è una modifica della sorgente né un preventivo aggregato di un singolo lotto.'],['Ordinamenti',JSON.stringify([...sortStates])]];
         XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(criteria),'Ipotesi e criteri');
         const result=await ipc.invoke('turning-analysis-export',XLSX.write(book,{type:'buffer',bookType:'xlsx'}));if(!result.ok)throw Error(result.error);status(result.canceled?'Esportazione annullata.':'Simulazione esportata: dati originali, risultati e ipotesi, su tutte le righe della ricerca.');
     }catch(error){status('Esportazione non riuscita: '+(error as Error).message,true)}finally{button.disabled=false;if(local?.isConnected)local.disabled=false;}
@@ -661,27 +674,27 @@ async function exportData(){
         XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet(capacityRows),'Capacità utilizzate');
         const presentation=[['Modalità dettagli',ui.periodMode],['Anno singolo',ui.periodMode==='single'?(filters.years.includes(ui.singleYear)?ui.singleYear:Math.max(...filters.years)):null],['Esercizi effettivi della vista',analysisYears().join(', ')],['Grafico andamento',ui.cumulative?'Cumulativo dall’inizio del periodo selezionato':'Mensile']];
         presentation.push(['Grafici della pagina '+view,JSON.stringify(pageCharts())]);
-        const meta=[['Origine',data.source],['Foglio','COMPLETO'],['Modifica file',data.modifiedAt],['Lettura riuscita',data.loadedAt],['Esportazione',new Date().toISOString()],['Filtri',JSON.stringify(filters)],['Anno KPI',primaryYear()],['Anno confronto KPI',comparisonYear()],['Indicatore confronto',ui.metric],['Raggruppamento confronto',ui.grouping],['Base capacità',settings.capacityBasis],['Capacità personali',JSON.stringify(settings.capacities)],['Ordinamenti',JSON.stringify([...sortStates])],['Obiettivi ambito corrente',JSON.stringify(settings.targets[turningTargetKey(filters,primaryYear())]||{})],['Definizione pezzi','Somma delle quantità di registrazioni/fasi; non pezzi finiti distinti.'],['Definizione ricavo','Quantità × prezzo della registrazione; non fatturato contabile.'],['Resa complessiva','Ricavo totale / ore totali; distinta dalla media aritmetica delle rese di riga.'],['Saturazione','Ore / capacità convenzionale; proquota per mesi se selezionato; non OEE.'],...Object.entries(data.quality).filter(([key])=>key!=='examples')];
+        const meta=[['Origine',data.source],['Foglio','COMPLETO'],['Modifica file',excelDateCell(data.modifiedAt,'dd/mm/yyyy hh:mm:ss')],['Lettura riuscita',excelDateCell(data.loadedAt,'dd/mm/yyyy hh:mm:ss')],['Esportazione',excelDateCell(new Date().toISOString(),'dd/mm/yyyy hh:mm:ss')],['Filtri',JSON.stringify(filters)],['Selezione mesi grafici',chartMonthSelection.join(',')],['Anno KPI',primaryYear()],['Anno confronto KPI',comparisonYear()],['Indicatore confronto',ui.metric],['Raggruppamento confronto',ui.grouping],['Base capacità',settings.capacityBasis],['Capacità personali',JSON.stringify(settings.capacities)],['Ordinamenti',JSON.stringify([...sortStates])],['Obiettivi ambito corrente',JSON.stringify(settings.targets[turningTargetKey(filters,primaryYear())]||{})],['Definizione pezzi','Somma delle quantità di registrazioni/fasi; non pezzi finiti distinti.'],['Definizione ricavo','Quantità × prezzo della registrazione; non fatturato contabile.'],['Resa complessiva','Ricavo totale / ore totali; distinta dalla media aritmetica delle rese di riga.'],['Saturazione','Ore / capacità convenzionale; proquota per mesi se selezionato; non OEE.'],...Object.entries(data.quality).filter(([key])=>key!=='examples')];
         XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([...meta,...presentation]),'Origine e criteri');
         XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Riga Excel','Segnalazione'],...data.quality.examples.map(e=>[e.row,e.issue])]),'Verifiche');
         const result=await ipc.invoke('turning-analysis-export',XLSX.write(book,{type:'buffer',bookType:'xlsx'}));if(!result.ok)throw new Error(result.error);status(result.canceled?'Esportazione annullata.':'Esportazione completata: inclusi tutti i risultati filtrati, anche le righe non caricate a video.');
     }catch(error){status('Esportazione non riuscita: '+(error as Error).message,true)}finally{button.disabled=false}
 }
 // Eventi dei filtri: le selezioni sono condivise fra tutte le viste.
-for(const id of ['fromMonth','toMonth']){$<HTMLSelectElement>(id).innerHTML=MONTHS.map((name,i)=>`<option value="${i+1}">${name}</option>`).join('');$(id).addEventListener('change',()=>{const next=clone(filters);next.from=+$<HTMLSelectElement>('fromMonth').value;next.to=+$<HTMLSelectElement>('toMonth').value;if(next.from>next.to){if(id==='fromMonth')next.to=next.from;else next.from=next.to;}commit(next)})}
+for(const id of ['fromMonth','toMonth']){$<HTMLSelectElement>(id).innerHTML=MONTHS.map((name,i)=>`<option value="${i+1}">${name}</option>`).join('');$(id).addEventListener('change',()=>{chartMonthContext=null;chartMonthSelection=[];const next=clone(filters);next.from=+$<HTMLSelectElement>('fromMonth').value;next.to=+$<HTMLSelectElement>('toMonth').value;if(next.from>next.to){if(id==='fromMonth')next.to=next.from;else next.from=next.to;}commit(next)})}
 document.querySelectorAll<HTMLElement>('[data-view]').forEach(button=>button.addEventListener('click',()=>{if(!data)return;view=button.dataset.view as View;visibleRows=250;render()}));
-$('yearOptions').addEventListener('change',event=>{const input=event.target as HTMLInputElement,next=clone(filters);next.years=input.checked?[...next.years,+input.value]:next.years.filter(y=>y!==+input.value);commit(next)});
-document.querySelectorAll<HTMLElement>('[data-years]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();if(!data)return;const next=clone(filters);next.years=button.dataset.years==='all'?[...data.years]:data.years.slice(-Number(button.dataset.years));commit(next)}));
+$('yearOptions').addEventListener('change',event=>{chartYearContext=null;const input=event.target as HTMLInputElement,next=clone(filters);next.years=input.checked?[...next.years,+input.value]:next.years.filter(y=>y!==+input.value);commit(next)});
+document.querySelectorAll<HTMLElement>('[data-years]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();if(!data)return;chartYearContext=null;const next=clone(filters);next.years=button.dataset.years==='all'?[...data.years]:data.years.slice(-Number(button.dataset.years));commit(next)}));
 document.querySelectorAll<HTMLElement>('[data-dimension]').forEach(root=>{
     const field=root.dataset.dimension as FilterDimension;
     root.querySelector('.picker-search')!.addEventListener('input',event=>{const search=(event.target as HTMLInputElement).value.toLocaleLowerCase('it');root.querySelectorAll<HTMLElement>('[data-search]').forEach(label=>label.hidden=!label.dataset.search!.includes(search))});
-    root.querySelector('.picker-options')!.addEventListener('change',event=>{const input=event.target as HTMLInputElement,next=clone(filters);next[field]=input.checked?[...next[field],input.value]:next[field].filter(v=>v!==input.value);commit(next)});
-    root.querySelector('.clear-dimension')!.addEventListener('click',()=>{const next=clone(filters);next[field]=[];commit(next)});
+    root.querySelector('.picker-options')!.addEventListener('change',event=>{const input=event.target as HTMLInputElement,next=clone(filters);delete chartDimensionContext[field];next[field]=input.checked?[...next[field],input.value]:next[field].filter(v=>v!==input.value);commit(next)});
+    root.querySelector('.clear-dimension')!.addEventListener('click',()=>{const next=clone(filters);delete chartDimensionContext[field];next[field]=[];commit(next)});
 });
-$('selectionChips').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLElement>('button');if(!target)return;const next=clone(filters);if(target.dataset.clearField)next[target.dataset.clearField]=[];else{const field=target.dataset.removeField!;next[field]=next[field].filter((v:string)=>v!==target.dataset.removeValue)}commit(next)});
+$('selectionChips').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLElement>('button');if(!target)return;if(target.hasAttribute('data-clear-month-area')){chartMonthSelection=[];commit(clone(filters));return;}const next=clone(filters);if(target.dataset.clearField){delete chartDimensionContext[target.dataset.clearField as FilterDimension];next[target.dataset.clearField]=[];}else{const field=target.dataset.removeField!;delete chartDimensionContext[field as FilterDimension];next[field]=next[field].filter((v:string)=>v!==target.dataset.removeValue)}commit(next)});
 $('applyAdvanced').addEventListener('click',()=>{if(!data)return;const next=clone(filters);next.search=$<HTMLInputElement>('recordSearch').value.trim();for(const key of ['minRate','maxRate','minPrice','maxPrice','minQuantity','maxQuantity']){const input=$<HTMLInputElement>(key);if(input.value!==''&&!input.checkValidity()){status('Valore numerico non valido.',true);return}if(input.value==='')delete next[key];else next[key]=Number(input.value);}try{validFilters(next)}catch(error){status((error as Error).message,true);return}commit(next);$<HTMLDetailsElement>('advanced').open=false});
-$('undo').addEventListener('click',()=>{const previous=filterUndoStack.pop();if(previous)commit(previous,false)});
-$('reset').addEventListener('click',()=>{chartMonthContext=null;if(view==='simulator'){simulationPhase='';simulationOrder='';simulationOnlyReference=false;simulationReference=null;simulationError='';}if(data)commit(defaultFilters())});
+$('undo').addEventListener('click',()=>{const previous=filterUndoStack.pop(),context=chartUndoStack.pop();if(previous){if(context){chartDimensionContext=context.dimensions;chartMonthSelection=context.monthSelection;chartMonthContext=context.months;chartYearContext=context.years;}commit(previous,false)}});
+$('reset').addEventListener('click',()=>{chartMonthContext=null;chartMonthSelection=[];chartYearContext=null;chartDimensionContext={};if(view==='simulator'){simulationPhase='';simulationOrder='';simulationOnlyReference=false;simulationReference=null;simulationError='';}if(data)commit(defaultFilters())});
 $('layoutToggle').addEventListener('click',()=>{updateChartPage(page=>{page.layout=ui.layout==='compact'?'expanded':'compact'})});
 $('chartsMenu').addEventListener('click',()=>openChartsMenu());
 $('chartsDialog').addEventListener('close',()=>{if(ui.focusChart)applyChartFocus()});
@@ -795,7 +808,7 @@ let pendingAnalysisContext:AnalysisContext|null=null;
 function applyAnalysisContext(){
     if(!data||loading||!pendingAnalysisContext)return;
     const context=pendingAnalysisContext;pendingAnalysisContext=null;
-    view='articles';ui.records=true;ui.focusChart='';ui.periodMode='compare';ui.singleYear=0;chartMonthContext=null;
+    view='articles';ui.records=true;ui.focusChart='';ui.periodMode='compare';ui.singleYear=0;chartMonthContext=null;chartYearContext=null;chartDimensionContext={};
     const next:TurningFilters={years:[...data.years],from:1,to:12,machines:[],customers:[],articles:context.article?[data.articles.find(a=>a.trim().toLocaleLowerCase('it')===context.article!.trim().toLocaleLowerCase('it'))||context.article]:[]};
     if(!context.article&&(context.customerName||context.customerCode)){
         const names=[context.customerName,context.customerCode].filter(Boolean).map(v=>v!.trim().toLocaleLowerCase('it'));

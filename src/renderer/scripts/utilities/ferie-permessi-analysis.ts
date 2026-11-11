@@ -1,4 +1,6 @@
 // @ts-nocheck
+import {mergeAreaSelection} from '../../modules/analysis-chart-area-selection';
+import {installAnalysisWorkspace} from '../../modules/analysis-workspace';
 require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import path from "path";
@@ -68,6 +70,13 @@ const LINE_COLORS = [
     "#7c2d12",
 ];
 
+const calendarSelections={employee:[] as string[],period:[] as string[]};
+const calendarSelectionActive=()=>calendarSelections.employee.length||calendarSelections.period.length;
+function resetLinkedCharts(){calendarSelections.employee=[];calendarSelections.period=[];renderDashboard();}
+function selectCalendar(field:'employee'|'period',key:string,multiple=false){const values=calendarSelections[field];calendarSelections[field]=multiple?(values.includes(key)?values.filter(v=>v!==key):[...values,key]):values.length===1&&values[0]===key?[]:[key];renderDashboard();}
+function selectCalendarArea(field:'employee'|'period',keys:string[],multiple=false){calendarSelections[field]=mergeAreaSelection(calendarSelections[field],keys,multiple);renderDashboard();}
+const employeeIdentity=row=>row.department+'|'+row.employee;
+const calendarBucket=(date,grain)=>grain==='week'?getWeekKey(date):grain==='month'?getMonthKey(date):date;
 const state = {
     assigneeGroups: {},
     selectedDepartments: new Set(),
@@ -424,7 +433,8 @@ function renderDepartmentSelectedCount() {
     badge.textContent = `${state.selectedDepartments.size} selezionati`;
 }
 
-function buildAnalysis(payload) {
+function buildAnalysis(payload,selected=false) {
+    selected=selected&&!!calendarSelectionActive();
     const range = resolveRange();
     if (!range) return { error: "Periodo non valido." };
     const rangeDayCount = getRangeDayCount(range.start, range.end);
@@ -466,12 +476,14 @@ function buildAnalysis(payload) {
                   ? String(req.employee.name || "")
                   : "";
         const employee = employeeRaw.trim() || "Dipendente";
+        if(selected&&calendarSelections.employee.length&&!calendarSelections.employee.includes(department+'|'+employee))return;
         const dates = getRequestDates(req);
         if (!dates.start || !dates.end) return;
         const reqStart = toDay(dates.start);
         const reqEnd = toDay(dates.end);
         if (reqEnd < range.start || reqStart > range.end) return;
-        approvedCount += 1;
+        let matchedSelectedPeriod=false;
+        if(!selected||!calendarSelections.period.length)approvedCount += 1;
 
         let current = reqStart < range.start ? range.start : reqStart;
         const last = reqEnd > range.end ? range.end : reqEnd;
@@ -482,11 +494,12 @@ function buildAnalysis(payload) {
         while (current <= to) {
             const key = toDateKey(current);
             const row = dayMap.get(key);
-            if (row) {
+            if (row&&(!selected||!calendarSelections.period.length||calendarSelections.period.includes(calendarBucket(key,granularity)))) {
                 const hoursForDay = roundHours(
                     calculateHoursForDay(req, dates, key, payload),
                 );
                 if (hoursForDay > 0) {
+                    if(selected&&calendarSelections.period.length&&!matchedSelectedPeriod){approvedCount++;matchedSelectedPeriod=true;}
                     const wasPresent = row.people.has(employeeKey);
                     row.people.add(employeeKey);
                     if (!wasPresent) {
@@ -1104,11 +1117,34 @@ function renderDashboard() {
         return;
     }
     setMessage("");
-    renderKpis(analysis);
+    const selected=buildAnalysis(payload,true);
+    renderKpis(selected);
     renderLineChart(analysis);
-    renderDailyTable(analysis);
+    renderDailyTable(selected);
     renderBarsChart(analysis);
-    renderEmployeeTable(analysis);
+    renderEmployeeTable(selected);
+    connectCalendarCharts(analysis,selected);
+}
+
+function connectCalendarCharts(base,selected){
+    const line=state.charts.line,bars=state.charts.bars,view=aggregateAnalysisRows(base),selectedView=aggregateAnalysisRows(selected);
+    if(line){
+      line.options.onAreaSelect=(indices,multiple)=>selectCalendarArea('period',indices.map(i=>view.rows[i].key||view.rows[i].date),multiple);
+      line.options.onClick=(event,elements)=>{if(!elements.length)return;const row=view.rows[elements[0].index];selectCalendar('period',row.key||row.date,!!(event?.native?.ctrlKey||event?.native?.metaKey));};
+      if(calendarSelectionActive()){
+        const original=line.data.datasets.map(d=>({...d}));line.data.datasets=original.map(d=>({...d,borderColor:String(d.borderColor).slice(0,7)+'35',backgroundColor:String(d.backgroundColor).slice(0,7)+'35'}));
+        line.data.datasets.push(...original.map(d=>({...d,highlightSeries:true,data:selectedView.lineSeries.find(s=>s.label===d.label)?.values||view.labels.map(()=>0)})));
+      }
+      line.options.plugins.legend.labels.filter=(item,data)=>!data.datasets[item.datasetIndex].highlightSeries;
+      line.update('none');
+    }
+    if(bars){
+      const rows=base.employeeRows.slice(0,parseInt(byId('fpa-top-n')?.value||'10',10));
+      bars.options.onAreaSelect=(indices,multiple)=>selectCalendarArea('employee',indices.map(i=>employeeIdentity(rows[i])),multiple);
+      bars.options.onClick=(event,elements)=>{if(elements.length)selectCalendar('employee',employeeIdentity(rows[elements[0].index]),!!(event?.native?.ctrlKey||event?.native?.metaKey));};
+      if(calendarSelectionActive())bars.data.datasets.forEach(d=>{const type=TYPE_KEYS.find(t=>getTypeLabel(t)===d.label);d.highlightColor=d.backgroundColor;d.highlightValues=rows.map(r=>selected.employeeRows.find(s=>employeeIdentity(s)===employeeIdentity(r))?.byType?.[type]||0);d.backgroundColor=String(d.backgroundColor).slice(0,7)+'35';});
+      bars.update('none');
+    }
 }
 
 function scheduleDashboardRender() {
@@ -1281,3 +1317,6 @@ async function init() {
 document.addEventListener("DOMContentLoaded", () => {
     void init();
 });
+
+for(const [id,title] of [['fpa-line-chart','Andamento assenze'],['fpa-bars-chart','Assenze per dipendente']]){const host=byId(id);if(host){const panel=document.createElement('section');panel.className='panel analysis-embedded-chart';const head=document.createElement('div');head.className='panel-head';const h=document.createElement('h3');h.textContent=title;head.append(h);host.before(panel);panel.append(head,host);}}
+const commonWorkspace=installAnalysisWorkspace({key:'calendar',actions:document.querySelector('.fpa-header-actions')!,container:()=>document.querySelector('.fpa-content')||document.querySelector('main')!,reset:()=>resetLinkedCharts()});

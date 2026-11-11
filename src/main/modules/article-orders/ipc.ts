@@ -6,6 +6,7 @@ import {requestAypiBackend} from '../file-manager/backend-client';
 import {ARTICLE_ORDER_COLUMNS,ARTICLE_OFFER_COLUMNS,ArticleDocumentColumn} from './columns';
 import {registerAnalysisTarget,canOpenAnalysis} from '../analysis-navigation';
 import type {AnalysisTarget} from '../analysis-navigation-model';
+import {excelDateCell,excelNumberFormat} from '../analysis-excel';
 
 export function registerArticleOrdersIpc(mainWindow:BrowserWindow,icon:()=>string){
     ipcMain.handle('analysis-access-denied',async event=>{
@@ -57,12 +58,12 @@ function registerArticleDocumentIpc(mainWindow:BrowserWindow,icon:()=>string,opt
                 if(!page.rows.length)break;
                 rows.push(...page.rows);
             }while(rows.length<total);
-            const sheet=XLSX.utils.aoa_to_sheet([columns.map(c=>c.label),...rows.map(row=>columns.map(col=>col.kind==='boolean'?(row[col.key]?'SÌ':'NO'):row[col.key]??null))]);
+            const sheet=XLSX.utils.aoa_to_sheet([columns.map(c=>c.label),...rows.map(row=>columns.map(col=>col.kind==='date'?excelDateCell(row[col.key]):col.kind==='boolean'?(row[col.key]?'SÌ':'NO'):row[col.key]??null))]);
             sheet['!cols']=columns.map(c=>({wch:c.key==='customerName'||c.key==='description'?38:c.kind==='text'?19:18}));
             sheet['!autofilter']={ref:sheet['!ref']||'A1'};
-            columns.forEach((col,index)=>{if(['money','number'].includes(col.kind))for(let r=1;r<=rows.length;r++){const cell=sheet[XLSX.utils.encode_cell({r,c:index})];if(cell?.t==='n')cell.z=col.kind==='money'?'#,##0.00####':'#,##0.######'}});
+            columns.forEach((col,index)=>{if(['money','number'].includes(col.kind))for(let r=1;r<=rows.length;r++){const cell=sheet[XLSX.utils.encode_cell({r,c:index})];if(cell?.t==='n')cell.z=excelNumberFormat(Number(cell.v),col.decimals??(col.kind==='money'?2:0),col.decimals??col.maxDecimals??6)}});
             const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,sheet,options.sheet);
-            XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([['Analisi',options.title],['Lettura dati',new Date().toISOString()],['Filtri',JSON.stringify(payload.filters)],['Righe esportate',rows.length],['Origine','SQL · NuovaAGP'],['Nota',options.note]]),'Ricerca');
+            XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([['Analisi',options.title],['Lettura dati',excelDateCell(new Date(),'dd/mm/yyyy hh:mm:ss')],['Filtri',JSON.stringify(payload.filters)],['Righe esportate',rows.length],['Origine','SQL · NuovaAGP'],['Nota',options.note]]),'Ricerca');
             await fs.promises.writeFile(result.filePath,XLSX.write(workbook,{type:'buffer',bookType:'xlsx'}));
             return {ok:true,count:rows.length};
         }catch(error){return {ok:false,error:error instanceof Error?error.message:'Esportazione non riuscita.'}}finally{exporting=false}

@@ -4,7 +4,8 @@ import { TARGET_METRICS, TargetMetric, Targets, targetKey, targetResult } from "
 export type GoalsContext = {
     year:number;from:number;to:number;comparisonYear:number;
     actual:Record<TargetMetric,number>; reference:Record<TargetMetric,number>;
-    categories:{name:string;value:number}[]; groups:{name:string;category:string;value:number}[];
+    categories:{name:string;value:number;selectedValue?:number}[]; groups:{name:string;category:string;value:number;selectedValue?:number}[];
+    selectionActive?:boolean;selectedCategories?:string[];
 };
 const $ = (id:string) => document.getElementById(id)!;
 const currency = new Intl.NumberFormat("it-IT",{style:"currency",currency:"EUR",maximumFractionDigits:2});
@@ -17,7 +18,7 @@ const compact = (v:number) => {
 const esc = (s:unknown) => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]!);
 const monthNames = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
 
-export function createManagementGoals(openGroup:(group:string)=>void) {
+export function createManagementGoals(openGroup:(group:string)=>void,interaction?:{select:(field:'categories'|'groups',key:string,multiple:boolean)=>void;area?:(field:'categories'|'groups',keys:string[],multiple:boolean)=>void;reset:()=>void}) {
     const {ipcRenderer} = require("electron");
     let targets: Targets = Object.create(null), context: GoalsContext | null = null;
     let selectedCategory: string | null = null, notice = "", editing: {year:number;from:number;to:number;metric:TargetMetric} | null = null;
@@ -82,12 +83,12 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
         charts.get("mix")?.destroy();
         const mixNode=$("costMixChart") as HTMLCanvasElement;
         const compactMix=mixNode.parentElement!.clientHeight<160;
-        const selectComponent=(i:number)=>{selectedCategory=selectedCategory===components[i].name ? null : components[i].name;($("goalRankingMode") as HTMLSelectElement).value=mixMode;render(context!);};
-        $("costMixLegend").innerHTML=components.length ? `<div class="cost-legend-heading"><span>Componente</span><span>Importo / incidenza</span></div>${components.map((item,i)=>`<button class="cost-legend-item ${selectedCategory===item.name ? "is-selected" : ""}" data-component-index="${i}" aria-pressed="${selectedCategory===item.name}"><i style="background:${mixColors[i]}"></i><span class="cost-legend-name">${esc(item.name)}</span><span class="cost-legend-numbers"><strong>${esc(euro(Math.abs(item.value)))}</strong><small>${esc(percentage(Math.abs(item.value)/totalMix*100))}</small></span></button>`).join("")}` : `<p class="goal-empty-state">${isCosts ? "Nessun costo" : "Nessun ricavo"} nel periodo selezionato</p>`;
+        const selectComponent=(i:number,multiple=false)=>{if(interaction){interaction.select('categories',components[i].name,multiple);return;}selectedCategory=selectedCategory===components[i].name ? null : components[i].name;($("goalRankingMode") as HTMLSelectElement).value=mixMode;render(context!);};
+        $("costMixLegend").innerHTML=components.length ? `<div class="cost-legend-heading"><span>Componente</span><span>Importo / incidenza</span></div>${components.map((item,i)=>`<button class="cost-legend-item ${(c.selectedCategories?.includes(item.name)||selectedCategory===item.name) ? "is-selected" : ""}" data-component-index="${i}" aria-pressed="${(c.selectedCategories?.includes(item.name)||selectedCategory===item.name)}"><i style="background:${mixColors[i]}"></i><span class="cost-legend-name">${esc(item.name)}</span><span class="cost-legend-numbers"><strong>${esc(euro(Math.abs(item.value)))}</strong><small>${esc(percentage(Math.abs(item.value)/totalMix*100))}</small></span></button>`).join("")}` : `<p class="goal-empty-state">${isCosts ? "Nessun costo" : "Nessun ricavo"} nel periodo selezionato</p>`;
         const mix=new Chart(mixNode,{
             type:"doughnut",
-            data:{labels:components.map(v=>v.name),datasets:[{data:components.map(v=>Math.abs(v.value)),backgroundColor:mixColors.map((color,i)=>selectedCategory && selectedCategory!==components[i].name ? color+"70" : color),borderWidth:compactMix ? 2 : 3,borderColor:"#fff",borderRadius:3,hoverOffset:compactMix ? 2 : 4,offset:components.map(v=>v.name===selectedCategory ? compactMix ? 2 : 6 : 0)}]},
-            options:{responsive:true,maintainAspectRatio:false,animation:false,cutout:"74%",layout:{padding:compactMix ? 4 : 12},interaction:{intersect:true},plugins:{legend:{display:false},tooltip:{...tooltipStyle,intersect:true,callbacks:{label:ctx=>`${euro(Number(ctx.raw))} · ${percentage(Number(ctx.raw)/totalMix*100)}`}}},onClick:(_e,elements)=>{if(elements.length)selectComponent(elements[0].index);},onHover:(_e,elements)=>{mixNode.style.cursor=elements.length ? "pointer" : "default";}},
+            data:{labels:components.map(v=>v.name),datasets:[{data:components.map(v=>Math.abs(v.value)),backgroundColor:mixColors.map((color,i)=>c.selectionActive?color+"35":selectedCategory && selectedCategory!==components[i].name ? color+"70" : color),highlightValues:c.selectionActive?components.map(v=>Math.abs(v.selectedValue||0)):undefined,highlightColors:mixColors,borderWidth:compactMix ? 2 : 3,borderColor:"#fff",borderRadius:3,hoverOffset:compactMix ? 2 : 4,offset:components.map(v=>v.name===selectedCategory ? compactMix ? 2 : 6 : 0)}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:false,cutout:"74%",layout:{padding:compactMix ? 4 : 12},interaction:{intersect:true},plugins:{legend:{display:false},tooltip:{...tooltipStyle,intersect:true,callbacks:{label:ctx=>`${euro(Number(ctx.raw))} · ${percentage(Number(ctx.raw)/totalMix*100)}`}}},onClick:(_e,elements)=>{if(elements.length)selectComponent(elements[0].index,!!((_e.native as any)?.ctrlKey||(_e.native as any)?.metaKey));},onHover:(_e,elements)=>{mixNode.style.cursor=elements.length ? "pointer" : "default";}},
             plugins:[{id:"costMixCenter",afterDraw(chart){
                 const {ctx,chartArea:area}=chart,x=(area.left+area.right)/2,y=(area.top+area.bottom)/2,diameter=Math.min(area.right-area.left,area.bottom-area.top);
                 ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
@@ -97,17 +98,17 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
         });
         charts.set("mix",mix);clearHover(mixNode,mix);
         const mode=($("goalRankingMode") as HTMLSelectElement).value,top=+($("goalRankingTop") as HTMLSelectElement).value;
-        const eligible=c.groups.filter(g=>(mode==="costs" ? g.value<0 : g.value>0) && (!selectedCategory || g.category===selectedCategory));
+        const eligible=c.groups.filter(g=>(mode==="costs" ? g.value<0 : g.value>0) && (interaction||!selectedCategory || g.category===selectedCategory));
         const groupTotal=eligible.reduce((sum,g)=>sum+Math.abs(g.value),0);
         const groups=eligible.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)).slice(0,top);
         $("goalRankingTitle").textContent=selectedCategory || `Top ${top} gruppi · ${mode==="costs" ? "costi" : "ricavi"}`;
-        $("clearGoalCategory").textContent=selectedCategory ? "Azzera filtro" : `Tutti i ${mixLabel.toLowerCase()}`;
+        $("clearGoalCategory").textContent=(c.selectionActive||selectedCategory) ? "Azzera filtro" : `Tutti i ${mixLabel.toLowerCase()}`;
         charts.get("ranking")?.destroy();
         const rankNode=$("goalRankingChart") as HTMLCanvasElement;
         $("goalRankingPlot").style.height=Math.max(80,rankNode.parentElement!.parentElement!.clientHeight-14,groups.length*34+36)+"px";
         const ranking=new Chart(rankNode,{
-            type:"bar",data:{labels:groups.map(g=>g.name),datasets:[{label:String(c.year),data:groups.map(g=>Math.abs(g.value)),backgroundColor:groups.map((_,i)=>i===0 ? accent() : "#6d8fa8"),borderRadius:4,maxBarThickness:25,categoryPercentage:.75,barPercentage:.8}]},
-            options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{right:106,top:6}},interaction:{intersect:true},plugins:{legend:{display:false},tooltip:{...tooltipStyle,intersect:true,callbacks:{label:ctx=>euro(Number(ctx.raw)),afterLabel:ctx=>`${percentage(Number(ctx.raw)/groupTotal*100)} dei gruppi selezionati`}}},scales:{x:{beginAtZero:true,border:{display:false},grid:{color:"#e8eef3",drawTicks:false},ticks:{font:{size:11},maxTicksLimit:4,padding:9,callback:v=>compact(Number(v))}},y:{border:{display:false},grid:{display:false},ticks:{font:{size:12},autoSkip:false,padding:8,callback:function(v){const s=this.getLabelForValue(Number(v));return s.length>30 ? s.slice(0,28)+"…" : s;}}}},onClick:(_e,elements)=>{if(elements.length)openGroup(groups[elements[0].index].name);},onHover:(_e,elements)=>{rankNode.style.cursor=elements.length ? "pointer" : "default";}},
+            type:"bar",data:{labels:groups.map(g=>g.name),datasets:[{label:String(c.year),data:groups.map(g=>Math.abs(g.value)),backgroundColor:groups.map((_,i)=>c.selectionActive?(i===0?accent():"#6d8fa8")+"35":i===0 ? accent() : "#6d8fa8"),highlightValues:c.selectionActive?groups.map(g=>Math.abs(g.selectedValue||0)):undefined,highlightColor:accent(),borderRadius:4,maxBarThickness:25,categoryPercentage:.75,barPercentage:.8}]},
+            options:{onAreaSelect:(indices,multiple)=>interaction?.area?.('groups',indices.map(i=>groups[i].name),multiple),indexAxis:"y",responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{right:106,top:6}},interaction:{intersect:true},plugins:{legend:{display:false},tooltip:{...tooltipStyle,intersect:true,callbacks:{label:ctx=>euro(Number(ctx.raw)),afterLabel:ctx=>`${percentage(Number(ctx.raw)/groupTotal*100)} dei gruppi selezionati`}}},scales:{x:{beginAtZero:true,border:{display:false},grid:{color:"#e8eef3",drawTicks:false},ticks:{font:{size:11},maxTicksLimit:4,padding:9,callback:v=>compact(Number(v))}},y:{border:{display:false},grid:{display:false},ticks:{font:{size:12},autoSkip:false,padding:8,callback:function(v){const s=this.getLabelForValue(Number(v));return s.length>30 ? s.slice(0,28)+"…" : s;}}}},onClick:(_e,elements)=>{if(elements.length){const key=groups[elements[0].index].name;if(interaction)interaction.select('groups',key,!!((_e.native as any)?.ctrlKey||(_e.native as any)?.metaKey));else openGroup(key);}},onHover:(_e,elements)=>{rankNode.style.cursor=elements.length ? "pointer" : "default";}},
             plugins:[{id:"rankingValues",beforeDatasetsDraw(chart){
                 const {ctx,chartArea:area}=chart;ctx.save();ctx.fillStyle="#f0f4f7";
                 chart.getDatasetMeta(0).data.forEach(bar=>{const p=bar.getProps(["y","height"],true);ctx.fillRect(area.left,p.y-p.height/2,area.right-area.left,p.height);});ctx.restore();
@@ -152,7 +153,7 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
     $("cancelGoal").addEventListener("click",()=>dialog.close());
     dialog.addEventListener("cancel",event=>{if(saving)event.preventDefault();});
     $("useGoalComparison").addEventListener("click",()=>{input.value=String(reference);});
-    $("goalRankingMode").addEventListener("change",()=>{selectedCategory=null;if(context)render(context);});
+    $("goalRankingMode").addEventListener("change",()=>{if(interaction){interaction.reset();return;}selectedCategory=null;if(context)render(context);});
     $("toggleGoalMix").addEventListener("click",()=>{
         mixMode=mixMode==="costs" ? "revenue" : "costs";
         selectedCategory=null;
@@ -163,11 +164,12 @@ export function createManagementGoals(openGroup:(group:string)=>void) {
         const button=(event.target as HTMLElement).closest<HTMLElement>("[data-component-index]");
         if(!button || !context)return;
         const components=mixCategories(context),index=Number(button.dataset.componentIndex);
+        if(interaction){interaction.select('categories',components[index].name,event.ctrlKey||event.metaKey);return;}
         selectedCategory=selectedCategory===components[index].name ? null : components[index].name;
         ($("goalRankingMode") as HTMLSelectElement).value=mixMode;render(context);
     });
     $("goalRankingTop").addEventListener("change",()=>{if(context)render(context);});
-    $("clearGoalCategory").addEventListener("click",()=>{selectedCategory=null;if(context)render(context);});
+    $("clearGoalCategory").addEventListener("click",()=>{if(interaction){interaction.reset();return;}selectedCategory=null;if(context)render(context);});
     return {render,async load(){try{const response=await ipcRenderer.invoke("management-targets-load");if(!response.ok)throw new Error(response.error);targets=response.targets;}catch(error){notice=error instanceof Error ? error.message : String(error);}},
         exportRows(contexts:GoalsContext[]){return contexts.flatMap(c=>TARGET_METRICS.flatMap(metric=>{const goal=targets[targetKey({...c,metric})];if(!goal)return [];const r=targetResult(c.actual[metric],goal.value,metric);return [[c.year,c.from,c.to,metric,goal.value,c.actual[metric],r.gap,r.reached ? "Raggiunto" : "Da raggiungere"]];}));},
         destroy(){charts.forEach(c=>c.destroy());charts.clear();dialog.close();}

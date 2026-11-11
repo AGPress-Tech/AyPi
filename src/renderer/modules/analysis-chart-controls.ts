@@ -1,3 +1,4 @@
+import './analysis-chart-area-selection';
 const escapeAttribute = (value: string) => value.replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[c]!);

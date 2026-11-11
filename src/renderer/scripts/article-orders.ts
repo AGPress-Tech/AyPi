@@ -37,7 +37,7 @@ const escape = (value: unknown) =>
                 "'": "&#39;",
             })[char]!,
     );
-const number = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 6 });
+const number = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
 const price = new Intl.NumberFormat("it-IT", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
@@ -112,6 +112,12 @@ try {
         selected = new Set(
             saved.filter((k) => COLUMNS.some((c) => c.key === k)),
         );
+    // Add the new defaults once, retaining existing column choices and later hiding.
+    if(!IS_OFFERS&&Number(localStorage.getItem(STORAGE_KEY+'.schema')||0)<2){
+        selected.add('article');selected.add('netWeight');selected.add('grossWeight');
+        localStorage.setItem(STORAGE_KEY,JSON.stringify([...selected]));
+        localStorage.setItem(STORAGE_KEY+'.schema','2');
+    }
 } catch {}
 selected.add("article");
 const setStatus = (text: string, error = false) => {
@@ -295,7 +301,7 @@ function format(row: any, col: ArticleDocumentColumn) {
         return escape(String(val).slice(0, 10).split("-").reverse().join("/"));
     if (col.kind === "number" || col.kind === "money")
         return escape(
-            (col.kind === "money" ? price : number).format(Number(val)),
+            (col.decimals!==undefined||col.maxDecimals!==undefined?new Intl.NumberFormat('it-IT',{minimumFractionDigits:col.decimals??0,maximumFractionDigits:col.decimals??col.maxDecimals}):col.kind === "money" ? price : number).format(Number(val)),
         );
     return escape(val);
 }

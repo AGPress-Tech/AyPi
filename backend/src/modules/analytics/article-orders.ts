@@ -1,7 +1,7 @@
 type TextRule = { op: 'exact'|'contains'|'prefix'|'range'; value: string; to?: string };
 type Range = { from?: number|string; to?: number|string };
 export type DocumentSort={key:string;direction:'asc'|'desc'};
-export const ORDER_SORT_COLUMNS=['article','description','orderNo','line','orderDate','deliveryDate','quantity','unit','deliveredQuantity','residual','delivered','unitPrice','netPrice','currency','customerCode','customerName','cancelled'];
+export const ORDER_SORT_COLUMNS=['article','description','netWeight','grossWeight','orderNo','line','orderDate','deliveryDate','quantity','unit','deliveredQuantity','residual','delivered','unitPrice','netPrice','currency','customerCode','customerName','cancelled'];
 export function validateDocumentSort(value:unknown,columns:readonly string[]):DocumentSort[]{
     if(value===undefined)return [];
     if(!Array.isArray(value)||value.length>columns.length)throw new Error('Ordinamento non valido.');
@@ -61,7 +61,7 @@ export function validateArticleOrderFilters(input:unknown):ArticleOrderFilters {
     return clean;
 }
 const validDate=(col:string)=>`CASE WHEN ${col} >= '19000101' THEN CONVERT(date,${col}) END`;
-export const ARTICLE_ORDER_SOURCE = `SELECT d.Item AS article,d.Description AS description,h.InternalOrdNo AS orderNo,
+export const ARTICLE_ORDER_SOURCE = `SELECT d.Item AS article,d.Description AS description,g.NetWeight AS netWeight,g.GrossWeight AS grossWeight,h.InternalOrdNo AS orderNo,
  h.SaleOrdId AS orderId,d.Line AS line,${validDate('h.OrderDate')} AS orderDate,
  COALESCE(${validDate('d.ExpectedDeliveryDate')},${validDate('h.ExpectedDeliveryDate')}) AS deliveryDate,
  h.Customer AS customerCode,c.CompanyName AS customerName,d.UoM AS unit,d.Qty AS quantity,
@@ -73,6 +73,7 @@ export const ARTICLE_ORDER_SOURCE = `SELECT d.Item AS article,d.Description AS d
  CASE WHEN d.Cancelled='1' OR h.Cancelled='1' THEN 1 ELSE 0 END AS cancelled
  FROM dbo.MA_SaleOrdDetails d JOIN dbo.MA_SaleOrd h ON h.SaleOrdId=d.SaleOrdId
  LEFT JOIN dbo.MA_CustSupp c ON c.CustSupp=h.Customer AND c.CustSuppType=h.CustSuppType
+ LEFT JOIN dbo.MA_ItemsGoodsData g ON g.Item=d.Item
  WHERE NULLIF(LTRIM(RTRIM(d.Item)),'') IS NOT NULL`;
 export function buildArticleOrderQuery(input:unknown){
     const filters=validateArticleOrderFilters(input);

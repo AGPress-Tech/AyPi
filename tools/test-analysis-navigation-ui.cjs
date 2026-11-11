@@ -6,6 +6,7 @@ const root=path.resolve(__dirname,'..'),dir=path.join(root,'.tmp-analysis-naviga
 for(const method of ['show','focus','maximize'])BrowserWindow.prototype[method]=function(){};
 let nativeMenu=[];
 const base={customerCode:'C001',customerName:'Cliente Test',article:'ART-A',description:'Articolo A',line:1,unit:'NR',currency:'EUR',quantity:10,deliveredQuantity:0,residual:10,unitPrice:2,netPrice:2,netAmount:20,delivered:0,cancelled:0,createdDate:'2026-01-01',lineCreatedDate:'2026-01-01',headerDelivered:0,headerCancelled:0,deliveryDate:'2026-05-01'};
+Object.assign(base,{netWeight:2.58,grossWeight:2.586});
 const orders=[{...base,orderId:101,orderNo:'26/001',orderDate:'2026-01-01'},{...base,article:'ART-B',description:'Articolo B',line:2,orderId:101,orderNo:'26/001',orderDate:'2026-01-01'}];
 const offers=[{...base,offerId:201,offerNo:'26/OFF-1',offerDate:'2026-01-01',customerType:'Cliente'},{...base,article:'ART-B',description:'Articolo B',line:2,offerId:201,offerNo:'26/OFF-1',offerDate:'2026-01-01',customerType:'Cliente'}];
 const normalized=(rs,kind)=>rs.map(r=>({...r,kind,documentId:r[kind==='order'?'orderId':'offerId'],documentNo:r[kind==='order'?'orderNo':'offerNo'],documentDate:r[kind==='order'?'orderDate':'offerDate']}));
@@ -19,6 +20,7 @@ require('../dist-ts/modules/file-manager/backend-client').requestAypiBackend=asy
  return {rows,total:rows.length,offset:0,queriedAt:'2026-11-10T10:00:00Z'};
 };
 app.whenReady().then(async()=>{
+ await require('electron').session.defaultSession.clearStorageData({storages:['localstorage']});
  const watchdog=setTimeout(()=>{console.error('Timeout globale del test di navigazione');app.exit(1)},45000);
  Menu.buildFromTemplate=items=>{nativeMenu=items;return {popup(){}};};
  const XLSX=require('xlsx'),headers=Array(20).fill('');for(const [i,h] of [[0,'Cliente'],[2,'Articolo'],[5,'EUR/pezzo'],[6,'Pezzi'],[7,'Ore Att'],[8,'Ore Lav'],[10,'Ricavo Tot'],[12,'Mese/Anno'],[19,'Macchina']])headers[i]=h;
@@ -45,6 +47,31 @@ app.whenReady().then(async()=>{
   
   await run(hub,"document.querySelector('[data-analysis=article-orders]').click()");await until(()=>!!find('article-orders.html'));
   const sold=find('article-orders.html');await open('article-orders',{article:'ART-A'});await until(()=>run(sold,"document.querySelectorAll('#results [data-analysis-row]').length===1"));
+  assert.deepEqual(await run(sold,"Array.from(document.querySelector('#results [data-analysis-row]').children).slice(0,4).map(c=>c.dataset.analysisField)"),['article','netWeight','grossWeight','orderNo']);
+  assert.equal(await run(sold,"document.querySelector('[data-analysis-field=netWeight]').textContent"),'2,580');
+  assert.equal(await run(sold,"document.querySelector('[data-analysis-field=grossWeight]').textContent"),'2,586');
+  for(const [width,height] of [[1500,940],[1000,680]]){
+   sold.setContentSize(width,height);await run(sold,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+   assert.equal(await run(sold,"document.body.scrollWidth>innerWidth"),false);
+   fs.writeFileSync(path.join(dir,`article-weights-${width}.png`),(await sold.webContents.capturePage()).toPNG());
+  }
+  sold.setContentSize(1500,940);
+  await run(sold,"(()=>{const c=document.querySelector('[data-column=description]');c.checked=true;c.dispatchEvent(new Event('change'))})()");
+  assert.deepEqual(await run(sold,"Array.from(document.querySelector('#results [data-analysis-row]').children).slice(0,5).map(c=>c.dataset.analysisField)"),['article','description','netWeight','grossWeight','orderNo']);
+  await run(sold,"(()=>{const c=document.querySelector('[data-column=description]');c.checked=false;c.dispatchEvent(new Event('change'))})()");
+  await run(sold,"(()=>{const c=document.querySelector('[data-column=grossWeight]');c.checked=false;c.dispatchEvent(new Event('change'))})()");
+  await new Promise(resolve=>{sold.webContents.once('did-finish-load',resolve);sold.webContents.reload()});
+  await open('article-orders',{article:'ART-A'});await until(()=>run(sold,"document.querySelectorAll('#results [data-analysis-row]').length===1"));
+  assert.equal(await run(sold,"!!document.querySelector('[data-analysis-field=grossWeight]')"),false);
+  assert.equal(await run(sold,"!!document.querySelector('[data-analysis-field=netWeight]')"),true);
+  await run(sold,"(()=>{const c=document.querySelector('[data-column=grossWeight]');c.checked=true;c.dispatchEvent(new Event('change'))})()");
+  const exportPath=path.join(dir,'article-weights.xlsx');require('electron').dialog.showSaveDialog=async()=>({filePath:exportPath});
+  assert.equal((await run(sold,"require('electron').ipcRenderer.invoke('article-orders-export',{columns:['description','netWeight','grossWeight','orderNo','orderDate','deliveryDate','quantity','unitPrice'],filters:{articles:[{op:'exact',value:'ART-A'}]}})")).ok,true);
+  const weightBook=require('xlsx').readFile(exportPath,{cellNF:true}),weightSheet=require('xlsx').utils.sheet_to_json(weightBook.Sheets[weightBook.SheetNames[0]],{header:1});
+  assert.deepEqual(weightSheet[0],['Articolo','Descrizione articolo','Peso netto','Peso lordo','N. ordine','Data ordine','Consegna prevista','Quantità','Prezzo unitario']);assert.equal(weightSheet[1][2],2.58);assert.equal(weightSheet[1][3],2.586);assert.equal(weightBook.Sheets[weightBook.SheetNames[0]].C2.z,'#,##0.000');assert.equal(weightBook.Sheets[weightBook.SheetNames[0]].D2.z,'#,##0.000');
+  const exportedSheet=weightBook.Sheets[weightBook.SheetNames[0]];
+  assert.equal(exportedSheet.F2.t,'n');assert.equal(exportedSheet.F2.z,'dd/mm/yyyy');assert.equal(exportedSheet.F2.v,46023);
+  assert.equal(exportedSheet.H2.z,'#,##0');assert.equal(exportedSheet.I2.z,'#,##0.00');
   const soldId=sold.id;
   nativeMenu=[];await run(sold,"document.querySelector('#results [data-analysis-row] td[data-analysis-field=quantity]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");await new Promise(r=>setTimeout(r,100));assert.equal(nativeMenu.length,0);
   nativeMenu=[];await run(sold,"require('electron').ipcRenderer.invoke('analysis-context-menu',{article:'ART-MISSING'})");assert.equal(nativeMenu.length,0);

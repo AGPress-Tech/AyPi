@@ -1,4 +1,7 @@
 // @ts-nocheck
+import {excelDateCell,formatExcelNumbers} from '../../../main/modules/analysis-excel';
+import {mergeAreaSelection} from '../../modules/analysis-chart-area-selection';
+import {installAnalysisWorkspace} from '../../modules/analysis-workspace';
 require("../shared/dev-guards");
 const { ipcRenderer } = require("electron");
 const XLSX = require("xlsx");
@@ -48,7 +51,15 @@ const METRIC_LABELS = {
 };
 
 let plannerState = { machines: [], jobs: [], unavailabilities: [] };
-let filteredJobs = [];
+let filteredJobs = [],chartBaseJobs=[];
+const linkedSelections:Record<string,string[]>={};
+const linkedActive=()=>Object.values(linkedSelections).some(v=>v.length);
+function resetLinkedCharts(){for(const key of Object.keys(linkedSelections))delete linkedSelections[key];applyFilters();}
+function chooseLinked(field:string,key:string,multiple=false){const previous=linkedSelections[field]||[];linkedSelections[field]=multiple?(previous.includes(key)?previous.filter(v=>v!==key):[...previous,key]):previous.length===1&&previous[0]===key?[]:[key];applyFilters();}
+function chooseLinkedArea(field:string,keys:string[],multiple=false){linkedSelections[field]=mergeAreaSelection(linkedSelections[field]||[],keys,multiple);applyFilters();}
+function linkedValue(job,field){return field==='status'?job.workStatus:dimensionKey(job,field,readFilters().granularity);}
+function linkedValues(id,labels,series){const custom=customAnalyses.find(c=>'custom-chart-'+c.id===id);const field=custom?.dimension||({'chart-timeline':'period','chart-machines':'machine','chart-departments':'department','chart-punctuality':'department','chart-status':'status'})[id];
+return labels.map(label=>{const raw=field==='status'?Object.keys(WORK_LABELS).find(k=>WORK_LABELS[k]===label):label;const summary=summarize(filteredJobs.filter(j=>linkedValue(j,field)===raw));return custom?metricValue(summary,custom.metric):id==='chart-timeline'?(series===0?summary.producedPieces:summary.producedKg):id==='chart-machines'?summary.producedPieces:id==='chart-departments'?(series===0?summary.jobs:summary.distinctArticles):id==='chart-status'?summary.jobs:summary.punctuality;});}
 let remoteRevision = 0;
 let refreshTimer = null;
 let charts = new Map();
@@ -311,6 +322,8 @@ function applyFilters() {
         if (filters.onlyCompleted && job.workStatus !== "done") return false;
         return true;
     });
+    chartBaseJobs=[...filteredJobs];
+    filteredJobs=filteredJobs.filter(job=>Object.entries(linkedSelections).every(([field,values])=>!values.length||values.includes(linkedValue(job,field))));
     renderAll(filters);
 }
 
@@ -377,6 +390,13 @@ function chartColors(count) {
 }
 
 function drawChart(id, config) {
+    const labels=config.data.labels||[];const spec=customAnalyses.find(c=>'custom-chart-'+c.id===id);const field=spec?.dimension||({'chart-timeline':'period','chart-machines':'machine','chart-departments':'department','chart-punctuality':'department','chart-status':'status'})[id];
+    const originalSets=config.data.datasets;
+    if(linkedActive()){
+      config.data.datasets=originalSets.map((d,index)=>({...d,backgroundColor:Array.isArray(d.backgroundColor)?d.backgroundColor.map(c=>c+'35'):d.backgroundColor?d.backgroundColor.slice(0,7)+'35':undefined,borderColor:config.type==='line'?String(d.borderColor).slice(0,7)+'35':d.borderColor,highlightValues:config.type!=='line'?linkedValues(id,labels,index):undefined,highlightColor:d.borderColor||'#2c93e8',highlightColors:Array.isArray(d.backgroundColor)?d.backgroundColor:labels.map(()=>'#2c93e8')}));
+      if(config.type==='line')config.data.datasets.push(...originalSets.map((d,index)=>({...d,data:linkedValues(id,labels,index),highlightSeries:true})));
+    }
+    const onClick=(event,elements)=>{if(!field||!elements.length)return;const label=labels[elements[0].index],key=field==='status'?Object.keys(WORK_LABELS).find(k=>WORK_LABELS[k]===label):label;chooseLinked(field,key,!!(event?.native?.ctrlKey||event?.native?.metaKey));};
     charts.get(id)?.destroy();
     const canvas = byId(id) as HTMLCanvasElement;
     if (!canvas) return;
@@ -387,9 +407,11 @@ function drawChart(id, config) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick,
+                onAreaSelect:(indices,multiple)=>{if(field)chooseLinkedArea(field,indices.map(i=>field==='status'?Object.keys(WORK_LABELS).find(k=>WORK_LABELS[k]===labels[i]):labels[i]),multiple);},
                 animation: { duration: 220 },
                 plugins: {
-                    legend: { labels: { usePointStyle: true, boxWidth: 9 } },
+                    legend: { labels: { usePointStyle: true, boxWidth: 9,filter:(item,data)=>!data.datasets[item.datasetIndex].highlightSeries } },
                     tooltip: { intersect: false },
                     ...(config.options?.plugins || {}),
                 },
@@ -471,7 +493,7 @@ function renderCharts(groups) {
     });
     const statusCounts = ["not_started", "running", "done"].map(
         (status) =>
-            filteredJobs.filter((job) => job.workStatus === status).length,
+            chartBaseJobs.filter((job) => job.workStatus === status).length,
     );
     drawChart("chart-status", {
         type: "doughnut",
@@ -676,7 +698,7 @@ function renderCustomAnalyses(filters) {
         )
         .join("");
     customAnalyses.forEach((spec) => {
-        const groups = groupJobs(filteredJobs, (job) =>
+        const groups = groupJobs(chartBaseJobs, (job) =>
             dimensionKey(job, spec.dimension, filters.granularity),
         )
             .map((row) => ({
@@ -725,31 +747,31 @@ function renderCustomAnalyses(filters) {
     });
 }
 
-function buildGroups(filters) {
+function buildGroups(filters,jobs=filteredJobs) {
     return {
-        machine: groupJobs(filteredJobs, (job) => machineFor(job).name),
+        machine: groupJobs(jobs, (job) => machineFor(job).name),
         department: groupJobs(
-            filteredJobs,
+            jobs,
             (job) => machineFor(job).department,
         ),
-        category: groupJobs(filteredJobs, (job) => machineFor(job).category),
+        category: groupJobs(jobs, (job) => machineFor(job).category),
         article: groupJobs(
-            filteredJobs,
+            jobs,
             (job) => job.article || "Senza articolo",
         ),
         customer: groupJobs(
-            filteredJobs,
+            jobs,
             (job) => job.customer || "Senza cliente",
         ),
         material: groupJobs(
-            filteredJobs,
+            jobs,
             (job) => MATERIAL_LABELS[job.materialStatus] || job.materialStatus,
         ),
         status: groupJobs(
-            filteredJobs,
+            jobs,
             (job) => WORK_LABELS[job.workStatus] || job.workStatus,
         ),
-        period: groupJobs(filteredJobs, (job) =>
+        period: groupJobs(jobs, (job) =>
             periodKey(job, filters.granularity),
         ),
     };
@@ -760,7 +782,7 @@ function renderAll(filters = readFilters()) {
     const groups = buildGroups(filters);
     renderFilterSummary(filters);
     renderKpis(summary);
-    renderCharts(groups);
+    renderCharts(buildGroups(filters,chartBaseJobs));
     renderTables(groups);
     renderCustomAnalyses(filters);
 }
@@ -1151,7 +1173,9 @@ async function exportExcel() {
         const workbook = XLSX.utils.book_new();
         const rows = exportRows(groups);
         const append = (name, data) => {
-            const sheet = XLSX.utils.aoa_to_sheet(data);
+            const dateColumns=(data[0]||[]).map((h,i)=>/^(Inizio|Fine|Prima consegna|Consegna finale opzionale|Completata il)$/.test(h)?i:-1);
+            const sheet = XLSX.utils.aoa_to_sheet(data.map((row,r)=>r?row.map((v,c)=>dateColumns.includes(c)?excelDateCell(v):v):row));
+            formatExcelNumbers(sheet);
             if (data.length && data[0]?.length)
                 sheet["!autofilter"] = {
                     ref: `A1:${XLSX.utils.encode_col(data[0].length - 1)}${Math.max(1, data.length)}`,
@@ -1330,3 +1354,6 @@ function bindEvents() {
 setQuickRange("all");
 bindEvents();
 void loadLatest(false);
+
+const plannerFilters=document.querySelector('.filter-panel .filter-grid');if(plannerFilters){const quick=plannerFilters.firstElementChild;const heading=document.querySelector('.filter-panel .section-heading');if(quick&&heading){quick.classList.add('analysis-quick-period');heading.insertBefore(quick,heading.lastElementChild);}const details=document.createElement('details');details.className='analysis-advanced-filters';const summary=document.createElement('summary');summary.textContent='Altri filtri';plannerFilters.before(details);details.append(summary,plannerFilters);}
+const commonWorkspace=installAnalysisWorkspace({key:'production',actions:document.querySelector('.analysis-topbar__actions')!,container:()=>document.querySelector('.analysis-main')||document.querySelector('main')!,reset:()=>resetLinkedCharts()});

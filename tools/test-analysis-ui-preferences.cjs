@@ -1,0 +1,21 @@
+const assert=require('assert/strict'),fs=require('fs'),path=require('path'),Module=require('module');
+const dir=path.resolve(__dirname,'..','.tmp-analysis-preferences-'+Date.now());fs.mkdirSync(dir,{recursive:true});
+const handlers=new Map(),original=Module._load;
+Module._load=function(name,...rest){if(name==='electron')return {app:{getPath:()=>dir},ipcMain:{handle:(key,fn)=>handlers.set(key,fn)}};return original.call(this,name,...rest)};
+const {registerAnalysisUiPreferences}=require('../dist-ts/modules/analysis-ui-preferences');Module._load=original;registerAnalysisUiPreferences();
+const {emptyWorkspace,validateWorkspace}=require('../dist-ts/modules/analysis-ui-model');
+const {pathToFileURL}=require('url');
+const event={sender:{getURL:()=>pathToFileURL(path.resolve(__dirname,'../dist-ts/pages/management.html')).href+'?theme=standard'}};
+(async()=>{
+ const load=()=>handlers.get('analysis-ui-load')(event,'management'),save=preferences=>handlers.get('analysis-ui-save')(event,{key:'management',preferences});
+ assert.deepEqual((await load()).preferences,emptyWorkspace());
+ const prefs=emptyWorkspace();prefs.layout.charts.push({id:'custom-demo',source:'categoryChart',title:'Prova',kind:'bar',limit:12,metric:'revenue'});
+ assert.equal((await save(prefs)).ok,true);assert.deepEqual((await load()).preferences,prefs);
+ assert.throws(()=>validateWorkspace({...prefs,layout:{...prefs.layout,charts:[{...prefs.layout.charts[0],id:'categoryChart'}]}}));
+ assert.throws(()=>validateWorkspace({...prefs,presets:[{name:'A',layout:prefs.layout},{name:'a',layout:prefs.layout}]}));
+ assert.equal((await handlers.get('analysis-ui-load')(event,'../../unsafe')).ok,false);
+ assert.equal((await handlers.get('analysis-ui-load')({sender:{getURL:()=> 'about:blank'}},'management')).ok,false);
+ assert.equal((await handlers.get('analysis-ui-load')(event,'calendar')).ok,false);
+ const file=path.join(dir,'analysis-ui-management.json');fs.writeFileSync(file,'CORROTTO');assert.equal((await save(prefs)).ok,false);assert.equal(fs.readFileSync(file,'utf8'),'CORROTTO');
+ console.log('OK: preferenze condivise, validazione, autorizzazioni finestra, persistenza e conservazione file corrotti.');
+})().catch(e=>{console.error(e);process.exit(1)});

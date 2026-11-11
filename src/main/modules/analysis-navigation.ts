@@ -2,6 +2,7 @@ import {BrowserWindow,ipcMain,Menu,WebContents} from 'electron';
 import path from 'path';
 import {ANALYSIS_TARGETS,AnalysisTarget,AnalysisContext,validateAnalysisContext} from './analysis-navigation-model';
 import {requestAypiBackend} from './file-manager/backend-client';
+import {registerAnalysisUiPreferences} from './analysis-ui-preferences';
 
 const modules=new Map<AnalysisTarget,{open:()=>Promise<BrowserWindow>;owns:(event:any)=>boolean;exists?:(context:AnalysisContext)=>Promise<boolean>}>();
 let main:BrowserWindow|null=null,hub:BrowserWindow|null=null;
@@ -21,6 +22,7 @@ async function destinationExists(target:AnalysisTarget,context:AnalysisContext):
 }
 export function canOpenAnalysis(sender:WebContents){return sender===main?.webContents||sender===hub?.webContents||[...modules.values()].some(m=>m.owns({sender}));}
 export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>string){
+    registerAnalysisUiPreferences();
     main=mainWindow;
     ipcMain.on('analysis-context-ready',event=>{
         if(![...modules.values()].some(m=>m.owns(event)))return;

@@ -23,6 +23,8 @@ L’interfaccia serve a esplorare dati: filtri e KPI devono lasciare la maggior 
 | Marchio AyPi | [aypi-module-brand.css](src/renderer/styles/utilities/aypi-module-brand.css) |
 | Tema iniziale della finestra | [utility-layout-bootstrap.js](src/renderer/scripts/utility-layout-bootstrap.js) |
 | Toolbar grafico condivisa | [analysis-chart-controls.ts](src/renderer/modules/analysis-chart-controls.ts) |
+| Focus, layout, editor e preset riutilizzabili | [analysis-workspace.ts](src/renderer/modules/analysis-workspace.ts), [analysis-workspace.css](src/renderer/styles/utilities/analysis-workspace.css) |
+| Persistenza e validazione del workspace | [analysis-ui-preferences.ts](src/main/modules/analysis-ui-preferences.ts), [analysis-ui-model.ts](src/main/modules/analysis-ui-model.ts) |
 | Evidenziazione selezioni riutilizzabile | [analysis-selection-highlight.ts](src/renderer/modules/analysis-selection-highlight.ts) |
 | Etichette e tacche degli assi | [chart-axis.ts](src/renderer/modules/chart-axis.ts) |
 | Grafico spaziale interattivo | [turning-scatter3d.ts](src/renderer/modules/turning-scatter3d.ts) |
@@ -90,7 +92,7 @@ Conservare un unico stato condiviso per aggiornare coerentemente grafici, indica
 
 Separare concettualmente il contesto manuale dalle selezioni prodotte dai grafici. Un reset del grafico deve rimuovere le selezioni interattive conservando i filtri manuali. Il ripristino generale è un’azione distinta.
 
-**Dettaglio del codice Torneria da considerare negli aggiornamenti:** `resetChartSelections()` attualmente svuota le dimensioni Macchine/Clienti/Articoli condivise anche con i picker e ripristina il precedente intervallo mensile quando esiste `chartMonthContext`. Non copiarlo assumendo che distingua già la provenienza manuale o grafica. L’analisi cliente usa uno stato di selezione grafica separato.
+**Implementazione Torneria aggiornata:** il contesto precedente della singola dimensione viene conservato in `chartDimensionContext`; il reset grafico lo ripristina, insieme al precedente intervallo mensile/annuale quando modificato dai grafici. Un intervento manuale sul picker della dimensione sostituisce il relativo contesto interattivo. La cronologia include il contesto dei grafici. L’analisi cliente usa uno stato di selezione grafica separato.
 
 ## 6. KPI
 
@@ -129,6 +131,16 @@ Il comportamento visivo di riferimento è quello della Torneria:
 3. La selezione si propaga a KPI, tabelle e altri grafici, mantenendo il contesto temporale coerente.
 4. I totali rimangono leggibili sullo sfondo e la quota selezionata viene evidenziata con il colore pieno.
 5. Cambiare selezione non deve far scomparire tutte le categorie di confronto.
+
+### Selezione rettangolare nelle linee e nelle barre
+
+Riutilizzare [analysis-chart-area-selection.ts](src/renderer/modules/analysis-chart-area-selection.ts), registrato dalla toolbar condivisa. Trascinare con il pulsante sinistro all’interno dell’area dati disegna un rettangolo: seleziona i punti delle linee contenuti nell’area e le barre intersecate, anche orizzontali o negative. Serie nascoste e valori nulli sono esclusi; le categorie presenti in più serie vengono deduplicate.
+
+Senza modificatori, l’area sostituisce la selezione della relativa dimensione. Con Ctrl/Cmd aggiunge o rimuove in blocco le categorie intercettate. Escape annulla il trascinamento senza modificare filtri o chiudere il grafico espanso. Un’area senza dati non cambia la selezione. Un semplice clic mantiene il comportamento precedente.
+
+Ogni grafico espone `options.onAreaSelect(indices, multiple)` e applica tutte le categorie **in un solo aggiornamento**, tramite `mergeAreaSelection()`: non simulare una sequenza di clic che ricrea il grafico per ogni punto. Il workspace propaga il callback anche ai grafici derivati. MES riutilizza lo stesso gesto per le barre HTML. Anelli e grafici spaziali conservano le proprie interazioni.
+
+In Torneria la selezione rettangolare temporale conserva i mesi del contesto come sfondo e applica una selezione distinta di mesi ai risultati, anche non contigui. Reset, chip e cronologia devono gestire tale stato insieme alle selezioni dimensionali.
 
 Torneria distingue righe di contesto (`chartRows`) e righe filtrate (`scopeRows`). Le selezioni dimensionali evidenziano una quota dei totali. Le selezioni temporali hanno un contesto dedicato. I grafici usano evidenziazioni per barre e anelli; nelle animazioni di selezione è presente una transizione di circa 420 ms e viene considerata la preferenza di movimento ridotto.
 
@@ -190,6 +202,16 @@ Mantenere lo stesso flusso editor/anteprima/salvataggio. I limiti e le misure po
 
 Salvataggi personali nel profilo Electron dell’utente. Torneria usa `turning-analysis.charts.json` e `turning-analysis.settings.json` in `app.getPath('userData')`. Scrittura tramite file temporaneo e rinomina; conservare i file corrotti invece di sovrascriverli silenziosamente. Non aggiungere copie alternative in localStorage.
 
+### Workspace condiviso introdotto nell’allineamento
+
+Gestione, Pianificatore produzione, MES e Calendar usano `installAnalysisWorkspace()` per toolbar, focus, tastiera, vista ampia, visibilità, grafici aggiuntivi ed editor/preset. Il modulo accetta adattatori per i dati del dominio; supporta anche il focus di un grafico HTML, come il riepilogo MES.
+
+I grafici aggiuntivi del workspace sono viste derivate dalle serie aggregate già disponibili: scelta di origine, titolo, barre/linee/anello e numero di voci; Gestione e MES espongono anche misure del dominio. Non costituiscono un nuovo motore di query libero. Non sostituire i builder specifici più ricchi già esistenti.
+
+Le preferenze sono versionate, con massimo 12 grafici e 10 preset, e salvate nei file `analysis-ui-management.json`, `analysis-ui-production.json`, `analysis-ui-mes.json`, `analysis-ui-calendar.json`. I preset condivisi salvano il layout e i grafici, mantenendo indipendenti i filtri manuali. Il main verifica la pagina chiamante e conserva i file corrotti. Le vecchie viste MES e le analisi personalizzate del Pianificatore rimangono disponibili nella loro posizione originaria: nessuna cancellazione o migrazione implicita.
+
+In Gestione i KPI contabili principali rimangono totali del perimetro manuale. La selezione interattiva viene presentata come quota aggiuntiva e filtra i dettagli, senza rietichettare come totale un risultato parziale. Nel Pianificatore e Calendar i grafici mantengono la base completa, con la quota selezionata evidenziata; KPI e tabelle seguono la selezione. MES conserva il riepilogo di base delle macchine e richiede al servizio il dettaglio della selezione.
+
 ## 12. Tabelle, gerarchie e quantità
 
 - **Divisori verticali sempre visibili sia nelle intestazioni sia nelle celle.** Includere `table-sorting.css` e non annullarne i bordi.
@@ -230,6 +252,10 @@ Torneria legge il foglio COMPLETO del file sorgente tramite worker; mantiene anc
 Usare la vista **Origine e verifiche** per percorso/fonte, qualità dati, anomalie e definizioni di calcolo. Lo stato principale va riservato a caricamenti utili e problemi che richiedono attenzione, evitando messaggi di successo ripetitivi.
 
 L’export deve essere coerente con i dati e il contesto dichiarato, con unità e filtri comprensibili. Verificare i dati completi previsti dall’export, non solo le righe attualmente visibili nella tabella. In Torneria l’export richiede un nuovo `.xlsx`, distinto dal file sorgente.
+
+Usare [analysis-excel.ts](src/main/modules/analysis-excel.ts) per i tipi e i formati dei file: numeri come celle numeriche; formato intero senza separatore finale oppure decimali espliciti in base al valore; pesi articolo con tre decimali fissi. Non usare suffissi di soli decimali facoltativi (`.######`), che possono lasciare un separatore finale sugli interi. Le date devono essere seriali Excel con formato `dd/mm/yyyy`, i periodi mensili `mm/yyyy`, le date/ore `dd/mm/yyyy hh:mm:ss` e le durate MES valori numerici con formato `[h]:mm:ss`. Codici articolo/documento e zeri iniziali restano testo. Verificare i tipi rileggendo il file XLSX, non solo l’anteprima a schermo.
+
+Nelle analisi Venduto/Offerte per articolo, quantità ordinate/offerte, consegnate e residue hanno al massimo tre decimali visibili, senza zeri aggiunti. Il valore numerico originale del gestionale rimane invariato nella cella Excel: il limite riguarda il formato, non un arrotondamento dei dati prima dell’esportazione.
 
 ## 16. Home e pagine di accesso ai moduli
 

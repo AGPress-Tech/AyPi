@@ -6,7 +6,7 @@ export function validateCustomerSelection(input:unknown):CustomerSelection{
     const clean=emptyCustomerSelection();if(input===undefined)return clean;
     if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!CUSTOMER_SELECTION_DIMENSIONS.includes(k as any)))throw Error('Selezioni grafici non valide.');
     for(const key of CUSTOMER_SELECTION_DIMENSIONS){const list=(input as any)[key]??[];
-        if(!Array.isArray(list)||list.length>200||list.some(v=>typeof v!=='string'||!v.length||v.length>200))throw Error('Selezione grafico non valida.');
+        if(!Array.isArray(list)||list.length>240||list.some(v=>typeof v!=='string'||!v.length||v.length>200))throw Error('Selezione grafico non valida.');
         clean[key]=[...new Set(list)] as string[];
     }
     if(clean.kind.some(v=>!['order','offer'].includes(v))||clean.year.some(v=>!/^\d{4}$/.test(v))||[...clean.month,...clean.deliveryMonth].some(v=>!/^\d{4}-(0[1-9]|1[0-2])$/.test(v)))throw Error('Periodo o tipo documento non valido.');

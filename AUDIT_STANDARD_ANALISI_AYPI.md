@@ -2,7 +2,18 @@
 
 Data: 11 novembre 2026. Riferimento: [STANDARD_UI_ANALISI_AYPI.md](STANDARD_UI_ANALISI_AYPI.md).
 
-## Esito e perimetro
+## Aggiornamento dopo l’allineamento
+
+Le sezioni successive conservano la fotografia **precedente** all’intervento. L’allineamento richiesto è stato implementato senza rimuovere le viste tabellari:
+
+- Torneria: reset che conserva il contesto manuale, cronologia del contesto grafico e caricamento della modalità Rendimenti salvata; editing degli assi nel menu Grafici.
+- Gestione: controlli condivisi, focus con tastiera, vista ampia, grafici aggiuntivi e preset personali; selezioni multiple di categorie/gruppi/mesi/anni con totali visibili, quota selezionata nei KPI e dettagli collegati. Obiettivi e calcoli contabili originari conservati.
+- Pianificatore, MES e Calendar: workspace condiviso con editor/preset aggiuntivi, controlli e focus, selezioni collegate; filtri e tabelle originali conservati. Preferenze locali preesistenti mantenute.
+- Layout basso: riquadri Gestione e KPI MES compattati; filtri dettagliati del Pianificatore accessibili da Altri filtri. Le ricerche Venduto/Offerte rimangono tabellari, con nota dati consultabile.
+
+Nuove verifiche: `tools/test-analysis-ui-preferences.cjs` per autorizzazioni, validazione e persistenza; `tools/test-analysis-workspace-ui.cjs` per i tre moduli aggiuntivi nei due temi; `tools/audit-analysis-ui.cjs` aggiornato per confermare la correzione dei comportamenti riprodotti. Restano valide le suite cliente e navigazione. Le nuove funzioni del workspace sono descritte nella guida standard.
+
+## Esito e perimetro dell’audit iniziale
 
 **I moduli non sono ancora tutti allineati allo stesso standard.** Analisi cliente è il modulo più vicino al comportamento richiesto; Torneria è il riferimento visivo ma presenta anche due comportamenti da correggere; Controllo di gestione mantiene una propria interazione grafica, meno uniforme.
 

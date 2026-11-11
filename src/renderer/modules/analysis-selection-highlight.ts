@@ -1,4 +1,7 @@
-import type {Plugin} from 'chart.js';
+import type {Plugin,ChartType} from 'chart.js';
+declare module 'chart.js' {
+    interface ChartDatasetProperties<TType extends ChartType,TData>{highlightValues?:number[];highlightColor?:string;highlightColors?:string[];highlightSeries?:boolean;}
+}
 
 /** Keep full totals visible and paint the selected share using the original colour. */
 export const analysisSelectionHighlight:Plugin={

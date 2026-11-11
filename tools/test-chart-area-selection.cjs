@@ -1,0 +1,15 @@
+const fs=require('fs'),path=require('path'),Module=require('module'),ts=require('typescript'),assert=require('assert/strict');
+const file=path.resolve(__dirname,'../src/renderer/modules/analysis-chart-area-selection.ts'),compiled=new Module(file,module);compiled.filename=file;compiled.paths=Module._nodeModulePaths(path.dirname(file));compiled._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText,file);
+const {mergeAreaSelection,chartAreaIndices}=compiled.exports;
+assert.deepEqual(mergeAreaSelection(['A'],['B','C','B'],false),['B','C']);
+assert.deepEqual(mergeAreaSelection(['A','B'],['B','C','C'],true),['A','C']);
+assert.deepEqual(mergeAreaSelection(['A'],[],false),['A']);
+const element=p=>({getProps:()=>p});
+const meta=[{type:'line',data:[element({x:10,y:10}),element({x:20,y:20}),element({x:30,y:30})],controller:{getParsed:i=>i===2?{x:30,y:null}:{x:10+i*10,y:10+i*10}}},{type:'line',data:[element({x:10,y:10}),element({x:20,y:20})],controller:{getParsed:i=>({x:10+i*10,y:10+i*10})}}];
+const chart={data:{datasets:[{},{}]},options:{indexAxis:'x'},isDatasetVisible:()=>true,getDatasetMeta:i=>meta[i]};
+assert.deepEqual(chartAreaIndices(chart,{x:25,y:25},{x:5,y:5}),[0,1]);
+chart.isDatasetVisible=i=>i!==0;assert.deepEqual(chartAreaIndices(chart,{x:28,y:28},{x:32,y:32}),[]);
+chart.data.datasets=[{}];chart.isDatasetVisible=()=>true;chart.options.indexAxis='y';meta[0]={type:'bar',data:[element({x:20,base:80,y:30,height:10,width:60}),element({x:100,base:80,y:60,height:10,width:20})],controller:{getParsed:i=>({x:i?20:-60,y:i})}};
+assert.deepEqual(chartAreaIndices(chart,{x:40,y:25},{x:50,y:35}),[0]);
+assert.deepEqual(chartAreaIndices(chart,{x:110,y:65},{x:90,y:55}),[1]);
+console.log('OK: selezione atomica, Ctrl/Cmd, deduplica, rettangoli inversi, serie nascoste, valori nulli e barre negative.');

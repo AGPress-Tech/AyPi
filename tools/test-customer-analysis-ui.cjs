@@ -14,7 +14,7 @@ ipcMain.handle('customer-analysis-load',(_event,request)=>{loadedRequests.push(r
 ipcMain.handle('customer-analysis-export',()=>{exportCount++;return {ok:true,count:rows.length};});
 ipcMain.on('customer-analysis-close',()=>app.quit());
 app.whenReady().then(async()=>{
- const win=new BrowserWindow({width:1520,height:960,show:false,webPreferences:{nodeIntegration:true,contextIsolation:false}}),errors=[];
+ const win=new BrowserWindow({width:1520,height:960,show:false,webPreferences:{nodeIntegration:true,contextIsolation:false,backgroundThrottling:false}}),errors=[];
  win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
  win.webContents.on('render-process-gone',(_event,details)=>errors.push(details.reason));
  const run=code=>win.webContents.executeJavaScript(code,true);
@@ -36,6 +36,31 @@ app.whenReady().then(async()=>{
   assert(dimensions.every(c=>c.w>200&&c.h>90),JSON.stringify(dimensions));
   assert.equal(await run("document.querySelectorAll('.chart-panel [data-edit-chart]').length"),0);
   assert.equal(await run("Array.from(document.querySelectorAll('.chart-panel')).every(p=>p.querySelectorAll('.chart-icon').length===2 && p.querySelector('[data-reset-chart]').textContent==='↺' && p.querySelector('[data-expand-chart]').textContent==='⤢')"),true);
+  const brush=async(id,indices,ctrl=false,cancel=false)=>{
+   const box=await run(`(()=>{const c=require('chart.js/auto').getChart(document.querySelector('#${id}')),r=c.canvas.getBoundingClientRect(),points=${JSON.stringify(indices)}.map(i=>c.getDatasetMeta(0).data[i]);return {x1:Math.round(r.left+c.chartArea.left+2),x2:Math.round(r.left+c.chartArea.right-2),y1:Math.round(r.top+Math.min(...points.map(p=>p.y-p.height/2))-1),y2:Math.round(r.top+Math.max(...points.map(p=>p.y+p.height/2))+1)}})()`);
+   const modifiers=ctrl?['control']:[];
+   win.webContents.sendInputEvent({type:'mouseMove',x:box.x1,y:box.y1,modifiers});
+   win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:box.x1,y:box.y1,modifiers});
+   win.webContents.sendInputEvent({type:'mouseMove',x:box.x2,y:box.y2,modifiers});
+   await new Promise(r=>setTimeout(r,35));
+   if(cancel)await run("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+   win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:box.x2,y:box.y2,modifiers});
+   await new Promise(r=>setTimeout(r,100));
+  };
+  await brush('plot-articles',[0,1]);assert.equal(await run("document.querySelector('[data-kpi=articles] strong').textContent"),'2');
+  await brush('plot-articles',[0],true);assert.equal(await run("document.querySelector('[data-kpi=articles] strong').textContent"),'1');
+  await brush('plot-articles',[0,1,2],false,true);assert.equal(await run("document.querySelector('[data-kpi=articles] strong').textContent"),'1');
+  await run("document.querySelector('[data-reset-chart]').click()");
+  await run("document.querySelector('[data-expand-chart=articles]').click()");
+  await brush('plot-articles',[0,1]);assert.equal(await run("document.querySelector('[data-kpi=articles] strong').textContent"),'2');
+  await brush('plot-articles',[0,1,2],false,true);assert(await run("!!document.querySelector('.chart-focused')"));
+  await run("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));document.querySelector('[data-reset-chart]').click()");
+  const lineBox=await run("(()=>{const c=require('chart.js/auto').getChart(document.querySelector('#plot-history')),r=c.canvas.getBoundingClientRect(),p=c.getDatasetMeta(0).data;return {x1:Math.round(r.left+p[0].x+1),x2:Math.round(r.left+(p[1].x+p[2].x)/2),y1:Math.round(r.top+c.chartArea.top+1),y2:Math.round(r.top+c.chartArea.bottom-1),labels:c.data.labels.length}})()");
+  win.webContents.sendInputEvent({type:'mouseMove',x:lineBox.x1,y:lineBox.y1});
+  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:lineBox.x1,y:lineBox.y1});await new Promise(r=>setTimeout(r,40));win.webContents.sendInputEvent({type:'mouseMove',button:'left',modifiers:['leftButtonDown'],x:lineBox.x2,y:lineBox.y2});await new Promise(r=>setTimeout(r,150));
+  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:lineBox.x2,y:lineBox.y2});await new Promise(r=>setTimeout(r,100));
+  assert(await run("!!document.querySelector('[data-clear-chart-dimension=month]')"));assert.equal(await run("require('chart.js/auto').getChart(document.querySelector('#plot-history')).data.labels.length"),lineBox.labels);
+  await run("document.querySelector('[data-reset-chart]').click()");
   await run("document.querySelector('#currency').value='EUR';document.querySelector('#currency').dispatchEvent(new Event('change',{bubbles:true}));require('chart.js/auto').getChart(document.querySelector('#plot-articles')).config.options.onClick(null,[{index:0}])");
   assert(await run("!!document.querySelector('[data-clear-chart-dimension=article]')"));
   const totalLabels=await run("Array.from(require('chart.js/auto').getChart(document.querySelector('#plot-articles')).data.labels)");
