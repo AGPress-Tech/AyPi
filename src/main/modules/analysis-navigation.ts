@@ -10,6 +10,10 @@ const ready=new Set<number>(),pending=new Map<number,AnalysisContext>(),observed
 export function registerAnalysisTarget(id:AnalysisTarget,open:()=>Promise<BrowserWindow>,owns:(event:any)=>boolean,exists?:(context:AnalysisContext)=>Promise<boolean>){modules.set(id,{open,owns,exists});}
 async function destinationExists(target:AnalysisTarget,context:AnalysisContext):Promise<boolean>{
     try{
+        if(target==='bom-analysis'){
+            const result=await requestAypiBackend('/api/erp/bom-analysis',{method:'POST',body:context.bom?{bom:context.bom}:{article:context.article}});
+            return result.rows?.length>0;
+        }
         if(target==='turning-analysis')return await modules.get(target)?.exists?.(context)??false;
         if(target==='customer-analysis'){
             const result=await requestAypiBackend('/api/erp/customer-search',{method:'POST',body:{search:context.customerCode||context.customerName}});
@@ -75,6 +79,14 @@ export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>str
                 add('article-orders','Mostra articolo in Analisi venduto',{article:context.article});
                 add('article-offers','Mostra articolo in Analisi offerte',{article:context.article});
                 add('turning-analysis','Mostra dettagli Analisi Torneria',{article:context.article});
+                add('bom-analysis','Mostra distinte che contengono l’articolo',{article:context.article});
+                add('bom-analysis','Mostra composizione distinta',{bom:context.article});
+            }
+            if(context.bom){
+                add('bom-analysis','Mostra composizione distinta',{bom:context.bom});
+                add('article-orders','Mostra articolo in Analisi venduto',{article:context.bom});
+                add('article-offers','Mostra articolo in Analisi offerte',{article:context.bom});
+                add('turning-analysis','Mostra dettagli Analisi Torneria',{article:context.bom});
             }
             if(context.customerCode||context.customerName)add('customer-analysis','Mostra cliente in Analisi per cliente',{...(context.customerCode?{customerCode:context.customerCode}:{}),...(context.customerName?{customerName:context.customerName}:{})});
             if(context.customerName)add('turning-analysis','Mostra produzioni del cliente in Analisi Torneria',{...(context.customerCode?{customerCode:context.customerCode}:{}),customerName:context.customerName});

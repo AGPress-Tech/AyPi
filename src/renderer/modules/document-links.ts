@@ -4,9 +4,10 @@ const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 const num=(v:unknown)=>v==null?'—':new Intl.NumberFormat('it-IT',{maximumFractionDigits:4}).format(Number(v));
 const date=(v:unknown)=>v?String(v).slice(0,10).split('-').reverse().join('/'):'—';
 export function contextFromAnalysisElement(target:HTMLElement):AnalysisContext|null{
-    const node=target.closest<HTMLElement>('td[data-analysis-article],td[data-analysis-customer-code],td[data-analysis-customer-name],[data-analysis-document-id]');
+    const node=target.closest<HTMLElement>('td[data-analysis-article],td[data-analysis-bom],td[data-analysis-customer-code],td[data-analysis-customer-name],[data-analysis-document-id]');
     if(!node)return null;const context:AnalysisContext={};
     if(node.dataset.analysisArticle)context.article=node.dataset.analysisArticle;
+    if(node.dataset.analysisBom)context.bom=node.dataset.analysisBom;
     if(node.dataset.analysisCustomerCode)context.customerCode=node.dataset.analysisCustomerCode;
     if(node.dataset.analysisCustomerName)context.customerName=node.dataset.analysisCustomerName;
     if(node.dataset.analysisDocumentId){context.documentId=node.dataset.analysisDocumentId;context.documentNo=node.dataset.analysisDocumentNo;context.documentKind=node.dataset.analysisDocumentKind as 'order'|'offer';}

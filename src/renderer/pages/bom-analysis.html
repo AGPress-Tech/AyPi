@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'">
+<title>AyPi · BoM e Articoli</title>
+<script src="../scripts/utility-layout-bootstrap.js"></script>
+<link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
+<link rel="stylesheet" href="../styles/utilities/aypi-operations-ui.css">
+<link rel="stylesheet" href="../styles/article-orders.css">
+<link rel="stylesheet" href="../styles/bom-analysis.css">
+<link rel="stylesheet" href="../styles/table-sorting.css"></head>
+<body class="aypi-operations article-orders-window bom-window">
+<header class="topbar"><div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash"></span></div>
+<div class="header-title"><div class="eyebrow">ANALISI DEL GESTIONALE</div><h1>BoM e Articoli</h1></div>
+<div class="header-actions"><button id="refresh">Aggiorna dati</button><button id="export" disabled>↓ Esporta Excel</button><button id="close">Chiudi ×</button></div></header>
+<nav class="bom-tabs" aria-label="Analisi distinte"><button data-mode="where-used" aria-pressed="true">Articolo → Distinte</button><button data-mode="composition" aria-pressed="false">Distinta → Articoli</button></nav>
+<main><form id="searchForm" class="filter-panel">
+<div class="filter-heading"><span class="eyebrow">CRITERI DI RICERCA</span><h2 id="filterTitle">Dove compare l’articolo?</h2></div>
+<div class="filter-scroll" id="filterGroups"></div>
+<div class="filter-actions"><button type="submit" class="primary">Cerca</button><button type="button" id="reset">Azzera</button></div>
+<details class="bom-presets"><summary>Preset di ricerca</summary><select id="presets" aria-label="Preset salvati"><option value="">Scegli preset</option></select><div><button type="button" id="savePreset">Salva preset</button><button type="button" id="deletePreset" disabled>Elimina</button></div></details>
+</form>
+<section class="workspace" aria-label="Risultati ricerca"><div class="metrics"><div><small>Distinte</small><strong id="bomCount">—</strong></div><div><small>Articoli diversi</small><strong id="componentCount">—</strong></div><div><small>Righe componenti</small><strong id="rowCount">—</strong></div></div>
+<div class="results-panel"><div class="results-heading"><h2 id="resultsTitle">Distinte che contengono l’articolo</h2><details id="columns"><summary>Colonne <span id="columnCount"></span></summary><div class="column-picker" id="columnPicker"></div></details></div>
+<div id="status" role="status" aria-live="polite"></div>
+<div class="table-scroll" tabindex="0" aria-label="Distinte e articoli"><table id="results" hidden><thead></thead><tbody></tbody></table><div class="empty" id="empty"><h2>Nessun risultato</h2><p>Modifica i filtri per cercare articoli o distinte.</p></div></div>
+<div class="results-footer"><span id="loaded"></span><button id="more" hidden>Carica altri risultati</button></div></div>
+<details class="analysis-information"><summary>Informazioni sui dati</summary><p id="sourceInfo"></p><p>Le ricerche mostrano i legami diretti delle distinte anagrafiche, comprese quelle disabilitate. Apri una distinta per consultarne tutte le righe; i componenti con sottodistinta permettono di proseguire nella struttura. Le quantità sono quelle della singola riga, nella sua unità di misura: non vengono sommate tra unità diverse né moltiplicate tra livelli. La variante è quella indicata sul componente; le sostituzioni delle varianti e le modifiche ECO non sono applicate.</p><p>Puoi filtrare ogni campo, anche le colonne nascoste. Alternative sullo stesso campo in OR; campi diversi in AND. Le date di validità non valorizzate nel gestionale sono mostrate come mancanti. Il dettaglio della distinta conserva la composizione completa, indipendentemente dai filtri della ricerca.</p></details></section></main>
+<dialog id="bomDetail" aria-labelledby="detailTitle"><div class="bom-dialog-header"><div><h2 id="detailTitle"></h2><p id="detailSubtitle"></p></div><button id="detailClose" aria-label="Chiudi dettaglio distinta">×</button></div><div class="bom-detail-tools"><button id="detailBack" hidden>← Indietro</button><button id="detailOpenSearch">Apri nella ricerca</button><button id="detailWhereUsed">Dove viene usata?</button><input id="detailSearch" type="search" placeholder="Filtra la composizione…" aria-label="Cerca nella composizione"></div><div class="table-scroll" tabindex="0" aria-label="Composizione distinta"><table id="detailTable"><thead></thead><tbody></tbody></table><p id="detailEmpty" hidden>Nessun componente trovato.</p></div></dialog>
+<dialog id="presetDialog" aria-labelledby="presetTitle"><form method="dialog"><h2 id="presetTitle">Salva preset di ricerca</h2><label>Nome<input id="presetName" maxlength="60" required autocomplete="off"></label><div><button value="cancel" formnovalidate>Annulla</button><button value="save" class="primary">Salva</button></div></form></dialog>
+<dialog id="exportDialog" aria-labelledby="exportTitle"><form method="dialog"><h2 id="exportTitle">Esporta Excel</h2><label>Vista da esportare<select id="exportLayout"><option value="summary">Riepilogo: una riga per distinta</option><option value="exploded">Esploso completo delle distinte trovate</option></select></label><p>L’esploso include tutte le righe e le colonne delle distinte trovate, anche i componenti esclusi dai filtri della ricerca.</p><div><button value="cancel">Annulla</button><button value="export" class="primary">Esporta</button></div></form></dialog>
+<script src="../scripts/bom-analysis.js"></script></body></html>

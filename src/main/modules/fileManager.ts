@@ -39,6 +39,7 @@ import { registerManagementIpc } from "./management/ipc";
 import { registerArticleOrdersIpc } from "./article-orders/ipc";
 import { registerTurningAnalysisIpc } from "./turning-analysis/ipc";
 import { registerCustomerAnalysisIpc } from "./customer-analysis/ipc";
+import { registerBomAnalysisIpc } from "./bom-analysis/ipc";
 import { registerAnalysisNavigation } from "./analysis-navigation";
 import {
     createProductManagerSessionState,
@@ -2541,6 +2542,7 @@ function setupFileManager(mainWindow) {
     registerArticleOrdersIpc(mainWindow,getInterfaceIconPath);
     registerTurningAnalysisIpc(mainWindow,getInterfaceIconPath);
     registerCustomerAnalysisIpc(mainWindow,getInterfaceIconPath);
+    registerBomAnalysisIpc(mainWindow,getInterfaceIconPath);
 
     registerFilesystemDialogIpc({
         ipcMain,

@@ -13,6 +13,7 @@ const normalized=(rs,kind)=>rs.map(r=>({...r,kind,documentId:r[kind==='order'?'o
 const calls=[];
 require('../dist-ts/modules/file-manager/backend-client').requestAypiBackend=async(endpoint,options)=>{
  const f=options.body;calls.push({endpoint,filters:f});
+ if(endpoint.endsWith('bom-analysis'))return {rows:[],queriedAt:'2026-11-11T10:00:00Z'};
  if(endpoint.endsWith('customer-search'))return {customers:[{code:'C001',name:'Cliente Test'}],more:false};
  if(endpoint.endsWith('customer-analysis'))return {rows:[...normalized(orders,'order'),...normalized(offers,'offer')],customer:'C001',queriedAt:'2026-11-10T10:00:00Z'};
  if(endpoint.endsWith('document-links'))return {rows:f.kind==='order'?normalized(offers,'offer'):normalized(orders,'order'),queriedAt:'2026-11-10T10:00:00Z'};
@@ -42,7 +43,7 @@ app.whenReady().then(async()=>{
  const open=async(target,context)=>{const result=await run(main,`require('electron').ipcRenderer.invoke('analysis-navigate',${JSON.stringify({target,context})})`);assert.equal(result.ok,true,result.error);};
  try{
   assert.equal((await run(main,"require('electron').ipcRenderer.invoke('commercial-analysis-open')")).ok,true);
-  await until(()=>!!find('commercial-analysis.html'));const hub=find('commercial-analysis.html');await until(()=>run(hub,"document.querySelectorAll('[data-analysis]').length===3"));
+  await until(()=>!!find('commercial-analysis.html'));const hub=find('commercial-analysis.html');await until(()=>run(hub,"document.querySelectorAll('[data-analysis]').length===4"));
   await run(hub,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");const screenshot=await hub.webContents.capturePage();fs.writeFileSync(path.join(dir,'hub.png'),screenshot.toPNG());
   
   await run(hub,"document.querySelector('[data-analysis=article-orders]').click()");await until(()=>!!find('article-orders.html'));

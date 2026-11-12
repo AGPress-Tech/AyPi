@@ -4,6 +4,7 @@ import { buildArticleOrderQuery } from "./article-orders";
 import { buildArticleOfferQuery } from "./article-offers";
 import {customerSearchQuery,customerAnalysisQuery} from './customer-analysis';
 import {documentLinksQuery} from './document-links';
+import {bomAnalysisQuery} from './bom-analysis';
 const sql = require("mssql");
 
 export type AnalyticsDataset={queryId:string;columns:string[];rows:unknown[][];queriedAt:string;source:string;rowCount:number};
@@ -85,6 +86,18 @@ export function createAnalyticsService(getConfig=loadAnalyticsConfig, driver=sql
             return {rows:result.recordset.map((row:any)=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,v instanceof Date?v.toISOString().slice(0,10):v]))),queriedAt:new Date().toISOString()};
         }finally{articleRequests--;}
     }
-    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
+    async function bomAnalysis(input:unknown){
+        const definition=bomAnalysisQuery(input);
+        if(articleRequests>=3)throw Error('Altre ricerche sono in corso. Riprovare tra qualche secondo.');
+        articleRequests++;
+        try{
+            const request=(await pool()).request();
+            for(const p of definition.bindings)request.input(p.name,driver.VarChar(128),p.value);
+            const result=await request.query(definition.sql);
+            if(result.recordset.length>100000)throw Error('Oltre 100.000 righe di distinta: lettura completa non disponibile.');
+            return {rows:result.recordset.map((row:any)=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,v instanceof Date?v.toISOString().slice(0,10):v]))),queriedAt:new Date().toISOString()};
+        }finally{articleRequests--;}
+    }
+    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
 }
 export const analyticsService=createAnalyticsService();

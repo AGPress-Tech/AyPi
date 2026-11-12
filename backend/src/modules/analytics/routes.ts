@@ -10,10 +10,18 @@ import { validateArticleOrderFilters } from "./article-orders";
 import { validateArticleOfferFilters } from "./article-offers";
 import {validateCustomerAnalysis,validateCustomerSearch} from './customer-analysis';
 import {validateDocumentLinkRequest} from './document-links';
+import {validateBomRequest} from './bom-analysis';
 const compress=promisify(gzip);
 const digest=(value:string)=>createHash("sha256").update(value).digest();
 
 export function registerAnalyticsRoutes(router:Router,service=analyticsService) {
+    router.register('POST','/api/erp/bom-analysis',async(req,res)=>{
+        let input;
+        try{input=validateBomRequest(await readJsonBody(req));}catch(error){sendJson(res,400,{error:(error as Error).message});return;}
+        res.setHeader('Cache-Control','no-store');
+        try{sendJson(res,200,await service.bomAnalysis(input));}
+        catch(error){sendJson(res,503,{error:(error as Error).message.startsWith('Oltre 100.000')?(error as Error).message:'Lettura distinte dal gestionale non riuscita. Verificare il backend e riprovare.'});}
+    });
     router.register('POST','/api/erp/document-links',async(req,res)=>{
         let input;
         try{input=validateDocumentLinkRequest(await readJsonBody(req));}catch(error){sendJson(res,400,{error:(error as Error).message});return;}

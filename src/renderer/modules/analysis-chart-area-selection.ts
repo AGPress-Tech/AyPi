@@ -55,7 +55,6 @@ const areaSelection:Plugin={
     afterInit(chart){
         if(!['bar','line'].includes((chart.config as any).type))return;
         installGlobalListeners();const canvas=chart.canvas;
-        if(!canvas.title)canvas.title='Trascina per selezionare un’area. Ctrl/Cmd per aggiungere o togliere punti. Escape per annullare.';
         const coordinates=(event:PointerEvent)=>{const rect=canvas.getBoundingClientRect(),area=chart.chartArea;return {x:Math.max(area.left,Math.min(area.right,(event.clientX-rect.left)*chart.width/rect.width)),y:Math.max(area.top,Math.min(area.bottom,(event.clientY-rect.top)*chart.height/rect.height))}};
         const down=(event:PointerEvent)=>{
             if(event.button!==0||event.isPrimary===false||typeof chart.options.onAreaSelect!=='function')return;

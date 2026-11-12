@@ -37,6 +37,7 @@ L’interfaccia serve a esplorare dati: filtri e KPI devono lasciare la maggior 
 | Navigazione fra moduli | [analysis-navigation.ts](src/main/modules/analysis-navigation.ts), [analysis-navigation-model.ts](src/main/modules/analysis-navigation-model.ts) |
 | Menu contestuali e documenti collegati | [analysis-links.ts](src/renderer/modules/analysis-links.ts), [document-links.ts](src/renderer/modules/document-links.ts) |
 | Applicazione delle regole ai documenti commerciali | [customer-analysis.ts](src/renderer/scripts/customer-analysis.ts), [customer-analysis.css](src/renderer/styles/customer-analysis.css) |
+| Distinte e componenti del gestionale | [bom-analysis.html](src/renderer/pages/bom-analysis.html), [bom-analysis.ts](src/renderer/scripts/bom-analysis.ts), [modello filtri e colonne](src/main/modules/bom-analysis/model.ts) |
 
 Le funzioni interne del renderer Torneria sono riferimenti di comportamento; non sono tutte componenti già esportate. Riutilizzare i moduli condivisi disponibili. Per una nuova estrazione, mantenere il comportamento delle schermate che già li usano.
 
@@ -133,6 +134,8 @@ Il comportamento visivo di riferimento è quello della Torneria:
 5. Cambiare selezione non deve far scomparire tutte le categorie di confronto.
 
 ### Selezione rettangolare nelle linee e nelle barre
+
+Non aggiungere un tooltip nativo al passaggio del mouse sull’intera area del grafico con le istruzioni di selezione. Restano disponibili i tooltip dei dati e le interazioni di selezione.
 
 Riutilizzare [analysis-chart-area-selection.ts](src/renderer/modules/analysis-chart-area-selection.ts), registrato dalla toolbar condivisa. Trascinare con il pulsante sinistro all’interno dell’area dati disegna un rettangolo: seleziona i punti delle linee contenuti nell’area e le barre intersecate, anche orizzontali o negative. Serie nascoste e valori nulli sono esclusi; le categorie presenti in più serie vengono deduplicate.
 
@@ -284,6 +287,18 @@ La pagina Analisi commerciali è un’estensione della home: testata e griglia d
 Per una modifica solo documentale, controllare collegamenti e coerenza delle descrizioni; non serve avviare nuovamente i test dell’app.
 
 ## 18. Come usare e aggiornare questo riferimento
+
+### Modulo BoM e Articoli
+
+Una sola card nelle Analisi commerciali apre la finestra massimizzata con due viste: **Articolo → Distinte** (legami diretti del componente) e **Distinta → Articoli** (composizione, comprese righe descrittive e distinte senza componenti). Riutilizza filtri compatti e tabelle commerciali, divisori verticali, selezione colonne, ordinamento multiplo e menu contestuali direzionali. I filtri coprono tutte le colonne, anche nascoste, con alternative OR per campo e AND tra campi. Non aggiungere grafici a una ricerca tabellare senza una misura e un uso pertinenti.
+
+In entrambe le viste la tabella principale mostra **una sola riga per distinta**, con i soli dati dell’intestazione. I filtri sulle righe selezionano le distinte pertinenti senza duplicarle; componenti e quantità restano nell’esplosione e nel dettaglio, senza mostrare un componente arbitrario come riepilogo. Paginazione e ordinamento della tabella lavorano sulle distinte uniche. L’Excel propone **Riepilogo** (colonne visibili e una riga per distinta) oppure **Esploso completo** (tutte le righe e colonne delle distinte trovate, anche quelle escluse dai filtri sulle righe). L’esploso rimane per legami diretti, senza moltiplicare quantità tra livelli.
+
+La freccina ▸ accanto al codice espande la composizione direttamente sotto la riga, come nei documenti commerciali; un secondo clic la richiude. Anche le sottodistinte sono espandibili. Il clic sul codice apre invece il dettaglio quasi a schermo intero, che conserva tutte le righe della distinta, ha chiusura ×/Escape, focus contenuto e ripristinato, ricerca interna e navigazione nelle sottodistinte con Indietro. **Apri nella ricerca** rende disponibili tutti i filtri anche sulla composizione del dettaglio. I menu mostrano soltanto destinazioni con dati verificati, anche aprendo questa analisi da un articolo negli altri moduli.
+
+Fonte: `MA_BillOfMaterials` e `MA_BillOfMaterialsComp`, pesi da `MA_ItemsGoodsData`. Non usare tabelle temporanee di esplosione. Quantità originali per riga e U.M., senza somma tra unità o moltiplicazione tra livelli; massimo tre decimali visualizzati, valori numerici originali conservati nell’Excel. Le sostituzioni di variante e le modifiche ECO non sono applicate. Date sentinella ERP non valorizzate → mancanti. La lettura rifiuta oltre 100.000 righe senza troncare silenziosamente.
+
+Colonne e massimo dieci preset personali di filtri/ordinamento/colonne sono validati nel main e salvati atomicamente in `bom-analysis.settings.json`; un file corrotto viene preservato. Verifiche dedicate: `tools/test-bom-analysis.cjs` e `tools/test-bom-analysis-ui.cjs`, quest’ultima in Electron sui due temi, 1500 × 940 e minimo 1000 × 680, con controllo del file Excel riletto.
 
 Prima di lavorare a un modulo, leggere questa guida e individuare i riferimenti sorgente pertinenti. Applicare le convenzioni esistenti alla nuova funzionalità, evitando una nuova variante dello stesso controllo.
 
