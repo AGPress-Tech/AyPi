@@ -1,0 +1,23 @@
+.turning-window[data-view=workbook] .filters,.turning-window[data-view=workbook] #selectionChips,.turning-window[data-view=workbook] #chartsMenu,.turning-window[data-view=workbook] #capacity,.turning-window[data-view=workbook] #layoutToggle {display:none}
+.turning-window[data-view=workbook] #content {display:flex;min-height:0}
+.workbook-panel {display:flex;flex:1;flex-direction:column;min-height:0;min-width:0;overflow:visible}
+.workbook-tools {display:flex;flex-wrap:wrap;align-items:end;gap:10px;position:relative;z-index:12}
+.workbook-tools h2 {align-self:center;margin-right:auto}
+.workbook-tools label {display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--ops-muted)}
+.workbook-tools details {position:relative;font-size:12px}
+.workbook-tools details>summary {cursor:pointer;border:1px solid var(--ops-line);border-radius:6px;padding:8px;background:#fff}
+.workbook-filter-popup {position:absolute;right:0;top:calc(100% + 6px);width:min(730px,calc(100vw - 70px));max-height:calc(100vh - 230px);overflow:auto;background:#fff;border:1px solid var(--ops-line);border-radius:8px;padding:12px;box-shadow:0 12px 30px #17345126}
+.workbook-rule {display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.workbook-rule select {max-width:220px;min-width:100px}
+.workbook-rule input {width:115px;flex:1;min-width:80px}
+.workbook-actions {display:flex;gap:8px;padding-top:8px}
+.workbook-column-picker {display:grid;gap:5px;max-height:320px;overflow:auto;min-width:220px;padding:12px!important}
+.workbook-column-picker label {display:flex;flex-direction:row;align-items:center;gap:8px}
+.workbook-panel .table-scroll {flex:1;min-height:0;overflow:auto}
+.workbook-panel table {min-width:100%;width:max-content;border-collapse:separate;border-spacing:0}
+.workbook-panel td {max-width:450px;overflow:hidden;text-overflow:ellipsis}
+.workbook-panel th {min-width:150px}
+.workbook-column-search td {background:var(--ops-soft);padding:5px 7px!important}
+.workbook-column-search input {box-sizing:border-box;width:100%;min-width:105px;font-size:11px}
+.workbook-loading {padding:24px}
+@media(max-width:1100px){.workbook-tools{gap:7px}.workbook-tools label input{max-width:180px}.workbook-filter-popup{position:fixed;top:190px;left:20px;right:20px;width:auto}}

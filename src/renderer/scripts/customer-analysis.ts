@@ -1,3 +1,4 @@
+import {analysisYearPicker} from '../modules/analysis-year-picker';
 import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
 import Chart from "chart.js/auto";
 import {
@@ -248,14 +249,7 @@ function setupFilterOptions() {
             rows.map((r) => r.documentDate?.slice(0, 4)).filter(Boolean),
         ),
     ].sort() as string[];
-    $("yearOptions").innerHTML =
-        '<span>Esercizi:</span><button type="button" data-years="all">Tutti</button><button type="button" data-years="last2">Ultimi 2</button>' +
-        years
-            .map(
-                (y) =>
-                    `<label><input type="checkbox" data-year="${y}">${y}</label>`,
-            )
-            .join("");
+    $("yearOptions").innerHTML = analysisYearPicker(years);
 }
 function filterChips() {
     const chips: { label: string; keys: (keyof CustomerFilters)[] }[] = [];

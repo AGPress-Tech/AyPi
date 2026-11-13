@@ -1,4 +1,33 @@
 (() => {
+  const sharedTableStyle = new URL('../styles/table-sorting.css', document.currentScript.src).href;
+  document.addEventListener('DOMContentLoaded', () => {
+    if (![...document.styleSheets].some(sheet => sheet.href === sharedTableStyle)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet'; link.href = sharedTableStyle;
+      document.head.append(link);
+    }
+    const markCreationButtons = root => {
+      const buttons = root.matches?.('button') ? [root] : root.querySelectorAll?.('button') || [];
+      for (const button of buttons) {
+        button.classList.toggle('analysis-create-button', /^(?:\+\s*\p{L}|Aggiungi\b|Inserisci\b|Nuov[ao]\b)/u.test(button.textContent.trim()));
+      }
+    };
+    markCreationButtons(document);
+    new MutationObserver(changes => {
+      for (const change of changes) {
+        if (change.target.parentElement?.closest('button')) markCreationButtons(change.target.parentElement.closest('button'));
+        if (change.target.closest?.('button')) markCreationButtons(change.target.closest('button'));
+        for (const node of change.addedNodes) if (node.nodeType === Node.ELEMENT_NODE) markCreationButtons(node);
+      }
+    }).observe(document.body, {childList:true, subtree:true, characterData:true});
+  });
+  // Dismiss only filter/column popovers; expanded data rows and information stay open.
+  document.addEventListener('pointerdown', event => {
+    const selectors = 'details.multi-filter[open], details.columns-picker[open], details.analysis-columns[open], details.filter-picker[open], details.advanced-filters[open], details.filter-group[open], details.analysis-advanced-filters[open], details.machine-filter[open], details.additional-years[open], details.read-period[open], details.bom-presets[open], details[data-filter-popover][open], details#moreFilters[open], details#columns[open], details#report-columns[open]';
+    for (const popup of document.querySelectorAll(selectors)) {
+      if (!event.composedPath().includes(popup)) popup.open = false;
+    }
+  }, true);
   const params = new URLSearchParams(window.location.search || "");
   const page = decodeURIComponent(window.location.pathname)
     .split(/[\\/]/)
@@ -13,7 +42,7 @@
   html.dataset.moduleTheme = isBlueArchive ? "bluearchive" : "standard";
 
   // Eseguito nel <head>, prima dei CSS e di qualunque bundle/IPC asincrono.
-  if (["forge.html", "forge-preview.html", "management.html", "article-orders.html", "article-offers.html", "turning-analysis.html", "customer-analysis.html", "commercial-analysis.html"].includes(page)) {
+  if (["forge.html", "forge-preview.html", "management.html", "article-orders.html", "article-offers.html", "turning-analysis.html", "customer-analysis.html", "commercial-analysis.html", "maintenance.html", "bom-analysis.html"].includes(page)) {
     html.dataset.forgeTheme = isBlueArchive ? "bluearchive" : "standard";
     if (page === "forge.html" && !isBlueArchive)
       bodyClasses.add("agpress-scripted-splash");

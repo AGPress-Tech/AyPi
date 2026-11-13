@@ -1,4 +1,23 @@
 .sortable-header { cursor:pointer; }
+.analysis-years{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 4px 4px;font-size:11px;color:var(--ops-muted)}
+.analysis-years[hidden]{display:none}
+.analysis-years label{display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap}
+.analysis-years button{font-size:11px;padding:3px 7px}
+.analysis-years input[type=checkbox]{margin:0;accent-color:var(--ops-accent)}
+/* Pin the whole header above horizontally pinned body cells, including column one. */
+@media screen {
+  table > thead { position:sticky; top:0; z-index:5; }
+  table > thead > tr > :is(th,td) { top:auto!important; }
+}
+body.aypi-operations button.analysis-create-button:not(.primary) {
+  border:1px solid var(--ops-accent,#168eea);
+  color:var(--ops-accent,#168eea);
+  background:var(--ops-soft,#e8f8ff);
+  font-weight:600;
+}
+body.aypi-operations button.analysis-create-button:not(.primary):hover:not(:disabled) {
+  background:var(--ops-accent,#168eea); color:#fff;
+}
 /* Keep headers and data columns visually aligned across all analysis modules. */
 body.aypi-operations table :is(th, td) { border-inline-end:1px solid var(--ops-line,#d9e8f1); }
 .sort-header-button { display:inline-flex; align-items:center; justify-content:inherit; gap:7px; padding:0!important; border:0!important; border-radius:0!important; background:transparent!important; box-shadow:none!important; color:inherit; font:inherit!important; font-weight:inherit!important; text-align:inherit; white-space:nowrap; cursor:pointer; }

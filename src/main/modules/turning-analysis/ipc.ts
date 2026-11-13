@@ -57,6 +57,17 @@ export function registerTurningAnalysisIpc(mainWindow:BrowserWindow,icon:()=>str
         });
         pending=operation;try{return await operation}finally{if(pending===operation)pending=null}
     });
+    ipcMain.handle('turning-analysis-workbook-load',async event=>{
+        if(!owns(event))return {ok:false,error:'Finestra non autorizzata.'};
+        const owner=window!;
+        return new Promise(resolve=>{
+            const task=new Worker(path.join(__dirname,'worker.js'),{workerData:{source:TURNING_SOURCE,mode:'table'}});let done=false;
+            const finish=(response:any)=>{if(done)return;done=true;clearTimeout(timer);owner.removeListener('closed',closed);void task.terminate();resolve(owner.isDestroyed()?{ok:false,error:'Finestra chiusa.'}:response);};
+            const closed=()=>finish({ok:false,error:'Finestra chiusa.'});owner.once('closed',closed);
+            const timer=setTimeout(()=>finish({ok:false,error:'Tempo di lettura Excel scaduto.'}),120000);
+            task.once('message',finish);task.once('error',error=>finish({ok:false,error:error.message}));task.once('exit',()=>finish({ok:false,error:'Lettura Excel interrotta.'}));
+        });
+    });
     ipcMain.handle('turning-analysis-settings-load',async event=>{
         if(!owns(event))return {ok:false,error:'Finestra non autorizzata.'};
         try{const file=settingsPath();return {ok:true,settings:fs.existsSync(file)?validateTurningSettings(JSON.parse(await fs.promises.readFile(file,'utf8'))):emptyTurningSettings()}}

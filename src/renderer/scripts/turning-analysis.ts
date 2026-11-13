@@ -1,3 +1,4 @@
+import {showTurningWorkbook,resetTurningWorkbook,exportTurningWorkbook} from '../modules/turning-workbook-view';
 import {excelDateCell,excelNumberFormat} from '../../main/modules/analysis-excel';
 import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
 import Chart from 'chart.js/auto';
@@ -27,7 +28,7 @@ const style=getComputedStyle(document.body),accent=style.getPropertyValue('--ops
 Chart.defaults.font.family=style.fontFamily;Chart.defaults.color=muted;
 type Dimension='machine'|'customer'|'article';
 type FilterDimension='machines'|'customers'|'articles';
-type View='dashboard'|'comparisons'|'machines'|'customers'|'articles'|'performance'|'simulator'|'quality';
+type View='dashboard'|'comparisons'|'machines'|'customers'|'articles'|'performance'|'simulator'|'workbook'|'quality';
 type Kind='text'|'money'|'price'|'number'|'integer'|'percent'|'rate'|'date'|'year';
 type Column={key:string;label:string;kind:Kind;optional?:boolean;delta?:boolean;lowerBetter?:boolean};
 type Row={id:string;values:Record<string,SortValue>;dimension?:Dimension;entity?:string;depth?:number;parent?:string;sortValues?:Record<string,SortValue>;tooltips?:Record<string,string>};
@@ -531,12 +532,12 @@ function quality(){
 }
 function render(){
     if(!data)return;
-    document.body.dataset.view=view;syncFilters();document.body.dataset.layout=ui.layout;
+    document.body.dataset.view=view;syncFilters();document.body.dataset.layout=view==='workbook'?'compact':ui.layout;
     renderedChartIds.clear();activeTable=null;
-    $('kpis').hidden=view==='quality'||view==='simulator';if(!$('kpis').hidden)renderKpis();
+    $('kpis').hidden=view==='quality'||view==='simulator'||view==='workbook';if(!$('kpis').hidden)renderKpis();
     document.querySelectorAll<HTMLElement>('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));
-    if(view==='dashboard')dashboard();else if(view==='comparisons')comparisons();else if(view==='machines')groupedView('machine');else if(view==='customers')groupedView('customer');else if(view==='articles')groupedView('article');else if(view==='performance')performanceView();else if(view==='simulator')simulatorView();else quality();
-    renderCustomCharts();
+    if(view==='dashboard')dashboard();else if(view==='comparisons')comparisons();else if(view==='machines')groupedView('machine');else if(view==='customers')groupedView('customer');else if(view==='articles')groupedView('article');else if(view==='performance')performanceView();else if(view==='simulator')simulatorView();else if(view==='workbook')void showTurningWorkbook($('content'));else quality();
+    if(view!=='workbook')renderCustomCharts();
     $('content').querySelectorAll<HTMLElement>('.chart-grid,.dashboard-grid').forEach(grid=>{const count=Array.from(grid.children).filter(el=>!(el as HTMLElement).hidden).length;grid.classList.toggle('one-panel',count===1);grid.classList.toggle('no-panels',count===0);grid.closest('.split-view')?.classList.toggle('no-chart-panels',count===0)});
     for(const [id,instance] of charts)if(!renderedChartIds.has(id)){instance.destroy();charts.delete(id);}
     for(const [id,instance] of spatialCharts)if(!renderedChartIds.has(id)){instance.destroy();spatialCharts.delete(id);}
@@ -613,6 +614,7 @@ function editCustomChart(id:string){openChartsMenu(id);$('chartBuilderHeading').
 async function load(refresh=false){
     if(loading)return;loading=true;$<HTMLButtonElement>('refresh').disabled=true;status('Lettura e verifica del foglio COMPLETO…');
     try{
+        if(refresh)resetTurningWorkbook();
         const result=await ipc.invoke('turning-analysis-load',{refresh});if(!result.ok)throw new Error(result.error);
         const first=!data;data=result.data;
         if(first){filters=defaultFilters();const [saved,prefs]=await Promise.all([ipc.invoke('turning-analysis-settings-load'),ipc.invoke('turning-analysis-charts-load')]);if(saved.ok)settings=saved.settings;else settingsWarning=saved.error;if(prefs.ok){chartPreferences=prefs.preferences;ui.layout=pageCharts().layout;updateLayoutButton();}else chartsWarning=prefs.error;}
@@ -659,6 +661,7 @@ async function exportSimulation(){
     }catch(error){status('Esportazione non riuscita: '+(error as Error).message,true)}finally{button.disabled=false;if(local?.isConnected)local.disabled=false;}
 }
 async function exportData(){
+    if(view==='workbook'){try{await exportTurningWorkbook()}catch(error){status((error as Error).message,true)}return;}
     if(view==='simulator')return exportSimulation();
     if(!data)return;const button=$<HTMLButtonElement>('export');button.disabled=true;status('Preparazione dell’esportazione completa…');
     try{

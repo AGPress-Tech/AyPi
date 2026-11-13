@@ -1,5 +1,6 @@
 import { startFornoService, stopFornoService } from "./modules/forno/service";
 import { analyticsService } from "./modules/analytics/service";
+import { initializeMaintenanceArchive } from "./modules/maintenance/bootstrap";
 import { attachFornoLive, closeFornoLive } from "./modules/forno/live";
 import http from "http";
 import { backendConfig } from "./config";
@@ -223,6 +224,8 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 await initializeSqliteDatabase();
                 await initializeMesSqliteDatabase();
                 initializeSharedSqliteStore();
+                try { initializeMaintenanceArchive(); }
+                catch (error) { logger.error("Maintenance initialization failed", {module:"maintenance",event:"maintenance_initialization_failed",detail:error instanceof Error?error.message:String(error)}); }
                 initializeFeriePermessiSqliteStore();
                 initializeProductManagerSqliteStore();
                 initializeTicketSupportSqliteStore();

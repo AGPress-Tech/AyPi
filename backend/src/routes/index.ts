@@ -1,5 +1,6 @@
 import { registerFornoRoutes } from "../modules/forno/routes";
 import { registerAnalyticsRoutes } from "../modules/analytics/routes";
+import { registerMaintenanceRoutes } from "../modules/maintenance/routes";
 import type { Router } from "../shared/http/router";
 import { registerUploadRoutes } from "../shared/http/upload-routes";
 import { registerFeriePermessiRoutes } from "../modules/ferie-permessi/routes";
@@ -18,6 +19,7 @@ import { backendConfig } from "../config";
 import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
 
 export function registerRoutes(router: Router) {
+    registerMaintenanceRoutes(router);
     registerAnalyticsRoutes(router);
     registerUploadRoutes(router);
     router.register("GET", "/health", async (_req, res) => {
@@ -25,6 +27,7 @@ export function registerRoutes(router: Router) {
             ok: true,
             service: "aypi-backend",
             modules: [
+                "maintenance",
                 "ferie-permessi",
                 "shared",
                 "product-manager",

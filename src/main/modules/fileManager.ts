@@ -34,6 +34,7 @@ import { registerProductionPlannerIpc } from "./file-manager/production-planner-
 import { setupRealtimeClient } from "./file-manager/realtime-client";
 import { registerFilesystemDialogIpc } from "./file-manager/filesystem-dialog-ipc";
 import { registerFileNavigationIpc } from "./file-manager/file-navigation-ipc";
+import { registerMaintenanceIpc } from "./maintenance/ipc";
 import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
 import { registerManagementIpc } from "./management/ipc";
 import { registerArticleOrdersIpc } from "./article-orders/ipc";
@@ -2524,12 +2525,14 @@ function setupFileManager(mainWindow) {
         isAppQuitting = true;
     });
 
+    const maintenance = registerMaintenanceIpc(mainWindow,getInterfaceIconPath);
     registerFileNavigationIpc({
         ipcMain,
         dialog,
         shell,
         browserWindow: BrowserWindow,
         mainWindow,
+        openMaintenance: () => void maintenance.open(),
     });
 
     const adminState = registerAdminStateIpc({

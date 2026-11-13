@@ -6,7 +6,7 @@ import {emptyWorkspace,validateWorkspace,WorkspaceChart} from '../../main/module
 const ipc=require('electron').ipcRenderer;
 const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
 const copy=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
-type Options={key:string;actions:HTMLElement;container:()=>HTMLElement;reset?:()=>void;sources?:{id:string;title:string}[];metrics?:{id:string;title:string}[];build?:(spec:WorkspaceChart)=>any;revision?:()=>unknown;htmlPanels?:{id:string;panel:HTMLElement;title:string;area?:(indices:number[],multiple:boolean)=>void}[]};
+type Options={key:string;actions:HTMLElement;container:()=>HTMLElement;reset?:()=>void;sources?:{id:string;title:string}[];metrics?:{id:string;title:string}[];build?:(spec:WorkspaceChart)=>any;revision?:()=>unknown;persistence?:{load:()=>Promise<any>;save:(preferences:any)=>Promise<any>};htmlPanels?:{id:string;panel:HTMLElement;title:string;area?:(indices:number[],multiple:boolean)=>void}[]};
 /** Add the same chart controls/editor to existing reports without replacing their tables. */
 export function installAnalysisWorkspace(options:Options){
     Chart.register(analysisSelectionHighlight);
@@ -94,7 +94,7 @@ export function installAnalysisWorkspace(options:Options){
             if(b.hasAttribute('data-save-preset')){const name=dialog.querySelector<HTMLInputElement>('#workspacePresetName')!.value.trim();const next=copy(preferences);next.presets.push({name,layout:copy(preferences.layout)});preferences=validateWorkspace(next)}
             if(b.hasAttribute('data-save')||b.hasAttribute('data-save-preset')||b.hasAttribute('data-delete-preset')){
                 if(saving)return;saving=true;b.disabled=true;
-                try{const result=await ipc.invoke('analysis-ui-save',{key:options.key,preferences});if(!result.ok)throw Error(result.error);preferences=validateWorkspace(result.preferences)}finally{saving=false;b.disabled=false}
+                try{const result=await (options.persistence?options.persistence.save(preferences):ipc.invoke('analysis-ui-save',{key:options.key,preferences}));if(!result.ok)throw Error(result.error);preferences=validateWorkspace(result.preferences)}finally{saving=false;b.disabled=false}
             }
             sync();renderEditor();if(b.hasAttribute('data-save'))message('Pagina salvata.');
         }catch(error){message((error as Error).message)}
@@ -103,6 +103,6 @@ export function installAnalysisWorkspace(options:Options){
     const observer=new MutationObserver(records=>{if(!ready||records.every(r=>(r.target as HTMLElement).closest?.('[data-workspace-owned]')))return;clearTimeout(timer);timer=setTimeout(sync,80)});
     observer.observe(document.body,{childList:true,subtree:true});
     window.addEventListener('resize',resize);
-    void ipc.invoke('analysis-ui-load',options.key).then(result=>{if(result.ok)preferences=validateWorkspace(result.preferences);else menu.title=result.error}).catch(error=>{menu.title=error.message}).finally(()=>{ready=true;sync()});
+    void (options.persistence?options.persistence.load():ipc.invoke('analysis-ui-load',options.key)).then(result=>{if(result.ok)preferences=validateWorkspace(result.preferences);else menu.title=result.error}).catch(error=>{menu.title=error.message}).finally(()=>{ready=true;sync()});
     return {sync,closeFocus};
 }

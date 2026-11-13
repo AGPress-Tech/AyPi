@@ -1,0 +1,33 @@
+/* Login operativo condiviso: stessa geometria dei moduli AyPi, palette del tema. */
+body.aypi-operations dialog.aypi-login-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 24px;
+  border: 1px solid var(--ops-line);
+  border-top: 4px solid var(--ops-accent-2);
+  border-radius: var(--ops-radius, 6px 16px 6px 16px);
+  color: var(--ops-ink);
+  background:
+    linear-gradient(rgba(var(--ops-accent-rgb), .035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ops-accent-rgb), .035) 1px, transparent 1px),
+    linear-gradient(145deg, #fff 0 82%, var(--ops-soft) 82%);
+  background-size: 26px 26px, 26px 26px, auto;
+  box-shadow: 8px 10px 0 rgba(var(--ops-accent-rgb), .09), 0 24px 58px rgba(var(--ops-ink-rgb), .26);
+}
+.aypi-login-dialog::backdrop { background: rgba(var(--ops-ink-rgb), .5); backdrop-filter: blur(3px); }
+.aypi-login-dialog .aypi-login-header { display:flex; align-items:center; gap:14px; padding-bottom:15px; border-bottom:1px solid var(--ops-line); }
+.aypi-login-dialog .aypi-module-logo { --aypi-logo-size:32px; margin-right:2px; }
+.aypi-login-dialog .aypi-login-title { flex:1; min-width:0; }
+body.aypi-operations .aypi-login-dialog h2 { margin:4px 0 0; font-size:20px; line-height:1.25; font-weight:750; }
+.aypi-login-dialog .aypi-login-close { align-self:flex-start; min-width:32px; min-height:32px; padding:3px 8px; color:var(--ops-muted); }
+body.aypi-operations .aypi-login-dialog form { gap:16px; }
+.aypi-login-dialog p { margin:0; font-size:12px; line-height:1.5; color:var(--ops-muted); }
+.aypi-login-dialog [role=alert] { color:#b13c50; }
+.aypi-login-dialog [role=alert]:empty { display:none; }
+body.aypi-operations .aypi-login-dialog label { gap:6px; font-weight:600; }
+.aypi-login-dialog select { width:100%; min-height:39px; border-color:var(--ops-line); background:#fff; font-weight:400; }
+.aypi-login-dialog select:focus-visible { outline:2px solid var(--ops-accent); outline-offset:2px; }
+.aypi-login-dialog .dialog-actions { padding-top:5px; }
+.aypi-login-dialog .dialog-actions button { min-height:36px; }
+.aypi-login-dialog .dialog-actions .primary { min-width:110px; }
+@media(max-height:740px) { body.aypi-operations dialog.aypi-login-dialog { padding:20px; } }
