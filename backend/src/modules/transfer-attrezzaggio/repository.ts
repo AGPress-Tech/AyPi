@@ -250,6 +250,7 @@ function normalizeUtensiliRows(rows: any[]) {
               col2: String(item?.col2 || "").trim(),
               col3: String(item?.col3 || "").trim(),
               col4: String(item?.col4 || "").trim(),
+              col15: String(item?.col15 || "").trim(),
               col5: String(item?.col5 || "").trim(),
               col6: String(item?.col6 || "").trim(),
               col7: String(item?.col7 || "").trim(),

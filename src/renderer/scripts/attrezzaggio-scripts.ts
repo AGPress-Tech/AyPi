@@ -16,12 +16,13 @@ const {
 } = require("./shared/dialogs");
 
 const REQUIRED_TOOL_FIELDS = ["nrUnita", "iso", "descrizione"];
-const TOOL_ICON_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 14];
+const TOOL_ICON_COLUMNS = [1, 2, 3, 4, 15, 5, 6, 7, 8, 10, 12, 13, 14];
 const TOOL_ICON_TOOLTIPS = {
     1: "Utensile",
     2: "Attacco Base",
     3: "Adattatore",
     4: "Testa Multipla",
+    15: "Apparecchio Recesso",
     5: "Pulegge",
     6: "Commutatore",
     7: "Arresto Positivo",
@@ -1833,8 +1834,8 @@ async function printCard(card) {
     const cols = TOOL_ICON_COLUMNS.slice();
     const headerIcons = cols.map((idx) =>
         iconDataByCol[idx]
-            ? `<img src=\"${iconDataByCol[idx]}\" style=\"width:34px;height:34px;object-fit:contain;\">`
-            : `${idx}`,
+            ? `<img src=\"${iconDataByCol[idx]}\" alt=\"${TOOL_ICON_TOOLTIPS[idx]}\" title=\"${TOOL_ICON_TOOLTIPS[idx]}\" style=\"width:34px;height:34px;object-fit:contain;\">`
+            : TOOL_ICON_TOOLTIPS[idx] || `${idx}`,
     );
     const rows = (card.utensili || [])
         .map((r) => {
