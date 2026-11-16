@@ -1,3 +1,4 @@
+import {registerProcessingCyclesIpc} from './processing-cycles/ipc';
 // Gestione finestre e IPC lato main per AyPi
 
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
@@ -2526,6 +2527,7 @@ function setupFileManager(mainWindow) {
     });
 
     const maintenance = registerMaintenanceIpc(mainWindow,getInterfaceIconPath);
+    const processingCycles = registerProcessingCyclesIpc(mainWindow,getInterfaceIconPath);
     registerFileNavigationIpc({
         ipcMain,
         dialog,
@@ -2533,6 +2535,7 @@ function setupFileManager(mainWindow) {
         browserWindow: BrowserWindow,
         mainWindow,
         openMaintenance: () => void maintenance.open(),
+        openProcessingCycles: () => void processingCycles.open(),
     });
 
     const adminState = registerAdminStateIpc({
