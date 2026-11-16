@@ -1,5 +1,8 @@
 # UI consistency
 
+- Every AyPi wordmark uses the shared geometry in `utilities/aypi-module-brand.css`: Ay, Pi, ellipse/halo and diagonal slash. Retain all four parts in headers and logins; keep the host theme palette and intended size. Audit all existing wordmark variants when changing branding (`tools/test-aypi-brand-ui.cjs`).
+- Similar module headers share a compact 70px minimum height, 9px vertical padding and small explicit title margins through the shared operations styles. Allow responsive wrapping when necessary instead of clipping controls. Settings actions stay on one row; remove buttons are square and align with their input fields.
+
 - Before creating or updating AyPi analysis modules, read [STANDARD_UI_ANALISI_AYPI.md](STANDARD_UI_ANALISI_AYPI.md). It records the Torneria reference, shared source files, established interactions and verification requirements. Keep it updated when user requests change a common UI convention; distinguish current implementation from required behavior.
 
 - Use the established AyPi module UI when adding or changing analysis screens. Analisi Torneria is the reference for chart controls, chart focus, layout controls, chart editors and presets.
@@ -13,3 +16,6 @@
 - Leave enough internal padding in scrolling forms and filter panels to keep input focus outlines fully visible.
 - Show order and offer quantities/amounts in separate columns, with one aligned entry per unit or currency. Omit zero-value missing-unit/missing-currency placeholders, but preserve nonzero values whose unit or currency is missing.
 - Link dashboard charts through shared selections, as in Torneria: preserve visible totals, highlight the selected share, support Ctrl/Cmd multiple selections, update KPIs/tables together, and let chart reset preserve manual filters. Document detail dialogs should use nearly the full available viewport with internal scrolling.
+
+- Long tables append subsequent rows on scrolling instead of Previous/Next pagination; preserve existing rows, expanded details, scroll position and full-selection sorting/filtering/export. Reuse `table-scroll-loader.ts` for local data.
+- Shared chart visibility menus keep checkboxes beside their labels. Legends use readable, high-contrast text and adapt their placement to available panel space; preserve series toggles and keyboard access.

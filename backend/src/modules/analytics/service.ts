@@ -98,6 +98,11 @@ export function createAnalyticsService(getConfig=loadAnalyticsConfig, driver=sql
             return {rows:result.recordset.map((row:any)=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,v instanceof Date?v.toISOString().slice(0,10):v]))),queriedAt:new Date().toISOString()};
         }finally{articleRequests--;}
     }
-    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
+    async function supplierDirectory(){
+        const result=await (await pool()).request().query("SELECT TOP (100001) CustSupp AS code,CompanyName AS name,Disabled AS disabled,TaxIdNumber AS taxId,FiscalCode AS fiscalCode FROM dbo.MA_CustSupp WHERE CustSuppType=3211265 ORDER BY CustSupp");
+        if(result.recordset.length>100000)throw Error('Oltre 100.000 fornitori: elenco non troncato.');
+        return {suppliers:result.recordset.map((r:any)=>({...r,code:String(r.code).trim(),name:String(r.name||'').trim(),taxId:String(r.taxId||'').trim(),fiscalCode:String(r.fiscalCode||'').trim(),disabled:r.disabled===true||String(r.disabled)==='1'})),queriedAt:new Date().toISOString()};
+    }
+    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,supplierDirectory,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
 }
 export const analyticsService=createAnalyticsService();

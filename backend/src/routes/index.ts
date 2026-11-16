@@ -1,3 +1,4 @@
+import {registerSupplierEvaluationRoutes} from '../modules/supplier-evaluation/routes';
 import {registerProcessingCyclesRoutes} from '../modules/processing-cycles/routes';
 import { registerFornoRoutes } from "../modules/forno/routes";
 import { registerAnalyticsRoutes } from "../modules/analytics/routes";
@@ -66,6 +67,7 @@ export function registerRoutes(router: Router) {
     registerTicketSupportRoutes(router);
     registerTransferAttrezzaggioRoutes(router);
     registerProcessingCyclesRoutes(router);
+    registerSupplierEvaluationRoutes(router);
     registerHaasAttrezzaggioRoutes(router);
     registerProductionPlannerRoutes(router);
     registerRegistrazioniProgettazioneStampiRoutes(router);

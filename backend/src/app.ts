@@ -1,3 +1,4 @@
+import {initializeSupplierEvaluation} from './modules/supplier-evaluation/service';
 import { startFornoService, stopFornoService } from "./modules/forno/service";
 import { analyticsService } from "./modules/analytics/service";
 import { initializeMaintenanceArchive } from "./modules/maintenance/bootstrap";
@@ -229,6 +230,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 initializeFeriePermessiSqliteStore();
                 initializeProductManagerSqliteStore();
                 initializeTicketSupportSqliteStore();
+                try { initializeSupplierEvaluation(); } catch (error) { logger.error("Supplier evaluation import failed", {module:"supplier-evaluation", detail:error instanceof Error?error.message:String(error)}); }
                 initializeTransferSqliteStore();
                 initializeHaasSqliteStore();
                 initializeProductionPlannerSqliteStore();

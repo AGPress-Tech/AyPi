@@ -1,3 +1,4 @@
+import {continueTableOnScroll} from '../modules/table-scroll-loader';
 import {analysisYearPicker} from '../modules/analysis-year-picker';
 import Chart from "chart.js/auto";
 import { installAnalysisWorkspace } from "../modules/analysis-workspace";
@@ -474,15 +475,11 @@ function renderTable() {
         "</tr>";
     const kind =
         view === "machines" ? "machine" : view === "plans" ? "plan" : "record";
-    table.querySelector("tbody")!.innerHTML =
-        tableRows
-            .slice(0, limit)
-            .map(
+    const rowMarkup = (data: typeof tableRows) => data.map(
                 (r) =>
                     `<tr data-entity-id="${esc(r.id)}" data-entity-kind="${kind}" tabindex="0">${cols.map(([k, , type], i) => `<td class="${type === "number" ? "numeric" : ""}" title="${esc(r[k])}">${i === 0 ? `<button class="maintenance-link" data-edit="${esc(r.id)}" data-kind="${kind}">${esc(type === "date" ? date(r[k]) : (r[k] ?? "—"))}</button>` : esc(type === "date" ? date(r[k]) : type === "number" && r[k] != null ? num(r[k]) : (r[k] ?? "—"))}</td>`).join("")}</tr>`,
-            )
-            .join("") ||
-        `<tr><td colspan="${cols.length}">Nessun risultato.</td></tr>`;
+            ).join("");
+    table.querySelector("tbody")!.innerHTML = rowMarkup(tableRows.slice(0, limit)) || `<tr><td colspan="${cols.length}">Nessun risultato.</td></tr>`;
     bindSortingHeaders(
         table,
         [
@@ -505,7 +502,8 @@ function renderTable() {
     );
     $("tableCount").textContent =
         `${num(Math.min(limit, tableRows.length))} di ${num(tableRows.length)} righe`;
-    $("more").hidden = limit >= tableRows.length;
+    const data = tableRows;
+    continueTableOnScroll({table,total:data.length,initial:Math.min(limit,data.length),append:(from,to)=>table.tBodies[0].insertAdjacentHTML("beforeend",rowMarkup(data.slice(from,to))),progress:(count,total)=>{limit=count;$("tableCount").textContent=`${num(count)} di ${num(total)} righe`;}});
 }
 function renderDue() {
     const due = currentRows(),
@@ -1136,10 +1134,6 @@ $("newEntity").onclick = () =>
     openEditor(
         view === "machines" ? "machine" : view === "plans" ? "plan" : "record",
     );
-$("more").onclick = () => {
-    limit += 250;
-    renderTable();
-};
 $("filters").addEventListener("change", (e) => {
     const input = e.target as HTMLInputElement;
     if (input.closest(".advanced-filters")) return;

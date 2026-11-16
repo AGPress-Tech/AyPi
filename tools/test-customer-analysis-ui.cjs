@@ -111,7 +111,7 @@ app.whenReady().then(async()=>{
   await run("document.querySelector('#chartBackdrop').click()");assert.equal(await run("document.querySelectorAll('.chart-focused').length"),0);
   await run("document.querySelector('[data-view=documents]').click()");await wait("!!document.querySelector('#analysisTable')");
   assert.equal(await run("document.querySelectorAll('#analysisTable tbody tr').length"),100);
-  await run("document.querySelector('[data-page=\"1\"]').click()");assert((await run("document.querySelectorAll('#analysisTable tbody tr').length"))<100);
+  await run("window.firstTableRow=document.querySelector('#analysisTable tbody tr');const el=document.querySelector('#analysisTable').closest('.table-scroll');el.scrollTop=el.scrollHeight;el.dispatchEvent(new Event('scroll'))");await wait("document.querySelectorAll('#analysisTable tbody tr').length>100");assert(await run("window.firstTableRow===document.querySelector('#analysisTable tbody tr')"));assert.equal(await run("document.querySelectorAll('[data-page]').length"),0);
   await run("document.querySelector('.document-link').click()");await wait("document.querySelector('#documentDialog').open");
   const popup=await run("(()=>{const r=document.querySelector('#documentDialog').getBoundingClientRect();return {width:r.width,height:r.height,vw:innerWidth,vh:innerHeight}})()");
   assert(popup.width>popup.vw*.97&&popup.height>popup.vh*.94,JSON.stringify(popup));

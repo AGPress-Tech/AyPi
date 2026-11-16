@@ -50,8 +50,9 @@ body.aypi-operations :is(.forge-header, .topbar) {
   border: 0;
   border-bottom: 2px solid rgba(var(--ops-accent-rgb), 0.55);
   box-shadow: 0 7px 22px rgba(var(--ops-accent-rgb), 0.1);
-  min-height: 86px;
-  padding: 16px 24px;
+  min-height: 70px;
+  flex: 0 0 auto;
+  padding: 9px 20px;
   isolation: isolate;
 }
 
@@ -105,7 +106,7 @@ body.aypi-operations .forge-header-meta b {
   color: var(--ops-accent);
 }
 
-body.aypi-operations :is(.aypi-module-logo, .planner-aypi-logo) {
+body.aypi-operations :is(.aypi-module-logo, .planner-aypi-logo, .analysis-logo) {
   font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
   font-style: italic;
   font-weight: 900;
@@ -113,19 +114,19 @@ body.aypi-operations :is(.aypi-module-logo, .planner-aypi-logo) {
   filter: drop-shadow(0 2px 3px rgba(var(--ops-ink-rgb), 0.12));
 }
 
-body.aypi-operations :is(.aypi-module-logo__ay, .planner-aypi-logo__ay) {
+body.aypi-operations :is(.aypi-module-logo__ay, .planner-aypi-logo__ay, .analysis-logo__ay) {
   color: var(--ops-accent);
 }
 
-body.aypi-operations :is(.aypi-module-logo__pi, .planner-aypi-logo__pi) {
+body.aypi-operations :is(.aypi-module-logo__pi, .planner-aypi-logo__pi, .analysis-logo__pi) {
   color: var(--ops-ink);
 }
 
-body.aypi-operations :is(.aypi-module-logo__halo, .planner-aypi-logo__halo) {
+body.aypi-operations :is(.aypi-module-logo__halo, .planner-aypi-logo__halo, .analysis-logo__halo) {
   border-color: var(--ops-ink);
 }
 
-body.aypi-operations :is(.aypi-module-logo__slash, .planner-aypi-logo__slash) {
+body.aypi-operations :is(.aypi-module-logo__slash, .planner-aypi-logo__slash, .analysis-logo__slash) {
   background: var(--ops-accent);
   box-shadow: 0.147727em 0 0 rgba(var(--ops-accent-rgb), 0.36);
 }
@@ -216,3 +217,8 @@ body.aypi-operations .mes-navigation__item.is-active {
     font-size: 21px;
   }
 }
+/* Compact common module title; default h1 margins must not inflate the header. */
+html body.aypi-operations :is(.topbar,.forge-header) h1{margin:2px 0;line-height:1.15}
+
+/* Override obsolete per-module flex bases/heights through one shared compact contract. */
+html body.aypi-operations :is(.topbar,.forge-header){min-height:70px;flex:0 0 auto;padding:9px 20px}

@@ -1,3 +1,4 @@
+import {continueTableOnScroll} from '../modules/table-scroll-loader';
 import {showTurningWorkbook,resetTurningWorkbook,exportTurningWorkbook} from '../modules/turning-workbook-view';
 import {excelDateCell,excelNumberFormat} from '../../main/modules/analysis-excel';
 import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
@@ -352,7 +353,7 @@ function selectedColumns(spec:TableSpec){
     const known=knownColumns.get(spec.key)!;for(const col of spec.columns){if(!known.has(col.key)&&!col.optional)state.add(col.key);known.add(col.key);}
     return spec.columns.filter(c=>state.has(c.key));
 }
-function tableShell(){return `<div class="table-toolbar"><span id="tableSummary" class="table-note"></span><details class="columns-picker" id="tableColumns"><summary>Colonne</summary><div id="columnOptions" class="columns-popup"></div></details></div><div class="table-scroll" id="turningTableScroll" tabindex="0"><table id="turningTable"></table></div><div class="table-footer"><span id="tableCount"></span><button id="moreRows" hidden>Carica altre righe</button></div>`}
+function tableShell(){return `<div class="table-toolbar"><span id="tableSummary" class="table-note"></span><details class="columns-picker" id="tableColumns"><summary>Colonne</summary><div id="columnOptions" class="columns-popup"></div></details></div><div class="table-scroll" id="turningTableScroll" tabindex="0"><table id="turningTable"></table></div><div class="table-footer"><span id="tableCount"></span></div>`}
 function renderTable(spec:TableSpec,reset=true){
     activeTable=spec;if(reset)visibleRows=250;
     const columns=selectedColumns(spec),all=sortedRows(spec),shown=all.slice(0,visibleRows),node=$<HTMLTableElement>('turningTable');
@@ -370,7 +371,7 @@ function renderTable(spec:TableSpec,reset=true){
     const change=(next:SortCriterion[])=>{sortStates.set(spec.key,next);renderTable(spec)};
     bindSortingHeaders(node,columns,sortStates.get(spec.key)||[],change);updateSortingBar(node,spec.columns,sortStates.get(spec.key)||[],change);
     $('tableSummary').textContent=spec.note;$('tableSummary').title=spec.note;
-    $('tableCount').textContent=`${num(shown.length,0)} di ${num(all.length,0)} righe · totali su tutta la selezione`;$('moreRows').hidden=shown.length>=all.length;
+    $('tableCount').textContent=`${num(shown.length,0)} di ${num(all.length,0)} righe · totali su tutta la selezione`;continueTableOnScroll({table:node,total:all.length,initial:shown.length,append:(from,to)=>node.tBodies[0].insertAdjacentHTML('beforeend',all.slice(from,to).map(row=>tableRow(row)).join('')),progress:(count,total)=>{visibleRows=count;$('tableCount').textContent=`${num(count,0)} di ${num(total,0)} righe`;}});
     $('columnOptions').innerHTML=spec.columns.map((col,i)=>`<label><input type="checkbox" data-column-key="${esc(col.key)}" ${columns.some(c=>c.key===col.key)?'checked':''} ${i===0?'disabled':''}>${esc(col.label)}</label>`).join('');
 }
 function entityDescription(dimension:Dimension){
@@ -725,7 +726,6 @@ $('content').addEventListener('click',event=>{
     else if(target.dataset.expandChart){ui.focusChart=ui.focusChart===target.dataset.expandChart?'':target.dataset.expandChart;applyChartFocus();}
     else if(target.dataset.pickDimension)choose(target.dataset.pickDimension as Dimension,target.dataset.pickValue!,event.ctrlKey||event.metaKey);
     else if(target.dataset.expand){const key=target.dataset.expand;expandedComparisons.has(key)?expandedComparisons.delete(key):expandedComparisons.add(key);if(activeTable)renderTable(activeTable);}
-    else if(target.id==='moreRows'){visibleRows+=250;if(activeTable)renderTable(activeTable,false);}
     else if(target.id==='recordMode'){ui.records=!ui.records;render();}
     else if(target.id==='expandComparisons'){const parents=comparisonSpec().rows.filter(r=>!r.depth).map(r=>r.id);if(parents.every(id=>expandedComparisons.has(id)))parents.forEach(id=>expandedComparisons.delete(id));else parents.forEach(id=>expandedComparisons.add(id));renderTable(comparisonSpec());}
 });
@@ -757,7 +757,6 @@ $('content').addEventListener('submit',event=>{
         validFilters(next);simulationPhase=$<HTMLInputElement>('simulationPhase').value.trim();simulationOrder=$<HTMLInputElement>('simulationOrder').value.trim();simulationOnlyReference=false;simulationReference=null;simulationError='';simulationTable='real';commit(next);
     }catch(error){simulationFeedback((error as Error).message)}
 });
-$('content').addEventListener('scroll',event=>{if((event.target as HTMLElement).id!=='turningTableScroll'||!activeTable)return;const el=event.target as HTMLElement;if(el.scrollHeight-el.clientHeight-el.scrollTop<100&&visibleRows<sortedRows(activeTable).length){visibleRows+=250;renderTable(activeTable,false)}},true);
 document.addEventListener('click',event=>{document.querySelectorAll<HTMLDetailsElement>('.filter-picker,.columns-picker').forEach(details=>{if(!details.contains(event.target as Node))details.open=false})});
 document.querySelectorAll<HTMLElement>('[data-close-dialog]').forEach(button=>button.addEventListener('click',()=>button.closest<HTMLDialogElement>('dialog')!.close()));
 $('goalForm').addEventListener('submit',async event=>{

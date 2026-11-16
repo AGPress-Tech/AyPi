@@ -19,12 +19,12 @@ body.aypi-operations dialog.aypi-login-dialog {
 .aypi-login-dialog .aypi-module-logo { --aypi-logo-size:32px; margin-right:2px; }
 .aypi-login-dialog .aypi-login-title { flex:1; min-width:0; }
 body.aypi-operations .aypi-login-dialog h2 { margin:4px 0 0; font-size:20px; line-height:1.25; font-weight:750; }
-.aypi-login-dialog .aypi-login-close { align-self:flex-start; min-width:32px; min-height:32px; padding:3px 8px; color:var(--ops-muted); }
-body.aypi-operations .aypi-login-dialog form { gap:16px; }
+body.aypi-operations .aypi-login-dialog .aypi-login-close { display:grid; place-items:center; align-self:flex-start; flex:0 0 32px; width:32px; height:32px; min-width:32px; min-height:32px; padding:0; font-size:18px; line-height:1; color:var(--ops-muted); }
+body.aypi-operations .aypi-login-dialog form { display:flex; flex-direction:column; gap:10px; }
 .aypi-login-dialog p { margin:0; font-size:12px; line-height:1.5; color:var(--ops-muted); }
 .aypi-login-dialog [role=alert] { color:#b13c50; }
 .aypi-login-dialog [role=alert]:empty { display:none; }
-body.aypi-operations .aypi-login-dialog label { gap:6px; font-weight:600; }
+body.aypi-operations .aypi-login-dialog label { display:flex; flex-direction:column; gap:8px; font-weight:600; }
 .aypi-login-dialog select { width:100%; min-height:39px; border-color:var(--ops-line); background:#fff; font-weight:400; }
 .aypi-login-dialog select:focus-visible { outline:2px solid var(--ops-accent); outline-offset:2px; }
 .aypi-login-dialog .dialog-actions { padding-top:5px; }

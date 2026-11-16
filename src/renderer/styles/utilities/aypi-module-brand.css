@@ -74,3 +74,41 @@
   background: var(--accent, #1689ed);
   box-shadow: 0.147727em 0 0 color-mix(in srgb, var(--accent, #1689ed) 36%, transparent);
 }
+
+/* One wordmark geometry for the home, modules, MES, PLC and analysis pages.
+   Each host retains its size, placement and theme palette. */
+:is(.aypi-module-logo, .aypi-logo, .planner-aypi-logo, .analysis-logo) {
+  position:relative;
+  display:inline-flex;
+  align-items:baseline;
+  width:max-content;
+  font-family:"Trebuchet MS","Segoe UI",Arial,sans-serif;
+  font-style:italic;
+  font-weight:900;
+  letter-spacing:-0.079545em;
+  transform:skewX(-8deg);
+}
+:is(.aypi-module-logo__ay,.aypi-module-logo__pi,.aypi-logo-ay,.aypi-logo-pi,.planner-aypi-logo__ay,.planner-aypi-logo__pi,.analysis-logo__ay,.analysis-logo__pi) {
+  font-size:1em;
+  line-height:.9;
+}
+:is(.aypi-module-logo__halo,.aypi-logo-halo,.planner-aypi-logo__halo,.analysis-logo__halo) {
+  position:absolute;
+  left:46%;
+  top:-.272727em;
+  width:1.022727em;
+  height:.340909em;
+  border-width:.045455em;
+  border-style:solid;
+  border-radius:50%;
+  opacity:.82;
+  transform:translateX(-50%) rotate(17deg);
+}
+:is(.aypi-module-logo__slash,.aypi-logo-slash,.planner-aypi-logo__slash,.analysis-logo__slash) {
+  position:absolute;
+  left:57%;
+  top:-.295455em;
+  width:.056818em;
+  height:1.318182em;
+  transform:rotate(27deg);
+}

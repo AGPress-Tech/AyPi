@@ -22,11 +22,19 @@
         {
             "from": "backend/resources",
             "to": "backend-resources",
-            "filter": ["**/*", "!**/*.py", "!**/__pycache__/**/*"]
+            "filter": [
+                "**/*",
+                "!**/*.py",
+                "!**/__pycache__/**/*"
+            ]
         },
         {
             "from": "backend/scripts",
             "to": "backend-scripts"
+        },
+        {
+            "from": ".private/supplier-evaluation-import.json",
+            "to": "supplier-evaluation-import.json"
         }
     ],
     "extraMetadata": {

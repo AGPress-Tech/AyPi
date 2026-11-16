@@ -98,6 +98,10 @@ app.whenReady().then(async()=>{
     const detail=await run(win,"(()=>{const d=document.querySelector('#bomDetail').getBoundingClientRect();return {w:d.width,h:d.height,iw:innerWidth,ih:innerHeight}})()");assert(detail.w>detail.iw*.95&&detail.h>detail.ih*.94,JSON.stringify(detail));
     fs.writeFileSync(path.join(dir,`detail-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG());await run(win,"document.querySelector('#detailClose').click()");
    }
+   fixture.splice(0,fixture.length,...Array.from({length:301},(_,i)=>({...base,bom:'BULK-'+String(i).padStart(3,'0'),line:1,component:'ART-A'})));
+   await run(win,"document.querySelector('#refresh').click()");await until(()=>run(win,"!document.querySelector('#refresh').disabled"));await run(win,"document.querySelector('#reset').click()");assert.equal(await run(win,"document.querySelectorAll('#results > tbody > tr').length"),250);
+   await run(win,"window.firstBomRow=document.querySelector('#results tbody tr');document.querySelector('#results [data-expand-bom]').click()");await until(()=>run(win,"!!document.querySelector('#results > tbody > .bom-composition-row table')"));
+   await run(win,"(()=>{const el=document.querySelector('#results').closest('.table-scroll');el.scrollTop=el.scrollHeight;el.dispatchEvent(new Event('scroll'))})()");await until(()=>run(win,"document.querySelectorAll('#results > tbody > tr:not(.bom-composition-row)').length===301"));assert(await run(win,"window.firstBomRow===document.querySelector('#results tbody tr') && !!document.querySelector('#results > tbody > .bom-composition-row table')"));
    // Next theme starts from deterministic fixture again.
    fixture.splice(0,fixture.length,...[{...base,line:1,component:'ART-A'},{...base,bom:'SUB',line:1,component:'ART-C'},{...base,bom:'DISABLED',line:1,component:'ART-A'}]);
   }

@@ -1,3 +1,4 @@
+import {registerSupplierEvaluationIpc} from './supplier-evaluation/ipc';
 import {registerProcessingCyclesIpc} from './processing-cycles/ipc';
 // Gestione finestre e IPC lato main per AyPi
 
@@ -2528,6 +2529,7 @@ function setupFileManager(mainWindow) {
 
     const maintenance = registerMaintenanceIpc(mainWindow,getInterfaceIconPath);
     const processingCycles = registerProcessingCyclesIpc(mainWindow,getInterfaceIconPath);
+    const supplierEvaluation = registerSupplierEvaluationIpc(mainWindow,getInterfaceIconPath);
     registerFileNavigationIpc({
         ipcMain,
         dialog,
@@ -2536,6 +2538,7 @@ function setupFileManager(mainWindow) {
         mainWindow,
         openMaintenance: () => void maintenance.open(),
         openProcessingCycles: () => void processingCycles.open(),
+        openSupplierEvaluation: () => void supplierEvaluation.open(),
     });
 
     const adminState = registerAdminStateIpc({

@@ -1,3 +1,4 @@
+import {continueTableOnScroll} from '../modules/table-scroll-loader';
 import {BOM_COLUMNS,BOM_SUMMARY_COLUMNS,BomRow,BomSearch,BomPreferences,DEFAULT_BOM_COLUMNS,emptyBomSearch,filterBomRows,summarizeBomRows,validateBomSearch,validateBomPreferences} from '../../main/modules/bom-analysis/model';
 import {bindSortingHeaders,updateSortingBar} from '../modules/table-sorting';
 import {installAnalysisLinks} from '../modules/analysis-links';
@@ -44,12 +45,14 @@ function format(row:BomRow,key:string){
 }
 function tableBody(table:HTMLTableElement,data:BomRow[],columns:typeof BOM_COLUMNS,sort:any,onSort:(s:any)=>void){
     table.querySelector('thead')!.innerHTML='<tr>'+columns.map(c=>`<th class="${c.kind==='number'?'numeric':''}">${esc(c.label)}</th>`).join('')+'</tr>';
-    table.querySelector('tbody')!.innerHTML=data.map(row=>'<tr>'+columns.map(c=>{
+    table.querySelector('tbody')!.innerHTML=bomRowsMarkup(data,columns);
+    bindSortingHeaders(table,columns,sort,onSort);
+}
+function bomRowsMarkup(data:BomRow[],columns:typeof BOM_COLUMNS){return data.map(row=>'<tr>'+columns.map(c=>{
         const value=esc(format(row,c.key)),attribute=c.key==='component'&&row.component?`data-analysis-article="${esc(row.component)}"`:c.key==='bom'?`data-analysis-bom="${esc(row.bom)}"`:'';
         const open=c.key==='bom'?row.bom:c.key==='component'&&Number(row.hasBom)?row.component:null;
         return `<td ${attribute} class="${c.kind==='number'?'numeric':''}" title="${value}">${open?`<button class="document-expand" data-expand-bom="${esc(open)}" aria-expanded="false" aria-label="Espandi composizione ${esc(open)}">▸</button><button class="bom-link" data-open-bom="${esc(open)}">${value}</button>`:value}</td>`;
     }).join('')+'</tr>').join('');
-    bindSortingHeaders(table,columns,sort,onSort);
 }
 function render(){
     filtered=filterBomRows(rows,search);
@@ -61,7 +64,7 @@ function render(){
     $('componentCount').textContent=loaded?num(new Set(filtered.filter(r=>r.component).map(r=>r.component)).size,0):'—';
     $('rowCount').textContent=loaded?num(filtered.filter(r=>r.component).length,0):'—';
     $('loaded').textContent=loaded?`${num(Math.min(limit,summaries.length),0)} di ${num(summaries.length,0)} distinte`:'';
-    $('more').hidden=limit>=summaries.length;$<HTMLButtonElement>('export').disabled=!loaded||loading||!filtered.length;
+    continueTableOnScroll({table,total:summaries.length,initial:Math.min(limit,summaries.length),append:(from,to)=>table.tBodies[0].insertAdjacentHTML('beforeend',bomRowsMarkup(summaries.slice(from,to),columns)),progress:(count,total)=>{limit=count;$('loaded').textContent=`${num(count,0)} di ${num(total,0)} distinte`;}});$<HTMLButtonElement>('export').disabled=!loaded||loading||!filtered.length;
 }
 async function savePreferences(){const response=await ipc.invoke('bom-analysis-preferences-save',preferences);if(!response.ok)throw Error(response.error)}
 function renderPreferences(){
@@ -144,7 +147,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button=>butt
     try{searches[search.mode]=readSearch();search=searches[button.dataset.mode!];renderFilters();apply(search);setStatus()}catch(e){setStatus((e as Error).message,true)}
 });
 $('reset').onclick=()=>{search={...emptyBomSearch(),mode:search.mode};renderFilters();apply(search);setStatus()};
-$('more').onclick=()=>{limit+=250;render()};$('refresh').onclick=()=>void load();$('close').onclick=()=>ipc.send('bom-analysis-close');
+$('refresh').onclick=()=>void load();$('close').onclick=()=>ipc.send('bom-analysis-close');
 $('columnPicker').addEventListener('change',async()=>{
     preferences.columns=Array.from($('columnPicker').querySelectorAll<HTMLInputElement>('input:checked')).map(c=>c.value);$('columnCount').textContent=`(${preferences.columns.length})`;render();
     try{await savePreferences()}catch(e){setStatus((e as Error).message,true)}

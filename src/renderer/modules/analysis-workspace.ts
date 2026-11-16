@@ -6,12 +6,12 @@ import {emptyWorkspace,validateWorkspace,WorkspaceChart} from '../../main/module
 const ipc=require('electron').ipcRenderer;
 const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
 const copy=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
-type Options={key:string;actions:HTMLElement;container:()=>HTMLElement;reset?:()=>void;sources?:{id:string;title:string}[];metrics?:{id:string;title:string}[];build?:(spec:WorkspaceChart)=>any;revision?:()=>unknown;persistence?:{load:()=>Promise<any>;save:(preferences:any)=>Promise<any>};htmlPanels?:{id:string;panel:HTMLElement;title:string;area?:(indices:number[],multiple:boolean)=>void}[]};
+type Options={key:string;actions:HTMLElement;container:()=>HTMLElement;reset?:()=>void;sources?:{id:string;title:string}[]|(()=>{id:string;title:string}[]);scope?:()=>HTMLElement;metrics?:{id:string;title:string}[];build?:(spec:WorkspaceChart)=>any;revision?:()=>unknown;persistence?:{load:()=>Promise<any>;save:(preferences:any)=>Promise<any>};htmlPanels?:{id:string;panel:HTMLElement;title:string;area?:(indices:number[],multiple:boolean)=>void}[]};
 /** Add the same chart controls/editor to existing reports without replacing their tables. */
 export function installAnalysisWorkspace(options:Options){
     Chart.register(analysisSelectionHighlight);
     document.body.classList.add('analysis-ui-enhanced');
-    let preferences=emptyWorkspace(),focusId='',returnFocus:HTMLElement|null=null,editing='',ready=false,signature='',saving=false;
+    let preferences=emptyWorkspace(),focusId='',returnFocus:HTMLElement|null=null,editing='',ready=false,signature='',saving=false,preferenceVersion=0;
     const sources=new Map<string,{title:string;chart:any}>(),customCharts=new Map<string,Chart>();
     const menu=document.createElement('button');menu.id='chartsMenu';menu.type='button';menu.textContent='Grafici';
     const layout=document.createElement('button');layout.id='layoutToggle';layout.type='button';layout.textContent='↕ Vista ampia';
@@ -23,7 +23,7 @@ export function installAnalysisWorkspace(options:Options){
     function resize(){for(const source of sources.values())if(source.chart?.canvas)source.chart.resize();for(const chart of customCharts.values())if(chart.canvas)chart.resize();}
     function closeFocus(){const previous=focusId;focusId='';document.querySelectorAll('.analysis-workspace-panel.chart-focused').forEach(node=>{node.classList.remove('chart-focused');node.removeAttribute('role');node.removeAttribute('aria-modal')});backdrop.hidden=true;document.body.classList.remove('chart-focus-open');document.querySelectorAll<HTMLElement>('[data-expand-chart]').forEach(b=>setChartExpanded(b,false));resize();(returnFocus?.isConnected?returnFocus:document.querySelector<HTMLElement>(`[data-expand-chart="${previous}"]`))?.focus({preventScroll:true});}
     function expand(id:string,button:HTMLElement){if(focusId===id){closeFocus();return}closeFocus();const panel=document.getElementById(id)?.closest<HTMLElement>('.analysis-workspace-panel');if(!panel)return;returnFocus=button;focusId=id;panel.classList.add('chart-focused');panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label',panel.querySelector('h2,h3')?.textContent||'Grafico');backdrop.hidden=false;document.body.classList.add('chart-focus-open');setChartExpanded(button,true);button.focus();resize();}
-    function sourceOptions(){return options.sources||[...sources].map(([id,v])=>({id,title:v.title}));}
+    function sourceOptions(){return (typeof options.sources==='function'?options.sources():options.sources)||[...sources].map(([id,v])=>({id,title:v.title}));}
     function applyLayout(){document.body.classList.toggle('analysis-workspace-expanded',preferences.layout.expanded);layout.textContent=preferences.layout.expanded?'↕ Vista compatta':'↕ Vista ampia';layout.setAttribute('aria-pressed',String(preferences.layout.expanded));resize();}
     function renderEditor(){
         const rows=[...sourceOptions(),...preferences.layout.charts.map(c=>({id:c.id,title:c.title}))];
@@ -41,7 +41,7 @@ export function installAnalysisWorkspace(options:Options){
     function sync(){
         for(const entry of options.htmlPanels||[]){const host=document.getElementById(entry.id);if(host&&entry.area)installHtmlAreaSelection(host,()=>Array.from(host.querySelectorAll<HTMLElement>('.chart-track')),entry.area);}
         for(const entry of options.htmlPanels||[]){entry.panel.classList.add('analysis-workspace-panel');entry.panel.hidden=preferences.layout.hidden.includes(entry.id);const head=entry.panel.querySelector('.card-heading,header');if(head&&!head.querySelector('[data-expand-chart]')){const controls=document.createElement('div');controls.className='panel-actions analysis-workspace-controls';controls.dataset.workspaceOwned='true';controls.innerHTML=analysisChartControls(entry.id,entry.title);head.append(controls)}}
-        document.querySelectorAll<HTMLCanvasElement>('canvas[id]').forEach(canvas=>{
+        sources.clear();(options.scope?.()||document).querySelectorAll<HTMLCanvasElement>('canvas[id]').forEach(canvas=>{
             if(canvas.closest('[data-workspace-owned]'))return;
             const chart=Chart.getChart(canvas);if(!chart||!['bar','line','doughnut'].includes((chart.config as any).type))return;
             const panel=canvas.closest<HTMLElement>('.panel,.chart-card,.custom-card,.fpa-card,.card')||canvas.parentElement?.parentElement;if(!panel)return;
@@ -103,6 +103,6 @@ export function installAnalysisWorkspace(options:Options){
     const observer=new MutationObserver(records=>{if(!ready||records.every(r=>(r.target as HTMLElement).closest?.('[data-workspace-owned]')))return;clearTimeout(timer);timer=setTimeout(sync,80)});
     observer.observe(document.body,{childList:true,subtree:true});
     window.addEventListener('resize',resize);
-    void (options.persistence?options.persistence.load():ipc.invoke('analysis-ui-load',options.key)).then(result=>{if(result.ok)preferences=validateWorkspace(result.preferences);else menu.title=result.error}).catch(error=>{menu.title=error.message}).finally(()=>{ready=true;sync()});
-    return {sync,closeFocus};
+    void (options.persistence?options.persistence.load():ipc.invoke('analysis-ui-load',options.key)).then(result=>{if(preferenceVersion===0){if(result.ok)preferences=validateWorkspace(result.preferences);else menu.title=result.error}}).catch(error=>{menu.title=error.message}).finally(()=>{ready=true;sync()});
+    return {sync,closeFocus,isSaving:()=>saving,replacePreferences:(value:unknown)=>{if(saving)return false;const next=validateWorkspace(value);preferenceVersion++;closeFocus();preferences=next;signature='';sync();return true;}};
 }

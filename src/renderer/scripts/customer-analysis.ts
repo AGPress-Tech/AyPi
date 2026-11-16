@@ -1,3 +1,4 @@
+import {continueTableOnScroll,appendTableHtml} from '../modules/table-scroll-loader';
 import {analysisYearPicker} from '../modules/analysis-year-picker';
 import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
 import Chart from "chart.js/auto";
@@ -108,19 +109,13 @@ const hasChartSelection = () =>
     CUSTOMER_SELECTION_DIMENSIONS.some(
         (key) => filters.selection?.[key].length,
     );
-const pages: Record<string, number> = {
-    documents: 0,
-    lines: 0,
-    articles: 0,
-    history: 0,
-};
 const sorting: Record<string, SortCriterion[]> = {
     documents: [{ key: "documentDate", direction: "desc" }],
     lines: [{ key: "documentDate", direction: "desc" }],
     articles: [{ key: "orders", direction: "desc" }],
     history: [{ key: "year", direction: "asc" }],
 };
-const PAGE_SIZE = 100;
+const ROW_BATCH = 100;
 const theme = getComputedStyle(document.body),
     accent = theme.getPropertyValue("--ops-accent").trim() || "#168deb";
 const palette = [
@@ -1061,17 +1056,12 @@ function renderTable() {
         sorted = sortByCriteria(t.data as any[], sorting[view], (r, k) =>
             Array.isArray(r[k]) ? measureText(r[k]) : r[k],
         );
-    pages[view] = Math.max(
-        0,
-        Math.min(pages[view], Math.ceil(sorted.length / PAGE_SIZE) - 1),
-    );
-    const start = pages[view] * PAGE_SIZE,
-        page = sorted.slice(start, start + PAGE_SIZE);
-    $("content").innerHTML =
-        `<article class="panel customer-table-panel"><div class="panel-head"><div><h2 title="${esc(t.note)}">${t.title}</h2></div></div><div class="table-scroll">${tableMarkup(t.columns, page, "analysisTable")}</div><div class="pager"><span>${num(sorted.length ? start + 1 : 0, 0)}–${num(start + page.length, 0)} di ${num(sorted.length, 0)}</span><button data-page="-1" ${pages[view] === 0 ? "disabled" : ""}>← Precedenti</button><button data-page="1" ${start + PAGE_SIZE >= sorted.length ? "disabled" : ""}>Successivi →</button></div></article>`;
+    const shown=sorted.slice(0,ROW_BATCH);
+    $("content").innerHTML=`<article class="panel customer-table-panel"><div class="panel-head"><div><h2 title="${esc(t.note)}">${t.title}</h2></div></div><div class="table-scroll">${tableMarkup(t.columns,shown,"analysisTable")}</div><div class="pager"><span id="analysisTableCount"></span></div></article>`;
+    const table=$("analysisTable") as HTMLTableElement;
+    continueTableOnScroll({table,total:sorted.length,initial:shown.length,batch:ROW_BATCH,append:(from,to)=>appendTableHtml(table,tableMarkup(t.columns,sorted.slice(from,to),"")),progress:(count,total)=>{$("analysisTableCount").textContent=`${num(count,0)} di ${num(total,0)}`;}});
     const change = (next: SortCriterion[]) => {
         sorting[view] = next;
-        pages[view] = 0;
         renderTable();
     };
     bindSortingHeaders(
@@ -1141,7 +1131,6 @@ function render() {
     else renderTable();
 }
 function applyFilters() {
-    Object.keys(pages).forEach((k) => (pages[k] = 0));
     status("");
     render();
 }
@@ -1224,8 +1213,7 @@ async function loadCustomer(refresh = false) {
         if (!refresh) filters = defaultCustomerFilters();
         setupFilterOptions();
         syncFilters();
-        Object.keys(pages).forEach((k) => (pages[k] = 0));
-        render();
+            render();
         status(
             rows.length
                 ? preferencesWarning
@@ -1394,7 +1382,7 @@ async function exportData() {
     busy = true;
     updateBusy();
     status(
-        "Esportazione di tutte le righe nei filtri, inclusi i risultati fuori pagina…",
+        "Esportazione di tutte le righe nei filtri, incluse quelle non ancora visualizzate…",
     );
     try {
         const result = await ipc.invoke(
@@ -1581,7 +1569,6 @@ $("content").addEventListener("click", (event) => {
     const target = event.target as HTMLElement,
         doc = target.closest<HTMLElement>("[data-document]"),
         article = target.closest<HTMLElement>("[data-article]"),
-        page = target.closest<HTMLElement>("[data-page]"),
         edit = target.closest<HTMLElement>("[data-edit-chart]"),
         cumulative = target.closest<HTMLElement>("[data-cumulative]"),
         reset = target.closest<HTMLElement>("[data-reset-chart]"),
@@ -1593,9 +1580,6 @@ $("content").addEventListener("click", (event) => {
         view = "lines";
         syncFilters();
         applyFilters();
-    } else if (page) {
-        pages[view] += Number(page.dataset.page);
-        renderTable();
     } else if (edit) {
         chartEditor();
         editChart(edit.dataset.editChart!);

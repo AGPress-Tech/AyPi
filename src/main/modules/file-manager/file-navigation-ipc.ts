@@ -33,6 +33,7 @@ type FileNavigationDependencies = {
     openFile?: (mainWindow: BrowserWindow, filePath: string) => unknown;
     openMaintenance?: () => unknown;
     openProcessingCycles?: () => unknown;
+    openSupplierEvaluation?: () => unknown;
 };
 
 const defaultAddressBook: AddressBookAdapter = {
@@ -57,6 +58,7 @@ export function registerFileNavigationIpc({
     openFile = openNetworkFile,
     openMaintenance,
     openProcessingCycles,
+    openSupplierEvaluation,
 }: FileNavigationDependencies) {
     addressBook.load();
 
@@ -73,6 +75,7 @@ export function registerFileNavigationIpc({
     ipcMain.on("open-address", (_event, payload) => {
         const key = payload?.key ? String(payload.key) : "";
         if (!key) return;
+        if (key === "moduli.openFornitori" && openSupplierEvaluation) { openSupplierEvaluation(); return; }
         if (key === "infoarticoli.openCicli" && openProcessingCycles) { openProcessingCycles(); return; }
         if (key === "moduli.openManutenzioni" && openMaintenance) { openMaintenance(); return; }
 
