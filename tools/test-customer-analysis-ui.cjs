@@ -99,6 +99,9 @@ app.whenReady().then(async()=>{
   assert.equal(await run("document.querySelectorAll('.chart-focused').length"),0);
   assert.equal(await run("document.activeElement===document.querySelector('[data-expand-chart]')"),true);
   await run("document.querySelector('[data-view=articles]').click()");
+  assert.equal(await run("document.querySelectorAll('.customer-chart-grid canvas').length"),7);
+  assert(await run("document.querySelector('#analysisTable').textContent.includes('Ultimo ordine')"));
+  await run("document.querySelector('#articleAnalysisMode').value='commercial';document.querySelector('#articleAnalysisMode').dispatchEvent(new Event('change',{bubbles:true}))");
   const headings=await run("Array.from(document.querySelectorAll('#analysisTable th')).map(x=>x.textContent)");
   assert(headings.some(x=>x.includes('Quantità ordinate'))&&headings.some(x=>x.includes('Quantità offerte')));
   assert(headings.some(x=>x.includes('Imponibile ordini'))&&headings.some(x=>x.includes('Imponibile offerte')));

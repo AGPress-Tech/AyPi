@@ -1,3 +1,4 @@
+import {articleLifecycle,articleAnnual,articleOrderDetails,articleCohorts,articleForecast,newArticleForecast,articleForecastBounds} from './articles';
 import {excelDateCell,formatExcelNumbers} from '../analysis-excel';
 import {app,BrowserWindow,ipcMain,dialog} from 'electron';
 import path from 'path';
@@ -66,7 +67,7 @@ export function registerCustomerAnalysisIpc(mainWindow:BrowserWindow,icon:()=>st
             if(choice.canceled||!choice.filePath)return {ok:true,canceled:true};
             const book=XLSX.utils.book_new();
             const add=(name:string,data:unknown[][])=>{
-                const dateColumns=data[0].map((h,i)=>/^(Data|Data documento|Inserimento documento|Inserimento riga|Consegna prevista|Consegna confermata|Validità offerta fino al|Mese)$/.test(String(h))?i:-1);
+                const dateColumns=data[0].map((h,i)=>/^(Data|Data documento|Inserimento documento|Inserimento riga|Consegna prevista|Consegna confermata|Validità offerta fino al|Primo ordine osservato|Ultimo ordine|Data ordine|Mese)$/.test(String(h))?i:-1);
                 const sheet=XLSX.utils.aoa_to_sheet(data.map((row,r)=>r?row.map((v,c)=>dateColumns.includes(c)?excelDateCell(v,data[0][c]==='Mese'?'mm/yyyy':'dd/mm/yyyy'):v):row));
                 formatExcelNumbers(sheet);sheet['!autofilter']={ref:sheet['!ref']||'A1'};sheet['!cols']=data[0].map(()=>({wch:23}));XLSX.utils.book_append_sheet(book,sheet,name);
             };
@@ -79,6 +80,31 @@ export function registerCustomerAnalysisIpc(mainWindow:BrowserWindow,icon:()=>st
             add('Storico annuale',[['Anno','Ordini','Offerte','Articoli','Righe','Ordini con residuo','Ordini scaduti'],...[...annual].sort(([a],[b])=>a.localeCompare(b)).map(([y,rs])=>{const s=customerStats(rs,today);return [y,s.orders,s.offers,s.articles,s.lines,s.open,s.overdue];})]);
             const monthly=new Map<string,CustomerRow[]>();rows.forEach(r=>{const key=r.documentDate?.slice(0,7)??'Data assente';const group=monthly.get(key)??[];group.push(r);monthly.set(key,group);});
             add('Storico mensile',[['Mese','Ordini','Offerte','Articoli','Righe','Ordini con residuo','Ordini scaduti'],...[...monthly].sort(([a],[b])=>a.localeCompare(b)).map(([month,rs])=>{const s=customerStats(rs,today);return [month,s.orders,s.offers,s.articles,s.lines,s.open,s.overdue];})]);
+            const options=input.articleAnalysis??{dormancy:'',trend:'',horizon:3};
+            if(!['','1','2','3','4','5','7','10'].includes(options.dormancy)||!['','up','down','stable'].includes(options.trend)||!Number.isInteger(options.horizon)||options.horizon<1||options.horizon>5)throw Error('Opzioni analisi articoli non valide.');
+            const lifecycle=articleLifecycle(rows,snapshot.rows,today).filter(r=>(!options.dormancy||r.inactiveYears!==null&&r.inactiveYears>=+options.dormancy)&&(!options.trend||(options.trend==='up'?(r.quantityChange??0)>0:options.trend==='down'?(r.quantityChange??0)<0:r.quantityChange===0)));
+            const articleCodes=new Set(lifecycle.map(r=>JSON.stringify([r.article,r.unit,r.currency]))),articleRows=rows.filter(r=>articleCodes.has(JSON.stringify([r.article,r.unit,r.currency])));
+            const base=[['article','Articolo'],['description','Descrizione'],['unit','U.M.'],['currency','Valuta']];
+            const measures=[['orders','Ordini'],['quantity','Quantità ordinata'],['value','Valore ordini'],['averageLot','Quantità per ordine'],['price','Prezzo netto ponderato'],['missingQuantity','Righe senza quantità'],['missingValue','Righe senza valore'],['missingPrice','Righe senza prezzo']];
+            const changes=[['quantityChange','Delta quantità %'],['lotChange','Delta quantità per ordine %'],['priceChange','Delta prezzo %']];
+            const analytical=(name:string,columns:string[][],data:any[])=>add(name,[columns.map(c=>c[1]),...data.map(r=>columns.map(c=>r[c[0]]??null))]);
+            analytical('Ciclo articoli',[...base,['firstOrder','Primo ordine osservato'],['lastOrder','Ultimo ordine'],['inactiveYears','Anni inattività'],['lastDocuments','Ordini ultima data'],['lastOrders','N. ordini ultima data'],['lastQuantity','Quantità ultima data'],['lastValue','Valore ultima data'],['lastPrice','Prezzo ultima data'],...measures,['comparisonYear','Anno confronto'],...changes],lifecycle);
+            analytical('Articoli per anno',[...base,['year','Anno'],['newArticle','Nuovo osservato'],['partial','Anno in corso o futuro'],...measures,...changes],articleAnnual(articleRows,snapshot.rows,today));
+            analytical('Articoli per ordine',[...base,['documentNo','Numero ordine'],['documentDate','Data ordine'],...measures],articleOrderDetails(articleRows));
+            analytical('Nuovi articoli',[['year','Anno'],['currency','Valuta'],['articles','Articoli'],['newArticles','Nuovi osservati'],['existingArticles','Già presenti'],['value','Valore totale'],['newValue','Valore nuovi'],['existingValue','Valore già presenti'],['newShare','Quota nuovi %'],['orders','Ordini nuovi']],articleCohorts(articleRows,snapshot.rows));
+            const bounds=articleForecastBounds(snapshot.request,filters);
+            const forecasts=bounds.unavailable?[]:articleForecast(articleRows,today,options.horizon,bounds);
+            analytical('Previsione articoli',[...base,['year','Anno'],['forecast','Quantità prevista'],['lower','Fascia inferiore indicativa'],['upper','Fascia superiore indicativa'],['samples','Anni completi'],['training','Periodo osservato'],['slope','Tendenza annua'],['backtestError','Errore retrospettivo quantità'],['backtestPercent','Errore retrospettivo %']],forecasts);
+            analytical('Previsione nuovi articoli',[['article','Indicatore'],['unit','U.M.'],['currency','Valuta'],['year','Anno'],['forecast','Stima'],['lower','Fascia inferiore indicativa'],['upper','Fascia superiore indicativa'],['samples','Anni completi'],['training','Periodo osservato'],['backtestError','Errore retrospettivo'],['backtestPercent','Errore retrospettivo %']],bounds.unavailable?[]:newArticleForecast(articleRows,snapshot.rows,today,options.horizon,bounds));
+            analytical('Metodo articoli',[['name','Indicatore'],['definition','Definizione']],[
+                {name:'Fonte',definition:'Ordini commerciali non annullati. Nessuna data di produzione effettiva o costo industriale disponibile.'},
+                {name:'Ultimo ordine / inattività',definition:'Tutto lo storico SQL caricato fino a oggi; più ordini nella stessa data sono sommati. Anni interi trascorsi.'},
+                {name:'Valore / prezzo',definition:'Imponibile riga, ripiego quantità × prezzo netto se mancante. Prezzo vendita ponderato sulle quantità positive con prezzo presente. U.M. e valute separate.'},
+                {name:'Nuovo',definition:'Primo ordine osservato per codice in tutto lo storico SQL caricato, non data creazione articolo. Il periodo SQL può limitare lo storico.'},
+                {name:'Variazioni',definition:'Anno di calendario precedente; base zero o mancante = variazione mancante. Periodi parziali non annualizzati.'},
+                {name:'Previsione',definition:'Regressione lineare su 3–5 anni completi; anno corrente escluso; anni senza ordini a zero; fascia empirica 1,96 × errore residuo con ampliamento per distanza; non garanzia probabilistica. Errore retrospettivo sull’ultimo anno. Nessuna stagionalità o causa esterna.'},
+                {name:'Opzioni articoli',definition:JSON.stringify(options)}
+            ]);
             add('Ricerca',[['Voce','Valore'],['Cliente',snapshot.customer],['Ragione sociale',snapshot.rows[0]?.customerName??''],['Letto il',excelDateCell(snapshot.queriedAt,'dd/mm/yyyy hh:mm:ss')],['Periodo SQL',JSON.stringify(snapshot.request)],['Filtri applicati',JSON.stringify(filters)],['Righe esportate',rows.length],['Nota','Valore stimato = quantità × prezzo netto. Non è fatturato; esclusi IVA, spese e rettifiche di documento. I documenti collegati sono consultabili nel modulo; nessun tasso di conversione calcolato. Stati e consegne sono riferiti alle righe. Inserimento documento e riga da TBCreated. Consegne previste e confermate, non effettive. Imponibile riga da TaxableAmount, distinto dai valori stimati. Solo righe articolo.']]);
             await fs.promises.writeFile(choice.filePath,XLSX.write(book,{type:'buffer',bookType:'xlsx'}));return {ok:true,count:rows.length};
         }catch(error){return failure(error);}finally{exporting=false;}

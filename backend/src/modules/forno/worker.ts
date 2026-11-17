@@ -6,6 +6,7 @@ import { MultiChannelArchive, historyChannels } from "./multi-archive";
 import { ModbusReader, qualityLabel } from "./modbus";
 import { analyzeChannels } from "./analysis";
 import { sampleAt } from "./sample";
+import { phaseInfo } from "./phase-info";
 import {
     initializeMessages,
     listMessages,
@@ -26,7 +27,9 @@ async function main() {
         parentPort!.on("message", (request) => {
             try {
                 let result: any =
-                    request.command === "messages"
+                    request.command === "phase_info"
+                        ? phaseInfo(db, request.eventId, Math.max(500, workerData.intervalMs || 500))
+                        : request.command === "messages"
                         ? listMessages(
                               db,
                               request.fromMs,
@@ -230,7 +233,8 @@ async function main() {
             request.command === "history_binary" ||
             request.command === "analysis" ||
             request.command === "sample" ||
-            request.command === "messages"
+            request.command === "messages" ||
+            request.command === "phase_info"
         ) {
             queries.postMessage(request);
             return;

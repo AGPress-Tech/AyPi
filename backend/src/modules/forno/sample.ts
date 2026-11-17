@@ -48,6 +48,7 @@ export function sampleAt(
     timestampMs: number,
     toleranceMs = 500,
     manageTransaction = true,
+    bounds?: { fromMs: number; toMs: number },
 ) {
     if (
         !Number.isSafeInteger(timestampMs) ||
@@ -62,8 +63,8 @@ export function sampleAt(
         const nearby = rows(
             db,
             1,
-            timestampMs - toleranceMs,
-            timestampMs + toleranceMs,
+            Math.max(timestampMs - toleranceMs, bounds?.fromMs ?? 0),
+            Math.min(timestampMs + toleranceMs, bounds?.toMs ?? Number.MAX_SAFE_INTEGER),
         );
         nearby.sort(
             (a, b) =>

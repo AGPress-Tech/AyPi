@@ -11,6 +11,7 @@ import { setupAnnotations } from "./forno/annotations";
 import { setupProgramsDialog } from "./forno/programs-dialog";
 import { boundedQueryRange } from "./forno/query-range";
 import { attachChartInteractions } from "./forno/chart-interactions";
+import type { SelectorPhases } from "./forno/selector-point";
 import { createChartReveal } from "./forno/chart-reveal";
 import { channelAverage } from "./forno/channel-average";
 import { appendLiveFrame, type LiveFrame } from "./forno/live-series";
@@ -578,6 +579,7 @@ annotations = setupAnnotations(chart, {
         ipcRenderer.invoke("forno-sample", { timestampMs }),
     save: (input) => ipcRenderer.invoke("forno-note-save", input),
     remove: (input) => ipcRenderer.invoke("forno-note-delete", input),
+    phaseInfo: (eventId) => ipcRenderer.invoke("forno-phase-info", { eventId }),
 });
 continuous = setupContinuousTooltip(chart, {
     request: (timestampMs) =>
@@ -619,13 +621,15 @@ continuous = setupContinuousTooltip(chart, {
     },
 });
 interactions = attachChartInteractions(chart, {
+    snapPoints: () => annotations?.snapPoints() ?? [],
+    describeSnap: (point) => annotations?.describeSnap(point),
     range: () => ({ start, end }),
     move: updateView,
     commit: (kind) => {
         void refresh(true, true, kind !== "pan");
     },
-    select: (lo, hi) => {
-        void analyzeSelection(lo, hi);
+    select: (lo, hi, phases) => {
+        void analyzeSelection(lo, hi, phases);
     },
     continuous: () => continuous?.enabled || false,
 });
@@ -969,8 +973,11 @@ function updateView(lo: number, hi: number) {
     chart.update("none");
     continuous?.afterChartUpdate();
 }
-function analyzeSelection(lo: number, hi: number) {
-    analysisPanel.open(lo, hi);
+function analyzeSelection(lo: number, hi: number, phases: SelectorPhases) {
+    analysisPanel.open(lo, hi, phases);
+    void annotations?.describePhases(phases).then((described) => {
+        analysisPanel.setPhases(lo, hi, described);
+    });
 }
 function savePreferences() {
     const snapshot = { ...preferences };
@@ -1172,6 +1179,7 @@ for (const [id, factor] of [
         );
     });
 const optionFields: Record<string, keyof FornoViewSettings> = {
+    "opt-snap-selector": "snapSelector",
     "opt-x-divisions": "xDivisions",
     "opt-y-divisions": "yDivisions",
     "opt-x-every": "xLabelEvery",

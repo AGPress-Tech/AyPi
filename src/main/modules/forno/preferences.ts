@@ -27,6 +27,7 @@ export type FornoViewSettings = {
     yDegreeStep: number;
     ySubdivisions: number;
     analysisWindowSeconds: number;
+    snapSelector: boolean;
     continuousTooltip: boolean;
     continuousTooltipOpacity: number;
     showNotes: boolean;
@@ -74,6 +75,7 @@ export const DEFAULT_VIEW_SETTINGS: FornoViewSettings = {
     yDegreeStep: 10,
     ySubdivisions: 5,
     analysisWindowSeconds: 60,
+    snapSelector: true,
     continuousTooltip: false,
     continuousTooltipOpacity: 100,
     showNotes: true,
@@ -129,6 +131,7 @@ export function normalizeViewSettings(input: unknown): FornoViewSettings {
         "showDiagnostics",
         "yFixedStep",
         "continuousTooltip",
+        "snapSelector",
         "showNotes",
         "showEvents",
     ])

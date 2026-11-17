@@ -1,3 +1,5 @@
+import {gestureForDialogue} from '../modules/assistant-3d-motion';
+import {mount3DAssistant,NOZOMI_ANIMATIONS} from '../modules/assistant-3d';
 import { installAddinFunction } from "../modules/utils";
 import { mountForgeLanding } from "./forge/landing";
 import {
@@ -485,9 +487,12 @@ const storedAssistant =
 let currentAssistant =
     storedAssistant === "arona" ||
     storedAssistant === "plana" ||
+    storedAssistant === "nozomi" ||
     importedAssistantMap.has(storedAssistant)
         ? storedAssistant
         : "arona";
+let assistant3d:ReturnType<typeof mount3DAssistant>|null=null;
+let assistantLoadVersion=0;
 let spinePlayerInstance: any = null;
 let spineAnimationState: any = null;
 let assistantIdleAnimation = "";
@@ -800,6 +805,7 @@ const assistantConfigs: Record<"arona" | "plana", AssistantConfig> = {
 function assistantDisplayName(character: string) {
     if (character === "arona") return "Arona";
     if (character === "plana") return "Plana";
+    if (character === "nozomi") return "Nozomi";
     const importedName = importedAssistantMap.get(character)?.name?.trim();
     if (importedName) return importedName;
     return character
@@ -923,6 +929,7 @@ function scheduleAssistantBlink() {
 }
 
 function updateAssistantGaze(event: MouseEvent) {
+    if(assistant3d&&assistantPlayer){const rect=assistantPlayer.getBoundingClientRect();assistant3d.gaze((event.clientX-rect.left-rect.width/2)/Math.max(1,innerWidth/3),(event.clientY-rect.top-rect.height*.25)/Math.max(1,innerHeight/3));return;}
     if (!spineBones || assistantSpeaking || !assistantPlayer) return;
     const config = getAssistantConfig(currentAssistant);
     const rect = assistantPlayer.getBoundingClientRect();
@@ -958,6 +965,13 @@ function updateAssistantGaze(event: MouseEvent) {
 }
 
 function startPattingAssistant() {
+    if(assistant3d?.isReady()){
+        if(isPattingAssistant)return;
+        if(assistantReactionTimer)clearTimeout(assistantReactionTimer);
+        if(animationPlaybackTimer)clearTimeout(animationPlaybackTimer);
+        if(patEndTimer)clearTimeout(patEndTimer);
+        assistantReactionTimer=null;isPattingAssistant=true;assistantSpeaking=true;assistant?.classList.add('patting');bubble?.classList.remove('visible');assistant3d.startPat();return;
+    }
     if (isPattingAssistant || !spineAnimationState) return;
     const patAnimation = findAvailableAnimation("Dev_Pat_01_M");
     if (!patAnimation) return;
@@ -976,6 +990,7 @@ function stopPattingAssistant(playEndAnimation = true) {
     if (!isPattingAssistant) return;
     isPattingAssistant = false;
     assistant?.classList.remove("patting");
+    if(assistant3d){if(playEndAnimation){assistant3d.stopPat();patEndTimer=setTimeout(()=>{assistantSpeaking=false;patEndTimer=null;},1650);}else assistantSpeaking=false;return;}
 
     if (!playEndAnimation || !spineAnimationState) {
         assistantSpeaking = false;
@@ -1005,12 +1020,19 @@ function stopPattingAssistant(playEndAnimation = true) {
 function initializeAssistant(character: string) {
     if (!assistantPlayer || !assistant) return;
     stopPattingAssistant(false);
+    const loadVersion=++assistantLoadVersion;
+    assistant3d?.dispose();assistant3d=null;
+    if(assistantHeadHitbox)for(const property of ['left','top','width','height'])assistantHeadHitbox.style.removeProperty(property);
+    bubble?.classList.remove('visible');if(bubbleTimer)clearTimeout(bubbleTimer);
+    if(patEndTimer)clearTimeout(patEndTimer);patEndTimer=null;
+    if(animationPlaybackTimer)clearTimeout(animationPlaybackTimer);animationPlaybackTimer=null;
     if (assistantReactionTimer) clearTimeout(assistantReactionTimer);
     assistantReactionTimer = null;
     currentAssistant = character;
     window.localStorage.setItem("aypi-bluearchive-assistant-v1", character);
     const config = getAssistantConfig(character);
     const displayName = assistantDisplayName(character);
+    const loadingLabel=document.querySelector('#assistantLoading span');if(loadingLabel)loadingLabel.textContent=`${displayName.toUpperCase()} SYSTEM`;
     assistant.classList.remove("ready", "failed");
     assistant.setAttribute("aria-label", `Assistente ${displayName}`);
     assistantPlayer.setAttribute("aria-label", `Parla con ${displayName}`);
@@ -1035,7 +1057,12 @@ function initializeAssistant(character: string) {
     } catch {
         // Il runtime può essere ancora in fase di caricamento.
     }
+    spinePlayerInstance=null;
     assistantPlayer.innerHTML = "";
+    if(character==='nozomi'){
+        try{assistant3d=mount3DAssistant(assistantPlayer,{headRegion:region=>{if(loadVersion!==assistantLoadVersion||!assistantHeadHitbox)return;for(const [key,value] of Object.entries(region))assistantHeadHitbox.style.setProperty(key,`${value}px`);},ready:()=>{if(loadVersion!==assistantLoadVersion)return;availableAnimations=NOZOMI_ANIMATIONS.map(a=>({...a}));assistant.classList.add('ready');if(assistantLabel)assistantLabel.textContent='NOZOMI // ONLINE';renderAssistantPicker();if(animationLabUnlocked)renderAnimationButtons();},error:error=>{if(loadVersion!==assistantLoadVersion)return;console.error('Caricamento Nozomi 3D fallito:',error);assistant.classList.add('failed');if(assistantLabel)assistantLabel.textContent='NOZOMI // OFFLINE';showBubble('Non riesco a caricare Nozomi dalla cartella 3D locale.',6000);}});}catch(error){console.error('Avvio Nozomi 3D fallito:',error);assistant.classList.add('failed');if(assistantLabel)assistantLabel.textContent='NOZOMI // OFFLINE';showBubble('Il rendering 3D non e disponibile su questo dispositivo.',6000);}
+        return;
+    }
 
     const spineRuntime =
         config.runtime === "4.2"
@@ -1063,6 +1090,7 @@ function initializeAssistant(character: string) {
         alpha: true,
         showControls: false,
         success: (player: any) => {
+            if(loadVersion!==assistantLoadVersion){player.stopRendering?.();player.dispose?.();return;}
             spineAnimationState = player.animationState;
             const skeleton = player.skeleton;
             availableAnimations = (skeleton?.data?.animations || [])
@@ -1133,6 +1161,7 @@ function initializeAssistant(character: string) {
             scheduleAssistantBlink();
         },
         error: (_player: any, reason: unknown) => {
+            if(loadVersion!==assistantLoadVersion)return;
             console.error("Caricamento assistente Spine fallito:", reason);
             assistant.classList.add("failed");
             if (assistantLabel)
@@ -1143,6 +1172,13 @@ function initializeAssistant(character: string) {
 }
 
 function playAssistantReaction() {
+    if(assistant3d){
+        if(assistantSpeaking||!assistant3d.isReady())return false;
+        const reactions=assistantConfigs.arona.reactions.filter(r=>r!==lastAssistantReaction),reaction=reactions[Math.floor(Math.random()*reactions.length)],text=typeof reaction.text==='function'?reaction.text():reaction.text;
+        const name=gestureForDialogue(text),duration=Math.min(9000,Math.max((NOZOMI_ANIMATIONS.find(a=>a.name===name)?.duration||4.8)*1000,1800+text.length*32));
+        assistantSpeaking=true;lastAssistantReaction=reaction;lastAssistantReactionAnimation=name;assistant3d.play(name);showBubble(text,duration);
+        assistantReactionTimer=setTimeout(()=>{assistantSpeaking=false;assistantReactionTimer=null;bubble?.classList.remove('visible');},duration+120);return true;
+    }
     if (assistantSpeaking || !spineAnimationState) return false;
     const config = getAssistantConfig(currentAssistant);
     const configuredAnimationNames = Array.from(
@@ -1861,6 +1897,7 @@ function renderAssistantPicker(query = assistantPickerSearch?.value || "") {
     const catalog = [
         { id: "arona", skel: "", atlas: "" },
         { id: "plana", skel: "", atlas: "" },
+        { id: "nozomi", skel: "", atlas: "" },
         ...importedAssistants,
     ]
         .map((character) => ({
@@ -1874,7 +1911,7 @@ function renderAssistantPicker(query = assistantPickerSearch?.value || "") {
                 character.id.toLocaleLowerCase().includes(normalizedQuery),
         )
         .sort((left, right) =>
-            left.label.localeCompare(right.label, undefined, {
+            (["arona","plana","nozomi"].includes(left.id)?["arona","plana","nozomi"].indexOf(left.id):3)-(["arona","plana","nozomi"].includes(right.id)?["arona","plana","nozomi"].indexOf(right.id):3) || left.label.localeCompare(right.label, undefined, {
                 numeric: true,
                 sensitivity: "base",
             }),
@@ -1935,12 +1972,12 @@ function renderAnimationButtons() {
         duration.textContent = `${animation.duration.toFixed(2)} s`;
         button.append(title, duration);
         button.addEventListener("click", () => {
-            if (!spineAnimationState) return;
+            if (!spineAnimationState&&!assistant3d?.isReady()) return;
             if (animationPlaybackTimer) clearTimeout(animationPlaybackTimer);
             resetAssistantBones();
             assistantSpeaking = true;
             const shouldLoop = !!animationLoop?.checked;
-            spineAnimationState.setAnimation(2, animation.name, shouldLoop);
+            if(assistant3d)assistant3d.play(animation.name,shouldLoop?Number.POSITIVE_INFINITY:animation.duration);else spineAnimationState.setAnimation(2, animation.name, shouldLoop);
             animationGrid
                 .querySelectorAll(".animation-button")
                 .forEach((item) =>
@@ -1950,6 +1987,7 @@ function renderAnimationButtons() {
             if (!shouldLoop) {
                 animationPlaybackTimer = setTimeout(
                     () => {
+                        assistant3d?.play("Idle");
                         spineAnimationState?.setEmptyAnimation(2, 0.2);
                         assistantSpeaking = animationLabUnlocked;
                         button.classList.remove("active");
@@ -1972,6 +2010,7 @@ function closeAnimationLab() {
     assistantSpeaking = false;
     if (animationPlaybackTimer) clearTimeout(animationPlaybackTimer);
     animationPlaybackTimer = null;
+    assistant3d?.play("Idle");
     spineAnimationState?.setEmptyAnimation(2, 0.15);
     if (animationLabPassword) animationLabPassword.value = "";
     if (animationLabError) animationLabError.textContent = "";
@@ -2358,3 +2397,5 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 export {};
+
+window.addEventListener("beforeunload",()=>assistant3d?.dispose());

@@ -1,12 +1,15 @@
 import type Chart from "chart.js/auto";
+import type { SelectorPoint, SelectorPhases } from "./selector-point";
 
 type Range = { start: number; end: number };
 type Callbacks = {
     range(): Range;
     move(start: number, end: number): void;
     commit(kind: "pan" | "zoom"): void;
-    select(start: number, end: number): void;
+    select(start: number, end: number, phases: SelectorPhases): void;
     continuous?(): boolean;
+    snapPoints?(): SelectorPoint[];
+    describeSnap?(point: SelectorPoint): void;
 };
 
 /** Camera locale: nessuna richiesta di rete durante il movimento del mouse. */
@@ -15,6 +18,11 @@ export function attachChartInteractions(
     callbacks: Callbacks,
 ) {
     const canvas = chart.canvas;
+    const snapTooltip = document.createElement("div");
+    snapTooltip.className = "selector-snap-tooltip";
+    snapTooltip.setAttribute("role", "tooltip");
+    snapTooltip.hidden = true;
+    document.body.append(snapTooltip);
     const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
     let hoverTimer: ReturnType<typeof setTimeout> | undefined;
     let wheelTimer: ReturnType<typeof setTimeout> | undefined;
@@ -28,9 +36,15 @@ export function attachChartInteractions(
               width: number;
               left: number;
               select: boolean;
+              pointerStart: number;
+              pointerCurrent: number;
+              snapStart: SelectorPoint | null;
+              snapEnd: SelectorPoint | null;
           })
         | null = null;
     let suppressClick = false;
+    let controlPressed = false;
+    let pointer: { x: number; y: number } | null = null;
     const hoverRadius = 24;
     let hoverPosition: { clientX: number; clientY: number } | null = null;
     let settled = false,
@@ -47,6 +61,43 @@ export function attachChartInteractions(
         return (
             p.x >= a.left && p.x <= a.right && p.y >= a.top && p.y <= a.bottom
         );
+    }
+    function snapTarget(x: number) {
+        const axis = chart.scales.x;
+        const at = axis.getValueForPixel(x);
+        // 14 CSS pixels at any zoom, never more than five minutes.
+        const rect = canvas.getBoundingClientRect();
+        const tolerance = Math.min(300000,
+            Math.abs(axis.getValueForPixel(x + 14 * chart.width / rect.width) - at));
+        let nearest: SelectorPoint | null = null;
+        let distance = tolerance;
+        for (const event of callbacks.snapPoints?.() ?? []) {
+            if (event.timestampMs < axis.min || event.timestampMs > axis.max) continue;
+            const delta = Math.abs(event.timestampMs - at);
+            if (delta <= distance) {
+                nearest = event;
+                distance = delta;
+            }
+        }
+        return nearest;
+    }
+    function snap(x: number) {
+        const target = snapTarget(x);
+        return target ? chart.scales.x.getPixelForValue(target.timestampMs) : x;
+    }
+    function onControl(event: KeyboardEvent) {
+        const pressed = event.ctrlKey;
+        if (controlPressed === pressed) return;
+        controlPressed = pressed;
+        if (pressed) hideTooltip();
+        if (pointer && inside(pointer) && !drag)
+            canvas.style.cursor = pressed ? "crosshair" : "grab";
+        chart.draw();
+    }
+    function onBlur() {
+        controlPressed = false;
+        pointer = null;
+        chart.draw();
     }
     function clearTooltip(draw = true) {
         const hasTooltip = !!chart.tooltip?.getActiveElements().length;
@@ -167,6 +218,17 @@ export function attachChartInteractions(
         chart.draw();
     }
     function onMove(event: PointerEvent) {
+        pointer = point(event);
+        const wasPressed = controlPressed;
+        controlPressed = event.ctrlKey;
+        if (!drag && (controlPressed || wasPressed)) {
+            hideTooltip();
+            canvas.style.cursor = inside(pointer)
+                ? controlPressed ? "crosshair" : "grab"
+                : "default";
+            chart.draw();
+            if (controlPressed) return;
+        }
         if (!drag && callbacks.continuous?.()) {
             hideTooltip();
             canvas.style.cursor = inside(point(event))
@@ -185,8 +247,12 @@ export function attachChartInteractions(
         const p = point(event);
         hideTooltip();
         if (drag) {
+            drag.pointerCurrent = p.x;
+            drag.snapEnd = drag.select
+                ? snapTarget(Math.max(drag.left, Math.min(drag.left + drag.width, p.x)))
+                : null;
             drag.current = drag.select
-                ? Math.max(drag.left, Math.min(drag.left + drag.width, p.x))
+                ? snap(Math.max(drag.left, Math.min(drag.left + drag.width, p.x)))
                 : p.x;
             if (drag.select) chart.draw();
             else pan();
@@ -208,6 +274,8 @@ export function attachChartInteractions(
     }
     function onDown(event: PointerEvent) {
         const p = point(event);
+        pointer = p;
+        controlPressed = event.ctrlKey;
         if (event.button !== 0 || !inside(p)) return;
         hideTooltip();
         clearTimeout(wheelTimer);
@@ -216,17 +284,23 @@ export function attachChartInteractions(
         const range = { start: chart.scales.x.min, end: chart.scales.x.max };
         drag = {
             ...range,
-            x: p.x,
-            current: p.x,
+            x: event.ctrlKey ? snap(p.x) : p.x,
+            current: event.ctrlKey ? snap(p.x) : p.x,
+            pointerStart: p.x,
+            pointerCurrent: p.x,
+            snapStart: event.ctrlKey ? snapTarget(p.x) : null,
+            snapEnd: event.ctrlKey ? snapTarget(p.x) : null,
             width: chart.chartArea.width,
             left: chart.chartArea.left,
             select: event.ctrlKey,
         };
         canvas.style.cursor = drag.select ? "crosshair" : "grabbing";
         canvas.setPointerCapture(event.pointerId);
+        if (drag.select) chart.draw();
     }
     function onUp(event: PointerEvent) {
         if (!drag) return;
+        onMove(event);
         const p = drag;
         if (Math.abs(p.current - p.x) >= 4) pan();
         if (pending) {
@@ -235,19 +309,25 @@ export function attachChartInteractions(
             callbacks.move(next.start, next.end);
         }
         drag = null;
-        canvas.style.cursor = "grab";
+        canvas.style.cursor = controlPressed ? "crosshair" : "grab";
         chart.draw();
         if (canvas.hasPointerCapture(event.pointerId))
             canvas.releasePointerCapture(event.pointerId);
-        suppressClick = Math.abs(p.current - p.x) >= 4;
+        suppressClick = Math.abs(p.pointerCurrent - p.pointerStart) >= 4;
         if (!suppressClick) return;
         if (p.select) {
             const at = (x: number) =>
                 p.start + ((x - p.left) / p.width) * (p.end - p.start);
-            callbacks.select(
-                Math.round(Math.min(at(p.x), at(p.current))),
-                Math.round(Math.max(at(p.x), at(p.current))),
-            );
+            const lo = Math.round(Math.min(at(p.x), at(p.current))),
+                hi = Math.round(Math.max(at(p.x), at(p.current)));
+            snapTooltip.hidden = true;
+            const forward = p.current >= p.x;
+            if (hi > lo) callbacks.select(lo, hi, {
+                from: (forward ? p.snapStart : p.snapEnd)?.label,
+                to: (forward ? p.snapEnd : p.snapStart)?.label,
+                fromId: (forward ? p.snapStart : p.snapEnd)?.id,
+                toId: (forward ? p.snapEnd : p.snapStart)?.id,
+            });
         } else callbacks.commit("pan");
     }
     function onCancel(event: PointerEvent) {
@@ -302,9 +382,14 @@ export function attachChartInteractions(
         suppressClick = false;
     }
     function onLeave() {
+        pointer = null;
         hideTooltip();
         if (!drag) canvas.style.cursor = "default";
+        chart.draw();
     }
+    window.addEventListener("keydown", onControl);
+    window.addEventListener("keyup", onControl);
+    window.addEventListener("blur", onBlur);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointerup", onUp);
@@ -327,8 +412,49 @@ export function attachChartInteractions(
             return !!(drag || zoom || wheelTimer);
         },
         drawSelection() {
-            if (!drag?.select) return;
             const { ctx, chartArea } = chart;
+            const showSnap = controlPressed || drag?.select;
+            const target = showSnap && pointer && inside(pointer)
+                ? snapTarget(pointer.x) : null;
+            snapTooltip.hidden = !target || !!document.querySelector("dialog[open]");
+            if (target && pointer && !snapTooltip.hidden) {
+                callbacks.describeSnap?.(target);
+                snapTooltip.textContent = target.label;
+                const rect = canvas.getBoundingClientRect();
+                const x = rect.left + chart.scales.x.getPixelForValue(target.timestampMs) * rect.width / chart.width;
+                const y = rect.top + pointer.y * rect.height / chart.height;
+                const box = snapTooltip.getBoundingClientRect();
+                snapTooltip.style.left = Math.max(8, Math.min(x + 14, innerWidth - box.width - 8)) + "px";
+                snapTooltip.style.top = Math.max(8, Math.min(y + 14, innerHeight - box.height - 8)) + "px";
+            }
+            ctx.save();
+            for (const event of showSnap ? callbacks.snapPoints?.() ?? [] : []) {
+                if (event.timestampMs < chart.scales.x.min || event.timestampMs > chart.scales.x.max) continue;
+                const active = target?.timestampMs === event.timestampMs;
+                ctx.beginPath();
+                ctx.arc(chart.scales.x.getPixelForValue(event.timestampMs), chartArea.bottom - 8, active ? 7 : 4, 0, Math.PI * 2);
+                ctx.fillStyle = event.type === "program_reset" ? "#d85252" : "#2994dc";
+                ctx.fill();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = "#fff";
+                ctx.stroke();
+            }
+            if (target && pointer) {
+                const x = chart.scales.x.getPixelForValue(target.timestampMs);
+                ctx.strokeStyle = target.type === "program_reset" ? "#d85252" : "#2994dc";
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.arc(x, pointer.y, 6, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+            if (!drag?.select) return;
             ctx.save();
             ctx.fillStyle = "#2994dc22";
             ctx.strokeStyle = "#2994dc";
@@ -347,9 +473,13 @@ export function attachChartInteractions(
             ctx.restore();
         },
         dispose() {
+            snapTooltip.remove();
             hideTooltip();
             stopMotion();
             clearTimeout(wheelTimer);
+            window.removeEventListener("keydown", onControl);
+            window.removeEventListener("keyup", onControl);
+            window.removeEventListener("blur", onBlur);
             canvas.removeEventListener("pointermove", onMove);
             canvas.removeEventListener("pointerdown", onDown);
             canvas.removeEventListener("pointerup", onUp);

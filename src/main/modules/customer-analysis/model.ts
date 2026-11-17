@@ -1,7 +1,8 @@
+import { articleOrders, firstArticleDates, orderMeasures, articleInactivity } from './articles';
 export type DocumentKind='order'|'offer';
-export const CUSTOMER_SELECTION_DIMENSIONS=['article','month','year','status','kind','deliveryMonth'] as const;
+export const CUSTOMER_SELECTION_DIMENSIONS=['article','month','year','status','kind','deliveryMonth','inactivity'] as const;
 export type CustomerSelection=Record<typeof CUSTOMER_SELECTION_DIMENSIONS[number],string[]>;
-export const emptyCustomerSelection=():CustomerSelection=>({article:[],month:[],year:[],status:[],kind:[],deliveryMonth:[]});
+export const emptyCustomerSelection=():CustomerSelection=>({article:[],month:[],year:[],status:[],kind:[],deliveryMonth:[],inactivity:[]});
 export function validateCustomerSelection(input:unknown):CustomerSelection{
     const clean=emptyCustomerSelection();if(input===undefined)return clean;
     if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!CUSTOMER_SELECTION_DIMENSIONS.includes(k as any)))throw Error('Selezioni grafici non valide.');
@@ -52,6 +53,7 @@ export function rowStatus(r:CustomerRow,today:string):string {
 export function filterCustomerRows(rows:readonly CustomerRow[],f:CustomerFilters,today:string){
     const search=f.search.toLocaleLowerCase('it'),article=f.article.toLocaleLowerCase('it');
     const selection=f.selection??emptyCustomerSelection();
+    const inactivity=selection.inactivity.length?articleInactivity(rows,today):new Map<string,string>();
     return rows.filter(r=>{
         if(f.kind!=='all'&&r.kind!==f.kind)return false;
         if(f.status!=='cancelled'&&f.stateBucket!=='Annullato'&&!f.includeCancelled&&r.cancelled)return false;
@@ -65,7 +67,7 @@ export function filterCustomerRows(rows:readonly CustomerRow[],f:CustomerFilters
         if(f.minPrice!==''&&(r.netPrice===null||r.netPrice<Number(f.minPrice))||f.maxPrice!==''&&(r.netPrice===null||r.netPrice>Number(f.maxPrice)))return false;
         if(f.minResidual!==''&&(r.residual===null||r.residual<Number(f.minResidual))||f.maxResidual!==''&&(r.residual===null||r.residual>Number(f.maxResidual)))return false;
         if(f.stateBucket&&rowStatus(r,today)!==f.stateBucket)return false;
-        const values={article:r.article,month:r.documentDate?.slice(0,7),year:r.documentDate?.slice(0,4),status:rowStatus(r,today),kind:r.kind,deliveryMonth:r.deliveryDate?.slice(0,7)};
+        const values={article:r.article,month:r.documentDate?.slice(0,7),year:r.documentDate?.slice(0,4),status:rowStatus(r,today),kind:r.kind,deliveryMonth:r.deliveryDate?.slice(0,7),inactivity:inactivity.get(r.article)??'unknown'};
         if(CUSTOMER_SELECTION_DIMENSIONS.some(key=>selection[key].length&&!selection[key].includes(values[key]??'')))return false;
         if(f.status==='all')return true;
         if(r.kind!=='order')return false;
@@ -98,8 +100,8 @@ export function customerStats(rows:readonly CustomerRow[],today:string){
         first:dates[0]??null,last:dates[dates.length-1]??null,units:[...units.values()],currencies:[...currencies.values()],
         missingDates:rows.filter(r=>!r.documentDate).length,missingPrices:rows.filter(r=>r.netPrice===null).length,missingDeliveries:open.filter(r=>!r.deliveryDate).length};
 }
-export const CHART_DIMENSIONS={month:'Mese',year:'Anno',article:'Articolo',status:'Stato riga',kind:'Ordini / offerte',deliveryMonth:'Mese consegna prevista'};
-export const CHART_METRICS={documents:'Documenti distinti',lines:'Righe',articles:'Articoli distinti',quantity:'Quantità',delivered:'Quantità consegnata',residual:'Quantità residua',netAmount:'Imponibile righe (gestionale)',value:'Valore netto stimato',backlog:'Portafoglio residuo stimato'};
+export const CHART_DIMENSIONS={month:'Mese',year:'Anno',article:'Articolo',status:'Stato riga',kind:'Ordini / offerte',deliveryMonth:'Mese consegna prevista',inactivity:'Anni interi di inattività'};
+export const CHART_METRICS={documents:'Documenti distinti',lines:'Righe',articles:'Articoli distinti',quantity:'Quantità',delivered:'Quantità consegnata',residual:'Quantità residua',netAmount:'Imponibile righe (gestionale)',value:'Valore netto stimato',backlog:'Portafoglio residuo stimato',averageLot:'Quantità media per ordine',weightedPrice:'Prezzo netto medio ponderato',newArticles:'Nuovi articoli osservati',newArticleValue:'Valore ordini dei nuovi articoli'};
 export type CustomerChart={id:string;title:string;kind:'bar'|'line'|'doughnut';dimension:keyof typeof CHART_DIMENSIONS;metric:keyof typeof CHART_METRICS;scope:'all'|DocumentKind;limit:number;hidden:boolean;cumulative:boolean};
 export const defaultCustomerCharts=():CustomerChart[]=>[
     {id:'history',title:'Storico mensile dei documenti',kind:'line',dimension:'month',metric:'documents',scope:'all',limit:36,hidden:false,cumulative:false},
@@ -108,7 +110,41 @@ export const defaultCustomerCharts=():CustomerChart[]=>[
     {id:'annual',title:'Confronto annuale ordini e offerte',kind:'bar',dimension:'year',metric:'netAmount',scope:'all',limit:20,hidden:false,cumulative:false},
 ];
 export type ChartBucket={key:string;label:string;series:string;value:number};
-export function customerChartData(rows:readonly CustomerRow[],chart:CustomerChart,today:string):ChartBucket[]{
+export function customerChartData(rows:readonly CustomerRow[],chart:CustomerChart,today:string,history:readonly CustomerRow[]=rows):ChartBucket[]{
+    if(['averageLot','weightedPrice','newArticles','newArticleValue'].includes(chart.metric)){
+        const first=firstArticleDates(history), groups=new Map<string,{key:string;series:string;rows:CustomerRow[]}>();
+        for(const r of articleOrders(rows)){
+            if(!r.documentDate||chart.scope==='offer')continue;
+            if(['newArticles','newArticleValue'].includes(chart.metric)&&!first.get(r.article)?.startsWith(r.documentDate.slice(0,4)))continue;
+            if(chart.metric==='newArticles'&&chart.dimension==='month'&&first.get(r.article)?.slice(0,7)!==r.documentDate.slice(0,7))continue;
+            const key=chart.dimension==='article'?r.article:chart.dimension==='year'?r.documentDate.slice(0,4):chart.dimension==='month'?r.documentDate.slice(0,7):chart.dimension==='deliveryMonth'?r.deliveryDate?.slice(0,7):chart.dimension==='status'?rowStatus(r,today):'Ordini';
+            if(!key)continue;
+            const series=chart.metric==='newArticles'?'Articoli':chart.metric==='averageLot'?r.unit||'U.M. assente':`${r.currency||'Valuta assente'}${chart.metric==='weightedPrice'?` / ${r.unit||'U.M. assente'}`:''}`;
+            const id=JSON.stringify([key,series]),g=groups.get(id)??{key,series,rows:[]};g.rows.push(r);groups.set(id,g);
+        }
+        let result=[...groups.values()].flatMap(g=>{const m=orderMeasures(g.rows),value=chart.metric==='newArticles'?new Set(g.rows.map(r=>r.article)).size:chart.metric==='averageLot'?m.averageLot:chart.metric==='weightedPrice'?m.price:m.value;return [{key:g.key,label:g.key,series:g.series,value}];});
+        const temporal=['year','month','deliveryMonth'].includes(chart.dimension);
+        const totals=new Map<string,number>();result.forEach(b=>totals.set(b.key,(totals.get(b.key)??0)+Math.abs(b.value)));
+        let keys=[...totals.keys()].sort((a,b)=>temporal?a.localeCompare(b):(totals.get(b)!-totals.get(a)!));
+        if(temporal && chart.scope!=='offer'){
+            const dates=articleOrders(rows).map(r=>chart.dimension==='deliveryMonth'?r.deliveryDate:r.documentDate).filter(Boolean).sort();
+            if(dates.length){
+                const start=dates[0]!,end=dates.at(-1)!;keys=[];
+                let year=+start.slice(0,4),month=+start.slice(5,7);
+                for(let i=0;i<12000;i++){const key=chart.dimension==='year'?String(year):`${year}-${String(month).padStart(2,'0')}`;if(key>end.slice(0,chart.dimension==='year'?4:7))break;keys.push(key);if(chart.dimension==='year')year++;else if(++month>12){year++;month=1;}}
+            }
+        }
+        const shown=temporal?keys.slice(-chart.limit):keys.slice(0,chart.limit);
+        const series=[...new Set(result.length?result.map(b=>b.series):chart.metric==='newArticles'?['Articoli']:chart.metric==='newArticleValue'?articleOrders(rows).map(r=>r.currency||'Valuta assente'):[])], lookup=new Map(result.map(b=>[JSON.stringify([b.key,b.series]),b]));
+        result=temporal?series.flatMap(series=>shown.map(key=>lookup.get(JSON.stringify([key,series]))??{key,label:key,series,value:['averageLot','weightedPrice'].includes(chart.metric)?null:0})):result.filter(b=>shown.includes(b.key)).sort((a,b)=>shown.indexOf(a.key)-shown.indexOf(b.key));
+        if(chart.cumulative&&temporal&&['newArticles','newArticleValue'].includes(chart.metric)){const sums=new Map<string,number>();result=result.map(b=>{const value=(sums.get(b.series)??0)+b.value;sums.set(b.series,value);return {...b,value};});}
+        return result;
+    }
+    if(chart.dimension==='inactivity'){
+        const inactivity=articleInactivity(history,today),groups=new Map<string,Set<string>>();
+        for(const r of articleOrders(rows)){const key=inactivity.get(r.article)??'unknown',set=groups.get(key)??new Set<string>();set.add(r.article);groups.set(key,set);}
+        return [...groups].sort(([a],[b])=>a==='unknown'?1:b==='unknown'?-1:parseInt(a)-parseInt(b)).slice(0,chart.limit).map(([key,set])=>({key,label:key==='unknown'?'Data assente':key==='0'?'Meno di 1 anno':`${key} anni`,series:'Articoli',value:set.size}));
+    }
     const groups=new Map<string,{key:string;label:string;series:string;rows:CustomerRow[]}>();
     const temporal=['month','year','deliveryMonth'].includes(chart.dimension);
     for(const r of rows){
@@ -150,14 +186,33 @@ export function customerChartData(rows:readonly CustomerRow[],chart:CustomerChar
     if(chart.cumulative&&temporal){const sums=new Map<string,number>();buckets=buckets.map(b=>{const value=(sums.get(b.series)??0)+b.value;sums.set(b.series,value);return {...b,value};});}
     return buckets;
 }
-export type CustomerPreset={id:string;name:string;charts:CustomerChart[];filters:CustomerFilters;expanded:boolean};
-export type CustomerPreferences={version:1;charts:CustomerChart[];presets:CustomerPreset[];expanded:boolean};
-export const emptyCustomerPreferences=():CustomerPreferences=>({version:1,charts:defaultCustomerCharts(),presets:[],expanded:false});
+export const defaultArticleCharts=():CustomerChart[]=>[
+    ['article-inactivity','Articoli per fascia di inattività','articles','inactivity','bar'],
+    ['article-lots','Dimensione media degli ordini','averageLot','year','line'],
+    ['article-prices','Prezzi netti nel tempo','weightedPrice','year','line'],
+    ['article-new','Nuovi articoli per anno','newArticles','year','bar'],
+    ['article-contribution','Contributo dei nuovi articoli','newArticleValue','year','bar'],
+    ['article-volume','Quantità ordinate per anno','quantity','year','bar'],
+    ['article-ranking','Valore per articolo','netAmount','article','bar'],
+].map(([id,title,metric,dimension,kind])=>({id,title,metric,dimension,kind,scope:'order',limit:20,hidden:false,cumulative:false} as CustomerChart));
+export type ArticleAnalysisSettings={mode:string;dormancy:string;trend:string;horizon:number;display:'both'|'table'|'charts'};
+export const defaultArticleSettings=():ArticleAnalysisSettings=>({mode:'summary',dormancy:'',trend:'',horizon:3,display:'both'});
+function validateArticleSettings(input:any):ArticleAnalysisSettings {
+    if(input===undefined)return defaultArticleSettings();
+    if(!input||!['summary','commercial','annual','orders','cohorts','forecast','forecast-new'].includes(input.mode)||!['','1','2','3','4','5','7','10'].includes(input.dormancy)||!['','up','down','stable'].includes(input.trend)||!Number.isInteger(input.horizon)||input.horizon<1||input.horizon>5)throw Error('Opzioni analisi articoli non valide.');
+    if(input.display!==undefined&&!['both','table','charts'].includes(input.display))throw Error('Visualizzazione articoli non valida.');
+    return {mode:input.mode,dormancy:input.dormancy,trend:input.trend,horizon:input.horizon,display:input.display??'both'};
+}
+export type CustomerPreset={id:string;name:string;charts:CustomerChart[];articleCharts?:CustomerChart[];articleAnalysis?:ArticleAnalysisSettings;filters:CustomerFilters;expanded:boolean};
+export type CustomerPreferences={version:1;charts:CustomerChart[];articleCharts:CustomerChart[];articleAnalysis:ArticleAnalysisSettings;presets:CustomerPreset[];expanded:boolean};
+export const emptyCustomerPreferences=():CustomerPreferences=>({version:1,charts:defaultCustomerCharts(),articleCharts:defaultArticleCharts(),articleAnalysis:defaultArticleSettings(),presets:[],expanded:false});
 function validateCharts(input:any):CustomerChart[]{
     if(!Array.isArray(input)||input.length>12)throw Error('Sono ammessi fino a 12 grafici.');
     const ids=new Set<string>();
     return input.map(c=>{
         if(!c||typeof c.id!=='string'||!/^[a-zA-Z0-9_-]{1,64}$/.test(c.id)||ids.has(c.id)||typeof c.title!=='string'||!c.title.trim()||c.title.length>100||!['bar','line','doughnut'].includes(c.kind)||!Object.prototype.hasOwnProperty.call(CHART_DIMENSIONS,c.dimension)||!Object.prototype.hasOwnProperty.call(CHART_METRICS,c.metric)||!['all','order','offer'].includes(c.scope)||!Number.isInteger(c.limit)||c.limit<3||c.limit>240||typeof c.hidden!=='boolean'||typeof c.cumulative!=='boolean')throw Error('Configurazione grafico non valida.');
+        if(c.dimension==='inactivity'&&(c.metric!=='articles'||c.scope!=='order'))throw Error('Le fasce di inattività contano gli articoli degli ordini.');
+        if(['averageLot','weightedPrice'].includes(c.metric)&&c.cumulative)throw Error('Le medie non possono essere cumulate.');
         ids.add(c.id);return {id:c.id,title:c.title.trim(),kind:c.kind,dimension:c.dimension,metric:c.metric,scope:c.scope,limit:c.limit,hidden:c.hidden,cumulative:c.cumulative};
     });
 }
@@ -182,7 +237,7 @@ export function validateCustomerPreferences(input:any):CustomerPreferences {
     const ids=new Set<string>();
     const presets=input.presets.map((p:any)=>{
         if(!p||typeof p.id!=='string'||!/^[a-zA-Z0-9_-]{1,64}$/.test(p.id)||ids.has(p.id)||typeof p.name!=='string'||!p.name.trim()||p.name.length>60||typeof p.expanded!=='boolean')throw Error('Nome o identificativo preset non valido.');
-        ids.add(p.id);return {id:p.id,name:p.name.trim(),charts:validateCharts(p.charts),filters:validateCustomerFilters(p.filters),expanded:p.expanded};
+        ids.add(p.id);return {id:p.id,name:p.name.trim(),charts:validateCharts(p.charts),...(p.articleCharts===undefined?{}:{articleCharts:validateCharts(p.articleCharts)}),...(p.articleAnalysis===undefined?{}:{articleAnalysis:validateArticleSettings(p.articleAnalysis)}),filters:validateCustomerFilters(p.filters),expanded:p.expanded};
     });
-    return {version:1,charts:validateCharts(input.charts),presets,expanded:input.expanded};
+    return {version:1,charts:validateCharts(input.charts),articleCharts:input.articleCharts===undefined?defaultArticleCharts():validateCharts(input.articleCharts),articleAnalysis:validateArticleSettings(input.articleAnalysis),presets,expanded:input.expanded};
 }

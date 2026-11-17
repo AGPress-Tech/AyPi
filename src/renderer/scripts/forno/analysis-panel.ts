@@ -1,3 +1,15 @@
+import type { SelectorPhases } from "./selector-point";
+
+export function formatSelectionDuration(milliseconds: number) {
+    const ms = Math.max(0, Math.round(milliseconds));
+    return [
+        String(Math.floor(ms / 3600000)).padStart(2, "0"),
+        String(Math.floor(ms / 60000) % 60).padStart(2, "0"),
+        String(Math.floor(ms / 1000) % 60).padStart(2, "0"),
+        String(ms % 1000).padStart(3, "0"),
+    ].join(":");
+}
+
 type Stats = {
     samples: number;
     valid: number;
@@ -57,6 +69,19 @@ export function setupAnalysisPanel(options: {
         revision = 0,
         busy = false,
         pending = false;
+    let rangeText = "";
+    function setPhases(fromMs: number, toMs: number, phases: SelectorPhases) {
+        if (range.fromMs !== fromMs || range.toMs !== toMs) return;
+        const summary = document.getElementById("analysis-range")!;
+        summary.replaceChildren(document.createTextNode(rangeText));
+        if (phases.from || phases.to) {
+            summary.append(
+                document.createTextNode(" · "),
+                node("span", "analysis-phase-description",
+                    `Da ${phases.from || "istante libero"} → ${phases.to || "istante libero"}`),
+            );
+        }
+    }
     function node(tag: string, className: string, text?: string) {
         const n = document.createElement(tag);
         n.className = className;
@@ -239,16 +264,18 @@ export function setupAnalysisPanel(options: {
         clearTimeout(timer);
     });
     return {
-        open(fromMs: number, toMs: number) {
+        setPhases,
+        open(fromMs: number, toMs: number, phases: SelectorPhases = {}) {
             range = { fromMs, toMs };
             input.value = String(options.getSeconds());
-            document.getElementById("analysis-range")!.textContent =
+            rangeText =
                 options.formatTime(fromMs) +
                 " → " +
                 options.formatTime(toMs) +
                 " · " +
                 ((toMs - fromMs) / 1000).toLocaleString("it-IT") +
-                " s";
+                " s · " + formatSelectionDuration(toMs - fromMs);
+            setPhases(fromMs, toMs, phases);
             content.replaceChildren();
             if (!dialog.open) dialog.showModal();
             void calculate();

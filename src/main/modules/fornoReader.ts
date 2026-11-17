@@ -349,6 +349,14 @@ export function setupFornoReader() {
             });
         },
     );
+    ipcMain.handle("forno-phase-info", (_event, input: any) => {
+        const eventId = Number(input?.eventId);
+        if (!Number.isSafeInteger(eventId) || eventId < 1)
+            throw new Error("Evento fase non valido");
+        return requestAypiBackend(`/api/forno/phase-info?eventId=${eventId}`, {
+            timeoutMs: 18000,
+        });
+    });
     ipcMain.handle("forno-messages", (_event, input: any) => {
         if (
             !Number.isSafeInteger(input?.fromMs) ||
