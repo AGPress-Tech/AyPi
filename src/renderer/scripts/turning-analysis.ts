@@ -97,7 +97,7 @@ const compact = (value: number) =>
     new Intl.NumberFormat("it-IT", {
         notation: "compact",
         maximumFractionDigits: 2,
-    }).format(value);
+    }).format(value).replace("Mio", "Mln");
 const pct = (value: number) => num(value * 100, 1) + "%";
 const style = getComputedStyle(document.body),
     accent = style.getPropertyValue("--ops-accent").trim() || "#168eea",

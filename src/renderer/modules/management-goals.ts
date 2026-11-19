@@ -13,7 +13,7 @@ const euro = (v:number) => currency.format(Math.abs(v)<1e-9 ? 0 : v);
 const percentage = (v:number) => new Intl.NumberFormat("it-IT",{maximumFractionDigits:1}).format(v)+"%";
 const compact = (v:number) => {
     const scale=Math.abs(v)>=1e6 ? 1e6 : Math.abs(v)>=1e3 ? 1e3 : 1;
-    return new Intl.NumberFormat("it-IT",{maximumFractionDigits:scale===1e6 ? 2 : scale===1e3 ? 1 : 0}).format(v/scale)+(scale===1e6 ? " mln" : scale===1e3 ? " mila" : "");
+    return new Intl.NumberFormat("it-IT",{maximumFractionDigits:scale===1e6 ? 2 : scale===1e3 ? 1 : 0}).format(v/scale)+(scale===1e6 ? " Mln" : scale===1e3 ? " mila" : "");
 };
 const esc = (s:unknown) => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]!);
 const monthNames = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];

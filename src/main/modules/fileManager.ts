@@ -460,9 +460,9 @@ function showMainWindow(mainWindow: BrowserWindow) {
     mainWindow.focus();
 }
 
-function showWindow(win: BrowserWindow) {
+function showWindow(win: BrowserWindow, maximize = false) {
     if (!isWindowAlive(win)) return;
-    revealThemedWindow(win);
+    revealThemedWindow(win, maximize);
 }
 
 function showWindowAfterRendererSignal(win: BrowserWindow, channel: string) {
@@ -950,8 +950,7 @@ function openFileListWindow(
                 },
             );
         }
-        fileListWindow.maximize();
-        showWindow(fileListWindow);
+        showWindow(fileListWindow, true);
         return;
     }
 
@@ -964,10 +963,10 @@ function openFileListWindow(
         parent: mainWindow,
         modal: false,
         show: false,
+        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
-    fileListWindow.maximize();
     fileListWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
         {
@@ -980,7 +979,7 @@ function openFileListWindow(
     fileListWindow.setMenu(null);
     fileListWindow.once("ready-to-show", () => {
         if (isWindowAlive(fileListWindow)) {
-            showWindow(fileListWindow);
+            showWindow(fileListWindow, true);
         }
     });
     fileListWindow.on("closed", () => {
@@ -1015,8 +1014,7 @@ function openBatchRenameWindow(
                 },
             );
         }
-        batchRenameWindow.maximize();
-        showWindow(batchRenameWindow);
+        showWindow(batchRenameWindow, true);
         return;
     }
 
@@ -1027,11 +1025,11 @@ function openBatchRenameWindow(
         parent: mainWindow,
         modal: false,
         show: false,
+        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
 
-    batchRenameWindow.maximize();
     batchRenameWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "batch-rename.html"),
         {
@@ -1046,7 +1044,7 @@ function openBatchRenameWindow(
     // Apertura in modalità "fullscreen windowed" (massimizzata)
     batchRenameWindow.once("ready-to-show", () => {
         if (isWindowAlive(batchRenameWindow)) {
-            showWindow(batchRenameWindow);
+            showWindow(batchRenameWindow, true);
         }
     });
 
@@ -1082,8 +1080,7 @@ function openQrGeneratorWindow(
                 },
             );
         }
-        qrGeneratorWindow.maximize();
-        showWindow(qrGeneratorWindow);
+        showWindow(qrGeneratorWindow, true);
         return;
     }
 
@@ -1094,11 +1091,11 @@ function openQrGeneratorWindow(
         parent: mainWindow,
         modal: false,
         show: false,
+        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
 
-    qrGeneratorWindow.maximize();
     qrGeneratorWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
         {
@@ -1111,7 +1108,7 @@ function openQrGeneratorWindow(
     qrGeneratorWindow.setMenu(null);
     qrGeneratorWindow.once("ready-to-show", () => {
         if (isWindowAlive(qrGeneratorWindow)) {
-            showWindow(qrGeneratorWindow);
+            showWindow(qrGeneratorWindow, true);
         }
     });
 
@@ -1154,8 +1151,7 @@ function openHierarchyWindow(
                 },
             );
         }
-        hierarchyWindow.maximize();
-        showWindow(hierarchyWindow);
+        showWindow(hierarchyWindow, true);
         return;
     }
 
@@ -1168,11 +1164,11 @@ function openHierarchyWindow(
         parent: mainWindow,
         modal: false,
         show: false,
+        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
 
-    hierarchyWindow.maximize();
     hierarchyWindow.loadFile(
         path.join(__dirname, "..", "pages", "utilities", "hierarchy.html"),
         {
@@ -1186,7 +1182,7 @@ function openHierarchyWindow(
 
     hierarchyWindow.once("ready-to-show", () => {
         if (isWindowAlive(hierarchyWindow)) {
-            showWindow(hierarchyWindow);
+            showWindow(hierarchyWindow, true);
         }
     });
 
@@ -2488,17 +2484,17 @@ function openCompareFoldersWindow(
             width: 900,
             height: 800,
             show: false,
+            backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
             webPreferences: WINDOW_WEB_PREFERENCES,
             icon: APP_ICON_PATH,
         });
 
-        compareFoldersWindow.maximize();
         loadCompareInterface();
         compareFoldersWindow.setMenu(null);
 
         compareFoldersWindow.once("ready-to-show", () => {
             if (isWindowAlive(compareFoldersWindow)) {
-                showWindow(compareFoldersWindow);
+                showWindow(compareFoldersWindow, true);
             }
         });
 
@@ -2517,8 +2513,7 @@ function openCompareFoldersWindow(
         } else {
             sendPendingFolder();
         }
-        compareFoldersWindow.maximize();
-        showWindow(compareFoldersWindow);
+        showWindow(compareFoldersWindow, true);
     }
 }
 

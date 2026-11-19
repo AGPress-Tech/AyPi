@@ -184,6 +184,8 @@ Separare concettualmente il contesto manuale dalle selezioni prodotte dai grafic
 
 ## 6. KPI
 
+Convenzione del 19 novembre 2026: abbreviare i milioni con **M** o **Mln**, mai **Mio**. Torneria usa **Mln** nei formati compatti di grafici e obiettivi; gli obiettivi del Controllo di gestione usano **Mln**, gli altri valori compatti del modulo mantengono **M**. Valori numerici, precisione completa di tabelle/tooltip ed export restano invariati.
+
 Torneria presenta sei indicatori: ricavo valorizzato, ore di impegno macchina, pezzi lavorati per fase, resa complessiva, registrazioni e quota attrezzaggio.
 
 - Etichetta piccola, valore principale leggibile e confronto con il periodo pertinente.

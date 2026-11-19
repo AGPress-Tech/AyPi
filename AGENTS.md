@@ -1,5 +1,7 @@
 # UI consistency
 
+- Abbreviate millions as `M` or `Mln`, never `Mio`, across modules. Preserve numeric values and full precision in tables, tooltips and exports.
+
 - Every AyPi wordmark uses the shared geometry in `utilities/aypi-module-brand.css`: Ay, Pi, ellipse/halo and diagonal slash. Retain all four parts in headers and logins; keep the host theme palette and intended size. Audit all existing wordmark variants when changing branding (`tools/test-aypi-brand-ui.cjs`).
 - Similar module headers share a compact 70px minimum height, 9px vertical padding and small explicit title margins through the shared operations styles. Allow responsive wrapping when necessary instead of clipping controls. Settings actions stay on one row; remove buttons are square and align with their input fields.
 
