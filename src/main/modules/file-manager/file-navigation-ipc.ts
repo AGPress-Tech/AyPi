@@ -33,6 +33,7 @@ type FileNavigationDependencies = {
     openFile?: (mainWindow: BrowserWindow, filePath: string) => unknown;
     openMaintenance?: () => unknown;
     openMeasurement?: () => unknown;
+    openTooling?: () => unknown;
     openProcessingCycles?: () => unknown;
     openSupplierEvaluation?: () => unknown;
 };
@@ -59,6 +60,7 @@ export function registerFileNavigationIpc({
     openFile = openNetworkFile,
     openMaintenance,
     openMeasurement,
+    openTooling,
     openProcessingCycles,
     openSupplierEvaluation,
 }: FileNavigationDependencies) {
@@ -79,6 +81,7 @@ export function registerFileNavigationIpc({
         if (!key) return;
         if (key === "moduli.openFornitori" && openSupplierEvaluation) { openSupplierEvaluation(); return; }
         if (key === "infoarticoli.openCicli" && openProcessingCycles) { openProcessingCycles(); return; }
+        if (key === "moduli.openUtensili" && openTooling) { openTooling(); return; }
         if (key === "moduli.openTarature" && openMeasurement) { openMeasurement(); return; }
         if (key === "moduli.openManutenzioni" && openMaintenance) { openMaintenance(); return; }
 

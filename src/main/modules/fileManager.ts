@@ -1,3 +1,4 @@
+import {registerToolingIpc} from './tooling/ipc';
 import {registerSupplierEvaluationIpc} from './supplier-evaluation/ipc';
 import {registerProcessingCyclesIpc} from './processing-cycles/ipc';
 // Gestione finestre e IPC lato main per AyPi
@@ -2525,6 +2526,7 @@ function setupFileManager(mainWindow) {
     });
 
     const measurement = registerMeasurementIpc(mainWindow,getInterfaceIconPath);
+    const tooling=registerToolingIpc(mainWindow,getInterfaceIconPath);
     const maintenance = registerMaintenanceIpc(mainWindow,getInterfaceIconPath);
     const processingCycles = registerProcessingCyclesIpc(mainWindow,getInterfaceIconPath);
     const supplierEvaluation = registerSupplierEvaluationIpc(mainWindow,getInterfaceIconPath);
@@ -2536,6 +2538,7 @@ function setupFileManager(mainWindow) {
         mainWindow,
         openMaintenance: () => void maintenance.open(),
         openMeasurement: () => void measurement.open(),
+        openTooling: () => void tooling.open(),
         openProcessingCycles: () => void processingCycles.open(),
         openSupplierEvaluation: () => void supplierEvaluation.open(),
     });

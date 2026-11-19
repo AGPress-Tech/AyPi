@@ -1,3 +1,4 @@
+import {registerToolingRoutes} from '../modules/tooling/routes';
 import {registerSupplierEvaluationRoutes} from '../modules/supplier-evaluation/routes';
 import {registerProcessingCyclesRoutes} from '../modules/processing-cycles/routes';
 import { registerFornoRoutes } from "../modules/forno/routes";
@@ -24,6 +25,7 @@ import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
 export function registerRoutes(router: Router) {
     registerMaintenanceRoutes(router);
     registerMeasurementRoutes(router);
+    registerToolingRoutes(router);
     registerAnalyticsRoutes(router);
     registerUploadRoutes(router);
     router.register("GET", "/health", async (_req, res) => {

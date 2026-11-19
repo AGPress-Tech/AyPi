@@ -117,6 +117,12 @@ export function createAnalyticsService(getConfig=loadAnalyticsConfig, driver=sql
         if(result.recordset.length>100000)throw Error('Oltre 100.000 fornitori: elenco non troncato.');
         return {suppliers:result.recordset.map((r:any)=>({...r,code:String(r.code).trim(),name:String(r.name||'').trim(),taxId:String(r.taxId||'').trim(),fiscalCode:String(r.fiscalCode||'').trim(),disabled:r.disabled===true||String(r.disabled)==='1'})),queriedAt:new Date().toISOString()};
     }
-    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,barContracts,supplierDirectory,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
+    async function articleDirectory(search:string,exact=false){
+        if(typeof search!=='string'||!search.trim()||search.length>128)throw Error('Indicare un codice o una descrizione (massimo 128 caratteri).');
+        const request=(await pool()).request();request.input('search',driver.NVarChar(300),exact?search.trim():'%'+search.trim().replace(/[\[%_]/g,c=>'['+c+']')+'%');
+        const result=await request.query(`SELECT TOP (101) Item AS code,Description AS description,BaseUoM AS unit,Disabled AS disabled FROM dbo.MA_Items WHERE ${exact?'Item=@search':'Item LIKE @search OR Description LIKE @search'} ORDER BY Item`);
+        return {articles:result.recordset.slice(0,100).map((r:any)=>({...r,code:String(r.code).trim(),description:String(r.description||'').trim(),unit:String(r.unit||'').trim(),disabled:r.disabled===true||String(r.disabled)==='1'})),more:result.recordset.length>100,queriedAt:new Date().toISOString()};
+    }
+    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,barContracts,supplierDirectory,articleDirectory,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
 }
 export const analyticsService=createAnalyticsService();

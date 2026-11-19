@@ -5,6 +5,9 @@ import {requestAypiBackend} from './file-manager/backend-client';
 import {registerAnalysisUiPreferences} from './analysis-ui-preferences';
 
 const modules=new Map<AnalysisTarget,{open:()=>Promise<BrowserWindow>;owns:(event:any)=>boolean;exists?:(context:AnalysisContext)=>Promise<boolean>}>();
+const additionalSources=new Set<(event:any)=>boolean>();
+/** Native operational modules can offer existing analysis destinations without becoming a destination. */
+export function registerAnalysisSource(owns:(event:any)=>boolean){additionalSources.add(owns);}
 let main:BrowserWindow|null=null,hub:BrowserWindow|null=null;
 const ready=new Set<number>(),pending=new Map<number,AnalysisContext>(),observed=new Set<number>();
 export function registerAnalysisTarget(id:AnalysisTarget,open:()=>Promise<BrowserWindow>,owns:(event:any)=>boolean,exists?:(context:AnalysisContext)=>Promise<boolean>){modules.set(id,{open,owns,exists});}
@@ -26,7 +29,7 @@ async function destinationExists(target:AnalysisTarget,context:AnalysisContext):
         return result.rows?.length>0;
     }catch{return false;}
 }
-export function canOpenAnalysis(sender:WebContents){return sender===main?.webContents||sender===hub?.webContents||[...modules.values()].some(m=>m.owns({sender}));}
+export function canOpenAnalysis(sender:WebContents){return sender===main?.webContents||sender===hub?.webContents||[...modules.values()].some(m=>m.owns({sender}))||[...additionalSources].some(owns=>owns({sender}));}
 export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>string){
     registerAnalysisUiPreferences();
     main=mainWindow;
@@ -71,7 +74,7 @@ export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>str
     });
     ipcMain.handle('analysis-context-menu',async(event,payload)=>{
         try{
-            const source=[...modules].find(([,m])=>m.owns(event))?.[0];if(!source)throw Error('Finestra non autorizzata.');
+            const source=[...modules].find(([,m])=>m.owns(event))?.[0]||([...additionalSources].some(owns=>owns(event))?'operational-module':null);if(!source)throw Error('Finestra non autorizzata.');
             const context=validateAnalysisContext(payload),items:Electron.MenuItemConstructorOptions[]=[],candidates:{target:AnalysisTarget;label:string;context:AnalysisContext}[]=[];
             const add=(target:AnalysisTarget,label:string,value:AnalysisContext)=>{
                 if(target===source)return;
