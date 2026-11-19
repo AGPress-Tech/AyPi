@@ -1,8 +1,21 @@
-import {analysisHtmlLegend} from '../modules/analysis-html-legend';
-import { articleOrders, articleLifecycle, articleAnnual, articleOrderDetails, articleCohorts, articleForecast, newArticleForecast, newArticleSeries, articleForecastBounds } from '../../main/modules/customer-analysis/articles';
-import {continueTableOnScroll,appendTableHtml} from '../modules/table-scroll-loader';
-import {analysisYearPicker} from '../modules/analysis-year-picker';
-import {mergeAreaSelection} from '../modules/analysis-chart-area-selection';
+import { analysisHtmlLegend } from "../modules/analysis-html-legend";
+import {
+    articleOrders,
+    articleLifecycle,
+    articleAnnual,
+    articleOrderDetails,
+    articleCohorts,
+    articleForecast,
+    newArticleForecast,
+    newArticleSeries,
+    articleForecastBounds,
+} from "../../main/modules/customer-analysis/articles";
+import {
+    continueTableOnScroll,
+    appendTableHtml,
+} from "../modules/table-scroll-loader";
+import { analysisYearPicker } from "../modules/analysis-year-picker";
+import { mergeAreaSelection } from "../modules/analysis-chart-area-selection";
 import Chart from "chart.js/auto";
 import {
     analysisChartControls,
@@ -118,10 +131,25 @@ const sorting: Record<string, SortCriterion[]> = {
     articles: [{ key: "orders", direction: "desc" }],
     history: [{ key: "year", direction: "asc" }],
 };
-let articleMode = 'summary', articleDormancy = '', articleTrend = '', articleHorizon = 3, articleDisplay: 'both'|'table'|'charts' = 'both';
-const syncArticleOptions=()=>{const a=preferences.articleAnalysis;articleMode=a.mode;articleDormancy=a.dormancy;articleTrend=a.trend;articleHorizon=a.horizon;articleDisplay=a.display;};
-const activeCharts = (p = preferences) => view === 'articles' ? p.articleCharts : p.charts;
-const setActiveCharts = (cs: CustomerChart[]) => { if (view === 'articles') preferences.articleCharts = cs; else preferences.charts = cs; };
+let articleMode = "summary",
+    articleDormancy = "",
+    articleTrend = "",
+    articleHorizon = 3,
+    articleDisplay: "both" | "table" | "charts" = "both";
+const syncArticleOptions = () => {
+    const a = preferences.articleAnalysis;
+    articleMode = a.mode;
+    articleDormancy = a.dormancy;
+    articleTrend = a.trend;
+    articleHorizon = a.horizon;
+    articleDisplay = a.display;
+};
+const activeCharts = (p = preferences) =>
+    view === "articles" ? p.articleCharts : p.charts;
+const setActiveCharts = (cs: CustomerChart[]) => {
+    if (view === "articles") preferences.articleCharts = cs;
+    else preferences.charts = cs;
+};
 const ROW_BATCH = 100;
 const theme = getComputedStyle(document.body),
     accent = theme.getPropertyValue("--ops-accent").trim() || "#168deb";
@@ -456,7 +484,7 @@ function chartPanel(c: CustomerChart) {
     return `<article class="panel chart-panel" data-chart-id="${c.id}"><div class="panel-head"><div><h2>${esc(c.title)}</h2><p>${esc(CHART_METRICS[c.metric])} · ${esc(CHART_DIMENSIONS[c.dimension])} · ${c.scope === "all" ? "ordini e offerte" : c.scope === "order" ? "ordini" : "offerte"}${c.cumulative ? " · cumulato nei periodi mostrati" : ""}</p></div><div class="panel-actions">${analysisChartControls(c.id, c.title, zoomed === c.id, ["month", "deliveryMonth"].includes(c.dimension) ? c.cumulative : undefined)}</div></div><div class="chart"><div class="chart-viewport"><canvas id="plot-${c.id}" role="img" aria-label="${esc(c.title)}"></canvas></div></div><div class="chart-footnote" id="note-${c.id}"></div></article>`;
 }
 function drawChart(c: CustomerChart) {
-    const meanMetric = ["averageLot","weightedPrice"].includes(c.metric);
+    const meanMetric = ["averageLot", "weightedPrice"].includes(c.metric);
     const active = hasChartSelection(),
         temporal = ["month", "year", "deliveryMonth"].includes(c.dimension);
     const rawBuckets = customerChartData(
@@ -480,7 +508,9 @@ function drawChart(c: CustomerChart) {
         selectedRunning = new Map<string, number>();
     const selectedLookup = new Map<string, number>();
     for (const b of rawBuckets) {
-        let selected = selectedRawLookup.get(bucketId(b.key, b.series)) ?? (meanMetric ? null : 0);
+        let selected =
+            selectedRawLookup.get(bucketId(b.key, b.series)) ??
+            (meanMetric ? null : 0);
         if (c.cumulative && temporal) {
             b.value += totalRunning.get(b.series) ?? 0;
             totalRunning.set(b.series, b.value);
@@ -511,7 +541,8 @@ function drawChart(c: CustomerChart) {
                 (active &&
                     (selectedLookup.get(bucketId(b.key, b.series)) ?? 0) < 0),
         ),
-        kind = c.kind === "doughnut" && (negative || meanMetric) ? "bar" : c.kind;
+        kind =
+            c.kind === "doughnut" && (negative || meanMetric) ? "bar" : c.kind;
     const horizontal = kind === "bar" && !temporal;
     const domain = buckets.reduce(
         (bounds, b) => ({
@@ -567,14 +598,17 @@ function drawChart(c: CustomerChart) {
                           (b) => b.label === label && b.series === s,
                       );
                       return b
-                          ? (selectedLookup.get(bucketId(b.key, s)) ?? (meanMetric ? null : 0))
+                          ? (selectedLookup.get(bucketId(b.key, s)) ??
+                                (meanMetric ? null : 0))
                           : 0;
                   });
                   const source = {
                       label: s,
                       sourceSeries: s,
                       data: labels.map(
-                          (l) => lookup.get(JSON.stringify([l, s])) ?? (meanMetric ? null : 0),
+                          (l) =>
+                              lookup.get(JSON.stringify([l, s])) ??
+                              (meanMetric ? null : 0),
                       ),
                       borderColor:
                           palette[i % palette.length] + (active ? "40" : ""),
@@ -582,7 +616,9 @@ function drawChart(c: CustomerChart) {
                           palette[i % palette.length] +
                           (active ? "35" : kind === "line" ? "25" : ""),
                       highlightValues:
-                          active && kind === "bar" && !meanMetric ? selected : undefined,
+                          active && kind === "bar" && !meanMetric
+                              ? selected
+                              : undefined,
                       highlightColor: palette[i % palette.length],
                       borderWidth: kind === "line" ? 2 : 0,
                       pointRadius: labels.length > 70 ? 1 : 3,
@@ -614,7 +650,10 @@ function drawChart(c: CustomerChart) {
     const chart = new Chart(canvas, {
         type: kind,
         data: { labels: chartLabels, datasets: datasets as any },
-        plugins: [analysisSelectionHighlight, ...(view === "articles" ? [analysisHtmlLegend] : [])],
+        plugins: [
+            analysisSelectionHighlight,
+            ...(view === "articles" ? [analysisHtmlLegend] : []),
+        ],
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -630,7 +669,9 @@ function drawChart(c: CustomerChart) {
                     position: "bottom",
                     labels: {
                         font: { size: 13 },
-                        color: theme.getPropertyValue("--ops-text").trim() || "#26384b",
+                        color:
+                            theme.getPropertyValue("--ops-text").trim() ||
+                            "#26384b",
                         boxWidth: 10,
                         filter: (item) =>
                             !(datasets[item.datasetIndex] as any)
@@ -747,13 +788,35 @@ function drawChart(c: CustomerChart) {
                         !!(native?.ctrlKey || native?.metaKey),
                     );
             },
-            onAreaSelect:(indices,multiple)=>{
-                const dimension=c.dimension as keyof CustomerSelection;
-                if(!CUSTOMER_SELECTION_DIMENSIONS.includes(dimension))return;
-                const keys=indices.map(index=>buckets.find(b=>b.label===labels[index])?.key).filter((key):key is string=>!!key).map(key=>dimension==='kind'?(key==='Ordini'?'order':key==='Offerte'?'offer':key):key);
-                if(!keys.length)return;
-                filters.selection={...(filters.selection??emptyCustomerSelection()),[dimension]:mergeAreaSelection(filters.selection?.[dimension]??[],keys,multiple)};
-                syncFilters();applyFilters();
+            onAreaSelect: (indices, multiple) => {
+                const dimension = c.dimension as keyof CustomerSelection;
+                if (!CUSTOMER_SELECTION_DIMENSIONS.includes(dimension)) return;
+                const keys = indices
+                    .map(
+                        (index) =>
+                            buckets.find((b) => b.label === labels[index])?.key,
+                    )
+                    .filter((key): key is string => !!key)
+                    .map((key) =>
+                        dimension === "kind"
+                            ? key === "Ordini"
+                                ? "order"
+                                : key === "Offerte"
+                                  ? "offer"
+                                  : key
+                            : key,
+                    );
+                if (!keys.length) return;
+                filters.selection = {
+                    ...(filters.selection ?? emptyCustomerSelection()),
+                    [dimension]: mergeAreaSelection(
+                        filters.selection?.[dimension] ?? [],
+                        keys,
+                        multiple,
+                    ),
+                };
+                syncFilters();
+                applyFilters();
             },
             onHover: (_event, elements) => {
                 canvas.style.cursor = elements.length ? "pointer" : "default";
@@ -964,102 +1027,454 @@ function lineRows(rs: CustomerRow[]) {
     }));
 }
 const articleBaseColumns: Column[] = [
-    {key:'article',label:'Articolo',kind:'article'}, {key:'description',label:'Descrizione'},
-    {key:'unit',label:'U.M.'}, {key:'currency',label:'Valuta'},
+    { key: "article", label: "Articolo", kind: "article" },
+    { key: "description", label: "Descrizione" },
+    { key: "unit", label: "U.M." },
+    { key: "currency", label: "Valuta" },
 ];
 const articleMeasureColumns: Column[] = [
-    {key:'orders',label:'Ordini',kind:'number'}, {key:'quantity',label:'Quantità ordinata',kind:'number'},
-    {key:'value',label:'Valore ordini',kind:'money'}, {key:'averageLot',label:'Quantità / ordine',kind:'number'},
-    {key:'price',label:'Prezzo netto ponderato',kind:'money'},
-    {key:'missingQuantity',label:'Righe senza quantità',kind:'number'}, {key:'missingValue',label:'Righe senza valore',kind:'number'},
-    {key:'missingPrice',label:'Righe senza prezzo',kind:'number'},
+    { key: "orders", label: "Ordini", kind: "number" },
+    { key: "quantity", label: "Quantità ordinata", kind: "number" },
+    { key: "value", label: "Valore ordini", kind: "money" },
+    { key: "averageLot", label: "Quantità / ordine", kind: "number" },
+    { key: "price", label: "Prezzo netto ponderato", kind: "money" },
+    { key: "missingQuantity", label: "Righe senza quantità", kind: "number" },
+    { key: "missingValue", label: "Righe senza valore", kind: "number" },
+    { key: "missingPrice", label: "Righe senza prezzo", kind: "number" },
 ];
 const articleDeltaColumns: Column[] = [
-    {key:'quantityChange',label:'Δ quantità %',kind:'number'}, {key:'lotChange',label:'Δ quantità/ordine %',kind:'number'},
-    {key:'priceChange',label:'Δ prezzo %',kind:'number'},
+    { key: "quantityChange", label: "Δ quantità %", kind: "number" },
+    { key: "lotChange", label: "Δ quantità/ordine %", kind: "number" },
+    { key: "priceChange", label: "Δ prezzo %", kind: "number" },
 ];
 function matchesArticleOptions(r: ReturnType<typeof articleLifecycle>[number]) {
-    return (!articleDormancy || r.inactiveYears !== null && r.inactiveYears >= +articleDormancy) &&
-        (!articleTrend || (articleTrend === 'up' ? (r.quantityChange ?? 0) > 0 : articleTrend === 'down' ? (r.quantityChange ?? 0) < 0 : r.quantityChange === 0));
+    return (
+        (!articleDormancy ||
+            (r.inactiveYears !== null &&
+                r.inactiveYears >= +articleDormancy)) &&
+        (!articleTrend ||
+            (articleTrend === "up"
+                ? (r.quantityChange ?? 0) > 0
+                : articleTrend === "down"
+                  ? (r.quantityChange ?? 0) < 0
+                  : r.quantityChange === 0))
+    );
 }
-function forecastBounds() { return articleForecastBounds(loaded?.request??{},filters); }
+function forecastBounds() {
+    return articleForecastBounds(loaded?.request ?? {}, filters);
+}
 function currentForecast(source = filtered) {
     const bounds = forecastBounds();
-    return bounds.unavailable ? [] : articleMode === 'forecast-new' ? newArticleForecast(source,rows,today(),articleHorizon,bounds) : articleForecast(source, today(), articleHorizon, bounds);
+    return bounds.unavailable
+        ? []
+        : articleMode === "forecast-new"
+          ? newArticleForecast(source, rows, today(), articleHorizon, bounds)
+          : articleForecast(source, today(), articleHorizon, bounds);
 }
 function articleTableData() {
     const base = articleBaseColumns;
-    if(articleMode === 'commercial') return {title:'Articoli · ordini e offerte',note:'',columns:articleColumns,data:[...grouped(filtered,r=>r.article)].map(([article,rs])=>({...summaryRow(rs),article,description:rs[0].description}))};
-    if(articleMode === 'annual') return {title:'Articoli · confronto annuale', note:'', columns:[...base,{key:'year',label:'Anno'},{key:'newArticle',label:'Nuovo osservato'},{key:'partial',label:'Anno in corso / futuro'},...articleMeasureColumns,...articleDeltaColumns], data:articleAnnual(filtered,rows,today())};
-    if(articleMode === 'orders') return {title:'Articoli · dettaglio per ordine', note:'', columns:[...base,{key:'documentNo',label:'Ordine',kind:'document' as const},{key:'documentDate',label:'Data ordine',kind:'date' as const},...articleMeasureColumns],data:articleOrderDetails(filtered)};
-    if(articleMode === 'cohorts') return {title:'Nuovi articoli · contributo annuale',note:'',columns:[{key:'year',label:'Anno'},{key:'currency',label:'Valuta'},...[
-        ['articles','Articoli ordinati'],['newArticles','Nuovi osservati'],['existingArticles','Già presenti'],['value','Valore totale'],['newValue','Valore nuovi'],['existingValue','Valore già presenti'],['newShare','Quota nuovi %'],['orders','Ordini con nuovi articoli'],
-    ].map(([key,label])=>({key,label,kind:'number' as const}))],data:articleCohorts(filtered,rows)};
-    if(articleMode.startsWith('forecast')) return {title:articleMode==='forecast-new'?'Previsione nuovi articoli e contributo':'Previsione quantità · scenario di tendenza',note:'',columns:[...(articleMode==='forecast-new'?[{key:'article',label:'Indicatore'},{key:'unit',label:'U.M.'},{key:'currency',label:'Valuta'}]:base),{key:'year',label:'Anno'},...[
-        ['forecast',articleMode==='forecast-new'?'Stima':'Quantità prevista'],['lower','Fascia inferiore'],['upper','Fascia superiore'],['slope','Tendenza annua'],['samples','Anni completi'],['backtestError','Errore retrospettivo (U.M.)'],['backtestPercent','Errore retrospettivo %'],
-    ].map(([key,label])=>({key,label,kind:'number' as const})),{key:'training',label:'Periodo osservato'}],data:currentForecast()};
-    return {title:'Articoli · ciclo commerciale e ultimo ordine',note:'',columns:[...base,
-        {key:'firstOrder',label:'Primo ordine osservato',kind:'date' as const},{key:'lastOrder',label:'Ultimo ordine',kind:'date' as const},
-        {key:'inactiveYears',label:'Anni interi inattività',kind:'number' as const},{key:'lastDocuments',label:'Ordini nell’ultima data'},
-        {key:'lastOrders',label:'N. ordini ultima data',kind:'number' as const},{key:'lastQuantity',label:'Quantità ultima data',kind:'number' as const},
-        {key:'lastValue',label:'Valore ultima data',kind:'money' as const},{key:'lastPrice',label:'Prezzo ultima data',kind:'money' as const},
-        ...articleMeasureColumns,{key:'comparisonYear',label:'Anno confronto'},...articleDeltaColumns,
-    ],data:articleLifecycle(filtered,rows,today())};
+    if (articleMode === "commercial")
+        return {
+            title: "Articoli · ordini e offerte",
+            note: "",
+            columns: articleColumns,
+            data: [...grouped(filtered, (r) => r.article)].map(
+                ([article, rs]) => ({
+                    ...summaryRow(rs),
+                    article,
+                    description: rs[0].description,
+                }),
+            ),
+        };
+    if (articleMode === "annual")
+        return {
+            title: "Articoli · confronto annuale",
+            note: "",
+            columns: [
+                ...base,
+                { key: "year", label: "Anno" },
+                { key: "newArticle", label: "Nuovo osservato" },
+                { key: "partial", label: "Anno in corso / futuro" },
+                ...articleMeasureColumns,
+                ...articleDeltaColumns,
+            ],
+            data: articleAnnual(filtered, rows, today()),
+        };
+    if (articleMode === "orders")
+        return {
+            title: "Articoli · dettaglio per ordine",
+            note: "",
+            columns: [
+                ...base,
+                {
+                    key: "documentNo",
+                    label: "Ordine",
+                    kind: "document" as const,
+                },
+                {
+                    key: "documentDate",
+                    label: "Data ordine",
+                    kind: "date" as const,
+                },
+                ...articleMeasureColumns,
+            ],
+            data: articleOrderDetails(filtered),
+        };
+    if (articleMode === "cohorts")
+        return {
+            title: "Nuovi articoli · contributo annuale",
+            note: "",
+            columns: [
+                { key: "year", label: "Anno" },
+                { key: "currency", label: "Valuta" },
+                ...[
+                    ["articles", "Articoli ordinati"],
+                    ["newArticles", "Nuovi osservati"],
+                    ["existingArticles", "Già presenti"],
+                    ["value", "Valore totale"],
+                    ["newValue", "Valore nuovi"],
+                    ["existingValue", "Valore già presenti"],
+                    ["newShare", "Quota nuovi %"],
+                    ["orders", "Ordini con nuovi articoli"],
+                ].map(([key, label]) => ({
+                    key,
+                    label,
+                    kind: "number" as const,
+                })),
+            ],
+            data: articleCohorts(filtered, rows),
+        };
+    if (articleMode.startsWith("forecast"))
+        return {
+            title:
+                articleMode === "forecast-new"
+                    ? "Previsione nuovi articoli e contributo"
+                    : "Previsione quantità · scenario di tendenza",
+            note: "",
+            columns: [
+                ...(articleMode === "forecast-new"
+                    ? [
+                          { key: "article", label: "Indicatore" },
+                          { key: "unit", label: "U.M." },
+                          { key: "currency", label: "Valuta" },
+                      ]
+                    : base),
+                { key: "year", label: "Anno" },
+                ...[
+                    [
+                        "forecast",
+                        articleMode === "forecast-new"
+                            ? "Stima"
+                            : "Quantità prevista",
+                    ],
+                    ["lower", "Fascia inferiore"],
+                    ["upper", "Fascia superiore"],
+                    ["slope", "Tendenza annua"],
+                    ["samples", "Anni completi"],
+                    ["backtestError", "Errore retrospettivo (U.M.)"],
+                    ["backtestPercent", "Errore retrospettivo %"],
+                ].map(([key, label]) => ({
+                    key,
+                    label,
+                    kind: "number" as const,
+                })),
+                { key: "training", label: "Periodo osservato" },
+            ],
+            data: currentForecast(),
+        };
+    return {
+        title: "Articoli · ciclo commerciale e ultimo ordine",
+        note: "",
+        columns: [
+            ...base,
+            {
+                key: "firstOrder",
+                label: "Primo ordine osservato",
+                kind: "date" as const,
+            },
+            { key: "lastOrder", label: "Ultimo ordine", kind: "date" as const },
+            {
+                key: "inactiveYears",
+                label: "Anni interi inattività",
+                kind: "number" as const,
+            },
+            { key: "lastDocuments", label: "Ordini nell’ultima data" },
+            {
+                key: "lastOrders",
+                label: "N. ordini ultima data",
+                kind: "number" as const,
+            },
+            {
+                key: "lastQuantity",
+                label: "Quantità ultima data",
+                kind: "number" as const,
+            },
+            {
+                key: "lastValue",
+                label: "Valore ultima data",
+                kind: "money" as const,
+            },
+            {
+                key: "lastPrice",
+                label: "Prezzo ultima data",
+                kind: "money" as const,
+            },
+            ...articleMeasureColumns,
+            { key: "comparisonYear", label: "Anno confronto" },
+            ...articleDeltaColumns,
+        ],
+        data: articleLifecycle(filtered, rows, today()),
+    };
 }
 function renderArticles() {
     renderTable();
-    const table = $('content').firstElementChild!;
-    const wrapper = document.createElement('div'); wrapper.className='article-analyzer';
-    $('content').prepend(wrapper); wrapper.append(table);
-    const controls=document.createElement('div'); controls.className='article-analysis-options';
-    controls.innerHTML=`<label>Mostra<select id="articleDisplay">${Object.entries({both:'Tabelle e grafici',table:'Solo tabella',charts:'Solo grafici'}).map(([value,label])=>`<option value="${value}" ${value===articleDisplay?'selected':''}>${label}</option>`).join('')}</select></label><label>Vista<select id="articleAnalysisMode">${Object.entries({summary:'Ciclo e ultimo ordine',commercial:'Ordini e offerte',annual:'Confronto annuale',orders:'Ogni ordine',cohorts:'Nuovi articoli e contributo',forecast:'Previsione quantità','forecast-new':'Previsione nuovi articoli'}).map(([value,label])=>`<option value="${value}" ${value===articleMode?'selected':''}>${label}</option>`).join('')}</select></label><label>Inattività<select id="articleDormancy"><option value="">Tutti</option>${[1,2,3,4,5,7,10].map(y=>`<option value="${y}" ${articleDormancy===String(y)?'selected':''}>Almeno ${y} anni</option>`).join('')}</select></label><label>Quantità annuale<select id="articleTrend">${Object.entries({'':'Qualsiasi andamento',up:'In aumento',down:'In diminuzione',stable:'Stabile'}).map(([value,label])=>`<option value="${value}" ${value===articleTrend?'selected':''}>${label}</option>`).join('')}</select></label>${articleMode.startsWith('forecast')?`<label>Orizzonte<select id="articleHorizon">${[1,2,3,4,5].map(y=>`<option ${articleHorizon===y?'selected':''}>${y}</option>`).join('')}</select></label>`:''}`;
+    const table = $("content").firstElementChild!;
+    const wrapper = document.createElement("div");
+    wrapper.className = "article-analyzer";
+    $("content").prepend(wrapper);
+    wrapper.append(table);
+    const controls = document.createElement("div");
+    controls.className = "article-analysis-options";
+    controls.innerHTML = `<label>Mostra<select id="articleDisplay">${Object.entries(
+        {
+            both: "Tabelle e grafici",
+            table: "Solo tabella",
+            charts: "Solo grafici",
+        },
+    )
+        .map(
+            ([value, label]) =>
+                `<option value="${value}" ${value === articleDisplay ? "selected" : ""}>${label}</option>`,
+        )
+        .join(
+            "",
+        )}</select></label><label>Vista<select id="articleAnalysisMode">${Object.entries(
+        {
+            summary: "Ciclo e ultimo ordine",
+            commercial: "Ordini e offerte",
+            annual: "Confronto annuale",
+            orders: "Ogni ordine",
+            cohorts: "Nuovi articoli e contributo",
+            forecast: "Previsione quantità",
+            "forecast-new": "Previsione nuovi articoli",
+        },
+    )
+        .map(
+            ([value, label]) =>
+                `<option value="${value}" ${value === articleMode ? "selected" : ""}>${label}</option>`,
+        )
+        .join(
+            "",
+        )}</select></label><label>Inattività<select id="articleDormancy"><option value="">Tutti</option>${[1, 2, 3, 4, 5, 7, 10].map((y) => `<option value="${y}" ${articleDormancy === String(y) ? "selected" : ""}>Almeno ${y} anni</option>`).join("")}</select></label><label>Quantità annuale<select id="articleTrend">${Object.entries(
+        {
+            "": "Qualsiasi andamento",
+            up: "In aumento",
+            down: "In diminuzione",
+            stable: "Stabile",
+        },
+    )
+        .map(
+            ([value, label]) =>
+                `<option value="${value}" ${value === articleTrend ? "selected" : ""}>${label}</option>`,
+        )
+        .join(
+            "",
+        )}</select></label>${articleMode.startsWith("forecast") ? `<label>Orizzonte<select id="articleHorizon">${[1, 2, 3, 4, 5].map((y) => `<option ${articleHorizon === y ? "selected" : ""}>${y}</option>`).join("")}</select></label>` : ""}`;
     wrapper.prepend(controls);
-    controls.querySelectorAll('select').forEach(el=>el.addEventListener('change',()=>{
-        if(el.id==='articleAnalysisMode'){articleMode=el.value;sorting.articles=[{key:articleMode==='cohorts'||articleMode.startsWith('forecast')?'year':'article',direction:'asc'}];}
-        if(el.id==='articleDormancy')articleDormancy=el.value;
-        if(el.id==='articleTrend')articleTrend=el.value;
-        if(el.id==='articleHorizon')articleHorizon=+el.value;
-        if(el.id==='articleDisplay')articleDisplay=el.value as typeof articleDisplay;
-        preferences.articleAnalysis={mode:articleMode,dormancy:articleDormancy,trend:articleTrend,horizon:articleHorizon,display:articleDisplay};
-        render();
-    }));
-    const note=document.createElement('p');note.className='article-analysis-note';
-    const inactive=articleLifecycle(chartBaseRows,rows,today());
-    const count=(y:number)=>new Set(inactive.filter(r=>r.inactiveYears!==null&&r.inactiveYears>=y).map(r=>r.article)).size;
-    note.textContent=articleMode.startsWith('forecast')?'Scenario indicativo su 3–5 anni completi; anno corrente escluso. Nessuna stima con storico insufficiente, quantità mancanti o selezioni temporali discontinue.':'Storico ordini · inattivi da almeno 1 / 2 / 3 / 5 anni: '+[1,2,3,5].map(y=>num(count(y),0)).join(' / ')+'. Nuovi = primo ordine osservato nello storico SQL caricato.';
+    controls.querySelectorAll("select").forEach((el) =>
+        el.addEventListener("change", () => {
+            if (el.id === "articleAnalysisMode") {
+                articleMode = el.value;
+                sorting.articles = [
+                    {
+                        key:
+                            articleMode === "cohorts" ||
+                            articleMode.startsWith("forecast")
+                                ? "year"
+                                : "article",
+                        direction: "asc",
+                    },
+                ];
+            }
+            if (el.id === "articleDormancy") articleDormancy = el.value;
+            if (el.id === "articleTrend") articleTrend = el.value;
+            if (el.id === "articleHorizon") articleHorizon = +el.value;
+            if (el.id === "articleDisplay")
+                articleDisplay = el.value as typeof articleDisplay;
+            preferences.articleAnalysis = {
+                mode: articleMode,
+                dormancy: articleDormancy,
+                trend: articleTrend,
+                horizon: articleHorizon,
+                display: articleDisplay,
+            };
+            render();
+        }),
+    );
+    const note = document.createElement("p");
+    note.className = "article-analysis-note";
+    const inactive = articleLifecycle(chartBaseRows, rows, today());
+    const count = (y: number) =>
+        new Set(
+            inactive
+                .filter((r) => r.inactiveYears !== null && r.inactiveYears >= y)
+                .map((r) => r.article),
+        ).size;
+    note.textContent = articleMode.startsWith("forecast")
+        ? "Scenario indicativo su 3–5 anni completi; anno corrente escluso. Nessuna stima con storico insufficiente, quantità mancanti o selezioni temporali discontinue."
+        : "Storico ordini · inattivi da almeno 1 / 2 / 3 / 5 anni: " +
+          [1, 2, 3, 5].map((y) => num(count(y), 0)).join(" / ") +
+          ". Nuovi = primo ordine osservato nello storico SQL caricato.";
     controls.after(note);
-    const grid=document.createElement('div');grid.className='customer-chart-grid';
-    (table as HTMLElement).hidden=articleDisplay==='charts';
-    if(articleDisplay==='table')return;
-    if(articleMode.startsWith('forecast')) {
-        table.after(grid);drawForecastCharts(grid);
+    const grid = document.createElement("div");
+    grid.className = "customer-chart-grid";
+    (table as HTMLElement).hidden = articleDisplay === "charts";
+    if (articleDisplay === "table") return;
+    if (articleMode.startsWith("forecast")) {
+        table.after(grid);
+        drawForecastCharts(grid);
     } else {
-        const visible=activeCharts().filter(c=>!c.hidden);grid.innerHTML=visible.map(chartPanel).join('');
-        table.after(grid);visible.forEach(drawChart);
+        const visible = activeCharts().filter((c) => !c.hidden);
+        grid.innerHTML = visible.map(chartPanel).join("");
+        table.after(grid);
+        visible.forEach(drawChart);
     }
 }
 function drawForecastCharts(grid: HTMLElement) {
-    const portfolio=articleMode==='forecast-new';
-    const forecast=currentForecast(chartBaseRows), selected=currentForecast();
-    const series=[...new Set(forecast.map(r=>JSON.stringify([r.unit,r.currency])))];
-    for(const [index,id] of series.entries()) {
-        const [unit,currency]=JSON.parse(id),matches=(r:{unit:string;currency:string})=>r.unit===unit&&r.currency===currency;
-        const fs=forecast.filter(matches), minYear=Math.min(...fs.map(r=>+r.training.slice(0,4)));
-        const labels=Array.from({length:+today().slice(0,4)+articleHorizon-minYear},(_,i)=>String(minYear+i));
-        const firstFuture=today().slice(0,4), cs:CustomerChart={id:`forecast-${index}`,title:portfolio?`${unit==='articoli'?'Nuovi articoli osservati':'Valore nuovi articoli'} · ${unit}`:`Previsione quantità · ${unit||'U.M. assente'} · ${currency||'Valuta assente'}`,kind:'line',dimension:'year',metric:portfolio?(unit==='articoli'?'newArticles':'newArticleValue'):'quantity',scope:'order',limit:20,hidden:false,cumulative:false};
-        grid.insertAdjacentHTML('beforeend',chartPanel(cs));
-        const included=new Set(fs.map(r=>JSON.stringify([r.article,r.unit,r.currency])));
-        const historical=(portfolio?newArticleSeries(chartBaseRows,rows):articleOrders(chartBaseRows)).filter(r=>matches(r)&&included.has(JSON.stringify([r.article,r.unit,r.currency])));
-        const total=(year:string,field:'forecast'|'lower'|'upper',source=fs)=>source.filter(r=>r.year===year).reduce((s,r)=>s+r[field],0);
-        const trainingEnd=Math.max(...fs.map(r=>+r.training.slice(-4)));
-        const history=labels.map(y=>+y<=trainingEnd?historical.filter(r=>r.documentDate?.startsWith(y)).reduce((s,r)=>s+(r.quantity??0),0):null);
-        const datasets:any[]=[{label:'Storico completo',data:history,borderColor:accent,backgroundColor:accent},
-            {label:'Scenario di tendenza',data:labels.map(y=>y>=firstFuture?total(y,'forecast'):null),borderColor:'#438f89',borderDash:[6,4]},
-            {label:'Fascia inferiore indicativa',data:labels.map(y=>y>=firstFuture?total(y,'lower'):null),borderColor:'#74859b',borderDash:[2,4],pointRadius:1},
-            {label:'Fascia superiore indicativa',data:labels.map(y=>y>=firstFuture?total(y,'upper'):null),borderColor:'#74859b',borderDash:[2,4],pointRadius:1}];
-        if(hasChartSelection())datasets.push({label:'Scenario selezione',data:labels.map(y=>y>=firstFuture?total(y,'forecast',selected.filter(matches)):null),borderColor:'#bd647c',borderDash:[6,4]});
-        const chart=new Chart($(`plot-${cs.id}`) as HTMLCanvasElement,{type:'line',data:{labels,datasets},plugins:[analysisHtmlLegend],options:{responsive:true,maintainAspectRatio:false,devicePixelRatio:Math.max(2,window.devicePixelRatio||1),plugins:{legend:{display:true,labels:{color:theme.getPropertyValue('--ops-text').trim()||'#26384b',font:{size:13}}}},scales:{y:{beginAtZero:true}}}});
-        charts.set(cs.id,chart);$(`note-${cs.id}`).textContent=portfolio?'Scenario annuale del portafoglio osservato; non anticipa quali saranno i nuovi codici.':'Somma delle quantità nella stessa U.M. e valuta; fasce aggregate indicative. Il dettaglio per articolo è nella tabella.';
+    const portfolio = articleMode === "forecast-new";
+    const forecast = currentForecast(chartBaseRows),
+        selected = currentForecast();
+    const series = [
+        ...new Set(forecast.map((r) => JSON.stringify([r.unit, r.currency]))),
+    ];
+    for (const [index, id] of series.entries()) {
+        const [unit, currency] = JSON.parse(id),
+            matches = (r: { unit: string; currency: string }) =>
+                r.unit === unit && r.currency === currency;
+        const fs = forecast.filter(matches),
+            minYear = Math.min(...fs.map((r) => +r.training.slice(0, 4)));
+        const labels = Array.from(
+            { length: +today().slice(0, 4) + articleHorizon - minYear },
+            (_, i) => String(minYear + i),
+        );
+        const firstFuture = today().slice(0, 4),
+            cs: CustomerChart = {
+                id: `forecast-${index}`,
+                title: portfolio
+                    ? `${unit === "articoli" ? "Nuovi articoli osservati" : "Valore nuovi articoli"} · ${unit}`
+                    : `Previsione quantità · ${unit || "U.M. assente"} · ${currency || "Valuta assente"}`,
+                kind: "line",
+                dimension: "year",
+                metric: portfolio
+                    ? unit === "articoli"
+                        ? "newArticles"
+                        : "newArticleValue"
+                    : "quantity",
+                scope: "order",
+                limit: 20,
+                hidden: false,
+                cumulative: false,
+            };
+        grid.insertAdjacentHTML("beforeend", chartPanel(cs));
+        const included = new Set(
+            fs.map((r) => JSON.stringify([r.article, r.unit, r.currency])),
+        );
+        const historical = (
+            portfolio
+                ? newArticleSeries(chartBaseRows, rows)
+                : articleOrders(chartBaseRows)
+        ).filter(
+            (r) =>
+                matches(r) &&
+                included.has(JSON.stringify([r.article, r.unit, r.currency])),
+        );
+        const total = (
+            year: string,
+            field: "forecast" | "lower" | "upper",
+            source = fs,
+        ) =>
+            source
+                .filter((r) => r.year === year)
+                .reduce((s, r) => s + r[field], 0);
+        const trainingEnd = Math.max(...fs.map((r) => +r.training.slice(-4)));
+        const history = labels.map((y) =>
+            +y <= trainingEnd
+                ? historical
+                      .filter((r) => r.documentDate?.startsWith(y))
+                      .reduce((s, r) => s + (r.quantity ?? 0), 0)
+                : null,
+        );
+        const datasets: any[] = [
+            {
+                label: "Storico completo",
+                data: history,
+                borderColor: accent,
+                backgroundColor: accent,
+            },
+            {
+                label: "Scenario di tendenza",
+                data: labels.map((y) =>
+                    y >= firstFuture ? total(y, "forecast") : null,
+                ),
+                borderColor: "#438f89",
+                borderDash: [6, 4],
+            },
+            {
+                label: "Fascia inferiore indicativa",
+                data: labels.map((y) =>
+                    y >= firstFuture ? total(y, "lower") : null,
+                ),
+                borderColor: "#74859b",
+                borderDash: [2, 4],
+                pointRadius: 1,
+            },
+            {
+                label: "Fascia superiore indicativa",
+                data: labels.map((y) =>
+                    y >= firstFuture ? total(y, "upper") : null,
+                ),
+                borderColor: "#74859b",
+                borderDash: [2, 4],
+                pointRadius: 1,
+            },
+        ];
+        if (hasChartSelection())
+            datasets.push({
+                label: "Scenario selezione",
+                data: labels.map((y) =>
+                    y >= firstFuture
+                        ? total(y, "forecast", selected.filter(matches))
+                        : null,
+                ),
+                borderColor: "#bd647c",
+                borderDash: [6, 4],
+            });
+        const chart = new Chart($(`plot-${cs.id}`) as HTMLCanvasElement, {
+            type: "line",
+            data: { labels, datasets },
+            plugins: [analysisHtmlLegend],
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                devicePixelRatio: Math.max(2, window.devicePixelRatio || 1),
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: {
+                            color:
+                                theme.getPropertyValue("--ops-text").trim() ||
+                                "#26384b",
+                            font: { size: 13 },
+                        },
+                    },
+                },
+                scales: { y: { beginAtZero: true } },
+            },
+        });
+        charts.set(cs.id, chart);
+        $(`note-${cs.id}`).textContent = portfolio
+            ? "Scenario annuale del portafoglio osservato; non anticipa quali saranno i nuovi codici."
+            : "Somma delle quantità nella stessa U.M. e valuta; fasce aggregate indicative. Il dettaglio per articolo è nella tabella.";
     }
 }
 function tableData() {
@@ -1155,13 +1570,29 @@ function renderTable() {
         sorted = sortByCriteria(t.data as any[], sorting[view], (r, k) =>
             Array.isArray(r[k]) ? measureText(r[k]) : r[k],
         );
-    const shown=sorted.slice(0,ROW_BATCH);
-    $("content").innerHTML=`<article class="panel customer-table-panel"><div class="panel-head"><div><h2 title="${esc(t.note)}">${t.title}</h2></div></div><div class="table-scroll">${tableMarkup(t.columns,shown,"analysisTable")}</div><div class="pager"><span id="analysisTableCount"></span></div></article>`;
-    const table=$("analysisTable") as HTMLTableElement;
-    continueTableOnScroll({table,total:sorted.length,initial:shown.length,batch:ROW_BATCH,append:(from,to)=>appendTableHtml(table,tableMarkup(t.columns,sorted.slice(from,to),"")),progress:(count,total)=>{$("analysisTableCount").textContent=`${num(count,0)} di ${num(total,0)}`;}});
+    const shown = sorted.slice(0, ROW_BATCH);
+    $("content").innerHTML =
+        `<article class="panel customer-table-panel"><div class="panel-head"><div><h2 title="${esc(t.note)}">${t.title}</h2></div></div><div class="table-scroll">${tableMarkup(t.columns, shown, "analysisTable")}</div><div class="pager"><span id="analysisTableCount"></span></div></article>`;
+    const table = $("analysisTable") as HTMLTableElement;
+    continueTableOnScroll({
+        table,
+        total: sorted.length,
+        initial: shown.length,
+        batch: ROW_BATCH,
+        append: (from, to) =>
+            appendTableHtml(
+                table,
+                tableMarkup(t.columns, sorted.slice(from, to), ""),
+            ),
+        progress: (count, total) => {
+            $("analysisTableCount").textContent =
+                `${num(count, 0)} di ${num(total, 0)}`;
+        },
+    });
     const change = (next: SortCriterion[]) => {
         sorting[view] = next;
-        if (view === "articles") render(); else renderTable();
+        if (view === "articles") render();
+        else renderTable();
     };
     bindSortingHeaders(
         $("analysisTable") as HTMLTableElement,
@@ -1211,9 +1642,17 @@ function render() {
     );
     filtered = filterCustomerRows(rows, filters, today());
     if (view === "articles" && articleMode !== "commercial") {
-        const eligible = new Set(articleLifecycle(chartBaseRows, rows, today()).filter(matchesArticleOptions).map(r => JSON.stringify([r.article,r.unit,r.currency])));
-        chartBaseRows = articleOrders(chartBaseRows).filter(r => eligible.has(JSON.stringify([r.article,r.unit,r.currency])));
-        filtered = articleOrders(filtered).filter(r => eligible.has(JSON.stringify([r.article,r.unit,r.currency])));
+        const eligible = new Set(
+            articleLifecycle(chartBaseRows, rows, today())
+                .filter(matchesArticleOptions)
+                .map((r) => JSON.stringify([r.article, r.unit, r.currency])),
+        );
+        chartBaseRows = articleOrders(chartBaseRows).filter((r) =>
+            eligible.has(JSON.stringify([r.article, r.unit, r.currency])),
+        );
+        filtered = articleOrders(filtered).filter((r) =>
+            eligible.has(JSON.stringify([r.article, r.unit, r.currency])),
+        );
     }
     kpis();
     filterChips();
@@ -1231,8 +1670,15 @@ function render() {
               )
             : null;
         if (expand) zoom(focused!, expand);
-    } else if (view === "articles") { renderArticles(); if (focused) { const trigger=document.querySelector<HTMLElement>(`[data-expand-chart="${focused}"]`); if(trigger) zoom(focused,trigger); } }
-    else if (view === "quality") renderQuality();
+    } else if (view === "articles") {
+        renderArticles();
+        if (focused) {
+            const trigger = document.querySelector<HTMLElement>(
+                `[data-expand-chart="${focused}"]`,
+            );
+            if (trigger) zoom(focused, trigger);
+        }
+    } else if (view === "quality") renderQuality();
     else renderTable();
 }
 function applyFilters() {
@@ -1318,7 +1764,7 @@ async function loadCustomer(refresh = false) {
         if (!refresh) filters = defaultCustomerFilters();
         setupFilterOptions();
         syncFilters();
-            render();
+        render();
         status(
             rows.length
                 ? preferencesWarning
@@ -1490,10 +1936,14 @@ async function exportData() {
         "Esportazione di tutte le righe nei filtri, incluse quelle non ancora visualizzate…",
     );
     try {
-        const result = await ipc.invoke(
-            "customer-analysis-export",
-            {...clone(filters), articleAnalysis:{dormancy:articleDormancy,trend:articleTrend,horizon:articleHorizon}},
-        );
+        const result = await ipc.invoke("customer-analysis-export", {
+            ...clone(filters),
+            articleAnalysis: {
+                dormancy: articleDormancy,
+                trend: articleTrend,
+                horizon: articleHorizon,
+            },
+        });
         if (!result.ok) throw Error(result.error);
         status(
             result.canceled
@@ -1597,7 +2047,10 @@ $("yearOptions").addEventListener("click", (event) => {
 });
 $("reset").addEventListener("click", () => {
     filters = defaultCustomerFilters();
-    articleDormancy="";articleTrend="";preferences.articleAnalysis.dormancy="";preferences.articleAnalysis.trend="";
+    articleDormancy = "";
+    articleTrend = "";
+    preferences.articleAnalysis.dormancy = "";
+    preferences.articleAnalysis.trend = "";
     syncFilters();
     applyFilters();
 });
@@ -1685,7 +2138,7 @@ $("content").addEventListener("click", (event) => {
     else if (article) {
         filters.article = article.dataset.article!;
         filters.articleExact = true;
-        if(view !== "articles") view = "lines";
+        if (view !== "articles") view = "lines";
         syncFilters();
         applyFilters();
     } else if (edit) {
@@ -1771,7 +2224,9 @@ $("chartVisibility").addEventListener("click", (event) => {
         move = target.closest<HTMLElement>("[data-move]");
     if (edit) editChart(edit.dataset.editChart!);
     if (remove) {
-        setActiveCharts(activeCharts().filter(c => c.id !== remove.dataset.deleteChart));
+        setActiveCharts(
+            activeCharts().filter((c) => c.id !== remove.dataset.deleteChart),
+        );
         if (editingChart === remove.dataset.deleteChart) cancelEdit();
         chartEditor();
         render();
@@ -1801,9 +2256,13 @@ $("chartBuilder").addEventListener("submit", (event) => {
         id: editingChart ?? newId(),
         title: input("chartTitle").value,
         kind: select("chartKind").value as CustomerChart["kind"],
-        scope: (select("chartDimension").value === "inactivity" ? "order" : select("chartScope").value) as CustomerChart["scope"],
+        scope: (select("chartDimension").value === "inactivity"
+            ? "order"
+            : select("chartScope").value) as CustomerChart["scope"],
         dimension: select("chartDimension").value as CustomerChart["dimension"],
-        metric: (select("chartDimension").value === "inactivity" ? "articles" : select("chartMetric").value) as CustomerChart["metric"],
+        metric: (select("chartDimension").value === "inactivity"
+            ? "articles"
+            : select("chartMetric").value) as CustomerChart["metric"],
         limit: Number(input("chartLimit").value),
         hidden: false,
         cumulative: input("chartCumulative").checked,
@@ -1830,7 +2289,9 @@ $("saveCharts").addEventListener(
     () => void persist(clone(preferences), "Dashboard salvata su questo PC."),
 );
 $("restoreCharts").addEventListener("click", () => {
-    setActiveCharts(view === "articles" ? defaultArticleCharts() : defaultCustomerCharts());
+    setActiveCharts(
+        view === "articles" ? defaultArticleCharts() : defaultCustomerCharts(),
+    );
     cancelEdit();
     chartEditor();
     render();
@@ -1880,8 +2341,13 @@ $("applyPreset").addEventListener("click", () => {
         return;
     }
     preferences.charts = clone(p.charts);
-    preferences.articleCharts = clone(p.articleCharts ?? defaultArticleCharts());
-    if(p.articleAnalysis){preferences.articleAnalysis=clone(p.articleAnalysis);syncArticleOptions();}
+    preferences.articleCharts = clone(
+        p.articleCharts ?? defaultArticleCharts(),
+    );
+    if (p.articleAnalysis) {
+        preferences.articleAnalysis = clone(p.articleAnalysis);
+        syncArticleOptions();
+    }
     preferences.expanded = p.expanded;
     filters = clone(p.filters);
     cancelEdit();
@@ -1982,13 +2448,33 @@ installAnalysisLinks(
     (target) => {
         const linked = contextFromAnalysisElement(target);
         if (linked) return linked;
-        if(!loaded)return null;
-        if(target.closest('#customerIdentity'))return {customerCode:loaded.customer,customerName:loaded.name||loaded.customer};
-        const article=target.closest<HTMLElement>('[data-article]')||target.closest('[data-analysis-field]')?.querySelector<HTMLElement>('[data-article]');
-        if(article?.dataset.article)return {article:article.dataset.article};
-        const doc=target.closest<HTMLElement>('[data-document]')||target.closest('[data-analysis-field]')?.querySelector<HTMLElement>('[data-document]');
-        const row=doc?rows.find(r=>documentKey(r)===doc.dataset.document):null;
-        if(row)return {documentId:String(row.documentId),documentNo:row.documentNo,documentKind:row.kind};
+        if (!loaded) return null;
+        if (target.closest("#customerIdentity"))
+            return {
+                customerCode: loaded.customer,
+                customerName: loaded.name || loaded.customer,
+            };
+        const article =
+            target.closest<HTMLElement>("[data-article]") ||
+            target
+                .closest("[data-analysis-field]")
+                ?.querySelector<HTMLElement>("[data-article]");
+        if (article?.dataset.article)
+            return { article: article.dataset.article };
+        const doc =
+            target.closest<HTMLElement>("[data-document]") ||
+            target
+                .closest("[data-analysis-field]")
+                ?.querySelector<HTMLElement>("[data-document]");
+        const row = doc
+            ? rows.find((r) => documentKey(r) === doc.dataset.document)
+            : null;
+        if (row)
+            return {
+                documentId: String(row.documentId),
+                documentNo: row.documentNo,
+                documentKind: row.kind,
+            };
         return null;
     },
     (message) => status(message, true),

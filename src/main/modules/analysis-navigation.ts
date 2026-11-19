@@ -10,6 +10,8 @@ const ready=new Set<number>(),pending=new Map<number,AnalysisContext>(),observed
 export function registerAnalysisTarget(id:AnalysisTarget,open:()=>Promise<BrowserWindow>,owns:(event:any)=>boolean,exists?:(context:AnalysisContext)=>Promise<boolean>){modules.set(id,{open,owns,exists});}
 async function destinationExists(target:AnalysisTarget,context:AnalysisContext):Promise<boolean>{
     try{
+        if(!modules.has(target))return false;
+        if(target==='bar-contracts'||target==='supplier-evaluation')return await modules.get(target)?.exists?.(context)??false;
         if(target==='bom-analysis'){
             const result=await requestAypiBackend('/api/erp/bom-analysis',{method:'POST',body:context.bom?{bom:context.bom}:{article:context.article}});
             return result.rows?.length>0;
@@ -76,6 +78,7 @@ export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>str
                 candidates.push({target,label,context:value});
             };
             if(context.article){
+                add('bar-contracts','Mostra contratti barra collegati all’articolo',{article:context.article});
                 add('article-orders','Mostra articolo in Analisi venduto',{article:context.article});
                 add('article-offers','Mostra articolo in Analisi offerte',{article:context.article});
                 add('turning-analysis','Mostra dettagli Analisi Torneria',{article:context.article});
@@ -83,6 +86,7 @@ export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>str
                 add('bom-analysis','Mostra composizione distinta',{bom:context.article});
             }
             if(context.bom){
+                add('bar-contracts','Mostra contratti barra collegati all’articolo',{article:context.bom});
                 add('bom-analysis','Mostra composizione distinta',{bom:context.bom});
                 add('article-orders','Mostra articolo in Analisi venduto',{article:context.bom});
                 add('article-offers','Mostra articolo in Analisi offerte',{article:context.bom});
@@ -91,6 +95,10 @@ export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>str
             if(context.customerCode||context.customerName)add('customer-analysis','Mostra cliente in Analisi per cliente',{...(context.customerCode?{customerCode:context.customerCode}:{}),...(context.customerName?{customerName:context.customerName}:{})});
             if(context.customerName)add('turning-analysis','Mostra produzioni del cliente in Analisi Torneria',{...(context.customerCode?{customerCode:context.customerCode}:{}),customerName:context.customerName});
             if(context.documentId&&context.documentKind)add(context.documentKind==='order'?'article-orders':'article-offers',context.documentKind==='order'?'Mostra ordine in Analisi venduto':'Mostra offerta in Analisi offerte',{documentId:context.documentId,documentNo:context.documentNo,documentKind:context.documentKind});
+            if(context.supplierCode){
+                add('supplier-evaluation','Analizza fornitore in Valutazione fornitori',{supplierCode:context.supplierCode});
+                add('bar-contracts','Mostra contratti barra del fornitore',{supplierCode:context.supplierCode});
+            }
             const available=await Promise.all(candidates.map(async item=>({item,exists:await destinationExists(item.target,item.context)})));
             if(event.sender.isDestroyed())return {ok:true};
             for(const {item,exists} of available)if(exists)items.push({label:item.label,click:()=>void navigate(item.target,item.context).catch(error=>{if(!event.sender.isDestroyed())event.sender.send('analysis-navigation-error',(error as Error).message);})});

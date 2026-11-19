@@ -43,7 +43,7 @@ app.whenReady().then(async()=>{
  const open=async(target,context)=>{const result=await run(main,`require('electron').ipcRenderer.invoke('analysis-navigate',${JSON.stringify({target,context})})`);assert.equal(result.ok,true,result.error);};
  try{
   assert.equal((await run(main,"require('electron').ipcRenderer.invoke('commercial-analysis-open')")).ok,true);
-  await until(()=>!!find('commercial-analysis.html'));const hub=find('commercial-analysis.html');await until(()=>run(hub,"document.querySelectorAll('[data-analysis]').length===4"));
+  await until(()=>!!find('commercial-analysis.html'));const hub=find('commercial-analysis.html');await until(()=>run(hub,"document.querySelectorAll('[data-analysis]').length===5"));
   await run(hub,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");const screenshot=await hub.webContents.capturePage();fs.writeFileSync(path.join(dir,'hub.png'),screenshot.toPNG());
   
   await run(hub,"document.querySelector('[data-analysis=article-orders]').click()");await until(()=>!!find('article-orders.html'));

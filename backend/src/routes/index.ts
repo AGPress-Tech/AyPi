@@ -2,6 +2,7 @@ import {registerSupplierEvaluationRoutes} from '../modules/supplier-evaluation/r
 import {registerProcessingCyclesRoutes} from '../modules/processing-cycles/routes';
 import { registerFornoRoutes } from "../modules/forno/routes";
 import { registerAnalyticsRoutes } from "../modules/analytics/routes";
+import { registerMeasurementRoutes } from "../modules/measurement-instruments/routes";
 import { registerMaintenanceRoutes } from "../modules/maintenance/routes";
 import type { Router } from "../shared/http/router";
 import { registerUploadRoutes } from "../shared/http/upload-routes";
@@ -22,6 +23,7 @@ import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
 
 export function registerRoutes(router: Router) {
     registerMaintenanceRoutes(router);
+    registerMeasurementRoutes(router);
     registerAnalyticsRoutes(router);
     registerUploadRoutes(router);
     router.register("GET", "/health", async (_req, res) => {

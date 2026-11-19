@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'">
+<title>AyPi · Situazione Contratti Barra in Corso</title>
+<script src="../scripts/utility-layout-bootstrap.js"></script>
+<link rel="stylesheet" href="../styles/utilities/aypi-module-brand.css">
+<link rel="stylesheet" href="../styles/utilities/aypi-operations-ui.css">
+<link rel="stylesheet" href="../styles/article-orders.css">
+<link rel="stylesheet" href="../styles/bom-analysis.css">
+<link rel="stylesheet" href="../styles/table-sorting.css"><link rel="stylesheet" href="../styles/bar-contracts.css"></head>
+<body class="aypi-operations article-orders-window bom-window">
+<header class="topbar"><div class="aypi-module-logo" role="img" aria-label="AyPi"><span class="aypi-module-logo__halo" aria-hidden="true"></span><span class="aypi-module-logo__ay">Ay</span><span class="aypi-module-logo__pi">Pi</span><span class="aypi-module-logo__slash"></span></div>
+<div class="header-title"><div class="eyebrow">ANALISI DEL GESTIONALE</div><h1>Situazione Contratti Barra in Corso</h1></div>
+<div class="header-actions"><button id="supplierSettings">Fornitori barra</button><button id="refresh">Aggiorna dati</button><button id="export" disabled>↓ Esporta Excel</button><button id="close">Chiudi ×</button></div></header>
+
+<main><form id="searchForm" class="filter-panel">
+<div class="filter-heading"><span class="eyebrow">CRITERI DI RICERCA</span><h2 id="filterTitle">Filtri contratti</h2></div>
+<div class="filter-scroll"><label class="scope-label">Stato contratti<select id="scope"><option value="open">Attivi / aperti</option><option value="closed">Chiusi</option><option value="expired">Scaduti (aperti e chiusi)</option><option value="all">Tutti (storico completo)</option></select></label><div id="filterGroups"></div></div>
+<div class="filter-actions"><button type="submit" class="primary">Cerca</button><button type="button" id="reset">Azzera</button></div>
+<details class="bom-presets"><summary>Preset di ricerca</summary><select id="presets" aria-label="Preset salvati"><option value="">Scegli preset</option></select><div><button type="button" id="savePreset">Salva preset</button><button type="button" id="deletePreset" disabled>Elimina</button></div></details>
+</form>
+<section class="workspace" aria-label="Risultati ricerca"><div class="metrics"><div><small>Contratti</small><strong id="contractCount">—</strong></div><div><small>Kg ricevuti</small><strong id="receivedCount">—</strong></div><div><small>Kg disponibili</small><strong id="availableCount">—</strong></div></div>
+<div class="results-panel"><div class="results-heading"><h2 id="resultsTitle">Contratti barra</h2><details id="columns"><summary>Colonne <span id="columnCount"></span></summary><div class="column-picker" id="columnPicker"></div></details></div>
+<div id="status" role="status" aria-live="polite"></div>
+<div class="table-scroll" tabindex="0" aria-label="Contratti barra"><table id="results" hidden><thead></thead><tbody></tbody></table><div class="empty" id="empty"><h2>Nessun risultato</h2><p>Modifica i filtri per cercare i contratti.</p></div></div>
+<div class="results-footer"><span id="loaded"></span></div></div>
+<details class="analysis-information"><summary>Informazioni sui dati e sui calcoli</summary><p id="sourceInfo"></p><p>La vista iniziale mostra Attivi / aperti. Usa Stato contratti per consultare Chiusi, Scaduti (aperti e chiusi) oppure Tutti (storico completo). I filtri Data contratto e Scadenza delimitano il periodo storico; Azzera ripristina gli aperti. Una scadenza passata non chiude automaticamente un contratto ancora aperto nel gestionale.</p><p>Contratti barra: offerte fornitore /C con righe barra, per i fornitori selezionati in Fornitori barra. I collegamenti agli ordini usano gli ID e le righe gestionali, senza confrontare riferimenti liberi o codici articolo.</p><p>Kg ricevuti: quantità consegnata registrata sulle righe ordine (DeliveredQty). I documenti di acquisto/DDT non sono presenti nella fonte verificata. Disponibilità residua = kg contratto − kg ricevuti − kg ancora aperti sugli ordini. Residuo da ricevere = kg contratto − kg ricevuti. Gli ordini annullati non impegnano disponibilità; le consegne già effettuate restano conteggiate. Una riga evasa non impegna gli scostamenti finali di peso. I valori negativi restano visibili.</p><p>Prezzo contrattuale originale: €/kg solo per EUR e KG, senza includere maggiorazioni delle singole forniture. Unità non convertibili e quantità mancanti producono valori mancanti e una segnalazione nella colonna Verifica dati. I KPI indicano quando il totale è parziale. La scadenza non chiude automaticamente il contratto: le chiusure di testata e riga determinano lo stato.</p><p>Filtri su tutte le colonne: alternative sullo stesso campo in OR, campi diversi in AND. Excel include tutte le righe filtrate e gli ordini collegati. Colonne e fino a dieci preset sono personali.</p></details></section></main>
+<dialog id="contractDetail" aria-labelledby="detailTitle"><div class="bom-dialog-header"><div><h2 id="detailTitle"></h2><p id="detailSubtitle"></p></div><button id="detailClose" aria-label="Chiudi dettaglio contratto">×</button></div><div class="table-scroll" tabindex="0" aria-label="Ordini collegati"><table id="detailTable"><thead></thead><tbody></tbody></table><p id="detailEmpty" hidden>Nessun ordine collegato.</p></div></dialog>
+<dialog id="presetDialog" aria-labelledby="presetTitle"><form method="dialog"><h2 id="presetTitle">Salva preset di ricerca</h2><label>Nome<input id="presetName" maxlength="60" required autocomplete="off"></label><div><button value="cancel" formnovalidate>Annulla</button><button value="save" class="primary">Salva</button></div></form></dialog>
+
+<dialog id="suppliersDialog" aria-labelledby="suppliersTitle"><form id="suppliersForm">
+<div class="supplier-dialog-heading"><h2 id="suppliersTitle">Fornitori barra</h2><button type="button" id="suppliersClose" aria-label="Chiudi impostazioni fornitori">×</button></div>
+<p>Scegli i fornitori da includere nell’analisi. L’elenco viene salvato su questo profilo AyPi e si applica anche alle prossime aperture.</p>
+<label>Cerca nell’anagrafica gestionale<input type="search" id="supplierSearch" placeholder="Ragione sociale o codice" autocomplete="off"></label>
+<div class="supplier-add-row"><label>Fornitore<select id="supplierChoice"></select></label><button type="button" id="supplierAdd">+ Aggiungi</button></div>
+<p id="supplierMatches"></p><div id="selectedSuppliers" aria-label="Fornitori inclusi"></div>
+<p id="supplierSettingsStatus" role="status" aria-live="polite"></p>
+<div class="supplier-dialog-actions"><button type="button" id="suppliersCancel">Annulla</button><button type="submit" id="suppliersSave" class="primary">Salva</button></div>
+</form></dialog>
+<script src="../scripts/bar-contracts.js"></script></body></html>

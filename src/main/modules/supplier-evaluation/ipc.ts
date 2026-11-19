@@ -3,6 +3,7 @@ import fs from 'fs';import path from 'path';import {execFile} from 'child_proces
 import * as XLSX from 'xlsx';
 import {requestAypiBackend} from '../file-manager/backend-client';import {getAddressEntry} from '../file-manager/address-book';
 import {excelDateCell,excelNumberFormat} from '../analysis-excel';import {validateWorkspace} from '../analysis-ui-model';
+import {registerAnalysisTarget} from '../analysis-navigation';
 const execute=promisify(execFile);
 export function registerSupplierEvaluationIpc(main:BrowserWindow,icon:()=>string){
     let window:BrowserWindow|null=null,actor='',groups:Record<string,string[]>={},importing=false,preview:any=null;
@@ -13,6 +14,11 @@ export function registerSupplierEvaluationIpc(main:BrowserWindow,icon:()=>string
         const win=new BrowserWindow({width:1520,height:960,minWidth:1000,minHeight:680,show:false,title:'AyPi · Valutazione fornitori',icon:icon(),webPreferences:{nodeIntegration:true,contextIsolation:false}});window=win;win.setMenu(null);win.maximize();win.once('ready-to-show',()=>{if(!win.isDestroyed())win.show()});win.on('closed',()=>{if(window===win){window=null;actor='';preview=null}});win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
         const theme=/[?&]theme=bluearchive(?:&|$)/.test(main.webContents.getURL())?'bluearchive':'standard';await win.loadFile(path.join(__dirname,'..','..','pages','supplier-evaluation.html'),{query:{theme}});return win;
     }
+    registerAnalysisTarget('supplier-evaluation',open,e=>!!owns(e),async context=>{
+        if(!context.supplierCode)return false;
+        const data=await requestAypiBackend('/api/erp/bar-contracts/suppliers');
+        return data.suppliers?.some((s:any)=>String(s.code).trim()===context.supplierCode)??false;
+    });
     ipcMain.handle('supplier-evaluation-employees',async e=>{if(!owns(e))return {ok:false};return result(async()=>{const data=await requestAypiBackend('/api/supplier-evaluation/employees');groups=data.groups;return data;})});
     ipcMain.handle('supplier-evaluation-login',async(e,name)=>{if(!owns(e))return {ok:false};return result(async()=>{const found=Object.values(groups).flat().find(n=>typeof name==='string'&&n.trim().toLocaleLowerCase('it')===name.trim().toLocaleLowerCase('it'));if(!found)throw Error('Selezionare un dipendente dall’elenco.');actor=found;return {actor,...await request('snapshot')};})});
     ipcMain.on('supplier-evaluation-close',e=>{if(owns(e))window?.close()});

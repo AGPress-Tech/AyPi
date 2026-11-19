@@ -36,12 +36,14 @@ import { registerProductionPlannerIpc } from "./file-manager/production-planner-
 import { setupRealtimeClient } from "./file-manager/realtime-client";
 import { registerFilesystemDialogIpc } from "./file-manager/filesystem-dialog-ipc";
 import { registerFileNavigationIpc } from "./file-manager/file-navigation-ipc";
+import { registerMeasurementIpc } from "./measurement-instruments/ipc";
 import { registerMaintenanceIpc } from "./maintenance/ipc";
 import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
 import { registerManagementIpc } from "./management/ipc";
 import { registerArticleOrdersIpc } from "./article-orders/ipc";
 import { registerTurningAnalysisIpc } from "./turning-analysis/ipc";
 import { registerCustomerAnalysisIpc } from "./customer-analysis/ipc";
+import { registerBarContractsIpc } from "./bar-contracts/ipc";
 import { registerBomAnalysisIpc } from "./bom-analysis/ipc";
 import { registerAnalysisNavigation } from "./analysis-navigation";
 import {
@@ -2527,6 +2529,7 @@ function setupFileManager(mainWindow) {
         isAppQuitting = true;
     });
 
+    const measurement = registerMeasurementIpc(mainWindow,getInterfaceIconPath);
     const maintenance = registerMaintenanceIpc(mainWindow,getInterfaceIconPath);
     const processingCycles = registerProcessingCyclesIpc(mainWindow,getInterfaceIconPath);
     const supplierEvaluation = registerSupplierEvaluationIpc(mainWindow,getInterfaceIconPath);
@@ -2537,6 +2540,7 @@ function setupFileManager(mainWindow) {
         browserWindow: BrowserWindow,
         mainWindow,
         openMaintenance: () => void maintenance.open(),
+        openMeasurement: () => void measurement.open(),
         openProcessingCycles: () => void processingCycles.open(),
         openSupplierEvaluation: () => void supplierEvaluation.open(),
     });
@@ -2552,6 +2556,7 @@ function setupFileManager(mainWindow) {
     registerTurningAnalysisIpc(mainWindow,getInterfaceIconPath);
     registerCustomerAnalysisIpc(mainWindow,getInterfaceIconPath);
     registerBomAnalysisIpc(mainWindow,getInterfaceIconPath);
+    registerBarContractsIpc(mainWindow,getInterfaceIconPath);
 
     registerFilesystemDialogIpc({
         ipcMain,

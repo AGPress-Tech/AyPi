@@ -1,5 +1,5 @@
-import {continueTableOnScroll} from '../modules/table-scroll-loader';
-import {analysisYearPicker} from '../modules/analysis-year-picker';
+import { continueTableOnScroll } from "../modules/table-scroll-loader";
+import { analysisYearPicker } from "../modules/analysis-year-picker";
 import Chart from "chart.js/auto";
 import { installAnalysisWorkspace } from "../modules/analysis-workspace";
 import { mergeAreaSelection } from "../modules/analysis-chart-area-selection";
@@ -67,7 +67,7 @@ let snapshot: any = {
         columns: {},
     },
     limit = 250,
-    sort: SortCriterion[] = [{key:"machineCode", direction:"asc"}],
+    sort: SortCriterion[] = [{ key: "machineCode", direction: "asc" }],
     groups: Record<string, string[]> = {},
     busy = false,
     editKind = "",
@@ -312,43 +312,90 @@ function filterControls() {
 }
 // Standard controls use the same rule model as custom conditions and existing presets.
 function standardFields() {
-    const keys = view === "machines"
-        ? ["code", "description", "responsible", "year", "serial", "activeLabel"]
-        : view === "plans"
-          ? ["description", "frequencyMonths", "lastDate", "activeLabel"]
-          : view === "due"
-            ? ["description", "lastDate", "dueDate", "daysOverdue"]
-            : ["description", "createdBy", "updatedBy", "notes", "attachmentCount"];
+    const keys =
+        view === "machines"
+            ? [
+                  "code",
+                  "description",
+                  "responsible",
+                  "year",
+                  "serial",
+                  "activeLabel",
+              ]
+            : view === "plans"
+              ? ["description", "frequencyMonths", "lastDate", "activeLabel"]
+              : view === "due"
+                ? ["description", "lastDate", "dueDate", "daysOverdue"]
+                : [
+                      "description",
+                      "createdBy",
+                      "updatedBy",
+                      "notes",
+                      "attachmentCount",
+                  ];
     return columns().filter(([key]) => keys.includes(key));
 }
 function renderStandardFilters() {
-    $("standardFilterTitle").textContent = ({machines:"Scheda macchina",plans:"Programmazione",due:"Scadenze",records:"Esecuzione"}[view] || "Esecuzione");
-    const custom = filters.rules.filter(r => !isYearRule(r));
-    $("standardFilters").innerHTML = standardFields().map(([field, label, kind]) => {
-        const op = kind === "number" || kind === "date" ? "range" : field === "activeLabel" ? "exact" : "contains";
-        const index = custom.findIndex(r => r.field === field && r.op === op);
-        const rule = index >= 0 ? custom.splice(index, 1)[0] : {value:"", to:""};
-        const type = kind === "number" ? "number" : kind === "date" ? "date" : "text";
-        const input = field === "activeLabel"
-            ? `<select data-standard-value><option value="">Tutte</option>${["Sì", "No"].map(v => `<option ${rule.value === v ? "selected" : ""}>${v}</option>`).join("")}</select>`
-            : `<div class="maintenance-filter-values"><input data-standard-value type="${type}" value="${esc(rule.value)}" aria-label="${esc(label)}${op === "range" ? " da" : ""}" placeholder="${op === "range" ? "Da" : "Contiene…"}">${op === "range" ? `<span>–</span><input data-standard-to type="${type}" value="${esc(rule.to)}" aria-label="${esc(label)} a" placeholder="A">` : ""}</div>`;
-        return `<label class="maintenance-filter-field" data-standard-field="${field}" data-standard-op="${op}"><span>${esc(label)}</span>${input}</label>`;
-    }).join("");
+    $("standardFilterTitle").textContent =
+        {
+            machines: "Scheda macchina",
+            plans: "Programmazione",
+            due: "Scadenze",
+            records: "Esecuzione",
+        }[view] || "Esecuzione";
+    const custom = filters.rules.filter((r) => !isYearRule(r));
+    $("standardFilters").innerHTML = standardFields()
+        .map(([field, label, kind]) => {
+            const op =
+                kind === "number" || kind === "date"
+                    ? "range"
+                    : field === "activeLabel"
+                      ? "exact"
+                      : "contains";
+            const index = custom.findIndex(
+                (r) => r.field === field && r.op === op,
+            );
+            const rule =
+                index >= 0 ? custom.splice(index, 1)[0] : { value: "", to: "" };
+            const type =
+                kind === "number"
+                    ? "number"
+                    : kind === "date"
+                      ? "date"
+                      : "text";
+            const input =
+                field === "activeLabel"
+                    ? `<select data-standard-value><option value="">Tutte</option>${["Sì", "No"].map((v) => `<option ${rule.value === v ? "selected" : ""}>${v}</option>`).join("")}</select>`
+                    : `<div class="maintenance-filter-values"><input data-standard-value type="${type}" value="${esc(rule.value)}" aria-label="${esc(label)}${op === "range" ? " da" : ""}" placeholder="${op === "range" ? "Da" : "Contiene…"}">${op === "range" ? `<span>–</span><input data-standard-to type="${type}" value="${esc(rule.to)}" aria-label="${esc(label)} a" placeholder="A">` : ""}</div>`;
+            return `<label class="maintenance-filter-field" data-standard-field="${field}" data-standard-op="${op}"><span>${esc(label)}</span>${input}</label>`;
+        })
+        .join("");
     $("advancedRules").innerHTML = custom.map(ruleHtml).join("");
     $<HTMLDetailsElement>("customFilters").open = custom.length > 0;
 }
 function readStandardRules(): Rule[] {
-    return Array.from($("standardFilters").querySelectorAll<HTMLElement>("[data-standard-field]")).map(row => ({
-        field:row.dataset.standardField!, op:row.dataset.standardOp!,
-        value:row.querySelector<HTMLInputElement>("[data-standard-value]")!.value,
-        to:row.querySelector<HTMLInputElement>("[data-standard-to]")?.value || "",
-    })).filter(r => r.value || r.to);
+    return Array.from(
+        $("standardFilters").querySelectorAll<HTMLElement>(
+            "[data-standard-field]",
+        ),
+    )
+        .map((row) => ({
+            field: row.dataset.standardField!,
+            op: row.dataset.standardOp!,
+            value: row.querySelector<HTMLInputElement>("[data-standard-value]")!
+                .value,
+            to:
+                row.querySelector<HTMLInputElement>("[data-standard-to]")
+                    ?.value || "",
+        }))
+        .filter((r) => r.value || r.to);
 }
 function readAllRules() {
     const rules = [...yearRules(), ...readStandardRules(), ...readRules()];
     for (const r of rules) {
         if (r.op !== "range" || !r.value || !r.to) continue;
-        const numeric = columns().find(c => c[0] === r.field)?.[2] === "number";
+        const numeric =
+            columns().find((c) => c[0] === r.field)?.[2] === "number";
         if (numeric ? Number(r.value) > Number(r.to) : r.value > r.to)
             throw Error("Intervallo invertito nei filtri avanzati.");
     }
@@ -356,32 +403,68 @@ function readAllRules() {
     return rules;
 }
 // Whole calendar-year ranges use the existing preset rule format, including older backends.
-function isYearRule(rule:Rule) {
-    return rule.field === 'date' && rule.op === 'range' && /^\d{4}-01-01$/.test(rule.value) && rule.to === rule.value.slice(0,4)+'-12-31';
+function isYearRule(rule: Rule) {
+    return (
+        rule.field === "date" &&
+        rule.op === "range" &&
+        /^\d{4}-01-01$/.test(rule.value) &&
+        rule.to === rule.value.slice(0, 4) + "-12-31"
+    );
 }
 const yearRules = () => filters.rules.filter(isYearRule);
 function renderYearPicker() {
-    const picker = $('maintenanceYears');
-    picker.hidden = !['dashboard','records'].includes(view);
-    const years = [...new Set<string>(snapshot.records.map(r => r.date?.slice(0,4)).filter(Boolean))].sort();
-    picker.innerHTML = analysisYearPicker(years,yearRules().map(rule => rule.value.slice(0,4)));
+    const picker = $("maintenanceYears");
+    picker.hidden = !["dashboard", "records"].includes(view);
+    const years = [
+        ...new Set<string>(
+            snapshot.records.map((r) => r.date?.slice(0, 4)).filter(Boolean),
+        ),
+    ].sort();
+    picker.innerHTML = analysisYearPicker(
+        years,
+        yearRules().map((rule) => rule.value.slice(0, 4)),
+    );
 }
-function setYears(years:string[]) {
-    const rules = [...filters.rules.filter(rule => !isYearRule(rule)), ...years.map(year => ({field:'date',op:'range',value:year+'-01-01',to:year+'-12-31'}))];
-    if(rules.length > 30){message('Massimo 30 condizioni complessive nei filtri.',true);renderYearPicker();return;}
+function setYears(years: string[]) {
+    const rules = [
+        ...filters.rules.filter((rule) => !isYearRule(rule)),
+        ...years.map((year) => ({
+            field: "date",
+            op: "range",
+            value: year + "-01-01",
+            to: year + "-12-31",
+        })),
+    ];
+    if (rules.length > 30) {
+        message("Massimo 30 condizioni complessive nei filtri.", true);
+        renderYearPicker();
+        return;
+    }
     filters.rules = rules;
     limit = 250;
     renderYearPicker();
     render();
 }
-$('maintenanceYears').addEventListener('change', () => {
-    setYears([...$('maintenanceYears').querySelectorAll<HTMLInputElement>('[data-year]:checked')].map(input => input.dataset.year!));
+$("maintenanceYears").addEventListener("change", () => {
+    setYears(
+        [
+            ...$("maintenanceYears").querySelectorAll<HTMLInputElement>(
+                "[data-year]:checked",
+            ),
+        ].map((input) => input.dataset.year!),
+    );
 });
-$('maintenanceYears').addEventListener('click', event => {
-    const button = (event.target as HTMLElement).closest<HTMLElement>('[data-years]');
-    if(!button)return;
-    const years = [...$('maintenanceYears').querySelectorAll<HTMLInputElement>('[data-year]')].map(input => input.dataset.year!);
-    setYears(button.dataset.years === 'all' ? [] : years.slice(-2));
+$("maintenanceYears").addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>(
+        "[data-years]",
+    );
+    if (!button) return;
+    const years = [
+        ...$("maintenanceYears").querySelectorAll<HTMLInputElement>(
+            "[data-year]",
+        ),
+    ].map((input) => input.dataset.year!);
+    setYears(button.dataset.years === "all" ? [] : years.slice(-2));
 });
 function ruleHtml(rule: Rule, index: number) {
     const kind = columns().find((c) => c[0] === rule.field)?.[2],
@@ -475,16 +558,19 @@ function renderTable() {
         "</tr>";
     const kind =
         view === "machines" ? "machine" : view === "plans" ? "plan" : "record";
-    const rowMarkup = (data: typeof tableRows) => data.map(
+    const rowMarkup = (data: typeof tableRows) =>
+        data
+            .map(
                 (r) =>
                     `<tr data-entity-id="${esc(r.id)}" data-entity-kind="${kind}" tabindex="0">${cols.map(([k, , type], i) => `<td class="${type === "number" ? "numeric" : ""}" title="${esc(r[k])}">${i === 0 ? `<button class="maintenance-link" data-edit="${esc(r.id)}" data-kind="${kind}">${esc(type === "date" ? date(r[k]) : (r[k] ?? "—"))}</button>` : esc(type === "date" ? date(r[k]) : type === "number" && r[k] != null ? num(r[k]) : (r[k] ?? "—"))}</td>`).join("")}</tr>`,
-            ).join("");
-    table.querySelector("tbody")!.innerHTML = rowMarkup(tableRows.slice(0, limit)) || `<tr><td colspan="${cols.length}">Nessun risultato.</td></tr>`;
+            )
+            .join("");
+    table.querySelector("tbody")!.innerHTML =
+        rowMarkup(tableRows.slice(0, limit)) ||
+        `<tr><td colspan="${cols.length}">Nessun risultato.</td></tr>`;
     bindSortingHeaders(
         table,
-        [
-            ...cols.map(([key, label]) => ({ key, label })),
-        ],
+        [...cols.map(([key, label]) => ({ key, label }))],
         sort,
         (next) => {
             sort = next.filter((s) => s.key !== "actions");
@@ -503,7 +589,21 @@ function renderTable() {
     $("tableCount").textContent =
         `${num(Math.min(limit, tableRows.length))} di ${num(tableRows.length)} righe`;
     const data = tableRows;
-    continueTableOnScroll({table,total:data.length,initial:Math.min(limit,data.length),append:(from,to)=>table.tBodies[0].insertAdjacentHTML("beforeend",rowMarkup(data.slice(from,to))),progress:(count,total)=>{limit=count;$("tableCount").textContent=`${num(count)} di ${num(total)} righe`;}});
+    continueTableOnScroll({
+        table,
+        total: data.length,
+        initial: Math.min(limit, data.length),
+        append: (from, to) =>
+            table.tBodies[0].insertAdjacentHTML(
+                "beforeend",
+                rowMarkup(data.slice(from, to)),
+            ),
+        progress: (count, total) => {
+            limit = count;
+            $("tableCount").textContent =
+                `${num(count)} di ${num(total)} righe`;
+        },
+    });
 }
 function renderDue() {
     const due = currentRows(),
@@ -1117,8 +1217,15 @@ document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(
             workspace?.closeFocus();
             view = b.dataset.view!;
             limit = 250;
-            sort = [{key:view === "machines" ? "code" : "machineCode", direction:"asc"}];
-            filters.rules = ['dashboard','records'].includes(view) ? yearRules() : [];
+            sort = [
+                {
+                    key: view === "machines" ? "code" : "machineCode",
+                    direction: "asc",
+                },
+            ];
+            filters.rules = ["dashboard", "records"].includes(view)
+                ? yearRules()
+                : [];
             filterControls();
             render();
         }),
@@ -1227,7 +1334,9 @@ $("advancedRules").onclick = (e) => {
         "[data-remove-rule]",
     );
     if (button) {
-        const custom = readRules().filter((_, i) => i !== Number(button.dataset.removeRule));
+        const custom = readRules().filter(
+            (_, i) => i !== Number(button.dataset.removeRule),
+        );
         filters.rules = [...yearRules(), ...readStandardRules(), ...custom];
         $("advancedRules").innerHTML = custom.map(ruleHtml).join("");
         render();
@@ -1266,7 +1375,9 @@ $("filterPreset").onchange = () => {
     const p = preferences.filterPresets[Number(value)];
     filters = { ...emptyFilters(), ...p.filters };
     view = p.view;
-    sort = [{key:view === "machines" ? "code" : "machineCode", direction:"asc"}];
+    sort = [
+        { key: view === "machines" ? "code" : "machineCode", direction: "asc" },
+    ];
     limit = 250;
     filterControls();
     render();
@@ -1418,20 +1529,33 @@ $("editForm").onsubmit = async (e) => {
 };
 $("deleteEntity").onclick = () =>
     $<HTMLDialogElement>("confirmDialog").showModal();
-$("maintenanceTable").addEventListener("contextmenu", async event => {
-    const row = (event.target as HTMLElement).closest<HTMLElement>("[data-entity-id]");
+$("maintenanceTable").addEventListener("contextmenu", async (event) => {
+    const row = (event.target as HTMLElement).closest<HTMLElement>(
+        "[data-entity-id]",
+    );
     if (!row) return;
     event.preventDefault();
-    const result = await ipc.invoke("maintenance-row-menu", {kind:row.dataset.entityKind, id:row.dataset.entityId});
+    const result = await ipc.invoke("maintenance-row-menu", {
+        kind: row.dataset.entityKind,
+        id: row.dataset.entityId,
+    });
     if (!result.ok) message(result.error, true);
 });
-ipc.on("maintenance-row-action", (_event:any, payload:any) => {
-    const collection = {machine:"machines", plan:"plans", record:"records"}[payload.kind];
-    const entity = collection && snapshot[collection].find((item:any) => item.id === payload.id);
+ipc.on("maintenance-row-action", (_event: any, payload: any) => {
+    const collection = {
+        machine: "machines",
+        plan: "plans",
+        record: "records",
+    }[payload.kind];
+    const entity =
+        collection &&
+        snapshot[collection].find((item: any) => item.id === payload.id);
     if (!entity) return;
-    if (payload.action === "record" && payload.kind === "plan") return newOrdinary(entity.id);
+    if (payload.action === "record" && payload.kind === "plan")
+        return newOrdinary(entity.id);
     openEditor(payload.kind, entity);
-    if (payload.action === "delete") $<HTMLDialogElement>("confirmDialog").showModal();
+    if (payload.action === "delete")
+        $<HTMLDialogElement>("confirmDialog").showModal();
 });
 $("confirmDialog").addEventListener("close", async () => {
     if ($<HTMLDialogElement>("confirmDialog").returnValue !== "delete") return;
@@ -1475,31 +1599,130 @@ $("export").onclick = async () => {
         $<HTMLButtonElement>("export").disabled = false;
     }
 };
-let accessComparison:any=null,accessApplying=false;
-const accessKind=(kind:string)=>({machine:'Macchina',plan:'Manutenzione prevista',record:'Intervento',attachment:'Allegato'})[kind]||kind;
-function accessValue(field:string,value:any){if(value==null||value==='')return '—';if(field==='machineId')return machine(value)?.code||String(value);if(field==='planId')return plan(value)?.description||String(value);if(field==='date')return date(value);return Array.isArray(value)?value.join(' · '):String(value)}
-function showAccessComparison(comparison:any){
-    accessComparison=comparison;
-    const labels={machines:'Macchine',plans:'Manutenzioni previste',ordinary:'Ordinarie',extraordinary:'Straordinarie',attachments:'Allegati'};
-    $("accessImportSummary").innerHTML=Object.entries(labels).map(([k,label])=>`<span>${label} da aggiungere: <strong>${num(comparison.added[k])}</strong></span>`).join('')+`<span>Invariate: ${num(comparison.unchanged)}</span><span>Con differenze: ${num(comparison.changed.length)}</span><span>Anomalie escluse: ${num(comparison.excludedAnomalies)}</span>`;
-    const fieldLabels=Object.fromEntries(Object.values(fields).flat().map(([key,label])=>[key,label]));
-    const lines=[...comparison.addedItems.map(item=>`<tr><td>Da aggiungere</td><td>${esc(accessKind(item.kind))}</td><td>${esc(item.label)}</td><td>—</td><td>Nuova voce</td><td>Assente</td></tr>`),...comparison.changed.flatMap(item=>item.fields.map(f=>`<tr><td>AyPi mantenuto</td><td>${esc(accessKind(item.kind))}</td><td>${esc(item.label)}</td><td>${esc(fieldLabels[f.field]||f.field)}</td><td>${esc(accessValue(f.field,f.access))}</td><td>${esc(accessValue(f.field,f.aypi))}</td></tr>`)),...comparison.skipped.map(item=>`<tr><td>Non importata</td><td>${esc(accessKind(item.kind))}</td><td>${esc(item.label)}</td><td colspan="3">${esc(item.reason)}</td></tr>`)];
-    $("accessImportDetails").innerHTML=`<table><thead><tr><th>Esito</th><th>Tipo</th><th>Voce</th><th>Campo</th><th>Access</th><th>AyPi</th></tr></thead><tbody>${lines.join('')||'<tr><td colspan="6">Nessuna differenza: l’archivio AyPi contiene già tutte le voci valide di Access.</td></tr>'}</tbody></table>`;
-    $("accessImportError").textContent='';$<HTMLButtonElement>("accessImportApply").disabled=false;$("accessImportApply").textContent=Object.values(comparison.added).some((v:any)=>v>0)?'Aggiungi mancanti':'Conferma confronto';$<HTMLDialogElement>("accessImportDialog").showModal();
+let accessComparison: any = null,
+    accessApplying = false;
+const accessKind = (kind: string) =>
+    ({
+        machine: "Macchina",
+        plan: "Manutenzione prevista",
+        record: "Intervento",
+        attachment: "Allegato",
+    })[kind] || kind;
+function accessValue(field: string, value: any) {
+    if (value == null || value === "") return "—";
+    if (field === "machineId") return machine(value)?.code || String(value);
+    if (field === "planId") return plan(value)?.description || String(value);
+    if (field === "date") return date(value);
+    return Array.isArray(value) ? value.join(" · ") : String(value);
 }
-$("importAccess").onclick=async()=>{
-    if(busy)return;busy=true;$<HTMLButtonElement>("importAccess").disabled=true;message('Lettura Access e confronto con AyPi…');
-    try{const result=await ipc.invoke('maintenance-import',{phase:'preview'});if(!result.ok)throw Error(result.error);showAccessComparison(result.comparison);message()}
-    catch(error){message((error as Error).message,true)}finally{busy=false;$<HTMLButtonElement>("importAccess").disabled=false}
+function showAccessComparison(comparison: any) {
+    accessComparison = comparison;
+    const labels = {
+        machines: "Macchine",
+        plans: "Manutenzioni previste",
+        ordinary: "Ordinarie",
+        extraordinary: "Straordinarie",
+        attachments: "Allegati",
+    };
+    $("accessImportSummary").innerHTML =
+        Object.entries(labels)
+            .map(
+                ([k, label]) =>
+                    `<span>${label} da aggiungere: <strong>${num(comparison.added[k])}</strong></span>`,
+            )
+            .join("") +
+        `<span>Invariate: ${num(comparison.unchanged)}</span><span>Con differenze: ${num(comparison.changed.length)}</span><span>Anomalie escluse: ${num(comparison.excludedAnomalies)}</span>`;
+    const fieldLabels = Object.fromEntries(
+        Object.values(fields)
+            .flat()
+            .map(([key, label]) => [key, label]),
+    );
+    const lines = [
+        ...comparison.addedItems.map(
+            (item) =>
+                `<tr><td>Da aggiungere</td><td>${esc(accessKind(item.kind))}</td><td>${esc(item.label)}</td><td>—</td><td>Nuova voce</td><td>Assente</td></tr>`,
+        ),
+        ...comparison.changed.flatMap((item) =>
+            item.fields.map(
+                (f) =>
+                    `<tr><td>AyPi mantenuto</td><td>${esc(accessKind(item.kind))}</td><td>${esc(item.label)}</td><td>${esc(fieldLabels[f.field] || f.field)}</td><td>${esc(accessValue(f.field, f.access))}</td><td>${esc(accessValue(f.field, f.aypi))}</td></tr>`,
+            ),
+        ),
+        ...comparison.skipped.map(
+            (item) =>
+                `<tr><td>Non importata</td><td>${esc(accessKind(item.kind))}</td><td>${esc(item.label)}</td><td colspan="3">${esc(item.reason)}</td></tr>`,
+        ),
+    ];
+    $("accessImportDetails").innerHTML =
+        `<table><thead><tr><th>Esito</th><th>Tipo</th><th>Voce</th><th>Campo</th><th>Access</th><th>AyPi</th></tr></thead><tbody>${lines.join("") || '<tr><td colspan="6">Nessuna differenza: l’archivio AyPi contiene già tutte le voci valide di Access.</td></tr>'}</tbody></table>`;
+    $("accessImportError").textContent = "";
+    $<HTMLButtonElement>("accessImportApply").disabled = false;
+    $("accessImportApply").textContent = Object.values(comparison.added).some(
+        (v: any) => v > 0,
+    )
+        ? "Aggiungi mancanti"
+        : "Conferma confronto";
+    $<HTMLDialogElement>("accessImportDialog").showModal();
+}
+$("importAccess").onclick = async () => {
+    if (busy) return;
+    busy = true;
+    $<HTMLButtonElement>("importAccess").disabled = true;
+    message("Lettura Access e confronto con AyPi…");
+    try {
+        const result = await ipc.invoke("maintenance-import", {
+            phase: "preview",
+        });
+        if (!result.ok) throw Error(result.error);
+        showAccessComparison(result.comparison);
+        message();
+    } catch (error) {
+        message((error as Error).message, true);
+    } finally {
+        busy = false;
+        $<HTMLButtonElement>("importAccess").disabled = false;
+    }
 };
-const closeAccessComparison=()=>{if(!accessApplying)$<HTMLDialogElement>("accessImportDialog").close()};
-$("accessImportClose").onclick=closeAccessComparison;$("accessImportCancel").onclick=closeAccessComparison;
-$("accessImportDialog").addEventListener('cancel',event=>{if(accessApplying)event.preventDefault()});
-$("accessImportDialog").addEventListener('close',()=>{if(accessComparison){void ipc.invoke('maintenance-import',{phase:'cancel',token:accessComparison.token});accessComparison=null}$("importAccess").focus()});
-$("accessImportApply").onclick=async()=>{
-    if(!accessComparison||accessApplying)return;accessApplying=true;$<HTMLButtonElement>("accessImportApply").disabled=true;
-    try{const result=await ipc.invoke('maintenance-import',{phase:'apply',token:accessComparison.token});if(!result.ok)throw Error(result.error);accessComparison=null;$<HTMLDialogElement>("accessImportDialog").close();await load();message(`Importazione completata: ${num(Object.values(result.report.added).reduce((a:number,b:any)=>a+Number(b),0))} voci aggiunte. Le schede già presenti sono state mantenute.`)}
-    catch(error){$("accessImportError").textContent=(error as Error).message;$<HTMLButtonElement>("accessImportApply").disabled=false}finally{accessApplying=false}
+const closeAccessComparison = () => {
+    if (!accessApplying) $<HTMLDialogElement>("accessImportDialog").close();
+};
+$("accessImportClose").onclick = closeAccessComparison;
+$("accessImportCancel").onclick = closeAccessComparison;
+$("accessImportDialog").addEventListener("cancel", (event) => {
+    if (accessApplying) event.preventDefault();
+});
+$("accessImportDialog").addEventListener("close", () => {
+    if (accessComparison) {
+        void ipc.invoke("maintenance-import", {
+            phase: "cancel",
+            token: accessComparison.token,
+        });
+        accessComparison = null;
+    }
+    $("importAccess").focus();
+});
+$("accessImportApply").onclick = async () => {
+    if (!accessComparison || accessApplying) return;
+    accessApplying = true;
+    $<HTMLButtonElement>("accessImportApply").disabled = true;
+    try {
+        const result = await ipc.invoke("maintenance-import", {
+            phase: "apply",
+            token: accessComparison.token,
+        });
+        if (!result.ok) throw Error(result.error);
+        accessComparison = null;
+        $<HTMLDialogElement>("accessImportDialog").close();
+        await load();
+        message(
+            `Importazione completata: ${num(Object.values(result.report.added).reduce((a: number, b: any) => a + Number(b), 0))} voci aggiunte. Le schede già presenti sono state mantenute.`,
+        );
+    } catch (error) {
+        $("accessImportError").textContent = (error as Error).message;
+        $<HTMLButtonElement>("accessImportApply").disabled = false;
+    } finally {
+        accessApplying = false;
+    }
 };
 // Refresh on return to the module; drafts are never overwritten by a background refresh.
 window.addEventListener("focus", () => {

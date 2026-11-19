@@ -32,6 +32,7 @@ type FileNavigationDependencies = {
     addressBook?: AddressBookAdapter;
     openFile?: (mainWindow: BrowserWindow, filePath: string) => unknown;
     openMaintenance?: () => unknown;
+    openMeasurement?: () => unknown;
     openProcessingCycles?: () => unknown;
     openSupplierEvaluation?: () => unknown;
 };
@@ -57,6 +58,7 @@ export function registerFileNavigationIpc({
     addressBook = defaultAddressBook,
     openFile = openNetworkFile,
     openMaintenance,
+    openMeasurement,
     openProcessingCycles,
     openSupplierEvaluation,
 }: FileNavigationDependencies) {
@@ -77,6 +79,7 @@ export function registerFileNavigationIpc({
         if (!key) return;
         if (key === "moduli.openFornitori" && openSupplierEvaluation) { openSupplierEvaluation(); return; }
         if (key === "infoarticoli.openCicli" && openProcessingCycles) { openProcessingCycles(); return; }
+        if (key === "moduli.openTarature" && openMeasurement) { openMeasurement(); return; }
         if (key === "moduli.openManutenzioni" && openMaintenance) { openMaintenance(); return; }
 
         const entry = addressBook.get(key);
