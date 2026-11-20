@@ -159,6 +159,23 @@ export function registerToolingIpc(mainWindow: BrowserWindow, icon: () => string
             throw Error(error);
         return {};
     }));
+    ipcMain.handle('tooling-row-menu',(e,p)=>!owns(e)||!actor?{ok:false}:result(async()=>{
+        if(!['tool','article','link','movement','issue'].includes(p?.kind)||typeof p.id!=='string')throw Error('Voce non valida.');
+        const data=await request('snapshot'),list=p.kind==='tool'?data.tools:p.kind==='article'?data.articles:p.kind==='link'?data.links:p.kind==='movement'?data.movements:data.issues,entity=list.find(r=>r.id===p.id);if(!entity)throw Error('Voce non disponibile. Aggiornare i dati.');
+        const send=(action:string,extra:any={})=>{if(!e.sender.isDestroyed())e.sender.send('tooling-row-action',{kind:p.kind,id:entity.id,action,...extra});},items:Electron.MenuItemConstructorOptions[]=[];
+        if(p.kind==='tool')items.push({label:'Apri dettaglio',click:()=>send('detail')},{label:'Modifica scheda',click:()=>send('edit')},{label:'Aggiorna quantità / registra rottura',enabled:entity.active,click:()=>send('move')},{label:'Collega un altro articolo',enabled:entity.active,click:()=>send('addArticle',{toolId:entity.id})},{label:'Elimina scheda',click:()=>send('delete')});
+        if(p.kind==='article')items.push({label:'Collega un altro utensile',click:()=>send('addTool',{articleId:entity.id})});
+        if(p.kind==='link'){
+            const linked=Array.isArray(p.linkIds)?p.linkIds.map((id:any)=>data.links.find(l=>l.id===id)).filter(l=>l&&l.toolId===entity.toolId&&l.articleId===entity.articleId):[entity];if(!linked.length||linked.length>100)throw Error('Collegamenti non validi.');
+            const actions=(action:string)=>linked.map(l=>({label:[l.operation||'Senza fase',l.machine||'Senza macchina'].join(' · '),click:()=>send(action,{kind:'link',id:l.id})}));
+            items.push({label:'Apri dettaglio utensile',click:()=>send('detail')},linked.length===1?{label:'Modifica collegamento',click:()=>send('edit')}:{label:'Modifica collegamento',submenu:actions('edit')},linked.length===1?{label:'Rimuovi collegamento',click:()=>send('delete')}:{label:'Rimuovi collegamento',submenu:actions('delete')},{type:'separator'},{label:'Collega un altro articolo a questo utensile',click:()=>send('addArticle',{toolId:entity.toolId})},{label:'Collega un altro utensile a questo articolo',click:()=>send('addTool',{articleId:entity.articleId})});
+        }
+        if(p.kind==='movement')items.push({label:'Apri dettaglio movimento',click:()=>send('detail')},{label:'Annulla movimento',enabled:!entity.voided,click:()=>send('void')});
+        if(p.kind==='issue')items.push({label:'Apri dettaglio utensile',click:()=>send('detail')},{label:'Gestisci rottura',enabled:entity.status!=='canceled',click:()=>send('edit')});
+        if(typeof p.groupKey==='string'&&['tool','article'].includes(p.kind))items.push({label:p.kind==='tool'?'Mostra / nascondi articoli collegati':'Mostra / nascondi utensili collegati',click:()=>send('toggle',{groupKey:p.groupKey})});
+        const article=p.kind==='article'?entity:data.articles.find(a=>a.id===entity.articleId);if(p.erpArticle&&article?.erpCode===p.erpArticle)items.push({type:'separator'},{label:'Analisi collegate all’articolo…',click:()=>send('analysis',{erpArticle:article.erpCode})});
+        Menu.buildFromTemplate(items).popup({window:window!});return {};
+    }));
     const esc=(v:any)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
     ipcMain.handle('tooling-export',(e,p)=>!owns(e)||!actor||exporting?{ok:false}:result(async()=>{exporting=true;try{
         const data=await request('snapshot'),ids=new Set(Array.isArray(p?.ids)?p.ids:[]),tools=data.tools.filter(t=>ids.has(t.id)),toolIds=new Set(tools.map(t=>t.id)),from=typeof p?.from==='string'?p.from:'',to=typeof p?.to==='string'?p.to:'',events=data.movements.filter(m=>toolIds.has(m.toolId)&&(!from||m.date>=from)&&(!to||m.date<=to)&&(!p?.articleId||m.articleId===p.articleId)&&(!Array.isArray(p?.movementIds)||p.movementIds.includes(m.id))),name=(id:string)=>data.tools.find(t=>t.id===id)?.code||id,article=(id:string)=>{const a=data.articles.find(a=>a.id===id);return a?.erpCode||a?.code||'';};

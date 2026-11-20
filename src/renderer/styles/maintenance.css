@@ -25,3 +25,5 @@
 .maintenance-window .maintenance-filter-popup .preset-actions{margin-top:14px;padding-top:12px;border-top:1px solid var(--ops-line);display:flex;flex-wrap:wrap;gap:7px}
 .maintenance-window .maintenance-filter-popup .preset-actions input{min-width:120px;flex:1}
 @media(max-width:1050px){.maintenance-filter-popup{max-height:calc(100vh - 215px)}.maintenance-standard-filters{gap:9px 12px}}
+/* Match the pinned body column and keep its header above later header cells while scrolling. */
+.maintenance-window table>thead>tr>th:first-child{position:sticky;left:0;z-index:4;background:var(--ops-soft)}

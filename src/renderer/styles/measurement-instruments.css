@@ -14,3 +14,12 @@
 @media(max-width:1100px){.system-parameter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .measurement-window #editFields .system-readings-table input,.measurement-window #editFields .system-readings-table select{width:74px;min-width:74px;max-width:74px}.measurement-window .system-readings-table table{width:max-content;min-width:100%}.measurement-window .system-readings-table td.system-not-required{background:#edf0f3}.measurement-window .system-definition-table thead th{position:sticky;top:0;z-index:3;background:var(--ops-soft)}
+
+/* Keep settings at their natural height instead of distributing spare dialog space across rows. */
+.measurement-window #editDialog.system-editor-open #editFields{align-content:start;grid-auto-rows:max-content;gap:10px 14px;padding:12px 20px 16px}
+.measurement-window #editDialog.system-editor-open:has(.system-points-editor) #editFields{grid-template-columns:repeat(3,minmax(0,1fr))}
+.measurement-window #editDialog.system-editor-open #editFields>label{gap:5px}
+.measurement-window #editDialog.system-editor-open #editFields textarea[name=description]{height:54px;min-height:54px}
+.measurement-window .system-points-editor .measurement-row{margin-bottom:8px}
+.measurement-window .system-points-editor h3{margin:0;font-size:14px}
+.measurement-window .system-definition-table{max-height:clamp(240px,calc(100vh - 440px),600px)}

@@ -7,9 +7,12 @@ import {
 } from "../../main/modules/article-orders/columns";
 import { SortCriterion } from "../../main/modules/analysis-sorting";
 import { bindSortingHeaders, updateSortingBar } from "../modules/table-sorting";
-import {installAnalysisLinks} from '../modules/analysis-links';
-import {contextFromAnalysisElement,toggleDocumentLinks} from '../modules/document-links';
-import type {AnalysisContext} from '../../main/modules/analysis-navigation-model';
+import { installAnalysisLinks } from "../modules/analysis-links";
+import {
+    contextFromAnalysisElement,
+    toggleDocumentLinks,
+} from "../modules/document-links";
+import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
 const ipc = require("electron").ipcRenderer;
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
     document.getElementById(id) as T;
@@ -102,7 +105,7 @@ let rows: any[] = [],
     generation = 0,
     lastRead = "";
 let sorting: SortCriterion[] = [];
-let linkedDocumentId:number|null=null;
+let linkedDocumentId: number | null = null;
 let selected = new Set<string>(
     IS_OFFERS ? DEFAULT_ARTICLE_OFFER_COLUMNS : DEFAULT_ARTICLE_ORDER_COLUMNS,
 );
@@ -113,10 +116,15 @@ try {
             saved.filter((k) => COLUMNS.some((c) => c.key === k)),
         );
     // Add the new defaults once, retaining existing column choices and later hiding.
-    if(!IS_OFFERS&&Number(localStorage.getItem(STORAGE_KEY+'.schema')||0)<2){
-        selected.add('article');selected.add('netWeight');selected.add('grossWeight');
-        localStorage.setItem(STORAGE_KEY,JSON.stringify([...selected]));
-        localStorage.setItem(STORAGE_KEY+'.schema','2');
+    if (
+        !IS_OFFERS &&
+        Number(localStorage.getItem(STORAGE_KEY + ".schema") || 0) < 2
+    ) {
+        selected.add("article");
+        selected.add("netWeight");
+        selected.add("grossWeight");
+        localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected]));
+        localStorage.setItem(STORAGE_KEY + ".schema", "2");
     }
 } catch {}
 selected.add("article");
@@ -125,7 +133,7 @@ const setStatus = (text: string, error = false) => {
     $("status").classList.toggle("error", error);
 };
 const markDirty = () => {
-    linkedDocumentId=null;
+    linkedDocumentId = null;
     if (applied) {
         $("export").setAttribute("disabled", "");
         setStatus(
@@ -253,7 +261,12 @@ function collect() {
             return [range];
         });
     }
-    if (!filters.articles.length&&!filters[IS_OFFERS?'offers':'orders'].some((r:any)=>r.op==='exact'))
+    if (
+        !filters.articles.length &&
+        !filters[IS_OFFERS ? "offers" : "orders"].some(
+            (r: any) => r.op === "exact",
+        )
+    )
         throw new Error(
             "Inserisci un articolo oppure il numero esatto del documento.",
         );
@@ -263,7 +276,7 @@ function collect() {
             $<HTMLInputElement>("includeCancelled").checked;
     }
     filters.sort = sorting.map((item) => ({ ...item }));
-    if(linkedDocumentId)filters.documentId=linkedDocumentId;
+    if (linkedDocumentId) filters.documentId = linkedDocumentId;
     return filters;
 }
 function visibleColumns() {
@@ -301,7 +314,15 @@ function format(row: any, col: ArticleDocumentColumn) {
         return escape(String(val).slice(0, 10).split("-").reverse().join("/"));
     if (col.kind === "number" || col.kind === "money")
         return escape(
-            (col.decimals!==undefined||col.maxDecimals!==undefined?new Intl.NumberFormat('it-IT',{minimumFractionDigits:col.decimals??0,maximumFractionDigits:col.decimals??col.maxDecimals}):col.kind === "money" ? price : number).format(Number(val)),
+            (col.decimals !== undefined || col.maxDecimals !== undefined
+                ? new Intl.NumberFormat("it-IT", {
+                      minimumFractionDigits: col.decimals ?? 0,
+                      maximumFractionDigits: col.decimals ?? col.maxDecimals,
+                  })
+                : col.kind === "money"
+                  ? price
+                  : number
+            ).format(Number(val)),
         );
     return escape(val);
 }
@@ -326,7 +347,7 @@ function renderTable() {
         (!sorting.length || sorting[0].key === "article") &&
         rows.some((r) => r.article !== rows[0]?.article);
     table.querySelector("tbody")!.innerHTML = rows
-        .map((row,index) => {
+        .map((row, index) => {
             const heading =
                 multipleArticles && lastArticle !== row.article
                     ? `<tr class="article-group"><td colspan="${columns.length}">Articolo ${escape(row.article)} · ${escape(row.description)}</td></tr>`
@@ -338,7 +359,7 @@ function renderTable() {
                 columns
                     .map(
                         (col) =>
-                            `<td data-analysis-field="${col.key}" class="${["number", "money"].includes(col.kind) ? "numeric" : ""}" title="${escape(row[col.key])}">${col.key===(IS_OFFERS?'offerNo':'orderNo')?`<button class="document-expand" data-expand-document="${index}" aria-expanded="false" title="${IS_OFFERS?'Ordini collegati':'Offerte collegate'}">▸</button>`:''}${format(row, col)}</td>`,
+                            `<td data-analysis-field="${col.key}" class="${["number", "money"].includes(col.kind) ? "numeric" : ""}" title="${escape(row[col.key])}">${col.key === (IS_OFFERS ? "offerNo" : "orderNo") ? `<button class="document-expand" data-expand-document="${index}" aria-expanded="false" title="${IS_OFFERS ? "Ordini collegati" : "Offerte collegate"}">▸</button>` : ""}${format(row, col)}</td>`,
                     )
                     .join("") +
                 "</tr>"
@@ -476,7 +497,7 @@ $("tableScroll").addEventListener("scroll", () => {
 for (const id of ["delivered", "includeCancelled"])
     $(id)?.addEventListener("change", markDirty);
 $("reset").addEventListener("click", () => {
-    linkedDocumentId=null;
+    linkedDocumentId = null;
     generation++;
     loading = false;
     rows = [];
@@ -534,26 +555,65 @@ document
     .querySelector<HTMLInputElement>('[data-key="articles"] .value')
     ?.focus();
 
-installAnalysisLinks(target=>{
-    const linked=contextFromAnalysisElement(target);if(linked)return linked;
-    const node=target.closest<HTMLElement>('[data-analysis-row]'),row=node?rows[Number(node.dataset.analysisRow)]:null;
-    if(!row)return null;
-    const field=target.closest<HTMLElement>('[data-analysis-field]')?.dataset.analysisField;
-    if(field==='article')return {article:String(row.article)};
-    if((field==='customerCode'||field==='customerName')&&row.customerType!=='Contatto')return {customerCode:String(row.customerCode),customerName:String(row.customerName||row.customerCode)};
-    return null;
-},message=>setStatus(message,true));
-$('results').addEventListener('click',event=>{
-    const button=(event.target as HTMLElement).closest<HTMLElement>('[data-expand-document]');if(!button)return;
-    const row=rows[Number(button.dataset.expandDocument)];if(row)toggleDocumentLinks(button,IS_OFFERS?'offer':'order',Number(row[ID_KEY]));
+installAnalysisLinks(
+    (target) => {
+        const linked = contextFromAnalysisElement(target);
+        if (linked) return linked;
+        const node = target.closest<HTMLElement>("[data-analysis-row]"),
+            row = node ? rows[Number(node.dataset.analysisRow)] : null;
+        if (!row) return null;
+        const field = target.closest<HTMLElement>("[data-analysis-field]")
+            ?.dataset.analysisField;
+        if (field === "article") return { article: String(row.article) };
+        if (
+            (field === "customerCode" || field === "customerName") &&
+            row.customerType !== "Contatto"
+        )
+            return {
+                customerCode: String(row.customerCode),
+                customerName: String(row.customerName || row.customerCode),
+            };
+        return null;
+    },
+    (message) => setStatus(message, true),
+);
+$("results").addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>(
+        "[data-expand-document]",
+    );
+    if (!button) return;
+    const row = rows[Number(button.dataset.expandDocument)];
+    if (row)
+        toggleDocumentLinks(
+            button,
+            IS_OFFERS ? "offer" : "order",
+            Number(row[ID_KEY]),
+        );
 });
-ipc.on('analysis-open-context',(_event:any,context:AnalysisContext)=>{
-    initFilters();sorting=[];linkedDocumentId=context.documentId?Number(context.documentId):null;
-    const set=(key:string,value:string)=>{const group=document.querySelector<HTMLElement>(`[data-key="${key}"]`)!;group.querySelector<HTMLInputElement>('.value')!.value=value;group.querySelector<HTMLSelectElement>('.operator')!.value='exact';(group as HTMLDetailsElement).open=true;};
-    if(context.article)set('articles',context.article);
-    if(context.customerCode)set('customers',context.customerCode);
-    if(context.documentNo&&context.documentKind===(IS_OFFERS?'offer':'order'))set(IS_OFFERS?'offers':'orders',context.documentNo);
-    if(!IS_OFFERS){$<HTMLSelectElement>('delivered').value='all';$<HTMLInputElement>('includeCancelled').checked=true;}
-    updateBadges();void search();
+ipc.on("analysis-open-context", (_event: any, context: AnalysisContext) => {
+    initFilters();
+    sorting = [];
+    linkedDocumentId = context.documentId ? Number(context.documentId) : null;
+    const set = (key: string, value: string) => {
+        const group = document.querySelector<HTMLElement>(
+            `[data-key="${key}"]`,
+        )!;
+        group.querySelector<HTMLInputElement>(".value")!.value = value;
+        group.querySelector<HTMLSelectElement>(".operator")!.value = "exact";
+        (group as HTMLDetailsElement).open = true;
+    };
+    if (context.article) set("articles", context.article);
+    if (context.customerCode) set("customers", context.customerCode);
+    if (
+        context.documentNo &&
+        context.documentKind === (IS_OFFERS ? "offer" : "order")
+    )
+        set(IS_OFFERS ? "offers" : "orders", context.documentNo);
+    if (!IS_OFFERS) {
+        $<HTMLSelectElement>("delivered").value = "all";
+        $<HTMLInputElement>("includeCancelled").checked = true;
+    }
+    updateBadges();
+    void search();
 });
-ipc.send('analysis-context-ready');
+ipc.send("analysis-context-ready");
