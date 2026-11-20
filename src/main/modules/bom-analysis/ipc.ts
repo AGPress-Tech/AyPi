@@ -4,7 +4,7 @@ import fs from 'fs';
 import * as XLSX from 'xlsx';
 import {requestAypiBackend} from '../file-manager/backend-client';
 import {registerAnalysisTarget} from '../analysis-navigation';
-import {BOM_COLUMNS,BOM_SUMMARY_COLUMNS,BomRow,DEFAULT_BOM_COLUMNS,bomExportRows,validateBomColumns,validateBomPreferences,validateBomSearch} from './model';
+import {BOM_COLUMNS,BOM_SUMMARY_COLUMNS,visibleSummaryColumns,BomRow,DEFAULT_BOM_COLUMNS,bomExportRows,validateBomColumns,validateBomPreferences,validateBomSearch} from './model';
 import {excelDateCell,excelNumberFormat} from '../analysis-excel';
 export function registerBomAnalysisIpc(mainWindow:BrowserWindow,icon:()=>string){
     let window:BrowserWindow|null=null,rows:BomRow[]|null=null,queriedAt='',reading:Promise<any>|null=null,exporting=false,write=Promise.resolve();
@@ -45,7 +45,7 @@ export function registerBomAnalysisIpc(mainWindow:BrowserWindow,icon:()=>string)
         try{
             const search=validateBomSearch(payload?.search),keys=validateBomColumns(payload?.columns),layout=payload?.layout??'summary';
             if(!['summary','exploded'].includes(layout))throw Error('Tipo di esportazione non valido.');
-            const columns=layout==='exploded'?BOM_COLUMNS:BOM_SUMMARY_COLUMNS.filter(c=>keys.includes(c.key));
+            const columns=layout==='exploded'?BOM_COLUMNS:visibleSummaryColumns(search.mode,keys);
             if(!rows)await read();
             const filtered=bomExportRows(rows!,search,layout),owner=window!;
             const save=await dialog.showSaveDialog(owner,{title:'Esporta BoM e Articoli',defaultPath:'BoM e Articoli.xlsx',filters:[{name:'Excel',extensions:['xlsx']}]});

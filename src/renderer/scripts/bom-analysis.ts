@@ -2,6 +2,10 @@ import { continueTableOnScroll } from "../modules/table-scroll-loader";
 import {
     BOM_COLUMNS,
     BOM_SUMMARY_COLUMNS,
+    ARTICLE_SUMMARY_COLUMNS,
+    summaryColumns,
+    visibleSummaryColumns,
+    summarizeArticleRows,
     BomRow,
     BomSearch,
     BomPreferences,
@@ -49,6 +53,7 @@ const searches: Record<string, BomSearch> = {
     "where-used": emptyBomSearch(),
     composition: { ...emptyBomSearch(), mode: "composition" },
 };
+const expandedArticles=new Set<string>();
 let detailHistory: string[] = [],
     detailSort = emptyBomSearch().sort.filter((s) => s.key === "line"),
     opener: HTMLElement | null = null;
@@ -115,8 +120,9 @@ function renderFilters() {
             : "Cerca una distinta";
     $("resultsTitle").textContent =
         search.mode === "where-used"
-            ? "Distinte che contengono l’articolo"
+            ? "Articoli e distinte in cui compaiono"
             : "Composizione delle distinte";
+    renderPreferences();
 }
 function readSearch(): BomSearch {
     const rules: any[] = [];
@@ -149,14 +155,15 @@ function readSearch(): BomSearch {
 function apply(next: BomSearch) {
     search = validateBomSearch(next);
     search.sort = search.sort.filter((s) =>
-        BOM_SUMMARY_COLUMNS.some((c) => c.key === s.key),
+        summaryColumns(search.mode).some((c) => c.key === s.key),
     );
+    if(!search.sort.length)search.sort=[{key:search.mode==='where-used'?'component':'bom',direction:'asc'}];
     searches[search.mode] = search;
     limit = 250;
     render();
 }
 function format(row: BomRow, key: string) {
-    const col = BOM_COLUMNS.find((c) => c.key === key)!,
+    const col = [...BOM_COLUMNS,...ARTICLE_SUMMARY_COLUMNS].find((c) => c.key === key)!,
         v = row[key];
     if (v == null || v === "") return "—";
     if (col.kind === "boolean") return Number(v) ? "Sì" : "No";
@@ -177,6 +184,7 @@ function tableBody(
     columns: typeof BOM_COLUMNS,
     sort: any,
     onSort: (s: any) => void,
+    articleParents=false,
 ) {
     table.querySelector("thead")!.innerHTML =
         "<tr>" +
@@ -187,7 +195,7 @@ function tableBody(
             )
             .join("") +
         "</tr>";
-    table.querySelector("tbody")!.innerHTML = bomRowsMarkup(data, columns);
+    table.querySelector("tbody")!.innerHTML = articleParents?articleRowsMarkup(data,columns):bomRowsMarkup(data, columns);
     bindSortingHeaders(table, columns, sort, onSort);
 }
 function bomRowsMarkup(data: BomRow[], columns: typeof BOM_COLUMNS) {
@@ -217,19 +225,38 @@ function bomRowsMarkup(data: BomRow[], columns: typeof BOM_COLUMNS) {
         )
         .join("");
 }
+function articleRowsMarkup(data:BomRow[],columns:typeof BOM_COLUMNS){
+    return data.map(row=>{const component=String(row.component),open=expandedArticles.has(component.trim().toLocaleLowerCase('it'));return `<tr data-parent-article="${esc(component)}">${columns.map(c=>`<td ${c.key==='component'?`data-analysis-article="${esc(component)}"`:''} class="${c.kind==='number'?'numeric':''}" title="${esc(format(row,c.key))}">${c.key==='component'?`<button class="document-expand" data-expand-article="${esc(component)}" aria-expanded="${open}" aria-label="${open?'Riduci':'Espandi'} distinte contenenti ${esc(component)}">${open?'▾':'▸'}</button><button class="bom-link" data-open-article="${esc(component)}">${esc(component)}</button>`:esc(format(row,c.key))}</td>`).join('')}</tr>`;}).join('');
+}
+function toggleArticle(button:HTMLButtonElement){
+    const parent=button.closest('tr')!,component=button.dataset.expandArticle!,key=component.trim().toLocaleLowerCase('it'),existing=parent.nextElementSibling;
+    if(existing?.classList.contains('bom-where-used-row')){existing.remove();expandedArticles.delete(key);button.textContent='▸';button.setAttribute('aria-expanded','false');button.setAttribute('aria-label',`Espandi distinte contenenti ${component}`);button.removeAttribute('aria-controls');return;}
+    const matched=filtered.filter(row=>equal(row.component,component)),summaries=summarizeBomRows(matched,[{key:'bom',direction:'asc'}]);
+    if(!summaries.length)return;
+    const child=document.createElement('tr');child.className='bom-where-used-row';const cell=document.createElement('td');cell.colSpan=parent.cells.length;cell.className='analysis-linked-documents';child.append(cell);
+    const panel=document.createElement('div');panel.className='bom-inline-where-used linked-document';panel.id=`whereUsed${++inlineId}`;
+    const heading=document.createElement('strong');heading.textContent=`${component} · ${summaries.length} distinte in cui compare`;
+    const scroller=document.createElement('div');scroller.className='table-scroll';scroller.tabIndex=0;scroller.setAttribute('aria-label',`Distinte contenenti ${component}`);
+    const nested=document.createElement('table');nested.id=panel.id+'Table';nested.className='linked-documents-table';nested.innerHTML='<thead></thead><tbody></tbody>';scroller.append(nested);panel.append(heading,scroller);cell.append(panel);parent.after(child);
+    const outer=parent.closest('table')!;panel.style.width=Math.max(200,outer.parentElement!.clientWidth-56)+'px';let sort= [{key:'bom',direction:'asc' as const}];
+    const columns=visibleSummaryColumns('composition',preferences.columns);const draw=()=>{const sorted=summarizeBomRows(matched,sort),initial=Math.min(250,sorted.length);tableBody(nested,sorted.slice(0,initial),columns,sort,next=>{sort=next;draw();});continueTableOnScroll({table:nested,total:sorted.length,initial,append:(from,to)=>nested.tBodies[0].insertAdjacentHTML('beforeend',bomRowsMarkup(sorted.slice(from,to),columns))});};draw();
+    expandedArticles.add(key);button.textContent='▾';button.setAttribute('aria-expanded','true');button.setAttribute('aria-label',`Riduci distinte contenenti ${component}`);button.setAttribute('aria-controls',panel.id);
+}
+function restoreArticleExpansions(table:HTMLTableElement){if(search.mode!=='where-used')return;table.querySelectorAll<HTMLButtonElement>(':scope>tbody>tr>[data-analysis-article]>[data-expand-article]').forEach(button=>{if(expandedArticles.has(button.dataset.expandArticle!.trim().toLocaleLowerCase('it'))&&!button.closest('tr')!.nextElementSibling?.classList.contains('bom-where-used-row'))toggleArticle(button);});}
 function render() {
     filtered = filterBomRows(rows, search);
-    const summaries = summarizeBomRows(filtered, search.sort),
-        columns = BOM_SUMMARY_COLUMNS.filter((c) =>
-            preferences.columns.includes(c.key),
-        ),
+    const articleParents=search.mode==='where-used';
+    const summaries = articleParents?summarizeArticleRows(filtered,search.sort):summarizeBomRows(filtered, search.sort),
+        columns = visibleSummaryColumns(search.mode,preferences.columns),
         table = $<HTMLTableElement>("results");
     tableBody(table, summaries.slice(0, limit), columns, search.sort, (s) =>
         apply({ ...search, sort: s }),
+        articleParents,
     );
     updateSortingBar(table, columns, search.sort, (s) =>
         apply({ ...search, sort: s }),
     );
+    restoreArticleExpansions(table);
     table.hidden = !filtered.length;
     $("empty").hidden = !!filtered.length || !loaded;
     $("bomCount").textContent = loaded
@@ -247,21 +274,21 @@ function render() {
         ? num(filtered.filter((r) => r.component).length, 0)
         : "—";
     $("loaded").textContent = loaded
-        ? `${num(Math.min(limit, summaries.length), 0)} di ${num(summaries.length, 0)} distinte`
+        ? `${num(Math.min(limit, summaries.length), 0)} di ${num(summaries.length, 0)} ${articleParents?'articoli':'distinte'}`
         : "";
     continueTableOnScroll({
         table,
         total: summaries.length,
         initial: Math.min(limit, summaries.length),
-        append: (from, to) =>
+        append: (from, to) => {
             table.tBodies[0].insertAdjacentHTML(
                 "beforeend",
-                bomRowsMarkup(summaries.slice(from, to), columns),
-            ),
+                articleParents?articleRowsMarkup(summaries.slice(from,to),columns):bomRowsMarkup(summaries.slice(from, to), columns),
+            );restoreArticleExpansions(table);},
         progress: (count, total) => {
             limit = count;
             $("loaded").textContent =
-                `${num(count, 0)} di ${num(total, 0)} distinte`;
+                `${num(count, 0)} di ${num(total, 0)} ${articleParents?'articoli':'distinte'}`;
         },
     });
     $<HTMLButtonElement>("export").disabled =
@@ -275,12 +302,13 @@ async function savePreferences() {
     if (!response.ok) throw Error(response.error);
 }
 function renderPreferences() {
-    $("columnPicker").innerHTML = BOM_SUMMARY_COLUMNS.map(
+    const visible=visibleSummaryColumns(search.mode,preferences.columns);
+    $("columnPicker").innerHTML = summaryColumns(search.mode).map(
         (c) =>
-            `<label><input type="checkbox" value="${c.key}" ${preferences.columns.includes(c.key) ? "checked" : ""} ${c.key === "bom" ? "disabled" : ""}>${esc(c.label)}</label>`,
+            `<label><input type="checkbox" value="${c.key}" ${visible.some(v=>v.key===c.key) ? "checked" : ""} ${c.key === (search.mode==='where-used'?'component':'bom') ? "disabled" : ""}>${esc(c.label)}</label>`,
     ).join("");
     $("columnCount").textContent =
-        `(${BOM_SUMMARY_COLUMNS.filter((c) => preferences.columns.includes(c.key)).length})`;
+        `(${visible.length})`;
     $<HTMLSelectElement>("presets").innerHTML =
         '<option value="">Scegli preset</option>' +
         preferences.presets
@@ -416,7 +444,7 @@ function toggleComposition(button: HTMLButtonElement) {
 }
 window.addEventListener("resize", () =>
     document
-        .querySelectorAll<HTMLElement>(".bom-inline-composition")
+        .querySelectorAll<HTMLElement>(".bom-inline-composition,.bom-inline-where-used")
         .forEach((panel) => {
             const table = panel.closest("td")?.closest("table");
             if (table?.parentElement)
@@ -547,10 +575,11 @@ $("reset").onclick = () => {
 $("refresh").onclick = () => void load();
 $("close").onclick = () => ipc.send("bom-analysis-close");
 $("columnPicker").addEventListener("change", async () => {
-    preferences.columns = Array.from(
+    const otherColumns=preferences.columns.filter(key=>!summaryColumns(search.mode).some(c=>c.key===key));
+    preferences.columns = [...otherColumns,...Array.from(
         $("columnPicker").querySelectorAll<HTMLInputElement>("input:checked"),
-    ).map((c) => c.value);
-    $("columnCount").textContent = `(${preferences.columns.length})`;
+    ).map((c) => c.value)];
+    $("columnCount").textContent = `(${visibleSummaryColumns(search.mode,preferences.columns).length})`;
     render();
     try {
         await savePreferences();
@@ -559,8 +588,9 @@ $("columnPicker").addEventListener("change", async () => {
     }
 });
 document.addEventListener("click", (event) => {
-    const target = event.target as HTMLElement,
-        expand = target.closest<HTMLButtonElement>("[data-expand-bom]");
+    const target = event.target as HTMLElement;
+    const articleButton=target.closest<HTMLElement>('[data-expand-article],[data-open-article]');if(articleButton){const button=articleButton.closest('tr')!.querySelector<HTMLButtonElement>('[data-expand-article]')!;toggleArticle(button);return;}
+    const expand = target.closest<HTMLButtonElement>("[data-expand-bom]");
     if (expand) {
         toggleComposition(expand);
         return;
@@ -587,6 +617,7 @@ $("detailOpenSearch").onclick = () =>
 $("detailWhereUsed").onclick = () =>
     openContext({ article: detailHistory[detailHistory.length - 1] });
 $("export").onclick = () => {
+    $<HTMLSelectElement>('exportLayout').options[0].textContent=search.mode==='where-used'?'Riepilogo: una riga per articolo':'Riepilogo: una riga per distinta';
     $<HTMLSelectElement>("exportLayout").value = "summary";
     $<HTMLDialogElement>("exportDialog").showModal();
 };

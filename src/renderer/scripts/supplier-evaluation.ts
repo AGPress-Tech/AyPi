@@ -1,5 +1,5 @@
 import Chart from "chart.js/auto";
-import type {AnalysisContext} from '../../main/modules/analysis-navigation-model';
+import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
 import { analysisHtmlLegend } from "../modules/analysis-html-legend";
 import {
     continueTableOnScroll,
@@ -1982,18 +1982,29 @@ $("export").onclick = () =>
     });
 $<HTMLDialogElement>("loginDialog").showModal();
 void employees();
-let pendingSupplierNavigation:AnalysisContext|null=null;
-function applySupplierNavigation(){
-    if(!actor||!workspace||!pendingSupplierNavigation)return;
-    const code=pendingSupplierNavigation.supplierCode;
-    const target=snapshot.suppliers.find(s=>String(s.code||'').trim()===code);
-    if(!target){message('Fornitore non presente nei dati disponibili. Aggiorna l’anagrafica e riprova.',true);return;}
-    pendingSupplierNavigation=null;
-    $<HTMLDialogElement>('supplierDetail').close();
+let pendingSupplierNavigation: AnalysisContext | null = null;
+function applySupplierNavigation() {
+    if (!actor || !workspace || !pendingSupplierNavigation) return;
+    const code = pendingSupplierNavigation.supplierCode;
+    const target = snapshot.suppliers.find(
+        (s) => String(s.code || "").trim() === code,
+    );
+    if (!target) {
+        message(
+            "Fornitore non presente nei dati disponibili. Aggiorna l’anagrafica e riprova.",
+            true,
+        );
+        return;
+    }
+    pendingSupplierNavigation = null;
+    $<HTMLDialogElement>("supplierDetail").close();
     analyzeSupplier(target.id);
 }
-ipc.on('analysis-open-context',(_event:any,context:AnalysisContext)=>{pendingSupplierNavigation=context;applySupplierNavigation();});
-ipc.send('analysis-context-ready');
+ipc.on("analysis-open-context", (_event: any, context: AnalysisContext) => {
+    pendingSupplierNavigation = context;
+    applySupplierNavigation();
+});
+ipc.send("analysis-context-ready");
 
 $("importInfo").onclick = (event) => {
     const button = (event.target as HTMLElement).closest<HTMLElement>(

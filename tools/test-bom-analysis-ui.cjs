@@ -23,7 +23,7 @@ app.whenReady().then(async()=>{
  const watchdog=setTimeout(()=>{console.error('Timeout globale BoM');app.exit(1)},60000),errors=[];
  app.on('web-contents-created',(_e,c)=>c.on('console-message',(_e,level,message)=>{if(level>=3)errors.push(message)}));
  const main=new BrowserWindow({show:false,webPreferences:{nodeIntegration:true,contextIsolation:false}});await main.loadURL('about:blank');
- require('../dist-ts/modules/analysis-navigation').registerAnalysisNavigation(main,()=> '');
+ require('../dist-ts/modules/analysis-navigation').registerAnalysisNavigation(main,()=> '');for(const target of ['article-orders','article-offers'])require('../dist-ts/modules/analysis-navigation').registerAnalysisTarget(target,async()=>main,()=>false);
  require('../dist-ts/modules/bom-analysis/ipc').registerBomAnalysisIpc(main,()=> '');
  const open=async context=>{const result=await run(main,`require('electron').ipcRenderer.invoke('analysis-navigate',${JSON.stringify({target:'bom-analysis',context})})`);assert(result.ok,result.error)};
  try{
@@ -32,12 +32,12 @@ app.whenReady().then(async()=>{
   await until(()=>{win=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('/bom-analysis.html'));return !!win});
   await until(()=>run(win,"document.querySelector('#rowCount').textContent==='2' && !document.querySelector('#refresh').disabled"));
   assert.equal(await run(win,"document.querySelector('#bomCount').textContent"),'2');
-  assert.equal(await run(win,"document.querySelector('[data-field=component] [data-value]').value"),'ART-A');
-  await run(win,rule('disabled','0'));await run(win,"document.querySelector('#searchForm').requestSubmit()");assert.equal(await run(win,"document.querySelector('#bomCount').textContent"),'1');
+  assert.equal(await run(win,"document.querySelector('[data-field=component] [data-value]').value"),'ART-A');assert.equal(await run(win,"document.querySelectorAll('#results>tbody>tr[data-parent-article]').length"),1);assert.equal(await run(win,"document.querySelector('#results>tbody>tr[data-parent-article]').dataset.parentArticle"),'ART-A');const articleExportPath=path.join(dir,'article-summary.xlsx');dialog.showSaveDialog=async()=>({filePath:articleExportPath,canceled:false});const articleExport=await run(win,"require('electron').ipcRenderer.invoke('bom-analysis-export',{layout:'summary',search:{mode:'where-used',rules:[{field:'component',op:'exact',value:'ART-A'}],sort:[{key:'component',direction:'asc'}]},columns:['bom','bomDescription']})");assert(articleExport.ok,articleExport.error);const articleSummary=XLSX.utils.sheet_to_json(XLSX.readFile(articleExportPath).Sheets['Distinte e componenti']);assert.equal(articleSummary.length,1);assert.equal(articleSummary[0].Articolo,'ART-A');assert.equal(articleSummary[0]['Distinte in cui compare'],2);assert(await run(win,"document.querySelector('#results>tbody>tr[data-parent-article]').textContent.includes('2')"));await run(win,"document.querySelector('#results [data-expand-article]').click()");assert.equal(await run(win,"document.querySelectorAll('#results .bom-inline-where-used table>tbody>tr').length"),2);assert(await run(win,"document.querySelector('#results .bom-inline-where-used').textContent.includes('DISABLED')"));await run(win,"document.querySelector('#results [data-expand-article]').click()");
+  await run(win,rule('disabled','0'));await run(win,"document.querySelector('#searchForm').requestSubmit()");assert.equal(await run(win,"document.querySelector('#bomCount').textContent"),'1');await run(win,"document.querySelector('#results [data-expand-article]').click()");
   await run(win,"document.querySelector('#results [data-expand-bom]').click()");
   assert.equal(await run(win,"document.querySelector('#bomDetail').open"),false);
   assert.equal(await run(win,"document.querySelector('#results [data-expand-bom]').getAttribute('aria-expanded')"),'true');
-  assert.equal(await run(win,"document.querySelectorAll('#results > tbody > .bom-composition-row table > tbody > tr').length"),3);
+  assert.equal(await run(win,"document.querySelectorAll('#results .bom-composition-row table > tbody > tr').length"),3);
   assert.equal(await run(win,"document.querySelector('#rowCount').textContent"),'1');
   assert.equal(await run(win,"document.querySelector('#results .bom-inline-composition').textContent.includes('Istruzione di lavorazione')"),true);
   await run(win,"document.querySelector('#results .bom-inline-composition [data-expand-bom=SUB]').click()");
@@ -88,8 +88,9 @@ app.whenReady().then(async()=>{
     const box=await run(win,"({overflow:document.body.scrollWidth>innerWidth,table:document.querySelector('.table-scroll').clientHeight,filter:document.querySelector('.filter-scroll').clientHeight,border:getComputedStyle(document.querySelector('#results tbody td')).borderRightWidth,header:getComputedStyle(document.querySelector('#results th')).borderRightWidth})");
     assert(!box.overflow,JSON.stringify(box));assert(box.table>200&&box.filter>150,JSON.stringify(box));assert.notEqual(box.border,'0px');assert.notEqual(box.header,'0px');
     fs.writeFileSync(path.join(dir,`bom-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG());
+    await run(win,"(()=>{const a=document.querySelector('#results [data-expand-article]');if(a&&a.getAttribute('aria-expanded')!=='true')a.click();})()");
     await run(win,"document.querySelector('#results [data-expand-bom]').click()");
-    assert.equal(await run(win,"document.querySelectorAll('#results > tbody > .bom-composition-row').length"),1);
+    assert.equal(await run(win,"document.querySelectorAll('#results .bom-composition-row').length"),1);
     await run(win,"new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
     assert.equal(await run(win,"document.body.scrollWidth>innerWidth"),false);
     fs.writeFileSync(path.join(dir,`inline-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG());
@@ -98,10 +99,10 @@ app.whenReady().then(async()=>{
     const detail=await run(win,"(()=>{const d=document.querySelector('#bomDetail').getBoundingClientRect();return {w:d.width,h:d.height,iw:innerWidth,ih:innerHeight}})()");assert(detail.w>detail.iw*.95&&detail.h>detail.ih*.94,JSON.stringify(detail));
     fs.writeFileSync(path.join(dir,`detail-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG());await run(win,"document.querySelector('#detailClose').click()");
    }
-   fixture.splice(0,fixture.length,...Array.from({length:301},(_,i)=>({...base,bom:'BULK-'+String(i).padStart(3,'0'),line:1,component:'ART-A'})));
+   fixture.splice(0,fixture.length,...Array.from({length:301},(_,i)=>({...base,bom:'BULK-'+String(i).padStart(3,'0'),line:1,component:'ART-'+String(i).padStart(3,'0')})));
    await run(win,"document.querySelector('#refresh').click()");await until(()=>run(win,"!document.querySelector('#refresh').disabled"));await run(win,"document.querySelector('#reset').click()");assert.equal(await run(win,"document.querySelectorAll('#results > tbody > tr').length"),250);
-   await run(win,"window.firstBomRow=document.querySelector('#results tbody tr');document.querySelector('#results [data-expand-bom]').click()");await until(()=>run(win,"!!document.querySelector('#results > tbody > .bom-composition-row table')"));
-   await run(win,"(()=>{const el=document.querySelector('#results').closest('.table-scroll');el.scrollTop=el.scrollHeight;el.dispatchEvent(new Event('scroll'))})()");await until(()=>run(win,"document.querySelectorAll('#results > tbody > tr:not(.bom-composition-row)').length===301"));assert(await run(win,"window.firstBomRow===document.querySelector('#results tbody tr') && !!document.querySelector('#results > tbody > .bom-composition-row table')"));
+   await run(win,"window.firstBomRow=document.querySelector('#results tbody tr');document.querySelector('#results [data-expand-article]').click();document.querySelector('#results [data-expand-bom]').click()");await until(()=>run(win,"!!document.querySelector('#results .bom-composition-row table')"));
+   await run(win,"(()=>{const el=document.querySelector('#results').closest('.table-scroll');el.scrollTop=el.scrollHeight;el.dispatchEvent(new Event('scroll'))})()");await until(()=>run(win,"document.querySelectorAll('#results > tbody > tr[data-parent-article]').length===301"));assert(await run(win,"window.firstBomRow===document.querySelector('#results tbody tr') && !!document.querySelector('#results .bom-composition-row table')"));
    // Next theme starts from deterministic fixture again.
    fixture.splice(0,fixture.length,...[{...base,line:1,component:'ART-A'},{...base,bom:'SUB',line:1,component:'ART-C'},{...base,bom:'DISABLED',line:1,component:'ART-A'}]);
   }

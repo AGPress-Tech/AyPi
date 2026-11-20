@@ -25,3 +25,8 @@
 #exportDialog{width:440px;padding:20px}#exportDialog form,#exportDialog label{display:grid;gap:12px}#exportDialog select{padding:8px;border:1px solid var(--ops-line);border-radius:5px;background:#fff;color:inherit}#exportDialog p{font-size:12px;color:var(--ops-muted);margin:0}#exportDialog form>div{display:flex;justify-content:flex-end;gap:8px}
 @media(max-width:1100px){.bom-window main{grid-template-columns:245px minmax(0,1fr)}.bom-window .header-title h1{font-size:21px}.bom-window .topbar{gap:16px}.bom-window .header-actions button{font-size:12px}.bom-window .results-heading h2{font-size:14px}}
 @media(max-height:760px){.bom-tabs button{padding:7px 12px}.bom-window .metrics>div{padding:6px 11px}.bom-window .metrics strong{font-size:21px}}
+
+.bom-where-used-row>td{position:static!important;background:var(--ops-soft);padding:10px 14px!important;max-width:none;white-space:normal;overflow:visible}
+.bom-inline-where-used{box-sizing:border-box;max-width:none}
+.bom-inline-where-used>strong{display:block;font-size:13px;margin-bottom:9px}
+.bom-inline-where-used>.table-scroll{max-height:380px;overflow:auto}

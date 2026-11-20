@@ -17,10 +17,14 @@ export const BOM_COLUMNS=[
 ].map(([key,label,kind])=>({key,label,kind:kind as 'text'|'number'|'date'|'boolean'}));
 export const BOM_SUMMARY_COLUMNS=BOM_COLUMNS.filter(c=>['bom','bomDescription','bomUnit','disabled','inProduction','configurable','percentageBasis','salesOnly','created','modified','bomNotes'].includes(c.key));
 export const DEFAULT_BOM_COLUMNS=['bom','bomDescription','bomUnit','disabled','inProduction','modified'];
+export const ARTICLE_SUMMARY_COLUMNS=[...BOM_COLUMNS.filter(c=>['component','description'].includes(c.key)).map(c=>({...c,label:c.key==='component'?'Articolo':'Descrizione articolo'})),{key:'bomCount',label:'Distinte in cui compare',kind:'number' as const},...BOM_COLUMNS.filter(c=>['netWeight','grossWeight'].includes(c.key))];
+export const DEFAULT_ARTICLE_COLUMNS=['component','description','bomCount'];
+export const summaryColumns=(mode:BomSearch['mode'])=>mode==='where-used'?ARTICLE_SUMMARY_COLUMNS:BOM_SUMMARY_COLUMNS;
+export function visibleSummaryColumns(mode:BomSearch['mode'],selected:readonly string[]){const available=summaryColumns(mode),keys=mode==='where-used'&&!available.some(c=>selected.includes(c.key))?DEFAULT_ARTICLE_COLUMNS:selected;return available.filter(c=>keys.includes(c.key)||c.key===(mode==='where-used'?'component':'bom'));}
 export type BomRow=Record<string,string|number|null>;
 export type BomRule={field:string;op:'contains'|'exact'|'prefix'|'range';value:string;to?:string};
 export type BomSearch={mode:'where-used'|'composition';rules:BomRule[];sort:SortCriterion[]};
-export const emptyBomSearch=():BomSearch=>({mode:'where-used',rules:[],sort:[{key:'bom',direction:'asc'}]});
+export const emptyBomSearch=():BomSearch=>({mode:'where-used',rules:[],sort:[{key:'component',direction:'asc'}]});
 /** Header fields only: never show an arbitrary component/quantity as a BOM summary. */
 export function summarizeBomRows(rows:readonly BomRow[],sort:readonly SortCriterion[]=[]):BomRow[]{
     const unique=new Map<string,BomRow>();
@@ -29,9 +33,15 @@ export function summarizeBomRows(rows:readonly BomRow[],sort:readonly SortCriter
     }
     return sortByCriteria([...unique.values()],sort.filter(s=>BOM_SUMMARY_COLUMNS.some(c=>c.key===s.key)),(row,key)=>row[key]);
 }
+/** One parent article; distinct BOM count never sums component quantities across units or repeated lines. */
+export function summarizeArticleRows(rows:readonly BomRow[],sort:readonly SortCriterion[]=[]):BomRow[]{
+    const groups=new Map<string,{row:BomRow;boms:Set<string>;descriptions:Set<string>}>();
+    for(const row of rows){const component=String(row.component??'').trim(),key=component.toLocaleLowerCase('it');if(!key)continue;let group=groups.get(key);if(!group){group={row:{component,netWeight:row.netWeight??null,grossWeight:row.grossWeight??null},boms:new Set(),descriptions:new Set()};groups.set(key,group);}if(row.bom)group.boms.add(String(row.bom).trim().toLocaleLowerCase('it'));if(row.description)group.descriptions.add(String(row.description));}
+    return sortByCriteria([...groups.values()].map(g=>({...g.row,description:[...g.descriptions].join(' / '),bomCount:g.boms.size})),sort.filter(s=>ARTICLE_SUMMARY_COLUMNS.some(c=>c.key===s.key)),(row,key)=>row[key]);
+}
 export function bomExportRows(rows:readonly BomRow[],search:BomSearch,layout:'summary'|'exploded'){
     const matched=filterBomRows(rows,search);
-    if(layout==='summary')return summarizeBomRows(matched,search.sort);
+    if(layout==='summary')return search.mode==='where-used'?summarizeArticleRows(matched,search.sort):summarizeBomRows(matched,search.sort);
     const keys=new Set(matched.map(r=>String(r.bom).trim().toLocaleLowerCase('it')));
     return filterBomRows(rows.filter(r=>keys.has(String(r.bom).trim().toLocaleLowerCase('it'))),{mode:'composition',rules:[],sort:[{key:'bom',direction:'asc'},{key:'line',direction:'asc'}]});
 }
@@ -49,7 +59,7 @@ export function validateBomSearch(value:any):BomSearch{
         }
         return {field:r.field,op:r.op,value:r.value.trim(),...(r.to?{to:r.to.trim()}:{})};
     });
-    const sort:SortCriterion[]=value.sort.map((s:any)=>{if(!BOM_COLUMNS.some(c=>c.key===s?.key)||!['asc','desc'].includes(s.direction))throw Error('Ordinamento non valido.');return {key:s.key,direction:s.direction}});
+    const sort:SortCriterion[]=value.sort.map((s:any)=>{if(![...BOM_COLUMNS,...ARTICLE_SUMMARY_COLUMNS].some(c=>c.key===s?.key)||!['asc','desc'].includes(s.direction))throw Error('Ordinamento non valido.');return {key:s.key,direction:s.direction}});
     return {mode:value.mode,rules,sort};
 }
 export function filterBomRows(rows:readonly BomRow[],value:BomSearch):BomRow[]{
@@ -66,7 +76,7 @@ export function filterBomRows(rows:readonly BomRow[],value:BomSearch):BomRow[]{
 }
 export type BomPreferences={version:1;columns:string[];presets:{name:string;search:BomSearch;columns:string[]}[]};
 export function validateBomColumns(value:unknown):string[]{
-    if(!Array.isArray(value)||!value.length||value.some(v=>typeof v!=='string'||!BOM_COLUMNS.some(c=>c.key===v)))throw Error('Colonne non valide.');
+    if(!Array.isArray(value)||!value.length||value.some(v=>typeof v!=='string'||![...BOM_COLUMNS,...ARTICLE_SUMMARY_COLUMNS].some(c=>c.key===v)))throw Error('Colonne non valide.');
     return [...new Set(['bom',...value])];
 }
 export function validateBomPreferences(value:any):BomPreferences{

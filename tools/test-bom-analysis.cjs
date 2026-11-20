@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const {validateBomRequest,bomAnalysisQuery}=require('../backend-dist/modules/analytics/bom-analysis');
-const {BOM_COLUMNS,emptyBomSearch,filterBomRows,summarizeBomRows,bomExportRows,validateBomSearch,validateBomPreferences}=require('../dist-ts/modules/bom-analysis/model');
+const {BOM_COLUMNS,emptyBomSearch,filterBomRows,summarizeBomRows,summarizeArticleRows,bomExportRows,validateBomSearch,validateBomPreferences}=require('../dist-ts/modules/bom-analysis/model');
 assert.deepEqual(validateBomRequest({article:' A '}),{article:'A'});
 for(const v of [null,[],{sql:'DROP TABLE'},{article:1},{bom:''}])assert.throws(()=>validateBomRequest(v));
 const injection="A'; DROP TABLE x;--",query=bomAnalysisQuery({article:injection,bom:'B'});
@@ -9,10 +9,10 @@ assert(query.sql.includes('LEFT JOIN MA_BillOfMaterialsComp'));assert(query.sql.
 const rows=[{bom:'B1',component:'A',quantity:.123456,disabled:0,modified:'2026-10-01',notes:'Test'},{bom:'B2',component:'A',quantity:2,disabled:1,modified:'2025-01-01',notes:'abc'},{bom:'B3',component:'Z',quantity:3,disabled:0},{bom:'EMPTY',component:null,line:null}];
 const search=(rules=[],mode='where-used')=>({...emptyBomSearch(),rules,mode});
 const repeated=[{bom:'B1',component:'A',line:1,quantity:1,bomDescription:'Uno'},{bom:'B1',component:'A',line:2,quantity:2,bomDescription:'Uno'},{bom:'B1',component:'Z',line:3,quantity:3,bomDescription:'Uno'},{bom:'B2',component:'A',line:1,quantity:4,bomDescription:'Due'}];
-assert.equal(summarizeBomRows(repeated).length,2);assert.equal(summarizeBomRows(repeated)[0].quantity,undefined);assert.equal(summarizeBomRows(repeated)[0].component,undefined);
+assert.equal(summarizeBomRows(repeated).length,2);const articleSummary=summarizeArticleRows(repeated,[{key:'bomCount',direction:'desc'}]);assert.equal(articleSummary.length,2);assert.equal(articleSummary[0].component,'A');assert.equal(articleSummary[0].bomCount,2);assert.equal(articleSummary[0].quantity,undefined);assert.equal(articleSummary[0].bom,undefined);assert.equal(summarizeBomRows(repeated)[0].quantity,undefined);assert.equal(summarizeBomRows(repeated)[0].component,undefined);
 const byA=search([{field:'component',op:'exact',value:'A'}]);
-assert.equal(bomExportRows(repeated,byA,'summary').length,2);assert.equal(bomExportRows(repeated,byA,'exploded').length,4);
-assert.equal(bomExportRows(repeated,search([{field:'quantity',op:'exact',value:'3'}]),'summary')[0].bom,'B1');
+assert.equal(bomExportRows(repeated,byA,'summary').length,1);assert.equal(bomExportRows(repeated,byA,'exploded').length,4);
+assert.equal(bomExportRows(repeated,search([{field:'quantity',op:'exact',value:'3'}]),'summary')[0].component,'Z');
 assert.equal(bomExportRows(repeated,search([{field:'bom',op:'exact',value:'B1'}],'composition'),'summary').length,1);
 assert.equal(filterBomRows(rows,search()).length,3);assert.equal(filterBomRows(rows,search([],'composition')).length,4);
 assert.equal(filterBomRows(rows,search([{field:'component',op:'exact',value:'a'}])).length,2);
