@@ -95,6 +95,7 @@ function ruleHtml(col: (typeof BOM_COLUMNS)[number], rule: any) {
     return `<div class="rule"><div class="rule-fields">${fieldInput(col, rule)}</div><button type="button" class="remove-rule" aria-label="Rimuovi condizione ${esc(col.label)}">×</button></div>`;
 }
 function renderFilters() {
+    const openStates=new Map([...$("filterGroups").querySelectorAll<HTMLDetailsElement>("details[data-field]")].map(group=>[group.dataset.field,group.open]));
     const lead = search.mode === "where-used" ? "component" : "bom",
         ordered = [
             BOM_COLUMNS.find((c) => c.key === lead)!,
@@ -103,7 +104,7 @@ function renderFilters() {
     $("filterGroups").innerHTML = ordered
         .map((col) => {
             const rules = search.rules.filter((r) => r.field === col.key);
-            return `<details class="filter-group" data-field="${col.key}" ${col.key === lead || rules.length ? "open" : ""}><summary>${esc(col.label)}<span class="badge">${rules.length || "Facoltativo"}</span></summary><div class="rules">${(rules.length ? rules : [{}]).map((r) => ruleHtml(col, r)).join("")}</div><button type="button" class="add-rule">+ Aggiungi alternativa</button></details>`;
+            return `<details class="filter-group" data-field="${col.key}" ${(openStates.has(col.key)?openStates.get(col.key):col.key === lead || rules.length) ? "open" : ""}><summary>${esc(col.label)}<span class="badge">${rules.length || "Facoltativo"}</span></summary><div class="rules">${(rules.length ? rules : [{}]).map((r) => ruleHtml(col, r)).join("")}</div><button type="button" class="add-rule">+ Aggiungi alternativa</button></details>`;
         })
         .join("");
     document

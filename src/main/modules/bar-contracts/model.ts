@@ -51,19 +51,41 @@ export function summarize(contracts:Row[],orders:Row[],today=new Date().toLocale
  });
 }
 export type Rule={field:string;op:'contains'|'exact'|'prefix'|'range';value:string;to?:string};
-export type Search={scope:'open'|'all'|'closed'|'expired';rules:Rule[];sort:SortCriterion[]};
-export const emptySearch=():Search=>({scope:'open',rules:[],sort:[{key:'supplier',direction:'asc'},{key:'date',direction:'desc'}]});
+export type SupplierSummary={key:string;rows:Row[];totals:Row;partial:string[];amounts:{currency:string;value:number;partial:boolean}[];originalOrdered:{unit:string;value:number;partial:boolean}[]};
+/** Aggregate additive measures only; rates are weighted, original currencies/units stay separate. */
+export function summarizeSuppliers(rows:Row[],sort:SortCriterion[]=[]):SupplierSummary[]{
+ const groups=new Map<string,SupplierSummary>();for(const row of rows){const code=String(row.supplierCode??'').trim(),key=code.toLocaleLowerCase('it')||JSON.stringify([row.id,row.line]);let group=groups.get(key);if(!group){group={key,rows:[],totals:{supplier:row.supplier,supplierCode:row.supplierCode},partial:[],amounts:[],originalOrdered:[]};groups.set(key,group);}group.rows.push(row);}
+ const sum=(list:Row[],key:string)=>{const known=list.filter(row=>num(row[key])!=null);return {value:known.length?known.reduce((s,row)=>s+Number(row[key]),0):null,partial:known.length<list.length};};
+ for(const group of groups.values()){
+    for(const key of ['quantity','received','pending','available','remaining','ordered']){const total=sum(group.rows,key);group.totals[key]=total.value;if(total.partial)group.partial.push(key);}
+    group.totals.contract=new Set(group.rows.map(row=>String(row.id))).size;
+    group.totals.openOrders=[...new Set(group.rows.flatMap(row=>String(row.openOrders||'').split(', ').filter(Boolean)))].join(', ');
+    const priced=group.rows.filter(row=>num(row.quantity)!=null&&Number(row.quantity)>0&&num(row.euroPrice)!=null),weight=priced.reduce((s,row)=>s+Number(row.quantity),0);group.totals.euroPrice=weight?priced.reduce((s,row)=>s+Number(row.quantity)*Number(row.euroPrice),0)/weight:null;
+    if(group.rows.some(row=>num(row.quantity)==null||Number(row.quantity)>0&&num(row.euroPrice)==null))group.partial.push('euroPrice');
+    group.totals.coverage=group.totals.quantity&&group.totals.received!=null?Number(group.totals.received)/Number(group.totals.quantity)*100:null;if(group.partial.some(key=>['quantity','received'].includes(key)))group.partial.push('coverage');
+    for(const field of ['status','unit','currency'])group.totals[field]=[...new Set(group.rows.map(row=>String(row[field]||'')).filter(Boolean))].join(', ');
+    for(const field of ['item','description','supplierContract']){const values=[...new Set(group.rows.map(row=>row[field]).filter(v=>v!=null&&v!==''))];group.totals[field]=values.length===1?values[0]:null;}
+    group.totals.quality=[...new Set(group.rows.map(row=>String(row.quality||'')).filter(Boolean))].join('; ');
+    for(const currency of [...new Set(group.rows.map(row=>String(row.currency||'').trim()))]){const total=sum(group.rows.filter(row=>String(row.currency||'').trim()===currency),'amount');if(total.value!=null&&(currency||total.value!==0))group.amounts.push({currency,value:total.value,partial:total.partial});}
+    for(const unit of [...new Set(group.rows.map(row=>String(row.unit||'').trim()))]){const total=sum(group.rows.filter(row=>String(row.unit||'').trim()===unit),'erpOrdered');if(total.value!=null&&(unit||total.value!==0))group.originalOrdered.push({unit,value:total.value,partial:total.partial});}
+ }
+ return sortByCriteria([...groups.values()],sort,(group,key)=>group.totals[key]);
+}
+export type ContractScope='open'|'all'|'closed'|'expired';
+export type Search={scope:ContractScope|ContractScope[];rules:Rule[];sort:SortCriterion[]};
+export const emptySearch=():Search=>({scope:['open'],rules:[],sort:[{key:'supplier',direction:'asc'},{key:'date',direction:'desc'}]});
 export function validateSearch(v:any):Search{
- if(!v||!['open','all','closed','expired'].includes(v.scope)||!Array.isArray(v.rules)||v.rules.length>100||!Array.isArray(v.sort)||v.sort.length>COLUMNS.length)throw Error('Filtri contratti non validi.');
+ const scopes=Array.isArray(v?.scope)?v.scope:[v?.scope];
+ if(!v||scopes.length>4||scopes.some((scope:any)=>!['open','all','closed','expired'].includes(scope))||!Array.isArray(v.rules)||v.rules.length>100||!Array.isArray(v.sort)||v.sort.length>COLUMNS.length)throw Error('Filtri contratti non validi.');
  const rules=v.rules.map((r:any)=>{const c=COLUMNS.find(c=>c.key===r?.field);if(!c||!['contains','exact','prefix','range'].includes(r.op)||typeof r.value!=='string'||r.value.length>256||r.to!=null&&(typeof r.to!=='string'||r.to.length>256))throw Error('Condizione non valida.');
     if(c.kind!=='text'){if(!['exact','range'].includes(r.op))throw Error('Operatore non valido.');for(const val of [r.value,r.to])if(val&&(c.kind==='number'?!Number.isFinite(Number(val)):!/^\d{4}-\d{2}-\d{2}$/.test(val)||Number.isNaN(Date.parse(val))||new Date(val).toISOString().slice(0,10)!==val))throw Error('Numero o data non valido.');
       if(r.value&&r.to&&(c.kind==='number'?Number(r.value)>Number(r.to):r.value>r.to))throw Error('Intervallo invertito.');}
     return {field:r.field,op:r.op,value:r.value.trim(),...(r.to?{to:r.to.trim()}:{})};});
- const sort=v.sort.map((s:any)=>{if(!COLUMNS.some(c=>c.key===s?.key)||!['asc','desc'].includes(s.direction))throw Error('Ordinamento non valido.');return {key:s.key,direction:s.direction};});return {scope:v.scope,rules,sort};
+ const sort=v.sort.map((s:any)=>{if(!COLUMNS.some(c=>c.key===s?.key)||!['asc','desc'].includes(s.direction))throw Error('Ordinamento non valido.');return {key:s.key,direction:s.direction};});return {scope:scopes.includes('all')?['all']:[...new Set(scopes)] as ContractScope[],rules,sort};
 }
 export function filterRows(rows:Row[],input:Search){const s=validateSearch(input),groups=new Map<string,Rule[]>();for(const r of s.rules){if(!r.value&&!r.to)continue;groups.set(r.field,[...(groups.get(r.field)||[]),r]);}
  const normalize=(v:unknown)=>String(v??'').toLocaleLowerCase('it');
- return sortByCriteria(rows.filter(row=>(s.scope==='all'||(s.scope==='expired'?Number(row.expired)===1:Number(row.active)===(s.scope==='open'?1:0)))&&[...groups].every(([field,rules])=>rules.some(r=>(field==='item'?[row.item,...JSON.parse(String(row.relatedArticles||'[]'))]:[row[field]]).some(v=>{if(v==null)return false;const a=normalize(v),b=normalize(r.value),numeric=COLUMNS.find(c=>c.key===field)!.kind==='number';if(r.op==='range')return numeric?(!b||Number(v)>=Number(b))&&(!r.to||Number(v)<=Number(r.to)):(!b||a>=b)&&(!r.to||a<=normalize(r.to));if(r.op==='exact')return numeric?Number(v)===Number(b):a===b;return r.op==='prefix'?a.startsWith(b):a.includes(b);})) )),s.sort,(row,key)=>row[key]);
+ return sortByCriteria(rows.filter(row=>((s.scope as ContractScope[]).some(scope=>scope==='all'||(scope==='expired'?Number(row.expired)===1:Number(row.active)===(scope==='open'?1:0))))&&[...groups].every(([field,rules])=>rules.some(r=>(field==='item'?[row.item,...JSON.parse(String(row.relatedArticles||'[]'))]:[row[field]]).some(v=>{if(v==null)return false;const a=normalize(v),b=normalize(r.value),numeric=COLUMNS.find(c=>c.key===field)!.kind==='number';if(r.op==='range')return numeric?(!b||Number(v)>=Number(b))&&(!r.to||Number(v)<=Number(r.to)):(!b||a>=b)&&(!r.to||a<=normalize(r.to));if(r.op==='exact')return numeric?Number(v)===Number(b):a===b;return r.op==='prefix'?a.startsWith(b):a.includes(b);})) )),s.sort,(row,key)=>row[key]);
 }
 export type Preferences={version:1;columns:string[];presets:{name:string;search:Search;columns:string[]}[]};
 export function validateColumns(v:any):string[]{if(!Array.isArray(v)||!v.length||v.length>COLUMNS.length||v.some(k=>!COLUMNS.some(c=>c.key===k)))throw Error('Colonne non valide.');return [...new Set(['supplier','contract',...v])] as string[];}

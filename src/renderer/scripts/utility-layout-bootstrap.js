@@ -25,6 +25,8 @@
   document.addEventListener('pointerdown', event => {
     const selectors = 'details.multi-filter[open], details.columns-picker[open], details.analysis-columns[open], details.filter-picker[open], details.advanced-filters[open], details.filter-group[open], details.analysis-advanced-filters[open], details.machine-filter[open], details.additional-years[open], details.read-period[open], details.bom-presets[open], details[data-filter-popover][open], details#moreFilters[open], details#columns[open], details#report-columns[open]';
     for (const popup of document.querySelectorAll(selectors)) {
+      // Fixed sidebar sections are disclosures, not temporary popovers.
+      if (popup.matches('details.filter-group, details.bom-presets') && popup.closest('.filter-panel')) continue;
       if (!event.composedPath().includes(popup)) popup.open = false;
     }
   }, true);
