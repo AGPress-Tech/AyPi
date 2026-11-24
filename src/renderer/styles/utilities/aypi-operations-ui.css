@@ -217,8 +217,16 @@ body.aypi-operations .mes-navigation__item.is-active {
     font-size: 21px;
   }
 }
+
 /* Compact common module title; default h1 margins must not inflate the header. */
-html body.aypi-operations :is(.topbar,.forge-header) h1{margin:2px 0;line-height:1.15}
+html body.aypi-operations :is(.topbar, .forge-header) h1 {
+  margin: 2px 0;
+  line-height: 1.15
+}
 
 /* Override obsolete per-module flex bases/heights through one shared compact contract. */
-html body.aypi-operations :is(.topbar,.forge-header){min-height:70px;flex:0 0 auto;padding:9px 20px}
+html body.aypi-operations :is(.topbar, .forge-header) {
+  min-height: 70px;
+  flex: 0 0 auto;
+  padding: 9px 20px
+}

@@ -190,13 +190,21 @@ function updateBadges() {
     });
 }
 function initFilters() {
-    const openStates=new Map([...$("filterGroups").querySelectorAll<HTMLDetailsElement>("details[data-key]")].map(group=>[group.dataset.key,group.open]));
+    const openStates = new Map(
+        [
+            ...$("filterGroups").querySelectorAll<HTMLDetailsElement>(
+                "details[data-key]",
+            ),
+        ].map((group) => [group.dataset.key, group.open]),
+    );
     $("filterGroups").replaceChildren();
     for (const group of groups) {
         const details = document.createElement("details");
         details.className = "filter-group";
         details.dataset.key = group.key;
-        details.open = openStates.has(group.key)?openStates.get(group.key)!:!!group.required;
+        details.open = openStates.has(group.key)
+            ? openStates.get(group.key)!
+            : !!group.required;
         details.innerHTML = `<summary>${group.label}<span class="badge"></span></summary><div class="rules"></div><button class="add-rule" type="button">+ ${group.type === "text" ? "Aggiungi alternativa" : "Aggiungi intervallo"}</button>`;
         $("filterGroups").appendChild(details);
         const container = details.querySelector<HTMLElement>(".rules")!;

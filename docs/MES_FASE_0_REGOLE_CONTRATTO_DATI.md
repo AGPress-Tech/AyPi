@@ -202,17 +202,17 @@ Una risoluzione confermata contiene:
 
 ```ts
 type UnassignedCountResolution = {
-  resolutionId: string;
-  machineId: string;
-  phaseId: string;
-  sessionId: string;
-  detectedPieces: number;
-  attributedPieces: number;
-  excludedPieces: number;
-  reasonCode: string;
-  note: string;
-  actor: string;
-  resolvedAt: string;
+    resolutionId: string;
+    machineId: string;
+    phaseId: string;
+    sessionId: string;
+    detectedPieces: number;
+    attributedPieces: number;
+    excludedPieces: number;
+    reasonCode: string;
+    note: string;
+    actor: string;
+    resolvedAt: string;
 };
 ```
 
@@ -283,23 +283,23 @@ Una rettifica non modifica direttamente un evento macchina. Produce un nuovo eve
 
 ```ts
 type ProductionAdjustment = {
-  adjustmentId: string;
-  machineId: string;
-  phaseId: string;
-  sessionId?: string;
-  kind:
-    | "OPENING_CREDIT"
-    | "GOOD_PIECES_ADD"
-    | "GOOD_PIECES_REMOVE"
-    | "SCRAP_ADD"
-    | "SCRAP_REMOVE"
-    | "UNASSIGNED_EXCLUSION"
-    | "SETUP_RECONCILIATION";
-  quantity: number;
-  reasonCode: string;
-  note: string;
-  actor: string;
-  createdAt: string;
+    adjustmentId: string;
+    machineId: string;
+    phaseId: string;
+    sessionId?: string;
+    kind:
+        | "OPENING_CREDIT"
+        | "GOOD_PIECES_ADD"
+        | "GOOD_PIECES_REMOVE"
+        | "SCRAP_ADD"
+        | "SCRAP_REMOVE"
+        | "UNASSIGNED_EXCLUSION"
+        | "SETUP_RECONCILIATION";
+    quantity: number;
+    reasonCode: string;
+    note: string;
+    actor: string;
+    createdAt: string;
 };
 ```
 
@@ -317,23 +317,23 @@ Regole:
 
 ```ts
 type MachineCounterEvent = {
-  eventId: string;
-  source: "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO";
-  sourceSessionId: string;
-  sourcePosition: string;
-  machineId: string;
-  occurredAt: string;
-  receivedAt: string;
-  pulseDelta: number;
-  pieceDelta: number;
-  multiplier: number;
-  signal?: {
-    mac?: string;
-    frameId?: string;
-    byte?: number;
-    bit?: number;
-  };
-  raw?: Record<string, unknown>;
+    eventId: string;
+    source: "PLC_CSV" | "PLC_SQLITE" | "ROBOT" | "DEMO";
+    sourceSessionId: string;
+    sourcePosition: string;
+    machineId: string;
+    occurredAt: string;
+    receivedAt: string;
+    pulseDelta: number;
+    pieceDelta: number;
+    multiplier: number;
+    signal?: {
+        mac?: string;
+        frameId?: string;
+        byte?: number;
+        bit?: number;
+    };
+    raw?: Record<string, unknown>;
 };
 ```
 
@@ -365,20 +365,25 @@ I contatori cumulativi del CSV sono riferimenti di controllo. L'importatore deve
 
 ```ts
 type ProductionPhase = {
-  phaseId: string;
-  orderId: string;
-  phaseCode: string;
-  articleCode: string;
-  targetQuantity: number;
-  unit: "pz" | "kg";
-  standardCycleSeconds: number;
-  plannedSetupSeconds: number;
-  plannedMachineId?: string;
-  scheduledStart?: string;
-  scheduledEnd?: string;
-  planningStatus: "BACKLOG" | "SCHEDULED" | "ARCHIVED";
-  executionStatus:
-    "NOT_STARTED" | "SETUP" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED";
+    phaseId: string;
+    orderId: string;
+    phaseCode: string;
+    articleCode: string;
+    targetQuantity: number;
+    unit: "pz" | "kg";
+    standardCycleSeconds: number;
+    plannedSetupSeconds: number;
+    plannedMachineId?: string;
+    scheduledStart?: string;
+    scheduledEnd?: string;
+    planningStatus: "BACKLOG" | "SCHEDULED" | "ARCHIVED";
+    executionStatus:
+        | "NOT_STARTED"
+        | "SETUP"
+        | "RUNNING"
+        | "PAUSED"
+        | "COMPLETED"
+        | "CANCELLED";
 };
 ```
 

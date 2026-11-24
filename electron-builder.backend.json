@@ -22,11 +22,7 @@
         {
             "from": "backend/resources",
             "to": "backend-resources",
-            "filter": [
-                "**/*",
-                "!**/*.py",
-                "!**/__pycache__/**/*"
-            ]
+            "filter": ["**/*", "!**/*.py", "!**/__pycache__/**/*"]
         },
         {
             "from": "backend/scripts",

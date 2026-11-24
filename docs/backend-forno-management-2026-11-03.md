@@ -6,14 +6,14 @@ programmi preesistenti. Nessun comando Run remoto. Nessuna modifica reale ai
 programmi eseguita da Codex durante lo sviluppo di questa revisione.
 
 Modalita produzione predefinita: manage. tests resta selezionabile esplicitamente
-per limitarsi ai TEST_ creati e verificati da questa installazione; off e valori
+per limitarsi ai TEST\_ creati e verificati da questa installazione; off e valori
 non riconosciuti disabilitano le mutazioni. Configurazione esplicita e ambiente
 mantengono la precedenza. In sviluppo il default resta off.
 
 Diff esaminata rispetto alla revisione precedente:
 
 - program-transfer-plan.ts: nomi ordinari ASCII, 1-20 caratteri e senza caratteri
-  riservati; profilo tests conserva il vincolo TEST_. Invariata la scrittura dei
+  riservati; profilo tests conserva il vincolo TEST\_. Invariata la scrittura dei
   soli parametri abilitati CH1/tre eventi/rampe a tempo.
 - program-transfer.ts: inspect carica solo in Reset, con backup fsync e journal
   prima del Load; conferma due immagini coerenti, elenco invariato e Amended=0.

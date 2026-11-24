@@ -6,7 +6,10 @@ export function createOperationQueue(_scope: string) {
         _operationName: string,
         run: () => T | Promise<T>,
     ) {
-        const guarded = () => { assertServiceAvailable(); return run(); };
+        const guarded = () => {
+            assertServiceAvailable();
+            return run();
+        };
         const task = tail.then(guarded, guarded);
         tail = task.then(
             () => undefined,

@@ -1,5 +1,5 @@
-import {installAnalysisLinks} from '../modules/analysis-links';
-import type {AnalysisContext} from '../../main/modules/analysis-navigation-model';
+import { installAnalysisLinks } from "../modules/analysis-links";
+import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
 import {
     cycleHeaderFields,
     cyclePhaseFields,
@@ -21,7 +21,8 @@ let view = "home",
     allowClose = false,
     visible = 250,
     dragged = "";
-let contextArticle='',pendingCycleContext:AnalysisContext|null=null;
+let contextArticle = "",
+    pendingCycleContext: AnalysisContext | null = null;
 const filteredValues: Record<string, string> = {};
 function status(message = "", error = false) {
     $("status").textContent = message;
@@ -112,7 +113,7 @@ async function action(run: () => Promise<void>) {
     } finally {
         busy = false;
         syncButtons();
-        if(pendingCycleContext)void applyCycleContext();
+        if (pendingCycleContext) void applyCycleContext();
     }
 }
 function syncButtons() {
@@ -277,7 +278,10 @@ function renderList() {
         search = $<HTMLInputElement>("filterSearch").value;
     const source = items.filter(
         (item) =>
-            (contextArticle?String(item.codiceProdotto).trim().toLocaleLowerCase('it')===contextArticle.toLocaleLowerCase('it'):matchesText(item.codiceProdotto, product)) &&
+            (contextArticle
+                ? String(item.codiceProdotto).trim().toLocaleLowerCase("it") ===
+                  contextArticle.toLocaleLowerCase("it")
+                : matchesText(item.codiceProdotto, product)) &&
             matchesText(item.cliente, customer) &&
             matchesText(item.metodo, method) &&
             cycleHeaderFields.every(
@@ -540,7 +544,7 @@ $("advancedListFilters").addEventListener("input", (event) => {
     renderList();
 });
 $("resetListFilters").onclick = () => {
-    contextArticle="";
+    contextArticle = "";
     for (const id of [
         "filterProduct",
         "filterCustomer",
@@ -594,22 +598,56 @@ document.addEventListener("keydown", (event) => {
 });
 show("home");
 
-installAnalysisLinks(target=>{
-    const code=target.closest<HTMLElement>('[data-cycle-article]')?.dataset.cycleArticle;
-    const input=target.closest<HTMLInputElement>('[data-header=codiceProdotto]');
-    const article=(code||input?.value||'').trim();return article?{article}:null;
-},message=>status(message,true));
-$('filterProduct').addEventListener('input',()=>{contextArticle='';},true);
-async function applyCycleContext(){
-    if(busy||!pendingCycleContext?.article)return;
-    const context=pendingCycleContext;pendingCycleContext=null;
-    await action(async()=>{
-        if(!await canLeave())return;
-        for(const id of ['filterProduct','filterCustomer','filterMachine','filterMethod','filterSearch'])$<HTMLInputElement>(id).value='';
-        $('advancedListFilters').querySelectorAll<HTMLInputElement>('input').forEach(input=>input.value='');
-        for(const key of Object.keys(filteredValues))delete filteredValues[key];
-        contextArticle=context.article!;$<HTMLInputElement>('filterProduct').value=context.article!;visible=250;show('list');await fresh();status();
+installAnalysisLinks(
+    (target) => {
+        const code = target.closest<HTMLElement>("[data-cycle-article]")
+            ?.dataset.cycleArticle;
+        const input = target.closest<HTMLInputElement>(
+            "[data-header=codiceProdotto]",
+        );
+        const article = (code || input?.value || "").trim();
+        return article ? { article } : null;
+    },
+    (message) => status(message, true),
+);
+$("filterProduct").addEventListener(
+    "input",
+    () => {
+        contextArticle = "";
+    },
+    true,
+);
+async function applyCycleContext() {
+    if (busy || !pendingCycleContext?.article) return;
+    const context = pendingCycleContext;
+    pendingCycleContext = null;
+    await action(async () => {
+        if (!(await canLeave())) return;
+        for (const id of [
+            "filterProduct",
+            "filterCustomer",
+            "filterMachine",
+            "filterMethod",
+            "filterSearch",
+        ])
+            $<HTMLInputElement>(id).value = "";
+        $("advancedListFilters")
+            .querySelectorAll<HTMLInputElement>("input")
+            .forEach((input) => (input.value = ""));
+        for (const key of Object.keys(filteredValues))
+            delete filteredValues[key];
+        contextArticle = context.article!;
+        $<HTMLInputElement>("filterProduct").value = context.article!;
+        visible = 250;
+        show("list");
+        await fresh();
+        status();
     });
 }
-ipc.on('analysis-open-context',(_event:any,context:AnalysisContext)=>{if(context.article){pendingCycleContext=context;void applyCycleContext();}});
-ipc.send('analysis-context-ready');
+ipc.on("analysis-open-context", (_event: any, context: AnalysisContext) => {
+    if (context.article) {
+        pendingCycleContext = context;
+        void applyCycleContext();
+    }
+});
+ipc.send("analysis-context-ready");

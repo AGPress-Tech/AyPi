@@ -1,8 +1,8 @@
-import {registerToolingRoutes} from '../modules/tooling/routes';
+import { registerToolingRoutes } from "../modules/tooling/routes";
 import { registerBackupRoutes } from "../modules/backups/routes";
 import { isBackupRecoveryRequired } from "../shared/ops/maintenance";
-import {registerSupplierEvaluationRoutes} from '../modules/supplier-evaluation/routes';
-import {registerProcessingCyclesRoutes} from '../modules/processing-cycles/routes';
+import { registerSupplierEvaluationRoutes } from "../modules/supplier-evaluation/routes";
+import { registerProcessingCyclesRoutes } from "../modules/processing-cycles/routes";
 import { registerFornoRoutes } from "../modules/forno/routes";
 import { registerAnalyticsRoutes } from "../modules/analytics/routes";
 import { registerMeasurementRoutes } from "../modules/measurement-instruments/routes";

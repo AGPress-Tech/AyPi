@@ -545,7 +545,11 @@ function saveSharedSettingToSqlite(storeKey: string, payload: unknown) {
 
 export function loadWorkstationProfiles(): unknown {
     ensureSharedSqliteSchema();
-    return loadSharedSettingFromSqlite("workstation_profiles", { version: 1, revision: 0, profiles: [{ id: "default", name: "Standard", rules: {} }] });
+    return loadSharedSettingFromSqlite("workstation_profiles", {
+        version: 1,
+        revision: 0,
+        profiles: [{ id: "default", name: "Standard", rules: {} }],
+    });
 }
 
 export function saveWorkstationProfiles(payload: unknown) {

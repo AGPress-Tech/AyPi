@@ -25,20 +25,20 @@ Verifica dinamica dei moduli principali: Torneria, Analisi cliente, Venduto per 
 
 ## Matrice di confronto
 
-| Aspetto | Torneria | Analisi cliente | Venduto / Offerte per articolo | Controllo di gestione |
-| --- | --- | --- | --- | --- |
-| Marchio e colori operativi condivisi | Sì | Sì | Sì | Sì |
-| Struttura dei controlli grafico condivisa | Sì; resta il controllo locale Assi | Sì | Non applicabile: ricerca tabellare | No |
-| Grafici collegati | Sì | Sì | Non applicabile | Collegamenti locali, non un unico stato condiviso |
-| Ctrl/Cmd per selezione multipla grafica | Sì per selezioni dimensionali | Sì | Non applicabile | Non presente nei grafici esaminati |
-| Totali visibili e quota selezionata | Sì | Sì | Non applicabile | Non uniforme; la classifica viene ristretta |
-| Reset grafico conserva filtri manuali | **No: cancella le dimensioni condivise** | Sì, verificato | Reset della ricerca separato | Manca il reset grafico condiviso |
-| Focus grafico, Escape, gestione tastiera | Presente | Presente e verificato | Non applicabile | Non disponibile |
-| Vista compatta / ampia | Presente | Presente | Layout tabellare proprio | Non disponibile |
-| Grafici personalizzati e preset grafici | Presenti; anomalia al caricamento della modalità Rendimenti | Presenti | Non disponibili; colonne personali disponibili | Non disponibili; obiettivi personali disponibili |
-| Filtri operativi | Anni, mesi, dimensioni, ricerca e intervalli | Cliente, documenti, date, anni, articoli, stato, U.M., valuta e intervalli | Regole multiple per codice, cliente, documento, date, quantità, prezzi e U.M.; consegne/residui negli ordini | Fonte, periodi, confronti e anni; categoria/gruppo/ricerca nella vista conti |
-| Divisori verticali tabelle | Presenti | Presenti | Presenti | Presenti |
-| Tabelle conservate e navigabili | Sì | Sì | Sì: contenuto principale | Sì: conto economico e dettaglio conti |
+| Aspetto                                   | Torneria                                                    | Analisi cliente                                                            | Venduto / Offerte per articolo                                                                               | Controllo di gestione                                                        |
+| ----------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Marchio e colori operativi condivisi      | Sì                                                          | Sì                                                                         | Sì                                                                                                           | Sì                                                                           |
+| Struttura dei controlli grafico condivisa | Sì; resta il controllo locale Assi                          | Sì                                                                         | Non applicabile: ricerca tabellare                                                                           | No                                                                           |
+| Grafici collegati                         | Sì                                                          | Sì                                                                         | Non applicabile                                                                                              | Collegamenti locali, non un unico stato condiviso                            |
+| Ctrl/Cmd per selezione multipla grafica   | Sì per selezioni dimensionali                               | Sì                                                                         | Non applicabile                                                                                              | Non presente nei grafici esaminati                                           |
+| Totali visibili e quota selezionata       | Sì                                                          | Sì                                                                         | Non applicabile                                                                                              | Non uniforme; la classifica viene ristretta                                  |
+| Reset grafico conserva filtri manuali     | **No: cancella le dimensioni condivise**                    | Sì, verificato                                                             | Reset della ricerca separato                                                                                 | Manca il reset grafico condiviso                                             |
+| Focus grafico, Escape, gestione tastiera  | Presente                                                    | Presente e verificato                                                      | Non applicabile                                                                                              | Non disponibile                                                              |
+| Vista compatta / ampia                    | Presente                                                    | Presente                                                                   | Layout tabellare proprio                                                                                     | Non disponibile                                                              |
+| Grafici personalizzati e preset grafici   | Presenti; anomalia al caricamento della modalità Rendimenti | Presenti                                                                   | Non disponibili; colonne personali disponibili                                                               | Non disponibili; obiettivi personali disponibili                             |
+| Filtri operativi                          | Anni, mesi, dimensioni, ricerca e intervalli                | Cliente, documenti, date, anni, articoli, stato, U.M., valuta e intervalli | Regole multiple per codice, cliente, documento, date, quantità, prezzi e U.M.; consegne/residui negli ordini | Fonte, periodi, confronti e anni; categoria/gruppo/ricerca nella vista conti |
+| Divisori verticali tabelle                | Presenti                                                    | Presenti                                                                   | Presenti                                                                                                     | Presenti                                                                     |
+| Tabelle conservate e navigabili           | Sì                                                          | Sì                                                                         | Sì: contenuto principale                                                                                     | Sì: conto economico e dettaglio conti                                        |
 
 «Presente» non certifica ogni combinazione possibile di dati. I filtri sono stati confrontati con le funzionalità implementate; non è una certificazione della copertura di tutti i campi del database.
 
@@ -128,11 +128,11 @@ I campioni di intestazioni/celle verificati mostrano divisori verticali nei modu
 
 Questi risultati non hanno lo stesso livello di verifica dinamica dei moduli principali.
 
-| Modulo | Funzioni da conservare | Differenze dallo standard |
-| --- | --- | --- |
+| Modulo                           | Funzioni da conservare                                     | Differenze dallo standard                                                                                                                                                                  |
+| -------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Analisi Pianificatore produzione | Filtri, grafici, analisi personalizzate, tabelle ed export | Struttura e CSS propri; grafici personalizzati salvati in localStorage; assenza della toolbar/focus comuni e di callback di selezione grafica comparabili a Torneria nei grafici esaminati |
-| Analisi MES e ordini | Filtri, selezione macchine, tabelle, export, viste salvate | Grafico HTML con selezione singola della macchina che ricarica il report; preset locali di filtri/colonne/vista, non editor di grafici come Torneria; stile e componenti propri |
-| Analisi Calendar | Filtri e dashboard assenze | Renderer e stile propri; grafici Chart.js senza le selezioni condivise, il focus e la toolbar dei moduli di analisi principali nel codice esaminato |
+| Analisi MES e ordini             | Filtri, selezione macchine, tabelle, export, viste salvate | Grafico HTML con selezione singola della macchina che ricarica il report; preset locali di filtri/colonne/vista, non editor di grafici come Torneria; stile e componenti propri            |
+| Analisi Calendar                 | Filtri e dashboard assenze                                 | Renderer e stile propri; grafici Chart.js senza le selezioni condivise, il focus e la toolbar dei moduli di analisi principali nel codice esaminato                                        |
 
 Riferimenti: [Pianificatore](src/renderer/scripts/utilities/production-planner-analysis.ts:403), [persistenza personalizzazioni Pianificatore](src/renderer/scripts/utilities/production-planner-analysis.ts:646), [interazione MES](src/renderer/scripts/utilities/mes-analysis.ts:483), [viste MES](src/renderer/scripts/utilities/mes-analysis.ts:502), [Calendar](src/renderer/scripts/utilities/ferie-permessi-analysis.ts:738).
 

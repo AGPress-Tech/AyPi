@@ -1,9 +1,87 @@
-.analysis-html-legend-panel{container-type:inline-size}
-.analysis-chart-content{display:grid;grid-template-rows:minmax(0,1fr) auto;flex:1;min-height:0;min-width:0;overflow:hidden}
-.analysis-chart-content>.chart-viewport,.analysis-chart-content>.workspace-chart-body{grid-row:1;min-height:0;min-width:0}
-.analysis-html-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:3px 10px;list-style:none;margin:0;padding:6px 12px 10px;max-height:110px;overflow:auto;min-width:0;scrollbar-width:thin}
-body.aypi-operations .analysis-html-legend button{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--ops-ink);font:500 13px/1.35 'Segoe UI',sans-serif;text-align:left;padding:4px 2px;border-radius:3px;white-space:normal}
-.analysis-legend-swatch{display:block;flex:0 0 13px;width:13px;height:13px;border-radius:2px}
-.analysis-html-legend button.is-hidden{ text-decoration:line-through }
-.analysis-html-legend button:focus-visible{outline:2px solid var(--ops-accent);outline-offset:2px}
-@container(min-width:460px){.analysis-chart-content{grid-template-columns:minmax(0,1fr) minmax(155px,28%);grid-template-rows:minmax(0,1fr)}.analysis-html-legend{grid-column:2;grid-row:1;flex-direction:column;flex-wrap:nowrap;justify-content:center;align-items:stretch;align-self:center;max-height:100%;padding:12px 14px 12px 8px}.analysis-chart-content>.chart-viewport,.analysis-chart-content>.workspace-chart-body{grid-column:1;grid-row:1}}
+.analysis-html-legend-panel {
+    container-type: inline-size
+}
+
+.analysis-chart-content {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden
+}
+
+.analysis-chart-content>.chart-viewport, .analysis-chart-content>.workspace-chart-body {
+    grid-row: 1;
+    min-height: 0;
+    min-width: 0
+}
+
+.analysis-html-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px 10px;
+    list-style: none;
+    margin: 0;
+    padding: 6px 12px 10px;
+    max-height: 110px;
+    overflow: auto;
+    min-width: 0;
+    scrollbar-width: thin
+}
+
+body.aypi-operations .analysis-html-legend button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: transparent;
+    color: var(--ops-ink);
+    font: 500 13px/1.35 'Segoe UI', sans-serif;
+    text-align: left;
+    padding: 4px 2px;
+    border-radius: 3px;
+    white-space: normal
+}
+
+.analysis-legend-swatch {
+    display: block;
+    flex: 0 0 13px;
+    width: 13px;
+    height: 13px;
+    border-radius: 2px
+}
+
+.analysis-html-legend button.is-hidden {
+    text-decoration: line-through
+}
+
+.analysis-html-legend button:focus-visible {
+    outline: 2px solid var(--ops-accent);
+    outline-offset: 2px
+}
+
+@container(min-width:460px) {
+    .analysis-chart-content {
+        grid-template-columns: minmax(0, 1fr) minmax(155px, 28%);
+        grid-template-rows: minmax(0, 1fr)
+    }
+
+    .analysis-html-legend {
+        grid-column: 2;
+        grid-row: 1;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        justify-content: center;
+        align-items: stretch;
+        align-self: center;
+        max-height: 100%;
+        padding: 12px 14px 12px 8px
+    }
+
+    .analysis-chart-content>.chart-viewport, .analysis-chart-content>.workspace-chart-body {
+        grid-column: 1;
+        grid-row: 1
+    }
+}

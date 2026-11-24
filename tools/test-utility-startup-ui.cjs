@@ -4,7 +4,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const assert = require('assert/strict'), ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 app.setPath('userData', path.join(root, '.tmp-utility-startup', String(Date.now())));
-app.on('window-all-closed', () => {});
+app.on('window-all-closed', () => { });
 ipcMain.handle('batch-rename-load-presets', () => []);
 const source = fs.readFileSync(path.join(root, 'src/main/modules/fileManager.ts'), 'utf8');
 const names = ['FileList', 'BatchRename', 'QrGenerator', 'CompareFolders', 'Hierarchy'];
@@ -32,11 +32,13 @@ app.whenReady().then(async () => {
         }
         maximize() { events.push('maximize'); return super.maximize(); }
       }
-      const context = vm.createContext({ BrowserWindow: TrackedWindow, path,
+      const context = vm.createContext({
+        BrowserWindow: TrackedWindow, path,
         __dirname: path.join(root, 'dist-ts/modules'),
         WINDOW_WEB_PREFERENCES: { nodeIntegration: true, contextIsolation: false },
         APP_ICON_PATH: undefined, revealThemedWindow, getScriptedSplashTheme: () => 'agpress',
-        showMainWindow() {} });
+        showMainWindow() { }
+      });
       vm.runInContext(code, context);
       context.options = { theme };
       vm.runInContext(name === 'CompareFolders' ? 'openCompareFoldersWindow(null, null, options)' :

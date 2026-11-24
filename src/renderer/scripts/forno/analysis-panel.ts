@@ -77,8 +77,11 @@ export function setupAnalysisPanel(options: {
         if (phases.from || phases.to) {
             summary.append(
                 document.createTextNode(" · "),
-                node("span", "analysis-phase-description",
-                    `Da ${phases.from || "istante libero"} → ${phases.to || "istante libero"}`),
+                node(
+                    "span",
+                    "analysis-phase-description",
+                    `Da ${phases.from || "istante libero"} → ${phases.to || "istante libero"}`,
+                ),
             );
         }
     }
@@ -274,7 +277,8 @@ export function setupAnalysisPanel(options: {
                 options.formatTime(toMs) +
                 " · " +
                 ((toMs - fromMs) / 1000).toLocaleString("it-IT") +
-                " s · " + formatSelectionDuration(toMs - fromMs);
+                " s · " +
+                formatSelectionDuration(toMs - fromMs);
             setPhases(fromMs, toMs, phases);
             content.replaceChildren();
             if (!dialog.open) dialog.showModal();

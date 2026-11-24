@@ -258,6 +258,11 @@ export function createTicketBackup(limit = 10) {
     return ensureTicketBackup("manual-ticket", limit);
 }
 
-export function restoreTicketBackup(name: string): { ok: boolean; restored: string } {
-    throw new Error("Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.");
+export function restoreTicketBackup(name: string): {
+    ok: boolean;
+    restored: string;
+} {
+    throw new Error(
+        "Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.",
+    );
 }

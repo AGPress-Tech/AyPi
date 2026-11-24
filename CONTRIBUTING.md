@@ -20,9 +20,9 @@ This guide explains how to report issues and propose changes in a way that is ef
 ### Run locally
 
 1. Install dependencies:
-   - `npm install`
+    - `npm install`
 2. Start the application:
-   - `npm start`
+    - `npm start`
 
 > If the project requires additional build steps (packaging, signing, auto-update, etc.), document them here as the project evolves.
 

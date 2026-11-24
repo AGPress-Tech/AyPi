@@ -67,9 +67,14 @@ export function exportSqliteSnapshot() {
 export function replaceSqliteSnapshot(data: Uint8Array) {
     const next = openSqliteSnapshot(data);
     next.exec("PRAGMA foreign_keys = ON;");
-    try { replaceFileAtomic(getDatabasePath(), Buffer.from(data)); }
-    catch (error) { next.close(); throw error; }
-    database?.close(); database = next;
+    try {
+        replaceFileAtomic(getDatabasePath(), Buffer.from(data));
+    } catch (error) {
+        next.close();
+        throw error;
+    }
+    database?.close();
+    database = next;
 }
 
 export function persistSqliteDatabase() {

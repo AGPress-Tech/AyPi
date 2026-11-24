@@ -24,7 +24,19 @@ export function getAgpressBackupRootDir() {
 }
 
 function excludeSnapshotFile(name: string, _fullPath: string) {
-    return ["log", ".incomplete", "aypi_backup_protected.json", "aypi-backup-manifest.json"].includes(name.toLowerCase()) || name.includes(".before-restore-") || name.includes(".restore-") || /(?:\.(?:db|sqlite3?)(?:-wal|-shm|-journal)?|\.collector\.lock.*)$/i.test(name);
+    return (
+        [
+            "log",
+            ".incomplete",
+            "aypi_backup_protected.json",
+            "aypi-backup-manifest.json",
+        ].includes(name.toLowerCase()) ||
+        name.includes(".before-restore-") ||
+        name.includes(".restore-") ||
+        /(?:\.(?:db|sqlite3?)(?:-wal|-shm|-journal)?|\.collector\.lock.*)$/i.test(
+            name,
+        )
+    );
 }
 export function ensureAgpressDailyBackup(prefix = "auto", limit = 3) {
     return createDailyDirectoryBackup({
@@ -34,11 +46,15 @@ export function ensureAgpressDailyBackup(prefix = "auto", limit = 3) {
         limit,
         earliestHour: 6,
         exclude: excludeSnapshotFile,
-        prepare: target => completeSnapshot(target),
+        prepare: (target) => completeSnapshot(target),
     });
 }
 
-export function createAgpressBackup(prefix = "manual", limit = 3, protectedCopy = false) {
+export function createAgpressBackup(
+    prefix = "manual",
+    limit = 3,
+    protectedCopy = false,
+) {
     return createDirectoryBackup({
         sourceDir: AGPRESS_ROOT_DIR,
         backupRootDir: AGPRESS_BACKUP_ROOT_DIR,
@@ -46,7 +62,7 @@ export function createAgpressBackup(prefix = "manual", limit = 3, protectedCopy 
         limit,
         protected: protectedCopy,
         exclude: excludeSnapshotFile,
-        prepare: target => completeSnapshot(target, protectedCopy),
+        prepare: (target) => completeSnapshot(target, protectedCopy),
     });
 }
 

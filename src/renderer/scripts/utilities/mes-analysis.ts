@@ -1,7 +1,11 @@
 // @ts-nocheck
-import {excelDateCell,excelDurationCell,formatExcelNumbers} from '../../../main/modules/analysis-excel';
-import {mergeAreaSelection} from '../../modules/analysis-chart-area-selection';
-import {installAnalysisWorkspace} from '../../modules/analysis-workspace';
+import {
+    excelDateCell,
+    excelDurationCell,
+    formatExcelNumbers,
+} from "../../../main/modules/analysis-excel";
+import { mergeAreaSelection } from "../../modules/analysis-chart-area-selection";
+import { installAnalysisWorkspace } from "../../modules/analysis-workspace";
 const { ipcRenderer, clipboard } = require("electron");
 const XLSX = require("xlsx");
 const el = (id) => document.getElementById(id),
@@ -20,9 +24,25 @@ const duration = (v) => {
 const instant = (v) => (v ? new Date(v).toLocaleString("it-IT") : "In corso");
 const day = (d) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-let baseReport=null,baseReportKey='',linkedMachines:string[]=[],queuedLinkedLoad=false,reportRevision=0;
-function resetLinkedCharts(){linkedMachines=[];void load();}
-function selectLinkedMachine(id:string,multiple=false){linkedMachines=multiple?(linkedMachines.includes(id)?linkedMachines.filter(v=>v!==id):[...linkedMachines,id]):linkedMachines.length===1&&linkedMachines[0]===id?[]:[id];void load();}
+let baseReport = null,
+    baseReportKey = "",
+    linkedMachines: string[] = [],
+    queuedLinkedLoad = false,
+    reportRevision = 0;
+function resetLinkedCharts() {
+    linkedMachines = [];
+    void load();
+}
+function selectLinkedMachine(id: string, multiple = false) {
+    linkedMachines = multiple
+        ? linkedMachines.includes(id)
+            ? linkedMachines.filter((v) => v !== id)
+            : [...linkedMachines, id]
+        : linkedMachines.length === 1 && linkedMachines[0] === id
+          ? []
+          : [id];
+    void load();
+}
 let report = null,
     busy = false,
     tab = "activations",
@@ -183,7 +203,7 @@ function options(id, values, placeholder) {
 }
 function renderMachines() {
     const query = el("report-machine-search").value.toLowerCase();
-    el("report-machines").innerHTML = ((baseReport||report)?.machines || [])
+    el("report-machines").innerHTML = ((baseReport || report)?.machines || [])
         .filter((m) =>
             `${m.name} ${m.department}`.toLowerCase().includes(query),
         )
@@ -295,15 +315,15 @@ function render() {
                 `<article><small>${t}</small><strong>${v}</strong><span>${d}</span></article>`,
         )
         .join("");
-    el("report-chart").innerHTML = (baseReport||report).byMachine.length
-        ? (baseReport||report).byMachine
+    el("report-chart").innerHTML = (baseReport || report).byMachine.length
+        ? (baseReport || report).byMachine
               .map((m) => {
                   const total =
                       m.productionSeconds +
                       m.setupSeconds +
                       m.stoppedSeconds +
                       m.unmonitoredSeconds;
-                  return `<div class="chart-row" style="opacity:${linkedMachines.length&&!linkedMachines.includes(m.id)?0.25:1}"><button data-machine="${esc(m.id)}" title="Filtra questa macchina">${esc(m.label)}</button><div class="chart-track">${[
+                  return `<div class="chart-row" style="opacity:${linkedMachines.length && !linkedMachines.includes(m.id) ? 0.25 : 1}"><button data-machine="${esc(m.id)}" title="Filtra questa macchina">${esc(m.label)}</button><div class="chart-track">${[
                       ["productionSeconds", "production"],
                       ["setupSeconds", "setup"],
                       ["stoppedSeconds", "stopped"],
@@ -319,28 +339,51 @@ function render() {
         : "<p>Nessuna attivazione nel periodo selezionato.</p>";
     options(
         "report-department",
-        (baseReport||report).machines.map((m) => m.department),
+        (baseReport || report).machines.map((m) => m.department),
         "Tutti i reparti",
     );
-    options("report-operator", (baseReport||report).operators, "Tutti gli operatori");
+    options(
+        "report-operator",
+        (baseReport || report).operators,
+        "Tutti gli operatori",
+    );
     renderMachines();
     renderTable();
     el("report-range").textContent =
         instant(report.from) + " — " + instant(report.to);
 }
 async function load() {
-    if (busy){queuedLinkedLoad=true;return;}
+    if (busy) {
+        queuedLinkedLoad = true;
+        return;
+    }
     busy = true;
     el("report-status").textContent = "Aggiornamento…";
     el("report-refresh").disabled = true;
     try {
-        const manual=filters(),key=JSON.stringify(manual);if(key!==baseReportKey)linkedMachines=[];
-        const linkedForRequest=[...linkedMachines];
-        const effective=linkedMachines.length?linkedMachines.filter(id=>!manual.machineIds.length||manual.machineIds.includes(id)):manual.machineIds;
-        const result = await ipcRenderer.invoke("mes-analysis", {...manual,machineIds:effective});
+        const manual = filters(),
+            key = JSON.stringify(manual);
+        if (key !== baseReportKey) linkedMachines = [];
+        const linkedForRequest = [...linkedMachines];
+        const effective = linkedMachines.length
+            ? linkedMachines.filter(
+                  (id) =>
+                      !manual.machineIds.length ||
+                      manual.machineIds.includes(id),
+              )
+            : manual.machineIds;
+        const result = await ipcRenderer.invoke("mes-analysis", {
+            ...manual,
+            machineIds: effective,
+        });
         if (!result?.ok)
             throw new Error(result?.error || "MES non disponibile");
-        report = result.data;reportRevision++;if(!linkedForRequest.length||key!==baseReportKey){baseReport=report;baseReportKey=key;}
+        report = result.data;
+        reportRevision++;
+        if (!linkedForRequest.length || key !== baseReportKey) {
+            baseReport = report;
+            baseReportKey = key;
+        }
         render();
         el("report-status").textContent =
             "Aggiornato " + new Date().toLocaleTimeString("it-IT");
@@ -351,7 +394,10 @@ async function load() {
     } finally {
         busy = false;
         el("report-refresh").disabled = false;
-        if(queuedLinkedLoad){queuedLinkedLoad=false;void load();}
+        if (queuedLinkedLoad) {
+            queuedLinkedLoad = false;
+            void load();
+        }
     }
 }
 function renderViews() {
@@ -386,9 +432,21 @@ async function exportExcel() {
                 cols.map((c) => c[1]),
                 ...report[key].map((r) =>
                     cols.map((c) =>
-                        c[2] === "date"?excelDateCell(r[c[0]],'dd/mm/yyyy hh:mm:ss'):c[2]==='duration'?excelDurationCell(r[c[0]]):c[2]==='percent'?(r[c[0]]==null?null:{t:'n',v:Number(r[c[0]])/100,z:'0.0%'}):c[2] === "number"
-                            ? Number(r[c[0]] || 0)
-                            : display(r, c),
+                        c[2] === "date"
+                            ? excelDateCell(r[c[0]], "dd/mm/yyyy hh:mm:ss")
+                            : c[2] === "duration"
+                              ? excelDurationCell(r[c[0]])
+                              : c[2] === "percent"
+                                ? r[c[0]] == null
+                                    ? null
+                                    : {
+                                          t: "n",
+                                          v: Number(r[c[0]]) / 100,
+                                          z: "0.0%",
+                                      }
+                                : c[2] === "number"
+                                  ? Number(r[c[0]] || 0)
+                                  : display(r, c),
                     ),
                 ),
             ];
@@ -407,10 +465,10 @@ async function exportExcel() {
         XLSX.utils.book_append_sheet(
             book,
             XLSX.utils.aoa_to_sheet([
-                ["Dal", excelDateCell(report.from,'dd/mm/yyyy hh:mm:ss')],
-                ["Al", excelDateCell(report.to,'dd/mm/yyyy hh:mm:ss')],
+                ["Dal", excelDateCell(report.from, "dd/mm/yyyy hh:mm:ss")],
+                ["Al", excelDateCell(report.to, "dd/mm/yyyy hh:mm:ss")],
                 ["Nota", report.basis],
-                ["Macchine selezionate nei grafici",linkedMachines.join(", ")],
+                ["Macchine selezionate nei grafici", linkedMachines.join(", ")],
                 ["Cronologia limitata", report.historyTruncated ? "Sì" : "No"],
             ]),
             "Perimetro",
@@ -495,7 +553,10 @@ document.addEventListener("DOMContentLoaded", () => {
     el("report-chart").onclick = (e) => {
         const button = e.target.closest("[data-machine]");
         if (button) {
-            selectLinkedMachine(button.dataset.machine,!!(e.ctrlKey||e.metaKey));
+            selectLinkedMachine(
+                button.dataset.machine,
+                !!(e.ctrlKey || e.metaKey),
+            );
         }
     };
     el("report-copy").onclick = () => {
@@ -577,4 +638,82 @@ document.addEventListener("DOMContentLoaded", () => {
     void load();
 });
 
-const commonWorkspace=installAnalysisWorkspace({key:'mes',actions:document.querySelector('.mes-analysis>header .actions')!,container:()=>document.querySelector('.mes-analysis')||document.querySelector('main')!,reset:()=>resetLinkedCharts(),htmlPanels:[{id:'report-chart',panel:el('report-chart').closest('.card'),title:'Tempi registrati per macchina',area:(indices,multiple)=>{if(baseReport){linkedMachines=mergeAreaSelection(linkedMachines,indices.map(i=>baseReport.byMachine[i].id),multiple);void load();}}}],sources:[{id:'report-chart',title:'Macchine MES'}],metrics:metrics.map(([id,title])=>({id,title})),revision:()=>[reportRevision,linkedMachines],build:spec=>{if(!baseReport)return null;const rows=baseReport.byMachine.slice(0,spec.limit),metric=spec.metric||'productionSeconds',values=rows.map(r=>Number(r[metric]||0)),selected=rows.map(r=>Number(report.byMachine.find(v=>v.id===r.id)?.[metric]||0));return {type:spec.kind,data:{labels:rows.map(r=>r.label),datasets:[{label:metrics.find(m=>m[0]===metric)?.[1]||metric,data:values,backgroundColor:rows.map((_,i)=>linkedMachines.length?'#168eea35':'#168eea'),highlightValues:linkedMachines.length?selected:undefined,highlightColor:'#168eea',highlightColors:rows.map(()=>'#168eea')}]},options:{responsive:true,maintainAspectRatio:false,onAreaSelect:(indices,multiple)=>{linkedMachines=mergeAreaSelection(linkedMachines,indices.map(i=>rows[i].id),multiple);void load();},onClick:(e,elements)=>{if(elements.length)selectLinkedMachine(rows[elements[0].index].id,!!(e?.native?.ctrlKey||e?.native?.metaKey))}}}}});
+const commonWorkspace = installAnalysisWorkspace({
+    key: "mes",
+    actions: document.querySelector(".mes-analysis>header .actions")!,
+    container: () =>
+        document.querySelector(".mes-analysis") ||
+        document.querySelector("main")!,
+    reset: () => resetLinkedCharts(),
+    htmlPanels: [
+        {
+            id: "report-chart",
+            panel: el("report-chart").closest(".card"),
+            title: "Tempi registrati per macchina",
+            area: (indices, multiple) => {
+                if (baseReport) {
+                    linkedMachines = mergeAreaSelection(
+                        linkedMachines,
+                        indices.map((i) => baseReport.byMachine[i].id),
+                        multiple,
+                    );
+                    void load();
+                }
+            },
+        },
+    ],
+    sources: [{ id: "report-chart", title: "Macchine MES" }],
+    metrics: metrics.map(([id, title]) => ({ id, title })),
+    revision: () => [reportRevision, linkedMachines],
+    build: (spec) => {
+        if (!baseReport) return null;
+        const rows = baseReport.byMachine.slice(0, spec.limit),
+            metric = spec.metric || "productionSeconds",
+            values = rows.map((r) => Number(r[metric] || 0)),
+            selected = rows.map((r) =>
+                Number(
+                    report.byMachine.find((v) => v.id === r.id)?.[metric] || 0,
+                ),
+            );
+        return {
+            type: spec.kind,
+            data: {
+                labels: rows.map((r) => r.label),
+                datasets: [
+                    {
+                        label:
+                            metrics.find((m) => m[0] === metric)?.[1] || metric,
+                        data: values,
+                        backgroundColor: rows.map((_, i) =>
+                            linkedMachines.length ? "#168eea35" : "#168eea",
+                        ),
+                        highlightValues: linkedMachines.length
+                            ? selected
+                            : undefined,
+                        highlightColor: "#168eea",
+                        highlightColors: rows.map(() => "#168eea"),
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onAreaSelect: (indices, multiple) => {
+                    linkedMachines = mergeAreaSelection(
+                        linkedMachines,
+                        indices.map((i) => rows[i].id),
+                        multiple,
+                    );
+                    void load();
+                },
+                onClick: (e, elements) => {
+                    if (elements.length)
+                        selectLinkedMachine(
+                            rows[elements[0].index].id,
+                            !!(e?.native?.ctrlKey || e?.native?.metaKey),
+                        );
+                },
+            },
+        };
+    },
+});

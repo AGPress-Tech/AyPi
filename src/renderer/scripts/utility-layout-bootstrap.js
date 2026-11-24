@@ -1,6 +1,6 @@
 (() => {
-  const filterStyle = document.createElement('link'); filterStyle.rel='stylesheet'; filterStyle.href=new URL('../styles/utilities/analysis-filters.css',document.currentScript.src).href; document.head.append(filterStyle);
-  const filterScript = document.createElement('script'); filterScript.defer=true; filterScript.src=new URL('../scripts/shared/analysis-filter-bootstrap.js',document.currentScript.src).href; document.head.append(filterScript);
+  const filterStyle = document.createElement('link'); filterStyle.rel = 'stylesheet'; filterStyle.href = new URL('../styles/utilities/analysis-filters.css', document.currentScript.src).href; document.head.append(filterStyle);
+  const filterScript = document.createElement('script'); filterScript.defer = true; filterScript.src = new URL('../scripts/shared/analysis-filter-bootstrap.js', document.currentScript.src).href; document.head.append(filterScript);
   const sharedTableStyle = new URL('../styles/table-sorting.css', document.currentScript.src).href;
   document.addEventListener('DOMContentLoaded', () => {
     if (![...document.styleSheets].some(sheet => sheet.href === sharedTableStyle)) {
@@ -21,7 +21,7 @@
         if (change.target.closest?.('button')) markCreationButtons(change.target.closest('button'));
         for (const node of change.addedNodes) if (node.nodeType === Node.ELEMENT_NODE) markCreationButtons(node);
       }
-    }).observe(document.body, {childList:true, subtree:true, characterData:true});
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
   });
   // Dismiss only filter/column popovers; expanded data rows and information stay open.
   document.addEventListener('pointerdown', event => {

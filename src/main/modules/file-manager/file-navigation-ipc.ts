@@ -79,11 +79,26 @@ export function registerFileNavigationIpc({
     ipcMain.on("open-address", (_event, payload) => {
         const key = payload?.key ? String(payload.key) : "";
         if (!key) return;
-        if (key === "moduli.openFornitori" && openSupplierEvaluation) { openSupplierEvaluation(); return; }
-        if (key === "infoarticoli.openCicli" && openProcessingCycles) { openProcessingCycles(); return; }
-        if (key === "moduli.openUtensili" && openTooling) { openTooling(); return; }
-        if (key === "moduli.openTarature" && openMeasurement) { openMeasurement(); return; }
-        if (key === "moduli.openManutenzioni" && openMaintenance) { openMaintenance(); return; }
+        if (key === "moduli.openFornitori" && openSupplierEvaluation) {
+            openSupplierEvaluation();
+            return;
+        }
+        if (key === "infoarticoli.openCicli" && openProcessingCycles) {
+            openProcessingCycles();
+            return;
+        }
+        if (key === "moduli.openUtensili" && openTooling) {
+            openTooling();
+            return;
+        }
+        if (key === "moduli.openTarature" && openMeasurement) {
+            openMeasurement();
+            return;
+        }
+        if (key === "moduli.openManutenzioni" && openMaintenance) {
+            openMaintenance();
+            return;
+        }
 
         const entry = addressBook.get(key);
         if (!entry?.path) {

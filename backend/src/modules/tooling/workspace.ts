@@ -1,11 +1,127 @@
-import {day,text} from './model';
-const list=(v:any,max=100)=>{if(!Array.isArray(v)||v.length>max||v.some(x=>typeof x!=='string'||x.length>100))throw Error('Elenco preferenze non valido.');return [...new Set<string>(v)];};
-const object=(v:any)=>v&&typeof v==='object'&&!Array.isArray(v);
-function layout(v:any){if(!object(v)||typeof v.expanded!=='boolean'||!Array.isArray(v.charts)||v.charts.length>12)throw Error('Layout non valido.');const charts=v.charts.map((c:any)=>{if(!object(c)||!/^custom-[\w-]{1,90}$/.test(c.id)||!/^tooling-[\w-]{1,90}$/.test(c.source)||!['bar','line','doughnut'].includes(c.kind)||!Number.isInteger(c.limit)||c.limit<3||c.limit>240)throw Error('Grafico non valido.');return {id:c.id,source:c.source,title:text(c.title,100,true),kind:c.kind,limit:c.limit,metric:text(c.metric,100)};});if(new Set(charts.map(c=>c.id)).size!==charts.length)throw Error('Grafici duplicati.');return {expanded:v.expanded,hidden:list(v.hidden),charts};}
-export function validateWorkspace(v:any){
- if(!object(v))throw Error('Preferenze non valide.');const result:any={};
- if(v.workspace!==undefined){const w=v.workspace;if(!object(w)||w.version!==1||!Array.isArray(w.presets)||w.presets.length>10)throw Error('Preset grafici non validi.');result.workspace={version:1,layout:layout(w.layout),presets:w.presets.map((p:any)=>({name:text(p.name,60,true),layout:layout(p.layout)}))};}
- const presets=v.filterPresets||[];if(!Array.isArray(presets)||presets.length>10)throw Error('Massimo dieci preset filtri.');result.filterPresets=presets.map((p:any)=>{if(!object(p)||!object(p.filters))throw Error('Preset filtri non valido.');const f=p.filters,filters:any={};for(const field of ['text','category','location','article','customer','supplier','status','kind','eventType','issueState','priority','assignee'])filters[field]=text(f[field]||'',1000);filters.from=f.from?day(f.from):'';filters.to=f.to?day(f.to):'';if(filters.from&&filters.to&&filters.from>filters.to)throw Error('Date invertite.');if(!Array.isArray(f.rules)||f.rules.length>30)throw Error('Condizioni non valide.');filters.rules=f.rules.map((r:any)=>{if(!object(r)||!/^\w{1,100}$/.test(r.field)||!['contains','exact','not','empty','gte','lte'].includes(r.op))throw Error('Condizione non valida.');return {field:r.field,op:r.op,value:text(r.value||'',1000)};});return {name:text(p.name,60,true),filters};});
- if(v.columnsByView!==undefined){if(!object(v.columnsByView))throw Error('Colonne non valide.');result.columnsByView={};for(const view of ['tools','articles','links','movements','issues','alerts','report'])if(v.columnsByView[view]!==undefined)result.columnsByView[view]=list(v.columnsByView[view]);}
- return result;
+import { day, text } from "./model";
+const list = (v: any, max = 100) => {
+    if (
+        !Array.isArray(v) ||
+        v.length > max ||
+        v.some((x) => typeof x !== "string" || x.length > 100)
+    )
+        throw Error("Elenco preferenze non valido.");
+    return [...new Set<string>(v)];
+};
+const object = (v: any) => v && typeof v === "object" && !Array.isArray(v);
+function layout(v: any) {
+    if (
+        !object(v) ||
+        typeof v.expanded !== "boolean" ||
+        !Array.isArray(v.charts) ||
+        v.charts.length > 12
+    )
+        throw Error("Layout non valido.");
+    const charts = v.charts.map((c: any) => {
+        if (
+            !object(c) ||
+            !/^custom-[\w-]{1,90}$/.test(c.id) ||
+            !/^tooling-[\w-]{1,90}$/.test(c.source) ||
+            !["bar", "line", "doughnut"].includes(c.kind) ||
+            !Number.isInteger(c.limit) ||
+            c.limit < 3 ||
+            c.limit > 240
+        )
+            throw Error("Grafico non valido.");
+        return {
+            id: c.id,
+            source: c.source,
+            title: text(c.title, 100, true),
+            kind: c.kind,
+            limit: c.limit,
+            metric: text(c.metric, 100),
+        };
+    });
+    if (new Set(charts.map((c) => c.id)).size !== charts.length)
+        throw Error("Grafici duplicati.");
+    return { expanded: v.expanded, hidden: list(v.hidden), charts };
+}
+export function validateWorkspace(v: any) {
+    if (!object(v)) throw Error("Preferenze non valide.");
+    const result: any = {};
+    if (v.workspace !== undefined) {
+        const w = v.workspace;
+        if (
+            !object(w) ||
+            w.version !== 1 ||
+            !Array.isArray(w.presets) ||
+            w.presets.length > 10
+        )
+            throw Error("Preset grafici non validi.");
+        result.workspace = {
+            version: 1,
+            layout: layout(w.layout),
+            presets: w.presets.map((p: any) => ({
+                name: text(p.name, 60, true),
+                layout: layout(p.layout),
+            })),
+        };
+    }
+    const presets = v.filterPresets || [];
+    if (!Array.isArray(presets) || presets.length > 10)
+        throw Error("Massimo dieci preset filtri.");
+    result.filterPresets = presets.map((p: any) => {
+        if (!object(p) || !object(p.filters))
+            throw Error("Preset filtri non valido.");
+        const f = p.filters,
+            filters: any = {};
+        for (const field of [
+            "text",
+            "category",
+            "location",
+            "article",
+            "customer",
+            "supplier",
+            "status",
+            "kind",
+            "eventType",
+            "issueState",
+            "priority",
+            "assignee",
+        ])
+            filters[field] = text(f[field] || "", 1000);
+        filters.from = f.from ? day(f.from) : "";
+        filters.to = f.to ? day(f.to) : "";
+        if (filters.from && filters.to && filters.from > filters.to)
+            throw Error("Date invertite.");
+        if (!Array.isArray(f.rules) || f.rules.length > 30)
+            throw Error("Condizioni non valide.");
+        filters.rules = f.rules.map((r: any) => {
+            if (
+                !object(r) ||
+                !/^\w{1,100}$/.test(r.field) ||
+                !["contains", "exact", "not", "empty", "gte", "lte"].includes(
+                    r.op,
+                )
+            )
+                throw Error("Condizione non valida.");
+            return {
+                field: r.field,
+                op: r.op,
+                value: text(r.value || "", 1000),
+            };
+        });
+        return { name: text(p.name, 60, true), filters };
+    });
+    if (v.columnsByView !== undefined) {
+        if (!object(v.columnsByView)) throw Error("Colonne non valide.");
+        result.columnsByView = {};
+        for (const view of [
+            "tools",
+            "articles",
+            "links",
+            "movements",
+            "issues",
+            "alerts",
+            "report",
+        ])
+            if (v.columnsByView[view] !== undefined)
+                result.columnsByView[view] = list(v.columnsByView[view]);
+    }
+    return result;
 }

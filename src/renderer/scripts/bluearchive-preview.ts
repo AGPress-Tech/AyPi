@@ -1275,7 +1275,11 @@ function renderActions(page: PageDefinition) {
                 Number(card.dataset.actionIndex)
             ];
             card.addEventListener("click", async () => {
-                if (stations.access(action.addressKey || action.channel!) !== "accessible") return;
+                if (
+                    stations.access(action.addressKey || action.channel!) !==
+                    "accessible"
+                )
+                    return;
                 if (action?.requiresAdmin && !managementAccess) {
                     const text =
                         "Il Controllo di gestione è riservato agli amministratori. Premi F2 per accedere come amministratore.";
@@ -1311,7 +1315,11 @@ function renderActions(page: PageDefinition) {
             });
             card.addEventListener("contextmenu", async (event) => {
                 event.preventDefault();
-                if (stations.access(action.addressKey || action.channel!) !== "accessible") return;
+                if (
+                    stations.access(action.addressKey || action.channel!) !==
+                    "accessible"
+                )
+                    return;
                 if (!action?.addressKey) return;
                 const ipcRenderer = require("electron").ipcRenderer;
                 if (!(await ipcRenderer.invoke("admin-is-enabled"))) {
@@ -1428,10 +1436,13 @@ function applyPage(pageKey: string) {
     if (pageKey === "mes-scada") {
         pageContent!.className = "forge-landing-root";
         mountForgeLanding(pageContent!, MODULE_THEME);
-        const forgeButton = pageContent!.querySelector<HTMLButtonElement>("#open-forge");
+        const forgeButton =
+            pageContent!.querySelector<HTMLButtonElement>("#open-forge");
         if (forgeButton) {
-            forgeButton.hidden = stations.access("open-forge-window") === "hidden";
-            forgeButton.disabled = stations.access("open-forge-window") !== "accessible";
+            forgeButton.hidden =
+                stations.access("open-forge-window") === "hidden";
+            forgeButton.disabled =
+                stations.access("open-forge-window") !== "accessible";
         }
     } else if (page.calculator) renderCalculator();
     else renderActions(page);
@@ -1698,28 +1709,42 @@ setupBackups();
 const stations = setupWorkstations(() => {
     if (footerClock) {
         footerClock.hidden = stations.access("open-timer-window") === "hidden";
-        (footerClock as HTMLButtonElement).disabled = stations.access("open-timer-window") !== "accessible";
+        (footerClock as HTMLButtonElement).disabled =
+            stations.access("open-timer-window") !== "accessible";
     }
-    document.querySelectorAll<HTMLButtonElement>(".nav-item[data-page]").forEach(button => {
-        const state = stations.access(`section:${button.dataset.page}`);
-        button.hidden = state === "hidden";
-        button.disabled = state !== "accessible";
-    });
-    const available = pageOrder.filter(key => stations.access(`section:${key}`) === "accessible");
-    const next = available.includes(currentPageKey) ? currentPageKey : available[0];
+    document
+        .querySelectorAll<HTMLButtonElement>(".nav-item[data-page]")
+        .forEach((button) => {
+            const state = stations.access(`section:${button.dataset.page}`);
+            button.hidden = state === "hidden";
+            button.disabled = state !== "accessible";
+        });
+    const available = pageOrder.filter(
+        (key) => stations.access(`section:${key}`) === "accessible",
+    );
+    const next = available.includes(currentPageKey)
+        ? currentPageKey
+        : available[0];
     ++pageTransitionToken;
-    document.querySelectorAll(".page-leave, .page-enter").forEach(element => element.classList.remove("page-leave", "page-enter"));
+    document
+        .querySelectorAll(".page-leave, .page-enter")
+        .forEach((element) =>
+            element.classList.remove("page-leave", "page-enter"),
+        );
     if (next) applyPage(next);
     else {
         currentPageKey = "";
         document.body.classList.remove("forge-landing-page");
         heroTitle!.textContent = "Postazione.";
-        heroDescription!.textContent = "Nessuna sezione accessibile. Rivolgiti all’amministratore per configurare la postazione.";
+        heroDescription!.textContent =
+            "Nessuna sezione accessibile. Rivolgiti all’amministratore per configurare la postazione.";
         sectionTitle!.textContent = "Nessun modulo disponibile";
         pageContent!.innerHTML = "";
         heroNumber!.textContent = "—";
         pageNumber!.textContent = "—";
-        document.querySelectorAll(".nav-item.active").forEach(button => button.classList.remove("active"));
+        document
+            .querySelectorAll(".nav-item.active")
+            .forEach((button) => button.classList.remove("active"));
     }
 });
 function updateManagementAccess(enabled: boolean) {

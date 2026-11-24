@@ -287,6 +287,11 @@ export function createProductManagerBackup(limit = 10) {
     return ensureProductManagerBackup("manual-purchasing", limit);
 }
 
-export function restoreProductManagerBackup(name: string): { ok: boolean; restored: string } {
-    throw new Error("Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.");
+export function restoreProductManagerBackup(name: string): {
+    ok: boolean;
+    restored: string;
+} {
+    throw new Error(
+        "Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.",
+    );
 }

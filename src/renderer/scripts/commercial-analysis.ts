@@ -1,14 +1,21 @@
 const { ipcRenderer: ipc } = require("electron");
 import { stationAccess } from "../../main/modules/workstations-model";
 function applyStation(snapshot: any) {
-    document.querySelectorAll<HTMLButtonElement>("[data-analysis]").forEach(button => {
-        const state = stationAccess(snapshot.config, button.dataset.analysis!);
-        button.hidden = state === "hidden";
-        button.disabled = state !== "accessible";
-    });
+    document
+        .querySelectorAll<HTMLButtonElement>("[data-analysis]")
+        .forEach((button) => {
+            const state = stationAccess(
+                snapshot.config,
+                button.dataset.analysis!,
+            );
+            button.hidden = state === "hidden";
+            button.disabled = state !== "accessible";
+        });
 }
 ipc.invoke("workstations-get").then(applyStation);
-ipc.on("workstations-changed", (_event: unknown, snapshot: any) => applyStation(snapshot));
+ipc.on("workstations-changed", (_event: unknown, snapshot: any) =>
+    applyStation(snapshot),
+);
 document
     .querySelectorAll<HTMLButtonElement>("[data-analysis]")
     .forEach((button) =>

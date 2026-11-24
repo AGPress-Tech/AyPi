@@ -110,30 +110,30 @@ L’interfaccia serve a esplorare dati: filtri e KPI devono lasciare la maggior 
 
 ## 2. Mappa delle sorgenti da consultare
 
-| Ambito | Riferimento nel repository |
-| --- | --- |
-| Struttura e dialoghi Torneria | [turning-analysis.html](src/renderer/pages/turning-analysis.html) |
-| Rendering, selezioni e interazioni | [turning-analysis.ts](src/renderer/scripts/turning-analysis.ts) |
-| Layout, pannelli, focus, editor | [turning-analysis.css](src/renderer/styles/turning-analysis.css) |
-| Colori e controlli operativi comuni | [aypi-operations-ui.css](src/renderer/styles/utilities/aypi-operations-ui.css) |
-| Marchio AyPi | [aypi-module-brand.css](src/renderer/styles/utilities/aypi-module-brand.css) |
-| Tema iniziale della finestra | [utility-layout-bootstrap.js](src/renderer/scripts/utility-layout-bootstrap.js) |
-| Toolbar grafico condivisa | [analysis-chart-controls.ts](src/renderer/modules/analysis-chart-controls.ts) |
-| Focus, layout, editor e preset riutilizzabili | [analysis-workspace.ts](src/renderer/modules/analysis-workspace.ts), [analysis-workspace.css](src/renderer/styles/utilities/analysis-workspace.css) |
-| Persistenza e validazione del workspace | [analysis-ui-preferences.ts](src/main/modules/analysis-ui-preferences.ts), [analysis-ui-model.ts](src/main/modules/analysis-ui-model.ts) |
-| Evidenziazione selezioni riutilizzabile | [analysis-selection-highlight.ts](src/renderer/modules/analysis-selection-highlight.ts) |
-| Etichette e tacche degli assi | [chart-axis.ts](src/renderer/modules/chart-axis.ts) |
-| Grafico spaziale interattivo | [turning-scatter3d.ts](src/renderer/modules/turning-scatter3d.ts) |
-| Preferenze, limiti e validazione grafici Torneria | [chart-presets.ts](src/main/modules/turning-analysis/chart-presets.ts) |
-| Calcolo cumulativi | [chart-values.ts](src/main/modules/turning-analysis/chart-values.ts) |
-| Modello e aggregazioni Torneria | [model.ts](src/main/modules/turning-analysis/model.ts) |
-| Finestre, lettura, salvataggi ed export | [ipc.ts](src/main/modules/turning-analysis/ipc.ts) |
-| Ordinamento condiviso | [table-sorting.ts](src/renderer/modules/table-sorting.ts), [analysis-sorting.ts](src/main/modules/analysis-sorting.ts) |
-| Divisori e tabelle collegate | [table-sorting.css](src/renderer/styles/table-sorting.css) |
-| Navigazione fra moduli | [analysis-navigation.ts](src/main/modules/analysis-navigation.ts), [analysis-navigation-model.ts](src/main/modules/analysis-navigation-model.ts) |
-| Menu contestuali e documenti collegati | [analysis-links.ts](src/renderer/modules/analysis-links.ts), [document-links.ts](src/renderer/modules/document-links.ts) |
-| Applicazione delle regole ai documenti commerciali | [customer-analysis.ts](src/renderer/scripts/customer-analysis.ts), [customer-analysis.css](src/renderer/styles/customer-analysis.css) |
-| Distinte e componenti del gestionale | [bom-analysis.html](src/renderer/pages/bom-analysis.html), [bom-analysis.ts](src/renderer/scripts/bom-analysis.ts), [modello filtri e colonne](src/main/modules/bom-analysis/model.ts) |
+| Ambito                                             | Riferimento nel repository                                                                                                                                                             |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Struttura e dialoghi Torneria                      | [turning-analysis.html](src/renderer/pages/turning-analysis.html)                                                                                                                      |
+| Rendering, selezioni e interazioni                 | [turning-analysis.ts](src/renderer/scripts/turning-analysis.ts)                                                                                                                        |
+| Layout, pannelli, focus, editor                    | [turning-analysis.css](src/renderer/styles/turning-analysis.css)                                                                                                                       |
+| Colori e controlli operativi comuni                | [aypi-operations-ui.css](src/renderer/styles/utilities/aypi-operations-ui.css)                                                                                                         |
+| Marchio AyPi                                       | [aypi-module-brand.css](src/renderer/styles/utilities/aypi-module-brand.css)                                                                                                           |
+| Tema iniziale della finestra                       | [utility-layout-bootstrap.js](src/renderer/scripts/utility-layout-bootstrap.js)                                                                                                        |
+| Toolbar grafico condivisa                          | [analysis-chart-controls.ts](src/renderer/modules/analysis-chart-controls.ts)                                                                                                          |
+| Focus, layout, editor e preset riutilizzabili      | [analysis-workspace.ts](src/renderer/modules/analysis-workspace.ts), [analysis-workspace.css](src/renderer/styles/utilities/analysis-workspace.css)                                    |
+| Persistenza e validazione del workspace            | [analysis-ui-preferences.ts](src/main/modules/analysis-ui-preferences.ts), [analysis-ui-model.ts](src/main/modules/analysis-ui-model.ts)                                               |
+| Evidenziazione selezioni riutilizzabile            | [analysis-selection-highlight.ts](src/renderer/modules/analysis-selection-highlight.ts)                                                                                                |
+| Etichette e tacche degli assi                      | [chart-axis.ts](src/renderer/modules/chart-axis.ts)                                                                                                                                    |
+| Grafico spaziale interattivo                       | [turning-scatter3d.ts](src/renderer/modules/turning-scatter3d.ts)                                                                                                                      |
+| Preferenze, limiti e validazione grafici Torneria  | [chart-presets.ts](src/main/modules/turning-analysis/chart-presets.ts)                                                                                                                 |
+| Calcolo cumulativi                                 | [chart-values.ts](src/main/modules/turning-analysis/chart-values.ts)                                                                                                                   |
+| Modello e aggregazioni Torneria                    | [model.ts](src/main/modules/turning-analysis/model.ts)                                                                                                                                 |
+| Finestre, lettura, salvataggi ed export            | [ipc.ts](src/main/modules/turning-analysis/ipc.ts)                                                                                                                                     |
+| Ordinamento condiviso                              | [table-sorting.ts](src/renderer/modules/table-sorting.ts), [analysis-sorting.ts](src/main/modules/analysis-sorting.ts)                                                                 |
+| Divisori e tabelle collegate                       | [table-sorting.css](src/renderer/styles/table-sorting.css)                                                                                                                             |
+| Navigazione fra moduli                             | [analysis-navigation.ts](src/main/modules/analysis-navigation.ts), [analysis-navigation-model.ts](src/main/modules/analysis-navigation-model.ts)                                       |
+| Menu contestuali e documenti collegati             | [analysis-links.ts](src/renderer/modules/analysis-links.ts), [document-links.ts](src/renderer/modules/document-links.ts)                                                               |
+| Applicazione delle regole ai documenti commerciali | [customer-analysis.ts](src/renderer/scripts/customer-analysis.ts), [customer-analysis.css](src/renderer/styles/customer-analysis.css)                                                  |
+| Distinte e componenti del gestionale               | [bom-analysis.html](src/renderer/pages/bom-analysis.html), [bom-analysis.ts](src/renderer/scripts/bom-analysis.ts), [modello filtri e colonne](src/main/modules/bom-analysis/model.ts) |
 
 Le funzioni interne del renderer Torneria sono riferimenti di comportamento; non sono tutte componenti già esportate. Riutilizzare i moduli condivisi disponibili. Per una nuova estrazione, mantenere il comportamento delle schermate che già li usano.
 
@@ -151,6 +151,7 @@ Le funzioni interne del renderer Torneria sono riferimenti di comportamento; non
 La Vista Excel riutilizza ordinamento e divisori condivisi; i filtri colonna sono nella seconda riga dell'intestazione fissata. I menu direzionali articolo/cliente sono disponibili nelle rispettive celle di COMPLETO. Sorgenti: `turning-analysis/workbook-table.ts`, worker/IPC Torneria e `turning-workbook-view.ts`; verifica reale Electron e worker con `tools/test-turning-workbook-ui.cjs`. La lettura rifiuta oltre tre milioni di celle dichiarate senza troncamento silenzioso. I grafici e i filtri analitici conservano il loro comportamento nelle altre sezioni.
 
 Nelle tabelle Manutenzioni, l'ordinamento iniziale è per codice macchina crescente con confronto alfanumerico. Le azioni della riga sono nel menu nativo al tasto destro: Modifica, Elimina e, per le manutenzioni previste, Inserisci manutenzione ordinaria. La conferma di eliminazione rimane obbligatoria e il codice nella prima colonna apre ancora la scheda. I filtri avanzati separano il gruppo di campi standard, Filtri personalizzati e Preset personali, con geometria compatta ispirata ai blocchi del Controllo di gestione. I contenitori scorrevoli dei form lasciano spazio all'intero anello di focus, evitando bordi tagliati.
+
 - Scheda attiva riconoscibile tramite testo e indicatore inferiore nel colore di accento.
 
 ### Regole comuni
@@ -163,15 +164,15 @@ I form di login mantengono il marchio e la geometria dei moduli AyPi, con la pal
 
 Usare le variabili `--ops-*` del foglio operativo condiviso. Il tema è applicato nel `<head>` dal bootstrap, prima del rendering.
 
-| Token | Blue Archive | Standard |
-| --- | --- | --- |
-| `--ops-accent` | `#168eea` | `#cc930e` |
-| `--ops-accent-2` | `#31c8f3` | `#e5b33e` |
-| `--ops-ink` | `#173451` | `#332f2b` |
-| `--ops-muted` | `#648097` | `#827760` |
-| `--ops-line` | `#d9e8f1` | `#e8dfce` |
-| `--ops-soft` | `#e8f8ff` | `#fff6e2` |
-| `--ops-bg` | `#f2f8fc` | `#f7f4ed` |
+| Token            | Blue Archive | Standard  |
+| ---------------- | ------------ | --------- |
+| `--ops-accent`   | `#168eea`    | `#cc930e` |
+| `--ops-accent-2` | `#31c8f3`    | `#e5b33e` |
+| `--ops-ink`      | `#173451`    | `#332f2b` |
+| `--ops-muted`    | `#648097`    | `#827760` |
+| `--ops-line`     | `#d9e8f1`    | `#e8dfce` |
+| `--ops-soft`     | `#e8f8ff`    | `#fff6e2` |
+| `--ops-bg`       | `#f2f8fc`    | `#f7f4ed` |
 
 - Font operativo: Segoe UI, Yu Gothic UI, sans-serif. I grafici ereditano il font calcolato della pagina.
 - Titoli scuri, testi secondari attenuati, fondi chiari, bordi sottili e angoli coerenti con i pannelli esistenti.
@@ -218,11 +219,11 @@ Il contenitore del canvas deve poter ridursi (`min-width: 0`, `min-height: 0`) e
 
 Usare **`analysisChartControls()`** e **`setChartExpanded()`**:
 
-| Azione | Controllo condiviso | Comportamento |
-| --- | --- | --- |
-| Mensile / Cumulativo | `data-cumulative`, etichetta con `⇄` | Alterna il tipo di andamento quando pertinente |
-| Reset | `.chart-icon`, `data-reset-chart`, `↺` | Azzera il contesto interattivo del grafico secondo le regole comuni |
-| Espandi / Riduci | `.chart-icon`, `data-expand-chart`, `⤢` / `⤡` | Apre/chiude il focus del grafico |
+| Azione               | Controllo condiviso                           | Comportamento                                                       |
+| -------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
+| Mensile / Cumulativo | `data-cumulative`, etichetta con `⇄`          | Alterna il tipo di andamento quando pertinente                      |
+| Reset                | `.chart-icon`, `data-reset-chart`, `↺`        | Azzera il contesto interattivo del grafico secondo le regole comuni |
+| Espandi / Riduci     | `.chart-icon`, `data-expand-chart`, `⤢` / `⤡` | Apre/chiude il focus del grafico                                    |
 
 Dimensioni di riferimento delle icone: 27 × 27 px, carattere 17 px, fondo trasparente, colore attenuato. Il CSS attuale prevede adattamenti sotto 1250 px; riutilizzarli senza inventare varianti per ogni schermata.
 
@@ -493,7 +494,6 @@ Prima di lavorare a un modulo, leggere questa guida e individuare i riferimenti 
 
 Quando cambia una convenzione comune su richiesta dell’utente, aggiornare questa guida nello stesso intervento. Documentare cosa è riutilizzabile, cosa è specifico del dominio e quali parti del codice storico devono ancora essere allineate. Non descrivere come già implementato un comportamento soltanto richiesto o previsto.
 
-
 ## Gestione Utensili e Attrezzature (19 novembre 2026)
 
 `moduli.openUtensili` apre il modulo nativo riutilizzando la finestra, massimizzata e minimo 1000 x 680. Stile operativo condiviso, login dipendente senza password, branding completo, temi AGPress/Blue Archive e controlli nativi chiari anche con Windows scuro. Il login usa la stessa struttura di Strumenti di misura e Manutenzioni: Reparto, Dipendente filtrato per reparto, Ricarica elenco e Accedi, con descrizione e chiusura accessibili e stile condiviso `aypi-login.css`. Sezioni: Utensili e attrezzature (vista iniziale), Articoli collegati, Storico quantità, Gestione rotture, Da reintegrare, Danneggiati e rotture, Origine e verifiche. La dashboard e la lista articoli separata sono state rimosse su richiesta. Le colonne principali usano Quantitativo Iniziale, Utensili/Attrezzature Danneggiate e Quantitativo Rimanente; iniziale comprende i saldi iniziali non danneggiati e danneggiati, rimanente indica i pezzi utilizzabili attuali. Tabelle con divisori verticali, intestazione fissa, ordinamento multiplo, colonne personali e append condiviso. Filtri standard compatti e avanzati per categoria, ubicazione, cliente, fornitore, articolo, giacenza, tipo, periodo, movimento, stato/priorita/assegnatario; condizioni OR sullo stesso campo e AND fra campi, preset personali, chiusura esterna dei pannelli.
@@ -516,14 +516,11 @@ Dati nel database core, tabelle `tooling_entities`, `tooling_audit`, `tooling_me
 
 La copia verificata contiene 215 utensili, 48 articoli, 215 collegamenti, 433 pezzi utilizzabili e 8 danneggiati, senza saldi incoerenti o collegamenti orfani. Sono risultati della verifica, non costanti dell'applicazione. `tools/prepare-tooling-migration.cjs` prepara fotografia e rapporto privati senza scrivere al database operativo. Test: `tools/test-tooling.cjs` per saldi, concorrenza, annullamenti, ERP, segnalazioni, allegati e persistenza; `tools/test-tooling-ui.cjs` per HTTP/SQLite/Electron isolati, entrambi i temi/dimensioni, sovrapposizione filtri, assenza dashboard/lista articoli, sostituzione collegamenti temporanei, riepilogo mensile, append, ricerca ERP, import manuale ed Excel/PDF. `AYPI_TEST_REAL_TOOLING=1` usa la copia Access solo nei database di test. Audit wordmark esteso alla nuova pagina.
 
-
 Correzione del 20 novembre 2026: nelle tabelle operative condivise di Manutenzioni, Strumenti/Tarature e Utensili, la prima intestazione sticky mantiene left:0 e un livello superiore alle altre celle di intestazione. La posizione fissa della colonna comprende sempre intestazione e valori, anche con scorrimento orizzontale e verticale combinato. Verifica Electron tramite geometria e hit-test della cella in primo piano nei due temi e alle dimensioni normale/minima.
-
 
 Aggiornamento Utensili del 20 novembre 2026: eliminate le colonne finali di pulsanti da tutte le liste. Il menu contestuale nativo, disponibile con tasto destro o Shift+F10 sulle righe, contiene dettaglio, modifica, variazioni di quantita, gestione/annullamento rotture, rimozione dei singoli collegamenti e aggiunta di articoli/utensili. Le azioni sono verificate sullo snapshot del backend prima di costruire il menu. Le analisi ERP compaiono solo sulla cella articolo e passano dalla navigazione condivisa con verifica delle destinazioni.
 
 Articoli collegati offre raggruppamento Per utensile / Per articolo: una riga principale per anagrafica, conteggio distinto delle controparti e dettagli espandibili sottostanti. Le righe Utensili espandono a loro volta gli articoli collegati. La stessa coppia con piu fasi compare una sola volta, con requisiti, fase, macchina e note allineati per ciascun collegamento; il menu distingue le singole fasi per modifica/rimozione. Le quantita di magazzino non sono sommate fra riferimenti condivisi. Dal gruppo utensile si aggiunge un articolo e dal gruppo articolo un utensile, conservando gli altri riferimenti. Gli espansi restano aperti durante l'append e il cambio di raggruppamento conserva il proprio stato; filtri/ordinamenti lavorano sui gruppi, gli export includono tutti i collegamenti filtrati anche se i gruppi sono chiusi.
-
 
 Contratti barra, 20 novembre 2026: il pulsante Raggruppa fornitori accanto a Colonne e disattivato a ogni nuova apertura e non e salvato nei preset. Da attivo, raggruppa per codice ERP fornitore i contratti filtrati e mostra i totali additivi, il numero di contratti distinti, il prezzo EUR/kg ponderato sui kg contrattuali e la copertura ricevuta ricalcolata dai totali. Valori mancanti non diventano zero: somme note parziali marcate con asterisco, totale assente senza campione. Valute e unita originali restano separate, prezzi unitari e percentuali non sono sommati. Il gruppo espande i contratti sottostanti, che espandono a loro volta gli ordini; append e filtri conservano gli stati degli espansi. I KPI restano calcolati sulle righe contratto filtrate. Excel aggiunge il riepilogo fornitori e gli eventuali importi per valuta quando il raggruppamento e attivo, oltre ai contratti e ordini analitici.
 

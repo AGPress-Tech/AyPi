@@ -1,44 +1,746 @@
-import {randomUUID} from 'crypto';
-import {getSqliteDatabase,runSqliteTransaction} from '../../shared/db/sqlite';
-import {badRequest,HttpError,notFound} from '../../shared/http/errors';
-import {toolValue,movementValue,stock,text,integer,issueStates} from './model';
-import {validateWorkspace} from './workspace';
-export type Kind='tool'|'article'|'link'|'movement'|'issue';
-const conflict=(s:string)=>new HttpError(409,s);
-function schema(){getSqliteDatabase().run(`CREATE TABLE IF NOT EXISTS tooling_entities(kind TEXT NOT NULL,id TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,deleted INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(kind,id));CREATE TABLE IF NOT EXISTS tooling_audit(sequence INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,entity_id TEXT,actor TEXT,at TEXT,action TEXT,before_json TEXT,after_json TEXT);CREATE TABLE IF NOT EXISTS tooling_meta(id TEXT PRIMARY KEY,payload TEXT NOT NULL);CREATE TABLE IF NOT EXISTS tooling_attachments(id TEXT PRIMARY KEY,kind TEXT,owner_id TEXT,name TEXT,path TEXT,data BLOB);`);}
-function rows(sql:string,args:any[]=[]){const st=getSqliteDatabase().prepare(sql);try{st.bind(args);const out:any[]=[];while(st.step())out.push(st.getAsObject());return out;}finally{st.free();}}
-const entities=(kind:Kind,deleted=false)=>rows('SELECT * FROM tooling_entities WHERE kind=?'+(deleted?'':' AND deleted=0'),[kind]).map(r=>({...JSON.parse(r.payload),id:r.id,revision:r.revision,deleted:!!r.deleted}));
-const meta=(id:string)=>{const r=rows('SELECT payload FROM tooling_meta WHERE id=?',[id])[0];return r?JSON.parse(r.payload):null;};
-function setMeta(id:string,v:any){getSqliteDatabase().run('INSERT INTO tooling_meta VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',[id,JSON.stringify(v)]);}
-function write(kind:Kind,v:any,actor:string,old:any=null,deleted=false){const at=new Date().toISOString(),value={...v,id:old?.id||v.id||randomUUID(),revision:(old?.revision||0)+1,createdAt:old?.createdAt||at,createdBy:old?.createdBy||actor,updatedAt:at,updatedBy:actor};delete value.deleted;getSqliteDatabase().run('INSERT INTO tooling_entities VALUES(?,?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload,deleted=excluded.deleted',[kind,value.id,value.revision,JSON.stringify(value),deleted?1:0]);getSqliteDatabase().run('INSERT INTO tooling_audit(kind,entity_id,actor,at,action,before_json,after_json) VALUES(?,?,?,?,?,?,?)',[kind,value.id,actor,at,deleted?'delete':old?'update':'create',old?JSON.stringify(old):null,JSON.stringify(value)]);return value;}
-function current(kind:Kind,v:any){const old=v.id?entities(kind).find(r=>r.id===v.id):null;if(v.id&&!old)throw notFound('Scheda non trovata.');if(v.revision!==(old?.revision||0))throw conflict('Scheda modificata da un altro operatore. Aggiornare i dati.');return old;}
-export function snapshot(){schema();const movements=entities('movement'),tools=entities('tool').map(t=>stock(t,movements)),articles=entities('article'),links=entities('link').map(l=>{const t=tools.find(t=>t.id===l.toolId),a=articles.find(a=>a.id===l.articleId);return {...l,toolCode:t?.code,toolDescription:t?.description,articleCode:a?.erpCode||a?.code,articleDescription:a?.description,usable:t?.usable??0,ready:!!t?.active&&t.usable>=l.required,shortage:Math.max(0,l.required-(t?.usable||0))};});return {tools,articles,links,movements,issues:entities('issue'),attachments:rows('SELECT id,kind,owner_id AS ownerId,name,path,length(data) AS bytes FROM tooling_attachments'),importInfo:meta('import'),today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Rome'}).format(new Date())};}
-function attachments(kind:Kind,id:string,list:any[]){if(!Array.isArray(list)||list.length>30)throw badRequest('Troppi allegati.');let size=0;const old=rows('SELECT * FROM tooling_attachments WHERE kind=? AND owner_id=?',[kind,id]),keep=new Set<string>();for(const a of list){if(a.id){if(!old.some(x=>x.id===a.id))throw badRequest('Allegato non valido.');keep.add(a.id);continue;}const name=text(a.name,200,true);if(!/\.(pdf|jpe?g|png|txt|csv|xlsx?|docx?)$/i.test(name))throw badRequest('Tipo allegato non supportato.');let data:Buffer|null=null,path:string|null=null;if(a.path){path=text(a.path,2000,true);if(!path.startsWith('\\\\')||path.split(/[\\/]/).includes('..'))throw badRequest('Percorso non valido.');}else{if(typeof a.data!=='string'||!/^[A-Za-z0-9+/]*={0,2}$/.test(a.data))throw badRequest('Documento non valido.');data=Buffer.from(a.data,'base64');size+=data.length;if(size>6*1024*1024)throw badRequest('Allegati oltre 6 MB.');}const key=randomUUID();keep.add(key);getSqliteDatabase().run('INSERT INTO tooling_attachments VALUES(?,?,?,?,?,?)',[key,kind,id,name,path,data]);}for(const a of old)if(!keep.has(a.id))getSqliteDatabase().run('DELETE FROM tooling_attachments WHERE id=?',[a.id]);}
-export function save(kind:Kind,v:any,actor:string,verifiedArticle?:any){schema();try{return runSqliteTransaction(()=>{if(!['tool','article','link','issue'].includes(kind))throw Error('Operazione non valida.');const old=current(kind,v);let value:any;
- if(kind==='tool'){value=toolValue(v);if(entities('tool',true).some(t=>t.id!==old?.id&&t.code.toLocaleLowerCase('it')===value.code.toLocaleLowerCase('it')))throw Error('Codice utensile già presente, anche tra gli archiviati.');if(old&&(old.initialUsable!==value.initialUsable||old.initialDamaged!==value.initialDamaged))throw Error('Usare una rettifica per modificare le giacenze, conservando i saldi iniziali.');value={...value,legacy:old?.legacy||null};}
- if(kind==='article'){if(!verifiedArticle||verifiedArticle.disabled)throw Error('Selezionare un articolo attivo dal gestionale.');const code=text(verifiedArticle.code,128,true);if(entities('article').some(a=>a.id!==old?.id&&a.erpCode===code))throw Error('Articolo già presente: usare la scheda esistente.');value={code:old?.code||code,erpCode:code,description:text(verifiedArticle.description,1000),unit:text(verifiedArticle.unit,30),location:text(v.location,300),notes:text(v.notes,10000),legacy:old?.legacy||null,verifiedAt:new Date().toISOString()};}
- if(kind==='link'){const toolId=text(v.toolId,128,true);let articleId=text(v.articleId,128);if(v.erpCode){const code=text(v.erpCode,128,true);if(!verifiedArticle||verifiedArticle.code!==code||verifiedArticle.disabled)throw Error('Scegliere un articolo attivo dal gestionale.');const existing=entities('article').find(a=>a.erpCode===code);articleId=existing?.id||write('article',{code,erpCode:code,description:text(verifiedArticle.description,1000),unit:text(verifiedArticle.unit,30),location:'',notes:'',legacy:null,verifiedAt:new Date().toISOString()},actor).id;}const selectedArticle=entities('article').find(a=>a.id===articleId);if(!entities('tool').some(t=>t.id===toolId&&t.active)||!selectedArticle)throw Error('Articolo o utensile non disponibile.');if(!old&&!selectedArticle.erpCode)throw Error('I nuovi collegamenti richiedono un articolo selezionato dal gestionale.');if(old&&!v.erpCode&&old.articleId!==articleId&&!selectedArticle.erpCode)throw Error('Per sostituire l’articolo sceglierlo dal gestionale.');value={toolId,articleId,required:integer(v.required??1,1),operation:text(v.operation,200),machine:text(v.machine,200),notes:text(v.notes,10000)};if(entities('link').some(l=>l.id!==old?.id&&l.toolId===toolId&&l.articleId===articleId&&l.operation===value.operation&&l.machine===value.machine))throw Error('Collegamento già presente.');}
- if(kind==='issue'){if(!old)throw Error('Le segnalazioni nascono registrando una rottura.');if(old.status==='canceled')throw Error('Rottura annullata.');if(!Object.hasOwnProperty.call(issueStates,v.status)||v.status==='canceled')throw Error('Stato segnalazione non valido.');value={...old,status:v.status,assignee:text(v.assignee,300),priority:['normal','high','urgent'].includes(v.priority)?v.priority:'normal',resolution:text(v.resolution,10000,v.status==='closed'),notes:text(v.notes,10000),closedAt:v.status==='closed'?old.closedAt||new Date().toISOString():''};}
- const saved=write(kind,value,actor,old);attachments(kind,saved.id,v.attachments??rows('SELECT id FROM tooling_attachments WHERE kind=? AND owner_id=?',[kind,saved.id]));return saved;
- });}catch(e){if(e instanceof HttpError)throw e;throw badRequest((e as Error).message);}}
-export function move(v:any,actor:string){schema();try{return runSqliteTransaction(()=>{const value=movementValue(v),tool=entities('tool').find(t=>t.id===value.toolId);if(!tool||!tool.active)throw Error('Utensile non disponibile.');if(v.toolRevision!==tool.revision)throw conflict('Giacenza modificata da un altro operatore. Aggiornare prima di registrare.');if(value.articleId&&!entities('link').some(l=>l.articleId===value.articleId&&l.toolId===tool.id))throw Error('Articolo non collegato all’utensile.');const movements=entities('movement'),sequence=Number(rows('SELECT COALESCE(MAX(sequence),0) AS n FROM tooling_audit')[0].n)+1,entry={...value,sequence,voided:false};stock(tool,[...movements,entry]);const saved=write('movement',entry,actor);if(value.type==='breakage')write('issue',{toolId:tool.id,movementId:saved.id,quantity:value.quantity,date:value.date,reason:value.reason,articleId:value.articleId,status:'open',priority:value.priority,assignee:value.assignee,resolution:'',notes:value.notes},actor);attachments('movement',saved.id,v.attachments||[]);write('tool',tool,actor,tool);return saved;});}catch(e){if(e instanceof HttpError)throw e;throw badRequest((e as Error).message);}}
-export function voidMovement(v:any,actor:string){schema();try{return runSqliteTransaction(()=>{const old=current('movement',v);if(!old||old.voided)throw Error('Movimento già annullato o mancante.');const reason=text(v.voidReason,2000,true),tool=entities('tool').find(t=>t.id===old.toolId);stock(tool,entities('movement').filter(m=>m.id!==old.id));write('movement',{...old,voided:true,voidReason:reason},actor,old);for(const issue of entities('issue').filter(i=>i.movementId===old.id))write('issue',{...issue,status:'canceled',resolution:reason},actor,issue);write('tool',tool,actor,tool);return {id:old.id};});}catch(e){if(e instanceof HttpError)throw e;throw badRequest((e as Error).message);}}
-export function remove(kind:Kind,v:any,actor:string){schema();return runSqliteTransaction(()=>{if(!['tool','article','link'].includes(kind))throw badRequest('Eliminazione non consentita.');const old=current(kind,v);if(!old)throw notFound('Scheda mancante.');if(kind==='tool'&&(entities('movement',true).some(m=>m.toolId===old.id)||entities('link').some(l=>l.toolId===old.id)))throw badRequest('Utensile utilizzato: archiviarlo per conservare i collegamenti.');if(kind==='article'&&entities('link').some(l=>l.articleId===old.id))throw badRequest('Articolo collegato: rimuovere prima i collegamenti.');return write(kind,old,actor,old,true);});}
-export function audit(id:string){schema();return rows('SELECT * FROM tooling_audit WHERE entity_id=? ORDER BY sequence DESC',[id]);}
-export function attachment(id:string){schema();const a=rows('SELECT * FROM tooling_attachments WHERE id=?',[id])[0];if(!a)throw notFound('Documento mancante.');return {name:a.name,path:a.path,data:a.data?Buffer.from(a.data).toString('base64'):null};}
-export function preferences(actor:string,value?:any){schema();const key='preferences:'+actor.toLocaleLowerCase('it');if(value!==undefined){if(!value||JSON.stringify(value).length>500000)throw badRequest('Preferenze non valide.');const clean=validateWorkspace(value);setMeta(key,clean);}return meta(key)||{};}
-const previews=new Map<string,{actor:string;expires:number;input:any}>();
-export function normalizeImport(v:any){
- if(!v||!Array.isArray(v.tables))throw badRequest('Archivio Access non valido.');
- const table=(name:string)=>{const rows=v.tables.find((t:any)=>t.name===name)?.rows;if(!Array.isArray(rows)||rows.length>100000)throw badRequest('Tabella Access mancante o troppo grande: '+name);return rows;};
- const problems:any[]=[],tools=table('tblUtensili').map((r:any)=>{const initial=integer(r['QuantitàIniziale']),damaged=integer(r['QuantitàDanneggiata']),usable=integer(r['QuantitàRimanente']);if(initial!==usable+damaged)throw badRequest('Saldi incoerenti: '+r.CodiceUtensile);return {...toolValue({code:r.CodiceUtensile,description:r.Descrizione||r.CodiceUtensile,category:r.Descrizione||'Da classificare',dimensions:r.Misure||'',location:r.Ubicazione||'',supplier:r.Creatore||'',customer:r.Cliente||'',notes:r.Note||'',initialUsable:usable,initialDamaged:damaged}),id:'access-tool:'+text(r.CodiceUtensile,128,true),legacy:r};});
- const articles=table('tblArticoli').map((r:any)=>({id:'access-article:'+text(r.CodiceArticolo,128,true),code:r.CodiceArticolo,description:text(r.Descrizione||'',1000),location:text(r.UbicazioneArt||'',300),erpCode:'',unit:'',notes:'',legacy:r}));
- for(const [name,list] of [['utensili',tools],['articoli',articles]] as const)if(new Set(list.map((x:any)=>x.code.toLocaleLowerCase('it'))).size!==list.length)throw badRequest('Codici duplicati negli '+name+'.');
- const seen=new Set<string>(),links:any[]=[];
- for(const r of table('tblArticoliUtensili')){const tool=tools.find((t:any)=>t.code===r.CodiceUtensile),article=articles.find((a:any)=>a.code===r.CodiceArticolo);if(!tool||!article){problems.push({code:String(r.ID),reason:'Collegamento senza anagrafica',legacy:r});continue;}const key=tool.id+'|'+article.id;if(seen.has(key)){problems.push({code:String(r.ID),reason:'Collegamento duplicato conservato nei riferimenti originali',legacy:r});continue;}seen.add(key);links.push({id:'access-link:'+r.ID,toolId:tool.id,articleId:article.id,required:1,operation:'',machine:'',notes:'',legacy:r});}
- return {tools,articles,links,problems,source:text(v.source||'Access',2000),readAt:text(v.readAt||new Date().toISOString(),100),catalogs:v.tables.filter((t:any)=>!['tblUtensili','tblArticoli','tblArticoliUtensili'].includes(t.name)).map((t:any)=>({name:text(t.name,200),rows:t.rows})),originalLinks:table('tblArticoliUtensili')};
+import { randomUUID } from "crypto";
+import {
+    getSqliteDatabase,
+    runSqliteTransaction,
+} from "../../shared/db/sqlite";
+import { badRequest, HttpError, notFound } from "../../shared/http/errors";
+import {
+    toolValue,
+    movementValue,
+    stock,
+    text,
+    integer,
+    issueStates,
+} from "./model";
+import { validateWorkspace } from "./workspace";
+export type Kind = "tool" | "article" | "link" | "movement" | "issue";
+const conflict = (s: string) => new HttpError(409, s);
+function schema() {
+    getSqliteDatabase().run(
+        `CREATE TABLE IF NOT EXISTS tooling_entities(kind TEXT NOT NULL,id TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,deleted INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(kind,id));CREATE TABLE IF NOT EXISTS tooling_audit(sequence INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,entity_id TEXT,actor TEXT,at TEXT,action TEXT,before_json TEXT,after_json TEXT);CREATE TABLE IF NOT EXISTS tooling_meta(id TEXT PRIMARY KEY,payload TEXT NOT NULL);CREATE TABLE IF NOT EXISTS tooling_attachments(id TEXT PRIMARY KEY,kind TEXT,owner_id TEXT,name TEXT,path TEXT,data BLOB);`,
+    );
 }
-function importPlan(input:any){const tools=entities('tool',true),articles=entities('article',true),links=entities('link',true),addTools=input.tools.filter((t:any)=>!tools.some(e=>e.id===t.id||e.code.toLocaleLowerCase('it')===t.code.toLocaleLowerCase('it'))),addArticles=input.articles.filter((a:any)=>!articles.some(e=>e.id===a.id||e.code.toLocaleLowerCase('it')===a.code.toLocaleLowerCase('it')));const toolId=(id:string)=>{const incoming=input.tools.find((t:any)=>t.id===id);return tools.find(t=>!t.deleted&&(t.id===id||t.code.toLocaleLowerCase('it')===incoming.code.toLocaleLowerCase('it')))?.id||addTools.find((t:any)=>t.id===id)?.id;},articleId=(id:string)=>{const incoming=input.articles.find((a:any)=>a.id===id);return articles.find(a=>!a.deleted&&(a.id===id||a.code.toLocaleLowerCase('it')===incoming.code.toLocaleLowerCase('it')))?.id||addArticles.find((a:any)=>a.id===id)?.id;};const addLinks=input.links.map((l:any)=>({...l,toolId:toolId(l.toolId),articleId:articleId(l.articleId)})).filter((l:any)=>l.toolId&&l.articleId&&!links.some(e=>e.id===l.id||e.toolId===l.toolId&&e.articleId===l.articleId));return {addTools,addArticles,addLinks};}
-export function previewImport(v:any,actor:string){schema();for(const [id,p] of previews)if(p.expires<Date.now())previews.delete(id);if(previews.size>=5)throw badRequest('Chiudere i confronti aperti.');const input=normalizeImport(v),plan=importPlan(input),token=randomUUID();previews.set(token,{input,actor,expires:Date.now()+600000});return {token,tools:plan.addTools.length,articles:plan.addArticles.length,links:plan.addLinks.length,problems:input.problems,source:input.source,existing:input.tools.length-plan.addTools.length};}
-export function cancelImport(token:string,actor:string){if(previews.get(token)?.actor===actor)previews.delete(token);return {canceled:true};}
-export function applyImport(token:string,actor:string){schema();const p=previews.get(token);if(!p||p.actor!==actor||p.expires<Date.now())throw conflict('Confronto scaduto. Ripetere la lettura.');const result=runSqliteTransaction(()=>{const plan=importPlan(p.input);for(const [kind,list] of [['tool',plan.addTools],['article',plan.addArticles],['link',plan.addLinks]] as [Kind,any[]][])for(const row of list)write(kind,row,actor);const info={at:new Date().toISOString(),actor,source:p.input.source,tools:plan.addTools.length,articles:plan.addArticles.length,links:plan.addLinks.length,problems:p.input.problems,catalogs:p.input.catalogs,originalLinks:p.input.originalLinks};setMeta('import',info);return info;});previews.delete(token);return result;}
+function rows(sql: string, args: any[] = []) {
+    const st = getSqliteDatabase().prepare(sql);
+    try {
+        st.bind(args);
+        const out: any[] = [];
+        while (st.step()) out.push(st.getAsObject());
+        return out;
+    } finally {
+        st.free();
+    }
+}
+const entities = (kind: Kind, deleted = false) =>
+    rows(
+        "SELECT * FROM tooling_entities WHERE kind=?" +
+            (deleted ? "" : " AND deleted=0"),
+        [kind],
+    ).map((r) => ({
+        ...JSON.parse(r.payload),
+        id: r.id,
+        revision: r.revision,
+        deleted: !!r.deleted,
+    }));
+const meta = (id: string) => {
+    const r = rows("SELECT payload FROM tooling_meta WHERE id=?", [id])[0];
+    return r ? JSON.parse(r.payload) : null;
+};
+function setMeta(id: string, v: any) {
+    getSqliteDatabase().run(
+        "INSERT INTO tooling_meta VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+        [id, JSON.stringify(v)],
+    );
+}
+function write(
+    kind: Kind,
+    v: any,
+    actor: string,
+    old: any = null,
+    deleted = false,
+) {
+    const at = new Date().toISOString(),
+        value = {
+            ...v,
+            id: old?.id || v.id || randomUUID(),
+            revision: (old?.revision || 0) + 1,
+            createdAt: old?.createdAt || at,
+            createdBy: old?.createdBy || actor,
+            updatedAt: at,
+            updatedBy: actor,
+        };
+    delete value.deleted;
+    getSqliteDatabase().run(
+        "INSERT INTO tooling_entities VALUES(?,?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload,deleted=excluded.deleted",
+        [
+            kind,
+            value.id,
+            value.revision,
+            JSON.stringify(value),
+            deleted ? 1 : 0,
+        ],
+    );
+    getSqliteDatabase().run(
+        "INSERT INTO tooling_audit(kind,entity_id,actor,at,action,before_json,after_json) VALUES(?,?,?,?,?,?,?)",
+        [
+            kind,
+            value.id,
+            actor,
+            at,
+            deleted ? "delete" : old ? "update" : "create",
+            old ? JSON.stringify(old) : null,
+            JSON.stringify(value),
+        ],
+    );
+    return value;
+}
+function current(kind: Kind, v: any) {
+    const old = v.id ? entities(kind).find((r) => r.id === v.id) : null;
+    if (v.id && !old) throw notFound("Scheda non trovata.");
+    if (v.revision !== (old?.revision || 0))
+        throw conflict(
+            "Scheda modificata da un altro operatore. Aggiornare i dati.",
+        );
+    return old;
+}
+export function snapshot() {
+    schema();
+    const movements = entities("movement"),
+        tools = entities("tool").map((t) => stock(t, movements)),
+        articles = entities("article"),
+        links = entities("link").map((l) => {
+            const t = tools.find((t) => t.id === l.toolId),
+                a = articles.find((a) => a.id === l.articleId);
+            return {
+                ...l,
+                toolCode: t?.code,
+                toolDescription: t?.description,
+                articleCode: a?.erpCode || a?.code,
+                articleDescription: a?.description,
+                usable: t?.usable ?? 0,
+                ready: !!t?.active && t.usable >= l.required,
+                shortage: Math.max(0, l.required - (t?.usable || 0)),
+            };
+        });
+    return {
+        tools,
+        articles,
+        links,
+        movements,
+        issues: entities("issue"),
+        attachments: rows(
+            "SELECT id,kind,owner_id AS ownerId,name,path,length(data) AS bytes FROM tooling_attachments",
+        ),
+        importInfo: meta("import"),
+        today: new Intl.DateTimeFormat("sv-SE", {
+            timeZone: "Europe/Rome",
+        }).format(new Date()),
+    };
+}
+function attachments(kind: Kind, id: string, list: any[]) {
+    if (!Array.isArray(list) || list.length > 30)
+        throw badRequest("Troppi allegati.");
+    let size = 0;
+    const old = rows(
+            "SELECT * FROM tooling_attachments WHERE kind=? AND owner_id=?",
+            [kind, id],
+        ),
+        keep = new Set<string>();
+    for (const a of list) {
+        if (a.id) {
+            if (!old.some((x) => x.id === a.id))
+                throw badRequest("Allegato non valido.");
+            keep.add(a.id);
+            continue;
+        }
+        const name = text(a.name, 200, true);
+        if (!/\.(pdf|jpe?g|png|txt|csv|xlsx?|docx?)$/i.test(name))
+            throw badRequest("Tipo allegato non supportato.");
+        let data: Buffer | null = null,
+            path: string | null = null;
+        if (a.path) {
+            path = text(a.path, 2000, true);
+            if (!path.startsWith("\\\\") || path.split(/[\\/]/).includes(".."))
+                throw badRequest("Percorso non valido.");
+        } else {
+            if (
+                typeof a.data !== "string" ||
+                !/^[A-Za-z0-9+/]*={0,2}$/.test(a.data)
+            )
+                throw badRequest("Documento non valido.");
+            data = Buffer.from(a.data, "base64");
+            size += data.length;
+            if (size > 6 * 1024 * 1024)
+                throw badRequest("Allegati oltre 6 MB.");
+        }
+        const key = randomUUID();
+        keep.add(key);
+        getSqliteDatabase().run(
+            "INSERT INTO tooling_attachments VALUES(?,?,?,?,?,?)",
+            [key, kind, id, name, path, data],
+        );
+    }
+    for (const a of old)
+        if (!keep.has(a.id))
+            getSqliteDatabase().run(
+                "DELETE FROM tooling_attachments WHERE id=?",
+                [a.id],
+            );
+}
+export function save(kind: Kind, v: any, actor: string, verifiedArticle?: any) {
+    schema();
+    try {
+        return runSqliteTransaction(() => {
+            if (!["tool", "article", "link", "issue"].includes(kind))
+                throw Error("Operazione non valida.");
+            const old = current(kind, v);
+            let value: any;
+            if (kind === "tool") {
+                value = toolValue(v);
+                if (
+                    entities("tool", true).some(
+                        (t) =>
+                            t.id !== old?.id &&
+                            t.code.toLocaleLowerCase("it") ===
+                                value.code.toLocaleLowerCase("it"),
+                    )
+                )
+                    throw Error(
+                        "Codice utensile già presente, anche tra gli archiviati.",
+                    );
+                if (
+                    old &&
+                    (old.initialUsable !== value.initialUsable ||
+                        old.initialDamaged !== value.initialDamaged)
+                )
+                    throw Error(
+                        "Usare una rettifica per modificare le giacenze, conservando i saldi iniziali.",
+                    );
+                value = { ...value, legacy: old?.legacy || null };
+            }
+            if (kind === "article") {
+                if (!verifiedArticle || verifiedArticle.disabled)
+                    throw Error(
+                        "Selezionare un articolo attivo dal gestionale.",
+                    );
+                const code = text(verifiedArticle.code, 128, true);
+                if (
+                    entities("article").some(
+                        (a) => a.id !== old?.id && a.erpCode === code,
+                    )
+                )
+                    throw Error(
+                        "Articolo già presente: usare la scheda esistente.",
+                    );
+                value = {
+                    code: old?.code || code,
+                    erpCode: code,
+                    description: text(verifiedArticle.description, 1000),
+                    unit: text(verifiedArticle.unit, 30),
+                    location: text(v.location, 300),
+                    notes: text(v.notes, 10000),
+                    legacy: old?.legacy || null,
+                    verifiedAt: new Date().toISOString(),
+                };
+            }
+            if (kind === "link") {
+                const toolId = text(v.toolId, 128, true);
+                let articleId = text(v.articleId, 128);
+                if (v.erpCode) {
+                    const code = text(v.erpCode, 128, true);
+                    if (
+                        !verifiedArticle ||
+                        verifiedArticle.code !== code ||
+                        verifiedArticle.disabled
+                    )
+                        throw Error(
+                            "Scegliere un articolo attivo dal gestionale.",
+                        );
+                    const existing = entities("article").find(
+                        (a) => a.erpCode === code,
+                    );
+                    articleId =
+                        existing?.id ||
+                        write(
+                            "article",
+                            {
+                                code,
+                                erpCode: code,
+                                description: text(
+                                    verifiedArticle.description,
+                                    1000,
+                                ),
+                                unit: text(verifiedArticle.unit, 30),
+                                location: "",
+                                notes: "",
+                                legacy: null,
+                                verifiedAt: new Date().toISOString(),
+                            },
+                            actor,
+                        ).id;
+                }
+                const selectedArticle = entities("article").find(
+                    (a) => a.id === articleId,
+                );
+                if (
+                    !entities("tool").some(
+                        (t) => t.id === toolId && t.active,
+                    ) ||
+                    !selectedArticle
+                )
+                    throw Error("Articolo o utensile non disponibile.");
+                if (!old && !selectedArticle.erpCode)
+                    throw Error(
+                        "I nuovi collegamenti richiedono un articolo selezionato dal gestionale.",
+                    );
+                if (
+                    old &&
+                    !v.erpCode &&
+                    old.articleId !== articleId &&
+                    !selectedArticle.erpCode
+                )
+                    throw Error(
+                        "Per sostituire l’articolo sceglierlo dal gestionale.",
+                    );
+                value = {
+                    toolId,
+                    articleId,
+                    required: integer(v.required ?? 1, 1),
+                    operation: text(v.operation, 200),
+                    machine: text(v.machine, 200),
+                    notes: text(v.notes, 10000),
+                };
+                if (
+                    entities("link").some(
+                        (l) =>
+                            l.id !== old?.id &&
+                            l.toolId === toolId &&
+                            l.articleId === articleId &&
+                            l.operation === value.operation &&
+                            l.machine === value.machine,
+                    )
+                )
+                    throw Error("Collegamento già presente.");
+            }
+            if (kind === "issue") {
+                if (!old)
+                    throw Error(
+                        "Le segnalazioni nascono registrando una rottura.",
+                    );
+                if (old.status === "canceled")
+                    throw Error("Rottura annullata.");
+                if (
+                    !Object.hasOwnProperty.call(issueStates, v.status) ||
+                    v.status === "canceled"
+                )
+                    throw Error("Stato segnalazione non valido.");
+                value = {
+                    ...old,
+                    status: v.status,
+                    assignee: text(v.assignee, 300),
+                    priority: ["normal", "high", "urgent"].includes(v.priority)
+                        ? v.priority
+                        : "normal",
+                    resolution: text(
+                        v.resolution,
+                        10000,
+                        v.status === "closed",
+                    ),
+                    notes: text(v.notes, 10000),
+                    closedAt:
+                        v.status === "closed"
+                            ? old.closedAt || new Date().toISOString()
+                            : "",
+                };
+            }
+            const saved = write(kind, value, actor, old);
+            attachments(
+                kind,
+                saved.id,
+                v.attachments ??
+                    rows(
+                        "SELECT id FROM tooling_attachments WHERE kind=? AND owner_id=?",
+                        [kind, saved.id],
+                    ),
+            );
+            return saved;
+        });
+    } catch (e) {
+        if (e instanceof HttpError) throw e;
+        throw badRequest((e as Error).message);
+    }
+}
+export function move(v: any, actor: string) {
+    schema();
+    try {
+        return runSqliteTransaction(() => {
+            const value = movementValue(v),
+                tool = entities("tool").find((t) => t.id === value.toolId);
+            if (!tool || !tool.active) throw Error("Utensile non disponibile.");
+            if (v.toolRevision !== tool.revision)
+                throw conflict(
+                    "Giacenza modificata da un altro operatore. Aggiornare prima di registrare.",
+                );
+            if (
+                value.articleId &&
+                !entities("link").some(
+                    (l) =>
+                        l.articleId === value.articleId && l.toolId === tool.id,
+                )
+            )
+                throw Error("Articolo non collegato all’utensile.");
+            const movements = entities("movement"),
+                sequence =
+                    Number(
+                        rows(
+                            "SELECT COALESCE(MAX(sequence),0) AS n FROM tooling_audit",
+                        )[0].n,
+                    ) + 1,
+                entry = { ...value, sequence, voided: false };
+            stock(tool, [...movements, entry]);
+            const saved = write("movement", entry, actor);
+            if (value.type === "breakage")
+                write(
+                    "issue",
+                    {
+                        toolId: tool.id,
+                        movementId: saved.id,
+                        quantity: value.quantity,
+                        date: value.date,
+                        reason: value.reason,
+                        articleId: value.articleId,
+                        status: "open",
+                        priority: value.priority,
+                        assignee: value.assignee,
+                        resolution: "",
+                        notes: value.notes,
+                    },
+                    actor,
+                );
+            attachments("movement", saved.id, v.attachments || []);
+            write("tool", tool, actor, tool);
+            return saved;
+        });
+    } catch (e) {
+        if (e instanceof HttpError) throw e;
+        throw badRequest((e as Error).message);
+    }
+}
+export function voidMovement(v: any, actor: string) {
+    schema();
+    try {
+        return runSqliteTransaction(() => {
+            const old = current("movement", v);
+            if (!old || old.voided)
+                throw Error("Movimento già annullato o mancante.");
+            const reason = text(v.voidReason, 2000, true),
+                tool = entities("tool").find((t) => t.id === old.toolId);
+            stock(
+                tool,
+                entities("movement").filter((m) => m.id !== old.id),
+            );
+            write(
+                "movement",
+                { ...old, voided: true, voidReason: reason },
+                actor,
+                old,
+            );
+            for (const issue of entities("issue").filter(
+                (i) => i.movementId === old.id,
+            ))
+                write(
+                    "issue",
+                    { ...issue, status: "canceled", resolution: reason },
+                    actor,
+                    issue,
+                );
+            write("tool", tool, actor, tool);
+            return { id: old.id };
+        });
+    } catch (e) {
+        if (e instanceof HttpError) throw e;
+        throw badRequest((e as Error).message);
+    }
+}
+export function remove(kind: Kind, v: any, actor: string) {
+    schema();
+    return runSqliteTransaction(() => {
+        if (!["tool", "article", "link"].includes(kind))
+            throw badRequest("Eliminazione non consentita.");
+        const old = current(kind, v);
+        if (!old) throw notFound("Scheda mancante.");
+        if (
+            kind === "tool" &&
+            (entities("movement", true).some((m) => m.toolId === old.id) ||
+                entities("link").some((l) => l.toolId === old.id))
+        )
+            throw badRequest(
+                "Utensile utilizzato: archiviarlo per conservare i collegamenti.",
+            );
+        if (
+            kind === "article" &&
+            entities("link").some((l) => l.articleId === old.id)
+        )
+            throw badRequest(
+                "Articolo collegato: rimuovere prima i collegamenti.",
+            );
+        return write(kind, old, actor, old, true);
+    });
+}
+export function audit(id: string) {
+    schema();
+    return rows(
+        "SELECT * FROM tooling_audit WHERE entity_id=? ORDER BY sequence DESC",
+        [id],
+    );
+}
+export function attachment(id: string) {
+    schema();
+    const a = rows("SELECT * FROM tooling_attachments WHERE id=?", [id])[0];
+    if (!a) throw notFound("Documento mancante.");
+    return {
+        name: a.name,
+        path: a.path,
+        data: a.data ? Buffer.from(a.data).toString("base64") : null,
+    };
+}
+export function preferences(actor: string, value?: any) {
+    schema();
+    const key = "preferences:" + actor.toLocaleLowerCase("it");
+    if (value !== undefined) {
+        if (!value || JSON.stringify(value).length > 500000)
+            throw badRequest("Preferenze non valide.");
+        const clean = validateWorkspace(value);
+        setMeta(key, clean);
+    }
+    return meta(key) || {};
+}
+const previews = new Map<
+    string,
+    { actor: string; expires: number; input: any }
+>();
+export function normalizeImport(v: any) {
+    if (!v || !Array.isArray(v.tables))
+        throw badRequest("Archivio Access non valido.");
+    const table = (name: string) => {
+        const rows = v.tables.find((t: any) => t.name === name)?.rows;
+        if (!Array.isArray(rows) || rows.length > 100000)
+            throw badRequest(
+                "Tabella Access mancante o troppo grande: " + name,
+            );
+        return rows;
+    };
+    const problems: any[] = [],
+        tools = table("tblUtensili").map((r: any) => {
+            const initial = integer(r["QuantitàIniziale"]),
+                damaged = integer(r["QuantitàDanneggiata"]),
+                usable = integer(r["QuantitàRimanente"]);
+            if (initial !== usable + damaged)
+                throw badRequest("Saldi incoerenti: " + r.CodiceUtensile);
+            return {
+                ...toolValue({
+                    code: r.CodiceUtensile,
+                    description: r.Descrizione || r.CodiceUtensile,
+                    category: r.Descrizione || "Da classificare",
+                    dimensions: r.Misure || "",
+                    location: r.Ubicazione || "",
+                    supplier: r.Creatore || "",
+                    customer: r.Cliente || "",
+                    notes: r.Note || "",
+                    initialUsable: usable,
+                    initialDamaged: damaged,
+                }),
+                id: "access-tool:" + text(r.CodiceUtensile, 128, true),
+                legacy: r,
+            };
+        });
+    const articles = table("tblArticoli").map((r: any) => ({
+        id: "access-article:" + text(r.CodiceArticolo, 128, true),
+        code: r.CodiceArticolo,
+        description: text(r.Descrizione || "", 1000),
+        location: text(r.UbicazioneArt || "", 300),
+        erpCode: "",
+        unit: "",
+        notes: "",
+        legacy: r,
+    }));
+    for (const [name, list] of [
+        ["utensili", tools],
+        ["articoli", articles],
+    ] as const)
+        if (
+            new Set(list.map((x: any) => x.code.toLocaleLowerCase("it")))
+                .size !== list.length
+        )
+            throw badRequest("Codici duplicati negli " + name + ".");
+    const seen = new Set<string>(),
+        links: any[] = [];
+    for (const r of table("tblArticoliUtensili")) {
+        const tool = tools.find((t: any) => t.code === r.CodiceUtensile),
+            article = articles.find((a: any) => a.code === r.CodiceArticolo);
+        if (!tool || !article) {
+            problems.push({
+                code: String(r.ID),
+                reason: "Collegamento senza anagrafica",
+                legacy: r,
+            });
+            continue;
+        }
+        const key = tool.id + "|" + article.id;
+        if (seen.has(key)) {
+            problems.push({
+                code: String(r.ID),
+                reason: "Collegamento duplicato conservato nei riferimenti originali",
+                legacy: r,
+            });
+            continue;
+        }
+        seen.add(key);
+        links.push({
+            id: "access-link:" + r.ID,
+            toolId: tool.id,
+            articleId: article.id,
+            required: 1,
+            operation: "",
+            machine: "",
+            notes: "",
+            legacy: r,
+        });
+    }
+    return {
+        tools,
+        articles,
+        links,
+        problems,
+        source: text(v.source || "Access", 2000),
+        readAt: text(v.readAt || new Date().toISOString(), 100),
+        catalogs: v.tables
+            .filter(
+                (t: any) =>
+                    ![
+                        "tblUtensili",
+                        "tblArticoli",
+                        "tblArticoliUtensili",
+                    ].includes(t.name),
+            )
+            .map((t: any) => ({ name: text(t.name, 200), rows: t.rows })),
+        originalLinks: table("tblArticoliUtensili"),
+    };
+}
+function importPlan(input: any) {
+    const tools = entities("tool", true),
+        articles = entities("article", true),
+        links = entities("link", true),
+        addTools = input.tools.filter(
+            (t: any) =>
+                !tools.some(
+                    (e) =>
+                        e.id === t.id ||
+                        e.code.toLocaleLowerCase("it") ===
+                            t.code.toLocaleLowerCase("it"),
+                ),
+        ),
+        addArticles = input.articles.filter(
+            (a: any) =>
+                !articles.some(
+                    (e) =>
+                        e.id === a.id ||
+                        e.code.toLocaleLowerCase("it") ===
+                            a.code.toLocaleLowerCase("it"),
+                ),
+        );
+    const toolId = (id: string) => {
+            const incoming = input.tools.find((t: any) => t.id === id);
+            return (
+                tools.find(
+                    (t) =>
+                        !t.deleted &&
+                        (t.id === id ||
+                            t.code.toLocaleLowerCase("it") ===
+                                incoming.code.toLocaleLowerCase("it")),
+                )?.id || addTools.find((t: any) => t.id === id)?.id
+            );
+        },
+        articleId = (id: string) => {
+            const incoming = input.articles.find((a: any) => a.id === id);
+            return (
+                articles.find(
+                    (a) =>
+                        !a.deleted &&
+                        (a.id === id ||
+                            a.code.toLocaleLowerCase("it") ===
+                                incoming.code.toLocaleLowerCase("it")),
+                )?.id || addArticles.find((a: any) => a.id === id)?.id
+            );
+        };
+    const addLinks = input.links
+        .map((l: any) => ({
+            ...l,
+            toolId: toolId(l.toolId),
+            articleId: articleId(l.articleId),
+        }))
+        .filter(
+            (l: any) =>
+                l.toolId &&
+                l.articleId &&
+                !links.some(
+                    (e) =>
+                        e.id === l.id ||
+                        (e.toolId === l.toolId && e.articleId === l.articleId),
+                ),
+        );
+    return { addTools, addArticles, addLinks };
+}
+export function previewImport(v: any, actor: string) {
+    schema();
+    for (const [id, p] of previews)
+        if (p.expires < Date.now()) previews.delete(id);
+    if (previews.size >= 5) throw badRequest("Chiudere i confronti aperti.");
+    const input = normalizeImport(v),
+        plan = importPlan(input),
+        token = randomUUID();
+    previews.set(token, { input, actor, expires: Date.now() + 600000 });
+    return {
+        token,
+        tools: plan.addTools.length,
+        articles: plan.addArticles.length,
+        links: plan.addLinks.length,
+        problems: input.problems,
+        source: input.source,
+        existing: input.tools.length - plan.addTools.length,
+    };
+}
+export function cancelImport(token: string, actor: string) {
+    if (previews.get(token)?.actor === actor) previews.delete(token);
+    return { canceled: true };
+}
+export function applyImport(token: string, actor: string) {
+    schema();
+    const p = previews.get(token);
+    if (!p || p.actor !== actor || p.expires < Date.now())
+        throw conflict("Confronto scaduto. Ripetere la lettura.");
+    const result = runSqliteTransaction(() => {
+        const plan = importPlan(p.input);
+        for (const [kind, list] of [
+            ["tool", plan.addTools],
+            ["article", plan.addArticles],
+            ["link", plan.addLinks],
+        ] as [Kind, any[]][])
+            for (const row of list) write(kind, row, actor);
+        const info = {
+            at: new Date().toISOString(),
+            actor,
+            source: p.input.source,
+            tools: plan.addTools.length,
+            articles: plan.addArticles.length,
+            links: plan.addLinks.length,
+            problems: p.input.problems,
+            catalogs: p.input.catalogs,
+            originalLinks: p.input.originalLinks,
+        };
+        setMeta("import", info);
+        return info;
+    });
+    previews.delete(token);
+    return result;
+}

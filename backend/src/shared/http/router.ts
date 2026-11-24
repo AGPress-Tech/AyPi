@@ -45,7 +45,14 @@ export class Router {
         const method = (request.method || "GET").toUpperCase();
         const url = new URL(request.url || "/", "http://localhost");
         const pathname = url.pathname;
-        if (/^\/api\/(?:ferie-permessi|product-manager|ticket-support)\/backups(?:\/|$)/.test(pathname)) throw forbidden("Usa Backups nel menu principale AyPi, dopo F2 e password amministratore.");
+        if (
+            /^\/api\/(?:ferie-permessi|product-manager|ticket-support)\/backups(?:\/|$)/.test(
+                pathname,
+            )
+        )
+            throw forbidden(
+                "Usa Backups nel menu principale AyPi, dopo F2 e password amministratore.",
+            );
 
         for (const route of this.routes) {
             if (route.method !== method) continue;
@@ -61,8 +68,11 @@ export class Router {
                 {},
             );
             const release = enterBackendRequest(pathname);
-            try { await route.handler(request, response, params); }
-            finally { release(); }
+            try {
+                await route.handler(request, response, params);
+            } finally {
+                release();
+            }
             return true;
         }
 

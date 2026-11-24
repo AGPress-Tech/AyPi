@@ -1,5 +1,10 @@
 import { eventDescription } from "./event-labels";
-import { selectorLabel, technicalPhaseLabel, type PhaseInfo, type SelectorPhases } from "./selector-point";
+import {
+    selectorLabel,
+    technicalPhaseLabel,
+    type PhaseInfo,
+    type SelectorPhases,
+} from "./selector-point";
 import type Chart from "chart.js/auto";
 import { randomUUID } from "crypto";
 import { boundedQueryRange } from "./query-range";
@@ -119,26 +124,42 @@ export function setupAnnotations(
     let noticeTimer: ReturnType<typeof setTimeout> | undefined;
     let popupKey = "";
     const markers = new Map<string, { button: HTMLElement; group: Group }>();
-    const descriptions = new Map<string, { label: string; expires: number; pending?: Promise<string> }>();
+    const descriptions = new Map<
+        string,
+        { label: string; expires: number; pending?: Promise<string> }
+    >();
     function describePoint(id: string, fallback: string): Promise<string> {
         const cached = descriptions.get(id);
         if (cached?.pending) return cached.pending;
-        if (cached && cached.expires > Date.now()) return Promise.resolve(cached.label);
-        const record = { label: cached?.label || fallback, expires: 0, pending: undefined as Promise<string> | undefined };
+        if (cached && cached.expires > Date.now())
+            return Promise.resolve(cached.label);
+        const record = {
+            label: cached?.label || fallback,
+            expires: 0,
+            pending: undefined as Promise<string> | undefined,
+        };
         descriptions.set(id, record);
-        if (descriptions.size > 256) descriptions.delete(descriptions.keys().next().value);
-        record.pending = options.phaseInfo(id).then((info) => {
-            record.label = technicalPhaseLabel(info);
-            record.expires = info.status === "open" ? Date.now() + 5000 : Infinity;
-            return record.label;
-        }).catch(() => {
-            record.label = fallback.split(" · ")[0] + " · dati tecnici non disponibili";
-            record.expires = Date.now() + 5000;
-            return record.label;
-        }).finally(() => {
-            record.pending = undefined;
-            if (!disposed) chart.draw();
-        });
+        if (descriptions.size > 256)
+            descriptions.delete(descriptions.keys().next().value);
+        record.pending = options
+            .phaseInfo(id)
+            .then((info) => {
+                record.label = technicalPhaseLabel(info);
+                record.expires =
+                    info.status === "open" ? Date.now() + 5000 : Infinity;
+                return record.label;
+            })
+            .catch(() => {
+                record.label =
+                    fallback.split(" · ")[0] +
+                    " · dati tecnici non disponibili";
+                record.expires = Date.now() + 5000;
+                return record.label;
+            })
+            .finally(() => {
+                record.pending = undefined;
+                if (!disposed) chart.draw();
+            });
         return record.pending;
     }
     function node(tag: string, className: string, text?: string) {
@@ -391,7 +412,11 @@ export function setupAnnotations(
         const visibleStart = Math.ceil(range.start),
             visibleEnd = Math.floor(range.end);
         draw();
-        if (!settings.showNotes && !settings.showEvents && !settings.snapSelector) {
+        if (
+            !settings.showNotes &&
+            !settings.showEvents &&
+            !settings.snapSelector
+        ) {
             data = { notes: [], events: [], truncated: false };
             revision++;
             draw();
@@ -434,10 +459,12 @@ export function setupAnnotations(
                 fromMs,
                 toMs,
                 showNotes: settings.showNotes,
-                eventTypes: [...new Set([
-                    ...(settings.showEvents ? settings.eventTypes : []),
-                    ...(settings.snapSelector ? SNAP_EVENT_TYPES : []),
-                ])],
+                eventTypes: [
+                    ...new Set([
+                        ...(settings.showEvents ? settings.eventTypes : []),
+                        ...(settings.snapSelector ? SNAP_EVENT_TYPES : []),
+                    ]),
+                ],
                 revision: reusable ? coverage?.revision : undefined,
             });
             if (disposed) return;
@@ -692,16 +719,25 @@ export function setupAnnotations(
         },
         async describePhases(phases: SelectorPhases): Promise<SelectorPhases> {
             const [from, to] = await Promise.all([
-                phases.fromId ? describePoint(phases.fromId, phases.from || "Fase") : phases.from,
-                phases.toId ? describePoint(phases.toId, phases.to || "Fase") : phases.to,
+                phases.fromId
+                    ? describePoint(phases.fromId, phases.from || "Fase")
+                    : phases.from,
+                phases.toId
+                    ? describePoint(phases.toId, phases.to || "Fase")
+                    : phases.to,
             ]);
             return { ...phases, from, to };
         },
         snapPoints() {
             if (!options.settings().snapSelector) return [];
-            return data.events.filter((event) =>
-                SNAP_EVENT_TYPES.includes(event.type),
-            ).map((event) => ({ ...event, label: descriptions.get(event.id)?.label || selectorLabel(event) }));
+            return data.events
+                .filter((event) => SNAP_EVENT_TYPES.includes(event.type))
+                .map((event) => ({
+                    ...event,
+                    label:
+                        descriptions.get(event.id)?.label ||
+                        selectorLabel(event),
+                }));
         },
         draw,
         refresh,

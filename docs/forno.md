@@ -15,12 +15,12 @@ mantenendo tutte le altre proprietà esistenti:
 
 ```json
 {
-  "forno": {
-    "autoStart": true,
-    "dbPath": "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\forno.db",
-    "host": "192.168.1.165",
-    "intervalMs": 500
-  }
+    "forno": {
+        "autoStart": true,
+        "dbPath": "\\\\Dl360\\pubbliche\\TECH\\AyPi\\AGPRESS\\General\\data\\forno.db",
+        "host": "192.168.1.165",
+        "intervalMs": 500
+    }
 }
 ```
 
@@ -831,7 +831,7 @@ la raccolta senza dover aprire la diagnostica dettagliata.
 ### Gestione dei programmi sul forno
 
 Aggiornare sia l'app desktop sia il backend. La produzione usa `manage` come
-impostazione predefinita. `tests` esplicito limita l'accesso alle prove TEST_
+impostazione predefinita. `tests` esplicito limita l'accesso alle prove TEST\_
 create da questa installazione; `off` disabilita i trasferimenti. In sviluppo
 il default resta off. Ambiente e configurazione esplicita hanno precedenza.
 
@@ -897,23 +897,23 @@ node tools/test-forno-ui.cjs
 npm run verify:backend:baseline
 ```
 
-Il collaudo dell'operatore ha confermato l'invio di un programma TEST_;
+Il collaudo dell'operatore ha confermato l'invio di un programma TEST\_;
 la revisione di gestione completa e coperta da test simulati e UI.
 Il collaudo termico resta distinto dal confronto software Store/Load.
 
 ### Promemoria: rinomina dei programmi esistenti (rimandato il 04/11/2026)
 
 - [ ] Implementare la rinomina diretta di un programma già presente sul nanodac,
-  senza creare una copia e cancellare l'originale. Caso richiesto:
-  `Ciclo_1_530_8h` → `Ciclo_1_530_11h`, mantenendo il ciclo in prima posizione.
-- L'accesso FTP e i comandi RNFR/RNTO sono stati verificati su file TEST_
+      senza creare una copia e cancellare l'originale. Caso richiesto:
+      `Ciclo_1_530_8h` → `Ciclo_1_530_11h`, mantenendo il ciclo in prima posizione.
+- L'accesso FTP e i comandi RNFR/RNTO sono stati verificati su file TEST\_
   temporanei: il contenuto rimane identico, ma la posizione può cambiare.
   L'ordine FTP non coincide necessariamente con quello restituito via Modbus.
 - Prima dell'integrazione, verificare il nome interno del file dopo la rinomina,
   il caricamento, tutti i parametri e l'ordine effettivo su SCADA e pannello.
   Il nuovo nome non è presente ed è compatibile con la prima posizione
   nell'ordinamento per nome; questo non garantisce l'ordine del pannello.
-- Riprendere con backup e prove esclusivamente su TEST_, in Reset e senza Run.
+- Riprendere con backup e prove esclusivamente su TEST\_, in Reset e senza Run.
   Non memorizzare credenziali FTP nella documentazione o nei sorgenti.
 - Il programma originale non è stato rinominato. L'operatore ha rimandato
   questo intervento per lavorare prima su altre funzionalità.

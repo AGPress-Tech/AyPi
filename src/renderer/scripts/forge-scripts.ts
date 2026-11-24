@@ -14,7 +14,11 @@ bootSplash.mark("theme");
 const robotConsole = setupRobotConsole();
 const element = (id: string) => document.getElementById(id)!;
 function applyStation(snapshot: any) {
-    for (const [id, entry] of Object.entries({ "forge-open-mes": "open-production-planner-window", "forge-open-forno": "open-forno-window", "forge-open-robots": "forge-robots" })) {
+    for (const [id, entry] of Object.entries({
+        "forge-open-mes": "open-production-planner-window",
+        "forge-open-forno": "open-forno-window",
+        "forge-open-robots": "forge-robots",
+    })) {
         const state = stationAccess(snapshot.config, entry);
         const button = element(id) as HTMLButtonElement;
         button.hidden = state === "hidden";
@@ -22,7 +26,9 @@ function applyStation(snapshot: any) {
     }
 }
 ipcRenderer.invoke("workstations-get").then(applyStation);
-ipcRenderer.on("workstations-changed", (_event: unknown, snapshot: any) => applyStation(snapshot));
+ipcRenderer.on("workstations-changed", (_event: unknown, snapshot: any) =>
+    applyStation(snapshot),
+);
 element("forge-edition").textContent =
     theme === "bluearchive" ? "BLUE ARCHIVE" : "AGPRESS";
 element("forge-future-editor").hidden = theme !== "bluearchive";

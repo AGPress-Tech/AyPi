@@ -1,24 +1,434 @@
-:root{color-scheme:only light}.tooling-window :is(select,datalist) option{background:#fff;color:var(--ops-ink);font:inherit}
-.tooling-window .header-actions{flex-wrap:wrap}.tooling-window .header-actions .primary,.tooling-window #newEntity{background:transparent;color:var(--ops-accent);border-color:var(--ops-accent)}.tooling-window .filter-row{flex-wrap:wrap}.tooling-window .filter-row select{max-width:210px}.tooling-window .maintenance-filter-popup label{display:flex;flex-direction:column;align-items:stretch;gap:6px}.tooling-window .maintenance-filter-popup{max-height:calc(100vh - 230px)}.tooling-window #columnPicker{right:0}.tooling-window #columnPicker label{display:flex;align-items:center;gap:7px;padding:5px}.tooling-window #columnPicker input{width:auto}.tooling-window .maintenance-kpis{grid-template-columns:repeat(7,minmax(0,1fr))}.tooling-window .maintenance-kpis strong{font-size:22px}.tooling-window .panel-head h2{font-size:14px}.tooling-window .panel-head{gap:8px;flex-wrap:wrap}.tooling-window #status:empty,.tooling-window #selectionChips:empty{display:none}.tooling-window #selectionChips{flex:none;display:flex;gap:6px;flex-wrap:wrap}.tooling-window .tooling-link{border:0;background:transparent;color:var(--ops-accent);padding:0;text-decoration:underline;text-align:left}.tooling-window .bad{color:#a83443}.tooling-window .good{color:#13766b}.tooling-window .numeric{text-align:right;font-variant-numeric:tabular-nums}
-.tooling-window #editDialog{padding:0;width:min(1120px,calc(100vw - 32px));max-height:calc(100vh - 32px)}.tooling-window #editForm{display:flex;flex-direction:column;max-height:calc(100vh - 34px)}.tooling-window #editForm>.dialog-heading,.tooling-window #editForm>.dialog-actions,.tooling-window #editError{padding:12px 18px;margin:0;flex:none}.tooling-window #editFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:18px 22px;overflow:auto;scroll-padding:8px}.tooling-window #editFields label{display:flex;flex-direction:column;gap:6px;font-size:12px;min-width:0}.tooling-window #editFields :is(input,select,textarea){width:100%;box-sizing:border-box;min-width:0}.tooling-window textarea{font:inherit;color:var(--ops-ink);background:white;border:1px solid var(--ops-line);border-radius:5px;padding:8px;min-height:75px;resize:vertical}.tooling-wide{grid-column:1/-1}.tooling-window .tooling-wide p{font-size:12px;color:var(--ops-muted)}.tooling-window .tooling-attachments{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.tooling-window .tooling-attachments span{border:1px solid var(--ops-line);padding:5px 8px;border-radius:5px}.tooling-window .tooling-detail{width:calc(100vw - 24px);height:calc(100vh - 32px);max-width:none;max-height:none;padding:16px;overflow:hidden}.tooling-window .tooling-detail[open]{display:flex;flex-direction:column;gap:12px}.tooling-window #detailBody{flex:1;min-height:0;overflow:auto;padding:8px}.tooling-window .tooling-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.tooling-window .tooling-facts dt{font-size:11px;color:var(--ops-muted)}.tooling-window .tooling-facts dd{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}.tooling-window #detailBody .table-scroll{max-height:340px}.tooling-window #erpDialog,.tooling-window #importDialog{width:calc(100vw - 40px);height:calc(100vh - 60px);max-width:1200px;max-height:none;overflow:hidden;padding:18px}.tooling-window :is(#erpDialog,#importDialog)[open]{display:flex;flex-direction:column;gap:12px}.tooling-window #erpSearchForm{display:flex;align-items:flex-end;gap:10px}.tooling-window #erpSearchForm label{flex:1;display:flex;flex-direction:column;gap:6px}.tooling-window :is(#erpDialog,#importDialog) .table-scroll{min-height:0;overflow:auto;flex:1}.tooling-window #advancedRules{display:grid;gap:7px}.tooling-window .tooling-rule{display:flex;gap:6px;align-items:center}.tooling-window .tooling-rule input{min-width:80px}.tooling-window #confirmDialog{max-width:min(560px,calc(100vw - 32px))}.tooling-window #confirmReasonLabel{display:flex;flex-direction:column;gap:7px}
-@media(max-width:1100px){.tooling-window .maintenance-kpis{gap:5px}.tooling-window .maintenance-kpis>div{padding:6px 8px}.tooling-window .maintenance-kpis strong{font-size:18px}.tooling-window #editFields{grid-template-columns:repeat(2,minmax(0,1fr))}.tooling-window .tooling-facts{grid-template-columns:repeat(3,minmax(0,1fr))}.tooling-window .filter-row select{max-width:160px}.tooling-window .header-actions{gap:5px}}
+:root {
+    color-scheme: only light
+}
+
+.tooling-window :is(select, datalist) option {
+    background: #fff;
+    color: var(--ops-ink);
+    font: inherit
+}
+
+.tooling-window .header-actions {
+    flex-wrap: wrap
+}
+
+.tooling-window .header-actions .primary, .tooling-window #newEntity {
+    background: transparent;
+    color: var(--ops-accent);
+    border-color: var(--ops-accent)
+}
+
+.tooling-window .filter-row {
+    flex-wrap: wrap
+}
+
+.tooling-window .filter-row select {
+    max-width: 210px
+}
+
+.tooling-window .maintenance-filter-popup label {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px
+}
+
+.tooling-window .maintenance-filter-popup {
+    max-height: calc(100vh - 230px)
+}
+
+.tooling-window #columnPicker {
+    right: 0
+}
+
+.tooling-window #columnPicker label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px
+}
+
+.tooling-window #columnPicker input {
+    width: auto
+}
+
+.tooling-window .maintenance-kpis {
+    grid-template-columns: repeat(7, minmax(0, 1fr))
+}
+
+.tooling-window .maintenance-kpis strong {
+    font-size: 22px
+}
+
+.tooling-window .panel-head h2 {
+    font-size: 14px
+}
+
+.tooling-window .panel-head {
+    gap: 8px;
+    flex-wrap: wrap
+}
+
+.tooling-window #status:empty, .tooling-window #selectionChips:empty {
+    display: none
+}
+
+.tooling-window #selectionChips {
+    flex: none;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap
+}
+
+.tooling-window .tooling-link {
+    border: 0;
+    background: transparent;
+    color: var(--ops-accent);
+    padding: 0;
+    text-decoration: underline;
+    text-align: left
+}
+
+.tooling-window .bad {
+    color: #a83443
+}
+
+.tooling-window .good {
+    color: #13766b
+}
+
+.tooling-window .numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums
+}
+
+.tooling-window #editDialog {
+    padding: 0;
+    width: min(1120px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px)
+}
+
+.tooling-window #editForm {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 34px)
+}
+
+.tooling-window #editForm>.dialog-heading, .tooling-window #editForm>.dialog-actions, .tooling-window #editError {
+    padding: 12px 18px;
+    margin: 0;
+    flex: none
+}
+
+.tooling-window #editFields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    padding: 18px 22px;
+    overflow: auto;
+    scroll-padding: 8px
+}
+
+.tooling-window #editFields label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    min-width: 0
+}
+
+.tooling-window #editFields :is(input, select, textarea) {
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0
+}
+
+.tooling-window textarea {
+    font: inherit;
+    color: var(--ops-ink);
+    background: white;
+    border: 1px solid var(--ops-line);
+    border-radius: 5px;
+    padding: 8px;
+    min-height: 75px;
+    resize: vertical
+}
+
+.tooling-wide {
+    grid-column: 1/-1
+}
+
+.tooling-window .tooling-wide p {
+    font-size: 12px;
+    color: var(--ops-muted)
+}
+
+.tooling-window .tooling-attachments {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin: 10px 0
+}
+
+.tooling-window .tooling-attachments span {
+    border: 1px solid var(--ops-line);
+    padding: 5px 8px;
+    border-radius: 5px
+}
+
+.tooling-window .tooling-detail {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 32px);
+    max-width: none;
+    max-height: none;
+    padding: 16px;
+    overflow: hidden
+}
+
+.tooling-window .tooling-detail[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 12px
+}
+
+.tooling-window #detailBody {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px
+}
+
+.tooling-window .tooling-facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px
+}
+
+.tooling-window .tooling-facts dt {
+    font-size: 11px;
+    color: var(--ops-muted)
+}
+
+.tooling-window .tooling-facts dd {
+    margin: 4px 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere
+}
+
+.tooling-window #detailBody .table-scroll {
+    max-height: 340px
+}
+
+.tooling-window #erpDialog, .tooling-window #importDialog {
+    width: calc(100vw - 40px);
+    height: calc(100vh - 60px);
+    max-width: 1200px;
+    max-height: none;
+    overflow: hidden;
+    padding: 18px
+}
+
+.tooling-window :is(#erpDialog, #importDialog)[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 12px
+}
+
+.tooling-window #erpSearchForm {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px
+}
+
+.tooling-window #erpSearchForm label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px
+}
+
+.tooling-window :is(#erpDialog, #importDialog) .table-scroll {
+    min-height: 0;
+    overflow: auto;
+    flex: 1
+}
+
+.tooling-window #advancedRules {
+    display: grid;
+    gap: 7px
+}
+
+.tooling-window .tooling-rule {
+    display: flex;
+    gap: 6px;
+    align-items: center
+}
+
+.tooling-window .tooling-rule input {
+    min-width: 80px
+}
+
+.tooling-window #confirmDialog {
+    max-width: min(560px, calc(100vw - 32px))
+}
+
+.tooling-window #confirmReasonLabel {
+    display: flex;
+    flex-direction: column;
+    gap: 7px
+}
+
+@media(max-width:1100px) {
+    .tooling-window .maintenance-kpis {
+        gap: 5px
+    }
+
+    .tooling-window .maintenance-kpis>div {
+        padding: 6px 8px
+    }
+
+    .tooling-window .maintenance-kpis strong {
+        font-size: 18px
+    }
+
+    .tooling-window #editFields {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+
+    .tooling-window .tooling-facts {
+        grid-template-columns: repeat(3, minmax(0, 1fr))
+    }
+
+    .tooling-window .filter-row select {
+        max-width: 160px
+    }
+
+    .tooling-window .header-actions {
+        gap: 5px
+    }
+}
 
 /* Filter menus sit above sticky cells and retain their focus rings outside the filter panel. */
-.tooling-window .filters{position:relative;z-index:20;overflow:visible;isolation:isolate}
-.tooling-window #tablePanel{position:relative;z-index:0}
-.tooling-window #advancedFilters{position:static}
-.tooling-window .filters .maintenance-filter-popup{z-index:30;left:auto;right:0;top:calc(100% + 6px);width:min(780px,calc(100vw - 40px))}
-.tooling-window .tooling-view-explanation{flex:none;margin:0;padding:6px 14px;font-size:12px;color:var(--ops-muted)}
-.tooling-window .tooling-view-explanation:empty{display:none}
-.tooling-window #monthlyRuptures{flex:none;margin:8px 14px;padding:8px 12px;border:1px solid var(--ops-line);border-radius:7px}
-.tooling-window #monthlyRuptures summary{font-weight:600;color:var(--ops-ink);cursor:pointer}
-.tooling-window #monthlyRuptures label{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:12px}
-.tooling-window #monthlyRuptures .table-scroll{max-height:180px}
+.tooling-window .filters {
+    position: relative;
+    z-index: 20;
+    overflow: visible;
+    isolation: isolate
+}
 
-.tooling-window #linkGroupingControl{display:flex;align-items:center;gap:7px;font-size:12px;flex-shrink:0}.tooling-window #linkGrouping{min-width:150px}
-.tooling-window .tooling-expand{width:23px;min-width:23px;height:24px;padding:0;margin-right:7px;border:0;background:transparent;color:var(--ops-accent);font-size:15px}
-.tooling-window tr.tooling-expanded-row>td{position:static;max-width:none;white-space:normal;overflow:visible;padding:10px 14px 14px;background:var(--ops-soft)}
-.tooling-window .tooling-related-scroll{position:sticky;left:0;max-width:calc(100vw - 72px);max-height:290px;overflow:auto;border:1px solid var(--ops-line);border-radius:6px;background:#fff}
-.tooling-window .tooling-related-table{font-size:11px}
-.tooling-window .tooling-related-table td>div{min-height:22px;line-height:22px;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
-.tooling-window tr[data-row-kind]:focus-visible{outline:2px solid var(--ops-accent);outline-offset:-2px}
+.tooling-window #tablePanel {
+    position: relative;
+    z-index: 0
+}
+
+.tooling-window #advancedFilters {
+    position: static
+}
+
+.tooling-window .filters .maintenance-filter-popup {
+    z-index: 30;
+    left: auto;
+    right: 0;
+    top: calc(100% + 6px);
+    width: min(780px, calc(100vw - 40px))
+}
+
+.tooling-window .tooling-view-explanation {
+    flex: none;
+    margin: 0;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--ops-muted)
+}
+
+.tooling-window .tooling-view-explanation:empty {
+    display: none
+}
+
+.tooling-window #monthlyRuptures {
+    flex: none;
+    margin: 8px 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--ops-line);
+    border-radius: 7px
+}
+
+.tooling-window #monthlyRuptures summary {
+    font-weight: 600;
+    color: var(--ops-ink);
+    cursor: pointer
+}
+
+.tooling-window #monthlyRuptures label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+    font-size: 12px
+}
+
+.tooling-window #monthlyRuptures .table-scroll {
+    max-height: 180px
+}
+
+.tooling-window #linkGroupingControl {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    flex-shrink: 0
+}
+
+.tooling-window #linkGrouping {
+    min-width: 150px
+}
+
+.tooling-window .tooling-expand {
+    width: 23px;
+    min-width: 23px;
+    height: 24px;
+    padding: 0;
+    margin-right: 7px;
+    border: 0;
+    background: transparent;
+    color: var(--ops-accent);
+    font-size: 15px
+}
+
+.tooling-window tr.tooling-expanded-row>td {
+    position: static;
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+    padding: 10px 14px 14px;
+    background: var(--ops-soft)
+}
+
+.tooling-window .tooling-related-scroll {
+    position: sticky;
+    left: 0;
+    max-width: calc(100vw - 72px);
+    max-height: 290px;
+    overflow: auto;
+    border: 1px solid var(--ops-line);
+    border-radius: 6px;
+    background: #fff
+}
+
+.tooling-window .tooling-related-table {
+    font-size: 11px
+}
+
+.tooling-window .tooling-related-table td>div {
+    min-height: 22px;
+    line-height: 22px;
+    white-space: nowrap;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis
+}
+
+.tooling-window tr[data-row-kind]:focus-visible {
+    outline: 2px solid var(--ops-accent);
+    outline-offset: -2px
+}

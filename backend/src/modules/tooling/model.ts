@@ -1,15 +1,160 @@
-export const movementTypes={receipt:'Carico',breakage:'Rottura',repair:'Ripristino',consume:'Scarico utilizzabili',discard:'Smaltimento danneggiati',adjust_usable:'Rettifica utilizzabili',adjust_damaged:'Rettifica danneggiati'};
-export const issueStates={open:'Aperta',in_progress:'In lavorazione',closed:'Chiusa',canceled:'Annullata'};
-export const text=(v:any,max=1000,required=false)=>{if(v==null)v='';if(typeof v!=='string'||v.length>max||required&&!v.trim())throw Error('Testo mancante o troppo lungo.');return v.trim();};
-export function integer(v:any,min=0){if(typeof v!=='number'||!Number.isSafeInteger(v)||v<min||Math.abs(v)>100000000)throw Error('Indicare una quantità intera valida.');return v;}
-export function day(v:any){const s=text(v,10,true);if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||!Number.isFinite(Date.parse(s))||new Date(s+'T00:00:00Z').toISOString().slice(0,10)!==s)throw Error('Data non valida.');return s;}
-export const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Rome'}).format(new Date());
-export function toolValue(v:any){return {code:text(v.code,128,true),description:text(v.description,1000,true),kind:v.kind==='equipment'?'equipment':'tool',category:text(v.category,200,true),dimensions:text(v.dimensions,1000),location:text(v.location,300),supplier:text(v.supplier,300),customer:text(v.customer,300),notes:text(v.notes,20000),minimum:integer(v.minimum??0),initialUsable:integer(v.initialUsable??0),initialDamaged:integer(v.initialDamaged??0),active:v.active!==false};}
-export function stock(tool:any,movements:any[]){let usable=tool.initialUsable,damaged=tool.initialDamaged,received=0,broken=0,repaired=0,discarded=0,consumed=0;const issues:string[]=[];
- for(const m of movements.filter(m=>m.toolId===tool.id&&!m.voided).sort((a,b)=>a.sequence-b.sequence)){
- const q=m.quantity;switch(m.type){case'receipt':usable+=q;received+=q;break;case'breakage':usable-=q;damaged+=q;broken+=q;break;case'repair':usable+=q;damaged-=q;repaired+=q;break;case'consume':usable-=q;consumed+=q;break;case'discard':damaged-=q;discarded+=q;break;case'adjust_usable':usable+=q;break;case'adjust_damaged':damaged+=q;break;default:throw Error('Movimento non valido.');}
- if(usable<0||damaged<0)throw Error('Giacenza insufficiente: il movimento o il suo annullamento produrrebbe quantità negative.');
- }
- const total=usable+damaged;return {...tool,usable,damaged,total,received,broken,repaired,discarded,consumed,damagePercent:total?damaged/total*100:null,status:!tool.active?'Archiviato':usable===0?'Esaurito':usable<tool.minimum?'Sotto scorta':'Disponibile',reorder:tool.active?Math.max(0,tool.minimum-usable):0,issues};
+export const movementTypes = {
+    receipt: "Carico",
+    breakage: "Rottura",
+    repair: "Ripristino",
+    consume: "Scarico utilizzabili",
+    discard: "Smaltimento danneggiati",
+    adjust_usable: "Rettifica utilizzabili",
+    adjust_damaged: "Rettifica danneggiati",
+};
+export const issueStates = {
+    open: "Aperta",
+    in_progress: "In lavorazione",
+    closed: "Chiusa",
+    canceled: "Annullata",
+};
+export const text = (v: any, max = 1000, required = false) => {
+    if (v == null) v = "";
+    if (typeof v !== "string" || v.length > max || (required && !v.trim()))
+        throw Error("Testo mancante o troppo lungo.");
+    return v.trim();
+};
+export function integer(v: any, min = 0) {
+    if (
+        typeof v !== "number" ||
+        !Number.isSafeInteger(v) ||
+        v < min ||
+        Math.abs(v) > 100000000
+    )
+        throw Error("Indicare una quantità intera valida.");
+    return v;
 }
-export function movementValue(v:any){if(!Object.hasOwnProperty.call(movementTypes,v.type))throw Error('Tipo movimento non valido.');const quantity=integer(v.quantity,v.type.startsWith('adjust_')?-100000000:1);if(!quantity)throw Error('Quantità nulla.');const date=day(v.date);if(date>today())throw Error('Non registrare movimenti futuri.');return {toolId:text(v.toolId,128,true),type:v.type,quantity,date,reason:text(v.reason,2000,true),reference:text(v.reference,500),articleId:text(v.articleId,128),priority:['normal','high','urgent'].includes(v.priority)?v.priority:'normal',assignee:text(v.assignee,300),notes:text(v.notes,10000)};}
+export function day(v: any) {
+    const s = text(v, 10, true);
+    if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(s) ||
+        !Number.isFinite(Date.parse(s)) ||
+        new Date(s + "T00:00:00Z").toISOString().slice(0, 10) !== s
+    )
+        throw Error("Data non valida.");
+    return s;
+}
+export const today = () =>
+    new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome" }).format(
+        new Date(),
+    );
+export function toolValue(v: any) {
+    return {
+        code: text(v.code, 128, true),
+        description: text(v.description, 1000, true),
+        kind: v.kind === "equipment" ? "equipment" : "tool",
+        category: text(v.category, 200, true),
+        dimensions: text(v.dimensions, 1000),
+        location: text(v.location, 300),
+        supplier: text(v.supplier, 300),
+        customer: text(v.customer, 300),
+        notes: text(v.notes, 20000),
+        minimum: integer(v.minimum ?? 0),
+        initialUsable: integer(v.initialUsable ?? 0),
+        initialDamaged: integer(v.initialDamaged ?? 0),
+        active: v.active !== false,
+    };
+}
+export function stock(tool: any, movements: any[]) {
+    let usable = tool.initialUsable,
+        damaged = tool.initialDamaged,
+        received = 0,
+        broken = 0,
+        repaired = 0,
+        discarded = 0,
+        consumed = 0;
+    const issues: string[] = [];
+    for (const m of movements
+        .filter((m) => m.toolId === tool.id && !m.voided)
+        .sort((a, b) => a.sequence - b.sequence)) {
+        const q = m.quantity;
+        switch (m.type) {
+            case "receipt":
+                usable += q;
+                received += q;
+                break;
+            case "breakage":
+                usable -= q;
+                damaged += q;
+                broken += q;
+                break;
+            case "repair":
+                usable += q;
+                damaged -= q;
+                repaired += q;
+                break;
+            case "consume":
+                usable -= q;
+                consumed += q;
+                break;
+            case "discard":
+                damaged -= q;
+                discarded += q;
+                break;
+            case "adjust_usable":
+                usable += q;
+                break;
+            case "adjust_damaged":
+                damaged += q;
+                break;
+            default:
+                throw Error("Movimento non valido.");
+        }
+        if (usable < 0 || damaged < 0)
+            throw Error(
+                "Giacenza insufficiente: il movimento o il suo annullamento produrrebbe quantità negative.",
+            );
+    }
+    const total = usable + damaged;
+    return {
+        ...tool,
+        usable,
+        damaged,
+        total,
+        received,
+        broken,
+        repaired,
+        discarded,
+        consumed,
+        damagePercent: total ? (damaged / total) * 100 : null,
+        status: !tool.active
+            ? "Archiviato"
+            : usable === 0
+              ? "Esaurito"
+              : usable < tool.minimum
+                ? "Sotto scorta"
+                : "Disponibile",
+        reorder: tool.active ? Math.max(0, tool.minimum - usable) : 0,
+        issues,
+    };
+}
+export function movementValue(v: any) {
+    if (!Object.hasOwnProperty.call(movementTypes, v.type))
+        throw Error("Tipo movimento non valido.");
+    const quantity = integer(
+        v.quantity,
+        v.type.startsWith("adjust_") ? -100000000 : 1,
+    );
+    if (!quantity) throw Error("Quantità nulla.");
+    const date = day(v.date);
+    if (date > today()) throw Error("Non registrare movimenti futuri.");
+    return {
+        toolId: text(v.toolId, 128, true),
+        type: v.type,
+        quantity,
+        date,
+        reason: text(v.reason, 2000, true),
+        reference: text(v.reference, 500),
+        articleId: text(v.articleId, 128),
+        priority: ["normal", "high", "urgent"].includes(v.priority)
+            ? v.priority
+            : "normal",
+        assignee: text(v.assignee, 300),
+        notes: text(v.notes, 10000),
+    };
+}

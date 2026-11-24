@@ -64,7 +64,10 @@ export function sampleAt(
             db,
             1,
             Math.max(timestampMs - toleranceMs, bounds?.fromMs ?? 0),
-            Math.min(timestampMs + toleranceMs, bounds?.toMs ?? Number.MAX_SAFE_INTEGER),
+            Math.min(
+                timestampMs + toleranceMs,
+                bounds?.toMs ?? Number.MAX_SAFE_INTEGER,
+            ),
         );
         nearby.sort(
             (a, b) =>

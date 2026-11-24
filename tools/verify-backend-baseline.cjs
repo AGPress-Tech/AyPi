@@ -37,21 +37,21 @@ function applyAnalyticsReview(root, baseline, review, extension, expectedFiles, 
   const baseReviewHash = crypto.createHash("sha256").update(JSON.stringify(review)).digest("hex");
   const exactKeys = (object, expected) => object && Object.keys(object).length === Object.keys(expected).length && Object.keys(object).every(key => Object.hasOwn(expected, key));
   if (extension.version !== 1 || extension.baseInstallerSha256 !== baseline.installer.sha256 || extension.baseReviewSha256 !== baseReviewHash
-      || !exactKeys(extension.overrides, analyticsOverrides) || !exactKeys(extension.additions, analyticsAdditions)
-      || !exactKeys(extension.dependencies, {mssql:1}) || extension.dependencies.mssql !== "^12.7.14"
-      || !/^[a-f0-9]{64}$/.test(extension.packageLockSha256 || "")) {
+    || !exactKeys(extension.overrides, analyticsOverrides) || !exactKeys(extension.additions, analyticsAdditions)
+    || !exactKeys(extension.dependencies, { mssql: 1 }) || extension.dependencies.mssql !== "^12.7.14"
+    || !/^[a-f0-9]{64}$/.test(extension.packageLockSha256 || "")) {
     failures.push("Revisione analisi SQL non valida o estesa oltre il perimetro autorizzato."); return {};
   }
-  const lock = path.join(root,"package-lock.json");
+  const lock = path.join(root, "package-lock.json");
   if (!fs.existsSync(lock) || hash(lock) !== extension.packageLockSha256) failures.push("package-lock.json: diverso dalla revisione analisi SQL.");
-  for (const [file, entry] of Object.entries({...extension.overrides, ...extension.additions})) {
+  for (const [file, entry] of Object.entries({ ...extension.overrides, ...extension.additions })) {
     const source = analyticsOverrides[file] || analyticsAdditions[file];
     if (!entry || entry.source !== source || entry.previousSha256 !== (expectedFiles[file] || null)
-        || !/^[a-f0-9]{64}$/.test(entry.sha256 || "") || !/^[a-f0-9]{64}$/.test(entry.sourceSha256 || "") || !entry.reason) {
+      || !/^[a-f0-9]{64}$/.test(entry.sha256 || "") || !/^[a-f0-9]{64}$/.test(entry.sourceSha256 || "") || !entry.reason) {
       failures.push(`${file}: dichiarazione della revisione SQL non valida.`); continue;
     }
     expectedFiles[file] = entry.sha256;
-    const sourcePath = path.join(root,source);
+    const sourcePath = path.join(root, source);
     if (!fs.existsSync(sourcePath) || hash(sourcePath) !== entry.sourceSha256) failures.push(`${source}: diverso dal sorgente SQL revisionato.`);
   }
   return extension.dependencies;
@@ -111,7 +111,7 @@ function verifyBackend(root, baseline, review = null, analyticsReview = null) {
     }
   }
   const sqlDependencies = applyAnalyticsReview(root, baseline, review, analyticsReview, expectedFiles, failures);
-  const expectedDependencies = {...baseline.dependencies, ...sqlDependencies};
+  const expectedDependencies = { ...baseline.dependencies, ...sqlDependencies };
   const dependencies = JSON.parse(
     fs.readFileSync(path.join(root, "package.json"), "utf8"),
   ).dependencies;
@@ -148,7 +148,7 @@ function verifyBackend(root, baseline, review = null, analyticsReview = null) {
     total: Object.keys(expectedFiles).length,
     reviewed: (review
       ? Object.keys({ ...review.overrides, ...review.additions }).length
-      : 0) + (analyticsReview ? Object.keys({...analyticsReview.overrides,...analyticsReview.additions}).length : 0),
+      : 0) + (analyticsReview ? Object.keys({ ...analyticsReview.overrides, ...analyticsReview.additions }).length : 0),
   };
 }
 
@@ -156,34 +156,34 @@ if (require.main === module) {
   if (process.argv.length === 2) {
     require('./verify-backend-release.cjs').main();
   } else {
-  const historical = process.argv.includes("--historical");
-  if (process.argv.slice(2).some((arg) => !['--historical','--legacy-reviewed'].includes(arg)))
-    throw new Error(
-      "Opzione non riconosciuta. È disponibile soltanto --historical per il confronto storico integrale.",
-    );
-  const root = path.resolve(__dirname, "..");
-  const baseline = require("./baselines/backend-1.4.0-1338.json");
-  const review = historical
-    ? null
-    : require("./baselines/backend-forno-management-2026-11-03.json");
-  const analyticsReview = historical ? null : require("./baselines/backend-analytics-2026-11-06.json");
-  const result = verifyBackend(root, baseline, review, analyticsReview);
-  if (result.failures.length) {
-    console.error(
-      "Pacchetto backend bloccato: il contenuto non corrisponde al riferimento verificato.",
-    );
-    console.error(result.failures.join("\n"));
-    console.error(
-      "Esaminare le differenze prima di aggiornare i riferimenti di distribuzione.",
-    );
-    process.exitCode = 1;
-  } else {
-    console.log(
-      historical
-        ? `Backend verificato: ${result.total} file identici all'installer 1.4.0 delle 13:38.`
-        : `Backend verificato: revisione forno del 03/11/2026 preservata; analisi SQL e dipendenza mssql corrispondono al perimetro verificato del 06/11/2026.`,
-    );
-  }
+    const historical = process.argv.includes("--historical");
+    if (process.argv.slice(2).some((arg) => !['--historical', '--legacy-reviewed'].includes(arg)))
+      throw new Error(
+        "Opzione non riconosciuta. È disponibile soltanto --historical per il confronto storico integrale.",
+      );
+    const root = path.resolve(__dirname, "..");
+    const baseline = require("./baselines/backend-1.4.0-1338.json");
+    const review = historical
+      ? null
+      : require("./baselines/backend-forno-management-2026-11-03.json");
+    const analyticsReview = historical ? null : require("./baselines/backend-analytics-2026-11-06.json");
+    const result = verifyBackend(root, baseline, review, analyticsReview);
+    if (result.failures.length) {
+      console.error(
+        "Pacchetto backend bloccato: il contenuto non corrisponde al riferimento verificato.",
+      );
+      console.error(result.failures.join("\n"));
+      console.error(
+        "Esaminare le differenze prima di aggiornare i riferimenti di distribuzione.",
+      );
+      process.exitCode = 1;
+    } else {
+      console.log(
+        historical
+          ? `Backend verificato: ${result.total} file identici all'installer 1.4.0 delle 13:38.`
+          : `Backend verificato: revisione forno del 03/11/2026 preservata; analisi SQL e dipendenza mssql corrispondono al perimetro verificato del 06/11/2026.`,
+      );
+    }
   }
 }
 module.exports = { verifyBackend };

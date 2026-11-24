@@ -1,2 +1,52 @@
 {
+    "editor.formatOnSave": true,
+    "prettier.tabWidth": 4,
+    "formatFiles.useGitIgnore": true,
+    "formatFiles.runOrganizeImports": false,
+    "formatFiles.extensionsToInclude": "ts,js,cjs,mjs,json,jsonc,html,css,scss,md",
+    "formatFiles.excludedFolders": [
+        "node_modules",
+        ".vscode",
+        ".git",
+        ".private",
+        ".chrome",
+        ".tmp-",
+        ".snapshots",
+        ".alpackages",
+        "coverage",
+        "dist",
+        "dist-ts",
+        "backend-dist",
+        "dist-backend",
+        "dist-backend-app",
+        "dist-botbackend",
+        "dist-mobile",
+        "backend/resources/forno",
+        "mobile/android-calendar/.gradle",
+        "mobile/android-calendar/.kotlin",
+        "mobile/android-calendar/build",
+        "mobile/android-calendar/app/build"
+    ],
+    "formatFiles.excludePattern": "**/node_modules/**,**/build/**,**/out/**,**/.gradle/**,**/.kotlin/**,**/__pycache__/**,**/*.min.js,**/*.min.css,**/sql-analytics.credentials.json,src/main/config/otp-mail.json,config/otp-mail.json,Piani_Futuri.md,docs/NOZOMI_3D_ASSISTANT.md,docs/analisi-torneria.md,docs/backend-release-2026-11-09.md,docs/ordinamento-analisi.md",
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[html]": {
+        "editor.defaultFormatter": "vscode.html-language-features"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
+    },
+    "[css]": {
+        "editor.defaultFormatter": "aeschli.vscode-css-formatter"
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    }
 }

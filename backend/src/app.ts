@@ -1,7 +1,10 @@
-import {initializeSupplierEvaluation} from './modules/supplier-evaluation/service';
+import { initializeSupplierEvaluation } from "./modules/supplier-evaluation/service";
 import { initializeBackupRecovery } from "./modules/backups/service";
 import { ensureAgpressDailyBackup } from "./shared/storage/agpress-backups";
-import { assertServiceAvailable, isBackupRecoveryRequired } from "./shared/ops/maintenance";
+import {
+    assertServiceAvailable,
+    isBackupRecoveryRequired,
+} from "./shared/ops/maintenance";
 import { startFornoService, stopFornoService } from "./modules/forno/service";
 import { analyticsService } from "./modules/analytics/service";
 import { initializeMaintenanceArchive } from "./modules/maintenance/bootstrap";
@@ -113,9 +116,9 @@ export function createBackendServer(ready: Promise<void> = Promise.resolve()) {
         if (
             ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
             requestUrl.toLowerCase().startsWith("/api/") &&
-            !requestUrl.toLowerCase().startsWith("/api/uploads")
-            && !requestUrl.toLowerCase().startsWith("/api/analytics/")
-            && !requestUrl.toLowerCase().startsWith("/api/erp/")
+            !requestUrl.toLowerCase().startsWith("/api/uploads") &&
+            !requestUrl.toLowerCase().startsWith("/api/analytics/") &&
+            !requestUrl.toLowerCase().startsWith("/api/erp/")
         ) {
             response.once("finish", () => {
                 if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -231,12 +234,35 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 initializeBackupRecovery();
                 if (!isBackupRecoveryRequired()) {
                     initializeSharedSqliteStore();
-                    try { initializeMaintenanceArchive(); }
-                    catch (error) { logger.error("Maintenance initialization failed", {module:"maintenance",event:"maintenance_initialization_failed",detail:error instanceof Error?error.message:String(error)}); }
+                    try {
+                        initializeMaintenanceArchive();
+                    } catch (error) {
+                        logger.error("Maintenance initialization failed", {
+                            module: "maintenance",
+                            event: "maintenance_initialization_failed",
+                            detail:
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error),
+                        });
+                    }
                     initializeFeriePermessiSqliteStore();
                     initializeProductManagerSqliteStore();
                     initializeTicketSupportSqliteStore();
-                    try { initializeSupplierEvaluation(); } catch (error) { logger.error("Supplier evaluation initialization failed", {module:"supplier-evaluation", detail:error instanceof Error?error.message:String(error)}); }
+                    try {
+                        initializeSupplierEvaluation();
+                    } catch (error) {
+                        logger.error(
+                            "Supplier evaluation initialization failed",
+                            {
+                                module: "supplier-evaluation",
+                                detail:
+                                    error instanceof Error
+                                        ? error.message
+                                        : String(error),
+                            },
+                        );
+                    }
                     initializeTransferSqliteStore();
                     initializeHaasSqliteStore();
                     initializeProductionPlannerSqliteStore();
@@ -245,8 +271,15 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                     migrateLegacyMesStorage();
                 }
                 const runDailyBackup = () => {
-                    try { assertServiceAvailable(); ensureAgpressDailyBackup(); }
-                    catch (error) { logger.warn("Backup automatico non eseguito", { module: "core", detail: String(error) }); }
+                    try {
+                        assertServiceAvailable();
+                        ensureAgpressDailyBackup();
+                    } catch (error) {
+                        logger.warn("Backup automatico non eseguito", {
+                            module: "core",
+                            detail: String(error),
+                        });
+                    }
                 };
                 runDailyBackup();
                 dailyBackupTimer = setInterval(runDailyBackup, 60 * 60 * 1000);
@@ -267,12 +300,13 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                                 : String(error),
                     });
                 }
-                if (!isBackupRecoveryRequired()) void startFornoService().catch((error) => {
-                    logger.error("Forno acquisition unavailable", {
-                        module: "core",
-                        detail: String(error),
+                if (!isBackupRecoveryRequired())
+                    void startFornoService().catch((error) => {
+                        logger.error("Forno acquisition unavailable", {
+                            module: "core",
+                            detail: String(error),
+                        });
                     });
-                });
                 resolveReady();
 
                 logger.info("AyPi backend listening", {

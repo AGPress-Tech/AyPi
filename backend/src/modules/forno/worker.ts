@@ -28,36 +28,40 @@ async function main() {
             try {
                 let result: any =
                     request.command === "phase_info"
-                        ? phaseInfo(db, request.eventId, Math.max(500, workerData.intervalMs || 500))
-                        : request.command === "messages"
-                        ? listMessages(
+                        ? phaseInfo(
                               db,
-                              request.fromMs,
-                              request.toMs,
-                              request.showNotes,
-                              request.eventTypes,
-                              request.revision,
+                              request.eventId,
+                              Math.max(500, workerData.intervalMs || 500),
                           )
-                        : request.command === "sample"
-                          ? sampleAt(
+                        : request.command === "messages"
+                          ? listMessages(
                                 db,
-                                request.timestampMs,
-                                Math.max(500, workerData.intervalMs || 500),
+                                request.fromMs,
+                                request.toMs,
+                                request.showNotes,
+                                request.eventTypes,
+                                request.revision,
                             )
-                          : request.command === "analysis"
-                            ? analyzeChannels(
+                          : request.command === "sample"
+                            ? sampleAt(
                                   db,
-                                  request.fromMs,
-                                  request.toMs,
-                                  request.windowSeconds,
+                                  request.timestampMs,
+                                  Math.max(500, workerData.intervalMs || 500),
                               )
-                            : historyChannels(
-                                  db,
-                                  request.fromMs,
-                                  request.toMs,
-                                  request.intervalMs,
-                                  request.maxPoints,
-                              );
+                            : request.command === "analysis"
+                              ? analyzeChannels(
+                                    db,
+                                    request.fromMs,
+                                    request.toMs,
+                                    request.windowSeconds,
+                                )
+                              : historyChannels(
+                                    db,
+                                    request.fromMs,
+                                    request.toMs,
+                                    request.intervalMs,
+                                    request.maxPoints,
+                                );
                 if (request.command === "history_binary")
                     result = encodeHistory(result);
                 parentPort!.postMessage({ id: request.id, result });

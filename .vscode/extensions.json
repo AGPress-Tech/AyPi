@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "jbockle.jbockle-format-files",
+        "esbenp.prettier-vscode",
+        "aeschli.vscode-css-formatter"
+    ]
+}

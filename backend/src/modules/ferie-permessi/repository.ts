@@ -221,12 +221,17 @@ export function listFeriePermessiBackups() {
 }
 
 export function createFeriePermessiBackup(mode: "calendar" | "full" = "full") {
-    return createAgpressBackup(mode === "full" ? "manual-full" : "manual-calendar", 3);
+    return createAgpressBackup(
+        mode === "full" ? "manual-full" : "manual-calendar",
+        3,
+    );
 }
 
 export function restoreFeriePermessiBackup(
     name: string,
     mode: "calendar" | "full" = "calendar",
 ) {
-    throw new Error("Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.");
+    throw new Error(
+        "Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.",
+    );
 }

@@ -10,6 +10,7 @@ body.aypi-home-backdrop {
     radial-gradient(circle at 78% 18%, rgba(var(--home-glow), .22), transparent 25%),
     linear-gradient(118deg, var(--home-paper) 0 54%, var(--home-shade) 54% 100%);
 }
+
 :is(:root[data-interface-theme="agpress"], :root[data-forge-theme="standard"]) body.aypi-home-backdrop {
   --home-glow: 243, 185, 62;
   --home-paper: #fdf1d9;
@@ -18,6 +19,7 @@ body.aypi-home-backdrop {
   --home-frame: 200, 147, 34;
   --home-stripe: 198, 148, 39;
 }
+
 .aypi-home-backdrop .sky-grid {
   position: fixed;
   inset: 0;
@@ -29,6 +31,7 @@ body.aypi-home-backdrop {
   background-size: 48px 48px;
   mask-image: linear-gradient(to bottom, transparent, #000 35%, #000);
 }
+
 .aypi-home-backdrop .sky-grid::after {
   content: "";
   position: absolute;

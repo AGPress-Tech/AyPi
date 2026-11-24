@@ -1,7 +1,7 @@
-import { registerStockAnalysisIpc } from './stock-analysis/ipc';
-import {registerToolingIpc} from './tooling/ipc';
-import {registerSupplierEvaluationIpc} from './supplier-evaluation/ipc';
-import {registerProcessingCyclesIpc} from './processing-cycles/ipc';
+import { registerStockAnalysisIpc } from "./stock-analysis/ipc";
+import { registerToolingIpc } from "./tooling/ipc";
+import { registerSupplierEvaluationIpc } from "./supplier-evaluation/ipc";
+import { registerProcessingCyclesIpc } from "./processing-cycles/ipc";
 // Gestione finestre e IPC lato main per AyPi
 
 import { ipcMain, dialog, shell, BrowserWindow, app, screen } from "electron";
@@ -9,7 +9,10 @@ import path from "path";
 import { revealThemedWindow } from "./file-manager/themed-window";
 import fs from "fs";
 import log from "electron-log";
-import { requestAypiBackend, resolveAypiBackendBaseUrl } from "./file-manager/backend-client";
+import {
+    requestAypiBackend,
+    resolveAypiBackendBaseUrl,
+} from "./file-manager/backend-client";
 import { registerBatchRenameIpc } from "./file-manager/batch-rename-ipc";
 import { registerHierarchyReportIpc } from "./file-manager/hierarchy-report-ipc";
 import { isDl360ServerReachable } from "./file-manager/network-files";
@@ -967,7 +970,8 @@ function openFileListWindow(
         parent: mainWindow,
         modal: false,
         show: false,
-        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
+        backgroundColor:
+            requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
@@ -1029,7 +1033,8 @@ function openBatchRenameWindow(
         parent: mainWindow,
         modal: false,
         show: false,
-        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
+        backgroundColor:
+            requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
@@ -1095,7 +1100,8 @@ function openQrGeneratorWindow(
         parent: mainWindow,
         modal: false,
         show: false,
-        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
+        backgroundColor:
+            requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
@@ -1168,7 +1174,8 @@ function openHierarchyWindow(
         parent: mainWindow,
         modal: false,
         show: false,
-        backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
+        backgroundColor:
+            requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
         webPreferences: WINDOW_WEB_PREFERENCES,
         icon: APP_ICON_PATH,
     });
@@ -2489,7 +2496,8 @@ function openCompareFoldersWindow(
             width: 900,
             height: 800,
             show: false,
-            backgroundColor: requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
+            backgroundColor:
+                requestedTheme === "bluearchive" ? "#f6fcff" : "#fffaf0",
             webPreferences: WINDOW_WEB_PREFERENCES,
             icon: APP_ICON_PATH,
         });
@@ -2529,11 +2537,23 @@ function setupFileManager(mainWindow) {
         isAppQuitting = true;
     });
 
-    const measurement = registerMeasurementIpc(mainWindow,getInterfaceIconPath);
-    const tooling=registerToolingIpc(mainWindow,getInterfaceIconPath);
-    const maintenance = registerMaintenanceIpc(mainWindow,getInterfaceIconPath);
-    const processingCycles = registerProcessingCyclesIpc(mainWindow,getInterfaceIconPath);
-    const supplierEvaluation = registerSupplierEvaluationIpc(mainWindow,getInterfaceIconPath);
+    const measurement = registerMeasurementIpc(
+        mainWindow,
+        getInterfaceIconPath,
+    );
+    const tooling = registerToolingIpc(mainWindow, getInterfaceIconPath);
+    const maintenance = registerMaintenanceIpc(
+        mainWindow,
+        getInterfaceIconPath,
+    );
+    const processingCycles = registerProcessingCyclesIpc(
+        mainWindow,
+        getInterfaceIconPath,
+    );
+    const supplierEvaluation = registerSupplierEvaluationIpc(
+        mainWindow,
+        getInterfaceIconPath,
+    );
     registerFileNavigationIpc({
         ipcMain,
         dialog,
@@ -2552,16 +2572,26 @@ function setupFileManager(mainWindow) {
         browserWindow: BrowserWindow,
         onManagementDisabled: () => management.revoke(),
     });
-    const management = registerManagementIpc(mainWindow, adminState.canAccessManagement, getInterfaceIconPath, {getCredential:adminState.getManagementCredential,getBackendUrl:resolveAypiBackendBaseUrl});
-    registerWorkstations(mainWindow, adminState.canAccessManagement, { getCredential: adminState.getManagementCredential });
+    const management = registerManagementIpc(
+        mainWindow,
+        adminState.canAccessManagement,
+        getInterfaceIconPath,
+        {
+            getCredential: adminState.getManagementCredential,
+            getBackendUrl: resolveAypiBackendBaseUrl,
+        },
+    );
+    registerWorkstations(mainWindow, adminState.canAccessManagement, {
+        getCredential: adminState.getManagementCredential,
+    });
     registerBackupsIpc(mainWindow, adminState.getManagementCredential);
-    registerAnalysisNavigation(mainWindow,getInterfaceIconPath);
-    registerArticleOrdersIpc(mainWindow,getInterfaceIconPath);
-    registerTurningAnalysisIpc(mainWindow,getInterfaceIconPath);
-    registerCustomerAnalysisIpc(mainWindow,getInterfaceIconPath);
-    registerBomAnalysisIpc(mainWindow,getInterfaceIconPath);
-    registerBarContractsIpc(mainWindow,getInterfaceIconPath);
-    registerStockAnalysisIpc(mainWindow,getInterfaceIconPath);
+    registerAnalysisNavigation(mainWindow, getInterfaceIconPath);
+    registerArticleOrdersIpc(mainWindow, getInterfaceIconPath);
+    registerTurningAnalysisIpc(mainWindow, getInterfaceIconPath);
+    registerCustomerAnalysisIpc(mainWindow, getInterfaceIconPath);
+    registerBomAnalysisIpc(mainWindow, getInterfaceIconPath);
+    registerBarContractsIpc(mainWindow, getInterfaceIconPath);
+    registerStockAnalysisIpc(mainWindow, getInterfaceIconPath);
 
     registerFilesystemDialogIpc({
         ipcMain,

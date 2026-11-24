@@ -25,16 +25,49 @@ WHERE EXISTS(SELECT 1 FROM dbo.MA_SuppQuotas q JOIN dbo.MA_CustSupp s ON s.CustS
  AND (s.CompanyName LIKE '%METALLURGICA SAN MARCO%' OR s.CompanyName LIKE '%GAMBARI%' OR s.CompanyName LIKE '%VEZZOLA%'))
 ORDER BY o.OrderDate,o.PurchaseOrdId,d.Line;`;
 
-export function validateBarContractsRequest(value:any):{suppliers?:string[]}{
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>k!=='suppliers'))throw Error('Richiesta contratti non valida.');
- if(value.suppliers===undefined)return {};
- if(!Array.isArray(value.suppliers)||value.suppliers.length>200||value.suppliers.some((v:any)=>typeof v!=='string'||!v.trim()||v.length>128))throw Error('Elenco fornitori non valido (massimo 200).');
- return {suppliers:[...new Set(value.suppliers.map((v:string)=>v.trim()))] as string[]};
+export function validateBarContractsRequest(value: any): {
+    suppliers?: string[];
+} {
+    if (
+        !value ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        Object.keys(value).some((k) => k !== "suppliers")
+    )
+        throw Error("Richiesta contratti non valida.");
+    if (value.suppliers === undefined) return {};
+    if (
+        !Array.isArray(value.suppliers) ||
+        value.suppliers.length > 200 ||
+        value.suppliers.some(
+            (v: any) => typeof v !== "string" || !v.trim() || v.length > 128,
+        )
+    )
+        throw Error("Elenco fornitori non valido (massimo 200).");
+    return {
+        suppliers: [
+            ...new Set(value.suppliers.map((v: string) => v.trim())),
+        ] as string[],
+    };
 }
-export function barContractsQuery(value:unknown={}){
- const input=validateBarContractsRequest(value);
- if(!input.suppliers)return {sql:BAR_CONTRACTS_SQL,bindings:[] as {name:string;value:string}[]};
- const bindings=input.suppliers.map((value,index)=>({name:`supplier${index}`,value}));
- const condition=bindings.length?`q.Supplier IN (${bindings.map(b=>'@'+b.name).join(',')})`:'1=0';
- return {sql:BAR_CONTRACTS_SQL.split("(s.CompanyName LIKE '%METALLURGICA SAN MARCO%' OR s.CompanyName LIKE '%GAMBARI%' OR s.CompanyName LIKE '%VEZZOLA%')").join(condition),bindings};
+export function barContractsQuery(value: unknown = {}) {
+    const input = validateBarContractsRequest(value);
+    if (!input.suppliers)
+        return {
+            sql: BAR_CONTRACTS_SQL,
+            bindings: [] as { name: string; value: string }[],
+        };
+    const bindings = input.suppliers.map((value, index) => ({
+        name: `supplier${index}`,
+        value,
+    }));
+    const condition = bindings.length
+        ? `q.Supplier IN (${bindings.map((b) => "@" + b.name).join(",")})`
+        : "1=0";
+    return {
+        sql: BAR_CONTRACTS_SQL.split(
+            "(s.CompanyName LIKE '%METALLURGICA SAN MARCO%' OR s.CompanyName LIKE '%GAMBARI%' OR s.CompanyName LIKE '%VEZZOLA%')",
+        ).join(condition),
+        bindings,
+    };
 }

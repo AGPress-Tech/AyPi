@@ -18,7 +18,10 @@ export function registerAdminStateIpc({
     const broadcastState = () => {
         browserWindow.getAllWindows().forEach((window) => {
             try {
-                window.webContents.send("admin-state-changed", { enabled, management: enabled });
+                window.webContents.send("admin-state-changed", {
+                    enabled,
+                    management: enabled,
+                });
             } catch {
                 // Una finestra può chiudersi durante il broadcast.
             }
@@ -50,5 +53,8 @@ export function registerAdminStateIpc({
         broadcastState();
         return { ok: true };
     });
-    return { canAccessManagement: () => enabled, getManagementCredential: () => enabled ? expectedPassword : null };
+    return {
+        canAccessManagement: () => enabled,
+        getManagementCredential: () => (enabled ? expectedPassword : null),
+    };
 }

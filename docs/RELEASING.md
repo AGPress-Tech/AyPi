@@ -23,8 +23,8 @@ Target probabile: **1.3.3**.
   che usa il WebSocket centralizzato (`/ws`).
 - Quando non risultano più client precedenti, rimuovere la compatibilità
   long polling del pianificatore:
-  - endpoint `GET /api/production-planner/changes/:revision`;
-  - `waitForProductionPlannerRevision` e `releaseProductionPlannerWaiters`;
-  - esclusione dell'endpoint legacy dai log HTTP in `backend/src/app.ts`.
+    - endpoint `GET /api/production-planner/changes/:revision`;
+    - `waitForProductionPlannerRevision` e `releaseProductionPlannerWaiters`;
+    - esclusione dell'endpoint legacy dai log HTTP in `backend/src/app.ts`.
 - Conservare il controllo HTTP della revisione come fallback del client
   WebSocket, senza ripristinare il ciclo long polling.

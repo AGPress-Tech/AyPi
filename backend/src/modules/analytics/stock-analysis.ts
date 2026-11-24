@@ -1,7 +1,24 @@
-export type StockRequest={year?:number;period?:number;article?:string;supplierCode?:string;customerCode?:string};
+export type StockRequest = {
+    year?: number;
+    period?: number;
+    article?: string;
+    supplierCode?: string;
+    customerCode?: string;
+};
 export function stockCustomerCommitmentsQuery(input: unknown) {
-    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => key !== 'article') || typeof (input as any).article !== 'string' || !(input as any).article.trim() || (input as any).article.length > 128) throw Error('Seleziona un articolo valido.');
-    return { article: (input as any).article.trim(), sql: `
+    if (
+        !input ||
+        typeof input !== "object" ||
+        Array.isArray(input) ||
+        Object.keys(input).some((key) => key !== "article") ||
+        typeof (input as any).article !== "string" ||
+        !(input as any).article.trim() ||
+        (input as any).article.length > 128
+    )
+        throw Error("Seleziona un articolo valido.");
+    return {
+        article: (input as any).article.trim(),
+        sql: `
 SELECT TOP (100001) d.Item AS article,d.Description AS description,h.Customer AS customerCode,c.CompanyName AS customerName,
 h.SaleOrdId AS documentId,h.InternalOrdNo AS documentNo,CONVERT(date,h.OrderDate) AS documentDate,d.Line AS line,d.SubId AS subId,
 d.UoM AS unit,d.Qty AS quantity,d.DeliveredQty AS deliveredQuantity,
@@ -14,19 +31,27 @@ LEFT JOIN dbo.MA_CustSupp c ON c.CustSupp=h.Customer AND c.CustSuppType=h.CustSu
 WHERE d.Item=@article AND LTRIM(d.Item) NOT LIKE '*%' AND COALESCE(h.Cancelled,'0')<>'1' AND COALESCE(d.Cancelled,'0')<>'1'
 AND COALESCE(h.Delivered,'0')<>'1' AND COALESCE(d.Delivered,'0')<>'1'
 AND (d.Qty-d.DeliveredQty>0 OR d.AllocatedQty<>0 OR d.PickedQty<>0)
-ORDER BY c.CompanyName,h.Customer,h.OrderDate,h.SaleOrdId,d.Line,d.SubId` };
+ORDER BY c.CompanyName,h.Customer,h.OrderDate,h.SaleOrdId,d.Line,d.SubId`,
+    };
 }
-export function validateStockRequest(value:unknown):StockRequest{
-    if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Ricerca giacenze non valida.');
-    const clean:StockRequest={};
-    for(const [key,v] of Object.entries(value)){
-        if(key==='year'||key==='period'){
-            if(!Number.isInteger(v)||Number(v)<(key==='year'?1900:1)||Number(v)>(key==='year'?9999:99))throw Error('Esercizio o periodo non valido.');
-            clean[key]=v as number;
-        }else if(['article','supplierCode','customerCode'].includes(key)){
-            if(typeof v!=='string'||!v.trim()||v.length>128)throw Error('Codice ricerca non valido.');
-            (clean as any)[key]=v.trim();
-        }else throw Error('Parametro giacenze non valido.');
+export function validateStockRequest(value: unknown): StockRequest {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+        throw Error("Ricerca giacenze non valida.");
+    const clean: StockRequest = {};
+    for (const [key, v] of Object.entries(value)) {
+        if (key === "year" || key === "period") {
+            if (
+                !Number.isInteger(v) ||
+                Number(v) < (key === "year" ? 1900 : 1) ||
+                Number(v) > (key === "year" ? 9999 : 99)
+            )
+                throw Error("Esercizio o periodo non valido.");
+            clean[key] = v as number;
+        } else if (["article", "supplierCode", "customerCode"].includes(key)) {
+            if (typeof v !== "string" || !v.trim() || v.length > 128)
+                throw Error("Codice ricerca non valido.");
+            (clean as any)[key] = v.trim();
+        } else throw Error("Parametro giacenze non valido.");
     }
     return clean;
 }
@@ -34,9 +59,11 @@ export function validateStockRequest(value:unknown):StockRequest{
  * Read one fiscal year AND period; never sum successive fiscal snapshots.
  * Specificator types 6750208/09 identify customers/suppliers, independently of ownership.
  */
-export function stockAnalysisQuery(input:unknown){
-    const filters=validateStockRequest(input);
-    return {filters,sql:`
+export function stockAnalysisQuery(input: unknown) {
+    const filters = validateStockRequest(input);
+    return {
+        filters,
+        sql: `
 DECLARE @selectedYear int=COALESCE(@year,(SELECT MAX(FiscalYear) FROM dbo.MA_ItemsStorageQty WHERE FiscalYear<=YEAR(GETDATE())));
 DECLARE @selectedPeriod int=COALESCE(@period,(SELECT MAX(FiscalPeriod) FROM dbo.MA_ItemsStorageQty WHERE FiscalYear=@selectedYear));
 SELECT TOP(100001) q.Item AS article,i.Description AS description,i.BaseUoM AS unit,i.Disabled AS articleDisabled,
@@ -70,5 +97,6 @@ AND (@customerCode IS NULL OR h.Customer=@customerCode)
 AND COALESCE(h.Cancelled,'0')<>'1' AND COALESCE(d.Cancelled,'0')<>'1' AND COALESCE(h.Delivered,'0')<>'1' AND COALESCE(d.Delivered,'0')<>'1'
 AND (d.Qty-d.DeliveredQty>0 OR d.AllocatedQty<>0 OR d.PickedQty<>0)
 AND EXISTS(SELECT 1 FROM dbo.MA_ItemsStorageQty q WHERE q.Item=d.Item AND q.FiscalYear=@selectedYear AND q.FiscalPeriod=@selectedPeriod)
-GROUP BY d.Item,h.Customer,c.CompanyName,d.UoM ORDER BY d.Item,c.CompanyName,h.Customer,d.UoM;`};
+GROUP BY d.Item,h.Customer,c.CompanyName,d.UoM ORDER BY d.Item,c.CompanyName,h.Customer,d.UoM;`,
+    };
 }

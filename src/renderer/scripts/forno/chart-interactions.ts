@@ -67,12 +67,17 @@ export function attachChartInteractions(
         const at = axis.getValueForPixel(x);
         // 14 CSS pixels at any zoom, never more than five minutes.
         const rect = canvas.getBoundingClientRect();
-        const tolerance = Math.min(300000,
-            Math.abs(axis.getValueForPixel(x + 14 * chart.width / rect.width) - at));
+        const tolerance = Math.min(
+            300000,
+            Math.abs(
+                axis.getValueForPixel(x + (14 * chart.width) / rect.width) - at,
+            ),
+        );
         let nearest: SelectorPoint | null = null;
         let distance = tolerance;
         for (const event of callbacks.snapPoints?.() ?? []) {
-            if (event.timestampMs < axis.min || event.timestampMs > axis.max) continue;
+            if (event.timestampMs < axis.min || event.timestampMs > axis.max)
+                continue;
             const delta = Math.abs(event.timestampMs - at);
             if (delta <= distance) {
                 nearest = event;
@@ -224,7 +229,9 @@ export function attachChartInteractions(
         if (!drag && (controlPressed || wasPressed)) {
             hideTooltip();
             canvas.style.cursor = inside(pointer)
-                ? controlPressed ? "crosshair" : "grab"
+                ? controlPressed
+                    ? "crosshair"
+                    : "grab"
                 : "default";
             chart.draw();
             if (controlPressed) return;
@@ -249,10 +256,20 @@ export function attachChartInteractions(
         if (drag) {
             drag.pointerCurrent = p.x;
             drag.snapEnd = drag.select
-                ? snapTarget(Math.max(drag.left, Math.min(drag.left + drag.width, p.x)))
+                ? snapTarget(
+                      Math.max(
+                          drag.left,
+                          Math.min(drag.left + drag.width, p.x),
+                      ),
+                  )
                 : null;
             drag.current = drag.select
-                ? snap(Math.max(drag.left, Math.min(drag.left + drag.width, p.x)))
+                ? snap(
+                      Math.max(
+                          drag.left,
+                          Math.min(drag.left + drag.width, p.x),
+                      ),
+                  )
                 : p.x;
             if (drag.select) chart.draw();
             else pan();
@@ -322,12 +339,13 @@ export function attachChartInteractions(
                 hi = Math.round(Math.max(at(p.x), at(p.current)));
             snapTooltip.hidden = true;
             const forward = p.current >= p.x;
-            if (hi > lo) callbacks.select(lo, hi, {
-                from: (forward ? p.snapStart : p.snapEnd)?.label,
-                to: (forward ? p.snapEnd : p.snapStart)?.label,
-                fromId: (forward ? p.snapStart : p.snapEnd)?.id,
-                toId: (forward ? p.snapEnd : p.snapStart)?.id,
-            });
+            if (hi > lo)
+                callbacks.select(lo, hi, {
+                    from: (forward ? p.snapStart : p.snapEnd)?.label,
+                    to: (forward ? p.snapEnd : p.snapStart)?.label,
+                    fromId: (forward ? p.snapStart : p.snapEnd)?.id,
+                    toId: (forward ? p.snapEnd : p.snapStart)?.id,
+                });
         } else callbacks.commit("pan");
     }
     function onCancel(event: PointerEvent) {
@@ -414,26 +432,52 @@ export function attachChartInteractions(
         drawSelection() {
             const { ctx, chartArea } = chart;
             const showSnap = controlPressed || drag?.select;
-            const target = showSnap && pointer && inside(pointer)
-                ? snapTarget(pointer.x) : null;
-            snapTooltip.hidden = !target || !!document.querySelector("dialog[open]");
+            const target =
+                showSnap && pointer && inside(pointer)
+                    ? snapTarget(pointer.x)
+                    : null;
+            snapTooltip.hidden =
+                !target || !!document.querySelector("dialog[open]");
             if (target && pointer && !snapTooltip.hidden) {
                 callbacks.describeSnap?.(target);
                 snapTooltip.textContent = target.label;
                 const rect = canvas.getBoundingClientRect();
-                const x = rect.left + chart.scales.x.getPixelForValue(target.timestampMs) * rect.width / chart.width;
-                const y = rect.top + pointer.y * rect.height / chart.height;
+                const x =
+                    rect.left +
+                    (chart.scales.x.getPixelForValue(target.timestampMs) *
+                        rect.width) /
+                        chart.width;
+                const y = rect.top + (pointer.y * rect.height) / chart.height;
                 const box = snapTooltip.getBoundingClientRect();
-                snapTooltip.style.left = Math.max(8, Math.min(x + 14, innerWidth - box.width - 8)) + "px";
-                snapTooltip.style.top = Math.max(8, Math.min(y + 14, innerHeight - box.height - 8)) + "px";
+                snapTooltip.style.left =
+                    Math.max(8, Math.min(x + 14, innerWidth - box.width - 8)) +
+                    "px";
+                snapTooltip.style.top =
+                    Math.max(
+                        8,
+                        Math.min(y + 14, innerHeight - box.height - 8),
+                    ) + "px";
             }
             ctx.save();
-            for (const event of showSnap ? callbacks.snapPoints?.() ?? [] : []) {
-                if (event.timestampMs < chart.scales.x.min || event.timestampMs > chart.scales.x.max) continue;
+            for (const event of showSnap
+                ? (callbacks.snapPoints?.() ?? [])
+                : []) {
+                if (
+                    event.timestampMs < chart.scales.x.min ||
+                    event.timestampMs > chart.scales.x.max
+                )
+                    continue;
                 const active = target?.timestampMs === event.timestampMs;
                 ctx.beginPath();
-                ctx.arc(chart.scales.x.getPixelForValue(event.timestampMs), chartArea.bottom - 8, active ? 7 : 4, 0, Math.PI * 2);
-                ctx.fillStyle = event.type === "program_reset" ? "#d85252" : "#2994dc";
+                ctx.arc(
+                    chart.scales.x.getPixelForValue(event.timestampMs),
+                    chartArea.bottom - 8,
+                    active ? 7 : 4,
+                    0,
+                    Math.PI * 2,
+                );
+                ctx.fillStyle =
+                    event.type === "program_reset" ? "#d85252" : "#2994dc";
                 ctx.fill();
                 ctx.lineWidth = 1.5;
                 ctx.strokeStyle = "#fff";
@@ -441,7 +485,8 @@ export function attachChartInteractions(
             }
             if (target && pointer) {
                 const x = chart.scales.x.getPixelForValue(target.timestampMs);
-                ctx.strokeStyle = target.type === "program_reset" ? "#d85252" : "#2994dc";
+                ctx.strokeStyle =
+                    target.type === "program_reset" ? "#d85252" : "#2994dc";
                 ctx.lineWidth = 1.5;
                 ctx.setLineDash([4, 4]);
                 ctx.beginPath();

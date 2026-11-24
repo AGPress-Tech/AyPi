@@ -270,7 +270,7 @@ Il confronto non distingue maiuscole e minuscole.
 #### Wildcard disponibili
 
 | Simbolo | Significato                                                | Esempio                                             |
-| ------- | ---------------------------------------------------------- | --------------------------------------------------- |
+| ------- | ---------------------------------------------------------- | --------------------------------------------------- | ----- | ---------------------------- |
 | `%`     | Zero o più caratteri                                       | `%1144` trova tutti i codici che contengono `1144`. |
 | `_`     | Un singolo carattere                                       | `T_00` trova `T100`, `TA00`, ecc.                   |
 | `[]`    | Un carattere compreso nell’insieme                         | `[AB]400` trova `A400` e `B400`.                    |

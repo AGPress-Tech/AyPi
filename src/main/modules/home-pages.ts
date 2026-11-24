@@ -17,7 +17,9 @@ export type PageDefinition = {
     calculator?: boolean;
 };
 
-export function createHomePages(MODULE_THEME: "standard" | "bluearchive"): Record<string, PageDefinition> {
+export function createHomePages(
+    MODULE_THEME: "standard" | "bluearchive",
+): Record<string, PageDefinition> {
     const pages: Record<string, PageDefinition> = {
         moduli: {
             title: "Moduli",
@@ -115,7 +117,8 @@ export function createHomePages(MODULE_THEME: "standard" | "bluearchive"): Recor
         articoli: {
             title: "Articoli",
             heading: "Informazioni articoli",
-            description: "Trova rapidamente disegni, cicli e schede di produzione.",
+            description:
+                "Trova rapidamente disegni, cicli e schede di produzione.",
             code: "ART",
             actions: [
                 {
@@ -159,7 +162,8 @@ export function createHomePages(MODULE_THEME: "standard" | "bluearchive"): Recor
         produzioni: {
             title: "Produzioni",
             heading: "Seleziona una produzione",
-            description: "Consulta e aggiorna i registri dei reparti produttivi.",
+            description:
+                "Consulta e aggiorna i registri dei reparti produttivi.",
             code: "PRD",
             actions: [
                 {
@@ -189,7 +193,8 @@ export function createHomePages(MODULE_THEME: "standard" | "bluearchive"): Recor
         calcolatore: {
             title: "Calcolatore",
             heading: "Calcolatore parametri",
-            description: "Calcola numero di giri e avanzamento per le lavorazioni.",
+            description:
+                "Calcola numero di giri e avanzamento per le lavorazioni.",
             code: "CAL",
             calculator: true,
         },
@@ -262,7 +267,8 @@ export function createHomePages(MODULE_THEME: "standard" | "bluearchive"): Recor
             },
             {
                 label: "Analisi commerciali",
-                description: "Venduto per articolo, offerte e analisi per cliente",
+                description:
+                    "Venduto per articolo, offerte e analisi per cliente",
                 channel: "commercial-analysis-open",
                 invoke: true,
             },

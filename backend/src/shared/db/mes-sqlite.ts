@@ -40,7 +40,10 @@ export function getMesSqliteDatabase() {
     return database;
 }
 export function exportMesSqliteSnapshot() {
-    if (!database) return fs.existsSync(backendConfig.mesDatabase.path) ? fs.readFileSync(backendConfig.mesDatabase.path) : null;
+    if (!database)
+        return fs.existsSync(backendConfig.mesDatabase.path)
+            ? fs.readFileSync(backendConfig.mesDatabase.path)
+            : null;
     const bytes = Buffer.from(database.export());
     database.exec("PRAGMA foreign_keys = ON;");
     return bytes;
@@ -50,9 +53,16 @@ export function replaceMesSqliteSnapshot(data: Uint8Array) {
     const next = new sqliteModule.Database(data);
     next.exec("PRAGMA foreign_keys = ON;");
     const temporaryPath = `${backendConfig.mesDatabase.path}.${randomUUID()}.tmp`;
-    try { fs.writeFileSync(temporaryPath, data); fs.renameSync(temporaryPath, backendConfig.mesDatabase.path); }
-    catch (error) { next.close(); if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath); throw error; }
-    database?.close(); database = next;
+    try {
+        fs.writeFileSync(temporaryPath, data);
+        fs.renameSync(temporaryPath, backendConfig.mesDatabase.path);
+    } catch (error) {
+        next.close();
+        if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
+        throw error;
+    }
+    database?.close();
+    database = next;
 }
 
 export function persistMesSqliteDatabase() {

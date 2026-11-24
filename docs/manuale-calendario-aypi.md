@@ -36,8 +36,8 @@ Il modulo permette di:
 
 - **Richieste in attesa**: apre il pannello con le richieste da approvare.
 - **Gestione**: pulsante che apre una finestra con:
-  - Gestione dipendenti
-  - Gestione ore
+    - Gestione dipendenti
+    - Gestione ore
 - **Festività e chiusure**: per configurare giorni festivi e chiusure aziendali.
 - **Esporta ferie/permessi**: esporta dati in Excel.
 
@@ -56,12 +56,12 @@ Nella sezione Nuova richiesta:
 1. **Seleziona reparto**.
 2. **Seleziona dipendente**.
 3. **Scegli il tipo**:
-   - Ferie
-   - Permesso
-   - Permesso Retribuito
-   - Straordinari
-   - Mutua
-   - Permesso Chiusura Aziendale
+    - Ferie
+    - Permesso
+    - Permesso Retribuito
+    - Straordinari
+    - Mutua
+    - Permesso Chiusura Aziendale
 4. **Imposta date e orari**.
 5. (Opzionale) **Aggiungi note**.
 6. **Salva**.
@@ -122,8 +122,8 @@ Clicca sul pulsante **Gestione**:
 
 - Richiede password admin solo la prima volta.
 - Si apre una finestra con due opzioni:
-  - **Gestione dipendenti**
-  - **Gestione ore**
+    - **Gestione dipendenti**
+    - **Gestione ore**
 
 ### 6.1 Gestione dipendenti
 

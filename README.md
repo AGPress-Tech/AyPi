@@ -24,6 +24,7 @@ Le tabelle delle analisi supportano [ordinamenti multipli](docs/ordinamento-anal
 `npm run dist:backend` ricompila backend e applicazione tray dai sorgenti attuali, rimuove i vecchi output e controlla la corrispondenza dei compilati prima di creare l’installer privato. Nuovi moduli e modifiche al progetto non richiedono aggiornamenti dei manifest storici. `npm run verify:backend:build` ripete la verifica corrente; `npm run verify:backend:baseline` rimane un confronto facoltativo con la release congelata e può segnalare le differenze introdotte dalle nuove funzionalità.
 
 Al momento supporta in 7 pagine di navigazione, **Moduli**, **Programmi**, **Articoli**, **Produzioni**, **Robot**, **Calcolatore** e **Utilities**, con i seguenti moduli:<br/>
+
 <ul>
 <li><b>Gestione Manutenzioni</b></li>
 <li><b>Valutazione Fornitori</b></li>

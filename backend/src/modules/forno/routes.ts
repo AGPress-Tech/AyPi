@@ -82,12 +82,25 @@ export function registerFornoRoutes(router: Router) {
             sendJson(response, 200, await listFornoPrograms());
         },
     );
-    router.register("GET", "/api/forno/phase-info", async (request, response) => {
-        const eventId = Number(new URL(request.url || "/", "http://localhost").searchParams.get("eventId"));
-        if (!Number.isSafeInteger(eventId) || eventId < 1)
-            throw badRequest("Evento fase non valido");
-        sendJson(response, 200, await fornoRequest("phase_info", { eventId }));
-    });
+    router.register(
+        "GET",
+        "/api/forno/phase-info",
+        async (request, response) => {
+            const eventId = Number(
+                new URL(
+                    request.url || "/",
+                    "http://localhost",
+                ).searchParams.get("eventId"),
+            );
+            if (!Number.isSafeInteger(eventId) || eventId < 1)
+                throw badRequest("Evento fase non valido");
+            sendJson(
+                response,
+                200,
+                await fornoRequest("phase_info", { eventId }),
+            );
+        },
+    );
     router.register("GET", "/api/forno/messages", async (request, response) => {
         const q = new URL(request.url || "/", "http://localhost").searchParams,
             fromMs = Number(q.get("fromMs")),
