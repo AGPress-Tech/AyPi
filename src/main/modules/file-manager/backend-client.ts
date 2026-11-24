@@ -98,11 +98,11 @@ function requestAypiBackendRaw(
                         return;
                     }
                     reject(
-                        new Error(
+                        Object.assign(new Error(
                             `Backend ${method} ${url.pathname} failed (${statusCode}): ${
                                 parsed?.error || raw || "Errore sconosciuto"
                             }`,
-                        ),
+                        ), { backendMessage: parsed?.error, details: parsed?.details, statusCode }),
                     );
                 });
             },

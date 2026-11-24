@@ -55,12 +55,28 @@ export function getSqliteDatabase() {
     }
     return database;
 }
+export function openSqliteSnapshot(data: Uint8Array) {
+    if (!sqliteModule) throw Error("SQLite non inizializzato.");
+    return new sqliteModule.Database(data);
+}
+export function exportSqliteSnapshot() {
+    const bytes = Buffer.from(getSqliteDatabase().export());
+    getSqliteDatabase().exec("PRAGMA foreign_keys = ON;");
+    return bytes;
+}
+export function replaceSqliteSnapshot(data: Uint8Array) {
+    const next = openSqliteSnapshot(data);
+    next.exec("PRAGMA foreign_keys = ON;");
+    try { replaceFileAtomic(getDatabasePath(), Buffer.from(data)); }
+    catch (error) { next.close(); throw error; }
+    database?.close(); database = next;
+}
 
 export function persistSqliteDatabase() {
     const db = getSqliteDatabase();
     const dbPath = getDatabasePath();
     ensureFolderFor(dbPath);
-    const buffer = Buffer.from(db.export());
+    const buffer = exportSqliteSnapshot();
     replaceFileAtomic(dbPath, buffer);
 }
 

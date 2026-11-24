@@ -1,5 +1,6 @@
 import { createHomePages, PageDefinition } from "../../main/modules/home-pages";
 import { setupWorkstations } from "./workstations";
+import { setupBackups } from "./backups";
 import { gestureForDialogue } from "../modules/assistant-3d-motion";
 import { mount3DAssistant, NOZOMI_ANIMATIONS } from "../modules/assistant-3d";
 import { installAddinFunction } from "../modules/utils";
@@ -1693,6 +1694,7 @@ document.getElementById("menuWebsite")?.addEventListener("click", () => {
 });
 
 const managementIpc = require("electron").ipcRenderer;
+setupBackups();
 const stations = setupWorkstations(() => {
     if (footerClock) {
         footerClock.hidden = stations.access("open-timer-window") === "hidden";

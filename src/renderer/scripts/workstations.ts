@@ -158,6 +158,7 @@ export function setupWorkstations(onChange: () => void) {
     }
     document.getElementById("menuWorkstation")!.addEventListener("click", open);
     ipc.on("workstations-changed", (_event: unknown, snapshot: any) => accept(snapshot));
+    ipc.on("backups-restored", () => ipc.invoke("workstations-get").then(accept));
     ipc.on("admin-state-changed", (_event: unknown, state: any) => updateAdmin(!!state.enabled));
     ipc.on("workstation-access-denied", (_event: unknown, message: string) => window.alert(message));
     ipc.invoke("admin-is-enabled").then(updateAdmin);

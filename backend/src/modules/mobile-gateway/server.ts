@@ -287,7 +287,7 @@ function registerMobileRoutes(router: Router) {
                     },
                     holidays: true,
                     closures: true,
-                    backups: true,
+                    backups: false,
                 },
             });
         },

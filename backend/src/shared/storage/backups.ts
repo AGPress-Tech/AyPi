@@ -11,6 +11,8 @@ type CreateDirectoryBackupOptions = {
     prefix: string;
     limit?: number;
     exclude?: (name: string, fullPath: string) => boolean;
+    prepare?: (targetDir: string) => void;
+    protected?: boolean;
 };
 
 type CreateDailyDirectoryBackupOptions = CreateDirectoryBackupOptions & {
@@ -40,6 +42,7 @@ export function copyDirectory(
         const srcPath = path.join(sourceDir, entry.name);
         const dstPath = path.join(targetDir, entry.name);
         if (options.exclude?.(entry.name, srcPath)) return;
+        if (entry.isSymbolicLink()) throw Error("Collegamenti non consentiti nelle copie di backup.");
         if (entry.isDirectory()) {
             copyDirectory(srcPath, dstPath, options);
             return;
@@ -80,11 +83,16 @@ function formatBackupDay(date: Date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
+export const ORDINARY_BACKUP_LIMIT = 3;
+export const PROTECTED_BACKUP_MARKER = "AYPI_BACKUP_PROTECTED.json";
+export function isProtectedBackup(root: string, name: string) {
+    return /^(?:safety-|protected-|pre-restore-)/i.test(name) || fs.existsSync(path.join(resolveBackupDir(root, name), PROTECTED_BACKUP_MARKER));
+}
 export function listBackups(backupRootDir: string) {
     if (!fs.existsSync(backupRootDir)) return [];
     return fs
         .readdirSync(backupRootDir, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
+        .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && !entry.name.startsWith(".pending-") && !fs.existsSync(path.join(backupRootDir, entry.name, ".incomplete")))
         .map((entry) => {
             const fullPath = path.join(backupRootDir, entry.name);
             let mtimeMs = 0;
@@ -96,17 +104,18 @@ export function listBackups(backupRootDir: string) {
             return {
                 name: entry.name,
                 mtimeMs,
+                protected: isProtectedBackup(backupRootDir, entry.name),
             };
         })
         .sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
-function pruneOldBackups(backupRootDir: string, limit = 30) {
-    if (limit <= 0) return;
+export function pruneOldBackups(backupRootDir: string, _limit = ORDINARY_BACKUP_LIMIT) {
     listBackups(backupRootDir)
-        .slice(limit)
+        .filter(entry => !entry.protected && /^(?:auto|manual)-/.test(entry.name))
+        .slice(ORDINARY_BACKUP_LIMIT)
         .forEach((entry) => {
-            fs.rmSync(path.join(backupRootDir, entry.name), {
+            fs.rmSync(resolveBackupDir(backupRootDir, entry.name), {
                 recursive: true,
                 force: true,
             });
@@ -114,6 +123,7 @@ function pruneOldBackups(backupRootDir: string, limit = 30) {
 }
 
 function allocateBackupDir(backupRootDir: string, prefix: string) {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(prefix)) throw Error("Prefisso backup non valido.");
     ensureDir(backupRootDir);
     const stamp = formatBackupTimestamp(new Date());
     let targetDir = path.join(backupRootDir, `${prefix}-${stamp}`);
@@ -127,13 +137,24 @@ function allocateBackupDir(backupRootDir: string, prefix: string) {
 }
 
 export function createDirectoryBackup(options: CreateDirectoryBackupOptions) {
-    const limit = Number.isFinite(options.limit) ? Number(options.limit) : 30;
+    const limit = ORDINARY_BACKUP_LIMIT;
     if (!fs.existsSync(options.sourceDir)) return null;
+    if (path.resolve(options.backupRootDir) === path.resolve(options.sourceDir) || path.resolve(options.backupRootDir).startsWith(path.resolve(options.sourceDir) + path.sep)) throw Error("La cartella backup deve essere esterna ai dati da copiare.");
     const targetDir = allocateBackupDir(options.backupRootDir, options.prefix);
-    copyDirectory(options.sourceDir, targetDir, {
-        exclude: options.exclude,
-    });
-    pruneOldBackups(options.backupRootDir, limit);
+    if (options.protected) fs.writeFileSync(path.join(targetDir, PROTECTED_BACKUP_MARKER), JSON.stringify({ protected: true, createdAt: new Date().toISOString(), retention: "manual-only" }));
+    // Incomplete copies cannot be offered as a successful backup.
+    fs.writeFileSync(path.join(targetDir, ".incomplete"), "Backup in corso");
+    try {
+        copyDirectory(options.sourceDir, targetDir, { exclude: options.exclude });
+        options.prepare?.(targetDir);
+        fs.unlinkSync(path.join(targetDir, ".incomplete"));
+    } catch (error) {
+        // A failed ordinary copy is not a backup. Protected partial copies stay
+        // on the server for manual inspection and are never removed here.
+        if (!options.protected) { try { fs.rmSync(targetDir, { recursive: true, force: true }); } catch {} }
+        throw error;
+    }
+    if (!options.protected) pruneOldBackups(options.backupRootDir, limit);
     return {
         name: path.basename(targetDir),
         path: targetDir,
@@ -159,6 +180,7 @@ export function createDailyDirectoryBackup(
         String(entry.name || "").startsWith(backupPrefix),
     );
     if (existing) {
+        pruneOldBackups(options.backupRootDir);
         return {
             name: existing.name,
             path: path.join(options.backupRootDir, existing.name),
@@ -169,7 +191,7 @@ export function createDailyDirectoryBackup(
 }
 
 export function createFileBackup(options: CreateFileBackupOptions) {
-    const limit = Number.isFinite(options.limit) ? Number(options.limit) : 30;
+    const limit = ORDINARY_BACKUP_LIMIT;
     if (!fs.existsSync(options.sourceFile)) return null;
     const targetDir = allocateBackupDir(options.backupRootDir, options.prefix);
     const fileName =
@@ -185,5 +207,10 @@ export function createFileBackup(options: CreateFileBackupOptions) {
 }
 
 export function resolveBackupDir(backupRootDir: string, name: string) {
-    return path.join(backupRootDir, String(name || "").trim());
+    const value = String(name || "");
+    if (!value || value !== value.trim() || value === "." || value === ".." || /[\\/:\x00]/.test(value)) throw Error("Nome backup non valido.");
+    const root = path.resolve(backupRootDir), resolved = path.resolve(root, value);
+    if (path.dirname(resolved) !== root) throw Error("Backup fuori dalla cartella prevista.");
+    if (fs.existsSync(resolved) && fs.lstatSync(resolved).isSymbolicLink()) throw Error("Collegamento backup non consentito.");
+    return resolved;
 }

@@ -1,4 +1,6 @@
 import {registerToolingRoutes} from '../modules/tooling/routes';
+import { registerBackupRoutes } from "../modules/backups/routes";
+import { isBackupRecoveryRequired } from "../shared/ops/maintenance";
 import {registerSupplierEvaluationRoutes} from '../modules/supplier-evaluation/routes';
 import {registerProcessingCyclesRoutes} from '../modules/processing-cycles/routes';
 import { registerFornoRoutes } from "../modules/forno/routes";
@@ -23,6 +25,7 @@ import { backendConfig } from "../config";
 import { getTelegramBotServiceStatus } from "../modules/telegram-bot/service";
 
 export function registerRoutes(router: Router) {
+    registerBackupRoutes(router);
     registerMaintenanceRoutes(router);
     registerMeasurementRoutes(router);
     registerToolingRoutes(router);
@@ -32,6 +35,7 @@ export function registerRoutes(router: Router) {
         sendJson(res, 200, {
             ok: true,
             service: "aypi-backend",
+            backupRecoveryRequired: isBackupRecoveryRequired(),
             modules: [
                 "maintenance",
                 "ferie-permessi",

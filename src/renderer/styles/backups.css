@@ -1,0 +1,25 @@
+#menuBackups[hidden] { display: none !important; }
+.backups-dialog { max-height: calc(100vh - 40px); overflow: hidden; }
+.backup-body { overflow: auto; min-height: 0; padding: 3px; display: flex; flex-direction: column; gap: 12px; }
+.backup-body > * { flex-shrink: 0; }
+.backups-dialog header, .backups-dialog footer { flex-shrink: 0; }
+.backups-dialog p { line-height: 1.45; }
+.backups-dialog fieldset { border: 0; padding: 3px; margin: 0; min-width: 0; }
+.backup-toolbar { display: flex; align-items: end; gap: 8px; margin-bottom: 12px; }
+.backup-toolbar label { min-width: 0; flex: 1; }
+.backup-toolbar select { width: 100%; text-overflow: ellipsis; }
+.backups-dialog .backup-scope { display: flex; gap: 20px; margin-bottom: 12px; }
+.backups-dialog .backup-scope label, .backups-dialog .backup-modules label, .backups-dialog .backup-check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.backup-modules { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px 16px; padding: 10px 4px; max-height: 240px; overflow: auto; border-block: 1px solid var(--line); margin-bottom: 12px; }
+.backups-dialog input[type=checkbox], .backups-dialog input[type=radio] { min-height: 16px; height: 16px; width: 16px; flex: none; padding: 0; accent-color: var(--blue); }
+.backup-modules .unavailable { opacity: .6; }
+.backups-dialog #backupPreview { margin-top: 10px; }
+.backups-dialog #backupCreate, .backups-dialog #backupPreview { border-color: var(--blue); color: var(--blue); }
+.backup-preview { padding: 14px; display: grid; gap: 10px; border: 1px solid #ba6a22; border-radius: 9px; background: color-mix(in srgb, #e39b46 8%, var(--white)); }
+.backup-preview h3 { margin: 0; }
+.backup-preview input[type=text], #backupConfirmation { max-width: 340px; }
+#backupRestore { justify-self: start; border-color: #a64126; color: #a64126; }
+.backup-path { overflow-wrap: anywhere; }
+.backup-recovery { border: 1px solid #a64126; padding: 10px; border-radius: 8px; color: #8a3020; }
+.backups-dialog [data-status] { overflow-wrap: anywhere; line-height: 1.4; }
+@media(max-width:1060px) { .backup-modules { grid-template-columns: repeat(2,minmax(0,1fr)); max-height: 180px; } .backups-dialog { font-size: 13px; } }

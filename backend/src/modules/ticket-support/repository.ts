@@ -2,15 +2,10 @@ import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
 import {
-    ensureDir,
-    replaceDirectoryContents,
-} from "../../shared/storage/backups";
-import {
     backupContains,
     createAgpressBackup,
     ensureAgpressDailyBackup,
     listAgpressBackups,
-    resolveAgpressBackupDir,
 } from "../../shared/storage/agpress-backups";
 import {
     getSqliteDatabase,
@@ -263,20 +258,6 @@ export function createTicketBackup(limit = 10) {
     return ensureTicketBackup("manual-ticket", limit);
 }
 
-export function restoreTicketBackup(name: string) {
-    const safeName = String(name || "").trim();
-    if (!safeName) {
-        throw new Error("Backup name missing");
-    }
-    const backupDir = resolveAgpressBackupDir(safeName);
-    const dbInBackup = path.join(backupDir, DB_RELATIVE_PATH);
-    if (!fs.existsSync(dbInBackup)) {
-        throw new Error("Backup not found");
-    }
-    ensureDir(path.dirname(backendConfig.database.path));
-    fs.copyFileSync(dbInBackup, backendConfig.database.path);
-    return {
-        ok: true,
-        restored: safeName,
-    };
+export function restoreTicketBackup(name: string): { ok: boolean; restored: string } {
+    throw new Error("Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.");
 }

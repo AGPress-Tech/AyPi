@@ -1,4 +1,7 @@
 import {initializeSupplierEvaluation} from './modules/supplier-evaluation/service';
+import { initializeBackupRecovery } from "./modules/backups/service";
+import { ensureAgpressDailyBackup } from "./shared/storage/agpress-backups";
+import { assertServiceAvailable, isBackupRecoveryRequired } from "./shared/ops/maintenance";
 import { startFornoService, stopFornoService } from "./modules/forno/service";
 import { analyticsService } from "./modules/analytics/service";
 import { initializeMaintenanceArchive } from "./modules/maintenance/bootstrap";
@@ -205,6 +208,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
     return new Promise((resolve, reject) => {
         const server = createBackendServer(ready);
         let mobileGateway: MobileGatewayHandle | null = null;
+        let dailyBackupTimer: ReturnType<typeof setInterval> | null = null;
         const host = backendConfig.host;
         const port = backendConfig.port;
         const url = buildBackendUrl();
@@ -224,19 +228,29 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 normalizeAgpressLayout();
                 await initializeSqliteDatabase();
                 await initializeMesSqliteDatabase();
-                initializeSharedSqliteStore();
-                try { initializeMaintenanceArchive(); }
-                catch (error) { logger.error("Maintenance initialization failed", {module:"maintenance",event:"maintenance_initialization_failed",detail:error instanceof Error?error.message:String(error)}); }
-                initializeFeriePermessiSqliteStore();
-                initializeProductManagerSqliteStore();
-                initializeTicketSupportSqliteStore();
-                try { initializeSupplierEvaluation(); } catch (error) { logger.error("Supplier evaluation initialization failed", {module:"supplier-evaluation", detail:error instanceof Error?error.message:String(error)}); }
-                initializeTransferSqliteStore();
-                initializeHaasSqliteStore();
-                initializeProductionPlannerSqliteStore();
-                initializeWarehouseInventorySqliteStore();
-                initializeMesSqliteStore();
-                migrateLegacyMesStorage();
+                initializeBackupRecovery();
+                if (!isBackupRecoveryRequired()) {
+                    initializeSharedSqliteStore();
+                    try { initializeMaintenanceArchive(); }
+                    catch (error) { logger.error("Maintenance initialization failed", {module:"maintenance",event:"maintenance_initialization_failed",detail:error instanceof Error?error.message:String(error)}); }
+                    initializeFeriePermessiSqliteStore();
+                    initializeProductManagerSqliteStore();
+                    initializeTicketSupportSqliteStore();
+                    try { initializeSupplierEvaluation(); } catch (error) { logger.error("Supplier evaluation initialization failed", {module:"supplier-evaluation", detail:error instanceof Error?error.message:String(error)}); }
+                    initializeTransferSqliteStore();
+                    initializeHaasSqliteStore();
+                    initializeProductionPlannerSqliteStore();
+                    initializeWarehouseInventorySqliteStore();
+                    initializeMesSqliteStore();
+                    migrateLegacyMesStorage();
+                }
+                const runDailyBackup = () => {
+                    try { assertServiceAvailable(); ensureAgpressDailyBackup(); }
+                    catch (error) { logger.warn("Backup automatico non eseguito", { module: "core", detail: String(error) }); }
+                };
+                runDailyBackup();
+                dailyBackupTimer = setInterval(runDailyBackup, 60 * 60 * 1000);
+                dailyBackupTimer.unref();
                 try {
                     mobileGateway = await startMobileGatewayServer();
                 } catch (error) {
@@ -253,7 +267,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                                 : String(error),
                     });
                 }
-                void startFornoService().catch((error) => {
+                if (!isBackupRecoveryRequired()) void startFornoService().catch((error) => {
                     logger.error("Forno acquisition unavailable", {
                         module: "core",
                         detail: String(error),
@@ -288,6 +302,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                     server,
                     stop: () =>
                         new Promise<void>((stopResolve, stopReject) => {
+                            clearInterval(dailyBackupTimer);
                             releaseProductionPlannerWaiters();
                             closeRealtimeHub(server);
                             closeFornoLive(server);
@@ -321,6 +336,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                         }),
                 });
             } catch (error) {
+                if (dailyBackupTimer) clearInterval(dailyBackupTimer);
                 rejectReady(error);
                 void stopFornoService();
                 closeRealtimeHub(server);

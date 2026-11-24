@@ -2,16 +2,9 @@ import fs from "fs";
 import path from "path";
 import { backendConfig } from "../../config";
 import {
-    createFileBackup,
-    ensureDir,
-    replaceDirectoryContents,
-} from "../../shared/storage/backups";
-import {
     createAgpressBackup,
     ensureAgpressDailyBackup,
-    getAgpressBackupRootDir,
     listAgpressBackups,
-    resolveAgpressBackupDir,
 } from "../../shared/storage/agpress-backups";
 import {
     getSqliteDatabase,
@@ -22,7 +15,6 @@ import { loadAssigneeOptions } from "../shared/repository";
 import type { FpPayload, RequestLike } from "./types";
 import type { AssigneesPayload } from "./types";
 
-const FERIE_BACKUP_ROOT_DIR = getAgpressBackupRootDir();
 const FP_REQUESTS_TABLE = "fp_requests";
 const FP_BALANCES_TABLE = "fp_balances";
 const FP_HOLIDAYS_TABLE = "fp_holidays";
@@ -229,50 +221,12 @@ export function listFeriePermessiBackups() {
 }
 
 export function createFeriePermessiBackup(mode: "calendar" | "full" = "full") {
-    const isFull = mode === "full";
-    if (isFull) {
-        return createAgpressBackup("manual-full", 30);
-    }
-    return createFileBackup({
-        sourceFile: getDatabasePath(),
-        backupRootDir: FERIE_BACKUP_ROOT_DIR,
-        prefix: "manual-calendar",
-        limit: 30,
-        backupFileName: path.join("General", "data", "aypi.db"),
-    });
+    return createAgpressBackup(mode === "full" ? "manual-full" : "manual-calendar", 3);
 }
 
 export function restoreFeriePermessiBackup(
     name: string,
     mode: "calendar" | "full" = "calendar",
 ) {
-    const sourceDir = resolveAgpressBackupDir(name);
-    if (!fs.existsSync(sourceDir)) {
-        throw new Error("Backup not found");
-    }
-    if (mode === "full") {
-        const dbInBackup = path.join(sourceDir, "General", "data", "aypi.db");
-        if (!fs.existsSync(dbInBackup)) {
-            throw new Error(
-                "Il backup selezionato non contiene un database AyPi",
-            );
-        }
-        replaceDirectoryContents(
-            sourceDir,
-            backendConfig.modules.feriePermessi.baseDir,
-        );
-        return { ok: true, restored: name, mode };
-    }
-    const dbInBackup = fs.existsSync(
-        path.join(sourceDir, "General", "data", "aypi.db"),
-    )
-        ? path.join(sourceDir, "General", "data", "aypi.db")
-        : path.join(sourceDir, "aypi.db");
-    if (!fs.existsSync(dbInBackup)) {
-        throw new Error("Nel backup selezionato non esiste il database SQLite");
-    }
-    const dbPath = getDatabasePath();
-    ensureDir(path.dirname(dbPath));
-    fs.copyFileSync(dbInBackup, dbPath);
-    return { ok: true, restored: name, mode };
+    throw new Error("Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.");
 }

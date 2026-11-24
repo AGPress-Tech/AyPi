@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { notFound } from "./errors";
+import { notFound, forbidden } from "./errors";
 import { sendError } from "./response";
+import { enterBackendRequest } from "../ops/maintenance";
 
 type RouteHandler = (
     request: IncomingMessage,
@@ -44,6 +45,7 @@ export class Router {
         const method = (request.method || "GET").toUpperCase();
         const url = new URL(request.url || "/", "http://localhost");
         const pathname = url.pathname;
+        if (/^\/api\/(?:ferie-permessi|product-manager|ticket-support)\/backups(?:\/|$)/.test(pathname)) throw forbidden("Usa Backups nel menu principale AyPi, dopo F2 e password amministratore.");
 
         for (const route of this.routes) {
             if (route.method !== method) continue;
@@ -58,7 +60,9 @@ export class Router {
                 },
                 {},
             );
-            await route.handler(request, response, params);
+            const release = enterBackendRequest(pathname);
+            try { await route.handler(request, response, params); }
+            finally { release(); }
             return true;
         }
 

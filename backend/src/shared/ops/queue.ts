@@ -1,3 +1,4 @@
+import { assertServiceAvailable } from "./maintenance";
 export function createOperationQueue(_scope: string) {
     let tail: Promise<unknown> = Promise.resolve();
 
@@ -5,7 +6,8 @@ export function createOperationQueue(_scope: string) {
         _operationName: string,
         run: () => T | Promise<T>,
     ) {
-        const task = tail.then(run, run);
+        const guarded = () => { assertServiceAvailable(); return run(); };
+        const task = tail.then(guarded, guarded);
         tail = task.then(
             () => undefined,
             () => undefined,

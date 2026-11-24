@@ -4,16 +4,10 @@ import path from "path";
 import { backendConfig } from "../../config";
 import { ensureFolderFor } from "../../shared/storage/json-files";
 import {
-    copyDirectory,
-    ensureDir,
-    replaceDirectoryContents,
-} from "../../shared/storage/backups";
-import {
     backupContains,
     createAgpressBackup,
     ensureAgpressDailyBackup,
     listAgpressBackups,
-    resolveAgpressBackupDir,
 } from "../../shared/storage/agpress-backups";
 import {
     getSqliteDatabase,
@@ -293,28 +287,6 @@ export function createProductManagerBackup(limit = 10) {
     return ensureProductManagerBackup("manual-purchasing", limit);
 }
 
-export function restoreProductManagerBackup(name: string) {
-    const safeName = String(name || "").trim();
-    if (!safeName) {
-        throw new Error("Backup name missing");
-    }
-    const backupDir = resolveAgpressBackupDir(safeName);
-    const dbInBackup = path.join(backupDir, DB_RELATIVE_PATH);
-    if (!fs.existsSync(dbInBackup)) {
-        throw new Error("Backup not found");
-    }
-    ensureDir(path.dirname(backendConfig.database.path));
-    fs.copyFileSync(dbInBackup, backendConfig.database.path);
-    const productsBackupDir = path.join(
-        backupDir,
-        "AyPi Purchasing",
-        "products",
-    );
-    if (fs.existsSync(productsBackupDir)) {
-        replaceDirectoryContents(productsBackupDir, PRODUCTS_DIR);
-    }
-    return {
-        ok: true,
-        restored: safeName,
-    };
+export function restoreProductManagerBackup(name: string): { ok: boolean; restored: string } {
+    throw new Error("Il ripristino ? disponibile solo da Backups nel menu principale, con F2 e password amministratore.");
 }

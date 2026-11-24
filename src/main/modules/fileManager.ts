@@ -42,6 +42,7 @@ import { registerMeasurementIpc } from "./measurement-instruments/ipc";
 import { registerMaintenanceIpc } from "./maintenance/ipc";
 import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
 import { registerWorkstations, canAccessStationEntry } from "./workstations";
+import { registerBackupsIpc } from "./backups-ipc";
 import { registerManagementIpc } from "./management/ipc";
 import { registerArticleOrdersIpc } from "./article-orders/ipc";
 import { registerTurningAnalysisIpc } from "./turning-analysis/ipc";
@@ -2553,6 +2554,7 @@ function setupFileManager(mainWindow) {
     });
     const management = registerManagementIpc(mainWindow, adminState.canAccessManagement, getInterfaceIconPath, {getCredential:adminState.getManagementCredential,getBackendUrl:resolveAypiBackendBaseUrl});
     registerWorkstations(mainWindow, adminState.canAccessManagement, { getCredential: adminState.getManagementCredential });
+    registerBackupsIpc(mainWindow, adminState.getManagementCredential);
     registerAnalysisNavigation(mainWindow,getInterfaceIconPath);
     registerArticleOrdersIpc(mainWindow,getInterfaceIconPath);
     registerTurningAnalysisIpc(mainWindow,getInterfaceIconPath);
